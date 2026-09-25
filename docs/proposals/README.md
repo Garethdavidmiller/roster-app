@@ -838,6 +838,86 @@ the on-grid table at 33.8, with 15 one-turn weeks and 8 of 16 times today's; the
 it the same day, re-annealed in both modes with the same result — fatigue-first clears every factor on
 all four seeds, like-today keeps one or two.)
 
+## Pinned Turns 2 — the same pins, every other time on the quarter hour (25 Sep 2026)
+
+The owner's second question of the day, after reading *Pinned Turns*' fit: *what if you can rewrite the
+rest of the times apart from the pinned turns — but they must start and finish on non-confusing times;
+follow the rest of the rules; deepest, maximum-effort search.*
+
+**How it was read.** The pins stand exactly as briefed and are the only times the search may not touch.
+"Non-confusing" is read as the **quarter hour**: every other duty starts and finishes on :00, :15, :30
+or :45, or at the window's own instant (06:20 open, 23:55 close; 07:15 and 23:25 on a Sunday). The one
+further time allowed is the owner's own pinned turn **06:20–14:20**, which any day may use as an opener —
+a time the brief itself set cannot be a confusing one. **Familiarity is not a criterion**: *Pinned Turns*
+kept 07:00–15:40, 06:20–14:50 and 14:45–23:25 because people work them today; this sheet keeps nothing
+for that reason, and the pick is demand fit, then fewer distinct turns, then fewer distinct starts and
+finishes. Every other rule is *Pinned Turns*': four at the open, three through to the close (four on a
+Saturday), exactly five on after 22:00 Monday to Saturday, 7h–8h40, nothing finishing in the hour
+before the close unless it closes, an evening finish only when the ticket office does, the thinnest
+fully-covered hour never below today's.
+
+**The one time off the grid is arithmetic, not taste.** Five weekdays and a Saturday pay exactly 42,000
+minutes (20 lines × 35h). On a pure quarter-hour grid every opener from 06:20 and every closer to 23:55
+is ten minutes off a multiple of fifteen, and every middle turn is a multiple — so a weekday pays
+10 mod 15, a Saturday 5 mod 15, and **no pair (W, S) balances; the contract is unreachable**. *Pinned
+Turns* balanced it with today's 07:00–15:40. Here one Saturday opener on the pinned 06:20–14:20 (8h00,
+a multiple of fifteen where the quarter-hour openers are not) takes the Saturday to 10 mod 15 and closes
+it. That is why the pinned turn is in the pool, and why the Saturday table has exactly one of them.
+
+**The search** (`tooling/quarter-table.mjs`) is **exhaustive on every day, with a proof**, where
+*Pinned Turns*' was a sample over the whole pool. Every opener multiset × every closer multiset × every
+middle multiset paying the exact remainder is enumerated, with a branch-and-bound on the fit: an hour
+already over its traffic share can only get further over as duties are added, so the squared gaps of
+the over-covered hours are a lower bound on the finished fit, and a partial table whose bound already
+beats the incumbent is abandoned. A simulated anneal with restarts supplies the incumbent first and is
+the calibration — on every day it reached the enumerated optimum on every restart:
+
+| Day | opener × closer sets | feasible tables (every one scored) | anneal restarts at the optimum | best fit |
+|---|---|---|---|---|
+| Weekday (6,970) | 8 × 1 | 741,722 | 6 of 6 | **33.8** |
+| Saturday (7,150) | 215 × 210 = 45,150 | 1,654,421 | 8 of 8 | **21.3** |
+| Sunday (5,100–5,145) | 210 × 84 = 17,640 | 2,561 | 6 of 6 | **62.4** |
+
+**The split was searched too**, as *Pinned Turns*' was, and this time every point is a proof rather than
+a sample. The grid can pay a weekday at 10 mod 15 (a quarter-hour fourth opener) or 0 mod 15 (the fourth
+opener on 06:20–14:20); every such W from 6,940 to 7,000 was solved, S = 42,000 − 5W, and the pair with
+the lowest 5 × weekday fit + Saturday fit kept:
+
+| W (weekday) | S (Saturday) | weekday fit | Saturday fit | 5 × wk + sat |
+|---|---|---|---|---|
+| 6,940 | 7,300 | 31.8 | — no Saturday pays it (the cap allows 7,220) | — |
+| 6,945 | 7,275 | 32.4 | — | — |
+| 6,955 | 7,225 | 32.8 | — | — |
+| 6,960 | 7,200 | 33.1 | — proven: none (two 06:20–14:20 openers are needed for the arithmetic, and then no five middles reach the remainder) | — |
+| **6,970** | **7,150** | **33.8** | **21.3** | **190.3** |
+| 6,975 | 7,125 | — no weekday pays it (five middles would average over 8h30) | 20.2 | — |
+| 6,985 | 7,075 | 35.0 | 17.6 | 192.6 |
+| 6,990 | 7,050 | — | 16.7 | — |
+| 7,000 | 7,000 | 36.2 | 14.7 | 195.7 |
+
+The weekday wants to pay less and Saturday wants to pay more, and the contract lets neither: the three
+feasible splits sit within five points and 6,970 / 7,150 — *Pinned Turns*' own split — stands at the
+top. The tables, beside *Pinned Turns*':
+
+| Day | table | fit | *Pinned Turns*' | today's | new turns |
+|---|---|---|---|---|---|
+| Weekday (6,970) | `06:20-14:20 ×3 · 06:20-14:30 ×1 · 07:00-15:30 ×3 · 13:30-22:00 ×2 · 14:00-22:30 ×2 · 15:45-23:55 ×3` | **33.8** | 32.1 | 50.0–55.8 | 06:20-14:30, 07:00-15:30, 15:45-23:55 |
+| Saturday (7,150) | `06:20-14:20 ×1 · 06:20-14:45 ×2 · 06:20-15:00 ×1 · 07:00-15:30 ×2 · 08:15-16:45 ×1 · 09:30-18:00 ×1 · 12:30-21:00 ×1 · 14:00-22:30 ×1 · 15:15-23:55 ×4` | **21.3** | 23.4 | 45.7 | 06:20-14:45, 06:20-15:00, 07:00-15:30, 08:15-16:45, 09:30-18:00, 12:30-21:00 |
+| Sunday (5,100) | `07:15-15:15 ×1 · 07:15-15:45 ×3 · 09:15-17:45 ×1 · 13:00-21:30 ×2 · 14:45-23:25 ×3` | **62.4** | 62.4 | 65.9 | 07:15-15:15, 09:15-17:45, 13:00-21:30, 14:45-23:25 |
+
+**What the grid cost and bought.** The weekday gives back 1.7 of fit — *Pinned Turns*' 07:00–15:40 was
+worth exactly that, and it is the one weekday time that sheet has off the quarter hour. Saturday gains
+2.1, because 06:20–14:45 and 06:20–15:00 openers spread the morning where four 06:20–14:50 stacked it.
+Sunday is the same table: *Pinned Turns*' Sunday was already on the quarter hour, and the enumeration
+shows nothing on the grid beats it under the 13:00–21:30 pin. **Saturday with fewer turns**: the best-fit
+Saturday has nine distinct turns; seven reach 22.9 (`06:20-14:20 ×1 · 06:20-15:00 ×3 · 07:00-15:30 ×2 ·
+09:15-17:45 ×2 · 13:00-21:00 ×1 · 14:00-22:30 ×1 · 15:15-23:55 ×4`), still better than *Pinned Turns*'
+23.4, and six reach 26.2. The sheet ships the best fit, as asked, and states the seven-turn table on its
+page 7 — that is a fit-for-simplicity trade for the room, not the search. Every alternative at each
+turn count is in `tooling/p2-sat.txt`.
+
+ROTATION-TBD
+
 ## The shape of a sheet — headline, how to read it, then the depth (25 Sep 2026)
 
 The owner's brief for the format: *headline analysis, deep analysis, but for dummies.* Ten pages now,
@@ -912,6 +992,11 @@ CLS=weekday TOTAL=6990 node brief-table.mjs   # Pinned Turns: a day to the owner
 PIN_WK="06:20-14:20x3,14:00-22:30x2,15:45-23:55x3" PIN_SAT="14:00-22:30x1" PIN_SUN="13:00-21:30x1" CAP=520 node assemble-table.mjs pinned-turns-table.json pt-weekday.json pt-sat.json pt-sun.json
 MODE=rules node anneal.mjs P 100000 5 7    # Pinned Turns: table P in BOTH modes (MODE=feel too), seeds 7 13 21 34; the mode with fewer factors is kept
 PROPOSAL=PT node final.mjs results/best-RP-*.json   # or best-P-*.json if like-today carried fewer factors
+CLS=weekday TOTAL=6970 node quarter-table.mjs   # Pinned Turns 2: the same pins, every other time on the quarter hour, enumerated to a proof
+                                     # (CLS=sat TOTAL=7150; CLS=sun TOTAL_MIN=5100 TOTAL_MAX=5145; BOUND=0 counts every feasible table; the JSON line is the day file)
+PIN_WK="06:20-14:20x3,14:00-22:30x2,15:45-23:55x3" PIN_SAT="14:00-22:30x1" PIN_SUN="13:00-21:30x1" CAP=520 COUNTS_JSON=… EXTRA_JSON=… node assemble-table.mjs pinned-turns-2-table.json p2-weekday.json p2-sat.json p2-sun.json
+MODE=rules node anneal.mjs N 100000 5 7    # Pinned Turns 2: table N in BOTH modes (MODE=feel too), seeds 7 13 21 34, as P
+PROPOSAL=P2 node final.mjs results/best-RN-*.json
 CAP=510 COUNT=1 node table-book.mjs  # how many length structures a cap admits, WITHOUT searching -- a zero is a proof
 node regenerate.mjs --check           # every proposal's fingerprint, without rendering
 node regenerate.mjs                  # re-render EVERY sheet from the same inputs that produced it

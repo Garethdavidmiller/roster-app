@@ -8,7 +8,8 @@ import { generateLink, ROTATING_LINES, DAYS } from '../../../links-design.js';
 import { buildDefaultTargets } from '../../../links-default-targets.js';
 import { reorderLines, applyOrder, OBJECTIVES } from '../../../links-adjacency.js';
 
-const PROPOSAL = process.env.PROPOSAL ?? 'ST';   // ST = Same Turns · BB = By the Book · QT = Quarter To (ST with the closer at 15:45) · EF = Eight Forty (BB with no duty over 8h40) · B2 = By the Book 2 (EF's cap, two ticket-office turns pinned) · Q2 = Quarter To 2 (QT's weekday, Saturday and Sunday rebuilt under the cap) · PT = Pinned Turns (the owner's 25 Sep brief from today's roster, fitted to the timetable)
+const PROPOSAL = process.env.PROPOSAL ?? 'ST';   // ST = Same Turns · BB = By the Book · QT = Quarter To (ST with the closer at 15:45) · EF = Eight Forty (BB with no duty over 8h40) · B2 = By the Book 2 (EF's cap, two ticket-office turns pinned) · Q2 = Quarter To 2 (QT's weekday, Saturday and Sunday rebuilt under the cap) · PT = Pinned Turns (the owner's 25 Sep brief from today's roster, fitted to the timetable) · P2 = Pinned Turns 2 (the same pins, every other time rewritten onto the quarter hour)
+const PTF = PROPOSAL === 'PT' || PROPOSAL === 'P2';   // the two brief-built families share most of their sheet
 const files = process.argv.slice(2).filter(existsSync);
 // Demand fit of a design's weekday cover against the December 2026 timetable curve (same formula as fit.mjs):
 // squared distance between each hour's share of cover and its share of traffic, inside the window.
@@ -38,10 +39,12 @@ const G = assess(gp, 24); const gEval = evaluate(gp);
 const fingerprint = p => createHash('sha256').update(JSON.stringify(Object.keys(p).sort((a,b)=>a-b).map(k => DAYS.map(d => p[k][d])))).digest('hex').slice(0, 8);
 // FAMILY from the result file itself, not from the PROPOSAL env — a comparator row must carry its own
 // family's code. Tables Q and R are Same Turns' table B with the closer at 15:45 (see anneal.mjs).
-const famOf = c => c.variant === 'P' ? 'PT' : c.mode === 'rules' ? (c.variant === 'E' ? 'EF' : c.variant === 'G' ? 'B2' : 'BB') : /^[QR]$/.test(String(c.variant)) ? 'QT' : c.variant === 'W' ? 'Q2' : 'ST';
-const NAMES = { BB: 'By the Book', ST: 'Same Turns', QT: 'Quarter To', EF: 'Eight Forty', B2: 'By the Book 2', Q2: 'Quarter To 2', PT: 'Pinned Turns' };
+const famOf = c => c.variant === 'N' ? 'P2' : c.variant === 'P' ? 'PT' : c.mode === 'rules' ? (c.variant === 'E' ? 'EF' : c.variant === 'G' ? 'B2' : 'BB') : /^[QR]$/.test(String(c.variant)) ? 'QT' : c.variant === 'W' ? 'Q2' : 'ST';
+const NAMES = { BB: 'By the Book', ST: 'Same Turns', QT: 'Quarter To', EF: 'Eight Forty', B2: 'By the Book 2', Q2: 'Quarter To 2', PT: 'Pinned Turns', P2: 'Pinned Turns 2' };
 // EF: the table search's own record — how many length structures paid the day, how many placed, the fits.
-const efTable = PROPOSAL === 'EF' ? JSON.parse(readFileSync('eight-forty-table.json', 'utf8')) : PROPOSAL === 'B2' ? JSON.parse(readFileSync('by-the-book-2-table.json', 'utf8')) : PROPOSAL === 'Q2' ? JSON.parse(readFileSync('quarter-to-2-table.json', 'utf8')) : PROPOSAL === 'PT' ? JSON.parse(readFileSync('pinned-turns-table.json', 'utf8')) : null;
+const efTable = PROPOSAL === 'EF' ? JSON.parse(readFileSync('eight-forty-table.json', 'utf8')) : PROPOSAL === 'B2' ? JSON.parse(readFileSync('by-the-book-2-table.json', 'utf8')) : PROPOSAL === 'Q2' ? JSON.parse(readFileSync('quarter-to-2-table.json', 'utf8')) : PROPOSAL === 'PT' ? JSON.parse(readFileSync('pinned-turns-table.json', 'utf8')) : PROPOSAL === 'P2' ? JSON.parse(readFileSync('pinned-turns-2-table.json', 'utf8')) : null;
+// P2 reads Pinned Turns' record too: its fits are the comparison the sheet is built to make.
+const ptRecord = PROPOSAL === 'P2' && existsSync('pinned-turns-table.json') ? JSON.parse(readFileSync('pinned-turns-table.json', 'utf8')) : null;
 const codeFor = c => `${famOf(c)}-24-${c.variant}${c.seed ?? '?'}`;
 const identity = PROPOSAL === 'BB' ? {
   name: 'By the Book', strap: 'The December 2026 timetable rules, built for the fatigue factors',
@@ -59,6 +62,10 @@ const identity = PROPOSAL === 'BB' ? {
   name: 'Pinned Turns', strap: 'Today’s roster, the owner’s pinned turns, the rest fitted to the timetable',
   code: codeFor(win), fingerprint: fingerprint(P.patterns), table: win.variant, seed: win.seed,
   lineage: 'Family PT — built from today’s roster to the owner’s brief of 25 September 2026: Monday to Friday every 23:55 finish starts 15:45, three openers work 06:20–14:20, two lates work 14:00–22:30 and nothing runs over 8h40; on a Saturday two openers work 06:20 until at least 14:20 and one late 14:00–22:30; on a Sunday one duty works 13:00–21:30. Those pins replace By the Book 2’s ticket-office pair. The rest of each day was searched for the closest fit to the December 2026 timetable, and the rotation for the fewest fatigue factors. Compare with “Quarter To 2” (Q2-24-W21 · 7ea671d5), “Quarter To” (QT-24-Q34 · 70cf9874) and “By the Book” (BB-24-D7 · 0f14abce).',
+} : PROPOSAL === 'P2' ? {
+  name: 'Pinned Turns 2', strap: 'The owner’s pinned turns, every other time on the quarter hour',
+  code: codeFor(win), fingerprint: fingerprint(P.patterns), table: win.variant, seed: win.seed,
+  lineage: 'Family P2 — “Pinned Turns” (PT-24-P34 · dae6292e) with the rest of the day rewritten: the brief’s pins stand exactly (Monday to Friday 15:45 closers, three 06:20–14:20 openers, two 14:00–22:30 lates, nothing over 8h40; Saturday two long openers and a 14:00–22:30; Sunday a 13:00–21:30) and EVERY OTHER DUTY starts and finishes on the quarter hour, with no clock time kept for familiarity’s sake. The weekday and Sunday were enumerated to a proof and the Saturday too; the rotation was searched for the fewest fatigue factors exactly as Pinned Turns was. Compare with “Pinned Turns”, “Quarter To 2” (Q2-24-W21 · 7ea671d5) and “By the Book” (BB-24-D7 · 0f14abce).',
 } : PROPOSAL === 'Q2' ? {
   name: 'Quarter To 2', strap: 'Quarter To, with Saturday and Sunday rebuilt under the cap',
   code: codeFor(win), fingerprint: fingerprint(P.patterns), table: win.variant, seed: win.seed,
@@ -80,13 +87,13 @@ const alternatives = [];
 // 1117px against 1032 — shots.mjs), so QT shows the winner, the runner-up and the other table's best.
 const shown = PROPOSAL === 'QT'
   ? [...new Set([cands[0], cands[1], cands.find(c => c.variant !== cands[0].variant)].filter(Boolean))]
-  : ['EF', 'B2', 'Q2', 'PT'].includes(PROPOSAL) ? cands.slice(0, 2) : cands;
+  : ['EF', 'B2', 'Q2', 'PT', 'P2'].includes(PROPOSAL) ? cands.slice(0, 2) : cands;
 for (const c of shown) { const A = assess(c.patterns, 24); alternatives.push(alt(`${codeFor(c)} · ${fingerprint(c.patterns)}${c === win ? ` — <b>${identity.name}</b> (this proposal)` : c === cands[1] ? ' — runner-up' : ''}`, A, { cost: c.cost }, c === win, c.patterns)); }
 alternatives.push(alt(`Workspace default · ${fingerprint(gp)} (Dec 2026 table, generated)`, G, gEval, false, gp));
 for (const x of (process.env.OTHER_MODE ?? '').split(',').filter(existsSync)) { const e = JSON.parse(readFileSync(x, 'utf8')); alternatives.push(alt(`${codeFor(e)} · ${fingerprint(e.patterns)} — the other mode's best (${e.mode === 'rules' ? 'fatigue-first' : 'like-today'})`, assess(e.patterns, 24), { cost: e.cost }, false, e.patterns)); }
 for (const x of (process.env.EXTRA ?? '').split(',').filter(existsSync)) { const e = JSON.parse(readFileSync(x, 'utf8')); alternatives.push(alt(`${codeFor(e)}p · ${fingerprint(e.patterns)} — rules only, no coherence term`, assess(e.patterns, 24), null, false, e.patterns)); }
 // The siblings: the OTHER shipped proposals, so a reader can put this one beside them on one table.
-const siblings = PROPOSAL === 'BB' ? ['best-B-7.json'] : PROPOSAL === 'QT' ? ['best-B-7.json', 'best-RD-7.json'] : PROPOSAL === 'EF' ? ['best-RD-7.json', 'best-B-7.json', 'best-Q-34.json'] : PROPOSAL === 'B2' ? ['best-RE-21.json', 'best-RD-7.json', 'best-B-7.json'] : PROPOSAL === 'Q2' ? ['best-Q-34.json', 'best-B-7.json', 'best-RD-7.json'] : PROPOSAL === 'PT' ? ['best-W-21.json', 'best-Q-34.json', 'best-RD-7.json'] : ['best-RD-7.json'];
+const siblings = PROPOSAL === 'BB' ? ['best-B-7.json'] : PROPOSAL === 'QT' ? ['best-B-7.json', 'best-RD-7.json'] : PROPOSAL === 'EF' ? ['best-RD-7.json', 'best-B-7.json', 'best-Q-34.json'] : PROPOSAL === 'B2' ? ['best-RE-21.json', 'best-RD-7.json', 'best-B-7.json'] : PROPOSAL === 'Q2' ? ['best-Q-34.json', 'best-B-7.json', 'best-RD-7.json'] : PROPOSAL === 'PT' ? ['best-W-21.json', 'best-Q-34.json', 'best-RD-7.json'] : PROPOSAL === 'P2' ? ['best-RP-34.json', 'best-W-21.json', 'best-RD-7.json'] : ['best-RD-7.json'];
 for (const sibling of siblings.map(f => `results/${f}`).concat(siblings).filter(existsSync).filter((f, i, a) => a.findIndex(x => x.endsWith(f.split('/').pop())) === i)) { const sb = JSON.parse(readFileSync(sibling, 'utf8')); alternatives.push(alt(`${codeFor(sb)} · ${fingerprint(sb.patterns)} — <b>${NAMES[famOf(sb)]}</b> (a sibling proposal)`, assess(sb.patterns, 24), null, false, sb.patterns)); }
 const tp24 = {}; for (let i = 1; i <= 24; i++) tp24[i] = T.patterns[String(((i-1)%20)+1)];
 alternatives.push(alt("Today's 20-line link (for scale)", T, null, false, null)); alternatives[alternatives.length-1].fit = weekdayFit(tp24);
@@ -117,13 +124,13 @@ const rules = [
       const ok = per.every(x => x.ok); const words = x => x.ok ? `${x.cls} met (lates ${hm(Math.min(...x.L))}–${hm(Math.max(...x.L))}, earlies ${hm(x.E[0])} then ${hm(x.E[1])}–${hm(x.E[x.E.length-1])})` : `${x.cls} not met (lates ${hm(Math.min(...x.L))}–${hm(Math.max(...x.L))}, earlies ${hm(x.E[0])}–${hm(x.E[x.E.length-1])})`;
       const allL = per.flatMap(x => x.L), longs = per.flatMap(x => x.E.slice(1)), shorts = per.map(x => x.E[0]);
       return { rule: 'Late turns slightly shorter than most earlies', value: ok ? `met on every day — lates ${hm(Math.min(...allL))}–${hm(Math.max(...allL))}; one short early a day (${hm(Math.min(...shorts))}–${hm(Math.max(...shorts))}), every other early ${hm(Math.min(...longs))}–${hm(Math.max(...longs))}` : per.map(words).join(' · '), ok,
-        note: ok ? 'one short open turn, then every other early longer than every late' : PROPOSAL === 'PT' ? 'unmeetable by construction: the brief pins an 8h30 late (14:00–22:30) beside 8h00 openers (06:20–14:20)' : 'incompatible with keeping today’s times: meeting it needs 9h+ earlies or 15 duties a day — flagged for decision, below' }; })(),
+        note: ok ? 'one short open turn, then every other early longer than every late' : PTF ? 'unmeetable by construction: the brief pins an 8h30 late (14:00–22:30) beside 8h00 openers (06:20–14:20)' : 'incompatible with keeping today’s times: meeting it needs 9h+ earlies or 15 duties a day — flagged for decision, below' }; })(),
 ];
 
-if (PROPOSAL === 'EF' || PROPOSAL === 'B2' || PROPOSAL === 'PT') { const longest = Math.max(...P.tableRows.map(r => r.minutes)); const hm = m => `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;
-  rules.push({ rule: 'No duty over 8h40', value: `longest ${hm(longest)}`, ok: longest <= 520, note: PROPOSAL === 'PT' ? `the brief states it for Monday to Friday; applied to every day here` : `every day class — By the Book's longest is 9h30, today's 9h10` }); }
+if (PROPOSAL === 'EF' || PROPOSAL === 'B2' || PTF) { const longest = Math.max(...P.tableRows.map(r => r.minutes)); const hm = m => `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;
+  rules.push({ rule: 'No duty over 8h40', value: `longest ${hm(longest)}`, ok: longest <= 520, note: PTF ? `the brief states it for Monday to Friday; applied to every day here` : `every day class — By the Book's longest is 9h30, today's 9h10` }); }
 // PT: the brief's pins, each READ from the finished table — a pin the anneal cannot move is still a claim the sheet must check.
-if (PROPOSAL === 'PT') {
+if (PTF) {
   const n = (cls, f) => P.tableRows.filter(r => f(r.time)).reduce((a, r) => a + r[cls], 0);
   const checks = [
     ['Mon–Fri closers 15:45', n('weekday', t => t.endsWith('23:55')) === n('weekday', t => t === '15:45-23:55')],
@@ -134,6 +141,13 @@ if (PROPOSAL === 'PT') {
     ['Sun 13:00–21:30', n('sun', t => t === '13:00-21:30') >= 1],
   ];
   rules.push({ rule: 'The brief’s pinned turns (25 Sep 2026)', value: checks.map(([w, ok]) => `${ok ? '✓' : '✕'} ${w}`).join(' · '), ok: checks.every(([, ok]) => ok), note: 'replace By the Book 2’s ticket-office pair; fixed before the search' });
+}
+// P2: the owner's second condition, READ from the table — every start and finish on :00/:15/:30/:45 or a window
+// instant, the pinned 06:20–14:20 being the one other time allowed (it is the owner's own).
+if (PROPOSAL === 'P2') {
+  const instants = new Set(['06:20', '23:55', '07:15', '23:25']); const onQuarter = x => instants.has(x) || [0, 15, 30, 45].includes(+x.slice(3));
+  const off = P.tableRows.filter(r => r.time !== '06:20-14:20' && !r.time.split('-').every(onQuarter)).map(r => r.time);
+  rules.push({ rule: 'Every unpinned time on the quarter hour', value: off.length ? `off the quarter hour: ${off.join(', ')}` : `every start and finish on :00, :15, :30 or :45, or the window’s own instant; the only other time is the pinned 06:20–14:20`, ok: off.length === 0, note: 'the owner’s condition of 25 Sep 2026 — “non-confusing times”; the pins themselves are exempt' });
 }
 const sundayOut = demand.movementsOutside(demand.movements.sun, 7*60+15, 23*60+25);
 // QT: which turns were stretched to keep the contract, READ from the finished table against Same Turns'
@@ -185,21 +199,32 @@ const otherTableFit = cands.filter(c => c.variant !== win.variant).map(c => c.fi
 const efRecord = PROPOSAL === 'B2' && existsSync('eight-forty-table.json') ? JSON.parse(readFileSync('eight-forty-table.json', 'utf8')) : null;
 const meta = {
   otherTableFit, efFit: efRecord?.fit ?? null,
-  date: PROPOSAL === 'PT' ? '25 September 2026' : PROPOSAL === 'Q2' ? '24 September 2026' : PROPOSAL === 'B2' ? '22 September 2026' : PROPOSAL === 'QT' || PROPOSAL === 'EF' ? '12 September 2026' : '8 September 2026',
-  tables: PROPOSAL === 'QT' || PROPOSAL === 'Q2' ? 42 : 81, steps: ['QT', 'EF', 'B2', 'Q2', 'PT'].includes(PROPOSAL) ? '100,000' : '60,000', restarts: ['QT', 'EF', 'B2', 'Q2', 'PT'].includes(PROPOSAL) ? 'five' : 'four',
-  runs: PROPOSAL === 'QT' ? 'four seeded runs per table, two tables' : PROPOSAL === 'Q2' ? 'eight seeded runs' : PROPOSAL === 'PT' ? 'four seeded runs in each of two modes, fatigue-first and like-today' : ['BB', 'EF', 'B2'].includes(PROPOSAL) ? 'four seeded runs' : 'three seeded runs per table',
+  date: PTF ? '25 September 2026' : PROPOSAL === 'Q2' ? '24 September 2026' : PROPOSAL === 'B2' ? '22 September 2026' : PROPOSAL === 'QT' || PROPOSAL === 'EF' ? '12 September 2026' : '8 September 2026',
+  tables: PROPOSAL === 'QT' || PROPOSAL === 'Q2' ? 42 : 81, steps: ['QT', 'EF', 'B2', 'Q2', 'PT', 'P2'].includes(PROPOSAL) ? '100,000' : '60,000', restarts: ['QT', 'EF', 'B2', 'Q2', 'PT', 'P2'].includes(PROPOSAL) ? 'five' : 'four',
+  runs: PROPOSAL === 'QT' ? 'four seeded runs per table, two tables' : PROPOSAL === 'Q2' ? 'eight seeded runs' : PTF ? 'four seeded runs in each of two modes, fatigue-first and like-today' : ['BB', 'EF', 'B2'].includes(PROPOSAL) ? 'four seeded runs' : 'three seeded runs per table',
   efTable,
   stretch, pickSentence: pickNote + rulesOnlyNote + (cands.length > shown.length ? ` The other ${cands.length - shown.length} seeded results are in <span class="tt">results/</span> (${cands.filter(c => !shown.includes(c)).map(c => `${c.variant}${c.seed}`).join(', ')}); none stands higher on the pick than the rows shown.` : ''),
   candidateFiles: cands.map(c => c.file), winnerVariant: win.variant,
   sundayNote: `Sunday: ${sundayOut.after?.length ?? 5} December 2026 timetable movements fall after the 23:25 finish (the last at 23:54, three of them arrivals) — the standing question on whether Sunday's window moves; the window is stored per design, so the proposal can be rebuilt to either answer.`,
   designRules: rules, alternatives, identity,
-  tightDuty: PROPOSAL === 'Q2' || PROPOSAL === 'PT' || undefined,   // the union of today's rows and a searched weekend is a taller table
-  frame: PROPOSAL === 'PT' ? {
+  tightDuty: PROPOSAL === 'Q2' || PTF || undefined,   // the union of today's rows and a searched weekend is a taller table
+  frame: PROPOSAL === 'P2' ? {
+    family: 'keep',
+    question: `Should the link for the December 2026 timetable be built to the owner's pinned turns with every other time rewritten onto the quarter hour — no clock time kept because somebody works it today — accepting the ${P.tableRows.filter(r => !todayTimes.has(r.time)).length} times nobody works today that this costs, for a table proven to be the closest quarter-hour fit to the timetable?`,
+    stands: `<b>Pinned Turns 2</b> answers the owner's second question of 25 September. It is read against <b>Pinned Turns (PT-24-P34)</b>, the same brief with today's times kept where they fitted, and <b>By the Book (BB-24-D7)</b>, the rules-first answer — not against every design in the folder.`,
+  } : PROPOSAL === 'PT' ? {
     family: 'keep',
     question: `Should the link for the December 2026 timetable be built from today's roster to the owner's pinned turns — 15:45 closers, three 06:20–14:20 openers and two 14:00–22:30 lates Monday to Friday, two long openers and a 14:00–22:30 on Saturday, a 13:00–21:30 on Sunday, nothing over 8h40 — with the rest of each day fitted to the timetable, accepting the ${P.tableRows.filter(r => !todayTimes.has(r.time)).length} times nobody works today that this costs?`,
     stands: `<b>Pinned Turns</b> is the brief's own answer. It is read against <b>Quarter To 2 (Q2-24-W21)</b>, the nearest sheet that also starts from today's times, and <b>By the Book (BB-24-D7)</b>, the rules-first answer — not against every design in the folder.`,
   } : undefined,
-  openQuestions: PROPOSAL === 'PT' ? (() => {
+  openQuestions: PROPOSAL === 'P2' ? (() => {
+    const T2 = efTable, R = ptRecord; const n = x => (x ?? 0).toLocaleString('en-GB');
+    const wkFit = weekdayFit(P.patterns);
+    const fresh = cls => P.tableRows.filter(r => r[cls] > 0 && !todayTimes.has(r.time)).map(r => r.time);
+    const allFresh = [...new Set([...fresh('weekday'), ...fresh('sat'), ...fresh('sun')])];
+    const satAlt = T2.satAlternatives?.find(a => a.turns < (T2.distinct?.sat?.turns ?? 99) && a.fit < (R?.fit?.sat ?? 99));
+    const proven = ['weekday', 'sat', 'sun'].filter(c => T2.counts?.[c]?.exhaustive).map(c => `${{ weekday: 'weekday', sat: 'Saturday', sun: 'Sunday' }[c]} ${n(T2.counts[c].feasible)}`);
+    return `<b>Every time on the quarter hour, and what it cost.</b> Every unpinned duty starts and finishes on :00, :15, :30 or :45, or at the window's own 06:20, 23:55, 07:15 and 23:25; the one other time on the sheet is the owner's pinned 06:20–14:20, which Saturday uses once as well — and has to, because on a pure quarter-hour grid the 35-hour week cannot balance (page 9). <b>Against <i>Pinned Turns</i></b> (lower is more even): weekday ${wkFit} against ${R?.fit?.weekday ?? '—'} — the gap is the price of 07:00–15:40, the one off-grid weekday turn that sheet kept; Saturday ${P.fits.sat} against ${R?.fit?.sat ?? '—'}; Sunday ${P.fits.sun} against ${R?.fit?.sun ?? '—'}${P.fits.sun === R?.fit?.sun ? ' — the same table, because that Sunday was already on the quarter hour and nothing on the grid beats it' : ''}. <b>Proven, not sampled:</b> ${proven.length ? `every feasible table was enumerated — ${proven.join(', ')} — so each day's fit is the best a quarter-hour table can reach under the pins` : 'see page 9 for which days were enumerated to a proof'}. <b>Times nobody works today:</b> ${allFresh.join(', ') || 'none'} (${allFresh.length} of ${P.tableRows.length}). ${satAlt ? `<b>A Saturday with fewer turns</b> exists: ${satAlt.turns} distinct turns reach ${satAlt.fit} (${satAlt.duties.map(([t, k]) => `${t}${k > 1 ? ` ×${k}` : ''}`).join(', ')}) against this sheet's ${T2.distinct?.sat?.turns} at ${P.fits.sat} — still better than <i>Pinned Turns</i>' Saturday, and a fit-for-simplicity trade for the room, not the search. ` : ''}<b>Late turns shorter than earlies cannot be met by construction:</b> the brief pins an 8h30 late beside 8h00 openers, so the row reads not met and is not a finding against the search. <b>Sunday pays ${n(T2.totals.sun)} minutes</b>; it sits outside the contract. <b>Sunday's finish</b> — five December 2026 timetable movements fall after 23:25; the window is inherited, not decided.`; })() : PROPOSAL === 'PT' ? (() => {
     const hm = m => `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`; const T2 = efTable;
     const q2File = ['results/best-W-21.json', 'best-W-21.json'].find(existsSync); const q2p = q2File ? JSON.parse(readFileSync(q2File, 'utf8')).patterns : null; const Q2A = q2p ? assess(q2p, 24) : null;
     const fresh = cls => P.tableRows.filter(r => r[cls] > 0 && !todayTimes.has(r.time)).map(r => r.time);
