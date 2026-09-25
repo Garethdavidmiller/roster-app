@@ -218,7 +218,7 @@ function makeAuth({ token = { admin: true, name: 'G. Miller' }, viewerExists = f
             throw Object.assign(new Error('no such user'), { code: 'auth/user-not-found' });
         },
         createUser: async (props) => { ops.push({ op: 'createUser', props }); return { uid: props.uid }; },
-        updateUser: async (uid, props) => { ops.push({ op: 'updateUser', uid, props }); return { uid }; },
+        updateUser: async (uid, props) => { ops.push({ op: 'updateUser', uid, props }); if (authFail.updateUser) throw new Error(authFail.updateUser); return { uid }; },
         setCustomUserClaims: async (uid, claims) => {
             ops.push({ op: 'setCustomUserClaims', uid, claims });
             if (authFail.setCustomUserClaims) throw new Error(authFail.setCustomUserClaims);
@@ -632,6 +632,16 @@ describe('the token is the entire product, and a claimless one is indistinguisha
         assert.ok(cleared, 'the unlock did not touch the account\'s profile');
         assert.equal(cleared.uid, CALENDAR_VIEWER_UID);
         assert.deepEqual(cleared.props, { displayName: null });
+    });
+
+    test('a failed display-name clear does NOT refuse a right PIN (v24.26)', async () => {
+        // The rules stopped believing this field at v24.23, so it is housekeeping. Inside the 500 it
+        // turned a transient Admin SDK error into a locked-out Calendar for somebody with the PIN.
+        const { ops } = build({ viewerExists: true, authFail: { updateUser: 'transient' } });
+        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
+        assert.equal(out.code, 200);
+        assert.ok(out.body.token, 'the unlock still hands out its token');
+        assert.ok(ops.some((o) => o.op === 'updateUser'), 'the clear was still attempted');
     });
 
     test('a mint that fails hands out nothing (rule 4)', async () => {

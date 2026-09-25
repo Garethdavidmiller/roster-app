@@ -36,9 +36,16 @@
 /** How long a write may wait for the server before the app says why. */
 export const SLOW_SAVE_MS = 8000;
 
-/** The one line shown while a write is waiting. It never says "saved" — see the header. */
+/**
+ * The one line shown while a write is waiting. It never says "saved" — see the header — and since
+ * v24.26 it no longer says "You can leave this page". That was true when the write sat in the
+ * device's own database, and not otherwise: with the app open in a SECOND tab the SDK quietly falls
+ * back to a memory-only cache (the IndexedDB lease is single-tab), and a held write later REFUSED can
+ * only be retried while the page is open. Leaving then loses the change without a word. The line now
+ * states what is true and gives no instruction it cannot stand behind.
+ */
 export const SLOW_SAVE_TEXT =
-    'Waiting for signal — your change is held on this device and will send automatically. You can leave this page.';
+    'Waiting for signal — your change is held on this device and will send automatically.';
 
 /**
  * The line for a write that is one batch of SEVERAL (v24.23). Two writers — the roster upload and a

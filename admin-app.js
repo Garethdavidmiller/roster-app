@@ -21,7 +21,7 @@ import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSess
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
-import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, whenOverridesReady, isOverrideCacheLoaded, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
+import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, whenOverridesReady, isOverrideCacheLoaded, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 import { initSelectSheets } from './select-sheet.js';
@@ -829,8 +829,9 @@ export function init() {
         // the base shift). Disable the Save button FIRST so this await can't open a cold-cache double-tap
         // window (the v16.23 "disable before the first await" invariant); the finally restores the button
         // on every exit path (executeSave manages it on its own path too — the extra updateSaveBtn is a
-        // harmless recompute). (v16.85)
-        saveBtn.disabled = true;
+        // harmless recompute). (v16.85) IN-FLIGHT, not merely disabled (v24.26): any keystroke re-ran
+        // updateSaveBtn during this wait and re-armed Save — the double-tap the line exists to stop.
+        setSaveInFlight(true);
         await whenOverridesReady();
         // A failed initial load leaves the cache empty — validateShiftRules would see no adjacent
         // shifts (a real <12h rest gap missed) and the AL entitlement check would read zero existing
@@ -883,7 +884,7 @@ export function init() {
             // reach executeSave (rest-gap error; AL over-entitlement → showALConfirm, whose own bar button
             // drives executeSave and so doesn't depend on this button). updateSaveBtn recomputes the
             // enabled/label state from the grid, so it re-arms after the disable above. (v16.85)
-            updateSaveBtn();
+            setSaveInFlight(false);
         }
     });
 

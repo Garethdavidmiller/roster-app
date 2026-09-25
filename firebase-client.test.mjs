@@ -182,6 +182,16 @@ describe('setting your own password', () => {
         assert.equal(state.authOps.filter((o) => o.op === 'updatePassword').length, 1);
     });
 
+    test('a password change that FAILS writes no stamp — the stamp follows the change, never leads it', async () => {
+        // The ordering is the whole contract: a stamp written first would mark the member migrated
+        // (no Settings nudge) while their password is still the surname default. Nothing held the
+        // order until v24.26 — rewriting it stamp-first, swallowing the stamp's error, left 35 green.
+        signIn();
+        state.reauthRejects.set('update:a-new-passphrase', 'auth/requires-recent-login');
+        await assert.rejects(fc.setOwnPassword(MEMBER, 'a-new-passphrase'), /requires-recent-login/);
+        assert.deepEqual(writes('passwordStatus/'), [], 'no passwordSetAt for a password that did not change');
+    });
+
     test('signed out, nothing is attempted', async () => {
         await assert.rejects(fc.setOwnPassword(MEMBER, 'x'), /Not signed in/);
         assert.equal(state.authOps.filter((o) => o.op === 'updatePassword').length, 0);

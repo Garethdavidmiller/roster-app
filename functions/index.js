@@ -1046,7 +1046,13 @@ exports.unlockCalendarViewer = onRequest(
             // shared account from their own session, and until this line that name reached every
             // later PIN token. The rules no longer believe it (isMember), but a shared identity
             // should not carry anything one holder chose.
-            await getAuth().updateUser(CALENDAR_VIEWER_UID, { displayName: null });
+            // BEST-EFFORT (v24.26): the rules no longer believe this field, so a transient Admin SDK
+            // error here must not refuse a PIN that was right — it did, inside the 500 below.
+            try {
+                await getAuth().updateUser(CALENDAR_VIEWER_UID, { displayName: null });
+            } catch (nameErr) {
+                console.warn('[unlockCalendarViewer] display-name clear failed (unlock continues)', nameErr && nameErr.code);
+            }
 
             // The claims are ALSO baked into the custom token. Without this the client would hold a
             // token minted before the claims took effect and its first override read would be denied

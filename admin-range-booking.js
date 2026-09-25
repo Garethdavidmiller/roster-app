@@ -104,6 +104,9 @@ export function createRangeBookingSection(cfg) {
         return getDateRange(fromInput.value, toInput.value);
     }
 
+    /** True while this card's save is waiting on the server (v24.26). */
+    let saving = false;
+
     function _setEmpty(/** @type {string} */ msg) {
         previewEl.className = cfg.previewClass + ' empty';
         previewEl.textContent = msg;
@@ -172,7 +175,10 @@ export function createRangeBookingSection(cfg) {
         const swapDays = pending.filter(d => swapAnswers.get(d) === true).length;
         // Unanswered blocks the save outright (rule 2). Otherwise the old rule stands, with the
         // declared swaps counting towards "is there anything to write?".
-        saveBtn.disabled = answered < pending.length || (workDays + swapDays) === 0;
+        // `saving` first (v24.26): this runs on a swap answer, a date change and admin-app's
+        // _refreshAlPreview, so while a held save waits it would re-arm Save from the form alone — and
+        // the held save's new documents are not in the cache yet, so a second tap books every day again.
+        saveBtn.disabled = saving || answered < pending.length || (workDays + swapDays) === 0;
     }
 
     /**
@@ -221,6 +227,7 @@ export function createRangeBookingSection(cfg) {
     updatePreview();
 
     saveBtn.addEventListener('click', async () => {
+        if (saving) return;   // a disabled button cannot be tapped, but it can be .click()ed
         // onClick runs before the guard so a section (AL) can capture + reset per-click state
         // even on an early return, exactly as the old top-of-handler code did.
         cfg.onClick?.();
@@ -239,6 +246,7 @@ export function createRangeBookingSection(cfg) {
         })) return;
 
         feedbackEl.className = 'feedback';
+        saving = true;
         saveBtn.disabled    = true;
         saveBtn.textContent = `Saving ${dates.length} day${dates.length > 1 ? 's' : ''}…`;
 
@@ -293,6 +301,7 @@ export function createRangeBookingSection(cfg) {
             // clickable with nothing selected and an empty-state preview. updatePreview() is correct
             // for BOTH outcomes (success → empty → disabled; error/no-op → range kept → enabled) (v16.19).
             saveBtn.textContent = cfg.savingLabel;
+            saving = false;
             updatePreview();
         }
     });
