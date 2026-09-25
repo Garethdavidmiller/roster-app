@@ -130,11 +130,15 @@ export function violations(cls, duties, weekday = null) {
 }
 
 // ── the objective: demand fit (fit.mjs's formula; Saturday's 17:00–22:00 valued at 1.25x, as the default was) ──
-function fit(cls, duties) {
+// `weighted = false` is the SHARED measure every sheet prints (dayFit in report-data.mjs); the search
+// optimises the weighted one. The record wrote the WEIGHTED Saturday into `fit` until 25 Sep 2026, so a
+// sheet quoting eight-forty-table.json printed Eight Forty's Saturday as 16.4 while Eight Forty's own
+// sheet, on the shared measure, printed 16.2. The record now carries both, named for what they are.
+function fit(cls, duties, weighted = true) {
   const [ws, we] = WIN[cls]; const cars = DEC_2026_DEMAND[cls].cars;
   const hrs = []; for (let h = Math.floor(ws/60); h <= Math.floor((we-1)/60); h++) hrs.push(h);
   const frac = h => Math.max(0, Math.min(we, (h+1)*60) - Math.max(ws, h*60)) / 60;
-  const w = h => cls === 'sat' && h >= 17 && h <= 21 ? 1.25 : 1;
+  const w = h => weighted && cls === 'sat' && h >= 17 && h <= 21 ? 1.25 : 1;
   const D = hrs.reduce((a, h) => a + cars[h]*frac(h)*w(h), 0), C = hrs.reduce((a, h) => a + coverAt(duties, h), 0);
   return hrs.reduce((a, h) => a + ((cars[h]*frac(h)*w(h)/D) - (coverAt(duties, h)/C))**2 * 1e4, 0);
 }
@@ -314,6 +318,6 @@ if (process.argv[1]?.endsWith('table-book.mjs')) {
   console.log('rows', slots.length, '· off-quarter times', [...off].join(', ') || 'none', '(By the Book: 3)');
   const bb = buildDefaultTargets().slots; console.log('times shared with By the Book:', slots.filter(s => bb.some(b => b.time === s.time)).map(s => s.time).join(', ') || 'none');
   const satMoves = found.sat.d.filter(d => !found.weekday.d.some(w => w.s === d.s && w.e === d.e)).length;
-  writeFileSync(process.env.OUT ?? 'eight-forty-table.json', JSON.stringify({ cap: CAP, seed: SEED0, steps: STEPS, restarts: RESTARTS, sunTotal: SUN_TOTAL, counts, meanGap, fit: { weekday: +fit('weekday', found.weekday.d).toFixed(1), sat: +fit('sat', found.sat.d).toFixed(1), sun: +fit('sun', found.sun.d).toFixed(1) }, satMoves, offQuarter: [...off], slots, spareLines: 4 }, null, 1));
+  writeFileSync(process.env.OUT ?? 'eight-forty-table.json', JSON.stringify({ cap: CAP, seed: SEED0, steps: STEPS, restarts: RESTARTS, sunTotal: SUN_TOTAL, counts, meanGap, fit: { weekday: +fit('weekday', found.weekday.d, false).toFixed(1), sat: +fit('sat', found.sat.d, false).toFixed(1), sun: +fit('sun', found.sun.d, false).toFixed(1) }, searchFit: { weekday: +fit('weekday', found.weekday.d).toFixed(1), sat: +fit('sat', found.sat.d).toFixed(1), sun: +fit('sun', found.sun.d).toFixed(1) }, satMoves, offQuarter: [...off], slots, spareLines: 4 }, null, 1));
   console.log('wrote', process.env.OUT ?? 'eight-forty-table.json');
 }

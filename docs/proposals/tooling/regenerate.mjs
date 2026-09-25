@@ -72,6 +72,18 @@ const ship = !process.argv.includes('--no-ship');
 const shipFiles = (base, fp, json, imp) => { if (!ship) return;
     copyFileSync(`${base}-${fp}.pdf`, `../${base}-${fp}.pdf`); copyFileSync(json, `../${base}.json`); copyFileSync(imp, `../${base}-import.txt`); };
 let failed = 0, done = 0;
+// THE SHIPPED CELLS, FINGERPRINTED (25 Sep 2026). --check printed "ok" for every SEARCHED proposal after
+// counting its candidate files and fingerprinting nothing, while this file's header and the README said it
+// checked every fingerprint. The searched sheet's cells are the ones shipped beside its PDF
+// (`<Name>-<CODE>.json`), so that is what is fingerprinted — for the supplied designs too, whose SOURCE grid
+// is checked above it. Re-deriving a searched pick needs final.mjs, which renders; a full run does that.
+const shippedFp = fp => { const pdf = readdirSync('..').find(f => f.endsWith(`-${fp}.pdf`)); if (!pdf) return { error: `no ../*-${fp}.pdf` };
+    const base = pdf.slice(0, -`-${fp}.pdf`.length), json = `../${base}.json`; if (!existsSync(json)) return { error: `no ${json}` };
+    const j = JSON.parse(readFileSync(json, 'utf8')); return { base, got: fingerprint(j.patterns ?? j) }; };
+const checkShipped = (label, fp) => { const r = shippedFp(fp);
+    if (r.error) { console.log(`FAIL ${label}: ${r.error}`); failed++; return false; }
+    if (r.got !== fp) { console.log(`FAIL ${label}: ../${r.base}.json fingerprints ${r.got}, expected ${fp}`); failed++; return false; }
+    return true; };
 
 for (const s of SUPPLIED) {
     if (only && !s.code.startsWith(only)) continue;
@@ -79,7 +91,7 @@ for (const s of SUPPLIED) {
     const j = JSON.parse(readFileSync(s.file, 'utf8'));
     const got = fingerprint(j.patterns ?? j);
     if (got !== s.fp) { console.log(`FAIL ${s.code}: ${s.file} fingerprints ${got}, expected ${s.fp}`); failed++; continue; }
-    if (checkOnly) { console.log(`ok   ${s.code}  ${got}`); done++; continue; }
+    if (checkOnly) { if (checkShipped(s.code, s.fp)) { console.log(`ok   ${s.code}  ${got} (source grid and shipped JSON)`); done++; } continue; }
     process.stdout.write(`render ${s.code} … `);
     execFileSync('node', ['supplied.mjs', s.file, s.name, s.strap, s.code], { stdio: 'inherit' });
     shipFiles(`${s.name.replace(/ /g, '-')}-${s.code}`, s.fp, 'supplied.json', 'supplied-import.txt');
@@ -89,7 +101,7 @@ for (const t of SEARCHED) {
     if (only && !t.proposal.startsWith(only)) continue;
     const files = t.globs.flatMap(expand);
     if (!files.length) { console.log(`skip ${t.proposal} — no candidates`); continue; }
-    if (checkOnly) { console.log(`ok   ${t.proposal}  (${files.length} candidates)`); done++; continue; }
+    if (checkOnly) { if (checkShipped(t.proposal, t.fp)) { console.log(`ok   ${t.proposal}  ${t.fp} (shipped JSON; ${files.length} candidates on disk)`); done++; } continue; }
     process.stdout.write(`render ${t.proposal} … `);
     execFileSync('node', ['final.mjs', ...files], { stdio: 'inherit', env: { ...process.env, PROPOSAL: t.proposal, ...(t.env ?? {}) } });
     const pdf = readdirSync('.').find(f => f.endsWith(`-${t.fp}.pdf`)); if (!pdf) throw new Error(`${t.proposal}: no PDF ending -${t.fp}.pdf was written — did the pick change?`);

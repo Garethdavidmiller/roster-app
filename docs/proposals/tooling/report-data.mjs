@@ -111,7 +111,12 @@ export function assess(p, lines) {
   // designs in this folder, FF11 is the ONLY row it moves — and on one of them it moves the
   // verdict. A sheet that printed one number was answering a question nobody asked.
   const asRostered = asRosteredRuns(p, lines);
-  return { checks, hours, totals, fatigue, hard, adj, hourly, tableRows, daily, asRostered, feel: feel(p, lines), rest: tightestRest(p, lines), fits: fitsOf(p, lines), heads: headcounts(p, lines) };
+  // `wkFit` is THE weekday demand fit — the fit of the average Mon–Fri cover on THIS rotation's own
+  // lines — for today's 20-line link and every proposal alike, so a sheet can only ever compare like with
+  // like. Until 25 Sep 2026 today's figure was taken by padding the 20-line link to 24 by repeating lines
+  // 1–4 (five cover weeks, and four working weeks counted twice): 44.7, where the link itself scores
+  // 51.1. That flattered today by six points and read three proposals as worse than it when they are better.
+  return { checks, hours, totals, fatigue, hard, adj, hourly, tableRows, daily, asRostered, feel: feel(p, lines), rest: tightestRest(p, lines), fits: fitsOf(p, lines), wkFit: weekdayFit(p, lines), heads: headcounts(p, lines) };
 }
 
 /** Every SHIPPED rotation in docs/proposals, assessed — so a sheet can say where it stands in the folder

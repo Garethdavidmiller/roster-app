@@ -25,6 +25,11 @@
  },
  "fit": {
   "weekday": 70.4,
+  "sat": 16.2,
+  "sun": 20.9
+ },
+ "searchFit": {
+  "weekday": 70.4,
   "sat": 16.4,
   "sun": 20.9
  },
