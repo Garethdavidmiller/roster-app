@@ -87,6 +87,20 @@ function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_UR
  *     orphanSweepFailed?: true,
  *     orphanDryRun?: true, orphansToDisable?: string[] }   // last two: dry-run preview only
  */
+/**
+ * Whether an existing account at a roster email must be TAKEN BACK before its claims are stamped
+ * (v24.24). True when the account carries no server-set `name` claim: the server stamps claims in
+ * the same run that creates an account, so an account without one was not made by this server.
+ * `name` rather than `member` is the test on purpose — every account provisioned before `member`
+ * existed carries `name`, and must be adopted as it stands, not reset.
+ * @param {{ customClaims?: Record<string, any>|null }} user
+ * @returns {boolean}
+ */
+function mustReclaim(user) {
+    const c = user && user.customClaims;
+    return !(c && typeof c.name === 'string' && c.name);
+}
+
 const setupRosterAuth = onRequest(
     {
         region:        'europe-west2',
@@ -137,6 +151,7 @@ const setupRosterAuth = onRequest(
         const designerMembers = new Set(cfg.designer);
         const created  = [];
         const skipped  = [];
+        const reclaimed = [];
         const disabled = [];
         const failed   = [];
         // Emails of members whose name+email derivation succeeded — the authoritative
@@ -189,11 +204,27 @@ const setupRosterAuth = onRequest(
                     try {
                         const existing = await getAuth().getUserByEmail(email);
                         uid = existing.uid;
-                        if (existing.disabled) {
-                            await getAuth().updateUser(uid, { disabled: false });
-                            console.log(`[setupRosterAuth] Re-enabled returning member: ${email}`);
+                        if (mustReclaim(existing)) {
+                            // AN ACCOUNT THIS SERVER NEVER STAMPED (v24.24). Every account the server
+                            // creates gets its claims in the same run, so one at a roster email with no
+                            // server claim at all was registered from outside — the gap v24.23 left,
+                            // where a stranger signs up a new starter's derived email before Set up
+                            // accounts reaches it. Adopting it as found would hand that stranger the
+                            // member's claims. So take it back first: the password becomes the one the
+                            // member would have been given, the display name the roster's, and every
+                            // session on it is revoked. Reported by name, so the admin can tell the
+                            // member what their password now is.
+                            await getAuth().updateUser(uid, { password, displayName: name, disabled: false });
+                            await getAuth().revokeRefreshTokens(uid);
+                            reclaimed.push(name);
+                            console.warn(`[setupRosterAuth] Reclaimed an account with no server claims: ${email}`);
+                        } else {
+                            if (existing.disabled) {
+                                await getAuth().updateUser(uid, { disabled: false });
+                                console.log(`[setupRosterAuth] Re-enabled returning member: ${email}`);
+                            }
+                            skipped.push(name);
                         }
-                        skipped.push(name);
                     } catch (lookupErr) {
                         // Lookup/re-enable failed: the account exists but we couldn't act on
                         // it, so claims won't be applied. Report it as a real failure, not a
@@ -277,7 +308,7 @@ const setupRosterAuth = onRequest(
         }
 
         res.json({
-            created, skipped, disabled, failed,
+            created, skipped, reclaimed, disabled, failed,
             ...(orphanSweepFailed ? { orphanSweepFailed: true } : {}),
             // Present only for a removeOrphans request WITHOUT confirm — the admin previews these,
             // then re-submits with confirmOrphanRemoval:true to actually disable them.

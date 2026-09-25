@@ -228,11 +228,15 @@ export function initAuthSetup({ currentIsAdmin, onAttention }) {
 
             /** Render a setupRosterAuth response, wiring the dry-run → confirm step for leaver removal. */
             const renderResult = (/** @type {any} */ data) => {
-                const { created = [], skipped = [], disabled = [], failed = [],
+                const { created = [], skipped = [], reclaimed = [], disabled = [], failed = [],
                         orphanSweepFailed = false, orphanDryRun = false, orphansToDisable = [] } = data;
                 const lines = [];
                 if (created.length)  lines.push(`✅ Created (${created.length}): ${created.join(', ')}`);
                 if (skipped.length)  lines.push(`⏭️ Already existed (${skipped.length}): ${skipped.join(', ')}`);
+                // v24.24: an account this server never stamped was taken back — its password is now the
+                // member's default and every session on it was signed out. The admin is the only person
+                // who can tell the member, so the names are the point of the line.
+                if (reclaimed.length) lines.push(`🔁 Taken back and reset to the default password (${reclaimed.length}): ${reclaimed.join(', ')} — tell them their password is their surname`);
                 if (disabled.length) lines.push(`🚫 Disabled leavers (${disabled.length}): ${disabled.join(', ')}`);
                 if (failed.length)   lines.push(`❌ Failed (${failed.length}): ${failed.join(', ')}`);
                 // Leaver-sweep failure is a FLAG on an otherwise-200 response — surface it (v16.23).

@@ -1262,27 +1262,32 @@ describe('resolveRosterAuthConfig', () => {
 
 describe('claimsForTier', () => {
     const sets = (a, m, d) => ({ adminSet: new Set(a), managerSet: new Set(m), designerSet: new Set(d) });
-    test('plain member → { name } only', () => {
-        assert.deepEqual(claimsForTier('A. Staff', sets([], [], [])), { name: 'A. Staff' });
+    test('plain member → { name, member } only', () => {
+        assert.deepEqual(claimsForTier('A. Staff', sets([], [], [])), { name: 'A. Staff', member: 'A. Staff' });
     });
-    test('admin → { name, admin }', () => {
-        assert.deepEqual(claimsForTier('G. Miller', sets(['G. Miller'], [], [])), { name: 'G. Miller', admin: true });
+    test('admin → { name, member, admin }', () => {
+        assert.deepEqual(claimsForTier('G. Miller', sets(['G. Miller'], [], [])), { name: 'G. Miller', member: 'G. Miller', admin: true });
     });
-    test('manager → { name, manager }', () => {
-        assert.deepEqual(claimsForTier('S. Stewart', sets([], ['S. Stewart'], [])), { name: 'S. Stewart', manager: true });
+    test('manager → { name, member, manager }', () => {
+        assert.deepEqual(claimsForTier('S. Stewart', sets([], ['S. Stewart'], [])), { name: 'S. Stewart', member: 'S. Stewart', manager: true });
     });
     test('admin OUTRANKS manager — a member in both gets admin only, never manager', () => {
         const c = claimsForTier('G. Miller', sets(['G. Miller'], ['G. Miller'], []));
-        assert.deepEqual(c, { name: 'G. Miller', admin: true });
+        assert.deepEqual(c, { name: 'G. Miller', member: 'G. Miller', admin: true });
         assert.equal(c.manager, undefined);
     });
     test('linksDesigner is additive — an admin who is also a designer gets both', () => {
         assert.deepEqual(claimsForTier('G. Miller', sets(['G. Miller'], [], ['G. Miller'])),
-            { name: 'G. Miller', admin: true, linksDesigner: true });
+            { name: 'G. Miller', member: 'G. Miller', admin: true, linksDesigner: true });
     });
-    test('an ordinary designer (S. Silva) → { name, linksDesigner } (no admin/manager)', () => {
+    test('an ordinary designer (S. Silva) → { name, member, linksDesigner } (no admin/manager)', () => {
         assert.deepEqual(claimsForTier('S. Silva', sets([], [], ['S. Silva'])),
-            { name: 'S. Silva', linksDesigner: true });
+            { name: 'S. Silva', member: 'S. Silva', linksDesigner: true });
+    });
+    test('`member` is the roster name itself, so one person\'s claim is never read as another\'s', () => {
+        for (const n of ['A. Staff', 'G. Miller', 'S. Stewart']) {
+            assert.equal(claimsForTier(n, sets(['G. Miller'], ['S. Stewart'], [])).member, n);
+        }
     });
 });
 
@@ -2132,6 +2137,24 @@ describe('summariseAccountGaps', () => {
                 u.displayName === 'G. Miller' ? { ...u, customClaims: { name: 'G. Miller', admin: true } } : u);
             assert.deepEqual(summariseAccountGaps(users, CFG).setUp,
                 [{ name: 'G. Miller', why: 'claims' }]);
+        });
+
+        test('an account provisioned before `member` existed (v24.24)', () => {
+            // Every account on the day that release ships looks exactly like this: `name` right,
+            // `member` absent. The audit naming them is how the admin learns Set up accounts must
+            // run before the rules can require `member` — without it, the strip is clean and the
+            // second release would lock the whole station out.
+            const users = allGood().map(u =>
+                u.displayName === 'B. Toth' ? { ...u, customClaims: { name: 'B. Toth' } } : u);
+            assert.deepEqual(summariseAccountGaps(users, CFG).setUp,
+                [{ name: 'B. Toth', why: 'claims' }]);
+        });
+
+        test('a `member` claim that names somebody else is not the right claim', () => {
+            const users = allGood().map(u =>
+                u.displayName === 'B. Toth' ? { ...u, customClaims: { name: 'B. Toth', member: 'G. Miller' } } : u);
+            assert.deepEqual(summariseAccountGaps(users, CFG).setUp,
+                [{ name: 'B. Toth', why: 'claims' }]);
         });
 
         test('a leaver whose account is still enabled', () => {

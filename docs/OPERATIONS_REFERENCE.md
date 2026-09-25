@@ -594,6 +594,13 @@ was the only place it showed, which is a check you have to already suspect you n
 If the block says it **couldn't check**, that is a third answer and not a pass: the server could not
 see the roster's accounts and declined to name the whole roster as missing rather than guess. Retry it.
 
+**"Taken back and reset to the default password"** (v24.24) is a line Set up accounts prints when it
+finds an account at a roster email that it never stamped — somebody registered that email from
+outside before the server provisioned it. It resets the password to the member's surname default,
+signs out every session on it and then stamps the claims. The member named there should be told
+their password is their surname. For anybody provisioned before v24.24 this never fires: their
+accounts already carry the server's `name` claim.
+
 ### What this does NOT do, and has to be done per week
 
 **Overtime.** A week's participant population is frozen when the week opens, so hiding somebody only

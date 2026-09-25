@@ -1835,10 +1835,30 @@ runs — can be registered first by anybody, with that derived email and a passw
 because client sign-up is enabled (the app's self-heal uses `createUserWithEmailAndPassword`).
 "Set up accounts" would then find the account existing and stamp its claims onto it.
 
-**The permanent fix**, in order: (1) move member identity to a claim only the server can set (e.g.
-`member`), stamped by `setupRosterAuth` beside `name` and swept onto every device with a CLAIM_EPOCH
-bump — backend-first, exactly as B3 was; (2) switch the rules and endpoints to it; (3) turn off
-client sign-up in the Firebase console once the self-heal no longer needs it, and have
-`setupRosterAuth` refuse to adopt an account it did not create. Until then, run "Set up accounts"
-promptly for a new starter — the window is the gap between their row landing and that run.
+**The permanent fix, and where it stands** (backend-first, exactly as B3 was):
+
+1. **SHIPPED v24.24 — the server stamps `member`.** `claimsForTier` now gives every provisioned
+   account `member`, set to its roster name. It is a custom claim only: no display name, client call
+   or sign-in method can produce it. In the same release **Set up accounts takes back an account it
+   never stamped**: an existing account at a roster email with no server `name` claim was not made by
+   the server (it stamps claims in the run that creates an account), so its password is reset to the
+   member's default, its display name to the roster's, and every session on it revoked, before its
+   claims are stamped. Operations names it on a "Taken back" line so the admin can tell the member.
+   The key is `name`, not `member`, on purpose: every account provisioned before v24.24 has `name`
+   and no `member`, and must be adopted as it stands rather than reset.
+2. **OWNER STEP — run Set up accounts once**, after the v24.24 functions deploy. Until it runs, the
+   Staff Login Accounts audit lists every member as needing it (their claims lack `member`), which is
+   the signal working, not a fault. Then wait an hour, so every live token has refreshed onto the new
+   claim.
+3. **Next release — require it.** `isMember` in `firestore.rules` and `memberNameFromClaims` in
+   `functions/member-identity.js` believe a member only when `member == name`, on top of the v24.23
+   email binding. From then on a self-registered account carries nothing the rules or endpoints
+   believe. This cannot ship before step 2: a token without `member` would lose every member read
+   and write.
+4. **Optional afterwards — turn off client sign-up** in the Firebase console. After step 3 it no
+   longer grants anything; it becomes hygiene rather than a control.
+
+Until step 3 ships, run "Set up accounts" promptly for a new starter — the window is the gap between
+their row landing and that run, and from v24.24 that run also takes the account back if somebody got
+there first.
 

@@ -690,17 +690,17 @@ describe('setupRosterAuth stamps claims from the SERVER roster, never the reques
             adminNames: [MEMBER],
         }));
 
-        assert.deepEqual(claimFor(authOps, MEMBER), { name: MEMBER },
+        assert.deepEqual(claimFor(authOps, MEMBER), { name: MEMBER, member: MEMBER },
             'an ordinary member gets the name claim and nothing else, however they ask');
-        assert.deepEqual(claimFor(authOps, ADMIN), { admin: true, name: ADMIN, linksDesigner: true },
+        assert.deepEqual(claimFor(authOps, ADMIN), { admin: true, name: ADMIN, member: ADMIN, linksDesigner: true },
             'and the real admin keeps admin — the body could not demote them either');
     });
 
     test('the manager and designer tiers come from the server lists too', async () => {
         const { eps, authOps } = build();
         await call(eps.setupRosterAuth, asAdmin({}));
-        assert.deepEqual(claimFor(authOps, MANAGER), { manager: true, name: MANAGER });
-        assert.deepEqual(claimFor(authOps, DESIGNER), { name: DESIGNER, linksDesigner: true });
+        assert.deepEqual(claimFor(authOps, MANAGER), { manager: true, name: MANAGER, member: MANAGER });
+        assert.deepEqual(claimFor(authOps, DESIGNER), { name: DESIGNER, member: DESIGNER, linksDesigner: true });
     });
 
     test('every provisioned account is given a name claim', async () => {
@@ -723,6 +723,74 @@ describe('setupRosterAuth stamps claims from the SERVER roster, never the reques
             'the refusal happens before any account work');
     });
 });
+
+// ── THE MEMBER CLAIM, AND TAKING BACK AN ACCOUNT THE SERVER NEVER MADE (v24.24) ─────────────────
+//
+// v24.23 made `name` believable only from the member's own email-bound password account. What it
+// could not close: a roster name with NO account yet can be registered from outside at its derived
+// email, and that account passes the binding. Two server halves close it, and both are wiring:
+//
+//   · every provisioned account carries `member`, a claim no display name, client call or sign-in
+//     method can produce — so once the rules require it, a self-registered account believes nothing;
+//   · an existing account with no server claim at all was not made by this server, so Set up accounts
+//     TAKES IT BACK before stamping it — otherwise its first run would hand an outsider the claims.
+//
+// The costs are not symmetrical. Adopting an outsider's account as found is the breach. Resetting a
+// genuine member's account is an inconvenience — which is why the reclaim keys on the `name` claim
+// that every account provisioned before today already carries, and not on `member`, which none does.
+describe('setupRosterAuth stamps `member`, and takes back an account it never stamped', () => {
+    const claimFor = (authOps, name) =>
+        authOps.find((o) => o.op === 'setCustomUserClaims' && o.uid === uidFor(name))?.claims;
+    const outsiderAccount = (name) => ({ uid: uidFor(name), email: emailFor(name), displayName: 'anything', disabled: false });
+    const legacyAccount = (name) => ({ uid: uidFor(name), email: emailFor(name), displayName: name, disabled: false, customClaims: { name } });
+
+    test('every provisioned account gets `member`, and it is that account\'s own name', async () => {
+        const { eps, authOps } = build();
+        await call(eps.setupRosterAuth, asAdmin({}));
+        const stamps = authOps.filter((o) => o.op === 'setCustomUserClaims');
+        assert.ok(stamps.length >= 50);
+        for (const s of stamps) assert.equal(s.claims.member, s.claims.name, `member must equal name for ${s.claims.name}`);
+    });
+
+    test('an account with no server claim is reset to the default and signed out BEFORE it is stamped', async () => {
+        const { eps, authOps } = build({ existingUsers: [outsiderAccount(MEMBER)] });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.equal(out.code, 200);
+        assert.deepEqual(out.body.reclaimed, [MEMBER]);
+        assert.ok(!out.body.skipped.includes(MEMBER), 'a reclaim is not a benign "already existed"');
+
+        const ops = authOps.filter((o) => o.uid === uidFor(MEMBER));
+        const i = (op) => ops.findIndex((o) => o.op === op);
+        const reset = ops.find((o) => o.op === 'updateUser');
+        assert.equal(reset.patch.password, 'springer', 'the password the member would have been given');
+        assert.equal(reset.patch.displayName, MEMBER, 'and the roster\'s display name, not the outsider\'s');
+        assert.ok(i('revokeRefreshTokens') > i('updateUser'), 'every session on it is revoked after the reset');
+        assert.ok(i('setCustomUserClaims') > i('revokeRefreshTokens'), 'and only THEN are the claims stamped');
+        assert.equal(claimFor(authOps, MEMBER).member, MEMBER);
+    });
+
+    test('an account provisioned before `member` existed is adopted as it stands — NOT reset', async () => {
+        // Every real account today carries `name` and no `member`. Resetting those would sign the
+        // whole station out and put everyone back on their surname.
+        const { eps, authOps } = build({ existingUsers: [legacyAccount(MEMBER)] });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.deepEqual(out.body.reclaimed, []);
+        assert.ok(out.body.skipped.includes(MEMBER));
+        const mine = authOps.filter((o) => o.uid === uidFor(MEMBER));
+        assert.equal(mine.filter((o) => o.op === 'revokeRefreshTokens').length, 0, 'no session is ended');
+        assert.equal(mine.filter((o) => o.op === 'updateUser' && 'password' in (o.patch || {})).length, 0, 'no password is touched');
+        assert.deepEqual(claimFor(authOps, MEMBER), { name: MEMBER, member: MEMBER }, 'it simply gains `member`');
+    });
+
+    test('a claims object that exists but carries no name is still an outsider\'s', async () => {
+        // A stray claim (a designer flag with no name, say) is not the server's stamp.
+        const acct = { ...outsiderAccount(MEMBER), customClaims: { linksDesigner: true } };
+        const { eps } = build({ existingUsers: [acct] });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.deepEqual(out.body.reclaimed, [MEMBER]);
+    });
+});
+
 
 describe('setupRosterAuth previews leavers before it disables them', () => {
     const leaver = { uid: 'uid_leaver', email: 'x.gone@myb-roster.local', disabled: false };
@@ -843,7 +911,7 @@ describe('setupRosterAuth refuses a server roster it cannot trust', () => {
         const claims = authOps.filter((o) => o.op === 'setCustomUserClaims');
         assert.equal(claims.length, 3, 'all three fixture members were provisioned');
         assert.deepEqual(claims.find((c) => c.uid === uidFor(ADMIN)).claims,
-            { admin: true, name: ADMIN }, 'from the INJECTED roster, not the real one');
+            { admin: true, name: ADMIN, member: ADMIN }, 'from the INJECTED roster, not the real one');
     });
 });
 

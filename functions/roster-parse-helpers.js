@@ -1050,7 +1050,8 @@ function resolveRosterAuthConfig(rosterMembers) {
 
 /**
  * The custom-claims object for one member. admin outranks manager (a member in both gets `admin`
- * only); `linksDesigner` is additive (orthogonal to the admin/manager tier). Every account gets `name`.
+ * only); `linksDesigner` is additive. Every account gets `name` AND `member` (v24.24), the roster name;
+ * `member` is a custom claim no display name can produce — KNOWN_LIMITATIONS.md → "The member claim".
  * @param {string} name
  * @param {{ adminSet: Set<string>, managerSet: Set<string>, designerSet: Set<string> }} sets
  * @returns {Record<string, any>}
@@ -1060,7 +1061,7 @@ function claimsForTier(name, { adminSet, managerSet, designerSet }) {
     const isManager  = !isAdmin && managerSet.has(name);
     const isDesigner = designerSet.has(name);
     /** @type {Record<string, any>} */
-    const claims = { name };
+    const claims = { name, member: name };
     if (isAdmin)        claims.admin = true;
     else if (isManager) claims.manager = true;
     if (isDesigner)     claims.linksDesigner = true;
@@ -1182,7 +1183,7 @@ function computeOrphanLabels(users, activeEmails) {
  *        the SERVER-owned roster, exactly as setupRosterAuth resolves it
  * @returns {{ refused?: string, setUp: Array<{ name: string, why: 'no-account'|'disabled'|'claims' }>, leavers: string[] }}
  */
-const MANAGED_CLAIMS = ['name', 'admin', 'manager', 'linksDesigner'];
+const MANAGED_CLAIMS = ['name', 'member', 'admin', 'manager', 'linksDesigner'];
 
 function summariseAccountGaps(users, { processMembers, adminSet, managerSet, designerSet }) {
     const list = Array.isArray(users) ? users : [];
