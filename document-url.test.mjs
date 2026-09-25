@@ -27,7 +27,10 @@ const token = () => Promise.resolve('tok');
  * against code with no status check in it at all. A mutation caught exactly that. Making the body
  * plausible is what forces the STATUS to be the thing doing the work.
  */
-const LOOKS_FINE = { url: 'https://storage.googleapis.com/myb-roster.appspot.com/huddles/x.pdf?X-Goog-Expires=900' };
+// A COMPLETE good answer (v24.23: url + expiry + type) — so every refusal test below is refused by
+// its STATUS, not by some missing field. The v24.19 mutation audit found exactly that trap.
+const EXPIRES = Date.UTC(2026, 8, 25, 12, 15);
+const LOOKS_FINE = { url: 'https://storage.googleapis.com/myb-roster.appspot.com/huddles/x.pdf?X-Goog-Expires=900', expiresAt: EXPIRES, fileType: 'pdf' };
 const res = (status, body = LOOKS_FINE) => () => Promise.resolve({
     ok: status >= 200 && status < 300,
     status,
@@ -37,7 +40,16 @@ const res = (status, body = LOOKS_FINE) => () => Promise.resolve({
 describe('a good answer is used', () => {
     test('a 200 with a url returns it', async () => {
         const url = 'https://storage.googleapis.com/myb-roster.appspot.com/huddles/x.pdf?X-Goog-Expires=900';
-        assert.equal(await requestSignedDocumentUrl('huddle', token, res(200, { url })), url);
+        assert.deepEqual(await requestSignedDocumentUrl('huddle', token, res(200, { url, expiresAt: EXPIRES, fileType: 'docx' })),
+            { url, expiresAt: EXPIRES, fileType: 'docx' },
+            'the expiry and the SERVER\'s file type travel with the url (v24.23)');
+    });
+
+    test('a url with no readable expiry is not used — it could be lapsed and nothing could tell (v24.23)', async () => {
+        for (const expiresAt of [undefined, null, 'soon', NaN, Infinity]) {
+            assert.equal(await requestSignedDocumentUrl('huddle', token, res(200, { ...LOOKS_FINE, expiresAt })), null,
+                `expiresAt=${String(expiresAt)} was accepted`);
+        }
     });
 
     test('it sends the kind, a bearer token and JSON — or the server cannot answer', async () => {

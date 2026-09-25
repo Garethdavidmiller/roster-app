@@ -27,7 +27,13 @@ const RULES = readFileSync(new URL('./firestore.rules', import.meta.url), 'utf8'
 describe('who may be handed a URL — and it must MIRROR firestore.rules', () => {
 
     test('the three doors the rules open, and nothing else', () => {
-        assert.equal(C.mayReceiveDocumentUrl({ name: 'G. Miller' }), true, 'a member name claim');
+        assert.equal(C.mayReceiveDocumentUrl({ name: 'G. Miller', email: 'g.miller@myb-roster.local',
+            firebase: { sign_in_provider: 'password' } }), true, 'a member, on the account that name derives to');
+        // v24.23: a bare `name` is a self-set display name as often as it is a member, exactly as
+        // `isMember()` in the rules — so it is NOT a door on its own.
+        assert.equal(C.mayReceiveDocumentUrl({ name: 'G. Miller' }), false, 'a bare name string');
+        assert.equal(C.mayReceiveDocumentUrl({ name: 'G. Miller', firebase: { sign_in_provider: 'anonymous' } }), false,
+            'an anonymous session that named itself');
         assert.equal(C.mayReceiveDocumentUrl({ admin: true }), true, 'an admin');
         assert.equal(C.mayReceiveDocumentUrl({ calendarViewer: true }), true, 'the staff PIN capability');
         assert.equal(C.mayReceiveDocumentUrl({ manager: true }), false,
@@ -65,7 +71,8 @@ describe('who may be handed a URL — and it must MIRROR firestore.rules', () =>
             const read = block.match(/allow read:([\s\S]*?);/);
             assert.ok(read, `${collection} has no allow read`);
             const text = read[1];
-            assert.match(text, /'name' in request\.auth\.token/, `${collection}: the name door moved`);
+            assert.match(text, /isMember\(\)/, `${collection}: the member door moved (v24.23: isMember(), never a bare 'name' in token)`);
+            assert.doesNotMatch(text, /'name' in request\.auth\.token/, `${collection}: a bare name claim is a door again`);
             assert.match(text, /request\.auth\.token\.admin == true/, `${collection}: the admin door moved`);
             assert.match(text, /request\.auth\.token\.calendarViewer == true/, `${collection}: the PIN door moved`);
             assert.doesNotMatch(text, /manager/,

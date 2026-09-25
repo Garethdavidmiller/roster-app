@@ -234,28 +234,35 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
     // mode (it comes back wrapped in browser chrome). Instead, open the viewer with an explicit
     // button: tapping it IS a real gesture, so the file opens as a separate Custom Tab over the
     // intact standalone app, and Back returns to the clean app.
+    // Which showOpenFileButton call is current (v24.23). Each call draws a NEW button and then waits
+    // for a short-lived url; a notification tap on a cold start draws twice — the cached snapshot,
+    // then the server's — and the older call's wait could finish second and hand its url to the
+    // newer call's button. The token lets a finished wait know it has been superseded.
+    let _openFileSeq = 0;
+
     /** @param {any} huddle */
     async function showOpenFileButton(huddle) {
+        const seq = ++_openFileSeq;
         body.innerHTML = '<div class="huddle-open-prompt">'
             + '<p>The latest Huddle is ready.</p>'
             + '<button type="button" id="huddleOpenFileBtn" class="huddle-open-btn">📄 Open Huddle</button>'
             + '</div>';
         openViewer();
-        // ── MINTED BEFORE THE TAP, NEVER INSIDE IT (v24.19) ─────────────────────────────────────
-        // This button exists precisely because a real gesture is needed: the file opens as a Custom
-        // Tab over the intact standalone app (see the comment above this function). Awaiting the
-        // short-lived url inside the handler would spend that gesture and undo the whole reason the
-        // button is here, so it is fetched while the member is still reading the prompt.
-        // A null is ORDINARY — no IAM grant yet, a lapsed claim, a timeout — and the stored url,
-        // which is what shipped before, is used instead.
-        const signed = await fetchSignedDocumentUrl('huddle');
-        // Defence-in-depth: only open a recognised Firebase Storage HTTPS URL (the same validator
-        // the Circular/Newsletter openers use, now inside resolveDocumentOpenUrl and applied to the
-        // signed url too). Guards against malformed Firestore data or a compromised write opening
-        // an arbitrary URL.
-        const open = resolveDocumentOpenUrl({ signed, stored: huddle.storageUrl, fileType: huddle.fileType });
+        // ── THE BUTTON WORKS FROM THE MOMENT IT IS DRAWN (v24.23) ───────────────────────────────
+        // v24.19 attached the handler only after the short-lived url arrived, so for up to eight
+        // seconds (longer on a cold function) the button did nothing, and focus stayed behind the
+        // dialog. It is wired now, captured by reference so a later call's button is never touched,
+        // and it reads whatever url has arrived BY THE TAP: the stored one until the signed one
+        // lands. The click stays synchronous — awaiting inside it would spend the gesture that
+        // makes the file open as a Custom Tab over the standalone app (see above this function).
         const openBtn = document.getElementById('huddleOpenFileBtn');
+        /** @type {import('./document-url.js').SignedDocumentUrl|null} */
+        let signed = null;
         openBtn?.addEventListener('click', () => {
+            // Resolved AT THE TAP: a url minted when the prompt appeared can have lapsed by now,
+            // and resolveDocumentOpenUrl passes a near-expiry one over for the stored url.
+            // Defence-in-depth as before: only a recognised Firebase Storage HTTPS url is opened.
+            const open = resolveDocumentOpenUrl({ signed, stored: huddle.storageUrl, fileType: huddle.fileType });
             if (open) {
                 window.open(open.url, '_blank', 'noopener');
             } else {
@@ -263,6 +270,9 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
             }
         });
         openBtn?.focus();
+        // A null is ORDINARY — no IAM grant, a lapsed claim, a timeout — and the stored url is used.
+        const minted = await fetchSignedDocumentUrl('huddle');
+        if (seq === _openFileSeq) signed = minted;   // superseded: that button is gone anyway
     }
 
     // Render a DOCX-converted huddle inline — memoises sanitised HTML per storageUrl

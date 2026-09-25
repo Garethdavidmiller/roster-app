@@ -233,10 +233,16 @@ const req = (body, token = 'tok_member', method = 'POST') => ({
 
 // Identities, mirroring the real claim tiers.
 const TOKENS = {
-    tok_member:  { name: 'G. Miller', uid: 'uid_g', admin: true },     // rostered Master Admin
-    tok_plain:   { name: 'S. Silva',  uid: 'uid_s' },                  // ordinary member
-    tok_manager: { name: 'H. Croft',  uid: 'uid_h', manager: true },   // reviewer, not a participant
+    tok_member:  { name: 'G. Miller', uid: 'uid_g', admin: true, email: 'g.miller@myb-roster.local', firebase: { sign_in_provider: 'password' } },     // rostered Master Admin
+    tok_plain:   { name: 'S. Silva',  uid: 'uid_s', email: 's.silva@myb-roster.local', firebase: { sign_in_provider: 'password' } },                  // ordinary member
+    tok_manager: { name: 'H. Croft',  uid: 'uid_h', manager: true, email: 'h.croft@myb-roster.local', firebase: { sign_in_provider: 'password' } },   // reviewer, not a participant
     tok_viewer:  { uid: 'calendar-viewer', calendarViewer: true },     // the shared PIN identity
+    // v24.23 — tokens that CARRY a member's name without being the member. Firebase copies a
+    // self-set display name into `name`; each of these is one real way that arrives.
+    tok_anon_named:  { uid: 'uid_anon', name: 'S. Silva', firebase: { sign_in_provider: 'anonymous' } },
+    tok_pin_named:   { uid: 'calendar-viewer', calendarViewer: true, name: 'S. Silva', firebase: { sign_in_provider: 'custom' } },
+    tok_wrong_email: { uid: 'uid_atk', name: 'S. Silva', email: 'attacker@myb-roster.local', firebase: { sign_in_provider: 'password' } },
+    tok_federated:   { uid: 'uid_fed', name: 'S. Silva', email: 's.silva@myb-roster.local', firebase: { sign_in_provider: 'google.com' } },
 };
 
 const ROSTER = {
@@ -350,6 +356,17 @@ describe('the auth ladder — the same four rungs on every endpoint', () => {
         const { eps } = build(seededWindow());
         for (const [name, h] of httpEndpoints(eps)) {
             assert.equal((await call(h, req({ weekEnding: WEEK }, 'tok_viewer'))).code, 403, name);
+        }
+    });
+
+    test('a borrowed NAME is refused everywhere — it is not the member (v24.23)', async () => {
+        // Before v24.23 `authenticate` accepted any string `name`, so an anonymous session calling
+        // itself "S. Silva" could answer Overtime AS her. Every endpoint, every impostor shape.
+        const { eps } = build(seededWindow());
+        for (const tok of ['tok_anon_named', 'tok_pin_named', 'tok_wrong_email', 'tok_federated']) {
+            for (const [name, h] of httpEndpoints(eps)) {
+                assert.equal((await call(h, req({ weekEnding: WEEK }, tok))).code, 403, `${tok} → ${name}`);
+            }
         }
     });
 

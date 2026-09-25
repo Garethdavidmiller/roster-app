@@ -2099,17 +2099,21 @@ test('admin: a save that is waiting for the server says so, and the notice clear
     const notice = page.locator('#slowSaveNotice');
     await expect(notice).toBeVisible({ timeout: 5000 });
     await expect(notice).toContainText('Waiting for signal');
-    await expect(notice).toContainText('held on this phone');
+    await expect(notice).toContainText('held on this device');
     await expect(notice, 'a held write can still be refused — it must never be called saved').not.toContainText(/saved/i);
     await expect(notice).toHaveAttribute('role', 'status');
     // The button stays disabled while the write is unconfirmed: freeing it would invite a second
     // save of the same days, and every save mints new document ids.
     await expect(page.locator('#saveBtn')).toBeDisabled();
+    // …and so is the sticky bar (v24.23): its Discard stayed live, and a "discarded" save landed anyway.
+    await expect(page.locator('#stagedDiscardBtn')).toBeDisabled();
+    await expect(page.locator('#stagedSaveBtn')).toBeDisabled();
     await expect(page.locator('#formFeedback')).not.toContainText('changes saved for');
 
     await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits());
     await expect(notice).toBeHidden({ timeout: 5000 });
     await expect(page.locator('#formFeedback')).toContainText('changes saved for', { timeout: 10000 });
+    await expect(page.locator('#stagedDiscardBtn'), 'the sticky bar must come back once the save lands').toBeEnabled();
 });
 
 // ── SUNDAY IS NOT A CONTRACTED DAY — LAYERS 1 AND 2, AS THE GRID ACTUALLY DRAWS THEM ────────────

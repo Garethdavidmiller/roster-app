@@ -76,6 +76,12 @@ export function officeViewerUrl(storageUrl) {
 }
 
 /**
+ * How close to its expiry a signed url stops being chosen. The Office viewer fetches a .docx
+ * server-side AFTER the tap, so a url with seconds left can lapse between the tap and the fetch.
+ */
+export const SIGNED_URL_MARGIN_MS = 60_000;
+
+/**
  * WHICH URL a document opens with, and what to wrap it in — the whole decision, in one place.
  *
  * ── WHY THIS IS PURE, AND WHY IT IS ONE FUNCTION (v24.19) ───────────────────────────────────────
@@ -103,19 +109,32 @@ export function officeViewerUrl(storageUrl) {
  * only state this function refuses is one where NEITHER url is usable, which means the document
  * genuinely cannot be opened and the caller must say so rather than open something.
  *
- * @param {{ signed?: string|null, stored?: string|null, fileType?: string|null }} doc
+ * @param {{ signed?: any, stored?: string|null, fileType?: string|null }} doc
+ *   `signed` is `{ url, expiresAt, fileType }` (or a bare url string, treated as not expiring)
+ * @param {number} [now]  epoch ms — resolve at the TAP, so an expired link is never opened
  * @returns {{ url: string, signed: boolean } | null} null when nothing safe is available
  */
-export function resolveDocumentOpenUrl({ signed, stored, fileType }) {
-    const pick = isSafeStorageUrl(signed) ? { url: /** @type {string} */ (signed), signed: true }
-        : isSafeStorageUrl(stored) ? { url: /** @type {string} */ (stored), signed: false }
+export function resolveDocumentOpenUrl({ signed, stored, fileType }, now = Date.now()) {
+    // `signed` is `{ url, expiresAt, fileType }` from document-url.js (v24.23). A bare string is
+    // still accepted — treated as having no expiry — so older call shapes and tests keep working.
+    const s = typeof signed === 'string' ? { url: signed, expiresAt: Infinity, fileType: null }
+        : (signed && typeof signed === 'object' ? signed : null);
+    // STILL LIVE AT THE TAP, not merely when minted (v24.23). Callers resolve inside the click
+    // handler — synchronously, so the gesture survives — and a url within a minute of expiry is
+    // passed over for the stored one, because the Office viewer's own fetch happens after the tap.
+    const fresh = !!s && isSafeStorageUrl(s.url)
+        && typeof s.expiresAt === 'number' && now < s.expiresAt - SIGNED_URL_MARGIN_MS;
+    const pick = fresh ? { url: /** @type {string} */ (s.url), signed: true, type: s.fileType || fileType }
+        : isSafeStorageUrl(stored) ? { url: /** @type {string} */ (stored), signed: false, type: fileType }
         : null;
     if (!pick) return null;
     // A browser has no renderer for a .docx, so opening it directly just downloads the file. The
     // wrap is applied AFTER the choice, so a signed url reaches the Office viewer the same way a
-    // stored one does — that is what makes the cutover invisible to a reader.
-    return { url: fileType === 'docx' ? officeViewerUrl(pick.url) : pick.url, signed: pick.signed };
+    // stored one does — that is what makes the cutover invisible to a reader. The type is the one
+    // that belongs to the CHOSEN url: the server's for a signed one, the document's for a stored one.
+    return { url: pick.type === 'docx' ? officeViewerUrl(pick.url) : pick.url, signed: pick.signed };
 }
+
 
 /**
  * The "YYYY-MM-DD" retention cutoff six months before `now` — documents dated strictly before

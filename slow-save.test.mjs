@@ -2,7 +2,7 @@
 // Pure: timers are injected, so nothing here waits eight real seconds.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { watchSlowCommit, SLOW_SAVE_MS, SLOW_SAVE_TEXT } from './slow-save.js';
+import { watchSlowCommit, withSlowSaveNotice, SLOW_SAVE_MS, SLOW_SAVE_TEXT, SLOW_SAVE_TEXT_BATCHED } from './slow-save.js';
 
 /** A controllable clock: fire() runs every pending timer, as if its time had come. */
 function fakeTimers() {
@@ -60,6 +60,42 @@ test('the threshold and the wording', () => {
     assert.equal(SLOW_SAVE_MS, 8000);
     // It must never claim the write is SAVED: a held write can still be refused when it arrives.
     assert.doesNotMatch(SLOW_SAVE_TEXT, /\bsaved\b/i);
-    assert.match(SLOW_SAVE_TEXT, /held on this phone/);
+    assert.match(SLOW_SAVE_TEXT, /held on this device/, 'not "phone": the roster upload runs on desktop');
     assert.doesNotMatch(SLOW_SAVE_TEXT, /!/, 'calm tone — no exclamation marks');
+});
+
+test('a BATCHED save never tells the reader they can leave (v24.23)', () => {
+    // Only the batch in flight is held on the device; a batch not yet started exists nowhere, so
+    // leaving strands it. v24.21 said "You can leave this page" to the roster upload too.
+    assert.doesNotMatch(SLOW_SAVE_TEXT_BATCHED, /can leave/i);
+    assert.match(SLOW_SAVE_TEXT_BATCHED, /Keep this page open/);
+    assert.doesNotMatch(SLOW_SAVE_TEXT_BATCHED, /\bsaved\b/i);
+});
+
+test('the notice: batched wording wins while any batched write waits, and it clears on the last', async () => {
+    // A minimal document — enough for the notice's one element — so the reference counting is
+    // exercised through the real exported wrapper rather than restated here.
+    const el = { id: 'slowSaveNotice', hidden: true, textContent: '', setAttribute() {} };
+    const prevDoc = globalThis.document, prevE2E = globalThis.__E2E;
+    globalThis.document = /** @type {any} */ ({
+        getElementById: (id) => (id === 'slowSaveNotice' && el.appended ? el : null),
+        createElement: () => el,
+        body: { appendChild: (n) => { n.appended = true; } },
+    });
+    globalThis.__E2E = { slowSaveMs: 5 };
+    try {
+        const a = deferred(), b = deferred();
+        const pa = withSlowSaveNotice(a.p);
+        const pb = withSlowSaveNotice(b.p, { batched: true });
+        await new Promise(r => setTimeout(r, 30));
+        assert.equal(el.hidden, false);
+        assert.equal(el.textContent, SLOW_SAVE_TEXT_BATCHED, 'a batched write is waiting — stay-here wording');
+        b.resolve(); await pb; await tick();
+        assert.equal(el.hidden, false, 'the plain write still waits');
+        assert.equal(el.textContent, SLOW_SAVE_TEXT, 'no batched write left — the ordinary wording returns');
+        a.resolve(); await pa; await tick();
+        assert.equal(el.hidden, true, 'the last write landed — the notice goes');
+    } finally {
+        globalThis.document = prevDoc; globalThis.__E2E = prevE2E;
+    }
 });

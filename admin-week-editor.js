@@ -533,6 +533,13 @@ export function renderWeekGrid() {
     _updateBulkSelCount();
 }
 
+// A save awaiting the server (v24.23): updateSaveBtn used to re-arm Save mid-save on any keystroke,
+// and the sticky bar's Discard stayed live — a "discarded" save then landed anyway. Set around the
+// commit by executeSave; while set, Save and both sticky-bar buttons stay disabled.
+let _saveInFlight = false;
+/** @param {boolean} on */
+export function setSaveInFlight(on) { _saveInFlight = !!on; updateSaveBtn(); }
+
 export function updateSaveBtn() {
     const weekGrid = document.getElementById('weekGrid');
     const saveBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('saveBtn'));
@@ -542,7 +549,8 @@ export function updateSaveBtn() {
     const saveCount  = rows.filter(r => r.dataset.type && !r.classList.contains('prefilled-existing')).length;
     const delCount   = rows.filter(r => !r.dataset.type && r.dataset.existingId).length;
     const total = saveCount + delCount;
-    saveBtn.disabled = total === 0;
+    saveBtn.disabled = total === 0 || _saveInFlight;
+    for (const id of ['stagedSaveBtn', 'stagedDiscardBtn']) { const b = /** @type {HTMLButtonElement|null} */ (document.getElementById(id)); if (b) b.disabled = _saveInFlight; }
 
     // Staged bar — mirrors the save state as a fixed bottom affordance so users
     // can save without scrolling back up to the Save button.

@@ -753,9 +753,13 @@ columnScan: one key per column header; every staff member appears in every colum
         // _ccStats.total too — NOT filteredEntries.length (safeEntries minus hallucinated names).
         // Mixing them let a hallucinated row with strong column signal push the ratio to 'complete'
         // while a real member went unchecked (v16.76 review fix). Advisory-only, but keep it honest.
-        const crossCheck = _ccStats.checked === 0 ? 'unavailable'
+        // 'not-applicable' on the GEOMETRY path (v24.23): its prompt asks for no column re-read, so
+        // `checked` is always 0 there and every grid-placed read came back 'unavailable' — telling the
+        // admin to double-check by hand on exactly the path where the PDF's own grid placed each day.
+        const crossCheck = geometryPath ? 'not-applicable'
+            : _ccStats.checked === 0 ? 'unavailable'
             : _ccStats.checked >= _ccStats.total ? 'complete' : 'partial';
-        if (crossCheck !== 'complete') console.warn(`[parseRosterPDF] column cross-check ${crossCheck}: ${_ccStats.checked}/${_ccStats.total} members covered`);
+        if (crossCheck !== 'complete' && crossCheck !== 'not-applicable') console.warn(`[parseRosterPDF] column cross-check ${crossCheck}: ${_ccStats.checked}/${_ccStats.total} members covered`);
 
         res.status(200).json({
             weekEnding,
@@ -1023,11 +1027,10 @@ exports.unlockCalendarViewer = onRequest(
                 await getAuth().getUser(CALENDAR_VIEWER_UID);
             } catch (e) {
                 if (e && e.code === 'auth/user-not-found') {
-                    await getAuth().createUser({
-                        uid: CALENDAR_VIEWER_UID,
-                        displayName: 'Calendar viewer (shared staff access)',
-                        disabled: false,
-                    });
+                    // NO display name (v24.23). Firebase copies a display name into every token's
+                    // `name`, and `name` is what member rules key on — so the old label made every
+                    // PIN session look like a named member to anything checking only for a string.
+                    await getAuth().createUser({ uid: CALENDAR_VIEWER_UID, disabled: false });
                     console.log('[unlockCalendarViewer] created the viewer account');
                 } else {
                     throw e;
@@ -1039,6 +1042,11 @@ exports.unlockCalendarViewer = onRequest(
             // account cannot accumulate a claim by any route and keep it. Cheap, and it means the
             // account's privileges are re-asserted from source rather than trusted from history.
             await getAuth().setCustomUserClaims(CALENDAR_VIEWER_UID, viewerClaims());
+            // …and CLEAR any display name, on every unlock (v24.23). A PIN holder can rename this
+            // shared account from their own session, and until this line that name reached every
+            // later PIN token. The rules no longer believe it (isMember), but a shared identity
+            // should not carry anything one holder chose.
+            await getAuth().updateUser(CALENDAR_VIEWER_UID, { displayName: null });
 
             // The claims are ALSO baked into the custom token. Without this the client would hold a
             // token minted before the claims took effect and its first override read would be denied

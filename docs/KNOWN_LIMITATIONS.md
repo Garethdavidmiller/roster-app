@@ -137,9 +137,15 @@ model changes").
 `roles/iam.serviceAccountTokenCreator` on the runtime service account every call answers 503 and
 they fall back to the **permanent tokenised `storageUrl`** in the Firestore document — which is the
 state described throughout the rest of this entry, and the state the app is in until that grant is
-made. The fallback is deliberate: a member must be able to open the document either way. So this
-entry is not yet closed by the change; it is closed by the grant, and then by rotating the objects
-whose permanent URLs are already in circulation.
+made. The fallback is deliberate: a member must be able to open the document either way.
+
+**Correction (v24.23 audit): the grant is very probably already in place.** RECOVERY_RUNBOOK.md
+records `serviceAccountTokenCreator` on the shared gen-2 runtime service account for
+`unlockCalendarViewer` — the 10 Aug 2026 outage was its absence — and `getDocumentUrl` runs as the
+same account. So signed URLs are expected to be LIVE, which is what made the lapsed-link defect
+(fixed in v24.23: the url is now checked at the tap) a live one. Confirm by opening a document and
+looking for `storage.googleapis.com` rather than `firebasestorage` in the opened address. What still
+remains is rotating the objects whose permanent URLs are already in circulation.
 
 Consequence, stated plainly because no other doc says it: **tightening the Firestore read rules would
 not put these documents behind authentication.** It would change who can *discover* a URL; anyone who
@@ -1795,3 +1801,29 @@ they are latent, owner-territory, or within a documented tolerance. Each is real
   only in separators/case collapse to one account email (`"A. Mc Donald"` = `"A. McDonald"`). Not
   exploitable on the current roster; a hygiene hazard for a future compound-surname starter typed two
   ways. Worth a note in the new-starter flow.
+
+---
+
+## The member claim — the residual after v24.23 (open)
+
+**What v24.23 closed.** Every member rule and endpoint used to believe `request.auth.token.name` on
+sight. Firebase fills `name` from the account's DISPLAY NAME, which any session may set for itself,
+and anonymous sign-in is enabled — so a stranger could sign in anonymously, call itself a member, and
+read every override, read that member's work email and write their leave (proven in the emulator).
+The shared PIN account was created with a display name, so every PIN session already carried a
+`name`. v24.23 believes a `name` only on a PASSWORD sign-in whose email is the one that name derives
+to; one account per email makes that the real member. `firestore.rules` (`isMember`) and
+`functions/member-identity.js` apply it, and both are tested against every roster name.
+
+**What it does not close.** A name that has NO account yet — a new starter before "Set up accounts"
+runs — can be registered first by anybody, with that derived email and a password of their choosing,
+because client sign-up is enabled (the app's self-heal uses `createUserWithEmailAndPassword`).
+"Set up accounts" would then find the account existing and stamp its claims onto it.
+
+**The permanent fix**, in order: (1) move member identity to a claim only the server can set (e.g.
+`member`), stamped by `setupRosterAuth` beside `name` and swept onto every device with a CLAIM_EPOCH
+bump — backend-first, exactly as B3 was; (2) switch the rules and endpoints to it; (3) turn off
+client sign-up in the Firebase console once the self-heal no longer needs it, and have
+`setupRosterAuth` refuse to adopt an account it did not create. Until then, run "Set up accounts"
+promptly for a new starter — the window is the gap between their row landing and that run.
+

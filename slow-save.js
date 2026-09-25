@@ -38,7 +38,16 @@ export const SLOW_SAVE_MS = 8000;
 
 /** The one line shown while a write is waiting. It never says "saved" — see the header. */
 export const SLOW_SAVE_TEXT =
-    'Waiting for signal — your change is held on this phone and will send automatically. You can leave this page.';
+    'Waiting for signal — your change is held on this device and will send automatically. You can leave this page.';
+
+/**
+ * The line for a write that is one batch of SEVERAL (v24.23). Two writers — the roster upload and a
+ * long leave or absence range — commit in chunks of 200, one after another, and only the chunk in
+ * flight is held on the device: a chunk not yet started exists nowhere. Telling that admin they may
+ * leave, as v24.21 did, lost every later chunk without an error. So this one asks them to stay.
+ */
+export const SLOW_SAVE_TEXT_BATCHED =
+    'Waiting for signal — this save is still sending in parts. Keep this page open until it finishes.';
 
 /**
  * Watch a write promise and report when it is slow. Returns the SAME promise, so a caller's
@@ -83,19 +92,36 @@ function _noticeEl() {
     return el;
 }
 
-function _show() {
+/** Waiting writes that are part of a batched save — while any is up, the stay-here line wins. */
+let _batchedWaiting = 0;
+
+/**
+ * Raise the notice for one more waiting write. Reference-counted: two writes can wait at once, and
+ * the line must stay up until the LAST of them settles. A batched write anywhere in the set shows
+ * the stay-here wording, because leaving would strand its later batches.
+ * @param {boolean} batched
+ */
+function _show(batched) {
     _waiting++;
+    if (batched) _batchedWaiting++;
     const el = _noticeEl();
     if (!el) return;
-    el.textContent = SLOW_SAVE_TEXT;
+    el.textContent = _batchedWaiting ? SLOW_SAVE_TEXT_BATCHED : SLOW_SAVE_TEXT;
     el.hidden = false;
 }
 
-function _hide() {
+/**
+ * Lower the notice for one settled write; it disappears only when none is left waiting, and falls
+ * back to the ordinary wording once no batched write remains.
+ * @param {boolean} batched
+ */
+function _hide(batched) {
     _waiting = Math.max(0, _waiting - 1);
-    if (_waiting) return;
+    if (batched) _batchedWaiting = Math.max(0, _batchedWaiting - 1);
     const el = _noticeEl();
-    if (el) { el.hidden = true; el.textContent = ''; }
+    if (!el) return;
+    if (_waiting) { el.textContent = _batchedWaiting ? SLOW_SAVE_TEXT_BATCHED : SLOW_SAVE_TEXT; return; }
+    el.hidden = true; el.textContent = '';
 }
 
 /**
@@ -103,13 +129,15 @@ function _hide() {
  * caller awaits the result and handles success and failure exactly as before.
  * @template T
  * @param {Promise<T>} promise
+ * @param {{ batched?: boolean }} [opts]  `batched: true` when this write is one of several batches
+ *   committed in sequence — the notice then asks the reader to stay (see SLOW_SAVE_TEXT_BATCHED).
  * @returns {Promise<T>}
  */
-export function withSlowSaveNotice(promise) {
+export function withSlowSaveNotice(promise, { batched = false } = {}) {
     // `window.__E2E?.slowSaveMs` is a TEST SEAM, the same shape as text-scale.js's: the e2e holds a
     // commit open and would otherwise sit through eight real seconds to see the notice. Nothing in
     // production sets __E2E, so production always waits SLOW_SAVE_MS.
     const seam = /** @type {any} */ (globalThis).__E2E?.slowSaveMs;
     const ms = typeof seam === 'number' && seam > 0 ? seam : SLOW_SAVE_MS;
-    return watchSlowCommit(promise, { ms, onSlow: _show, onDone: _hide });
+    return watchSlowCommit(promise, { ms, onSlow: () => _show(batched), onDone: () => _hide(batched) });
 }

@@ -122,6 +122,52 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ── WHEN A `name` CLAIM MAY BE BELIEVED (v24.23 — critical; external audit 25 Sep 2026) ──────
+    //
+    // Every member rule below keys on `request.auth.token.name`, and until now it trusted that field
+    // on sight. It cannot be trusted on sight: Firebase fills an ID token's `name` from the account's
+    // DISPLAY NAME whenever no custom claim overrides it, and ANY session may set its own display
+    // name. Anonymous sign-in is enabled (the Calendar and the error reporter use it), so a stranger
+    // with the public page could sign in anonymously, call itself "G. Miller", refresh its token —
+    // and read every override, read his work email, and write annual leave into his record. Proven
+    // in the emulator against these rules, not assumed. The shared PIN account was worse: it was
+    // CREATED with a display name, so every PIN session already carried a `name`, and one PIN
+    // holder renaming that shared account handed every later PIN session a member's identity.
+    //
+    // THE BINDING. A member signs in with email + password on an account whose email is DERIVED
+    // from their name (auth-identity.js `nameToEmail`: "G. Miller" → g.miller@myb-roster.local),
+    // and Firebase will not let two accounts hold one email. So a `name` is believed only when the
+    // session signed in with a password AND its email is the one that name derives to — which only
+    // the real member's account can be. Anonymous, custom-token (PIN) and self-renamed sessions all
+    // fail it. `memberEmailFor` is the rules copy of `nameToEmail`, character for character, and
+    // `member-identity-parity.test.mjs` pins the two together over every name on the roster: a
+    // mismatch here LOCKS THAT MEMBER OUT, which is the direction this must fail in.
+    //
+    // WHAT IT DOES NOT CLOSE: a name that has no account yet could be registered first by somebody
+    // else with that derived email. The permanent fix is a claim only the server can set; see
+    // KNOWN_LIMITATIONS.md → "The member claim".
+    //
+    // `.get()` throughout, never a bare field: a token with no email or no provider must evaluate
+    // to false, not to an error whose handling differs by operator.
+    function memberEmailFor(n) {
+      let parts = n.split(' ');
+      return parts[0].lower().replace('[^a-z]', '')
+        + '.' + parts[1:parts.size()].join('').lower().replace('[^a-z]', '')
+        + '@myb-roster.local';
+    }
+    function isMember() {
+      return request.auth != null
+        && request.auth.token.get('firebase', {}).get('sign_in_provider', '') == 'password'
+        && request.auth.token.get('name', null) is string
+        && request.auth.token.get('email', '') == memberEmailFor(request.auth.token.name);
+    }
+    // The member this request speaks for, or null. Every `token.name ==` comparison below reads
+    // this instead — null equals no memberName, so an unbound name matches nobody.
+    function memberName() {
+      return isMember() ? request.auth.token.name : null;
+    }
+
+
     match /overrides/{document=**} {
       // ── READ REQUIRES A REAL IDENTITY (v20.12 — was `allow read;`, fully public) ──────────────
       //
@@ -171,7 +217,7 @@ service cloud.firestore {
       // reads whatever the client asks for, so the rollback is reverting this change and
       // redeploying rules — a two-minute path, but a different one from the flag flip.
       allow read: if request.auth != null && (
-        'name' in request.auth.token ||
+        isMember() ||
         request.auth.token.admin == true ||
         request.auth.token.calendarViewer == true
       );
@@ -271,12 +317,12 @@ service cloud.firestore {
         // no-op there. (v16.80 review fix.)
         (
           resource == null ||
-          request.auth.token.name == resource.data.memberName ||
+          memberName() == resource.data.memberName ||
           request.auth.token.admin == true ||
           request.auth.token.manager == true
         ) &&
         (
-          request.auth.token.name == request.resource.data.memberName ||
+          memberName() == request.resource.data.memberName ||
           request.auth.token.admin == true ||
           request.auth.token.manager == true
         );
@@ -284,7 +330,7 @@ service cloud.firestore {
       // memberName (request.resource is null on delete). Previously any authenticated user
       // could delete any override — isolation on writes is moot without it.
       allow delete: if request.auth != null && (
-        request.auth.token.name == resource.data.memberName ||
+        memberName() == resource.data.memberName ||
         request.auth.token.admin == true ||
         request.auth.token.manager == true
       );
@@ -303,7 +349,7 @@ service cloud.firestore {
       // closes the words as well as the link. The FILE behind `storageUrl` is a bearer URL and is
       // NOT protected here — ARCHITECTURE.md EXC-007.
       allow read: if request.auth != null && (
-        'name' in request.auth.token ||
+        isMember() ||
         request.auth.token.admin == true ||
         request.auth.token.calendarViewer == true
       );
@@ -373,7 +419,7 @@ service cloud.firestore {
       // writeWithClaimRetry. Requiring `name` keeps that escape hatch (every provisioned member has
       // it) while excluding the anonymous sessions that were never meant to be included.
       allow read: if request.auth != null &&
-        ('name' in request.auth.token || request.auth.token.admin == true);
+        (isMember() || request.auth.token.admin == true);
       // Writes require the linksDesigner claim (or admin, who outranks). setupRosterAuth
       // sets linksDesigner:true for CONFIG.LINKS_DESIGNERS. Closes H2 — before this, the
       // links-app.js client redirect was the ONLY control and the server accepted a write
@@ -462,7 +508,7 @@ service cloud.firestore {
       //
       // Read matches linkDesigns exactly, for the same self-heal reason documented there.
       allow read: if request.auth != null &&
-        ('name' in request.auth.token || request.auth.token.admin == true);
+        (isMember() || request.auth.token.admin == true);
 
       function isLinksWriter() {
         return request.auth != null &&
@@ -491,16 +537,16 @@ service cloud.firestore {
       // name, not by whoever they might type, because a forged owner is a set someone ELSE can now
       // never protect (they did not create it, yet it wears their name).
       allow create: if isLinksWriter() && validShape() &&
-        request.resource.data.createdBy == request.auth.token.name;
+        request.resource.data.createdBy == memberName();
       // UPDATE requires being the creator (or admin) AND leaves `createdBy` where it was —
       // ownership is not transferable by editing. Without the immutability clause, the creator
       // check would hold only until the first overwrite rewrote the owner field.
       allow update: if isLinksWriter() && validShape() &&
-        (resource.data.createdBy == request.auth.token.name || request.auth.token.admin == true) &&
+        (resource.data.createdBy == memberName() || request.auth.token.admin == true) &&
         request.resource.data.createdBy == resource.data.createdBy;
       // DELETE: creator or admin. No body to validate.
       allow delete: if isLinksWriter() &&
-        (resource.data.createdBy == request.auth.token.name || request.auth.token.admin == true);
+        (resource.data.createdBy == memberName() || request.auth.token.admin == true);
     }
 
     match /staffContact/{memberName} {
@@ -509,10 +555,10 @@ service cloud.firestore {
       // Write requires the `name` JWT claim — set by setupRosterAuth. Anonymous
       // fallback sessions lack this claim and cannot register contact details.
       allow read: if request.auth != null &&
-        (request.auth.token.name == memberName || request.auth.token.admin == true);
+        (memberName() == memberName || request.auth.token.admin == true);
       allow create, update: if
         request.auth != null &&
-        (request.auth.token.name == memberName || request.auth.token.admin == true) &&
+        (memberName() == memberName || request.auth.token.admin == true) &&
         // hasOnly (not hasAll) — a client must not be able to write extra fields
         // (e.g. a future server-only `verified: true`). See ROADMAP.md password stages.
         request.resource.data.keys().hasOnly(['memberName', 'workEmail', 'updatedAt']) &&
@@ -527,7 +573,7 @@ service cloud.firestore {
         request.resource.data.workEmail.matches('(?i)^[^\\s@]+@chilternrailways\\.co\\.uk$') &&
         request.resource.data.updatedAt is timestamp;
       allow delete: if request.auth != null &&
-        (request.auth.token.name == memberName || request.auth.token.admin == true);
+        (memberName() == memberName || request.auth.token.admin == true);
     }
 
     // passwordStatus/{memberName} — the per-member password-migration record (PASSWORD_DESIGN.md §6).
@@ -546,13 +592,13 @@ service cloud.firestore {
     // account-status table as a security assertion — it is a migration-progress aid.
     match /passwordStatus/{memberName} {
       allow read: if request.auth != null &&
-        (request.auth.token.name == memberName || request.auth.token.admin == true);
+        (memberName() == memberName || request.auth.token.admin == true);
       allow create: if request.auth != null &&
-        request.auth.token.name == memberName &&
+        memberName() == memberName &&
         request.resource.data.keys().hasOnly(['passwordSetAt']) &&
         request.resource.data.passwordSetAt == request.time;
       allow update: if request.auth != null &&
-        request.auth.token.name == memberName &&
+        memberName() == memberName &&
         // ONLY passwordSetAt may change — resetAt (and any other field) is immutable to clients.
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['passwordSetAt']) &&
         request.resource.data.passwordSetAt == request.time;
@@ -619,7 +665,7 @@ service cloud.firestore {
       // stops new readers DISCOVERING one without the PIN or a password.
       // Only admin may write; hasOnly (not hasAll) prevents extra fields.
       allow read: if request.auth != null && (
-        'name' in request.auth.token ||
+        isMember() ||
         request.auth.token.admin == true ||
         request.auth.token.calendarViewer == true
       );
@@ -663,7 +709,7 @@ service cloud.firestore {
     match /newsletters/{date} {
       // ── READ REQUIRES ACCESS (v23.18) — same rule as circulars above.
       allow read: if request.auth != null && (
-        'name' in request.auth.token ||
+        isMember() ||
         request.auth.token.admin == true ||
         request.auth.token.calendarViewer == true
       );

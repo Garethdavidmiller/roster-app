@@ -83,7 +83,9 @@ const SIGNED_URL_TTL_MS = 15 * 60 * 1000;
  */
 function mayReceiveDocumentUrl(claims) {
     if (!claims || typeof claims !== 'object') return false;
-    if (typeof claims.name === 'string' && claims.name.length > 0) return true;
+    // The member door is the BOUND name (v24.23), exactly as `isMember()` in the rules: a bare
+    // `name` string is a self-set display name as often as it is a member. member-identity.js.
+    if (memberNameFromClaims(claims)) return true;
     if (claims.admin === true) return true;
     if (claims.calendarViewer === true) return true;
     return false;
@@ -196,6 +198,8 @@ function isSignablePathForKind(kind, path) {
     const rest = path.slice(prefix.length);
     return rest.length > 0 && !rest.includes('/');
 }
+
+const { memberNameFromClaims } = require('./member-identity');
 
 module.exports = {
     DOC_KINDS,

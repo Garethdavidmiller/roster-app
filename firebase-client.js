@@ -107,12 +107,12 @@ export const COLLECTIONS = {
 // unit-tested directly (this module can't be imported in a Node test — it pulls the Firebase SDK
 // from the gstatic CDN). isSafeStorageUrl is re-exported so existing `from './firebase-client.js'`
 // importers (nav-panel, calendar-doc-viewer, the Huddle viewer) are unaffected; isDocxUpload is used
-// internally by the upload paths. officeViewerUrl is re-exported for the DOCX circular/newsletter
-// open path (nav-panel, calendar-doc-viewer).
-import { isSafeStorageUrl, isDocxUpload, officeViewerUrl, resolveDocumentOpenUrl, legacyDocPath, versionedDocPath, uploadMimeType } from './storage-utils.js';
+// internally by the upload paths. The .docx wrap (officeViewerUrl) is no longer re-exported: since
+// v24.19 the openers call resolveDocumentOpenUrl, which applies it, and nothing imported it from here.
+import { isSafeStorageUrl, isDocxUpload, resolveDocumentOpenUrl, legacyDocPath, versionedDocPath, uploadMimeType } from './storage-utils.js';
 import { fetchWithTimeout, isFetchTimeout } from './fetch-timeout.js';
 import { requestSignedDocumentUrl } from './document-url.js';
-export { isSafeStorageUrl, officeViewerUrl, resolveDocumentOpenUrl };
+export { isSafeStorageUrl, resolveDocumentOpenUrl };
 
 // ---- Firebase Authentication ----
 
@@ -686,7 +686,6 @@ export async function resetMemberPassword(memberName, { revoke = true } = {}) {
     return r.json();
 }
 
-/** Admin-only Cloud Function returning the EXACT unique-account sign-in counts (v18.96). */
 /**
  * A SHORT-LIVED url for the latest Huddle / Circular / Newsletter, or `null` to use the stored one.
  *
@@ -695,7 +694,7 @@ export async function resetMemberPassword(memberName, { revoke = true } = {}) {
  * three lines that cannot live there: the current user, and their ID token.
  *
  * @param {'huddle'|'circular'|'newsletter'} kind
- * @returns {Promise<string|null>}
+ * @returns {Promise<import('./document-url.js').SignedDocumentUrl|null>}  url + expiry + the signed file's type
  */
 export async function fetchSignedDocumentUrl(kind) {
     const user = auth.currentUser;
@@ -705,6 +704,7 @@ export async function fetchSignedDocumentUrl(kind) {
     return requestSignedDocumentUrl(kind, () => user.getIdToken());
 }
 
+/** Admin-only Cloud Function returning the EXACT unique-account sign-in counts (v18.96). */
 const SIGN_IN_STATS_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/getSignInStats';
 
 /**

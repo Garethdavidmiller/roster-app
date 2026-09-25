@@ -1220,3 +1220,18 @@ describe('reminderLine', () => {
         assert.equal(reminderLine('CLOSED', DL, undefined), null);
     });
 });
+
+// ── "STOPPED BY …, <DATE>" IS LONDON'S DATE (v24.23) ────────────────────────────────────────────
+// It took the date from `toISOString()`, which is UTC: a stop at 00:30 on a summer night read as the
+// previous day, on the one line that attributes a change to somebody else's record.
+describe('withdrawnLine — the date is the day it happened in London', async () => {
+    const { withdrawnLine } = await import('./overtime-format.js');
+    test('00:30 BST on Sat 12 Sep is Saturday, not Friday', () => {
+        const at = Date.UTC(2026, 8, 11, 23, 30);   // 23:30 UTC Fri = 00:30 BST Sat
+        assert.equal(withdrawnLine({ withdrawn: true, withdrawnBy: 'H. Croft', withdrawnAt: at }), 'Stopped by H. Croft, Sat 12 Sep');
+    });
+    test('and in winter London is UTC, so nothing shifts', () => {
+        const at = Date.UTC(2026, 11, 4, 23, 30);   // 23:30 GMT Fri 4 Dec
+        assert.equal(withdrawnLine({ withdrawn: true, withdrawnAt: at }), 'Stopped, Fri 4 Dec');
+    });
+});

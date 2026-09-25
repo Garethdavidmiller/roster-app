@@ -285,9 +285,16 @@ export const deleteField = () => marker('deleteField'); // FieldValue sentinel (
 export class FieldPath {}                               // literal field path (usage daily-bucket prune)
 // COUNTED (v23.17), like getDocs: the Huddle viewer reads by onSnapshot, and a locked Calendar must
 // attach no listener at all — the local cache would answer one. Never fires in tests.
-export const onSnapshot = () => {
+// DELIVERS one snapshot when a test seeds window.__E2E.huddleDoc (v24.23) — the Huddle viewer's
+// open-file button could not be reached at all otherwise, and its v24.19 defect (a button that did
+// nothing until a network call returned) lived exactly there.
+export const onSnapshot = (_q, onNext) => {
   const e2e = globalThis.__E2E || (globalThis.__E2E = {});
   e2e.snapshotSubs = (e2e.snapshotSubs || 0) + 1;
+  if (e2e.huddleDoc && typeof onNext === 'function') {
+    const d = e2e.huddleDoc;
+    setTimeout(() => onNext({ empty: false, docs: [{ id: d.date || 'x', data: () => d }] }), 0);
+  }
   return noop;
 };
 

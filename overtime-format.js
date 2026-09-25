@@ -34,7 +34,7 @@
 // for the three lines in this file that still print a deadline.
 import { deadlineLabel } from './overtime-phase.js';
 export { deadlineLabel, phaseCopy, phaseChip, phaseTone, deadlineLines } from './overtime-phase.js';
-import { getShiftBadge } from './roster-data.js';
+import { getShiftBadge, formatISO } from './roster-data.js';
 import { printedStamp, londonDate, londonClock } from './date-format.js';
 
 // THE CLOCK LEFT THIS MODULE at v23.69 — the six decisions a member's own clock may make about a
@@ -588,7 +588,9 @@ export function withdrawnLine(participant) {
     const by = typeof participant.withdrawnBy === 'string' && participant.withdrawnBy
         ? ` by ${participant.withdrawnBy}` : '';
     const when = participant.withdrawnAt
-        ? `, ${shortDate(new Date(participant.withdrawnAt).toISOString().slice(0, 10))}` : '';
+        // LONDON's date, not UTC's (v24.23): `toISOString()` is UTC, so a stop between midnight and
+        // 1am in summer read as the previous day — on the one line that attributes a change.
+        ? `, ${shortDate(formatISO(londonDate(participant.withdrawnAt)))}` : '';
     return `Stopped${by}${when}`;
 }
 
