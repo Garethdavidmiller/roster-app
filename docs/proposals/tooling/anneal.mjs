@@ -39,7 +39,9 @@ const defRows = k => DEF.filter(r => r[k] > 0).map(r => [r.time, r[k]]);
 // G (22 Sep 2026): "By the Book 2" -- Eight Forty's 8h40 cap with two 14:00-22:30 ticket-office turns pinned
 // Monday to Saturday and two on a Sunday, the table placed by place-structures.mjs and read from its output
 // for the same reason E's is: so the anneal cannot drift from what that search found.
-const TABLE_FILE = { E: './eight-forty-table.json', G: './by-the-book-2-table.json' }[VARIANT];
+// W (24 Sep 2026): "Quarter To 2" -- table Q's weekday with SATURDAY AND SUNDAY REBUILT under the 8h40 cap by
+// weekend-table.mjs, assembled by assemble-table.mjs and read from its output, as E and G are. MODE=feel, like Q.
+const TABLE_FILE = { E: './eight-forty-table.json', G: './by-the-book-2-table.json', W: './quarter-to-2-table.json' }[VARIANT];
 const EF = TABLE_FILE ? JSON.parse(readFileSync(new URL(TABLE_FILE, import.meta.url), 'utf8')).slots : null;
 const efRows = k => EF.filter(r => r[k] > 0).map(r => [r.time, r[k]]);
 const SAT_ = VARIANT === 'D' ? defRows('sat') : EF ? efRows('sat') : null, SUN_ = VARIANT === 'D' ? defRows('sun') : EF ? efRows('sun') : null, WK_ = VARIANT === 'D' ? defRows('weekday') : EF ? efRows('weekday') : null;
