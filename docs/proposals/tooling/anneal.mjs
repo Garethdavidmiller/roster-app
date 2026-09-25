@@ -41,7 +41,10 @@ const defRows = k => DEF.filter(r => r[k] > 0).map(r => [r.time, r[k]]);
 // for the same reason E's is: so the anneal cannot drift from what that search found.
 // W (24 Sep 2026): "Quarter To 2" -- table Q's weekday with SATURDAY AND SUNDAY REBUILT under the 8h40 cap by
 // weekend-table.mjs, assembled by assemble-table.mjs and read from its output, as E and G are. MODE=feel, like Q.
-const TABLE_FILE = { E: './eight-forty-table.json', G: './by-the-book-2-table.json', W: './quarter-to-2-table.json' }[VARIANT];
+// P (25 Sep 2026): "Pinned Turns" -- the owner's brief from today's roster (brief-table.mjs), assembled by
+// assemble-table.mjs and read from its output. Run in BOTH modes: MODE=rules to minimise the factors, MODE=feel
+// for the like-today comparison; the picker takes whichever mode carries fewer factors.
+const TABLE_FILE = { E: './eight-forty-table.json', G: './by-the-book-2-table.json', W: './quarter-to-2-table.json', P: './pinned-turns-table.json' }[VARIANT];
 const EF = TABLE_FILE ? JSON.parse(readFileSync(new URL(TABLE_FILE, import.meta.url), 'utf8')).slots : null;
 const efRows = k => EF.filter(r => r[k] > 0).map(r => [r.time, r[k]]);
 const SAT_ = VARIANT === 'D' ? defRows('sat') : EF ? efRows('sat') : null, SUN_ = VARIANT === 'D' ? defRows('sun') : EF ? efRows('sun') : null, WK_ = VARIANT === 'D' ? defRows('weekday') : EF ? efRows('weekday') : null;
