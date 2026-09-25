@@ -2341,6 +2341,53 @@ body.auth-ready .container { display: grid; }
 .compare-sum-val { font-weight: 700; color: var(--text-dark); font-variant-numeric: tabular-nums; }
 .compare-sum-val--same { font-weight: 600; color: var(--text-light); }
 
+/* COMPARE ANALYSIS (v24.25) — what the difference MEANS: cover against the service, the hard limits
+   and the fatigue factors, for both designs. The same surface as the strip above and the same
+   row grammar (`label  A → B`), so it reads as one continuous comparison rather than a second
+   panel. One group per question, each with a small heading; nothing is tinted good or bad — the
+   fatigue panel's rule (present / standing / clear, never a verdict) holds here too. */
+.compare-analysis {
+    grid-column: 1 / -1;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-button);
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    display: grid;
+    gap: 10px;
+}
+.compare-analysis:empty { display: none; }
+.compare-an-group { margin: 0; }
+.compare-an-head {
+    margin: 0 0 4px;
+    font-size: var(--type-micro);
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-mid);
+}
+.compare-an-list {
+    margin: 0; padding: 0; list-style: none;
+    display: grid; gap: 3px;
+    font-size: var(--type-small);
+}
+.compare-an-list li { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; }
+.compare-an-code {
+    display: inline-block;
+    min-width: 3.2em;
+    font-weight: 700;
+    color: var(--text-mid);
+    font-variant-numeric: tabular-nums;
+}
+.compare-an-where, .compare-an-note {
+    flex-basis: 100%;
+    font-size: var(--type-small);
+    color: var(--text-light);
+}
+.compare-an-note { margin: 4px 0 0; }
+.compare-an-more summary { cursor: pointer; font-size: var(--type-small); color: var(--text-mid); }
+.compare-an-more[open] summary { margin-bottom: 4px; }
+
 /* ═══ THE ROW-OF-BUTTONS FAMILIES GET A THUMB-SIZED TARGET TOO (v22.65) ═══════════════════════════
 
    v22.61 measured the paint chips at 30x22 / 27x20 / 53x22 on a phone and gave them a 30px floor

@@ -35,7 +35,7 @@
 import { DAYS, ROTATING_LINES, DEFAULT_MAX_RUN, calcHourlyCoverage, runDesignChecks,
     weeklyHours, CONTRACTED_HOURS_PER_WEEK, hmFromHours } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
-import { assessHardLimits, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
+import { assessHardLimits, LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
 import { normaliseWindow, heatSpan, isHourStaffed, windowForDay, windowMinutes } from './links-window.js';
 import {
     DEC_2026_DEMAND, DEC_2026_MOVEMENTS, DEC_2026_SOURCE, DAY_CLASSES,
@@ -693,9 +693,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
         // `basis` and its prose cannot end up disagreeing, which is how all four previous
         // attributions went wrong. `data-claim="limit"` is the tests' anchor: it survives a rename of
         // the section, which a hardcoded "Company limits" string does not.
-        const limitClaim = POLICY_SOURCE_CONFIRMED
-            ? 'Chiltern roster policy — must be met'
-            : 'Configured Chiltern limit — policy source outstanding';
+        const limitClaim = LIMIT_CLAIM;
         fatRows.push(
             `<div class="check-section-head" data-claim="limit"><span>Company limits <span class="check-note">${escapeHtml(limitClaim)}</span></span>` +
             `<span class="check-section-meta${limits.breaches ? ' check-section-meta-breach' : ''}">` +

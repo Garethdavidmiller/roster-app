@@ -147,6 +147,15 @@ const UNCONFIRMED_BASIS = 'Chiltern roster policy, citation outstanding — lega
 const BASIS = POLICY_SOURCE_CONFIRMED ? CONFIRMED_BASIS : UNCONFIRMED_BASIS;
 
 /**
+ * How strongly a surface may name this limit, derived from the switch above (v20.08). Exported so
+ * the Design checks card and compare mode read ONE string: compare mode typed "Hard limits" at v24.25,
+ * a stronger claim than the evidence carries, which is the exact drift this switch exists to stop.
+ */
+export const LIMIT_CLAIM = POLICY_SOURCE_CONFIRMED
+    ? 'Chiltern roster policy — must be met'
+    : 'Configured Chiltern limit — policy source outstanding';
+
+/**
  * @typedef {object} HardLimitCheck
  * @property {string} id
  * @property {string} title

@@ -663,7 +663,10 @@ legacy/imported data, the same route `canonicaliseShift` exists for.
 **An automatic optimiser.** The generator produces a compliant skeleton; which duties fit the service
 is a judgement for the two designers. The tool's job is to check and to show, not to decide.
 
-**Compare mode carrying its own analysis.** Compare shows two grids with a gold cell diff; the
+**~~Compare mode carrying its own analysis.~~ BUILT v24.25** (`links-compare-analysis.js`), once the
+22 proposal sheets existed to build it against: cover against the service, hard limits and fatigue
+factors for both designs, under the difference strip. The reasoning for deferring it is kept below.
+Compare showed two grids with a gold cell diff; the
 Coverage and Design-checks cards below still describe only the ACTIVE design. So the reason you would
 compare two proposals — their cover against the service, their fatigue findings — is the one thing
 compare mode does not do, and the cell diff tells you *where* they differ rather than *what that

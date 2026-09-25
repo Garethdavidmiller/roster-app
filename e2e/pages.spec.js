@@ -5519,6 +5519,15 @@ test('links window: compare states BOTH windows and flags that they differ', asy
     expect(joined, 'the standard Sunday finish must be stated').toContain('Sun 07:15–23:25');
     expect(joined, 'the moved Sunday finish must be stated').toContain('Sun 07:15–23:55');
     expect(await page.locator('.compare-window--differs').count()).toBe(2);
+
+    // The window editor stays usable in compare mode, so an edit must reach the comparison too —
+    // v24.25 repainted only the coverage card, and the heads and analysis kept the old window.
+    // Order-agnostic, like the heads above: move the ACTIVE design's Sunday finish to the other's.
+    const sunEnd = page.locator('#winSunEnd');
+    await sunEnd.fill((await sunEnd.inputValue()) === '23:55' ? '23:25' : '23:55');
+    await sunEnd.dispatchEvent('change');
+    await expect(page.locator('.compare-window--differs')).toHaveCount(0);
+    await expect(page.locator('#compareAnalysis')).not.toContainText('staffed over different hours');
 });
 
 // ── Compare: only the lines that differ, and the two columns on the same day (v22.77) ───────────
@@ -5563,6 +5572,20 @@ test('links compare: the filter hides the identical lines, and says so both ways
     await btn.click();
     await expect(page.locator('#compareGridBodyRowsA tr:visible')).toHaveCount(ROTATING_LINES);
     await expect(page.locator('#compareSummary')).not.toContainText('still cover all');
+});
+
+test('links compare: the analysis of the difference renders with the two grids', async ({ page }) => {
+    // The unit suites own what the analysis SAYS. This is the wiring: compare mode opened in a real
+    // page reaches `renderAnalysis`, and the three groups arrive in the section the markup reserves.
+    await openWindowDesign(page, [{
+        id: 'b', name: 'Nearly the same', patterns: partlyDifferentPatterns(3),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva',
+    }]);
+    await sheetAction(page, 'compareBtn');
+    const an = page.locator('#compareAnalysis');
+    await expect(an.locator('.compare-an-head')).toHaveText([/^Against the service/, /^Company limits/, /^Fatigue factors/]);
+    await expect(an).toBeVisible();
+    await an.screenshot({ path: process.env.COMPARE_SHOT || 'test-results/compare-analysis.png' });
 });
 
 test('links compare: scrolling one column moves the other to the same day', async ({ page }) => {

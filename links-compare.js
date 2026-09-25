@@ -17,6 +17,9 @@ import { escapeHtml } from './roster-data.js';
 import { DAYS, ROTATING_LINES, classifyShift, calcCoverage, runDesignChecks, weeklyHours, hmFromHours } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
 import { formatWindow, windowsDiffer } from './links-window.js';
+import { compareDesigns } from './links-compare-analysis.js';
+import { LIMIT_CLAIM, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
+import { describeHours } from './links-demand.js';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 // The rotation length, IMPORTED (v19.98). It was a local literal `28` — the fourth copy of a
@@ -144,6 +147,7 @@ export function initLinksCompare(deps) {
         // the grids' class read it. Rendering a grid first would apply the previous pair's answer.
         renderSummaryStrip(design, other);
         renderCompareFilter();
+        renderAnalysis(design, other);
         renderCompareGrid('compareGridBodyRowsA', 'compareGridFootA', design.patterns, other.patterns);
         renderCompareGrid('compareGridBodyRowsB', 'compareGridFootB', other.patterns, design.patterns);
         wrap.classList.toggle('compare-diff-only', _filterActive());
@@ -210,6 +214,103 @@ export function initLinksCompare(deps) {
             row('Rest under 12 hours', ca.turnarounds.length, cb.turnarounds.length) +
             row('ORR factors present', fa.present, fb.present) +
             `</ul>`;
+    }
+
+    /**
+     * What the difference MEANS (v24.25) — cover against the service, the hard limits and the
+     * fatigue factors, for both designs. The arithmetic is `compareDesigns` (pure, tested on its
+     * own); this only writes it out, in the strip's grammar: `label  A → B`, nothing scored.
+     *
+     * Rows whose two readings are the same still render, muted, for the strip's reason: "the same"
+     * must not look like "not measured". Fatigue is the exception in FORM only — twenty-odd factors
+     * would bury the handful that moved — so the unchanged ones are COUNTED, and any present in both
+     * are NAMED, since that is the finding a reader comparing two designs is likeliest to miss.
+     * @param {any} a the ACTIVE design @param {any} b the one being compared against
+     */
+    function renderAnalysis(a, b) {
+        const el = document.getElementById('compareAnalysis');
+        if (!el) return;
+        const r = compareDesigns(a, b, { lines: TOTAL_POS });
+        const hh = (/** @type {number} */ h) => `${String(h).padStart(2, '0')}:00`;
+        const val = (/** @type {any} */ x, /** @type {any} */ y) =>
+            `<span class="compare-sum-val${String(x) === String(y) ? ' compare-sum-val--same' : ''}">` +
+            `${escapeHtml(String(x))} → ${escapeHtml(String(y))}</span>`;
+        const row = (/** @type {string} */ label, /** @type {any} */ x, /** @type {any} */ y, extra = '') =>
+            `<li><span class="compare-sum-label">${label}</span>${val(x, y)}${extra}</li>`;
+        const group = (/** @type {string} */ title, /** @type {string} */ body, note = '') =>
+            `<div class="compare-an-group"><h4 class="compare-an-head">${escapeHtml(title)}` +
+            `${note ? ` <span class="compare-an-claim">${escapeHtml(note)}</span>` : ''}</h4>${body}</div>`;
+        const DAY_NAME = /** @type {Record<string, string>} */ ({ mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' });
+
+        // ── Against the service ──
+        const ua = r.service.uncovered.a, ub = r.service.uncovered.b;
+        const where = [ua.hours ? `This design: ${describeHours(ua.where)}` : '',
+                       ub.hours ? `Compared design: ${describeHours(ub.where)}` : '']
+            .filter(Boolean).map(t => `<span class="compare-an-where">${escapeHtml(t)}</span>`).join('');
+        const service = `<ul class="compare-an-list">` +
+            row('Hours with trains and nobody on', ua.hours, ub.hours, where) +
+            r.service.busiest.map(p => {
+                // A class of several days reports its FEWEST, and says which day that is — otherwise a
+                // weekday figure would be read as every weekday's (v24.25).
+                if (p.days === 1) return row(`On duty at the busiest hour — ${escapeHtml(p.label)} ${hh(p.hour)}`, p.a, p.b);
+                const on = (/** @type {string[]} */ ds) => ds.length === p.days ? 'every weekday' : ds.map(d => DAY_NAME[d] ?? d).join(', ');
+                const which = `<span class="compare-an-where">${escapeHtml(`Fewest on: this design ${on(p.fewestOn.a)} · compared ${on(p.fewestOn.b)}`)}</span>`;
+                return row(`Fewest on duty at the busiest hour — ${escapeHtml(p.label)} ${hh(p.hour)}`, p.a, p.b, which);
+            }).join('') +
+            `</ul>` +
+            (r.windowsDiffer
+                ? `<p class="compare-an-note">The two designs are staffed over different hours, and each is read against its own — so these are not like for like.</p>`
+                : '');
+
+        // ── Hard limits ──
+        // The claim's strength is DERIVED, as on the Design checks card (v20.08) — never typed here.
+        const OVER = POLICY_SOURCE_CONFIRMED ? 'over the limit' : 'over the configured limit';
+        const limitVal = (/** @type {any} */ c) => c
+            ? (c.status === 'unknown' ? 'not assessable' : `${c.value}${c.status === 'breach' ? ` — ${OVER}` : ''}`)
+            : '—';
+        const limits = `<ul class="compare-an-list">` +
+            r.limits.map(c => row(escapeHtml(c.title), limitVal(c.a), limitVal(c.b))).join('') +
+            `</ul>`;
+
+        // ── Fatigue factors ──
+        const WORD = /** @type {Record<string, string>} */ ({ present: 'present', standing: 'standing', clear: 'clear', 'n/a': 'not applicable' });
+        const reading = (/** @type {{status: string, value: any}} */ x) =>
+            `${WORD[x.status] ?? x.status}${x.value === undefined || x.value === null || x.value === '' ? '' : ` (${x.value})`}`;
+        // The threshold and the "to confirm" flag travel with every row, as on the Design checks card.
+        const factor = (/** @type {any} */ c) => {
+            const notes = [
+                c.threshold !== undefined && c.threshold !== null && c.threshold !== '' ? `threshold ${c.threshold}` : '',
+                c.confirm ? 'definition to confirm' : '',
+            ].filter(Boolean).join(' · ');
+            return `<li><span class="compare-sum-label"><span class="compare-an-code">${escapeHtml(c.code)}</span>` +
+                `${escapeHtml(c.title)}</span>${val(reading(c.a), reading(c.b))}` +
+                (notes ? `<span class="compare-an-where">${escapeHtml(notes)}</span>` : '') + `</li>`;
+        };
+        const moved = r.fatigue.changed.filter(c => c.a.status !== c.b.status);
+        const shifted = r.fatigue.changed.filter(c => c.a.status === c.b.status);
+        const f = r.fatigue;
+        const fatigue =
+            `<ul class="compare-an-list">` +
+            row('Factors present', f.present.a, f.present.b) +
+            (moved.length ? moved.map(factor).join('') : '') +
+            `</ul>` +
+            (moved.length ? '' : `<p class="compare-an-note">No factor changes its finding between the two designs.</p>`) +
+            (shifted.length
+                ? `<details class="compare-an-more"><summary>${shifted.length} more moved a figure without changing the finding</summary>` +
+                  `<ul class="compare-an-list">${shifted.map(factor).join('')}</ul></details>`
+                : '') +
+            `<p class="compare-an-note">${f.presentInBoth.length
+                ? `Present in both: ${f.presentInBoth.map(p => `${escapeHtml(p.code)} ${escapeHtml(p.title)}`).join('; ')}. `
+                : 'No factor is present in both. '}` +
+            `${f.unchanged} factor${f.unchanged === 1 ? '' : 's'} read the same in both.</p>` +
+            (f.hoursAreFloor
+                ? `<p class="compare-an-note">Every hours figure here is a floor, not an estimate — a spare week counts as worked days but carries no hours.</p>`
+                : '');
+
+        el.innerHTML =
+            group('Against the service', service) +
+            group('Company limits', limits, LIMIT_CLAIM) +
+            group('Fatigue factors', fatigue);
     }
 
     /**
