@@ -33,8 +33,11 @@ const mm = t => +t.slice(0, 2) * 60 + +t.slice(3);
 const hm = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
 const WIN = { weekday: [6*60+20, 23*60+55], sat: [6*60+20, 23*60+55], sun: [7*60+15, 23*60+25] }; const [OPEN, CLOSE] = WIN[CLS];
 const N = { weekday: 14, sat: 14, sun: 10 }[CLS], OPENERS = 4, CLOSERS = { weekday: 3, sat: 4, sun: 3 }[CLS], AT22 = CLS === 'sun' ? null : 5;
-// MOVE (owner, 25 Sep 2026: "would it be better if you could move one or two turn times? not the pinned ticket
-// office ones or the number of openers or closers"): the ticket-office pins (14:00-22:30, 13:00-21:30) never move;
+// MOVE is a MEASUREMENT, not a design (25 Sep 2026). It was built to answer "would moving one or two turn times do
+// better?" by letting the brief's own weekday times float, and found that closers at 15:15 would take the weekday
+// fit from 33.8 to about 32.4, and 06:20-14:00 openers with them to about 30.9 -- and the owner then ruled that the
+// 15:45 closer and the 06:20-14:20 openers were set for a reason and stay. The knob is kept for the record; nothing
+// is built on it. The ticket-office pins (14:00-22:30, 13:00-21:30) never move;
 // MOVE=openers lets the three 06:20-14:20 openers keep their count but choose ONE finish together; MOVE=closers
 // lets the three 15:45-23:55 closers choose ONE start together; MOVE=both frees both. Weekday only — the
 // weekend's other pins are counts, not times.
@@ -46,6 +49,10 @@ const OPENER_MIN_END = CLS === 'sat' ? { count: 2, end: 14*60+20 } : null;   // 
 const EVENING = { weekday: [22*60, 22*60+30], sat: [22*60+30], sun: [21*60+30] }[CLS];
 const TOTAL_MIN = Number(process.env.TOTAL_MIN ?? process.env.TOTAL ?? (CLS === 'sun' ? 5100 : 7000)), TOTAL_MAX = Number(process.env.TOTAL_MAX ?? process.env.TOTAL ?? (CLS === 'sun' ? 5145 : 7000));
 const LO = 420, HI = Number(process.env.HI ?? 520), MAX_PER = 4;
+// FINE=n (25 Sep 2026, the owner's question tried again on the turns that are NOT pinned): the pool is the quarter
+// hours plus today's clock times, so the one move the search cannot make is OFF that grid. FINE lets at most n turns
+// take any legal five-minute time (still no :05 or :10, still the office-close rule); 0 keeps the grid.
+const FINE = Number(process.env.FINE ?? 0);
 const PICK = process.env.PICK ?? 'fit', EXHAUSTIVE = process.env.EXHAUSTIVE !== '0';
 
 const T0 = today(); const todayRows = assess(T0.patterns, T0.lines).tableRows;
@@ -55,8 +62,11 @@ const todayEvening = new Set(todayRows.filter(r => r[CLS] > 0).map(r => mm(r.tim
 const legalMinute = m => m === OPEN || m === CLOSE || ![5, 10].includes(m % 60);
 const legalEnd = e => e === CLOSE || (e <= CLOSE - 60 && (!(e > 21*60 && e < 23*60) || EVENING.includes(e) || (process.env.ALLOW_TODAY_ENDS && todayEvening.has(e))));
 const legalStart = s => s === OPEN || s >= OPEN + 40;
-const STARTS = [...new Set([OPEN, ...Array.from({ length: 41 }, (_, i) => 7*60 + 15*i), ...knownStarts])].filter(s => s >= OPEN && s < CLOSE && legalMinute(s) && legalStart(s)).sort((a, b) => a - b);
-const ENDS = [...new Set([CLOSE, ...Array.from({ length: 38 }, (_, i) => 13*60+30 + 15*i), ...knownEnds, ...EVENING])].filter(e => e > OPEN && e <= CLOSE && legalMinute(e) && legalEnd(e)).sort((a, b) => a - b);
+const QUARTER = m => m === OPEN || m === CLOSE || m % 15 === 0;
+const onGrid = p => (QUARTER(p.s) || knownStarts.has(p.s)) && (QUARTER(p.e) || knownEnds.has(p.e));
+const fineStarts = FINE ? Array.from({ length: 121 }, (_, i) => 7*60 + 5*i) : [], fineEnds = FINE ? Array.from({ length: 112 }, (_, i) => 13*60+30 + 5*i) : [];
+const STARTS = [...new Set([OPEN, ...Array.from({ length: 41 }, (_, i) => 7*60 + 15*i), ...knownStarts, ...fineStarts])].filter(s => s >= OPEN && s < CLOSE && legalMinute(s) && legalStart(s)).sort((a, b) => a - b);
+const ENDS = [...new Set([CLOSE, ...Array.from({ length: 38 }, (_, i) => 13*60+30 + 15*i), ...knownEnds, ...EVENING, ...fineEnds])].filter(e => e > OPEN && e <= CLOSE && legalMinute(e) && legalEnd(e)).sort((a, b) => a - b);
 const POOL = []; for (const s of STARTS) for (const e of ENDS) { const L = e - s; if (L >= LO && L <= HI) POOL.push({ s, e, L, t: `${hm(s)}-${hm(e)}` }); }
 const byT = Object.fromEntries(POOL.map(p => [p.t, p]));
 const pinned = PINS.map(([t, n]) => { const [a, b] = t.split('-'); return [{ s: mm(a), e: mm(b), L: mm(b) - mm(a), t }, n]; });
@@ -86,11 +96,12 @@ function consider(free) {   // free: [[pool, n], ...] — the pins are added her
   if (AT22 !== null) { const at22 = all.filter(([p]) => p.e > 22*60).reduce((a, [, n]) => a + n, 0); if (at22 !== AT22) return; }
   if (OPENER_MIN_END) { const late = openers.filter(([p]) => p.e >= OPENER_MIN_END.end).reduce((a, [, n]) => a + n, 0); if (late < OPENER_MIN_END.count) return; }
   if (SHARED_OPENERS && !openers.some(([, n]) => n >= SHARED_OPENERS)) return;
+  if (all.filter(([p]) => !onGrid(p)).length > FINE) return;   // at most FINE turns off the quarter-hour grid
   if (SHARED_CLOSERS && all.filter(([p]) => p.e === CLOSE).length !== 1) return;
   const c = cover(all); const thin = thinnest(c); if (thin < FLOOR - 1e-9) return;
   const fit = dayFit(c, CLS); const turns = all.length; const fresh = all.filter(([p]) => !TODAY.has(p.t)).length;
   feasible++;
-  const rec = { duties: all.map(([p, n]) => [p.t, n]).sort((a, b) => a[0].localeCompare(b[0])), fit, turns, fresh, total, thin: +thin.toFixed(2),
+  const rec = { duties: all.map(([p, n]) => [p.t, n]).sort((a, b) => a[0].localeCompare(b[0])), fit, turns, fresh, total, thin: +thin.toFixed(2), offGrid: all.filter(([p]) => !onGrid(p)).map(([p]) => p.t),
     starts: new Set(all.map(([p]) => p.s)).size, ends: new Set(all.map(([p]) => p.e)).size };
   const kFit = fit * 1e4 + fresh * 100 + turns, kKnown = fresh * 1e6 + fit * 100 + turns;
   if (!bestBy.fit || kFit < bestBy.fit.k) bestBy.fit = { k: kFit, ...rec };
@@ -146,9 +157,9 @@ while (Date.now() - t0 < BUDGET) {
   }
 }
 const show = (label, b) => { if (!b) { console.log(`  ${label}: none`); return; }
-  console.log(`  ${label}: ${b.turns} turns · ${b.starts} starts + ${b.ends} finishes · ${b.fresh} new · fit ${b.fit} · pays ${b.total} · thinnest hour ${b.thin}`);
+  console.log(`  ${label}: ${b.turns} turns · ${b.starts} starts + ${b.ends} finishes · ${b.fresh} new · fit ${b.fit} · pays ${b.total} · thinnest hour ${b.thin}${b.offGrid?.length ? ` · off the quarter hour: ${b.offGrid.join(', ')}` : ''}`);
   console.log('    ' + b.duties.map(([t, n]) => `${t} x${n}`).join('  ')); };
-console.log(`${CLS}: ${MOVE.size ? `MOVE=${[...MOVE].join(',')} · ` : ''}pins ${PINS.map(([t, n]) => `${t} x${n}`).join(', ')} · free ${FREE} (${needO} opener, ${needC} closer, ${needM} middle) · pool ${POOL.length} (${KNOWN_POOL.length} known) · known-only feasible ${EXHAUSTIVE ? knownFeasible : '—'} · one-new feasible ${EXHAUSTIVE ? `${oneNewFeasible} (${(oneNewMs/1000).toFixed(0)}s)` : '—'} · sampled ${sampled.toLocaleString()} · feasible ${feasible} · floor ${FLOOR} · total ${TOTAL_MIN}${TOTAL_MAX !== TOTAL_MIN ? `–${TOTAL_MAX}` : ''} · cap ${HI}`);
+console.log(`${CLS}: ${MOVE.size ? `MOVE=${[...MOVE].join(',')} · ` : ''}${FINE ? `FINE=${FINE} · ` : ''}pins ${PINS.map(([t, n]) => `${t} x${n}`).join(', ')} · free ${FREE} (${needO} opener, ${needC} closer, ${needM} middle) · pool ${POOL.length} (${KNOWN_POOL.length} known) · known-only feasible ${EXHAUSTIVE ? knownFeasible : '—'} · one-new feasible ${EXHAUSTIVE ? `${oneNewFeasible} (${(oneNewMs/1000).toFixed(0)}s)` : '—'} · sampled ${sampled.toLocaleString()} · feasible ${feasible} · floor ${FLOOR} · total ${TOTAL_MIN}${TOTAL_MAX !== TOTAL_MIN ? `–${TOTAL_MAX}` : ''} · cap ${HI}`);
 show('best by fit (then fewest new turns)', bestBy.fit); show('best by familiarity (fewest new turns, then fit)', bestBy.known);
 console.log('  best fit at each count of new turns:'); for (const k of Object.keys(byNew).sort((a, b) => a - b)) show(`    ${k} new`, byNew[k]);
 const chosen = bestBy[PICK]; if (!chosen) { if (process.env.OUT) writeFileSync(process.env.OUT, JSON.stringify({ cls: CLS, total: TOTAL_MIN, feasible: 0 })); process.exit(1); }
