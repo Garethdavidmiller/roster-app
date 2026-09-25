@@ -1830,22 +1830,30 @@ The shared PIN account was created with a display name, so every PIN session alr
 to; one account per email makes that the real member. `firestore.rules` (`isMember`) and
 `functions/member-identity.js` apply it, and both are tested against every roster name.
 
-**What it does not close.** A name that has NO account yet — a new starter before "Set up accounts"
-runs — can be registered first by anybody, with that derived email and a password of their choosing,
-because client sign-up is enabled (the app's self-heal uses `createUserWithEmailAndPassword`).
-"Set up accounts" would then find the account existing and stamp its claims onto it.
+**What it does not close — and it is wider than this entry first said.** The binding asks whether
+the email matches the name; it does not ask whether the name is ON THE ROSTER. So anybody can sign up
+from the client at an address that derives from a name nobody has — `z.zzz@myb-roster.local`, display
+name "Z. Zzz" — and that token passes `isMember()` in full: every member's overrides, the three
+documents, the Links designs and signed document links, all past the PIN (proven in the emulator,
+v24.24 review). This entry said the gap was "a new starter before Set up accounts runs", which
+understated it: running Set up accounts promptly does nothing about an invented name. The second case
+is the one first described — a real new starter's email registered before the server provisions it,
+which Set up accounts would then have adopted. Both exist because client sign-up is enabled.
 
 **The permanent fix, and where it stands** (backend-first, exactly as B3 was):
 
 1. **SHIPPED v24.24 — the server stamps `member`.** `claimsForTier` now gives every provisioned
    account `member`, set to its roster name. It is a custom claim only: no display name, client call
    or sign-in method can produce it. In the same release **Set up accounts takes back an account it
-   never stamped**: an existing account at a roster email with no server `name` claim was not made by
-   the server (it stamps claims in the run that creates an account), so its password is reset to the
-   member's default, its display name to the roster's, and every session on it revoked, before its
-   claims are stamped. Operations names it on a "Taken back" line so the admin can tell the member.
-   The key is `name`, not `member`, on purpose: every account provisioned before v24.24 has `name`
-   and no `member`, and must be adopted as it stands rather than reset.
+   never stamped**: an existing account at a roster email carrying NO custom claim at all was not made
+   by the server (only the Admin SDK or the console can set a claim), so its password is reset to the
+   member's default, its display name to the roster's, every session on it revoked and `resetAt`
+   stamped, before its claims are. Operations names it on a "Taken back" line so the admin can tell
+   the member. **Any claim, not `name`**: the first cut keyed on `name` and would have reset an admin
+   whose `{ admin: true }` was set by hand in the console, including the one pressing the button.
+   **It fails closed**: a take-back whose reset or revoke fails stamps nothing and reports
+   `reclaim-failed`, because stamping after a failed take-back would hand the outsider the claims
+   and the next run would adopt the account for good.
 2. **OWNER STEP — run Set up accounts once**, after the v24.24 functions deploy. Until it runs, the
    Staff Login Accounts audit lists every member as needing it (their claims lack `member`), which is
    the signal working, not a fault. Then wait an hour, so every live token has refreshed onto the new
@@ -1855,10 +1863,12 @@ because client sign-up is enabled (the app's self-heal uses `createUserWithEmail
    email binding. From then on a self-registered account carries nothing the rules or endpoints
    believe. This cannot ship before step 2: a token without `member` would lose every member read
    and write.
-4. **Optional afterwards — turn off client sign-up** in the Firebase console. After step 3 it no
-   longer grants anything; it becomes hygiene rather than a control.
+4. **Not a free step — client sign-up in the Firebase console.** Turning it off would close the
+   invented-name case today, before step 3. But the app still signs in ANONYMOUSLY
+   (`calendar-access.js`, `session.js`), and the console's sign-up switch may block new anonymous
+   accounts too — read its description before switching, and check a private-window Calendar still
+   loads afterwards. After step 3 it grants nothing either way.
 
-Until step 3 ships, run "Set up accounts" promptly for a new starter — the window is the gap between
-their row landing and that run, and from v24.24 that run also takes the account back if somebody got
-there first.
+**Step 3 is what closes this, so it should follow step 2 as soon as the hour has passed** — every day
+between them is a day the invented-name case stays open.
 

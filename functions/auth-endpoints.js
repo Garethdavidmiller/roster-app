@@ -89,16 +89,15 @@ function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_UR
  */
 /**
  * Whether an existing account at a roster email must be TAKEN BACK before its claims are stamped
- * (v24.24). True when the account carries no server-set `name` claim: the server stamps claims in
- * the same run that creates an account, so an account without one was not made by this server.
- * `name` rather than `member` is the test on purpose — every account provisioned before `member`
- * existed carries `name`, and must be adopted as it stands, not reset.
+ * (v24.24): only when it carries NO custom claim. Only the Admin SDK or the console can set one, so
+ * any claim means this server or an admin touched it. Not `name`: that would also reset an admin
+ * given `{ admin: true }` by hand — the recovery admin-auth.js suggests — mid-click.
  * @param {{ customClaims?: Record<string, any>|null }} user
  * @returns {boolean}
  */
 function mustReclaim(user) {
     const c = user && user.customClaims;
-    return !(c && typeof c.name === 'string' && c.name);
+    return !c || Object.keys(c).length === 0;
 }
 
 const setupRosterAuth = onRequest(
@@ -201,10 +200,12 @@ const setupRosterAuth = onRequest(
                 if (err.code === 'auth/email-already-exists') {
                     // Fetch UID so we can still (re)apply claims, and re-enable
                     // if the account was previously disabled (returning staff member).
+                    let reclaiming = false;
                     try {
                         const existing = await getAuth().getUserByEmail(email);
                         uid = existing.uid;
                         if (mustReclaim(existing)) {
+                            reclaiming = true;
                             // AN ACCOUNT THIS SERVER NEVER STAMPED (v24.24). Every account the server
                             // creates gets its claims in the same run, so one at a roster email with no
                             // server claim at all was registered from outside — the gap v24.23 left,
@@ -218,6 +219,14 @@ const setupRosterAuth = onRequest(
                             await getAuth().revokeRefreshTokens(uid);
                             reclaimed.push(name);
                             console.warn(`[setupRosterAuth] Reclaimed an account with no server claims: ${email}`);
+                            // The same Settings nudge an admin reset gives. Best-effort: a missed
+                            // nudge does not make the take-back a failure.
+                            try {
+                                await getFirestore().collection('passwordStatus').doc(name).set(
+                                    { resetAt: FieldValue.serverTimestamp() }, { merge: true });
+                            } catch (stampErr) {
+                                console.error(`[setupRosterAuth] resetAt stamp failed after reclaim for ${name}`, stampErr && stampErr.code);
+                            }
                         } else {
                             if (existing.disabled) {
                                 await getAuth().updateUser(uid, { disabled: false });
@@ -226,11 +235,13 @@ const setupRosterAuth = onRequest(
                             skipped.push(name);
                         }
                     } catch (lookupErr) {
-                        // Lookup/re-enable failed: the account exists but we couldn't act on
-                        // it, so claims won't be applied. Report it as a real failure, not a
-                        // benign skip, so the result reflects what actually happened.
-                        failed.push(`${name} (lookup-failed: ${lookupErr.message})`);
-                        console.error(`[setupRosterAuth] Lookup/re-enable failed for ${name}: ${lookupErr.message}`);
+                        // Couldn't act on the account, so NO claims: `uid` is cleared (it was set
+                        // before the failing call). Stamping after a failed take-back would give the
+                        // outsider the member's claims, and the next run would adopt it for good.
+                        uid = undefined;
+                        const what = reclaiming ? 'reclaim-failed' : 'lookup-failed';
+                        failed.push(`${name} (${what}: ${lookupErr.message})`);
+                        console.error(`[setupRosterAuth] ${what} for ${name}: ${lookupErr.message}`);
                     }
                 } else {
                     const reason = err.code || err.message || 'unknown';

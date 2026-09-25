@@ -595,11 +595,13 @@ If the block says it **couldn't check**, that is a third answer and not a pass: 
 see the roster's accounts and declined to name the whole roster as missing rather than guess. Retry it.
 
 **"Taken back and reset to the default password"** (v24.24) is a line Set up accounts prints when it
-finds an account at a roster email that it never stamped — somebody registered that email from
-outside before the server provisioned it. It resets the password to the member's surname default,
-signs out every session on it and then stamps the claims. The member named there should be told
-their password is their surname. For anybody provisioned before v24.24 this never fires: their
-accounts already carry the server's `name` claim.
+finds an account at a roster email carrying no custom claim at all — somebody registered that email
+from outside before the server provisioned it. It resets the password to the member's surname
+default, signs out every session on it, stamps `resetAt` (so Settings asks them to choose a new one)
+and then stamps the claims. The member named there should be told their password is their surname.
+For anybody provisioned before v24.24 this never fires: their accounts already carry claims. A
+**`reclaim-failed`** entry under failures means the take-back did not complete and NO claims were
+stamped on that account — run Set up accounts again.
 
 ### What this does NOT do, and has to be done per week
 

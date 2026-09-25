@@ -736,8 +736,9 @@ describe('setupRosterAuth stamps claims from the SERVER roster, never the reques
 //     TAKES IT BACK before stamping it — otherwise its first run would hand an outsider the claims.
 //
 // The costs are not symmetrical. Adopting an outsider's account as found is the breach. Resetting a
-// genuine member's account is an inconvenience — which is why the reclaim keys on the `name` claim
-// that every account provisioned before today already carries, and not on `member`, which none does.
+// genuine member's account is an inconvenience — which is why the reclaim keys on the account having
+// NO claim at all: every account provisioned before today carries `name`, and any claim is proof that
+// this server or an admin touched it, since nothing else can set one.
 describe('setupRosterAuth stamps `member`, and takes back an account it never stamped', () => {
     const claimFor = (authOps, name) =>
         authOps.find((o) => o.op === 'setCustomUserClaims' && o.uid === uidFor(name))?.claims;
@@ -782,13 +783,46 @@ describe('setupRosterAuth stamps `member`, and takes back an account it never st
         assert.deepEqual(claimFor(authOps, MEMBER), { name: MEMBER, member: MEMBER }, 'it simply gains `member`');
     });
 
-    test('a claims object that exists but carries no name is still an outsider\'s', async () => {
-        // A stray claim (a designer flag with no name, say) is not the server's stamp.
-        const acct = { ...outsiderAccount(MEMBER), customClaims: { linksDesigner: true } };
+    test('an account an admin gave a claim BY HAND is adopted, never reset', async () => {
+        // admin-auth.js tells an admin with no admin claim to set one in the console, which produces
+        // `{ admin: true }` and no name. Only the Admin SDK or the console can set a claim, so ANY
+        // claim is proof the account is not self-registered — and resetting it would reset the admin
+        // pressing the button and revoke the session making the call.
+        const acct = { ...outsiderAccount(MEMBER), customClaims: { admin: true } };
+        const { eps, authOps } = build({ existingUsers: [acct] });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.deepEqual(out.body.reclaimed, []);
+        const mine = authOps.filter((o) => o.uid === uidFor(MEMBER));
+        assert.equal(mine.filter((o) => o.op === 'revokeRefreshTokens').length, 0, 'no session is ended');
+        assert.equal(mine.filter((o) => o.op === 'updateUser' && 'password' in (o.patch || {})).length, 0, 'no password is touched');
+        assert.equal(claimFor(authOps, MEMBER).member, MEMBER, 'it is stamped as it stands');
+    });
+
+    test('an empty claims object is no claim — still an outsider\'s', async () => {
+        const acct = { ...outsiderAccount(MEMBER), customClaims: {} };
         const { eps } = build({ existingUsers: [acct] });
         const out = await call(eps.setupRosterAuth, asAdmin({}));
         assert.deepEqual(out.body.reclaimed, [MEMBER]);
     });
+
+    test('a take-back leaves the member the Settings nudge an admin reset gives', async () => {
+        const { eps, db } = build({ existingUsers: [outsiderAccount(MEMBER)] });
+        await call(eps.setupRosterAuth, asAdmin({}));
+        assert.ok(db._dump('passwordStatus')[MEMBER]?.resetAt, 'resetAt is stamped for the member');
+    });
+
+    // FAIL CLOSED. The take-back is a security control, so a take-back that did not complete must not
+    // be followed by the stamp — the outsider would keep their password AND gain the member's claims,
+    // and the next run would see a claim and adopt the account for good.
+    for (const step of ['updateUser', 'revokeRefreshTokens']) {
+        test(`a take-back whose ${step} fails stamps NO claims, and says it was a take-back`, async () => {
+            const { eps, authOps } = build({ existingUsers: [outsiderAccount(MEMBER)], authFail: { [step]: 'boom' } });
+            const out = await call(eps.setupRosterAuth, asAdmin({}));
+            assert.equal(claimFor(authOps, MEMBER), undefined, 'the member\'s claims never reach that account');
+            assert.deepEqual(out.body.reclaimed, []);
+            assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (reclaim-failed`)), out.body.failed.join(' | '));
+        });
+    }
 });
 
 
