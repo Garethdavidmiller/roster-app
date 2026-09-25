@@ -43,9 +43,14 @@ const mm = t => +t.slice(0, 2) * 60 + +t.slice(3);
 const hm = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
 const WIN = { weekday: [6*60+20, 23*60+55], sat: [6*60+20, 23*60+55], sun: [7*60+15, 23*60+25] }; const [OPEN, CLOSE] = WIN[CLS];
 const N = { weekday: 14, sat: 14, sun: 10 }[CLS], OPENERS = 4, CLOSERS = { weekday: 3, sat: 4, sun: 3 }[CLS], AT22 = CLS === 'sun' ? null : 5;
-const PINS = { weekday: [['06:20-14:20', 3], ['14:00-22:30', 2], ['15:45-23:55', 3]], sat: [['14:00-22:30', 1]], sun: [['13:00-21:30', 1]] }[CLS];
-const OPENER_MIN_END = CLS === 'sat' ? { count: 2, end: 14*60+20 } : null;
-const EVENING = { weekday: [22*60, 22*60+30], sat: [22*60+30], sun: [21*60+30] }[CLS];
+// PIN_WK / PIN_SAT / PIN_SUN override the brief's pins ("14:00-22:30x2,15:45-23:55x3"; "none" for no pins) — used to
+// measure what each pin costs. SAT_OPENERS=0 drops the brief's "two Saturday openers to 14:20 or later"; EVENING=
+// "21:30,22:00" overrides the day's allowed evening finishes. Measurement knobs: the defaults are the brief.
+const parsePins = v => v === 'none' ? [] : v.split(',').filter(Boolean).map(x => { const [t, n] = x.split('x'); return [t, Number(n ?? 1)]; });
+const PIN_ENV = { weekday: process.env.PIN_WK, sat: process.env.PIN_SAT, sun: process.env.PIN_SUN }[CLS];
+const PINS = PIN_ENV ? parsePins(PIN_ENV) : { weekday: [['06:20-14:20', 3], ['14:00-22:30', 2], ['15:45-23:55', 3]], sat: [['14:00-22:30', 1]], sun: [['13:00-21:30', 1]] }[CLS];
+const OPENER_MIN_END = CLS === 'sat' && process.env.SAT_OPENERS !== '0' ? { count: 2, end: 14*60+20 } : null;
+const EVENING = process.env.EVENING ? process.env.EVENING.split(',').map(mm) : { weekday: [22*60, 22*60+30], sat: [22*60+30], sun: [21*60+30] }[CLS];
 const TOTAL_MIN = Number(process.env.TOTAL_MIN ?? process.env.TOTAL ?? (CLS === 'sun' ? 5100 : 7000)), TOTAL_MAX = Number(process.env.TOTAL_MAX ?? process.env.TOTAL ?? (CLS === 'sun' ? 5145 : 7000));
 const LO = 420, HI = Number(process.env.HI ?? 520), MAX_PER = 4;
 const EXHAUSTIVE = process.env.EXHAUSTIVE !== '0', MS = Number(process.env.MS ?? 20000), RESTARTS = Number(process.env.RESTARTS ?? 12);
