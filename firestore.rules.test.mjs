@@ -50,14 +50,15 @@ function staffDb(uid = 'uid_staff')    { return testEnv.authenticatedContext(uid
 function adminDb()                     { return testEnv.authenticatedContext('uid_admin', { admin: true }).firestore(); }
 /** Authenticated user with a name claim (for staffContact + override isolation). */
 /**
- * The claims a REAL member's token carries (v24.23). A `name` is believed only when the session
- * signed in with a password AND its email is the one that name derives to — see the header of the
+ * The claims a REAL member's token carries (v24.23, v24.27). A `name` is believed only when the
+ * session signed in with a password, its email is the one that name derives to, AND the server has
+ * stamped `member` with that name — see the header of the
  * member helpers in firestore.rules. Every member-shaped context in this file goes through this, so
  * a test that forgot the binding would be testing a token production never issues.
  * @param {string} name @param {Record<string, any>} [extra]
  */
 function memberClaims(name, extra = {}) {
-    return { name, email: nameToEmail(name), firebase: { sign_in_provider: 'password' }, ...extra };
+    return { name, member: name, email: nameToEmail(name), firebase: { sign_in_provider: 'password' }, ...extra };
 }
 function namedDb(name, uid = 'uid_n')  { return testEnv.authenticatedContext(uid, memberClaims(name)).firestore(); }
 /** Authenticated manager (manager + name claims) — writes overrides on behalf of any member (B2). */
@@ -1996,6 +1997,12 @@ describe('a name claim is believed only from the member\'s own account (v24.23)'
         'right email, wrong provider': { name: 'G. Miller', email: nameToEmail('G. Miller'), firebase: { sign_in_provider: 'google.com' } },
         // A name with no email at all.
         'no email': { name: 'G. Miller', firebase: { sign_in_provider: 'password' } },
+        // v24.27 — the door the binding alone left open. Somebody registered the member's DERIVED
+        // email before Set up accounts reached it: right email, password sign-in, a self-set name —
+        // everything v24.23 checked. Only the server-set `member` claim tells them apart.
+        'self-registered at the derived email': { name: 'G. Miller', email: nameToEmail('G. Miller'), firebase: { sign_in_provider: 'password' } },
+        // A `member` claim that names somebody else — no single stamp may be read as another person.
+        'member claim for someone else': { name: 'G. Miller', member: 'S. Silva', email: nameToEmail('G. Miller'), firebase: { sign_in_provider: 'password' } },
     };
 
     for (const [label, claims] of Object.entries(IMPOSTORS)) {

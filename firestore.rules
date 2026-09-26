@@ -143,9 +143,13 @@ service cloud.firestore {
     // `member-identity-parity.test.mjs` pins the two together over every name on the roster: a
     // mismatch here LOCKS THAT MEMBER OUT, which is the direction this must fail in.
     //
-    // WHAT IT DOES NOT CLOSE: a name that has no account yet could be registered first by somebody
-    // else with that derived email. The permanent fix is a claim only the server can set; see
-    // KNOWN_LIMITATIONS.md → "The member claim".
+    // AND THE CLAIM ONLY THE SERVER CAN SET (v24.27). The binding alone left one door: a name with
+    // no account yet could be registered by anybody at its derived email, and that account passed.
+    // `member` is a CUSTOM claim, stamped by setupRosterAuth and equal to the name — no display
+    // name, client call or sign-in method produces it — so a self-registered account now fails here
+    // however its email reads. It shipped only after Set up accounts had stamped every account
+    // (v24.24): a token without it loses every member read and write. KNOWN_LIMITATIONS.md → "The
+    // member claim"; `functions/member-identity.js` applies the same test on the server.
     //
     // `.get()` throughout, never a bare field: a token with no email or no provider must evaluate
     // to false, not to an error whose handling differs by operator.
@@ -159,7 +163,8 @@ service cloud.firestore {
       return request.auth != null
         && request.auth.token.get('firebase', {}).get('sign_in_provider', '') == 'password'
         && request.auth.token.get('name', null) is string
-        && request.auth.token.get('email', '') == memberEmailFor(request.auth.token.name);
+        && request.auth.token.get('email', '') == memberEmailFor(request.auth.token.name)
+        && request.auth.token.get('member', null) == request.auth.token.name;
     }
     // The member this request speaks for, or null. Every `token.name ==` comparison below reads
     // this instead — null equals no memberName, so an unbound name matches nobody.

@@ -231,7 +231,7 @@ async function ingest(/** @type {any} */ eps, /** @type {any} */ reqOpts) {
 
 /** A REAL member's decoded token (v24.23): the name, on the password account that name derives to.
  *  A bare `{ name }` is what a self-renamed anonymous session looks like, and is refused now. */
-const MEMBER_GM = { name: 'G. Miller', email: 'g.miller@myb-roster.local', firebase: { sign_in_provider: 'password' } };
+const MEMBER_GM = { name: 'G. Miller', member: 'G. Miller', email: 'g.miller@myb-roster.local', firebase: { sign_in_provider: 'password' } };
 
 describe('ingestHuddle — the refusals, and that a refusal writes NOTHING', () => {
     test('a wrong bearer token is a 401 with no Storage write, no doc, no push', async () => {

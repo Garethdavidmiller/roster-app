@@ -14,7 +14,7 @@ const require = createRequire(import.meta.url);
 const { memberNameFromClaims } = require('./functions/member-identity.js');
 
 const real = (/** @type {string} */ name) =>
-    ({ name, email: nameToEmail(name), firebase: { sign_in_provider: 'password' } });
+    ({ name, member: name, email: nameToEmail(name), firebase: { sign_in_provider: 'password' } });
 
 test('every roster member is recognised on their own account — the client and server emails agree', () => {
     const names = teamMembers.map(m => m.name);
@@ -31,6 +31,10 @@ test('a name arriving any other way is nobody', () => {
         { name: 'G. Miller', email: nameToEmail('G. Miller'), firebase: { sign_in_provider: 'google.com' } },
         { name: 'G. Miller', email: nameToEmail('S. Silva'), firebase: { sign_in_provider: 'password' } },
         { name: '', email: 'x', firebase: { sign_in_provider: 'password' } },
+        // v24.27 — self-registered at the derived email: everything v24.23 checked, no server stamp.
+        { name: 'G. Miller', email: nameToEmail('G. Miller'), firebase: { sign_in_provider: 'password' } },
+        { name: 'G. Miller', member: 'S. Silva', email: nameToEmail('G. Miller'), firebase: { sign_in_provider: 'password' } },
+        { name: 'G. Miller', member: true, email: nameToEmail('G. Miller'), firebase: { sign_in_provider: 'password' } },
         null, undefined, 'G. Miller', {},
     ];
     for (const c of impostors) assert.equal(memberNameFromClaims(/** @type {any} */ (c)), null, JSON.stringify(c));
