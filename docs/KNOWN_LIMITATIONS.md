@@ -1638,7 +1638,8 @@ test in `e2e/calendar.spec.js` with it. e2e could never have seen it — the pag
 
 That mattered more than an ordinary coverage gap because of what depends on it. `recordPageLatency`
 is the wire every latency reading runs on, including `readyProvisional`, the measurement added at
-v23.70 to separate the two readings of the fast path that the aggregate cannot. That reading was
+v23.70 to separate the two readings of the fast path that the aggregate cannot (no longer written:
+the fast path was retired on 26 Sep 2026, `DECISIONS.md`). That reading was
 taken on 19 Sep 2026 (`LATENCY.md` → THE CLOSING READ) and the file is closed, but the wire stays in
 use for the App Speed card. A regression there would not look like an error — it would look like a
 thinner sample that still reads as data.
@@ -1716,8 +1717,7 @@ page — backgrounding the PWA, screen lock, the app switcher, memory pressure �
 that window throws from deep inside the SDK with no app frame on the stack. Firebase wraps the call
 in `_withRetries` precisely because it expects this; when the retries are spent the rejection
 escapes to our reporter. The identity is already restored by then, Firestore uses a SEPARATE
-database (so calendar data is untouched, and the Calendar's provisional paint (v22.97) needs only the
-local session, not the auth database), and the connection reopens on the next foreground. Harmless and self-healing — but it
+database (so calendar data is untouched), and the connection reopens on the next foreground. Harmless and self-healing — but it
 recurs on every iPhone, and the Error Log is only worth reading if it is mostly signal.
 
 **Scoped to the SDK origin deliberately.** The same phrases from our own origin would mean the

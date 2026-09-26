@@ -29,7 +29,7 @@ import { initCalendarNotices } from './calendar-notices.js';
 import { registerServiceWorker, reloadWhileHidden } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady, markMilestone, noteProvisionalPaint } from './perf-reporter.js';
+import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, hasOverrideAccess, setOverrideAccessLostHandler, monthKey, clearFetchedMonth } from './calendar-overrides.js';
@@ -1215,24 +1215,14 @@ async function _runPasswordForce() {
     }
 }
 
-/** A FULL grant — identity CONFIRMED, not painted for. Not `onGranted`: a provisional paint consumes
- *  that one-shot while access is still `none`, so the password step never ran after a Calendar
- *  sign-in, and the claim sweep (else only in `ensureNamedSession`) never ran on a named boot. */
-let _namedGrantSeen = false;
-function _onFullGrant() {
+/** The first grant's member-only steps: the claim sweep (else only in `ensureNamedSession`, which a
+ *  named Calendar boot never calls) and the forced set-password step. Run from the ONE-SHOT
+ *  `onGranted` — `grant()` sets the access type before calling it, so `named` is readable here, and
+ *  every later grant is a viewer re-unlock (a member signing in reloads the page). */
+function _onFirstGrant() {
     if (getAccessType() !== 'named') { _resolvePasswordForce(false); return; }   // the notices need not wait
-    if (_namedGrantSeen) return;
-    _namedGrantSeen = true;
     refreshClaimsIfStale(CONFIG.CLAIM_EPOCH);   // fire-and-forget, one-shot per device per epoch
     _resolvePasswordForce(_runPasswordForce());
-}
-
-/** Enable or disable the member selector and the Team View button. @param {boolean} on */
-function _crossMemberControls(on) {
-    for (const id of ['teamMemberSelect', 'teamViewBtn']) {
-        const el = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
-        if (el) el.disabled = !on;
-    }
 }
 
 initCalendarAccess({
@@ -1241,34 +1231,18 @@ initCalendarAccess({
     // the PIN after a rotation is. Left in the one-shot below, a re-unlocked Calendar came back with
     // its override gate still shut: every read refused at source, every month stuck on "Checking
     // this month", and a Try again that could not win.
-    // The argument is the PROVISIONAL SCOPE (v22.97): a member name means "this member's own data,
-    // out of the local cache, nothing from the server"; `null` is the ordinary full grant; `false`
-    // means the provisional paint is being withdrawn because the identity did not confirm.
-    onEveryGrant: (/** @type {string|null|false} */ scope = null) => {
-        // `noteProvisionalPaint` BEFORE the render this grant triggers, so a paint inside the
-        // provisional window is attributed to it and one after the confirmation is not (v23.69).
-        if (scope === false) { noteProvisionalPaint(false); setOverrideAccess(false); setDocumentAccess(false); _crossMemberControls(true); _resolvePasswordForce(false); return; }
-        noteProvisionalPaint(typeof scope === 'string');
+    onEveryGrant: () => {
         // Open the override reads BEFORE building the workspace. The reverse order would let the
         // first render's `ensureOverridesCached` run against a closed gate, silently claim nothing,
         // and leave the month unfetched for the session.
-        setOverrideAccess(true, { provisionalMember: typeof scope === 'string' ? scope : null });
-        // The two controls that would put SOMEBODY ELSE on screen. A provisional paint is scoped to
-        // one member, so during it these are the only way to reach a grid the scope cannot fill —
-        // the colleague's base roster would draw with their leave and absence silently missing.
-        // `decideProvisionalAccess` already refuses a boot that STARTS in either state; this covers
-        // the tap inside the window, which on a slow connection is a real second or two.
-        _crossMemberControls(typeof scope !== 'string');
+        setOverrideAccess(true);
         // Month navigation and Team View reach Firestore through `ensureOverridesCached`, not
         // through the initial fetch — so they need the same access-lost recovery, and they are the
         // likelier path once a session has been open for a while (v20.15).
         setOverrideAccessLostHandler(() => { setDocumentAccess(false); handleAccessLost(); });
-        // THE DOCUMENTS OPEN ON A FULL GRANT ONLY (v23.17). A provisional scope is one member's own
-        // cached roster while their identity is checked — not access, and not a licence to read the
-        // Huddle. `null` is the ordinary grant; this is where the Huddle subscription starts and a
-        // Circular tap held back by the lock is finished.
-        setDocumentAccess(scope === null);
-        if (scope === null) _onFullGrant();
+        // THE DOCUMENTS OPEN ON THE GRANT (v23.17): this is where the Huddle subscription starts
+        // and a Circular tap held back by the lock is finished.
+        setDocumentAccess(true);
         // A RE-grant also repaints (v20.45). `grant()` un-hides the workspace exactly as the
         // re-lock left it, and nothing else asks for a render — every fetch in this app is pulled
         // by one — so without this the member who just entered the rotated PIN looked at the grid
@@ -1287,6 +1261,7 @@ initCalendarAccess({
     // ONCE: re-running this would re-wire the swipe handler and re-launch the initial 3-month fetch.
     onGranted: () => {
         _workspaceStarted = true;
+        _onFirstGrant();
         // CAUGHT, because the workspace start became async at v21.29 (it awaits a bounded chance
         // for the local cache to paint first). An un-awaited async call with no catch turns any
         // throw in here into an unhandled rejection — which `error-reporter.js` does capture, so it

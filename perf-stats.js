@@ -377,10 +377,10 @@ export const START_MILESTONES = /** @type {const} */ ([
     { metric: 'authBoot',   label: 'Recognised',   sub: 'your saved sign-in being restored' },
     // **THE LADDER IS NO LONGER MONOTONIC FOR EVERY MEMBER, AND THE INVERSION IS THE POINT
     // (v22.97).** Each rung is measured from navigation start and bucketed on its own, so none is
-    // derived by subtracting another and every figure below stays true — but a returning member now
-    // takes the PROVISIONAL PAINT, which puts `rosterCached` and `ready` on screen BEFORE this rung
-    // resolves. So `Shifts shown` reading faster than `Unlocked` is not a broken card: it is the
-    // fast path working, and it is exactly the signature `LATENCY.md` says to look for.
+    // derived by subtracting another and every figure below stays true — but a returning member on
+    // v22.97 until its retirement (26 Sep 2026) could take the PROVISIONAL PAINT, which put
+    // `rosterCached` and `ready` on screen BEFORE this rung resolved. Months that include those
+    // releases can therefore show `Shifts shown` faster than `Unlocked`; that is not a broken card.
     // Do not "fix" it by marking access at the paint — a paint is not a grant.
     { metric: 'access',     label: 'Unlocked',     sub: 'the Calendar deciding you may see it' },
     // THE RUNG THAT SPLITS THE GAP NOBODY COULD SEE (v22.95). The field read of 5 Sep 2026 put
@@ -468,8 +468,12 @@ export function summariseUpdateOpens(samples, { page }) {
 /**
  * OPENS THAT DID NOT WAIT FOR THE IDENTITY CHECK (v23.69) — the reading v22.97 shipped without.
  *
- * The fast path shows a returning member their own cached roster while `accounts:lookup` is still
- * in flight (`calendar-access-core.js` → `decideProvisionalAccess`). `LATENCY.md` predicted that
+ * **HISTORIC SINCE 26 SEP 2026.** The fast path it measured was retired that day (DECISIONS.md →
+ * "The provisional paint"), and nothing writes `readyProvisional` now; this summary reads the months
+ * that already hold it, and returns no rows — so the card renders no block — once none do.
+ *
+ * The fast path showed a returning member their own cached roster while `accounts:lookup` was still
+ * in flight. `LATENCY.md` predicted that
  * would pull `Shifts shown` off `Recognised` for cache-served starts, and the September 2026 card
  * showed no such movement — 78% over a second before, 77% after.
  *

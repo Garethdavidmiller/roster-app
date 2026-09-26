@@ -13,10 +13,9 @@
  *
  * **The failure is silent in both directions, and the second one is worse than lost data.**
  * `lsGet` on a key nobody writes returns `null`; `null === '1'` is `false`; so a drifted reader does
- * not throw, it answers NO. For `myb_team_view` one of those readers is `calendar-access.js`, which
- * REFUSES the provisional paint while Team View is on (CALENDAR_DATA.md invariant 13, because a
- * provisional grant is scoped to one member and Team View draws everybody). A rename in the writer
- * would leave that refusal silently not refusing.
+ * not throw, it answers NO. For `myb_team_view` the reader is `calendar-app.js`, which decides at
+ * boot whether to build Team View; a rename in the writer would silently return every Team View
+ * member to the month grid on their next open.
  *
  * THREE CONTRACTS:
  *   1. a key literal in two or more source modules is declared in `storage-keys.js`
@@ -30,8 +29,8 @@
  *   · The paycalc namespace is exempt BY THE FILE'S OWN INSTRUCTION — every `myb_pc_…` key is built
  *     by `pcPrefix()` in paycalc-migrations.js, which is already a single source, and storage-keys.js
  *     says in as many words: *"do NOT add those here"*.
- *   · Tests and e2e specs are exempt, and this is the load-bearing exclusion. `calendar-access.test.mjs`
- *     hardcodes `'myb_team_view'`, and it SHOULD: a test that imported the constant would follow a
+ *   · Tests and e2e specs are exempt, and this is the load-bearing exclusion. The e2e specs
+ *     hardcode `'myb_team_view'`, and they SHOULD: a test that imported the constant would follow a
  *     rename and stay green through it, which is the drift it exists to catch. An independent
  *     restatement in a test is a pin, not a copy.
  *   · Comments are stripped first. Half the matches in this tree are prose ABOUT a key — including

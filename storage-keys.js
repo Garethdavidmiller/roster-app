@@ -26,15 +26,13 @@ export const VIEWED_MONTH = 'myb_roster_month';
 export const VIEWED_YEAR  = 'myb_roster_year';
 
 /** Whether the Calendar is in TEAM WEEK VIEW — written by calendar-team-view.js on every toggle,
- *  and read back by TWO other modules at boot: calendar-app.js (which surface to build) and
- *  calendar-access.js (which REFUSES a provisional paint while it is set — invariant 13, because a
- *  provisional grant is scoped to one member and Team View draws everybody).
+ *  and read back at boot by calendar-app.js (which surface to build). calendar-access.js read it too
+ *  until the provisional paint was retired (26 Sep 2026).
  *
  *  It joined this file at v23.46, having been three bare literals in three modules since it shipped.
  *  Nothing was wrong with them — all three spellings matched — but the failure mode is the one this
  *  file exists for, and here it is not merely lost data: rename the writer and `lsGet` returns null,
- *  `=== '1'` is false, and the access refusal silently stops refusing. `calendar-access.test.mjs`
- *  hardcoded the same string independently, so it would have stayed green through exactly that. */
+ *  `=== '1'` is false, and a Team View member silently boots into the month grid instead. */
 export const TEAM_VIEW = 'myb_team_view';
 
 /** The one-off notification prompt has been answered on this device — set by EITHER button (Enable

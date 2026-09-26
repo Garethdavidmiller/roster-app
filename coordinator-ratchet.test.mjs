@@ -377,7 +377,9 @@ const CAPS = {
     // rendering" while about a third of it was card markup, so the seam was one the module had
     // already described and nobody had cut. The security properties did NOT move — the persistence
     // order and the claim verification are still here — and the ceiling comes down with the code.
-    'calendar-access.js':      850,
+    // 850 → 750 on 26 Sep 2026: the provisional paint the v22.97 raise was for was RETIRED (owner
+    // decision), taking ~100 lines of wiring with it (measured 667 after).
+    'calendar-access.js':      750,
     // Crossed 900 at v21.85 on a ONE-LINE import — `setStatus`, so the four back-pay notices stop
     // announcing their leading glyph. It had been sitting at exactly 900 since v21.82, when the
     // response to the same pressure was to trim a comment of my own rather than raise the ceiling;

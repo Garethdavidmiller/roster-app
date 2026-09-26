@@ -29,30 +29,18 @@ beside the code, where it cannot drift from the thing it describes. Every row po
 | 10 | **Phase 1 paints with no network and no SESSION — but not before Firebase Auth has initialised.** Requiring a session for reads must never put a sign-in round trip in front of data the device already holds, and phase 1 never awaits one. It cannot beat the stored user's `accounts:lookup`, though: Firestore holds every operation, `getDocsFromCache` included, until Auth reports its first user (measured Sep 2026 — a cache read behind a 2s lookup settled at ~2s, and at ~7ms with Auth absent). Do not build on phase 1 finishing before that round trip; this row claimed "no auth" until then. | `calendar-initial-fetch.js` |
 | 11 | **A member is never sent to the staff PIN.** A held session with no restored identity gets a sign-in card, and the late-identity watcher keeps listening — and a member whose access is LOST mid-session gets that same card, not the PIN one (v23.19; the re-lock path sent everyone to the PIN until then). | `calendar-access.js` · `calendar-access-core.js` |
 | 12 | **The viewer's persistence is session-only, and boot must not migrate it.** `setPersistence` moves the current user between stores. | `firebase-client.js` (`authReady`) |
-| 13 | **A provisional paint is scoped to ONE member, and is not access.** While a stored identity is being revalidated the Calendar may re-show that member's own cached overrides — nothing from the server, nothing of anybody else's, no write, and `calendarAccessReady` stays pending. A boot that would draw somebody else (Team View, or a stored selection naming a colleague) is refused outright rather than narrowed. | `calendar-access-core.js` (`decideProvisionalAccess`) · `calendar-overrides.js` |
-| 15 | **A document is read only behind the PIN or a password, and the client refuses the read at source.** The Daily Huddle, the Weekly Retail Circular and the Marylebone Newsletter are opened only while `calendar-doc-access.js` is open, which the coordinator does on the FULL grant and never on a provisional one; while shut, no query is issued — cached or live, because the local cache answers without consulting a rule — and a tap is answered with what to do. A tap made while locked (a notification deep link that landed on the PIN card) is held and finished when access arrives. | `calendar-doc-access.js` · `calendar-huddle-viewer.js` · `calendar-doc-viewer.js` · `nav-panel.js` (`canReadDocuments`) · `calendar-app.js` (`onEveryGrant`) |
+| 13 | ~~**A provisional paint is scoped to ONE member, and is not access.**~~ **RETIRED 26 Sep 2026** (owner decision — `DECISIONS.md` → "The provisional paint"). There is no longer any paint before the grant: nothing roster-shaped is drawn until `decideAccess` answers, every grant is unscoped, and `setOverrideAccess` takes no member scope. The number is kept, not reused, so older references to it still resolve here. | `calendar-access.js` · `calendar-overrides.js` (`setOverrideAccess`) |
+| 15 | **A document is read only behind the PIN or a password, and the client refuses the read at source.** The Daily Huddle, the Weekly Retail Circular and the Marylebone Newsletter are opened only while `calendar-doc-access.js` is open, which the coordinator does on the grant; while shut, no query is issued — cached or live, because the local cache answers without consulting a rule — and a tap is answered with what to do. A tap made while locked (a notification deep link that landed on the PIN card) is held and finished when access arrives. | `calendar-doc-access.js` · `calendar-huddle-viewer.js` · `calendar-doc-viewer.js` · `nav-panel.js` (`canReadDocuments`) · `calendar-app.js` (`onEveryGrant`) |
 | 14 | **A personal action is offered only to the person it belongs to, by EVERY route.** The day panel's "Leave dates" and "Pay estimate" buttons open the reader's OWN records, so they appear only where the calendar on screen is the signed-in member's own — never on a colleague's day, and never in viewer mode, which is a separate refusal because a stale session can outlive the identity that earned it. The calculator has TWO routes since v23.59 — the panel's button and keyboard Enter — and BOTH are gated at `navigateToPaycalc`, so a route added later inherits the rule. The third went when a click started opening the panel on every pointer type instead of jumping. A refused Enter hands over to the day panel rather than becoming a dead key. | `calendar-access-core.js` (`personalActionsAllowed`) · `calendar-app.js` (`navigateToPaycalc`) · `calendar-al-lightbox.js` |
 
-**The decision that hung over invariant 3 was ANSWERED on 5 Sep 2026, and invariant 13 is the
-answer.** The Calendar's access decision waited on the network round trip Firebase makes to validate
-a stored user, and that round trip is the measured cause of the start-latency wall
-(`LATENCY.md`) — over a second on roughly 60% of opens. The owner's ruling: a returning member
-may see **their own already authorised cached roster** while it completes.
-
-Invariant 3 is unchanged and still means what it said. What changed is the size of the thing a grant
-can be: the client still refuses the read at source, and it now also refuses it *by member*. The
-policy cost is real and is stated rather than described as an optimisation — a member whose account
-was disabled since their last visit can see their own previously cached roster for the length of the
-validation window. The argument, including why the trade is smaller than it looks (the app already
-behaves this way with no network at all), is in `calendar-access-core.js` →
-`decideProvisionalAccess`.
-
-**What it could not buy, and why (Sep 2026).** The provisional paint reads the same local cache
-phase 1 does, and that read waits behind the very round trip the ruling wanted to step around
-(invariant 10's measurement). So the paint and the confirmation land within milliseconds of each
-other, which is why `LATENCY.md`'s closing read found the path taken on about one eligible open in
-eight hundred. The policy is unchanged; its mechanism does not deliver it. The options are the
-owner's, and are set out in `LATENCY.md` → THE CLOSING READ.
+**The decision that hung over invariant 3 was answered on 5 Sep 2026 and UNDONE on 26 Sep.** The
+Calendar's access decision waits on the network round trip Firebase makes to validate a stored user,
+the measured cause of the start-latency wall (`LATENCY.md`). The owner first ruled that a returning
+member might see their own cached roster while it completed (v22.97, invariant 13). It could not
+deliver that: the cache read the paint needed waits behind the same round trip (invariant 10's
+measurement), so it fired on about one open in eight hundred — and it shipped two defects in the gap
+between a scoped and an unscoped grant. The owner retired it on 26 Sep 2026; invariant 3 stands as
+written, and the reasoning and what would reopen it are in `DECISIONS.md` → "The provisional paint".
 
 ---
 

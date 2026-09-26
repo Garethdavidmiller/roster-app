@@ -212,14 +212,15 @@ shown that yet.
   `ROADMAP_HISTORY.md` because its reasoning is still sound; do not plan from it.
 - **GDPR:** staff shift data is personal data. If the governance gate is answered "official", data
   controller status and retention policies need documenting — see that gate.
-- **The Calendar PROVISIONAL FAST PATH stays — KEEP, owner decision, 19 Sep 2026.** v22.97's
+- ~~**The Calendar PROVISIONAL FAST PATH stays — KEEP, owner decision, 19 Sep 2026.**~~ **SUPERSEDED
+  26 Sep 2026 — see the next entry; its own reopening condition was met.** v22.97's
   provisional paint shows a returning member their own cached roster while `accounts:lookup` is
   still in flight. `readyProvisional` (v23.70) measured how often it actually fires: **1 open in
   roughly 800 eligible**, and on the strength of that an external review asked whether it could
   simply be deleted. The answer is no, and the reasoning is recorded here precisely so the low
   number does not reopen it every time somebody reads the telemetry.
 
-  **Three reasons, and the first is the one that decides it.** `revokeProvisional` is a SECURITY
+  **Three reasons, and the first is the one that decided it.** `revokeProvisional` (removed 26 Sep 2026) was a SECURITY
   path — it takes a roster back off screen when an identity does not confirm — so deleting this is
   not removing an optimisation, it is removing a guard and the branch it protects. The evidence is
   ONE month, and `LATENCY.md` declined a 4.6–52 ms optimisation for want of evidence; removing a
@@ -237,6 +238,24 @@ shown that yet.
   **What would reopen it:** evidence that the path is WRONG, not merely rare — a refusal that should
   have been a grant, or a grant that should have been a refusal. Rarity is settled and is not a
   reason to ask again.
+- **The provisional paint — RETIRED, owner decision, 26 Sep 2026.** The entry above kept it unless
+  it was shown to be WRONG, and in one week it was, twice: a member-scoped cache read marked the
+  months known for EVERYONE (a colleague could draw with their leave and absence missing), and the
+  one-shot `onGranted` was spent while access was still `none` (the forced set-password step and the
+  claim sweep never ran after a Calendar sign-in). And it could not have worked: `getDocsFromCache`
+  queues behind Firebase Auth initialisation, which for a stored user IS the `accounts:lookup` round
+  trip the paint existed to overtake (`LATENCY.md` → THE CLOSING READ), which is why it fired on about
+  1 open in 800. So the guard it carried guarded a branch that almost never ran and could not win.
+  Removed: `decideProvisionalAccess`, the provisional grant/revoke, `setOverrideAccess`'s member
+  scope, the scope-lift re-read, and the `readyProvisional` WRITE (historic months still render on
+  the Speed card). A named boot now grants once, after the identity confirms, unscoped.
+
+  **What would reopen it:** an APP-OWNED snapshot of the member's own roster — written by the app on
+  a confirmed grant and read without going through Firestore, so it is not queued behind Auth. That
+  is the only shape that can actually beat the round trip, and its cost has to be weighed first: a
+  copy of somebody's shifts, leave and absence sitting in plain storage on a SHARED device, outliving
+  the session that earned it, needing its own clearing on sign-out and leaver. Not a latency tweak —
+  an access-and-privacy decision, the same as the one this retires.
 
 ---
 

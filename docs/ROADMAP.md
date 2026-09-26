@@ -262,8 +262,9 @@ fits "the path rarely fires" exactly as well as "it fires and does not help", an
 opposite consequences. `readyProvisional` (v23.70) separated them, and **the answer came on 19 Sep
 2026: the path RARELY FIRES** — one open in roughly 800 eligible (`LATENCY.md` → THE CLOSING READ).
 That is row one of the pre-registered table, so the identity diagnosis stands and `VAL-AUTH-006` stays
-closed. The path is **kept**, by owner decision the same day, because its revoke branch is a security
-guard rather than an optimisation (`DECISIONS.md` → "The Calendar PROVISIONAL FAST PATH stays").
+closed. The path was kept by owner decision the same day, then **RETIRED on 26 Sep 2026** once it
+was shown to be wrong as well as rare — its cache read queues behind the very lookup it was meant to
+overtake (`DECISIONS.md` → "The provisional paint").
 
 The whole entry as it stood when the decision was taken — the field confirmation, the offline
 measurement, the two couplings and all three candidate answers — is in `ROADMAP_HISTORY.md`, moved
@@ -309,7 +310,7 @@ no-install — `touch-gate-parity.test.mjs` reached its list through `e2e/helper
 found it, which is who did. Fixed, with the lane now gated in CI. The other was this file
 contradicting itself about the service-worker metrics, fixed the same day.
 
-**One was REFUSED, on evidence.** The review flagged the provisional cached-roster paint as a
+**One was REFUSED, on evidence** (moot since 26 Sep 2026, when the paint was retired). The review flagged the provisional cached-roster paint as a
 security compromise: its scope is a localStorage session name, which is editable. True, and the
 consequence does not follow — `firestore.rules` grants `overrides` read to any `name` claim, not per
 member, because Team Week View shows every colleague's shifts to any signed-in member by design. A
@@ -323,7 +324,7 @@ reason this section exists — so the next review's re-raises cost a link rather
 
 | The decision | Where it lives |
 |---|---|
-| Did the cached-roster fast path actually work? | **ANSWERED 19 Sep 2026 — it RARELY FIRES**: one open in roughly 800 eligible, row one of the pre-registered table, so the identity diagnosis stands. **KEPT by owner decision the same day**: its revoke branch is a security guard, not an optimisation. `LATENCY.md` → THE CLOSING READ · `DECISIONS.md` → "The Calendar PROVISIONAL FAST PATH stays" |
+| Did the cached-roster fast path actually work? | **ANSWERED 19 Sep 2026 — it RARELY FIRES**: one open in roughly 800 eligible, row one of the pre-registered table, so the identity diagnosis stands. Kept by owner decision the same day, then **RETIRED 26 Sep 2026** (it could not beat Auth start-up, and shipped two defects). `LATENCY.md` → THE CLOSING READ · `DECISIONS.md` → "The provisional paint" |
 | Is the service-worker revalidation storm costing staff anything? | **ANSWERED — no**, 12 Sep 2026. A full sweep (31+ files) was running on 78% of Calendar opens, and the card's own test is whether those boots are slower: **Worker busy 78% over a second against Shifts shown 78%.** Identical. The storm is real and costs the member nothing measurable. `LATENCY.md` → THE FULL-MONTH READ → item 4 |
 | Move staff off the Pages mirror onto `myb-roster.web.app` | **NEW — no home before this row.** `web.app` is already canonical and the notification target (v14.29); what is undecided is moving the staff who still open the mirror. KNOWN_LIMITATIONS measures the mirror's 21% byte penalty; nothing recorded the decision that measurement prices. It is the one change with two payoffs — fewer bytes on every cold load, and headers and redirects reaching the half of the staff that has neither. The cost is operational, not technical: telling colleagues and reinstalling from the canonical URL (see Address migration campaign) |
 | Pay Calculator progressive disclosure on phones | **ALREADY DECLINED**, 3 Sep 2026 — see DECISIONS.md → "Pay Calculator — "More pay tools" grouping on phones — DECLINED", which took the same proposal through four drafts and a measured prototype. The review restates the observation the prototype answered (the page is long on a phone) and brings no new evidence, so the recorded trigger stands: **a staff report about the tail of the page**, which does not exist. Do not add instrumentation to test it |

@@ -474,7 +474,11 @@ is a judgement about access and risk appetite, on one month of data, and deletin
 that basis would be the same hurry this file spent two months refusing. Recorded in
 `KNOWN_LIMITATIONS.md`; not acted on here.
 
-**The correction above sharpens that question into two options (26 Sep 2026), neither taken:**
+**The correction above sharpens that question into two options (26 Sep 2026). DECIDED the same day:
+the owner took the second — RETIRE.** Why, in one line: the paint's cache read queues behind the very
+lookup it was meant to overtake, so it could not win, and it had just shipped two defects. What went,
+and what would reopen it (the first option, with its shared-device privacy cost weighed first):
+`DECISIONS.md` → "The provisional paint". A named boot now waits for the lookup, as before v22.97.
 
 | Option | What it is | For | Against |
 |---|---|---|---|
@@ -482,7 +486,7 @@ that basis would be the same hurry this file spent two months refusing. Recorded
 | **Retire the provisional machinery** | Delete `decideProvisionalAccess`, the scope plumbing and the cross-member locking; boot waits for the lookup as it did before v22.97 | removes a security-adjacent path that measurably buys ~nothing, and the bugs it has produced (the per-month knowledge leak fixed in the same review) | gives up the ruling's intent for good unless the first option is later built; a member with a disabled account stops seeing their cached roster for the validation window (a small privacy gain, not a cost) |
 
 Recommendation from the review: **retire it** unless the owner wants the first option built — the
-current machinery carries the risk of both and the benefit of neither.
+current machinery carries the risk of both and the benefit of neither. **Taken, 26 Sep 2026.**
 
 ## Phase 2 — CLOSED on its own decision rule (5 Sep 2026)
 
@@ -623,8 +627,9 @@ and no arrangement of the module graph shortens it.
 
 **The owner's ruling: yes, a returning member may see their own already authorised cached roster**
 while the lookup completes. `ROADMAP.md`'s option 2 — a named member with a live local session, never
-the shared PIN viewer. The standing rule is `CALENDAR_DATA.md` invariant 13; the argument and the
-policy cost are in `calendar-access-core.js` → `decideProvisionalAccess`, and the whole pre-decision
+the shared PIN viewer. The rule was `CALENDAR_DATA.md` invariant 13 (retired 26 Sep 2026 with the paint — see THE
+CLOSING READ above and `DECISIONS.md`); the argument and policy cost lived in
+`calendar-access-core.js` → `decideProvisionalAccess` until then, and the whole pre-decision
 entry is preserved verbatim in `ROADMAP_HISTORY.md`.
 
 **What shipped is narrower than the ruling, by two refusals discovered while building it.** The paint

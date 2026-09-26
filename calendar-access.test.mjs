@@ -171,8 +171,7 @@ let reconcileHangs = false;
 /** A promise the mocked reconcile awaits, so a test can hold the decision open. @type {Promise<void>|null} */
 let reconcileGate = null;
 /** The same, for the silent re-establishment — the boot AWAITS that attempt (up to
- *  `SILENT_BEFORE_CARD_MS`) between withdrawing a provisional paint and putting a card up, and that
- *  window is the only place the withdrawal's own workspace hide is observable. @type {Promise<void>|null} */
+ *  `SILENT_BEFORE_CARD_MS`) before putting a card up. @type {Promise<void>|null} */
 let silentGate = null;
 
 /** Mutable so both sides of the switch are reachable — the whole point of the flag is that it has
@@ -180,9 +179,8 @@ let silentGate = null;
 const CONFIG = { CALENDAR_PIN_ACCESS: true };
 mock.module('./roster-data.js', { namedExports: { CONFIG } });
 
-// The provisional paint's two preconditions beyond the session are read from storage, so the
-// harness needs one. Real `ls.js`, real keys — a mocked `lsGet` would let the module read a key
-// nobody writes and the test would still pass.
+// A storage the cards can read (real `ls.js`, real keys) — a mocked `lsGet` would let a module read
+// a key nobody writes and the test would still pass.
 /** @type {Map<string,string>} */
 const store = new Map();
 globalThis.localStorage = /** @type {any} */ ({
@@ -200,8 +198,7 @@ const {
 // whose module scope wires their collaborators — a card reached before that would have no deps.
 const { showSignInPanel } = await import('./calendar-lock-cards.js');
 // The slot, so a test can ask WHICH card is standing where the Calendar goes. Real, not mocked —
-// it touches only the fake DOM, and the whole point of asking is that the answer is the shipped
-// one. Used to prove a workspace hide belongs to the revoke and not to a card that arrived later.
+// it touches only the fake DOM, and the whole point of asking is that the answer is the shipped one.
 const { lockCardId } = await import('./calendar-lock-slot.js');
 
 // A DOM just rich enough for the module to build and query its card.
@@ -1218,184 +1215,37 @@ describe('THE ON/OFF SWITCH — CONFIG.CALENDAR_PIN_ACCESS', () => {
     });
 });
 
-// ── THE PROVISIONAL PAINT (v22.97) ──────────────────────────────────────────────────────────────
+// ── ONE GRANT, AFTER THE CONFIRMATION (the provisional paint, retired 26 Sep 2026) ─────────────
 //
-// The WIRING, which is the half `calendar-access-core.test.mjs` cannot see. The decision there is
-// pure and now well pinned; what is untested by it is whether the boot ever ASKS, whether the
-// answer arrives before the round trip it exists to skip, and whether a paint that should not have
-// happened is taken back. This repo's named blind spot is exactly this gap — "the rule tested, the
-// wiring not" — and every one of the mutations below leaves the pure suite green.
-//
-// The observable is `onEveryGrant`'s argument, because that is the whole contract with the
-// coordinator: a member NAME scopes the override cache to one person and disables the two controls
-// that would show another; `null` is the ordinary unscoped grant; `false` withdraws the paint.
-//
-// One thing these cannot see, found by mutation and recorded rather than faked: passing
-// `_provisionalFor` instead of a literal `null` at the confirming grant. It is not a behaviour
-// change, because `grant()` clears the field on the line ABOVE — the ORDERING is the guard, and
-// swapping those two lines IS caught.
-describe('the provisional paint — showing a returning member their own saved roster first', () => {
-    /** Run a boot with the confirmation held open, and return the handles to inspect and release. */
-    function bootHeld({ session = { name: 'G. Miller' }, storage = {} } = {}) {
-        for (const [k, v] of Object.entries(storage)) store.set(k, v);
-        sessionValue = session;
-        let release;
-        reconcileGate = new Promise(r => { release = r; });
-        /** @type {Array<string|null|false>} */
-        const scopes = [];
-        let started = 0;
-        const done = initCalendarAccess({
-            onGranted: () => { started++; },
-            onEveryGrant: (scope) => { scopes.push(scope === undefined ? null : scope); },
-        });
-        return { scopes, done, release, started: () => started };
-    }
-
-    test('the paint lands BEFORE the confirmation, which is the entire point', async () => {
-        // Held open, nothing has answered yet — and the member is already looking at their roster.
-        const b = bootHeld();
-        await Promise.resolve(); await Promise.resolve();
-        assert.deepEqual(b.scopes, ['G. Miller'], 'the boot did not paint while the identity was in flight');
-        assert.equal(b.started(), 1, 'the workspace was not built for the paint');
-        currentUser = { uid: 'member-1', isAnonymous: false };
-        b.release();
-        assert.equal(await b.done, 'named');
-        assert.deepEqual(b.scopes, ['G. Miller', null], 'the confirmed member stayed confined to their own row');
-    });
-
-    test('a confirmation that FAILS takes the paint back', async () => {
-        // The one outcome this must not have is a roster left on screen under an identity that did
-        // not confirm. `false` is the withdrawal — the coordinator shuts the override gate on it.
-        const b = bootHeld();
-        await Promise.resolve(); await Promise.resolve();
-        assert.deepEqual(b.scopes, ['G. Miller']);
-        b.release();
-        assert.equal(await b.done, 'none', 'no identity confirmed');
-        assert.deepEqual(b.scopes, ['G. Miller', false], 'the paint was left up after the identity failed');
-    });
-
-    test('a VIEWER confirmation also takes it back — the paint was scoped to a member', async () => {
-        // The PIN station is not this member. Reaching `viewer` means the stored session did not
-        // revalidate, so the one person the scope named is not who is here.
-        const b = bootHeld();
-        await Promise.resolve(); await Promise.resolve();
-        currentUser = { uid: 'calendar-viewer', isAnonymous: false };
-        b.release();
-        assert.equal(await b.done, 'viewer');
-        assert.equal(b.scopes[1], false, 'a viewer inherited a member-scoped paint');
-    });
-
-    test('TEAM VIEW does not paint — the whole team cannot be scoped to one member', async () => {
-        const b = bootHeld({ storage: { myb_team_view: '1' } });
-        await Promise.resolve(); await Promise.resolve();
-        assert.deepEqual(b.scopes, [], 'a team-view boot painted a one-member scope');
-        assert.equal(b.started(), 0);
-        currentUser = { uid: 'member-1', isAnonymous: false };
-        b.release();
-        assert.equal(await b.done, 'named');
-        assert.deepEqual(b.scopes, [null], 'it must still boot normally — refusing costs the fast path, not the Calendar');
-    });
-
-    test('a stored selection naming a COLLEAGUE does not paint', async () => {
-        // The quiet failure: their base roster would draw with their leave and absence missing.
-        const b = bootHeld({ storage: { myb_roster_selected_member: 'S. Silva' } });
-        await Promise.resolve(); await Promise.resolve();
-        assert.deepEqual(b.scopes, [], 'a colleague was about to be drawn from a one-member scope');
-    });
-
-    test('a stored selection naming YOURSELF paints', async () => {
-        const b = bootHeld({ storage: { myb_roster_selected_member: 'G. Miller' } });
-        await Promise.resolve(); await Promise.resolve();
-        assert.deepEqual(b.scopes, ['G. Miller']);
-    });
-
-    test('no session, no paint', async () => {
-        const b = bootHeld({ session: null });
-        await Promise.resolve(); await Promise.resolve();
-        assert.deepEqual(b.scopes, [], 'a device with no session was shown somebody\'s roster');
-    });
-
-    test('it is NOT an access type — nothing may read it as one', async () => {
-        // `_accessType` staying 'none' is what keeps the late-identity watcher watching and stops
-        // `getAccessType()` telling a caller this member has access. Eight places read it.
-        const b = bootHeld();
-        await Promise.resolve(); await Promise.resolve();
-        assert.deepEqual(b.scopes, ['G. Miller'], 'guard: the paint must be up for this to mean anything');
-        assert.equal(getAccessType(), 'none', 'a paint was reported as access');
-        assert.equal(isViewerMode(), false);
-        b.release();
-        await b.done;
-    });
-
-    // ── TAKING IT BACK IS TWO THINGS, AND ONLY ONE WAS PINNED (v23.63) ──────────────────────────
-    //
-    // `a confirmation that FAILS takes the paint back` above reads the SCOPE argument — it proves
-    // the override gate was shut. It says nothing about the grid, and the grid is what a person is
-    // looking at. Deleting `setWorkspaceHidden(true)` from `revokeProvisional` left all 71 tests in
-    // this file green (measured), with the roster still on screen under an identity that had just
-    // failed to confirm, and the sign-in card then mounted over the top of it.
-    //
-    // Shutting the gate stops the NEXT read. Only this takes down the one already drawn.
-    test('and it takes the ROSTER off the screen, not just the gate that feeds it', async () => {
-        // Read at the RIGHT INSTANT. A member holding a session is not sent straight to a card:
-        // the boot puts the skeleton up — which does not touch the workspace — and then AWAITS the
-        // silent re-establishment for up to `SILENT_BEFORE_CARD_MS`. The card that eventually
-        // appears hides the workspace itself, so an assertion taken after the boot settles passes
-        // either way. Held open here, so what is asserted is the withdrawal's own hide and nothing
-        // else's.
-        const grid = domEl('calendarDisplay');
-        let releaseSilent;
-        silentGate = new Promise(r => { releaseSilent = r; });
-        const b = bootHeld();
-        await Promise.resolve(); await Promise.resolve();
-        assert.deepEqual(b.scopes, ['G. Miller'], 'precondition: the paint is up');
-        assert.equal(grid.hidden, false, 'precondition: the workspace was un-hidden for the paint');
-
-        b.release();                      // the identity fails to confirm; the paint is withdrawn
-        await new Promise(r => setTimeout(r, 5));
-        assert.deepEqual(b.scopes, ['G. Miller', false], 'precondition: the gate was shut');
-        assert.equal(lockCardId(), 'calendarBooting',
-            'precondition: no card has replaced the grid yet — the hide below is the revoke\'s own');
-        assert.equal(grid.hidden, true,
-            'the roster stayed on screen through the re-establishment window, under an identity that failed');
-
-        releaseSilent();
-        assert.equal(await b.done, 'none');
-    });
-
-    test('the CONFIRMING grant is the one that reports `named` — onGranted, spent on the paint, does not', async () => {
-        // What the coordinator hangs its post-sign-in steps on (the forced set-password overlay and
-        // the claim sweep), and why it cannot be `onGranted`: the paint consumes that one-shot while
-        // access is still `none`, and it never fires again. Both steps once hung there, and on this
-        // path — a Calendar sign-in, the common one — the password step read `none` and never ran.
-        // `onEveryGrant(null)` is the moment `getAccessType()` first says `named`.
+// From v22.97 a returning member's boot granted TWICE: a member-scoped "provisional" paint before
+// Firebase confirmed the stored identity, then the real grant. It was retired by owner decision
+// (DECISIONS.md → "The provisional paint") — its cache read queued behind the same Auth start-up it
+// was meant to overtake — and both defects it shipped came from that doubled grant: a scoped read
+// marking months known for everyone, and the one-shot `onGranted` spent while access was still
+// `none`. This pins the shape that replaced it, at the point the coordinator hangs off.
+describe('a returning named member is granted ONCE, and only after the identity confirms', () => {
+    test('nothing before the confirmation; then onEveryGrant and onGranted once each, reading `named`', async () => {
+        const grid = domEl('calendarDisplay');   // created first: the module only hides what exists
         sessionValue = { name: 'G. Miller' };
+        store.set('myb_roster_selected_member', 'G. Miller');   // the retired fast path's own trigger
         let release = () => {};
         reconcileGate = new Promise(r => { release = () => r(undefined); });
         /** @type {string[]} */
         const seen = [];
         const done = initCalendarAccess({
             onGranted: () => { seen.push(`onGranted:${getAccessType()}`); },
-            onEveryGrant: (/** @type {any} */ s) => { seen.push(`every:${s === undefined ? null : s}:${getAccessType()}`); },
+            onEveryGrant: (/** @type {any} */ ...args) => { seen.push(`every(${args.length}):${getAccessType()}`); },
         });
         await Promise.resolve(); await Promise.resolve();
+        assert.deepEqual(seen, [], 'something was granted while the stored identity was still unconfirmed');
+        assert.equal(grid.hidden, true, 'the workspace was shown before the confirmation');
         currentUser = { uid: 'member-1', isAnonymous: false };
         release();
         assert.equal(await done, 'named');
-        assert.deepEqual(seen, ['every:G. Miller:none', 'onGranted:none', 'every:null:named']);
-    });
-
-    // LAST IN THIS BLOCK, deliberately: `handleAccessLost` — which `beforeEach` uses to reset the
-    // module's access state — early-returns on `'open'`, because there is no lock card to return
-    // to when the PIN is switched off. So a test that grants `open` leaves `_accessType` at
-    // `'open'` for every test after it, and the one above would then read a leaked value.
-    test('the PIN-off rollback does not paint — that mode grants everything anyway', async () => {
-        CONFIG.CALENDAR_PIN_ACCESS = false;
-        const b = bootHeld();
-        await Promise.resolve(); await Promise.resolve();
-        assert.deepEqual(b.scopes, [], 'the rollback mode grew a second path to the same screen');
-        b.release();
-        await b.done;
+        assert.deepEqual(seen, ['every(0):named', 'onGranted:named'],
+            'one grant, carrying no scope, with `named` already readable to the one-shot hook');
+        assert.equal(grid.hidden, false);
+        assert.equal(lockCardId(), null, 'a card was left standing over the granted Calendar');
     });
 });
 

@@ -8,9 +8,9 @@
  * Edit here for: sync chip appearance, retry behaviour, initial fetch range.
  */
 
-import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache, provisionalMember, hasOverrideAccess } from './calendar-overrides.js';
+import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache } from './calendar-overrides.js';
 import { isAccessFailure } from './claim-retry.js';
-import { noteKnowledge, forget as forgetKnowledge } from './calendar-data-state.js';
+import { noteKnowledge } from './calendar-data-state.js';
 import { formatISO } from './roster-data.js';
 
 /** The sync's own failure deadline — the point at which the chip says "Couldn't update" (v19.08).
@@ -340,9 +340,6 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // signal too. Tick parity matters because it is observable — the suite flushes a fixed
       // number of microtasks, so an extra link makes four unrelated tests fail on the render they
       // were asserting had happened.
-      // Which scope this read ran under — captured BEFORE it, because the scope can lift while it
-      // is in flight (see the lift below).
-      const _scopedTo = provisionalMember();
       const _painted = await fetchOverridesForRangeFromCache(startStr, endStr);
       // The device holds a previously-known state for this window, so the grid may be drawn — but
       // only as `cached`, never as current (v20.40). An EMPTY cache stays `unknown`, deliberately:
@@ -367,24 +364,6 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // SYNC_TIMEOUT_MS). Past the deadline we read anyway — today that succeeds, and once reads
       // require a session it fails into the catch below, which is the recoverable path.
       await Promise.race([authReady, new Promise(r => setTimeout(r, SYNC_TIMEOUT_MS))]);
-      // ── The provisional scope has LIFTED: re-read the cache unscoped (review F2/F3) ──────────
-      // Knowledge is per MONTH, not per member. A phase-1 read made under a provisional scope held
-      // ONE member's rows, yet its hit marked the months `cached` — and the full grant has just
-      // re-enabled the picker and Team View, so a colleague would draw as a settled roster with
-      // their leave and absence missing until the server read below lands. An EMPTY scoped read is
-      // the mirror case: the device may well hold this window for everyone, and nothing re-read it.
-      // So forget what the scoped read claimed, read the full cache, and paint. The forget runs in
-      // the same microtask checkpoint as `grant()` resolved `authReady`, so no tap can land between
-      // the controls re-enabling and it; `_painted` still counts, because the rows it loaded stay
-      // loaded and the unscoped result is a superset of them.
-      if (_scopedTo && provisionalMember() === null && hasOverrideAccess() && _origGen === _fetchGen && !syncResolved) {
-        forgetKnowledge(_initialMonthKeys);
-        const _full = await fetchOverridesForRangeFromCache(startStr, endStr);
-        if (_full || _painted) {
-          noteKnowledge(_initialMonthKeys, 'cached');
-          if (_origGen === _fetchGen && !syncResolved) { if (isTeamViewMode()) renderTeamView(); else renderCalendar(); }
-        }
-      }
       await fetchOverridesForRange(startStr, endStr);
       noteKnowledge(_initialMonthKeys, 'authoritative');
       syncResolved = true;

@@ -18,10 +18,6 @@
  *   · It opens on a FULL access grant — `named` or `viewer` (the `open` mode too, where the
  *     server will then refuse a claimless anonymous session and the viewers show their failure
  *     state, which is the honest outcome for a mode the PIN flag has retired).
- *   · It does NOT open on a PROVISIONAL grant. A provisional paint is one member's own cached
- *     roster while their stored identity is being revalidated — it is not access (CALENDAR_DATA.md
- *     invariant 13), and a document is not theirs to see on the strength of a localStorage record.
- *     The window is a second or two; the viewers hold the tap and finish it when the grant lands.
  *   · It closes when access is LOST mid-session (a permission-denied override read, an expired
  *     viewer session). A deliberate "Lock Calendar" reloads the page, so the default applies.
  *
@@ -44,8 +40,8 @@ const _subs = new Set();
 export function hasDocumentAccess() { return _open; }
 
 /**
- * Open or shut the gate. Only a literal `true` opens it — a truthy scope string from a provisional
- * grant must never read as access. Subscribers are told once per CHANGE, never on a no-op, so a
+ * Open or shut the gate. Only a literal `true` opens it — a truthy non-boolean (a name, a 1) must
+ * never read as access. Subscribers are told once per CHANGE, never on a no-op, so a
  * repeated grant cannot re-attach a subscription that is already listening.
  * @param {boolean} open
  */

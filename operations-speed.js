@@ -374,8 +374,8 @@ async function initPageSpeedCard() {
      *  points at Firestore. Subtracting is not asked of the reader — the rows already nest.
      *
      *  **THEY STOPPED NESTING FOR EVERY MEMBER AT v22.97**, and the note had to change with them.
-     *  A returning member is now shown their own saved roster BEFORE the gate finishes deciding
-     *  (`calendar-access-core.js` → `decideProvisionalAccess`), so "Shifts shown" can beat
+     *  A returning member was shown their own saved roster BEFORE the gate finished deciding (the
+     *  provisional paint, retired 26 Sep 2026 — historic months still carry it), so "Shifts shown" can beat
      *  "Unlocked". Every figure is still true — each rung is timed from the page opening and
      *  bucketed on its own, nothing is derived by subtraction — but an unqualified "each step
      *  includes the ones above it" is now a false sentence on a card whose whole job is to be
