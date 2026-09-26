@@ -36,9 +36,18 @@ function failIfArmed(path) {
         throw Object.assign(new Error(code), { code });
     }
 }
+/** A copy the caller cannot mutate the store through — except a Timestamp (anything with `toMillis`),
+ *  which is passed as-is: structuredClone would strip the method the retention rules read. */
+function clone(v) {
+    if (!v || typeof v !== 'object' || typeof v.toMillis === 'function') return v;
+    if (Array.isArray(v)) return v.map(clone);
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, clone(x)]));
+}
+/** A Firestore Timestamp stand-in: the one method the client's helpers call. */
+export function fakeTimestamp(ms) { return { toMillis: () => ms }; }
 function snap(path, id) {
     const data = state.docs.get(path);
-    return { id, exists: () => data !== undefined, data: () => (data === undefined ? undefined : structuredClone(data)) };
+    return { id, exists: () => data !== undefined, data: () => (data === undefined ? undefined : clone(data)) };
 }
 function merge(into, patch) {
     for (const [k, v] of Object.entries(patch)) {
@@ -54,7 +63,22 @@ export async function setDoc(ref, data, opts) {
     const prev = state.docs.get(ref.path);
     state.docs.set(ref.path, opts && opts.merge && prev ? merge(prev, data) : { ...data });
 }
-export async function updateDoc(ref, data) {
+export async function updateDoc(ref, data, ...rest) {
+    // The (ref, FieldPath, value) form — how the usage prune deletes a key that is not a valid dotted
+    // path. Recorded as the path's SEGMENTS, so a test can tell it from a dotted string, which the
+    // real SDK rejects synchronously.
+    if (data instanceof FieldPath || typeof data === 'string') {
+        const segments = data instanceof FieldPath ? data.segments : null;
+        state.ops.push({ op: 'update', path: ref.path, field: data, segments, value: rest[0] });
+        failIfArmed(ref.path);
+        if (segments && rest[0] && rest[0].__fake === 'deleteField') {
+            const cur = state.docs.get(ref.path);
+            let node = cur;
+            for (const seg of segments.slice(0, -1)) node = node?.[seg];
+            if (node) delete node[segments[segments.length - 1]];
+        }
+        return;
+    }
     state.ops.push({ op: 'update', path: ref.path, data });
     failIfArmed(ref.path);
     state.docs.set(ref.path, merge(state.docs.get(ref.path) || {}, data));
@@ -75,10 +99,18 @@ export async function getDoc(ref) { failIfArmed(`read:${ref.path}`); return snap
 export async function getDocs(q) {
     const col = q.col;
     const wheres = (q.constraints || []).filter((c) => c.kind === 'where');
-    const docs = [...state.docs.keys()]
+    // Only what this fake genuinely implements. Any other operator used to MATCH EVERYTHING, so the
+    // first test of a range query would have passed for the wrong reason (external review, 25 Sep).
+    for (const w of wheres) if (w.opStr !== '==') throw new Error(`fake getDocs: where('${w.field}', '${w.opStr}') is not implemented`);
+    const cap = (q.constraints || []).filter((c) => c.kind === 'limit').map((c) => c.n).pop();
+    state.reads.push({ col, wheres: wheres.map((w) => ({ field: w.field, value: w.value })), limit: cap ?? null });
+    let docs = [...state.docs.keys()]
         .filter((p) => p.startsWith(`${col}/`))
         .map((p) => snap(p, p.slice(col.length + 1)))
-        .filter((s) => wheres.every((w) => w.opStr !== '==' || s.data()[w.field] === w.value));
+        .filter((s) => wheres.every((w) => s.data()[w.field] === w.value));
+    // limit() is APPLIED, not ignored: a caller that asks for one row too few must get one row too
+    // few, or a "fetch cap + 1 to detect overflow" rule is untestable.
+    if (cap !== undefined) docs = docs.slice(0, cap);
     return { docs, size: docs.length, empty: docs.length === 0 };
 }
 export const getDocsFromCache = getDocs;

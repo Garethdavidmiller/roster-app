@@ -26,7 +26,7 @@ import { initNavPanel } from './nav-panel.js';
 import { _pushOverlayState, _clearOverlayHistory, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initCalendarNotices } from './calendar-notices.js';
-import { registerServiceWorker } from './sw-register.js';
+import { registerServiceWorker, reloadWhileHidden } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady, markMilestone, noteProvisionalPaint } from './perf-reporter.js';
@@ -1050,9 +1050,10 @@ function stampPrintDate() {
 stampPrintDate();
 window.addEventListener('beforeprint', stampPrintDate);
 
-// Small delay so any in-flight render cycle completes before the page tears down.
+// Small delay so any in-flight render cycle completes before the page tears down — and the reload
+// asks AGAIN whether anyone is looking when it fires (v24.28; the frozen-resume race is in sw-register.js).
 registerServiceWorker({
-    beforeReload: () => setTimeout(() => window.location.reload(), 500),
+    beforeReload: () => setTimeout(() => reloadWhileHidden(), 500),
     bfcache: true,
     // The Calendar is the app's opening page and the one staff reported as slow, and it is the only
     // page where an update can interrupt PURE READING — there is nothing here to save, so nothing to

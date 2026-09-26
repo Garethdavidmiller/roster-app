@@ -1662,9 +1662,15 @@ re-authentication on a transient error, the admin endpoints' forced token refres
 request's absent token, and the analytics writers. Twelve mutations, eleven caught; the survivor (the
 signed-out guard on the document URL) is held again one layer down and says so in the test.
 
-**What is still not covered there:** the read paths that shape admin screens (`getClientErrors`,
-`getUsageStats`, `getPerfStats`) and the upload engine, which is tested through `documents-client.js`
-already. The harness makes any of them a few lines; before adding new behaviour to that file, add the
+**The admin screens' reads followed on 26 Sep 2026** — `getClientErrors`, `getUsageStats`,
+`getPerfStats`: the `limit(101)` that lets the Error Log say more than 100 are hidden, that the
+retention sweep only ever deletes a RESOLVED record past 90 days, that the usage prune names its
+field by `FieldPath` (a dotted day key throws synchronously in the real SDK and blanked the card
+once), which month's document each window reads, and that no failed sweep or unreadable document
+takes a card down. Nine mutations, all caught. The fake SDK now APPLIES `limit()` and refuses a
+`where` operator it does not implement — it used to ignore the first and match everything on the
+second, so a range query or a cap would have passed for the wrong reason. The upload engine is
+tested through `documents-client.js`. Before adding new behaviour to `firebase-client.js`, add the
 test with it.
 
 ### Legacy override types still in Firestore
