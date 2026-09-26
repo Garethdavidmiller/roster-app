@@ -226,6 +226,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     // Cleared when "Start over" is clicked.
     /** @type {any} */ let _parsedResult = null;      // response from parseRosterPDF Cloud Function
     /** @type {any} */ let _cellStates   = null;      // computed Map: "memberName|date" → { state, parsedShift, manualValue, manualId, chosen }
+    /** @type {File|null} */ let _parsedFile = null;  // the PDF that WAS read — the picker may hold a newer one
 
     // Default week ending to the next Saturday (roster PDFs always end on a Saturday).
     // If today is already Saturday, jump to the one after so we default to the upcoming week.
@@ -339,10 +340,13 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.error || `Server error (${response.status})`);
+                // The server's message is written for the admin ("check the roster type is correct"), so carry it.
+                throw Object.assign(new Error(errData.error || `Server error (${response.status})`),
+                    { serverMessage: typeof errData.error === 'string' ? errData.error : '' });
             }
 
             _parsedResult = await response.json();
+            _parsedFile   = file;
             parseFeedback.textContent = '';
 
             // Fetch existing overrides for this week from Firestore so we can detect conflicts
@@ -372,7 +376,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 } else if (_err instanceof TypeError && _err.message === 'Failed to fetch') {
                     userMsg = "Couldn't reach the server — check your internet connection or try again later.";
                 } else {
-                    userMsg = 'Unexpected error — please try again or contact support.';
+                    userMsg = _err.serverMessage || 'Unexpected error — please try again or contact support.';
                 }
                 parseFeedback.textContent = `Couldn't read the roster: ${userMsg}`;
                 parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
@@ -627,7 +631,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         // survive the clone at the foot of this function, so it did nothing for six releases and
         // looked perfect in a screenshot. (2) It DOWNLOADS: a `blob:` document inherits this
         // page's `object-src 'none'` (measured), which blocks the embed Chrome renders a PDF in.
-        const pdfFile = fileInput?.files?.[0];
+        const pdfFile = _parsedFile;
         if (pdfFile) {
             changeList.insertAdjacentHTML('beforeend', `<button type="button" class="roster-download-pdf">`
                 + `📄 Download the original roster (${esc(pdfFile.name)})</button>`);
@@ -852,6 +856,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                                     : 'check the paper roster, or enter it below'}</span>
                             </div>
                         </div>
+                        ${s.isManual && s.manualValue ? `<div class="roster-cb-opt">
+                            <span class="roster-cb-lab">Saved</span>
+                            <span class="roster-cv-manual">${manualShiftDisplay(s)}</span>
+                        </div>` : ''}
                         <button type="button" class="roster-choice-btn roster-choice-btn--enter ${s.chosen === 'entered' ? 'is-chosen' : ''}${s.draft?.open ? ' is-open' : ''}" data-key="${esc(key)}" data-opt="enter" data-idle="Enter the shift" data-done="Entered — change it" aria-pressed="${s.chosen === 'entered'}">${s.chosen === 'entered' && s.entered ? 'Entered — change it' : 'Enter the shift'}</button>
                         ${s.draft?.open ? entryControlHtml(key, s, date) : ''}`;
                 } else {
@@ -898,9 +906,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         changeList.addEventListener('click', /** @param {any} e */ e => {
             const target = /** @type {Element} */ (e.target);
             if (target.closest('.roster-download-pdf')) {
-                const file = fileInput?.files?.[0];
+                const file = _parsedFile;   // the file this review was READ from, not whatever is picked now
                 if (!file) return;
-                const url = URL.createObjectURL(file);   // read at CLICK time, so it cannot go stale
+                const url = URL.createObjectURL(file);
                 const a = Object.assign(document.createElement('a'), { href: url, download: file.name });
                 document.body.appendChild(a); a.click(); a.remove();
                 setTimeout(() => URL.revokeObjectURL(url), 60_000);  // immediate revoke cancels it on Android
@@ -946,14 +954,18 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     // so they aren't keyboard-focusable behind the dimmed overlay.
                     rowHtml.inert = nowSkipped;
                     if (s.state === 'DIFF' || s.state === 'REMOVE_IMPORT') {
-                        s.chosen = !nowSkipped;
+                        // Restore puts back what each row HAD — a drift-suspect row starts unticked
+                        // and one the admin unticked stays so; re-ticking both is a silent save.
+                        if (nowSkipped) s.preSkip = s.chosen !== false;
+                        s.chosen = nowSkipped ? false : (s.preSkip ?? true);
+                        const on = s.chosen !== false;
                         const tick = rowEl.querySelector('.roster-tick');
                         if (tick) {
-                            tick.classList.toggle('off', nowSkipped);
-                            tick.setAttribute('aria-pressed', String(!nowSkipped));
-                            tick.textContent = nowSkipped ? '' : '✓';
+                            tick.classList.toggle('off', !on);
+                            tick.setAttribute('aria-pressed', String(on));
+                            tick.textContent = on ? '✓' : '';
                         }
-                        rowEl.classList.toggle('is-skipped', nowSkipped);
+                        rowEl.classList.toggle('is-skipped', !on);
                     } else if (s.state === 'CONFLICT') {
                         // Skipping cancels any "use new roster" choice (keep yours = nothing written).
                         s.chosen = 'manual';
@@ -967,7 +979,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         const pPill = rowEl.querySelector('.roster-cv-pdf');
                         if (mPill) mPill.classList.remove('cv-dim');
                         if (pPill) pPill.classList.add('cv-dim');
-                    } else if (s.state === 'UNREADABLE' && s.options) {
+                    } else if (s.state === 'UNREADABLE') {
                         // SKIP ALL MUST SKIP THE ROW THE ADMIN WAS LEAST SURE ABOUT (v21.94).
                         //
                         // This branch did not exist. UNREADABLE gained a writable `chosen` at
@@ -980,16 +992,20 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         // untouched row already holds. Restoring (un-skipping) deliberately does
                         // NOT re-pick: there is no safe default here, which is the whole reason
                         // the row starts on neither.
+                        // Every UNREADABLE row, not only one with readings: an ENTERED value on a row
+                        // without them was still written by Save from under the overlay.
                         if (nowSkipped) {
                             s.chosen = null;
+                            s.entered = null;
+                            s.draft = { type: null, from: '', to: '', open: false };
+                            rowEl.querySelector('.roster-entry')?.remove();
                             rowEl.querySelectorAll('.roster-choice-btn').forEach(/** @param {any} b */ b => {
                                 const on = /** @type {HTMLElement} */ (b).dataset.opt === 'skip';
                                 b.classList.toggle('is-chosen', on);
                                 b.setAttribute('aria-pressed', String(on));
+                                b.classList.remove('is-open');
                             });
-                            rowEl.classList.add('roster-change-unreadable');
-                            const act = rowEl.querySelector('.act-choice');
-                            if (act) act.textContent = "Couldn't read";
+                            patchEntryRow(rowEl, false, s);
                         }
                     }
                 });
@@ -1092,7 +1108,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
         // ---- Empty state ----
         if (sectionsShown === 0) {
-            changeList.innerHTML = `<div class="roster-no-changes"><span aria-hidden="true">✓</span> The roster matches what's already saved — no changes needed.</div>`;
+            // APPENDED, not assigned: the notes above ("Not found in this read: …", the PDF download)
+            // still apply when nothing changed, and assigning innerHTML wiped them.
+            changeList.insertAdjacentHTML('beforeend', `<div class="roster-no-changes"><span aria-hidden="true">✓</span> The roster matches what's already saved — no changes needed.</div>`);
         }
         refreshOutcome();   // fills the outcome summary + sets the Save button label/disabled state
 

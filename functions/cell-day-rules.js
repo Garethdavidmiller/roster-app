@@ -73,10 +73,13 @@ function isPhysicallyBlank(raw) {
     return s === '' || s.toUpperCase() === BLANK_CELL_TOKEN;
 }
 
-/** @param {any} raw @param {Set<string>} tokens */
+/** Separators dropped before matching, so `N.A.` and `N/A` are the `NA` they spell. A cell
+ *  that still does not match goes to review as unreadable, which is the safe failure.
+ *  @param {any} raw @param {Set<string>} tokens */
 function isWholeCell(raw, tokens) {
     if (raw === undefined || raw === null) return false;
-    return tokens.has(String(raw).trim().toUpperCase());
+    const s = String(raw).trim().toUpperCase();
+    return tokens.has(s) || tokens.has(s.replace(/[./]/g, ''));
 }
 
 /**

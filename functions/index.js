@@ -35,11 +35,11 @@ const {
     extractAIJson,
     mapColumnHeadersToDates,
     buildSafeEntries,
-    applySundayScanCorrections,
     applyColumnScanCrossCheck,
     parseStrictIsoDate,
     fileSignatureMatches,
 } = require('./roster-parse-helpers');
+const { applySundayScanCorrections, settleDisputedSundays } = require('./roster-sunday-repair');
 const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeometryWithin, settledGeometry } = require('./roster-geometry');
 const { SHIFT_VOCABULARY, buildCellTable, buildCellPrompt, DAY_LABELS: CELL_DAY_LABELS } = require('./roster-prompt');
 const {
@@ -664,7 +664,8 @@ columnScan: one key per column header; every staff member appears in every colum
         // either way. Reading `parsed.columnHeaders` unguarded threw a TypeError before v24.12.
         const hasSundayColumn = geometryPath
             || parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(String(h).trim().toLowerCase()));
-        applySundayScanCorrections(safeEntries, parsed.sundayScan, hasSundayColumn, dates);
+        // A Sunday it cannot repair is left for the grid below and settled after it (roster-sunday-repair.js).
+        const disputedSundays = applySundayScanCorrections(safeEntries, parsed.sundayScan, hasSundayColumn, dates);
 
         // v22.16 flagged every plain-time Sunday here as UNREADABLE, on the premise that a
         // genuinely worked Sunday carries an RDW marker on the paper roster. THREE REAL ROSTERS SAY
@@ -708,6 +709,7 @@ columnScan: one key per column header; every staff member appears in every colum
         // about rather than assuming away.
         const geometry = await settledGeometry(geometryEarly, geometryPromise);
         const geoStats = applyGeometryWitness(safeEntries, geometry, dates);
+        settleDisputedSundays(safeEntries, disputedSundays, geoStats, dates);
         if (geoStats.status !== 'complete') {
             console.warn(`[parseRosterPDF] geometry witness ${geoStats.status}: ${geoStats.checked}/${geoStats.total} members matched`
                 + (geoStats.unmatched.length ? ` — unmatched: ${geoStats.unmatched.join(', ')}` : '')

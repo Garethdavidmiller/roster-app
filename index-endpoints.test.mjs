@@ -902,3 +902,32 @@ describe('end to end: a real PDF through the real extractor and the real handler
         assert.equal(row.shifts[DATES[2]], '06:20-14:20', 'Tuesday should carry the duty');
     });
 });
+
+// ── The Sunday repair, through the handler (v24.28 review) ─────────────────────────────────────
+//
+// `settleDisputedSundays` is a SECOND call placed after the witness, so the helper tests cannot see
+// the wiring: delete the call and every one of them stays green. These drive the legacy path (the
+// fake PDF fails the grid open, so the witness does not run) and assert on the days RETURNED.
+describe('parseRosterPDF: a left-shifted row is repaired or sent to review, never written a day out', () => {
+    const SUN = '2026-08-30';
+    const reply = (row) => JSON.stringify({ columnHeaders: DAY_HEADERS, parsed: [{ memberName: 'L. Springer', ...row }],
+        sundayScan: { 'L. Springer': 'BLANK' } });
+    const DRIFTED = { Sun: '05:30-11:30', Mon: 'RD', Tue: 'RD', Wed: '05:30-11:30', Thu: 'RD', Fri: 'RD' };
+
+    test('an empty Saturday reported as BLANK is the trailing slot — the week is realigned', async () => {
+        build({ aiReply: reply({ ...DRIFTED, Sat: 'BLANK' }) });
+        const out = await call(index.parseRosterPDF, rosterRequest());
+        assert.equal(out.code, 200);
+        const s = out.body.parsed[0].shifts;
+        assert.deepEqual(['2026-08-30', '2026-08-31', '2026-09-03', '2026-09-05'].map(d => s[d]),
+            ['RD', '05:30-11:30', '05:30-11:30', 'RD']);
+    });
+
+    test('an occupied Saturday leaves Sunday a QUESTION when the grid could not look at it', async () => {
+        build({ aiReply: reply({ ...DRIFTED, Sat: '06:00-14:00' }) });
+        const out = await call(index.parseRosterPDF, rosterRequest());
+        assert.equal(out.code, 200);
+        assert.match(out.body.parsed[0].shifts[SUN], /^UNKNOWN\|05:30-11:30 was read for Sunday/,
+            'a disputed Sunday the witness did not check must reach the admin, not be written either way');
+    });
+});

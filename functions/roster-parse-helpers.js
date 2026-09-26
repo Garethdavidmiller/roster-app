@@ -254,9 +254,11 @@ function extractAIJson(text) {
     // recognise the payload by its required shape, keep scanning past a parsed-but-unusable span,
     // and fall back to the first parsed object only if nothing better turns up (a shape change must
     // not start throwing where this used to return).
-    const looksLikeRoster = (/** @type {any} */ v) => !!v && typeof v === 'object' && !Array.isArray(v)
-        && Array.isArray(v.parsed) && Array.isArray(v.columnHeaders);
-    let fallback = null, haveFallback = false;
+    // The geometry-path prompt asks for `{ parsed }` ALONE, so a span with parsed[] is the payload
+    // too — second-best to the full legacy shape, which the caller still requires on that path.
+    const hasParsed = (/** @type {any} */ v) => !!v && typeof v === 'object' && !Array.isArray(v) && Array.isArray(v.parsed);
+    const looksLikeRoster = (/** @type {any} */ v) => hasParsed(v) && Array.isArray(v.columnHeaders);
+    let fallback = null, haveFallback = false, parsedOnly = null;
     let firstErr = null;
     let searchFrom = text.indexOf('{');
     while (searchFrom !== -1) {
@@ -280,12 +282,14 @@ function extractAIJson(text) {
         try {
             const candidate = JSON.parse(text.slice(searchFrom, end + 1));
             if (looksLikeRoster(candidate)) return candidate;         // the payload — done
+            if (!parsedOnly && hasParsed(candidate)) parsedOnly = candidate;
             if (!haveFallback) { fallback = candidate; haveFallback = true; }   // parsed, but not it
         } catch (e) {
             if (!firstErr) firstErr = e;             // remember the first failure for the message
         }
         searchFrom = text.indexOf('{', searchFrom + 1);   // not the payload — try the next candidate
     }
+    if (parsedOnly) return parsedOnly;
     if (haveFallback) return fallback;   // nothing matched the shape — behave as before
     throw new SyntaxError('No valid JSON object found in AI response' + (firstErr ? `: ${firstErr.message}` : ''));
 }
@@ -518,72 +522,7 @@ function buildSafeEntries(parsedMembers, columnHeaders, dates) {
     return safeEntries;
 }
 
-// ── Sunday scan post-processing ──────────────────────────────────────────────
-
-/**
- * Apply Sunday scan corrections to safe entries (modifies in place).
- *
- * The AI commits to what it sees in each Sunday cell via sundayScan (a dedicated "look at ONLY
- * the Sunday column" pass) before producing the full parsed output. sundayScan is far more
- * reliable for Sunday than the row read, so it is the authority when the two disagree.
- * This catches three failure modes:
- *   Case A — DAY-SHIFT (the common Sonnet-5 regression): the AI skips the blank Sunday cell and
- *     shifts the whole row LEFT — Monday's shift lands in the Sun key, Tuesday's in Mon, …, and
- *     Saturday ends up empty. Signature: sundayScan="blank", parsed Sun ≠ RD, AND parsed Sat = RD
- *     (the empty trailing slot the dropped leading blank pushed in). That signature is exactly a
- *     one-day left-shift, so a one-day RIGHT-shift deterministically undoes it. If Sat is NOT RD
- *     the shift can't be cleanly reversed → fall back to fixing only the Sunday cell + warn.
- *   Case B — worked Sunday with RDW stripped — sundayScan="RDW HH:MM" but parsed has plain time.
- *
- * @param {object[]} safeEntries    - modified in place
- * @param {object}   sundayScan     - { memberName: scanValue } from AI output
- * @param {boolean}  hasSundayColumn
- * @param {string[]} dates          - 7 ISO dates; dates[0] is Sunday, dates[6] Saturday
- */
-function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, dates) {
-    if (!sundayScan || typeof sundayScan !== 'object') return;
-    if (!hasSundayColumn) return;
-    if (dates.length < 7) return;   // a full Sun→Sat week is required for the shift repair
-
-    const sunDate     = dates[0];
-    const satDate     = dates[6];
-    const isPlainTime = v => /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(v);
-
-    for (const entry of safeEntries) {
-        const scanRaw = sundayScan[entry.memberName];
-        if (scanRaw === undefined || scanRaw === null) continue;
-
-        const scanStr  = String(scanRaw).trim().toUpperCase();
-        const sunShift = entry.shifts[sunDate];
-
-        // Case A: scan says the Sunday cell is blank, but the AI put SOMETHING there. The AI's own
-        // separate Sunday scan is the authority, so this is a misread — almost always the
-        // dropped-blank-Sunday LEFT-SHIFT of the whole row.
-        // NA and NS on a Sunday are both blank-equivalent: the rest day a Sunday already is (cell-day-rules.js).
-        const isBlank = ['BLANK', '', 'RD', 'EMPTY', '-', 'N/A', 'NA', 'NS'].includes(scanStr);
-        if (isBlank && sunShift !== 'RD') {
-            if (entry.shifts[satDate] === 'RD') {
-                // Clean left-shift signature (Sat empty) → RIGHT-shift the whole row to undo it:
-                // each day takes the value the AI mis-placed one slot earlier; Sunday becomes RD;
-                // the old (empty) Saturday slot falls off. Provably reverses a one-day left-shift.
-                for (let i = 6; i >= 1; i--) entry.shifts[dates[i]] = entry.shifts[dates[i - 1]];
-                entry.shifts[sunDate] = 'RD';
-                console.warn(`[parseRosterPDF] ${entry.memberName}: sundayScan="${scanRaw}" (blank) but parsed Sunday="${sunShift}" and Saturday empty — day-shift detected, RIGHT-shifted the week to realign`);
-            } else {
-                // Can't cleanly reverse (Saturday is occupied) — at least honour the blank Sunday.
-                entry.shifts[sunDate] = 'RD';
-                console.warn(`[parseRosterPDF] ${entry.memberName}: sundayScan="${scanRaw}" (blank) but parsed Sunday="${sunShift}" with a non-empty Saturday — set Sunday to RD; a wider shift may remain, CHECK THE REVIEW TABLE`);
-            }
-            continue;
-        }
-
-        // Case B: scan says RDW shift but AI stripped the RDW prefix
-        if (scanStr.includes('RDW') && isPlainTime(sunShift)) {
-            console.warn(`[parseRosterPDF] ${entry.memberName}: sundayScan="${scanRaw}" (RDW) but parsed Sunday="${sunShift}" (plain time) — adding RDW prefix`);
-            entry.shifts[sunDate] = `RDW|${sunShift}`;
-        }
-    }
-}
+// ── Sunday scan post-processing: functions/roster-sunday-repair.js (moved out at the v24.28 review) ──
 
 
 // ── Column-scan cross-check (the general day-shift defence) ─────────────────
@@ -656,7 +595,8 @@ function reviewLabel(v) {
  * realignment would provably REVERSE a correct Case-A repair back to the drifted week — silently.
  * (An honest scan is order-insensitive: its repairs leave Sunday agreeing with sundayScan, so the
  * Sunday pass no-ops.) A Case-A PARTIAL repair (Sat occupied) therefore keeps its residual-drift
- * limitation server-side — the client's detectShiftedRow banner remains the catch for that case.
+ * limitation here — it leaves the Sunday claim for the geometry witness (roster-sunday-repair.js),
+ * and the client's detectShiftedRow remains the catch when the witness cannot run.
  *
  * @param {object[]} safeEntries   - modified in place ({ memberName, shifts: { date: value } })
  * @param {object}   columnScan    - { header: { memberName: rawCellValue } } from AI output
@@ -765,7 +705,8 @@ function applyColumnScanCrossCheck(safeEntries, columnScan, columnHeaders, dates
                     shifted[dates[k]] = colRead[dates[k]] ?? 'RD';
                 } else {
                     for (let i = k; i <= 5; i++) shifted[dates[i]] = entry.shifts[dates[i + 1]];
-                    shifted[dates[6]] = colRead[dates[6]] ?? 'RD';
+                    // Unread by both passes, so a question — never a rest day (v22.19).
+                    shifted[dates[6]] = colRead[dates[6]] ?? blankCellMeaning(6, DAY_LABELS[6]);
                 }
                 if (signalDates.every(d => cellsAgree(shifted[d], colRead[d]))) {
                     for (let i = 0; i < 7; i++) entry.shifts[dates[i]] = shifted[dates[i]];
@@ -1378,7 +1319,6 @@ module.exports = {
     isNotAvailable,
     isNotAvailableSunday,
     isPhysicallyBlank,
-    applySundayScanCorrections,
     applyColumnScanCrossCheck,
     normaliseScanValue,
     reviewLabel,

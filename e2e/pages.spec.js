@@ -3798,6 +3798,80 @@ test('operations: Skip all also clears a resolved "couldn\'t read" pick', async 
     await expect(flagged.first().locator('.roster-choice-btn[data-opt="0"]')).not.toHaveClass(/is-chosen/);
 });
 
+// The same hole on the OTHER unreadable row shape (v24.28 review): a row with no readings can hold
+// an ENTERED value, and Skip all reset only rows that offered readings — so the entry was saved
+// from under the overlay. And Restore re-ticked every row, including one the admin had unticked.
+test('operations: Skip all clears an entered value, and Restore keeps each tick as it was', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const saveBtn = page.locator('#rosterApplyBtn');
+    await expect(saveBtn).toHaveText(/Save 3 changes/);
+
+    await page.locator('.roster-tick').first().click();                    // the admin unticks one
+    await expect(saveBtn).toHaveText(/Save 2 changes/);
+    const garbled = page.locator('.roster-change-row', { hasText: 'XZ9 GARBLED' });
+    await garbled.locator('.roster-choice-btn--enter').click();
+    await garbled.locator('.roster-entry-pill', { hasText: 'Shift' }).click();
+    await garbled.locator('.roster-entry-time[data-part="from"]').fill('06:00');
+    await garbled.locator('.roster-entry-time[data-part="to"]').fill('14:00');
+    await expect(saveBtn).toHaveText(/Save 3 changes/);
+
+    await page.locator('.roster-skip-all-btn').first().click();
+    await expect(saveBtn, 'the entered value was still going to be written').toHaveText(/Nothing to save/);
+
+    await page.locator('.roster-skip-all-btn').first().click();
+    await expect(saveBtn, 'Restore re-ticked a row the admin had unticked').toHaveText(/Save 2 changes/);
+    await expect(page.locator('.roster-tick').first()).toHaveAttribute('aria-pressed', 'false');
+    await expect(garbled.locator('.roster-act')).toHaveText("Couldn't read");
+});
+
+// A row with no readings sitting over a MANUAL entry must show it too: entering a value replaces it
+// (replaceId), and the table's guarantee is that a hand-recorded entry is never overwritten unseen.
+test('operations: an unreadable row with no readings shows the saved entry it would replace', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    const shifts = { ...ROSTER_REVIEW_PARSE.parsed[0].shifts, '2026-08-04': 'UNKNOWN|XZ9 GARBLED', '2026-08-05': 'RD' };
+    await openRosterReview(page, { ...ROSTER_REVIEW_PARSE, parsed: [{ memberName: 'G. Miller', shifts }] });
+    const row = page.locator('.roster-change-row', { hasText: 'XZ9 GARBLED' });
+    await expect(row.locator('.roster-choice-btn--enter')).toHaveText('Enter the shift');
+    await expect(row).toContainText('Saved');
+    await expect(row.locator('.roster-cv-manual')).toContainText('23:00');
+});
+
+// The server's refusals are written FOR the admin ("check the roster type is correct"); a generic
+// "Unexpected error" in their place hid the one instruction that would have fixed the upload.
+test('operations: a refused roster read shows the server\'s own reason', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.route('**/parseRosterPDF*', route => route.fulfill({ status: 502, contentType: 'application/json',
+        body: JSON.stringify({ error: 'The AI found no recognisable staff members — check the roster type is correct and try again' }) }));
+    await page.goto('/operations.html');
+    await page.evaluate(() => {
+        const b = document.getElementById('rosterUploadBody');
+        if (b && !b.classList.contains('open')) document.getElementById('rosterUploadToggleHeader')?.click();
+    });
+    await page.setInputFiles('#rosterFileInput',
+        { name: 'roster.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') });
+    await page.locator('#rosterParseBtn').click();
+    await expect(page.locator('#rosterParseFeedback')).toContainText('check the roster type is correct');
+});
+
+// When nothing changed, the notes about the read still apply — the empty state used to ASSIGN the
+// list's HTML and wipe them, including the name of a member the read never found.
+test('operations: "no changes needed" keeps the notes about the read', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    const { teamMembers, getBaseShift } = await import('../roster-data.js');
+    const gm = teamMembers.find(m => m.name === 'G. Miller');
+    const shifts = Object.fromEntries(ROSTER_REVIEW_DATES.map(d => {
+        const [y, mo, da] = d.split('-').map(Number);
+        return [d, getBaseShift(gm, new Date(y, mo - 1, da))];
+    }));
+    await openRosterReview(page, { ...ROSTER_REVIEW_PARSE, choices: {}, crossCheck: 'complete',
+        missingMembers: ['S. Silva'], parsed: [{ memberName: 'G. Miller', shifts }] }, { noSavedEntries: true });
+    await expect(page.locator('.roster-no-changes')).toBeVisible();
+    await expect(page.locator('#rosterChangeList')).toContainText('Not found in this read');
+    await expect(page.locator('.roster-download-pdf')).toBeVisible();
+});
+
 // Skip means "write nothing", so it must never wear the colour that means "this will be saved".
 // Asserted on computed style rather than by screenshot: --text-mid (L45%) and --success-green
 // (L48.5%) differ in HUE at near-equal luminance, and pixelmatch's delta is luminance-dominated, so
@@ -6446,6 +6520,13 @@ test('operations: the review HANDS OVER the original PDF to check against', asyn
     const [download] = await Promise.all([page.waitForEvent('download'), view.click()]);
     expect(download.suggestedFilename()).toBe('roster.pdf');
     expect(await download.path()).toBeTruthy();          // it really arrived, with bytes behind it
+
+    // It hands over the file the review was READ from — not whatever the picker holds now. It read
+    // the picker at click time, so choosing the next week's PDF turned this into a download of that.
+    await page.setInputFiles('#rosterFileInput',
+        { name: 'next-week.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 other') });
+    const [again] = await Promise.all([page.waitForEvent('download'), view.click()]);
+    expect(again.suggestedFilename()).toBe('roster.pdf');
 });
 
 
