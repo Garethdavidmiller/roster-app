@@ -25,7 +25,7 @@ layers, the design rules/guardrails, the per-phase reference code points at, and
 
 **Client-side auth state is UX and optimisation. It is NEVER the security boundary.** The actual
 boundary is **Firestore Rules + Cloud Functions claim checks**, server-side. Everything here — the
-state machine, `hasClaim()`, optimistic reads, even "writes authorise strictly" — decides what the
+state machine, claim-aware retries (`withClaimRetry`), optimistic reads, even "writes authorise strictly" — decides what the
 client *attempts* and *renders*, not what is *allowed*. Two consequences make the refactor safe by
 construction:
 
@@ -86,12 +86,13 @@ added vs the original four for the resolving/degraded "not yet" states, which `s
 
 | Page | Local session | Firebase (read) | Firebase (write) | Role | Anonymous |
 |------|---------------|-----------------|------------------|------|-----------|
-| Calendar | optional | anonymous ok | n/a | none | yes |
+| Calendar | optional | a member or the `calendarViewer` capability (staff PIN) — anonymous reads nothing | n/a | none | session only, grants no read |
 | Admin | required | named | **named + fresh claims** | admin *or* manager (per action) | no |
 | Operations | required | named | **named** | master admin | no |
 | Links | required | named | **named** | designer | no |
 | Settings | required | named (writes) | **named** | owner/admin | no |
 | Pay Calculator | required | best-effort | best-effort | none | **soft** |
+| Overtime | required | named | **named** | admin, manager *or* `overtimeBeta` participant | no |
 | Guides | — | — | — | — | n/a |
 
 **Start page-based; leave the seam for action-based.** Policy keys can later evolve `page → page.action`
@@ -141,8 +142,9 @@ preserve local/cached read-only UX. Any privileged write under `degraded` collap
 The practical rule that avoids both bad extremes (everything-waits = slow blank cards;
 everything-trusts-local = fake security):
 
-- **Reads** may proceed once `snapshot.firebaseUser && snapshot.hasClaim(role)` — even while `resolving`.
-  On `permission-denied`, call `refreshClaims()` (force `getIdToken(true)`) **once** and retry **once**.
+- **Reads** may proceed once there is a Firebase user — even while `resolving`. On `permission-denied`,
+  run through `withClaimRetry` (`firebase-client.js`, over `runWithClaimRetry` in `claim-retry.js`):
+  force `getIdToken(true)` **once** and retry **once**.
 - **Writes** must await `state === 'named'` with fresh-enough claims, per the policy map.
 - **Local session alone is never sufficient for a privileged cloud write.**
 
@@ -263,12 +265,14 @@ another *served* JS file, URL-obscurity, or leaving it in `roster-data.js`.
 2. **Track 3 — Testable coordinators** — done; it is *how* Track 1 landed (Phases 4–7).
 3. **Track 2 — Split `roster-data.js`** — ❌ **REJECTED (Jul 2026, WON'T DO)** (step 1, `PAYSLIP_ACTUALS`,
    was already done for a privacy reason and stands). **Why rejected:** the payoff is cosmetic (smaller
-   files) with a wide blast radius and no correctness/security benefit. `roster-data.js` is ~1,020 lines
-   but well-organised (CONFIG → `teamMembers` → roster-logic) and stable; it's imported by ~40 files,
+   files) with a wide blast radius and no correctness/security benefit. `roster-data.js` is well-organised
+   (CONFIG → `teamMembers` → roster-logic) and stable; it's imported by ~40 files,
    sits in the SW precache + modulepreload graphs, and holds `APP_VERSION` (the primary version source),
    so a split touches all of that, and the barrel-shim leaves MORE files unless you also rewrite 40
    imports (the risky step). **Revisit only if** it becomes a genuine pain point (frequent conflicts, or
-   a section needing independent testing/reuse) OR a Vite build step is adopted.
+   a section needing independent testing/reuse) OR a Vite build step is adopted. **Two data tables have
+   since moved out on their own merits** — `teamMembers` to `roster-member-data.js` and the cycle
+   patterns to `roster-cycle-data.js` — both re-exported by `roster-data.js`, so no importer changed.
 4. **Track 4 — CJS/ESM duplication** — leave alone (parity tests cover it; surname passwords retire in
    security Track C).
 
@@ -311,7 +315,7 @@ admin-gated collections. The observed latency was NOT the `sessionReady` await �
 `permission-denied`**: immediately after "Set up accounts" the freshly-minted token has no `admin` claim
 yet (Firebase refreshes ID tokens ~hourly), so the first read fails though the account IS admin. So 4b is
 **retry-only, not optimistic-start**: keep `await sessionReady`, then run each read through
-`adminReadWithRetry(readFn)` in `operations-app.js` — on `permission-denied` with a live user, one
+`withClaimRetry` (`firebase-client.js`; a local `adminReadWithRetry` until v17.08) — on `permission-denied` with a live user, one
 `getIdToken(true)` (force-refresh → pick up the claim) + one retry; any other error re-throws to the
 card's existing silent-fallback catch. Separate + revertible.
 

@@ -190,10 +190,9 @@ the invitation is now the first thing a PIN user sees — a notice repeating it 
 underneath. The audience rule (`'signed-out'`, retiring itself the moment the reader signs in) is
 still the correct mechanism for anything of this shape; what no longer needs a notice is this
 particular ask. The 60-day fact is the one part the front door does not state, and it belongs on the
-card if anywhere. What is missing is
-that **Operations does not state the campaign's position as a number** — the Account status table
-holds it per member, but "Passwords: 43 / 48 set" appears nowhere, and a migration nobody can see
-the size of is one nobody finishes.
+card if anywhere. **Operations does state the campaign's position as a number** — the Account
+status summary reads "N/M own password" (per grade, beside "N/M work email"), so the size of what is
+left is visible to the one person chasing it.
 
 ---
 
@@ -399,8 +398,11 @@ That is a better end-state than maintaining a staff authentication system indefi
 entirely dependent on Chiltern IT registering the application, so it is a long-term entry in
 `ROADMAP.md` and not a plan.
 
-**Worth knowing while building anything above:** the claim model (`{admin|manager|name}` stamped
-from a server-owned list) is exactly the shape an SSO integration would keep. Nothing in this
+**Worth knowing while building anything above:** the claim model (`{admin|manager, name, member}`,
+plus `linksDesigner`, stamped from a server-owned list) is exactly the shape an SSO integration would
+keep. What it would NOT keep is the sign-in binding: `isMember()` believes a `name` only on a
+`password` sign-in at the name's derived email, so an SSO (or any custom-token) session needs a
+binding of equal strength for its own provider — never the provider check dropped. Nothing in this
 programme paints into a corner — except passkeys, which SSO would make redundant, which is one more
 reason they sit last.
 

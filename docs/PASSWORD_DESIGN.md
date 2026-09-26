@@ -208,9 +208,13 @@ A new admin-only Cloud Function **`resetMemberPassword`**, mirroring `setupRoste
   resets (kick lost/stolen sessions), `false` for Phase 2 compels (don't sign a mid-shift member
   out of their devices just to nudge them).
 - Server-stamps `passwordStatus.resetAt` (Admin SDK bypasses rules).
-- **Verified — nothing else clobbers custom passwords:** `setupRosterAuth` sets a password only on
-  `createUser` (first creation); `updateUser` is used solely for enable/disable. Re-running "Set
-  up accounts" is already safe for migrated members. Add a guard comment + a functions test so a
+- **Verified — nothing else clobbers custom passwords:** `setupRosterAuth` sets a password on
+  `createUser` (first creation), and otherwise uses `updateUser` for enable/disable — with one
+  exception since v24.24: an existing account at a roster email carrying NO custom claims (one the
+  server never stamped, so registered from outside) is TAKEN BACK — `updateUser` resets its password
+  to the surname default, its display name to the roster's and `disabled: false`, its refresh tokens
+  are revoked and `resetAt` is stamped (reported as "taken back"). A member's own provisioned account
+  always carries claims, so re-running "Set up accounts" is still safe for migrated members. Add a guard comment + a functions test so a
   future edit can't silently regress this.
 
 **Operations UI:** per-member "Reset password to surname" button (confirm dialog) inside the Staff
@@ -254,7 +258,7 @@ dashboard and, later, **the ≥90% metric that gates C5** — measured from day 
 |-------|----------|-------|
 | **0 — enabler** | §3 sign-in rework (gated dual-attempt, flag-independent rejection, page-load path) | Ships **atomically with Phase 1** — alone it is risk without capability |
 | **1 — capability + recovery + visibility** | Settings set-password card · `resetMemberPassword` + Operations reset button · `passwordStatus` + rules · **Operations Account status table** · Settings nudge banner | **This alone delivers the security win.** Migration voluntary |
-| **2 — compel + measure** | Forced set-password overlay, gated on `!isPasswordMigrated(status)` | ✅ **SHIPPED v18.92** as `password-force.js` on all five authenticated pages, kill-switched by `CONFIG.FORCE_PASSWORD_SET`. Applied to EVERYONE at once rather than owner → managers → staff (owner, 25 Jul 2026): the session model staggers it anyway, so a tiered rollout would have added releases for no reduction in peak load. ~~staged compel via `resetMemberPassword(revoke:false)`~~ — **struck v18.88, see below** |
+| **2 — compel + measure** | Forced set-password overlay, gated on `!isPasswordMigrated(status)` | ✅ **SHIPPED v18.92** as `password-force.js` in all seven page coordinators, kill-switched by `CONFIG.FORCE_PASSWORD_SET`. Applied to EVERYONE at once rather than owner → managers → staff (owner, 25 Jul 2026): the session model staggers it anyway, so a tiered rollout would have added releases for no reduction in peak load. ~~staged compel via `resetMemberPassword(revoke:false)`~~ — **struck v18.88, see below** |
 | **3 — retire the surname (later, optional, C5)** | Stop seeding surname passwords for new starters; delete the surname fallback + padding | **Irreversible.** Gated on ≥90% migrated. Out of scope for this plan; the door is left open |
 
 > **Correction (v18.88) — the "staged compel via reset" step did nothing.** Phase 2 originally
@@ -401,8 +405,13 @@ Two things this app already has:
 
 **Custom claims survive, and this is the thing that would otherwise break silently.** An ID token
 obtained via `signInWithCustomToken` carries the user record's `setCustomUserClaims` values as well
-as any developer claims passed in the token — so `name` / `admin` / `manager` / `linksDesigner`, and
-therefore every Firestore rule, are untouched. Verify it explicitly rather than assuming it; a
+as any developer claims passed in the token — so `name` / `member` / `admin` / `manager` /
+`linksDesigner` survive. **But every member rule would still fail it:** `isMember()` in
+`firestore.rules` and `memberNameFromClaims` in `functions/member-identity.js` believe a `name` only
+on `sign_in_provider == 'password'`, and a custom-token session reports `custom`. So a passkey sign-in
+as designed permission-denies every member read and write — as would any SSO route
+(`CREDENTIAL_LIFECYCLE.md` §10). The fix is a binding of equal strength for the new provider, never
+dropping the provider check, which is what stops an anonymous or PIN session being believed. A
 sign-in that works while every write permission-denies is the v20.50 failure shape again.
 
 **What it costs:** two Cloud Function endpoints (begin/finish, registration and assertion), a client

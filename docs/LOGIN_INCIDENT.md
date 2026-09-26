@@ -5,9 +5,10 @@
 state), on top of the earlier email-check fixes, ended the freeze — owner-confirmed smooth in a
 private window, including the previously-frozen joiner accounts (Okeke, Jedlinski). **B1
 (`ENFORCE_NAMED_SESSION`) was RE-ENABLED (`true`) at v14.98** once login was confirmed stable and B1
-was exonerated. The **B3 token sweep is DONE** — `CLAIM_EPOCH` was armed to `2` at v15.33, so every
-device force-refreshes its claim once on next open; the **B3 strict Rules cutover SHIPPED at v16.29**
-(overrides create/update/delete now require `token.name == memberName || token.admin || token.manager`;
+was exonerated. The **B3 token sweep is DONE** — `CLAIM_EPOCH` was armed to `2` at v15.33 (now `3`, the v24.27 `member`
+claim), so every device force-refreshes its claim once on next open; the **B3 strict Rules cutover SHIPPED at v16.29**
+(overrides create/update/delete now require `memberName() == memberName || token.admin || token.manager`,
+where `memberName()` is the name of a verified member — `isMember()`, v24.23/v24.27;
 the `!('name' in token)` no-name/legacy escape has been removed). **Still open:** a residual,
 pre-existing, slight first-load Firestore slowness, now OFF the login critical path (non-blocking) and
 deferred. Not version-stamped; not a runtime asset.
@@ -23,7 +24,7 @@ what only this file knows: the FLAG VALUES the incident turned on, and why each 
 | Flag / rule | Value now | Why |
 |-------------|-----------|-----|
 | `CONFIG.ENFORCE_NAMED_SESSION` (B1) | **`true`** (re-enabled v14.98) | Exonerated (freeze persisted with B1 off); re-enabled once login was stable on the v14.75 fix |
-| `CONFIG.CLAIM_EPOCH` (B3 sweep) | **`2`** (armed v15.33) | Token sweep done — devices force-refresh once. Do NOT bump again unless deliberately forcing another sweep |
+| `CONFIG.CLAIM_EPOCH` (B3 sweep) | **`3`** (2 armed v15.33; 3 at v24.27 for the `member` claim) | Token sweep — devices force-refresh once per epoch. Do NOT bump again unless deliberately forcing another sweep |
 | B2 override rule + `manager` claim | **LIVE** (deployed; superseded by the B3 strict form v16.29) | Server-side; never implicated in the freeze |
 | B3 strict override rule | **SHIPPED (v16.29)** — strict; no-name escape removed | Was gated on the freeze being resolved; shipped after the CLAIM_EPOCH=2 sweep + manager re-provision |
 
@@ -109,8 +110,8 @@ in-place-login work — do **NOT** hack them in page-by-page. **Both are settled
       guarded against would have surfaced immediately).
 - [x] **Re-enable B1** (`ENFORCE_NAMED_SESSION = true`) — DONE v14.98; verify live in a private window
       across roles, watch login for a day; one-line revert if needed.
-- [x] ~~Re-enable the B3 sweep~~ **DONE (v15.33): `CLAIM_EPOCH` is `2`** — devices force-refresh once on open.
+- [x] ~~Re-enable the B3 sweep~~ **DONE (v15.33): `CLAIM_EPOCH` was set to `2`** (now `3`, v24.27) — devices force-refresh once on open.
 - [x] **B3 strict cutover — DONE (v16.29):** dropped `!('name' in token)` from `overrides`
       create/update/delete, so writes now require `token.name == memberName || token.admin || token.manager`
-      per SECURITY_RELEASE_PLAN.md → B3. Shipped after the CLAIM_EPOCH=2 sweep + manager re-provision;
+      (since v24.23/v24.27 the name side is `memberName()`, a verified member — `isMember()`) per SECURITY_RELEASE_PLAN.md → B3. Shipped after the CLAIM_EPOCH=2 sweep + manager re-provision;
       stale tokens self-heal via `writeWithClaimRetry` (no mass sign-out needed).

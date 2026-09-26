@@ -62,9 +62,11 @@ The irreducible tail: the reporter job still needs `checkout` and the action its
 broad enough to take those down takes the reporter with it. Nothing inside a workflow can report
 that.
 
-NOT fixed: the flake itself, and deliberately. An automatic retry would have hidden this one, but it
-also hands a genuinely intermittent product bug a second chance to reach staff. The gate stays
-single-shot; the notification tells you to re-run when the failure is spurious.
+NOT fixed: the unit-test flake itself, and deliberately. An automatic retry would have hidden this
+one, but it also hands a genuinely intermittent product bug a second chance to reach staff. The
+`npm run check` half of the gate stays single-shot; the Playwright half has retried once in CI since
+v23.45 (`playwright.config.mjs`), which reports a pass-on-retry as `flaky`. The notification tells you
+to re-run when the failure is spurious.
 
 **Two properties of the notification worth preserving.** It never fails the job — every command is
 `|| echo "::warning::…"`, because it only runs when something has already gone wrong and must not
@@ -99,10 +101,10 @@ everyone to stop reading it.** The commonest offender — the paycalc backup→r
 genuine race in the TEST (a fixed 1200ms sleep betting on the card's own 800ms self-reload; the log
 said so plainly: "Execution context was destroyed") and now waits for the navigation itself. The
 residual tail — click timeouts on a slow runner, different tests each run — is covered by
-`retries: process.env.CI ? 1 : 0` in `playwright.webkit.mjs` ONLY: an engine difference is
+`retries: process.env.CI ? 1 : 0` in `playwright.webkit.mjs` (the Chromium deploy-gate config has
+carried the same line since v23.45): an engine difference is
 deterministic and still fails both attempts, so the job stays red for exactly the thing it exists to
-catch, while a one-off race is reported "flaky" instead of failing the run. The deploy gate keeps its
-single-shot rule — the entry above explains why, and nothing here touches it. If `webkit` goes red
+catch, while a one-off race is reported "flaky" instead of failing the run. If `webkit` goes red
 NOW, take it seriously: the flake excuse has been spent.
 
 ## Security
@@ -127,10 +129,9 @@ NOW, take it seriously: the flake excuse has been spent.
 > falsified.
 
 ### The document FILES are protected by a bearer URL, not by auth
-`storage.rules` gates direct Storage SDK reads, but staff never read Huddles/Circulars/Newsletters
-that way — they open a URL that carries its own access token and **bypasses the rules entirely**
-(documented in `storage.rules` itself: "Don't store confidential files here unless that delivery
-model changes").
+`storage.rules` gates direct Storage SDK reads, and those are admin-only — staff never read
+Huddles/Circulars/Newsletters that way. They open a URL that carries its own access and **bypasses
+the rules entirely**.
 
 **WHICH url, as of v24.19, depends on one IAM grant.** The three opening surfaces now ask
 `getDocumentUrl` for a **15-minute signed URL** and open that. Without
@@ -171,16 +172,16 @@ getting right in both directions.
   object — invisible to staff, unreferenced by any document, and **still serving its bearer URL,
   permanently**. That is the one genuinely unbounded case, and nothing currently lists it. So the internal operational
 documents are the app's least-protected content, and the change everyone reaches for first (a login
-on the calendar) does not touch them. Closing this is a delivery-model change — authenticated
-`getBlob`, or short-lived signed URLs minted per request — tracked as **`AUTH_PLAN.md` → E6** (§5),
-which is independent of the calendar-login decision and can start at any time.
+on the calendar) does not touch them. Short-lived signed URLs (**`AUTH_PLAN.md` → E6**, §5) shipped
+v24.16–v24.19; what remains is rotating the objects whose permanent URLs are already in circulation
+— ARCHITECTURE.md EXC-007.
 
 **And there is a second reader nobody authorised.** Word circulars/newsletters open via
 `officeViewerUrl`, which passes the storage URL to **Microsoft's Office Online viewer** — Microsoft
 fetches the document **server-side**. So (a) these documents already reach a third party today, which is
-worth knowing independently of any auth work, and (b) authenticated download would break `.docx`
-viewing outright, because Microsoft cannot fetch an auth-gated URL. Any fix has to replace the Word
-rendering path at the same time.
+worth knowing independently of any auth work, and (b) Microsoft cannot fetch an auth-gated URL. The
+Office viewer is now handed the SIGNED url (`storage-utils.js`), so it was kept by owner decision
+(AUTH_PLAN §5, 19 Sep 2026) rather than replaced.
 
 ### Real payslip figures stay in git HISTORY (v23.71 — owner decision, recorded not accepted)
 
@@ -318,8 +319,8 @@ migrated in the first 24 hours, **one of them the owner's**. So the specific exp
 about — a guessable *master admin* password, the highest-value target in the app — **is closed in
 practice**. What remains open is the **7 management accounts**, which can write any member's
 AL/absence/shifts on behalf; a staff account, by contrast, can only write its own overrides (the B3
-isolation rule holds), so its blast radius is one person's roster. Chasing those 6 needs no code —
-it is 8 people total opening Settings → Password, and it closes the large majority of what is left.
+isolation rule holds), so its blast radius is one person's roster. Chasing those 7 needs no code —
+it is 7 people opening Settings → Password, and it closes the large majority of what is left.
 Verify against Operations → Account status rather than taking this paragraph's word for it.
 
 **Revisit when:** the app URL is advertised more widely, or it becomes official Chiltern
@@ -484,11 +485,11 @@ about a day, became up to three weeks at v20.41, and is up to **seven weeks** at
 session runs 60 days against ITP's unchanged 7.
 
 Since v20.51 (`CONFIG.CALENDAR_PIN_ACCESS: true` — v20.46 released it, v20.50 rolled it back) this is **live behaviour, not a future one**:
-that member gets the unlock card instead of their roster, despite being signed in. The
-card's "Sign in instead" link resolves it in one step and re-establishes the identity, so it is
-recoverable rather than a lockout — but it will generate a support question, it will land on iPhone
-users specifically, and it is worth expecting rather than diagnosing. Watch for it in the first week
-after the rollout (RECOVERY_RUNBOOK.md → "The Calendar PIN").
+that member gets the member sign-in card ("This device needs to sign you in again…") instead of their
+roster, despite being signed in — never the PIN. A silent re-sign-in is tried first, and one tap on
+"Sign in" re-establishes the identity, so it is recoverable rather than a lockout — but it will
+generate a support question, it will land on iPhone users specifically, and it is worth expecting
+rather than diagnosing.
 
 **Why removed rather than lengthened.** A policy left in place with no effect is the thing a later
 reader "restores" on the assumption it was load-bearing. `session.test.mjs` pins the replacement
@@ -638,9 +639,9 @@ are architecture/App-Check territory or inherent platform behaviour, not bugs to
   invisible value holder and the control a reader sees is a `<button>`, which has no `<select>`
   height behaviour to be non-deterministic about. Following the old text would have sent somebody
   to add `line-height` to controls that are not rendered.
-  **What survives is the shape, and it applies to the four selects that are native BY DECISION** —
-  the month-jump pair, Overtime's disabled identity bar, the sign-in cascade and the Links
-  generator's per-slot times (`select-sheet-parity.test.mjs` holds the list with each reason). None
+  **What survives is the shape, and it applies to the selects that are native BY DECISION** —
+  the month-jump pair, Overtime's disabled identity bar, Admin's two hidden member value holders
+  and the Links generator's per-slot times (`select-sheet-parity.test.mjs` holds the list with each reason). None
   has been measured and none carries a tight visual baseline, so the same one-line fix is available
   and is still not worth moving pixels for. The general lesson is the one to keep: a native
   control's box is the platform's, and the app only stops depending on that by not using it.
@@ -687,16 +688,15 @@ What remains inherent:
 - **"First appears" is still the splash.** Kept because it is genuinely useful — it is the
   difference between a slow network and a slow app — but it is not "the member can see their
   roster", and reading it as that is the trap this note exists to close.
-- **"Usable" is a smaller population.** Only pages that mark the milestone report it: the Calendar,
-  and Admin/Operations/Links (which hide their whole shell until they are ready). Settings, the Pay
-  Calculator and Overtime render their cards immediately and have no equivalent instant, so their
-  cell shows a dash rather than a number. The card says so; the smaller total is not fewer opens.
+- **"Usable" can be a smaller population.** All seven pages mark it now (`markPageReady`); Overtime
+  skips the mark when its own state read fails, so its cell can still show a dash rather than a
+  number. The smaller total is not fewer opens.
 - **Historic data cannot be backfilled.** The metric starts at v20.80, so a month-over-month
   comparison across that line has no "Usable" figure on the earlier side.
 
 ### Two card-collapse systems (v18.87 aesthetic pass) — owner decision, not drift-by-accident
 
-paycalc's five cards animate open (`.collapsible-body` + `.card-toggle-arrow`, a `max-height`
+paycalc's six collapsible cards animate open (`.collapsible-body` + `.card-toggle-arrow`, a `max-height`
 reveal) while admin/operations/settings/links use the shared `.card-collapsible-body` +
 `.collapse-chevron`, which is `display: none/block` — instant. Same interaction, different feel
 depending which page you're on. The v18.16 pass promoted paycalc's card HEADER to `shared.css` as
@@ -742,8 +742,9 @@ risk than the defect):
 > caused the decline: **monitor-first** (D1 log-only, watch for legitimate-but-unattested traffic,
 > register every domain and debug token, then enforce one product at a time) exists precisely
 > because the silent-failure risk is real. The third objection stands unchanged in both places —
-> App Check gates *which clients* connect, not *what an authenticated client may read*, so it does
-> nothing about the world-readable `overrides`. That is Track E's problem, not this one's.
+> App Check gates *which clients* connect, not *what an authenticated client may read*, so it would
+> add nothing to the `overrides` read boundary, which has required a member or the PIN's
+> `calendarViewer` capability since 26 Aug 2026 (`firestore.rules`).
 >
 > The Aug 2026 external review recommended App Check for the telemetry and reset-request paths,
 > which is the same "defence-in-depth, sequenced last" position rather than a new argument.
@@ -762,9 +763,9 @@ action**.
   caused in production: miss a served domain (`web.app`, `firebaseapp.com`,
   `garethdavidmiller.github.io`) or hit a provider hiccup and writes start failing silently with
   no visible error in the app. The allowlist must be kept in sync forever.
-- Our biggest data exposure — the `overrides` collection — is **already world-readable by
-  design** (see "Override data is publicly readable" above). App Check gates *which clients*
-  connect, not what an authenticated client may read, so it does not address that exposure.
+- Override reads have required a member identity or the PIN's `calendarViewer` capability since
+  26 Aug 2026 (`firestore.rules`). App Check gates *which clients* connect, not what an
+  authenticated client may read, so it would add nothing to that boundary.
 - Payoff for this threat model (unadvertised app, small known team) is low: it blocks scripted
   bulk reads/writes from outside our pages, which is a real but low-probability attack here.
 
@@ -881,9 +882,10 @@ writing down rather than leaving to be rediscovered as an easy win. **If a real 
 ever exists in the data, revisit; until then a duration line is a number with nothing behind it.**
 
 ### Duplicate Firestore override documents
-If a date has multiple override documents for the same member, the cache keeps the
-most recently created one (by `createdAt` timestamp). Duplicates are logged via
-`console.warn`. Clean up at source in the Firebase Console.
+If a date has multiple override documents for the same member, the cache keeps a manual change
+over a roster-import one, and otherwise the most recently created (`shouldReplaceOverride` in
+`override-utils.js`). Duplicates are not logged; find and clean them up at source in the Firebase
+Console.
 
 ---
 
@@ -1114,18 +1116,19 @@ blank-Sunday collapse in full: a duty slid into an empty Sunday is refused, the 
 and the row starts unticked. **It does not close the residual above.** An `RD` written for a
 physically empty weekday is exactly the value an empty cell is consistent with, so occupancy cannot
 refute it — distinguishing a printed RD from an empty cell from a printed duty means READING the
-text, which is phase 3 of the ROADMAP's plan. Nor can it see a shifted row whose week is fully
-occupied (nothing empty to contradict; `assessRosterAlignment` stays for that). Both limits are
+text, which is phase 3 of the ROADMAP's plan. Nor can the phase-1 witness see a shifted row whose week is fully
+occupied (nothing empty to contradict); since v24.04/v24.12 the geometry path (phase 2) assigns days
+by coordinate so such a row cannot shift, and `assessRosterAlignment` covers the legacy fallback path. Both limits are
 stated in the module header and pinned by its tests rather than left to be discovered.
 
 ### Cloud Function payday constant duplicated from `roster-data.js`
 `functions/roster-parse-helpers.js` contains its own `FIRST_PAYDAY_MS` and `INTERVAL_DAYS`
-constants (inside `isPayCutoffDay()`, which `functions/index.js` imports) for the pay-reminder
+constants (inside `isPayCutoffDay()`, which `functions/documents.js` imports) for the pay-reminder
 scheduled notification. These must stay in sync with `CONFIG.FIRST_PAYDAY` and
 `CONFIG.PAYDAY_INTERVAL_DAYS` in `roster-data.js`. If the pay schedule ever changes, both files
 must be updated. The correct long-term fix is a shared JSON config consumed by both, but the
-no-build constraint makes this awkward. For now: if you change payday config, search for
-`FIRST_PAYDAY_MS` in `functions/roster-parse-helpers.js` and update it in the same commit.
+no-build constraint makes this awkward. `payday-cutoff-parity.test.mjs` fails if the two drift, so a
+payday change that updates only one side cannot pass CI.
 
 ### Cloud Function staff list duplicated from `roster-data.js`
 `parseRosterPDF` name-matches the AI-parsed roster output against a `STAFF_NAMES` list, which is
@@ -1133,7 +1136,7 @@ no-build constraint makes this awkward. For now: if you change payday config, se
 and `roster-members.json` is produced from `teamMembers` in `roster-data.js` by
 `scripts/generate-roster-members.mjs` (`npm run generate:roster-members`). It is marked
 "do NOT hand-edit". So a new starter/leaver does NOT need a manual edit in `functions/` —
-update `teamMembers` in `roster-data.js`, then run `npm run generate:roster-members` to rebuild
+update `teamMembers` in `roster-member-data.js` (re-exported by `roster-data.js`), then run `npm run generate:roster-members` to rebuild
 the JSON in the same commit. (The `/new-starter` skill already includes this step.)
 
 ### `firebase-tools` → `gaxios` dev-only advisory — no clean forward fix (F-DEP-1, reviewed v17.74)
@@ -1468,17 +1471,9 @@ never contingent on the beta label, and dropping it does not make any of them go
   the reason to believe the next thing the panel says. There is now no constant for a countdown to
   come back from, and `doc-parity.test.mjs` fails if one is re-added without re-pointing the guard.
 
-- **Two designs may carry the SAME NAME** (external review, Sep 2026 — P2, not fixed). `createDesign`,
-  `duplicateDesign` and `renameDesign` validate length and emptiness and nothing else, so a picker can
-  show two rows reading "Dec 2026 v3" and the compare chip beside them names one of them ambiguously.
-  Nothing is destroyed by it — every read and write is keyed by document id, so the WRONG one is never
-  edited — but a designer comparing, printing or discussing a design by name can believe they are
-  looking at the other. Left as-is because the obvious fix is the wrong one: refusing a duplicate name
-  needs the full collection loaded to be correct, and the client only holds what its last read
-  returned, so a refusal computed from a partial list is worse than no refusal — it blocks a name that
-  is free and admits one that is taken. A **rename-on-collision suggestion** ("there is already a
-  design called this") is the right shape when it is worth doing, and it should be advisory, never a
-  block: two proposals for the same month legitimately share a name until somebody picks a better one.
+- ~~**Two designs may carry the SAME NAME**~~ **SUPERSEDED v22.66** — `links-design-naming.js` now
+  refuses a duplicate from the list you loaded. The residual race is the entry "Duplicate names are
+  refused from the list you LOADED" above.
 
 - **The generator's provenance is DEVICE-LOCAL** (external review, Sep 2026 — architectural, not
   fixed). Which target table produced a design — the remembered table, the saved set it came from, and
@@ -1486,7 +1481,8 @@ never contingent on the beta label, and dropping it does not make any of them go
   (`links-app.js`). So a colleague opening the same shared design sees the provenance note absent, not
   wrong: they cannot answer "what staffing was this built from?" without asking the person who built
   it, which is exactly the question an assessing manager asks. It is on the device because
-  `firestore.rules` pins `linkDesigns` to `hasOnly(['name','patterns','updatedAt','updatedBy'])`, so
+  `firestore.rules` pins `linkDesigns` to a `hasOnly` list (`name`, `patterns`, `window`, `revision`,
+  `updatedAt`, `updatedBy`, `deletedAt`, `deletedBy`) with no provenance field, so
   moving it is a **backend-first** change (rules that accept the field, deployed and confirmed, then
   the client that writes it — CLAUDE.md's parallel-workflow ordering) and it changes what a shared
   document asserts, which is a decision rather than a fix. Until then the note is one designer's
@@ -1523,11 +1519,12 @@ feature deliberately does NOT do yet, so that a reader stops looking for them.
   has taken somebody off, the calendar still shows the Sunday duty until the roster PDF for that week
   is imported or the shift is changed in Admin.
 
-- **No expiry purge.** Windows past `retentionUntil` (13 weeks) are filtered out of both read
-  endpoints, so they are invisible and inert — but the documents stay in Firestore. Enforcement is
-  in the endpoints on purpose: **rules are not filters**, and a `resource.data` condition would fail
-  a reviewer's whole query rather than drop one row. The deadline for actually deleting them is in
-  MAINTENANCE_CALENDAR.md, which is where work with a date lives.
+- **Expiry purge: dry-run until 1 Dec 2026, then automatic.** Windows past `retentionUntil` (13 weeks)
+  are filtered out of both read endpoints, so they are invisible and inert. Enforcement is in the
+  endpoints on purpose: **rules are not filters**, and a `resource.data` condition would fail a
+  reviewer's whole query rather than drop one row. The daily `purgeExpiredOvertimeWindows` job logs
+  what it would delete and arms itself on 1 Dec 2026 (`purgeArmedAt`); see MAINTENANCE_CALENDAR.md
+  and VAL-OT-001.
 
 - **~~No reminders.~~ The MEMBER half shipped at v21.47; the reviewer half has not.** Two targeted
   push notices now go out on their own — *you have been asked* when a window starts asking somebody,
@@ -1585,7 +1582,7 @@ feature deliberately does NOT do yet, so that a reader stops looking for them.
   recovery route. Nothing reads it today.
 
 ### Test coverage gaps
-The suite is now broad (see CLAUDE.md's file tree for the
+The suite is now broad (see `docs/FILE_INDEX.md` for the
 full per-suite listing, which `doc-parity.test.mjs` keeps complete; nearly every pure module has a companion `.test.mjs`, the exceptions
 being trivial data/formatter modules like `paycalc-help.js` and
 `roster-cycle-data.js`). What matters here is what is **still not** covered:
@@ -1686,13 +1683,13 @@ them with the correct current types if the pay suggestion is producing wrong res
 
 ## Error Log noise filters (v19.20)
 
-Not every uncaught error is a fault in this app. Six classes are suppressed before the Firestore
+Not every uncaught error is a fault in this app. Seven classes are suppressed before the Firestore
 write, by the pure `shouldReport` in `client-errors.js`: the opaque cross-origin `Script error.`,
 browser-extension URL schemes, `ResizeObserver loop`, the declarative view transition the browser
 abandoned, a service-worker background-update failure **when accompanied by a network phrase**, and
-**WebKit's IndexedDB teardown messages when they come from the SDK origin**.
+**WebKit's IndexedDB teardown messages when they come from the SDK origin**, and a cross-origin script that is not one of the app's CDN origins.
 
-The view-transition class carries **TWO Chromium wordings for one cause** (the second added v22.67,
+The view-transition class carries **THREE Chromium wordings for one cause** (the second added v22.67,
 from a live Android Chrome 152 report). `Skipping view transition …` is its own worded skip;
 `Transition was aborted because of invalid state` is the DOMException it rejects the transition
 promise with when the document stops being fully active mid-navigation — a tap through to another
@@ -1701,7 +1698,9 @@ in declaratively with `@view-transition { navigation: auto }`), so there is no p
 handle and the rejection lands here; the navigation it names completed correctly. The second is
 matched IN FULL rather than on `Transition was aborted`, because this log's recorded failure
 direction is the filter that is too broad — a rule written for the browser's navigation animation
-must not swallow an overlay of ours that genuinely fails while aborting.
+must not swallow an overlay of ours that genuinely fails while aborting. The third (v23.03) is Chromium's
+`Transition was skipped`, matched ANCHORED to the whole message so an app overlay's own "Transition
+was skipped by …" still reaches the log.
 
 That last one came from a staff report on an iPhone (iOS 18.7 / Safari 26.5, v19.19):
 
@@ -1715,8 +1714,8 @@ page — backgrounding the PWA, screen lock, the app switcher, memory pressure �
 that window throws from deep inside the SDK with no app frame on the stack. Firebase wraps the call
 in `_withRetries` precisely because it expects this; when the retries are spent the rejection
 escapes to our reporter. The identity is already restored by then, Firestore uses a SEPARATE
-database (so calendar data is untouched, and since v19.01 the calendar paints from cache with no
-auth at all), and the connection reopens on the next foreground. Harmless and self-healing — but it
+database (so calendar data is untouched, and the Calendar's provisional paint (v22.97) needs only the
+local session, not the auth database), and the connection reopens on the next foreground. Harmless and self-healing — but it
 recurs on every iPhone, and the Error Log is only worth reading if it is mostly signal.
 
 **Scoped to the SDK origin deliberately.** The same phrases from our own origin would mean the
@@ -1767,8 +1766,8 @@ reviews, and the **after-every-new-starter** checks — including the work email
 nothing prompts for.
 
 The one item that stayed here as a *constraint* rather than a date — **2026/27 pay rates** — is
-**closed**: the award was payslip-confirmed on 28 Aug 2026 and is shipped. See "2026/27 pay
-rates — ✅ CONFIRMED AND SHIPPED" above, and `MAINTENANCE_CALENDAR.md` for the recurring
+**closed**: the award was payslip-confirmed on 28 Aug 2026 and is shipped. See ROADMAP_HISTORY.md → "2026/27 pay
+rates — ✅ CONFIRMED AND SHIPPED", and `MAINTENANCE_CALENDAR.md` for the recurring
 read-the-payslip instruction that replaced it.
 
 ---
@@ -1806,8 +1805,8 @@ they are latent, owner-territory, or within a documented tolerance. Each is real
   defect stays parked as an accepted limitation.
 - **~~Roster-import save path has no equal-start/end guard~~ — CLOSED at v20.39, and this row outlived
   the fix by more than a hundred versions.** It said `_saveOverrideBatches` did not reject `s === e`
-  while the two manual paths did. It does: the refusal is at `admin-roster-upload.js:153`, logged
-  and unwritten, with the parse-side reasoning in `functions/roster-parse-helpers.js` — a
+  while the two manual paths did. It does: the refusal is in `admin-roster-upload.js` (the "DEFENCE IN
+  DEPTH: a zero-length worked range never reaches Firestore" block), logged and unwritten, with the parse-side reasoning in `functions/roster-parse-helpers.js` — a
   zero-length range reads as TWENTY-FOUR HOURS through the overnight wrap, and it reaches pay.
   Found by an external review reading the code against this file, which is the only way a stale
   "we don't do X" is ever caught: nothing fails when a limitation is fixed, so the entry simply sits
@@ -1816,8 +1815,8 @@ they are latent, owner-territory, or within a documented tolerance. Each is real
   CLOSED, and it self-corrected exactly as written.** The entry said "no clean fix until the award
   lands"; the award landed, `londonAllowFrom` is set to 28 Aug 2026 on the 2026/27 row
   (`paycalc-calc.js`), and the `rateUnconfirmed` flag that gates the whole estimated-rate path is
-  gone — so the mechanism cannot fire. It sat here contradicting this file's own "2026/27 pay
-  rates — ✅ CONFIRMED AND SHIPPED" section 840 lines above it.
+  gone — so the mechanism cannot fire. It sat here contradicting the "2026/27 pay
+  rates — ✅ CONFIRMED AND SHIPPED" section (now ROADMAP_HISTORY.md).
 - **`nameToEmail` collision surface (LOW, theoretical).** Distinct display-name spellings that differ
   only in separators/case collapse to one account email (`"A. Mc Donald"` = `"A. McDonald"`). Not
   exploitable on the current roster; a hygiene hazard for a future compound-surname starter typed two

@@ -40,8 +40,8 @@ keeping if an unrun check looks different from a passed one.
       any open lightbox's close button.
 - [ ] **Rotate to landscape and back.** The Team View grid is the one that changes layout on
       orientation; the Calendar month grid is the one whose columns are fractional at these widths.
-- [ ] **The last week of the Calendar month is reachable** at this viewport height. That was a real
-      defect (v23.95) and the flex chain that caused it is height-sensitive.
+- [ ] **The last week of the Calendar month is reachable** at this viewport height. (v23.95's defect
+      was desktop-only, ≥1024px wide; on a phone this is a general reachability check.)
 - [ ] **A day panel opens and closes** from a tap, and the ✕ is reachable without stretching.
 
 ## B · Current iPhone — the engine staff meet next
@@ -72,17 +72,17 @@ Install via Share → Add to Home Screen. **Reinstall if the manifest changed th
       and the tap lands on the right surface rather than the app root.
 - [ ] **Tap a notification while the app is already open**, and while it is backgrounded. Both
       should reach the same place.
-- [ ] **AirPrint a guide** (Share → Print). Safari fires **no `beforeprint`** for AirPrint, which is
-      why the print preparation runs on the button's click instead — so the sheet must carry the
-      country/section bodies, not a list of headings. Print one country from the FIP guide and
-      confirm you get one sheet naming that country.
+- [ ] **AirPrint a guide from the guide's own ⤓ PDF button** (not Share → Print — Safari fires **no
+      `beforeprint`** for AirPrint, so only the button's click prepares the page). The sheet must
+      carry the country/section bodies, not a list of headings. Then print one country with its
+      `⤓ Print <country>` button and confirm you get one sheet naming that country.
 - [ ] **Turn the network off and launch it.** It must open to the cached roster, not an error.
       Then back on, and confirm it updates within an open or two.
 
 ## D · Larger Text — the axis a viewport cannot express
 
 - [ ] **No field zooms on focus.** Any focusable input below 16px makes iOS zoom the page and it
-      does not zoom back. Pay Calculator hours/minutes, the Overtime time fields, the Links search,
+      does not zoom back. Pay Calculator hours/minutes, the Overtime time fields, the Links design-name and import fields,
       the sign-in fields.
 - [ ] **The software keyboard does not cover the field being typed into** — the same list.
 - [ ] **Nothing is clipped or overlapping** on the Overtime form head, the Admin week grid's day

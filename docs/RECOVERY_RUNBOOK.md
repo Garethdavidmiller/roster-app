@@ -150,10 +150,14 @@ permanent one. Signing requires the runtime service account to be able to sign A
 
 ```
 gcloud iam service-accounts add-iam-policy-binding \
-  <runtime-sa>@myb-roster.iam.gserviceaccount.com \
-  --member="serviceAccount:<runtime-sa>@myb-roster.iam.gserviceaccount.com" \
+  532910998075-compute@developer.gserviceaccount.com \
+  --member="serviceAccount:532910998075-compute@developer.gserviceaccount.com" \
   --role="roles/iam.serviceAccountTokenCreator" --project=myb-roster
 ```
+
+That is the runtime service account named in the table at the top — the default Compute account, not
+an `@myb-roster.iam` one — and it is the SAME grant as the `unlockCalendarViewer` IAM prerequisite
+there, so if the PIN works the grant is already in place.
 
 **Without it the endpoint answers 503 on every call.** That is deliberate and safe: the client
 treats 503 as "use the stored URL", so a missing grant degrades to the OLD behaviour rather than to
@@ -330,8 +334,15 @@ Each document is a Firestore doc (`circulars/{date}` etc.) **plus** a Storage fi
 Rules are the security boundary — a bad rules change can silently break every write, or
 over-expose data. This is the **fastest** thing to roll back.
 
+**First: is it the rules at all?** If members are denied everywhere after a CLAIMS change (a new
+claim required, a tier moved), that is a claim problem and a rules rollback is the wrong tool. Run
+Operations → Staff Login Accounts → **Set up accounts**, read its ❌ failed and 🔁 taken-back lines and
+the account audit beneath it, then let tokens refresh (within an hour, or at once via a
+`CLAIM_EPOCH` bump). **Never roll the rules back past v24.23** (the member-claim binding): anything
+older believes a `name` any anonymous session can give itself.
+
 1. **Console rollback (seconds, no deploy):** **Firestore → Rules → (version history)** →
-   pick the last-good version → **Rollback**. Same for **Storage → Rules**.
+   pick the immediately previous version → **Rollback**. Same for **Storage → Rules**.
 2. **Or revert in git** (goes through the gated pipeline):
    ```
    git revert <bad-commit-sha>
@@ -425,7 +436,8 @@ Use only when a record genuinely can't be re-entered by hand and PITR-read isn't
 | Link design lost | Regenerate, or read old `patterns` from a PITR snapshot | Links workspace |
 | Doc won't open / wrong date | Re-upload for the correct date | Operations |
 | Bad Functions deploy | `git revert` + push, or `firebase deploy --only functions` | git / CLI |
-| Bad Rules deploy | Console → Rules → Rollback (seconds) | Firebase Console |
+| Bad Rules deploy | Console → Rules → Rollback to the previous version (seconds) — never past v24.23 | Firebase Console |
+| Members denied everywhere after a claims change | Set up accounts (read failed/taken-back lines + audit), then wait ≤1h or bump `CLAIM_EPOCH` — not a rules rollback | Operations |
 | Broken live site | Console → Hosting → Rollback | Firebase Console |
 | Hosting infra down | Point staff at the `/roster-app/` GitHub mirror | — |
 | Everything failing at once | Check status pages; wait; don't redeploy | status.firebase.google.com |
@@ -463,7 +475,7 @@ steps below are three separate pushes rather than one:
 | Brake | Where | Ships as | Released at |
 |---|---|---|---|
 | `CONFIG.CALENDAR_PIN_ACCESS` | `roster-data.js` | **RELEASED — `true` and live since v20.51.** (It shipped `false`, was released at v20.46, rolled back at v20.50 the same morning, and re-released at v20.51 once the cause was found to be a GCP IAM gap rather than app code. This row said "ships as `false` … ROLLED BACK" until v21.63, which read as though the soak had never restarted — an argument for postponing step 4 on false grounds.) | step 3 — **DONE** (soaked from v20.51); the whole sequence closed at step 4 on 26 Aug 2026 |
-| `allow read;` hold line | `firestore.rules` overrides block | **RELEASED — deleted 26 Aug 2026 (v21.78).** `overrides` reads now require a `name` claim, `admin`, or the `calendarViewer` capability; a request with none is refused by the SERVER | step 4 — **DONE** |
+| `allow read;` hold line | `firestore.rules` overrides block | **RELEASED — deleted 26 Aug 2026 (v21.78).** `overrides` reads now require a verified member (`isMember()`: password sign-in, derived email, server-set `member` claim — v24.23/v24.27), `admin`, or the `calendarViewer` capability; a request with none is refused by the SERVER | step 4 — **DONE** |
 
 The hold line was declared a second time as `OVERRIDES_READ_HELD_OPEN` in `firestore.rules.test.mjs`,
 and `calendar-viewer-parity.test.mjs` fails if the two disagree in either direction. That is what
@@ -602,4 +614,5 @@ worse than a Calendar that will not open.
 Rotation needs no client release — OPERATIONS_REFERENCE.md → "Rotating the Calendar PIN". Set the new
 secret, redeploy the function, tell staff. Existing unlocked sessions keep working until their
 browsers close; to kill those too, revoke the shared account's refresh tokens
-(`getAuth().revokeRefreshTokens('calendar-viewer')`, from `firebase-admin/auth`). Member sessions are untouched either way.
+(`getAuth().revokeRefreshTokens('calendar-viewer')`, from `firebase-admin/auth`) — which takes effect
+at each session's next token refresh, within about an hour, not instantly. Member sessions are untouched either way.
