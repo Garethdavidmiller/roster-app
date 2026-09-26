@@ -358,7 +358,7 @@ function _compareVersionsDesc(a, b) {
  * reader compares adjacent rows rather than doing arithmetic: signed in fast but access slow means
  * the gate; access fast but roster slow means Firestore.
  *
- * `ready` is deliberately the third rung and NOT the last. It fires on a cached grid as readily as
+ * `ready` is deliberately the fourth rung and NOT the last. It fires on a cached grid as readily as
  * an authoritative one, which is right — that is a roster the member can read — but it would flatter
  * the figure if it were the end of the story, because a device can show yesterday's roster instantly
  * and take another two seconds to confirm it. `rosterLive` is that confirmation.

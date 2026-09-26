@@ -874,7 +874,7 @@ export function init() {
     /**
      * Delete a design — a SOFT delete since v19.41: it moves to "Recently deleted", where it can be
      * restored, instead of being destroyed on the spot. It stays there until a designer removes it
-     * for good; nothing expires it (v19.86 suspended the purge — see `SOFT_DELETE_RETENTION_DAYS`).
+     * for good; nothing expires it (automatic expiry was removed at v24.10 — see `links-deletion.js`).
      * The last LIVE design can't be deleted — the ✕ button is disabled in that state, so this
      * guard is just a backstop.
      * @param {any} id

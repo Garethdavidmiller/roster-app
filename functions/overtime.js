@@ -33,8 +33,10 @@
  *                               a delete: it changes what is expected, not what happened.
  *
  * ── IDENTITY IS THE TOKEN, NEVER THE BODY ──────────────────────────────────────────────────────
- * Every endpoint verifies with `checkRevoked: true` and takes the member from `decoded.name` — the
- * claim `setupRosterAuth` sets from the server-owned roster. A body-supplied member name would be
+ * Every endpoint verifies with `checkRevoked: true` and takes the member from
+ * `memberNameFromClaims(decoded)` — the `name` claim `setupRosterAuth` sets from the server-owned
+ * roster, believed only on the member's own password account (member-identity.js), never
+ * `decoded.name` alone. A body-supplied member name would be
  * an impersonation path, and Master Admin must not have one either: oversight is not permission to
  * submit somebody else's declaration about their own life.
  *

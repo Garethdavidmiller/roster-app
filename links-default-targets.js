@@ -6,7 +6,7 @@
  *
  * `links-seed.js` MEASURES: it reads the roster people actually work and reports it. That is the
  * right answer to "what do we do today", and it was the wrong thing to start a December 2026
- * proposal from — those duties pay 16 working lines, the new rotation has 19, and the generator
+ * proposal from — those duties pay about 16 working lines, the new design has 20, and the generator
  * refuses the resulting table outright. A designer opening the workspace met a refusal before they
  * had typed anything.
  *
