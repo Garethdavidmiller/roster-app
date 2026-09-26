@@ -92,8 +92,8 @@ function _showUnsupportedRole(member) {
     document.getElementById('unsupportedGradeBanner')?.classList.remove('hidden');
     // A session name the roster no longer holds (a leaver, a rename) is not a ROLE gap — say what it is.
     if (!member?.role) {
-        const t = document.getElementById('unsupportedGradeTitle'); if (t) t.textContent = 'Your name isn’t on the current roster';
-        const b = document.querySelector('#unsupportedGradeBanner p'); if (b) b.textContent = 'The Pay Calculator needs your roster entry to know your grade and to keep your pay data apart from anyone else’s on this device. Ask the admin to check your name.';
+        const t = document.getElementById('unsupportedGradeTitle'); if (t) t.textContent = "Your name isn't on the current roster";
+        const b = document.querySelector('#unsupportedGradeBanner p'); if (b) b.textContent = "The Pay Calculator needs your roster entry to know your grade and to keep your pay data apart from anyone else's on this device. Ask the admin to check your name.";
     }
     initNavPanel({
         currentPage: 'paycalc',

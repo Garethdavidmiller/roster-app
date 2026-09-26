@@ -214,10 +214,10 @@
         </div>
         <div class="field-hint">Your payslip calls this "Smart RPS CR Scheme" — the <strong>Railways Pension Scheme</strong>. <strong>Saved per payslip</strong> — change it here and past payslips keep their own amount.</div>
         <div id="pensionWarn" class="val-warn" role="alert" aria-live="polite"><span aria-hidden="true">⚠</span> Pension exceeds gross pay — check the amount</div>
-        <div class="toggle-row">
+        <label class="toggle-row">
           <input type="checkbox" id="pensionOptOutCheck">
-          <label for="pensionOptOutCheck">I'm <strong>not in the pension scheme</strong></label>
-        </div>
+          <span class="toggle-row-text">I'm <strong>not in the pension scheme</strong></span>
+        </label>
         <div class="field-hint">Tick this if you have opted out of or withdrawn from the Railways Pension Scheme.</div>
         <!-- The DATE is the whole control (v21.78). As a bare tick this said "every payslip then
              assumes no pension deduction", which was true and was the bug: payslips from before
@@ -245,10 +245,10 @@
       </div>
 
       <div class="field">
-        <div class="toggle-row">
+        <label class="toggle-row">
           <input type="checkbox" id="pgLoanCheck">
-          <label for="pgLoanCheck">I also repay a <strong>Postgraduate Loan</strong></label>
-        </div>
+          <span class="toggle-row-text">I also repay a <strong>Postgraduate Loan</strong></span>
+        </label>
         <div class="field-hint">Tick this only if a separate Postgraduate Loan deduction (6%) also shows on your payslip. It is repaid <em>in addition</em> to any plan above.</div>
       </div>
 
@@ -548,10 +548,10 @@
       <div class="hours-extra" id="hoursExtra">
         <!-- No heading here — the toggle button directly above IS the section title (v18.45,
              sweep item 6: the duplicate .sec-hd repeated the button's own label). -->
-        <div class="toggle-row hidden" id="slSkipRow">
+        <label class="toggle-row hidden" id="slSkipRow">
           <input type="checkbox" id="slSkipCheck">
-          <label for="slSkipCheck">Student loan was <strong>not</strong> deducted this period</label>
-        </div>
+          <span class="toggle-row-text">Student loan was <strong>not</strong> deducted this period</span>
+        </label>
 
         <div class="hours-row">
           <div class="h-info">
@@ -1026,7 +1026,7 @@
 
   <!-- DISCLAIMER -->
   <div class="disclaimer">
-    ⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax is estimated by dividing your annual allowance equally across all 13 pay periods. If you enter Year to Date totals from your payslip, the app works out tax the way payroll does — adding up the whole year so far — usually closer to your real payslip, especially later in the year. Actual figures may still vary slightly due to employer rounding or payroll corrections. London Allowance is included automatically.</span> <button type="button" class="disclaimer-toggle" id="disclaimerToggle" aria-expanded="false" aria-controls="disclaimerExtra">More ▼</button>
+    <p class="disclaimer-text">⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax is estimated by dividing your annual allowance equally across all 13 pay periods. If you enter Year to Date totals from your payslip, the app works out tax the way payroll does — adding up the whole year so far — usually closer to your real payslip, especially later in the year. Actual figures may still vary slightly due to employer rounding or payroll corrections. London Allowance is included automatically.</span> <button type="button" class="disclaimer-toggle" id="disclaimerToggle" aria-expanded="false" aria-controls="disclaimerExtra">More ▼</button></p>
   </div>
 
 

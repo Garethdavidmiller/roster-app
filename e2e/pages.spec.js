@@ -4839,10 +4839,12 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
  * cannot grow, and that has to be deleted the moment it is paid.
  *
  * It is NOT an exemption list. The list may not gain an entry — anything new fails — and an entry
- * that stops firing fails too, so a fix cannot be made and left unrecorded. Two entries are worth
- * naming because they are the ones to pay first: `#clearBtn` is "Clear all entries", a destructive
- * control at 16px tall, and the two paycalc checkboxes decide money (pension membership, a
- * postgraduate loan).
+ * that stops firing fails too, so a fix cannot be made and left unrecorded. The two this comment
+ * named as the ones to pay first are PAID (the Pay Calculator polish pass): `#clearBtn` — "Clear all
+ * entries", destructive, 16px tall — and the two paycalc checkboxes that decide money (pension
+ * membership, a postgraduate loan). The ticks are now wrapped by their row's `<label>`, and the small
+ * text controls carry the `.help-btn` invisible hit area under a coarse pointer; five paycalc entries
+ * came off this list in the same commit, as the ratchet requires.
  *
  * `.disclaimer-toggle` is the one that may turn out not to be a defect at all: "More ▼" sits
  * INLINE at the end of a sentence, which is the case WCAG 2.2 SC 2.5.8 exempts. That is a judgement
@@ -4855,11 +4857,6 @@ const KNOWN_SMALL = {
         'input.day-cb[]': '22x22 — the per-day tick in the week grid; its 44px cell is not a target (no label). App-drawn since v23.50, same size',
     },
     '/paycalc.html': {
-        'input#pensionOptOutCheck[]': '22x22 — decides pension membership; its label is a sibling, not a wrapper (20px box, 22 on a coarse pointer since v23.50)',
-        'input#pgLoanCheck[]': '22x22 — decides a postgraduate loan deduction; same shape',
-        'button#actualsImportBtn.actuals-import-link[Import paysl]': '53x22',
-        'button#clearBtn.clear-btn[Clear all en]': '53x16 — DESTRUCTIVE, and the smallest on the page',
-        'button#rosterDaysToggle.roster-days-toggle[Show days ▼]': '53x14',
         'button#disclaimerToggle.disclaimer-toggle[More ▼]': '46x16 — may be a genuine inline-in-a-sentence exemption',
     },
     '/operations.html': {
