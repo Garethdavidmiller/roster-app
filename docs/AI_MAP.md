@@ -2491,8 +2491,7 @@ this one, between them.
 
 ### `links-design-store.js`
 The design collection's persistence lifecycle and its concurrency protocol (v21.87).
-- `createDesignStore(deps)` → `{ loadAll, create, save, rename, softDelete, restore, purge,
-  purgeIfExpired }`. Every Firebase handle is injected.
+- `createDesignStore(deps)` → `{ loadAll, create, save, rename, softDelete, restore, purge }`. Every Firebase handle is injected.
 - `isOfflineFailure(err, isOnlineCheck?)` — the predicate that decides whether the one unserialised
   path may be taken at all.
 
