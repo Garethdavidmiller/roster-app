@@ -465,6 +465,10 @@
             pointer-events: none; -webkit-user-select: none; user-select: none;
         }
         .swipe-hint.fade-out { opacity: 0; pointer-events: none; }
+        /* Team View does not swipe (calendar-swipe.js returns early in it), so "Swipe to change
+           month" above the week table is a false instruction (polish pass). `!important` because
+           the one-time reveal sets an inline `display`. */
+        body.team-view-active #swipeHint { display: none !important; }
 
         /* ── The one-off prompt strips: install · notifications (v22.28) ────────────────────────
            The calendar's only dismissable OFFERS, and they share this one treatment so the two can
@@ -524,7 +528,7 @@
             outline-offset: 2px;
         }
         .top-prompt-dismiss {
-            background: none; border: none; padding: 8px 10px;
+            background: none; border: none; padding: 8px 10px; font-family: inherit;
             font-size: var(--type-large); color: rgba(255, 255, 255, 0.65); cursor: pointer;
             touch-action: manipulation; flex-shrink: 0; line-height: 1;
             min-height: 44px; align-self: center;
@@ -1140,8 +1144,32 @@
                 bottom: 6px !important;
             }
 
-            /* Legend: wider spacing on desktop */
-            .legend { gap: 6px 20px; padding: 12px 24px; }
+            /* Legend: wider spacing on desktop — and a BALANCED wrap (polish round 2, owner-approved).
+               A flex row wraps greedily, so when a busy month's keys overran one line at 1024px the
+               overflow was just the last two ("✂️ Pay cut-off", "💷 Payday") alone on line 2. Flex
+               has no balance; an inline formatting context does. So on desktop the keys become
+               atomic inline boxes in a centred block with `text-wrap: balance`, and the lines come
+               out even whichever of the conditional keys this month shows.
+
+               The geometry is the flex version's exactly: the 20px column gap is 10px of margin
+               either side of each key, with the legend's 24px side padding cut to 14px to absorb
+               the outer ones; the 6px row gap is 3px above and below, with the 12px top/bottom
+               padding cut to 9px. `font-size: 0` removes the source whitespace between keys, which
+               would otherwise add a space's width to every gap — every key sets its own size
+               (`.legend-text` below, the swatch in px), so nothing inherits the zero. The rows stay
+               `display: contents`, so the keys still pool across them as they did in flex. */
+            .legend {
+                display: block;
+                text-align: center;
+                text-wrap: balance;
+                font-size: 0;
+                padding: 9px 14px;
+            }
+            .legend-item {
+                display: inline-flex;
+                vertical-align: middle;
+                margin: 3px 10px;
+            }
             .legend-text { font-size: var(--type-label); }
 
             /* Mobile-only UI: hide on desktop. `--prompt-available` is how install-prompt.js
@@ -1494,6 +1522,16 @@
             line-height: 1;
             font-family: inherit;
             transition: color var(--dur-med), border-color var(--dur-med);
+            position: relative;             /* for the tap expander below */
+        }
+        /* THE DRAWN CIRCLE IS 20px; THE TARGET IS NOT (polish pass). Its only target was the circle,
+           under WCAG 2.2's 24px floor — the card-header `?` (`.help-btn`, shared.css) has carried
+           this same 44px expander all along, and this one was simply never given it. Nothing else
+           is within 12px of it: it sits alone at the end of the grade-tab row. */
+        .team-help-btn::before {
+            content: '';
+            position: absolute;
+            inset: -12px;
         }
         @media (hover: hover) and (pointer: fine) {
             .team-help-btn:hover { color: var(--primary-blue); border-color: var(--primary-blue); }
@@ -1905,7 +1943,11 @@
         }
         .tv-key-dot--early  { background: var(--early-cell);  border-color: var(--early-cell-border); }
         .tv-key-dot--late   { background: var(--blue-light);    border-color: var(--blue-sky); }
-        .tv-key-dot--night  { background: var(--night-cell-bg); border-color: var(--night-cell-border); }
+        /* The night tokens are TRANSLUCENT — a dark wash that reads as light grey on the white
+           cells it was made for. The key sits on the dark glass panel, where the same wash went
+           dark-on-dark and the swatch all but vanished (polish pass). Composite it onto white here,
+           so the key shows the colour the cell actually is. */
+        .tv-key-dot--night  { background: linear-gradient(var(--night-cell-bg), var(--night-cell-bg)), white; border-color: var(--night-cell-border); }
         .tv-key-dot--al     { background: var(--al-light);      border-color: var(--al); }
         .tv-key-dot--rdw    { background: var(--rdw-light);     border-color: var(--rdw); }
         .tv-key-dot--spare  { background: var(--purple-light);  border-color: var(--purple); }
@@ -2868,7 +2910,11 @@
             flex-direction: column;
             align-items: center;
             flex: 1;
-            min-width: 0;
+            /* min-content, not 0 (polish pass): four equal quarters stay equal wherever they fit,
+               and where they do not — 320px, or a phone's text scaling — the ENTITLEMENT cell keeps
+               the width of its own label instead of spilling it over the divider (measured 2px over
+               at 320). */
+            min-width: min-content;
             padding: 12px 6px;
             gap: 4px;
         }
@@ -3016,11 +3062,19 @@
                scroll listener. Same device as the Links target table, and for the same reason:
                a table that silently continues past the edge reads as a table that ends there. */
             background:
-                linear-gradient(to right, var(--surface, #fff) 30%, rgba(255,255,255,0)) left / 24px 100% no-repeat local,
-                linear-gradient(to left,  var(--surface, #fff) 30%, rgba(255,255,255,0)) right / 24px 100% no-repeat local,
+                linear-gradient(to right, white 30%, rgba(255,255,255,0)) left / 24px 100% no-repeat local,
+                linear-gradient(to left,  white 30%, rgba(255,255,255,0)) right / 24px 100% no-repeat local,
                 radial-gradient(farthest-side at 0%   50%, rgba(0,0,0,.16), rgba(0,0,0,0)) left / 8px 100% no-repeat scroll,
                 radial-gradient(farthest-side at 100% 50%, rgba(0,0,0,.16), rgba(0,0,0,0)) right / 8px 100% no-repeat scroll;
+            /* THE COVERS ARE THE VIEWER'S OWN GROUND, WHITE (polish pass). They were `--surface`,
+               the off-white CARD colour — but this panel is white, so on a table that fits (the
+               common case) two off-white 24px bands showed down its left and right edges, and in
+               the margin above and below the table they read as grey smudges at all four corners.
+               The margin now lives on the wrapper for the same reason: inside it, that strip was
+               wrapper with no table over it. */
+            margin: 0.75em 0;
         }
+        #huddleViewerBody .huddle-table-wrap > table { margin: 0; }
         #huddleViewerBody table {
             /* NOT `width: 100%` (v22.29). That pinned the table to the container, so it could only
                ever SQUEEZE. `min-width` keeps a narrow table filling the panel; `width: auto` lets
@@ -3111,6 +3165,7 @@
             color: white;
             border: none;
             border-radius: var(--radius-pill);
+            font-family: inherit;   /* a <button> does not inherit the page font — it rendered in Arial */
             font-size: 1rem;
             font-weight: 700;
             padding: 14px 28px;
@@ -3147,13 +3202,23 @@
             font-weight: 700;
             color: var(--primary-blue);
             text-align: center;
-            /* Clear the absolute top-right ✕ (.lb-close at top:14/right:14, ~34px tall): sit the
-               title below it and keep centred text off it with side padding, so a long title
-               ("🗞️ Marylebone Newsletter") never collides with the close button. */
-            margin: 24px 0 16px;
-            padding: 0 30px;
+            /* ON THE ✕ LINE, NOT UNDER IT (polish round 2, owner-approved) — the day panel's shape.
+               It used to sit below the button (`margin-top: 24px`, written when the ✕ was ~34px),
+               which left a measured 50px band above the title holding nothing but the ✕. With no
+               top margin the first line starts at the panel's 26px padding and its centre lands
+               within 3px of the ✕'s (36px — the 44px target at top:14).
+
+               The side padding is what keeps a title that now SHARES the ✕'s band off it. The
+               target spans 14–58px from the panel's right edge, i.e. 34px into the 24px-padded
+               content box, so 40px — the day panel's figure — leaves a 6px floor on the longest
+               line, applied to BOTH sides because the text is centred. The longer names wrap
+               earlier for it ("🗞️ Marylebone" / "Newsletter" below ~390px); `balance` keeps the
+               two lines even, and a wrap is legible where an overlap is a fault. */
+            margin: 0 0 16px;
+            padding: 0 40px;
             line-height: 1.3;
             letter-spacing: -0.3px;
+            text-wrap: balance;
         }
         .doc-viewer-body { text-align: center; padding-bottom: 4px; }
         .doc-viewer-loading,
@@ -3170,6 +3235,7 @@
             color: white;
             border: none;
             border-radius: var(--radius-pill);
+            font-family: inherit;   /* a <button> does not inherit the page font — it rendered in Arial */
             font-size: var(--type-button);
             font-weight: 700;
             padding: 14px 28px;
@@ -3220,6 +3286,25 @@
             cursor: pointer;
             -webkit-appearance: none;
             appearance: none;
+            /* THE PICKER CHEVRON (polish pass). `appearance: none` removed the platform's arrow and
+               nothing replaced it, so the pair read as two static labels rather than as the two
+               pickers they are — `--caret-chevron` is the mark every other picker in the app wears. */
+            background-image: var(--caret-chevron);
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            background-size: 1em;
+            padding-right: 30px;
+        }
+        /* AN APP FOCUS INDICATOR, where there was only the platform's (polish pass). The month
+           select takes initial focus when the dialog opens, so this was the first thing a keyboard
+           user saw — and on Android it was Chrome's own orange ring on a white panel, which is the
+           ~1.5:1 gold-on-light case the focus-token rules exist to forbid. Same recipe as the
+           Calendar's own selects (`.controls select:focus-visible`), including the brighten to white. */
+        .month-jump-selects select:focus-visible {
+            outline: var(--focus-outline);
+            outline-offset: 2px;
+            box-shadow: var(--focus-ring);
+            background-color: white;
         }
 
         #monthJumpMonth { min-width: 110px; }
@@ -3242,6 +3327,10 @@
             transition: background var(--dur-med), transform 0.1s;
         }
         .month-jump-actions button:active { transform: scale(var(--press-scale)); }
+        .month-jump-actions button:focus-visible {
+            outline: var(--focus-outline);
+            outline-offset: 2px;
+        }
 
         #monthJumpConfirm {
             background: var(--primary-blue);
@@ -3309,6 +3398,16 @@
             border-color: color-mix(in srgb, var(--error-red) 30%, transparent);
             text-decoration: underline;
             cursor: pointer;
+            position: relative;             /* for the tap expander below */
+        }
+        /* "tap to retry" is a BUTTON drawn 20px tall — under WCAG 2.2's 24px floor (polish pass). The
+           expander grows DOWNWARD only: the chip's top edge is flush with the bottom of the month
+           heading (measured: both at the same y), and the heading is itself a target — it opens
+           the month jump — so reaching upward would take taps meant for it. */
+        .sync-chip-error::before {
+            content: '';
+            position: absolute;
+            inset: 0 -2px -6px;
         }
         .sync-chip-error:focus-visible {
             outline: 2px solid var(--error-banner);
@@ -3320,6 +3419,25 @@
         }
         @media (prefers-reduced-motion: reduce) {
             .sync-chip { animation: none; }
+        }
+        /* ONE MESSAGE AT A TIME (polish round 2, owner-approved). While the month is WITHHELD the
+           panel below the header already says what the chip says — "Checking this month" beside
+           "Updating your shifts…", or "Couldn't check this month" with its own "Try again" beside
+           "Couldn't update — tap to retry" — so the chip steps back and the panel speaks alone.
+
+           Two cases keep the chip, and both are deliberate:
+             · a PAINTED grid (a cached month being refreshed, or a failed refresh over it) — there
+               is no panel, and the chip is the only thing saying a sync is running or has failed;
+             · a FAILED panel with NO "Try again" — drawn while the initial fetch still holds its
+               claim (the 10s timeout path), where the chip is the only retry on screen. Hiding it
+               there would leave a failure with nothing to press.
+           CSS rather than a branch in calendar-initial-fetch.js because the header and the panel are
+           rebuilt by every render, in either order, and the loading chip is not re-attached after
+           one — a selector on the rendered result is right after every transition without the
+           state machine having to know about the grid. `e2e/calendar.spec.js` pins both halves. */
+        .calendar-container:has(> .calendar-pending:not(.calendar-pending--failed)) .sync-chip,
+        .calendar-container:has(> .calendar-pending .calendar-pending-retry) .sync-chip {
+            display: none;
         }
 
         /* ---- Skeleton shimmer — shown on calendar grid during initial Firestore fetch ---- */
@@ -3401,6 +3519,10 @@
             color: var(--text-mid);
             line-height: 1.4;
             margin: 0;
+            /* Centred and four lines long, it ended on "of date." alone (polish pass, 390px).
+               `balance` evens the lines, which suits a centred block; `pretty` was tried first and
+               measured to leave the orphan. An engine without either wraps as before. */
+            text-wrap: balance;
         }
         .calendar-pending--failed h2 { color: var(--error-banner); }
         .calendar-pending-retry,

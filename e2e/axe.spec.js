@@ -443,6 +443,14 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await expect(page.locator('.ot-day-panel--muted')).not.toHaveCount(0);
         const v = await scan(page);
         expect(v.length, report(v)).toBe(0);
+        // The muted panels recede by their HEADER colour, never by fading the panel (polish round 2).
+        // A 0.9 group fade left the grey rows at 4.55:1 — passing, by 0.05 — and axe is no witness
+        // for a fade (see `faded` above), so the mechanism is checked directly.
+        const fadedMuted = await page.locator('.ot-day-panel--muted').evaluateAll(panels =>
+            panels.flatMap(p => [p, ...p.querySelectorAll('*')])
+                .filter(el => Number(getComputedStyle(el).opacity) < 1 && !(/** @type {any} */ (el).disabled))
+                .map(el => `${el.className} @${getComputedStyle(el).opacity}`));
+        expect(fadedMuted, 'a muted Overtime panel must not fade what the reviewer reads').toEqual([]);
     });
 
     test('links (designer, signed in)', async ({ page }) => {

@@ -287,7 +287,11 @@ h2.section:first-of-type { margin-top: 4px; }
 .rr-facts { display: flex; flex-direction: column; gap: 6px; }
 .rr-row {
     display: grid;
-    grid-template-columns: 62px 1fr;
+    /* 70px, not 62 (v24.30 polish pass): the widest label, DISCOUNTS on the Shakespeare card,
+       measures 69px at 11px/700/0.5px tracking, so at 62 it ran 7px into the 10px gap and sat
+       hard against its value. The column is shared by every row on the page, so it has to fit
+       the widest label rather than the common ones. */
+    grid-template-columns: 70px 1fr;
     gap: 10px;
     align-items: baseline;
     font-size: 13px;
@@ -418,14 +422,8 @@ h2.section:first-of-type { margin-top: 4px; }
     line-height: 1.6;
 }
 
-.guide-back-link {
-    display: inline-block;
-    margin-top: 18px;
-    font-size: 13px;
-    color: var(--navy);
-    font-weight: 600;
-}
-.guide-back-link:focus-visible { outline: 2px solid var(--navy); outline-offset: 3px; border-radius: 3px; }
+/* The footer's `.guide-back-link` is the shared recipe in guide-shell.css (polish round 2) — it
+   keeps the 44px touch target this page gave it at v24.30. */
 
 /* ── Print ──────────────────────────────────────────────────────────────────
    The sticky header prints as the title banner (guide-shell.css). The chip bar is navigation and
@@ -443,7 +441,7 @@ h2.section:first-of-type { margin-top: 4px; }
     @page { size: A4 portrait; margin: 13mm 12mm; }
     body { background: #fff; font-size: 10.5pt; }
     main { max-width: none; padding: 0 8mm 8mm; }
-    .chip-bar, .guide-back-link { display: none !important; }
+    .chip-bar { display: none !important; }   /* and the footer back link: guide-shell.css */
     .source-banner { border-bottom: 2pt solid var(--amber); print-color-adjust: exact; }
     .rr-card, .rr-no-item, .check-item, .gotcha, .quick, .rr-notes {
         break-inside: avoid;

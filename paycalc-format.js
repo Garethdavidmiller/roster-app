@@ -61,6 +61,20 @@ export function fdList(dates, cap = 4) {
 export const clampMinute = n => Math.min(59, Math.max(0, n));
 
 /**
+ * What a minutes box SHOWS for a value the app writes into it: always two digits ("00", "05",
+ * "30"), matching the box's own "00" placeholder (polish round 2). A calendar fill of 16h used to
+ * read "16 : 0" beside empty boxes reading "0 : 00", which looks like a different kind of value.
+ *
+ * DISPLAY ONLY — nothing stored changes. Every reader of the box parses it (`intVal`/`hmPair` →
+ * `parseInt`), so "00" and "0" are both 0 and "05" is 5: the saved period, and therefore the
+ * form ↔ saved-data round trip (paycalc.md invariant 2), is byte-identical either way.
+ * `null`/`undefined` → '' (nothing to show).
+ * @param {number|string|null|undefined} m
+ * @returns {string}
+ */
+export const minutesFieldText = m => (m == null || m === '') ? '' : String(m).padStart(2, '0');
+
+/**
  * Split a decimal-hours value into whole hours + minutes, rounding minutes to the nearest
  * whole and carrying 60 → next hour (floating-point guard, e.g. 7.999 → 8h 00m). This is the
  * single source for the "= 7h 30m" live preview and the on-blur "7.5 → 7 hrs 30 mins" split.

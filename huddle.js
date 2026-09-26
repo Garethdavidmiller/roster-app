@@ -47,10 +47,22 @@ export function initHuddleNotifications({ onState } = {}) {
 
     // notifSupported() returns false on iOS outside a standalone PWA — show
     // the add-to-home-screen message rather than a misleading "not supported".
+    // A POINTER, NOT A SECOND COPY OF THE STEPS (polish round 2, owner-approved). The Install card
+    // directly below already lists the taps on exactly this path (`initDeviceCard`: an iPhone, not
+    // installed, not the mirror), so repeating them here gave the page two sets of instructions to
+    // keep in step. On the Pages mirror that card never shows, so the mirror keeps the steps here,
+    // browser-neutral like the card's own (v22.45 — name the control, not Safari's chrome). An
+    // iPhone ALREADY on the Home Screen that still has no push (an iOS too old for it) has no card
+    // either, and nothing to install — so it gets the plain "not supported" line.
     if (!notifSupported()) {
-        if (statusMsg) statusMsg.textContent = isIOS()
-            ? 'On iPhone/iPad, notifications only work when the app is added to your Home Screen. Tap Share → Add to Home Screen, then open from your Home Screen and return here.'
-            : 'Push notifications are not supported on this device or browser.';
+        const onMirror  = /github\.io$/i.test(window.location.hostname);
+        const installed = window.matchMedia?.('(display-mode: standalone)').matches
+            || /** @type {any} */ (window.navigator).standalone === true;
+        if (statusMsg) statusMsg.textContent = !isIOS() || installed
+            ? 'Push notifications are not supported on this device or browser.'
+            : onMirror
+                ? 'On iPhone or iPad, notifications only work once the app is on your Home Screen. Tap your browser’s Share button, then Add to Home Screen.'
+                : 'On iPhone or iPad, notifications only work once the app is on your Home Screen — see “Install on this device” below.';
         if (enableBtn)  enableBtn.style.display  = 'none';
         if (disableBtn) disableBtn.style.display = 'none';
         // Not a to-do and not a fault: this device cannot do it at all, so it must neither nag

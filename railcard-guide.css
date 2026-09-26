@@ -344,14 +344,7 @@ a { color: var(--navy); text-underline-offset: 2px; }
     a:hover { color: var(--amber); }
 }
 
-.guide-back-link {
-    display: block;
-    text-align: center;
-    font-size: 13px;
-    color: var(--navy);
-    text-decoration: none;
-    padding: 14px 0 4px;
-}
+/* The footer's `.guide-back-link` is the shared recipe in guide-shell.css (polish round 2). */
 
 /* ── Print (shell handles .page-header + button hiding) ───────── */
 @media print {
@@ -368,11 +361,10 @@ a { color: var(--navy); text-underline-offset: 2px; }
     /* .chip-bar print-hide is in guide-shell.css (shared) */
     .content { max-width: none; padding: 0 6px; }
     .rc, .gotcha, .check-item, .digital, .weekend-note { break-inside: avoid; }
-    /* The footer's back link is website navigation and is useless on paper (v23.20) — measured
-       printing at 38px tall while `rangers-guide.css` had always hidden its identical control.
-       `guide-shell.css` hides the HEADER back arrow (`.btn-back`) for every guide; this footer
-       link is a per-guide element and was simply missed. */
-    .guide-back-link { display: none !important; }
+    /* The footer's back link is website navigation and is useless on paper (v23.20) — it printed
+       38px tall here while rangers hid its identical control. Since polish round 2 the link is one
+       shared recipe and `guide-shell.css` hides it in print alongside the header arrow, for every
+       guide at once. */
     .rc, .gotchas, .check, .digital { box-shadow: none; }
     .section { break-after: avoid; }
 }

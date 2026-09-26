@@ -41,7 +41,7 @@ function fakeSelect(spec) {
 }
 const mkOption = (o) => ({
     tagName: 'OPTION', value: o.value ?? '', textContent: o.label ?? '',
-    disabled: !!o.disabled, selected: !!o.selected, dataset: o.meta ? { meta: o.meta } : {},
+    disabled: !!o.disabled, hidden: !!o.hidden, selected: !!o.selected, dataset: o.meta ? { meta: o.meta } : {},
 });
 
 describe('showing a list that is not the select\'s — the silent direction', () => {
@@ -78,6 +78,19 @@ describe('showing a list that is not the select\'s — the silent direction', ()
         assert.equal(groups[0].options[0].label, '— Choose your name —');
         assert.equal(groups[0].options[0].disabled, true, 'a disabled option stays unpickable in the sheet');
         assert.equal(groups[1].label, 'CEA');
+    });
+
+    test('a HIDDEN option is not drawn — the native list never shows one either', () => {
+        // Admin's member select opens on `<option value="" disabled hidden>— Select member —</option>`.
+        // Hidden is the difference from the calendar's placeholder above: that one is meant to be
+        // seen, this one only holds "nothing chosen". The sheet drew it as a grey row anyway.
+        const sel = fakeSelect([
+            { value: '', label: '— Select member —', disabled: true, hidden: true },
+            { group: 'CEA', options: [{ value: '1', label: 'A. Hared' }, { value: 'x', label: 'Gone', hidden: true }] },
+        ]);
+        const groups = readGroups(sel);
+        assert.deepEqual(groups.map(g => g.label), ['CEA'], 'no untitled group left holding only the hidden placeholder');
+        assert.deepEqual(groups[0].options.map(o => o.value), ['1']);
     });
 
     test('an EMPTY group is dropped, so the sheet never draws a heading over nothing', () => {

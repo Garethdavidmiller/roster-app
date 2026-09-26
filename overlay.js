@@ -300,6 +300,26 @@ function _watchScrollFade(panel) {
     requestAnimationFrame(() => requestAnimationFrame(sync));
     panel.addEventListener('scroll', sync, { passive: true, signal: ac.signal });
     window.addEventListener('resize', sync, { passive: true, signal: ac.signal });
+    // THE PANEL CAN CHANGE SIZE WITH NOTHING SCROLLED OR RESIZED (v24.30 polish pass). The picker
+    // sheet's search box filters its own list: a 45-name sheet opens capped at 85vh and gains the
+    // fade, then "zzz" leaves one line of "No match" in a 189px panel — measured scrollHeight ===
+    // clientHeight — still wearing the fade over that line, because neither listener above had
+    // fired. So the panel's CONTENT is watched, and its box too. The content observer is the one that
+    // matters: a MutationObserver runs as a microtask, and `sync` reads `scrollHeight`, which forces
+    // the layout it needs. ResizeObserver and requestAnimationFrame both ride the rendering loop,
+    // which headless WebKit throttled in about half of measured runs — the fade stayed on with the
+    // observer never called. The box observer stays for a size change with no DOM change (a font
+    // arriving late). Disconnected with the rest.
+    if (typeof ResizeObserver === 'function') {
+        const ro = new ResizeObserver(sync);
+        ro.observe(panel);
+        ac.signal.addEventListener('abort', () => ro.disconnect());
+    }
+    if (typeof MutationObserver === 'function') {
+        const mo = new MutationObserver(sync);
+        mo.observe(panel, { childList: true, subtree: true });
+        ac.signal.addEventListener('abort', () => mo.disconnect());
+    }
     return () => ac.abort();
 }
 

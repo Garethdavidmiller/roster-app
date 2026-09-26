@@ -75,13 +75,19 @@ export function readGroups(select) {
         meta: String(o.dataset?.meta ?? ''),
         disabled: !!o.disabled,
     });
+    // A `hidden` option is one the native list never shows — Admin's "— Select member —" is
+    // `disabled hidden`, a value holder for "nothing chosen yet", not a row to offer. The sheet drew
+    // it anyway, as a greyed row above the first grade heading (polish pass, Sep 2026). A merely
+    // DISABLED option is still drawn: the calendar's first-run "— Choose your name —" relies on it.
+    const shown = (/** @type {any} */ o) => !o.hidden;
     for (const child of Array.from(select.children || [])) {
         const el = /** @type {any} */ (child);
         const tag = String(el.tagName || '').toUpperCase();
         if (tag === 'OPTGROUP') {
             loose = null;
-            groups.push({ label: String(el.label ?? ''), options: Array.from(el.children || []).map(opt) });
+            groups.push({ label: String(el.label ?? ''), options: Array.from(el.children || []).filter(shown).map(opt) });
         } else if (tag === 'OPTION') {
+            if (!shown(el)) continue;
             if (!loose) { loose = { label: '', options: [] }; groups.push(loose); }
             loose.options.push(opt(el));
         }

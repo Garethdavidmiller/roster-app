@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: September 2026 — v24.20 · Updated every 0.10 version*
+*Last updated: September 2026 — v24.30 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -339,7 +339,8 @@ computeCellStates(parsedResult, existingOverrides)
         ↓
 renderReviewTable() — per-person card list (presentation reworked v15.52):
   • plain-language OUTCOME SUMMARY above the list ("what Save will do")
-  • each change row = a Save tick + action tag (Update / Clear old / Your choice / Not saved)
+  • each change row = a Save tick + action tag (Update / Clear old / Your choice / Not saved; an unreadable row reads
+    "Couldn't read" until a reading is picked or an entry is finished — v24.30)
   • conflicts = inline "Keep yours / Use new roster" (was Manual / PDF); no separate banner
   • Save button shows a live count. State machine + `chosen` model UNCHANGED.
   • the ORIGINAL PDF stays reachable from the review (v22.52) — every message on this page ends

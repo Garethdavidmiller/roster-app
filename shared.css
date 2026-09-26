@@ -1268,6 +1268,15 @@ button.lightbox-bug-link {
        sentence has to stay explicit about what tapping it does, because it messages a real person. */
     text-wrap: balance;
 }
+/* WHERE the balanced line breaks (polish round 2). Balance evens the two lines but chooses the break
+   by length alone, and measured "Can’t get in? Ask the admin" over "to reset your password" at every
+   width — a request cut in half. With the question and the request each one atomic inline, the only
+   break left is between them, so the question sits above the request it leads to. `inline-block`,
+   not `nowrap`: in a card too narrow for the whole request (320px phones) it still wraps INSIDE
+   itself — balanced, since `text-wrap` inherits — instead of overflowing the button.
+   `text-decoration: inherit` is load-bearing: a decoration does not PROPAGATE into an atomic inline
+   (css-tokens.md, v24.02), so without it the underline that marks this as a link simply vanished. */
+.login-reset-clause { display: inline-block; text-decoration: inherit; }
 .login-reset-request[hidden] { display: none; }
 .login-reset-request:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .login-reset-request:disabled { opacity: 0.6; cursor: default; }
@@ -1414,7 +1423,13 @@ button.lightbox-bug-link {
     text-align: left;
     overflow-y: auto;
 }
-.picker-head { padding: 12px 40px 12px 12px; border-bottom: 1px solid var(--border-light); }
+/* 52px on the right, not 40 (v24.30 polish pass). The sheet's ✕ is the shared 44px `.lb-close` at
+   `right: 14px`, so it occupies the panel's last 58px; the head, inside the panel's 8px padding,
+   reserved only 48. Measured at 390px: the title "Which member are you working on?" ended at x=322
+   with the close button starting at 313 — the text ran 9px under the control. 8 + 52 = 60 clears it;
+   a title that no longer fits takes a second line, which `text-wrap: balance` keeps even. */
+.picker-head { padding: 12px 52px 12px 12px; border-bottom: 1px solid var(--border-light); }
+.picker-head b { text-wrap: balance; }
 .picker-head b    { display: block; font-size: var(--type-medium); font-weight: 800; color: var(--primary-blue); letter-spacing: -0.2px; }
 .picker-head span { display: block; font-size: var(--type-small); color: var(--text-mid); margin-top: 2px; }
 /* THE FILTER ON A LONG SHEET (v23.68, external review). Only rendered from `SEARCH_FROM` options —
@@ -1576,7 +1591,8 @@ button.lightbox-bug-link {
     user-select: none; -webkit-tap-highlight-color: transparent;
 }
 @media (hover: hover) and (pointer: fine) {
-    .dp-day:not(.dp-off):not(.dp-sel):hover { background: var(--bg-light); border-radius: 50%; }
+    /* Single-day grids only: a week-mode grid bands the whole hovered week instead (below). */
+    .dp-grid:not(.dp-week) .dp-day:not(.dp-off):not(.dp-sel):hover { background: var(--bg-light); border-radius: 50%; }
 }
 .dp-day:focus-visible { outline: var(--focus-outline-gold); outline-offset: -2px; border-radius: 50%; }
 .dp-day.dp-today { color: var(--primary-blue); font-weight: 700; }
@@ -1586,6 +1602,24 @@ button.lightbox-bug-link {
 }
 .dp-day.dp-sel { background: var(--primary-blue); color: white; font-weight: 700; border-radius: 50%; }
 .dp-day.dp-off { color: var(--border-mid); cursor: default; }
+/* WEEK MODE (polish round 2 — Admin's "Jump to a week", `openDatePicker(…, { week: true })`). The
+   grid is Sunday-first, so a Sunday–Saturday week is one grid ROW, and it is drawn as a band: the
+   hovered/focused week in a half tint, the chosen week in `--blue-light`, which wins. The
+   ends round where the week's drawn run starts and stops (`dp-wk-first` / `dp-wk-last`). The chosen
+   DAY keeps its navy circle, drawn INSIDE the band so the band stays continuous behind it. */
+/* The hover band is HALF the chosen week's tint: `--bg-light` (the single-day hover) is 97.9% L on a
+   98% panel, which reads as a circle around the pointer and vanishes as a seven-cell band. */
+.dp-week .dp-day.dp-hoverweek:not(.dp-off) { background: color-mix(in oklch, var(--blue-light) 50%, var(--surface)); border-radius: 0; }
+.dp-week .dp-day.dp-inweek:not(.dp-off) { background: var(--blue-light); border-radius: 0; }
+.dp-week .dp-day.dp-inweek.dp-sel {
+    background: radial-gradient(circle closest-side, var(--primary-blue) 95%, var(--blue-light) 100%);
+}
+.dp-week .dp-day.dp-wk-first:is(.dp-inweek, .dp-hoverweek) {
+    border-top-left-radius: var(--radius-pill); border-bottom-left-radius: var(--radius-pill);
+}
+.dp-week .dp-day.dp-wk-last:is(.dp-inweek, .dp-hoverweek) {
+    border-top-right-radius: var(--radius-pill); border-bottom-right-radius: var(--radius-pill);
+}
 
 /* ── One-time notice lightboxes (shared) ─────────────────────────────────
    Card layout: .notice-lb-content (below) — use class="lb-content notice-lb-content".
@@ -1749,6 +1783,7 @@ button.lightbox-bug-link {
     background: none;
     border: none;
     color: rgba(255, 255, 255, 0.65); /* raised from 0.45 to clear WCAG AA — an interactive dismiss whose only lift was :hover, which touch users never get */
+    font-family: inherit;   /* a <button> does not inherit the page font — "Not now" rendered in Arial */
     font-size: var(--type-body);
     line-height: 1;
     cursor: pointer;

@@ -542,6 +542,44 @@ test('reset request link: a failed send keeps the button and says so', async ({ 
     await expect(page.locator('#loginResetRequest')).toContainText('Ask the admin');
 });
 
+// WHERE THE LABEL BREAKS (polish round 2). `text-wrap: balance` alone split it as "Can’t get in? Ask
+// the admin" / "to reset your password" at every width — even lines, the request cut in half. The
+// question and the request are now one atomic span each, so the break falls between them. Checked
+// AFTER a send as well as on arrival, because the send swaps the label for "Sending…" and restores
+// it — a textContent round trip would bring it back flattened, and nothing else would notice.
+test('reset request link: the line breaks after the question, and still does after a send', async ({ page }) => {
+    await enforceNamedSession(page);
+    await page.route('**/requestPasswordReset', route => route.abort());
+    await page.goto('/settings.html');
+    const btn = page.locator('#loginResetRequest');
+    /** @returns {Promise<{ n: number, q: number, ask: number, underlined: boolean }>} */
+    const layout = () => btn.evaluate(b => {
+        const [q, ask] = [...b.querySelectorAll('.login-reset-clause')];
+        return {
+            n: b.querySelectorAll('.login-reset-clause').length,
+            q: q ? Math.round(q.getBoundingClientRect().top) : -1,
+            ask: ask ? Math.round(ask.getBoundingClientRect().top) : -1,
+            // A decoration does not propagate into an atomic inline — the link's underline has to
+            // be restated on the span, or the thing that marks it as a link disappears.
+            underlined: !!ask && getComputedStyle(ask).textDecorationLine.includes('underline'),
+        };
+    });
+    const check = async (/** @type {string} */ when) => {
+        const l = await layout();
+        expect(l.n, `${when}: the label must be the two clauses`).toBe(2);
+        expect(l.ask, `${when}: "Ask the admin…" must start its own line, below the question`).toBeGreaterThan(l.q);
+        expect(l.underlined, `${when}: the request clause must keep the link underline`).toBe(true);
+    };
+    await expect(btn).toBeVisible();
+    await check('on arrival');
+
+    await signInThroughOverlay(page, 'G. Miller', { submit: false });
+    await btn.click();
+    await expect(page.locator('#loginResetStatus')).toContainText('contact the admin directly');
+    await expect(btn).toBeEnabled();
+    await check('after a failed send');
+});
+
 /** Fail sign-in twice for `name`, so the reset-request link is emphasised. */
 async function failTwice(page, name) {
     await signInThroughOverlay(page, name);

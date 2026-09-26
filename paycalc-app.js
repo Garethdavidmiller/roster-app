@@ -58,7 +58,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { SK, pcPrefix, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
-import { fd, fdShort, fdLong, fmt, decimalToHM } from './paycalc-format.js';
+import { fd, fdShort, fdLong, fmt, decimalToHM, minutesFieldText } from './paycalc-format.js';
 import { initYearCard, renderYearCard } from './paycalc-year-card.js';
 import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap } from './paycalc-inputs.js';
 import { emptyPeriodData, readFormData, writeFormData } from './paycalc-form-data.js';
@@ -92,8 +92,8 @@ function _showUnsupportedRole(member) {
     document.getElementById('unsupportedGradeBanner')?.classList.remove('hidden');
     // A session name the roster no longer holds (a leaver, a rename) is not a ROLE gap — say what it is.
     if (!member?.role) {
-        const t = document.getElementById('unsupportedGradeTitle'); if (t) t.textContent = 'Your name isn’t on the current roster';
-        const b = document.querySelector('#unsupportedGradeBanner p'); if (b) b.textContent = 'The Pay Calculator needs your roster entry to know your grade and to keep your pay data apart from anyone else’s on this device. Ask the admin to check your name.';
+        const t = document.getElementById('unsupportedGradeTitle'); if (t) t.textContent = "Your name isn't on the current roster";
+        const b = document.querySelector('#unsupportedGradeBanner p'); if (b) b.textContent = "The Pay Calculator needs your roster entry to know your grade and to keep your pay data apart from anyone else's on this device. Ask the admin to check your name.";
     }
     initNavPanel({
         currentPage: 'paycalc',
@@ -239,7 +239,7 @@ export function init() {
       const hm = decimalToHM(parseSmartFloat(raw));
       if (!hm) return;
       /** @type {HTMLInputElement} */ (document.getElementById(hId)).value = String(hm.h);
-      /** @type {HTMLInputElement} */ (document.getElementById(mId)).value = hm.m ? String(hm.m) : '';
+      /** @type {HTMLInputElement} */ (document.getElementById(mId)).value = hm.m ? minutesFieldText(hm.m) : '';
       const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, false));
       if (hint) hint.hidden = true; // the split now shows in the hrs/mins fields
       // Re-run the Saturday contracted-hours cap on the SPLIT value (review finding): the cap fires
@@ -264,7 +264,7 @@ export function init() {
         const contr = getEffectiveContr(curP);
         if (hrs > contr) {
           /** @type {HTMLInputElement} */ (document.getElementById(hId)).value = String(contr);
-          /** @type {HTMLInputElement} */ (document.getElementById(mId)).value = '0';
+          /** @type {HTMLInputElement} */ (document.getElementById(mId)).value = minutesFieldText(0);
           if (warn) { setStatus(warn, `⚠ Capped at ${contr} hrs — your contracted maximum for this period`); warn.classList.add('show'); }
         } else {
           if (warn) warn.classList.remove('show');

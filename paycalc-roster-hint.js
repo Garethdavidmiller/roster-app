@@ -17,7 +17,7 @@ import { getRosterSuggestion, getOverridesFetchState, fetchOverridesForPeriod } 
 import { escapeHtml } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { pcPrefix } from './paycalc-migrations.js';
-import { fdLong } from './paycalc-format.js';
+import { fdLong, minutesFieldText } from './paycalc-format.js';
 import { proRateDays } from './paycalc-calc.js';
 
 import { setStatus } from './status-text.js';
@@ -119,7 +119,7 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
     elH.classList.add('roster-suggested');
   }
   if (!mEdited && mVal != null) {
-    elM.value = mVal ?? '';
+    elM.value = minutesFieldText(mVal);   // "00", not "0" — display only; the stored value is unchanged
     elM.classList.add('roster-suggested');
   }
 }
@@ -167,7 +167,9 @@ export function _restoreRosterSuggested(pNum) {
     // hours half of a 0h30m fill) — coercing it to '' dropped the gold highlight on reload and made
     // the field read as hand-edited, blocking future re-fills (review finding).
     if (elH.value === (hVal != null ? String(hVal) : '')) elH.classList.add('roster-suggested');
-    if (elM.value === (mVal != null ? String(mVal) : '')) elM.classList.add('roster-suggested');
+    // Minutes compare in their DISPLAY form: writeFormData shows a restored 5 as "05", exactly as
+    // the fill did (minutesFieldText), so the unpadded String(5) would never match again.
+    if (elM.value === minutesFieldText(mVal)) elM.classList.add('roster-suggested');
   }
 }
 
@@ -391,7 +393,7 @@ export function _applyRosterSuggestion(s, force = false, { clearZeros = false } 
         continue;
       }
       elH.value = hVal ?? '';
-      elM.value = mVal ?? '';
+      elM.value = minutesFieldText(mVal);
       elH.classList.add('roster-suggested');
       elM.classList.add('roster-suggested');
       written.push(cat);
@@ -446,7 +448,7 @@ export function fillCategoryFromRoster(cat, autosave) {
   const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
   if (elH && elM && hVal != null) {
     elH.value = hVal ?? '';
-    elM.value = mVal ?? '';
+    elM.value = minutesFieldText(mVal);
     elH.classList.add('roster-suggested');
     elM.classList.add('roster-suggested');
     // Merge this category into the existing snapshot so reload can restore the

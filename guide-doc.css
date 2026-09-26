@@ -82,6 +82,14 @@ body {
 .guide-header-left { display: flex; align-items: center; gap: 12px; }
 .guide-header-icon { width: 42px; height: 42px; border-radius: 11px; object-fit: cover; flex-shrink: 0; box-shadow: 0 2px 10px rgba(0,0,0,0.35); }
 .guide-header h2 { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; line-height: 1.2; color: white; text-transform: none; border: none; padding: 0; margin: 0; }
+/* The banner title is an h2, so it also matched the SECTION-heading rules below: `display: flex` plus
+   their gold tick BEFORE it and a hairline flex-rule AFTER it. Inside the banner the tick duplicated
+   the banner's own gold rule and the hairline had no room to fill, so it rendered as a stray "-"
+   after "Admin Guide" on screen and on every printed banner (v24.30 polish pass, measured on the
+   390px and A4 renders). The banner is a masthead, not a section: neither decoration belongs. */
+.guide-header h2 { display: block; }
+.guide-header h2::before,
+.guide-header h2::after { content: none; }
 .guide-header .sub { font-size: 11px; color: rgba(255,255,255,0.66); margin-top: 3px; }
 
 /* ── Section headings ────────────────────────────────── */
@@ -183,7 +191,10 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
 .sb-other  { background: var(--sb-other); }
 
 /* ── Table ───────────────────────────────────────────── */
-table { width: 100%; border-collapse: collapse; font-size: 11.5px; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px var(--border), 0 2px 8px rgba(0, 30, 60, 0.05); }
+table { width: 100%; border-collapse: collapse; font-size: 11.5px; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 1px var(--border), 0 2px 8px rgba(0, 30, 60, 0.05); margin-bottom: 10px; }
+/* margin-bottom (v24.30 polish pass): the Pay Calculator Guide's result table was followed by a
+   paragraph at 0px — the prose sat on the table's shadow. A following h2 is unaffected: block
+   margins collapse, and its own 22px wins. */
 thead th {
     background: var(--navy);
     color: white;
@@ -237,6 +248,15 @@ code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: 1
     .lede { font-size: 11px; }
     p { font-size: 10px; margin-bottom: 4px; }
     h2 { margin: 11px 0 5px; font-size: 10px; }
+    /* A heading is never the last line of a sheet (v24.30 polish pass). The Staff Guide printed
+       "TAP A DAY" alone at the foot of sheet 1 with its whole section on sheet 2 — measured on
+       the A4 PDF. fip-guide.css and railcard-guide.css already keep their section labels with
+       their content; the two document guides were the ones that did not. */
+    h2 { break-after: avoid; page-break-after: avoid; }
+    /* A callout, a step and a tile read as one unit, so none may be cut across two sheets — the
+       Staff Guide's Notifications callout printed its first two lines on sheet 1 and the rest on
+       sheet 2. Tables stay free to break: they repeat their header row. */
+    .info, .steps li { break-inside: avoid; page-break-inside: avoid; }
     h2:first-of-type { margin-top: 0; }
     .steps li { margin-bottom: 3px; font-size: 10px; }
     .info { margin: 4px 0; padding: 5px 8px; font-size: 9.5px; }

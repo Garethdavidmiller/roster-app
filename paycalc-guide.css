@@ -49,5 +49,6 @@
 @media print {
     .pay-grid { gap: 4px; }
     .pay-item { padding: 4px 7px; border-radius: 6px; box-shadow: none; }
+    .pay-item { break-inside: avoid; page-break-inside: avoid; }
     .guide-disc-list li { font-size: 10px; margin-bottom: 1px; }
 }

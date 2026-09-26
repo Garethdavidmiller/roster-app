@@ -267,11 +267,14 @@ export function restoreHppState(ty) {
   applyHppMode(s.mode === 'ytd' || s.mode === 'exact' ? s.mode : 'hours');
 }
 
-/** The status-word label, shared by both modes: bare "Estimated" when a prior-year subhead carries
- *  the year, else the self-contained form. @param {any} ty */
-function _hppLabelText(ty) {
+/** The status-word label: bare "Estimated" when a prior-year subhead carries the year, else the
+ *  self-contained form. The member's OWN figure ('exact' mode) is not an estimate, so it is labelled
+ *  as theirs (polish round 2) — it read "ESTIMATED" over a number the member had typed themselves.
+ *  The two estimate modes ('hours', 'ytd') keep "Estimated". @param {any} ty @param {string} [mode] */
+function _hppLabelText(ty, mode = 'hours') {
   const idx = CONFIG.TAX_YEARS.findIndex(t => t.label === ty.label);
   const hasPrior = idx > 0 && isTaxYearVisible(CONFIG.TAX_YEARS[idx - 1]);
+  if (mode === 'exact') return hasPrior ? 'Your figure' : `Your ${ty.label} Holiday Pay Premium`;
   return hasPrior ? 'Estimated' : `Estimated ${ty.label} Holiday Pay Premium`;
 }
 
@@ -324,7 +327,7 @@ function _renderHppManual(ty, mode) {
   if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2)); else lsDel(hppEstKey(ty));
   if (amountEl) amountEl.textContent = hpp > 0 ? fmt(hpp) : '£–';
   if (basisEl)  basisEl.textContent  = hpp > 0
-    ? `Your entered figure · due January ${ty.hppPaidJan}`
+    ? `Entered by you · due January ${ty.hppPaidJan}`
     : 'Enter your Holiday Pay Premium figure above';
 }
 
@@ -448,9 +451,11 @@ export function calcHPP() {
   const curP    = allPeriods.find(/** @param {any} x */ x => x.num === pNum);
   const ty      = taxYearForPeriod(curP);
 
-  // Label + explainer are the same in every amount-source mode — set them once, up front.
+  // Label + explainer are set once, up front. The explainer is the same in every amount-source mode;
+  // the label says "Estimated" for the two estimates and names the member's own figure as theirs.
+  const _mode = _hppMode();
   const _labelEl = document.getElementById('hppLabel');
-  if (_labelEl) _labelEl.textContent = _hppLabelText(ty);
+  if (_labelEl) _labelEl.textContent = _hppLabelText(ty, _mode);
   const _noteEl = document.getElementById('hppNote');
   if (_noteEl) _noteEl.innerHTML = _hppNoteHtml(ty);
 
@@ -461,7 +466,6 @@ export function calcHPP() {
   _updateModeAmounts(ty, hoursRes);
 
   // Manual amount sources ('ytd' / 'exact') short-circuit the per-payslip estimator below (v18.32).
-  const _mode = _hppMode();
   if (_mode !== 'hours') { _renderHppManual(ty, _mode); updatePriorHpp(ty); return; }
 
   const { hpp, totalVar, pCount, usingActuals, skipped: _skipped } = hoursRes;

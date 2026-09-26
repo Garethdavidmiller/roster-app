@@ -112,7 +112,7 @@
       transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
     }
     #periodSelect:focus-visible,
-    #periodSelectTrigger:focus-visible { border-color: var(--primary-blue); box-shadow: var(--focus-ring); background-color: white; }
+    #periodSelectTrigger:focus-visible { border-color: var(--primary-blue); outline: var(--focus-outline); outline-offset: 2px; box-shadow: var(--focus-ring); background-color: white; }
     .period-nav { display: flex; gap: 8px; width: 100%; }
     .nav-pill {
       flex: 1;
@@ -173,6 +173,19 @@
     }
     .clear-btn:active       { color: var(--error-red); }
     .clear-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+    /* THE SMALL TEXT CONTROLS GET THE APP'S INVISIBLE HIT AREA under a thumb — the `.help-btn`
+       pattern (shared.css), which already makes a 20px `?` a 44px target. Drawn at 13–16px tall they
+       were the page's whole entry in the tap-target ratchet (e2e/pages.spec.js → KNOWN_SMALL), and
+       "Clear all entries" — destructive, if two-tap — was the smallest control on the page. The
+       region grows vertically (every one of them sits on its own line, with ≥24px to the next
+       control) and only a little sideways, so it never reaches a neighbour; the visible text, and
+       therefore the layout, does not move by a pixel. Coarse pointers only: a mouse hits text. */
+    @media (pointer: coarse) {
+      .clear-btn, .roster-days-toggle, .disclaimer-toggle, .actuals-import-link { position: relative; }
+      .clear-btn::after, .roster-days-toggle::after, .disclaimer-toggle::after, .actuals-import-link::after {
+        content: ''; position: absolute; inset: -10px -6px;
+      }
+    }
 
     /* Desktop column wrappers. display:contents by DEFAULT so on mobile both wrappers are
        invisible to layout and their children stack in DOM order exactly as before. The ≥1024px
@@ -516,7 +529,7 @@
     }
     .hhmm-field input:not([type="checkbox"]):not([type="radio"])::-webkit-inner-spin-button,
     .hhmm-field input:not([type="checkbox"]):not([type="radio"])::-webkit-outer-spin-button { -webkit-appearance: none; }
-    .hhmm-field input:not([type="checkbox"]):not([type="radio"]):focus-visible { border-color: var(--primary-blue); box-shadow: var(--focus-ring); background-color: white; }
+    .hhmm-field input:not([type="checkbox"]):not([type="radio"]):focus-visible { border-color: var(--primary-blue); outline: var(--focus-outline); outline-offset: 2px; box-shadow: var(--focus-ring); background-color: white; }
     .hhmm-field .hhmm-lbl { font-size: var(--type-micro); color: var(--text-light); font-weight: 600; letter-spacing: 0.5px; }
     .hhmm-sep { font-size: 20px; font-weight: 300; color: var(--text-light); padding-bottom: 14px; flex-shrink: 0; }
 
@@ -612,8 +625,13 @@
       touch-action: manipulation; transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
     }
     /* Brighten to white when active — the field 'fills in' on focus */
+    /* The OUTLINE is stated, not left to the browser (polish pass). These rules set the border and
+       the ring and said nothing about `outline`, so the UA's own `outline: auto` painted on top —
+       an AMBER ring on Android Chrome, around a navy border, on every field in the calculator.
+       Admin and Settings already carry the full recipe; this is theirs. */
     .field input:not([type="checkbox"]):not([type="radio"]):focus-visible, .field select:focus-visible, .field .fieldpick:focus-visible {
       border-color: var(--primary-blue); box-shadow: var(--focus-ring);
+      outline: var(--focus-outline); outline-offset: 2px;
       background-color: white;
     }
     .field select, .field .fieldpick {
@@ -678,6 +696,13 @@
     }
     .adj-sign-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
     .field-hint { font-size: var(--type-small); color: var(--text-light); margin-top: 5px; line-height: 1.45; }
+    /* No one-word last lines in the calculator's teaching prose (polish pass). Measured at 390px:
+       "payslip" alone under the Year to Date header, "there" under Pay Rise Back Pay in the desktop
+       sidebar, "it." and "above." closing the back-pay hints. `pretty` rebalances only the final
+       lines; the words, and every collapsed header's teaching (invariant 16), are untouched. An
+       engine without it wraps exactly as before. */
+    .content-card .card-header .hint, .field-hint, .card-note, .content-card .card-explainer,
+    .backpay-notice { text-wrap: pretty; }
     /* "Up to which payslip" pointer at the top of the Year to Date card — a subtle gold-accented
        note so it reads as guidance about WHICH payslip to copy from, not just another hint. */
     /* YTD source-status strip (v18.01): navy = informational (matches .bp-award-scope) — gold read
@@ -764,6 +789,9 @@
     }
     .setup-banner h2 { font-size: var(--type-button); font-weight: 800; color: var(--primary-blue); margin-bottom: 4px; }
     .setup-banner p  { font-size: var(--type-label); color: var(--text-mid); line-height: 1.5; }
+    /* The refusal card (#unsupportedGradeBanner) is the one banner with TWO paragraphs — what is
+       missing, then the way out — and they ran together with no gap, reading as one block. */
+    .setup-banner p + p { margin-top: 8px; }
     /* Standalone privacy note — always visible, sits below the conditional setup banner */
     .privacy-note-standalone {
       background: var(--surface); border-radius: var(--radius-md); box-shadow: var(--shadow-1);
@@ -820,6 +848,10 @@
     .disclaimer-toggle:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
     .disclaimer-extra { display: none; }
     .disclaimer-extra.open { display: inline; }
+    /* The HPP card's "Expecting a pay rise?" cross-link always lands on a line of its own after the
+       explainer, and there the inline toggle's 4px `margin-left` (meant for "More ▼" sitting after
+       a sentence) indented it off the paragraph's left edge. It is its own line, so say so. */
+    #hppBackPayLink { display: block; margin: 6px 0 0; text-align: left; }
 
     /* .card-explainer MOVED TO shared.css at v20.09 — settings.html had been using it since
        v19.16 without loading this file, so that paragraph rendered as a bare <p>: browser-default
@@ -1022,6 +1054,10 @@
          under one heading, which reads as a rendering fault rather than a hierarchy (v22.14).
          The cap is about the wide work column; this card is not in it. */
       #payTransferBody .btn-primary { max-width: none; }
+      /* …and "Save settings" sits directly under the Settings fields, which span the card — so the
+         cap left a 280px button beside a 648px field at 1280px (polish round 2). A button under a
+         field matches the field (css-tokens.md), which is what the mobile layout already does. */
+      #saveSettingsBtn { max-width: none; }
 
       /* Help lightbox: wider at tablet */
       #helpLightboxContent { width: min(520px, 88vw); }
@@ -1049,10 +1085,13 @@
          and the 14px setup banner 648px, leaving exactly the 72px step in the right edge that
          capping the banner (v18.89) was meant to remove. 576px is the width the notes already had,
          so only the banner moves. Change these together or they drift apart again. */
-      /* The disclaimer still spans 1 / -1 (it is the page's last word, under everything), so it
-         keeps a measure cap of its own. The privacy note no longer needs one — it is one line
-         inside the work column now. */
-      .disclaimer { max-width: 576px; }
+      /* The disclaimer's measure lives on its PARAGRAPH, not its box (polish pass) — the v23.71
+         rule for the bands at the top, applied to the one at the bottom. The box used to span
+         1 / -1 and be capped at 576px, which tracked nothing on the page: at 1280 it stopped 104px
+         short of the work column above it, and at 1024 it ran 34px PAST that column's right edge
+         into the gutter. It now spans the work columns like the privacy note (see the grid block
+         below), and the prose keeps its reading measure. */
+      .disclaimer-text { max-width: 72ch; }
       /* The setup banner is prose too, and was the ONE full-width band never capped (v18.89): it ran
          the whole 1100px — about 150ch, double the documented ~75ch ceiling — directly above the
          privacy strip, which IS capped. So the band obeying the rule looked narrow beside the band
@@ -1134,8 +1173,17 @@
       }
       .pc-side > * { margin-bottom: 0; }   /* flex `gap` owns the spacing (the `main > *` reset misses these nested cards) */
 
-      .guide-footer-link    { grid-column: 1 / -1; grid-row: 4; }
-      .disclaimer           { grid-column: 1 / -1; grid-row: 5; }
+      /* The footer rows sit on the work columns too, so the page has the SAME two edges at the
+         bottom as at the top (the privacy note, above). Spanning 1 / -1 centred the guide link on
+         the whole band and left the disclaimer's right edge matching nothing. */
+      .guide-footer-link    { grid-column: 1 / 3; grid-row: 4; }
+      .disclaimer           { grid-column: 1 / 3; grid-row: 5; }
+      /* THE BANDS' MOBILE MARGINS ARE NOT THE GRID'S GAP. `main > * { margin-bottom: 0 }` above
+         is (0,0,1) and loses to each band's own class rule, so the setup banner, the privacy note
+         and the guide link each kept their 12–16px margin ON TOP of the 16px row-gap: 32px and 28px
+         steps between the top bands and the workspace, beside the 16px rhythm of every card below
+         them — the exact double-gap the v18.47 wrapper resets were written to end. */
+      main > .setup-banner, main > .privacy-note-standalone, main > .guide-footer-link { margin-bottom: 0; }
 
       /* Headline figure benefits from the extra horizontal space */
       .net-amount { font-size: 60px; }
@@ -1249,7 +1297,13 @@
         margin-bottom: 0 !important;
       }
       /* `gap` owns the print flow's spacing, exactly as it does for the two cards above. */
-      .ytd-yearso { margin-bottom: 0 !important; }
+      /* …and it prints as the cards around it do: a hairline, not a screen shadow smudged under
+         the last line of the first sheet. */
+      .ytd-yearso {
+        margin-bottom: 0 !important;
+        box-shadow: none !important; border: 1.5px solid var(--border-light) !important;
+        border-radius: 8px !important;
+      }
       .hhmm-wrap { display: flex !important; }
       .hhmm-field input:not([type="checkbox"]):not([type="radio"]) {
         border: none !important; background: transparent !important;
@@ -1265,6 +1319,21 @@
         box-shadow: none !important; font-size: var(--type-micro) !important;
         border-left: 3px solid var(--primary-blue) !important;
       }
+      /* Paper cannot expand a "More ▼", so the sheet carries the whole disclaimer and not the
+         control — a printed estimate is exactly where the caveats about how tax was worked out
+         belong. */
+      .disclaimer-extra { display: inline !important; }
+      .disclaimer-toggle { display: none !important; }
+      /* The provenance chips say what is INSIDE the printed £ ("Hours from calendar", "+ £X back
+         pay"). On screen they are white-on-navy; the print block turns the hero white, which left
+         the chip text white on white paper — the emoji printed and the words did not. */
+      .prov-chip, .prov-chip--add {
+        color: var(--primary-blue) !important; background: transparent !important;
+        border-color: var(--border-mid) !important;
+      }
+      /* Controls that do nothing on paper: the year card's fill button and a card's collapse
+         arrow ("▲" printed beside "Your Settings"). */
+      #fillYearBtn, .yearso-fill, .card-toggle-arrow { display: none !important; }
       /* Rate badge colours — ensure they print with background */
       .badge-sat  { background: var(--orange-light)    !important; color: var(--orange-text)   !important; }
       .badge-bh   { background: var(--al-light)        !important; color: var(--al-text)  !important; }
@@ -1320,7 +1389,7 @@
     background-color: var(--field-bg); color: var(--text-dark);
     transition: border-color var(--dur-med), background-color var(--dur-med);
   }
-  .decimal-hrs-input:focus-visible { border-color: var(--primary-blue); box-shadow: var(--focus-ring); background-color: white; }
+  .decimal-hrs-input:focus-visible { border-color: var(--primary-blue); outline: var(--focus-outline); outline-offset: 2px; box-shadow: var(--focus-ring); background-color: white; }
   /* Both columns now carry an eyebrow label, so the boxes align naturally — the old +20px
      padding/margin compensation hacks are gone; the = centres on the box row instead. (v18.02) */
   .decimal-conv-equals {
@@ -1396,8 +1465,26 @@
     display: flex; align-items: center; gap: 10px;
     padding: 10px 0; border-top: 1px solid var(--border-light);
   }
-  .toggle-row label { font-size: var(--type-body); color: var(--text-mid); cursor: pointer; margin: 0; font-weight: 400; }
+  .toggle-row label, .toggle-row-text { font-size: var(--type-body); color: var(--text-mid); cursor: pointer; margin: 0; font-weight: 400; }
   .toggle-row.hidden { display: none; }
+  /* THE ROW IS THE LABEL for the three money-deciding ticks (pension membership, a postgraduate
+     loan, a skipped student-loan deduction) — so the whole 43px row is the tap target, not the 22px
+     box. The label used to be a SIBLING of the box, which left the box itself the only target the
+     tap-target ratchet in e2e/pages.spec.js could credit (the checkbox recipe's own rule: "the ROW is
+     the touch target, the box is what you see"). `.field > label` is the uppercase eyebrow rule, and
+     a `label.toggle-row` directly inside a `.field` would otherwise inherit all of it. */
+  .field > label.toggle-row {
+    display: flex; font-size: inherit; font-weight: 400; color: inherit;
+    text-transform: none; letter-spacing: 0; margin-bottom: 0; cursor: pointer;
+  }
+  /* A tick that follows a field's own hint sits 14px below it — the rhythm `.field` already keeps
+     between fields. Without this the pension tick's hairline landed flush on the last line of the
+     "Smart RPS CR Scheme" hint above it (measured 0px; the Postgraduate Loan tick, which starts a
+     `.field` of its own, sat 14px clear). */
+  .field > .toggle-row:not(:first-child) { margin-top: 14px; }
+  /* Same rhythm for the dated opt-out question that the pension tick reveals: it is a nested
+     `.field` directly after a hint, so its label sat hard under "…Railways Pension Scheme." */
+  #pensionOptOutField { margin-top: 14px; }
   .hours-row.hidden { display: none; }
 
   /* (Result peek button removed v16.78 — the take-home figure appeared three times on
@@ -1604,7 +1691,15 @@
     font-size: var(--type-micro); color: var(--primary-blue); text-decoration: none;
   }
   @media (hover: hover) and (pointer: fine) { .roster-view-link:hover { text-decoration: underline; } }
-  .hhmm-field input.roster-suggested {
+  /* THE GOLD "FROM YOUR CALENDAR" FILL — and a specificity trap it fell into once already.
+     v23.50 added `:not([type="checkbox"]):not([type="radio"])` to the base `.hhmm-field input`
+     rule above, which took it to (0,3,1). This rule was (0,2,1), so it silently lost: the class
+     was still applied and every suggested field painted plain `--field-bg` — the one visual that
+     says "these hours came from your calendar, check them" stopped existing with nothing failing.
+     `:not(:focus-visible)` brings it back to (0,3,1), where source order (this rule is later)
+     wins over the base, AND keeps the focused field on its white "filling in" state, which is
+     what the (0,2,1) rule used to lose to before the regression. */
+  .hhmm-field input.roster-suggested:not(:focus-visible) {
     background-color: var(--roster-suggested-bg); border-color: var(--accent-gold);
   }
 
@@ -1695,7 +1790,8 @@
   .actuals-import-link {
     margin-top: 10px; font-size: var(--type-small);
     background: none; border: none; text-decoration: underline;
-    cursor: pointer; padding: 4px; color: var(--text-faint);
+    /* No side padding: a text link on the card's content edge, not 4px in from it. */
+    cursor: pointer; padding: 4px 0; color: var(--text-faint);
   }
   .pfx--adj { width: 90px; }
   #otherAdj { text-align: right; }
@@ -1758,9 +1854,12 @@
     font-size: var(--type-small);
     background-color: var(--field-bg);
     color: var(--text-dark);
-    border: 1px solid var(--border-light);
-    border-radius: var(--radius-md);
-    padding: 8px;
+    /* The calculator's FIELD skin (polish pass): a 2px `--border-mid` edge on `--radius-sm`, as
+       every other box on this page wears. It had a 1px `--border-light` hairline on `--radius-md`,
+       so the one place you paste a backup read as a different, fainter kind of control. */
+    border: 2px solid var(--border-mid);
+    border-radius: var(--radius-sm);
+    padding: 8px 12px;
     margin-bottom: 12px;
     resize: none;            /* v23.50 — see .li-paste in links.css for the reasoning */
     field-sizing: content;
@@ -1768,7 +1867,12 @@
     max-height: 40vh;
     overflow: auto;
 }
-.pt-paste:focus { background-color: white; }
+/* The field focus recipe, in full. This rule only brightened the fill, leaving the ring to the
+   browser's own `outline: auto` — amber on Android, around a hairline border. */
+.pt-paste:focus-visible {
+    background-color: white; border-color: var(--primary-blue);
+    outline: var(--focus-outline); outline-offset: 2px; box-shadow: var(--focus-ring);
+}
 /* iOS force-zooms a page whose focused field is under 16px, and this one is a TEXTAREA you paste a
    long blob into — the worst place to have the viewport jump. 12px monospace is deliberate on
    desktop (it fits more of the backup on screen), so the bump is scoped to coarse pointers.
@@ -1854,6 +1958,12 @@ body.role-unsupported .disclaimer { display: none; }
     font-variant-numeric: tabular-nums;
 }
 .actual-cmp th, .actual-cmp td { padding: 4px 6px; text-align: right; }
+/* The table's OUTER cells sit flush, so its row labels share the left edge of the "Total pay" /
+   "Income Tax" fields directly above them and its Difference column the fields' right edge. The
+   6px cell padding is for the gutters BETWEEN columns; on the outside it indented the whole table
+   off the card's one left edge (measured 6px in, both sides). */
+.actual-cmp tr > :first-child { padding-left: 0; }
+.actual-cmp tr > :last-child  { padding-right: 0; }
 .actual-cmp th[scope="row"] { text-align: left; font-weight: 600; color: var(--text-mid); }
 .actual-cmp thead th { color: var(--text-light); font-weight: 600; border-bottom: 1px solid var(--border-light); }
 .actual-cmp tbody tr + tr { border-top: 1px solid var(--border-light); }

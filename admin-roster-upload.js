@@ -14,7 +14,7 @@ import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp
 import { parseOtherValue, buildOverrideWrite, nextReplacedType } from './override-utils.js';
 import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
-import { computeCellStates, guardCopy, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown } from './roster-review-states.js';
+import { computeCellStates, guardCopy, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown } from './roster-review-states.js';
 // RE-EXPORTED, not re-implemented: the first three moved to roster-cell-rules.js (v22.17/v22.18),
 // computeCellStates to roster-review-states.js (v23.52), and several call sites (and their tests)
 // name this module. The alternative was a rename sweep across three test files for no behavioural
@@ -820,7 +820,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                                     <span class="roster-day-abbr">${dayName}</span>
                                     <span class="roster-day-date">${dateStr}</span>
                                 </div>
-                                <span class="roster-act act-choice">${picked < 0 && s.chosen !== 'entered' ? "Couldn't read" : 'Your choice'}</span>
+                                <span class="roster-act ${unreadableTagClass(s)}">${picked < 0 && s.chosen !== 'entered' ? "Couldn't read" : 'Your choice'}</span>
                             </div>
                             ${s.isManual && s.manualValue ? `<div class="roster-cb-opt">
                                 <span class="roster-cb-lab">Saved</span>
@@ -848,7 +848,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                                 <span class="roster-day-abbr">${dayName}</span>
                                 <span class="roster-day-date">${dateStr}</span>
                             </div>
-                            <span class="roster-act ${s.chosen === 'entered' && s.entered ? 'act-choice' : 'act-read'}">${s.chosen === 'entered' && s.entered ? 'Your entry' : "Couldn't read"}</span>
+                            <span class="roster-act ${unreadableTagClass(s)}">${s.chosen === 'entered' && s.entered ? 'Your entry' : "Couldn't read"}</span>
                             <div class="roster-chg-vals">
                                 ${shiftDisplay(s.parsedShift)}
                                 <span class="roster-remove-note">${s.chosen === 'entered' && s.entered
@@ -1064,8 +1064,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     });
                     const rowEl = /** @type {any} */ (choiceBtn.closest('.roster-change-row'));
                     rowEl.classList.toggle('roster-change-unreadable', s.chosen === null);
-                    const act = rowEl.querySelector('.act-choice');
-                    if (act) act.textContent = s.chosen === null ? "Couldn't read" : 'Your choice';
+                    const act = rowEl.querySelector('.roster-act');   // one style until answered
+                    if (act) { act.textContent = s.chosen === null ? "Couldn't read" : 'Your choice'; act.className = `roster-act ${unreadableTagClass(s)}`; }
                     refreshOutcome();
                     return;
                 }

@@ -14,7 +14,7 @@
 import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    groupDesigns, saveButtonLabel, statusCopy, whoCopy, proposeNewDesignName, toDate, createDesignHeader,
+    groupDesigns, saveButtonLabel, statusCopy, whoCopy, proposeNewDesignName, toDate, createDesignHeader, lastSaveTime,
 } from './links-design-header.js';
 
 const ME = 'G. Miller';
@@ -247,6 +247,19 @@ describe('render — what the masthead SAYS', () => {
         // The face is aria-hidden, so the BUTTON has to carry the name a <select> announced for free.
         assert.match(els.pickerButton.attrs['aria-label'], /Option A/);
     });
+    // THE BUG (Sep 2026 polish): after a save whose read-back returned no stamp — every queued
+    // offline save, and any failed read — the pill kept the PREVIOUS save's time ("Saved 24 Jun at
+    // 16:40") while the save row said "at 09:00". `recordSave` now records `savedAt`; the pill,
+    // the sheet and the picker row must read it.
+    test('a save that came back without a server stamp shows the NEW time, not the previous save', () => {
+        const { els, h } = harness();
+        const old = at(NOW.getTime() - 20 * 86_400_000);
+        const designs = [{ id: 'a', name: 'Option A', updatedBy: ME, updatedAt: old, savedAt: NOW }];
+        h.render({ designs, activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, now: NOW });
+        assert.equal(els.statusLong.textContent, 'Saved today at 14:32');
+        assert.equal(els.statusShort.textContent, 'Saved 14:32');
+        assert.equal(els.sheetSub.textContent, `Saved by ${ME} today at 14:32`);
+    });
     test('the ··· More sheet names the last SAVE, whatever the working copy is doing', () => {
         // It was built from the status pill's words, so with unsaved edits it read "Saved by
         // G. Miller Unsaved changes" and mid-save "Saved by G. Miller Saving…".
@@ -427,5 +440,22 @@ describe('the source stays TEXT', () => {
     });
     test('…and the sentinel still groups a design with no updatedBy under the not-recorded label', () => {
         assert.equal(groupDesigns([{ id: 'x', name: 'N' }], ME)[0].label, 'Last saver not recorded');
+    });
+});
+
+describe('lastSaveTime — the display reading of a save time', () => {
+    test('the newer of the server stamp and the device record wins', () => {
+        const server = at(5_000), local = new Date(9_000);
+        assert.equal(lastSaveTime({ updatedAt: server, savedAt: local })?.getTime(), 9_000);
+        assert.equal(lastSaveTime({ updatedAt: at(12_000), savedAt: local })?.getTime(), 12_000);
+    });
+    test('either alone is used, and nothing is null', () => {
+        assert.equal(lastSaveTime({ updatedAt: at(5_000) })?.getTime(), 5_000);
+        assert.equal(lastSaveTime({ savedAt: new Date(7_000) })?.getTime(), 7_000);
+        assert.equal(lastSaveTime({}), null);
+        assert.equal(lastSaveTime(null), null);
+    });
+    test('an unresolved serverTimestamp() sentinel does not hide the device record', () => {
+        assert.equal(lastSaveTime({ updatedAt: { _methodName: 'serverTimestamp' }, savedAt: new Date(7_000) })?.getTime(), 7_000);
     });
 });

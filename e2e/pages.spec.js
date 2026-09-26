@@ -110,6 +110,34 @@ test('settings: an iPhone in a browser is told to install, not that it is all se
     // Notifications is still honestly unavailable — the fix names the prerequisite, it does not
     // pretend the card can be turned on.
     await expect(page.locator('#notifStatusChip')).toHaveText(/not available/i);
+
+    // …and POINTS at the Install card rather than restating its steps (polish round 2). The pointer
+    // is checked against the card's REAL heading, so renaming that card cannot leave this line
+    // naming a card that no longer exists; and the taps must live in one place only.
+    const installHeading = await page.locator('#deviceCard h2').evaluate(h =>   // minus the emoji span
+        [...h.childNodes].filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join('').trim());
+    expect(installHeading).not.toBe('');
+    await expect(page.locator('#notifStatusMsg')).toContainText(installHeading);
+    await expect(page.locator('#notifStatusMsg')).not.toContainText(/Share|Add to Home Screen/);
+
+    // The Install card's opening line is the same size as every sibling card's (polish round 2) —
+    // it was a step smaller, which read as a footnote rather than as the card's own explanation.
+    const size = (sel) => page.locator(sel).first().evaluate(el => getComputedStyle(el).fontSize);
+    expect(await size('#installNote')).toBe(await size('#payDataCard .card-explainer'));
+});
+
+test('settings: a saved work email says so before it offers to remove it', async ({ page }) => {
+    // Polish round 2 (owner-approved): "Remove saved email" sat ABOVE "✓ Saved — last updated", so
+    // the card offered to undo the save before confirming it. The confirmation answers the Save
+    // button; Remove is the next thing you might do.
+    await openSettings(page, { configured: true, noPush: true });
+    await page.locator('#contactChevron').click();
+    const feedback = page.locator('#contactFeedback');
+    const remove   = page.locator('#workEmailRemoveBtn');
+    await expect(feedback).toContainText('✓ Saved');
+    await expect(remove).toBeVisible();
+    const [f, r] = [await feedback.boundingBox(), await remove.boundingBox()];
+    expect(f.y + f.height, 'the confirmation must sit above the Remove action').toBeLessThanOrEqual(r.y);
 });
 
 for (const [label, missingId, chipId, noPush, forcePush] of [
@@ -2910,9 +2938,27 @@ test('admin: the week-grid header and its rows share ONE column template, at eve
                 head: getComputedStyle(h).gridTemplateColumns,
                 row:  getComputedStyle(r).gridTemplateColumns,
                 badgeW: Math.round(badge.width), colW: Math.round(col.width),
+                badgeGap: Math.round(r.getBoundingClientRect().right - badge.right),
                 overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+                // An UNTOUCHED row (no tick, no type): its pills must not show, and it must not be
+                // three lines of wrapped pills tall.
+                rowH: Math.round(r.getBoundingClientRect().height),
+                pillsShown: getComputedStyle(r.querySelector('.col-pills')).display !== 'none',
             };
         });
+        // EVERY layout is stacked now (≤680px, and 681px up with no upper bound — polish round 2
+        // moved the start from 1024px), so the base-roster badge is the row's last column and sits
+        // against the right edge. Until the polish pass a ≥1400px block restated a five-column
+        // template over the stacked placement: both grids still agreed (the assertion below passed)
+        // while the badge sat mid-row at 1440 with a dead band beside it.
+        expect(m.badgeGap, `@${width}px the base-roster badge must sit against the row's right edge`)
+            .toBeLessThan(20);
+        // The 681–1023px band used the five-column template until polish round 2: the time track
+        // reserved ~194px on every row, so six pills wrapped onto three lines, showed on untouched
+        // rows, and each row measured 132px at 800px. Stacked, an untouched row is its phone height.
+        expect(m.pillsShown, `@${width}px an untouched row shows no type pills`).toBe(false);
+        expect(m.rowH, `@${width}px an untouched row is one line of content, not three of pills`)
+            .toBeLessThan(90);
         expect(m.head, `@${width}px the header and rows must resolve the SAME tracks`).toBe(m.row);
         expect(m.badgeW, `@${width}px the badge must not exceed the column it sits in`)
             .toBeLessThanOrEqual(m.colW);
@@ -2998,6 +3044,34 @@ test('admin: the BASE ROSTER column shows the time, not just Early/Late', async 
     expect(worked.some(x => /REST/i.test(x.text) && !x.aria), 'rest days are untouched').toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
         .toBe(true);
+});
+
+test('admin: on a phone the bulk-bar pills share the chips\' left edge; the per-row pills stay centred', async ({ page }) => {
+    // Polish round 2. The bulk bar is a 1 → 2 → 3 sequence whose step-1 chips start at the content
+    // edge; the step-2 pills were centred, so their first row started ~39px in and a wrapped pill sat
+    // alone mid-card. The per-row pills are CENTRED on phones by a separate decision (`.col-pills`
+    // in admin.css, v22.22) and must not follow — both halves are asserted.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await expect(page.locator('#bulkBar')).toBeVisible();
+    // Measured against the step's own left edge (its label), not the chips: whether the chips wrap
+    // under "1 Tick days" or sit beside it depends on the engine's text metrics, and the pills wrap
+    // under "2 Choose type" on every phone. Left-aligned, the first pill starts at that edge.
+    const m = await page.evaluate(() => {
+        const edge = document.querySelectorAll('.bulk-step-label')[1].getBoundingClientRect();
+        const group = document.getElementById('bulkTypePills').getBoundingClientRect();
+        const pill = document.querySelector('#bulkTypePills .type-pill-btn').getBoundingClientRect();
+        return { edge: Math.round(edge.left), groupLeft: Math.round(group.left), pillLeft: Math.round(pill.left) };
+    });
+    expect(m.groupLeft, 'at 390px the pills wrap onto their own line under the step label').toBe(m.edge);
+    expect(m.pillLeft, 'the first bulk pill starts at the step\'s left edge, not centred').toBe(m.edge);
+
+    await page.locator('.week-panel .day-row .day-cb').first().check();
+    const rowPills = page.locator('.week-panel .day-row.selected .col-pills').first();
+    await expect(rowPills).toBeVisible();
+    await expect(rowPills, 'the per-row pills stay centred on a phone').toHaveCSS('justify-content', 'center');
 });
 
 test('admin: selecting a pill with hours causes no horizontal blowout (touch layout)', async ({ page }) => {
@@ -3225,6 +3299,110 @@ test('fip: the booking table stacks with labelled cells on a phone', async ({ pa
     const bodyOverflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(bodyOverflow).toBeLessThanOrEqual(0);
+});
+
+// ── GUIDE POLISH (round 2) ─────────────────────────────────────────────────────────────────────
+// Four owner-approved layout fixes, each pinned by its measured outcome rather than by the rule
+// that produced it — every one of them rendered "fine" before, and was wrong only by position.
+
+// The three chip-bar guides centre a 760px column but the chip bar is full-bleed, so the chips used
+// to start at the window edge (x=12 at 1280) while the text started at x=276.
+test('guides: from 800px the section chips start where the content column\'s text does', async ({ page }) => {
+    const pages = { 'fip-guide': '.content', 'railcard-guide': '.content', 'rangers-guide': 'main' };
+    for (const [guide, column] of Object.entries(pages)) {
+        for (const width of [1280, 800]) {
+            await page.setViewportSize({ width, height: 900 });
+            await page.goto(`/${guide}.html`);
+            const m = await page.evaluate((sel) => {
+                const c = /** @type {HTMLElement} */ (document.querySelector(sel));
+                const firstChip = /** @type {HTMLElement} */ (document.querySelector('.chip-bar .chip'));
+                return {
+                    text: c.getBoundingClientRect().left + parseFloat(getComputedStyle(c).paddingLeft),
+                    chip: firstChip.getBoundingClientRect().left,
+                };
+            }, column);
+            expect(Math.abs(m.chip - m.text), `${guide} at ${width}px: first chip at ${m.chip}, text at ${m.text}`)
+                .toBeLessThanOrEqual(1);
+        }
+    }
+    // Below the breakpoint nothing moved: the bar keeps its 12px phone gutter.
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/fip-guide.html');
+    expect(await page.locator('.chip-bar .chip').first().evaluate(el => Math.round(el.getBoundingClientRect().left)))
+        .toBe(12);
+});
+
+// "Search a country or operator — e.g. Spain, ÖBB, Railjet" was 418px of text in a 282px field at
+// 390, so it read "— e.g. S…". The ellipsis stays as a safety net; this pins that it is not needed.
+test('fip: the country search placeholder fits a 390px phone whole', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/fip-guide.html');
+    await page.evaluate(() => document.fonts.ready);
+    const fit = await page.locator('#countrySearch').evaluate(el => {
+        const input = /** @type {HTMLInputElement} */ (el);
+        const cs = getComputedStyle(input);
+        const ctx = /** @type {CanvasRenderingContext2D} */ (document.createElement('canvas').getContext('2d'));
+        ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        return {
+            text: ctx.measureText(input.placeholder).width,
+            room: input.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+        };
+    });
+    expect(fit.text, `placeholder is ${fit.text}px in a ${fit.room}px field`).toBeLessThanOrEqual(fit.room);
+});
+
+// Side by side at 390 each "What you get" card was 174px wide — ~22 characters of 12px text a line.
+test('fip: the "What you get" cards stack on a phone and pair on a wider screen', async ({ page }) => {
+    const boxes = () => page.locator('.two-up .card').evaluateAll(cards =>
+        cards.map(c => { const r = c.getBoundingClientRect(); return { x: Math.round(r.left), y: Math.round(r.top), bottom: Math.round(r.bottom) }; }));
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/fip-guide.html');
+    const phone = await boxes();
+    expect(phone).toHaveLength(2);
+    expect(phone[1].x, 'one column: same left edge').toBe(phone[0].x);
+    expect(phone[1].y, 'one column: the second card is below the first').toBeGreaterThanOrEqual(phone[0].bottom);
+
+    await page.setViewportSize({ width: 800, height: 900 });
+    await page.goto('/fip-guide.html');
+    const wide = await boxes();
+    expect(wide[1].y, 'a pair: same top edge').toBe(wide[0].y);
+    expect(wide[1].x).toBeGreaterThan(wide[0].x);
+});
+
+// The three guides that close with a back link each drew a different one: railcard centred, plain
+// and 38px tall; rangers left and bold; FIP a full-width text button reading "Back to roster" above
+// its disclaimer. One shared recipe now (guide-shell.css), one wording, the last thing on the page.
+test('guides: the footer back link is one control with one wording on every guide', async ({ page }) => {
+    const seen = [];
+    for (const guide of ['railcard-guide', 'rangers-guide', 'fip-guide']) {
+        await page.goto(`/${guide}.html`);
+        const links = page.locator('main a').filter({ hasText: /Back to (calendar|roster)/ });
+        await expect(links, `${guide}: exactly one footer back link`).toHaveCount(1);
+        const link = links.first();
+        await expect(link).toHaveClass('guide-back-link');
+        await expect(link).toHaveText('← Back to calendar');
+        await expect(link).toHaveAttribute('href', './');
+        await link.scrollIntoViewIfNeeded();
+        const m = await link.evaluate(a => {
+            const r = a.getBoundingClientRect();
+            const main = /** @type {HTMLElement} */ (a.closest('main'));
+            const mr = main.getBoundingClientRect();
+            const cs = getComputedStyle(main);
+            const left = mr.left + parseFloat(cs.paddingLeft), right = mr.right - parseFloat(cs.paddingRight);
+            const s = getComputedStyle(a);
+            return {
+                height: r.height,
+                centreOffset: Math.abs((r.left + r.right) / 2 - (left + right) / 2),
+                last: a === main.lastElementChild,
+                style: [s.display, s.fontSize, s.fontWeight, s.textDecorationLine].join(' '),
+            };
+        });
+        expect(m.height, `${guide}: 44px touch target`).toBeGreaterThanOrEqual(44);
+        expect(m.centreOffset, `${guide}: centred under the column`).toBeLessThanOrEqual(1);
+        expect(m.last, `${guide}: the last thing on the page`).toBe(true);
+        seen.push(m.style);
+    }
+    expect(new Set(seen).size, `one recipe, got: ${seen.join(' | ')}`).toBe(1);
 });
 
 // Every country and ferry card states when it was checked. guide-sources.test.mjs proves the line is
@@ -3840,7 +4018,11 @@ test('operations: a flagged roster cell can be resolved from the review table', 
 
     // A garbled cell has no readings to offer, so it stays a skip-only row — the picker must not
     // appear just because a cell was flagged.
-    await expect(page.locator('.roster-change-row .act-read')).toHaveCount(1);
+    await expect(page.locator('.roster-change-row:not(:has(.roster-pick)) .act-read')).toHaveCount(1);
+    // …but UNTIL ANSWERED all three wear the same "couldn't read" chip (polish round 2): the words
+    // were always identical, and the two rows offering readings used to wear the decision style.
+    await expect(page.locator('.roster-change-row .act-read')).toHaveCount(3);
+    await expect(page.locator('.roster-change-unreadable .act-choice')).toHaveCount(0);
 
     // A flagged row sitting over a MANUAL entry must SHOW it (v19.37). Picking writes with
     // replaceId, so the manual entry is replaced — and this table's standing guarantee is that a
@@ -3856,10 +4038,15 @@ test('operations: a flagged roster cell can be resolved from the review table', 
     const flagged = page.locator('.roster-change-row').filter({ has: page.locator('.roster-choice-btn[data-opt="0"]') });
     await flagged.last().locator('.roster-choice-btn[data-opt="0"]').click();
     await expect(saveBtn).toHaveText(/Save 4 changes/);
+    // …and its chip becomes the decision, in place (the pick patches the row, it does not re-render).
+    await expect(flagged.last().locator('.roster-act')).toHaveClass(/act-choice/);
+    await expect(flagged.last().locator('.roster-act')).toHaveText('Your choice');
 
     // …and Skip puts it back to writing nothing, so a mis-tap is always recoverable.
     await flagged.last().locator('.roster-choice-btn[data-opt="skip"]').click();
     await expect(saveBtn).toHaveText(/Save 3 changes/);
+    await expect(flagged.last().locator('.roster-act')).toHaveClass(/act-read/);
+    await expect(flagged.last().locator('.roster-act')).toHaveText("Couldn't read");
 
     // Then actually SAVE, and assert the picked value reaches the write. The counter above and the
     // save collector are two separate passes over the same state: asserting only the button text
@@ -4093,6 +4280,43 @@ test('links: saving writes the patterns and clears the dirty state', async ({ pa
     // would pass on a save that reported success without disarming the dirty flag.
     await expect(page.locator('#linksSaveStatus')).toContainText('Saved');
     await expect(page.locator('#linksSaveBtn')).toBeDisabled();
+});
+
+// A SAVE WHOSE READ-BACK COMES BACK EMPTY STILL MOVES THE MASTHEAD'S TIME (Sep 2026 polish).
+// Every queued offline save, and any save whose post-write read fails, returns no server stamp. The
+// pill read only the stamp, so it went on saying the PREVIOUS save's date while the save row beside
+// it said the new time — two save times on one screen. `recordSave` now records a display-only
+// `savedAt` (the server stamp stays the concurrency baseline) and both surfaces read `lastSaveTime`.
+// The unit tests pin the rule; this pins the WIRING — that `landed` records it and the header reads it.
+test('links: after a save with no server stamp, the masthead and the save row show the same new time', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window);
+        w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{
+            id: 'd1', name: 'Option A', updatedBy: 'S. Silva', revision: 1,
+            updatedAt: Date.parse('2026-06-24T16:40:00Z'),   // an old save — a different DAY
+            patterns: { '1': { sun: 'RD', mon: '06:20-14:20', tue: '14:00-22:00', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } },
+        }];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+    await expect(page.locator('#designStatusLong')).toHaveText(/^Saved 24 Jun at /);
+
+    // Every single-document read now fails, so the post-save read-back returns no stamp.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDoc = true; });
+    await page.locator('#brushBar .brush-chip.type-early').first().click();
+    await page.locator('tr[data-pos="2"] .shift-cell-btn').nth(1).click();
+    await page.locator('#linksSaveBtnTop').click();
+    await expect(page.locator('#linksSaveStatus')).toContainText('Saved');
+
+    const pill = page.locator('#designStatusLong');
+    await expect(pill, 'the pill must not keep the previous save’s date').toHaveText(/^Saved today at \d\d:\d\d$/);
+    const pillTime = (await pill.textContent())?.match(/\d\d:\d\d/)?.[0];
+    await expect(page.locator('#linksLastSaved')).toHaveText(`Last saved by G. Miller at ${pillTime}`);
 });
 
 test('links: the generator fills every line and names what it replaces', async ({ page }) => {
@@ -4839,10 +5063,12 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
  * cannot grow, and that has to be deleted the moment it is paid.
  *
  * It is NOT an exemption list. The list may not gain an entry — anything new fails — and an entry
- * that stops firing fails too, so a fix cannot be made and left unrecorded. Two entries are worth
- * naming because they are the ones to pay first: `#clearBtn` is "Clear all entries", a destructive
- * control at 16px tall, and the two paycalc checkboxes decide money (pension membership, a
- * postgraduate loan).
+ * that stops firing fails too, so a fix cannot be made and left unrecorded. The two this comment
+ * named as the ones to pay first are PAID (the Pay Calculator polish pass): `#clearBtn` — "Clear all
+ * entries", destructive, 16px tall — and the two paycalc checkboxes that decide money (pension
+ * membership, a postgraduate loan). The ticks are now wrapped by their row's `<label>`, and the small
+ * text controls carry the `.help-btn` invisible hit area under a coarse pointer; five paycalc entries
+ * came off this list in the same commit, as the ratchet requires.
  *
  * `.disclaimer-toggle` is the one that may turn out not to be a defect at all: "More ▼" sits
  * INLINE at the end of a sentence, which is the case WCAG 2.2 SC 2.5.8 exempts. That is a judgement
@@ -4855,11 +5081,6 @@ const KNOWN_SMALL = {
         'input.day-cb[]': '22x22 — the per-day tick in the week grid; its 44px cell is not a target (no label). App-drawn since v23.50, same size',
     },
     '/paycalc.html': {
-        'input#pensionOptOutCheck[]': '22x22 — decides pension membership; its label is a sibling, not a wrapper (20px box, 22 on a coarse pointer since v23.50)',
-        'input#pgLoanCheck[]': '22x22 — decides a postgraduate loan deduction; same shape',
-        'button#actualsImportBtn.actuals-import-link[Import paysl]': '53x22',
-        'button#clearBtn.clear-btn[Clear all en]': '53x16 — DESTRUCTIVE, and the smallest on the page',
-        'button#rosterDaysToggle.roster-days-toggle[Show days ▼]': '53x14',
         'button#disclaimerToggle.disclaimer-toggle[More ▼]': '46x16 — may be a genuine inline-in-a-sentence exemption',
     },
     '/operations.html': {
@@ -4906,6 +5127,10 @@ const KNOWN_SMALL = {
 // of its own, so the label rescued nothing.
 test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
     test.skip(info.project.name !== 'mobile-chrome', 'a thumb, not a mouse');
+    // It walks every control on several pages, so it needs ~32s on an idle runner — right on the
+    // 30s default, where every loaded run timed it out before an assertion was reached. A longer
+    // budget, not a weaker check: every page and every control is still measured.
+    test.setTimeout(120_000);
     await page.setViewportSize({ width: 390, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
@@ -5279,7 +5504,32 @@ test('links: the empty-state button opens the generator with its chevron and ARI
     await expect(page.locator('#generatorChevron')).toHaveAttribute('aria-expanded', 'true');
 });
 
-// ── The generator card has ONE left edge on desktop (v19.67) ─────────────────────────────────────
+// ── "24-line" is one word to a reader (polish round 2) ──────────────────────────────────────────
+// The empty state's sentence broke after the hyphen — "…start from an empty 24-" / "line grid." — at
+// 320 and 390px. The count is stamped from ROTATING_LINES, so the phrase is kept whole by a span
+// around the rendered count and "-line", not by a literal. One client rect per span = one line.
+test('links: the empty state never splits the "N-line" phrase across lines', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    for (const width of [320, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/links.html');
+        await expect(page.locator('#linksEmptyState')).toBeVisible();
+        const phrase = page.locator('#linksEmptyMsg .links-nowrap');
+        await expect(phrase).toHaveText(`${ROTATING_LINES}-line`);
+        const lines = await phrase.evaluate(el => {
+            const r = document.createRange();
+            r.selectNodeContents(el);
+            return new Set([...r.getClientRects()].filter(x => x.width > 0).map(x => Math.round(x.top))).size;
+        });
+        expect(lines, `at ${width}px "${ROTATING_LINES}-line" must sit on one line`).toBe(1);
+    }
+});
+
+// ── The generator card has ONE left edge on desktop (v19.67)─────────────────────────────────────
 // v19.66 centred `.generator-form` to split the 440px of dead space beside it, and left the intro
 // prose where it was — so the card ended up with TWO left edges: the intro ran 122→778 while the
 // table, objectives, action links and Generate button all ran 310→970. Nearly the same WIDTH
@@ -6639,6 +6889,46 @@ test('admin: tapping the week label opens the app calendar, and picking a day mo
         .toContain(String(saturday.getDate()));
 });
 
+// THE WEEK JUMP IS A WEEK PICKER (polish round 2). Admin's week runs Sunday–Saturday, and its picker
+// laid the month out Monday-first and highlighted one day — so the week a tap would open was never
+// what the grid showed. `week: true` makes it Sunday-first and bands the week. Other date fields keep
+// the Monday-first single-day grid: Operations' is checked here too, from the same shared overlay.
+test('admin: "Jump to a week" is Sunday-first and bands the week; other date pickers are unchanged',
+    async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));   // Wed 16 Sep 2026
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#weekNavLabel').click();
+    await expect(page.locator('.dp-content')).toBeVisible();
+
+    expect((await page.locator('.dp-dow').allInnerTexts()).join(''), 'Sunday is the first column')
+        .toBe('SMTWTFS');
+    // The chosen week is banded: exactly its seven days, Sun 13 – Sat 19 Sep.
+    const band = await page.locator('.dp-day.dp-inweek').evaluateAll(els => els.map(e => e.getAttribute('data-iso')));
+    expect(band).toEqual(['2026-09-13', '2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19']);
+    // …and drawn as a band, one ROW of the grid: all seven share a top edge, Sunday leftmost.
+    const tops = await page.locator('.dp-day.dp-inweek').evaluateAll(els => els.map(e => Math.round(e.getBoundingClientRect().top)));
+    expect(new Set(tops).size, 'the week is one row').toBe(1);
+
+    // Hovering another day bands THAT day's week.
+    await page.locator('.dp-day[data-iso="2026-09-23"]').hover();
+    const hovered = await page.locator('.dp-day.dp-hoverweek').evaluateAll(els => els.map(e => e.getAttribute('data-iso')));
+    expect(hovered).toEqual(['2026-09-20', '2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26']);
+    await page.keyboard.press('Escape');
+
+    // The shared overlay without the option: Operations' date fields keep Monday-first, single-day.
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('circularUploadBody')?.classList.add('open'));
+    const trigger = page.locator('#circularUploadBody .date-trigger');
+    await expect(trigger).toBeVisible({ timeout: 10000 });
+    await trigger.click();
+    await expect(page.locator('.dp-content')).toBeVisible();
+    expect((await page.locator('.dp-dow').allInnerTexts()).join('')).toBe('MTWTFSS');
+    await expect(page.locator('.dp-day.dp-inweek')).toHaveCount(0);
+});
+
 test('admin: the week arrows and the swipe move the same state', async ({ page }) => {
     // The buttons live inside the gesture's own closure so they share its cooldown. Extracting the
     // gesture must not leave them wired to a different notion of "which week".
@@ -6965,13 +7255,16 @@ test('operations: the entry control never offers a type Sunday forbids', async (
 
 test('operations: an options row keeps its own words while an entry is half-finished', async ({ page }) => {
     // TWO ROW SHAPES share `patchEntryRow` and they do not share a vocabulary. The row that offers
-    // candidate readings calls its control "Neither — enter it" and is permanently a decision
-    // (`act-choice` in every state); the row with no readings says "Enter the shift" and is
-    // `act-read` until answered. `patchEntryRow` spoke only the second row's dialect, so on an
-    // options row an incomplete draft renamed the open control to the OTHER row's phrase and
-    // restyled the tag — telling the admin the row had gone back to unreadable while they were
-    // part-way through answering it. Latent since v22.17 (only the keystroke path reached it);
-    // v22.50 routed every pill click through the same call, so it fired on the first tap.
+    // candidate readings calls its control "Neither — enter it"; the row with no readings says
+    // "Enter the shift". `patchEntryRow` spoke only the second row's dialect, so on an options row
+    // an incomplete draft renamed the open control to the OTHER row's phrase. Latent since v22.17
+    // (only the keystroke path reached it); v22.50 routed every pill click through the same call,
+    // so it fired on the first tap.
+    //
+    // The TAG follows one rule on both shapes since polish round 2 (owner-approved): the
+    // "couldn't read" style until something will be written, the decision style once it will. So a
+    // half-finished draft on an unanswered row is still `act-read` — and a row whose READING is
+    // picked stays `act-choice` while a half-finished entry sits open beside it.
     await seedSession(page, 'G. Miller');
     await openRosterReview(page);
     const row = page.locator('.roster-change-row', { has: page.locator('.roster-choice-btn--skip') })
@@ -6979,19 +7272,27 @@ test('operations: an options row keeps its own words while an entry is half-fini
     const btn = row.locator('.roster-choice-btn--enter');
     const tag = row.locator('.roster-act');
     await expect(btn).toHaveText('Neither — enter it');
+    await expect(tag).toHaveClass(/act-read/);
     await btn.click();
 
     // Half-finished: Other with no flavour yet composes to nothing, so `done` is false.
     await row.locator('.roster-entry-pill', { hasText: /^Other$/ }).click();
     await expect(btn).toHaveText('Neither — enter it');          // NOT "Enter the shift"
-    await expect(tag).toHaveClass(/act-choice/);
-    await expect(tag).not.toHaveClass(/act-read/);
+    await expect(tag).toHaveClass(/act-read/);
+    await expect(tag).toHaveText("Couldn't read");
 
     // Finished: the shared "Entered — change it" is correct on both shapes.
     await row.locator('.roster-entry-flavour', { hasText: 'Training' }).click();
     await expect(btn).toHaveText('Entered — change it');
     await expect(tag).toHaveClass(/act-choice/);
+    await expect(tag).not.toHaveClass(/act-read/);
     await expect(row.locator('.roster-entry-hint')).toContainText('will be saved');
+
+    // A picked READING, then the entry un-finished beside it: still answered, and it says so.
+    await row.locator('.roster-choice-btn[data-opt="0"]').click();
+    await row.locator('.roster-entry-pill', { hasText: /^Other$/ }).click();
+    await expect(tag).toHaveClass(/act-choice/);
+    await expect(tag).toHaveText('Your choice');
 });
 
 // ── THE HUDDLE TABLE MUST NOT DRAG THE WHOLE PAGE SIDEWAYS (v22.27) ────────────────────────────
@@ -8431,4 +8732,34 @@ test('admin: the week grid writes NOTHING for a rest day answered free, and name
         const w = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []));
         return w.filter((/** @type {any} */ x) => x.type === 'annual_leave' && x.date === t.date).length;
     }, { message: 'a declared swap is real leave and must be written' }).toBe(1);
+});
+
+// ── "TODAY" AND "✓ SAVED" ON ONE DATE LINE (polish pass, owner report from a Galaxy) ─────────────
+// A row that is both today and already saved carries two chips on its date line, and under Android
+// text scaling that line wraps. As inline text the saved badge's vertical padding did not count
+// towards its line, so the wrapped chip sat directly under "Today" — measured 0.17px apart at 390px
+// and the owner's ~1.11× text, 1.09px at 412px / 1.3×. The date line is now a wrapping flex row with
+// a row gap. Asserted as GEOMETRY because both chips are present and correct either way: nothing
+// but their boxes can tell a clear gap from two chips touching.
+test('admin: a row that is today AND saved keeps a clear gap between its two chips when they wrap', async ({ page }, testInfo) => {
+    test.skip(!isTouchProject(testInfo), 'the stacked date line is the touch layout');
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { authUser: true,
+            docs: [{ id: 't1', memberName: 'G. Miller', date: '2026-07-15', type: 'rdw', value: '14:45-23:55', note: '' }] };
+    });
+    await page.goto('/admin.html');
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    const row = page.locator('.week-panel .day-row.today');
+    await expect(row.locator('.overwrite-badge')).toBeVisible();
+    await scaleText(page, 1.11);
+    const g = await row.evaluate((r) => {
+        const t = /** @type {Element} */ (r.querySelector('.day-today-tag')).getBoundingClientRect();
+        const b = /** @type {Element} */ (r.querySelector('.overwrite-badge')).getBoundingClientRect();
+        return { wrapped: b.top >= t.bottom - 1, gap: b.top - t.bottom };
+    });
+    expect(g.wrapped, 'the fixture must actually wrap the two chips, or the gap proves nothing').toBe(true);
+    expect(g.gap, 'the wrapped saved chip must not touch the Today chip').toBeGreaterThanOrEqual(3);
 });

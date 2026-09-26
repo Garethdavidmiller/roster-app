@@ -36,6 +36,7 @@
 
 import { hmPair, numVal } from './paycalc-inputs.js';
 import { parseSmartFloatOrNull } from './roster-data.js';
+import { minutesFieldText } from './paycalc-format.js';
 
 /**
  * The saved-period schema — the shape written to localStorage for one pay period.
@@ -144,13 +145,18 @@ export function writeFormData(d) {
     const set = /** @param {string} id @param {any} v */ (id, v) => {
         /** @type {HTMLInputElement} */ (document.getElementById(id)).value = v || '';
     };
-    set('satH', d.satH || ''); set('satM', d.satM || '');
-    set('bhH',   d.bhH   || ''); set('bhM',   d.bhM   || '');
-    set('bhOtH', d.bhOtH || ''); set('bhOtM', d.bhOtM || '');
-    set('otH',   d.otH   || ''); set('otM',   d.otM   || '');
-    set('rdwH', d.rdwH || ''); set('rdwM', d.rdwM || '');
-    set('sunH', d.sunH || ''); set('sunM', d.sunM || '');
-    set('boxH', d.boxH || ''); set('boxM', d.boxM || '');
+    // A saved non-zero minutes value shows two digits ("05"), as a calendar fill does
+    // (`minutesFieldText`). DISPLAY ONLY: readFormData parses the box, so "05" reads back as 5 and the
+    // round trip is unchanged. A saved 0 stays BLANK, as it always has — the box's own "00"
+    // placeholder shows through, and a blank box is what "nothing entered" checks look for.
+    const mins = /** @param {any} v */ v => (v ? minutesFieldText(v) : '');
+    set('satH', d.satH || ''); set('satM', mins(d.satM));
+    set('bhH',   d.bhH   || ''); set('bhM',   mins(d.bhM));
+    set('bhOtH', d.bhOtH || ''); set('bhOtM', mins(d.bhOtM));
+    set('otH',   d.otH   || ''); set('otM',   mins(d.otM));
+    set('rdwH', d.rdwH || ''); set('rdwM', mins(d.rdwM));
+    set('sunH', d.sunH || ''); set('sunM', mins(d.sunM));
+    set('boxH', d.boxH || ''); set('boxM', mins(d.boxM));
     /** @type {HTMLElement} */ (document.getElementById('peerVal')).textContent = d.peer || 0;
     /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked = d.slSkip || false;
     const _rawAdj = d.otherAdj ?? 0;

@@ -551,9 +551,13 @@
         }
 
         /* Numbered-step rows inside the bulk bar */
+        /* `center`, not `flex-start` + a 6px nudge on the label (polish pass). The nudge was sized
+           for step 1's 30px chips; step 2's pills are 44px, so "2 Choose type" sat 10px above the
+           middle of the pills beside it. Each wrapped line centres on its own, so the phone layout
+           (label alone on its line) is unaffected. */
         .bulk-step {
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             gap: 8px;
             flex-wrap: wrap;
             padding-bottom: 10px;
@@ -569,7 +573,6 @@
             font-weight: 700;
             color: var(--text-mid);
             white-space: nowrap;
-            padding-top: 6px;
             min-width: 70px;
         }
 
@@ -632,7 +635,11 @@
             outline-offset: 2px;
         }
 
-        .bulk-type-group { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+        /* LEFT-ALIGNED, like the "Tick days" chips above them (polish round 2). Centred, the pills'
+           first row started 39px right of the chips at 390px and the leftover pill sat alone in the
+           middle — two alignments inside one three-step card. The PER-ROW pills (`.col-pills`) stay
+           centred on phones: that is a separate, documented decision (see `.col-pills`). */
+        .bulk-type-group { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-start; }
 
         /* Type pills — outline when idle, filled when active */
         .type-pill-btn {
@@ -762,7 +769,7 @@
            sitting above the new rounded day-cards. Now a quiet uppercase label strip. */
         /* The base-roster column's width, in ONE place. It is used by the badge's `min-width` and
            by the grid template of BOTH the header and the rows — see the two notes below. */
-        .week-grid-header, .day-row, .day-row .col-base .shift-badge { --wg-base-col: 110px; --wg-time-col: 194px; }
+        .week-grid-header, .day-row, .day-row .col-base .shift-badge { --wg-base-col: 110px; }
 
         /* ── THE BASE-ROSTER COLUMN IS A COLUMN (v22.22) ────────────────────────────────────────
            The badges are right-aligned, so their LEFT edge is set by their content — measured at
@@ -849,10 +856,18 @@
 
         /* Narrow: stack */
         @media (max-width: 680px) {
+            /* NO `grid-template-rows` (polish pass, Sep 2026). It declared three explicit tracks,
+               and an explicit track keeps its GAP even when nothing is in it — so on an untouched
+               row, whose pills and time are `display: none`, two empty tracks still cost 2 × 8px,
+               all of it BELOW the content: measured 11px above "Sun / 12 Jul" and 27px under it.
+               The pills and time name their rows (2 and 3), so those tracks now exist only while
+               something occupies them. The padding below keeps the untouched row at the 69px it
+               has always been — the fix centres the content, it does not change the density. */
             .day-row {
                 grid-template-columns: 32px 1fr var(--wg-base-col);
-                grid-template-rows: auto auto auto;
                 gap: 8px;
+                padding-top: 18px;
+                padding-bottom: 18px;
             }
             .day-row .col-check  { grid-column: 1; grid-row: 1; }
             .day-row .col-day    { grid-column: 2; grid-row: 1; }
@@ -901,15 +916,11 @@
             .day-row.active.fixed-type .col-time .time-sep { display: none; }
         }
 
-        /* Desktop: widen day and base columns so the date + badge have room */
-        @media (min-width: 681px) {
-            /* Both tracks tokenised (v22.22). `auto` in the last column resolved to 62px in the
-               header ("Shift time") and 194px in the row (two time inputs), so the pills column was
-               132px wider in the header than in the rows beneath it — "Record as" did not sit over
-               what it labels. Same defect as the base column, one layout along. */
-            .week-grid-header,
-            .day-row { grid-template-columns: 32px 130px var(--wg-base-col) 1fr var(--wg-time-col); }
-        }
+        /* NO FIVE-COLUMN LAYOUT ANY MORE (polish round 2). A `min-width: 681px` block here gave the
+           tablet band (681–1023px) `32px 130px base 1fr time`: the time track reserved ~194px even on
+           an untouched row, so six pills wrapped onto three lines, showed on EVERY row, and each row
+           measured 132px at 800px against 69px on a phone. The stacked layout below now starts at
+           681px, so the only templates are the two stacked ones — and they are the same template. */
 
         .col-check {
             display: flex;
@@ -924,10 +935,21 @@
             color: var(--text-dark);
         }
 
+        /* A WRAPPING FLEX LINE, not inline text (polish pass, owner report from a Galaxy). The date
+           line carries up to two chips — "Today" and the saved-change badge — and on a phone with
+           Android text scaling it wraps. As inline text the badge's vertical padding did not count
+           towards its line, so the wrapped "✓ SAVED" sat 0.17px under "Today" (390px at the
+           owner's ~1.11× text) — two chips touching. Flex gives each wrapped line its own box and
+           a row gap, and centres the chips on the date instead of leaving them 1–3px apart on their
+           own baselines. The ≥1024px pointer rule below turns it back to `inline`, where it is one
+           line beside the day name. */
         .col-day .day-date {
             font-size: var(--type-badge);
             color: var(--text-light);
-            display: block;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            row-gap: calc(var(--space-2) / 2);
         }
 
         /* Special day badges — ⭐ ✂️ 💷 🎄 🐣 🌙 ☪️ 🕌 */
@@ -1009,9 +1031,13 @@
 
         /* Hide time area when row is not active */
         .day-row:not(.active) .col-time { visibility: hidden; }
-        /* Fixed types (AL, Set as Rest Day): hide inputs, show note instead */
+        /* Fixed types (AL, Set as Rest Day): hide inputs, show note instead.
+           `display: none`, not `visibility: hidden` (polish pass). Hidden-but-present inputs kept
+           their ~190px, so from 681px up "No time needed" sat AFTER two invisible boxes — centred
+           in the row at 1280px while every real time input on the card starts at its left edge.
+           The ≤680px block already made this switch for the same reason. */
         .day-row.active.fixed-type .col-time .time-input,
-        .day-row.active.fixed-type .col-time .time-sep { visibility: hidden; }
+        .day-row.active.fixed-type .col-time .time-sep { display: none; }
         .time-note { display: none; font-size: var(--type-badge); color: var(--text-light); font-style: italic; }
         .day-row.active.fixed-type .time-note { display: block; }
 
@@ -1157,7 +1183,9 @@
             color: var(--text-mid);
         }
         .grid-preview[hidden] { display: none; }
-        .grid-preview strong { color: var(--text-dark); font-weight: 700; }
+        /* nowrap (polish pass): the two figures are "N days" and a member's name, and a name broke
+           across lines at its initial — "for L." / "Springer." — at 390px. */
+        .grid-preview strong { color: var(--text-dark); font-weight: 700; white-space: nowrap; }
 
         /* ---- Feedback ---- */
         .feedback {
@@ -1171,6 +1199,9 @@
         }
 
         .feedback.success { display: block; background: var(--green-light); color: var(--success-text); }
+        /* The member's name in a range card's receipt stays on one line (polish round 2): "…for R." /
+           "Forrester-Blackstock" broke at 390px. Same rule as `.grid-preview strong` below. */
+        .feedback-name { white-space: nowrap; }
         .feedback.error   { display: block; background: var(--error-bg);    color: var(--error-text); }
 
         /* ---- Annual Leave over-limit confirm bar (fixed bottom sheet) ---- */
@@ -1336,7 +1367,11 @@
            gapped stack. Replaces the old 7-column horizontal-scroll table that was cramped at
            375px. Interactive class names (.row-select/.btn-edit/.btn-delete/.list-type-pill)
            are unchanged, so the delegated listeners keep working. */
-        .override-cards { display: flex; flex-direction: column; gap: 8px; }
+        /* INSET FROM THE CARD (polish pass). The body has no padding — its toolbar and feedback are
+           full-bleed bands — so the row cards ran edge to edge, their own rounded borders sitting
+           on the card's edges. They are cards IN a card, like the week grid's day rows, so they
+           take the toolbar's 14px inset. */
+        .override-cards { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 14px; }
         /* ONE ROW, TWO LINES OF TEXT, TWO 44px CONTROLS SIDE BY SIDE (v23.12, owner review). This
            card measured 76px on a desktop and ~110px on a phone: Edit and Delete were STACKED in a
            column, and the touch block below raised each to 36px, so the actions cluster — not the
@@ -1877,7 +1912,9 @@
             line-height: 1.45;
         }
 
-        .al-preview.empty { color: var(--text-light); }
+        /* No fill, so no side padding (polish pass): the 12px only makes sense inside the tinted
+           box, and without one it left the hint the only line on the card indented off its edge. */
+        .al-preview.empty { color: var(--text-light); padding-left: 0; padding-right: 0; }
         .al-preview.ready { background: var(--al-light); color: var(--al-deep); }
         .al-preview.error { background: var(--error-bg); color: var(--error-text); }
 
@@ -2189,13 +2226,17 @@
            scannable column, and the width is genuinely used once a row is ticked and its pills +
            time inputs appear on rows 2 and 3.) */
         @media (min-width: 1024px) and (pointer: fine) {
-            .day-row { padding-top: 7px; padding-bottom: 7px; }
+            /* 15px, not the 7px this said until the polish pass: 7px was paired with two phantom
+               8px grid gaps (removed — see the ≥1024px block below), so the row was 52px with its
+               content pinned to the top. 15px keeps the 52px and centres what is in it. */
+            .day-row { padding-top: 15px; padding-bottom: 15px; }
             .day-row.active, .day-row.selected { padding-top: 8px; padding-bottom: 8px; }
             .col-day .day-date { display: inline; margin-left: 6px; }
         }
 
-        /* The left column is too narrow for the 5-col template at EVERY desktop width, so this
-           stacked layout applies from 1024px up with no upper bound (v22.11).
+        /* The left column is too narrow for the 5-col template at EVERY width above a phone, so this
+           stacked layout applies from 681px up with no upper bound (v22.11 from 1024px; from 681px
+           since polish round 2 — the tablet band had the same wrapped-pills defect, see above).
            Stacked layout: checkbox/day/base in row 1, pills in row 2, time in row 3.
            Pills and time are visible on selected/active rows (hidden on inactive rows).
 
@@ -2208,15 +2249,16 @@
            wrapped onto three lines. The day row went 52px → 126px and the Change a Shift card
            518px taller, on the widest screens, for no benefit. Same reserved-blank-time defect as
            v21.40, which was fixed only for the narrow layout. */
-        @media (min-width: 1024px) {
+        @media (min-width: 681px) {
             .week-grid-header {
                 grid-template-columns: 32px 1fr var(--wg-base-col);   /* one template, see v22.22 */
             }
             .week-grid-header .hdr-pills,
             .week-grid-header .hdr-time { display: none; }
+            /* No `grid-template-rows` — see the ≤680px block: explicit empty tracks keep their gaps,
+               which put 16px of blank under every untouched row's content (8px above, 24px below). */
             .day-row {
                 grid-template-columns: 32px 1fr var(--wg-base-col);
-                grid-template-rows: auto auto auto;
             }
             .day-row .col-check { grid-column: 1; grid-row: 1; }
             .day-row .col-day   { grid-column: 2; grid-row: 1; }
@@ -2231,14 +2273,17 @@
             /* On one line, so they join the row's left edge with the times below them (v22.22). */
             .col-pills { justify-content: flex-start; }
         }
-        /* ≥1400px viewport: the container is now capped at --content-max-width (1100), so the
-           left column is ~656px — this wider day-row template keeps the pill column snug rather
-           than letting it balloon. (v15.90: was tuned for the old 1400px container.) */
+        /* ≥1400px viewport: spacing only. The container is capped at --content-max-width (1100), so
+           the left column is ~656px here as at 1280, and the day row keeps the stacked template
+           above (see the note inside). */
         @media (min-width: 1400px) {
-            .week-grid-header,
-            .day-row {
-                grid-template-columns: 28px 80px var(--wg-base-col) minmax(160px, 1fr) var(--wg-time-col);
-            }
+            /* NO COLUMN TEMPLATE HERE ANY MORE (polish pass). This block restated a FIVE-column
+               template (28px 80px base 1fr time) after the ≥1024px block above had made the row a
+               stacked THREE-column one "with no upper bound" — so from 1400px the stacked items kept
+               their 3-column placement inside five tracks. Measured at 1440: the base-roster badge
+               at x=137 of a 630px row instead of against its right edge, a 480px dead band beside
+               it, the header's "Base roster" moved with it, and "Today" wrapping under the date in
+               an 80px day column. The v22.11 note above is the intent; this was its leftover. */
 
             /* Tighten week grid spacing */
             .day-row { gap: 8px; }

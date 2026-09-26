@@ -132,6 +132,30 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
     outline-offset: 2px;
 }
 
+/* ── Footer back link (shared, polish round 2) ──────────────────────────────────────────────────
+   The last thing on the railcard, rangers and FIP guides: "← Back to calendar", pointing at `./`
+   like the header arrow (CLAUDE.md → "Guide pages back button → the app root"). It was three
+   different links — railcard centred, regular weight, no underline and 38px tall; rangers left and
+   bold; FIP a full-width text button reading "Back to roster" above the disclaimer. One recipe now,
+   defined once. Centred under the page's closing note, and `fit-content` so the tap area is the
+   link rather than the whole row. 44px tall is the touch target (it measured 38 on railcard). The
+   staff and pay-calculator guides close with a `.guide-footer` credit line instead and have none. */
+.guide-back-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: fit-content;
+    min-height: 44px;
+    margin: 6px auto 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--navy);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    touch-action: manipulation;
+}
+.guide-back-link:focus-visible { outline: 2px solid var(--navy); outline-offset: 3px; border-radius: 3px; }
+
 /* ── Anchor landing under the sticky header ─────────────────────────────────
    A search hit or an in-page link lands on an id; without a scroll margin the heading sits UNDER
    the sticky header. railcard/fip/rangers measure theirs in JS (header + chip-bar) and set their
@@ -164,6 +188,20 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
     border-bottom: 1px solid var(--border);
 }
 .chip-bar::-webkit-scrollbar { display: none; }
+/* The chips start where the text starts (polish round 2). The bar is full-bleed and the content
+   column is not: every chip-bar guide centres a 760px column with 16px of inner padding, so at 1280
+   the first chip sat at x=12 and the first line of text at x=276 — the quick-nav read as belonging
+   to the window edge rather than to the page it navigates. From 800px the bar's inline padding is
+   the column's own left edge, `(bar width − 760) / 2 + 16`, which is where `.content`/`main` put
+   their text. `max()` keeps the 12px floor, so nothing moves at phone width. The 760/16 pair is
+   restated from the three page CSS files (`railcard-guide.css`, `fip-guide.css`,
+   `rangers-guide.css`) — change it there and it changes here. */
+@media (min-width: 800px) {
+    .chip-bar {
+        padding-left:  max(12px, env(safe-area-inset-left),  calc((100% - 760px) / 2 + 16px));
+        padding-right: max(12px, env(safe-area-inset-right), calc((100% - 760px) / 2 + 16px));
+    }
+}
 .chip {
     flex-shrink: 0;
     background: var(--white);
@@ -191,6 +229,20 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
    which section you jumped to. */
 .chip[aria-current] { background: var(--navy); color: white; border-color: var(--navy); }
 
+/* ── Touch targets without a taller chrome (v24.30 polish pass) ─────────────────────────────────
+   Measured: the ⤓ PDF button is 54×29 and every section chip 27px tall — under the 44px touch
+   target, on the two controls a reader uses most. Making them TALLER would grow the sticky stack,
+   which the guide rules already call an accepted cost on a small phone, so the hit area grows
+   instead of the drawn box: an invisible pseudo-element extends each control vertically. The PDF
+   button has the header's full 78px to extend into (29 + 2×8 = 45). A chip may only use the
+   chip-bar's own padding — the bar scrolls horizontally, so it clips anything past its box — which
+   gives 27 + 7 + 8 = 42. Coarse pointers only; a mouse needs none of it and hover is unaffected. */
+@media (pointer: coarse) {
+    .btn-pdf, .chip { position: relative; }
+    .btn-pdf::after { content: ""; position: absolute; inset: -8px -4px; }
+    .chip::after    { content: ""; position: absolute; inset: -7px 0 -8px; }
+}
+
 /* ── Print ──────────────────────────────────────────────────────────────────
    railcard/fip print the sticky header itself as the page's title banner;
    print-color-adjust keeps the navy from rendering white-on-white. guide/
@@ -202,7 +254,7 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
-    .btn-back, .btn-pdf, .chip-bar { display: none !important; }
+    .btn-back, .btn-pdf, .chip-bar, .guide-back-link { display: none !important; }
 }
 
 /* Scrollbars in the app's idiom (v23.50) — the same thin, trackless bar shared.css gives the app
