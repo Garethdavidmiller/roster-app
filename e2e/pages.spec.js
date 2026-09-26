@@ -4986,6 +4986,10 @@ const KNOWN_SMALL = {
 // of its own, so the label rescued nothing.
 test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
     test.skip(info.project.name !== 'mobile-chrome', 'a thumb, not a mouse');
+    // It walks every control on several pages, so it needs ~32s on an idle runner — right on the
+    // 30s default, where every loaded run timed it out before an assertion was reached. A longer
+    // budget, not a weaker check: every page and every control is still measured.
+    test.setTimeout(120_000);
     await page.setViewportSize({ width: 390, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
