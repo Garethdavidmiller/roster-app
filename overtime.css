@@ -316,6 +316,7 @@ body {
     font-size: var(--type-label);
     font-weight: 700;
     color: var(--text-dark);
+    text-wrap: balance;
 }
 
 .ot-week-meta {
@@ -475,6 +476,12 @@ body {
     gap: var(--space-2);
     flex-shrink: 0;
 }
+/* Two `.btn-action`s SIDE BY SIDE (polish pass), which the shared recipe does not expect: it gives
+   each `width: 100%` and the second one `margin-top: 8px`, because everywhere else the pair stacks.
+   Here that left "Open the form" 8px below Cancel and squeezed onto two lines at 390px, beside an
+   empty half of the bar. Natural widths and no stacking margin — the flex gap already spaces them. */
+.ot-confirm-actions .btn-action { width: auto; white-space: nowrap; }
+.ot-confirm-actions .btn-action + .btn-action { margin-top: 0; }
 
 /* ── Desktop ────────────────────────────────────────────────────────────────
    A min-width query, never a hover/pointer one: some Android devices misreport
@@ -621,6 +628,10 @@ body {
     font-size: var(--type-medium);
     font-weight: 700;
     color: var(--text-dark);
+    /* Balanced (polish pass): at 390px "Week ending Saturday 5 September 2026" broke as a full line
+       and a lone "2026". Same for `.ot-week-title` below — a heading-like line, and shared.css
+       already balances every real heading. Degrades to normal wrapping where unsupported. */
+    text-wrap: balance;
 }
 
 /* ── THE WEEK BAND — one week, one shape (v23.84) ─────────────────────────────────────────────
@@ -830,6 +841,11 @@ body {
     border-left: 4px solid var(--conflict-strong);
 }
 .ot-day--saved { border-left: 4px solid var(--success-green); }
+/* The three accented states trade 3px of left padding for their 4px edge (polish pass). A plain row
+   has a 1px border, so without this every answered row's day label, roster badge and option pills
+   sat 3px right of the unanswered rows around it — measured at 1280, pills at x=328 against 325 —
+   a stagger down the one column the member scans. The error log on Operations had the same fault. */
+.ot-day--set, .ot-day--changed, .ot-day--saved { padding-left: calc(var(--space-3) - 3px); }
 
 .ot-day-head {
     display: flex;
@@ -1473,7 +1489,9 @@ body {
 .ot-day-panel--muted .ot-day-panel-head { color: rgba(255, 255, 255, .72); }
 
 .ot-section-note {
-    padding: 6px var(--space-3) 0;
+    /* A bottom pad (polish pass): with none, the note's last line sat ON the first row's divider —
+       the text box ended at exactly the row's top edge, descenders touching the rule. */
+    padding: 6px var(--space-3) 6px;
     font-size: var(--type-badge);
     color: var(--text-light);
 }

@@ -174,7 +174,11 @@ body.auth-ready .container { display: grid; }
     font-size: var(--type-label);
     color: var(--text-mid);
     margin-bottom: 10px;
-    word-break: break-all;
+    /* `overflow-wrap: anywhere`, not `word-break: break-all` (polish pass). break-all split an
+       ordinary filename mid-word at every line end ("final versio" / "n.docx") even where a space
+       was available; `anywhere` still breaks a long unbroken name so it cannot overflow, and only
+       where it has to. */
+    overflow-wrap: anywhere;
 }
 .huddle-filename.visible { display: block; }
 .huddle-upload-btn {
@@ -891,8 +895,13 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
        margin so the label sits tight to the card it introduces, not midway between the two. */
     .ops-group-label { margin: 0 0 -8px 2px; }
 
-    /* Full-width upload button looks wrong inside the narrow left column */
-    .huddle-upload-btn { max-width: 280px; }
+    /* NO width cap on `.huddle-upload-btn` (polish pass). It was `max-width: 280px` "because a
+       full-width button looks wrong inside the narrow left column" — but the date + Choose-file row
+       above it runs the full ~408px, so the button stopped 128px short of the row it submits: a
+       gutter on ONE side, which css-tokens.md (v22.22) names as the arrangement that reads as
+       unfinished. The same cap also shortened "Read roster" in the WIDE right column, where every
+       other action (Try again, Set up accounts, Save changes) spans the card. Full width is the
+       consistent answer, as Settings concluded at v18.89. */
 }
 
 /* ---- Work Email Progress card ---- */
@@ -1243,7 +1252,16 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     background: var(--al-confirm-bg);
     border-left: 4px solid var(--conflict-strong);
 }
-.error-row--resolved { opacity: 0.45; }
+/* RESOLVED is said with the sunken surface and a quieter message colour, NOT `opacity` (polish
+   pass). The row is still READ — the message, its page, the Copy details button — and a 0.45 fade
+   took the faint timestamp and the red message well under AA (css-tokens.md → "`opacity` on a group
+   is a contrast bug"). The unresolved variant's 4px accent is also why the padding differs: with a
+   1px border the resolved row's content sat 3px left of every unresolved row above it. */
+.error-row--resolved {
+    background: var(--surface-sunken);
+    padding-left: 15px;
+}
+.error-row--resolved .error-msg { color: var(--text-mid); }
 
 /* No-silent-caps banner: the unresolved query hit its 100-record cap. */
 .error-truncation-note {
@@ -1669,6 +1687,10 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 }
 /* The aggregate login bar: full-width, a touch taller than the per-page bars. */
 .speed-bar--overall { width: 100%; height: 14px; margin: -4px 0 2px; }
+/* The one place a note follows the bar directly ("Usable" is counted only on…): with the bar's
+   2px and the note's zero top margin the sentence sat on the bar (polish pass). 10px is the gap the
+   same bar keeps above the next subhead. */
+.speed-bar--overall + .speed-note { margin-top: 10px; }
 .speed-seg { height: 100%; }
 .speed-seg--good { background: var(--speed-good); }
 .speed-seg--ok   { background: var(--speed-ok); }
@@ -1690,7 +1712,13 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
    header says once what every row would otherwise repeat.
    The % is the figure being hunted, so it carries the emphasis; the sample size sits beside it in
    muted weight because its job is only to stop a four-load group being read as a finding. */
-.speed-row--why { grid-template-columns: minmax(76px, 27%) 1fr auto auto; }
+.speed-row--why { grid-template-columns: minmax(76px, 27%) minmax(0, 1fr) minmax(5ch, auto) minmax(5ch, auto); }
+/* The two trailing tracks carry a FLOOR wide enough for every value they hold (polish pass). Each
+   row is its own grid, and a bare `auto` sized to that row's own figures — so "1,130" pushed its
+   bar 3–5px shorter than a neighbour reading "960", and the header's "over 1s" sat off the column
+   it labels. That is css-tokens.md's "`auto` in two grids is two different widths" (v22.22). 5ch of
+   the row's font clears "100%", "1,180" and both header words, so every row resolves to the same
+   tracks; `auto` stays as the ceiling so a scaled-text row grows rather than clips. */
 .speed-row--why .speed-row-count { min-width: 4ch; }
 .speed-row-sub {
     font-size: var(--type-small);
@@ -1796,7 +1824,7 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
    was added when "ready" was split into the scripts finishing and the page actually being usable).
    The label column narrows to pay for it: three bars in the width that held two is the whole cost,
    and at 78px the page names still read. */
-.speed-row--dual { grid-template-columns: minmax(64px, 26%) 1fr 1fr 1fr auto; }
+.speed-row--dual { grid-template-columns: minmax(64px, 26%) 1fr 1fr 1fr minmax(5ch, auto); }
 /* …and "at 78px the page names still read" was measured on a DESKTOP card. On a phone 26% is ~86px
    before the emoji, which rendered "Pay calculator" as "Pay calcul…" and "Settings" as "Setti…" —
    a page name truncated past the point of being one, in the column whose whole job is to say which
@@ -1805,7 +1833,7 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
    to the narrow end deliberately — above it the desktop measurement still holds and the bars are
    worth more than the slack. */
 @media (max-width: 480px) {
-    .speed-row--dual { grid-template-columns: minmax(88px, 36%) 1fr 1fr 1fr auto; }
+    .speed-row--dual { grid-template-columns: minmax(88px, 36%) 1fr 1fr 1fr minmax(5ch, auto); }
 }
 .speed-dual-head { margin-bottom: -2px; }
 /* "This page does not report that milestone" — see the dash in dualRows. Centred in the track it
@@ -1826,4 +1854,20 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
    sit inside either. (Same breakpoint as the column grid above.) */
 @media (min-width: 1024px) {
     body.auth-ready .container > .attn-strip { grid-column: 1 / -1; }
+}
+
+/* ═══ TOUCH TARGETS (polish pass) ═════════════════════════════════════════════════════════════════
+   Account status carries two small buttons on every one of ~50 rows — Reset (destructive) and Set
+   email / Edit / Remove — and on a coarse pointer they measured 23px tall, under the 24px WCAG 2.2
+   floor and well under the app's 36px compact touch tier. The rows are dense on purpose, so the
+   REGION grows rather than the pill: the `.btn-contact-remove` / `.btn-card-tips` idiom, a
+   transparent pseudo-element around the button. 6.5px each way lands at ~36px and still leaves the
+   Reset target and the email target beneath it ~1px apart, so neither can steal the other's tap.
+   The reset-request Clear button is a lone control on its line, so it simply takes the 36px floor.
+   At the END of the file for the reason settings.css records: these are same-property conflicts at
+   equal specificity with the rules above, and a block placed earlier would lose silently. */
+.btn-acct-reset, .email-set-btn { position: relative; }
+@media (pointer: coarse) {
+    .btn-acct-reset::after, .email-set-btn::after { content: ''; position: absolute; inset: -6.5px -2px; }
+    .btn-rr-clear { min-height: 36px; }
 }

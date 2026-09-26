@@ -222,7 +222,9 @@ body {
 .install-note {
     font-size: var(--type-small);
     color: var(--text-mid);
-    margin: 10px 0 8px;
+    /* No top margin (polish pass): the card body already pads its top, and the extra 10px made
+       this the only card whose first line sat ~26px under the header instead of 16px. */
+    margin: 0 0 8px;
     max-width: 64ch;
 }
 
@@ -296,13 +298,24 @@ body {
     color: var(--on-navy-muted);
     margin: 4px 0 8px;
 }
+/* BOTH columns' first labels, not just the side's (polish pass): with only `.col-side` zeroed, the
+   left column's label kept its 4px and every left card sat 4px below its right-hand neighbour at
+   1024px+. On mobile both wrappers are `display: contents` and the margin collapses into the
+   summary's / card's larger one, so nothing moves there. */
+.col-main > .settings-section-label:first-child,
 .col-side > .settings-section-label:first-child { margin-top: 0; }
 
 /* The work-email domain, shown beside the field rather than appended in silence. */
-.contact-email-row { display: flex; align-items: stretch; gap: 0; }
+/* The ROW carries the field's bottom margin, not the input (polish pass). With the margin on the
+   input, `align-items: stretch` made the domain box stretch through it — the suffix measured 56px
+   against a 42px field, hanging 14px below the box it labels. The domain also takes the FIELD's
+   radius (`--radius-sm`), not `--radius-md`, so the joined pair reads as one control with two
+   matching ends rather than a square-ish field glued to a rounder tab. */
+.contact-email-row { display: flex; align-items: stretch; gap: 0; margin-bottom: 14px; }
 .contact-email-row .contact-email-input {
     flex: 1 1 auto;
     min-width: 0;
+    margin-bottom: 0;
     border-top-right-radius: 0;
     border-bottom-right-radius: 0;
 }
@@ -316,18 +329,18 @@ body {
     background: var(--bg-faint);
     border: 1.5px solid var(--border-light);
     border-left: none;
-    border-top-right-radius: var(--radius-md);
-    border-bottom-right-radius: var(--radius-md);
+    border-top-right-radius: var(--radius-sm);
+    border-bottom-right-radius: var(--radius-sm);
     white-space: nowrap;
 }
 /* Below ~380px the domain and a usable field cannot share a row, so it drops beneath — still
    visible, which is the whole requirement, without squeezing the field it labels. */
 @media (max-width: 380px) {
     .contact-email-row { flex-direction: column; }
-    .contact-email-row .contact-email-input { border-radius: var(--radius-md); }
+    .contact-email-row .contact-email-input { border-radius: var(--radius-sm); }
     .contact-email-domain {
         border-left: 1.5px solid var(--border-light);
-        border-radius: var(--radius-md);
+        border-radius: var(--radius-sm);
         margin-top: 4px;
         padding: 4px 10px;
     }
