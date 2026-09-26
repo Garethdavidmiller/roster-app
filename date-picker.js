@@ -88,7 +88,7 @@ let _picker = null;
  * `initDatePickers` still passes the input's own label, so its four fields are unchanged.
  *
  * `week: true` (polish round 2) makes it a WEEK picker for a caller whose week runs Sunday–Saturday
- * — Admin's "Jump to a week": Sunday is the first column, the week holding the chosen day is
+ * — Admin's and Team View's "Jump to a week": Sunday is the first column, the week holding the chosen day is
  * banded, and hovering or focusing a day bands ITS week, so the grid answers the question the
  * control asks ("which week?") rather than "which day?". Picking still sets a single day; the page
  * already reads the week that contains it. Off by default, so every date field keeps its Monday-

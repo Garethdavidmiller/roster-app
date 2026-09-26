@@ -446,7 +446,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
                 // After a release has claimed the page, a failed load reloads onto it (lazyImport).
                 try {
                     const { openDatePicker } = await lazyImport(() => import('./date-picker.js'));
-                    openDatePicker(tvDate, { title: 'Jump to a week' });
+                    openDatePicker(tvDate, { title: 'Jump to a week', week: true });   // Sunday-first, week banded — Team View's week is Sun–Sat, like Admin's
                 } catch (err) { console.error('[TeamView] the week picker could not load', err); }
             });
             // `change` is what the picker dispatches once a day is picked. Parsed with

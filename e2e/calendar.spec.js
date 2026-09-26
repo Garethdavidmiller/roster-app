@@ -2295,6 +2295,10 @@ test.describe('the team week jump', () => {
         await page.locator('#tvWeekJump').click();
         await expect(page.locator('#datePickerLightbox')).toBeVisible();
         await expect(page.locator('#dpTitle')).toHaveText('Jump to a week');
+        // Team View's week runs Sunday–Saturday, like Admin's, so its picker is the WEEK picker:
+        // Sunday first, and the week on screen banded as one row of seven.
+        expect((await page.locator('.dp-dow').allInnerTexts()).join(''), 'Sunday is the first column').toBe('SMTWTFS');
+        await expect(page.locator('.dp-day.dp-inweek')).toHaveCount(7);
 
         // A Sunday ~10 weeks out: far enough that Prev/Next could not have produced it by accident,
         // and a Sunday for the reason in the header.
