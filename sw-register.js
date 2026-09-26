@@ -26,7 +26,7 @@ let _registered = false;
 let _controllerListenerAttached = false;
 
 /** TEST-ONLY: reset the once-per-page-life guards between test cases. */
-export function _resetForTest() { _registered = false; _controllerListenerAttached = false; }
+export function _resetForTest() { _registered = false; _controllerListenerAttached = false; _hiddenReloadArmed = false; }
 
 // ── THE MARKER THAT SAYS "THIS LOAD FOLLOWED A RELEASE" ──────────────────────────────────────────
 //
@@ -46,6 +46,37 @@ export function _resetForTest() { _registered = false; _controllerListenerAttach
 // any access, hence the wrapper — and a failure here must never stop the reload, which is why this
 // is a statement of its own and not folded into the reload expression.
 // The spelling lives in `storage-keys.js`, with every other key two modules have to agree on.
+
+// ── THE RELOAD ITSELF MUST CHECK AGAIN (v24.28) ──────────────────────────────────────────────────
+//
+// `deferWhileVisible` decides at controllerchange time. The Calendar's `beforeReload` then waits
+// 500ms before reloading, and nothing looked again when that timer fired. On Android a backgrounded
+// PWA is FROZEN: its timers stop and its events queue. So an update that claimed the page while it
+// was frozen ran its controllerchange on resume, still hidden, and armed that timer — and the timer
+// fired a moment later, when the member was already looking at the page. The commonest resume is a
+// notification tap, and the Huddle viewer had just taken `#huddle` off the URL (so a repeat tap
+// re-fires hashchange), so the reload brought back the Calendar with no Huddle. Reported by the
+// owner, 26 Sep 2026: "the huddle notification isn't always opening". The intermittency is the
+// release cadence — it needs an update to have landed while the app sat in the background.
+
+let _hiddenReloadArmed = false;
+
+/**
+ * Reload now if nobody is looking; otherwise wait until they look away. For a `beforeReload` that
+ * delays its reload: whatever the page looked like when the update arrived, this is decided when
+ * the reload would actually happen.
+ * @param {() => void} [reload]
+ */
+export function reloadWhileHidden(reload = () => window.location.reload()) {
+    if (document.visibilityState === 'hidden') { reload(); return; }
+    if (_hiddenReloadArmed) return;   // one reload serves every update that arrives while they read
+    _hiddenReloadArmed = true;
+    document.addEventListener('visibilitychange', () => {
+        if (!_hiddenReloadArmed || document.visibilityState !== 'hidden') return;
+        _hiddenReloadArmed = false;
+        reload();
+    });
+}
 
 /** Note that the reload about to happen was caused by an update. Best-effort; never throws. */
 function markUpdateReload() {

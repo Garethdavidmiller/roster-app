@@ -20,7 +20,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { registerServiceWorker, _resetForTest } = await import('./sw-register.js');
+const { registerServiceWorker, reloadWhileHidden, _resetForTest } = await import('./sw-register.js');
+import { readFileSync } from 'node:fs';
 
 const _realSetInterval   = globalThis.setInterval;
 const _realClearInterval = globalThis.clearInterval;
@@ -445,5 +446,65 @@ describe('the update-reload marker', () => {
             h.fireControllerChange();
             assert.equal(h.state.reloads, 1, 'the reload is not optional');
         } finally { h.restore(); }
+    });
+});
+
+// ── The reload asks again when it fires (v24.28) ──────────────────────────────────────────────────
+//
+// The owner's report: a Huddle notification tap brought the Calendar up with no Huddle, sometimes.
+// An update that claimed a FROZEN background page ran its controllerchange on resume while still
+// hidden, so `deferWhileVisible` let it through; the Calendar's 500ms timer then reloaded the page a
+// moment after the member was looking at it, and the viewer had already taken `#huddle` off the URL.
+describe('reloadWhileHidden — decided when the reload happens, not when the update arrived', () => {
+    test('hidden: it reloads at once', () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            h.setVisibility('hidden');
+            reloadWhileHidden();
+            assert.equal(h.state.reloads, 1);
+        } finally { h.restore(); }
+    });
+
+    test('visible: it waits for them to look away, and reloads once', () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            const before = (h.docListeners['visibilitychange'] || []).length;
+            reloadWhileHidden();
+            reloadWhileHidden();   // a second update while they read
+            assert.equal(h.state.reloads, 0, 'the member is looking — never under them');
+            assert.equal((h.docListeners['visibilitychange'] || []).length - before, 1,
+                'one waiting reload, one listener — a release every hour must not pile them up');
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'deferred, not dropped, and one reload serves both');
+            h.setVisibility('visible'); h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'the armed reload is spent');
+        } finally { h.restore(); }
+    });
+
+    test('the frozen-resume sequence: armed while hidden, fires after they are looking — no reload', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        /** @type {Function[]} */ const timers = [];
+        try {
+            // The Calendar's own wiring, with its timer held so the test decides when it fires.
+            registerServiceWorker({ deferWhileVisible: true,
+                beforeReload: () => { timers.push(() => reloadWhileHidden()); } });
+            await h.flush();
+            h.setVisibility('hidden');
+            h.fireControllerChange();                 // queued controllerchange, delivered on resume
+            h.setVisibility('visible');               // the notification tap brings the page up
+            timers.forEach(fn => fn());               // …and the 500ms timer fires now
+            assert.equal(h.state.reloads, 0, 'the Huddle the tap is opening must not be reloaded away');
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'the update still lands, the next time they look away');
+        } finally { h.restore(); }
+    });
+
+    test('the Calendar wires its delayed reload THROUGH reloadWhileHidden', () => {
+        // The helper can be perfect and the page still call location.reload() from its timer — the
+        // shipped defect. Pinned at the call site.
+        const src = readFileSync(new URL('./calendar-app.js', import.meta.url), 'utf8');
+        const call = src.match(/registerServiceWorker\(\{[\s\S]*?\}\);/)?.[0] ?? '';
+        assert.match(call, /beforeReload:[^\n]*reloadWhileHidden\(/, 'the Calendar reload must re-check visibility');
+        assert.doesNotMatch(call, /beforeReload:[^\n]*location\.reload/, 'a bare reload from the timer is the bug');
     });
 });
