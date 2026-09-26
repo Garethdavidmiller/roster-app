@@ -36,6 +36,11 @@ globalThis.window = /** @type {any} */ ({
     addEventListener: (/** @type {string} */ type, /** @type {any} */ fn) => { listeners[type] = fn; },
 });
 globalThis.location = /** @type {any} */ ({ hostname: 'myb-roster.web.app', pathname: '/roster-app/admin.html' });
+// Every browser has `navigator`; Node grew a global one only at 21. CI runs this lane on Node 20,
+// where the reporter's `navigator.userAgent` threw inside its own listener and every write vanished.
+if (typeof globalThis.navigator === 'undefined') {
+    Object.defineProperty(globalThis, 'navigator', { value: { userAgent: 'node-test' }, configurable: true });
+}
 
 const { initErrorReporter } = await import('./error-reporter.js');
 initErrorReporter();
