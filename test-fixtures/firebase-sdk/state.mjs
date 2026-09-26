@@ -12,6 +12,8 @@ export const state = {
     ops: [],
     /** @type {Map<string, Record<string, any>>} path → document data */
     docs: new Map(),
+    /** @type {Array<{col: string, wheres: Array<{field: string, value: any}>, limit: number|null}>} every getDocs query */
+    reads: [],
     /** @type {Array<Record<string, any>>} every Auth call that changes a credential or a session */
     authOps: [],
     /** the signed-in user, or null */
@@ -24,7 +26,7 @@ export const state = {
 
 /** Put the recorder back to empty between tests. */
 export function resetState() {
-    state.ops.length = 0; state.docs.clear(); state.authOps.length = 0;
+    state.ops.length = 0; state.reads.length = 0; state.docs.clear(); state.authOps.length = 0;
     state.currentUser = null; state.failNext.clear(); state.reauthRejects.clear();
 }
 

@@ -36,7 +36,9 @@ import assert from 'node:assert/strict';
 register('./test-fixtures/firebase-sdk/resolve-gstatic.mjs', import.meta.url);
 
 const { state, resetState, signIn } = await import('./test-fixtures/firebase-sdk/state.mjs');
-const { SERVER_TS } = await import('./test-fixtures/firebase-sdk/firebase-firestore.mjs');
+const { SERVER_TS, fakeTimestamp } = await import('./test-fixtures/firebase-sdk/firebase-firestore.mjs');
+const { monthKey, prevMonthKey, dayKey, originKey } = await import('./usage-stats.js');
+const { perfSampleKey } = await import('./perf-stats.js');
 
 // fetch is global in the browser and the module calls it through fetch-timeout.js; record every call.
 /** @type {Array<{ url: string, init: any }>} */
@@ -336,5 +338,171 @@ describe('fire-and-forget writers never throw into the page', () => {
         const text = JSON.stringify(writes('analytics/'));
         assert.equal(writes('analytics/').length, 4);
         for (const id of ['uid_springer', 'springer', 'Springer']) assert.ok(!text.includes(id), `found ${id}`);
+    });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// THE ADMIN SCREENS' READS (26 Sep 2026) — the gap KNOWN_LIMITATIONS recorded after the first pass.
+// Each of the three is the only thing between the admin and a wrong picture: the Error Log is where
+// problems are SEEN, and the two cards are how the app's own health and adoption are judged. The
+// arithmetic under them is unit-tested in client-errors / usage-stats / perf-stats; what is tested
+// here is the Firestore I/O around it — which documents, which query, and that housekeeping never
+// takes the read down with it.
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+const DAY = 24 * 60 * 60 * 1000;
+/** Seed one clientErrors record. */
+function seedError(id, { resolved = false, ageMs = 0, resolvedAgoMs = null } = {}) {
+    state.docs.set(`clientErrors/${id}`, {
+        message: `err ${id}`, page: 'calendar', resolved,
+        timestamp: fakeTimestamp(Date.now() - ageMs),
+        ...(resolvedAgoMs === null ? {} : { resolvedAt: fakeTimestamp(Date.now() - resolvedAgoMs) }),
+    });
+}
+const settle = () => new Promise((r) => setImmediate(r));
+
+describe('the Error Log read', () => {
+    test('unresolved errors come first, newest first, and a resolved one never hides them', async () => {
+        seedError('old-open', { ageMs: 5 * DAY });
+        seedError('new-open', { ageMs: 1 * DAY });
+        seedError('fixed',    { resolved: true, ageMs: 0, resolvedAgoMs: DAY });   // newer than both
+        const { errors, truncated } = await fc.getClientErrors();
+        assert.deepEqual(errors.map((e) => e.id), ['new-open', 'old-open', 'fixed']);
+        assert.equal(truncated, false);
+    });
+
+    test('it asks for ONE MORE unresolved row than it shows — the only way to know more exist', async () => {
+        await fc.getClientErrors();
+        const open = state.reads.find((q) => q.wheres.some((w) => w.field === 'resolved' && w.value === false));
+        assert.equal(open?.limit, 101, 'limit(100) cannot tell "exactly 100" from "hundreds"');
+    });
+
+    test('101 open errors: 100 shown and the card is told there are more', async () => {
+        for (let i = 0; i < 101; i++) seedError(`e${i}`, { ageMs: i * 1000 });
+        const { errors, truncated } = await fc.getClientErrors();
+        assert.equal(errors.length, 100);
+        assert.equal(truncated, true, 'a silently hidden error is the failure this card exists to prevent');
+    });
+
+    test('exactly 100 open errors is NOT reported as truncated', async () => {
+        for (let i = 0; i < 100; i++) seedError(`e${i}`, { ageMs: i * 1000 });
+        const { truncated } = await fc.getClientErrors();
+        assert.equal(truncated, false);
+    });
+
+    test('the retention sweep deletes only RESOLVED records past 90 days, never an open one', async () => {
+        seedError('ancient-open',  { ageMs: 400 * DAY });
+        seedError('expired-fixed', { resolved: true, ageMs: 200 * DAY, resolvedAgoMs: 91 * DAY });
+        seedError('recent-fixed',  { resolved: true, ageMs: 60 * DAY,  resolvedAgoMs: 30 * DAY });
+        seedError('legacy-fixed',  { resolved: true, ageMs: 400 * DAY });   // no resolvedAt: left alone
+        const { errors } = await fc.getClientErrors();
+        await settle();
+        assert.deepEqual(state.ops.filter((o) => o.op === 'delete').map((o) => o.path), ['clientErrors/expired-fixed']);
+        assert.ok(!errors.some((e) => e.id === 'expired-fixed'), 'and it is not shown either');
+        assert.ok(errors.some((e) => e.id === 'ancient-open'), 'an unresolved error is never aged out');
+    });
+
+    test('a sweep that fails does not take the Error Log down with it', async () => {
+        seedError('expired-fixed', { resolved: true, ageMs: 200 * DAY, resolvedAgoMs: 91 * DAY });
+        seedError('open', { ageMs: DAY });
+        state.failNext.set('clientErrors/expired-fixed', 'permission-denied');
+        const { errors } = await fc.getClientErrors();
+        await settle();
+        assert.deepEqual(errors.map((e) => e.id), ['open']);
+    });
+});
+
+describe('the App Speed read', () => {
+    const now = new Date();
+    const key = (bucket, metric = 'ready', page = 'calendar') =>
+        perfSampleKey({ version: '24.26', page, metric, bucket, mode: 'pwa', conn: '4g' });
+
+    test('it reads THIS month and LAST month, each from its own document', async () => {
+        state.docs.set(`analytics/perf_${monthKey(now)}`,     { samples: { [key('lt500ms')]: 3, [key('over8s')]: 1 } });
+        state.docs.set(`analytics/perf_${prevMonthKey(now)}`, { samples: { [key('1-3s')]: 2 } });
+        const { thisMonth, lastMonth } = await fc.getPerfStats();
+        assert.equal(thisMonth.month, monthKey(now));
+        assert.equal(lastMonth.month, prevMonthKey(now));
+        assert.equal(thisMonth.ready.total, 4);
+        assert.deepEqual([thisMonth.ready.overall.quick, thisMonth.ready.overall.slow], [3, 1]);
+        assert.equal(lastMonth.ready.total, 2, 'last month is last month\'s samples, not this month\'s again');
+    });
+
+    test('each journey is its own metric — a sign-in sample is never counted as a page load', async () => {
+        state.docs.set(`analytics/perf_${monthKey(now)}`, { samples: {
+            [key('lt500ms', 'loginTotal')]: 5, [key('3-8s', 'fcp')]: 2, [key('1-3s', 'domReady')]: 7, [key('over8s', 'ready')]: 1,
+        } });
+        const { thisMonth } = await fc.getPerfStats();
+        assert.deepEqual([thisMonth.login.total, thisMonth.fcp.total, thisMonth.pages.total, thisMonth.ready.total], [5, 2, 7, 1]);
+        assert.equal(Object.keys(thisMonth.samples).length, 4, 'the raw map is carried through for the breakdown');
+    });
+
+    test('a month with no document is an empty window, not an error', async () => {
+        const { thisMonth, lastMonth } = await fc.getPerfStats();
+        assert.equal(thisMonth.ready.total, 0);
+        assert.equal(lastMonth.pages.total, 0);
+        assert.deepEqual(thisMonth.samples, {});
+    });
+});
+
+describe('the Usage read', () => {
+    const now = new Date();
+    const daysAgo = (n) => dayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - n));
+
+    test('page counts are this month\'s and last month\'s, busiest first', async () => {
+        state.docs.set(`analytics/pv_${monthKey(now)}`,     { counts: { admin: 3, calendar: 40, paycalc: 12 } });
+        state.docs.set(`analytics/pv_${prevMonthKey(now)}`, { counts: { calendar: 9 } });
+        const u = await fc.getUsageStats();
+        assert.deepEqual(u.pageCounts.map((r) => r.page), ['calendar', 'paycalc', 'admin']);
+        assert.deepEqual(u.prevPageCounts, [{ page: 'calendar', count: 9 }]);
+    });
+
+    test('accounts this month and in the last 30 days come from the right buckets', async () => {
+        state.docs.set('analytics/activeAccounts', {
+            months: { [monthKey(now)]: 21, [prevMonthKey(now)]: 30 },
+            daily:  { [daysAgo(0)]: 4, [daysAgo(10)]: 5, [daysAgo(40)]: 99 },   // 40 days ago is outside the window
+        });
+        const u = await fc.getUsageStats();
+        assert.equal(u.accountsThisMonth, 21);
+        assert.equal(u.accountsLast30, 9);
+    });
+
+    test('the daily prune removes stale keys by FieldPath — a dotted path would break the whole card', async () => {
+        // A day key like 2026-08-01 is an INVALID dotted field path; the real SDK throws synchronously
+        // on `daily.2026-08-01` and the Usage card goes blank. So the delete must name its segments.
+        state.docs.set('analytics/activeAccounts', { months: {}, daily: { [daysAgo(1)]: 2, [daysAgo(60)]: 7 } });
+        await fc.getUsageStats();
+        await settle();
+        const prunes = state.ops.filter((o) => o.op === 'update' && o.path === 'analytics/activeAccounts');
+        assert.deepEqual(prunes.map((o) => o.segments), [['daily', daysAgo(60)]]);
+        assert.equal(prunes[0].value?.__fake, 'deleteField');
+        assert.equal(state.docs.get('analytics/activeAccounts').daily[daysAgo(1)], 2, 'a recent day is kept');
+    });
+
+    test('the per-address counters are read, summarised and pruned the same way', async () => {
+        state.docs.set('analytics/origins', { daily: {
+            [originKey(daysAgo(2), 'web')]: 6, [originKey(daysAgo(2), 'web', true)]: 4,
+            [originKey(daysAgo(3), 'pages')]: 9, [originKey(daysAgo(50), 'pages')]: 1, 'junk-key': 3,
+        } });
+        const u = await fc.getUsageStats();
+        await settle();
+        assert.deepEqual(u.origins, [{ origin: 'pages', accounts: 9, installed: 0 }, { origin: 'web', accounts: 6, installed: 4 }]);
+        const pruned = state.ops.filter((o) => o.op === 'update' && o.path === 'analytics/origins').map((o) => o.segments[1]).sort();
+        assert.deepEqual(pruned, [originKey(daysAgo(50), 'pages'), 'junk-key'].sort());
+    });
+
+    test('nothing recorded yet is the empty picture, not an error', async () => {
+        const u = await fc.getUsageStats();
+        assert.deepEqual([u.pageCounts, u.accountsThisMonth, u.accountsLast30, u.origins], [[], 0, 0, []]);
+    });
+
+    test('a failed prune, or an unreadable origins document, never breaks the read', async () => {
+        state.docs.set('analytics/activeAccounts', { months: { [monthKey(now)]: 3 }, daily: { [daysAgo(60)]: 1 } });
+        state.failNext.set('analytics/activeAccounts', 'permission-denied');   // the prune's write
+        state.failNext.set('read:analytics/origins', 'unavailable');           // the origins read
+        const u = await fc.getUsageStats();
+        await settle();
+        assert.equal(u.accountsThisMonth, 3);
+        assert.deepEqual(u.origins, []);
     });
 });
