@@ -54,8 +54,10 @@
  */
 
 import { clearSession } from './session.js';
+import { releaseDevicePush } from './notif.js';
 import { normalisePin, isCompletePin, attemptBackoffMs, PIN_LENGTH } from './calendar-access-core.js';
 import { mountLockCard, unmountLockCard } from './calendar-lock-slot.js';
+import { lazyImport } from './sw-register.js';
 
 /** The hash that asks for the staff-PIN card FIRST (see calendar-access.js's module header). Read
  *  once at boot and removed from the address bar, so it is never carried into a member's session or
@@ -270,7 +272,7 @@ export async function showSignInPanel(notice = '') {
     /** @type {typeof import('./login-overlay.js')} */ let mod;
     // No module (a first visit on a connection that drops mid-boot) must still leave a DOOR: the
     // PIN card needs nothing fetched, so fall back to it.
-    try { mod = await import('./login-overlay.js'); }
+    try { mod = await lazyImport(() => import('./login-overlay.js')); }
     catch { if (_deps.getAccessType() === 'none') showLockPanel(); return; }
     // Access may have arrived while the module loaded (the late-identity watcher, a silent
     // re-auth). A card mounted over a granted Calendar is the one outcome this must not have.
@@ -359,7 +361,15 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
     if (whyEl) whyEl.textContent = why;
 
     submit.addEventListener('click', async () => {
-        const { initLoginOverlay } = await import('./login-overlay.js');
+        /** @type {typeof import('./login-overlay.js')} */ let mod;
+        // A failed load must not leave a dead button: say so and keep the button live. After a
+        // release has claimed the page, `lazyImport` reloads onto it instead.
+        try { mod = await lazyImport(() => import('./login-overlay.js')); }
+        catch {
+            if (whyEl) whyEl.textContent = 'The sign-in form could not load. Check your connection and try again.';
+            return;
+        }
+        const { initLoginOverlay } = mod;
         // The card's heading already names them; the form should not ask again (v23.58). The
         // overlay pre-selects grade and name and lands on the password field. `presetName` is a
         // convenience the overlay is free to ignore — it never widens who may sign in.
@@ -386,7 +396,11 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
     // of this panel could achieve. `decideAccess` then sees no session and no identity. Since
     // v23.19 that lands on the SIGN-IN card, so the reload carries `#staff-pin` — the one hash the
     // boot reads — and the tap still lands where it was going.
-    pinAlt.addEventListener('click', () => {
+    //
+    // It is a sign-out on a device being handed over, so it releases this device's push record
+    // first, WHILE still signed in, exactly as the drawer's Sign out does (time-boxed at 1.5s).
+    pinAlt.addEventListener('click', async () => {
+        await releaseDevicePush();
         clearSession();
         window.location.hash = PIN_FIRST_HASH;
         window.location.reload();

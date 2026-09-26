@@ -17,6 +17,10 @@ let _getDocsThrows = false;
 // Phase-1 (local cache) mock state — see getDocsFromCache below.
 let _mockCacheDocs = [];
 let _cacheThrows   = false;
+// Every cache read, as the query it was issued with — so a test can count them AND see whether one
+// was narrowed to a single member (the retired provisional scope did exactly that).
+/** @type {any[]} */
+let _cacheQueries  = [];
 // DEFERRED READS — the only way to interleave two in-flight fetches deterministically. When on,
 // every getDocs call SNAPSHOTS the docs at issue time and then parks until the test releases it by
 // index, so a test can land the second read first and the first one late. That ordering is the
@@ -65,10 +69,11 @@ mock.module('./firebase-client.js', {
         },
         // Phase 1 of the two-phase load (AUTH_PLAN.md → E1). Defaults to an EMPTY cache so every
         // existing test keeps exercising the server path unchanged; the cache tests set _mockCacheDocs.
-        getDocsFromCache: async () => {
+        getDocsFromCache: async (/** @type {any} */ q) => {
+            _cacheQueries.push(q);
             if (_cacheThrows) throw new Error('simulated cache miss');
-            return { size: _mockCacheDocs.length, empty: _mockCacheDocs.length === 0,
-                     forEach: cb => _mockCacheDocs.forEach(cb) };
+            const docs = _mockCacheDocs;
+            return { size: docs.length, empty: docs.length === 0, forEach: cb => docs.forEach(cb) };
         },
         COLLECTIONS: { overrides: 'overrides', linkDesigns: 'linkDesigns' },
     },
@@ -365,7 +370,7 @@ describe('fetchOverridesForRange deletion reconciliation', () => {
             makeDoc('id1', { memberName: 'A. Smith', date: '2026-06-10', value: 'AL', type: 'annual_leave', source: 'manual', note: '', createdAt: { seconds: 500 } }),
         ];
         await fetchOverridesForRange('2026-06-01', '2026-06-30');
-        assert.equal(rosterOverridesCache.has('2026-05-20' && 'A. Smith|2026-05-20'), true, 'out-of-range May entry untouched');
+        assert.equal(rosterOverridesCache.has('A. Smith|2026-05-20'), true, 'out-of-range May entry untouched');
         assert.equal(rosterOverridesCache.get('A. Smith|2026-06-10')?.value, 'AL', 'in-range survivor kept');
     });
 
@@ -611,7 +616,7 @@ describe('ensureOverridesCached fetch failure', () => {
 
     test('a failed far-month fetch is retryable — the month is not left marked fetched', async () => {
         _getDocsThrows = true;
-        let rendered = false;
+        let rendered;
         await ensureOverridesCached(2099, 3, () => { rendered = true; });   // 2099-04, fails
         rendered = false;   // the failure's own one-shot repaint — see the test above
 
@@ -670,5 +675,57 @@ describe('fetchOverridesForRangeFromCache', () => {
         _cacheThrows = true;
         assert.equal(await fetchOverridesForRangeFromCache('2026-08-01', '2026-08-31'), false);
         _cacheThrows = false;
+    });
+});
+
+// ── A returning member's boot reads the cache ONCE, and for everyone ─────────────────────────
+//
+// The provisional paint (v22.97, retired 26 Sep 2026 by owner decision — DECISIONS.md) read ONE
+// member's rows out of the cache before the grant, and a second, unscoped read had to follow it.
+// Both defects it shipped lived in that pair of reads. With it gone a boot makes exactly one cache
+// read, over the whole window, after the one grant. Real calendar-overrides + calendar-data-state +
+// calendar-initial-fetch; only Firestore is faked.
+describe('the initial fetch after a grant', async () => {
+    const { initInitialFetch } = await import('./calendar-initial-fetch.js');
+    const { knowledgeOf, forget: forgetKnowledge } = await import('./calendar-data-state.js');
+    const now   = new Date();
+    const pad   = (/** @type {number} */ n) => String(n).padStart(2, '0');
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const thisMonth = monthKey(now.getFullYear(), now.getMonth());
+    const _doc = (/** @type {string} */ id, /** @type {string} */ member) => makeDoc(id, {
+        memberName: member, date: today, value: 'AL', type: 'annual_leave', source: 'manual', note: '', createdAt: { seconds: 1000 },
+    });
+    /** @type {any} */ let _savedDoc;
+
+    beforeEach(() => {
+        _savedDoc = /** @type {any} */ (globalThis).document;
+        /** @type {any} */ (globalThis).document = { getElementById: () => null, querySelector: () => null, addEventListener: () => {}, body: null };
+        mock.timers.enable({ apis: ['setTimeout'] });
+        rosterOverridesCache.clear();
+        forgetKnowledge();
+        _mockCacheDocs = [_doc('a', 'A. Member'), _doc('b', 'B. Colleague')];
+        _getDocsThrows = false;
+        _deferGetDocs = true;          // phase 2's server read stays in flight throughout
+        _cacheQueries = [];
+    });
+    afterEach(() => {
+        mock.timers.reset();
+        /** @type {any} */ (globalThis).document = _savedDoc;
+        _deferGetDocs = false; _releases.length = 0;
+        setInitialFetchInProgress(false);
+        forgetKnowledge();
+        setOverrideAccess(true);       // also releases the months the boot claimed
+    });
+
+    test('ONE cache read, unscoped — every member\'s cached rows are loaded, not one member\'s', async () => {
+        setOverrideAccess(true);
+        const { cacheSettled } = initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, authReady: Promise.resolve() });
+        assert.equal(await cacheSettled, true);
+        await _tick(10);
+        assert.equal(_cacheQueries.length, 1, 'a boot made more than one cache read — a scoped read and its re-read are back');
+        const scoped = _cacheQueries[0].filter((/** @type {any} */ a) => Array.isArray(a?._where) && a._where[0] === 'memberName');
+        assert.deepEqual(scoped, [], 'the boot\'s cache read was narrowed to one member');
+        assert.equal(rosterOverridesCache.has(`B. Colleague|${today}`), true);
+        assert.equal(knowledgeOf(thisMonth), 'cached');
     });
 });

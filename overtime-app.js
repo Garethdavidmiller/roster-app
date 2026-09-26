@@ -36,11 +36,12 @@
  * stale data the press exists to replace.
  */
 
-import { CONFIG } from './roster-data.js';
+import { CONFIG, escapeHtml as esc } from './roster-data.js';   // esc: every innerHTML value goes through it
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, isOvertimeReviewer, canOpenOvertime } from './auth-policy.js';
+import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -162,6 +163,12 @@ export function init() {
                 dismissLoginOverlay();
                 resetNavPanel();
                 wireNavPanel();
+                // The gate above ran signed OUT — re-decide for whoever actually signed in.
+                if (requirePage({ status: 'named', member: currentUser }, 'overtime').decision === 'forbidden') {
+                    renderUnavailable();
+                    resolveSession(false);
+                    return;
+                }
                 start();
             },
         });
@@ -221,7 +228,16 @@ export function init() {
         // promise is created pending in session.js and resolved only by whichever coordinator owns
         // the page. Awaiting it without calling this is a page that loads and then waits for ever —
         // no error, no timeout, just "Loading…" — which is exactly what it did until this line.
-        resolveSession(currentUser ? ensureNamedSession(currentUser) : false);
+        const setAuth = currentUser ? ensureNamedSession(currentUser) : false;
+        resolveSession(setAuth);
+        // Every named page's follow-up: an unconfirmed OWN session is asked to sign in again.
+        Promise.resolve(setAuth).then(() => {
+            if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'overtime').decision === 'login') {
+                clearSession();
+                resetNavPanel();
+                initLoginOverlay({ pageLabel: 'Overtime', onSuccess: () => window.location.reload() });
+            }
+        });
 
         // ── THE `ready` MILESTONE IS LATE ON THIS PAGE, AND THAT IS THE POINT ───────────────────
         //
@@ -341,6 +357,10 @@ export function init() {
                 const onScreen = currentForm && currentFormWeek
                     && moved.some((/** @type {any} */ w) => w.weekEnding === currentFormWeek);
                 if (onScreen && currentForm.setPhase(phases.get(currentFormWeek))) return;
+                // Only ANOTHER week moved (they share Tuesday 12:00s): a rebuild would wipe this form,
+                // so skip it only when there are answers to lose — a clean form rebuilds, or the list
+                // rows beneath it keep the old phase.
+                if (currentForm && !onScreen && currentForm.isDirty()) return;
                 await loadMine();
             } finally {
                 resyncing = false;
@@ -717,11 +737,4 @@ export function init() {
      */
     function el(id) { return document.getElementById(id); }
 
-    /** Escape for interpolation into innerHTML. Every dynamic value below goes through it. */
-    /** @param {any} s */
-    function esc(s) {
-        return String(s ?? '')
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    }
 }

@@ -204,6 +204,33 @@ describe('the app\'s own JSON', () => {
         assert.match(String(parseDesignImport('{"patterns":{"999":{}}}').error), /outside the/);
     });
 
+    test('a MISSING or null day is refused by name, never read as a rest day', () => {
+        // The grid path refuses a six-column row; the JSON path read an absent key through
+        // `parseCell(undefined)`, i.e. as an empty cell, i.e. RD — a duty silently lost (invariant 6).
+        const missing = { patterns: { 1: { ...good.patterns[1] } } };
+        delete /** @type {any} */ (missing.patterns[1]).fri;
+        const r = parseDesignImport(JSON.stringify(missing));
+        assert.equal(r.ok, false);
+        assert.match(String(r.error), /Line 1, FRI/);
+        const nulled = { patterns: { 1: { ...good.patterns[1], mon: null } } };
+        assert.match(String(parseDesignImport(JSON.stringify(nulled)).error), /Line 1, MON/);
+    });
+
+    test('a zero-padded line key lands on the line it names, and two spellings of one line are refused', () => {
+        // "01".."09" were stored under keys nothing reads: the preview said every line was filled
+        // while lines 1–9 stayed empty on the grid.
+        const row = good.patterns[1];
+        const padded = /** @type {Record<string, any>} */ ({});
+        for (let i = 1; i <= 3; i++) padded[String(i).padStart(2, '0')] = row;
+        const r = parseDesignImport(JSON.stringify({ patterns: padded }), { lines: 3 });
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        assert.deepEqual(Object.keys(/** @type {any} */ (r).patterns).sort(), ['1', '2', '3']);
+
+        const both = parseDesignImport(JSON.stringify({ patterns: { 1: row, '01': row } }));
+        assert.equal(both.ok, false);
+        assert.match(String(both.error), /Line 1 appears twice/);
+    });
+
     test('an unreadable cell inside JSON is refused too', () => {
         // The JSON path is not a trusted path. It is the same claim in a different notation.
         const bad = { patterns: { 1: { ...good.patterns[1], sat: 'maybe' } } };

@@ -26,13 +26,14 @@ SECURITY_RELEASE_PLAN.md for status"; it may not restate the stage.
 |---|---|---|---|---|
 | **A — infra** | ✅ Complete (A1 · A2 · A3) | — | — | WIF live, no standing deploy key; `npm audit --omit=dev` clean |
 | **B — write isolation** | ✅ Complete (B0–B4, H2; strict since v16.29) | — | — | Strict `overrides` rules live, no lockout, self-heal proven |
+| **Member-claim binding** | ✅ Complete — v24.23 believes a `name` only on a password sign-in at the name's derived email; v24.24 stamps the server-only `member` claim (Set up accounts); v24.27 requires it (`isMember()` in `firestore.rules`, `memberNameFromClaims` on the server) | — | — | Every member rule and endpoint reads identity through `isMember()` / `memberName()`; never roll rules back past v24.23 |
 | **A5 — push subscriptions** | ✅ Complete (v17.76, extended v18.74) | — | — | Per-owner create/update/delete enforced |
-| **C — passwords** | Forced migration live (Phase 0+1 v18.63, Phase 2 v18.92, reset queue v18.93–95) | **C5** — retire the surname default | Track E (below): un-migrated roster-viewers never sign in, so the metric cannot converge. **⚠️ A SECOND ROUTE is on the table and NOT adopted** — C6 (above) would let the remaining surname credentials be replaced server-side with unknown random ones, which answers the CREDENTIAL question without touching the READ question. The two routes and what the second costs: `CREDENTIAL_LIFECYCLE.md` §7. Until the owner decides, this row stands as written | ≥90% migrated **and** a proven recovery route for the remainder |
+| **C — passwords** | Forced migration live (Phase 0+1 v18.63, Phase 2 v18.92, reset queue v18.93–95) | **C5** — retire the surname default | Track E (below): un-migrated roster-viewers never sign in, so the metric cannot converge. **⚠️ A SECOND ROUTE is on the table and NOT adopted** — C6 (below) would let the remaining surname credentials be replaced server-side with unknown random ones, which answers the CREDENTIAL question without touching the READ question. The two routes and what the second costs: `CREDENTIAL_LIFECYCLE.md` §7. Until the owner decides, this row stands as written | ≥90% migrated **and** a proven recovery route for the remainder |
 | **C2 — email verification/reset** | Deferred | — | Needs an email relay that does not exist | Relay available and owner wants it. **A saved address is not a credential** — possession must be proven and recorded (`verifiedAt`) before it can recover an account; design in `CREDENTIAL_LIFECYCLE.md` §8 |
 | **C6 — one-time recovery/activation codes** | Proposed, not started | Owner decision | — | Design in `CREDENTIAL_LIFECYCLE.md` §1. Supersedes C4′ as the recovery path: today's reset makes the SURNAME valid again, so the migration's own repair mechanism undoes the migration. C4′ stays live until C6 does — break-glass may not have a gap |
 | **F — step-up for sensitive admin actions** | Proposed, not started | — | — | Design in `CREDENTIAL_LIFECYCLE.md` §3. **No prerequisites** — the only item in that programme with none. Server-enforced from the token's `auth_time`, never a client timer |
 | **D — App Check** | Deferred, not started | **D1** — monitor mode | Owner decision | Legitimate traffic characterised over a real window before any enforcement |
-| **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 · **the READ closure is IN FORCE since 26 Aug 2026** — the Calendar asks for a named session or the staff PIN (client live since v20.51), and the `allow read;` hold line above the `overrides` read rule was deleted at v21.78, so the SERVER now refuses anything without a `name` claim, `admin`, or `calendarViewer`. RECOVERY_RUNBOOK step 4 records the go/no-go | **E3** — INDIVIDUAL authentication, if it is ever required. E2 was superseded, not built: it would have required merely *any* session, which an anonymous sign-in satisfies | Owner decision, most likely forced externally by a Chiltern IT requirement that each person authenticates | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
+| **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 · **the READ closure is IN FORCE since 26 Aug 2026** — the Calendar asks for a named session or the staff PIN (client live since v20.51), and the `allow read;` hold line above the `overrides` read rule was deleted at v21.78, so the SERVER now refuses anything without a verified member (`isMember()`), `admin`, or `calendarViewer`. RECOVERY_RUNBOOK step 4 records the go/no-go | **E3** — INDIVIDUAL authentication, if it is ever required. E2 was superseded, not built: it would have required merely *any* session, which an anonymous sign-in satisfies | Owner decision, most likely forced externally by a Chiltern IT requirement that each person authenticates | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
 | **Deferred residual** | Held on purpose. The CALENDAR's anonymous bootstrap is gone in EFFECT (v20.12), but the call site is not: `calendar-access.js` still calls `signInAnonymously` under the `CALENDAR_PIN_ACCESS === false` rollback path, and `session.js` keeps its soft fallback. Both are in scope when this is retired — the removal checklist below omitted the first until v21.63 | Retire the anonymous fallback + `ENFORCE_NAMED_SESSION` kill-switch | — | Track B soak complete and Track E decided |
 
 **Three things this table is deliberately explicit about**, because each was previously implied and
@@ -139,9 +140,9 @@ B2, which recurs in B3/B4. State the tiers once, here:
 
 | Tier | Source list | Firebase claim they must carry | What they legitimately write |
 |------|-------------|-------------------------------|------------------------------|
-| **Master admin** | `CONFIG.ADMIN_NAMES` (`['G. Miller']`) | `{ admin: true, name }` | Everything — overrides for any member, huddle/circular/newsletter, roster upload, auth setup |
-| **Management** | `CONFIG.MANAGER_NAMES` (7 names) | **`{ manager: true, name }`** ← set by `setupRosterAuth` since B2 (v14.53); live only on tokens minted after each manager was re-provisioned + refreshed | Overrides (AL/sick/shift) **on behalf of any staff member** — but NOT the master-admin uploads/auth-setup |
-| **Staff** | everyone else | `{ name }` | Only their **own** overrides (`token.name == memberName`) |
+| **Master admin** | `CONFIG.ADMIN_NAMES` (`['G. Miller']`) | `{ admin: true, name, member }` | Everything — overrides for any member, huddle/circular/newsletter, roster upload, auth setup |
+| **Management** | `CONFIG.MANAGER_NAMES` (7 names) | **`{ manager: true, name, member }`** ← set by `setupRosterAuth` since B2 (v14.53); live only on tokens minted after each manager was re-provisioned + refreshed | Overrides (AL/sick/shift) **on behalf of any staff member** — but NOT the master-admin uploads/auth-setup |
+| **Staff** | everyone else | `{ name, member }` | Only their **own** overrides (`memberName() == memberName` — `memberName()` is the `name` of a verified member, `isMember()`, else null) |
 | *Links designer* | `CONFIG.LINKS_DESIGNERS` (`['G. Miller', 'S. Silva', 'M. Robson']`) | *cross-cuts the above* — S. Silva and M. Robson are **CEAs**, not managers. The `linksDesigner` claim is LIVE (H2, v16.29): `setupRosterAuth` sets it from `CONFIG.LINKS_DESIGNERS` and `linkDesigns` writes are gated on it | `linkDesigns` (designs are **not** member-owned) — write control is the `linksDesigner`/`admin` claim |
 
 Three design points that flow from this and still govern any future rule change:
@@ -155,7 +156,7 @@ Three design points that flow from this and still govern any future rule change:
 - **`linkDesigns` is NOT member-isolated** — designs are keyed by design **name**, not member, and
   designer S. Silva is a CEA with no admin/manager claim, so `token.name == memberName` is meaningless.
   Its write gate is the separate `linksDesigner`/`admin` claim (H2). Do not fold it into the override
-  member-name model. Its **read** gate is a `name` claim (v19.39) — one notch, not two: `request.auth
+  member-name model. Its **read** gate is a verified member (`isMember()`) or `admin` (a `name` claim from v19.39; bound to the account since v24.23/v24.27) — one notch, not two: `request.auth
   != null` was reached by the calendar's anonymous session, so it admitted any visitor; requiring the
   `linksDesigner` claim instead would remove the load path a stale designer token needs before its
   first write can self-heal.
@@ -175,7 +176,7 @@ Three design points that flow from this and still govern any future rule change:
   a definitive credential rejection resolves to `'none'` (never anonymous) **regardless of
   `ENFORCE_NAMED_SESSION`** — see that doc before building anything password-related.
 - **SHIPPED — PASSWORD_DESIGN.md Phase 2 (v18.92):** `password-force.js` compels any member still on the
-  surname default to set their own password at their NEXT SIGN-IN, on all five authenticated pages,
+  surname default to set their own password at their NEXT SIGN-IN, in all seven page coordinators,
   behind the `CONFIG.FORCE_PASSWORD_SET` kill switch. No forced sign-out — sessions cap at 60 days (30 until v20.47)
   absolute (the 7-day idle cutoff was removed at v20.41) and an expired session forces a real typed login, so coverage completes itself
   inside 60 days and staggers naturally. (This said 30 until v21.63 — the v20.47 doubling was
@@ -265,7 +266,7 @@ Three design points that flow from this and still govern any future rule change:
 - **D-adjacent hardening — analytics doc size (deferred, App Check is the real fix).** The
   `analytics/activeAccounts` and `analytics/perf_<YYYY-MM>` rules validate that `daily`/`months`/
   `samples` are *maps* but do **not** bound the map-key **count**. So any authenticated session —
-  including the anonymous calendar session every visitor gets — could pad one of those single documents
+  including a scripted anonymous session (the Anonymous provider is still enabled) — could pad one of those single documents
   toward Firestore's 1 MB limit; once near the cap, every legitimate `increment()` merge fails and only
   an admin can shrink it back — a self-inflicted **availability** DoS on analytics recording (not a data
   or money risk; non-sensitive aggregate counts). **Why deferred:** it needs an authed session and only
@@ -288,8 +289,8 @@ Three design points that flow from this and still govern any future rule change:
 > still said "NOT yet in force" while the paragraph beneath it recorded the deletion — the second
 > instance of the defect the correction note below describes, found by a documentation sweep.)
 >
-> The tightened rule is written, tested and deployed — `overrides` reads require a member `name`
-> claim, `admin`, or the shared staff-PIN `calendarViewer` capability. The bare `allow read;` that
+> The tightened rule is written, tested and deployed — `overrides` reads require a verified member
+> (`isMember()`, v24.23/v24.27), `admin`, or the shared staff-PIN `calendarViewer` capability. The bare `allow read;` that
 > sat ABOVE it — and which, because Firestore ORs every matching allow rule, kept override data as
 > public as it had been before v20.12 — was **deleted on 26 Aug 2026 (v21.78)**, in its own push,
 > after the client had soaked since v20.51. RECOVERY_RUNBOOK.md → "The Calendar PIN" step 4 records
@@ -338,7 +339,7 @@ the permanent bearer URLs (E6 below; `ARCHITECTURE.md` EXC-007).
 | | Rule shape | Who it lets in | What it blocks | UX cost |
 |---|-----------|----------------|----------------|---------|
 | **Level 1** — auth-required read | `allow read: if request.auth != null;` | any session **incl. the calendar's existing anonymous one** | a raw REST/`curl` scrape with **no** Firebase session; casual URL sharing | **Small, not zero** — needs the E1 prep first. No front-door change. |
-| **Level 2** — named-only read | `allow read: if request.auth.token.name != null;` | only a **named** staff session | anonymous sessions too — anyone not signed in as staff | **Real** — the calendar must show a login before it renders. The true "behind login". |
+| **Level 2** — named-only read | `allow read: if isMember();` (already the live `overrides` read rule's member door — a bare `token.name != null` is weaker: any session can set its own display name) | only a **named** staff session | anonymous sessions too — anyone not signed in as staff | **Real** — the calendar must show a login before it renders. The true "behind login". |
 
 **Be honest about what each buys.** The project config is in the client JS, so a *determined* scraper
 can replicate the anonymous sign-in — Level 1 raises the bar from "trivially public" to "must initiate a
@@ -371,7 +372,7 @@ REST). Staged:
   and by something STRICTER. Do not build it.** Its whole content was "require *any* Firebase
   session", with the Anonymous provider left enabled — so the barrier was one `signInAnonymously()`
   call, which is no barrier to anyone willing to script it. The staff PIN replaced it: `overrides`
-  reads require a member `name` claim **or** the `calendarViewer` capability, and anonymous is denied
+  reads require a verified member (`isMember()`: password sign-in, derived email, server-set `member` claim — v24.23/v24.27) **or** the `calendarViewer` capability, and anonymous is denied
   outright. That clears the **E5** bar for the read without paying E3's front-door cost. Full
   argument: `AUTH_PLAN.md` → E2. The **three document collections**, the one piece left over from E2,
   were closed at v23.18 under E6 (the reads require access; the files' bearer URLs are E6's remaining
@@ -382,7 +383,7 @@ REST). Staged:
 - **E4: offline grace mode — ships WITH E3, not after.** Without it E3 is a genuine regression for a
   member whose session lapsed while offline. Design in `AUTH_PLAN.md` §4 (durable device marker,
   cache-only render, real login on reconnect). Do not schedule E3 without it.
-- **E5: tighten reads to Level 2** (`token.name != null`) + make the calendar login mandatory. Only
+- **E5: tighten reads to Level 2** (`isMember()`) + make the calendar login mandatory. Only
   after E3/E4 soak, and only after the claim-tier analysis `AUTH_PLAN.md` flags as missing. At this
   point `signInAnonymously` is dead and the **Anonymous provider can be disabled project-wide** —
   which settles the "retire the anonymous fallback" residual below (decide them together).
@@ -514,7 +515,7 @@ only lockout surface is client-side and reversible with the one-line kill-switch
 |------|------------------------------|-------------|
 | admin | Yes — `overrides` for all members; admin ops | **Hard** — in-place login overlay, block the app |
 | operations | Yes — admin-only huddle/circular/newsletter/roster/auth writes | **Hard** — in-place login overlay; a signed-in NON-admin is still redirected to `admin.html` (access control, not a login divert) |
-| settings | Yes — `staffContact` (needs the `name` claim) | **Hard** — in-place login overlay, block writes |
+| settings | Yes — `staffContact` (needs a verified member, `isMember()`) | **Hard** — in-place login overlay, block writes |
 | links | Yes — `linkDesigns` | **Hard** — in-place login overlay |
 | paycalc | **No** — only `clientErrors`/`analytics` (non-isolated) | **Soft** — log only; the calculator is localStorage-based and must keep working |
 
@@ -552,19 +553,24 @@ exists server-side. Repo rules being right is necessary but not sufficient — t
 function + provisioned claims + refreshed tokens) must be right too. Always verify in a private window,
 never an installed phone.
 
-**`CLAIM_EPOCH` (roster-data.js) is armed to 2** (via `refreshClaimsIfStale()` in `session.js`, gated by
-`localStorage('myb_claim_epoch')`) — every device swept its token once on next open. **Do NOT bump again
+**`CLAIM_EPOCH` (roster-data.js) is armed to 3** (2 was the v15.33 strict-cutover sweep; 3 the v24.27
+`member` claim), via `refreshClaimsIfStale()` in `session.js`, gated by
+`localStorage('myb_claim_epoch')` — every device sweeps its token once on next open. **Do NOT bump again
 unless deliberately forcing a fresh sweep.**
 
-**Rollback (still instant):** re-add the `!('name' in request.auth.token)` escape to the `overrides`
-create/update + delete blocks and redeploy the permissive rule, or revert `overrides` to
-`request.auth != null`. No data migration either way.
+**Rollback — do NOT re-add the `!('name' in request.auth.token)` escape or revert `overrides` to
+`request.auth != null`.** Anonymous sign-in is still enabled, so either one re-admits anonymous writes
+to every member's record. A lockout after a claims change is a CLAIM problem, not a rules problem: run
+Operations → Set up accounts, then let tokens refresh (`CLAIM_EPOCH` sweep / `writeWithClaimRetry`). A
+genuinely bad rules deploy is rolled back only to the immediately previous rules version — never past
+v24.23 (the member-claim binding).
 
 ### Deferred residual — retire the anonymous fallback + kill-switch (NOT YET; held on purpose)
 
 With `ENFORCE_NAMED_SESSION` ON, two branches in `session.js` `ensureFirebaseSession` are **unreachable
-dead code**: the `signInAnonymously` fallback and the `createUserWithEmailAndPassword` self-heal (both
-below the `if (CONFIG.ENFORCE_NAMED_SESSION) return commit('none', false)` guard). "Finishing" means
+dead code**: the `createUserWithEmailAndPassword` self-heal (gated inline by
+`!CONFIG.ENFORCE_NAMED_SESSION`) and the `signInAnonymously` fallback (below the
+`if (CONFIG.ENFORCE_NAMED_SESSION)` guard). "Finishing" means
 deleting that dead code and the flag, making named-only **permanent** — a pure refactor with no
 staff-visible change. **Deliberately deferred:**
 

@@ -211,9 +211,9 @@ Notices on other pages need no audience: those pages already require a session.
 
 Add a row to the "Current notices" table in `CLAUDE.md`:
 
-| ID | Page | Title | Badge | Posted | Expiry | Dismiss mechanism |
-|----|------|-------|-------|--------|--------|-------------------|
-| `[id]` | `[page].html` | [Title] | [Badge] | [D Mon YYYY] | [28/90] days | One-time; `[DONE_KEY]` set on close |
+| ID | Page | Title | Badge | Posted | Expiry | Status | Dismiss mechanism |
+|----|------|-------|-------|--------|--------|--------|-------------------|
+| `[id]` | `[page].html` | [Title] | [Badge] | [D Mon YYYY] | [28/90] days | ✅ live until [date] | One-time; `[DONE_KEY]` set on close |
 
 For an `index.html` notice, say which audience it declared — the note above that table names which
 audiences are currently live, and anything other than `'members'` should read as a deliberate

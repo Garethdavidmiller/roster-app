@@ -32,6 +32,18 @@ test('buildSummaryRows: plain period → Total pay, tax, NI, take-home; no Regul
     assert.ok(!html.includes('Pension contribution'), 'no pension row when pension = 0');
 });
 
+test('buildSummaryRows: an over-collected year says a refund may be due — never a bare £0 tax', () => {
+    // computeTax keeps the deduction at £0 and reports the over-collection; this is where it is SAID.
+    const html = buildSummaryRows({ ...SUM_BASE, usingCumulative: true, tax: 0, taxRefund: 180.25 });
+    assert.ok(html.includes('Income Tax'));
+    assert.ok(html.includes('−£0.00'), 'the deduction line is still the £0 in the estimate');
+    assert.match(html, /tax refund of about £180\.25 may be due on this payslip/);
+    assert.match(html, /not included in this estimate/, 'and it says the figure above does not contain it');
+    for (const quiet of [{}, { taxRefund: 0 }, { taxRefund: 0.004 }]) {
+        assert.ok(!/refund/.test(buildSummaryRows({ ...SUM_BASE, ...quiet })), 'no refund → no line');
+    }
+});
+
 test('buildSummaryRows: pension present adds the deduction + pay-after-pension rows', () => {
     const html = buildSummaryRows({ ...SUM_BASE, pension: 147.36, sacGross: 1852.64 });
     assert.ok(html.includes('Pension contribution</span><span class="val">−£147.36</span>'));
@@ -153,14 +165,20 @@ test('buildBreakdownRows: SL-skip note only with an active plan; cumulative + bp
     assert.ok(extras.includes('Holiday Pay Premium (estimated)</span><span class="b-val">+£120.00</span>'));
 });
 
-test('buildBreakdownRows: SL repaid-in-full note (v18.41) — active plan only, outranks the skip', () => {
-    assert.ok(buildBreakdownRows({ ...BD_BASE, slPaidOff: true, plan: 'plan1' }).includes('Student Loan repaid in full'));
-    assert.ok(!buildBreakdownRows({ ...BD_BASE, slPaidOff: true, plan: 'none' }).includes('repaid in full'),
+test('buildBreakdownRows: SL stopped-deducting note (v18.41) — active plan only, outranks the skip', () => {
+    // The OBSERVABLE fact, never "repaid in full" (v19.27): the Student Loans Company routinely
+    // moves the last chunk to direct debit, so a loan can stop being deducted while still owed. The
+    // summary row and the Settings label said so already; this row still claimed the opposite.
+    const LINE = 'Student Loan — not deducted from this payslip onwards';
+    const paidOff = buildBreakdownRows({ ...BD_BASE, slPaidOff: true, plan: 'plan1' });
+    assert.ok(paidOff.includes(LINE));
+    assert.ok(!/repaid/i.test(paidOff), 'the breakdown never claims the loan was repaid');
+    assert.ok(!buildBreakdownRows({ ...BD_BASE, slPaidOff: true, plan: 'none' }).includes(LINE),
         'paid-off with no active loan → no note');
     const both = buildBreakdownRows({ ...BD_BASE, slPaidOff: true, slSkip: true, plan: 'plan1' });
-    assert.ok(both.includes('repaid in full') && !both.includes('not deducted this period'),
-        'repaid outranks the one-off skip — one note, not two');
-    assert.ok(!buildBreakdownRows({ ...BD_BASE, plan: 'plan1' }).includes('repaid in full'),
+    assert.ok(both.includes(LINE) && !both.includes('not deducted this period'),
+        'the cutover outranks the one-off skip — one note, not two');
+    assert.ok(!buildBreakdownRows({ ...BD_BASE, plan: 'plan1' }).includes(LINE),
         'omitted param defaults to still-repaying');
 });
 

@@ -35,11 +35,11 @@ const {
     extractAIJson,
     mapColumnHeadersToDates,
     buildSafeEntries,
-    applySundayScanCorrections,
     applyColumnScanCrossCheck,
     parseStrictIsoDate,
     fileSignatureMatches,
 } = require('./roster-parse-helpers');
+const { applySundayScanCorrections, settleDisputedSundays } = require('./roster-sunday-repair');
 const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeometryWithin, settledGeometry } = require('./roster-geometry');
 const { SHIFT_VOCABULARY, buildCellTable, buildCellPrompt, DAY_LABELS: CELL_DAY_LABELS } = require('./roster-prompt');
 const {
@@ -48,12 +48,13 @@ const {
     pinMatches,
     sourceKeyFor,
     clientIpOf,
-    throttleDecision,
-    recordFailure,
+    reserveAttempt,
+    refundAttempt,
     GLOBAL_SOURCE_KEY,
     GLOBAL_THROTTLE,
     isThrottleStateStale,
     viewerClaims,
+    viewerAccountTamper,
 } = require('./calendar-viewer-auth');
 const { buildDocumentEndpoints } = require('./documents');
 const { buildAuthEndpoints }     = require('./auth-endpoints');
@@ -664,7 +665,8 @@ columnScan: one key per column header; every staff member appears in every colum
         // either way. Reading `parsed.columnHeaders` unguarded threw a TypeError before v24.12.
         const hasSundayColumn = geometryPath
             || parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(String(h).trim().toLowerCase()));
-        applySundayScanCorrections(safeEntries, parsed.sundayScan, hasSundayColumn, dates);
+        // A Sunday it cannot repair is left for the grid below and settled after it (roster-sunday-repair.js).
+        const disputedSundays = applySundayScanCorrections(safeEntries, parsed.sundayScan, hasSundayColumn, dates);
 
         // v22.16 flagged every plain-time Sunday here as UNREADABLE, on the premise that a
         // genuinely worked Sunday carries an RDW marker on the paper roster. THREE REAL ROSTERS SAY
@@ -708,6 +710,7 @@ columnScan: one key per column header; every staff member appears in every colum
         // about rather than assuming away.
         const geometry = await settledGeometry(geometryEarly, geometryPromise);
         const geoStats = applyGeometryWitness(safeEntries, geometry, dates);
+        settleDisputedSundays(safeEntries, disputedSundays, geoStats, dates, parsed.sundayScan);
         if (geoStats.status !== 'complete') {
             console.warn(`[parseRosterPDF] geometry witness ${geoStats.status}: ${geoStats.checked}/${geoStats.total} members matched`
                 + (geoStats.unmatched.length ? ` — unmatched: ${geoStats.unmatched.join(', ')}` : '')
@@ -877,8 +880,11 @@ Object.assign(exports, buildOvertimeEndpoints({
  *    response body. The log line below records the OUTCOME and the hashed source, nothing else.
  * 2. **Never return a different response for "wrong shape" and "wrong value".** Both are 401 with
  *    one message, so the endpoint cannot be used to learn the PIN's length.
- * 3. **Only FAILURES touch the throttle store.** A correct PIN writes nothing, which keeps the
- *    normal path free and means the collection can never be read as a record of who used the app.
+ * 3. **Only FAILURES stay in the throttle store.** Every attempt is charged BEFORE its compare (so
+ *    concurrent guesses cannot all be compared ahead of their charges) and a correct PIN is refunded
+ *    after it; a refund to zero deletes the row, so the collection can never be read as a record of
+ *    who used the app. (Until the Sep 2026 review a correct PIN wrote nothing at all — and N guesses
+ *    arriving together were all compared before any was counted.)
  * 4. **Fail closed.** Any error that is not a rejected PIN returns 5xx WITHOUT a token. There is no
  *    branch here that hands out a token on a path it could not fully verify.
  * 5. **The throttle store failing is a 503, not a free pass (v20.45).** Both the read before the
@@ -923,29 +929,49 @@ exports.unlockCalendarViewer = onRequest(
         // allowance. See GLOBAL_SOURCE_KEY in calendar-viewer-auth.js.
         const globalRef = getFirestore().collection('viewerAttempts').doc(GLOBAL_SOURCE_KEY);
 
-        // ── Throttle check, BEFORE the comparison ───────────────────────────────────────────────
-        // Order matters: a blocked source must not get its guess compared at all, or the block
-        // would still leak one bit per request through response timing.
-        let blocked = null;
+        // Trimmed here as well as inside `pinMatches`, so the two agree on what "configured" means:
+        // a secret of nothing but whitespace is a DEPLOYMENT fault (503 below), not a wrong PIN.
+        const expected = (CALENDAR_VIEWER_PIN.value() || '').trim();
+        // MISSING **AND MALFORMED** ARE BOTH DEPLOYMENT FAULTS (v20.39, audit §31). Emptiness was
+        // already caught; shape was not, and the gap is worse than it sounds. A secret set to five
+        // digits by a slipped keystroke can never match a four-digit entry, so every member at the
+        // station is told their PIN is wrong — the one symptom that leads nowhere near the actual
+        // cause, and the one that would have the whole shift hunting for a code that cannot work.
+        // The shape check is `isValidPinShape`, the same rule the client's entry is held to, so the
+        // two cannot drift into disagreeing about what a PIN is.
+        // Checked BEFORE the throttle charges anything: our own misconfiguration must not spend the
+        // station's budget, or a bad deploy would turn into "too many attempts" on top.
+        if (!expected || !isValidPinShape(expected)) {
+            // 503, never 401. The log names the fault; it never contains the value.
+            console.error(`[unlockCalendarViewer] CALENDAR_VIEWER_PIN is ${expected ? 'malformed' : 'not configured'}`);
+            return res.status(503).json({ error: 'Calendar access is not configured' });
+        }
+
+        // ── Throttle: check AND charge, in ONE transaction, BEFORE the comparison ───────────────
+        // A blocked source must not get its guess compared at all (the block would still leak a bit
+        // per request through timing), and the charge is made HERE rather than after a wrong answer:
+        // a plain read before the compare let N concurrent requests all read "not blocked" and all
+        // be compared before any was counted (Sep 2026 review). Inside the transaction the Nth sees
+        // the N-1 charges before it. `reserveAttempt` owns the rule; a right PIN is refunded below.
+        let reserved;
         try {
-            // Both buckets, in one round trip. EITHER being blocked blocks the attempt: the ceiling
-            // is not an average, it is a ceiling.
-            const [snap, gSnap] = await Promise.all([throttleRef.get(), globalRef.get()]);
-            const decision = throttleDecision(snap.exists ? snap.data() : null, now);
-            const gDecision = throttleDecision(gSnap.exists ? gSnap.data() : null, now);
-            if (!decision.allowed) blocked = decision;
-            else if (!gDecision.allowed) blocked = gDecision;
+            reserved = await getFirestore().runTransaction(async tx => {
+                // Firestore requires every read in a transaction before any write.
+                const [snap, gSnap] = await Promise.all([tx.get(throttleRef), tx.get(globalRef)]);
+                const r = reserveAttempt(snap.exists ? snap.data() : null, gSnap.exists ? gSnap.data() : null, now);
+                if (!r.blocked) { tx.set(throttleRef, r.source); tx.set(globalRef, r.global); }
+                return r;
+            });
         } catch (e) {
-            // FAIL CLOSED (rule 5 — v20.45; this failed OPEN until an external review called it).
-            // A PIN that cannot be rate-limited must not be compared: the client shows its
-            // recoverable "try again shortly" state, and nothing is lost that the outage had not
-            // already taken — the overrides live in the same Firestore this read just failed
-            // against.
-            console.error('[unlockCalendarViewer] throttle read failed — refusing:', e && e.code);
+            // FAIL CLOSED (rule 5 — v20.45; this failed OPEN until an external review called it). A
+            // PIN that cannot be counted must not be compared: the client shows its recoverable "try
+            // again shortly" state, and 503 tells nobody whether the PIN was right. Nothing is lost
+            // that the outage had not already taken — the overrides live in this same Firestore.
+            console.error('[unlockCalendarViewer] throttle transaction failed — refusing:', e && e.code);
             return res.status(503).json({ error: 'Calendar access is temporarily unavailable' });
         }
-        if (blocked) {
-            res.set('Retry-After', String(blocked.retryAfterSec));
+        if (reserved.blocked) {
+            res.set('Retry-After', String(reserved.blocked.retryAfterSec));
             console.warn('[unlockCalendarViewer] throttled', sourceKey);
             return res.status(429).json({ error: 'Too many attempts' });
         }
@@ -957,48 +983,15 @@ exports.unlockCalendarViewer = onRequest(
         }
         const supplied = body && typeof body.pin === 'string' ? body.pin : null;
 
-        // Trimmed here as well as inside `pinMatches`, so the two agree on what "configured" means:
-        // a secret of nothing but whitespace is a DEPLOYMENT fault (503 below), not a wrong PIN.
-        const expected = (CALENDAR_VIEWER_PIN.value() || '').trim();
-        // MISSING **AND MALFORMED** ARE BOTH DEPLOYMENT FAULTS (v20.39, audit §31). Emptiness was
-        // already caught; shape was not, and the gap is worse than it sounds. A secret set to five
-        // digits by a slipped keystroke can never match a four-digit entry, so every member at the
-        // station is told their PIN is wrong — the one symptom that leads nowhere near the actual
-        // cause, and the one that would have the whole shift hunting for a code that cannot work.
-        // The shape check is `isValidPinShape`, the same rule the client's entry is held to, so the
-        // two cannot drift into disagreeing about what a PIN is.
-        if (!expected || !isValidPinShape(expected)) {
-            // 503, never 401. The log names the fault; it never contains the value.
-            console.error(`[unlockCalendarViewer] CALENDAR_VIEWER_PIN is ${expected ? 'malformed' : 'not configured'}`);
-            return res.status(503).json({ error: 'Calendar access is not configured' });
-        }
-
         // ONE branch for "wrong shape" and "wrong value" — see rule 2 in the header.
         const ok = isValidPinShape(supplied) && pinMatches(supplied, expected);
         if (!ok) {
-            try {
-                await getFirestore().runTransaction(async tx => {
-                    // Firestore requires every read in a transaction before any write.
-                    const [snap, gSnap] = await Promise.all([tx.get(throttleRef), tx.get(globalRef)]);
-                    tx.set(throttleRef, recordFailure(snap.exists ? snap.data() : null, now));
-                    // The global bucket carries its OWN, higher limit — passing GLOBAL_THROTTLE is
-                    // what makes it a backstop rather than a second copy of the per-source rule.
-                    tx.set(globalRef, recordFailure(gSnap.exists ? gSnap.data() : null, now, GLOBAL_THROTTLE));
-                });
-            } catch (e) {
-                // FAIL CLOSED here too (rule 5). Answering 401 with the guess uncounted would let a
-                // caller who can induce write failures guess without limit — the exact budget the
-                // transaction exists to spend. 503 tells the member to retry and tells nobody
-                // whether the PIN was right.
-                console.error('[unlockCalendarViewer] failure record failed — refusing:', e && e.code);
-                return res.status(503).json({ error: 'Calendar access is temporarily unavailable' });
-            }
-            // Opportunistic sweep of everything that has aged out (v20.15). `isThrottleStateStale`
-            // was written and tested at v20.12 and then never called — so this collection only ever
-            // grew, one document per source hash, for ever, while the module header claimed it was
-            // swept. Done here rather than on a schedule because there is no scheduled job to hang
-            // it on and the volume never justifies one; done on the FAILURE path only, so the normal
-            // correct-PIN path still writes and reads nothing. Best-effort: a sweep that fails must
+            // Already charged, above. Opportunistic sweep of everything that has aged out (v20.15).
+            // `isThrottleStateStale` was written and tested at v20.12 and then never called — so this
+            // collection only ever grew, one document per source hash, while the module header claimed
+            // it was swept. Done here rather than on a schedule because there is no scheduled job to
+            // hang it on and the volume never justifies one; on the FAILURE path only, so the normal
+            // correct-PIN path pays for no collection read. Best-effort: a sweep that fails must
             // never affect the response the member already earned.
             try {
                 const old = await getFirestore().collection('viewerAttempts').limit(50).get();
@@ -1016,49 +1009,65 @@ exports.unlockCalendarViewer = onRequest(
             return res.status(401).json({ error: 'PIN not recognised' });
         }
 
+        // The PIN was right, so take back the charge made above — in PARALLEL with the mint, and
+        // awaited before answering. Best-effort: a refund that fails leaves one attempt counted,
+        // which is the safe direction.
+        const refunded = getFirestore().runTransaction(async tx => {
+            const [snap, gSnap] = await Promise.all([tx.get(throttleRef), tx.get(globalRef)]);
+            for (const [ref, sn, mine, cfg] of [[throttleRef, snap, reserved.source], [globalRef, gSnap, reserved.global, GLOBAL_THROTTLE]]) {
+                const next = refundAttempt(sn.exists ? sn.data() : null, mine, cfg);
+                if (next === null) tx.delete(ref); else if (next) tx.set(ref, next);
+            }
+        }).catch(e => console.warn('[unlockCalendarViewer] refund failed (one attempt stays counted)', e && e.code));
+
         // ── Mint the viewer token ───────────────────────────────────────────────────────────────
         try {
-            // Make sure the dedicated account exists. Created with NO email and NO password: it is a
-            // capability, not a person, and an emailless account is invisible to the two places that
-            // enumerate staff — `computeOrphanLabels` filters on `@myb-roster.local` and
-            // `getSignInStats` works from an allowlist of derived member emails. Both are asserted
-            // by calendar-viewer-auth.test.mjs rather than left to hold by luck.
+            // Make sure the dedicated account exists, and is still a bare capability. Created with NO
+            // email and NO password: it is a capability, not a person, and an emailless account is
+            // invisible to the two places that enumerate staff — `computeOrphanLabels` and
+            // `getSignInStats`. REBUILT when a PIN holder has linked a way in to it (an email, a
+            // password, a phone), or it has been disabled: each linked credential outlives a PIN
+            // rotation, and a roster-domain email puts the account in front of Set up accounts and
+            // the leaver sweep (Sep 2026 review; `viewerAccountTamper`). NO display name (v24.23):
+            // Firebase copies it into every token's `name`, the field member rules key on.
+            let viewer = null;
             try {
-                await getAuth().getUser(CALENDAR_VIEWER_UID);
+                viewer = await getAuth().getUser(CALENDAR_VIEWER_UID);
             } catch (e) {
-                if (e && e.code === 'auth/user-not-found') {
-                    // NO display name (v24.23). Firebase copies a display name into every token's
-                    // `name`, and `name` is what member rules key on — so the old label made every
-                    // PIN session look like a named member to anything checking only for a string.
-                    await getAuth().createUser({ uid: CALENDAR_VIEWER_UID, disabled: false });
-                    console.log('[unlockCalendarViewer] created the viewer account');
-                } else {
-                    throw e;
-                }
+                if (!e || e.code !== 'auth/user-not-found') throw e;
+            }
+            const tamper = viewerAccountTamper(viewer);
+            // A concurrent unlock can get there first — its delete leaves ours `user-not-found`, its
+            // create leaves ours `uid-already-exists`. Both are the state wanted, so neither refuses.
+            const orRaced = (/** @type {string} */ code) => (/** @type {any} */ e) => { if (!e || e.code !== code) throw e; };
+            if (tamper) {
+                await getAuth().deleteUser(CALENDAR_VIEWER_UID).catch(orRaced('auth/user-not-found'));
+                console.warn('[unlockCalendarViewer] the shared viewer account', tamper, '— rebuilt from nothing');
+                viewer = null;
+            }
+            if (!viewer) {
+                await getAuth().createUser({ uid: CALENDAR_VIEWER_UID, disabled: false }).catch(orRaced('auth/uid-already-exists'));
+                console.log('[unlockCalendarViewer] created the viewer account');
             }
 
             // Re-apply the claims on EVERY successful unlock. `setCustomUserClaims` REPLACES the
-            // whole set, so this is not merely idempotent housekeeping — it is what guarantees the
-            // account cannot accumulate a claim by any route and keep it. Cheap, and it means the
-            // account's privileges are re-asserted from source rather than trusted from history.
-            await getAuth().setCustomUserClaims(CALENDAR_VIEWER_UID, viewerClaims());
-            // …and CLEAR any display name, on every unlock (v24.23). A PIN holder can rename this
-            // shared account from their own session, and until this line that name reached every
-            // later PIN token. The rules no longer believe it (isMember), but a shared identity
-            // should not carry anything one holder chose.
-            // BEST-EFFORT (v24.26): the rules no longer believe this field, so a transient Admin SDK
-            // error here must not refuse a PIN that was right — it did, inside the 500 below.
-            try {
-                await getAuth().updateUser(CALENDAR_VIEWER_UID, { displayName: null });
-            } catch (nameErr) {
-                console.warn('[unlockCalendarViewer] display-name clear failed (unlock continues)', nameErr && nameErr.code);
-            }
+            // whole set, so this is what guarantees the account cannot accumulate a claim by any
+            // route and keep it. …and CLEAR any display name (v24.23): a PIN holder can rename this
+            // shared account, and a shared identity should not carry anything one holder chose.
+            // The two are independent, so they run together; the clear is BEST-EFFORT (v24.26) —
+            // the rules no longer believe the field, so its failure must not refuse a right PIN.
+            await Promise.all([
+                getAuth().setCustomUserClaims(CALENDAR_VIEWER_UID, viewerClaims()),
+                getAuth().updateUser(CALENDAR_VIEWER_UID, { displayName: null }).catch(nameErr =>
+                    console.warn('[unlockCalendarViewer] display-name clear failed (unlock continues)', nameErr && nameErr.code)),
+            ]);
 
             // The claims are ALSO baked into the custom token. Without this the client would hold a
             // token minted before the claims took effect and its first override read would be denied
             // — the same stale-claim class `writeWithClaimRetry` exists for on the member paths,
             // except here there is no retry net because the very first read is the one that matters.
             const token = await getAuth().createCustomToken(CALENDAR_VIEWER_UID, viewerClaims());
+            await refunded;
 
             console.log('[unlockCalendarViewer] unlocked', sourceKey);
             // The MINIMUM the client needs. No claims echo, no uid, no expiry hint — the client
@@ -1069,6 +1078,7 @@ exports.unlockCalendarViewer = onRequest(
             // Fail CLOSED (rule 4). The PIN was right, but we could not complete the exchange, so
             // the client gets no token and shows its recoverable "try again" state.
             console.error('[unlockCalendarViewer] token mint failed', e && e.code, e && e.message);
+            await refunded;
             return res.status(500).json({ error: 'Could not unlock the Calendar' });
         }
     }

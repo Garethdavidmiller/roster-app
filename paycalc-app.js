@@ -33,7 +33,7 @@ import {
   updateBhRows, buildPeriodSelect,
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
   setEarliestVisiblePeriod, isTaxYearVisible, visiblePeriods,
-  _setSelectPeriod, buildYtdSourceSelect,
+  _setSelectPeriod, buildYtdSourceSelect, ytdAutoSource,
 } from './paycalc-periods.js';
 import {
   getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
@@ -90,13 +90,18 @@ function _showUnsupportedRole(member) {
     // calculator would render in full while this code believed it was gone. See paycalc.css.
     document.body.classList.add('role-unsupported');
     document.getElementById('unsupportedGradeBanner')?.classList.remove('hidden');
+    // A session name the roster no longer holds (a leaver, a rename) is not a ROLE gap — say what it is.
+    if (!member?.role) {
+        const t = document.getElementById('unsupportedGradeTitle'); if (t) t.textContent = 'Your name isn’t on the current roster';
+        const b = document.querySelector('#unsupportedGradeBanner p'); if (b) b.textContent = 'The Pay Calculator needs your roster entry to know your grade and to keep your pay data apart from anyone else’s on this device. Ask the admin to check your name.';
+    }
     initNavPanel({
         currentPage: 'paycalc',
         memberName:  member?.name || null,
         isAdmin:         ROSTER_CONFIG.ADMIN_NAMES.includes(member?.name ?? ''),
         isLinksDesigner: ROSTER_CONFIG.LINKS_DESIGNERS.includes(member?.name ?? ''),
         canOpenOvertime: canOpenOvertime(member?.name ?? ''),
-        onSignOut: () => { clearSession(); window.location.href = './'; },
+        onSignOut: () => { clearSession(); window.location.replace('./'); },
     });
     registerServiceWorker();
     markPageReady();
@@ -127,7 +132,7 @@ export function init() {
     // calculator. Do not "simplify" this gate into requirePage — it would regress to rendering with no
     // identity.
     if (!getSession()?.name) {
-      // On success: INPLACE_LOGIN off (default) → reload back into the calculator (today's path); on →
+      // On success: INPLACE_LOGIN off (the per-page rollback) → reload back into the calculator; on (live) →
       // re-invoke init() in place — the body below never ran on this pass, so re-entering runs it once
       // with the just-saved session. The per-member namespace is handled for free: runMigrations()
       // (below) calls setPaycalcNamespace(getLoggedMember()) and saveSession already wrote the member
@@ -151,11 +156,25 @@ export function init() {
     // manager account was being handed a polished estimate at somebody else's rate. (The counts
     // that used to sit here went stale the first time a dispatcher joined — v22.42.) Before every
     // other init step, so nothing can render a figure first. Why: AI_MAP → `gradeForRole`.
+    //
+    // A SESSION NAME THE ROSTER DOES NOT HOLD REFUSES TOO (72-hour review): a leaver or a renamed
+    // member keeps a valid local session, `getLoggedMember()` returns null, and a null used to skip
+    // this check — so the calculator ran on CEA rates and `setPaycalcNamespace(undefined)` opened the
+    // bare `myb_pc_` namespace, i.e. the shared legacy keys of everyone on the device.
     const _roleMember = getLoggedMember();
-    if (_roleMember && !gradeForRole(_roleMember.role)) {
-      _showUnsupportedRole(_roleMember);
+    if (!_roleMember || !gradeForRole(_roleMember.role)) {
+      _showUnsupportedRole(_roleMember ?? { name: getSession()?.name });
       return;
     }
+
+    // BACK/FORWARD CACHE ON A SHARED DEVICE (72-hour review): a page restored from the bfcache does
+    // not re-run init(), so after a sign-out (or a different member signing in on another tab) the
+    // Back button could show the previous member's pay page, figures and all. Re-check the identity
+    // on restore and reload if it is not the one this page was built for.
+    const _nameAtInit = getSession()?.name;
+    window.addEventListener('pageshow', (e) => {
+      if (e.persisted && getSession()?.name !== _nameAtInit) window.location.reload();
+    });
 
     // Period helpers, grade helpers, settings, roster hint, HPP, back-pay all imported above.
     // SK, periodKey, hppEstKey, hppActualKey imported from paycalc-migrations.js
@@ -287,7 +306,7 @@ export function init() {
       // otherwise the next period change silently re-engages cumulative PAYE against figures the
       // member detached (v18.12 — the un-anchor handler now records '0' rather than deleting the key).
       if (_rawSrc == null && hasFigures) {
-        src = Math.min(Math.max(todaysPeriodNum() - 1, 48 + ty.first), 48 + ty.last);
+        src = ytdAutoSource(ty);
         lsSet(ytdSrcKey(ty), String(src));
       }
       if (src) _setSelectPeriod(sel, src);
@@ -551,12 +570,8 @@ export function init() {
         });
       }
 
-      // Load saved data for this period
+      // Load saved data for this period (which also applies the pension opt-out lock before pricing)
       loadPeriodData(p.num);
-      // The pension LOCK follows the viewed payslip (v21.78) — a member who left the scheme in
-      // August is still contributing on her July one. AFTER loadPeriodData deliberately: that
-      // paints the value, and this may only override it where the timeline says there was none.
-      applyPensionOptOutUI(p);
 
       // Sync the back-pay card to the newly-viewed period's award year (v17.86 per-year viewing) —
       // ALWAYS, not only when the card is open, so the banner + take-home reflect whichever payslip
@@ -616,6 +631,12 @@ export function init() {
         const pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
         if (pa) pa.value = periodDefaultPension(_pObj).toFixed(2);
       }
+      // The pension LOCK follows the viewed payslip (v21.78) — a member who left the scheme in
+      // August is still contributing on her July one. AFTER the paint above (it may only override a
+      // value where the timeline says there was none) and BEFORE calculate() below: applied after
+      // it, as it was until the 72-hour review, a payslip holding an explicit saved figure was
+      // priced WITH that deduction while the field beside it read a locked £0.00.
+      if (_pObj) applyPensionOptOutUI(_pObj);
       updateAdjSign();
       // Auto-expand "more options" if this period has extras saved. Route through _setDisclosure so
       // the button's aria-expanded + arrow stay in step (a class-only .open left it stale — a screen
@@ -911,7 +932,7 @@ export function init() {
       const _ytdSrc = parseInt(lsGet(ytdSrcKey(_ty)) ?? '', 10) || 0;
       if (!(_ytdSrc && _curP && _curP.num === _ytdSrc + 1)) { ytdP = null; ytdT = null; }
       const periodN = _curP ? (_curP.num - 48) - _ty.first + 1 : null;
-      const { tax, usingCumulative } = computeTax(
+      const { tax, usingCumulative, refund: taxRefund } = computeTax(
         sacGross, /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value, thresholds,
         { ytdPay: ytdP, ytdTax: ytdT, periodN },
       );
@@ -1047,7 +1068,7 @@ export function init() {
       // DOM read + pay maths; the string-building lives beside its unit tests.
       /** @type {HTMLElement} */ (document.getElementById('summary')).innerHTML = buildSummaryRows({
         _bpThisPeriod, _hppForPeriod, gross, grossWithBp, _bpIsEstimate, _hppIsEstimate,
-        pension, sacGross, usingCumulative, tax, ni, slLines, net,
+        pension, sacGross, usingCumulative, tax, ni, slLines, net, taxRefund,
       });
 
       const bd = buildBreakdownRows({
@@ -1836,7 +1857,9 @@ export function init() {
         onLogoClick: () => openAboutLightbox?.(),
         onSignOut:   _paycalcMember ? () => {
             clearSession(); // clears localStorage AND signs out Firebase Auth
-            window.location.href = './';
+            // replace, not href: the pay page leaves the history, so Back cannot restore it (and
+            // its figures) from the bfcache for whoever picks the shared device up next.
+            window.location.replace('./');
         } : null,
     });
 

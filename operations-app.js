@@ -57,10 +57,15 @@ export function init() {
     // the one piece of unsaved, in-flight work on this page (uncommitted review edits would be lost
     // on a reload). #rosterReviewSection carries `.visible` only while a review table is on screen;
     // otherwise reload immediately. Mirrors admin-app.js's hasUnsavedChanges guard. (v18.29)
+    // A roster PARSE in flight (the form is locked, #rosterType disabled) and a document UPLOAD in
+    // flight (doc-upload.js marks its button `data-uploading`) are in-flight work too: a reload
+    // mid-way loses the parse's answer, or leaves an upload unconfirmed (Sep 2026 review).
     registerServiceWorker({
         beforeReload() {
-            const reviewing = document.getElementById('rosterReviewSection')?.classList.contains('visible');
-            if (!reviewing) { window.location.reload(); return; }
+            const busy = document.getElementById('rosterReviewSection')?.classList.contains('visible')
+                || /** @type {HTMLSelectElement|null} */ (document.getElementById('rosterType'))?.disabled
+                || !!document.querySelector('[data-uploading]');
+            if (!busy) { window.location.reload(); return; }
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'hidden') window.location.reload();
             }, { once: true });
@@ -84,7 +89,7 @@ export function init() {
     const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'operations');
     if (_access.decision === 'login') {
         // Not signed in → show the shared in-place sign-in (no redirect). On success:
-        //  • INPLACE_LOGIN off (default) → reload; the reloaded page re-checks access (today's path).
+        //  • INPLACE_LOGIN off (the per-page rollback; ON is live) → reload; the reloaded page re-checks access.
         //    resolveSession(false) fulfils sessionReady on this non-auth load.
         //  • INPLACE_LOGIN on → re-invoke init() in place: the authorised body below never ran on this
         //    pass (we return now), so re-entering runs it exactly ONCE with the just-saved session —
@@ -232,8 +237,23 @@ export function init() {
             behavior: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
         });
     }
-    openDeepLinkedCard();
-    window.addEventListener('hashchange', () => openDeepLinkedCard());
+    /** A deep link has done its job once its card is open, so the hash is STRIPPED: a second tap on
+     *  the same notification is then a hash CHANGE, where a repeat of an unchanged hash fired nothing.
+     *  And a reset-request tap while this page is already open REFRESHES the queue — it was read when
+     *  the page loaded, so the new request was not in it (Sep 2026 review). */
+    function followDeepLink(/** @type {boolean} */ refresh) {
+        if (!DEEP_LINK_CARDS[location.hash]) return;
+        const hash = location.hash;
+        openDeepLinkedCard(hash);
+        history.replaceState(history.state, '', location.pathname + location.search);
+        if (refresh && hash === '#reset-requests') initResetRequests();
+    }
+    followDeepLink(false);   // on load the queue's own first read (below) is the fresh one
+    window.addEventListener('hashchange', () => followDeepLink(true));
+    // Back to a tab left open: the queue may have grown while it was hidden.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') initResetRequests();
+    });
 
     // The Needs-attention strip (v22.03) — an index the cards feed; it runs no reads of its own
     // (operations-attention.js header has the three refusals that ARE the design).
@@ -674,7 +694,10 @@ export function init() {
         _rrLoading = true;
         content.setAttribute('aria-busy', 'true');
         try {
-            const requests = await getResetRequests();
+            // Like the other admin reads on this page: after the session exists, and through the
+            // claim-retry, so a stale token is refreshed once instead of reading as a failed load.
+            await sessionReady;
+            const requests = await withClaimRetry(getResetRequests);
             content.removeAttribute('aria-busy');
             if (chip) chip.textContent = requests.length ? String(requests.length) : '';
             attention.report('resets', requests.length);

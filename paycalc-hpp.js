@@ -19,7 +19,7 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, ytdSrcKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat } from './roster-data.js';
 import { fmt, fdList } from './paycalc-format.js';
-import { hppPayslipForTaxYear } from './paycalc-hpp-schedule.js';
+import { hppPayslipForTaxYear, hppPaidInTaxYear } from './paycalc-hpp-schedule.js';
 
 // ── SHARED HELPERS ────────────────────────────────────────────────────────────
 
@@ -136,6 +136,32 @@ export function hppFromYtdTaxable(taxablePayYtd, nonPremiumYtd) {
 }
 
 /**
+ * Non-premium LUMPS inside a Year to Date Taxable Pay figure that the app itself holds exactly
+ * (72-hour review) — without this the 'ytd' estimate priced each as premium pay and took 7.69% of
+ * it. Two are known: peer-training pay (extra BASIC — 2h per day at the period rate, the same
+ * `peerDays × 2 × rate` computeGross uses) and last year's Holiday Pay Premium, which lands on this
+ * year's January payslip (`hppCarrier`) and is only inside the figure once that payslip is covered.
+ *
+ * THE BACK-PAY LUMP IS DELIBERATELY NOT HERE. In compute mode its amount is never stored, and even a
+ * figure typed from the payslip is the wrong thing to subtract whole: its PREMIUM arrears do accrue
+ * HPP, and only the basic/London share should come out — a split the app does not hold. Guessing it
+ * would break invariant 1.
+ *
+ * Pure. @param {{ covered: any[], readSaved: (n: number) => ({ data: any, error?: any }),
+ *   rateFor: (p: any) => number, hppCarrier: { num: number }|null, priorHppAmount: number }} a
+ * @returns {number}
+ */
+export function knownYtdLumps({ covered, readSaved, rateFor, hppCarrier, priorHppAmount }) {
+  let sum = 0;
+  for (const p of covered) {
+    const peer = Number(readSaved(p.num)?.data?.peer) || 0;
+    if (peer > 0) sum += peer * 2 * rateFor(p);
+  }
+  if (hppCarrier && covered.some(p => p.num === hppCarrier.num)) sum += Math.max(0, priorHppAmount || 0);
+  return sum;
+}
+
+/**
  * Expected NON-premium taxable pay (basic + London − pension) summed over the tax-year periods the
  * Year to Date figure covers (up to its source payslip, or today if unknown). Subtracted from the
  * YTD Taxable Pay to leave the premium pay that accrues HPP. Reads live grade/rate/pension via the
@@ -175,6 +201,16 @@ function _expectedNonPremiumYtd(ty) {
       : (parseFloat(String(getPensionDefault(p))) || 0) * factor;
     nonPremium += basic + london - pension;
   }
+  // …plus the lumps the figure holds that are neither basic nor premium (see knownYtdLumps).
+  const _paid = hppPaidInTaxYear(ty, getPeriods(), CONFIG.TAX_YEARS);
+  nonPremium += knownYtdLumps({
+    covered, readSaved: readSavedPeriod,
+    rateFor: (/** @type {any} */ p) => getRateForPeriod(p, grade, ty.label, settledRate),
+    hppCarrier: _paid?.payslip ?? null,
+    priorHppAmount: _paid
+      ? resolveHppForPeriod(lsGet(hppActualKey(_paid.taxYear)), lsGet(hppEstKey(_paid.taxYear))).amount
+      : 0,
+  });
   return { nonPremium, count: covered.length };
 }
 

@@ -12,11 +12,18 @@
  *   peekNotifState()        → Promise<state> — reads state only, no side effects (for frequent UI reads)
  *   enableNotifications()   → Promise<state> — requests permission if needed, subscribes
  *   disableNotifications()  → Promise<state> — unsubscribes, removes server record
+ *   notifOffByChoice()      → boolean — the member switched them off on this device (not a lapse)
+ *   releaseDevicePush(ms?)  → Promise<void> — on SIGN-OUT: drop this device's server record
  *   state = 'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'
+ *
+ * A DELIBERATE OFF IS 'off-default', NOT 'off-lapsed' (Sep 2026 review). Granted + no subscription is
+ * what a lapse and a Disable both look like to the browser, so the Settings card told a member who had
+ * just switched them off that they "have stopped". `USER_OFF_KEY` records the choice on the device;
+ * a successful subscribe clears it.
  */
 
 import { savePushSubscription, deletePushSubscription } from './firebase-client.js';
-import { lsGet, lsSet } from './ls.js';
+import { lsGet, lsSet, lsDel } from './ls.js';
 import { NOTIF_PROMPT_DONE } from './storage-keys.js';
 
 const VAPID_PUBLIC_KEY  = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
@@ -25,6 +32,14 @@ const VAPID_FINGERPRINT = VAPID_PUBLIC_KEY.slice(0, 12);
 const PROMPT_DISMISSED  = NOTIF_PROMPT_DONE;
 const SUB_RESAVE_KEY    = 'myb_push_resave_at';   // throttle for the periodic subscription re-save
 const SUB_RESAVE_MS     = 86400000;               // at most one keep-alive re-save per ~24h/device
+const USER_OFF_KEY      = 'myb_notif_user_off';   // device-level: the member pressed Disable here
+
+/** Did the member switch notifications off on this device (rather than lose them)? */
+export function notifOffByChoice() {
+    return lsGet(USER_OFF_KEY) === '1';
+}
+/** No subscription: a lapse, unless the member chose it. */
+const noSubState = () => (notifOffByChoice() ? 'off-default' : 'off-lapsed');
 
 /** True on iOS/iPadOS (incl. iPadOS reporting as MacIntel with touch). */
 export function isIOS() {
@@ -56,12 +71,15 @@ export function notifSupported() {
  * so the Notifications card buttons never get stuck at "Enabling…" indefinitely.
  */
 function swReady() {
+    // The timer is cleared once the race settles — left armed, every call that found the worker
+    // ready still kept an 8 s timer alive for nothing (v24.28 review).
+    /** @type {any} */ let timer;
     return Promise.race([
         navigator.serviceWorker.ready,
-        new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('SW not ready')), 8000)
-        ),
-    ]);
+        new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error('SW not ready')), 8000);
+        }),
+    ]).finally(() => clearTimeout(timer));
 }
 
 /** Convert the URL-safe base64 VAPID key to the Uint8Array the Push API expects. */
@@ -87,6 +105,7 @@ async function subscribe() {
     }
     lsSet(VAPID_VER_KEY, VAPID_FINGERPRINT);
     lsSet(PROMPT_DISMISSED, '1');
+    lsDel(USER_OFF_KEY);   // on again — a later loss is a lapse, not the old choice
     return sub;
 }
 
@@ -107,7 +126,7 @@ export async function getNotifState() {
         const reg = await swReady();
         /** @type {PushSubscription|null} */
         let sub   = await reg.pushManager.getSubscription();
-        if (!sub) return 'off-lapsed';
+        if (!sub) return noSubState();
 
         // Rotate ONLY on a genuine key change: a NON-NULL stored fingerprint that DIFFERS.
         // A null read (localStorage unavailable/evicted on a budget Android, or never recorded)
@@ -198,7 +217,7 @@ export async function peekNotifState() {
         const reg = await swReady();
         /** @type {PushSubscription|null} */
         const sub = await reg.pushManager.getSubscription();
-        if (!sub) return 'off-lapsed';
+        if (!sub) return noSubState();
         // A keyless subscription (some Android builds) can never receive a push. Report 'off-lapsed',
         // not 'on' — matching getNotifState's structural check — so the nav bell / settings card don't
         // claim notifications are on for a dead sub on non-calendar pages. Peek stays side-effect-free
@@ -236,10 +255,11 @@ export async function enableNotifications() {
 
 /**
  * Turn notifications off — unsubscribe locally and remove the server record.
- * @returns {Promise<'off-lapsed'|'denied'|'unsupported'>}
+ * @returns {Promise<'off-default'|'denied'|'unsupported'>}
  */
 export async function disableNotifications() {
     if (!notifSupported()) return 'unsupported';
+    lsSet(USER_OFF_KEY, '1');   // a CHOICE — read back as off, never as "stopped"
     try {
         const reg = await swReady();
         const sub = await reg.pushManager.getSubscription();
@@ -251,5 +271,33 @@ export async function disableNotifications() {
     } catch (err) {
         console.warn('[Notifications] Disable failed:', /** @type {any} */ (err).message);
     }
-    return Notification.permission === 'denied' ? 'denied' : 'off-lapsed';
+    return Notification.permission === 'denied' ? 'denied' : 'off-default';
+}
+
+/**
+ * On SIGN-OUT, while still signed in: delete this device's `pushSubscriptions` record (Sep 2026
+ * review). The record's `owner` is the signed-in uid, and the TARGETED notices — a reset request
+ * naming a locked-out colleague, "the admin reset your password" — go to every device that uid owns.
+ * On a shared device that owner outlived the sign-out, so whoever picked it up next got them.
+ *
+ * The BROWSER subscription is kept, so the device keeps its notification setting: the re-save
+ * throttle is cleared, and the next page load re-saves the record as whoever is signed in then.
+ * Best-effort and TIME-BOXED — a sign-out must never wait on a service worker or a network that is
+ * not answering; an abandoned delete leaves exactly what was there before.
+ * @param {number} [timeoutMs]
+ * @returns {Promise<void>}
+ */
+export async function releaseDevicePush(timeoutMs = 1500) {
+    lsDel(SUB_RESAVE_KEY);
+    // Never granted → there is no subscription to release, and no service worker worth waiting on.
+    if (!notifSupported() || Notification.permission !== 'granted') return;
+    const work = (async () => {
+        const reg = await swReady();
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) await deletePushSubscription(sub.endpoint);
+    })().catch(e => console.warn('[Notifications] Sign-out release failed (non-fatal):', /** @type {any} */ (e)?.message));
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
+    let timer;
+    await Promise.race([work, new Promise(r => { timer = setTimeout(r, timeoutMs); })]);
+    clearTimeout(timer);
 }

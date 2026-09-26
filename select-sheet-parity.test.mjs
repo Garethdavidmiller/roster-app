@@ -779,3 +779,37 @@ test('every box that collapses to zero height is a containing block', () => {
         + 'a card that looks collapsed — the v23.71 "large gap at the bottom". Add `position: relative`:\n  '
         + offenders.join('\n  '));
 });
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+// CONTRACT 13 — A HIDDEN TRIGGER IS HIDDEN
+//
+// `enhanceSelect` mirrors `select.hidden` onto the trigger (`btn.hidden = select.hidden`) — the
+// guard that stops a retired value holder growing a live-looking picker (14 Sep 2026). But the
+// trigger is `display: grid` (the widest-option sizer), and ANY author `display` out-specifies the
+// UA `[hidden] { display: none }`. So the mirror set a property that hid nothing, and every test of
+// it read the property. page-visibility-parity cannot see this one: the trigger is built in JS with
+// no id at the line that hides it. Derived, not listed — every stylesheet rule whose SUBJECT is a
+// trigger and which sets a non-`none` display requires the `!important` companion, so a page that
+// later styles its trigger's display cannot quietly reopen the hole.
+test('a trigger with a display rule still honours `hidden`', () => {
+    const files = ['shared.css', 'paycalc.css', 'admin.css', 'index.css', 'operations.css', 'settings.css', 'links.css', 'overtime.css'];
+    const setters = [];
+    for (const f of files) {
+        const css = readFileSync(new URL('./' + f, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+        for (const m of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+            const heads = m[1].split(',').map(s => s.trim().replace(/\s+/g, ' '));
+            if (!/display:\s*(?!none)[a-z-]+/.test(m[2])) continue;
+            for (const h of heads) {
+                // The SUBJECT is the last compound — `.fieldpick-face` and `.fieldpick span` are not triggers.
+                const subject = h.split(/[\s>+~]+/).pop() ?? '';
+                if (/\.fieldpick(?![\w-])/.test(subject) && !/\[hidden\]/.test(subject)) setters.push(`${f}  ${h}`);
+            }
+        }
+    }
+    assert.ok(setters.length > 0, 'no display rule on a trigger found — this contract is checking nothing');
+    const shared = read('shared.css').replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.match(shared, /\.fieldpick\[hidden\]\s*\{[^}]*display:\s*none\s*!important/,
+        'these rules set `display` on the picker trigger, which beats the UA `[hidden]` rule, so\n'
+        + '`btn.hidden = select.hidden` in select-sheet.js hides nothing. Add to shared.css:\n'
+        + '  .fieldpick[hidden] { display: none !important; }\n  ' + setters.join('\n  '));
+});

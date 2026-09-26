@@ -36,7 +36,7 @@ import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-o
 // The row's own appearance rules — moved out at v23.98 when this file hit its ratchet cap with no
 // headroom. Same names, so every call site below is unchanged; see that module's header for why
 // this cluster was the seam and the bulk bar was not.
-import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBadge, _deactivateRow }
+import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBadge, _deactivateRow, _syncAlSwap }
     from './admin-week-row-state.js';
 
 // ── INJECTED ──────────────────────────────────────────────────────────────────
@@ -304,7 +304,7 @@ export function buildWeekGridInto(container, dateStr) {
 
         // Pre-fill with existing override — mark as prefilled so Save button stays disabled until user edits
         if (existing) {
-            const legacyToShift = { overtime: 'shift', allocated: 'shift' };
+            const legacyToShift = { overtime: 'shift', allocated: 'shift', swap: 'shift' };
             // Spare moved under the Other pill (v15.57): an existing spare_shift override prefills
             // via Other → Spare (there is no top-level Spare pill anymore).
             const isSpare       = existing.type === 'spare_shift';
@@ -313,6 +313,7 @@ export function buildWeekGridInto(container, dateStr) {
             const typeMeta      = TYPES[prefillType];
             _activateRow(row, checkbox, pills, startEl, endEl, prefillType);
             row.classList.add('prefilled-existing');
+            _syncAlSwap(row);         // a saved, untouched row is not being booked — not asked
             _syncOverwriteBadge(row); // loaded + untouched → "✓ Saved" (not "Updating")
             if (isSpare) {
                 // Activate the Spare chip inside the now-open Other submenu; _syncOtherSpareMode
@@ -378,17 +379,8 @@ export function buildWeekGridInto(container, dateStr) {
                 // Show RD hint when Shift is chosen on a base-rest day
                 const rdHint = /** @type {HTMLElement|null} */ (row.querySelector('.col-rd-hint'));
                 if (rdHint) rdHint.hidden = !(type === 'shift' && row.dataset.baseIsRd === '1' && !already);
-                // Same shape, the other type: AL on a base rest day is asked about (v23.75).
-                const alSwap = /** @type {HTMLElement|null} */ (row.querySelector('.col-al-swap'));
-                if (alSwap) {
-                    const ask = type === 'annual_leave' && row.dataset.alSwapAsk === '1';
-                    alSwap.hidden = !ask;
-                    // Leaving the type resets the answer — a stale `yes` would charge the next pick.
-                    if (!ask) {
-                        delete row.dataset.alSwap;
-                        row.querySelectorAll('.al-swap-btn').forEach(b => b.setAttribute('aria-pressed', 'false'));
-                    }
-                }
+                // AL on a base rest day is asked about (v23.75) — shown and reset by _activateRow /
+                // _deactivateRow now, so bulk apply and the checkbox follow the same rule (review A6).
                 _markChanged();
                 updateSaveBtn();
             });
@@ -398,11 +390,14 @@ export function buildWeekGridInto(container, dateStr) {
             checkbox.addEventListener('change', () => {
                 if (/** @type {HTMLInputElement} */ (checkbox).checked) {
                     if (!row.dataset.type) row.classList.add('selected');
+                    // Ticking stages nothing (the collector keys off dataset.type), so it is not a
+                    // change — the v16.23 rule for the bulk tick buttons, missed here (review A17).
                 } else {
+                    const hadStaged = !!(row.dataset.type || row.dataset.existingId);
                     row.classList.remove('prefilled-existing');
                     _deactivateRow(row, checkbox, pills, startEl, endEl);
+                    if (hadStaged) _markChanged();
                 }
-                _markChanged();
                 updateSaveBtn();
                 _updateBulkSelCount();
             });
@@ -550,7 +545,9 @@ export function updateSaveBtn() {
     const delCount   = rows.filter(r => !r.dataset.type && r.dataset.existingId).length;
     const total = saveCount + delCount;
     saveBtn.disabled = total === 0 || _saveInFlight;
-    for (const id of ['stagedSaveBtn', 'stagedDiscardBtn']) { const b = /** @type {HTMLButtonElement|null} */ (document.getElementById(id)); if (b) b.disabled = _saveInFlight; }
+    // The unsaved banner's "Discard and continue" too (review A9): navigating mid-save let the
+    // landing save reset the rows of the NEW view.
+    for (const id of ['stagedSaveBtn', 'stagedDiscardBtn', 'unsavedDiscardBtn']) { const b = /** @type {HTMLButtonElement|null} */ (document.getElementById(id)); if (b) b.disabled = _saveInFlight; }
 
     // Staged bar — mirrors the save state as a fixed bottom affordance so users
     // can save without scrolling back up to the Save button.
@@ -769,8 +766,10 @@ function _initBulkBar() {
             const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
             const endEl   = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
+            // User-edited, not pre-filled — cleared FIRST so _activateRow sees a staged row (the swap
+            // question is only asked of one, review A6).
+            row.classList.remove('prefilled-existing');
             _activateRow(row, checkbox, pills, startEl, endEl, _bulkActiveType);
-            row.classList.remove('prefilled-existing'); // mark as user-edited, not pre-filled
             applied++;
             if (typeMeta && !typeMeta.fixed) {
                 if (bulkStart?.value && startEl) startEl.value = bulkStart.value;

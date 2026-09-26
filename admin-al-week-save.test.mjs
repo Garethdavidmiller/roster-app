@@ -15,7 +15,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { teamMembers, getBaseShift } from './roster-data.js';
+import { teamMembers, getBaseShift, formatISO } from './roster-data.js';
 import { planAlWeekSave } from './admin-al-week-save.js';
 // The cross-layer block at the foot needs the surfaces the review named, not just the planner:
 // what the Calendar draws, what the entitlement costs, and what the receipt says.
@@ -39,7 +39,7 @@ const oneDayLeft = (() => {
     /** @type {string[]} */ const dates = [];
     for (let d = new Date('2026-03-02T00:00:00'); dates.length < 31; d.setDate(d.getDate() + 1)) {
         const dow = d.getDay();
-        if (dow !== 0 && dow !== 6) dates.push(d.toISOString().slice(0, 10));
+        if (dow !== 0 && dow !== 6) dates.push(formatISO(d));
     }
     return dates.map((date, i) => ({ id: 'x' + i, memberName: 'C. Reen', type: 'annual_leave', date, value: 'AL' }));
 })();
@@ -242,6 +242,18 @@ describe('ORDERING: the drop happens before `exclude` is built', () => {
             ovByDate: NO_OV, overrides: [...oneDayLeft, recordedSat],
         });
         assert.equal(plan.overage, null, 'deleting one day and booking another is a net nil');
+    });
+
+    test('leave OVERWRITTEN BY ANOTHER TYPE is excluded too (review A16)', () => {
+        // One recorded day changed back to a Shift, one new day booked: a net nil, which used to
+        // read as "1 day over" because only leave rows' existingIds were excluded.
+        const recordedTue = { id: 'tue-al', memberName: 'C. Reen', type: 'annual_leave', date: '2026-06-16', value: 'AL' };
+        const plan = planAlWeekSave({
+            member: reen, memberName: 'C. Reen',
+            toSave: [al(MON), { memberName: 'C. Reen', date: '2026-06-16', type: 'shift', value: '12:00-19:00', note: '', existingId: 'tue-al' }],
+            ovByDate: NO_OV, overrides: [...oneDayLeft, recordedTue],
+        });
+        assert.equal(plan.overage, null, 'the day given back pays for the day booked');
     });
 });
 

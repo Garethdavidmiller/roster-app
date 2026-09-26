@@ -293,9 +293,51 @@ export function buildPeriodSelect() {
   return _currentPNum; // coordinator stores this as _defaultPeriodNum
 }
 
+// ── WHICH PAYSLIP A YEAR TO DATE PAIR CAME FROM (72-hour review) ─────────────────────────────────
+//
+// Payslips are ISSUED before payday — so between a period's cut-off and its payday the member may
+// already hold the payslip "today's" period will pay, and copy its Year to Date totals. Until the
+// review the picker offered only payslips whose payday had passed, and the first-entry stamp named
+// the one before today's: figures copied from the new payslip were anchored one payslip early, the
+// cumulative method then added that payslip's own pay on top, and it was counted twice (measured:
+// £193.40 of tax over on a £3,300 payslip). The two rules below are the fix.
+
+/** @returns {{ upcoming: any, today: number }} the first unpaid payslip and its number, at `now`. */
+function _todayAt(/** @type {Date} */ now) {
+  const periods = getPeriods();
+  const upcoming = periods.find((/** @type {any} */ p) => p.payday > now) ?? null;
+  return { upcoming, today: upcoming ? upcoming.num : periods[periods.length - 1].num };
+}
+
+/**
+ * May `p` be picked as the source of `ty`'s Year to Date figures? Any of the year's PAID payslips —
+ * and, from its cut-off, the payslip about to be paid, because it may already be in the member's hand.
+ * @param {any} p @param {{ first:number, last:number }} ty @param {Date} [now]
+ */
+export function ytdSourceOffered(p, ty, now = new Date()) {
+  if (p.num < 48 + ty.first || p.num > 48 + ty.last) return false;
+  return p.num < _todayAt(now).today || p.cutoff <= now;
+}
+
+/**
+ * The payslip to anchor Year to Date figures to when the member has not said: the payslip before
+ * today's, clamped into the year — the standing assumption since v17.98. A member copying from a
+ * payslip issued before its payday can correct it: the picker offers that payslip from its cut-off
+ * (`ytdSourceOffered`). A window that recorded NOTHING until the member picked was tried in the Sep
+ * 2026 review and removed the same day: a member who never picked was stamped one payslip LATE on
+ * the first open after payday, the mirror image of the double count it set out to prevent.
+ * @param {{ first:number, last:number }} ty @param {Date} [now]
+ * @returns {number} a period number
+ */
+export function ytdAutoSource(ty, now = new Date()) {
+  const { today } = _todayAt(now);
+  return Math.min(Math.max(today - 1, 48 + ty.first), 48 + ty.last);
+}
+
 /**
  * Populate the Year-to-Date "From which payslip?" selector with the tax year's PAID payslips
- * (you can only copy totals from a payslip that exists), newest first — the latest payslip is
+ * (you can only copy totals from a payslip that exists — plus, from its cut-off, the one about to be
+ * paid: `ytdSourceOffered`), newest first — the latest payslip is
  * the overwhelmingly common source. Rebuilding clears the selection; the caller re-applies the
  * stored source afterwards. (v17.98)
  * @param {{ first:number, last:number }} ty - the tax year whose payslips to offer
@@ -303,9 +345,8 @@ export function buildPeriodSelect() {
 export function buildYtdSourceSelect(ty) {
   const sel = document.getElementById('ytdSrcSelect');
   if (!sel) return;
-  const today = todaysPeriodNum();
   const paid = visiblePeriods()
-    .filter((/** @type {any} */ p) => p.num >= 48 + ty.first && p.num <= 48 + ty.last && p.num < today)
+    .filter((/** @type {any} */ p) => ytdSourceOffered(p, ty))
     .reverse();
   // Short placeholder (v18.49): the previous "— which payslip did they come from? —" truncated at
   // 390px; the label + inline note above the select already ask the full question.

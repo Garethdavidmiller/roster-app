@@ -3,7 +3,7 @@
  * paycalc-backpay.js — Back-pay lump sum calculator for paycalc.html.
  *
  * Owns: prefillBackPay, calcBackPay, _bpAwardTaxYear.
- * Does NOT own: coordinator state (_bpAmount/_bpVarAmount/_bpPNum live in paycalc-app.js),
+ * Does NOT own: coordinator state (_bpAmount/_bpPNum live in paycalc-app.js),
  *   calculation engine (paycalc-app.js), settings (paycalc-settings.js).
  * Edit here for: back-pay calculation logic, lump sum breakdown rendering.
  * Do not edit here for: pay maths, period navigation, HPP formula.

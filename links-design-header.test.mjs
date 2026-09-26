@@ -247,6 +247,15 @@ describe('render — what the masthead SAYS', () => {
         // The face is aria-hidden, so the BUTTON has to carry the name a <select> announced for free.
         assert.match(els.pickerButton.attrs['aria-label'], /Option A/);
     });
+    test('the ··· More sheet names the last SAVE, whatever the working copy is doing', () => {
+        // It was built from the status pill's words, so with unsaved edits it read "Saved by
+        // G. Miller Unsaved changes" and mid-save "Saved by G. Miller Saving…".
+        const { els, h } = harness();
+        for (const [dirty, saving] of [[false, false], [true, false], [true, true]]) {
+            h.render({ designs: DESIGNS, activeId: 'a', design: { name: 'Option A' }, dirty, saving, currentUser: ME, now: NOW });
+            assert.equal(els.sheetSub.textContent, `Saved by ${ME} today at 14:32`, JSON.stringify({ dirty, saving }));
+        }
+    });
     test('a design fresh from the generator: Untitled, Not saved yet, Save as… ENABLED, rename and delete disabled', () => {
         const { els, h } = harness();
         h.render({ designs: DESIGNS, activeId: null, design: { name: '' }, dirty: true, currentUser: ME, now: NOW });

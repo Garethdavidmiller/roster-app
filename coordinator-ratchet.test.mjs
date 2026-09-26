@@ -325,8 +325,10 @@ const CAPS = {
     // needs raising, and this raise is the words: a printed availability sheet needed its own
     // timestamp shape (with a year, which a deadline must not carry), and a module whose whole job
     // is putting Overtime into words is where that belongs. Twelve lines of room, no bank.
-    'overtime-format.js':      1030,   // ← 1070 until v23.69, when the CLOCK left for overtime-clock.js
-                                       //   (977 now). The words are the seam if this needs raising again
+    // 1030 → 950 at the v24.28 review: measured 888, so the old ceiling had banked 142 lines of
+    // headroom the file never needed — the loosening the v21.87 note above refuses.
+    'overtime-format.js':       950,   // ← 1070 until v23.69, when the CLOCK left for overtime-clock.js.
+                                       //   The words are the seam if this needs raising again
     // 1200 → 1250 at v21.54, and this one is a RAISE rather than an extraction, which the note
     // above says must be argued rather than assumed. The growth is the same-week read guard from
     // the external review — a generation ticket around one `await`, so that a slow earlier read
@@ -375,7 +377,9 @@ const CAPS = {
     // rendering" while about a third of it was card markup, so the seam was one the module had
     // already described and nobody had cut. The security properties did NOT move — the persistence
     // order and the claim verification are still here — and the ceiling comes down with the code.
-    'calendar-access.js':      850,
+    // 850 → 750 on 26 Sep 2026: the provisional paint the v22.97 raise was for was RETIRED (owner
+    // decision), taking ~100 lines of wiring with it (measured 667 after).
+    'calendar-access.js':      750,
     // Crossed 900 at v21.85 on a ONE-LINE import — `setStatus`, so the four back-pay notices stop
     // announcing their leading glyph. It had been sitting at exactly 900 since v21.82, when the
     // response to the same pressure was to trim a comment of my own rather than raise the ceiling;
@@ -411,6 +415,11 @@ const CAPS = {
     // says every capped module is owed, so the next one-line Overtime fix no longer fails here.
     'functions/overtime-core.js':        1150,   // every Overtime RULE, already pure and tested
     'functions/index.js':                1100,   // the composition root; its exports ARE the deploy surface
+    // NEW at the v24.28 review, three lines under LARGE_THRESHOLD (897): the auth endpoints — the
+    // PIN exchange, the password reset, account set-up — are the security-sensitive half of the
+    // Functions, and a module that close to the line would otherwise cross it with nobody deciding
+    // anything. Capped now so crossing is a decision. Measured + 50, rounded to the next 50.
+    'functions/auth-endpoints.js':        950,
 
 };
 

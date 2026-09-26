@@ -17,7 +17,8 @@
  * Requires Node 18+ (global fetch, node:crypto).
  *
  * Files patched by --apply:
- *   huddle.js  — s.integrity set on mammoth script injection
+ *   huddle.js  — the mammoth loader's `.integrity` line (the URL is bumped by hand, here AND there;
+ *                dependency-pin-parity.test.mjs fails until both match functions/package.json)
  */
 
 import { createHash }        from 'node:crypto';
@@ -33,7 +34,7 @@ const APPLY = process.argv.includes('--apply');
 const CDN = [
     {
         key: 'mammoth',
-        url: 'https://cdn.jsdelivr.net/npm/mammoth@1.12.0/mammoth.browser.min.js',
+        url: 'https://cdn.jsdelivr.net/npm/mammoth@1.12.3/mammoth.browser.min.js',
         type: 'script',
         usedIn: 'huddle.js',
     },
@@ -78,24 +79,21 @@ if (!APPLY) {
 // ── Patch source files ────────────────────────────────────────────────────────
 console.log('\nPatching source files...');
 
-// huddle.js — set s.integrity on mammoth script injection
+// huddle.js — set the integrity on the mammoth script injection
 {
     const path = join(ROOT, 'huddle.js');
     let src = readFileSync(path, 'utf8');
 
-    if (/s\.integrity\s*=/.test(src)) {
-        src = src.replace(
-            /s\.integrity\s*=\s*'sha384-[^']*'/,
-            `s.integrity   = '${mm.hash}'`
-        );
-        console.log('✓  huddle.js — mammoth integrity updated');
-    } else {
-        src = src.replace(
-            /(s\.crossOrigin\s*=\s*'anonymous';)/,
-            `$1\n                    s.integrity   = '${mm.hash}';`
-        );
-        console.log('✓  huddle.js — mammoth integrity inserted');
+    // The loader's element is `sc`, not `s`: until the v24.28 review this matched `s.integrity`
+    // only, so --apply printed "inserted", changed nothing, and left the OLD hash beside a NEW url —
+    // a load the browser refuses. Match any identifier, and fail loudly if nothing was replaced.
+    const INTEGRITY = /(\b\w+\.integrity\s*=\s*)'sha384-[^']*'/;
+    if (!INTEGRITY.test(src)) {
+        console.error('✗  huddle.js — no `<el>.integrity = \'sha384-…\'` line found; nothing patched');
+        process.exit(1);
     }
+    src = src.replace(INTEGRITY, `$1'${mm.hash}'`);
+    console.log('✓  huddle.js — mammoth integrity updated');
     writeFileSync(path, src);
 }
 

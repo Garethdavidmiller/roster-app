@@ -242,7 +242,7 @@ test('no module opens a native alert, confirm or prompt', () => {
     for (const f of JS) {
         // No whitespace before the paren: `confirm (` is how the countdown button's PROSE reads
         // ("Tap again to confirm (3)"), and this app never writes a call that way.
-        for (const m of strip(read(f)).matchAll(/(?<![\w.$'"\`])(alert|confirm|prompt)\(/g)) offenders.push(`${f}: ${m[1]}(`);
+        for (const m of strip(read(f)).matchAll(/(?<![\w.$'"`])(alert|confirm|prompt)\(/g)) offenders.push(`${f}: ${m[1]}(`);
     }
     assert.deepEqual(offenders, [], 'use confirmDialog / promptDialog from overlay.js');
 });
@@ -251,7 +251,7 @@ test('no module opens a native alert, confirm or prompt', () => {
 test('a rule that styles bare `input` by element excludes the checkbox and radio', () => {
     const SKIN = /(?:^|[\s;{])(?:width|height|min-height|min-width|padding|border|border-radius|background|background-color|font-size|box-shadow)\s*:/;
     // A bare `input` token: not `input[type=…]`, not `input.class`, not inside `:has(…)` (a row rule).
-    const BARE = /(?<![\w\[.#-])input(?![\w\[.#-])/;
+    const BARE = /(?<![\w[.#-])input(?![\w[.#-])/;
     const offenders = [];
     for (const f of CSS) {
         if (f.includes('guide')) continue;   // the guides carry no form controls the app draws

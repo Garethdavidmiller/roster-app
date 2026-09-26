@@ -4,13 +4,13 @@
 // ES module — import named exports into consuming files:
 //   import { CONFIG, APP_VERSION, teamMembers, weeklyRoster, ... } from './roster-data.js';
 //
-// APP_VERSION is the single authoritative version number. Both HTML files read it at runtime
-// via CONFIG.APP_VERSION (set below). Browser HTTP cache is handled by Cache-Control: no-cache
+// APP_VERSION is the single authoritative version number; pages import it directly (CONFIG no
+// longer mirrors it — nothing read the copy). Browser HTTP cache is handled by Cache-Control: no-cache
 // headers in firebase.json — no ?v= query strings needed. Service worker cache is invalidated
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '24.28';
+export const APP_VERSION = '24.29';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -178,9 +178,9 @@ export const CONFIG = {
     //   no-name/legacy escape is gone and overrides now require a matching `name`/admin/manager claim.
     //   See SECURITY_RELEASE_PLAN.md → B3.
     //   RAISED to 3 at v24.27, the release in which the rules and endpoints begin REQUIRING the
-    //   server-set `member` claim. Set up accounts stamped it at v24.24; this makes every device fetch
-    //   a token carrying it on next open rather than within the hour (KNOWN_LIMITATIONS → "The member
-    //   claim").
+    //   server-set `member` claim (stamped by Set up accounts at v24.24). The sweep runs on the next
+    //   open that CONFIRMS a named session — `ensureNamedSession`, or the Calendar's named grant — and
+    //   is fire-and-forget, so a read in that same instant may still carry the old token.
     CLAIM_EPOCH:                      3,
     // In-place sign-in (AUTH_ARCHITECTURE.md → "Phase 9 — Remove the post-login reload"). When a
     // protected page's login overlay confirms a sign-in, OFF (false) = today's behaviour: the
@@ -203,7 +203,6 @@ export const CONFIG = {
     //   The per-page kill-switch above still stands — set any key back to `false` to revert that page.
     INPLACE_LOGIN:                    { operations: true, links: true, paycalc: true, admin: true, settings: true },
     SUPPORT_EMAIL:                    'Gareth.Miller@chilternrailways.co.uk',     // Bug report destination — update here if the address ever changes
-    APP_VERSION,                                                                   // Mirrors top-level APP_VERSION for backward compatibility with consuming files
 };
 
 // ============================================

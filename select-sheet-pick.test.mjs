@@ -87,7 +87,8 @@ function rows() {
     const list = sheetList();
     return /** @type {any[]} */ (list.children.flatMap((/** @type {any} */ g) => g.children.filter((/** @type {any} */ c) => c.classList.contains('picker-opt'))));
 }
-const tap = (/** @type {any} */ row) => { sheetList().onclick({ target: row }); };
+// `?.` because a list whose handler has been retired is a list a real tap does nothing on.
+const tap = (/** @type {any} */ row) => { sheetList().onclick?.({ target: row }); };
 
 let mod;
 let _n = 0;
@@ -176,6 +177,31 @@ describe('the preview fires ON THE TAP — that is what makes a pick read as ins
         assert.equal(select.value, 'b');
         assert.deepEqual(dispatched, ['input', 'change'], 'a user\'s own pick fires both, in this order');
         assert.equal(face.textContent, 'G. Miller', 'the repaint from the select agrees');
+    });
+});
+
+describe('ONE tap is one pick — a second tap during the fade is not another', () => {
+    // The real close() hands a second caller the SAME landing promise, so each extra tap chained
+    // another onPick onto it: two picks → two `change` events, and a double tap on "Custom…" in the
+    // Links grid editor → two promptDialogs stacked.
+    test('two taps before the close lands report one pick, the first', async () => {
+        /** @type {string[]} */ const picked = [];
+        mod.openOptionSheet({ title: 't', groups: GROUPS, createLightbox: fakeLightbox, onPick: (/** @type {string} */ v) => picked.push(v) });
+        tap(rows()[1]);
+        tap(rows()[0]);
+        land(); await microtasks();
+        assert.deepEqual(picked, ['b']);
+        assert.equal(_closes, 1, 'the sheet was closed once');
+    });
+
+    test('the next opening takes taps again', async () => {
+        /** @type {string[]} */ const picked = [];
+        const onPick = (/** @type {string} */ v) => picked.push(v);
+        mod.openOptionSheet({ title: 't', groups: GROUPS, createLightbox: fakeLightbox, onPick });
+        tap(rows()[1]); land(); await microtasks();
+        mod.openOptionSheet({ title: 't', groups: GROUPS, createLightbox: fakeLightbox, onPick });
+        tap(rows()[0]); land(); await microtasks();
+        assert.deepEqual(picked, ['b', 'a']);
     });
 });
 

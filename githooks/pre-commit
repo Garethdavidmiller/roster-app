@@ -204,9 +204,10 @@ if [[ -n "$ESLINT_BIN" ]]; then
   # in eslint.config.js grew to cover e2e/**, scripts/**, four playwright configs and the test globs.
   # Staging e2e/visual.spec.js duly failed the hook. A hand-maintained mirror of another list is the
   # failure this repo keeps writing guards about; the flag tracks the real list automatically.
-  # service-worker.js stays filtered for a SEPARATE reason: its coverage is `node --check` above
-  # (SW global scope, no ES-module syntax), which is a statement about what checks it, not a warning.
-  STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.js$' | grep -v 'node_modules\|functions/' | grep -v 'service-worker\.js' | tr '\n' ' ')
+  # service-worker.js was filtered out here too, until the v24.28 review gave it its own block in
+  # eslint.config.js (a classic worker script with serviceworker globals) — so it is linted like
+  # everything else now, and the special case went with the ignore.
+  STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.js$' | grep -v 'node_modules\|functions/' | tr '\n' ' ')
   if [[ -n "$STAGED_JS" ]]; then
     # shellcheck disable=SC2086
     "$ESLINT_BIN" --max-warnings=0 --no-warn-ignored $STAGED_JS
@@ -250,12 +251,14 @@ const fnVer = fnPkg && fnPkg.dependencies && fnPkg.dependencies['firebase-admin'
     : null;
 // Only warn; SDK versions in browser client vs Admin SDK aren't directly comparable.
 // This check catches forgotten bumps within the browser SDK (firebase vs @firebase/app).
-const importMatch = clientSrc.match(/firebase@(\d+\.\d+\.\d+)/g);
+// The SDK is imported by URL (`…/firebasejs/12.16.0/firebase-app.js`), never as `firebase@x.y.z` —
+// this matched that npm spelling until Sep 2026 and so could never fire.
+const importMatch = clientSrc.match(/firebasejs\/(\d+\.\d+\.\d+)\//g);
 if (importMatch && importMatch.length > 1) {
-    const versions = [...new Set(importMatch.map(s => s.replace('firebase@', '')))];
+    const versions = [...new Set(importMatch.map(s => s.replace(/^firebasejs\/|\/$/g, '')))];
     if (versions.length > 1) {
         process.stderr.write(`  firebase-sdk: multiple Firebase versions in firebase-client.js: ${versions.join(', ')}\n`);
-        process.stderr.write('  Ensure all firebase@x.y.z imports use the same version.\n');
+        process.stderr.write('  Ensure every firebasejs/x.y.z import uses the same version.\n');
         process.exit(1);
     }
 }

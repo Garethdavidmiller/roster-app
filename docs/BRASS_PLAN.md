@@ -117,7 +117,9 @@ every period's result and breakdown line simply agrees with the payslip.**
   under a sacrifice arrangement it can only change in an annual window — so a per-period field
   would be fifty-two chances to mistype a number that changes once a year, and a new row of UI
   noise for the majority who pay nothing. The pension field is per-period because its DEFAULT
-  moves per era (PENSION_STEPS) and members opt out per-period; neither applies to BRASS.
+  moves per era (PENSION_STEPS), which does not apply to BRASS. Opting out is not per-period
+  either: since v21.78 it is a member-level dated timeline (`SK.pensionTimeline`,
+  `paycalc-pension.js`) — the shape a changing standing instruction wants.
 - **Not folded into the existing pension field.** That field carries two load-bearing semantics a
   combined figure would destroy: typed-0 means "salary-sacrifice opt-out", and
   saved-value-equal-to-default self-heals to null (v18.43) so era changes propagate. A member
@@ -155,8 +157,9 @@ April 2029 £2,000 NI cap will revisit it. Do not scatter the assumption.
    brass. Known approximation: a member who changes their BRASS amount mid-year gets historic
    periods re-priced at the new figure. Accepted for phase 1 (changes are annual-window rare) and
    stated in the help copy; **the upgrade trigger is a member reporting a wrong historic period
-   after a window change** — then, and only then, add a per-period override on the pension
-   field's exact pattern.
+   after a window change** — then, and only then, give `SK.brass` the pension opt-out's
+   dated-timeline shape (changes keyed by the payslip they start from, as `SK.pensionTimeline`,
+   v21.78).
 4. **Everything else unchanged**: HPP (BRASS is not variable pay), back-pay (arrears are gross;
    BRASS doesn't touch them), roster pre-fill, sticky total (net already reflects it).
 

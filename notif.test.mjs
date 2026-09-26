@@ -33,8 +33,8 @@ mock.module('./ls.js', {
     },
 });
 
-const { notifSupported, isIOS, getNotifState, peekNotifState, enableNotifications, disableNotifications } =
-    await import('./notif.js');
+const { notifSupported, isIOS, getNotifState, peekNotifState, enableNotifications, disableNotifications,
+    notifOffByChoice, releaseDevicePush } = await import('./notif.js');
 
 // ── Configurable browser environment ──────────────────────────────────────────
 /**
@@ -257,11 +257,11 @@ describe('disableNotifications', () => {
         assert.equal(sub._unsubscribed, true);
         assert.equal(_deleteCalls, 1);
         assert.equal(_lastDeletedEndpoint, sub.endpoint);
-        assert.equal(state, 'off-lapsed');
+        assert.equal(state, 'off-default', 'a deliberate off is OFF, not "stopped"');
     });
-    test('no active sub → still resolves (off-lapsed), no delete call', async () => {
+    test('no active sub → still resolves (off), no delete call', async () => {
         setupEnv({ permission: 'granted', hasSub: false });
-        assert.equal(await disableNotifications(), 'off-lapsed');
+        assert.equal(await disableNotifications(), 'off-default');
         assert.equal(_deleteCalls, 0);
     });
     test('permission denied is reported as "denied"', async () => {
@@ -271,5 +271,60 @@ describe('disableNotifications', () => {
     test('unsupported → "unsupported"', async () => {
         setupEnv({ apis: false });
         assert.equal(await disableNotifications(), 'unsupported');
+    });
+});
+
+// ── A DELIBERATE OFF IS NOT A LAPSE (Sep 2026 review) ──────────────────────────────────────────────
+// Granted + no subscription is what BOTH a lapse and a deliberate Disable look like to the browser, so
+// the Settings card told a member who had just switched notifications off that they "have stopped",
+// and listed turning them back on as a to-do. The choice is recorded on the device.
+describe('a deliberate Disable is remembered as a choice', () => {
+    test('after Disable, both state reads say OFF, not lapsed, and the choice is readable', async () => {
+        setupEnv({ permission: 'granted', hasSub: true });
+        await disableNotifications();
+        setupEnv({ permission: 'granted', hasSub: false });
+        assert.equal(await peekNotifState(), 'off-default');
+        assert.equal(await getNotifState(), 'off-default');
+        assert.equal(notifOffByChoice(), true);
+    });
+    test('turning them back on clears the choice, so a LATER lapse is reported as one', async () => {
+        setupEnv({ permission: 'granted', hasSub: true });
+        await disableNotifications();
+        setupEnv({ permission: 'granted', hasSub: false });
+        assert.equal(await enableNotifications(), 'on');
+        assert.equal(notifOffByChoice(), false);
+        setupEnv({ permission: 'granted', hasSub: false });
+        assert.equal(await peekNotifState(), 'off-lapsed');
+    });
+    test('a device that never chose is not reported as having chosen', () => {
+        assert.equal(notifOffByChoice(), false);
+    });
+});
+
+// ── SIGN-OUT RELEASES THIS DEVICE'S SUBSCRIPTION RECORD (Sep 2026 review) ─────────────────────────
+// The record carries `owner` = the signed-in uid, and targeted pushes (a reset request naming a
+// locked-out colleague, a "your password was reset") go to every device that uid owns. On a shared
+// device that owner outlived sign-out, so the next person to pick it up got them.
+describe('releaseDevicePush', () => {
+    test('deletes this device\'s server record, keeps the browser subscription, and re-arms the re-save', async () => {
+        const { sub } = setupEnv({ permission: 'granted', hasSub: true });
+        _ls.set('myb_push_resave_at', String(Date.now()));
+        await releaseDevicePush();
+        assert.equal(_deleteCalls, 1);
+        assert.equal(_lastDeletedEndpoint, sub.endpoint);
+        assert.equal(sub._unsubscribed, false, 'the device keeps its setting — the next identity re-saves it as its own');
+        assert.equal(_ls.has('myb_push_resave_at'), false, 'so the next load re-saves under whoever is signed in then');
+    });
+    test('no subscription → nothing to delete, and it still resolves', async () => {
+        setupEnv({ permission: 'granted', hasSub: false });
+        await releaseDevicePush();
+        assert.equal(_deleteCalls, 0);
+    });
+    test('it never holds sign-out hostage — a hung service worker is abandoned at the time box', async () => {
+        setupEnv({ permission: 'granted', hasSub: true });
+        Object.defineProperty(/** @type {any} */ (globalThis.navigator).serviceWorker, 'ready', { get: () => new Promise(() => {}) });
+        const t0 = Date.now();
+        await releaseDevicePush(50);
+        assert.ok(Date.now() - t0 < 1000, 'sign-out waited on a service worker that will never answer');
     });
 });

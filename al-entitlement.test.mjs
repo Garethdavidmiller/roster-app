@@ -297,6 +297,27 @@ describe('the chain survives passing through an absence (v21.56)', () => {
     });
 });
 
+describe('leave about to replace an ABSENCE reads through it (review A2)', () => {
+    // The booking is being PROJECTED, so the day still holds the absence, not the AL. An absence that
+    // itself replaced something carries that fact in `replacedType`, and the AL written over it will
+    // inherit it (nextReplacedType chains through an absence) — so the projection must read it too,
+    // or the preview and the write disagree about whether the day costs anything.
+    const sickOver = (date, replacedType) => new Map([[date, {
+        memberName: MEMBER.name, type: 'sick', value: 'SICK', date, ...(replacedType ? { replacedType } : {}),
+    }]]);
+
+    test('an absence on a SWAPPED-IN rest day: leave over it costs a day', () => {
+        assert.equal(consumesEntitlement(MEMBER, RESTED[0], sickOver(RESTED[0], 'shift')), true);
+    });
+    test('an absence on a SWAPPED-OUT working day: leave over it costs nothing', () => {
+        assert.equal(consumesEntitlement(MEMBER, WORKED[0], sickOver(WORKED[0], 'correction')), false);
+    });
+    test('an absence with no chain still lets the base roster decide', () => {
+        assert.equal(consumesEntitlement(MEMBER, WORKED[0], sickOver(WORKED[0])), true);
+        assert.equal(consumesEntitlement(MEMBER, RESTED[0], sickOver(RESTED[0])), false);
+    });
+});
+
 describe('one winner per date (v21.56)', () => {
     test('an orphan AL beside a NEWER non-AL winner does not count', () => {
         // Two-device / offline-retry duplicates are a real population (the v16.23 lightbox fix

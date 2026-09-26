@@ -819,6 +819,54 @@ test('promptDialog: resolves the typed value on confirm, null on cancel (not nat
     expect(r.cancelled, 'cancel resolves null').toBe(null);
 });
 
+// ── A DIALOG OPENED FROM ANOTHER DIALOG'S ANSWER STILL OWNS A BACK ENTRY ─────────────────────────
+// Links chains them (`if (!await confirmDialog(…)) return; await promptDialog(…)` — New design,
+// Duplicate). The confirm's close issues `history.back()`, whose popstate lands LATER; the prompt
+// opened in between pushed its entry on top, so the traversal popped the PROMPT's entry and its
+// echo was absorbed. The prompt stayed on screen with no entry, and Android Back left the page.
+// Only a browser can show this — the race is between a microtask and a history traversal.
+test('confirmDialog → promptDialog: Back closes the prompt and stays on the page', async ({ page }) => {
+    await page.goto('/links.html');
+    await page.evaluate(async () => {
+        const { confirmDialog, promptDialog } = await import('/overlay.js');
+        /** @type {any} */ (window).__chain = (async () => {
+            if (!await confirmDialog({ message: 'Discard?' })) return 'declined';
+            return promptDialog({ message: 'Name?' });
+        })();
+    });
+    await expect(page.locator('.dialog-overlay.open .dialog-btn-confirm')).toBeVisible();
+    // A DOM click, not a pointer one: signed out, the login overlay sits over the page. The handler
+    // under test is the same either way.
+    await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector('.dialog-overlay.open .dialog-btn-confirm')).click());
+    await expect(page.locator('.dialog-overlay.open .dialog-input')).toBeVisible();
+    await page.waitForTimeout(600);   // every traversal has landed; what remains is the steady state
+
+    await page.evaluate(() => history.back());
+    await expect(page.locator('.dialog-overlay.open .dialog-input')).toBeHidden();
+    await expect(page).toHaveURL(/links\.html/);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__chain), 'Back is a cancel').toBe(null);
+});
+
+// Same race, from the drawer: the brand button closes the drawer (a `history.back()`) and opens
+// About. About must open only once that traversal has landed, or it has no entry of its own.
+// This pins the OUTCOME, not the mechanism: Chromium and WebKit here both land a same-document
+// back() before a `setTimeout(0)`, so the old timer passes it too (measured with the mutation).
+// The fix is `whenHistorySettled` because a timer only assumes that ordering.
+test('drawer brand → About: Back closes About and stays on the page', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanelBrand').click();
+    const about = page.locator('#iconLightbox.open');
+    await expect(about).toBeVisible();
+    await page.waitForTimeout(600);
+
+    await page.evaluate(() => history.back());
+    await expect(about).toBeHidden();
+    await expect(page).toHaveURL(/admin\.html/);
+});
+
 // Guide links are SAME-TAB navigation since v18.81 (target="_blank" wrapped guides in Android's
 // Chrome Custom Tab / iOS's in-app Safari from the installed PWA — the "extra header on every
 // guide" staff report). So with unsaved changes a drawer guide link must now be CAUGHT by the
@@ -1471,6 +1519,29 @@ test('links: declining an unsaved-changes switch leaves the picker on the design
     await expect(current).toHaveCount(1);
     await expect(current, 'the picker must name the design that is actually open').toContainText('Design A');
     await page.locator('#designPickerClose').click();
+});
+
+// The drawer released this device's push record BEFORE Links asked about unsaved work, so a member
+// who chose to stay was still signed in on a device that no longer received their notices. The
+// confirm now comes first; the resave throttle is the synchronous first thing a release clears.
+test('links: cancelling "Sign out anyway?" keeps the session AND this device\'s push record', async ({ page }) => {
+    await openLinksWithDesigns(page);
+    await switchToDesign(page, 'Design A');
+    await page.evaluate(() => localStorage.setItem('myb_push_resave_at', '12345'));
+    await page.locator('#generatorToggleHeader').click();
+    await page.locator('#genApplyBtn').click({ force: true });
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#designStatusLong')).toHaveText(/Unsaved/);
+
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navSignOutBtn').click();
+    const dialog = page.locator('.dialog-overlay').last();
+    await expect(dialog).toContainText('Sign out anyway?');
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page).toHaveURL(/links\.html/);
+    expect(await page.evaluate(() => localStorage.getItem('myb_push_resave_at')),
+        'a sign-out the member declined must not have released the push record').toBe('12345');
 });
 
 test('links: deleting a design writes a SOFT delete and leaves the document in place', async ({ page }) => {
@@ -2963,6 +3034,26 @@ test('admin: selecting a pill with hours causes no horizontal blowout (touch lay
         .toBeLessThanOrEqual(m.innerW + 2);
 });
 
+// The two document guides have no JS to set a scroll margin (railcard/fip/rangers measure theirs),
+// so a cross-guide search hit landed its heading UNDER the sticky header. guide-shell.css's static
+// margin is what keeps it in view — at 375px and at 320px, where the subtitle wraps the header.
+for (const [guide, id] of [['staff-guide', 'sg-sundays'], ['paycalc-guide', 'pg-pay-types']]) {
+    for (const width of [320, 375]) {
+        test(`${guide} @${width}px: a deep-linked heading lands below the sticky header`, async ({ page }) => {
+            await page.setViewportSize({ width, height: 700 });
+            await page.goto(`/${guide}.html#${id}`);
+            await page.evaluate(() => document.fonts.ready);
+            await page.evaluate((t) => document.getElementById(t)?.scrollIntoView(), id);
+            await page.waitForTimeout(100);
+            const m = await page.evaluate((t) => ({
+                hdrBottom: /** @type {HTMLElement} */ (document.querySelector('.page-header')).getBoundingClientRect().bottom,
+                top: /** @type {HTMLElement} */ (document.getElementById(t)).getBoundingClientRect().top,
+            }), id);
+            expect(m.top, `#${id} top ${m.top} vs header bottom ${m.hdrBottom}`).toBeGreaterThanOrEqual(m.hdrBottom);
+        });
+    }
+}
+
 // ── FIP GUIDE (fip-guide.html) — jump-to-open + malformed-hash safety ──────────────
 
 test('fip: a country jump-link opens that country section (C1)', async ({ page }) => {
@@ -3229,6 +3320,31 @@ test('operations without the hash leaves the queue card collapsed', async ({ pag
     await page.goto('/operations.html');
     await expect(page.locator('#resetRequestsContent')).toContainText('No outstanding requests');
     await expect(page.locator('#resetRequestsBody')).not.toHaveClass(/\bopen\b/);
+});
+
+// A tap on the reset-request notice while Operations is ALREADY open only changes the hash. Until the
+// Sep 2026 review that opened the card over the list read at page load — "No outstanding requests"
+// beside a notification saying otherwise — and a second tap, the hash unchanged, did nothing at all.
+test('operations: a reset-request tap on an OPEN page re-reads the queue, and a second tap still lands', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#resetRequestsContent')).toContainText('No outstanding requests');
+
+    await page.evaluate(() => {
+        /** @type {any} */ (window).__E2E.docs = [{ id: 'A. Hared', requestedAt: Date.now(), count: 1, provisioned: true }];
+        location.hash = '#reset-requests';
+    });
+    await expect(page.locator('.rr-row')).toHaveCount(1);
+    // Followed, then stripped — so the next tap is a CHANGE of hash, not a repeat of one.
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('');
+
+    await page.evaluate(() => {
+        /** @type {any} */ (window).__E2E.docs.push({ id: 'K. Jedlinski', requestedAt: Date.now(), count: 1, provisioned: true });
+        location.hash = '#reset-requests';
+    });
+    await expect(page.locator('.rr-row')).toHaveCount(2);
 });
 
 // ── SETTINGS: Password card reveal toggle (v18.95) ─────────────────────────────────────────────
@@ -3798,6 +3914,80 @@ test('operations: Skip all also clears a resolved "couldn\'t read" pick', async 
     await expect(flagged.first().locator('.roster-choice-btn[data-opt="0"]')).not.toHaveClass(/is-chosen/);
 });
 
+// The same hole on the OTHER unreadable row shape (v24.28 review): a row with no readings can hold
+// an ENTERED value, and Skip all reset only rows that offered readings — so the entry was saved
+// from under the overlay. And Restore re-ticked every row, including one the admin had unticked.
+test('operations: Skip all clears an entered value, and Restore keeps each tick as it was', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const saveBtn = page.locator('#rosterApplyBtn');
+    await expect(saveBtn).toHaveText(/Save 3 changes/);
+
+    await page.locator('.roster-tick').first().click();                    // the admin unticks one
+    await expect(saveBtn).toHaveText(/Save 2 changes/);
+    const garbled = page.locator('.roster-change-row', { hasText: 'XZ9 GARBLED' });
+    await garbled.locator('.roster-choice-btn--enter').click();
+    await garbled.locator('.roster-entry-pill', { hasText: 'Shift' }).click();
+    await garbled.locator('.roster-entry-time[data-part="from"]').fill('06:00');
+    await garbled.locator('.roster-entry-time[data-part="to"]').fill('14:00');
+    await expect(saveBtn).toHaveText(/Save 3 changes/);
+
+    await page.locator('.roster-skip-all-btn').first().click();
+    await expect(saveBtn, 'the entered value was still going to be written').toHaveText(/Nothing to save/);
+
+    await page.locator('.roster-skip-all-btn').first().click();
+    await expect(saveBtn, 'Restore re-ticked a row the admin had unticked').toHaveText(/Save 2 changes/);
+    await expect(page.locator('.roster-tick').first()).toHaveAttribute('aria-pressed', 'false');
+    await expect(garbled.locator('.roster-act')).toHaveText("Couldn't read");
+});
+
+// A row with no readings sitting over a MANUAL entry must show it too: entering a value replaces it
+// (replaceId), and the table's guarantee is that a hand-recorded entry is never overwritten unseen.
+test('operations: an unreadable row with no readings shows the saved entry it would replace', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    const shifts = { ...ROSTER_REVIEW_PARSE.parsed[0].shifts, '2026-08-04': 'UNKNOWN|XZ9 GARBLED', '2026-08-05': 'RD' };
+    await openRosterReview(page, { ...ROSTER_REVIEW_PARSE, parsed: [{ memberName: 'G. Miller', shifts }] });
+    const row = page.locator('.roster-change-row', { hasText: 'XZ9 GARBLED' });
+    await expect(row.locator('.roster-choice-btn--enter')).toHaveText('Enter the shift');
+    await expect(row).toContainText('Saved');
+    await expect(row.locator('.roster-cv-manual')).toContainText('23:00');
+});
+
+// The server's refusals are written FOR the admin ("check the roster type is correct"); a generic
+// "Unexpected error" in their place hid the one instruction that would have fixed the upload.
+test('operations: a refused roster read shows the server\'s own reason', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.route('**/parseRosterPDF*', route => route.fulfill({ status: 502, contentType: 'application/json',
+        body: JSON.stringify({ error: 'The AI found no recognisable staff members — check the roster type is correct and try again' }) }));
+    await page.goto('/operations.html');
+    await page.evaluate(() => {
+        const b = document.getElementById('rosterUploadBody');
+        if (b && !b.classList.contains('open')) document.getElementById('rosterUploadToggleHeader')?.click();
+    });
+    await page.setInputFiles('#rosterFileInput',
+        { name: 'roster.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') });
+    await page.locator('#rosterParseBtn').click();
+    await expect(page.locator('#rosterParseFeedback')).toContainText('check the roster type is correct');
+});
+
+// When nothing changed, the notes about the read still apply — the empty state used to ASSIGN the
+// list's HTML and wipe them, including the name of a member the read never found.
+test('operations: "no changes needed" keeps the notes about the read', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    const { teamMembers, getBaseShift } = await import('../roster-data.js');
+    const gm = teamMembers.find(m => m.name === 'G. Miller');
+    const shifts = Object.fromEntries(ROSTER_REVIEW_DATES.map(d => {
+        const [y, mo, da] = d.split('-').map(Number);
+        return [d, getBaseShift(gm, new Date(y, mo - 1, da))];
+    }));
+    await openRosterReview(page, { ...ROSTER_REVIEW_PARSE, choices: {}, crossCheck: 'complete',
+        missingMembers: ['S. Silva'], parsed: [{ memberName: 'G. Miller', shifts }] }, { noSavedEntries: true });
+    await expect(page.locator('.roster-no-changes')).toBeVisible();
+    await expect(page.locator('#rosterChangeList')).toContainText('Not found in this read');
+    await expect(page.locator('.roster-download-pdf')).toBeVisible();
+});
+
 // Skip means "write nothing", so it must never wear the colour that means "this will be saved".
 // Asserted on computed style rather than by screenshot: --text-mid (L45%) and --success-green
 // (L48.5%) differ in HUE at near-equal luminance, and pixelmatch's delta is luminance-dominated, so
@@ -3953,7 +4143,6 @@ test('links: paint-mode analysis keeps up with rapid tapping', async ({ page }) 
         }
         return (performance.now() - t0) / 20;
     });
-    // eslint-disable-next-line no-console
     console.log(`[links] paint tap → full re-analysis: ${perTap.toFixed(2)} ms`);
     expect(await cells.count()).toBe(7);
     // One frame is 16.7ms. A tap costing more than that would drop frames while painting.
@@ -5316,9 +5505,14 @@ test('links: the variety switch is what keeps you off one shift type for months'
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
 
     const blockAfter = async () => {
+        // Blank the line first and wait for it to be WRITTEN, not read it straight after the
+        // confirm: since the Sep 2026 review a dialog resolves once its close has landed, so the
+        // generate runs a beat after the click, and a read taken at the click saw an empty line.
+        await page.evaluate(() => { const s = document.getElementById('linksSaveStatus'); if (s) s.textContent = ''; });
         await page.locator('#genApplyBtn').click({ force: true });
         const ok = page.locator('.dialog-btn-confirm');
         if (await ok.count()) await ok.first().click();
+        await expect(page.locator('#linksSaveStatus')).toContainText(/longest block/, { timeout: 10_000 });
         const txt = await page.locator('#linksSaveStatus').innerText();
         const m = txt.match(/longest block (\d+)→(\d+) weeks/);
         if (!m) throw new Error(`status did not report the block: ${txt}`);
@@ -5681,6 +5875,193 @@ test('links window: a RESTORED design keeps the window it was designed to', asyn
     await expect(page.locator('#winMoved')).toBeVisible();
 });
 
+// ── Found by the Sep 2026 review — each is the WIRING of a rule the unit suites cannot see ───────
+test('links review: a saved window survives switching away and back', async ({ page }) => {
+    // The saved entry took the patterns and not the window, so switching back rebuilt the working
+    // copy on the OLD window — and the next save wrote it over the one just saved.
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.locator('#winMonSatStart').fill('05:00');
+    await page.locator('#winMonSatStart').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveStatus')).toContainText('Saved');
+    await switchToDesign(page, 'Other');
+    await expect(activeDesignName(page)).toHaveText('Other');
+    await switchToDesign(page, 'Morning heavy');
+    await expect(activeDesignName(page)).toHaveText('Morning heavy');
+    await expect(page.locator('#winMonSatStart')).toHaveValue('05:00');
+});
+
+test('links review: Import asks before it replaces unsaved work', async ({ page }) => {
+    await openWindowDesign(page);
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await sheetAction(page, 'importDesignBtn');
+    const dialog = page.locator('.dialog-overlay');
+    await expect(dialog).toContainText('unsaved changes');
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(page.locator('#linksImportLb.visible')).toHaveCount(0);
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();          // still dirty, still here
+});
+
+test('links review: a colleague\'s restore settled in the bin leaves your unsaved edits alone', async ({ page }) => {
+    // It called loadDesigns, which rebuilt the working copy and cleared `dirty` — the edit gone,
+    // and nothing said so.
+    await openWindowDesign(page, [{ id: 'gone', name: 'Old idea', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva', deletedAt: Date.now() - 86400000, deletedBy: 'S. Silva' }]);
+    await page.evaluate(() => {   // the server now holds it restored; this device's bin is stale
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = w.__E2E.docs.map((/** @type {any} */ d) => ({ ...d, deletedAt: undefined }));
+    });
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await sheetAction(page, 'designBinBtn');
+    await page.locator('#designBinList button:has-text("Restore")').first().click();
+    await expect(page.locator('#designBinStatus')).toContainText(/already been restored/i);
+    await page.locator('#designBinClose').click();
+    await expect(page.locator('#winMonSatEnd')).toHaveValue('14:20');
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+});
+
+test('links review: a binned design cannot be restored under a name already in use', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'gone', name: 'Morning heavy', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva', deletedAt: Date.now() - 86400000, deletedBy: 'S. Silva' }]);
+    await sheetAction(page, 'designBinBtn');
+    await page.locator('#designBinList button:has-text("Restore")').first().click();
+    await expect(page.locator('#designBinStatus')).toContainText('already a design called');
+    const writes = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites || []);
+    expect(writes, 'nothing was restored').toEqual([]);
+});
+
+test('links review: a design found deleted on save leaves the list, and the copy asks nothing more', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.evaluate(() => {   // S. Silva binned it while it was open here
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = w.__E2E.docs.map((/** @type {any} */ d) => d.id === 'd1'
+            ? { ...d, deletedAt: Date.now(), deletedBy: 'S. Silva' } : d);
+    });
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    const dialog = page.locator('.dialog-overlay');
+    await expect(dialog).toContainText('deleted this design');
+    await expect(designOptions(page)).toHaveCount(1);                 // out of the live list
+    await dialog.locator('.dialog-btn-confirm').click();              // "Save mine as new"
+    // Straight to the name — not "goes back to its last save" about a design that is in the bin.
+    const next = page.locator('.dialog-overlay.visible');
+    await expect(next).toContainText('Name for the duplicate');
+    await expect(next).not.toContainText('last save');
+});
+
+test('links re-review: a save still in flight locks only ITS design, and a deletion it finds still leaves the list', async ({ page }) => {
+    // Two defects with one shape — the page moved on while a write was in flight. The "saving" flag
+    // was page-wide, so a write that could not finish locked every design's Save; and a save that
+    // came back "deleted elsewhere" after a switch returned early and left the design in the picker.
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.evaluate(() => {   // S. Silva binned "Morning heavy"; the server is slow to say so
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = w.__E2E.docs.map((/** @type {any} */ d) => d.id === 'd1'
+            ? { ...d, deletedAt: Date.now(), deletedBy: 'S. Silva' } : d);
+        w.__E2E.txHold = true;   // the save stays in flight until the test releases it below
+    });
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveBtn')).toBeDisabled();          // this design: in flight
+    await switchToDesign(page, 'Other');
+    const leave = page.locator('.dialog-overlay.visible');                // leave the unsaved edit
+    await expect(leave).toContainText('unsaved changes');
+    await leave.locator('.dialog-btn-confirm').click();
+    await expect(activeDesignName(page)).toHaveText('Other');
+    await page.locator('#winMonSatEnd').fill('14:40');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    // A short timeout on purpose: a retrying assertion would otherwise wait out the first save.
+    await expect(page.locator('#linksSaveBtn'), 'another design\'s Save is not locked by it').toBeEnabled({ timeout: 1500 });
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseTx());   // now the first save lands
+    await expect(page.locator('#linksSaveStatus')).toContainText('was deleted elsewhere', { timeout: 10000 });
+    await expect(designOptions(page)).toHaveCount(1);                     // out of the live list anyway
+    await expect(page.locator('.dialog-overlay.visible')).toHaveCount(0); // and no dialog about it
+});
+
+test('links re-review: an offline save says it is on this device, not "✓ Saved"', async ({ page, context }) => {
+    // The store queues the write and returns 'queued'; the page read that as a server-confirmed save.
+    await openWindowDesign(page);
+    await page.evaluate(() => {   // no server, and no cached copy to consult — so the store queues
+        const w = /** @type {any} */ (window);
+        w.__E2E.txErrorCode = 'unavailable';
+        w.__E2E.failGetDoc = true;
+    });
+    await context.setOffline(true);
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    const status = page.locator('#linksSaveStatus');
+    await expect(status).toContainText('Saved on this device');
+    await expect(status).not.toContainText('✓');
+    await expect(status).not.toHaveClass(/\bok\b/);
+    await context.setOffline(false);
+});
+
+test('links re-review: declining to replace your OWN other version is not worded as "theirs"', async ({ page }) => {
+    await openWindowDesign(page);
+    await page.evaluate(() => {   // this design was saved since, under this member's own name
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = w.__E2E.docs.map((/** @type {any} */ d) => d.id === 'd1'
+            ? { ...d, updatedAt: 1760000000000, updatedBy: 'G. Miller', revision: 7 } : d);
+    });
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    const dialog = page.locator('.dialog-overlay.visible');
+    await expect(dialog).toContainText('This design changed');
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(dialog).toContainText('Keep your version too?');
+    await expect(dialog).toContainText('That version stays as it is');
+    await expect(dialog).not.toContainText('Their');
+});
+
+test('links memory: a stamped SEED is a designer\'s choice and survives a release', async ({ page }) => {
+    // Only a stamped DEFAULT is one the app stored on its own; the retirement rule took the seed too.
+    const seeded = JSON.parse(JSON.stringify(STALE_SEED));
+    seeded.source = 'seed';
+    seeded.ver = '21.02';
+    await openLinksWithMemory(page, seeded);
+    await expect(page.locator('#genMemoryNote')).toBeVisible();
+    await expect(page.locator('#genHoursNote')).toContainText('short in total');
+});
+
+test('links memory: targets tuned before the first save follow the design it becomes', async ({ page }) => {
+    await seedContractTargets(page, { designIds: ['unsaved'] });
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
+    await page.goto('/links.html');
+    await page.locator('#genApplyBtn').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');   // "Apply"
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await page.locator('#linksSaveBtn').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');   // the pre-filled name
+    await expect(page.locator('#linksSaveStatus')).toContainText('Saved');
+    const ls = await page.evaluate(() => {
+        const id = localStorage.getItem('myb_links_active_design');
+        return { id, mine: localStorage.getItem('myb_links_gen_' + id), unsaved: localStorage.getItem('myb_links_gen_unsaved') };
+    });
+    expect(ls.id).toMatch(/^e2e-added-/);
+    expect(ls.mine, 'the tuned table is stored under the new design').toContain('"spareLines":5');
+    expect(ls.unsaved || '', 'and no longer under the unsaved key').toBe('');
+});
+
+test('links memory: a table saved as a set keeps naming that set after a reload', async ({ page }) => {
+    await openLinksWithTargetSets(page);
+    await page.locator('#genSetSaveAsBtn').click();
+    await page.locator('.dialog-input').fill('Weekend trial');
+    await clickDialogConfirm(page);
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('myb_links_gen_unsaved') || ''))
+        .toContain('"setName":"Weekend trial"');
+});
+
 // ── The generate feedback is visible from the BUTTON, and the button stays put (v20.54) ──────────
 // Two measured failures, one press. The status line lives in the grid card's sticky save row, a
 // full card above the Generate button — after a real press-and-confirm it sat 448px above the
@@ -5710,6 +6091,10 @@ test('links generator: pressing Generate leaves the button under your finger and
         Math.round(/** @type {HTMLElement} */ (document.getElementById('genApplyBtn')).getBoundingClientRect().top));
     await page.locator('#genApplyBtn').click();
     await clickDialogConfirm(page);
+    // Wait for the design to exist before measuring anything: a dialog resolves after its close
+    // lands, so a check taken at the click would see the pre-generate page — a button that "did
+    // not move" because nothing had happened yet, and an empty status to mirror.
+    await expect(page.locator('#genStatus')).toBeVisible({ timeout: 10_000 });
 
     // The button did not move — the first-generate reflow (empty state → 24-row grid above this
     // card) is compensated, so pressing again to explore needs no re-scroll.
@@ -6446,6 +6831,13 @@ test('operations: the review HANDS OVER the original PDF to check against', asyn
     const [download] = await Promise.all([page.waitForEvent('download'), view.click()]);
     expect(download.suggestedFilename()).toBe('roster.pdf');
     expect(await download.path()).toBeTruthy();          // it really arrived, with bytes behind it
+
+    // It hands over the file the review was READ from — not whatever the picker holds now. It read
+    // the picker at click time, so choosing the next week's PDF turned this into a download of that.
+    await page.setInputFiles('#rosterFileInput',
+        { name: 'next-week.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 other') });
+    const [again] = await Promise.all([page.waitForEvent('download'), view.click()]);
+    expect(again.suggestedFilename()).toBe('roster.pdf');
 });
 
 
@@ -7593,15 +7985,19 @@ test('select-sheet: a hidden select gets a hidden trigger, and revealing it reve
         document.body.appendChild(sel);
         enhanceSelect(sel, { title: 'Probe' });
         const trig = () => /** @type {any} */ (document.getElementById('probeHiddenSelectTrigger'));
-        const whileHidden = trig()?.hidden;
+        // What the reader SEES, not the property. `.hidden` was true all along while the trigger's
+        // `display: grid` beat the UA `[hidden]` rule and drew it anyway — a probe of the property
+        // passed over a control that was on screen.
+        const shown = () => { const t = trig(); return !!t && getComputedStyle(t).display !== 'none' && t.getBoundingClientRect().height > 0; };
+        const whileHidden = shown();
         sel.hidden = false;                       // a later reveal must reach the trigger
         await new Promise(r => setTimeout(r, 50)); // the MutationObserver is async
-        const afterReveal = trig()?.hidden;
+        const afterReveal = shown();
         sel.remove(); trig()?.remove();
         return { whileHidden, afterReveal };
     });
-    expect(states.whileHidden, 'a hidden select must not produce a visible control').toBe(true);
-    expect(states.afterReveal, 'revealing the select must reveal its trigger').toBe(false);
+    expect(states.whileHidden, 'a hidden select must not produce a visible control').toBe(false);
+    expect(states.afterReveal, 'revealing the select must reveal its trigger').toBe(true);
 });
 
 test('admin: AL on a rest day asks whether it was a swap, and will not save unanswered', async ({ page }) => {
@@ -8015,6 +8411,13 @@ test('admin: the week grid writes NOTHING for a rest day answered free, and name
     const afterFree = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []));
     expect(afterFree.filter((/** @type {any} */ w) => w.type === 'annual_leave' && w.date === t.date),
         'a rest day answered free must produce no annual leave document at all').toHaveLength(0);
+
+    // …AND LEAVES NOTHING UNSAVED BEHIND (review A7). That branch never cleared the dirty flag, so
+    // the next week arrow raised "unsaved changes" over a grid with nothing staged on it.
+    await clickInView(page.locator('#nextWeekBtn'));
+    await expect(page.locator('#unsavedBanner'), 'a clean grid must not claim unsaved changes').toBeHidden();
+    await clickInView(page.locator('#prevWeekBtn'));
+    await expect(row).toHaveCount(1);
 
     // ── THE CONTROL: the same row answered "Swapped — counts" IS written ────────────────────────
     // Without it the fix could be "the grid stopped writing annual leave", which is not the fix.

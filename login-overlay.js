@@ -463,8 +463,13 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         resetBtn.disabled = true;
         const original = resetBtn.textContent;
         resetBtn.textContent = 'Sending…';
+        /** @type {(e: any) => boolean} */
+        let timedOut = () => false;
         try {
-            const { requestPasswordReset } = await import('./firebase-client.js');
+            // fetch-timeout.js is already loaded by firebase-client.js, so the second import is free.
+            const [{ requestPasswordReset }, { isFetchTimeout }] = await Promise.all([
+                import('./firebase-client.js'), import('./fetch-timeout.js')]);
+            timedOut = (e) => isFetchTimeout(e?.cause);
             await requestPasswordReset(name);
             // Replace the control rather than leaving a re-tappable button: the request is recorded
             // (the endpoint throttles repeats anyway) and there is nothing more for them to do here.
@@ -472,7 +477,12 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             setResetStatus('Request sent. The admin will reset your password and let you know.', 'ok');
         } catch (e) {
             console.warn('[Login] reset request failed:', e);
-            setResetStatus('Couldn’t send the request — check your connection, or contact the admin directly.', 'fail');
+            // A TIMEOUT is not a failure to send: the server records the request before it answers,
+            // so it may well have arrived (Sep 2026 review). Saying "couldn't send" would have the
+            // member ask again, and the throttle then drops the repeat without a word.
+            setResetStatus(timedOut(e)
+                ? 'Couldn’t confirm the request reached the admin — it may have gone through. If your password isn’t reset soon, contact the admin directly.'
+                : 'Couldn’t send the request — check your connection, or contact the admin directly.', 'fail');
         } finally {
             // ALWAYS restore, including on success (FIX, v18.94). The success path used to leave the
             // button disabled and reading "Sending…" behind `hidden`, so a later credential failure

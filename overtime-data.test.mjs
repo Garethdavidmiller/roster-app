@@ -186,6 +186,30 @@ describe('2 · a timeout reported as a failure', () => {
             'a request the caller withdrew is the only one that may be reported as nothing at all');
     });
 
+    test('a BODY that outlasts the bound is `timeout`, never a success with no data', async () => {
+        // fetchWithTimeout bounds the body too; before this, the caught read left `{ ok: true,
+        // data: null }` and every caller threw on `r.data.…` with "Saving…" still up.
+        const data = await freshData();
+        // A real body read rejects when the request's signal aborts; this one does nothing else.
+        _respond = async (req) => ({ ok: true, status: 200, json: () => new Promise((_r, rej) => {
+            req.options.signal.addEventListener('abort', () => rej(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+        }) });
+        const p = data.submitOvertimeAvailability('2026-09-05', {}, 1);
+        await flush();
+        mock.timers.tick(70_000);
+        const r = await p;
+        assert.equal(/** @type {any} */ (r).ok, false);
+        assert.equal(/** @type {any} */ (r).code, 'timeout');
+    });
+
+    test('a 200 whose body is not JSON is `network`, never `ok` with no data', async () => {
+        const data = await freshData();
+        _respond = async () => ({ ok: true, status: 200, json: async () => { throw new SyntaxError('cut off'); } });
+        const r = await data.getMyOvertimeState();
+        assert.equal(/** @type {any} */ (r).ok, false);
+        assert.equal(/** @type {any} */ (r).code, 'network');
+    });
+
     test('a transport failure is `network`, and is not a timeout', async () => {
         const data = await freshData();
         _respond = async () => { throw new TypeError('Failed to fetch'); };

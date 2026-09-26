@@ -25,7 +25,7 @@ import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWith
 import { orderClientErrors, expiredResolvedIds, capUnresolvedErrors } from './client-errors.js';
 import { runWithClaimRetry } from './claim-retry.js';
 import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys, originKey, summariseOrigins, staleOriginKeys } from './usage-stats.js';
-import { perfSampleKey, summarisePerf } from './perf-stats.js';
+import { perfSampleKey, summarisePerf, createPerfBatcher } from './perf-stats.js';
 import { APP_VERSION } from './roster-data.js';
 
 // Boot-phase waypoint (v20.33): the moment this module's body runs is the moment the Firebase SDK
@@ -75,7 +75,8 @@ export {
     // reads
     // getDocsFromCache reads ONLY the persistent local cache: no network, and — because
     // Firestore rules are evaluated server-side — no rule evaluation either. That is what lets the
-    // calendar paint before an auth session exists (AUTH_PLAN.md → E1). It REJECTS on a cache miss.
+    // calendar paint before an auth SESSION exists (AUTH_PLAN.md → E1) — but not before Auth has
+    // initialised, which for a stored user is after `accounts:lookup` (CALENDAR_DATA.md 10). REJECTS on a miss.
     getDocs, getDocsFromCache, getDoc, onSnapshot,
     // writes
     addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction,
@@ -154,11 +155,12 @@ function _setMemberPersistence() {
 // calendar-access-core.js imports nothing, so this adds no cycle (import-graph.test.mjs).
 import { isViewerUser } from './calendar-access-core.js';
 
-/** Resolve the FIRST auth emission (the persisted-user restore), bounded so a wedged auth layer
- *  cannot hold `authReady` — and with it every page's boot — hostage. Local and minimal: the shared
- *  `restoreFirstAuthUser` lives in session.js, which imports THIS module, so using it here would be
- *  a cycle. On timeout resolves null, and the boot proceeds exactly as it would for a signed-out
- *  visitor. @returns {Promise<any>} */
+/** Resolve the FIRST auth emission (the persisted-user restore), bounded at 8s; null on timeout.
+ *  Local: the shared `restoreFirstAuthUser` is in session.js, which imports THIS module (a cycle).
+ *  **It bounds the emission, NOT `authReady`** (measured, browser SDK build, Sep 2026): Auth's
+ *  initialisation includes the stored user's `accounts:lookup`, and `setPersistence` queues behind
+ *  it — so `authReady` settles when the lookup does, up to the SDK's 30s API timeout.
+ *  @returns {Promise<any>} */
 function _firstAuthUserAtBoot() {
     return new Promise(resolve => {
         /** @type {null | (() => void)} */
@@ -233,7 +235,10 @@ function _firstAuthUserAtBoot() {
 // yields the mode; it is now derived rather than separately computed.
 /** @type {Promise<{ user: any, persistence: 'indexeddb'|'local'|'session'|'none' }>} */
 export const authBootstrap = (async () => {
-    const user = await _firstAuthUserAtBoot();
+    let user = await _firstAuthUserAtBoot();
+    // A TIMED-OUT emission is not "nobody signed in": setPersistence below waits for the restore
+    // anyway, then MIGRATES whoever it restored — a viewer included (invariant 12; measured).
+    if (!user) { try { await auth.authStateReady(); } catch { /* nobody restored */ } user = auth.currentUser; }
     if (isViewerUser(user)) {
         try { await setPersistence(auth, browserSessionPersistence); return { user, persistence: /** @type {const} */ ('session') }; }
         catch { return { user, persistence: /** @type {const} */ ('none') }; }
@@ -676,14 +681,15 @@ export async function resetMemberPassword(memberName, { revoke = true } = {}) {
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
             body:    JSON.stringify({ member: memberName, revoke }),
         }, 65_000);
+        // Read INSIDE the try: the body shares the deadline, and a body cut off by it is a timeout too.
+        if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
+        return await r.json();
     } catch (err) {
         // A WRITE. The abort stopped us waiting, not the server working, so this must not claim the
         // reset did not happen — the admin needs to go and look rather than reset a second time.
         if (isFetchTimeout(err)) throw new Error('Timed out waiting for the server — the reset may still have gone through. Check Account status before trying again.', { cause: err });
         throw err;
     }
-    if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
-    return r.json();
 }
 
 /**
@@ -784,6 +790,9 @@ export async function requestPasswordReset(memberName) {
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ member: memberName }),
         }, 35_000);
+        // Read INSIDE the try: the body shares the deadline, and a body cut off by it is a timeout too.
+        if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
+        return await r.json();
     } catch (err) {
         // The request MAY have been recorded — the server writes the row before responding. So the
         // login overlay's copy for this case says "couldn't confirm", never "not sent"; a member
@@ -791,8 +800,6 @@ export async function requestPasswordReset(memberName) {
         if (isFetchTimeout(err)) throw new Error('Timed out waiting for the server — your request may still have been sent.', { cause: err });
         throw err;
     }
-    if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
-    return r.json();
 }
 
 /**
@@ -970,14 +977,19 @@ export function recordOriginUse({ day, origin, installed = false, countVisit = t
  */
 export function recordPerfSample({ page, metric, bucket, mode, conn }) {
     if (!bucket) return;
-    const m = monthKey(new Date());
-    const key = perfSampleKey({ version: APP_VERSION, page, metric, bucket, mode, conn });
-    setDoc(
-        doc(db, COLLECTIONS.analytics, `perf_${m}`),
-        { month: m, samples: { [key]: increment(1) } },
-        { merge: true },
-    ).catch(() => {/* best-effort analytics */});
+    _perfBatch.add(monthKey(new Date()), perfSampleKey({ version: APP_VERSION, page, metric, bucket, mode, conn }));
 }
+// ONE merged write per open, 1s after its first sample and then at idle — behind the roster's own
+// reads rather than a dozen writes ahead of them (createPerfBatcher). The delay is SHORT on purpose:
+// the pagehide/hidden drain below is only an async setDoc, and on a real unload (a same-tab
+// navigation, which is the common "open, glance, tap to another page") the IndexedDB write queue is
+// torn down with the page, so samples still waiting are LOST, not sent next open. 4s lost exactly
+// those opens and biased the speed figures toward long sessions. A backgrounded PWA resumes the write.
+const _perfBatch = createPerfBatcher((m, counts) => setDoc(doc(db, COLLECTIONS.analytics, `perf_${m}`),
+    { month: m, samples: Object.fromEntries(Object.entries(counts).map(([k, n]) => [k, increment(n)])) },
+    { merge: true }).catch(() => {/* best-effort analytics */}),
+(flush) => { setTimeout(() => (typeof requestIdleCallback === 'function' ? requestIdleCallback(flush, { timeout: 1000 }) : flush()), 1000); });
+try { addEventListener('pagehide', _perfBatch.flush); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') _perfBatch.flush(); }); } catch { /* no DOM */ }
 
 /**
  * Read latency for the Operations "App speed" card (admin-only), for THIS month and LAST month (the

@@ -649,23 +649,26 @@ function requiredGstaticModules() {
         .map(x => x[1]);
 }
 
-/** Pages that declare modulepreload hints, and the boot entry each one's graph starts from.
- *  index.html is excluded: its hints are a hand-picked SUBSET (the critical path), not the whole
- *  graph, so the exhaustive comparison below would report every unlisted module as missing.
- *  links.html joined at v21.75 — as the workspace grew it overtook paycalc as the deepest graph
- *  in the app, which is the only reason the other pages go without. */
-const PRELOAD_PAGES = [
-    ['paycalc.html', 'paycalc-boot.js'],
-    ['links.html',   'links-boot.js'],
-];
+/** Pages that declare modulepreload hints, the entry each one's graph starts from, and whether the
+ *  page preloads that entry too. links.html joined at v21.75 — as the workspace grew it overtook
+ *  paycalc as the deepest graph in the app, which is the only reason the other pages go without.
+ *  index.html is here as well, and its list is the WHOLE graph, not a hand-picked subset: this
+ *  comment said otherwise for a long while, beside a separate index-only test that checked it
+ *  exhaustively all along (folded into this table at the v24.28 review). Its entry, calendar-app.js,
+ *  is a plain module script rather than a *-boot.js shim, so the page preloads it as well. */
+const PRELOAD_PAGES = /** @type {const} */ ([
+    ['paycalc.html', 'paycalc-boot.js', false],
+    ['links.html',   'links-boot.js',   false],
+    ['index.html',   'calendar-app.js', true],
+]);
 
-for (const [page, entry] of PRELOAD_PAGES) {
+for (const [page, entry, preloadsEntry] of PRELOAD_PAGES) {
     test(`${page} modulepreload hints match its real transitive module graph`, () => {
         const html = readFileSync(join(ROOT, page), 'utf8');
 
-        // The local module graph the page actually loads (entry script handles boot itself).
+        // The local module graph the page actually loads (a boot shim handles itself).
         const graph = staticLocalGraph(entry);
-        graph.delete(entry);
+        if (!preloadsEntry) graph.delete(entry);
         const expected = [...graph].filter(f => f.endsWith('.js')).sort();
 
         // The local modules the page declares as preloads.
@@ -771,27 +774,6 @@ test('service-worker.js FIREBASE_SDK_VERSION matches the SDK version firebase-cl
     assert.equal(clientVers.size, 1, `firebase-client.js references multiple SDK versions: ${[...clientVers].join(', ')}`);
     assert.equal([...clientVers][0], swVer,
         `firebase-client.js imports SDK ${[...clientVers][0]} but service-worker.js FIREBASE_SDK_VERSION is ${swVer} — bump both together`);
-});
-
-test('index.html modulepreload hints match the calendar\'s real transitive module graph', () => {
-    const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
-
-    // The calendar's entry IS calendar-app.js (loaded via <script type="module" src>), and
-    // index.html preloads the whole graph including it — so the entry is NOT deleted here.
-    const graph = staticLocalGraph('calendar-app.js');
-    const expected = [...graph].filter(f => f.endsWith('.js')).sort();
-
-    const preloaded = [...html.matchAll(/<link rel="modulepreload" href="\.\/([^"]+)"/g)]
-        .map(x => x[1]).sort();
-
-    const missing = expected.filter(f => !preloaded.includes(f));
-    const stale   = preloaded.filter(f => !expected.includes(f));
-    assert.deepEqual(
-        { missing, stale }, { missing: [], stale: [] },
-        'index.html modulepreload list is out of sync with calendar-app.js\'s static graph.\n' +
-        `  Add a <link rel="modulepreload"> for: ${missing.join(', ') || '(none)'}\n` +
-        `  Remove the stale preload for:        ${stale.join(', ') || '(none)'}`
-    );
 });
 
 // ──────────────────────────────────────────────────────────────────────────────

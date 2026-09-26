@@ -8,6 +8,7 @@
  *   and the `UNKNOWN|` / `RDW|` review encodings the renderer reads back.
  * Does NOT own: the parse, the review table's DOM, the entry control, or any write.
  * Edit here for: a new cell state, or a change to what is ticked by default.
+ * Read first: `.claude/rules/roster-import.md` — the import's whole contract.
  *
  * ── WHY IT IS ITS OWN MODULE (v23.52) ──────────────────────────────────────────────────────────
  *

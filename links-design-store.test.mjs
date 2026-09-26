@@ -22,6 +22,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { createDesignStore, isOfflineFailure } from './links-design-store.js';
+import { conflictOf } from './links-concurrency.js';
 
 const ID = 'design-1';
 const ME = 'G. Miller';
@@ -572,5 +573,145 @@ describe('the baseline after a save names what the save COMMITTED', () => {
         const { api } = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: THEM, revision: 9 } });
         const res = await createDesignStore(api).rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 4 });
         assert.equal(res.baselineFresh, false);
+    });
+});
+
+// ── FOUND BY THE SEP 2026 REVIEW ────────────────────────────────────────────────────────────────
+describe('a design REMOVED FOR GOOD is not recreated by an ordinary save', () => {
+    // The forced path has refused a vanished document since v21.96; the ordinary one did not. A
+    // colleague bins the design and removes it for good while we hold it open, and our next save
+    // wrote revision 1 into the empty slot — the design back from the dead, with nobody told.
+    test('online: reported as deleted elsewhere, with no deleter invented, and nothing written', async () => {
+        const { api, writes, current } = makeDb({ initial: null });
+        const res = await createDesignStore(api).save({ id: ID, buildPayload: () => ({ name: 'mine' }),
+            baseline: 1000, loadedRevision: 4, baselineUnknown: false, currentUser: ME });
+        assert.equal(res.status, 'deleted-elsewhere');
+        assert.equal(res.deletedData, null);
+        assert.deepEqual(writes, []);
+        assert.equal(current(), null, 'the design stays gone');
+    });
+
+    test('offline: a cache that knows it is gone is believed, and nothing is queued', async () => {
+        const { api, writes } = makeDb({ initial: null, failTx: { code: 'unavailable', message: 'client is offline' } });
+        api.isOnline = () => false;
+        const res = await createDesignStore(api).save({ id: ID, buildPayload: () => ({ name: 'mine' }),
+            baseline: 1000, loadedRevision: 4, baselineUnknown: false, currentUser: ME });
+        assert.equal(res.status, 'deleted-elsewhere');
+        assert.deepEqual(writes, []);
+    });
+});
+
+describe('a rename on a STALE baseline does not sign a colleague\'s save as ours', () => {
+    // We hold revision 4; S. Silva saved 5. Our rename cannot advance our baseline — correct — but
+    // it wrote `updatedBy: us`, so our next save's conflict dialog named US as the person who "saved
+    // a different version", and we replaced it believing it was our own. It was their content.
+    test('the merge carries the name and the revision, and leaves updatedBy alone', async () => {
+        const { api, writes } = makeDb({ initial: { name: 'A', updatedAt: ts(2000), updatedBy: THEM, revision: 5 } });
+        const store = createDesignStore(api);
+        const res = await store.rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 4 });
+        assert.equal(res.baselineFresh, false);
+        const w = writes.find(x => x.kind === 'tx-merge');
+        assert.equal(w.payload.name, 'B');
+        assert.equal(w.payload.updatedBy, undefined, 'the colleague is still the last to have SAVED');
+        assert.equal(w.payload.revision, 6, 'the counter still moves, so every holder of 5 is asked');
+
+        const next = await store.save({ id: ID, buildPayload: () => ({ name: 'B' }),
+            baseline: 1000, loadedRevision: 4, baselineUnknown: false, currentUser: ME });
+        assert.equal(next.status, 'conflict');
+        assert.equal(next.conflict.by, THEM, 'the dialog names the person whose work would be replaced');
+    });
+
+    test('a fresh rename still records who did it', async () => {
+        const { api, writes } = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: THEM, revision: 4 } });
+        await createDesignStore(api).rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 4 });
+        assert.equal(writes.find(x => x.kind === 'tx-merge').payload.updatedBy, ME);
+    });
+});
+
+describe('a QUEUED write can never wear a revision a colleague also holds', () => {
+    // We are offline holding revision 2. S. Silva saves online: revision 3. Our queued write used to
+    // land as (2 + 1) = 3 — the same number — so her next save matched, raised no conflict and wrote
+    // straight over ours. The number a queued write stamps must be one no transactional save
+    // produces from the same starting point.
+    const offlineDb = (/** @type {any} */ initial) => {
+        const db = makeDb({ initial, failTx: { code: 'unavailable', message: 'client is offline' } });
+        db.api.isOnline = () => false;
+        return db;
+    };
+
+    test('a queued save', async () => {
+        const { api, writes } = offlineDb({ name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 2 });
+        const res = await createDesignStore(api).save({ id: ID, buildPayload: () => ({ name: 'mine', updatedBy: ME }),
+            baseline: 1000, loadedRevision: 2, baselineUnknown: false, currentUser: ME });
+        assert.equal(res.status, 'queued');
+        const rev = writes[0].payload.revision;
+        assert.ok(Number.isInteger(rev) && rev > 2, `a positive integer above ours (rules: int >= 1): ${rev}`);
+        assert.notEqual(rev, 3, 'not the revision a colleague\'s online save from 2 would produce');
+        // And the consequence: S. Silva, holding the 3 she committed, is ASKED.
+        assert.ok(conflictOf({ revision: rev, updatedBy: ME }, true,
+            { loadedRevision: 3, loadedUpdatedAt: null, baselineUnknown: false, currentUser: THEM }));
+    });
+
+    test('a queued rename moves the counter too, so a holder of the old revision is asked', async () => {
+        const { api, writes } = offlineDb({ name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 4 });
+        const res = await createDesignStore(api).rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 4 });
+        assert.equal(res.queued, true);
+        const rev = writes[0].payload.revision;
+        assert.ok(Number.isInteger(rev) && rev > 5, `the queued rename bumps past any online save from 4: ${rev}`);
+    });
+});
+
+describe('a queued write does not wait for a server that is not there', () => {
+    // Firestore resolves `setDoc` only when the SERVER acknowledges it — never, while offline — so
+    // awaiting it held "Saving…" on screen until the connection came back and the page never said
+    // "queued". The write is started, left to the SDK's queue, and the call returns.
+    const neverResolves = () => new Promise(() => {});
+    const hang = () => new Promise(r => setTimeout(() => r('hung'), 200));
+
+    test('save', async () => {
+        const { api } = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 2 },
+            failTx: { code: 'unavailable', message: 'client is offline' } });
+        api.isOnline = () => false;
+        let started = false;
+        api.setDoc = () => { started = true; return neverResolves(); };
+        const res = await Promise.race([
+            createDesignStore(api).save({ id: ID, buildPayload: () => ({ name: 'mine' }),
+                baseline: 1000, loadedRevision: 2, baselineUnknown: false, currentUser: ME }),
+            hang(),
+        ]);
+        assert.notEqual(res, 'hung');
+        assert.equal(/** @type {any} */ (res).status, 'queued');
+        assert.equal(started, true, 'the write was still issued');
+    });
+
+    test('create (Sep 2026 re-review)', async () => {
+        // `addDoc` has the same shape — it resolves on the server's ack — and the first save of a
+        // generated design still awaited it, holding "Saving…" (and, page-wide, every Save) until
+        // the connection came back. An auto-id reference names the document before the write.
+        const { api } = makeDb();
+        api.isOnline = () => false;
+        /** @type {any} */ let wrote = null;
+        api.addDoc = () => neverResolves();
+        api.setDoc = (_ref, payload) => { wrote = payload; return neverResolves(); };
+        const res = await Promise.race([createDesignStore(api).create({ name: 'New' }), hang()]);
+        assert.notEqual(res, 'hung');
+        assert.equal(/** @type {any} */ (res).queued, true);
+        assert.equal(/** @type {any} */ (res).id, ID, 'the id is known before the write lands');
+        assert.equal(wrote?.revision, 1, 'the queued create was issued, as revision 1');
+        // Revision 1 is exact: nobody else can write a document whose id only this device holds.
+        assert.equal(/** @type {any} */ (res).baseline.loadedRevision, 1);
+    });
+
+    test('rename', async () => {
+        const { api } = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 2 },
+            failTx: { code: 'unavailable', message: 'client is offline' } });
+        api.isOnline = () => false;
+        api.setDoc = () => neverResolves();
+        const res = await Promise.race([
+            createDesignStore(api).rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 2 }),
+            hang(),
+        ]);
+        assert.notEqual(res, 'hung');
+        assert.equal(/** @type {any} */ (res).queued, true);
     });
 });

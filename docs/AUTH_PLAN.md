@@ -16,7 +16,7 @@ that reads uniformly confident invites someone to start at the wrong end:
 
 | | Confidence |
 |---|---|
-| §1 framing, §2 current exposure, E0, E2 | **Verified against code** (§2 re-checked 28 Aug 2026). Safe to act on. |
+| §1 framing, §2 current exposure, E0, E2 | **Verified against code** (§2 re-checked 26 Sep 2026). Safe to act on. |
 | E1 | **✓ SHIPPED v19.01.** |
 | E3, the decision gate, §6 measurement | **Sound, unverified.** Design is right; numbers are missing. |
 | §4 offline (E4) | Designed; its one load-bearing assumption is now **demonstrated** — `experiments/firestore-offline-proof/`, see §4. |
@@ -24,8 +24,8 @@ that reads uniformly confident invites someone to start at the wrong end:
 | §5 documents (E6) | **A sketch.** The Office-viewer dependency invalidates the cheapest option. |
 
 **Status: the read closure is IN FORCE since 26 Aug 2026; INDIVIDUAL authentication is still
-undecided.** `overrides` reads require a member `name` claim, `admin`, or the shared staff-PIN
-`calendarViewer` capability, and the `allow read;` line that sat above them is gone. See E2 below,
+undecided.** `overrides` reads require a verified member (`isMember()`: password sign-in, derived email,
+server-set `member` claim — v24.23/v24.27), `admin`, or the shared staff-PIN `calendarViewer` capability, and the `allow read;` line that sat above them is gone. See E2 below,
 which records how the staff PIN superseded the phase as designed and what it does NOT close — in
 particular that a device which unlocked earlier still holds what it cached, because rules are
 evaluated server-side and a local cache hit never reaches one.
@@ -49,7 +49,7 @@ only one of them is enforcement.
 | Layer | Can it go behind auth? | Where the work is |
 |---|---|---|
 | **Data** — Firestore reads | **Yes, server-enforced.** The only real control. | the staff PIN (v20.12, in E2's place) / E5 (rules) + E1 (client prep) |
-| **Files** — Storage documents | **Not by any rules change.** They ride permanent bearer URLs. | E6 (delivery-model change) |
+| **Files** — Storage documents | **Not by any rules change.** Direct Storage reads are admin-only; everyone else opens a document by its stored bearer URL or a short-lived signed URL (`getDocumentUrl`), neither of which the rules see. | E6 (delivery-model change) |
 | **Shell** — HTML/CSS/JS | **No.** Static files on public hosting. A client gate is UX, never security. | E3 (UX only) |
 
 Two consequences follow, and both are easy to get wrong:
@@ -63,18 +63,18 @@ Two consequences follow, and both are easy to get wrong:
 
 ---
 
-## 2. What is actually exposed today (re-verified 4 Sep 2026)
+## 2. What is actually exposed today (re-verified 26 Sep 2026)
 
-Open reads (`allow read;` in `firestore.rules`): **`huddles`, `circulars`, `newsletters`** — the three
-document collections, deliberately, because a notification tap carries no session. Everything else
-requires auth, and most requires a claim. **CLOSING (owner decision, 7 Sep 2026):** the client stopped
-reading them without access at v23.17 (`calendar-doc-access.js` — §5 below), and the rules closed them at
-v23.18, mirroring `overrides`. The bearer-URL exposure in §5 is unchanged by either.
+Open reads (`allow read;` in `firestore.rules`): **none.** The last three — **`huddles`, `circulars`,
+`newsletters`**, open because a notification tap carried no session — were closed by owner decision
+(7 Sep 2026): the client stopped reading them without access at v23.17 (`calendar-doc-access.js` — §5
+below), and the rules closed them at v23.18, mirroring `overrides`. Every collection now requires auth,
+and most require a claim. The bearer-URL exposure in §5 is unchanged by either.
 
 - **`overrides` is NO LONGER open** (closed 26 Aug 2026, v21.78). It carries `memberName` + `date` +
   `type` + `value` — AL, absence and shift changes for every member — and was readable by anyone with
-  the URL from the app's first Firestore write until that date. Reads now require a member `name`
-  claim, `admin`, or the shared `calendarViewer` capability. (The app never stores a *reason* for an
+  the URL from the app's first Firestore write until that date. Reads now require a verified member
+  (`isMember()`, v24.23/v24.27), `admin`, or the shared `calendarViewer` capability. (The app never stores a *reason* for an
   absence — a deliberate GDPR decision recorded in CLAUDE.md — but "who was absent, and when" was
   readable for as long as the rule stood, and **a device that cached it before the tightening still
   holds what it saw**: see E2 below.)
@@ -93,8 +93,9 @@ v23.18, mirroring `overrides`. The bearer-URL exposure in §5 is unchanged by ei
   category, and §1 above names it without following it through — the shell is public *by
   construction*, and `roster-data.js` is part of the shell.
 
-  Measured against the live site with no session, no PIN and no token: **53 named staff with their
-  roster type and cycle position, five start dates and nine leave entitlements** (76 KB), plus
+  Measured against the live site with no session, no PIN and no token: **every named member with
+  their roster type and cycle position, plus join dates, pro-rated leave entitlements and scheduled
+  roster moves where a member carries them**, and
   `roster-cycle-data.js` (9 KB) carrying the patterns those numbers index into. Together they let a
   stranger compute any named member's shift for any date, past or future.
 
@@ -136,8 +137,8 @@ guarded, but the prose that tells a maintainer what ORDER to work in was not, so
 three-stage shorthand survived the v19.08 renumbering in the sequencing doc as a result.
 
 ### E0 — exclude search engines ✓ SHIPPED v19.00
-`X-Robots-Tag: noindex, nofollow` on Firebase Hosting + a mirrored `<meta name="robots">` in all twelve
-served pages, because GitHub Pages serves no headers and a `robots.txt` cannot reach the mirror (only
+`X-Robots-Tag: noindex, nofollow` on Firebase Hosting + a mirrored `<meta name="robots">` in every
+served page, because GitHub Pages serves no headers and a `robots.txt` cannot reach the mirror (only
 honoured at an origin root; the mirror lives under `/roster-app/`). `robots.txt` deliberately **permits**
 crawling — a crawler blocked from fetching can never read the noindex, so `Disallow: /` would hide the
 signal rather than the page. Guarded by `sw-asset-check.test.mjs`. Needed no decision and depends on
@@ -248,8 +249,8 @@ the barrier was one `signInAnonymously()` call, i.e. no barrier at all to anyone
 it. The decision gate below existed precisely to ask whether that was enough.
 
 **v20.12 answered the gate a third way the phase list did not contain: a server-validated SHARED
-credential.** `overrides` reads now require a member `name` claim **or** the `calendarViewer`
-capability, minted by the `unlockCalendarViewer` Cloud Function in exchange for a four-digit staff
+credential.** `overrides` reads now require a verified member (`isMember()`, v24.23/v24.27) **or** the
+`calendarViewer` capability, minted by the `unlockCalendarViewer` Cloud Function in exchange for a four-digit staff
 PIN. Anonymous is DENIED outright.
 
 Why this is not merely E2 with extra steps:
@@ -298,12 +299,14 @@ starter picks a name from a dropdown and one where they sign in.
 ### E4 — offline grace mode (ships **with** E3, not after)
 See §4. Without it, E3 is a genuine regression; with it, it is not.
 
-### E5 — Level 2 rules: `token.name != null` + hard gate
+### E5 — Level 2 rules: `isMember()` + hard gate
 Only after E3 soaks and the numbers say the wall is survivable. At this point `signInAnonymously` is dead
 code and the **Anonymous provider can be disabled project-wide** — real hardening, and it settles the
 "retire the anonymous fallback" residual in SECURITY_RELEASE_PLAN. Decide those two together.
 
-> **⚠️ NOT YET ANALYSED — do not treat `token.name != null` as a one-line rule.** The B-track needed a
+> **⚠️ NOT YET ANALYSED — do not treat `isMember()` as a one-line rule.** (It is already the live `overrides`
+> read rule's member door — AUTH_AND_SESSIONS invariant 19; a bare `token.name != null` is weaker, since any
+> session can set its own display name.) The B-track needed a
 > whole permissive→strict migration and a `CLAIM_EPOCH` token sweep because claim tiers are subtle, and
 > that was for **writes**, where `writeWithClaimRetry` self-heals a stale token. The equivalent analysis
 > for **reads** has not been done. Two things already found by inspection, both of which E5 must answer:
@@ -392,10 +395,10 @@ the calendar had no session, so E5 couples them to login working on every path.
 
 ## 5. The documents are the gap nobody asks about (E6)
 
-`storage.rules` gates direct Storage SDK reads, but staff never read documents that way — they open the
-permanent tokenised `storageUrl` saved in the Firestore doc, which carries its own access token and
-**bypasses the rules entirely**. `storage.rules` says so itself: *"Don't store confidential files here
-unless that delivery model changes."*
+`storage.rules` gates direct Storage SDK reads, and those are admin-only — staff never read documents that
+way. They open the permanent tokenised `storageUrl` saved in the Firestore doc (or, since v24.19, a
+short-lived signed URL from `getDocumentUrl`), which carries its own access and **bypasses the rules
+entirely**.
 
 **Therefore: no phase in E1–E5 puts these documents behind authentication.** Those phases change who can
 *discover* a URL. Anyone who has ever held one — a forwarded link, browser history, a synced bookmark —
@@ -672,7 +675,7 @@ this file's subject is what sits behind the boundary, which passkeys do not chan
 - **Do not** ship E3 (client gate) as if it were security. Without E5 the data is unchanged.
 - **Do not** bundle E1 into E2. The read-await must soak on its own; that is the whole point of splitting
   them.
-- **Do not** flip in one step. E0 → E1 → E2 → ⟨gate⟩ → E3+E4 → E5, reusing the staged posture the B-track
+- **Do not** flip in one step. E0 → E1 → PIN (v20.12, in place of E2) → decision gate → E3 + E4 → E5, reusing the staged posture the B-track
   proved.
 - **Do not** treat E6 as part of the rules work. Different failure domain, different fix, independent
   schedule.

@@ -9,7 +9,8 @@
  * Usage (call once, after DOM is ready — ES modules are deferred by default):
  *   import { initNavPanel } from './nav-panel.js';
  *   initNavPanel({ currentPage: 'calendar', memberName: 'G. Miller', onSignOut: fn });
- *   // memberName + onSignOut are optional; omit both to suppress the footer.
+ *   // memberName + onSignOut are optional; omit both to suppress the footer. `beforeSignOut`
+ *   // (optional) returns false to CANCEL — the push record is released only after it agrees.
  *
  * The footer also hosts a push-notification bell toggle (🔔/🔕) when the device
  * supports Web Push. All push logic lives in notif.js — this file only renders
@@ -48,10 +49,10 @@
  * affordance and is hidden by CSS while expanded, where the rows are the count.
  */
 
-import { notifSupported, peekNotifState, enableNotifications, disableNotifications } from './notif.js';
+import { notifSupported, peekNotifState, enableNotifications, disableNotifications, releaseDevicePush } from './notif.js';
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl } from './firebase-client.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
-import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled } from './overlay.js';
 import { lsGet, lsSet } from './ls.js';
 import { isAccessFailure } from './claim-retry.js';
 import { recordOpen } from './usage-reporter.js';
@@ -286,7 +287,7 @@ export function resetNavPanel() {
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null, authReady?: Promise<any>, canReadDocuments?: () => boolean, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime', memberName?: string|null, onSignOut?: (() => void)|null, beforeSignOut?: (() => boolean|Promise<boolean>)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null, authReady?: Promise<any>, canReadDocuments?: () => boolean, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
  *   onLockCalendar (v20.12, calendar only) — the shared-PIN viewer's way to lock the roster before
  *   walking away from a shared office PC. `isViewer` is a THUNK read at drawer-open time, never at
  *   init: Calendar access resolves asynchronously and is still `none` when this function runs.
@@ -298,7 +299,7 @@ export function resetNavPanel() {
  *   drawer logo is tapped. The header logo on sub-pages is now a back button,
  *   so About lives on the drawer logo instead.
  */
-export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, onLogoClick = null, usageIdentity = null, authReady = Promise.resolve(), onLockCalendar = null, canReadDocuments = () => true } = {}) {
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, beforeSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, onLogoClick = null, usageIdentity = null, authReady = Promise.resolve(), onLockCalendar = null, canReadDocuments = () => true } = {}) {
     // Identity for the anonymous open-counters' admin-exclusion (v18.20): the signed-in name by
     // default; the calendar passes its SELECTED member (its session is optional — same precedent
     // as recordUsage's identity there). Never stored — only compared against CONFIG.ADMIN_NAMES.
@@ -693,8 +694,15 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
 
     // Sign-out footer button
     const signOutBtn = document.getElementById('navSignOutBtn');
-    signOutBtn?.addEventListener('click', () => {
+    signOutBtn?.addEventListener('click', async () => {
         closePanelForNavigation();
+        // A page may still CANCEL here (Links, over unsaved work) — so ask FIRST: releasing before a
+        // cancelled sign-out left a signed-in device with no push record until its next page load.
+        if (beforeSignOut && await beforeSignOut() === false) return;
+        // Release this device's push record WHILE still signed in (the rules let only its owner
+        // delete it), so the targeted notices addressed to this member stop reaching a device they
+        // have left. Time-boxed and best-effort: it never blocks or fails the sign-out.
+        await releaseDevicePush();
         onSignOut?.();
     });
 
@@ -703,13 +711,14 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // coming-soon link (which reuses the drawer's entry), we must POP the drawer's entry here,
     // not abandon it. closePanelForNavigation() only cleared _historyPushed without calling
     // history.back(), leaking a dead same-URL entry that swallowed the next Android Back press
-    // (and accumulated on each About-from-drawer cycle). closePanel() pops it; About opens on
-    // the next tick, AFTER the back()'s popstate settles, so About's fresh entry isn't
-    // immediately consumed by the queued back().
+    // (and accumulated on each About-from-drawer cycle). closePanel() pops it; About opens once
+    // that back()'s popstate has LANDED (closePanel's suppressNextPop is what whenHistorySettled
+    // waits on), so About's fresh entry isn't consumed by the queued back(). A setTimeout(0) here
+    // only assumed the traversal would beat the next task.
     const brandBtn = document.getElementById('navPanelBrand');
     brandBtn?.addEventListener('click', () => {
         closePanel();
-        setTimeout(() => onLogoClick?.(), 0);
+        whenHistorySettled(() => onLogoClick?.());
     });
 
     // Guides submenu accordion — an in-panel toggle, so the panel stays open.

@@ -141,7 +141,8 @@ export function pickBookedYear({ pinned, preferred, years }) {
  *   memberDateMap?: (name: string) => Map<string, any>,
  *   fmtDate: (iso: string) => string,
  *   fmtRange: (start: string, end: string) => string,
- *   onDelete: (type: string, memberName: string, start: string, end: string, feedbackEl: any, btn: any) => (void | Promise<void>),
+ *   onDelete: (type: string, memberName: string, start: string, end: string, feedbackEl: any, btn: any,
+ *              listedCount: number) => (void | Promise<void>),
  *   onRendered?: (boxId: string) => void,
  * }} deps
  */
@@ -331,7 +332,7 @@ export function createBookedPeriods(deps) {
                     // Whatever the delete does — succeeds, is refused, throws — the control comes
                     // back to idle. On success the box has already re-rendered and this node is
                     // detached, which is harmless; on every other path it is the node on screen.
-                    Promise.resolve(deps.onDelete(type, memberName, p.start, p.end, feedbackEl, btn))
+                    Promise.resolve(deps.onDelete(type, memberName, p.start, p.end, feedbackEl, btn, p.count))
                         .catch(() => {})
                         .finally(idle);
                 });

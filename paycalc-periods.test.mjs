@@ -82,6 +82,9 @@ mock.module('./roster-data.js', {
         formatISO:       /** @param {Date} d */ d =>
             `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,
         parseSmartFloat: /** @param {any} v */ v => parseFloat(String(v)),
+        // Reached through paycalc-settings → paycalc-form-data (the shared pension rule). Nothing in
+        // this suite parses money, so the plain form is enough.
+        parseSmartFloatOrNull: /** @param {any} v */ v => { const n = parseFloat(String(v)); return Number.isFinite(n) ? n : null; },
     },
 });
 
@@ -98,7 +101,7 @@ const {
     hasBoxingDay, hasBankHoliday,
     _setSelectPeriod, prevPeriod, nextPeriod,
     computeEarliestVisiblePNum, setEarliestVisiblePeriod, getEarliestVisiblePNum,
-    visiblePeriods, isTaxYearVisible,
+    visiblePeriods, isTaxYearVisible, ytdAutoSource, ytdSourceOffered,
 } = await import('./paycalc-periods.js');
 
 const {
@@ -851,5 +854,49 @@ describe('bpStoryHtml', () => {
         assert.match(bpStoryHtml({ ...decided, amount: 0, state: 'empty-window' }), /Nothing to backdate/);
         const bare = bpStoryHtml({ ...decided, amount: 0, state: 'no-figures' });
         assert.ok(!/£/.test(bare), 'no amount sentence without figures');
+    });
+});
+
+// ── WHICH PAYSLIP A YEAR TO DATE PAIR CAME FROM (72-hour review) ─────────────────────────────────
+// Payslips arrive BEFORE payday. Anchoring figures copied from the 25 Sep 2026 payslip to the one
+// before it made the cumulative method add 25 Sep's own pay on top of totals that already held it —
+// £193.40 of tax too much on a £3,300 payslip. Dates are the REAL grid's: the 25 Sep 2026 payslip
+// cuts off Sat 19 Sep.
+describe('Year to Date source — offered and auto-anchored only where the app can know', () => {
+    const TY = /** @type {any} */ (PC_CONFIG.TAX_YEARS.find((/** @type {any} */ t) => t.label === '2026/27'));
+    const PRIOR = /** @type {any} */ (PC_CONFIG.TAX_YEARS.find((/** @type {any} */ t) => t.label === '2025/26'));
+    const byPayday = (/** @type {number} */ m, /** @type {number} */ d) => /** @type {any} */ (getPeriods().find(
+        (/** @type {any} */ p) => p.payday.getFullYear() === 2026 && p.payday.getMonth() === m && p.payday.getDate() === d));
+    const sep25 = byPayday(8, 25), aug28 = byPayday(7, 28), oct23 = byPayday(9, 23);
+
+    test('fixture: the 25 Sep payslip cuts off on 19 Sep', () => {
+        assert.ok(sep25 && aug28 && oct23);
+        assert.equal(sep25.cutoff.getDate(), 19);
+    });
+
+    test('between its cut-off and payday the new payslip is OFFERED; the stamp keeps the standing rule', () => {
+        const now = new Date(2026, 8, 22, 10);
+        assert.equal(ytdSourceOffered(sep25, TY, now), true, 'the payslip in hand must be pickable');
+        assert.equal(ytdSourceOffered(aug28, TY, now), true);
+        assert.equal(ytdSourceOffered(oct23, TY, now), false, 'a payslip not yet cut off cannot be in hand');
+        // Recording nothing here was tried and removed: a member who never picked was stamped a
+        // payslip LATE on the first open after payday. The standing rule is corrected by picking.
+        assert.equal(ytdAutoSource(TY, now), aug28.num);
+    });
+
+    test('before the cut-off the previous payslip is the only one that can be in hand — auto-anchored', () => {
+        const now = new Date(2026, 8, 15, 10);
+        assert.equal(ytdSourceOffered(sep25, TY, now), false);
+        assert.equal(ytdAutoSource(TY, now), aug28.num);
+    });
+
+    test('once paid, the payslip is the latest paid one — auto-anchored', () => {
+        const now = new Date(2026, 8, 25, 13);
+        assert.equal(ytdAutoSource(TY, now), sep25.num);
+    });
+
+    test('a finished tax year is never ambiguous — its last payslip', () => {
+        const now = new Date(2026, 8, 22, 10);
+        assert.equal(ytdAutoSource(PRIOR, now), 48 + PRIOR.last);
     });
 });

@@ -72,3 +72,14 @@ export function fmtPeriodRange(start, end) {
     }
     return `${fmtPeriodDate(start)} – ${fmtPeriodDate(end)}`;
 }
+
+/**
+ * Formats YYYY-MM-DD as "18 Mar 2026". Returns "—" for empty input. (Moved from admin-overrides.js,
+ * which re-exports it, when that file reached its line cap.)
+ * @param {string} str
+ */
+export function formatDisplay(str) {
+    if (!str) return '—';
+    const [y, m, d] = str.split('-');
+    return `${parseInt(d, 10)} ${MONTH_ABB[parseInt(m, 10) - 1]} ${y}`;
+}

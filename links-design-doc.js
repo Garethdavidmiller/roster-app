@@ -203,6 +203,33 @@ export function restoredEntryFrom(entry, { updatedAt, updatedBy, revision = null
 }
 
 /**
+ * Refresh the live-list entry for the design a save WROTE, from the payload actually written.
+ * Moved out of `links-app.js` (Sep 2026 re-review, against its line ratchet); it mutates the entry.
+ *
+ * UNCONDITIONAL on the saved patterns: they are authoritative whether or not the server
+ * timestamp came back. This used to sit inside the read-back's try, so a failed read left the
+ * entry holding STALE patterns while `design.patterns` held the new ones — switching away and
+ * back then reverted the grid to the pre-save state (v16.19). The WINDOW and the REVISION were
+ * still left behind until the Sep 2026 review: switching back rebuilt the working copy on the
+ * old window, which the next save wrote over the saved one, and on the old revision, which
+ * prompted "someone else saved" about your own save.
+ * @param {{patterns?: any, window?: any, updatedBy?: string, updatedAt?: any, revision?: number|null}|null|undefined} entry
+ *        the list entry, or nothing (the design left the list)
+ * @param {{patterns: Record<string, any>, window: any}|null} written  the payload that went
+ * @param {string} by  whoever saved
+ * @param {any} updatedAt  the server stamp, or null (a queued write has none yet)
+ * @param {number|null} revision
+ */
+export function recordSave(entry, written, by, updatedAt, revision) {
+    if (!entry || !written) return;
+    entry.patterns  = written.patterns;
+    entry.window    = written.window;
+    entry.updatedBy = by;
+    if (updatedAt) entry.updatedAt = updatedAt;
+    entry.revision  = revision;
+}
+
+/**
  * "Last saved by …" for the sticky save row (v21.08).
  *
  * It used to print the TIME alone — "Last saved by G. Miller at 15:06" — which is right for the

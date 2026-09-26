@@ -342,11 +342,40 @@ describe('the grade filter is about the reviewer, not the week', () => {
         assert.match(html, /data-grade="ALL"[^>]*aria-pressed="true"/);
     });
 
+    test('a grade this week\'s population does not hold falls back to all grades', () => {
+        // The choice crosses week switches, and populations are frozen per week — so a clerk who
+        // picked CES on one week can land on a week created before any CES was asked. Filtering
+        // to it drew "0 of 0" and "Nobody" in every section, and a single-grade week has no strip
+        // to recover from. It must degrade to the whole week, as an unknown DAY already does.
+        const html = render({ participants: [MIXED[0], { ...MIXED[0], memberName: 'C. Three' }], grade: 'CES' });
+        assert.equal(/CES only/.test(html), false, 'the print scope does not claim a grade nobody holds');
+        assert.match(html, /ot-print-scope">All grades/);
+        assert.match(html, /A\. One/, 'and the people who ARE in the week are shown');
+    });
+
     test('a single-grade population still offers no filter', () => {
         // A control that filters to the same page invites a press that changes nothing — which is
         // why the restricted beta, one CEA, correctly shows no strip at all.
         const html = render({ participants: [MIXED[0]] });
         assert.equal(/data-grade=/.test(html), false);
+    });
+});
+
+describe('the reminder audit knows when the week opened', () => {
+    const INITIAL = Date.parse('2026-08-18T11:00:00Z');
+    const at = (createdAt) => [{ memberName: 'A. One', grade: 'CEA', rosterOrder: 1, createdAt }];
+    const line = (html) => /ot-reminder-line/.test(html);
+
+    test('a FINAL_OPEN week with no reminder recorded says so', () => {
+        const html = render({ win: { phase: 'FINAL_OPEN', initialDeadlineAt: INITIAL },
+            participants: at(INITIAL - 86400_000) });
+        assert.ok(line(html), 'the warning the audit exists for');
+    });
+
+    test('but not on a week that OPENED after its initial deadline, which never had a reminder morning', () => {
+        const html = render({ win: { phase: 'FINAL_OPEN', initialDeadlineAt: INITIAL },
+            participants: at(INITIAL + 3600_000) });
+        assert.equal(line(html), false);
     });
 });
 

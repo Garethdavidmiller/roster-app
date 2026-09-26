@@ -35,6 +35,11 @@ const { shouldDeleteSubscription } = require('./roster-parse-helpers');
 // Secrets are not available at module init, so we defer to first call.
 let _vapidConfigured = false;
 
+// A bound on every send (ms). `sendNotification` has no timeout of its own, so one push service that
+// never answers held the whole `allSettled` — and the function with it — until the platform killed
+// the request. With it, a stalled endpoint is one failed send (Sep 2026 review).
+const SEND_OPTIONS = Object.freeze({ timeout: 10000 });
+
 // M8: web-push loaded on first push only (see the require note at the top). Cached after first use.
 let _webpush = null;
 /** @returns {any} the web-push module, required lazily on first use. */
@@ -136,7 +141,7 @@ async function sendTargetedPush(payload, ownerUids, logTag) {
     await Promise.allSettled(docs.map(async docSnap => {
         const { endpoint, keys } = docSnap.data();
         try {
-            await getWebPush().sendNotification({ endpoint, keys }, payloadStr);
+            await getWebPush().sendNotification({ endpoint, keys }, payloadStr, SEND_OPTIONS);
             accepted += 1;
         } catch (err) {
             if (shouldDeleteSubscription(err.statusCode)) {
@@ -162,7 +167,7 @@ async function fanOutPush(payload, logTag) {
     const sends = snapshot.docs.map(async docSnap => {
         const { endpoint, keys } = docSnap.data();
         try {
-            await getWebPush().sendNotification({ endpoint, keys }, payloadStr);
+            await getWebPush().sendNotification({ endpoint, keys }, payloadStr, SEND_OPTIONS);
         } catch (err) {
             // Delete ONLY genuinely-dead subscriptions (410/404). A 401 is a VAPID-auth
             // misconfig, not a dead endpoint — deleting on it would wipe the whole collection.

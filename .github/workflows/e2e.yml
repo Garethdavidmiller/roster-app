@@ -210,7 +210,10 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          # NODE 22 ON EVERY TEST JOB (owner, 26 Sep 2026) — the runtime functions/package.json declares
+          # and what contributors run. On 20 a suite could pass locally and fail here (Node grew a global
+          # `navigator` at 21). Only the DEPLOY workflows keep 20, for firebase-tools auth.
+          node-version: '22'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
@@ -261,7 +264,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Prove nothing is installed
         run: |
@@ -350,7 +353,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
@@ -448,7 +451,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
@@ -498,7 +501,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
@@ -539,7 +542,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
@@ -598,13 +601,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     continue-on-error: true
+    # The same two voices as the Chromium `visual` job below, for the same reason (v24.28 review):
+    # this lane was report-only AND silent — green on a drifted run, with the diffs in a zip nobody
+    # opens. It now comments (its own marker, so it never overwrites the Chromium comment) and
+    # publishes its own check, `visual baselines (webkit)`. The reasoning for every rule the two
+    # steps keep is written once, beside the Chromium versions; this job mirrors them.
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
 
       - name: Install dependencies
@@ -614,7 +626,13 @@ jobs:
         run: npx playwright install --with-deps webkit
 
       - name: Compare against the committed WebKit baselines
-        run: npm run test:visual:webkit
+        id: compare
+        run: |
+          if npm run test:visual:webkit; then
+            echo "drifted=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "drifted=true" >> "$GITHUB_OUTPUT"
+          fi
         env:
           CI: true
 
@@ -630,6 +648,122 @@ jobs:
             playwright-report/
           retention-days: 7
           if-no-files-found: ignore
+
+      - name: Say so on the pull request
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRIFTED: ${{ steps.compare.outputs.drifted }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set +e -uo pipefail
+          MARKER='<!-- visual-baseline-drift-webkit -->'
+
+          if [ "${DRIFTED:-}" != "true" ] && [ "${DRIFTED:-}" != "false" ]; then
+            echo "The comparison step reported no outcome — nothing to say."
+            exit 0
+          fi
+
+          PR="${PR_NUMBER:-}"
+          if [ -z "$PR" ]; then
+            PR=$(gh pr list --head "$BRANCH" --state open --limit 1 --json number --jq '.[0].number' 2>/dev/null || true)
+          fi
+
+          NAMES=$(find test-results -name '*-diff.png' 2>/dev/null | sed 's#.*/##; s#-diff\.png$##' | sort -u || true)
+
+          BODY="$RUNNER_TEMP/visual-webkit-comment.md"
+          printf '%s\n\n' "$MARKER" > "$BODY"
+
+          if [ "$DRIFTED" = "true" ]; then
+            cat >> "$BODY" <<'MD'
+          ### 🧭 WebKit visual baselines have drifted
+
+          `npm run test:visual:webkit` no longer matches the committed PNGs under
+          `e2e/visual-baselines/webkit/`. **This does not block the merge** — it is Safari's engine
+          rendering the six surfaces, report-only like the Chromium lane.
+          MD
+            if [ -n "$NAMES" ]; then
+              printf '\n%s\n\n' "Baselines that differ:" >> "$BODY"
+              printf '%s\n' "$NAMES" | sed 's/^/- `/; s/$/`/' >> "$BODY"
+            fi
+            printf '\n%s\n\n' "The expected/actual/diff triple is in the **\`visual-diffs-webkit\`** artifact on [this run]($RUN_URL) — **it expires in 7 days**." >> "$BODY"
+            cat >> "$BODY" <<'MD'
+          If the change is intended, regenerate — and then review what came back:
+
+          ```
+          npm run test:visual:webkit -- --update-snapshots=all
+          git status e2e/visual-baselines/webkit/
+          ```
+          MD
+          else
+            cat >> "$BODY" <<'MD'
+          ### 🧭 WebKit visual baselines match
+
+          They drifted earlier on this branch; the latest run matches the committed PNGs. Nothing to do.
+          MD
+            printf '\n%s\n' "[Run]($RUN_URL)" >> "$BODY"
+          fi
+
+          if [ -z "$PR" ]; then
+            if [ "$DRIFTED" = "true" ]; then
+              echo "::warning::WebKit visual baselines have drifted on $BRANCH, and there is no open pull request to say so on. The expected/actual/diff triple is in the visual-diffs-webkit artifact on this run."
+            fi
+            exit 0
+          fi
+
+          EXISTING=$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+            --jq "map(select(.body | contains(\"$MARKER\")))[].id" 2>/dev/null | head -n 1 || true)
+
+          if [ -n "$EXISTING" ]; then
+            gh api --method PATCH "repos/$REPO/issues/comments/$EXISTING" \
+              -f body="$(cat "$BODY")" --silent \
+              || echo "::warning::Could not update the WebKit visual-baseline comment on #$PR — see the visual-diffs-webkit artifact."
+          elif [ "$DRIFTED" = "true" ]; then
+            gh pr comment "$PR" --body-file "$BODY" \
+              || echo "::warning::Could not comment on #$PR about the drifted WebKit visual baselines — see the visual-diffs-webkit artifact."
+          fi
+
+      - name: Publish the drift as its own check
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRIFTED: ${{ steps.compare.outputs.drifted }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set +e -uo pipefail
+          if [ "${DRIFTED:-}" != "true" ] && [ "${DRIFTED:-}" != "false" ]; then
+            echo "The comparison step reported no outcome — no check to publish."
+            exit 0
+          fi
+
+          NAMES=$(find test-results -name '*-diff.png' 2>/dev/null | sed 's#.*/##; s#-diff\.png$##' | sort -u || true)
+          COUNT=$(printf '%s' "$NAMES" | grep -c . || true)
+
+          if [ "$DRIFTED" = "true" ]; then
+            CONCLUSION=neutral
+            TITLE="$COUNT WebKit baseline(s) drifted — does not block the merge"
+            SUMMARY=$(printf 'The committed WebKit PNGs no longer match what this branch renders.\n\n%s\n\nDiffs: [visual-diffs-webkit artifact](%s) (expires in 7 days).' \
+                        "$(printf '%s\n' "$NAMES" | sed 's/^/- `/; s/$/`/')" "$RUN_URL")
+          else
+            CONCLUSION=success
+            TITLE="WebKit baselines match"
+            SUMMARY="Every committed WebKit baseline matches what this branch renders."
+          fi
+
+          gh api --method POST "repos/$REPO/check-runs" \
+            -f name='visual baselines (webkit)' \
+            -f head_sha="$HEAD_SHA" \
+            -f status=completed \
+            -f conclusion="$CONCLUSION" \
+            -f output[title]="$TITLE" \
+            -f output[summary]="$SUMMARY" \
+            --silent \
+            || echo "::warning::Could not publish the visual-baselines (webkit) check run — the PR comment and the visual-diffs-webkit artifact still carry the result."
 
   visual:
     needs: guard
@@ -651,7 +785,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency

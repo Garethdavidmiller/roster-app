@@ -7,6 +7,7 @@
  * Does NOT own: what an unreadable cell IS (admin-roster-upload.js), the value grammar
  *   (`manualCellValue`, override-utils.js) or the guards (`normaliseCellValue`, roster-cell-rules.js).
  * Edit here for: the control's markup, or what it says while incomplete.
+ * Read first: `.claude/rules/roster-import.md` — the import's whole contract.
  *
  * ── WHY IT EXISTS ──────────────────────────────────────────────────────────────────────────────
  *
@@ -48,7 +49,7 @@
 import { escapeHtml as esc, isSunday } from './roster-data.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { manualCellValue, isForbiddenOnSunday, composeOtherValue, isRestShift, OTHER_FLAVOURS } from './override-utils.js';
-import { normaliseCellValue } from './roster-cell-rules.js';
+import { normaliseCellValue, isZeroLengthRange } from './roster-cell-rules.js';
 
 /** What the hint under the time boxes says, in both of its states. */
 const HINT_DONE = '\u2713 this day will be saved';
@@ -260,7 +261,13 @@ export function patchEntryRow(rowEl, done, st) {
  * @param {any} d the draft @param {any} st the cell state @returns {{ value: string|null, error: string }}
  */
 function draftValue(d, st) {
-    if (d.type !== 'other') return { value: d.type ? manualCellValue(d.type, d.from, d.to) : null, error: '' };
+    if (d.type !== 'other') {
+        const value = d.type ? manualCellValue(d.type, d.from, d.to) : null;
+        // Equal times read as 24 hours everywhere downstream, and the save path drops them silently —
+        // so refuse here, where the admin can see why. The Other branch already does (composeOtherValue).
+        if (value && isZeroLengthRange(value)) return { value: null, error: 'start and end times are the same' };
+        return { value, error: '' };
+    }
     const r = composeOtherValue({
         flavour: d.flavour, rdwTicked: d.rdw, baseIsRd: isRestShift(st.baseShift), start: d.from, end: d.to,
     });

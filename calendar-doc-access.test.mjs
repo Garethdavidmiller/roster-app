@@ -4,8 +4,8 @@
  *
  * OPEN WHEN IT SHOULD BE SHUT is the expensive direction and it is silent: a Huddle the local cache
  * still holds paints for whoever picked up the phone, and no rule on the server can see the read.
- * So the gate defaults shut, opens only on a literal `true` (a provisional scope string is truthy
- * and must not count), and a subscriber that throws must not stop the others being told to close.
+ * So the gate defaults shut, opens only on a literal `true` (a name or a 1 is truthy and must not
+ * count), and a subscriber that throws must not stop the others being told to close.
  * SHUT WHEN IT SHOULD BE OPEN costs a tap: a "sign in to read this" message over a document the
  * reader is entitled to. Pinned too, from the other side.
  *
@@ -53,7 +53,7 @@ describe('open when it should be shut — the silent direction', () => {
         assert.equal(hasDocumentAccess(), AT_LOAD.has);
     });
 
-    test('only a literal true opens it — a provisional scope string is truthy and is NOT access', () => {
+    test('only a literal true opens it — a truthy name string is NOT access', () => {
         setDocumentAccess(/** @type {any} */ ('G. Miller'));
         assert.equal(hasDocumentAccess(), false);
         setDocumentAccess(/** @type {any} */ (1));

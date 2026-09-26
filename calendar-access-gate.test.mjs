@@ -57,7 +57,7 @@ function _snap(rows) {
 
 const mod = await import('./calendar-overrides.js');
 const {
-    setOverrideAccess, hasOverrideAccess, provisionalMember, rosterOverridesCache,
+    setOverrideAccess, hasOverrideAccess, rosterOverridesCache,
     fetchOverridesForRange, fetchOverridesForRangeFromCache, ensureOverridesCached, clearFetchedMonth, monthKey,
     setOverrideAccessLostHandler,
 } = mod;
@@ -256,126 +256,22 @@ describe('ACCESS LOST MID-SESSION — month navigation is the likely path, not t
 });
 
 
-// ── THE PROVISIONAL GRANT (v22.97) ──────────────────────────────────────────────────────────────
+// ── THERE IS ONE KIND OF GRANT (the provisional scope, retired 26 Sep 2026) ─────────────────────
 //
-// The owner decision of 5 Sep 2026: a returning member may re-see their OWN cached roster while
-// Firebase revalidates their stored identity. `decideProvisionalAccess` says whose name it may be
-// scoped to; THIS module is what makes the scope real, and these are the cases that make it real.
-//
-// Organised by what each wrong answer would EXPOSE, because they are not equivalent:
-//
-//   · Dropping the member filter shows fifty colleagues' annual leave and absence to whoever is
-//     holding a device with a stored session. That is the whole thing the decision was narrowed to
-//     avoid, and it is silent — the grid simply has more data in it.
-//   · Letting a SERVER read through fetches new data under an identity nobody has confirmed. The
-//     grant is to re-show what this device already holds; anything else is ordinary access taken
-//     early.
-//   · Failing to clear the scope on the full grant leaves a confirmed member permanently unable to
-//     see the team, which is loud and recoverable — the cheap direction.
-describe('a PROVISIONAL grant is one member, out of the cache, and nothing else', () => {
-    test('the cached read is scoped in the QUERY, not filtered afterwards', async () => {
+// From v22.97 a grant could carry a member SCOPE: a returning member's own rows, read out of the
+// cache before Firebase confirmed who they were. It was retired by owner decision (DECISIONS.md →
+// "The provisional paint"), and both defects it shipped lived in the gap between a scoped and an
+// unscoped grant — a scoped hit marked months known for everyone. So what is pinned now is that the
+// gap cannot come back quietly: a granted cache read is the whole window, never one member's slice.
+describe('a grant is never scoped to one member', () => {
+    test('the cached read carries no member filter, whatever a stale caller passes', async () => {
         cacheDocs = [OVERRIDE];
-        setOverrideAccess(true, { provisionalMember: 'G. Miller' });
+        // A caller still passing the retired option must get the ordinary grant, not a narrowed one.
+        /** @type {any} */ (setOverrideAccess)(true, { provisionalMember: 'G. Miller' });
         wheres = [];
         await fetchOverridesForRangeFromCache('2026-07-01', '2026-07-31');
-        const member = wheres.filter(w => w[0] === 'memberName');
-        assert.equal(member.length, 1, 'the query must carry a memberName filter');
-        assert.deepEqual(member[0], ['memberName', '==', 'G. Miller']);
-    });
-
-    test('a FULL grant carries no member filter — the team is visible again', async () => {
-        cacheDocs = [OVERRIDE];
-        setOverrideAccess(true);
-        wheres = [];
-        await fetchOverridesForRangeFromCache('2026-07-01', '2026-07-31');
-        assert.equal(wheres.filter(w => w[0] === 'memberName').length, 0);
-        assert.equal(provisionalMember(), null, 'the scope must not survive the upgrade');
-    });
-
-    test('upgrading from provisional to full CLEARS the scope', async () => {
-        setOverrideAccess(true, { provisionalMember: 'G. Miller' });
-        assert.equal(provisionalMember(), 'G. Miller');
-        setOverrideAccess(true);              // the real grant, once Firebase confirmed the identity
-        assert.equal(provisionalMember(), null, 'a confirmed member must not stay confined');
-    });
-
-    test('every SERVER read refuses while provisional', async () => {
-        setOverrideAccess(true, { provisionalMember: 'G. Miller' });
-        const before = calls.server;
-        await assert.rejects(() => fetchOverridesForRange('2026-07-01', '2026-07-31'),
-            /calendar-access-required/, 'the authoritative read must refuse');
-        await ensureOverridesCached(2026, 6);
-        assert.equal(calls.server, before, 'no server request may be issued under a provisional grant');
-    });
-
-    // ── `ensureOverridesCached` MUST REFUSE IN ITS OWN RIGHT ────────────────────────────────────
-    //
-    // The test above proves no request reaches Firestore. It cannot see whether this function
-    // refused or merely inherited the refusal one layer down, and the two are worlds apart: the
-    // inherited one arrives as a THROWN `calendar-access-required`, which is exactly the shape the
-    // access-lost recovery is built to treat as a revoked session.
-    //
-    // So without the guard here, the v22.97 fast path — the grid painted from this device's own
-    // cache while Firebase revalidates the stored identity — tears ITSELF down. Month navigation
-    // and Team View both come through this function; each month swiped past would mark itself
-    // `error` (a failure panel over data the device is holding), repaint once to show it, and,
-    // wherever the coordinator has registered its handler, SHUT THE GATE and send a returning
-    // member to the lock card in the middle of a successful provisional paint. Nothing throws to
-    // the console on that path, because the recovery returns before the log. CALENDAR_DATA.md 13.
-    test('a provisional month navigation does NOTHING — it is not a failed read', async () => {
-        setOverrideAccess(true, { provisionalMember: 'G. Miller' });
-        const errs = [];
-        const orig = console.error;
-        console.error = (/** @type {any[]} */ ...a) => errs.push(a.join(' '));
-        try {
-            let rendered = 0;
-            await ensureOverridesCached(2026, 8, () => { rendered++; });
-            assert.equal(calls.server, 0, 'a whole-team server read was issued under an unconfirmed identity');
-            assert.equal(knowledgeOf(monthKey(2026, 8)), 'unknown',
-                'the month was recorded as FAILED — the grid shows a retry panel over the cached roster it was asked to paint');
-            assert.equal(rendered, 0, 'a repaint was triggered to show a failure that never happened');
-            assert.deepEqual(errs, [], 'a provisional paint logged a Firestore failure');
-        } finally { console.error = orig; }
-    });
-
-    test('and it cannot revoke the grant it is painting under', async () => {
-        // The expensive direction, and the one with no console trace at all. `handleAccessLost`
-        // takes the Calendar back to the lock card; reaching it from a provisional paint means a
-        // member with a perfectly good stored session is asked to sign in again because the app
-        // refused its own read.
-        setOverrideAccess(true, { provisionalMember: 'G. Miller' });
-        let lost = 0;
-        setOverrideAccessLostHandler(() => { lost++; });
-        await ensureOverridesCached(2026, 9, () => {});
-        setOverrideAccessLostHandler(null);
-        assert.equal(lost, 0, 'the access-lost handler fired on a grant that was never lost');
-        assert.equal(hasOverrideAccess(), true, 'the provisional grant closed the gate on itself');
-        assert.equal(provisionalMember(), 'G. Miller', 'and the scope must still be the member being painted');
-    });
-
-    test('the real read still happens once the identity IS confirmed', async () => {
-        // The cheap direction, pinned so the guard above cannot be "fixed" into a permanent skip:
-        // refusing here must leave the month unclaimed, exactly as the locked case does.
-        setOverrideAccess(true, { provisionalMember: 'G. Miller' });
-        await ensureOverridesCached(2026, 10, () => {});
-        setOverrideAccess(true);
-        await ensureOverridesCached(2026, 10, () => {});
-        assert.equal(calls.server, 1, 'the month was claimed while provisional and never fetched');
-    });
-
-    test('losing access clears the scope too — a revoked grant leaves nothing behind', () => {
-        setOverrideAccess(true, { provisionalMember: 'G. Miller' });
-        setOverrideAccess(false);
-        assert.equal(provisionalMember(), null);
-        assert.equal(hasOverrideAccess(), false);
-    });
-
-    test('a blank or non-string member is NOT a provisional grant', () => {
-        // There is no unscoped provisional grant: the member IS the boundary, so a scope we cannot
-        // attach a name to would silently be a grant to everything.
-        for (const v of ['', '   ', null, undefined, 42, {}]) {
-            setOverrideAccess(true, { provisionalMember: /** @type {any} */ (v) });
-            assert.equal(provisionalMember(), null, `${String(v)} must not scope a grant`);
-        }
+        assert.equal(calls.cache, 1, 'guard: the cache read must actually have run');
+        assert.deepEqual(wheres.filter(w => w[0] === 'memberName'), [],
+            'a granted cache read was scoped to one member — the provisional paint is back');
     });
 });

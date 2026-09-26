@@ -3,7 +3,7 @@
 // `document`, so we install a minimal fake DOM. Part of test:hygiene.
 import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { numVal, numValOr, intVal, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap } from './paycalc-inputs.js';
+import { numVal, numValOr, intVal, hhmmDec, hmPair, clampMins, _decHintEl, decPreview, wireIosTap } from './paycalc-inputs.js';
 
 // ── Minimal fake DOM ───────────────────────────────────────────────────────────
 class FakeEl {
@@ -67,6 +67,25 @@ test('hhmmDec combines the hrs and mins fields into decimal hours', () => {
   assert.equal(hhmmDec('h', 'm'), 7.5);
   installDom({ h: field('8'), m: field('0') });
   assert.equal(hhmmDec('h', 'm'), 8);
+});
+
+// A DECIMAL IN THE HOURS BOX, BEFORE BLUR (72-hour review). "7.5" is split into 7h 30m on blur,
+// but every keystroke before that recalculates — and the read was parseInt, so the live estimate
+// priced 7h, and an autosave while the field still held focus stored 7h. The read now mirrors the
+// blur split exactly (the minutes box is REPLACED by the fraction, as the blur does), so what is
+// priced, what is stored and what the member sees after blur are the same number.
+test('hhmmDec / hmPair read a decimal hours value the way the blur split will', () => {
+  installDom({ h: field('7.5'), m: field('') });
+  assert.equal(hhmmDec('h', 'm'), 7.5, 'a typed 7.5 prices as 7.5 hours, not 7');
+  assert.deepEqual(hmPair('h', 'm'), { h: 7, m: 30 });
+  installDom({ h: field('7.5'), m: field('15') });
+  assert.deepEqual(hmPair('h', 'm'), { h: 7, m: 30 }, 'the blur replaces the minutes — so does the read');
+  installDom({ h: field('7.999'), m: field('') });
+  assert.deepEqual(hmPair('h', 'm'), { h: 8, m: 0 }, 'a fraction that rounds to 60m carries');
+  installDom({ h: field('-2.5'), m: field('') });
+  assert.equal(hhmmDec('h', 'm'), 0, 'hours can never be negative');
+  installDom({ h: field('8'), m: field('45') });
+  assert.deepEqual(hmPair('h', 'm'), { h: 8, m: 45 }, 'no decimal → the two fields as typed');
 });
 
 // ── clampMins (rewrites only when out of range) ──────────────────────────────────

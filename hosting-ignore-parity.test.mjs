@@ -22,7 +22,7 @@
  *
  * ── WHY EXPLICIT PATHS AND NOT A CLEVERER GLOB ──────────────────────────────────────────────────
  *
- * A dot-directory pattern (`**\/.*​/**` and friends) would generalise, and generalising is exactly
+ * A dot-directory pattern (`**\/.*\/**` and friends) would generalise, and generalising is exactly
  * what failed here. `**\/.*` was itself the clever pattern, believed for years, wrong the whole
  * time, and believed BECAUSE it looked like it covered the case. An explicit path is one this
  * repository can state with certainty and this test can check by name. The accepted cost is that a

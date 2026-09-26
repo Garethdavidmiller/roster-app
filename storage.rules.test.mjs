@@ -6,8 +6,8 @@
  *        runs this file alongside firestore.rules.test.mjs, then stops both)
  *
  * Covers all three named match blocks in storage.rules:
- *   huddles   — read: auth required; write: admin + ≤20 MB + PDF or DOCX
- *   circulars — read: auth required; create/update: admin + ≤20 MB + PDF or DOCX;
+ *   huddles   — read: admin only; write: admin + ≤20 MB + PDF or DOCX
+ *   circulars — read: admin only; create/update: admin + ≤20 MB + PDF or DOCX;
  *               delete: admin only (no request.resource check)
  *   newsletters — identical rules to circulars
  *   catch-all — everything else: allow read, write: if false
@@ -70,6 +70,14 @@ function anonStorage() {
 function staffStorage(uid = 'uid_staff') {
     return testEnv.authenticatedContext(uid).storage();
 }
+/** A named member (the `name` claim) — the ordinary signed-in staff session. */
+function memberStorage() {
+    return testEnv.authenticatedContext('uid_member', { name: 'G. Miller' }).storage();
+}
+/** The shared Calendar PIN session. */
+function viewerStorage() {
+    return testEnv.authenticatedContext('calendar-viewer', { calendarViewer: true }).storage();
+}
 /** Authenticated admin (admin custom claim). */
 function adminStorage() {
     return testEnv.authenticatedContext('uid_admin', { admin: true }).storage();
@@ -93,8 +101,20 @@ async function seedFile(path) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('huddles', () => {
-    test('authenticated staff can read', async () => {
-        await assertSucceeds(getBytes(ref(staffStorage(), 'huddles/seed.pdf')));
+    test('admin can read', async () => {
+        await assertSucceeds(getBytes(ref(adminStorage(), 'huddles/seed.pdf')));
+    });
+
+    test('a claimless session cannot read (anonymous sign-in, self-registered account)', async () => {
+        await assertFails(getBytes(ref(staffStorage(), 'huddles/seed.pdf')));
+    });
+
+    test('a named member cannot read — members open a minted URL, never the bucket', async () => {
+        await assertFails(getBytes(ref(memberStorage(), 'huddles/seed.pdf')));
+    });
+
+    test('the shared calendar viewer cannot read', async () => {
+        await assertFails(getBytes(ref(viewerStorage(), 'huddles/seed.pdf')));
     });
 
     test('unauthenticated cannot read', async () => {
@@ -158,8 +178,20 @@ describe('huddles', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('circulars', () => {
-    test('authenticated staff can read', async () => {
-        await assertSucceeds(getBytes(ref(staffStorage(), 'circulars/seed.pdf')));
+    test('admin can read', async () => {
+        await assertSucceeds(getBytes(ref(adminStorage(), 'circulars/seed.pdf')));
+    });
+
+    test('a claimless session cannot read (anonymous sign-in, self-registered account)', async () => {
+        await assertFails(getBytes(ref(staffStorage(), 'circulars/seed.pdf')));
+    });
+
+    test('a named member cannot read — members open a minted URL, never the bucket', async () => {
+        await assertFails(getBytes(ref(memberStorage(), 'circulars/seed.pdf')));
+    });
+
+    test('the shared calendar viewer cannot read', async () => {
+        await assertFails(getBytes(ref(viewerStorage(), 'circulars/seed.pdf')));
     });
 
     test('unauthenticated cannot read', async () => {
@@ -228,8 +260,20 @@ describe('circulars', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('newsletters', () => {
-    test('authenticated staff can read', async () => {
-        await assertSucceeds(getBytes(ref(staffStorage(), 'newsletters/seed.pdf')));
+    test('admin can read', async () => {
+        await assertSucceeds(getBytes(ref(adminStorage(), 'newsletters/seed.pdf')));
+    });
+
+    test('a claimless session cannot read (anonymous sign-in, self-registered account)', async () => {
+        await assertFails(getBytes(ref(staffStorage(), 'newsletters/seed.pdf')));
+    });
+
+    test('a named member cannot read — members open a minted URL, never the bucket', async () => {
+        await assertFails(getBytes(ref(memberStorage(), 'newsletters/seed.pdf')));
+    });
+
+    test('the shared calendar viewer cannot read', async () => {
+        await assertFails(getBytes(ref(viewerStorage(), 'newsletters/seed.pdf')));
     });
 
     test('unauthenticated cannot read', async () => {

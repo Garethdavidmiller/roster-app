@@ -476,22 +476,29 @@ describe('deploy workflows only run from main', () => {
 // So the job now comments on the pull request, and these contracts hold the pairing together: drop
 // `continue-on-error` and a rendering difference starts blocking releases; drop the notifier and the
 // lane goes quiet again, with nothing failing to say so. Both are one-line edits.
-describe('the visual lane never gates, and never goes quiet', () => {
+// The WebKit lane (`visual-webkit`) joined at the v24.28 review: it had the same continue-on-error
+// posture and NEITHER voice, so a drifted Safari baseline was exactly the unread artifact this block
+// was written about. Same contracts, its own marker and check name so the two lanes never overwrite
+// each other's report.
+for (const [JOB, MARKER, CHECK] of [
+    ['visual', '<!-- visual-baseline-drift -->', 'visual baselines'],
+    ['visual-webkit', '<!-- visual-baseline-drift-webkit -->', 'visual baselines (webkit)'],
+]) describe(`the ${JOB} lane never gates, and never goes quiet`, () => {
     const src = readFileSync(join(WF_DIR, 'e2e.yml'), 'utf8');
     const jobsAt = src.search(/^jobs:/m);
     const body = src.slice(jobsAt);
-    const start = body.search(/^ {2}visual:[ \t]*$/m);
+    const start = body.search(new RegExp(`^ {2}${JOB}:[ \\t]*$`, 'm'));
     const rest = start === -1 ? '' : body.slice(start + 1);
     const nextJob = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
     const job = nextJob === -1 ? rest : rest.slice(0, nextJob);
 
-    test('the visual job exists', () => {
-        assert.ok(start > -1, 'e2e.yml has no `visual:` job');
+    test(`the ${JOB} job exists`, () => {
+        assert.ok(start > -1, `e2e.yml has no \`${JOB}:\` job`);
     });
 
     test('it cannot fail a build on a rendering difference', () => {
         assert.match(job, /^ {4}continue-on-error: true[ \t]*$/m,
-            'the visual job must stay continue-on-error. Baselines are captured on one machine and '
+            `the ${JOB} job must stay continue-on-error. Baselines are captured on one machine and `
             + 'compared on another; making them blocking gates every release on renderer noise.');
     });
 
@@ -509,11 +516,11 @@ describe('the visual lane never gates, and never goes quiet', () => {
         assert.match(job, /^ {6}pull-requests: write[ \t]*$/m,
             'without pull-requests:write the notifier runs and the API call fails — a notifier that '
             + 'reports nothing is worse than none, because the run still goes green');
-        assert.match(job, /<!-- visual-baseline-drift -->/,
+        assert.ok(job.includes(`MARKER='${MARKER}'`),
             'the notifier must carry a stable HTML marker, or it posts a fresh comment per push '
             + 'instead of updating one');
         assert.match(job, /gh pr comment/,
-            'the visual job must actually say something on the pull request');
+            `the ${JOB} job must actually say something on the pull request`);
     });
 
     test('the notifier cannot become the failure it is reporting', () => {
@@ -531,6 +538,14 @@ describe('the visual lane never gates, and never goes quiet', () => {
                 `${call} must end in \`|| echo "::warning::…"\` — this step must never turn a `
                 + 'reportable drift into a failed one');
         }
+    });
+
+    test('and it says so to a machine, as a check whose conclusion IS the drift', () => {
+        // The job is continue-on-error, so its own conclusion is `success` either way. The check
+        // run is the only field a script can read the drift from; `neutral` keeps it non-blocking.
+        assert.ok(job.includes(`-f name='${CHECK}'`), `the ${JOB} job must publish its own "${CHECK}" check run`);
+        assert.match(job, /^ {6}checks: write[ \t]*$/m, 'publishing a check run needs checks: write');
+        assert.match(job, /CONCLUSION=neutral/, 'a drift must conclude neutral — visible, never blocking');
     });
 });
 

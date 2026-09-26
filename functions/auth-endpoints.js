@@ -43,6 +43,8 @@ const {
     summariseAccountGaps,
 } = require('./roster-parse-helpers');
 const { setupWebPush, sendTargetedPush } = require('./push');
+const { mustReclaim } = require('./member-identity');
+const { isViewerAccount } = require('./calendar-viewer-auth');
 const rosterMembers = require('./roster-members.json');
 
 /**
@@ -87,19 +89,6 @@ function buildAuthEndpoints({ VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, STAFF_SITE_UR
  *     orphanSweepFailed?: true,
  *     orphanDryRun?: true, orphansToDisable?: string[] }   // last two: dry-run preview only
  */
-/**
- * Whether an existing account at a roster email must be TAKEN BACK before its claims are stamped
- * (v24.24): only when it carries NO custom claim. Only the Admin SDK or the console can set one, so
- * any claim means this server or an admin touched it. Not `name`: that would also reset an admin
- * given `{ admin: true }` by hand — the recovery admin-auth.js suggests — mid-click.
- * @param {{ customClaims?: Record<string, any>|null }} user
- * @returns {boolean}
- */
-function mustReclaim(user) {
-    const c = user && user.customClaims;
-    return !c || Object.keys(c).length === 0;
-}
-
 const setupRosterAuth = onRequest(
     {
         region:        'europe-west2',
@@ -190,10 +179,11 @@ const setupRosterAuth = onRequest(
             seenEmails.set(email, name);
             // Derivation succeeded — this is an active member; never orphan-disable it.
             activeEmails.add(email);
-            let uid;
+            let uid, justCreated = false;
             try {
                 const user = await getAuth().createUser({ email, password, displayName: name });
                 uid = user.uid;
+                justCreated = true;
                 created.push(name);
                 console.log(`[setupRosterAuth] Created: ${email}`);
             } catch (err) {
@@ -203,6 +193,11 @@ const setupRosterAuth = onRequest(
                     let reclaiming = false;
                     try {
                         const existing = await getAuth().getUserByEmail(email);
+                        // The shared PIN account with this email linked to it: never adopted (the next unlock rebuilds it).
+                        if (isViewerAccount(existing)) {
+                            failed.push(`${name} (${email} is linked to the shared Calendar PIN account — run this again after the next PIN unlock)`);
+                            continue;
+                        }
                         uid = existing.uid;
                         if (mustReclaim(existing)) {
                             reclaiming = true;
@@ -263,7 +258,12 @@ const setupRosterAuth = onRequest(
                 // demoted member loses the elevated claim on the next run.
                 const claims = claimsForTier(name, { adminSet: adminMembers, managerSet: managerMembers, designerSet: designerMembers });
                 try {
-                    await getAuth().setCustomUserClaims(uid, claims);
+                    // A just-created account left claimless is one the NEXT run takes back (password
+                    // reset + revoke, `mustReclaim`), so its first stamp gets one immediate retry.
+                    await getAuth().setCustomUserClaims(uid, claims).catch((e) => {
+                        if (!justCreated) throw e;
+                        return getAuth().setCustomUserClaims(uid, claims);
+                    });
                     const tier = (claims.admin ? 'admin+name' : claims.manager ? 'manager+name' : 'name') + (claims.linksDesigner ? '+designer' : '');
                     console.log(`[setupRosterAuth] Set ${tier} claim: ${email}`);
                 } catch (claimErr) {
@@ -343,7 +343,8 @@ const setupRosterAuth = onRequest(
  * OTHER devices — true for a real reset; false for a Phase-2 migration nudge (leave working sessions).
  */
 const resetMemberPassword = onRequest(
-    { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS },
+    // The VAPID secret is for the "your password was reset" push below: without it the key reads '' in production.
+    { region: 'europe-west2', timeoutSeconds: 60, cors: ADMIN_FUNCTION_ORIGINS, secrets: [VAPID_PRIVATE_KEY] },
     async (req, res) => {
         if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 

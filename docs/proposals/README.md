@@ -3,9 +3,10 @@
 The CEA link proposals drawn for the December 2026 timetable change, each a PDF with its own
 **identity** so it can be named in a room: a name, a code that says how it was built, and a
 fingerprint of the exact cells so a printout can never be confused with a variant. The same
-identity is in every page footer. Both were built and judged by the app's own Links modules
-(`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) at v23.29,
-and every figure in a PDF is computed from the cells it shows — nothing is typed.
+identity is in every page footer. All 22 were judged by the app's own Links modules
+(`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) — the
+searched families built by them too — and every figure in a PDF is computed from the cells it shows —
+nothing is typed.
 
 | Proposal | Code · fingerprint | What it is | Factors present | Longest run | Weekends off |
 |---|---|---|---|---|---|
@@ -32,7 +33,7 @@ and every figure in a PDF is computed from the cells it shows — nothing is typ
 | **Clean Final Tuned** | `CFT-24-M3 · ae1a15bd` | *Clean Final* with **three cells retimed** and nothing else — Saturday's demand fit 28.5→20.5 and Sunday's 62.4→44.9, every headcount, cover week and contracted hour unchanged | 3 | 9 | 4 in 24 |
 | **Clean Final Ten** | `TN-24-R7 · 84b60df9` | *Clean Final Tuned* with **a tenth Sunday duty added** (`15:25–23:25`) and the wheel then **reordered, whole weeks only** — Sunday's fit 44.9→35.3, ten on a Sunday met, every week pattern intact | **2** | 6 | 5 in 24 |
 
-The four searched proposals — *Same Turns*, *By the Book*, *Quarter To*, *Eight Forty* — clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
+The first four searched proposals — *Same Turns*, *By the Book*, *Quarter To*, *Eight Forty* (of eight searched families; *By the Book 2*, *Quarter To 2*, *Pinned Turns* and *Pinned Turns 2* have their own sections below) — clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
 the close and four on a Saturday, five still on at 22:00, fourteen on a Saturday, ten on a Sunday,
 four cover weeks at lines 1, 7, 13, 19). They differ on exactly one thing, and it is a people
@@ -565,10 +566,14 @@ cover day IS, and never what a run is.
 **Open, and it is the owner's to answer:** does the roster clerk ever split a cover week day-on-day-off?
 If never, the block reading is the real one and the ceiling is a footnote.
 
-**The code**: family (`ST` / `BB` / `QT` / `EF`) · rotation length · duty table (`A`/`B` today's times, `D` the
+**The code**: family (`ST` / `BB` / `QT` / `EF` / `B2` / `Q2` / `PT` / `P2`) · rotation length · duty table (`A`/`B` today's times, `D` the
 December default, `Q`/`R` table B with the closer at 15:45 and the two 06:20 openers run on to keep the
 contract — `Q` to 14:00 and 14:50, Saturday's own opening times; `R` to 14:30; `E` the December rules
-re-solved with no duty over 8h40, `tooling/eight-forty-table.json`) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no
+re-solved with no duty over 8h40, `tooling/eight-forty-table.json`; `G` *Eight Forty* with the ticket
+office written in, `tooling/by-the-book-2-table.json`; `W` *Quarter To* with the weekend searched again
+under the cap, `tooling/quarter-to-2-table.json`; `P` the owner's 25 Sep brief,
+`tooling/pinned-turns-table.json`; `N` those pins with every other time on the quarter hour,
+`tooling/pinned-turns-2-table.json`) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no
 week-coherence term, kept as a comparator. The fingerprint is the first eight hex characters of
 SHA-256 over the 24 × 7 cells in line order. `TN-24-R7` is a reorder: `R7` is `optimise.mjs`'s seed in rules mode, the same reading as `FT-24-R21`.
 `CFT-24-M3`'s **`M3` is a move count, not a seed** — three
@@ -577,7 +582,7 @@ search seed, which would be a claim this design cannot support.
 
 **Evidence class**: the 24-line length, the four cover weeks and the December headcounts are
 owner-relayed figures with no document behind them (class C — `docs/KNOWN_LIMITATIONS.md` → Links),
-and the 13-day limit's policy citation is outstanding. Neither PDF is a recommendation; both say so.
+and the 13-day limit's policy citation is outstanding. No PDF is a recommendation; each says so.
 
 ## One fit, on minutes — and what a second pass over the sheets found (24 Sep 2026)
 
@@ -1118,15 +1123,14 @@ between two lines on one day, or two whole lines changing places), so coverage, 
 headcounts are true by construction and only the shape is searched. `final.mjs` picks by rules
 first (rest, run, factors present, weekends off), then weekday demand fit, then the search's own
 score; offers the winner to the app's `reorderLines`; and writes the PDF, the import text and the
-JSON. A seed reproduces its grid exactly on any machine. `results/` holds the seed outputs the two
-PDFs were picked from.
+JSON. A seed reproduces its grid exactly on any machine. `results/` holds the seed outputs every
+searched PDF was picked from.
 
 The rendered `.html` files are not committed (they are regenerated by `final.mjs`, and an HTML file
 in the repo root's web tree is a served page).
 
-**Served, deliberately.** The repo root is the web root. `firebase.json` excludes `**/*.pdf` and
-`**/*.md`, so the PDFs and this README are not in the Hosting bundle — but the `.txt`, `.json` and
-`.mjs` files here are, and the GitHub Pages mirror serves the whole tree regardless. Nothing in them
-is new information (the base roster is public by the classification in `AUTH_PLAN.md` §2), so this is
-untidy rather than unsafe. Adding `docs/**` to the Hosting ignore list is the tidy fix; it counts as
-a served-file change and so waits for the next runtime version bump rather than forcing one here.
+**Served, by the mirror only.** The repo root is the web root. `firebase.json` already ignores
+`docs/**`, so nothing in this folder is in the Hosting bundle — but the GitHub Pages mirror serves the
+whole tree regardless, `.txt`, `.json`, `.mjs` and PDF alike. Nothing in them is new information (the
+base roster is public by the classification in `AUTH_PLAN.md` §2), so this is untidy rather than
+unsafe.

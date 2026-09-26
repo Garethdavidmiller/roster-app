@@ -21,6 +21,7 @@ const {
     CALENDAR_VIEWER_UID, PIN_LENGTH, DEFAULT_THROTTLE,
     isValidPinShape, pinMatches, sourceKeyFor, clientIpOf, GLOBAL_SOURCE_KEY, GLOBAL_THROTTLE,
     throttleDecision, recordFailure, isThrottleStateStale, viewerClaims,
+    reserveAttempt, refundAttempt, viewerAccountTamper, isViewerAccount,
 } = require('./functions/calendar-viewer-auth.js');
 
 const T = DEFAULT_THROTTLE;
@@ -369,6 +370,15 @@ describe('the viewer account is invisible to staff enumeration', () => {
         assert.equal(stats.total, 1, `the viewer was counted as staff: ${JSON.stringify(stats)}`);
     });
 
+    test('the orphan filter skips the viewer even when somebody LINKED a roster-domain email to it', () => {
+        // Any PIN holder can link an email/password to the shared account from their own session. A
+        // non-roster `@myb-roster.local` address would make it a "leaver" — and disabling it is a
+        // station-wide PIN outage (Sep 2026 review).
+        const { computeOrphanLabels } = require('./functions/roster-parse-helpers.js');
+        const users = [{ uid: CALENDAR_VIEWER_UID, email: 'nobody.here@myb-roster.local', disabled: false }];
+        assert.deepEqual(computeOrphanLabels(users, new Set()), [], 'the leaver sweep would disable the viewer account');
+    });
+
     test('PIN_LENGTH agrees on both sides of the ESM/CommonJS boundary', () => {
         assert.equal(PIN_LENGTH, 4);
     });
@@ -410,5 +420,80 @@ describe('deployed-secret shape', () => {
         // would show up as "correct PIN refused", which is indistinguishable from a wrong PIN.
         assert.equal(isValidPinShape('1234'), isValidPinShape('1234'));
         assert.equal(typeof isValidPinShape, 'function');
+    });
+});
+
+// ── CHARGE FIRST, REFUND A RIGHT PIN (Sep 2026 review) ──────────────────────────────────────────
+describe('reserveAttempt + refundAttempt — the charge comes before the compare', () => {
+    const NOW = 1_000_000_000;
+
+    test('an unblocked attempt is charged to BOTH buckets, each on its own limit', () => {
+        const r = reserveAttempt(null, null, NOW);
+        assert.equal(r.blocked, null);
+        assert.deepEqual(r.source, recordFailure(null, NOW));
+        assert.deepEqual(r.global, recordFailure(null, NOW, GLOBAL_THROTTLE));
+    });
+
+    test('a blocked bucket — either one — refuses and charges nothing', () => {
+        const blocked = { failures: 30, windowStart: NOW - 1000, blockedUntil: NOW + 60_000 };
+        for (const [src, glob] of [[blocked, null], [null, blocked]]) {
+            const r = reserveAttempt(src, glob, NOW);
+            assert.equal(r.blocked && r.blocked.allowed, false);
+            assert.equal(r.source, null);
+            assert.equal(r.global, null);
+        }
+    });
+
+    test('the attempt that REACHES the limit is still compared — the next one is not', () => {
+        const nearly = { failures: T.maxFailures - 1, windowStart: NOW - 1000, blockedUntil: 0 };
+        const r = reserveAttempt(nearly, null, NOW);
+        assert.equal(r.blocked, null, 'the 30th attempt is allowed');
+        assert.ok(r.source.blockedUntil > NOW, 'and its charge trips the block');
+        assert.equal(reserveAttempt(r.source, r.global, NOW).blocked.allowed, false, 'so a concurrent 31st is refused');
+    });
+
+    test('refunding the only charge DELETES the bucket — a right PIN leaves no dated row', () => {
+        const r = reserveAttempt(null, null, NOW);
+        assert.equal(refundAttempt(r.source, r.source), null);
+        assert.equal(refundAttempt(r.global, r.global, GLOBAL_THROTTLE), null);
+    });
+
+    test('a refund takes back one, and lifts only the block that one tripped', () => {
+        const r = reserveAttempt({ failures: T.maxFailures - 1, windowStart: NOW - 1000, blockedUntil: 0 }, null, NOW);
+        assert.deepEqual(refundAttempt(r.source, r.source),
+            { failures: T.maxFailures - 1, windowStart: NOW - 1000, blockedUntil: 0 });
+        // Somebody else's genuine failure tripped it too: the block stands.
+        const over = { failures: T.maxFailures + 1, windowStart: NOW - 1000, blockedUntil: NOW + 5000 };
+        assert.deepEqual(refundAttempt(over, over), { failures: T.maxFailures, windowStart: NOW - 1000, blockedUntil: NOW + 5000 });
+    });
+
+    test('a window that has moved on since the charge is left alone', () => {
+        const r = reserveAttempt(null, null, NOW);
+        const later = { failures: 3, windowStart: NOW + T.windowMs + 1, blockedUntil: 0 };
+        assert.equal(refundAttempt(later, r.source), undefined);
+        assert.equal(refundAttempt(null, r.source), undefined);
+    });
+});
+
+describe('the shared viewer account — tamper and identity', () => {
+    test('a bare account is as the unlock made it', () => {
+        assert.equal(viewerAccountTamper({ uid: CALENDAR_VIEWER_UID, providerData: [], disabled: false }), null);
+        assert.equal(viewerAccountTamper(null), null);
+    });
+
+    test('every way back in that does not go through the PIN is named', () => {
+        for (const [rec, why] of [
+            [{ email: 'x@example.com' }, 'has an email'],
+            [{ phoneNumber: '+447700900000' }, 'has a phone number'],
+            [{ providerData: [{ providerId: 'password' }] }, 'has a linked sign-in method'],
+            [{ disabled: true }, 'disabled'],
+        ]) assert.equal(viewerAccountTamper(rec), why);
+    });
+
+    test('the viewer is recognised by uid OR by its claim, and a member is not', () => {
+        assert.equal(isViewerAccount({ uid: CALENDAR_VIEWER_UID }), true);
+        assert.equal(isViewerAccount({ uid: 'other', customClaims: { calendarViewer: true } }), true);
+        assert.equal(isViewerAccount({ uid: 'u1', customClaims: { name: 'G. Miller', member: 'G. Miller' } }), false);
+        assert.equal(isViewerAccount(null), false);
     });
 });

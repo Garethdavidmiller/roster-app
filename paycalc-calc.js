@@ -324,6 +324,11 @@ export function getPensionForPeriod(grade, payday) {
  *   - startDate must always be midnight local time: new Date(year, month-1, day).
  *   - The resulting 0.5-day offset means Math.round always resolves X.5 to X+1 (JS
  *     rounds .5 up), giving the correct calendar-day count regardless of timezone.
+ *   - The difference is taken between WALL-CLOCK readings, not raw instants (`proRateDays`).
+ *     A period containing the spring clock change is an hour short in real time, so a start date
+ *     before the change measured X.458 days, rounded DOWN and lost the joiner a day (72-hour
+ *     review). Reading both dates' local fields into UTC removes the hour without moving the
+ *     half-day offset the rounding depends on.
  *
  * Example: a 20 April joiner, startDate = new Date(2026, 3, 20) = April 20 midnight.
  *   raw = (May 2 noon − April 20 midnight) / msPerDay = 12.5
@@ -341,10 +346,25 @@ export function getPensionForPeriod(grade, payday) {
 export function calcProRateFactor(startDate, periodStart, periodCutoff) {
   if (!startDate || startDate <= periodStart) return 1;
   if (startDate > periodCutoff) return 0;
-  const msPerDay     = 86400000;
-  const daysEmployed = Math.round((+periodCutoff - +startDate) / msPerDay) + 1;
-  const totalDays    = Math.round((+periodCutoff - +periodStart) / msPerDay) + 1;
+  const { daysEmployed, totalDays } = proRateDays(startDate, periodStart, periodCutoff);
   return daysEmployed / totalDays;
+}
+
+/**
+ * The two day counts behind `calcProRateFactor` — shared with the joiner notice, which prints them,
+ * so the sentence a joiner reads and the factor their pay uses can never be two different counts.
+ * Same formula and invariants as above; only the clock-change hour is removed.
+ * @param {Date} startDate @param {Date} periodStart @param {Date} periodCutoff
+ * @returns {{ daysEmployed: number, totalDays: number }}
+ */
+export function proRateDays(startDate, periodStart, periodCutoff) {
+  const msPerDay = 86400000;
+  /** Local wall-clock reading as a UTC instant — immune to the DST hour. @param {Date} d */
+  const wall = (d) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds());
+  return {
+    daysEmployed: Math.round((wall(periodCutoff) - wall(startDate)) / msPerDay) + 1,
+    totalDays:    Math.round((wall(periodCutoff) - wall(periodStart)) / msPerDay) + 1,
+  };
 }
 
 /**
@@ -421,7 +441,8 @@ export function computeGross(i) {
  * @param {number|null} [opts.ytdPay]    - YTD pay from last payslip; null = not provided
  * @param {number|null} [opts.ytdTax]    - YTD tax from last payslip; null = not provided
  * @param {number|null} [opts.periodN]   - HMRC 4-weekly period number 1–13 (required for cumulative)
- * @returns {{ tax: number, usingCumulative: boolean }}
+ * @returns {{ tax: number, usingCumulative: boolean, refund: number }} refund — tax the cumulative
+ *   recalculation says was over-collected (>0 only on the cumulative path); never netted into `tax`.
  */
 export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null, periodN = null } = {}) {
   const rawCode    = (taxCode || '1257L').toUpperCase().replace(/\s+/g, '');
@@ -496,10 +517,15 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     const N = periodN;
     const cumGross = ytdPay + sacGross;
     const cumTaxDue = taxOnAmount(cumGross, N);
-    return { tax: Math.min(Math.max(0, cumTaxDue - ytdTax), overridingLimit), usingCumulative: true };
+    // An OVER-collected year (a new starter off an emergency code, a code raised mid-year) is
+    // refunded by real cumulative PAYE. The estimate keeps the deduction at £0 — netting a refund
+    // into take-home would let one mistyped Year to Date figure invent money — but REPORTS the
+    // over-collection so the result can say a refund may be due, rather than a silently wrong £0.
+    return { tax: Math.min(Math.max(0, cumTaxDue - ytdTax), overridingLimit), usingCumulative: true,
+             refund: Math.max(0, ytdTax - cumTaxDue) };
   }
 
-  return { tax: Math.min(taxOnAmount(sacGross, null), overridingLimit), usingCumulative: false };
+  return { tax: Math.min(taxOnAmount(sacGross, null), overridingLimit), usingCumulative: false, refund: 0 };
 }
 
 /**

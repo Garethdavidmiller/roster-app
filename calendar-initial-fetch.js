@@ -34,7 +34,10 @@ const RETRY_AUTH_WAIT_MS = 2000;
  * Kick off the initial 3-month Firestore fetch and wire the sync chip + visibility handler.
  *
  * TWO-PHASE since v19.01 (AUTH_PLAN.md → E1). Phase 1 paints from the local Firestore cache
- * immediately — no network, no auth, so a returning device shows its roster at once. Phase 2 awaits
+ * without waiting for a session — no network read, no sign-in. It is NOT free of auth, though:
+ * Firestore holds every operation, this cache read included, until Firebase Auth has initialised,
+ * and for a returning device that means after the stored user's `accounts:lookup` round trip
+ * (measured Sep 2026; CALENDAR_DATA.md 10). So the cache paint cannot beat that lookup. Phase 2 awaits
  * `authReady` and then runs the authoritative server read. The phases are ordered this way so that
  * requiring a session for reads (Track E, E2/E5) can never put a `signInAnonymously` round-trip in
  * front of data the device already holds — the failure mode that would break offline-first on the
@@ -327,8 +330,9 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       const startStr = formatISO(new Date(prev.getFullYear(), prev.getMonth(), 1));
       const endStr   = formatISO(new Date(next.getFullYear(), next.getMonth() + 1, 0));
 
-      // ── Phase 1: paint from the local cache (no network, no auth) ──────────────────────────
-      // Deliberately NOT gated on authReady — that is the whole point of the split. It never
+      // ── Phase 1: paint from the local cache (no network, no session) ───────────────────────
+      // Deliberately NOT gated on authReady — that is the whole point of the split — though the SDK
+      // still queues it behind Auth's own initialisation (see the JSDoc above). It never
       // touches syncResolved/_dataLoaded: those mean "the authoritative read settled", and the chip
       // must still say "Updating…" while phase 2 runs. A cache miss returns false and paints nothing.
       // NO `.catch()` chained here, deliberately: it would add a microtask tick to the phase-1

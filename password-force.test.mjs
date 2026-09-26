@@ -75,6 +75,24 @@ describe('shouldForcePasswordSet', () => {
 // since v18.95 the Settings Password card depends on it too, so it is worth pinning down.
 const twMatch = /export function withTimeout\(([\s\S]*?)\n}/.exec(SRC);
 assert.ok(twMatch, 'withTimeout not found in password-force.js — has it been renamed?');
+/**
+ * Run `fn` with setTimeout/clearTimeout spied (the extracted helpers resolve both from globalThis
+ * at call time), and report which timers were armed and which were cleared.
+ * @param {() => Promise<any>} fn
+ */
+async function spyTimers(fn) {
+    const realSet = globalThis.setTimeout, realClear = globalThis.clearTimeout;
+    /** @type {any[]} */ const handles = [];
+    /** @type {any[]} */ const cleared = [];
+    globalThis.setTimeout = /** @type {any} */ ((/** @type {any[]} */ ...a) => { const h = realSet(...a); handles.push(h); return h; });
+    globalThis.clearTimeout = /** @type {any} */ ((/** @type {any} */ h) => { cleared.push(h); realClear(h); });
+    try { await fn(); } finally {
+        globalThis.setTimeout = realSet;
+        globalThis.clearTimeout = realClear;
+        for (const h of handles) realClear(h);   // never leave a 60s timer behind, pass or fail
+    }
+    return { handles, cleared: cleared.filter(h => handles.includes(h)) };
+}
 const withTimeout = new Function(`return function withTimeout(${twMatch[1]}\n}`)();
 
 describe('withTimeout', () => {
@@ -95,10 +113,13 @@ describe('withTimeout', () => {
                              (/** @type {any} */ e) => e.code === 'myb/timeout');
     });
 
-    // Without the clearTimeout, a fast success still leaves a pending timer holding the event loop
-    // open — which in a browser is a leak per attempt, and here would hang the test runner.
+    // Without the clearTimeout, a fast success still leaves a pending timer — a leak per attempt in
+    // a browser. This used to assert it by "would stall the runner", which cannot fail: node --test
+    // exits with the timer still pending (v24.28 review, mutation-verified). So spy on the timer.
     test('clears its timer on success so nothing is left pending', async () => {
-        await withTimeout(Promise.resolve(1), 60_000);   // would stall exit if the timer survived
+        const { cleared, handles } = await spyTimers(() => withTimeout(Promise.resolve(1), 60_000));
+        assert.equal(handles.length, 1, 'expected exactly one deadline timer');
+        assert.deepEqual(cleared, handles, 'the deadline timer must be cleared once the promise settles');
     });
 });
 
@@ -179,6 +200,8 @@ describe('settleOrTimeout', () => {
     });
 
     test('clears its timer on a fast settle so nothing is left pending', async () => {
-        await settleOrTimeout(Promise.resolve(1), 60_000);   // would stall exit if the timer survived
+        const { cleared, handles } = await spyTimers(() => settleOrTimeout(Promise.resolve(1), 60_000));
+        assert.equal(handles.length, 1, 'expected exactly one deadline timer');
+        assert.deepEqual(cleared, handles, 'the deadline timer must be cleared once the promise settles');
     });
 });

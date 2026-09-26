@@ -34,7 +34,7 @@
  */
 
 import { db, collection, query, where, orderBy, limit, getDocs, COLLECTIONS } from './firebase-client.js';
-import { emptyCoverage, withMember, withAll, hasAuthorityFor, coversEveryone, replaceMemberSlice } from './admin-override-coverage.js';
+import { emptyCoverage, withMember, withAll, hasAuthorityFor, coversEveryone, replaceMemberSlice, mergeCappedRead } from './admin-override-coverage.js';
 
 /** @type {any[]} The cache itself. */
 let _allOverrides = [];
@@ -277,7 +277,8 @@ async function _loadOverridesInner(opts) {
                 rows.length = OVERRIDES_QUERY_CAP;   // drop the +1 probe row (already date-desc sorted)
                 console.warn(`[Admin] Override query hit the ${OVERRIDES_QUERY_CAP}-doc cap — oldest overrides not loaded. Consider archiving old overrides.`);
             }
-            _allOverrides = rows;
+            // Capped: keep what individually-read members hold from beyond the cap (review A12).
+            _allOverrides = _overridesTruncated ? mergeCappedRead(_allOverrides, rows, _coverage.members) : rows;
             // A CAPPED read covers the LIST, never a write — see admin-override-coverage.js.
             _coverage = withAll(_coverage, { complete: !_overridesTruncated });
         } else {
@@ -306,8 +307,10 @@ async function _loadOverridesInner(opts) {
         if (!everyone && member) _loadFailedFor.add(member);
         // The week grid is the DEFAULT focused card, so it is where the admin is looking — and it
         // was saying "Loading…" over a load that had already stopped, with the only retry inside a
-        // card that ships collapsed. Repaint it into its own failed state (v21.38, review).
-        _renderWeekGrid();
+        // card that ships collapsed. Repaint it into its own failed state (v21.38, review) — unless
+        // edits are staged: those rows belong to a member already loaded, and a failed refresh must
+        // not wipe them (review A10).
+        if (!_hasStagedEdits()) _renderWeekGrid();
         if (tableBody) {
             // RETRY, NOT RELOAD (v21.38, external review). The refusal to render a list we could not
             // read is right and stays; throwing away the whole page to fix one failed query was not.

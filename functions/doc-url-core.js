@@ -87,7 +87,10 @@ function mayReceiveDocumentUrl(claims) {
     // `name` string is a self-set display name as often as it is a member. member-identity.js.
     if (memberNameFromClaims(claims)) return true;
     if (claims.admin === true) return true;
-    if (claims.calendarViewer === true) return true;
+    // The PIN door only on the custom-token session the unlock mints, as `isCalendarViewer()` in the
+    // rules: the claim sits on ONE shared account, and a password a PIN holder linked to it must not
+    // carry the claim past a PIN rotation.
+    if (claims.calendarViewer === true && claims.firebase?.sign_in_provider === 'custom') return true;
     return false;
 }
 

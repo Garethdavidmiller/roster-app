@@ -30,7 +30,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc,
-    docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel,
+    docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel, recordSave,
 } from './links-design-doc.js';
 import { DEFAULT_WINDOW } from './links-window.js';
 
@@ -318,5 +318,24 @@ describe('lastSavedLabel — an old save must not read as a recent one', () => {
     test('a missing or unreadable time still names who saved it', () => {
         assert.equal(lastSavedLabel('G. Miller', null, NOW), 'Last saved by G. Miller');
         assert.equal(lastSavedLabel('G. Miller', new Date(NaN), NOW), 'Last saved by G. Miller');
+    });
+});
+
+describe('recordSave — the list entry takes what was WRITTEN', () => {
+    test('patterns, window, author and revision all move; a missing stamp keeps the old one', () => {
+        const entry = /** @type {any} */ ({ id: 'd1', name: 'A', patterns: { 1: 'old' }, window: 'old-w',
+            updatedBy: 'S. Silva', updatedAt: 'then', revision: 2 });
+        recordSave(entry, { patterns: { 1: 'new' }, window: 'new-w' }, 'G. Miller', null, 3);
+        assert.deepEqual(entry, { id: 'd1', name: 'A', patterns: { 1: 'new' }, window: 'new-w',
+            updatedBy: 'G. Miller', updatedAt: 'then', revision: 3 });
+        recordSave(entry, { patterns: {}, window: 'w' }, 'G. Miller', 'now', 4);
+        assert.equal(entry.updatedAt, 'now');
+    });
+
+    test('no entry (the design left the list) or nothing written is a no-op, not a throw', () => {
+        assert.doesNotThrow(() => recordSave(undefined, { patterns: {}, window: null }, 'X', null, 1));
+        const entry = /** @type {any} */ ({ patterns: { 1: 'keep' } });
+        recordSave(entry, null, 'X', null, 1);
+        assert.deepEqual(entry, { patterns: { 1: 'keep' } });
     });
 });

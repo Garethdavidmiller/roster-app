@@ -2,8 +2,9 @@
 /**
  * admin-week-row-state.js — WHAT A WEEK-GRID ROW LOOKS LIKE IN EACH OF ITS STATES.
  *
- * Owns: turning one `.day-row` on and off, and keeping the three things that depend on a row's
- *   current type in step with it — the RDW warning, the Spare submenu mode, and the overwrite badge.
+ * Owns: turning one `.day-row` on and off, and keeping the four things that depend on a row's
+ *   current type in step with it — the RDW warning, the Spare submenu mode, the swapped-day
+ *   question, and the overwrite badge.
  * Does NOT own: which rows exist, what is staged, the bulk bar, or any save.
  * Edit here for: a new per-row control, or a change to what an active/inactive row shows.
  *
@@ -105,8 +106,34 @@ export function _activateRow(row, checkbox, pills, startEl, endEl, type) {
             if (cb && row.dataset.baseIsRd === '1') cb.checked = true;
         }
         _syncOtherRdwWarn(row);
+        // Re-selecting Other must re-apply a Spare chip still active from before (review A18) —
+        // the strip above just removed `other-spare`, so times and the RDW tick reappeared for a
+        // row the collector will save as Spare.
+        if (type === 'other') _syncOtherSpareMode(row);
     }
+    _syncAlSwap(row);
     _syncOverwriteBadge(row);
+}
+
+/**
+ * The swapped-day question (v23.75) follows the row's state, on EVERY path that changes it — the
+ * pill, bulk apply, the checkbox and the bulk tick buttons (review A6). It lived in the pill
+ * handler alone, so bulk-applied leave on a rest day was refused at Save with the question still
+ * hidden, and an old "Swapped — counts" survived an untick into the next pick. Shown for staged
+ * leave on a day `swapDecisionDates` asks about; hidden AND cleared otherwise, because a stale
+ * answer would charge the next pick. A prefilled (saved, untouched) row is not being booked, so it
+ * is not asked.
+ * @param {HTMLElement} row
+ */
+export function _syncAlSwap(row) {
+    const box = /** @type {HTMLElement|null} */ (row.querySelector('.col-al-swap'));
+    if (!box) return;
+    const ask = row.dataset.type === 'annual_leave' && row.dataset.alSwapAsk === '1'
+        && !row.classList.contains('prefilled-existing');
+    box.hidden = !ask;
+    if (ask) return;
+    delete row.dataset.alSwap;
+    row.querySelectorAll('.al-swap-btn').forEach(b => b.setAttribute('aria-pressed', 'false'));
 }
 
 /**
@@ -165,5 +192,6 @@ export function _deactivateRow(row, checkbox, pills, startEl, endEl) {
         if (cb && !cb.disabled) cb.checked = false;   // rest-day rows keep their baked tick (RDW is automatic)
         _syncOtherRdwWarn(row);
     }
+    _syncAlSwap(row);
     _syncOverwriteBadge(row);
 }

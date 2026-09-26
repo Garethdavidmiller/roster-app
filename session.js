@@ -384,7 +384,12 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // freshly-established session on the shared `auth`, leaving the store reading 'named' for the
     // winner while auth.currentUser holds someone else (silent permission-denied writes). The
     // matching-user fast path below stays safe for a stale gen: commit() no-ops the global write.
-    if (existing && !existing.isAnonymous && existing.email === nameToEmail(name)) return commit('named', true);
+    // NOT when a password was TYPED (Sep 2026 review): that is an explicit sign-in, and a restored
+    // session for the same member is no proof the typed password is right — taking this path
+    // renewed an expired 60-day session with ANY password during the boot window. The typed
+    // password goes to Firebase below; the restored session is signed out first, so a wrong one
+    // leaves nobody signed in.
+    if (password == null && existing && !existing.isAnonymous && existing.email === nameToEmail(name)) return commit('named', true);
     if (!fresh()) return commit('none', false);
     // Only reuse a persisted session when it belongs to the expected user.
     // An anonymous fallback session, or a session for a different member (e.g.
@@ -706,6 +711,16 @@ export function clearSession() {
  */
 export async function shedCalendarViewer() {
     const u = auth.currentUser;
+    // NOBODY current still needs the member chain re-armed (Sep 2026 review): the viewer may already
+    // have been signed out (reconcile does it when its session lapses) while the SESSION-only
+    // persistence its unlock set is still in force — and the member about to sign in would inherit
+    // it, and be signed out when the browser closed. With no current user there is nothing for
+    // `setPersistence` to migrate, so this is safe; a member already current is left alone.
+    if (!u) {
+        try { await restoreMemberPersistence(); }
+        catch (err) { console.warn('[Auth] member persistence restore failed:', /** @type {any} */ (err)?.message); }
+        return;
+    }
     if (!isViewerUser(u)) return;
     // Sign out BEFORE restoring the member persistence chain. `setPersistence` migrates the CURRENT
     // user into the new persistence, so doing these two the other way round would move the shared

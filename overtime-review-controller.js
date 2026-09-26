@@ -50,6 +50,7 @@ import * as OTD from './overtime-data.js';
 import {
     weekLabel, weekSpan, deadlineLabel, rowStateCopy, countsCopy, isWithdrawn,
 } from './overtime-format.js';
+import { phaseAt } from './overtime-phase.js';
 import { renderWeekDetail as paintWeekDetail } from './overtime-manager.js';
 import { confirmDialog } from './overlay.js';
 
@@ -90,7 +91,8 @@ async function loadHorizon() {
     const generation = ++horizonGeneration;
     const r = await OTD.getOvertimeManagerOverview();
     if (generation !== horizonGeneration) return;   // a newer load owns the card now
-    if (!r.ok) { renderError(host); return; }
+    // Its OWN retry: the page default is loadEverything, which rebuilds the member's form too.
+    if (!r.ok) { renderError(host, () => loadHorizon()); return; }
 
     const weeks = r.data.planningWeeks || [];
     horizonByWeek.clear();
@@ -295,6 +297,9 @@ async function previewWindow(weekEnding, btn) {
  * @param {string} weekEnding @param {HTMLElement} btn
  */
 async function topUpWeek(weekEnding, btn) {
+    // Disarm any earlier preview: the flash below re-arms Create from `pendingWeek`, which would
+    // leave it live under a message about a different week.
+    pendingWeek = null;
     const label = btn.textContent;
     btn.textContent = 'Adding…';
     /** @type {HTMLButtonElement} */ (btn).disabled = true;
@@ -533,8 +538,11 @@ async function renderWeekDetail(weekEnding) {
     if (selectedWeek !== weekEnding) return;
     if (!data.ok) { renderError(host, () => renderWeekDetail(weekEnding)); return; }
     detailFetchedAt = Date.now();
-    paintWeekDetail(host, win, data, {
-        dates, now: OTD.correctedNow(),
+    const now = OTD.correctedNow();
+    // The overview's rows carry no `phase`, and the workspace keys the closed-week panels and the
+    // reminder audit on it — so it is derived from the clock here, never read off the row.
+    paintWeekDetail(host, { ...win, phase: phaseAt(win, now) }, data, {
+        dates, now,
         grade: reviewGrade, onGrade: (g) => { reviewGrade = g; },
         day: reviewDay, onDay: (d) => { reviewDay = d; },
         onRefresh: () => renderWeekDetail(weekEnding),
@@ -582,6 +590,7 @@ async function setAsking(weekEnding, memberName, ask) {
             cancelLabel: 'Cancel',
         });
     if (!ok) return;
+    pendingWeek = null;   // as in topUpWeek — the flash must not re-arm an earlier preview
     const r = await OTD.withdrawOvertimeParticipant(weekEnding, memberName, !ask);
     if (!r.ok) {
         // `closed` is the one refusal worth naming rather than reporting as a fault: it is a

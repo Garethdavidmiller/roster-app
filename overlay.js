@@ -544,8 +544,12 @@ function _openDialog(o) {
             content,
             closeBtn: cancelBtn,                       // Cancel = the close control (also Esc/backdrop/Back)
             initialFocus: () => input ?? confirmBtn,
+            // Resolve when the close has LANDED, not as it starts. Callers chain dialogs
+            // (`if (!await confirmDialog(…)) return; await promptDialog(…)`), and a resolve here in
+            // onClose let the next dialog push its Back entry while this close's history.back() was
+            // still in flight — the traversal popped the NEW entry, so Back then left the page.
+            afterClose: () => { if (!settled) { settled = true; resolve(result); } },
             onClose: () => {
-                if (!settled) { settled = true; resolve(result); }
                 // Remove the dynamic node AFTER the close transition (not synchronously here): a
                 // node detached now would suppress dismissOverlay's transitionend, forcing its 500ms
                 // fallback AND skipping the fade-out every other lightbox shows. 500ms clears the

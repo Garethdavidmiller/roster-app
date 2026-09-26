@@ -500,6 +500,22 @@ test('a run between the design target and the company limit labels both threshol
         'the hard-limit row does not state the figure it was measured against');
 });
 
+// The row turns amber above DEFAULT_MAX_RUN, and its sub-line — the one saying the target is an
+// aim, not a limit — was gated on a literal 7 left over from before v20.02. A run of exactly 7 was
+// amber with nothing under it to say why.
+test('a run one over the design target carries the sub-line that explains the amber', async () => {
+    const { DEFAULT_MAX_RUN } = await import('./links-design.js');
+    const p = fullPatterns();
+    const W = '06:00-14:00';
+    p['1'] = { sun: 'RD', mon: W, tue: W, wed: W, thu: W, fri: W, sat: W };
+    p['2'] = { sun: W, mon: 'RD', tue: W, wed: W, thu: W, fri: W, sat: 'RD' };
+    resetDom();
+    initLinksAnalysis({ getDesign: () => ({ patterns: p }) }).renderDesignChecks();
+    const text = els.checksContent.innerHTML.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
+    assert.match(text, new RegExp(`Longest run — ${DEFAULT_MAX_RUN + 1} consecutive`), 'premise: one over the target');
+    assert.match(text, /This is an aim, not a limit/);
+});
+
 // ── THE CODE COLUMN IS FIXED-WIDTH, SO A LONGER CODE MUST FAIL LOUDLY (v20.00) ──────────────────
 // `.check-code` is `width: 52px` rather than `min-width`, because the point is that every tag is
 // the same size — that is what aligns the TITLES after them, not just the tags' own left edges. It

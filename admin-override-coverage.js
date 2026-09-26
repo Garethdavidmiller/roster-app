@@ -116,7 +116,7 @@ export function withMember(cov, member) {
 export function withAll(cov, { complete = true } = {}) {
     return complete
         ? { ...cov, all: true, allPartial: false }
-        : { ...cov, allPartial: true };
+        : { ...cov, all: false, allPartial: true };   // the capped read REPLACED the cache (R-A6)
 }
 
 /**
@@ -175,4 +175,25 @@ export function coversEveryone(cov) {
  */
 export function replaceMemberSlice(docs, member, fresh) {
     return [...docs.filter(d => d.memberName !== member), ...fresh];
+}
+
+/**
+ * The cache after a CAPPED collection read, for the members still vouched for individually.
+ *
+ * `withAll({ complete: false })` keeps an individually-read member authoritative — so their
+ * documents from BEYOND the cap, which the capped read never returns, must stay in the cache. It
+ * used to be replaced wholesale, leaving coverage vouching for a member whose older history had
+ * gone (review A12). Only documents older than the read's oldest date are kept: one inside the
+ * window that the read did not return has been deleted.
+ * @param {Array<{id?: string, memberName?: string, date?: string}>} docs the cache before the read
+ * @param {Array<{id?: string, memberName?: string, date?: string}>} fresh the capped read, newest first
+ * @param {string[]} members the members `Coverage.members` vouches for
+ * @returns {Array<{id?: string, memberName?: string, date?: string}>} a new array
+ */
+export function mergeCappedRead(docs, fresh, members) {
+    const oldest = fresh.length ? String(fresh[fresh.length - 1].date ?? '') : '';
+    const ids = new Set(fresh.map(d => d.id));
+    const kept = docs.filter(d => members.includes(d.memberName ?? '') && !ids.has(d.id)
+        && String(d.date ?? '') <= oldest);
+    return [...fresh, ...kept];
 }

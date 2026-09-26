@@ -15,7 +15,7 @@
  */
 import { test, expect } from './fixtures.js';
 import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, openPinCard, signInThroughOverlay, collectFatalErrors, seedViewerAccess, clearNoticeFlags } from './helpers.js';
-import { disableCalendarPin, enableCalendarPin } from './fixtures.js';
+import { disableCalendarPin, enableCalendarPin, forcePasswordSet } from './fixtures.js';
 
 // Every test here sets `CONFIG.CALENDAR_PIN_ACCESS` explicitly rather than inheriting it, and the
 // value it ships with is deliberately NOT restated in this file — `roster-data.js` owns that, and
@@ -170,7 +170,10 @@ test('locked: a Circular deep link says what to do, issues NO read, and is FINIS
     await page.goto('/index.html#circular');
     await expect(page.locator('#calendarLock')).toBeVisible();
     await expect(page.locator('#docViewer')).toBeVisible();
-    await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular');
+    // PROMPTLY, not eventually: the viewer waits for the access decision before calling itself
+    // locked, and the lock card being up means that decision is made. Left to the default timeout this
+    // also passed on the viewer's own 8s fallback, i.e. with the decision never wired to it at all.
+    await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular', { timeout: 3000 });
     const before = await docReads(page);
     // The message sits over the PIN card, so the reader closes it to type — and the held tap has to
     // survive that close, or a notification tap could never be finished by a PIN.
@@ -542,7 +545,7 @@ test('the member card falls back to the staff PIN by SIGNING OUT first', async (
     // is gone, not merely covered over. Asserted on the stored session rather than the pixels,
     // because every consumer — the drawer's name, its Sign out button, its permission pills — is
     // seeded from this one value at module scope.
-    assert_cleared: {
+    {   // assert_cleared
         const stored = await page.evaluate(() => localStorage.getItem('myb_admin_session'));
         expect(stored, 'the previous member\'s session survived the switch to the staff PIN').toBeNull();
     }
@@ -855,81 +858,78 @@ test.describe('one-time notices and the PIN unlock', () => {
     });
 });
 
-// ── THE PROVISIONAL PAINT (v22.97) ──────────────────────────────────────────────────────────────
+// ── A SLOW IDENTITY RESTORE: NOTHING BEFORE IT, EVERYTHING AFTER IT ──────────────────────────────
 //
-// A returning member sees the roster this device already holds for them WHILE their stored identity
-// is revalidated, instead of after. The decision is pure and pinned in `calendar-access-core`; the
-// grant/revoke wiring is pinned in `calendar-access.test.mjs`. What neither can answer is the pair
-// of properties that only exist on a rendered page, and both are the failure this feature could
-// plausibly ship with:
+// From v22.97 a returning member's own cached roster was painted WHILE their stored identity was
+// revalidated (the "provisional paint"). It was retired on 26 Sep 2026 by owner decision —
+// DECISIONS.md → "The provisional paint": the cache read it needed queues behind the same Auth
+// start-up it was meant to overtake. What these pin now is the plain shape that replaced it, on a
+// rendered page, because that is where its two defects would show: nothing roster-shaped before the
+// confirmation, and after it a Calendar with every control live and the member-only steps run.
 //
-//   · that the grid is genuinely UP while the round trip is still open. Every unit assertion can
-//     say a callback fired; only a browser can say a member is looking at their shifts.
-//   · that the two cross-member controls come BACK. They are disabled for the length of the paint,
-//     so the way this breaks in production is not a leak — it is a Team View button that is dead
-//     for the rest of the session, on a page where nothing throws and nothing is logged.
-//
-// `authRestoreDelayMs` is the lever: it holds the persisted-user restore open, which is exactly the
-// `accounts:lookup` wait the fast path exists to skip.
+// `authRestoreDelayMs` is the lever: it holds the persisted-user restore open, which is the
+// `accounts:lookup` wait. 5s is load-bearing — long enough to observe the wait, and inside
+// `resolveAccess`'s own bound, so this exercises "slow" and not "timed out, then watcher".
 
-test('a returning member sees their roster WHILE the identity is still being confirmed', async ({ page }) => {
+test('a returning member sees NO roster while the identity is confirmed — then the grid, every control live', async ({ page }) => {
     test.setTimeout(60_000);
     await seedSession(page, 'G. Miller');
     await seedMember(page, 'G. Miller');
-    // 5s: comfortably longer than the paint, and comfortably INSIDE `resolveAccess`'s own bound, so
-    // this exercises provisional → confirmed and nothing else. The first cut used 8s, which tripped
-    // that bound — the decision resolved `none`, the paint was REVOKED (re-enabling the controls),
-    // and the late-restore watcher granted afterwards. Every assertion still passed, and the last
-    // one passed on the revoke rather than on the grant: a mutation pinning the controls disabled
-    // for ever sailed through it. The delay is load-bearing, not padding.
     await page.addInitScript(() => {
         window.__E2E = Object.assign(window.__E2E || {}, { authUser: true, authRestoreDelayMs: 5000 });
     });
     await page.goto('/index.html');
 
-    // Well inside the restore: before v22.97 this window held a splash, then a lock decision.
-    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 3000 });
+    // Inside the restore: the workspace stays hidden. Before 26 Sep 2026 this window held the paint.
+    await page.waitForTimeout(2000);
+    await expect(page.locator('#calendarDisplay')).toBeHidden();
     await expect(page.locator('#calLockPin')).toHaveCount(0);
-    // Scoped, so the controls that would put somebody else on screen are shut for the duration.
-    await expect(page.locator('#teamViewBtn')).toBeDisabled();
-    await expect(page.locator('#teamMemberSelect')).toBeDisabled();
 
-    // …and they come back when the identity confirms. This is the assertion that would fail on a
-    // shipped grant bug — a Team View button dead for the rest of the session, nothing thrown and
-    // nothing logged. Re-checked after a settle, because "enabled at some instant" is satisfied by
-    // a transient and this must be the resting state.
-    await expect(page.locator('#teamViewBtn')).toBeEnabled({ timeout: 20_000 });
-    await page.waitForTimeout(500);
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#teamViewBtn')).toBeEnabled();
     await expect(page.locator('#teamMemberSelect')).toBeEnabled();
 });
 
-// THE READING THE FAST PATH SHIPPED WITHOUT (v23.69). September 2026 showed v22.97 buying nothing
-// — cache-served starts 78% over a second before it, 77% after — and the card could not say whether
-// the path rarely RUNS or runs and does not HELP. Those have opposite consequences for
-// `LATENCY.md`'s central finding, so `readyProvisional` was added to separate them.
-//
-// The RULE is unit-tested in `perf-stats.test.mjs` and the WRITE in `perf-reporter.test.mjs`. What
-// neither can see is the wiring in between, and it is a plain one-way failure: `calendar-app.js`
-// tells `perf-reporter.js` the grant is provisional, from the grant, before the paint. Drop that
-// call — or make it say the wrong thing — and every sample records an ordinary open, so the fast
-// path reads as absent, which is precisely the answer that would falsify the finding. Nothing
-// throws, nothing looks wrong, and the card states it with a straight face.
-//
-// A NON-ADMIN member, deliberately: `recordPageLatency` drops a developer load entirely, so this
-// test run through `G. Miller` would pass on an empty write list whatever the wiring did.
-test('the fast path RECORDS itself — a provisional paint writes `readyProvisional`', async ({ page }) => {
+// THE SET-PASSWORD STEP RUNS ON THE ONE GRANT. It hangs off the one-shot `onGranted`, which now
+// fires once, with `named` already readable — under the provisional paint that hook was spent while
+// access was still `none`, and after a Calendar sign-in the step never ran. Only a page shows the
+// coordinator actually reaching it after a slow restore.
+test('the forced set-password step runs after a slow identity restore', async ({ page }) => {
+    test.setTimeout(60_000);
+    await forcePasswordSet(page);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pw_force_pending_G. Miller', '1');   // a fresh sign-in's marker
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true, authRestoreDelayMs: 5000 });
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('#pwForceOverlay')).toBeVisible({ timeout: 20_000 });
+});
+
+// THE CLAIM SWEEP RUNS ON A CALENDAR BOOT TOO. `refreshClaimsIfStale` lived only inside
+// `ensureNamedSession`, which the Calendar's named boot never calls — so a device whose token predated
+// a claim change carried it into the override read and met the rules as "access has expired".
+test('a named Calendar boot runs the claim-epoch sweep', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.removeItem('myb_claim_epoch');
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('myb_claim_epoch')), { timeout: 10_000 })
+        .not.toBeNull();
+});
+
+// `readyProvisional` IS NOT WRITTEN ANY MORE. The Speed card divides its total by `ready`'s, so a
+// stray write would report a fast path that no longer exists. A NON-ADMIN member, deliberately:
+// `recordPageLatency` drops a developer load entirely, so `G. Miller` would pass on an empty list.
+test('a cached, slow-restoring open writes `ready` — and no `readyProvisional`', async ({ page }) => {
     test.setTimeout(60_000);
     await seedSession(page, 'S. Silva');
     await seedMember(page, 'S. Silva');
-    // Same 5s as the test above and load-bearing for the same reason: long enough that the paint is
-    // genuinely ahead of the confirmation, short enough to stay inside `resolveAccess`'s own bound.
-    //
-    // `cacheDocs` is the OTHER precondition, and the first cut of this test did not have it: the
-    // workspace unhides during the provisional window, but `markPageReady` only fires once a real
-    // GRID is up, and on a device with nothing cached the month is still "Checking this month…".
-    // So every sample landed after the confirmation, `readyFetched` at 3–8s, and the test failed
-    // against correct code. One override in the visible window is all it takes.
     await page.addInitScript(() => {
         const d = new Date();
         const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-15`;
@@ -940,32 +940,14 @@ test('the fast path RECORDS itself — a provisional paint writes `readyProvisio
         });
     });
     await page.goto('/index.html');
-
-    // The grid is up while the round trip is open — the state the sample is supposed to describe.
-    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 3000 });
-
-    // The sample itself lands later: `recordPageLatency` runs off the auth chain, so it cannot be
-    // written until the restore resolves. Poll for the WRITE rather than the render.
-    const provisionalKeys = async () => page.evaluate(() => (window.__E2E?.setWrites || [])
-        .filter(w => String(w.path || '').includes('perf_'))
-        .flatMap(w => Object.keys((w.data && w.data.samples) || {}))
-        .filter(k => k.includes('|readyProvisional|')));
-    await expect.poll(async () => (await provisionalKeys()).length, { timeout: 25_000 }).toBeGreaterThan(0);
-
-    // …and it is a SUBSET, not a replacement. The card divides this row's total by `ready`'s, so an
-    // implementation that wrote one instead of the other would put the share at 100% — the reading
-    // that says "the fast path runs on every open", from data that says nothing of the kind.
-    const keys = await page.evaluate(() => (window.__E2E?.setWrites || [])
+    const sampleKeys = async () => page.evaluate(() => (window.__E2E?.setWrites || [])
         .filter(w => String(w.path || '').includes('perf_'))
         .flatMap(w => Object.keys((w.data && w.data.samples) || {})));
-    expect(keys.some(k => k.includes('|ready|')), '`ready` still counts this open').toBe(true);
-    expect(keys.some(k => k.includes('|readyCached|')), 'a fast-path grid is cache-served').toBe(true);
+    await expect.poll(async () => (await sampleKeys()).some(k => k.includes('|ready|')), { timeout: 25_000 }).toBe(true);
+    expect((await sampleKeys()).filter(k => k.includes('|readyProvisional|'))).toEqual([]);
 });
 
-test('a TEAM VIEW member is not painted early, and their team grid still restores', async ({ page }) => {
-    // The precondition, end to end: the whole team cannot be drawn from a one-member scope, so this
-    // boot is simply not eligible. The delay is what makes the refusal OBSERVABLE — without it the
-    // paint and the confirmation land together and the test passes whether the rule exists or not.
+test('a TEAM VIEW member waits for the confirmation too, and their team grid still restores', async ({ page }) => {
     test.setTimeout(60_000);
     await seedSession(page, 'G. Miller');
     await seedMember(page, 'G. Miller');
@@ -975,12 +957,12 @@ test('a TEAM VIEW member is not painted early, and their team grid still restore
     });
     await page.goto('/index.html');
 
-    // Nothing is painted while the identity is in flight — this member waits, as they always did.
+    // Nothing is painted while the identity is in flight.
     await page.waitForTimeout(2000);
     await expect(page.locator('.team-week-text')).toHaveCount(0);
     await expect(page.locator('#calendarDisplay')).toBeHidden();
 
-    // Refusing costs the fast path and nothing else: the team grid arrives on confirmation.
+    // The team grid arrives on confirmation.
     await expect(page.locator('.team-week-text')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#teamViewBtn')).toBeEnabled();
 });

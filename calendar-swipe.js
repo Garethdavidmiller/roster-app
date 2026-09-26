@@ -19,7 +19,6 @@ import { CONFIG, MONTH_NAMES, SWIPE_THRESHOLD } from './roster-data.js';
 import { getDisplayMonth, getDisplayYear, persistViewedMonth, addMonths } from './calendar-state.js';
 import { buildCalendarContainer, getSwipeDirection } from './calendar-renderer.js';
 import { ensureOverridesCached } from './calendar-overrides.js';
-import { getSelectedMemberIndex } from './calendar-member.js';
 
 let _swipeCooldown = false;
 // True from pointerdown until the gesture RESOLVES (tap / abandon / commit-restore / snap-back /
@@ -48,6 +47,9 @@ export function isSwipeGestureActive() { return _gestureActive || _swipeCooldown
  *   openDayDetail: ((cell: Element) => void) | null,
  *   onRetryMonth?: (year: number, month: number) => void,
  * }} deps
+ *   renderCalendar — the repaint for a month read that lands after the swipe. It must repaint
+ *   whichever surface is live (it is the coordinator's shared month-read callback), and is passed
+ *   straight through so it dedupes with the coordinator's own wait on the same month.
  *   onRetryMonth — forwarded to buildCalendarContainer so the "Try again" button works on a panel
  *   whose month could not be read. It matters here and not only in calendar-app.js because the
  *   INCOMING panel is not thrown away after a swipe: restoreIncoming strips its carousel class and
@@ -317,10 +319,9 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
                 // months and won't call renderCalendar (which is where persist
                 // normally happens), so we must persist unconditionally here.
                 persistViewedMonth();
-                const _mAtFetch = getSelectedMemberIndex();
-                ensureOverridesCached(getDisplayYear(), getDisplayMonth(), () => {
-                    if (!isTeamViewMode() && getSelectedMemberIndex() === _mAtFetch) renderCalendar();
-                });
+                // No member or mode guard here: the read is every member's, so whatever is on screen
+                // when it lands is waiting on it. The dep routes the repaint to the live surface.
+                ensureOverridesCached(getDisplayYear(), getDisplayMonth(), renderCalendar);
             }
 
             const safetyTimer = setTimeout(restoreIncoming, TRANSITION_DURATION_MS + 50);

@@ -134,6 +134,68 @@ describe('doc viewer — THE DOCUMENT GATE (v23.17): a locked tap reads nothing,
     });
 });
 
+describe('doc viewer — a COLD deep link waits for the access decision before calling itself locked', () => {
+    // The viewer is wired before the Calendar decides access, so a notification tap that cold-opens
+    // the page finds the gate shut simply because nothing has been decided yet — and told a
+    // signed-in member to enter the staff PIN for the second or two the decision took.
+    test('undecided: "Loading…", not the PIN message', async () => {
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve(), accessDecided: new Promise(() => {}),
+            docAccess: { has: () => false, onChange: () => () => {} } });
+        await flush();
+        assert.doesNotMatch(bodyText(), /staff PIN/, 'a member was told to enter the PIN before access was decided');
+        assert.match(bodyText(), /Loading/);
+    });
+
+    test('decided LOCKED: only now does it say what unlocks it', async () => {
+        let decide = () => {};
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve(), accessDecided: new Promise(r => { decide = r; }),
+            docAccess: { has: () => false, onChange: () => () => {} } });
+        await flush();
+        decide(); await flush();
+        assert.match(bodyText(), /Enter the staff PIN, or sign in, to read the Weekly Retail Circular/);
+    });
+
+    test('decided GRANTED: the held tap reads, and the PIN message never appears', async () => {
+        let fetched = 0;
+        _circularImpl = () => { fetched++; return Promise.resolve(null); };
+        let open = false, decide = () => {};
+        const subs = [];
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve(), accessDecided: new Promise(r => { decide = r; }),
+            docAccess: { has: () => open, onChange: fn => { subs.push(fn); return () => {}; } } });
+        await flush();
+        open = true; subs.forEach(fn => fn(true)); decide();   // the grant lands, then the decision settles
+        await flush();
+        assert.equal(fetched, 1);
+        assert.doesNotMatch(bodyText(), /staff PIN/);
+    });
+
+    test('once decided, a LATER locked tap says what unlocks it straight away', async () => {
+        /** @type {Function|null} */ let onHash = null;
+        global.window.addEventListener = (ev, fn) => { if (ev === 'hashchange') onHash = fn; };
+        initDocViewer({ authReady: Promise.resolve(), accessDecided: Promise.resolve(),
+            docAccess: { has: () => false, onChange: () => () => {} } });
+        await flush();
+        global.window.location.hash = '#circular';
+        onHash?.();
+        assert.match(bodyText(), /Enter the staff PIN, or sign in/, 'a tap after the decision sat on "Loading…"');
+    });
+
+    test('a waiting tap the reader CLOSED is not re-shown by the decision', async () => {
+        let decide = () => {};
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve(), accessDecided: new Promise(r => { decide = r; }),
+            docAccess: { has: () => false, onChange: () => () => {} } });
+        await flush();
+        _lbClose();
+        _els.docViewerBody._children.length = 0;
+        decide(); await flush();
+        assert.equal(bodyText(), '', 'the decision wrote into a viewer the reader had closed');
+    });
+});
+
 describe('doc viewer — the open must always reach a terminal state', () => {
     test('a never-resolving authReady still ends in a failure state, not "Loading…" forever', async (t) => {
         t.mock.timers.enable({ apis: ['setTimeout'] });

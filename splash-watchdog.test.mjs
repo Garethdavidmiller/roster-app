@@ -66,7 +66,6 @@ function fakeDocument({ lock = false, banner = 'absent', display = 'absent' } = 
 
 /** The real source, evaluated with an injected `document`. @param {any} document */
 function usableWith(document) {
-    // eslint-disable-next-line no-new-func
     return new Function('document', `${extractFn(SRC, 'pageIsUsable')}\nreturn pageIsUsable();`)(document);
 }
 

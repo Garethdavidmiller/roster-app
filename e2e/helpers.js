@@ -209,13 +209,15 @@ export const ROSTER_REVIEW_PARSE = {
  * @param {import('@playwright/test').Page} page
  * @param {any} [parseOverride] a whole replacement parse response — for the cases that need a
  *   DIFFERENT read rather than the standard row-state spread (e.g. a shifted-week fixture).
+ * @param {{ noSavedEntries?: boolean }} [opts] `noSavedEntries` seeds no manual overrides, and waits
+ *   for the review itself rather than a change row — for a read that changes nothing.
  * @returns {Promise<{ wasParseCalled: () => boolean }>}
  */
-export async function openRosterReview(page, parseOverride = null) {
+export async function openRosterReview(page, parseOverride = null, opts = {}) {
     // A seeded MANUAL override on the Tuesday gives the CONFLICT row something to conflict with.
-    await page.addInitScript(() => {
+    await page.addInitScript(none => {
         /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
-        /** @type {any} */ (window).__E2E.docs = [{
+        /** @type {any} */ (window).__E2E.docs = none ? [] : [{
             id: 'm1', memberName: 'G. Miller', date: '2026-08-04',
             value: '23:00-06:00', type: 'shift', source: 'manual',
         }, {
@@ -225,7 +227,7 @@ export async function openRosterReview(page, parseOverride = null) {
             id: 'm2', memberName: 'G. Miller', date: '2026-08-06',
             value: 'AL', type: 'annual_leave', source: 'manual',
         }];
-    });
+    }, !!opts.noSavedEntries);
     let called = false;
     await page.route('**/parseRosterPDF*', route => {
         called = true;
@@ -247,7 +249,8 @@ export async function openRosterReview(page, parseOverride = null) {
     await page.setInputFiles('#rosterFileInput',
         { name: 'roster.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 fixture') });
     await page.locator('#rosterParseBtn').click();
-    await expect(page.locator('.roster-change-row').first()).toBeVisible({ timeout: 15000 });
+    await expect(page.locator(opts.noSavedEntries ? '#rosterChangeList' : '.roster-change-row').first())
+        .toBeVisible({ timeout: 15000 });
     return { wasParseCalled: () => called };
 }
 

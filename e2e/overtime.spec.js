@@ -7,7 +7,7 @@
  * horizon lists weeks nobody has created.
  */
 import { test, expect } from './fixtures.js';
-import { seedSession } from './helpers.js';
+import { seedSession, signInThroughOverlay } from './helpers.js';
 
 const NOW = Date.parse('2026-08-17T09:00:00Z');
 const W = {
@@ -1317,6 +1317,33 @@ test('and on a phone the day row is still stacked, where there is no room for an
     expect(modes.y, 'the buttons sit below the day name').toBeGreaterThanOrEqual(head.y + head.height);
 });
 
+test('a week CREATED after its initial deadline flags nobody as a late submitter', async ({ page }) => {
+    // Creating a week in FINAL_OPEN is a supported recovery (the scheduler missed it, or a reviewer
+    // pressed Create on "first deadline has passed"). Every answer to it arrives after the initial
+    // deadline because the form did not exist before it — and each one read "Submitted after
+    // initial deadline". The reviewer's read has no window `createdAt`; it takes the frozen
+    // participants' own creation stamp, which is the same instant.
+    await seedSession(page, 'H. Croft');
+    const rest = Object.fromEntries(weekDates(W.weekStart).map(d => [d, { mode: 'unavailable' }]));
+    const initialAt = Date.parse('2026-08-11T11:00:00Z');
+    const opened = initialAt + 3_600_000;
+    await stubOvertime(page, { weeks: [
+        { ...W, initialDeadlineAt: initialAt, exists: true, state: 'created', canCreate: false,
+          expected: 1, received: 1, noResponse: 0 },
+    ] });
+    await page.addInitScript(({ rest, opened }) => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true, docsByPath: {
+            participants: [{ id: 'T. Bibi', grade: 'CEA', rosterOrder: 2, createdAt: opened }],
+            submissions: [{ id: 'T. Bibi', currentRevision: 1, firstAcceptedAt: opened + 60_000,
+                updatedAt: opened + 60_000, days: rest }],
+            revisions: [],
+        } };
+    }, { rest, opened });
+    await page.goto('/overtime.html');
+    await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
+    await expect(page.locator('#otWeekContent')).not.toContainText('Submitted after initial deadline');
+});
+
 test('a single-revision head costs NO revision read, and a changed one still derives (v21.47)', async ({ page }) => {
     // The workspace read the revisions subcollection for EVERY submission to answer "did this
     // change since the initial deadline?" — the cost flagged as "before full launch". A head at
@@ -1968,6 +1995,68 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(page.locator('.ot-day--set')).toHaveCount(5);
     });
 
+    test('ANOTHER week changing phase does not wipe the form on screen', async ({ page }) => {
+        // Adjacent weeks share deadline instants — every Tuesday 12:00 is one week's initial
+        // deadline and the week before's final — so the resync fires for a week the member is not
+        // looking at. It used to rebuild the card for that, taking five typed answers with it.
+        await seedSession(page, 'G. Miller');
+        const base = { ...W, phase: 'INITIAL_OPEN', participant: { grade: 'CEA', rosterOrder: 2 }, submission: null };
+        const other = { ...base, weekEnding: '2026-09-12', weekStart: '2026-09-06',
+            initialDeadlineAt: NOW + 60_000, finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') };
+        let calls = 0;
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] }; });
+        await page.route('**/getMyOvertimeState', r => {
+            calls += 1;
+            r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, serverNow: NOW,
+                    windows: [base, calls === 1 ? other : { ...other, phase: 'FINAL_OPEN' }] }) });
+        });
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+        for (let i = 0; i < 5; i++) {
+            await page.locator('.ot-day').nth(i).getByRole('radio', { name: 'Not available' }).click();
+        }
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await expect.poll(() => calls, 'the server was genuinely re-read').toBeGreaterThanOrEqual(2);
+        // Asserting an ABSENCE: give a rebuild time to start. A rebuild is a third read.
+        await page.waitForTimeout(500);
+        expect(calls, 'the card was not reloaded').toBe(2);
+        await expect(page.locator('.ot-day--set')).toHaveCount(5);
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+    });
+
+    test('ANOTHER week changing phase DOES rebuild a CLEAN form, so the list rows are not stale', async ({ page }) => {
+        // The other half of the test above (Sep 2026 re-review). Skipping the rebuild is only worth
+        // it when there are answers to lose; with none, skipping it left the other week's list row
+        // saying "Not submitted yet · Open" about a week that had closed.
+        await seedSession(page, 'G. Miller');
+        const base = { ...W, phase: 'INITIAL_OPEN', participant: { grade: 'CEA', rosterOrder: 2 }, submission: null };
+        const other = { ...base, weekEnding: '2026-09-12', weekStart: '2026-09-06',
+            initialDeadlineAt: NOW + 60_000, finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') };
+        let calls = 0;
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] }; });
+        await page.route('**/getMyOvertimeState', r => {
+            calls += 1;
+            r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, serverNow: NOW,
+                    windows: [base, calls === 1 ? other : { ...other, phase: 'CLOSED' }] }) });
+        });
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+        const row = page.locator('.ot-week-row', { has: page.locator('[data-openweek="2026-09-12"]') });
+        await expect(row).toContainText('Not submitted yet');
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await expect.poll(() => calls, 'the card was rebuilt from a fresh read').toBeGreaterThanOrEqual(3);
+        await expect(row).toContainText('Nothing was submitted');
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+    });
+
     test('leaving a form with unsubmitted answers asks first', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         const w2 = winOver({ weekEnding: '2026-09-12', weekStart: '2026-09-06',
@@ -2220,6 +2309,19 @@ test.describe('the beta PARTICIPANT — a form of her own, and nothing of anybod
         await page.goto('/overtime.html');
         await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
         await expect(page.locator('.ot-day')).toHaveCount(0);
+    });
+
+    test('and signing in HERE does not get them past the gate either', async ({ page }) => {
+        // The gate decides from the session at load, and on the in-place sign-in path that session
+        // was signed OUT — so it said "sign in", and the sign-in went straight to the form flow for
+        // whoever it turned out to be.
+        let reads = 0;
+        await page.route('**/getMyOvertimeState', r => { reads += 1; r.abort(); });
+        await page.goto('/overtime.html');
+        await signInThroughOverlay(page, 'S. Silva');
+        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        await expect(page.locator('.ot-day')).toHaveCount(0);
+        expect(reads, 'nothing was read on their behalf').toBe(0);
     });
 });
 

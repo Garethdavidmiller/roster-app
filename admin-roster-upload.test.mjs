@@ -69,6 +69,8 @@ mock.module('./firebase-client.js', {
                     // permission-denied is preserved and NOT replaced by the refresh's own error — the
                     // caller keys its user-facing message on err.code (matches firebase-client.js).
                     try {
+                        // A SIMULATED refresh failure, not a wrap of `err` — it has no cause to carry.
+                        // eslint-disable-next-line preserve-caught-error
                         if (_refreshShouldFail) throw new Error('token refresh failed (network)');
                         _idTokenRefreshes++;
                     } catch { throw err; }
@@ -883,6 +885,25 @@ describe('isZeroLengthRange', () => {
         for (const v of ['AL', 'SICK', 'SPARE', 'RD', 'TRG RDW', 'UNKNOWN|08:00', '']) {
             assert.equal(isZeroLengthRange(v), false, `${v} must not be treated as a zero-length range`);
         }
+    });
+});
+
+// …and the ENTRY control is the third place a time is authored, so it must refuse there too, at the
+// point of typing. Before, 06:00–06:00 was accepted, counted, reported "Done", and then dropped by
+// `_saveOverrideBatches` without a word — the admin was told a day was saved that was not.
+describe('the review entry control refuses equal start and end', () => {
+    test('a Shift or RDW entry whose times are equal is not committed, and the hint says why', async () => {
+        const { commitEntry, entryControlHtml } = await import('./roster-entry-control.js');
+        for (const type of ['shift', 'rdw']) {
+            const s = { draft: { type, from: '06:00', to: '06:00', open: true }, baseShift: '06:00-14:00', date: MON };
+            commitEntry(s);
+            assert.equal(s.chosen, undefined, `${type}: nothing is chosen`);
+            assert.equal(s.entered, null, `${type}: nothing is entered`);
+            assert.match(entryControlHtml(`G. Miller|${MON}`, s, MON), /Start and end times are the same/);
+        }
+        const ok = { draft: { type: 'shift', from: '22:00', to: '06:00', open: true }, baseShift: '06:00-14:00', date: MON };
+        commitEntry(ok);
+        assert.equal(ok.chosen, 'entered', 'an overnight range is ordinary and still commits');
     });
 });
 

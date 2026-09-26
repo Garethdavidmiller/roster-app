@@ -93,10 +93,10 @@ function build(subs, statusFor = () => undefined) {
         exports: { getFirestore: () => ({ collection }) } };
     require.cache[webpushPath] = { id: webpushPath, filename: webpushPath, loaded: true, exports: {
         setVapidDetails: () => {},
-        sendNotification: async (sub, payload) => {
+        sendNotification: async (sub, payload, options) => {
             const code = statusFor(sub.endpoint);
             if (code) { const e = new Error(`HTTP ${code}`); e.statusCode = code; throw e; }
-            sent.push({ endpoint: sub.endpoint, payload });
+            sent.push({ endpoint: sub.endpoint, payload, options });
         },
     } };
     delete require.cache[pushPath];
@@ -246,4 +246,19 @@ test('fanOutPush reaches EVERY subscription, owner stamp or not', async () => {
     const { mod, sent } = build([sub('a', 'uid_a'), sub('b', undefined), sub('c', 'uid_c')]);
     await mod.fanOutPush(PAYLOAD, '[f]');
     assert.equal(sent.length, 3);
+});
+
+// ── A PUSH SERVICE THAT NEVER ANSWERS MUST NOT HOLD THE HANDLER (Sep 2026 review) ─────────────────
+// `sendNotification` has no timeout of its own, so one endpoint whose push service stalls holds the
+// whole `allSettled` — and with it the function — until the platform kills the request. Both
+// senders pass web-push's own `timeout`, so a stalled endpoint is a failed send, not a hung one.
+test('both senders bound every send with a timeout', async () => {
+    const { mod, sent } = build([sub('a', 'uid_admin'), sub('b', 'uid_other')]);
+    await mod.sendTargetedPush(PAYLOAD, ['uid_admin'], '[t]');
+    await mod.fanOutPush(PAYLOAD, '[t]');
+    assert.equal(sent.length, 3);
+    for (const s of sent) {
+        assert.ok(s.options && Number.isFinite(s.options.timeout) && s.options.timeout > 0 && s.options.timeout <= 15000,
+            `a send went out with no bounded timeout: ${JSON.stringify(s.options)}`);
+    }
 });

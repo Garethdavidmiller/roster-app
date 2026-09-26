@@ -58,12 +58,14 @@ function applyPatch(current, patch) {
 
 function makeDb(seed = {}, onRead = null) {
     const store = new Map(Object.entries(seed));
-    const snap = (path) => ({
-        id: path.split('/').pop(),
-        exists: store.has(path),
-        ref: docRef(path),
-        data: () => store.get(path),
-    });
+    let txQueue = Promise.resolve();
+    // POINT-IN-TIME, as a real snapshot is: the data is what the document held when it was READ.
+    // A lazy `store.get` here let a snapshot see writes made after it, which hid every
+    // read-then-act race behind a fake that no production read can behave like.
+    const snap = (path) => {
+        const value = store.get(path);
+        return { id: path.split('/').pop(), exists: store.has(path), ref: docRef(path), data: () => value };
+    };
     /** The documents directly under a collection path — the fake's one membership rule. */
     function childKeys(path) {
         const prefix = `${path}/`;
@@ -142,22 +144,38 @@ function makeDb(seed = {}, onRead = null) {
         collection: collRef,
         batch: () => {
             const ops = [];
+            /** Paths the batch CREATES — Firestore refuses the whole commit if any already exists. */
+            const creates = [];
             return {
                 set: (ref, data) => ops.push([ref.path, data]),
+                create: (ref, data) => { creates.push(ref.path); ops.push([ref.path, data]); },
                 delete: (ref) => ops.push([ref.path, null]),
                 // Commit is all-or-nothing here too, so a test that expects atomicity is testing
                 // the same property production relies on rather than a looser fake.
                 commit: async () => {
+                    // A real commit is never synchronous, and yielding is what lets two creators
+                    // who both read "absent" race to it — the case `create` exists for.
+                    await new Promise(r => setImmediate(r));
+                    if (creates.some(p => store.has(p))) {
+                        throw Object.assign(new Error('6 ALREADY_EXISTS: Document already exists'), { code: 6 });
+                    }
                     for (const [p, d] of ops) { if (d === null) store.delete(p); else store.set(p, d); }
                 },
             };
         },
-        runTransaction: async (fn) => fn({
-            get: async (ref) => snap(ref.path),
-            set: (ref, data, opts) => store.set(ref.path,
-                opts?.merge ? { ...(store.get(ref.path) || {}), ...data } : data),
-            update: (ref, patch) => store.set(ref.path, applyPatch(store.get(ref.path), patch)),
-        }),
+        // SERIALISED, as Firestore's optimistic concurrency makes conflicting transactions in effect:
+        // the loser retries against the winner's write. Without this the fake would let two claims
+        // on one document both succeed, and a claim-before-send could never be tested.
+        runTransaction: (fn) => {
+            const run = txQueue.then(() => fn({
+                get: async (ref) => snap(ref.path),
+                set: (ref, data, opts) => store.set(ref.path,
+                    opts?.merge ? { ...(store.get(ref.path) || {}), ...data } : data),
+                update: (ref, patch) => store.set(ref.path, applyPatch(store.get(ref.path), patch)),
+            }));
+            txQueue = run.catch(() => {});
+            return run;
+        },
     };
 }
 
@@ -828,6 +846,37 @@ describe('withdrawOvertimeParticipant — the leaver who is chased every week', 
         assert.deepEqual(Object.keys(p).sort(), ['grade', 'memberName', 'rosterOrder', 'uid']);
     });
 
+    test('withdrawing somebody ALREADY withdrawn changes nothing — the first stamp stands', async () => {
+        // Two reviewers, or one double press. Re-stamping `withdrawnAt` is not harmless: restore is
+        // decided from that stamp, so a second withdrawal after the initial deadline turned a
+        // pre-deadline withdrawal — which may not be undone — into one that may.
+        freeze(M.initialDeadlineAt + 3600_000);
+        const first = { toMillis: () => M.initialDeadlineAt - 86400_000 };
+        const { eps, db } = build(seededWindow({
+            [PATH]: { memberName: 'G. Miller', grade: 'CEA', rosterOrder: 2, uid: null,
+                withdrawn: true, withdrawnAt: first, withdrawnBy: 'G. Miller' },
+        }));
+        const r = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'G. Miller', withdrawn: true }, 'tok_manager'));
+        unfreeze();
+        assert.equal(r.code, 200, 'the outcome asked for is already true');
+        assert.equal(db._store.get(PATH).withdrawnAt, first, 'the original stamp is untouched');
+        assert.equal(db._store.get(PATH).withdrawnBy, 'G. Miller', 'and so is who did it');
+    });
+
+    test('restoring somebody who was never withdrawn is not refused', async () => {
+        // Past the initial deadline, `canRestoreParticipant` refuses a missing stamp — right for a
+        // withdrawal it cannot date, wrong for a person nobody withdrew, whose answer is simply yes.
+        freeze(M.initialDeadlineAt + 3600_000);
+        const { eps, db } = build(seededWindow());
+        const before = { ...db._store.get(PATH) };
+        const r = await call(eps.withdrawOvertimeParticipant,
+            req({ weekEnding: WEEK, memberName: 'G. Miller', withdrawn: false }, 'tok_manager'));
+        unfreeze();
+        assert.equal(r.code, 200);
+        assert.deepEqual(db._store.get(PATH), before, 'and nothing was written');
+    });
+
     test('a CLOSED week refuses, with a code the page can name', async () => {
         // Not a fault to retry — a rule. A closed week is the record the roster was planned from,
         // and a reviewer told only "that failed" would press it again.
@@ -945,6 +994,17 @@ describe('getMyOvertimeState — the member sees their own windows and nobody el
         assert.equal(r.body.windows[0].participant.grade, 'CEA');
     });
 
+    test('the window says when it OPENED, so a late-made form can say so', async () => {
+        freeze(M.initialDeadlineAt - 86400000);
+        const opened = M.initialDeadlineAt + 3600_000;
+        const seed = seededWindow();
+        seed[`overtimeWindows/${WEEK}`].createdAt = { toMillis: () => opened };
+        const { eps } = build(seed);
+        const r = await call(eps.getMyOvertimeState, req({}, 'tok_member'));
+        unfreeze();
+        assert.equal(r.body.windows[0].openedAt, opened);
+    });
+
     test('a NON-participant gets an empty list, not an error', async () => {
         freeze(Date.parse('2026-08-17T09:00:00Z'));
         const { eps } = build(seededWindow());
@@ -1017,6 +1077,25 @@ describe('submitOvertimeAvailability — the only mutation', () => {
         assert.equal(rev.weekEnding, WEEK, 'the revision carries its own context from day one');
         assert.equal(rev.memberName, 'G. Miller');
         assert.equal(rev.mutationId, 'mutation-0001');
+    });
+
+    test('acceptedAt is the instant the phase was DECIDED, not the later commit', async () => {
+        // The phase is judged at `nowMs`; a commit stamp lands later. At 11:59:59.900 that gap is
+        // enough to record an in-time answer as late — accepted by one clock, flagged by another.
+        // The fake's server timestamp is SERVER_NOW, so any use of it here shows up as a mismatch.
+        const decided = M.initialDeadlineAt - 100;
+        freeze(decided);
+        const { db, eps } = build(seededWindow());
+        const r = await call(eps.submitOvertimeAvailability, req(good()));
+        unfreeze();
+        assert.equal(r.code, 200);
+        const head = db._store.get(`overtimeWindows/${WEEK}/submissions/G. Miller`);
+        const rev  = db._store.get(`overtimeWindows/${WEEK}/submissions/G. Miller/revisions/000001`);
+        assert.equal(rev.acceptedAt.toMillis(), decided);
+        assert.equal(head.updatedAt.toMillis(), decided);
+        assert.equal(head.firstAcceptedAt.toMillis(), decided);
+        assert.equal(OT.deriveHistory([{ revision: 1, days: rev.days, acceptedAt: rev.acceptedAt.toMillis() }],
+            head.days, M.initialDeadlineAt).lateInitial, false, 'and it is not late');
     });
 
     test('a week containing "up to 12 hours" saves end-to-end (v20.83)', async () => {
@@ -1417,7 +1496,7 @@ describe('autoCreateOvertimeWindows — the schedule, executed', () => {
         const realBatch = db.batch;
         let n = 0;
         db.batch = () => (++n === 1
-            ? { set: () => {}, commit: async () => { throw new Error('nope'); } }
+            ? { set: () => {}, create: () => {}, commit: async () => { throw new Error('nope'); } }
             : realBatch());
         await run(eps);
         unfreeze();
@@ -1796,6 +1875,68 @@ describe('push notices — targeted, accumulated, and never able to fail a write
         await eps.autoCreateOvertimeWindows.run({});
         unfreeze();
         assert.equal(reminderSends(sends).length, 1, 'the stamp holds');
+    });
+
+    test('somebody added on the deadline MORNING is asked, and not also reminded', async () => {
+        // The top-up runs before the reminder in the same scheduler run, so a member invited that
+        // morning heard "form open, answer by 12:00" and "answers due today" seconds apart — the
+        // second telling them they had failed to do something they had just been asked to do.
+        const { sends, notify } = notifySeam();
+        freeze(M.initialDeadlineAt - 5 * 3600_000);
+        const { eps } = build(seededWindow(), {
+            notify, rosterMembers: { ...ROSTER, overtimeBeta: ['S. Silva'] } });
+        await eps.autoCreateOvertimeWindows.run({});
+        unfreeze();
+        assert.ok(askedSends(sends).some(s => s.uids.includes('uid-ss')), 'she was asked');
+        assert.equal(reminderSends(sends).length, 1);
+        assert.deepEqual(reminderSends(sends)[0].uids, ['uid-gm'], 'and only the one asked earlier is reminded');
+    });
+
+    test('two creators racing one week make ONE window and send ONE asked notice', async () => {
+        // Both read "absent", both committed with set(): the second rewrote every participant
+        // document the first had frozen, and both told the participants they had a form.
+        const { sends, notify } = notifySeam();
+        freeze(SERVER_NOW);
+        const { db, eps } = build({}, { notify });
+        const [a, b] = await Promise.all([
+            call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_member')),
+            call(eps.createOvertimeWindow, req({ weekEnding: WEEK }, 'tok_manager')),
+        ]);
+        unfreeze();
+        assert.equal([a, b].filter(r => r.body.created).length, 1, 'one of them created it');
+        assert.equal([a, b].filter(r => r.body.existed).length, 1, 'and the other was told it exists');
+        assert.equal(askedSends(sends).length, 1, 'the participants were told once');
+        assert.ok(db._store.has(`overtimeWindows/${WEEK}/participants/G. Miller`));
+    });
+
+    test('two runs on one deadline morning send ONE reminder — it is claimed before it is sent', async () => {
+        // The stamp used to be written AFTER the send, so two runs overlapping (a retry, a second
+        // instance) both read "not yet sent" and both sent.
+        const { sends, notify } = notifySeam();
+        freeze(M.initialDeadlineAt - 5 * 3600_000);
+        const { db, eps } = build(seededWindow(), { notify });
+        // Release the two runs' full window listings in PAIRS, so both pass the "unsent" check on
+        // the same read — the overlap the claim exists for. Each run lists twice (top-up, then
+        // reminders) and cannot reach its second listing until its first is released, so the pairs
+        // are always like with like. Left alone, the second run lists after the first has stamped
+        // and the test passed with the claim deleted (found by mutation). The fallback only stops a
+        // broken run from hanging the suite.
+        const realCollection = db.collection;
+        let parked = [];
+        let fallback = null;
+        const release = () => { clearTimeout(fallback); const p = parked; parked = []; p.forEach(f => f()); };
+        db.collection = (path) => {
+            const c = realCollection(path);
+            if (path !== 'overtimeWindows') return c;
+            // Parked AFTER the read, so both listings are taken before either run acts on its own.
+            return { ...c, get: () => c.get().then(listing => new Promise(res => {
+                parked.push(() => res(listing));
+                if (parked.length === 2) release(); else fallback = setTimeout(release, 2000);
+            })) };
+        };
+        await Promise.all([eps.autoCreateOvertimeWindows.run({}), eps.autoCreateOvertimeWindows.run({})]);
+        unfreeze();
+        assert.equal(reminderSends(sends).length, 1);
     });
 
     test('a push that throws costs a log line, never the window', async () => {

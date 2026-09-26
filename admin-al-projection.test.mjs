@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { teamMembers } from './roster-data.js';
+import { teamMembers, formatISO } from './roster-data.js';
 import { projectAlBooking, willConsume, projectAlOverage } from './admin-al-projection.js';
 import { consumesEntitlement } from './al-entitlement.js';
 
@@ -121,7 +121,7 @@ describe('projectAlOverage — the warning the manager did not get', () => {
     const usedDates = [];
     for (let d = new Date('2026-03-02T00:00:00'); usedDates.length < 31; d.setDate(d.getDate() + 1)) {
         const dow = d.getDay();
-        if (dow !== 0 && dow !== 6) usedDates.push(d.toISOString().slice(0, 10));
+        if (dow !== 0 && dow !== 6) usedDates.push(formatISO(d));
     }
     const existing = usedDates.map((date, i) => ({
         id: 'x' + i, memberName: 'C. Reen', type: 'annual_leave', date, value: 'AL',

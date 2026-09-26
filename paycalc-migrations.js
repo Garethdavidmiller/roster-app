@@ -79,9 +79,10 @@ const _MEMBER_SLUGS = new Set(teamMembers.map(m => memberSlug(m.name)));
  *  <slug> only when <slug> is a real member; legacy keys (`myb_pc_rate`, `myb_pc_p43`,
  *  `myb_pc_setup_2025_26`, `myb_pc_ytd_pay_2026_27`) have a non-member first segment (or
  *  none) and classify as null. This is what stops the ownership prompt from ever treating
- *  ANOTHER member's namespaced data as claimable legacy data (v14.27 review fix).
+ *  ANOTHER member's namespaced data as claimable legacy data (v14.27 review fix) — and, since the
+ *  72-hour review, what stops a backup with its `slug` stripped passing as legacy (paycalc-transfer).
  *  @param {string} key @returns {string|null} */
-function _keyOwnerSlug(key) {
+export function keyOwnerSlug(key) {
     const m = key.match(/^myb_pc_([a-z0-9]+)_/);
     return m && _MEMBER_SLUGS.has(m[1]) ? m[1] : null;
 }
@@ -333,7 +334,7 @@ function _migrateCeaKeys({ getPeriods }) {
  *  (owner = their slug) is explicitly NOT legacy, so it never triggers the prompt. */
 function _hasUnnamespacedPaycalcData() {
     return lsKeys().some(k =>
-        k.startsWith('myb_pc_') && !DEVICE_KEYS.has(k) && _keyOwnerSlug(k) === null);
+        k.startsWith('myb_pc_') && !DEVICE_KEYS.has(k) && keyOwnerSlug(k) === null);
 }
 
 /** Move only genuinely-unnamespaced legacy keys into memberName's namespace. Keys owned by
@@ -354,7 +355,7 @@ function _moveLegacyToNamespace(memberName) {
     lsKeys().forEach(k => {                       // lsKeys() is a copy — safe to mutate in loop
         if (!k.startsWith('myb_pc_')) return;
         if (DEVICE_KEYS.has(k)) return;
-        if (_keyOwnerSlug(k) !== null) return;    // belongs to a member — never move it
+        if (keyOwnerSlug(k) !== null) return;    // belongs to a member — never move it
         const newKey = nsPrefix + k.slice('myb_pc_'.length);
         const val = lsGet(k);
         if (val === null) { lsDel(k); return; }               // empty — nothing to lose
@@ -370,7 +371,7 @@ function _clearLegacyData() {
     lsKeys().forEach(k => {
         if (!k.startsWith('myb_pc_')) return;
         if (DEVICE_KEYS.has(k)) return;
-        if (_keyOwnerSlug(k) !== null) return;    // belongs to a member — keep it
+        if (keyOwnerSlug(k) !== null) return;    // belongs to a member — keep it
         lsDel(k);
     });
 }

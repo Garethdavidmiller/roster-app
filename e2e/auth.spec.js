@@ -116,6 +116,14 @@ test('B1 flag ON: links clears the session and shows the in-place login on a fai
     await expect(page.locator('#loginOverlay')).toBeVisible();
 });
 
+test('B1 flag ON: overtime clears the session and shows the in-place login on a failed named session', async ({ page }) => {
+    // The one named page that had no follow-up at all: a failed sign-in left the page up under a
+    // session the endpoints would refuse, with nothing asking the member to sign in again.
+    await armEnforcementWithFailingSignIn(page);
+    await page.goto('/overtime.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+});
+
 test('B1 flag ON: paycalc stays SOFT — the calculator still renders, no redirect', async ({ page }) => {
     await armEnforcementWithFailingSignIn(page);
     // Suppress the one-time notices so nothing overlays the calculator.
@@ -237,6 +245,27 @@ test('in-place sign-in: settings initialises (work-email card + nav identity) wi
     await expect(page.locator('#navPanelAvatar')).toBeVisible();        // nav wired with identity
     await expect(page).toHaveURL(/settings\.html$/);
     expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
+});
+
+test('in-place sign-in: settings still offers an install the browser offered BEFORE the sign-in', async ({ page }, info) => {
+    // iOS never fires `beforeinstallprompt`; on an iPhone the Device card shows the Home Screen
+    // steps with the button hidden ON PURPOSE (initDeviceCard), so this Chromium event has no
+    // meaning there.
+    test.skip(info.project.name === 'mobile-safari', 'iOS has no install offer; the card shows steps instead');
+    // Chromium fires `beforeinstallprompt` once, early. On the in-place path the Device card is wired
+    // only after sign-in, and until the Sep 2026 review so was its listener — so an Android member
+    // who signed in here was never shown the install row.
+    await enableInplaceLogin(page);
+    await page.goto('/settings.html');
+    await page.evaluate(() => {
+        const e = new Event('beforeinstallprompt', { cancelable: true });
+        /** @type {any} */ (e).prompt = () => Promise.resolve();
+        window.dispatchEvent(e);
+    });
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#loginOverlay')).toHaveCount(0);
+    await expect(page.locator('#deviceCard')).toBeVisible();
+    await expect(page.locator('#installBtn')).toBeVisible();
 });
 
 // ── FORCED SET-PASSWORD OVERLAY (PASSWORD_DESIGN.md Phase 2, v18.92) ────────────────────────────
@@ -700,6 +729,17 @@ test.describe('sign-in pickers', () => {
 
         await page.locator('#loginGrade').selectOption({ index: 1 });
         await expect.poll(focused, { timeout: 3000 }).toBe('loginNameTrigger');
+    });
+
+    // The field's own label is a tap target. It named the hidden select, so a tap focused a control
+    // nobody can see (and on iOS opened the native wheel the sheet replaces). It names the trigger.
+    test('tapping the field label opens the sheet, not the hidden select', async ({ page }) => {
+        await page.goto('/settings.html');
+        await page.locator('#loginGradeTrigger').waitFor();
+        await expect(page.locator('label[for="loginGrade"]')).toHaveCount(0);
+        await page.locator('label[for="loginGradeTrigger"]').click();
+        await expect(page.locator('.picker-sheet-overlay.open')).toBeVisible();
+        expect(await page.evaluate(() => document.activeElement?.id)).not.toBe('loginGrade');
     });
 
     test('the sheet opens from the trigger and picking a row signs the member in', async ({ page }) => {

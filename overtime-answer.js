@@ -18,7 +18,7 @@
 //      availability answer leaves the day UNANSWERED — `{ releaseRequested: true }` with no mode.
 //      Until v23.87 it wrote `{ mode: 'unavailable' }` underneath, on the reasoning that this was
 //      "the honest mode for I have said nothing". It is not: it is the one answer this feature must
-//      never invent (OVERTIME_AVAILABILITY.md invariant 3 — no response is not "not available"),
+//      never invent (OVERTIME_AVAILABILITY.md invariants 1 and 2 — no response is not "not available"),
 //      and the completeness check then stopped counting the Sunday as still to answer, so a roster
 //      clerk could read a "Not available" the member never gave. A mode-less answer is a state the
 //      WORKING COPY may hold; `dayUnfinished` reads it as unfinished, so Submit refuses it until a

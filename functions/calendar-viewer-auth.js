@@ -22,8 +22,14 @@
  * two people fumbled. The numbers in `DEFAULT_THROTTLE` are chosen from that tension, not from a
  * template — see the constant.
  *
- * Only FAILURES are recorded. A correct PIN writes nothing, so the normal path costs no storage and
- * no latency, and the throttle state cannot be used to count how many people used the app. Expired
+ * Every attempt is CHARGED before its PIN is compared, and a correct PIN is REFUNDED afterwards
+ * (Sep 2026 review — `reserveAttempt`/`refundAttempt`). Only failures remain counted, so ordinary use
+ * never approaches the limit, and a refund that brings a bucket to zero deletes it, so the throttle
+ * state still cannot be used to count how many people used the app. Charging first costs a correct
+ * unlock one transaction; recording only failures after the compare let concurrent guesses all be
+ * compared before any of them was counted. The trade is CONTENTION: every unlock, right or wrong,
+ * writes the one all-sources document twice (charge, then refund), and writes to one document
+ * serialise — nothing at a handful of unlocks a day, and the thing to revisit if that ever grows. Expired
  * rows are swept opportunistically on the failure path — see `isThrottleStateStale`, which was
  * written here at v20.12 and NOT actually called until v20.15, so for three versions this comment
  * described a sweep that did not happen and the collection only ever grew.
@@ -51,7 +57,7 @@ const PIN_LENGTH = 4;
  *     abnormal traffic against a function whose normal volume is a handful of calls a day.
  *   · **For Marylebone.** Thirty WRONG entries in fifteen minutes from the whole station is not
  *     fumbling, it is somebody who has the wrong code entirely — at which point stopping is correct.
- *     A correct PIN is never counted, so ordinary use can never approach the limit however busy the
+ *     A correct PIN never stays counted, so ordinary use can never approach the limit however busy the
  *     office is.
  *
  * The block EXPIRES on its own. There is no permanent or global lock, deliberately: a shared-source
@@ -213,7 +219,8 @@ const GLOBAL_SOURCE_KEY = '_all-sources';
  *     function whose normal volume is a handful of calls a day — and it holds no matter how many
  *     source identities the caller can manufacture. Before this, a caller who forged the header had
  *     no bound at all and could finish in minutes.
- *   · **For Marylebone.** Only FAILURES count, and a correct PIN writes nothing. 200 wrong entries
+ *   · **For Marylebone.** Only FAILURES stay counted — a correct PIN is charged, then refunded, and a
+ *     refund to zero deletes the row. 200 wrong entries
  *     inside fifteen minutes, across the entire station, is roughly four each from fifty people —
  *     which does not mean fumbling, it means the code in circulation is wrong. Stopping is then the
  *     correct behaviour, and the block clears itself in fifteen minutes.
@@ -289,6 +296,96 @@ function recordFailure(state, now, cfg) {
 }
 
 /**
+ * Check both buckets and, if neither is blocked, CHARGE the attempt to both — the decision and the
+ * charge the handler runs inside ONE transaction, BEFORE the comparison (Sep 2026 review).
+ *
+ * Until then the check was a plain read before the compare and the charge a transaction after it,
+ * so N requests arriving together all read "not blocked", all had their guess compared, and were
+ * all charged afterwards: the limit bounded the RATE of charging, not the number of guesses
+ * compared. Charging first, inside the transaction that checks, makes the Nth concurrent request
+ * see the (N-1) charges before it and be refused. A correct PIN is refunded afterwards
+ * (`refundAttempt`), so what a correct PIN costs in the end is still nothing.
+ *
+ * PURE. The caller owns the transaction.
+ *
+ * @param {object|null|undefined} sourceState  the per-source bucket as stored
+ * @param {object|null|undefined} globalState  the all-sources bucket as stored
+ * @param {number} now  epoch ms
+ * @returns {{ blocked: { allowed: boolean, retryAfterSec: number }|null, source: object|null, global: object|null }}
+ */
+function reserveAttempt(sourceState, globalState, now) {
+    // EITHER bucket being blocked blocks the attempt: the ceiling is a ceiling, not an average.
+    const blocked = [throttleDecision(sourceState, now), throttleDecision(globalState, now)].find(d => !d.allowed);
+    if (blocked) return { blocked, source: null, global: null };
+    return {
+        blocked: null,
+        source: recordFailure(sourceState, now),
+        // The global bucket carries its OWN, higher limit — that is what makes it a backstop.
+        global: recordFailure(globalState, now, GLOBAL_THROTTLE),
+    };
+}
+
+/**
+ * Take back ONE charge `reserveAttempt` made, because the PIN it was charged for was right.
+ *
+ * PURE. Returns what to do with the stored bucket: `undefined` leave it alone, `null` delete it, or
+ * the document to write. A bucket whose window has moved on since the charge (`windowStart` no
+ * longer the one reserved) is left alone: the charge is no longer in it. A bucket brought back to
+ * zero is DELETED rather than kept at zero, so a correct unlock leaves no row that dates it — the
+ * collection still cannot be read as a record of who used the app. A block survives only if the
+ * failures that remain would have tripped it on their own.
+ *
+ * @param {{ failures?: number, windowStart?: number, blockedUntil?: number }|null|undefined} state
+ * @param {{ windowStart?: number }|null|undefined} reserved  what `reserveAttempt` wrote
+ * @param {{ maxFailures?: number }} [cfg]
+ * @returns {{ failures: number, windowStart: number, blockedUntil: number }|null|undefined}
+ */
+function refundAttempt(state, reserved, cfg) {
+    const c = Object.assign({}, DEFAULT_THROTTLE, cfg || {});
+    const s = state && typeof state === 'object' ? state : null;
+    if (!s || !reserved || !Number.isFinite(s.windowStart) || s.windowStart !== reserved.windowStart) return undefined;
+    const failures = Math.max(0, (Number.isFinite(s.failures) ? Math.floor(Number(s.failures)) : 0) - 1);
+    if (failures === 0) return null;
+    const blockedUntil = failures >= c.maxFailures && Number.isFinite(s.blockedUntil) ? Number(s.blockedUntil) : 0;
+    return { failures, windowStart: Number(s.windowStart), blockedUntil };
+}
+
+/**
+ * Has somebody changed the shared viewer account into something other than a bare capability?
+ * Returns the reason, or `null` when it is as the unlock made it (Sep 2026 review).
+ *
+ * Every PIN holder holds a session on this ONE account, and a session can LINK a credential to its
+ * own account — an email and password, a phone, a federated provider. Each is a way back in that
+ * does not go through the PIN, so it survives a PIN rotation; an email under `@myb-roster.local`
+ * would also put the account in front of Set up accounts and the leaver sweep, which could adopt it
+ * as a member or disable it (a station-wide PIN outage). A disabled account is included because a
+ * sweep is the likeliest way it got that way, and the PIN rotation, not a disable, is the kill switch
+ * this feature documents. The unlock rebuilds a tampered account from nothing.
+ *
+ * @param {{ email?: string|null, phoneNumber?: string|null, providerData?: any[], disabled?: boolean }|null|undefined} record
+ * @returns {string|null}
+ */
+function viewerAccountTamper(record) {
+    if (!record || typeof record !== 'object') return null;
+    if (record.disabled === true) return 'disabled';
+    if (record.email) return 'has an email';
+    if (record.phoneNumber) return 'has a phone number';
+    if (Array.isArray(record.providerData) && record.providerData.length) return 'has a linked sign-in method';
+    return null;
+}
+
+/**
+ * Is this Auth account the shared viewer — by uid, or by carrying the viewer claim? Set up accounts
+ * and the leaver sweep must never adopt, stamp or disable it, whatever email somebody linked to it.
+ * @param {{ uid?: string, customClaims?: Record<string, any>|null }|null|undefined} record
+ * @returns {boolean}
+ */
+function isViewerAccount(record) {
+    if (!record || typeof record !== 'object') return false;
+    return record.uid === CALENDAR_VIEWER_UID || !!(record.customClaims && record.customClaims.calendarViewer === true);
+}
+
+/**
  * Is a stored throttle document old enough to delete?
  *
  * The collection is swept opportunistically rather than by a scheduled job — there is no TTL policy
@@ -345,6 +442,10 @@ module.exports = {
     clientIpOf,
     throttleDecision,
     recordFailure,
+    reserveAttempt,
+    refundAttempt,
     isThrottleStateStale,
     viewerClaims,
+    viewerAccountTamper,
+    isViewerAccount,
 };

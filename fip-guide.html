@@ -28,7 +28,7 @@
         <a href="./" class="btn-back" aria-label="Back to roster">←</a>
         <div>
             <h1><span aria-hidden="true">🇪🇺</span> FIP Travel</h1>
-            <p class="sub">European rail travel for Chiltern staff · August 2026</p>
+            <p class="sub">European rail travel for Chiltern staff</p>
         </div>
         <button id="savePdfBtn" class="btn-print btn-pdf" type="button" aria-label="Save or print this guide">⤓ PDF</button>
     </header>
@@ -270,7 +270,7 @@
                 </div>
                 <div class="detail-row">
                     <span class="detail-key">Prices</span>
-                    <span>Fares shown above were correct at May 2026 — check with bookmyrst or Trainseurope for current prices before booking</span>
+                    <span>Fares shown above were checked Aug 2026 — check with bookmyrst or Trainseurope for current prices before booking</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-key">Book ahead</span>
@@ -325,7 +325,7 @@
         <h2 class="section-label" id="sec-countries">European destinations</h2>
         <p class="section-intro" data-guide-source="fip-carrier-accept">Tap a country to see what to expect and how to book. If your journey crosses a border, see the <strong>multi-country</strong> note below before ordering coupons.</p>
 
-        <!-- Country finder (v17.64): live-filters the 25 country cards + the A–Z list below by name or
+        <!-- Country finder (v17.64): live-filters the country cards + the A–Z list below by name or
              operator. Progressive enhancement — with JS off, every country stays visible. Logic in fip-guide.js. -->
         <div class="country-finder">
             <div class="cf-search">
@@ -374,6 +374,13 @@
             <a href="#country-bg"><span aria-hidden="true">🇧🇬</span> Bulgaria</a>
             <a href="#country-lt"><span aria-hidden="true">🇱🇹</span> Lithuania</a>
             <a href="#country-lv"><span aria-hidden="true">🇱🇻</span> Latvia</a>
+            <a href="#country-si"><span aria-hidden="true">🇸🇮</span> Slovenia</a>
+            <a href="#country-rs"><span aria-hidden="true">🇷🇸</span> Serbia</a>
+            <a href="#country-me"><span aria-hidden="true">🇲🇪</span> Montenegro</a>
+            <a href="#country-mk"><span aria-hidden="true">🇲🇰</span> North Macedonia</a>
+            <a href="#country-ba"><span aria-hidden="true">🇧🇦</span> Bosnia &amp; Herzegovina</a>
+            <a href="#country-lc"><span aria-hidden="true">⛴️</span> Lake Constance</a>
+            <a href="#country-xk" class="not-fip"><span aria-hidden="true">🇽🇰</span> Kosovo</a>
             <a href="#country-se" class="not-fip"><span aria-hidden="true">🇸🇪</span> Sweden</a>
             <a href="#country-fi" class="not-fip"><span aria-hidden="true">🇫🇮</span> Finland</a>
         </div>
@@ -519,7 +526,7 @@
                     <br><br>
                     Coupons stamped <strong>"No Supplement Necessary"</strong> are exempt — <em>except</em> on RJX and RJ within Austria, and on certain routes.
                 </div>
-                <p><strong>Journeys to or from Italy always need the FIP supplement</strong>, even with a "No supplement required" stamp.</p>
+                <p><strong>Journeys to or from Italy always need the FIP supplement</strong>, even with a "No Supplement Necessary" stamp.</p>
                 <p><strong>Wholly within Austria</strong> (say Vienna–Klagenfurt) an ÖBB supplement of <strong>€10 second / €15 first</strong> applies, and this one <strong>can be paid on the train</strong>.</p>
                 <p><strong>Buy before boarding</strong> — on-board tickets cost more, and on suburban routes buying before you board is <strong>mandatory</strong>.</p>
                 <p><strong>Seat labels:</strong> a seat marked <strong>"ggf. reserviert"</strong> is being held for last-minute reservations. ÖBB's advice is not to sit in it. Business compartments are for Senior Manager Free Pass holders only.</p>
@@ -603,7 +610,7 @@
 
                 <div class="box box-yellow">
                     <strong>⚠ The urban zone-ticket trap</strong>
-                    Ask for a station-to-station ticket in a city and you may be sold a <strong>zonal</strong> ticket that also covers trams and buses outside FIP. It is valid for Swiss Half Fare cardholders — but with a <strong>FIP Card you may only use it on FIP-scheme companies</strong>.
+                    Ask for a station-to-station ticket in a city and you may be sold a <strong>zonal</strong> ticket that also covers trams and buses outside FIP. It is valid for Swiss Half Fare cardholders, but <strong>not with a FIP Card</strong> — ask for a point-to-point FIP ticket instead.
                 </div>
 
                 <p><strong>BLS</strong> covers all BLS rail <em>and bus</em> services (including Busland AG) plus BLS boats on <strong>Lake Thun and Lake Brienz</strong>. Not valid on funiculars or cable cars, or on car-carrying trains through the Simplon and Lötschberg tunnels.</p>
@@ -633,9 +640,9 @@
                     <span class="src-note">Rail Staff Travel states the requirement but not a price, so no figure is quoted here — ask when you book.</span>
                 </div>
 
-                <div class="box box-red mb-0">
-                    <strong>⚠ Paris–Switzerland TGV (Lyria) — coupons not valid</strong>
-                    These cross-border high-speed trains use a special FIP fare rather than 50% off, and free coupons are not accepted. Book via Trainseurope or SNCF direct.
+                <div class="box box-yellow mb-0" data-guide-source="fip-fr fip-booking-table">
+                    <strong>⚠ Paris–Switzerland TGV (Lyria) — global fares</strong>
+                    <strong>Global fares</strong> apply on Lyria, and as a cross-border TGV the full supplement and a reservation apply (above). International Rail cannot book Lyria, so buy it at a ticket office.
                 </div>
                 <p class="country-reviewed">✓ Checked Aug 2026 against Rail Staff Travel</p>
             </div>
@@ -774,7 +781,7 @@
                 <p><strong>Breaking your journey</strong> is permitted without formality on MÁV. On <strong>GySEV</strong> the ticket <strong>must be endorsed at the station where you break</strong>.</p>
                 <p><strong>Changing your route</strong> is not possible on the train — only at a ticket office before you start, and the original ticket becomes invalid with a surcharge on the new one.</p>
                 <p><strong>How far ahead:</strong> international tickets and reservations no more than <strong>6 months</strong> before the first day of validity; domestic FIP discounted tickets, <strong>60 days</strong>. Changes to international tickets bought in Hungary can only be made <strong>the same day, at the same station</strong>.</p>
-                <p><strong>Also covered:</strong> the <strong>Szeged–Hódmezővásárhely</strong> TramTrain and the <strong>Balatonfenyves</strong> narrow-gauge line. <strong>Not</strong> covered: MÁV or GySEV buses, unless they are running as rail replacement.</p>
+                <p><strong>Also covered:</strong> the <strong>Szeged–Hódmezővásárhely</strong> TramTrain and the <strong>Balatonfenyves</strong> narrow-gauge line. <strong>Not</strong> covered: MÁV buses unless they are running as rail replacement, or GySEV buses.</p>
                 <p class="country-reviewed">✓ Checked Aug 2026 against Rail Staff Travel</p>
             </div>
         </details>
@@ -832,7 +839,7 @@
                     <span class="tag tag-warn">Coupons: staff only</span>
                     <span class="tag tag-warn">Supplements on fast trains</span>
                 </div>
-                <p><strong>Poland is not one FIP operator — it is six.</strong> <strong>PKP</strong> (national), plus the regional railways <strong>KD</strong> (Lower Silesia), <strong>KŚ</strong> (Silesia), <strong>KW</strong> (Greater Poland) and <strong>ŁKA</strong> (Łódź) — each its own undertaking with its own coupon. <strong>KMŁ</strong> (Kraków area) appears in the FIP arrangements too, but <strong>carries no coupon allocation of its own</strong> — treat it as FIP Card territory.</p>
+                <p><strong>Poland is not one FIP operator — it is six.</strong> <strong>PKP</strong> (national), plus the regional railways <strong>KD</strong> (Lower Silesia), <strong>KŚ</strong> (Silesia), <strong>KW</strong> (Greater Poland) and <strong>ŁKA</strong> (Łódź) — each its own undertaking with its own coupon. <strong>KMŁ</strong> (Kraków area) appears in the FIP arrangements too, but <strong>carries no coupon allocation of its own</strong>. Rail Staff Travel does not say whether the FIP Card discount applies on KMŁ, so check before you travel.</p>
 
                 <p><strong>What a PKP coupon actually covers:</strong> PKP services, and also <strong>Koleje Mazowieckie (KM)</strong>, <strong>PKP SKM Tricity</strong> (Gdańsk/Gdynia), <strong>Warszawska Kolej Dojazdowa (WKD)</strong>, and <strong>some KD routes</strong>. Outside those you need that operator's own coupon.</p>
 
@@ -1078,6 +1085,7 @@
                 <span class="tag tag-no">No FIP operator listed</span>
             </div>
             <p class="not-fip-desc"><strong>No Sweden operator appears on Rail Staff Travel's list of FIP carriers</strong>, and there is no Sweden country page — so there is nothing here for a coupon or a FIP Card to work on. Budget for standard public fares. This is an <em>absence</em> of membership rather than a rule excluding you, so if you see FIP advertised locally, check with Rail Staff Travel before assuming either way.</p>
+            <p class="country-reviewed">✓ Checked Aug 2026 against Rail Staff Travel</p>
         </div>
 
         <div id="country-fi" class="card card-pad not-fip-card mb-8" data-guide-source="fip-nonmember-fi">
@@ -1086,6 +1094,7 @@
                 <span class="tag tag-no">No FIP operator listed</span>
             </div>
             <p class="not-fip-desc"><strong>No Finland operator appears on Rail Staff Travel's list of FIP carriers</strong>, and there is no Finland country page — so there is nothing here for a coupon or a FIP Card to work on. Budget for standard public fares. This is an <em>absence</em> of membership rather than a rule excluding you, so if you see FIP advertised locally, check with Rail Staff Travel before assuming either way.</p>
+            <p class="country-reviewed">✓ Checked Aug 2026 against Rail Staff Travel</p>
         </div>
 
 
@@ -1125,7 +1134,7 @@
                 <p><strong>Routes:</strong> Holyhead → Dublin &nbsp;|&nbsp; Fishguard → Rosslare &nbsp;|&nbsp; Cairnryan → Belfast &nbsp;|&nbsp; Liverpool → Belfast</p>
                 <div class="box box-yellow mt-8">
                     <strong>⚠ Book before you travel</strong>
-                    FIP discounted tickets <strong>must be bought in advance</strong> and <strong>cannot be bought on board</strong>. Book through the current Stena FIP contact shown by Rail Staff Travel — the same call covers port charges, a cabin, Stena Plus or meals.
+                    FIP discounted tickets <strong>must be bought in advance</strong> and <strong>cannot be bought on board</strong>.
                 </div>
                 <p>The <strong>Port Tax and Environmental Charge</strong> is payable on top of the discounted fare. The FIP discount does <strong>not</strong> cover carriage of a <strong>car, bicycle or caravan</strong> — those are charged in full.</p>
                 <p><strong>No free coupons on these routes</strong> — the allocation is nil, unlike
@@ -1164,7 +1173,7 @@
                 <li class="no">Assuming Eurostar accepts FIP coupons — it doesn't. Fixed FIP fares apply instead</li>
                 <li class="no">Assuming FIP is always cheaper than public fares — compare advance tickets first</li>
                 <li class="no">Treating a sold-out FIP fare as "booked too late" — the fares are <strong>quota-limited</strong>, so moving your date or time is usually the fix, not booking earlier</li>
-                <li class="no">Writing on a coupon too early — fill in the date as close to travel as possible, in permanent ink, no corrections</li>
+                <li class="no">Writing on a coupon too early — fill in the date as close to travel as possible, in permanent ink — never alter a date; if you make a mistake, block it out and use the next box</li>
                 <li class="no">Boarding before dating a box — you lose the next box <em>and</em> pay the full fare</li>
                 <li class="no">Assuming a train is covered because it's in the right country — <strong>FIP is per operator, not per country</strong>. Check the undertaking before you travel: Italo, OUIGO, RegioJet and Leo Express are outside FIP, while GySEV, Euskotren, the Polish regionals and Switzerland's BLS are inside it</li>
                 <li class="no">Assuming city metros and trams are included — they almost never are</li>

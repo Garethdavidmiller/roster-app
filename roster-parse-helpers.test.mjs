@@ -24,7 +24,6 @@ const {
     mapColumnHeadersToDates,
     buildSafeEntries,
     isPhysicallyBlank,
-    applySundayScanCorrections,
     applyColumnScanCrossCheck,
     normaliseScanValue,
     parseStrictIsoDate,
@@ -44,6 +43,8 @@ const {
     buildResetRequestNotice,
     shouldNotifyAdmin,
     summariseSignIns,} = require('./functions/roster-parse-helpers.js');
+const { applySundayScanCorrections, settleDisputedSundays } = require('./functions/roster-sunday-repair.js');
+const { applyGeometryWitness } = require('./functions/roster-geometry.js');
 
 // ── fileSignatureMatches ──────────────────────────────────────────────────────
 
@@ -386,6 +387,18 @@ describe('extractAIJson', () => {
         assert.deepEqual(extractAIJson('For example {"a":1} means something.\n' + real),
             { parsed: [{ Mon: 'RD' }], columnHeaders: ['Mon'] });
     });
+    // The GEOMETRY-path prompt asks for `{ parsed }` alone (no columnHeaders — there was no table to
+    // read them off), so a shape test that required both returned the preamble's `{}` and the upload
+    // failed as "an unexpected format". The caller still requires columnHeaders on the legacy path.
+    test('finds the geometry-path payload ({ parsed } only) past a valid-JSON preamble literal', () => {
+        const real = '{"parsed": [{"memberName": "X. Test", "Sunday": "BLANK"}]}';
+        assert.deepEqual(extractAIJson('Empty cells are {} in the source.\n' + real),
+            { parsed: [{ memberName: 'X. Test', Sunday: 'BLANK' }] });
+    });
+    test('the full legacy shape still wins over an earlier { parsed }-only span', () => {
+        const real = '{"columnHeaders": ["Mon"], "parsed": [{"Mon": "RD"}]}';
+        assert.deepEqual(extractAIJson('e.g. {"parsed": []}\n' + real), { columnHeaders: ['Mon'], parsed: [{ Mon: 'RD' }] });
+    });
     test('an object that does not match the roster shape is still returned when nothing better exists', () => {
         // Shape-matching must never turn a previously-working return into a throw: if no span
         // carries parsed[]/columnHeaders[], the first parsed object is returned exactly as before.
@@ -521,7 +534,7 @@ describe('buildSafeEntries', () => {
 
         test('NA on MONDAY TO SATURDAY is an absence — the app\'s Absent day, never a question', () => {
             for (const [day, date] of [['Mon', '2026-03-30'], ['Wed', '2026-04-01'], ['Sat', '2026-04-04']]) {
-                for (const token of ['NA', 'N/A', 'na', ' n/a ']) {
+                for (const token of ['NA', 'N/A', 'na', ' n/a ', 'N.A.', 'n.a']) {
                     assert.equal(buildSafeEntries([row(day, token)], HEADERS, DATES)[0].shifts[date], 'SICK', `${day} ${JSON.stringify(token)}`);
                 }
             }
@@ -690,15 +703,16 @@ describe('applySundayScanCorrections', () => {
     ];
     const SUN_DATE = '2026-03-29';
 
-    test('Case A: sundayScan=blank but parsed has time → corrects to RD', () => {
+    // No Saturday to anchor a repair on, so these take the "can't cleanly reverse" branch: the
+    // Sunday claim is LEFT for the geometry witness and the member is reported as disputed.
+    test('Case A: sundayScan=blank but parsed has time → the claim is disputed, not overwritten', () => {
         const entries = [{ memberName: 'G. Miller', shifts: { [SUN_DATE]: '06:00-14:00' } }];
-        applySundayScanCorrections(entries, { 'G. Miller': 'blank' }, true, DATES);
-        assert.equal(entries[0].shifts[SUN_DATE], 'RD');
+        assert.deepEqual(applySundayScanCorrections(entries, { 'G. Miller': 'blank' }, true, DATES), ['G. Miller']);
+        assert.equal(entries[0].shifts[SUN_DATE], '06:00-14:00');
     });
-    test('Case A: sundayScan=RD also triggers correction', () => {
+    test('Case A: sundayScan=RD also triggers it', () => {
         const entries = [{ memberName: 'G. Miller', shifts: { [SUN_DATE]: '06:00-14:00' } }];
-        applySundayScanCorrections(entries, { 'G. Miller': 'RD' }, true, DATES);
-        assert.equal(entries[0].shifts[SUN_DATE], 'RD');
+        assert.deepEqual(applySundayScanCorrections(entries, { 'G. Miller': 'RD' }, true, DATES), ['G. Miller']);
     });
     test('Case B: sundayScan has RDW but parsed has plain time → adds RDW prefix', () => {
         const entries = [{ memberName: 'G. Miller', shifts: { [SUN_DATE]: '06:00-14:00' } }];
@@ -746,11 +760,14 @@ describe('applySundayScanCorrections', () => {
         assert.equal(s[DATES[6]], 'AL',           'Saturday ← old Friday (the value that had been pushed to Fri)');
     });
 
-    test('Case A but Saturday OCCUPIED → cannot cleanly reverse; only Sunday is set to RD', () => {
+    test('Case A but Saturday OCCUPIED → cannot cleanly reverse; nothing is rewritten, the member is disputed', () => {
+        // Setting Sunday to RD here (as this did until the v24.28 review) erased the one claim the
+        // geometry witness could refuse, and left Mon–Fri a day out as pre-ticked changes.
         const entries = [fullWeek(['06:00-14:00', '07:00-15:00', 'RD', 'RD', 'RD', 'RD', '09:00-17:00'])];
-        applySundayScanCorrections(entries, { 'G. Miller': 'blank' }, true, DATES);
+        const disputed = applySundayScanCorrections(entries, { 'G. Miller': 'blank' }, true, DATES);
         const s = entries[0].shifts;
-        assert.equal(s[DATES[0]], 'RD',           'Sunday honoured as blank');
+        assert.deepEqual(disputed, ['G. Miller']);
+        assert.equal(s[DATES[0]], '06:00-14:00',  'the Sunday claim is left for the witness');
         assert.equal(s[DATES[1]], '07:00-15:00',  'Mon–Sat left as-is (no unsafe shift)');
         assert.equal(s[DATES[6]], '09:00-17:00',  'occupied Saturday preserved');
     });
@@ -770,6 +787,93 @@ describe('applySundayScanCorrections', () => {
         assert.equal(s[DATES[0]], 'RD',          'Sunday → RD');
         assert.equal(s[DATES[1]], 'SPARE',       'Monday ← the SPARE the AI mis-placed in Sunday');
         assert.equal(s[DATES[2]], '06:00-14:00', 'Tuesday ← old Monday');
+    });
+});
+
+// ── Case A on the blank contract the model has used since v22.25 ─────────────────────────────
+//
+// The fixtures above hand the repair a Saturday of 'RD', which is what the model's EMPTY trailing
+// slot looked like before v22.25. Since then it reports that slot as "BLANK", and buildSafeEntries
+// turns a blank Saturday into the "no Saturday cell was read" question — so the clean-repair test
+// (`Saturday === 'RD'`) never matched a real left-shift again, and every one took the partial branch.
+// These drive the real sequence the handler runs, from the model's own shape.
+describe('Case A — a left-shifted row whose empty Saturday arrives as BLANK', () => {
+    const DATES = buildWeekDates('2026-10-03');
+    const HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const quiet = fn => { const w = console.warn; console.warn = () => {}; try { return fn(); } finally { console.warn = w; } };
+    const read = row => quiet(() => buildSafeEntries([{ memberName: 'X. Test', ...row }], HEADERS, DATES));
+    // Real week: Sunday blank, then 06-14 · 07-15 · RD · 08-16 · AL · 09-17 (Mon → Sat).
+    const DRIFTED = { Sun: '06:00-14:00', Mon: '07:00-15:00', Tue: 'RD', Wed: '08:00-16:00', Thu: 'AL', Fri: '09:00-17:00', Sat: 'BLANK' };
+    const TRUE_WEEK = ['RD', '06:00-14:00', '07:00-15:00', 'RD', '08:00-16:00', 'AL', '09:00-17:00'];
+    const week = e => DATES.map(d => e.shifts[d]);
+    const grid = occ => ({ available: true, rows: [{ name: 'X Test', cells: occ.map(o => (o ? 'x' : '')), occupancy: occ }] });
+
+    test('the BLANK Saturday is the empty trailing slot — the clean right-shift fires', () => {
+        const safe = read(DRIFTED);
+        const disputed = quiet(() => applySundayScanCorrections(safe, { 'X. Test': 'BLANK' }, true, DATES));
+        assert.deepEqual(week(safe[0]), TRUE_WEEK);
+        assert.deepEqual(disputed, [], 'a repaired row is not disputed');
+    });
+
+    test('and the repaired week then passes the PDF grid with nothing refused', () => {
+        const safe = read(DRIFTED);
+        quiet(() => applySundayScanCorrections(safe, { 'X. Test': 'BLANK' }, true, DATES));
+        const st = quiet(() => applyGeometryWitness(safe, grid([false, true, true, true, true, true, true]), DATES));
+        assert.deepEqual(st.refused, []);
+        assert.deepEqual(week(safe[0]), TRUE_WEEK);
+    });
+
+    test('an occupied Saturday leaves the Sunday claim for the witness, which refuses the row', () => {
+        const safe = read({ ...DRIFTED, Sat: '10:00-18:00' });
+        const disputed = quiet(() => applySundayScanCorrections(safe, { 'X. Test': 'BLANK' }, true, DATES));
+        assert.deepEqual(disputed, ['X. Test']);
+        const st = quiet(() => applyGeometryWitness(safe, grid([false, true, true, true, true, true, true]), DATES));
+        assert.deepEqual(st.refused.map(r => r.memberName), ['X. Test'],
+            'the refusal is what unticks the whole row on the review — overwriting Sunday first made it impossible');
+        quiet(() => settleDisputedSundays(safe, disputed, st, DATES));
+        assert.match(safe[0].shifts[DATES[0]], /^UNKNOWN\|/);
+    });
+
+    test('with no witness, a disputed Sunday goes to review rather than being written either way', () => {
+        const safe = read({ ...DRIFTED, Sat: '10:00-18:00' });
+        const disputed = quiet(() => applySundayScanCorrections(safe, { 'X. Test': 'BLANK' }, true, DATES));
+        const st = applyGeometryWitness(safe, { available: false, rows: [] }, DATES);
+        quiet(() => settleDisputedSundays(safe, disputed, st, DATES));
+        assert.match(safe[0].shifts[DATES[0]], /^UNKNOWN\|06:00-14:00 was read/);
+        assert.equal(safe[0].shifts[DATES[1]], '07:00-15:00', 'nothing else is touched');
+    });
+
+    test('when the grid shows the Sunday cell OCCUPIED, the row read stands — the physical fact wins', () => {
+        const safe = read({ ...DRIFTED, Sat: '10:00-18:00' });
+        const disputed = quiet(() => applySundayScanCorrections(safe, { 'X. Test': 'BLANK' }, true, DATES));
+        const st = quiet(() => applyGeometryWitness(safe, grid([true, true, true, true, true, true, true]), DATES));
+        quiet(() => settleDisputedSundays(safe, disputed, st, DATES, { 'X. Test': 'BLANK' }));
+        assert.equal(safe[0].shifts[DATES[0]], '06:00-14:00');
+    });
+
+    // R-A1 (re-review). The occupancy exemption above holds only when the scan saw a LITERALLY empty
+    // cell: then the grid contradicts the scan and the row read wins. A printed rest code (NS, NA,
+    // RD, '-') is ink in the cell, so the grid's "occupied" AGREES with the scan and says nothing
+    // for the worked shift the row read put there.
+    for (const code of ['NS', 'NA', 'N.A.', 'RD', '-']) {
+        test(`a Sunday printed ${code}, grid occupied, row read a shift → a review question, not a worked Sunday`, () => {
+            const safe = read({ ...DRIFTED, Sat: '10:00-18:00' });
+            const scan = { 'X. Test': code };
+            const disputed = quiet(() => applySundayScanCorrections(safe, scan, true, DATES));
+            assert.deepEqual(disputed, ['X. Test'], `scan "${code}" is a rest code the row read disputes`);
+            const st = quiet(() => applyGeometryWitness(safe, grid([true, true, true, true, true, true, true]), DATES));
+            quiet(() => settleDisputedSundays(safe, disputed, st, DATES, scan));
+            assert.match(safe[0].shifts[DATES[0]], /^UNKNOWN\|06:00-14:00 was read for Sunday/);
+        });
+    }
+
+    test('a printed OFF Sunday is a rest day, not a claim — a correct week is never shifted', () => {
+        // OFF ≡ RD everywhere else in the import (the CES and bilingual rosters print it).
+        const safe = read({ Sun: 'OFF', Mon: '06:00-14:00', Tue: '06:00-14:00', Wed: 'RD', Thu: '07:00-15:00', Fri: '07:00-15:00', Sat: 'RD' });
+        const before = week(safe[0]);
+        const disputed = quiet(() => applySundayScanCorrections(safe, { 'X. Test': 'BLANK' }, true, DATES));
+        assert.deepEqual(week(safe[0]), before);
+        assert.deepEqual(disputed, []);
     });
 });
 
@@ -1530,6 +1634,18 @@ describe('applyColumnScanCrossCheck — review-fix hardening', () => {
     const HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const shiftsOf = vals => Object.fromEntries(DATES.map((d, i) => [d, vals[i]]));
     const scanOf   = vals => Object.fromEntries(HEADERS.map((h, i) => [h, { 'G. Miller': vals[i] }]));
+
+    test('a LEFT realignment never invents a rest day for a Saturday the column scan did not read', () => {
+        // The scan is honest but omits this member from the Saturday column (fail-open per cell).
+        // The realigned Saturday has no reading at all — it is a question, not a rest day (v22.19).
+        const row = ['RD', '06:00-14:00', '06:00-14:00', '09:00-17:00', '07:00-15:00', '07:00-15:00', 'AL'];
+        const scan = scanOf(['blank', '06:00-14:00', '06:00-14:00', '07:00-15:00', '07:00-15:00', 'AL', undefined]);
+        const entries = [{ memberName: 'G. Miller', shifts: shiftsOf(row) }];
+        const w = console.warn; console.warn = () => {};
+        try { applyColumnScanCrossCheck(entries, scan, HEADERS, DATES); } finally { console.warn = w; }
+        assert.equal(entries[0].shifts[DATES[5]], 'AL', 'the realignment itself still happens');
+        assert.match(entries[0].shifts[DATES[6]], /^UNKNOWN\|/, 'an unread Saturday must not become RD');
+    });
 
     test('PIPELINE ORDER: a columnScan lazily COPIED from a drifted row must not reverse the Sunday repair', () => {
         // True week: blank Sunday, then m t w th f s. Row read is the classic full-row LEFT drift.

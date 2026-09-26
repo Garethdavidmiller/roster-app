@@ -190,14 +190,17 @@ Note: `'GMT Standard Time'` has spaces — `'GMTStandardTime'` is invalid.
 
 ### Firestore Security Rules — `huddles` collection
 
-Access posture: **read open, write admin-only**. (The live rule in `firestore.rules` is the
+Access posture: **read requires access, write admin-only** — a read needs a bound member identity,
+the admin claim, or the staff-PIN viewer capability (open from v10.76 until v23.18). (The live rule in `firestore.rules` is the
 authority — since v14.29 it also shape-validates browser writes: `hasOnly` field allowlist,
 bounded `YYYY-MM-DD` date, `fileType in ['pdf','docx']`, typed `uploadedAt`/`uploadedBy`, a
 250,000-char `htmlContent` cap, and a separate admin-only delete rule. Don't quote the rule
 here — it drifts; read the file.)
 
-Read is open because `calendar-app.js` (index.html) has no Firebase Auth session — requiring auth
-broke notification auto-open on fresh first visits (v10.76). Browser writes (the manual admin
+Read was open from v10.76 because a notification tap on a fresh first visit carried no Firebase
+Auth session, and requiring auth broke auto-open. Since v23.18 it requires access: the client holds
+such a tap behind the PIN card and refuses the read at source (v23.17, `calendar-doc-access.js`) —
+see "Behind the PIN" below. Browser writes (the manual admin
 upload path in `huddle.js`) require the admin claim (v10.83); the automated
 `ingestHuddle` Cloud Function uses the Admin SDK, which bypasses rules entirely. The matching
 Storage rule (`storage.rules`) also requires the admin claim for huddle file writes.
@@ -218,7 +221,7 @@ browser's own PDF viewer and can be printed from there like any file.
 | `htmlContent` | Behaviour (identical for the nav-panel link and a notification tap) |
 |---------------|--------------------------------------------------------------------|
 | Present (DOCX converted server-side) | Renders sanitised HTML inline in the viewer overlay |
-| Absent (PDF, or DOCX conversion failed) | Shows an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`); tapping it calls `window.open(storageUrl, '_blank', 'noopener')` |
+| Absent (PDF, or DOCX conversion failed) | Shows an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`); tapping it calls `window.open(url, '_blank', 'noopener')` with the short-lived `getDocumentUrl` URL minted when the button was drawn, or the stored `storageUrl` if none has arrived by the tap (v24.19) |
 
 **Why the in-overlay button (no `htmlContent`):**
 
@@ -226,7 +229,7 @@ A notification tap provides no transient user activation in the page. This means
 - `window.open('_blank', ...)` → pop-up blocked by the browser (no user gesture)
 - `window.location.href = storageUrl` → navigates the standalone PWA's top-level window to a cross-origin URL; Android wraps the app in browser chrome and the standalone window is lost
 
-Tapping the in-overlay "📄 Open Huddle" button IS a real user gesture. `window.open(storageUrl, '_blank', 'noopener')` then opens the file as an Android Custom Tab overlaid on top of the intact standalone PWA. The Android Back gesture dismisses the Custom Tab and returns directly to the clean standalone app.
+Tapping the in-overlay "📄 Open Huddle" button IS a real user gesture. `window.open(url, '_blank', 'noopener')` then opens the file as an Android Custom Tab overlaid on top of the intact standalone PWA. The Android Back gesture dismisses the Custom Tab and returns directly to the clean standalone app.
 
 **Important:** Both triggers (nav-panel link and notification tap) reach the viewer through the `#huddle` hash and the single `_triggerAutoOpen` path, so the no-`htmlContent` case always opens the file via the in-overlay button — never a direct `window.open`/`location.href` at open time. A notification tap carries no user activation (direct `window.open` would be pop-up-blocked; a `location.href` to the cross-origin file would knock the PWA out of standalone mode), and routing both triggers through the explicit button avoids relying on activation that may not be present. DOCX files with `htmlContent` bypass this entirely — they render inline.
 
@@ -411,10 +414,10 @@ for the browser's only destructive operation on shared data, so it is worth re-r
 ### Staff access flow
 
 1. Staff taps ☰ → **Weekly Retail Circular** or **Marylebone Newsletter** in the nav-panel drawer.
-2. `nav-panel.js` click handler fires. A `_docFetching` boolean guard at module scope returns early if a fetch is already in-flight (tap-guard against rapid repeated taps).
+2. `nav-panel.js` click handler fires. A `_docFetching` boolean guard at module scope returns early if a fetch is already in-flight (tap-guard against rapid repeated taps). On the Calendar, a visitor without access (`!canReadDocuments()`, v23.17) is refused first — the lightbox names the PIN or sign-in — and no tab is opened.
 3. `window.open('', '_blank')` is called **synchronously** in the same event tick as the click — this is required for Safari/iOS to allow the new tab. The blank tab is opened before any async work begins.
-4. `getLatestCircular()` / `getLatestNewsletter()` is awaited:
-   - On success with a `storageUrl`: `newTab.location.href = url` opens the file (a PDF previews in the tab by its own URL; a Word `.docx` is routed through Microsoft's Office Online viewer via `officeViewerUrl` (v16.45) so it renders with images instead of downloading — still no Mammoth-style inline HTML conversion, unlike the Huddle); `closePanelForNavigation()` closes the drawer.
+4. `getLatestCircular()` / `getLatestNewsletter()` is awaited, raced against an 8s timeout, with a short-lived URL requested from `getDocumentUrl` alongside it (v24.19; in parallel since v24.23):
+   - On success with a `storageUrl`: `newTab.location.href = url` opens the file — the short-lived URL, or the stored `storageUrl` when none was minted (a PDF previews in the tab by its own URL; a Word `.docx` is routed through Microsoft's Office Online viewer via `officeViewerUrl` (v16.45) so it renders with images instead of downloading — still no Mammoth-style inline HTML conversion, unlike the Huddle); `closePanelForNavigation()` closes the drawer.
    - On success with no document (null): `newTab.close()` cancels the blank tab; the coming-soon lightbox is shown.
    - On Firestore error: same as null — cancels the blank tab, shows a retry message in the coming-soon lightbox.
 5. `_docFetching` is reset to `false` in `.finally()`.
@@ -423,7 +426,7 @@ for the browser's only destructive operation on shared data, so it is worth re-r
 
 | Operation | Requirement |
 |-----------|-------------|
-| Reads | Open — no auth required. `calendar-app.js` has no Firebase session (matches Huddle model). The download URL is a tokenised Firebase Storage URL; access to the Firestore metadata alone does not bypass Storage rules. |
+| Reads | Require access, as the Huddle does (v23.18 — open before): a bound member identity, the admin claim, or the staff-PIN viewer capability. The client refuses at source behind the PIN (v23.17, `calendar-doc-access.js`). Files open via a short-lived `getDocumentUrl` URL (v24.19), falling back to the stored `storageUrl` — a tokenised bearer URL (ARCHITECTURE.md EXC-007). |
 | Writes | `request.auth.token.admin == true` (admin claim only) |
 | Storage create/update | Rules enforce PDF or Word (.docx) MIME type + ≤20 MB per file (Word added v16.31) |
 | Storage delete | Admin-only; MIME/size checks omitted (no `request.resource` on delete) |
@@ -449,7 +452,7 @@ for the browser's only destructive operation on shared data, so it is worth re-r
 | C. Francisco-Charles | c.franciscocharles@myb-roster.local | franciscocharles |
 | L. Atrakimaviciene | l.atrakimaviciene@myb-roster.local | atrakimaviciene |
 
-`nameToEmail(name)` / `normaliseSurname()` in `auth-identity.js` (the pure browser module — re-exported by `firebase-client.js`, so importers may pull it from either) must stay in sync with the copy in `functions/roster-parse-helpers.js`. As of v12.04, `getSurname()` in `session.js` delegates to `normaliseSurname()`; since v16.50 the browser source is `auth-identity.js` (moved out of `firebase-client.js` so it is unit-testable). The derivation is duplicated in `functions/roster-parse-helpers.js` — intentional: Cloud Functions are CommonJS and cannot import browser ES modules. If the rule ever changes, update BOTH source files (`auth-identity.js` + `functions/roster-parse-helpers.js`); `surname-parity.test.mjs` enforces they match.
+`nameToEmail(name)` / `normaliseSurname()` in `auth-identity.js` (the pure browser module — re-exported by `firebase-client.js`, so importers may pull it from either) must stay in sync with the copy in `functions/roster-parse-helpers.js`. As of v12.04, `getSurname()` in `session.js` delegates to `normaliseSurname()`; since v16.50 the browser source is `auth-identity.js` (moved out of `firebase-client.js` so it is unit-testable). The derivation is duplicated in `functions/roster-parse-helpers.js` — intentional: Cloud Functions are CommonJS and cannot import browser ES modules. If the rule ever changes, update ALL THREE copies — `auth-identity.js`, `functions/roster-parse-helpers.js`, and `memberEmailFor` in `firestore.rules` (a mismatch with the rules copy locks that member out). `surname-parity.test.mjs` pins the first two together; the rules suite's whole-roster test in `firestore.rules.test.mjs` pins the third.
 
 **Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters by repeating the surname** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is; shorter ones are padded by repeating the surname cyclically (e.g. `"tuck"` → `"tucktu"`). The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it self-heals a missing account on page load. The single source for this padded default is `surnamePassword(fullName)` in `auth-identity.js` (v18.63).
 
@@ -638,7 +641,8 @@ lets both be fixed at once.
 | Any browser holding nothing — a new phone, a shared PC's fresh browser (v23.19) | The Calendar area shows the **member sign-in card** first (grade · name · password — the same card as the other pages), with **"Use the staff PIN instead"** beneath it and a line saying who the PIN is for: visiting or agency staff, or anyone without a password yet. One tap → the "Enter the staff PIN" card. Four digits → the roster, including whichever member was last selected on that machine. A station PC can bookmark `./#staff-pin` to land on the PIN card directly. |
 | Same browser, reload or navigation | Stays unlocked. The viewer session lives as long as the browser session. |
 | Browser closed and reopened | The PIN is asked for again. That is the point — a PC left on a Windows account does not carry the roster into the next person's day. |
-| Guides, Huddle, Circular, Newsletter | Reachable **without** the PIN. The nav drawer is never locked. |
+| Guides | Reachable **without** the PIN. The nav drawer is never locked. |
+| Huddle, Circular, Newsletter | Need the PIN or a sign-in (v23.17). A locked tap says what to do rather than opening; a notification tap is held on the PIN card and finishes once access is given. |
 | A member whose sign-in has been lost from the device (v20.79) | They get **their own sign-in card**, never the PIN — see below. |
 | A slow start on a poor connection (v20.80) | A greyed-out calendar shape while the app works out what to show, rather than a blank screen. |
 
@@ -688,8 +692,8 @@ reads, which shows every visitor a base roster under a "couldn't update" chip. R
 that point means rolling back the rules: RECOVERY_RUNBOOK.md → "The Calendar PIN".
 
 **BOTH BRAKES ARE NOW OFF (26 Aug 2026).** The flag has been `true` since v20.51 and the
-`allow read;` hold line was deleted at v21.78, so `overrides` reads require a `name` claim, `admin`,
-or the `calendarViewer` capability and the server refuses anything else. They were released one push
+`allow read;` hold line was deleted at v21.78, so `overrides` reads require a bound member identity
+(`isMember()` — AUTH_AND_SESSIONS.md invariant 19), `admin`, or the `calendarViewer` capability and the server refuses anything else. They were released one push
 each, client first and rules second — steps 3 and 4 of RECOVERY_RUNBOOK.md → "The Calendar PIN".
 That ordering is the part worth remembering if a comparable rollout ever comes up: the deploy
 workflows run in parallel, so which lands first is a coin toss, and rules-before-client is the state
@@ -739,18 +743,24 @@ the new PIN. Member sessions are untouched.
    email**), re-applies its claims — exactly `{ calendarViewer: true }` — and returns a custom token.
 3. The client switches Firebase Auth to **session-only persistence**, signs in with the token, and
    verifies the claim actually arrived before showing anything.
-4. `firestore.rules` allows `overrides` reads for a `name` claim (a real member) or `calendarViewer`.
+4. `firestore.rules` allows `overrides` reads for a bound member identity (`isMember()`: a password
+   sign-in on the name's derived email, carrying the server-set `member` claim) or `calendarViewer`
+   on a custom-token sign-in.
    The viewer can write nothing, anywhere.
 
 ### Abuse protection
 
 A four-digit PIN is 10,000 combinations, so the endpoint is throttled server-side **two ways**, both
-recorded in the server-only `viewerAttempts` collection. Only *failures* are recorded — a correct
-PIN writes nothing.
+recorded in the server-only `viewerAttempts` collection. Only *failures* stay recorded: every attempt
+is charged BEFORE its PIN is compared (so concurrent guesses cannot all be compared before any is
+counted), and a correct PIN is then refunded — a refund that brings a bucket to zero deletes the row.
+The cost of that is contention: every unlock, right or wrong, now writes the one all-sources document
+twice (charge and refund), and those writes serialise. At a handful of unlocks a day that is nothing;
+it is the trade that bought a limit on guesses COMPARED rather than on the rate of charging.
 
 1. **Per source — 30 failed attempts per 15 minutes, then a 15-minute block.** Sized for a station
    behind one corporate NAT address: thirty *wrong* entries in fifteen minutes from the whole
-   building is not fumbling, and a correct PIN never counts.
+   building is not fumbling, and a correct PIN never stays counted.
 2. **All sources — 200 failed attempts per 15 minutes** (v20.35), under a fixed key. This caps the
    whole endpoint at 800 guesses an hour, so the full PIN space takes upwards of twelve hours of
    obviously abnormal traffic.
@@ -895,7 +905,7 @@ Dispatcher*, whichever are actually in it. Picking one narrows **everything**: t
 forms-received line and the name rows all recompute for that grade alone. That is the point rather
 than a nicety — a CEA gap is not filled by an available CES, so "Tuesday has four" is only an answer
 once you know what those four are. A week with only one grade in it shows no chips — which is why
-the restricted beta, currently one CEA, shows none at all; they appear by themselves once a second
+the restricted beta, currently CEAs only, shows none at all; they appear by themselves once a second
 grade is in the week.
 
 Your grade choice **follows you between weeks** (v20.89). The day filter does not, because its
@@ -1011,8 +1021,9 @@ Printing from **My availability** gives a short notice instead. It is a form, no
   misconfiguration; it fails closed on purpose, because a window with nobody in it reads
   "0 of 0 received", which looks like a completed week.
 - **A new starter never gets a form** → `functions/roster-members.json` has not been regenerated.
-  Run `npm run generate:roster-members` and redeploy Functions. Existing windows keep the population
-  they froze at creation, by design.
+  Run `npm run generate:roster-members` and redeploy Functions. Existing weeks gain them overnight
+  while their first deadline is still ahead; weeks already past it keep the population they had, by
+  design.
 - **A member says their submission vanished** → it did not. Submissions are append-only, and the
   reviewer's by-day view flags who submitted after the initial deadline and who changed their answer
   since. Check the week's *Who is available* before assuming a fault.

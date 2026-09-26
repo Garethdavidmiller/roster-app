@@ -37,6 +37,7 @@ import * as OTD from './overtime-data.js';
 import { confirmDialog } from './overlay.js';
 import { loadRosterContext, rosterBadge } from './overtime-roster.js';
 import { isClockTime } from './override-utils.js';
+import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was a local copy)
 import {
     weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines, phaseChip, phaseTone,
     answerAnchorStale, submitDisposition, modesFor, offersFullTwelve, submitFailureCopy,
@@ -270,7 +271,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      * @returns {string}
      */
     function deadlineBlock(win) {
-        const lines = deadlineLines(win.phase, win.initialDeadlineAt, win.finalDeadlineAt);
+        const lines = deadlineLines(win.phase, win.initialDeadlineAt, win.finalDeadlineAt, win.openedAt);
         const dates = lines.filter(l => l.label);
         // Only prose that is a WARNING reaches the head (v23.84 — see phaseChip). The ordinary
         // open state is the chip; its sentence would be a paragraph about the normal case.
@@ -739,7 +740,11 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
         say(disposition === 'open' ? 'Saving…' : 'Deadline may have passed — checking with the server…', 'busy');
         submitBtn.disabled = true;
 
-        const r = await OTD.submitOvertimeAvailability(win.weekEnding, answers, baseRevision);
+        // A SNAPSHOT, sent and then recorded. The day controls stay live while "Saving…" shows, so
+        // recording `answers` after the await stored an edit the server never received as saved —
+        // green rows, isDirty false, and the old answer on the server.
+        const sent = deepCopy(answers);
+        const r = await OTD.submitOvertimeAvailability(win.weekEnding, sent, baseRevision);
 
         if (r.ok) {
             submitBtn.disabled = false;
@@ -749,10 +754,15 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             // window objects (the Back button, a tab switch) — and until v20.75 it re-read a
             // submission fetched at page load, so a member who submitted another week and pressed
             // Back was shown "Not submitted yet" about the form they had just watched succeed.
+            // The receipt's time moves with a real change and not with a no-op. `serverNow` is the
+            // instant the server decided the write — the one it now stamps `acceptedAt` with.
+            const at = !r.data.noop && typeof r.data.serverNow === 'number' ? r.data.serverNow : null;
             win.submission = {
                 ...(win.submission || {}),
-                days: deepCopy(answers),
+                days: sent,
                 currentRevision: r.data.revision,
+                ...(at ? { updatedAt: at } : {}),
+                ...(at && r.data.created ? { firstAcceptedAt: at } : {}),
             };
             say(r.data.noop ? 'Already saved — no changes to record.' : '✓ Availability submitted.', 'ok');
             // Repaint: rows that showed the gold "ready" or cream "changing a saved answer" tints
@@ -874,6 +884,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
                     ...(win.submission || {}),
                     days: deepCopy(r.data.days),
                     currentRevision: r.data.currentRevision,
+                    ...(r.data.updatedAt ? { updatedAt: r.data.updatedAt } : {}),
                 };
                 paintDays();
                 paintHead();
@@ -923,9 +934,3 @@ function weekDates(weekStart) {
 /** @param {any} o */
 function deepCopy(o) { return JSON.parse(JSON.stringify(o)); }
 
-/** @param {any} s */
-function esc(s) {
-    return String(s ?? '')
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}

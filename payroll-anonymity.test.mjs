@@ -65,6 +65,47 @@ const LEAVE = /over[- ]quota|days remaining|grid days|days taken|\blong[- ]term 
 /** Every name the roster publishes, INCLUDING hidden rows — a leaver is still a person. */
 const NAMES = teamMembers.map(m => m.name).filter(Boolean);
 
+/** Escape a string for use inside a RegExp. */
+const reEscape = (/** @type {string} */ s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * The depot workbook's own name form, `Surname . I` (and `Surname, I`), derived from each app name
+ * `I. Surname` — plus the workbook's hyphen shortening (`X-Surname . I` for `I. Xxx-Surname`).
+ *
+ * Without these the guard read only the app's spelling, and `docs/AL_WORKBOOK.md` quoted the
+ * workbook's: it carried a named row's reason for absence beside a leave balance for a release after
+ * this suite gained its LEAVE rule, and passed, because `I. Surname` never appeared on that line.
+ *
+ * @type {{ name: string, re: RegExp }[]}
+ */
+const WORKBOOK_FORMS = NAMES.flatMap(name => {
+    const m = /^([A-Z])\.\s*(.+)$/.exec(name);
+    if (!m) return [];
+    const [, , surname] = m;
+    const surnames = [surname];
+    if (surname.includes('-')) {
+        const parts = surname.split('-');
+        surnames.push(`${parts[0][0]}-${parts.slice(1).join('-')}`);   // Francisco-Charles → F-Charles
+    }
+    return surnames.map(s => ({
+        name,
+        // ANY initial, not only the app's: the workbook disagrees on three people (a known-as name,
+        // or an error), and one of those three is the row that carried the reason for absence.
+        re: new RegExp(`\\b${reEscape(s)}\\s*[.,]\\s*[A-Z]\\b`),
+    }));
+});
+
+/**
+ * Every roster name found on a line, in either spelling. Reported by its APP form, once.
+ * @param {string} line
+ * @returns {string[]}
+ */
+function namesOn(line) {
+    const found = new Set(NAMES.filter(n => line.includes(n)));
+    for (const { name, re } of WORKBOOK_FORMS) if (re.test(line)) found.add(name);
+    return [...found];
+}
+
 /** Binary shapes nothing can leak a name through, and the one directory scanned on purpose. */
 const SKIP_EXT = /\.(png|pdf|woff2|ico|jpg|jpeg|webp|zip)$/i;
 /** `docs/proposals/**` is excluded on purpose: the December 2026 link proposals carry rota names
@@ -197,7 +238,7 @@ describe('no roster name sits beside a LEAVE BALANCE in the tracked tree', () =>
             try { text = readFileSync(file, 'utf8'); } catch { continue; }
             text.split('\n').forEach((line, i) => {
                 if (!LEAVE.test(line)) return;
-                const named = NAMES.filter(n => line.includes(n));
+                const named = namesOn(line);
                 if (named.length) {
                     offences.push(`${file}:${i + 1}  [${named.join(', ')}]  ${line.trim().slice(0, 120)}`);
                 }
@@ -223,7 +264,7 @@ describe('no roster name sits beside a payroll fact in the tracked tree', () => 
             try { text = readFileSync(file, 'utf8'); } catch { continue; }
             text.split('\n').forEach((line, i) => {
                 if (!PAYROLL.test(line)) return;
-                const named = NAMES.filter(n => line.includes(n));
+                const named = namesOn(line);
                 if (named.length) {
                     offences.push(`${file}:${i + 1}  [${named.join(', ')}]  ${line.trim().slice(0, 120)}`);
                 }

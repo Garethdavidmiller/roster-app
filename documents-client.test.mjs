@@ -139,6 +139,9 @@ function harness(opts = {}) {
         // fixed to stop doing. A test may replace it to drive one verdict; it may not re-implement it.
         resolveUploadCommit: opts.resolveUploadCommit || resolveUploadCommit,
         pruneOldDocs: async () => { log.push('pruned'); },
+        // The real client waits 2 s before re-reading after an ambiguous write; that pause proves
+        // nothing here and cost two seconds per ambiguous-commit case (v24.28 review).
+        sleep: async () => {},
     });
 
     return { client, store, objects, deleted, uploaded, log, setDocCalls: () => setDocCalls };

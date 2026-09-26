@@ -2047,6 +2047,8 @@
                 color: var(--primary-blue);
                 margin-top: 4px;
             }
+            /* Team View prints a whole grade, not one member — "Team Member: <selected>" mislabelled it. */
+            body.team-view-active .header::after { content: none; }
 
             .calendar-container {
                 box-shadow: none !important;

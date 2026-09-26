@@ -99,6 +99,17 @@ function _noticeEl() {
     return el;
 }
 
+/** Writes handed to withSlowSaveNotice and not yet settled, slow or not. */
+let _inFlight = 0;
+
+/**
+ * How many app writes are waiting on the server right now. A page that reloads itself (a service
+ * worker update) asks this first: a range booking commits in chunks, and a reload between two of
+ * them strands the rest (review A13).
+ * @returns {number}
+ */
+export function writesInFlight() { return _inFlight; }
+
 /** Waiting writes that are part of a batched save — while any is up, the stay-here line wins. */
 let _batchedWaiting = 0;
 
@@ -141,6 +152,9 @@ function _hide(batched) {
  * @returns {Promise<T>}
  */
 export function withSlowSaveNotice(promise, { batched = false } = {}) {
+    _inFlight++;
+    const settle = () => { _inFlight = Math.max(0, _inFlight - 1); };
+    promise.then(settle, settle);   // observe only — the caller still sees the result or error
     // `window.__E2E?.slowSaveMs` is a TEST SEAM, the same shape as text-scale.js's: the e2e holds a
     // commit open and would otherwise sit through eight real seconds to see the notice. Nothing in
     // production sets __E2E, so production always waits SLOW_SAVE_MS.

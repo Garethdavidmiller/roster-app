@@ -30,7 +30,7 @@ store.set('myb_roster_year',  '2025');
 const {
     getDisplayMonth, getDisplayYear,
     setDisplayMonth, setDisplayYear,
-    changeDisplay, persistViewedMonth, addMonths,
+    changeDisplay, persistViewedMonth, addMonths, watchLocalDate,
 } = await import('./calendar-state.js');
 
 // Capture state IMMEDIATELY after import, before any beforeEach runs.
@@ -208,5 +208,70 @@ describe('addMonths', () => {
     test('rolls correctly for a delta larger than one (robustness beyond ±1)', () => {
         assert.deepEqual(addMonths(10, 2026, 3), { month: 1, year: 2027 });  // Nov + 3 → Feb next year
         assert.deepEqual(addMonths(1, 2026, -3), { month: 10, year: 2025 }); // Feb − 3 → Nov prev year
+    });
+});
+
+// ── watchLocalDate — a PWA resumed the next morning must not keep yesterday as Today ────────────
+describe('watchLocalDate', () => {
+    /** A fake document + clock + one-slot timer, so a test can move time and fire events.
+     *  @param {string} start */
+    function rig(start) {
+        let t = new Date(start);
+        /** @type {Record<string, Function>} */ const handlers = {};
+        const doc = {
+            visibilityState: 'visible',
+            addEventListener: (/** @type {string} */ ev, /** @type {Function} */ fn) => { handlers[ev] = fn; },
+            removeEventListener: (/** @type {string} */ ev) => { delete handlers[ev]; },
+        };
+        /** @type {{ fn: Function, ms: number }|null} */ let timer = null;
+        const env = {
+            doc: /** @type {any} */ (doc), now: () => new Date(t),
+            setTimer: /** @type {any} */ ((/** @type {Function} */ fn, /** @type {number} */ ms) => { timer = { fn, ms }; return 1; }),
+            clearTimer: () => { timer = null; },
+        };
+        return {
+            env, doc,
+            set: (/** @type {string} */ iso) => { t = new Date(iso); },
+            resume: () => handlers.visibilitychange?.(),
+            fireTimer: () => { const x = timer; timer = null; x?.fn(); },
+            timer: () => timer,
+        };
+    }
+
+    test('resuming on the SAME day does nothing — no re-render for a date that did not change', () => {
+        const r = rig('2026-09-26T09:00:00');
+        let calls = 0;
+        watchLocalDate(() => { calls++; }, r.env);
+        r.set('2026-09-26T23:59:00'); r.resume();
+        assert.equal(calls, 0);
+    });
+
+    test('resuming on the NEXT day fires once, and only once for that day', () => {
+        const r = rig('2026-09-26T22:00:00');
+        let calls = 0;
+        watchLocalDate(() => { calls++; }, r.env);
+        r.set('2026-09-27T07:30:00'); r.resume();
+        assert.equal(calls, 1, 'a Calendar resumed the next morning still highlighted yesterday');
+        r.resume();
+        assert.equal(calls, 1);
+    });
+
+    test('a hidden page\'s visibilitychange is not a resume', () => {
+        const r = rig('2026-09-26T22:00:00');
+        let calls = 0;
+        watchLocalDate(() => { calls++; }, r.env);
+        r.set('2026-09-27T07:30:00'); r.doc.visibilityState = 'hidden'; r.resume();
+        assert.equal(calls, 0);
+    });
+
+    test('an open page rolls over at local midnight — the timer is armed for it', () => {
+        const r = rig('2026-09-26T23:59:00');
+        let calls = 0;
+        watchLocalDate(() => { calls++; }, r.env);
+        const armed = r.timer();
+        assert.ok(armed && armed.ms > 0 && armed.ms <= 2 * 60 * 1000, `timer armed for ${armed?.ms}ms, not the coming midnight`);
+        r.set('2026-09-27T00:00:01'); r.fireTimer();
+        assert.equal(calls, 1);
+        assert.ok(r.timer(), 'the timer re-arms for the following midnight');
     });
 });

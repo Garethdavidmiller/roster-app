@@ -5,7 +5,7 @@
 // the "require an answer" half is a save-path property and lives in the e2e.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { swapDecisionDates, replacedTypeForSwap } from './al-swapped-days.js';
+import { swapDecisionDates, replacedTypeForSwap, rangeWriteDates } from './al-swapped-days.js';
 import { teamMembers, getBaseShift, parseISODate } from './roster-data.js';
 import { isRestShift } from './override-utils.js';
 
@@ -50,6 +50,16 @@ test('a day already recorded as swapped is NOT asked again', () => {
     assert.deepEqual(out, ['2026-04-27', '2026-07-23']);
 });
 
+test('an absence already carrying a swap is NOT asked again (review A2)', () => {
+    // swap → absence → leave: the absence doc holds `replacedType: 'shift'`, which the AL written
+    // over it inherits. Asking again offered a "free" answer the write could not honour.
+    const ov = new Map([['2026-04-04', { type: 'sick', value: 'SICK', replacedType: 'shift' }]]);
+    assert.deepEqual(swapDecisionDates({ dates: ['2026-04-04'], memberObj: MEMBER, ovByDate: ov }), []);
+    const plain = new Map([['2026-04-04', { type: 'sick', value: 'SICK' }]]);
+    assert.deepEqual(swapDecisionDates({ dates: ['2026-04-04'], memberObj: MEMBER, ovByDate: plain }),
+        ['2026-04-04'], 'an absence with no chain says nothing about the contract, so the question stands');
+});
+
 test('an RDW day is never asked about — declining overtime is not leave', () => {
     // The dangerous one: asking here invites an admin to charge somebody for giving back overtime.
     const ov = new Map([['2026-04-27', { type: 'rdw', value: '09:00-17:00' }]]);
@@ -91,4 +101,14 @@ test('every value it can write is one the Firestore rules accept', () => {
         assert.ok(ALLOWED.has(replacedTypeForSwap(existing, 'annual_leave')),
             `replacedTypeForSwap(${JSON.stringify(existing)}) produced a value the rules would refuse`);
     }
+});
+
+test('a range writes an ASKED rest day only when answered swapped — even one holding an absence (review A2)', () => {
+    const sick = new Map([[REST[0], { type: 'sick', value: 'SICK' }]]);
+    const args = { type: 'annual_leave', dates: [WORKING[0], REST[0], REST[1]], memberObj: MEMBER, ovByDate: sick };
+    assert.deepEqual(rangeWriteDates(args), [WORKING[0]], '"free" (unanswered-as-swapped) writes nothing on the rest days');
+    assert.deepEqual(rangeWriteDates({ ...args, swappedDates: [REST[0]] }), [WORKING[0], REST[0]]);
+    assert.deepEqual(rangeWriteDates({ ...args, type: 'sick' }), [WORKING[0], REST[0]],
+        'absence is never asked: a rest day already holding one is rewritten as before');
+    assert.deepEqual(rangeWriteDates({ ...args, memberObj: null }), []);
 });

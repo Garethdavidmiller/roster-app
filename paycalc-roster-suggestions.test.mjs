@@ -32,6 +32,7 @@ const {
   _removeBhDateForTest,
   fetchOverridesForPeriod,
   resetOverrides,
+  getOverridesFetchState,
 } = await import('./paycalc-roster-suggestions.js');
 
 const { teamMembers } = await import('./roster-data.js');
@@ -534,6 +535,16 @@ describe('getRosterSuggestion — absence pays as the day underneath (full pay)'
     assert.strictEqual(getRosterSuggestion(period('2026-04-11'), cReen), null);
   });
 
+  test('absence on a SWAPPED-IN rest day (contracted replacedType) → nothing, because its times were never kept', () => {
+    // The calendar shows this day as Absent (review A3), and it pays as the day underneath — but
+    // `replacedType` carries only the TYPE of that day, so there are no hours to credit and none are
+    // invented (paycalc.md invariant 1). C. Reen base Sat 2026-04-11 = RD.
+    _setOverridesForTest(new Map([
+      ['2026-04-11', { type: 'sick', value: 'SICK', replacedType: 'shift', _ts: 1, _manual: true }],
+    ]));
+    assert.strictEqual(getRosterSuggestion(period('2026-04-11'), cReen), null);
+  });
+
   test('AL is unchanged — still suppresses the day entirely', () => {
     _setOverridesForTest(new Map([
       ['2026-04-06', { type: 'annual_leave', value: 'AL', _ts: 1, _manual: true }],
@@ -596,6 +607,31 @@ describe('fetchOverridesForPeriod — override priority', () => {
     // Cache empty → base roster used → BH on Easter Monday still shows
     _setOverridesForTest(new Map());
     assert.strictEqual(getRosterSuggestion(period(date), cReen), null); // Sat=RD base, no override
+  });
+
+  // AN ANSWER FROM THIS DEVICE'S CACHE IS NOT THE SERVER'S (72-hour review). With the persistent
+  // local cache on, an OFFLINE getDocs does not throw — it resolves from IndexedDB, which may hold
+  // nothing for a period never fetched. Reported as 'loaded', that told the year fill "no recorded
+  // changes" (base-only fills written and marked entered), and told the single Fill to CLEAR hours
+  // the calendar merely could not see. So it is its own answer, and the state stays base-only.
+  test('a snapshot served from the local cache → "cached", state base-only, nothing applied', async () => {
+    const date = '2026-04-11';
+    _mockGetDocs = async () => ({ ...mockSnap([
+      { date, memberName: 'C. Reen', type: 'shift', value: '10:00-19:00', source: 'manual', createdAt: { toMillis: () => 1 } },
+    ]), metadata: { fromCache: true } });
+    resetOverrides('checking');
+    const result = await fetchOverridesForPeriod({ start: new Date(date), cutoff: new Date(date) }, 'C. Reen');
+    assert.equal(result, 'cached');
+    assert.equal(getOverridesFetchState(), 'base-only', 'the badge must not claim recorded changes are included');
+    assert.strictEqual(getRosterSuggestion(period(date), cReen), null, 'an unconfirmed cache answer is not applied');
+  });
+
+  test('CONTROL: a server snapshot (fromCache false) is still "loaded"', async () => {
+    const date = '2026-04-11';
+    _mockGetDocs = async () => ({ ...mockSnap([]), metadata: { fromCache: false } });
+    resetOverrides('checking');
+    assert.equal(await fetchOverridesForPeriod({ start: new Date(date), cutoff: new Date(date) }, 'C. Reen'), 'loaded');
+    assert.equal(getOverridesFetchState(), 'loaded');
   });
 
 });

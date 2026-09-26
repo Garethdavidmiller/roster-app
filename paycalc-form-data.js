@@ -34,7 +34,7 @@
  *     v18.43 self-heal.
  */
 
-import { intVal, numVal } from './paycalc-inputs.js';
+import { hmPair, numVal } from './paycalc-inputs.js';
 import { parseSmartFloatOrNull } from './roster-data.js';
 
 /**
@@ -59,6 +59,28 @@ export function emptyPeriodData() {
              actualGross: null, actualTax: null, actualNi: null, actualPension: null };
 }
 
+/**
+ * What a pension field's text is STORED as — the one rule, shared by `readFormData` (autosave) and
+ * `confirmSettings` (the Settings Save patches the on-screen payslip). The Save path had its own
+ * `parseFloat(raw) || 0` until the 72-hour review, which froze the default onto the payslip and read
+ * a pasted "£151.86" as a £0 opt-out.
+ *
+ * Blank or garbage → null (the caller re-applies the period default), never 0: a transient blank or a
+ * stray "." left mid-edit used to persist as a real £0 opt-out (pre-v16.84 / v16.84). A typed "0" is
+ * a genuine opt-out and is kept. Self-heal (v18.43): a value still EQUAL to this period's default is
+ * stored as null, so the period keeps following `PENSION_STEPS`; a custom figure persists. Mirrors
+ * updateSaveStatus's _hasCustomPension comparison (default × pro-rate, 2dp, ±0.005). A null
+ * `periodDefaultPension` skips the self-heal, as the old inline code did when no period was found.
+ * @param {string} raw @param {number|null} periodDefaultPension
+ * @returns {number|null}
+ */
+export function pensionToStore(raw, periodDefaultPension) {
+    if (String(raw ?? '').trim() === '') return null;
+    const v = parseSmartFloatOrNull(raw);
+    if (v != null && periodDefaultPension != null && Math.abs(v - periodDefaultPension) < 0.005) return null;
+    return v;
+}
+
 /** A payslip-actual field: a typed figure, or null for blank/garbage — never a phantom 0.
  * @param {string} id @returns {number|null} */
 function _readActual(id) {
@@ -76,38 +98,22 @@ function _readActual(id) {
  * @returns {Record<string, any>}
  */
 export function readFormData({ adjNegative = false, periodDefaultPension = null } = {}) {
+    // hmPair, not two intVal reads: an hours box still holding "7.5" (not yet blurred) is stored as
+    // the 7h 30m the blur would write, never parseInt's 7.
+    const _hm = (/** @type {string} */ h, /** @type {string} */ m) => {
+        const r = hmPair(h, m);
+        return { [h]: r.h, [m]: r.m };
+    };
     return {
-        satH: intVal('satH'), satM: intVal('satM'),
-        bhH:  intVal('bhH'),  bhM:  intVal('bhM'),
-        bhOtH: intVal('bhOtH'), bhOtM: intVal('bhOtM'),
-        otH:  intVal('otH'),  otM:  intVal('otM'),
-        rdwH: intVal('rdwH'), rdwM: intVal('rdwM'),
-        sunH: intVal('sunH'), sunM: intVal('sunM'),
-        boxH: intVal('boxH'), boxM: intVal('boxM'),
+        ..._hm('satH', 'satM'), ..._hm('bhH', 'bhM'), ..._hm('bhOtH', 'bhOtM'),
+        ..._hm('otH', 'otM'), ..._hm('rdwH', 'rdwM'), ..._hm('sunH', 'sunM'), ..._hm('boxH', 'boxM'),
         peer: +(/** @type {HTMLElement} */ (document.getElementById('peerVal'))).textContent,
         slSkip: /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked,
         otherAdj: (() => { const _r = Math.abs(numVal('otherAdj') || 0); return adjNegative ? -_r : _r; })(),
-        // A BLANK pension field must persist as null (→ caller re-applies the period default), not 0.
-        // Coercing blank to 0 (the old `|| 0`) permanently stored £0 if autosave fired while the field
-        // was transiently empty (e.g. cleared to retype), overstating take-home by ~£147. A typed "0"
-        // still stores 0 (a genuine salary-sacrifice opt-out — see writeFormData's `!= null` restore).
-        // parseSmartFloatOrNull, NOT numVal||0 (v16.84): numVal floors garbage to 0, so a stray "."
-        // or "-" left mid-edit (then autosaved) stored a real £0 opt-out and overstated take-home by
-        // ~£147. null (empty OR garbage) means "not provided" → the period default is re-applied on
-        // load; a genuine typed "0" parses to 0 and is preserved (the deliberate opt-out).
-        pension: (() => {
-            const _el = /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'));
-            if (!_el || _el.value.trim() === '') return null;
-            const _v = parseSmartFloatOrNull(_el.value);
-            // Self-heal (closes the KNOWN_LIMITATIONS "pension default is frozen onto a touched
-            // period" deferral, done WITH the pension cut-overs as it prescribed — v18.43): a value
-            // still EQUAL to this period's default is stored as null, so the period keeps healing to
-            // future default changes; a genuinely custom pension (differs from the default) persists.
-            // Mirrors updateSaveStatus's _hasCustomPension comparison (default × pro-rate, 2dp, ±0.005).
-            if (_v != null && periodDefaultPension != null
-                && Math.abs(_v - periodDefaultPension) < 0.005) return null;
-            return _v;
-        })(),
+        // Blank/garbage → null, a typed "0" kept, the period default → null: `pensionToStore` above.
+        pension: pensionToStore(
+            /** @type {HTMLInputElement|null} */ (document.getElementById('pensionAmt'))?.value ?? '',
+            periodDefaultPension),
         // Real take-home from the payslip (v18.42 — review item 3): null when blank/garbage, like
         // pension — mid-edit autosaves must not store a phantom £0 "actual". Deliberately NOT in
         // isDataEmpty: a period with only this figure has no hours to compute from.

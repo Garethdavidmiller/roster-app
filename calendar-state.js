@@ -67,6 +67,48 @@ export function addMonths(month, year, delta) {
     return { month: m, year: y };
 }
 
+/**
+ * Call `onChange` when the device's LOCAL date has moved on since the last check — on a resume
+ * (`visibilitychange` → visible) and at each local midnight while the page stays open.
+ *
+ * Every "Today" the Calendar draws (the grid's highlight, Team View's column, the pay-period strip)
+ * is read from `new Date()` at render time, and nothing re-renders on its own: an installed PWA
+ * resumed the next morning highlighted yesterday until the member navigated. It fires only when the
+ * DATE changed, so an ordinary resume costs a string comparison, not a render.
+ *
+ * @param {() => void} onChange
+ * @param {{ doc?: Document, now?: () => Date, setTimer?: typeof setTimeout, clearTimer?: typeof clearTimeout }} [env] test seams
+ * @returns {() => void} stop watching
+ */
+export function watchLocalDate(onChange, env = {}) {
+    const doc = env.doc ?? document;
+    const now = env.now ?? (() => new Date());
+    const setTimer = env.setTimer ?? setTimeout;
+    const clearTimer = env.clearTimer ?? clearTimeout;
+    const dayOf = (/** @type {Date} */ d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    let last = dayOf(now());
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
+    let timer;
+    const check = () => {
+        const today = dayOf(now());
+        if (today === last) return;
+        last = today;
+        try { onChange(); } catch (e) { console.error('[Calendar] date-change repaint failed', e); }
+    };
+    // Re-armed from every check: a timer in a backgrounded tab is throttled or frozen, so the resume
+    // path re-aims it at the real coming midnight. One second past it, so the date has turned.
+    const arm = () => {
+        clearTimer(timer);
+        const n = now();
+        const next = new Date(n.getFullYear(), n.getMonth(), n.getDate() + 1, 0, 0, 1);
+        timer = setTimer(() => { check(); arm(); }, Math.max(1000, next.getTime() - n.getTime()));
+    };
+    const onVisibility = () => { if (doc.visibilityState === 'visible') { check(); arm(); } };
+    doc.addEventListener('visibilitychange', onVisibility);
+    arm();
+    return () => { clearTimer(timer); doc.removeEventListener('visibilitychange', onVisibility); };
+}
+
 /** Persist current display position to localStorage after each navigation. */
 export function persistViewedMonth() {
     lsSet(VIEWED_MONTH, _month);

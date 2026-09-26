@@ -74,7 +74,7 @@ mock.module('./roster-data.js', {
     },
 });
 
-const { isDataEmpty, _decodeHours, _varPayForPeriod, resolveHppForPeriod, hppFromYtdTaxable } = await import('./paycalc-hpp.js');
+const { isDataEmpty, _decodeHours, _varPayForPeriod, resolveHppForPeriod, hppFromYtdTaxable, knownYtdLumps } = await import('./paycalc-hpp.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -311,5 +311,33 @@ describe('hppFromYtdTaxable (v18.34 — estimate from Year to Date Taxable Pay)'
         assert.equal(hppFromYtdTaxable(30000, 35000), 0);
         assert.equal(hppFromYtdTaxable(0, 0), 0);
         assert.equal(hppFromYtdTaxable(NaN, 100), 0);
+    });
+});
+
+// THE LUMPS INSIDE TAXABLE PAY (72-hour review). The 'ytd' estimate takes 7.69% of Taxable Pay minus
+// expected basic + London − pension — so anything ELSE in Taxable Pay that is not a premium was
+// priced as one. Two such lumps the app holds exactly: peer-training pay (extra BASIC, no payslip
+// line of its own) and last year's Holiday Pay Premium, paid on this year's January payslip.
+describe('knownYtdLumps — non-premium lumps inside a Year to Date Taxable Pay figure', () => {
+    const P = (/** @type {number} */ num) => ({ num });
+    const saved = /** @type {Record<number, any>} */ ({ 50: { data: { peer: 2 } }, 51: { data: { peer: 0 } } });
+    const base = {
+        covered: [P(50), P(51), P(52)],
+        readSaved: (/** @type {number} */ n) => saved[n] ?? { data: null },
+        rateFor: () => 20,
+        hppCarrier: null, priorHppAmount: 0,
+    };
+
+    test('peer-training days are removed at 2h basic each', () => {
+        assertPounds(knownYtdLumps(base), 2 * 2 * 20, 'two peer days at £20/h');
+    });
+
+    test("last year's premium is removed only once its January payslip is inside the figure", () => {
+        assertPounds(knownYtdLumps({ ...base, hppCarrier: P(52), priorHppAmount: 1843.01 }), 80 + 1843.01, 'carrier covered');
+        assertPounds(knownYtdLumps({ ...base, hppCarrier: P(60), priorHppAmount: 1843.01 }), 80, 'carrier not yet reached');
+    });
+
+    test('nothing known → nothing removed (an unreadable or empty period adds no guess)', () => {
+        assert.equal(knownYtdLumps({ ...base, readSaved: () => ({ data: null, error: true }) }), 0);
     });
 });

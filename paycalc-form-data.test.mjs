@@ -107,6 +107,17 @@ describe('round trip — what is written must read back unchanged', () => {
         assert.equal(out.otherAdj, -45.5);
     });
 
+    test('an hours box still holding a decimal is STORED as the split the blur would make', () => {
+        // An autosave while "7.5" is focused (the app killed mid-edit, or a tap straight onto
+        // another control) used to store parseInt's 7 — half an hour lost with nothing on screen
+        // to say so. Stored as 7h 30m, exactly what the blur would have written back.
+        _els.otH.value = '7.5'; _els.otM.value = '';
+        _els.rdwH.value = '8'; _els.rdwM.value = '15';
+        const d = readFormData();
+        assert.equal(d.otH, 7);  assert.equal(d.otM, 30);
+        assert.equal(d.rdwH, 8); assert.equal(d.rdwM, 15, 'a plain pair is untouched');
+    });
+
     test('a zero adjustment is not written as a spurious "0.00" string', () => {
         writeFormData({ ...emptyPeriodData(), otherAdj: 0 });
         assert.equal(_els.otherAdj.value, '', 'an empty adjustment field must stay visibly empty');

@@ -33,3 +33,17 @@ test('the three named upload match blocks are present', () => {
             `storage.rules is missing the /${path}/ match block`);
     }
 });
+
+test('document reads are admin-only in all three blocks', () => {
+    // The only DIRECT Storage reader is the admin upload (getDownloadURL on the object it has just
+    // written); staff open a URL minted elsewhere. A read open to `request.auth != null` let any
+    // session — an anonymous sign-in included — list the bucket and fetch every file's permanent
+    // download token, walking round the v23.18 PIN/password decision.
+    for (const path of ['huddles', 'circulars', 'newsletters']) {
+        const block = rules.split(`match /${path}/`)[1].split(/\n {4}match /)[0];
+        const read = block.match(/allow read\s*:\s*if ([^;]+);/);
+        assert.ok(read, `/${path}/ has no read rule`);
+        assert.match(read[1], /request\.auth\.token\.admin\s*==\s*true/,
+            `/${path}/ read must require the admin claim — got: ${read[1].trim()}`);
+    }
+});

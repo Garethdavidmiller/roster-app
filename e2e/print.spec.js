@@ -342,6 +342,23 @@ test('no team-view name is truncated on paper @print', async ({ page }) => {
     expect(clipped.map(c => c.name), 'these names would print with an ellipsis and no way to read the rest').toEqual([]);
 });
 
+// The printed header names ONE member ("Team Member: <selected>"), which is right for a personal
+// calendar and wrong for Team View, where the sheet is a whole grade.
+test('a printed Team View is not headed with one member\'s name @print', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const headerAfter = () => getComputedStyle(/** @type {Element} */ (document.querySelector('.header')), '::after').content;
+    expect(await inPrint(page, headerAfter), 'the personal calendar keeps its member line').toContain('Team Member');
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.team-week-text').first()).toBeVisible();
+    expect(await inPrint(page, headerAfter), 'a grade printed under one colleague\'s name').toBe('none');
+});
+
 // ── PRINT THIS COUNTRY (v24.06) ─────────────────────────────────────────────────────────────────
 // ROADMAP print item 1: "Most readers want France, not the book." The guide is 25 sheets and a
 // traveller checking one coupon before a trip needs one card.
@@ -393,6 +410,30 @@ test('printing one country prints one country @print', async ({ page, browserNam
     // the restore is IDEMPOTENT as well as that it happened.
     await page.evaluate(() => { window.dispatchEvent(new Event('afterprint')); });
     expect(await sheets(), 'the whole guide is back after the print').toBe(whole);
+});
+
+// The engine that fires no `afterprint` (AirPrint) also need not fire `visibilitychange` — the print
+// sheet is a sheet, not a tab switch. Then "Print France" left its state in place, and the header's
+// ⤓ PDF printed France alone, with the prepare a no-op because the page was "already prepared".
+// Each print control must start from the page the reader is looking at.
+test('the header PDF after an un-restored country print prints the whole guide @print', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    await page.evaluate(() => { window.print = () => {}; });
+    await page.locator('#country-fr > summary').click();
+    const closedBefore = await page.evaluate(() => document.querySelectorAll('details:not([open])').length);
+    await page.locator('#country-fr .btn-print-country').click();
+    // No afterprint, no visibilitychange: the print sheet came and went without a word. Every card
+    // is still expanded, and the reader tidies one away — the stale prepare must not treat that
+    // collapsed card as already opened for the next print.
+    await page.evaluate(() => { /** @type {HTMLDetailsElement} */ (document.getElementById('country-be')).open = false; });
+    await page.locator('.btn-print').click();
+    expect(await page.evaluate(() => document.body.hasAttribute('data-print-country')),
+        'the header prints the whole guide, not the last country printed').toBe(false);
+    expect(await page.evaluate(() => document.querySelectorAll('.is-print-country').length)).toBe(0);
+    expect(await page.evaluate(() => document.querySelectorAll('details:not([open])').length)).toBe(0);
+    // And the restore still lands on the page as the reader left it, not on the expanded snapshot.
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    expect(await page.evaluate(() => document.querySelectorAll('details:not([open])').length)).toBe(closedBefore);
 });
 
 test('every country card offers its own print, named @print', async ({ page }) => {

@@ -100,12 +100,12 @@ export const teamMembers = [
     { name: 'D. Minto',                currentWeek: 1,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'A. Targanov',             currentWeek: 2,  rosterType: 'dispatcher', role: 'Dispatcher' },
     { name: 'S. Warman',               currentWeek: 3,  rosterType: 'dispatcher', role: 'Dispatcher', hidden: true }, // left 10 Sep 2026 — Dispatcher week-3 line is a vacancy. Row kept so his past shifts, overrides and any frozen Overtime week still resolve
-    // S. Faure — MATERNITY LEAVE from Mon 29 Jun 2026. She comes OFF the rotating link on that
+    // S. Faure — comes OFF the rotating link from Mon 29 Jun 2026. On that
     // date (B. Toth took line 4) and onto her own Mon–Fri row: `fixedRoster[2]`, 09:00–16:00, the
     // 35 contracted hours a week she is credited with, weekends RD. The base fields still describe
     // her BEFORE 29 Jun, so every shift she actually worked up to then still displays correctly.
-    // The absence itself is override data (🪑 Absent, Mon–Fri) — this only decides what those
-    // overrides sit on, and what her weekends read when they are absent.
+    // Any absence is override data (🪑 Absent, Mon–Fri) — this only decides what such
+    // overrides sit on, and what her weekends read. (The REASON is never recorded here — GDPR.)
     // NOTE she shares `fixedRoster[2]` with S. Boyle and K. Jedlinski: change those hours and you
     // change hers.
     { name: 'S. Faure',                currentWeek: 4,  rosterType: 'dispatcher', role: 'Dispatcher',
@@ -125,8 +125,9 @@ export const teamMembers = [
     // He joins the link on Mon 20 Jul 2026. `currentWeek: 4` there is REFERENCE-ANCHORED (see
     // .claude/rules/roster-data.md) — the same value S. Faure carries, i.e. her line.
     // `proRatedAL` is 11 — TRANSCRIBED from the roster clerk's workbook, the authority for it (owner,
-    // 6 Sep 2026); a day-count rounded up gives 12, which this file used to carry. It is FLAT and
-    // suppresses the Dispatcher lieu calculation, so 2026's last three bank holidays earn none.
+    // 6 Sep 2026); a day-count rounded up gives 12, which this file used to carry. It replaces only
+    // the 22-day BASE: lieu days for bank holidays worked are still added on top by getALEntitlement
+    // (v22.50).
     { name: 'B. Toth',                 currentWeek: 2,  rosterType: 'fixed',      role: 'Dispatcher',
       startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 11 },
       rosterChanges: [{ from: new Date(2026, 6, 20), rosterType: 'dispatcher', currentWeek: 4 }] },

@@ -862,6 +862,23 @@ describe('the two deadlines a member has', () => {
         assert.match(past.text, /were due/, 'and stated as passed');
     });
 
+    test('a form that OPENED after the first deadline does not say answers "were due"', () => {
+        // The member was never asked before it, so "Answers were due Tue 18 Aug" names a deadline
+        // they could not have met. The line says when the form opened instead, and which date is live.
+        const lines = deadlineLines('FINAL_OPEN', INITIAL, FINAL, INITIAL + 3600_000);
+        const text = lines.map(l => l.text).join(' | ');
+        assert.doesNotMatch(text, /were due/);
+        assert.doesNotMatch(text, /18 Aug/, 'the deadline that passed before the form existed is not named');
+        const lead = lines.filter(l => l.lead);
+        assert.equal(lead.length, 1);
+        assert.match(lead[0].text, /25 Aug/);
+        assert.ok(lines.some(l => l.warn && /opened after the first deadline/.test(l.text)));
+        // …and a form open BEFORE it keeps the two-deadline head, unchanged.
+        assert.match(deadlineLines('FINAL_OPEN', INITIAL, FINAL, INITIAL - 1).map(l => l.text).join(' | '), /were due/);
+        assert.match(deadlineLines('FINAL_OPEN', INITIAL, FINAL).map(l => l.text).join(' | '), /were due/,
+            'and so does a window that does not say when it opened');
+    });
+
     test('a closed week names one date and offers no deadline to act on', () => {
         const lines = deadlineLines('CLOSED', INITIAL, FINAL);
         assert.equal(lines.length, 1);

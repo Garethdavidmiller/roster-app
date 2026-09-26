@@ -18,6 +18,7 @@ import { escapeHtml } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { pcPrefix } from './paycalc-migrations.js';
 import { fdLong } from './paycalc-format.js';
+import { proRateDays } from './paycalc-calc.js';
 
 import { setStatus } from './status-text.js';
 // The seven special-rate categories and their hour/minute field ids — the ONE source for the
@@ -325,9 +326,8 @@ export function updateJoinerNotice(p) {
   const member = getLoggedMember();
   if (!member?.startDate || member.startDate <= p.start || member?.noProRate) { el.style.display = 'none'; return; }
   if (member.startDate > p.cutoff) { el.style.display = 'none'; return; }
-  const msPerDay     = 86400000;
-  const daysEmployed = Math.round((+p.cutoff - +member.startDate) / msPerDay) + 1;
-  const totalDays    = Math.round((+p.cutoff - +p.start) / msPerDay) + 1;
+  // The same count the pay factor uses (clock-change-safe) — never a second copy of it.
+  const { daysEmployed, totalDays } = proRateDays(member.startDate, p.start, p.cutoff);
   const proRated     = getEffectiveContr(p);
   const base         = getContr();
   const startFmt     = fdLong(member.startDate);
@@ -465,12 +465,17 @@ export function fillCategoryFromRoster(cat, autosave) {
   updateRosterHint();
 }
 
+/** A tap-triggered recorded-changes fetch is in flight — a second tap must not start another fill. */
+let _fillInFlight = false;
+
 /**
  * Fills ALL categories from the current roster suggestion, overwriting existing values.
  * @param {Function} autosave - Coordinator autosave callback.
  */
 export async function fillFromRoster(autosave) {
-  const p = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
+  if (_fillInFlight) return;
+  const pNum = currentPeriodNum();
+  const p = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
   if (!p) return;
   const member = getLoggedMember();
   // Second chance for the shift-changes fetch (v21.67): on a phone with poor signal the
@@ -479,7 +484,18 @@ export async function fillFromRoster(autosave) {
   // The tap is an explicit "give me the calendar", so it is the right moment to try once more;
   // a failure falls through to base-only, which is what would have happened anyway.
   if (getOverridesFetchState() !== 'loaded' && member?.name) {
-    try { await fetchOverridesForPeriod(p, member.name); } catch { /* base-only fallback */ }
+    const btn = /** @type {HTMLButtonElement|null} */ (document.getElementById('fillFromRosterBtn'));
+    _fillInFlight = true;
+    if (btn) btn.disabled = true;
+    let res = 'base-only';
+    try { res = await fetchOverridesForPeriod(p, member.name); } catch { /* base-only fallback */ }
+    finally { _fillInFlight = false; if (btn) btn.disabled = false; }
+    // THE PERIOD MAY HAVE CHANGED UNDER THE AWAIT (72-hour review). The fill writes into whatever
+    // form is on screen and saves under currentPeriodNum() — so without this, switching payslip
+    // mid-fetch wrote period A's calendar into B and saved it as B's hours. 'cancelled' is the
+    // fetch module saying the same thing (a newer period change superseded it). The on-screen
+    // period's own path (onPeriodChange) owns the hint from here; repaint it for the button state.
+    if (res === 'cancelled' || currentPeriodNum() !== pNum) { updateRosterHint(); return; }
   }
   const s = getRosterSuggestion(p, member);
   if (!s) return;

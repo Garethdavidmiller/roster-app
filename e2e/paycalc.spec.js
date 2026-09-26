@@ -532,15 +532,22 @@ test('paycalc: an unidentifiable member cannot back up or restore', async ({ pag
     // returns null, so the per-member namespace never activates and pcPrefix() falls back to the
     // bare `myb_pc_` — which spans EVERY member on a shared device. Before v19.17 the paste box was
     // left enabled in this state, and one paste deleted two people's pay history and wrote the
-    // payload unnamespaced. The page's own session guard does NOT catch this: the session is valid,
-    // it is the member lookup that fails.
+    // payload unnamespaced. The session guard does not catch this: the session is valid, it is the
+    // member lookup that fails.
+    //
+    // SINCE THE 72-HOUR REVIEW THE WHOLE CALCULATOR IS WITHHELD, not just this card: the same null
+    // member also priced every figure at CEA rates in the bare shared namespace. So the page refuses
+    // with the unsupported card before the namespace is ever activated — and the transfer card's own
+    // fail-closed rule (validateBackup refusing an empty slug) stays, unit-tested, as the second lock.
     await seedSession(page, 'Z. NotOnRoster');
     await page.addInitScript(PT_QUIET);
     await page.goto('/paycalc.html#payTransferCard');
-    await expect(page.locator('#ptSummary')).toContainText("can't tell whose pay data");
-    for (const id of ['#ptDownload', '#ptCopy', '#ptRestore', '#ptPasteGo', '#ptPaste']) {
-        await expect(page.locator(id), `${id} must be disabled`).toBeDisabled();
-    }
+    await expect(page.locator('#unsupportedGradeBanner')).toBeVisible();
+    await expect(page.locator('#unsupportedGradeBanner')).toContainText('current roster');
+    await expect(page.locator('.pc-side'), 'the backup card must not be reachable').toBeHidden();
+    await expect(page.locator('.pc-work'), 'and no figure is shown').toBeHidden();
+    expect(await page.evaluate(() => Object.keys(localStorage).filter(k => /^myb_pc_p\d+$/.test(k))),
+        'nothing is written into the bare shared namespace').toEqual([]);
 });
 
 test('paycalc: a restore onto storage that refuses writes changes nothing', async ({ page }) => {
@@ -648,6 +655,35 @@ test('paycalc: the pension opt-out holds across payslips and reloads', async ({ 
     const stored = await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_pension'));
     expect(stored, 'the member-level pension default must not be left at the opted-out zero').not.toBe('0.00');
     expect(errors, 'Uncaught JS exceptions on the pension opt-out').toHaveLength(0);
+});
+
+// ── THE LOCK AND THE £ AGREE ON FIRST PAINT (72-hour review) ─────────────────────────────────────
+//
+// A payslip inside an opt-out spell that still carries an explicit saved pension (typed before she
+// left, or frozen by an older Save) was PRICED with that deduction and then had its field locked to
+// £0.00 — the lock ran after calculate(), with no recalc. The page read "£0.00 pension" over a
+// take-home that had taken one off, until the next keystroke silently corrected it. Probed by effect:
+// a recompute that changes nothing on screen must not move the £.
+test('paycalc: an opted-out payslip with an old saved pension is priced at the £0 its field shows', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    const target = await page.locator('#periodSelect').inputValue();
+    await page.evaluate((t) => {
+        localStorage.setItem('myb_pc_gmiller_pension_timeline', JSON.stringify([{ from: Number(t), out: true }]));
+        localStorage.setItem(`myb_pc_gmiller_p${t}`, JSON.stringify({ otH: 4, otM: 0, pension: 147.36 }));
+    }, target);
+    await page.reload();
+    await expect(page.locator('#periodSelect')).toHaveValue(target);
+    await expect(page.locator('#pensionAmt')).toHaveValue('0.00');
+    await expect(page.locator('#pensionAmt')).toBeDisabled();
+    const firstPaint = await page.locator('#netDisplay').textContent();
+    await page.locator('#otH').fill('4');   // the same value — a recompute from what is on screen
+    await expect(page.locator('#netDisplay'), 'the first paint priced a pension its field says is £0')
+        .toHaveText(/** @type {string} */ (firstPaint));
+    expect(errors).toHaveLength(0);
 });
 
 // ── AND IT MUST NOT REACH BACKWARDS (v21.78) ─────────────────────────────────────────────────────
@@ -956,6 +992,54 @@ test('paycalc: Year to Date figures sharpen ONLY the payslip after their source'
             .toBe(other.withoutFigures);
     }
     expect(errors, 'Uncaught JS exceptions on the Year to Date anchor').toHaveLength(0);
+});
+
+// ── AN OVER-COLLECTED YEAR IS SAID, NOT HIDDEN BEHIND £0 (72-hour review) ────────────────────────
+// computeTax reports the over-collection it clamps to £0; this pins calculate() handing it to the
+// summary — the wiring a unit test of either half cannot see.
+test('paycalc: Year to Date figures showing tax over-collected say a refund may be due', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2027-01-10T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '57');
+        localStorage.setItem('myb_pc_gmiller_ytd_pay_2026_27', '20000');
+        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '9000');   // far more than was due
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.locator('#periodSelect').selectOption('58');
+    await expect(page.locator('#summary')).toContainText('may be due on this payslip');
+    expect(errors).toHaveLength(0);
+});
+
+// ── THE PAYSLIP IN HAND BEFORE PAYDAY (72-hour review) ───────────────────────────────────────────
+// Payslips arrive before payday. Figures typed on 22 Sep 2026 may come from the 25 Sep payslip (cut
+// off 19 Sep), which the picker did not offer, so a member who had it in hand could not say so. The
+// picker now offers it from its cut-off; the first-entry stamp keeps the standing rule (the payslip
+// before today's), which the member corrects by picking. Rules: paycalc-periods.test.mjs.
+test('paycalc: between cut-off and payday the new payslip can be picked as the Year to Date source', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-09-22T09:00:00Z'));
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await page.fill('#ytdPay', '23100');
+    await page.dispatchEvent('#ytdPay', 'input');
+    await page.fill('#ytdTax', '3266.20');
+    await page.dispatchEvent('#ytdTax', 'input');
+    const offered = await page.locator('#ytdSrcSelect option').evaluateAll(os => os.map(o => o.textContent));
+    expect(offered.some(t => /25 Sep 2026/.test(t ?? '')), 'the payslip in hand must be offered').toBe(true);
+    expect(offered.some(t => /28 Aug 2026/.test(t ?? ''))).toBe(true);
+    expect(errors).toHaveLength(0);
 });
 
 // ── THE TWO EDITS THE CARD MAKES, IN A BROWSER (v21.80) ──────────────────────────────────────────

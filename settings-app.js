@@ -41,6 +41,11 @@ import { recordPageLatency, markPageReady } from './perf-reporter.js';
  * same order, one indent level in.
  */
 export function init() {
+    // Listen for the browser's install offer NOW, before the sign-in wait (Sep 2026 review):
+    // Chromium fires `beforeinstallprompt` once, early, and the Device card is wired only after
+    // sign-in — so the event had come and gone before anything listened, and the row never showed.
+    const installOffer = captureInstallOffer();
+
     // ── IS THIS ACCOUNT AND THIS DEVICE SET UP? (v22.37) ──────────────────────────
     //
     // Each card reports its own state as its own data lands; this paints the chip, opens the card
@@ -232,7 +237,7 @@ export function init() {
         });
         // Install. Not collapsible and it has no chip — it is either an offer or, on an iPhone
         // in a browser, the prerequisite for the card above it. Either way it reports at once.
-        initDeviceCard((state, chip) => reportSetting('install', state, chip));
+        initDeviceCard((state, chip) => reportSetting('install', state, chip), installOffer);
 
         // Pay Calculator Data — a pointer card, so collapse and the inventory are all it has.
         _cardHandles['pay-data'] = initCardCollapse('payDataToggleHeader', 'payDataBody', 'payDataChevron');
@@ -805,7 +810,25 @@ export function init() {
  * install to offer and disappears the moment there is not. A permanent "✓ Installed" row would be
  * a card that never does anything again, which is the opposite of what this page is becoming.
  */
-function initDeviceCard(/** @type {(state: import('./settings-status.js').CardState, chip?: string) => void} */ report) {
+/**
+ * Hold the browser's install offer from page start until the Device card can use it.
+ * @returns {{ event: any, onChange: null | (() => void) }}
+ */
+function captureInstallOffer() {
+    /** @type {{ event: any, onChange: null | (() => void) }} */
+    const offer = { event: null, onChange: null };
+    // The Pages mirror is refused below; leave Chrome's own infobar alone there.
+    if (/github\.io$/i.test(window.location.hostname)) return offer;
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();          // keep it; without this Chrome shows its own mini-infobar instead
+        offer.event = e;
+        offer.onChange?.();
+    });
+    return offer;
+}
+
+function initDeviceCard(/** @type {(state: import('./settings-status.js').CardState, chip?: string) => void} */ report,
+                        /** @type {{ event: any, onChange: null | (() => void) }} */ offer) {
     const row   = document.getElementById('deviceCard');
     const btn   = /** @type {HTMLElement|null} */ (document.getElementById('installBtn'));
     const steps = /** @type {HTMLElement|null} */ (document.getElementById('installSteps'));
@@ -838,12 +861,15 @@ function initDeviceCard(/** @type {(state: import('./settings-status.js').CardSt
 
     /** @type {any} */
     let deferred = null;
-    window.addEventListener('beforeinstallprompt', (e) => {
-        if (installed || onMirror) return;
-        e.preventDefault();          // keep it; without this Chrome shows its own mini-infobar instead
-        deferred = e;
+    // The offer is captured at page start (`captureInstallOffer`), since it may already have fired.
+    const adopt = () => {
+        if (installed || onMirror || !offer.event) return;
+        deferred = offer.event;
+        offer.event = null;          // single-use, like the prompt it holds
         row.hidden = false;          // …but still 'n/a': an offer, not a to-do
-    });
+    };
+    offer.onChange = adopt;
+    adopt();
     window.addEventListener('appinstalled', () => { deferred = null; row.hidden = true; });
     btn.addEventListener('click', () => {
         if (!deferred) { row.hidden = true; return; }

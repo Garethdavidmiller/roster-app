@@ -4,7 +4,7 @@
 // ── THE PROBLEM THIS EXISTS FOR ────────────────────────────────────────────────────────────────
 //
 // Annual leave on a day the base roster calls REST does not consume entitlement, and that is right:
-// it stops a stray booking (M. Robson's 5 Dec) and a declined overtime day from costing somebody a
+// it stops a stray booking and a declined overtime day from costing somebody a
 // day they never spent. But there is one case where such a day IS real leave — the member SWAPPED
 // working days and then booked the swapped-in day off — and the app's only record of it is
 // `replacedType: 'shift'` on the AL doc, which until now could be set ONLY as a side effect of
@@ -14,7 +14,7 @@
 // in opposite directions: the AL range card SKIPPED rest days without writing anything, and the week
 // grid WROTE the AL but left it costing nothing. Neither said so. The balance was simply wrong
 // afterwards, and the only way to find out was to compare against the depot's workbook by hand —
-// which is how this surfaced (owner, 14 Sep 2026: three days of C. Francisco-Charles's leave,
+// which is how this surfaced (owner, 14 Sep 2026: three days of one member's leave,
 // invisible in the app, found only because the workbook disagreed by three).
 //
 // The fix is not a better default. There is no correct default: only the person booking knows
@@ -51,7 +51,8 @@
 // honour is worse than one that does not offer it. (External review of v23.78.)
 
 import { isSunday, getBaseShift, parseISODate } from './roster-data.js';
-import { isRestShift, isContractedWorkOverride, nextReplacedType } from './override-utils.js';
+import { isRestShift, isContractedWorkOverride, contractEvidence, nextReplacedType } from './override-utils.js';
+import { isWorkingDate } from './al-entitlement.js';
 
 /**
  * The dates in a booking that need the swap question, in order.
@@ -70,11 +71,9 @@ export function swapDecisionDates({ dates, memberObj, ovByDate = null }) {
     return [...new Set(dates)].sort().filter(date => {
         if (isSunday(date)) return false;                     // never holds AL at all
         const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(date) : null;
-        const under = ov && ov.type === 'annual_leave'
-            ? (ov.replacedType ? { type: ov.replacedType } : null)
-            : ov;
-        // An override that answers the contract question — either way — settles the day.
-        if (isContractedWorkOverride(under) !== null) return false;
+        // An override that answers the contract question — either way — settles the day. Read THROUGH
+        // leave and an absence to what they replaced (review A2), as `consumesEntitlement` does.
+        if (isContractedWorkOverride(contractEvidence(ov)) !== null) return false;
         // Nothing informative on the day: the base roster decides, and only a REST answer is a question.
         return isRestShift(getBaseShift(memberObj, parseISODate(date)));
     });
@@ -100,4 +99,29 @@ export function replacedTypeForSwap(existing, newType) {
     const carried = nextReplacedType(existing, newType);
     if (carried && isContractedWorkOverride({ type: carried }) === true) return carried;
     return 'shift';
+}
+
+/**
+ * Which dates of a RANGE booking are written — the range writer's filter (`recordRangeOverrides`).
+ *
+ * A date this module asks about is written ONLY when answered "swapped" (review A2). The old filter
+ * was `isWorkingDate`, which reads the override's VALUE: a rest day holding an absence ('SICK') is
+ * not a rest value, so it passed, and leave was written over the absence on a day the admin had
+ * just answered "Rest day — free" — which means NOTHING IS WRITTEN, on both surfaces (CLAUDE.md).
+ * Every other date is `isWorkingDate`'s, as before (Sundays never). Absence is never asked about,
+ * so an absence range is unchanged.
+ *
+ * @param {object} args
+ * @param {string} args.type `'annual_leave'` | `'sick'`
+ * @param {string[]} args.dates every date in the range
+ * @param {any} args.memberObj the team-member object; without it nothing is written
+ * @param {Map<string, any>} args.ovByDate the member's overrides in play, keyed by date
+ * @param {string[]} [args.swappedDates] the dates the admin answered "swapped"
+ * @returns {string[]} the dates to write, in the order given
+ */
+export function rangeWriteDates({ type, dates, memberObj, ovByDate, swappedDates = [] }) {
+    if (!memberObj || !Array.isArray(dates)) return [];
+    const swapped = new Set(swappedDates.filter(d => !isSunday(d)));
+    const asked = new Set(type === 'annual_leave' ? swapDecisionDates({ dates, memberObj, ovByDate }) : []);
+    return dates.filter(d => asked.has(d) ? swapped.has(d) : isWorkingDate(memberObj, d, ovByDate) || swapped.has(d));
 }

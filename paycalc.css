@@ -764,7 +764,6 @@
     }
     .setup-banner h2 { font-size: var(--type-button); font-weight: 800; color: var(--primary-blue); margin-bottom: 4px; }
     .setup-banner p  { font-size: var(--type-label); color: var(--text-mid); line-height: 1.5; }
-    .privacy-note { font-size: var(--type-small); color: var(--text-mid); margin-top: 10px; padding: 8px 10px; background: var(--bg-faint); border-left: 3px solid var(--primary-blue); border-radius: 0 var(--radius-xs) var(--radius-xs) 0; line-height: 1.5; }
     /* Standalone privacy note — always visible, sits below the conditional setup banner */
     .privacy-note-standalone {
       background: var(--surface); border-radius: var(--radius-md); box-shadow: var(--shadow-1);

@@ -141,6 +141,17 @@ export const runTransaction = (_db, fn) => {
       }
     },
   };
+  // window.__E2E.txHold holds every transaction open until the test calls window.__E2E.releaseTx(),
+  // so a test can act while a save is still in flight (switch designs, press another Save) and then
+  // decide when it lands. A GATE, not a timer: a fixed delay raced the test on a slow runner, and the
+  // result arrived before the switch it was meant to follow. No backticks: inside FIREBASE_STUB.
+  if (e2e.txHold) {
+    if (!e2e._txGate) e2e._txGate = new Promise(r => { e2e.releaseTx = r; });
+    return e2e._txGate.then(() => fn(tx));
+  }
+  // window.__E2E.txErrorCode makes every transaction REJECT with that Firestore code — with the
+  // browser set offline, 'unavailable' is how a real offline transaction fails.
+  if (e2e.txErrorCode) return Promise.reject(Object.assign(new Error('client is offline'), { code: e2e.txErrorCode }));
   return Promise.resolve(fn(tx));
 };
 // Collection reads resolve EMPTY unless a test seeds rows via window.__E2E.docs (an array of
@@ -288,10 +299,15 @@ export class FieldPath {}                               // literal field path (u
 // DELIVERS one snapshot when a test seeds window.__E2E.huddleDoc (v24.23) — the Huddle viewer's
 // open-file button could not be reached at all otherwise, and its v24.19 defect (a button that did
 // nothing until a network call returned) lived exactly there.
-export const onSnapshot = (_q, onNext) => {
+// huddleEmpty delivers an EMPTY snapshot (no Huddle uploaded); huddleError fails the listener.
+export const onSnapshot = (_q, onNext, onError) => {
   const e2e = globalThis.__E2E || (globalThis.__E2E = {});
   e2e.snapshotSubs = (e2e.snapshotSubs || 0) + 1;
-  if (e2e.huddleDoc && typeof onNext === 'function') {
+  if (e2e.huddleError && typeof onError === 'function') {
+    setTimeout(() => onError(new Error('e2e huddle listener failure')), 0);
+  } else if (e2e.huddleEmpty && typeof onNext === 'function') {
+    setTimeout(() => onNext({ empty: true, docs: [] }), 0);
+  } else if (e2e.huddleDoc && typeof onNext === 'function') {
     const d = e2e.huddleDoc;
     setTimeout(() => onNext({ empty: false, docs: [{ id: d.date || 'x', data: () => d }] }), 0);
   }

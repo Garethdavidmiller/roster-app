@@ -39,41 +39,19 @@ export const rosterOverridesCache = new Map();
 // coordinator PUSHES the fact in. Default false, so anything that forgets to push it reads nothing.
 let _accessGranted = false;
 
-// ── THE PROVISIONAL SCOPE (v22.97) ──────────────────────────────────────────────────────────────
-//
-// Non-null means access is PROVISIONAL: granted on this device's own local session while Firebase
-// revalidates the stored identity, and confined to ONE member's data out of the LOCAL cache. The
-// owner decision behind it, and why it is a decision rather than an optimisation, are argued in
-// `calendar-access-core.js` → `decideProvisionalAccess`.
-//
-// It is the whole boundary, so it is enforced in the READS rather than remembered by the caller:
-//   · the cached read adds a `memberName` filter — a member may re-see their own roster, never a
-//     colleague's annual leave and absence;
-//   · every SERVER read refuses outright. Nothing new is fetched under an identity nobody has
-//     confirmed yet; the grant only re-shows what this device was already given.
-//
-// Null under a full grant, which is how the same reads open up again with no second code path.
-/** @type {string|null} */
-let _provisionalMember = null;
-
 /**
  * Open the override reads. Called by the Calendar coordinator once — and only once — access is
  * confirmed.
  *
- * The second argument was added at v22.97 and this comment used to say there would never be one:
- * "named and viewer both read the same data, so a second parameter would only be a second thing to
- * get wrong." That was right while both kinds of access read the same data. A provisional grant
- * does not — it is one member, out of the cache — so the KIND now has to travel with the grant.
- * The alternative was a second entry point, which is the same risk with two doors.
+ * ONE argument, and it stays one. Named and viewer access read the same data, so a second parameter
+ * would only be a second thing to get wrong. It had one from v22.97 until 26 Sep 2026 — a member
+ * SCOPE for the retired provisional paint, which read one member's rows out of the cache — and both
+ * bugs that paint produced lived in the difference between a scoped and an unscoped grant.
  *
  * @param {boolean} granted
- * @param {{ provisionalMember?: string|null }} [opts] provisional: cache-only, and only this member
  */
-export function setOverrideAccess(granted, opts = {}) {
+export function setOverrideAccess(granted) {
     _accessGranted = granted === true;
-    _provisionalMember = _accessGranted && typeof opts.provisionalMember === 'string' && opts.provisionalMember.trim()
-        ? opts.provisionalMember.trim()
-        : null;
     // A GRANT is a fresh start (v20.41), and it has to be, because a re-grant follows a re-lock.
     // `fetchedMonths` is a "we already have this" claim: months claimed before access was lost are
     // still claimed after it returns, so without this every `ensureOverridesCached` would no-op and
@@ -86,9 +64,6 @@ export function setOverrideAccess(granted, opts = {}) {
 
 /** @returns {boolean} whether override reads are currently permitted. */
 export function hasOverrideAccess() { return _accessGranted; }
-
-/** @returns {string|null} the member a PROVISIONAL grant is confined to, or null under a full one. */
-export function provisionalMember() { return _provisionalMember; }
 
 /** Called when a read is refused because ACCESS has gone, rather than because the network is poor.
  *  Injected by the coordinator for the same reason `setOverrideAccess` is pushed in: this module
@@ -142,6 +117,11 @@ export function clearFetchedMonth(key) { fetchedMonths.delete(key); _failureRepa
 // Releasing the month and suppressing the repaint are deliberately NOT the same flag: the first is
 // about whether we may fetch again, the second about whether anyone still needs telling.
 const _failureRepainted = new Set();
+
+// Month key → the repaint callbacks waiting on its IN-FLIGHT read. Present only while a read that
+// `ensureOverridesCached` started is outstanding; see that function for why every caller is kept.
+/** @type {Map<string, Set<Function>>} */
+const _monthWaiters = new Map();
 
 // The month → shift-types memo used to have a public clearShiftTypesCache() for callers that wrote
 // straight into rosterOverridesCache. There are none left: Team Week View was the only one, and it
@@ -228,10 +208,6 @@ export async function fetchOverridesForRange(startStr, endStr) {
     // resolving would leave the Calendar showing the base roster as though it were current — the one
     // outcome this whole feature exists to prevent.
     if (!_accessGranted) throw new Error('calendar-access-required');
-    // A provisional grant re-shows what this device already holds; it fetches nothing new under an
-    // identity nobody has confirmed. Same error as no access at all, deliberately — every caller
-    // already treats that as "not now", and a distinct one would be a new state to handle.
-    if (_provisionalMember) throw new Error('calendar-access-required');
     // Taken at ISSUE, not on completion — the whole point is the order the reads were STARTED in.
     const seq = ++_readSeq;
     const q = query(
@@ -297,23 +273,11 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr) {
     // every caller from "no cache yet", which is already this function's normal empty state.
     if (!_accessGranted) return false;
     try {
-        // A PROVISIONAL grant is confined to ONE member (v22.97). The filter is applied to the
-        // QUERY rather than to the results, so a colleague's overrides are never read out of the
-        // cache at all — filtering afterwards would put fifty people's annual leave and absence in
-        // memory under an identity nobody has confirmed yet, which is the thing being avoided.
-        // The `memberName` + `date` composite index already exists.
-        const q = _provisionalMember
-            ? query(
-                collection(db, COLLECTIONS.overrides),
-                where('memberName', '==', _provisionalMember),
-                where('date', '>=', startStr),
-                where('date', '<=', endStr)
-            )
-            : query(
-                collection(db, COLLECTIONS.overrides),
-                where('date', '>=', startStr),
-                where('date', '<=', endStr)
-            );
+        const q = query(
+            collection(db, COLLECTIONS.overrides),
+            where('date', '>=', startStr),
+            where('date', '<=', endStr)
+        );
         const snapshot = await getDocsFromCache(q);
         if (snapshot.empty) return false;
         const records = collectOverrideRecords(snapshot);
@@ -347,8 +311,11 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr) {
  * success, and (once per claim) on failure too. Failure used to be render-silent, which was right
  * while a failed month simply kept showing the base roster; since v20.40 it withholds the grid
  * instead, so nothing repainting means the month sits on "Checking this month" for ever.
- * The renderFn callback is provided by the coordinator and includes any guards (e.g.
- * team-view check, member-change check) appropriate to the call site.
+ * EVERY caller is called back, not only the one that started the read: a caller arriving while the
+ * month is in flight joins it (`_monthWaiters`). The read is every member's overrides, so a member
+ * switch or a Team View opened mid-flight is waiting on the same data — dropping it left that
+ * surface on "Checking this month" for good. The renderFn decides what to repaint; it must not
+ * assume the screen is still the one that asked.
  * @param {number} year
  * @param {number} month - 0-indexed
  * @param {Function} [renderFn]
@@ -358,10 +325,19 @@ export async function ensureOverridesCached(year, month, renderFn) {
     // it returns BEFORE claiming the month, or a navigation made while locked would mark the month
     // fetched and the real read after unlocking would be skipped for the rest of the session.
     if (!_accessGranted) return;
-    if (_provisionalMember) return;   // provisional: nothing is fetched from the server — see the scope note
     const key = monthKey(year, month);
-    if (fetchedMonths.has(key)) return;
+    if (fetchedMonths.has(key)) {
+        // In flight: join it. Settled (or pre-claimed by the initial fetch, which repaints itself):
+        // there is no waiter set, and nothing to wait for.
+        if (renderFn) _monthWaiters.get(key)?.add(renderFn);
+        return;
+    }
     fetchedMonths.add(key);
+    /** @type {Set<Function>} */
+    const waiters = new Set(renderFn ? [renderFn] : []);
+    _monthWaiters.set(key, waiters);
+    // Only this read's own set — a re-grant can start a newer read of the month under it.
+    const settle = () => { if (_monthWaiters.get(key) === waiters) _monthWaiters.delete(key); };
     try {
         const startStr = formatISO(new Date(year, month, 1));
         const endStr   = formatISO(new Date(year, month + 1, 0));
@@ -371,6 +347,7 @@ export async function ensureOverridesCached(year, month, renderFn) {
         // point of the readiness model is that those two are not the same claim.
         noteKnowledge(key, 'authoritative');
     } catch (err) {
+        settle();
         fetchedMonths.delete(key);  // Allow retry on next navigation
         noteKnowledge(key, 'error');   // actionable — earns a Retry, where `unknown` earns a wait
         // ACCESS GONE, not a network blip (v20.15). This path had no recovery at all: the month
@@ -393,16 +370,26 @@ export async function ensureOverridesCached(year, month, renderFn) {
         // Tell the caller to repaint, so a withheld grid can show its failure panel instead of
         // waiting forever on a fetch that has already lost (v20.40). Once per claim — see
         // `_failureRepainted` above for the loop this guards.
-        if (!_failureRepainted.has(key)) { _failureRepainted.add(key); renderFn?.(); }
+        if (!_failureRepainted.has(key)) { _failureRepainted.add(key); _repaintWaiters(waiters); }
         return;
     }
+    settle();
     _failureRepainted.delete(key);   // succeeded — a future failure of this month is news again
     // The render is deliberately OUTSIDE the try (v18.91). The fetch succeeded by this point and the
     // cache holds the new data; if the callback then throws mid-DOM-rebuild, treating that as a fetch
     // failure would log the wrong cause AND un-mark the month, so the next navigation re-queries data
     // that is already cached. v18.76 raised the stakes by making a full Team-View grid rebuild one of
-    // these callbacks. A render fault is the caller's to handle — it must not corrupt fetch state.
-    renderFn?.();
+    // these callbacks. A render fault is the caller's to handle — it must not corrupt fetch state,
+    // and since several callers can wait on one read, it must not cost the others their repaint.
+    _repaintWaiters(waiters);
+}
+
+/** Call every waiter of a settled month read; one that throws is logged, not allowed to stop the rest.
+ *  @param {Set<Function>} waiters */
+function _repaintWaiters(waiters) {
+    for (const fn of waiters) {
+        try { fn(); } catch (e) { console.error('[Calendar] repaint after a month read failed', e); }
+    }
 }
 
 /**

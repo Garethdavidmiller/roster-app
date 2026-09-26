@@ -44,10 +44,28 @@ export function numValOr(id, fallback) {
 export function intVal(id)    { return Math.max(0, parseInt(/** @type {HTMLInputElement} */ (document.getElementById(id))?.value ?? '') || 0); }
 
 /**
+ * An hours/minutes pair as whole hours + minutes, reading a DECIMAL still in the hours box the way
+ * the blur split (`autoDecimalHours`) will write it: floor to hours, the fraction to minutes, the
+ * minutes box REPLACED. Before this, "7.5" read as parseInt's 7 until blur — priced 7h live, and
+ * stored 7h by any autosave that ran while the field was focused. One reader, so what is priced,
+ * what is stored and what the member sees after blur cannot disagree.
+ * @param {string} hId @param {string} mId
+ * @returns {{ h: number, m: number }}
+ */
+export function hmPair(hId, mId) {
+  const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId))?.value ?? '';
+  if (raw.includes('.')) {
+    const hm = decimalToHM(Math.max(0, parseSmartFloat(raw)));
+    if (hm) return hm;
+  }
+  return { h: intVal(hId), m: intVal(mId) };
+}
+
+/**
  * @param {string} hId
  * @param {string} mId
  */
-export function hhmmDec(hId, mId) { return intVal(hId) + intVal(mId) / 60; }
+export function hhmmDec(hId, mId) { const { h, m } = hmPair(hId, mId); return h + m / 60; }
 
 /** @param {string} mId */
 export function clampMins(mId) {

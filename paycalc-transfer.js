@@ -18,7 +18,7 @@
  * or a live localStorage.
  */
 
-import { DEVICE_KEYS, memberSlug, PAY_DATA_GENERATION } from './paycalc-migrations.js';
+import { DEVICE_KEYS, memberSlug, PAY_DATA_GENERATION, keyOwnerSlug } from './paycalc-migrations.js';
 import { inventoryOf, damagedEntries } from './paycalc-inventory.js';
 
 /** Identifies our own blobs. A file that does not carry this is not ours, whatever its extension. */
@@ -106,7 +106,8 @@ export function buildBackup({ entries, member, slug, appVersion, exportedAt, pre
  * @param {string} text the pasted or uploaded file contents
  * @param {{ currentSlug: string }} ctx the namespace of the member doing the importing
  * @returns {{ ok: false, error: string }
- *          | { ok: true, blob: any, unnamespaced: boolean, counts: {periods:number,taxYears:number,keys:number},
+ *          | { ok: true, blob: any, unnamespaced: boolean, srcSlug: string,
+ *              counts: {periods:number,taxYears:number,keys:number},
  *              inventory: ReturnType<typeof inventoryOf>,
  *              damaged: {key:string,tail:string,label:string}[] }}
  */
@@ -162,6 +163,11 @@ export function validateBackup(text, { currentSlug }) {
         return { ok: false, error: `That backup is damaged (${badValue}). Nothing was changed.` };
     }
 
+    // A slug that is PRESENT but not a string cannot be re-keyed from — `'myb_pc_' + 7 + '_'` names
+    // nothing the keys sit under, and treating it as absent (legacy) would re-key every key wrongly.
+    if (blob.slug != null && typeof blob.slug !== 'string') {
+        return { ok: false, error: 'That backup is damaged (its owner record). Nothing was changed.' };
+    }
     const srcSlug = typeof blob.slug === 'string' ? blob.slug : '';
 
     // Option A — refuse a different member outright. Staff share devices (which is precisely why
@@ -180,6 +186,19 @@ export function validateBackup(text, { currentSlug }) {
     // must confirm — it is the one case where we cannot tell whose figures these are.
     const unnamespaced = !srcSlug;
 
+    // …UNLESS ITS KEYS NAME AN OWNER (72-hour review). Stripping `slug` from another member's backup
+    // made it read as legacy: accepted, re-keyed to `myb_pc_<me>_<them>_…`, and the REPLACE then
+    // deleted the importer's own history for keys nothing reads. A genuine legacy key never begins
+    // with a member's slug — the same test the ownership prompt uses (`keyOwnerSlug`).
+    if (unnamespaced) {
+        const owned = keys.find(k => keyOwnerSlug(k) !== null);
+        if (owned) {
+            return keyOwnerSlug(owned) === currentSlug
+                ? { ok: false, error: `That backup is inconsistent (${owned}). Nothing was changed.` }
+                : { ok: false, error: 'That backup belongs to someone else. Sign in as them to restore it.' };
+        }
+    }
+
     // Every key must actually sit under the slug the blob claims, or re-keying would mangle it.
     const srcPrefix = `myb_pc_${srcSlug ? srcSlug + '_' : ''}`;
     const stray = keys.find(k => !k.startsWith(srcPrefix));
@@ -193,7 +212,9 @@ export function validateBackup(text, { currentSlug }) {
     // copy left, and a corrupt period restored is visible and recoverable where a refused restore
     // leaves the member with nothing.
     return {
-        ok: true, blob, unnamespaced,
+        // `srcSlug` is the slug every rule above CHECKED — the caller re-keys from this, never from
+        // `blob.slug` again, so what was validated is what is written.
+        ok: true, blob, unnamespaced, srcSlug,
         counts: summarise(keys, srcPrefix),
         inventory: inventoryOf(keys, srcPrefix),
         damaged: damagedEntries(blob.data, srcPrefix),
