@@ -2,7 +2,7 @@
 // Run with: node --test perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones, READY_SOURCES, summariseReadySource, UPDATE_OPENS, summariseUpdateOpens, PROVISIONAL_OPENS, summariseProvisionalOpens, SWR_COUNT_BUCKETS, bucketSwrCount, SWR_HEAVY_BUCKET } from './perf-stats.js';
+import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones, READY_SOURCES, summariseReadySource, UPDATE_OPENS, summariseUpdateOpens, PROVISIONAL_OPENS, summariseProvisionalOpens, SWR_COUNT_BUCKETS, bucketSwrCount, SWR_HEAVY_BUCKET, createPerfBatcher } from './perf-stats.js';
 
 /** Build a samples map from [page, metric, bucket, count] rows (version/mode/conn fixed). */
 function samplesFrom(rows) {
@@ -815,5 +815,58 @@ describe('bucketSwrCount', () => {
         for (const b of SWR_COUNT_BUCKETS) {
             assert.ok(!PERF_BUCKETS.includes(/** @type {any} */ (b)), `${b} collides with a duration band`);
         }
+    });
+});
+
+// ── One write per page open, not fifteen (review F5) ───────────────────────────────────────────
+// Every sample used to be its own setDoc to analytics/perf_<month>, and a Calendar open makes a dozen
+// or more of them — all queued on Firestore's one operation queue beside the roster's own reads.
+describe('createPerfBatcher — samples coalesce into one merged write', () => {
+    /** @returns {{ writes: Array<[string, Record<string, number>]>, arms: Function[], b: ReturnType<typeof createPerfBatcher> }} */
+    function harness() {
+        /** @type {Array<[string, Record<string, number>]>} */ const writes = [];
+        /** @type {Function[]} */ const arms = [];
+        const b = createPerfBatcher((month, counts) => { writes.push([month, counts]); }, (flush) => { arms.push(flush); });
+        return { writes, arms, b };
+    }
+
+    test('nothing is written until the armed flush runs — then ONE write carries every sample', () => {
+        const { writes, arms, b } = harness();
+        b.add('2026-09', 'k1'); b.add('2026-09', 'k2'); b.add('2026-09', 'k3');
+        assert.equal(writes.length, 0, 'a sample must not reach Firestore on its own');
+        assert.equal(arms.length, 1, 'one flush armed for the whole burst');
+        arms[0]();
+        assert.deepEqual(writes, [['2026-09', { k1: 1, k2: 1, k3: 1 }]]);
+    });
+
+    test('a repeated key is counted, not dropped', () => {
+        const { writes, arms, b } = harness();
+        b.add('2026-09', 'k1'); b.add('2026-09', 'k1');
+        arms[0]();
+        assert.deepEqual(writes, [['2026-09', { k1: 2 }]]);
+    });
+
+    test('an explicit flush (pagehide) drains at once, and the armed one then writes nothing twice', () => {
+        const { writes, arms, b } = harness();
+        b.add('2026-09', 'k1');
+        b.flush();
+        arms[0]();
+        assert.deepEqual(writes, [['2026-09', { k1: 1 }]]);
+    });
+
+    test('a sample after a flush arms a fresh batch', () => {
+        const { writes, arms, b } = harness();
+        b.add('2026-09', 'k1'); arms[0]();
+        b.add('2026-09', 'k2');
+        assert.equal(arms.length, 2);
+        arms[1]();
+        assert.deepEqual(writes, [['2026-09', { k1: 1 }], ['2026-09', { k2: 1 }]]);
+    });
+
+    test('a batch straddling month-end goes to each month\'s own document', () => {
+        const { writes, arms, b } = harness();
+        b.add('2026-09', 'k1'); b.add('2026-10', 'k2');
+        arms[0]();
+        assert.deepEqual(writes, [['2026-09', { k1: 1 }], ['2026-10', { k2: 1 }]]);
     });
 });

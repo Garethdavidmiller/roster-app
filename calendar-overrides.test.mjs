@@ -17,6 +17,11 @@ let _getDocsThrows = false;
 // Phase-1 (local cache) mock state — see getDocsFromCache below.
 let _mockCacheDocs = [];
 let _cacheThrows   = false;
+// Parks every cache read until released (the provisional-lift tests), and counts them.
+let _deferCache    = false;
+/** @type {(() => void)[]} */
+const _cacheReleases = [];
+let _cacheReads    = 0;
 // DEFERRED READS — the only way to interleave two in-flight fetches deterministically. When on,
 // every getDocs call SNAPSHOTS the docs at issue time and then parks until the test releases it by
 // index, so a test can land the second read first and the first one late. That ordering is the
@@ -65,10 +70,16 @@ mock.module('./firebase-client.js', {
         },
         // Phase 1 of the two-phase load (AUTH_PLAN.md → E1). Defaults to an EMPTY cache so every
         // existing test keeps exercising the server path unchanged; the cache tests set _mockCacheDocs.
-        getDocsFromCache: async () => {
+        // Honours a `memberName ==` constraint, as the real cache does: the provisional scope puts
+        // that filter in the QUERY, and a fake that ignored it could not tell a scoped read from a
+        // full one — which is the whole subject of the provisional-lift tests at the end.
+        getDocsFromCache: async (/** @type {any} */ q) => {
+            _cacheReads++;
             if (_cacheThrows) throw new Error('simulated cache miss');
-            return { size: _mockCacheDocs.length, empty: _mockCacheDocs.length === 0,
-                     forEach: cb => _mockCacheDocs.forEach(cb) };
+            const m = Array.isArray(q) ? q.find(a => Array.isArray(a?._where) && a._where[0] === 'memberName') : null;
+            const docs = m ? _mockCacheDocs.filter(d => d.data().memberName === m._where[2]) : _mockCacheDocs;
+            if (_deferCache) await new Promise(r => _cacheReleases.push(r));
+            return { size: docs.length, empty: docs.length === 0, forEach: cb => docs.forEach(cb) };
         },
         COLLECTIONS: { overrides: 'overrides', linkDesigns: 'linkDesigns' },
     },
@@ -670,5 +681,102 @@ describe('fetchOverridesForRangeFromCache', () => {
         _cacheThrows = true;
         assert.equal(await fetchOverridesForRangeFromCache('2026-08-01', '2026-08-31'), false);
         _cacheThrows = false;
+    });
+});
+
+// ── A provisional scope lifted mid-boot (review F2/F3) ───────────────────────────────────────
+//
+// Knowledge is per MONTH, not per member. A provisional boot's phase-1 read is filtered to one
+// member, so a hit marks the three months `cached` while memory holds only that member's rows; the
+// full grant then re-enables the picker and Team View, and a colleague drew as `stale` with their
+// leave and absence silently missing until phase 2's server read settled. And an EMPTY scoped read
+// left the months `unknown` — nothing re-read the device's unscoped cache after the lift.
+// Real calendar-overrides + calendar-data-state + calendar-initial-fetch; only Firestore is faked.
+describe('a provisional scope lifted mid-boot', async () => {
+    const { initInitialFetch } = await import('./calendar-initial-fetch.js');
+    const { knowledgeOf, forget: forgetKnowledge } = await import('./calendar-data-state.js');
+    const now   = new Date();
+    const pad   = (/** @type {number} */ n) => String(n).padStart(2, '0');
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const thisMonth = monthKey(now.getFullYear(), now.getMonth());
+    const _doc = (/** @type {string} */ id, /** @type {string} */ member) => makeDoc(id, {
+        memberName: member, date: today, value: 'AL', type: 'annual_leave', source: 'manual', note: '', createdAt: { seconds: 1000 },
+    });
+    /** @type {any} */ let _savedDoc;
+
+    beforeEach(() => {
+        _savedDoc = /** @type {any} */ (globalThis).document;
+        /** @type {any} */ (globalThis).document = { getElementById: () => null, querySelector: () => null, addEventListener: () => {}, body: null };
+        mock.timers.enable({ apis: ['setTimeout'] });
+        rosterOverridesCache.clear();
+        forgetKnowledge();
+        _mockCacheDocs = [_doc('a', 'A. Member'), _doc('b', 'B. Colleague')];
+        _getDocsThrows = false;
+        _deferGetDocs = true;          // phase 2's server read stays in flight throughout
+        _cacheReads = 0;
+    });
+    afterEach(() => {
+        mock.timers.reset();
+        /** @type {any} */ (globalThis).document = _savedDoc;
+        _deferGetDocs = false; _releases.length = 0;
+        _deferCache = false; _cacheReleases.length = 0;
+        setInitialFetchInProgress(false);
+        forgetKnowledge();
+        setOverrideAccess(true);       // also releases the months the boot claimed
+    });
+
+    /** Boot provisionally for `member`, then lift the scope the way `grant()` does: gate first
+     *  (onEveryGrant(null)), then calendarAccessReady. */
+    async function bootAndLift(/** @type {string} */ member, { holdReread = false } = {}) {
+        let renders = 0;
+        /** @type {() => void} */ let resolveAccess = () => {};
+        const authReady = new Promise(r => { resolveAccess = () => r(undefined); });
+        setOverrideAccess(true, { provisionalMember: member });
+        const { cacheSettled } = initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => { renders++; }, authReady });
+        const painted = await cacheSettled;
+        const before = { painted, knowledge: knowledgeOf(thisMonth), colleague: rosterOverridesCache.has(`B. Colleague|${today}`) };
+        _deferCache = holdReread;
+        setOverrideAccess(true);       // the scope lifts…
+        resolveAccess();               // …and phase 2 is released
+        await _tick(10);
+        return { before, renders: () => renders };
+    }
+
+    test('a scoped HIT: after the lift a colleague\'s rows are read from the cache too', async () => {
+        const { before } = await bootAndLift('A. Member');
+        assert.equal(before.painted, true);
+        assert.equal(before.colleague, false, 'the provisional read is confined to one member');
+        assert.equal(rosterOverridesCache.has(`B. Colleague|${today}`), true,
+            'once the identity confirms, the unscoped cache must be read — the picker is live again');
+        assert.equal(knowledgeOf(thisMonth), 'cached');
+    });
+
+    test('a scoped hit: until that re-read lands, the month is NOT drawable for anyone', async () => {
+        await bootAndLift('A. Member', { holdReread: true });
+        assert.equal(knowledgeOf(thisMonth), 'unknown',
+            'a colleague picked in this window would draw from one member\'s rows as though known');
+        _cacheReleases.splice(0).forEach(r => r());
+        await _tick(10);
+        assert.equal(knowledgeOf(thisMonth), 'cached');
+        assert.equal(rosterOverridesCache.has(`B. Colleague|${today}`), true);
+    });
+
+    test('a scoped MISS: the lift still reads the unscoped cache, and paints', async () => {
+        const { before, renders } = await bootAndLift('Z. NoOverrides');
+        assert.equal(before.painted, false);
+        assert.equal(before.knowledge, 'unknown');
+        assert.equal(knowledgeOf(thisMonth), 'cached',
+            'the device holds this window — waiting for the server to say so is the bug');
+        assert.equal(rosterOverridesCache.has(`A. Member|${today}`), true);
+        assert.ok(renders() >= 1, 'the re-read must repaint');
+    });
+
+    test('an ordinary (unscoped) boot reads the cache ONCE — nothing to lift', async () => {
+        setOverrideAccess(true);
+        const { cacheSettled } = initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, authReady: Promise.resolve() });
+        assert.equal(await cacheSettled, true);
+        await _tick(10);
+        assert.equal(_cacheReads, 1);
+        assert.equal(knowledgeOf(thisMonth), 'cached');
     });
 });

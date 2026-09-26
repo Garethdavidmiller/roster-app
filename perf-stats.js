@@ -786,3 +786,36 @@ export function loginDurationBucket(t0, now, maxMs = LOGIN_MAX_MS) {
     if (elapsed >= maxMs) return null;            // stale/abandoned — ignore
     return bucketDuration(elapsed);
 }
+
+/**
+ * Coalesce perf samples into ONE merged write per month (review F5, Sep 2026).
+ *
+ * `recordPerfSample` used to issue a `setDoc` per sample, and a Calendar open records a dozen or
+ * more — every one queued on Firestore's single operation queue ahead of, or beside, the roster's own
+ * reads. Batched, the open costs one write, issued after the burst. Holds only counts; the TIMING is
+ * injected (`arm` is handed the flush to schedule) so this stays free of timers and the DOM.
+ *
+ * @param {(month: string, counts: Record<string, number>) => void} write  one merged write per month
+ * @param {(flush: () => void) => void} arm  schedule `flush` — called once per batch, on its first sample
+ * @returns {{ add: (month: string, key: string) => void, flush: () => void }}
+ */
+export function createPerfBatcher(write, arm) {
+    /** @type {Map<string, Record<string, number>>} */
+    let pending = new Map();
+    let armed = false;
+    const flush = () => {
+        armed = false;
+        const batch = pending;
+        pending = new Map();
+        for (const [month, counts] of batch) write(month, counts);
+    };
+    return {
+        add(month, key) {
+            const counts = pending.get(month) || {};
+            counts[key] = (counts[key] || 0) + 1;
+            pending.set(month, counts);
+            if (!armed) { armed = true; arm(flush); }
+        },
+        flush,
+    };
+}

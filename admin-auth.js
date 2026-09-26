@@ -213,6 +213,9 @@ export function initAuthSetup({ currentIsAdmin, onAttention }) {
                         headers: { 'Authorization': `Bearer ${fresh.token}`, 'Content-Type': 'application/json' },
                         body:    JSON.stringify(extraBody),
                     }, 130_000);
+                    // Read INSIDE the try: the body shares the deadline, and a body cut off by it is a timeout too.
+                    if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
+                    return await r.json();
                 } catch (err) {
                     // A WRITE, and a broad one — it creates, disables and re-claims accounts. The
                     // abort stopped us waiting, not the server working, so this must not read as
@@ -222,8 +225,6 @@ export function initAuthSetup({ currentIsAdmin, onAttention }) {
                     if (isFetchTimeout(err)) throw new Error('Timed out waiting for the server — account setup may still be running. Reload and check Account status before running it again.', { cause: err });
                     throw err;
                 }
-                if (!r.ok) { const e = await r.text(); throw new Error(`Server responded ${r.status}: ${e}`); }
-                return r.json();
             };
 
             /** Render a setupRosterAuth response, wiring the dry-run → confirm step for leaver removal. */

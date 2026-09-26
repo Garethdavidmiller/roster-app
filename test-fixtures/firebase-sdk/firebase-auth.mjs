@@ -1,7 +1,7 @@
 // Fake of https://www.gstatic.com/firebasejs/<ver>/firebase-auth.js — see state.mjs.
 import { state } from './state.mjs';
 
-const auth = { get currentUser() { return state.currentUser; } };
+const auth = { get currentUser() { return state.currentUser; }, authStateReady: () => Promise.resolve() };
 export function getAuth() { return auth; }
 export function onAuthStateChanged(_auth, cb) { queueMicrotask(() => cb(state.currentUser)); return () => {}; }
 export const indexedDBLocalPersistence = { type: 'indexeddb' };

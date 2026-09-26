@@ -14,9 +14,10 @@
  * which is worse, because the member cannot tell a slow network from a broken app and their only
  * move is to reload and possibly repeat the action.
  *
- * The Calendar's PIN exchange (`calendar-access.js`) has had its own bound since v20.45 and keeps
- * it: that path is live and mid-soak, and consolidating it onto this helper is churn on the one
- * file that has just been stabilised. It should adopt this once the PIN rollout is finished.
+ * The Calendar's PIN exchange (`calendar-access.js`) kept its own bound from v20.45 until the Sep
+ * 2026 review moved it here: that bound, like this one then, was cleared when the HEADERS arrived,
+ * so a body that stalled after them hung `res.json()` for ever. The deadline now covers the body
+ * read too — see the end of `fetchWithTimeout`.
  *
  * ── CHOOSING A BUDGET: ABOVE THE SERVER'S OWN TIMEOUT, NEVER BELOW ──────────────────────────────
  * Each function declares `timeoutSeconds` (functions/index.js). A client that gives up FIRST turns a
@@ -80,7 +81,7 @@ function abortedError() {
  * @param {RequestInit} [options] `options.signal`, when supplied, can cancel the request; the
  *   resulting error carries `FETCH_ABORTED_CODE`, never `FETCH_TIMEOUT_CODE`.
  * @param {number} [timeoutMs] budget in ms — pick it from the endpoint's own `timeoutSeconds`
- * @returns {Promise<Response>}
+ * @returns {Promise<Response>} whose body reads (`json`/`text`/…) are bounded by the SAME deadline
  * @throws {Error} `.code === FETCH_TIMEOUT_CODE` when our budget expired, `FETCH_ABORTED_CODE` when
  *   the caller cancelled; otherwise whatever fetch threw
  */
@@ -99,24 +100,43 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = DEFAULT_FE
     const onCallerAbort = () => { try { ctrl.abort(); } catch { /* noop */ } };
     if (callerSignal) callerSignal.addEventListener('abort', onCallerAbort);
     const timer = setTimeout(() => { timedOut = true; try { ctrl.abort(); } catch { /* noop */ } }, timeoutMs);
+    /** @type {Response} */
+    let res;
     try {
-        return await fetch(url, { ...options, signal: ctrl.signal });
+        res = await fetch(url, { ...options, signal: ctrl.signal });
     } catch (err) {
+        clearTimeout(timer);
         // Three-way, and the ORDER is the policy: when the caller cancelled AND our budget expired,
         // the timeout wins, because "go and check" is the safe direction to be wrong in.
-        if (timedOut) {
-            const e = new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
-            /** @type {any} */ (e).code = FETCH_TIMEOUT_CODE;
-            throw e;
-        }
+        if (timedOut) throw timeoutError(timeoutMs);
         // Ours did not fire, so an abort that reached us came from the caller's signal. Anything
         // else — a network failure, a foreign abort we were never given — passes straight through.
         if (callerSignal && callerSignal.aborted) throw abortedError();
         throw err;
     } finally {
-        clearTimeout(timer);
         if (callerSignal) callerSignal.removeEventListener('abort', onCallerAbort);
     }
+    // ── THE BODY IS INSIDE THE DEADLINE TOO (review, Sep 2026) ──────────────────────────────────
+    // `fetch` resolves on HEADERS, and the bound used to be cleared there — so a body that stalled
+    // after them left `r.json()` waiting for ever, the exact infinite wait this module ends. The
+    // timer stays armed until the body has been read (aborting the request aborts its body), and a
+    // body cut off by it rejects with OUR timeout code, so callers' copy stays right.
+    const reads = ['json', 'text', 'arrayBuffer', 'blob', 'formData'].filter(m => typeof (/** @type {any} */ (res))?.[m] === 'function');
+    if (!reads.length) { clearTimeout(timer); return res; }
+    for (const m of reads) {
+        const read = (/** @type {any} */ (res))[m].bind(res);
+        (/** @type {any} */ (res))[m] = () => read().then(
+            (/** @type {any} */ v) => { clearTimeout(timer); return v; },
+            (/** @type {any} */ err) => { clearTimeout(timer); throw timedOut ? timeoutError(timeoutMs) : err; });
+    }
+    return res;
+}
+
+/** @param {number} timeoutMs @returns {Error} our bound's error, tagged so `isFetchTimeout` spots it. */
+function timeoutError(timeoutMs) {
+    const e = new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`);
+    /** @type {any} */ (e).code = FETCH_TIMEOUT_CODE;
+    return e;
 }
 
 /** True when `err` is the bound firing rather than a network or HTTP failure. */

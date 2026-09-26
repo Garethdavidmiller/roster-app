@@ -232,3 +232,47 @@ describe('no AbortController (very old browser)', () => {
         assert.equal(r.status, 200);
     });
 });
+
+// ── The BODY is inside the deadline too (review F7) ──────────────────────────────────────────────
+// `fetch` resolves on HEADERS. The bound used to be cleared right there, so a body that stalled after
+// them — `r.json()` — waited for ever: the same infinite "Sending…" this module exists to end.
+describe('the deadline covers reading the body', () => {
+    /** A response whose body never finishes unless the request's signal aborts it. */
+    function stalledBodyFetch() {
+        return (/** @type {any} */ _url, /** @type {any} */ opts) => Promise.resolve({
+            ok: true, status: 200,
+            json: () => new Promise((_resolve, reject) => {
+                opts?.signal?.addEventListener('abort', () => {
+                    const e = new Error('The operation was aborted'); e.name = 'AbortError'; reject(e);
+                });
+            }),
+        });
+    }
+
+    test('a body that stalls after the headers rejects with the TIMEOUT code at the deadline', async () => {
+        globalThis.fetch = /** @type {any} */ (stalledBodyFetch());
+        const r = await fetchWithTimeout('https://example.test', {}, 30);
+        await assert.rejects(() => r.json(), (/** @type {any} */ err) => {
+            assert.equal(err.code, FETCH_TIMEOUT_CODE, 'callers branch on this to say "may still have gone through"');
+            return true;
+        });
+    });
+
+    test('a body read in time disarms the bound — nothing is aborted afterwards', async () => {
+        /** @type {any} */ let seen;
+        globalThis.fetch = /** @type {any} */ ((/** @type {any} */ _url, /** @type {any} */ opts) => {
+            seen = opts?.signal;
+            return Promise.resolve({ ok: true, status: 200, json: async () => ({ a: 1 }) });
+        });
+        const r = await fetchWithTimeout('https://example.test', {}, 30);
+        assert.deepEqual(await r.json(), { a: 1 });
+        await new Promise(res => setTimeout(res, 60));
+        assert.equal(seen?.aborted, false, 'a finished read must not be aborted by a stale timer');
+    });
+
+    test('a body that fails for its own reasons is passed through, not called a timeout', async () => {
+        globalThis.fetch = /** @type {any} */ (() => Promise.resolve({ ok: true, status: 200, json: () => Promise.reject(new SyntaxError('bad json')) }));
+        const r = await fetchWithTimeout('https://example.test', {}, 500);
+        await assert.rejects(() => r.json(), (/** @type {any} */ err) => { assert.equal(err.name, 'SyntaxError'); return true; });
+    });
+});

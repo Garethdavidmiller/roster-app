@@ -26,7 +26,7 @@ beside the code, where it cannot drift from the thing it describes. Every row po
 | 7 | **`getBaseShift()` is the only way to read a base shift.** Direct `roster.data` access bypasses start-date suppression, Christmas rules and scheduled roster changes. | `roster-data.js` |
 | 8 | **`isChristmasRD()` applies BEFORE Firestore overrides.** Dec 25/26 force to RD first so Dec 26 can then be overridden to RDW. Never reorder. | `roster-data.js` |
 | 9 | **Sundays are non-contracted.** The forbidden write types are declared once as `SUNDAY_FORBIDDEN_TYPES` — consult it rather than restating it here, which is how this row came to name two of the four. Six enforcement layers, none removable alone. | `override-utils.js` · CLAUDE.md → architecture decisions |
-| 10 | **Phase 1 paints with no network and no auth.** Requiring a session for reads must never put a sign-in round trip in front of data the device already holds. | `calendar-initial-fetch.js` |
+| 10 | **Phase 1 paints with no network and no SESSION — but not before Firebase Auth has initialised.** Requiring a session for reads must never put a sign-in round trip in front of data the device already holds, and phase 1 never awaits one. It cannot beat the stored user's `accounts:lookup`, though: Firestore holds every operation, `getDocsFromCache` included, until Auth reports its first user (measured Sep 2026 — a cache read behind a 2s lookup settled at ~2s, and at ~7ms with Auth absent). Do not build on phase 1 finishing before that round trip; this row claimed "no auth" until then. | `calendar-initial-fetch.js` |
 | 11 | **A member is never sent to the staff PIN.** A held session with no restored identity gets a sign-in card, and the late-identity watcher keeps listening — and a member whose access is LOST mid-session gets that same card, not the PIN one (v23.19; the re-lock path sent everyone to the PIN until then). | `calendar-access.js` · `calendar-access-core.js` |
 | 12 | **The viewer's persistence is session-only, and boot must not migrate it.** `setPersistence` moves the current user between stores. | `firebase-client.js` (`authReady`) |
 | 13 | **A provisional paint is scoped to ONE member, and is not access.** While a stored identity is being revalidated the Calendar may re-show that member's own cached overrides — nothing from the server, nothing of anybody else's, no write, and `calendarAccessReady` stays pending. A boot that would draw somebody else (Team View, or a stored selection naming a colleague) is refused outright rather than narrowed. | `calendar-access-core.js` (`decideProvisionalAccess`) · `calendar-overrides.js` |
@@ -46,6 +46,13 @@ was disabled since their last visit can see their own previously cached roster f
 validation window. The argument, including why the trade is smaller than it looks (the app already
 behaves this way with no network at all), is in `calendar-access-core.js` →
 `decideProvisionalAccess`.
+
+**What it could not buy, and why (Sep 2026).** The provisional paint reads the same local cache
+phase 1 does, and that read waits behind the very round trip the ruling wanted to step around
+(invariant 10's measurement). So the paint and the confirmation land within milliseconds of each
+other, which is why `LATENCY.md`'s closing read found the path taken on about one eligible open in
+eight hundred. The policy is unchanged; its mechanism does not deliver it. The options are the
+owner's, and are set out in `LATENCY.md` → THE CLOSING READ.
 
 ---
 

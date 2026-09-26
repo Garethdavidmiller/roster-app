@@ -384,9 +384,11 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         // Attach only once a session exists (AUTH_PLAN.md → E1). Attaching too early is worse than
         // attaching late: an onSnapshot that hits permission-denied is TERMINATED, not retried, and
         // today only recovers on the next visibilitychange — useless to someone who just tapped a
-        // notification. A plain await is safe because the 8s safety timeout below is registered at
-        // init, so it already bounds this wait; and the generation guard stops the visibilitychange
-        // re-subscribe from stacking two listeners when two calls await concurrently.
+        // notification. The await is UNBOUNDED (it settles when Auth has initialised — past the
+        // `accounts:lookup`, up to the SDK's 30s timeout); the 8s timeout below bounds the button's
+        // loading STATE, not this wait. Bounding it would buy nothing: Firestore itself holds the
+        // listener until Auth initialises (CALENDAR_DATA.md 10). The generation guard stops the
+        // visibilitychange re-subscribe from stacking two listeners when two calls await concurrently.
         await authReady;
         if (_gen !== _subGen) return;
         _unsubHuddle = subscribeToLatestHuddle(

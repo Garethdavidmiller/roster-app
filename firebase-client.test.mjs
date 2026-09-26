@@ -30,7 +30,7 @@
  *   · the fire-and-forget writers never throw into the page that called them.
  */
 import { register } from 'node:module';
-import { test, describe, beforeEach } from 'node:test';
+import { test, describe, beforeEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 register('./test-fixtures/firebase-sdk/resolve-gstatic.mjs', import.meta.url);
@@ -330,14 +330,40 @@ describe('fire-and-forget writers never throw into the page', () => {
         // The Usage card is deliberately anonymous: the server receives increments and never learns
         // who. A member name reaching one of these documents would reverse that design.
         signIn({ uid: 'uid_springer', email: 'l.springer@myb-roster.local' });
-        fc.recordPageView('calendar');
-        fc.recordActiveAccount({ month: '2026-09', day: '2026-09-25' });
-        fc.recordOriginUse({ day: '2026-09-25', origin: 'https://myb-roster.web.app', installed: true });
-        fc.recordPerfSample({ page: 'calendar', metric: 'ready', bucket: 'lt1s', mode: 'browser', conn: '4g' });
+        mock.timers.enable({ apis: ['setTimeout'] });
+        try {
+            fc.recordPageView('calendar');
+            fc.recordActiveAccount({ month: '2026-09', day: '2026-09-25' });
+            fc.recordOriginUse({ day: '2026-09-25', origin: 'https://myb-roster.web.app', installed: true });
+            fc.recordPerfSample({ page: 'calendar', metric: 'ready', bucket: 'lt1s', mode: 'browser', conn: '4g' });
+            mock.timers.tick(4000);   // the perf batch's flush (see the next test)
+        } finally { mock.timers.reset(); }
         await new Promise((r) => setImmediate(r));
         const text = JSON.stringify(writes('analytics/'));
         assert.equal(writes('analytics/').length, 4);
         for (const id of ['uid_springer', 'springer', 'Springer']) assert.ok(!text.includes(id), `found ${id}`);
+    });
+
+    test('perf samples from one open go as ONE merged write, after the burst (review F5)', async () => {
+        // A Calendar open records a dozen or more samples; each used to be its own setDoc on
+        // Firestore's single queue beside the roster's own reads.
+        signIn({ uid: 'uid_springer', email: 'l.springer@myb-roster.local' });
+        mock.timers.enable({ apis: ['setTimeout'] });
+        try {
+            fc.recordPerfSample({ page: 'calendar', metric: 'fcp',   bucket: 'lt500ms', mode: 'browser', conn: '4g' });
+            fc.recordPerfSample({ page: 'calendar', metric: 'ready', bucket: '1-3s',    mode: 'browser', conn: '4g' });
+            fc.recordPerfSample({ page: 'calendar', metric: 'ready', bucket: '1-3s',    mode: 'browser', conn: '4g' });
+            await new Promise((r) => setImmediate(r));
+            assert.deepEqual(writes('analytics/perf_'), [], 'nothing is written while the page is still starting');
+            mock.timers.tick(4000);
+        } finally { mock.timers.reset(); }
+        await new Promise((r) => setImmediate(r));
+        const perf = writes('analytics/perf_');
+        assert.equal(perf.length, 1, 'one write for the whole open');
+        const samples = perf[0].data.samples;
+        assert.equal(Object.keys(samples).length, 2);
+        assert.deepEqual(Object.values(samples).map((v) => v.n).sort(), [1, 2], 'a repeated sample is counted, not dropped');
+        assert.deepEqual(perf[0].opts, { merge: true }, 'merge — never a replace of the month\'s counters');
     });
 });
 

@@ -301,6 +301,15 @@ describe('Contract C — boot persistence is viewer-aware', () => {
         assert.ok(body.includes('browserSessionPersistence'),
             'the boot has no session-persistence branch for the viewer — a restored viewer must '
             + 'KEEP session-only persistence, or re-assert it to migrate back out of IndexedDB');
+        // The 8s emission bound is not the end of the restore. Past it the user is still being
+        // restored, and the member chain's setPersistence — queued behind that same restore — then
+        // MIGRATES whoever arrives, the shared viewer included (reproduced against the SDK's browser
+        // build with a slow accounts:lookup, Sep 2026). So a timed-out answer must be re-asked
+        // after Auth has initialised, BEFORE the viewer question is put to it.
+        const ready = body.indexOf('authStateReady(');
+        assert.ok(ready > -1 && ready < body.indexOf('isViewerUser('),
+            'a boot whose first auth emission timed out decides persistence without waiting for '
+            + 'the restore — a viewer restored after the bound is migrated into IndexedDB');
     });
 
     test('authReady is DERIVED — boot persistence is decided in exactly one place', () => {

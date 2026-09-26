@@ -70,6 +70,7 @@ import { auth, signInWithCustomToken, signInAnonymously, signOut, setViewerPersi
 import { getSession, reconcileExpiredIdentity, ensureNamedSession } from './session.js';
 import { CONFIG } from './roster-data.js';
 import { lsGet } from './ls.js';
+import { fetchWithTimeout } from './fetch-timeout.js';
 import { SELECTED_MEMBER, TEAM_VIEW } from './storage-keys.js';
 import { isViewerUser, decideAccess, decideProvisionalAccess, isCompletePin, classifyUnlockFailure, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
 import { lockCardId, armSkeleton, showBootSkeleton } from './calendar-lock-slot.js';
@@ -362,17 +363,14 @@ export async function unlockWithPin(pin) {
     /** @type {Response} */
     let res;
     try {
-        const ctrl = typeof AbortController === 'function' ? new AbortController() : null;
-        const timer = setTimeout(() => { try { ctrl?.abort(); } catch { /* noop */ } }, UNLOCK_TIMEOUT_MS);
-        try {
-            res = await fetch(UNLOCK_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pin }),
-                cache: 'no-store',
-                signal: ctrl ? ctrl.signal : undefined,
-            });
-        } finally { clearTimeout(timer); }
+        // fetchWithTimeout, not a hand-rolled abort: its deadline also covers reading the BODY
+        // (`res.json()` below), which the old one cleared the moment the headers arrived.
+        res = await fetchWithTimeout(UNLOCK_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pin }),
+            cache: 'no-store',
+        }, UNLOCK_TIMEOUT_MS);
     } catch {
         // A thrown fetch is a transport failure — there is no status to classify, and deliberately
         // no retry here: the member is standing at the panel and pressing the button again IS the

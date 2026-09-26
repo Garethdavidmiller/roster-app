@@ -423,6 +423,20 @@ PIN unlock — which is most Calendar reading on the shared station PC. That rem
 unobserved. Recording the refusal REASON would settle it, and it is deliberately not being built:
 see the closing rule below.
 
+> **CORRECTION, 26 Sep 2026 (external review) — there is a MECHANICAL reason, and it was measured.**
+> The provisional paint reads the local cache with `getDocsFromCache`, and this file (with
+> `CALENDAR_DATA.md` 10) assumed that read needs no auth. It needs no SESSION, but the Firestore SDK
+> holds every operation — cache reads included — until Firebase Auth has initialised, and for a
+> stored user initialisation IS the `accounts:lookup` round trip. Real SDK, lookup delayed 2 s: the
+> cache read settled at ~2,011 ms, and at ~7 ms with Auth absent. So the provisional paint and the
+> identity confirmation land milliseconds apart, and a grid can only rarely go up in between —
+> whatever the eligibility. The refusals above may also be real; they are no longer needed to
+> explain one open in eight hundred. The same fact explains Phase 1's "local cache wins the first
+> paint" (it wins only against a render, never against the lookup) and why `Shifts shown` tracks
+> `Recognised` even for cache-served starts. **Nothing here changes the diagnosis** — the wall is
+> still the lookup; what it changes is that no reordering of the Calendar's own reads can step round
+> it. What to do about that is the owner's, below.
+
 ### Everything else on the card is a clean negative, and three of them are re-confirmations
 
 | Question | This month | 12 Sep | Verdict |
@@ -459,6 +473,16 @@ machinery whose cost is real and whose benefit is now measured at nearly nothing
 is a judgement about access and risk appetite, on one month of data, and deleting a security path on
 that basis would be the same hurry this file spent two months refusing. Recorded in
 `KNOWN_LIMITATIONS.md`; not acted on here.
+
+**The correction above sharpens that question into two options (26 Sep 2026), neither taken:**
+
+| Option | What it is | For | Against |
+|---|---|---|---|
+| **An app-owned snapshot** | Paint a returning member's own roster from a copy the app writes itself (e.g. localStorage or its own IndexedDB store), which does not queue behind Firebase Auth | the only way the 5 Sep ruling can actually reach the screen before the lookup | a SECOND copy of override data outside Firestore's cache: on a shared device it must be keyed to one member, cleared on sign-out/leaver/PIN, and never read under a viewer — every property `setOverrideAccess` enforces today at one door would need a second door. Also a second staleness model beside the four knowledge states |
+| **Retire the provisional machinery** | Delete `decideProvisionalAccess`, the scope plumbing and the cross-member locking; boot waits for the lookup as it did before v22.97 | removes a security-adjacent path that measurably buys ~nothing, and the bugs it has produced (the per-month knowledge leak fixed in the same review) | gives up the ruling's intent for good unless the first option is later built; a member with a disabled account stops seeing their cached roster for the validation window (a small privacy gain, not a cost) |
+
+Recommendation from the review: **retire it** unless the owner wants the first option built — the
+current machinery carries the risk of both and the benefit of neither.
 
 ## Phase 2 — CLOSED on its own decision rule (5 Sep 2026)
 

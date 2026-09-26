@@ -20,7 +20,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { registerServiceWorker, reloadWhileHidden, _resetForTest } = await import('./sw-register.js');
+const { registerServiceWorker, reloadWhileHidden, lazyImport, _resetForTest } = await import('./sw-register.js');
 import { readFileSync } from 'node:fs';
 
 const _realSetInterval   = globalThis.setInterval;
@@ -499,6 +499,29 @@ describe('reloadWhileHidden — decided when the reload happens, not when the up
         } finally { h.restore(); }
     });
 
+    test('a re-armed reload re-stamps the update marker when it finally runs', async () => {
+        // `run()` stamps at controllerchange; on this path the reload can land hours later, and
+        // perf-reporter refuses a marker older than 60s — so the load that follows was filed as an
+        // ordinary one. The stamp has to be as late as the reload it describes.
+        const KEY = 'myb_perf_sw_reload';
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        /** @type {Function[]} */ const timers = [];
+        try {
+            registerServiceWorker({ deferWhileVisible: true,
+                beforeReload: () => { timers.push(() => reloadWhileHidden()); } });
+            await h.flush();
+            h.setVisibility('hidden');
+            h.fireControllerChange();
+            h.setVisibility('visible');
+            timers.forEach(fn => fn());
+            h.store.set(KEY, '1');                    // what the controllerchange stamp has aged into
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1);
+            assert.ok(Date.now() - Number(h.store.get(KEY)) < 1000,
+                'the marker must be written at the reload, not at the update that armed it');
+        } finally { h.restore(); }
+    });
+
     test('the Calendar wires its delayed reload THROUGH reloadWhileHidden', () => {
         // The helper can be perfect and the page still call location.reload() from its timer — the
         // shipped defect. Pinned at the call site.
@@ -506,5 +529,53 @@ describe('reloadWhileHidden — decided when the reload happens, not when the up
         const call = src.match(/registerServiceWorker\(\{[\s\S]*?\}\);/)?.[0] ?? '';
         assert.match(call, /beforeReload:[^\n]*reloadWhileHidden\(/, 'the Calendar reload must re-check visibility');
         assert.doesNotMatch(call, /beforeReload:[^\n]*location\.reload/, 'a bare reload from the timer is the bug');
+    });
+});
+
+// ── A lazy import that fails after a release has claimed the page (review F4) ─────────────────────
+//
+// `deferWhileVisible` can hold the reload for as long as the member keeps reading. Meanwhile the new
+// worker serves the NEW release's files, so a module imported lazily now is new code linking against
+// the old static modules already loaded — and a missing export fails the import. Left alone that is
+// a dead button; the release is already here, so the recovery is to take it.
+describe('lazyImport — a failed lazy import after an update reloads onto it', () => {
+    test('passes a successful import straight through, and never reloads', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            const mod = await lazyImport(async () => ({ ok: 1 }));
+            assert.deepEqual(mod, { ok: 1 });
+            assert.equal(h.state.reloads, 0);
+        } finally { h.restore(); }
+    });
+
+    test('a failure with NO update pending rejects to the caller — nothing to reload onto', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            await assert.rejects(lazyImport(async () => { throw new SyntaxError('missing export'); }));
+            assert.equal(h.state.reloads, 0, 'a network blip is the caller\'s to report, not a reload');
+        } finally { h.restore(); }
+    });
+
+    test('a failure while a claimed update is held reloads onto the new release', async () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            registerServiceWorker({ deferWhileVisible: true });
+            await h.flush();
+            h.fireControllerChange();                 // the member is reading: the reload is held
+            assert.equal(h.state.reloads, 0);
+            await assert.rejects(lazyImport(async () => { throw new SyntaxError('missing export'); }));
+            assert.equal(h.state.reloads, 1, 'the control must not go dead under a release it could take');
+        } finally { h.restore(); }
+    });
+
+    test('the FIRST-INSTALL claim is not an update — a failure then does not reload', async () => {
+        const h = makeHarness({ controlled: false });
+        try {
+            registerServiceWorker();
+            await h.flush();
+            h.fireControllerChange();
+            await assert.rejects(lazyImport(async () => { throw new Error('offline'); }));
+            assert.equal(h.state.reloads, 0);
+        } finally { h.restore(); }
     });
 });

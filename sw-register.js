@@ -26,7 +26,30 @@ let _registered = false;
 let _controllerListenerAttached = false;
 
 /** TEST-ONLY: reset the once-per-page-life guards between test cases. */
-export function _resetForTest() { _registered = false; _controllerListenerAttached = false; _hiddenReloadArmed = false; }
+export function _resetForTest() { _registered = false; _controllerListenerAttached = false; _hiddenReloadArmed = false; _updateClaimed = false; }
+
+// A newer release has taken control of this page (a genuine update, not the first-install claim).
+// While its reload is held — `deferWhileVisible`, a declined confirm — the new worker serves the
+// NEW release's files, so a LAZY import now fetches new code that links against the old static
+// modules already loaded, and a missing export fails it. `lazyImport` turns that into a reload.
+let _updateClaimed = false;
+
+/**
+ * Run a lazy `import()`. If it fails AFTER a newer release has claimed the page, reload onto that
+ * release instead of leaving the control that asked for it dead; either way the rejection still
+ * reaches the caller, which keeps its own fallback. Only for pages where a reload loses nothing
+ * the member typed — the Calendar's cards and Team View, not a page with unsaved work.
+ * @template T
+ * @param {() => Promise<T>} load  e.g. `() => import('./login-overlay.js')`
+ * @returns {Promise<T>}
+ */
+export async function lazyImport(load) {
+    try { return await load(); }
+    catch (err) {
+        if (_updateClaimed) { markUpdateReload(); try { window.location.reload(); } catch { /* nothing more to do */ } }
+        throw err;
+    }
+}
 
 // ── THE MARKER THAT SAYS "THIS LOAD FOLLOWED A RELEASE" ──────────────────────────────────────────
 //
@@ -68,12 +91,15 @@ let _hiddenReloadArmed = false;
  * @param {() => void} [reload]
  */
 export function reloadWhileHidden(reload = () => window.location.reload()) {
-    if (document.visibilityState === 'hidden') { reload(); return; }
+    // Re-stamp the update marker as the reload actually runs: `run()` stamped at controllerchange,
+    // and on the re-armed path that can be hours earlier — past perf-reporter's 60s recency bound.
+    if (document.visibilityState === 'hidden') { markUpdateReload(); reload(); return; }
     if (_hiddenReloadArmed) return;   // one reload serves every update that arrives while they read
     _hiddenReloadArmed = true;
     document.addEventListener('visibilitychange', () => {
         if (!_hiddenReloadArmed || document.visibilityState !== 'hidden') return;
         _hiddenReloadArmed = false;
+        markUpdateReload();
         reload();
     });
 }
@@ -137,6 +163,7 @@ export function registerServiceWorker({ beforeReload, bfcache = false, deferWhil
                 _controllerListenerAttached = true;
                 navigator.serviceWorker.addEventListener('controllerchange', () => {
                     if (suppressNextClaim) { suppressNextClaim = false; return; }
+                    _updateClaimed = true;
                     const run = () => {
                         markUpdateReload();
                         if (beforeReload) { beforeReload(); return; }

@@ -15,6 +15,7 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, MONTH_NAMES, TEAM_GRADES, ge
          SHIFT_TIME_REGEX, getShiftKind, isSunday, parseISODate } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { TEAM_VIEW } from './storage-keys.js';
+import { lazyImport } from './sw-register.js';
 import { isBeforeMemberStart, parseOtherValue, OTHER_FLAVOURS, resolveEffectiveShift } from './override-utils.js';
 import { worstKnowledge, decideDisplay, forget as forgetOverrideKnowledge } from './calendar-data-state.js';
 
@@ -442,8 +443,11 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
             // picker off the Calendar's boot path, which is `nav-guide-search.js`'s argument: no
             // page open pays for a control reached by one tap in one mode.
             tvJump.addEventListener('click', async () => {
-                const { openDatePicker } = await import('./date-picker.js');
-                openDatePicker(tvDate, { title: 'Jump to a week' });
+                // After a release has claimed the page, a failed load reloads onto it (lazyImport).
+                try {
+                    const { openDatePicker } = await lazyImport(() => import('./date-picker.js'));
+                    openDatePicker(tvDate, { title: 'Jump to a week' });
+                } catch (err) { console.error('[TeamView] the week picker could not load', err); }
             });
             // `change` is what the picker dispatches once a day is picked. Parsed with
             // `parseISODate` (local NOON) and never `new Date(str)`, which is UTC midnight and
