@@ -792,7 +792,8 @@
     /* The refusal card (#unsupportedGradeBanner) is the one banner with TWO paragraphs — what is
        missing, then the way out — and they ran together with no gap, reading as one block. */
     .setup-banner p + p { margin-top: 8px; }
-    /* Standalone privacy note — always visible, sits below the conditional setup banner */
+    /* Standalone privacy note — FIRST VISIT ONLY since v24.32 (paycalc.html says why); the same
+       line leads the note at the foot of the page for everyone else. */
     .privacy-note-standalone {
       background: var(--surface); border-radius: var(--radius-md); box-shadow: var(--shadow-1);
       padding: 9px 12px 9px 15px; margin-bottom: 16px;
@@ -806,6 +807,10 @@
       padding: 11px 14px; font-size: var(--type-small); color: var(--text-light);
       line-height: 1.6; margin-bottom: 16px; border-left: 3px solid var(--primary-blue);
     }
+    /* Two statements, one card: where the figures are kept, then how far to trust them. The
+       privacy line is the one a member ACTS on (it is why they back up before changing phone), so
+       it reads a step darker than the caveat beneath it. */
+    .disclaimer-privacy { color: var(--text-mid); margin-bottom: 6px; }
 
 
     /* HPP formula note toggle */
@@ -1184,6 +1189,17 @@
          steps between the top bands and the workspace, beside the 16px rhythm of every card below
          them — the exact double-gap the v18.47 wrapper resets were written to end. */
       main > .setup-banner, main > .privacy-note-standalone, main > .guide-footer-link { margin-bottom: 0; }
+    }
+    /* A HIDDEN TOP NOTE MUST NOT LEAVE ITS GAP BEHIND (v24.32). The privacy note owns grid row 2, and
+       an empty grid row still takes a row-gap on each side, so once the note became first-visit-only
+       a returning member's workspace dropped 16px lower than it used to sit (measured at 1280: 128px
+       from the top of <main> against 112px). Pulling the workspace up by one gap restores it, with the
+       setup banner shown or not. `screen` because the print block lays <main> out as a flex column
+       with its own gap, where this would overlap the cards. */
+    @media screen and (min-width: 1024px) {
+      main:has(> #privacyNoteTop.hidden) > :is(.pc-work, .pc-side) { margin-top: -16px; }
+    }
+    @media (min-width: 1024px) {
 
       /* Headline figure benefits from the extra horizontal space */
       .net-amount { font-size: 60px; }
@@ -1324,6 +1340,9 @@
          belong. */
       .disclaimer-extra { display: inline !important; }
       .disclaimer-toggle { display: none !important; }
+      /* Where the figures are STORED is a fact about the screen, not the sheet — the standalone
+         note was always in the hide list above, and merging it into this card must not print it. */
+      .disclaimer-privacy { display: none !important; }
       /* The provenance chips say what is INSIDE the printed £ ("Hours from calendar", "+ £X back
          pay"). On screen they are white-on-navy; the print block turns the hero white, which left
          the chip text white on white paper — the emoji printed and the words did not. */

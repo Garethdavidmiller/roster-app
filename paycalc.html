@@ -151,8 +151,12 @@
     <p>Everything else in the app works as normal — use the ☰ menu to go back to your roster.</p>
   </div>
 
-  <!-- PRIVACY NOTE: always visible -->
-  <div class="privacy-note-standalone">🔒 Your pay data is saved on this device only — never sent to any server or seen by anyone.</div>
+  <!-- PRIVACY NOTE — FIRST VISIT ONLY (v24.32, owner). The same sentence is the first line of the
+       note at the foot of the page, which every visit sees; up here it is for the one reader it
+       matters most to — somebody about to type in figures from a payslip for the first time. It is
+       hidden at load once this member has saved settings or any hours (paycalc-app.js, beside
+       runMigrations), and starts hidden so a returning member never sees it flash. -->
+  <div class="privacy-note-standalone hidden" id="privacyNoteTop">🔒 Your pay data is saved on this device only — never sent to any server or seen by anyone.</div>
 
   <!-- DESKTOP WORK COLUMN (columns 1–2): Settings + period band + Hours. `.pc-work` is
        display:contents on mobile (DOM order unchanged there) and a flex column on desktop
@@ -1024,8 +1028,10 @@
     <a href="./paycalc-guide.html">📖 Pay Calculator Guide — what each figure means →</a>
   </div>
 
-  <!-- DISCLAIMER -->
+  <!-- ABOUT THESE FIGURES — where they are kept, then how far to trust them (merged v24.32, owner:
+       the privacy line used to be a card of its own at the top of every visit). -->
   <div class="disclaimer">
+    <p class="disclaimer-privacy">🔒 Your pay data is saved on this device only — never sent to any server or seen by anyone.</p>
     <p class="disclaimer-text">⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax is estimated by dividing your annual allowance equally across all 13 pay periods. If you enter Year to Date totals from your payslip, the app works out tax the way payroll does — adding up the whole year so far — usually closer to your real payslip, especially later in the year. Actual figures may still vary slightly due to employer rounding or payroll corrections. London Allowance is included automatically.</span> <button type="button" class="disclaimer-toggle" id="disclaimerToggle" aria-expanded="false" aria-controls="disclaimerExtra">More ▼</button></p>
   </div>
 

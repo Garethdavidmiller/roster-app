@@ -97,10 +97,9 @@ export function init() {
     reconcileExpiredIdentity().catch(() => {});
 
     // ---- Check session immediately ----
-    // `let` (not const): on the in-place sign-in path (CONFIG.INPLACE_LOGIN.admin, AUTH_ARCHITECTURE.md Phase 9)
-    // these are refreshed inside initAuthorised() from the just-saved session — the module loaded while
-    // signed out, so the load-time values are null. With the flag off they are assigned once and never
-    // change, identical to before. (The AL/sick sections read currentUser via a live getter so a later
+    // `let` (not const): after an in-place sign-in (AUTH_ARCHITECTURE.md Phase 9) these are refreshed
+    // inside initAuthorised() from the just-saved session — the module loaded while signed out, so the
+    // load-time values are null. (The AL/sick sections read currentUser via a live getter so a later
     // in-place save still stamps the correct `changedBy`.)
     let currentSession = getSession();
     let isAuthenticated = !!currentSession;
@@ -126,7 +125,7 @@ export function init() {
                 // barrier. Reload for a fresh page life + fresh sessionReady, mirroring operations/settings/
                 // links' B1 handling. The normal not-signed-in path (initAuthorised never ran, sessionReady
                 // still pending) initialises in place as before, falling back to a reload if init throws.
-                if (reloadOnSuccess || !CONFIG.INPLACE_LOGIN.admin) {
+                if (reloadOnSuccess) {
                     window.location.reload();
                 } else {
                     try { initAuthorised(); } catch { window.location.reload(); }
@@ -1677,9 +1676,8 @@ export function init() {
             });
         }
     }
-    // Wire the nav now EXCEPT on the in-place login path, where initAuthorised() defers it so it renders
-    // with the signed-in identity (the full-screen overlay covers the burger meanwhile). Flag off → wired
-    // now exactly as before (null identity on the login screen, corrected after the reload).
-    if (!CONFIG.INPLACE_LOGIN.admin || _access.decision !== 'login') wireNavPanel();
+    // Wire the nav now EXCEPT on the login path, where initAuthorised() defers it so it renders with the
+    // signed-in identity (the full-screen overlay covers the burger meanwhile).
+    if (_access.decision !== 'login') wireNavPanel();
 
 }

@@ -345,15 +345,17 @@ committed before the body runs.
 fails after an apparently-valid local session → `clearSession()` + overlay — session *invalidation*,
 rare); and paycalc's **data-ownership** `resolveLegacyMigration → reload`.
 
-**Kill-switch (live):** the per-page `CONFIG.INPLACE_LOGIN` object — set any key back to `false` to
-revert just that page to the reload path (per-page, not one global boolean — the lesson from the B1
-global flip). NOT the B1 risk class: it changes only post-sign-in rendering, never whether auth succeeds,
-and every in-place `onSuccess` falls back to `reload()` if `init()`/`initAuthorised()` throws — a bad
-page self-heals, never locks anyone out. Coverage: 5 e2e no-reload tests + the whole suite passing with
-the flag OFF.
+**Kill-switch RETIRED at v24.32** (owner decision, Sep 2026). The per-page `CONFIG.INPLACE_LOGIN`
+object had been all-`true` since v15.17 — eleven months live on every page with no rollback used — so
+the reload branch was code nothing ran and the e2e helper that flipped it on was a no-op. The flag, its
+reload branches and `enableInplaceLogin` are gone; the in-place path is the only path. What made the
+switch safe is still in the code and still the fallback: every in-place `onSuccess` reloads if
+`init()`/`initAuthorised()` throws, or if `saveSession` silently failed (iOS private mode) — a bad page
+self-heals, never locks anyone out. A rollback now means reverting the release, not flipping a key.
+Coverage: the 5 e2e no-reload tests in `e2e/auth.spec.js`.
 
 *(A further "Phase 10 — remove the duplicate post-login `ensureNamedSession`" idea was scoped v14.86 and
 **deliberately not built** — since v14.84 the `auth.currentUser` fast path makes the second call a
 synchronous near-noop, so only contract cleanliness remained. Drop with no real loss; if ever built,
-admin+settings only, in-place `onSuccess` path only, behind `INPLACE_LOGIN`, with tests asserting no
+admin+settings only, in-place `onSuccess` path only, with tests asserting no
 write hits a non-live `auth.currentUser`.)*

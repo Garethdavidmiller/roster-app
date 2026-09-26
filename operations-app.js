@@ -88,24 +88,19 @@ export function init() {
     // this routes the same decision through the shared authz layer instead of inline checks.
     const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'operations');
     if (_access.decision === 'login') {
-        // Not signed in → show the shared in-place sign-in (no redirect). On success:
-        //  • INPLACE_LOGIN off (the per-page rollback; ON is live) → reload; the reloaded page re-checks access.
-        //    resolveSession(false) fulfils sessionReady on this non-auth load.
-        //  • INPLACE_LOGIN on → re-invoke init() in place: the authorised body below never ran on this
-        //    pass (we return now), so re-entering runs it exactly ONCE with the just-saved session —
-        //    no reload, no double-wiring. Do NOT resolveSession(false) here, or the one-shot
-        //    sessionReady would be poisoned before the in-place pass can resolve it true.
+        // Not signed in → show the shared in-place sign-in (no redirect). On success, re-invoke init()
+        // in place: the authorised body below never ran on this pass (we return now), so re-entering
+        // runs it exactly ONCE with the just-saved session — no reload, no double-wiring. Do NOT
+        // resolveSession(false) here, or the one-shot sessionReady would be poisoned before the
+        // in-place pass can resolve it true.
         // In-place re-invocation falls back to a reload if init() throws mid-wiring, so the in-place
         // path is never less robust than the reload path (the overlay is already torn down by then).
-        const onSuccess = CONFIG.INPLACE_LOGIN.operations
-            // If saveSession silently failed (iOS private mode — lsSet swallows the error), getSession()
-            // is still null, so re-invoking init() would re-enter the 'login' branch where
-            // initLoginOverlay no-ops (overlay already mounted) and the button stays stuck on
-            // "Signed in…" — a soft-lock. Reload instead to present a fresh, usable overlay.
-            ? () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } }
-            : () => window.location.reload();
+        // If saveSession silently failed (iOS private mode — lsSet swallows the error), getSession()
+        // is still null, so re-invoking init() would re-enter the 'login' branch where
+        // initLoginOverlay no-ops (overlay already mounted) and the button stays stuck on
+        // "Signed in…" — a soft-lock. Reload instead to present a fresh, usable overlay.
+        const onSuccess = () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } };
         initLoginOverlay({ pageLabel: 'Operations', onSuccess });
-        if (!CONFIG.INPLACE_LOGIN.operations) resolveSession(false);
         return;
     }
     if (_access.decision === 'forbidden') {

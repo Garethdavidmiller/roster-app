@@ -10,7 +10,7 @@
  *   ttfb     — responseStart             (server + network to first byte received)
  *   domReady — domContentLoadedEventEnd  (document parsed + deferred modules' first tick)
  * Login-to-usable timing (myb:login-* marks) is a separate, later metric — it belongs with the
- * in-place-login validation, since with INPLACE_LOGIN off that span crosses a reload.
+ * in-place-login validation (the reload-after-sign-in path it once had to span was retired at v24.32).
  *
  * Privacy: NO member identity is ever recorded — only coarse dimensions (version, page, metric,
  * duration BUCKET, PWA display mode, connection class). Call once per page from the coordinator at

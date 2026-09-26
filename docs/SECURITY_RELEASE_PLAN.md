@@ -519,7 +519,7 @@ only lockout surface is client-side and reversible with the one-line kill-switch
 | links | Yes — `linkDesigns` | **Hard** — in-place login overlay |
 | paycalc | **No** — only `clientErrors`/`analytics` (non-isolated) | **Soft** — log only; the calculator is localStorage-based and must keep working |
 
-All five pages show the **shared in-place login overlay** (`login-overlay.js`, `CONFIG.INPLACE_LOGIN`)
+All five pages show the **shared in-place login overlay** (`login-overlay.js`; the `INPLACE_LOGIN` flag that rolled it out was retired at v24.32)
 rather than redirecting; on success the coordinator re-inits in place. The Hard/Soft *strength* is
 unchanged from the matrix.
 

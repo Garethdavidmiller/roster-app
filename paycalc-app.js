@@ -22,7 +22,7 @@ import {
   isPreAwardPeriod, getRateForPeriod,
 } from './paycalc-calc.js';
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
-import { lsGet, lsSet, lsDel, requestPersistentStorage } from './ls.js';
+import { lsGet, lsSet, lsDel, lsKeys, requestPersistentStorage } from './ls.js';
 import { getSession, clearSession, ensureNamedSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
@@ -132,18 +132,15 @@ export function init() {
     // calculator. Do not "simplify" this gate into requirePage — it would regress to rendering with no
     // identity.
     if (!getSession()?.name) {
-      // On success: INPLACE_LOGIN off (the per-page rollback) → reload back into the calculator; on (live) →
-      // re-invoke init() in place — the body below never ran on this pass, so re-entering runs it once
+      // On success, re-invoke init() in place — the body below never ran on this pass, so re-entering runs it once
       // with the just-saved session. The per-member namespace is handled for free: runMigrations()
       // (below) calls setPaycalcNamespace(getLoggedMember()) and saveSession already wrote the member
       // before onSuccess, so loadSettings reads the right namespace. (AUTH_ARCHITECTURE.md Phase 9.)
       // In-place re-invocation falls back to a reload if init() throws mid-wiring, so the in-place
       // path is never less robust than the reload path (the overlay is already torn down by then).
-      const onSuccess = ROSTER_CONFIG.INPLACE_LOGIN.paycalc
-          // Reload (fresh overlay) rather than re-invoke init() into a soft-lock if saveSession
-          // silently failed (iOS private mode) and getSession() is still null. See operations-app.js.
-          ? () => { try { if (!getSession()?.name) { window.location.reload(); return; } init(); } catch { window.location.reload(); } }
-          : () => window.location.reload();
+      // Reload (fresh overlay) rather than re-invoke init() into a soft-lock if saveSession
+      // silently failed (iOS private mode) and getSession() is still null. See operations-app.js.
+      const onSuccess = () => { try { if (!getSession()?.name) { window.location.reload(); return; } init(); } catch { window.location.reload(); } };
       initLoginOverlay({ pageLabel: 'Pay Calculator', onSuccess });
       return;
     }
@@ -1300,6 +1297,19 @@ export function init() {
 
     // ── INIT ──────────────────────────────────────────────────────────────────────
     runMigrations({ getPeriods, getLoggedMember, getPensionDefault });
+
+    // THE TOP PRIVACY NOTE IS FOR A FIRST VISIT (v24.32, owner). The same sentence leads the note at
+    // the foot of the page on every visit; up here it earns its place only for somebody who has not
+    // yet typed anything in. "Anything" = saved settings (SK.setup) or any saved pay period for THIS
+    // member — read after runMigrations(), because that is what selects the member's namespace, so
+    // another member's data on a shared phone can never hide it. Decided once per load: hiding it
+    // mid-session would move the page under the member's finger. Starts hidden in the markup.
+    {
+      const pre = pcPrefix();
+      const hasPayData = !!lsGet(SK.setup)
+        || lsKeys().some(k => k.startsWith(pre) && /^p\d+$/.test(k.slice(pre.length)));
+      document.getElementById('privacyNoteTop')?.classList.toggle('hidden', hasPayData);
+    }
 
     // Clamp the visible period range for a member who only started this tax year — they should
     // not see earlier tax years ("from this year onwards"). Must run BEFORE the tabs + period
