@@ -304,7 +304,7 @@ export function buildWeekGridInto(container, dateStr) {
 
         // Pre-fill with existing override — mark as prefilled so Save button stays disabled until user edits
         if (existing) {
-            const legacyToShift = { overtime: 'shift', allocated: 'shift' };
+            const legacyToShift = { overtime: 'shift', allocated: 'shift', swap: 'shift' };
             // Spare moved under the Other pill (v15.57): an existing spare_shift override prefills
             // via Other → Spare (there is no top-level Spare pill anymore).
             const isSpare       = existing.type === 'spare_shift';

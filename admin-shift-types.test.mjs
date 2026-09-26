@@ -51,3 +51,22 @@ test('the rule is the `fixed` flag, so a type added later needs no edit here', (
         assert.ok(meta.fixedValue, `${type} is fixed but declares no fixedValue`);
     }
 });
+
+test('every LEGACY type is mapped to a modern one before the week editor prefills it', async () => {
+    // A legacy type (no pill — allocated/overtime/swap) cannot be written any more: firestore.rules
+    // refuses it on create and update. The week editor prefills an existing row by TYPE, so a legacy
+    // row that is not mapped here opens with no pill lit, and an edit then tries to save the legacy
+    // type itself and is permission-denied. `swap` was missing from the map until the v24.28 review.
+    // The map lives in a DOM module, so it is read from source rather than imported.
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('./admin-week-editor.js', import.meta.url), 'utf8');
+    const m = src.match(/const legacyToShift = (\{[^}]*\});/);
+    assert.ok(m, 'admin-week-editor.js no longer declares legacyToShift — this guard is blind');
+    const map = Function(`return (${m[1]});`)();
+    const legacy = Object.entries(TYPES).filter(([, meta]) => !meta.pill).map(([t]) => t);
+    assert.ok(legacy.length >= 3, `expected the three legacy types, found ${legacy.join(', ')}`);
+    for (const t of legacy) {
+        assert.ok(t in map, `legacy type "${t}" is not in legacyToShift — its row prefills with no pill and saves a type the rules refuse`);
+        assert.ok(TYPES[map[t]]?.pill, `legacy "${t}" maps to "${map[t]}", which is not a creatable (pill) type`);
+    }
+});
