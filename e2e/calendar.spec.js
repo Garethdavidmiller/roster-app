@@ -2251,6 +2251,20 @@ test('calendar: Team View opens on the month you were browsing, not the current 
 // test, which is the case that broke: the tap must still open the Huddle, on the stored url, at once.
 // A Daily Huddle tap with nothing to show used to do NOTHING — the hash handler opened only on a
 // loaded Huddle — and stayed armed, so one arriving later opened over whatever the member was doing.
+// THE STRIP IS SEEN, not merely filled in (Sep 2026 polish). From 16 Aug to 26 Sep the renderer
+// wrote the right text and set `display = ''`, which handed the element back to its stylesheet
+// default of `display: none` — invisible to every member for six weeks, and nothing noticed,
+// because nothing asserted visibility.
+test('calendar: a signed-in member SEES the pay-period strip', async ({ page }) => {
+    await page.clock.setFixedTime(new Date(2026, 8, 16, 10, 0, 0));
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('#payPeriodStrip')).toBeVisible();
+    await expect(page.locator('#payPeriodStrip')).toContainText(/pay/i);
+});
+
 test('huddle: a tap with no Huddle uploaded says so', async ({ page }) => {
     await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
     await seedMemberSession(page, 'G. Miller');
