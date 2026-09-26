@@ -2910,9 +2910,18 @@ test('admin: the week-grid header and its rows share ONE column template, at eve
                 head: getComputedStyle(h).gridTemplateColumns,
                 row:  getComputedStyle(r).gridTemplateColumns,
                 badgeW: Math.round(badge.width), colW: Math.round(col.width),
+                badgeGap: Math.round(r.getBoundingClientRect().right - badge.right),
                 overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
             };
         });
+        // In the STACKED layouts (≤680px, and 1024px up with no upper bound) the base-roster badge is
+        // the row's last column, so it sits against the right edge. Until the polish pass a ≥1400px
+        // block restated a five-column template over the stacked placement: both grids still agreed
+        // (the assertion above passed) while the badge sat mid-row at 1440 with a dead band beside it.
+        if (width <= 680 || width >= 1024) {
+            expect(m.badgeGap, `@${width}px the base-roster badge must sit against the row's right edge`)
+                .toBeLessThan(20);
+        }
         expect(m.head, `@${width}px the header and rows must resolve the SAME tracks`).toBe(m.row);
         expect(m.badgeW, `@${width}px the badge must not exceed the column it sits in`)
             .toBeLessThanOrEqual(m.colW);
@@ -8428,4 +8437,34 @@ test('admin: the week grid writes NOTHING for a rest day answered free, and name
         const w = await page.evaluate(() => (/** @type {any} */ (window).__E2E?.batchWrites || []));
         return w.filter((/** @type {any} */ x) => x.type === 'annual_leave' && x.date === t.date).length;
     }, { message: 'a declared swap is real leave and must be written' }).toBe(1);
+});
+
+// ── "TODAY" AND "✓ SAVED" ON ONE DATE LINE (polish pass, owner report from a Galaxy) ─────────────
+// A row that is both today and already saved carries two chips on its date line, and under Android
+// text scaling that line wraps. As inline text the saved badge's vertical padding did not count
+// towards its line, so the wrapped chip sat directly under "Today" — measured 0.17px apart at 390px
+// and the owner's ~1.11× text, 1.09px at 412px / 1.3×. The date line is now a wrapping flex row with
+// a row gap. Asserted as GEOMETRY because both chips are present and correct either way: nothing
+// but their boxes can tell a clear gap from two chips touching.
+test('admin: a row that is today AND saved keeps a clear gap between its two chips when they wrap', async ({ page }, testInfo) => {
+    test.skip(!isTouchProject(testInfo), 'the stacked date line is the touch layout');
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = { authUser: true,
+            docs: [{ id: 't1', memberName: 'G. Miller', date: '2026-07-15', type: 'rdw', value: '14:45-23:55', note: '' }] };
+    });
+    await page.goto('/admin.html');
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    const row = page.locator('.week-panel .day-row.today');
+    await expect(row.locator('.overwrite-badge')).toBeVisible();
+    await scaleText(page, 1.11);
+    const g = await row.evaluate((r) => {
+        const t = /** @type {Element} */ (r.querySelector('.day-today-tag')).getBoundingClientRect();
+        const b = /** @type {Element} */ (r.querySelector('.overwrite-badge')).getBoundingClientRect();
+        return { wrapped: b.top >= t.bottom - 1, gap: b.top - t.bottom };
+    });
+    expect(g.wrapped, 'the fixture must actually wrap the two chips, or the gap proves nothing').toBe(true);
+    expect(g.gap, 'the wrapped saved chip must not touch the Today chip').toBeGreaterThanOrEqual(3);
 });
