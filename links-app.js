@@ -2112,7 +2112,16 @@ export function init() {
     function updateLastSaved(updatedBy, updatedAt) {
         const el = document.getElementById('linksLastSaved');
         if (!el) return;
-        el.textContent = lastSavedLabel(updatedBy, updatedAt?.toDate?.() ?? null);
+        const label = lastSavedLabel(updatedBy, updatedAt?.toDate?.() ?? null);
+        // The WHEN is one unbreakable phrase (Sep 2026 polish). The meta column is squeezed by the
+        // summary chips beside it, and at 1280 the line broke inside the date — "· 24 / Jun at
+        // 16:40". Only the part after the separator is held together; the name side still wraps.
+        const cut = label.indexOf(' · ');
+        if (cut < 0) { el.textContent = label; return; }
+        const when = document.createElement('span');
+        when.className = 'links-last-saved-when';
+        when.textContent = label.slice(cut + 3);
+        el.replaceChildren(label.slice(0, cut + 3), when);
     }
 
     async function saveChanges() {

@@ -246,6 +246,14 @@ body.auth-ready .container { display: grid; }
     background: var(--surface);
     box-shadow: 0 -8px 12px -8px rgb(0 0 0 / 0.12);
 }
+/* THE BAR SPANS THE SAME WIDTH AS THE GRID IT FLOATS OVER (Sep 2026 polish). Below 768px the grid
+   wrapper bleeds into the card's 16px side gutters (`margin: 0 -16px` — so the table scrolls to the
+   card edge), but this bar sat inside them. Pinned over the grid, it left two 16px strips down its
+   sides through which the scrolling cells showed — measured at 390: bar 26→364, grid 10→380. Same
+   bleed, same padding, so the bar is as wide as what it covers and its content does not move. */
+@media (max-width: 767px) {
+    .links-save-row { margin-inline: -16px; padding-inline: 16px; }
+}
 /* No shadow on paper — it is a scroll affordance, and there is no scrolling on paper. */
 @media print { .links-save-row { position: static; box-shadow: none; } }
 
@@ -316,6 +324,14 @@ body.auth-ready .container { display: grid; }
     border: 1px solid var(--border-light);
     color: var(--text-dark);
     font-weight: 800;
+    /* A design name has no length limit and every chip is `nowrap`, so a long one ran straight off
+       the side of the bar at 390 (Sep 2026 polish). It truncates instead: the full name is on the
+       compare column head and the masthead, both on screen at the same time. `inline-block`
+       because an ellipsis does not reach the anonymous text item of a flex container. */
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .sum-jump { font-size: var(--type-badge); white-space: nowrap; }
 
@@ -340,6 +356,7 @@ body.auth-ready .container { display: grid; }
 .links-save-status.ok  { color: var(--success-green); }
 .links-save-status.err { color: var(--error-red); }
 .links-last-saved  { font-size: var(--type-badge); color: var(--text-light); }
+.links-last-saved-when { white-space: nowrap; }
 
 /* Links page uses .btn-save inline (not full-width) — override the shared defaults */
 /* `min-height` because this page's `padding: 10px 20px` override rendered the shared `.btn-save` at
@@ -1236,6 +1253,13 @@ body.auth-ready .container { display: grid; }
     letter-spacing: 0.5px;
 }
 .gen-sets-row .gen-select { max-width: 240px; flex: 1 1 180px; min-width: 0; }
+/* ROOM FOR THE CHEVRON (Sep 2026 polish). `.gen-select`'s `padding: 5px 6px` out-ranks the shared
+   `.fieldpick` trigger's 30px right padding (same specificity, later sheet), so the face ran under
+   the chevron and was clipped there — "No staffing setups saved" read as "…saved ⌄" at 390, with
+   the ellipsis painted beneath the arrow. Two classes, so it wins on BOTH pointers regardless of
+   where the coarse block sits. Scoped to this picker: the slot-time pickers in the table size their
+   column to their content, and 24px more each would widen a table that already scrolls on a phone. */
+.gen-sets-row .gen-select.fieldpick { padding-right: 30px; }
 /* The four set buttons wrap as ONE block, not four independently (v21.14) — see the note in
    links.html. `flex: 1 1 100%` makes them take their own line the moment the label + dropdown fill
    the row, which is what a phone does, rather than trailing off the end of it. */
@@ -1314,6 +1338,9 @@ body.auth-ready .container { display: grid; }
     margin: 10px 0 0;
 }
 .gen-status[hidden] { display: none; }
+/* Prose, so it takes the reading measure the intro above it already has (css-tokens.md → reading
+   measure). After a Generate it is two or three sentences, and at 1280 it ran ~170ch in one line. */
+@media (min-width: 1024px) { .gen-status { max-width: 72ch; } }
 .gen-note {
     font-size: var(--type-badge);
     color: var(--text-light);
@@ -1655,6 +1682,23 @@ body.auth-ready .container { display: grid; }
         grid-template-columns: 1fr 1fr;
         gap: 16px;
         align-items: start;
+    }
+    /* THE TWO GRIDS START ON THE SAME LINE, WHATEVER THE NAMES (Sep 2026 polish). Each column is
+       its head over its grid, and the heads are the design NAMES — so a name that wrapped to two
+       lines pushed its grid 14px below the other, and every row of the pair sat off its neighbour
+       across the gap (measured at 1280 with one long name: header rows at 507 and 493). The two
+       columns now share their row's height and each head takes up the slack, its text sitting on
+       its rule, so both rules — and both grids — line up. */
+    .compare-grids-wrap.compare-mode-active > .compare-col {
+        align-self: stretch;
+        display: flex;
+        flex-direction: column;
+    }
+    .compare-col-head {
+        flex: 1 0 auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
     }
     /* Cap the measure on the generator's intro prose so it doesn't run ~140ch across the
        full ~1000px card (the grid/tables keep the full width). */
@@ -2215,8 +2259,21 @@ body.auth-ready .container { display: grid; }
 /* ---- Import a design (v20.97) ----
    The paste box and its two-step confirm. It borrows the dialog family from shared.css for the
    panel, title, message and buttons — a page-local dialog recipe is what `.notice-lb-content`
-   and `.dialog-content` exist to prevent — and adds only the three things that family has no
-   opinion about: a monospace paste area, a name field, and the status line the check writes into. */
+   and `.dialog-lb-content` exist to prevent — and adds only the three things that family has no
+   opinion about: a monospace paste area, a name field, and the status line the check writes into.
+   THE PANEL CLASS WAS MISSPELLED FROM v20.97 TO THE SEP 2026 POLISH PASS: the markup said
+   `dialog-content`, which no stylesheet defines, so the dialog rendered exactly as the Recently
+   deleted panel once did (see `#designBinContent`) — a transparent box, the title and prose on the
+   dimmed backdrop, the fields running edge to edge at 390px. Behaviour tests passed throughout. */
+/* What the dialog family brings that this one has to answer. Its message is `pre-line` (for the
+   conflict dialog's paragraph break), and this message is hand-wrapped in the markup, so it broke
+   at every source newline — "(Sunday to / Saturday)", "RD and / SP". And the panel is a flex column
+   with a 12px gap, so the label and status margins below are set against that gap rather than
+   added to it: a label sits nearer its field than the field above it, and an empty status line
+   costs only the one gap. */
+#linksImportContent .dialog-message { white-space: normal; }
+#linksImportContent .li-paste-label { margin: 4px 0 -6px; }
+#linksImportContent .li-status { margin: 0; }
 .li-paste-label {
     display: block;
     margin: var(--space-3) 0 4px;
@@ -2293,13 +2350,15 @@ body.auth-ready .container { display: grid; }
    Not a card of its own: it is the first thing inside `.check-rows`, so it reads as the panel's
    opening rather than as a separate verdict. The "nothing to fix" state is deliberately NOT green
    and carries no tick — this card exists to stop a quiet panel reading as an approval. */
+/* NO RULE OF ITS OWN (Sep 2026 polish). It carried a bottom hairline, and the section head that
+   always follows it carries a top one — so the panel opened on two parallel rules 40px apart
+   (measured at 1280: 2498 and 2538), a double line with a void between. The head's rule is the one
+   every other section uses, so it stays; with the triage's gone the gap to it is the same 26px as
+   between any two sections (the list's 8px gap + the head's 18px margin). */
 .check-triage {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    margin-bottom: 14px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--border-light);
 }
 .check-triage-group { font-size: var(--type-small); }
 .check-triage-head {
@@ -2366,6 +2425,12 @@ body.auth-ready .container { display: grid; }
     text-transform: uppercase;
     color: var(--text-mid);
 }
+/* The claim beside "Company limits" — `LIMIT_CLAIM`, a sentence about the SOURCE of the limit. It
+   had no rule, so it inherited the heading's uppercase and ran straight on from it ("COMPANY LIMITS
+   CONFIGURED CHILTERN LIMIT — POLICY SOURCE OUTSTANDING"), reading as one long title. The Design
+   checks card sets the same claim in sentence case beside its heading (`.check-section-head
+   .check-note`); this mirrors it, so the two surfaces state the claim in the same voice. */
+.compare-an-claim { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--text-light); }
 .compare-an-list {
     margin: 0; padding: 0; list-style: none;
     display: grid; gap: 3px;
