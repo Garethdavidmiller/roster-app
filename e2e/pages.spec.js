@@ -5964,7 +5964,7 @@ test('links re-review: a save still in flight locks only ITS design, and a delet
         const w = /** @type {any} */ (window);
         w.__E2E.txDocs = w.__E2E.docs.map((/** @type {any} */ d) => d.id === 'd1'
             ? { ...d, deletedAt: Date.now(), deletedBy: 'S. Silva' } : d);
-        w.__E2E.txDelayMs = 6000;   // long enough that every check below runs while it is in flight
+        w.__E2E.txHold = true;   // the save stays in flight until the test releases it below
     });
     await page.locator('#winMonSatEnd').fill('14:20');
     await page.locator('#winMonSatEnd').dispatchEvent('change');
@@ -5979,6 +5979,7 @@ test('links re-review: a save still in flight locks only ITS design, and a delet
     await page.locator('#winMonSatEnd').dispatchEvent('change');
     // A short timeout on purpose: a retrying assertion would otherwise wait out the first save.
     await expect(page.locator('#linksSaveBtn'), 'another design\'s Save is not locked by it').toBeEnabled({ timeout: 1500 });
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseTx());   // now the first save lands
     await expect(page.locator('#linksSaveStatus')).toContainText('was deleted elsewhere', { timeout: 10000 });
     await expect(designOptions(page)).toHaveCount(1);                     // out of the live list anyway
     await expect(page.locator('.dialog-overlay.visible')).toHaveCount(0); // and no dialog about it
