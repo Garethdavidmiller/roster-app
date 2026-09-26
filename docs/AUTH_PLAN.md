@@ -292,7 +292,7 @@ policy layer is clean) and wire the shared `login-overlay.js`. Gate on `ENFORCE_
 posture and *measure* (§6) before hardening. Do not tighten rules in the same window.
 
 Two things make this less of a leap than it sounds: the calendar already has session-gated affordances
-(the pay-period strip, `calendar-app.js`), and `login-overlay.js` is proven on the six protected pages. It also
+(the pay-period strip in `calendar-app.js` then; removed at v24.31), and `login-overlay.js` is proven on the six protected pages. It also
 *removes* an inconsistency — today the app has two contradictory onboarding stories, one where a new
 starter picks a name from a dropdown and one where they sign in.
 

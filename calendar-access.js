@@ -404,7 +404,7 @@ export async function lockCalendar() {
  *  used to be reachable too; since v23.17 their reads sit behind `calendar-doc-access.js`, which
  *  `calendar-app.js` opens on the full grant — so the drawer still SHOWS them, and a tap while
  *  locked is answered with what to do rather than with the document. */
-const WORKSPACE_IDS = ['calendarControls', 'installPrompt', 'notifPrompt', 'payPeriodStrip', 'swipeHint', 'calendarDisplay', 'calendarLegend'];
+const WORKSPACE_IDS = ['calendarControls', 'installPrompt', 'notifPrompt', 'swipeHint', 'calendarDisplay', 'calendarLegend'];
 
 /** @param {boolean} hidden */
 function setWorkspaceHidden(hidden) {

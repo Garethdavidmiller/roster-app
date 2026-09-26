@@ -185,7 +185,7 @@ Display month/year state for `index.html` — extracted from `calendar-app.js` a
 - `setDisplayMonth(m)` / `setDisplayYear(y)` — direct setters (used by today-button and month-jump picker)
 - `changeDisplay(delta)` — pure state change with boundary clamping; no DOM side-effects
 - `persistViewedMonth()` — writes current position to `localStorage` after each navigation
-- `watchLocalDate(onChange, env?)` — calls `onChange` when the device's LOCAL date has turned since the last check: on a resume (`visibilitychange` → visible) and at each local midnight while open. Every "today" the Calendar draws is read at render time, so a PWA resumed the next morning highlighted yesterday; the coordinator re-renders the live surface and the pay-period strip from it. Fires only on a real date change. Tested by `calendar-state.test.mjs`
+- `watchLocalDate(onChange, env?)` — calls `onChange` when the device's LOCAL date has turned since the last check: on a resume (`visibilitychange` → visible) and at each local midnight while open. Every "today" the Calendar draws is read at render time, so a PWA resumed the next morning highlighted yesterday; the coordinator re-renders the live surface from it. Fires only on a real date change. Tested by `calendar-state.test.mjs`
 - Runs `restoreViewedMonth()` IIFE at module load (skips future months)
 
 ### `calendar-swipe.js`

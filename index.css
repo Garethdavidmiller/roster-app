@@ -445,18 +445,6 @@
             font-weight: 700;
         }
 
-        .pay-period-strip {
-            display: none; /* shown by JS when session exists */
-            /* On the navy body canvas — must use on-navy (light) text, not the card greys. */
-            font-size: var(--type-label); color: rgba(255, 255, 255, 0.85);
-            text-align: center; padding: 2px 12px 8px;
-        }
-        .pay-period-link {
-            color: var(--accent-gold); text-decoration: none; font-weight: 600;
-        }
-        @media (hover: hover) and (pointer: fine) {
-            .pay-period-link:hover { text-decoration: underline; }
-        }
         .swipe-hint {
             /* On the navy body canvas — on-navy (light) text, not the card greys. */
             text-align: center; font-size: var(--type-badge); color: rgba(255, 255, 255, 0.7);
@@ -2020,7 +2008,7 @@
                 page-break-after: avoid !important;
             }
 
-            .controls, #payPeriodStrip, .top-prompt {
+            .controls, .top-prompt {
                 display: none !important;
             }
 
@@ -3743,7 +3731,6 @@
         #calendarControls[hidden],
         #installPrompt[hidden],
         #notifPrompt[hidden],
-        #payPeriodStrip[hidden],
         #swipeHint[hidden],
         #calendarDisplay[hidden],
         #calendarLegend[hidden] { display: none !important; }
