@@ -229,8 +229,10 @@ function makeAuth({ token = { admin: true, name: 'G. Miller' }, viewerExists = f
             if (viewerExists) return typeof viewerExists === 'object' ? { uid, ...viewerExists } : { uid };
             throw Object.assign(new Error('no such user'), { code: 'auth/user-not-found' });
         },
-        deleteUser: async (uid) => { ops.push({ op: 'deleteUser', uid }); },
-        createUser: async (props) => { ops.push({ op: 'createUser', props }); return { uid: props.uid }; },
+        // `authFail.deleteUser` / `.createUser` are Firebase error CODES — the races a concurrent
+        // unlock produces (the other request deleted, or recreated, the account first).
+        deleteUser: async (uid) => { ops.push({ op: 'deleteUser', uid }); if (authFail.deleteUser) throw Object.assign(new Error('x'), { code: authFail.deleteUser }); },
+        createUser: async (props) => { ops.push({ op: 'createUser', props }); if (authFail.createUser) throw Object.assign(new Error('x'), { code: authFail.createUser }); return { uid: props.uid }; },
         updateUser: async (uid, props) => { ops.push({ op: 'updateUser', uid, props }); if (authFail.updateUser) throw new Error(authFail.updateUser); return { uid }; },
         setCustomUserClaims: async (uid, claims) => {
             ops.push({ op: 'setCustomUserClaims', uid, claims });
@@ -666,6 +668,32 @@ describe('the token is the entire product, and a claimless one is indistinguisha
             assert.ok(i('createUser') > i('deleteUser'), 'recreated after the delete');
             assert.ok(i('createCustomToken') > i('createUser'), 'and only then is a token minted');
             assert.deepEqual(ops.find((o) => o.op === 'createUser').props, { uid: CALENDAR_VIEWER_UID, disabled: false });
+        }
+    });
+
+    test('a rebuild that RACES a concurrent unlock still unlocks (Sep 2026 re-review)', async () => {
+        // Two right PINs arriving together both see the tampered account: one deletes and recreates
+        // it, and the other's delete finds nothing (user-not-found) or its create finds it already
+        // back (uid-already-exists). Either way the account is what the rebuild wanted, so the second
+        // member must not be told "Could not unlock" for a race they could not see.
+        for (const authFail of [{ deleteUser: 'auth/user-not-found' }, { createUser: 'auth/uid-already-exists' }]) {
+            const { ops } = build({ viewerExists: { disabled: true, providerData: [] }, authFail });
+            const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
+            assert.equal(out.code, 200, `a concurrent rebuild refused the unlock: ${JSON.stringify(authFail)}`);
+            assert.ok(minted(ops), 'no token minted');
+        }
+        // A create that races the FIRST-ever unlock (no account yet) is the same case.
+        const { ops } = build({ viewerExists: false, authFail: { createUser: 'auth/uid-already-exists' } });
+        assert.equal((await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN))).code, 200);
+        assert.ok(minted(ops), 'no token minted');
+    });
+
+    test('any OTHER rebuild failure still fails closed', async () => {
+        for (const authFail of [{ deleteUser: 'auth/internal-error' }, { createUser: 'auth/internal-error' }]) {
+            const { ops } = build({ viewerExists: { disabled: true, providerData: [] }, authFail });
+            const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
+            assert.equal(out.code, 500, JSON.stringify(authFail));
+            assert.equal(minted(ops), undefined);
         }
     });
 

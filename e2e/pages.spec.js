@@ -5954,6 +5954,73 @@ test('links review: a design found deleted on save leaves the list, and the copy
     await expect(next).not.toContainText('last save');
 });
 
+test('links re-review: a save still in flight locks only ITS design, and a deletion it finds still leaves the list', async ({ page }) => {
+    // Two defects with one shape — the page moved on while a write was in flight. The "saving" flag
+    // was page-wide, so a write that could not finish locked every design's Save; and a save that
+    // came back "deleted elsewhere" after a switch returned early and left the design in the picker.
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.evaluate(() => {   // S. Silva binned "Morning heavy"; the server is slow to say so
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = w.__E2E.docs.map((/** @type {any} */ d) => d.id === 'd1'
+            ? { ...d, deletedAt: Date.now(), deletedBy: 'S. Silva' } : d);
+        w.__E2E.txDelayMs = 6000;   // long enough that every check below runs while it is in flight
+    });
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveBtn')).toBeDisabled();          // this design: in flight
+    await switchToDesign(page, 'Other');
+    const leave = page.locator('.dialog-overlay.visible');                // leave the unsaved edit
+    await expect(leave).toContainText('unsaved changes');
+    await leave.locator('.dialog-btn-confirm').click();
+    await expect(activeDesignName(page)).toHaveText('Other');
+    await page.locator('#winMonSatEnd').fill('14:40');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    // A short timeout on purpose: a retrying assertion would otherwise wait out the first save.
+    await expect(page.locator('#linksSaveBtn'), 'another design\'s Save is not locked by it').toBeEnabled({ timeout: 1500 });
+    await expect(page.locator('#linksSaveStatus')).toContainText('was deleted elsewhere', { timeout: 10000 });
+    await expect(designOptions(page)).toHaveCount(1);                     // out of the live list anyway
+    await expect(page.locator('.dialog-overlay.visible')).toHaveCount(0); // and no dialog about it
+});
+
+test('links re-review: an offline save says it is on this device, not "✓ Saved"', async ({ page, context }) => {
+    // The store queues the write and returns 'queued'; the page read that as a server-confirmed save.
+    await openWindowDesign(page);
+    await page.evaluate(() => {   // no server, and no cached copy to consult — so the store queues
+        const w = /** @type {any} */ (window);
+        w.__E2E.txErrorCode = 'unavailable';
+        w.__E2E.failGetDoc = true;
+    });
+    await context.setOffline(true);
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    const status = page.locator('#linksSaveStatus');
+    await expect(status).toContainText('Saved on this device');
+    await expect(status).not.toContainText('✓');
+    await expect(status).not.toHaveClass(/\bok\b/);
+    await context.setOffline(false);
+});
+
+test('links re-review: declining to replace your OWN other version is not worded as "theirs"', async ({ page }) => {
+    await openWindowDesign(page);
+    await page.evaluate(() => {   // this design was saved since, under this member's own name
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = w.__E2E.docs.map((/** @type {any} */ d) => d.id === 'd1'
+            ? { ...d, updatedAt: 1760000000000, updatedBy: 'G. Miller', revision: 7 } : d);
+    });
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    const dialog = page.locator('.dialog-overlay.visible');
+    await expect(dialog).toContainText('This design changed');
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(dialog).toContainText('Keep your version too?');
+    await expect(dialog).toContainText('That version stays as it is');
+    await expect(dialog).not.toContainText('Their');
+});
+
 test('links memory: a stamped SEED is a designer\'s choice and survives a release', async ({ page }) => {
     // Only a stamped DEFAULT is one the app stored on its own; the retirement rule took the seed too.
     const seeded = JSON.parse(JSON.stringify(STALE_SEED));

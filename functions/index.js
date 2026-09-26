@@ -1037,13 +1037,16 @@ exports.unlockCalendarViewer = onRequest(
                 if (!e || e.code !== 'auth/user-not-found') throw e;
             }
             const tamper = viewerAccountTamper(viewer);
+            // A concurrent unlock can get there first — its delete leaves ours `user-not-found`, its
+            // create leaves ours `uid-already-exists`. Both are the state wanted, so neither refuses.
+            const orRaced = (/** @type {string} */ code) => (/** @type {any} */ e) => { if (!e || e.code !== code) throw e; };
             if (tamper) {
-                await getAuth().deleteUser(CALENDAR_VIEWER_UID);
+                await getAuth().deleteUser(CALENDAR_VIEWER_UID).catch(orRaced('auth/user-not-found'));
                 console.warn('[unlockCalendarViewer] the shared viewer account', tamper, '— rebuilt from nothing');
                 viewer = null;
             }
             if (!viewer) {
-                await getAuth().createUser({ uid: CALENDAR_VIEWER_UID, disabled: false });
+                await getAuth().createUser({ uid: CALENDAR_VIEWER_UID, disabled: false }).catch(orRaced('auth/uid-already-exists'));
                 console.log('[unlockCalendarViewer] created the viewer account');
             }
 

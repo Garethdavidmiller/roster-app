@@ -616,3 +616,6 @@ secret, redeploy the function, tell staff. Existing unlocked sessions keep worki
 browsers close; to kill those too, revoke the shared account's refresh tokens
 (`getAuth().revokeRefreshTokens('calendar-viewer')`, from `firebase-admin/auth`) — which takes effect
 at each session's next token refresh, within about an hour, not instantly. Member sessions are untouched either way.
+**Do not DISABLE the `calendar-viewer` account as the kill switch** — the next correct unlock treats a
+disabled account as tampered and rebuilds it from nothing, so a disable lasts only until somebody who
+holds the PIN uses it. Rotate the PIN (and revoke the tokens) instead.

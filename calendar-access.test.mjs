@@ -178,6 +178,9 @@ let silentGate = null;
  *  two behaviours, and a test that could only ever see one would be checking half a feature. */
 const CONFIG = { CALENDAR_PIN_ACCESS: true };
 mock.module('./roster-data.js', { namedExports: { CONFIG } });
+// The hand-over releases this device's push record before it drops the session (Sep 2026
+// re-review) — recorded into `ops`, so the ORDER against `clearSession` is what is asserted.
+mock.module('./notif.js', { namedExports: { releaseDevicePush: async () => { ops.push('releasePush'); } } });
 
 // A storage the cards can read (real `ls.js`, real keys) — a mocked `lsGet` would let a module read
 // a key nobody writes and the test would still pass.
@@ -803,9 +806,13 @@ describe('initCalendarAccess', () => {
 
         const alt = document.getElementById('calLockPinInstead');
         assert.ok(alt, 'the member card offers no route to the staff PIN');
-        alt._listeners.get('click')();
+        await alt._listeners.get('click')();
 
         assert.ok(ops.includes('clearSession'), `the stale named session survived: ${JSON.stringify(ops)}`);
+        // The member is leaving a device they may be handing to a stranger: their push record goes
+        // WHILE they are still signed in (only its owner may delete it), so it is released first.
+        assert.ok(ops.includes('releasePush') && ops.indexOf('releasePush') < ops.indexOf('clearSession'),
+            `the push record was not released before sign-out — targeted notices follow the member: ${JSON.stringify(ops)}`);
         assert.equal(reloaded, 1, 'nothing was rebuilt, so the drawer keeps the previous name');
         assert.ok(ops.indexOf('clearSession') < ops.lastIndexOf('reload'),
             'reloaded before clearing — the reload would restore the session it was meant to drop');

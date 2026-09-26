@@ -72,8 +72,9 @@ filters `pushSubscriptions` by the `owner` uid and **fails closed at every step*
 send nothing; a subscription doc with no `owner` (written before v17.76) → skipped, never assumed;
 no matches → log and stop. There is deliberately **no "no targets → fall back to everyone" branch**.
 If you add another addressed-to-one-person notification, use `sendTargetedPush` and keep that shape.
-**The `owner` does not outlive a sign-out** (Sep 2026 review): the drawer's Sign out calls
-`releaseDevicePush` (`notif.js`) while still signed in, deleting this device's record, so a targeted
+**The `owner` does not outlive a sign-out** (Sep 2026 review): the drawer's Sign out — once the page
+has committed to it (a `beforeSignOut` cancel keeps the record) — and the Calendar's "Use the staff
+PIN instead" hand-over call `releaseDevicePush` (`notif.js`) while still signed in, deleting this device's record, so a targeted
 notice never follows a member onto a shared device they have left. The next load re-saves the record
 as whoever is signed in then.
 

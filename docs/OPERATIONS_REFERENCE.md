@@ -751,12 +751,16 @@ the new PIN. Member sessions are untouched.
 ### Abuse protection
 
 A four-digit PIN is 10,000 combinations, so the endpoint is throttled server-side **two ways**, both
-recorded in the server-only `viewerAttempts` collection. Only *failures* are recorded — a correct
-PIN writes nothing.
+recorded in the server-only `viewerAttempts` collection. Only *failures* stay recorded: every attempt
+is charged BEFORE its PIN is compared (so concurrent guesses cannot all be compared before any is
+counted), and a correct PIN is then refunded — a refund that brings a bucket to zero deletes the row.
+The cost of that is contention: every unlock, right or wrong, now writes the one all-sources document
+twice (charge and refund), and those writes serialise. At a handful of unlocks a day that is nothing;
+it is the trade that bought a limit on guesses COMPARED rather than on the rate of charging.
 
 1. **Per source — 30 failed attempts per 15 minutes, then a 15-minute block.** Sized for a station
    behind one corporate NAT address: thirty *wrong* entries in fifteen minutes from the whole
-   building is not fumbling, and a correct PIN never counts.
+   building is not fumbling, and a correct PIN never stays counted.
 2. **All sources — 200 failed attempts per 15 minutes** (v20.35), under a fixed key. This caps the
    whole endpoint at 800 guesses an hour, so the full PIN space takes upwards of twelve hours of
    obviously abnormal traffic.

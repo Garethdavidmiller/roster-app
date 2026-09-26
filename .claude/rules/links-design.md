@@ -1326,25 +1326,36 @@ editable rotating row.
 The grid flags an all-rest line with an amber line-number cell (`.row-unfilled`); the Design checks "Lines not yet designed" row lists them until filled.
 
 ### Concurrency & load safety (v12.37; atomic v17.02; store v21.87)
-**Every design write goes through `links-design-store.js`** (`createDesignStore`, Firebase handles injected by `links-app.js`); the coordinator makes no Firestore write of its own. The store's header owns three rules:
+**Every design write goes through `links-design-store.js`** (`createDesignStore`, Firebase handles injected by `links-app.js`); the coordinator makes no Firestore write of its own. The store's header owns four rules:
 
 1. **A read a write depends on happens INSIDE the write's transaction** — not before it — so the decision is true at commit.
 2. **No weaker fallback while online.** Only a failure `isOfflineFailure` recognises may take the queued `setDoc` path (after consulting the cached doc for a deletion or conflict); an online transaction failure is reported and the unsaved state is kept.
 3. **The baseline (`revision`) only advances to a revision the store verified.** Anything else leaves `baselineUnknown` set, so the next save prompts.
+4. **A queued (offline) write is started, not awaited, and never stamps a revision a colleague's online save could also produce** (`queueWrite`, `queuedRevision`). That covers a save, a rename and — since the Sep 2026 re-review — a CREATE: `addDoc` resolves only on the server's ack, so an offline first save now names its document with an auto-id `doc(col)` and queues the `setDoc`, still as revision 1 (exact: nobody else can write a document whose id only this device holds).
 
 A conflict comes back as `{ status: 'conflict', conflict }` and `links-app.js` decides whether to ask, overwrite or fork — the store never asks. A design deleted elsewhere (binned, or gone entirely) comes back as `deleted-elsewhere`; a save never recreates it. The pure comparison rules (`conflictOf`, the baseline helpers) are `links-concurrency.js`. A failed load sets `loadFailed` — empty state shows an error.
 
 Residual accepted limit (`conflictOf`'s header): with the baseline UNKNOWN, two devices under the SAME display name (`updatedBy` equal) still won't conflict-prompt — inherent to identifying editors by name.
 
-**The protocol has lived in `links-design-store.js` since v21.87, and the paragraphs above predate
-it** — read that module's header for what is true now. Four rules from the Sep 2026 review, each
-pinned in `links-design-store.test.mjs`: an ordinary save against a design **removed for good** is
+**Its header is the authority** — read it for the reasoning. Four further fixes from the Sep 2026
+review, each pinned in `links-design-store.test.mjs`: an ordinary save against a design **removed for good** is
 `deleted-elsewhere`, never a revision-1 write that brings it back; a rename on a **stale** baseline
 writes the name and the revision but not `updatedBy`, or the next conflict dialog names you as the
 person whose version you are about to replace; a **queued** (offline) write stamps a revision no
 colleague's online save can also produce, and is started rather than awaited, so the save returns at
 once instead of hanging on "Saving…" until the connection comes back; and `saveChanges` records the payload it actually WROTE,
 window and revision included, clearing `dirty` only if nothing was edited while it was in flight.
+
+Three workspace invariants on top (Sep 2026 re-review), in `saveChanges`:
+- **"Saving" is PER DESIGN** (`savingKeys` — by id, or by the working copy before a first save). A
+  write that cannot finish must never lock every other design's Save with it.
+- **A queued save does not say "✓ Saved".** It says *Saved on this device — it will upload when
+  you're back online*, without the success colour. It still clears `dirty`: the write is in the
+  device's persistent Firestore queue, a re-save would only queue a duplicate, and a leave-page
+  warning would claim work is at risk that is not.
+- **A save that finds its design deleted drops it from the live list even when the page has moved
+  on** to another design — only the conversation is skipped. The decline-to-overwrite follow-up is
+  worded like the conflict dialog it answers ("That version" for your own name, "Their" otherwise).
 
 ### Print (v12.37; reviewed v19.45)
 A4 landscape grid + coverage + checks; generator, brush bar, picker, save row, tips and chevrons hidden.

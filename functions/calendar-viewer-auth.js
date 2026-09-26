@@ -27,7 +27,9 @@
  * never approaches the limit, and a refund that brings a bucket to zero deletes it, so the throttle
  * state still cannot be used to count how many people used the app. Charging first costs a correct
  * unlock one transaction; recording only failures after the compare let concurrent guesses all be
- * compared before any of them was counted. Expired
+ * compared before any of them was counted. The trade is CONTENTION: every unlock, right or wrong,
+ * writes the one all-sources document twice (charge, then refund), and writes to one document
+ * serialise — nothing at a handful of unlocks a day, and the thing to revisit if that ever grows. Expired
  * rows are swept opportunistically on the failure path — see `isThrottleStateStale`, which was
  * written here at v20.12 and NOT actually called until v20.15, so for three versions this comment
  * described a sweep that did not happen and the collection only ever grew.
@@ -55,7 +57,7 @@ const PIN_LENGTH = 4;
  *     abnormal traffic against a function whose normal volume is a handful of calls a day.
  *   · **For Marylebone.** Thirty WRONG entries in fifteen minutes from the whole station is not
  *     fumbling, it is somebody who has the wrong code entirely — at which point stopping is correct.
- *     A correct PIN is never counted, so ordinary use can never approach the limit however busy the
+ *     A correct PIN never stays counted, so ordinary use can never approach the limit however busy the
  *     office is.
  *
  * The block EXPIRES on its own. There is no permanent or global lock, deliberately: a shared-source
@@ -217,7 +219,8 @@ const GLOBAL_SOURCE_KEY = '_all-sources';
  *     function whose normal volume is a handful of calls a day — and it holds no matter how many
  *     source identities the caller can manufacture. Before this, a caller who forged the header had
  *     no bound at all and could finish in minutes.
- *   · **For Marylebone.** Only FAILURES count, and a correct PIN writes nothing. 200 wrong entries
+ *   · **For Marylebone.** Only FAILURES stay counted — a correct PIN is charged, then refunded, and a
+ *     refund to zero deletes the row. 200 wrong entries
  *     inside fifteen minutes, across the entire station, is roughly four each from fifty people —
  *     which does not mean fumbling, it means the code in circulation is wrong. Stopping is then the
  *     correct behaviour, and the block clears itself in fifteen minutes.

@@ -700,3 +700,14 @@ describe('spare weeks in the run checks', () => {
         assert.equal(longestRunBetween48hBreaks(seq), 11);
     });
 });
+
+describe('a design with no patterns object at all', () => {
+    test('assessFatigue reports it as unmeasurable rather than throwing (Sep 2026 re-review)', () => {
+        // `toSequence` already read a missing patterns object as all-rest; the FF18 step and the
+        // FF13 turnaround check then dereferenced it raw, so the whole panel threw on it.
+        for (const p of [null, undefined]) {
+            const out = assessFatigue(/** @type {any} */ (p), 3);
+            assert.equal(out.results.find(r => r.code === 'FF18')?.status, 'n/a');
+        }
+    });
+});

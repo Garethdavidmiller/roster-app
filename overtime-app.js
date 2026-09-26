@@ -357,8 +357,10 @@ export function init() {
                 const onScreen = currentForm && currentFormWeek
                     && moved.some((/** @type {any} */ w) => w.weekEnding === currentFormWeek);
                 if (onScreen && currentForm.setPhase(phases.get(currentFormWeek))) return;
-                // Only ANOTHER week moved (they share Tuesday 12:00s): a rebuild would wipe this form.
-                if (currentForm && !onScreen) return;
+                // Only ANOTHER week moved (they share Tuesday 12:00s): a rebuild would wipe this form,
+                // so skip it only when there are answers to lose — a clean form rebuilds, or the list
+                // rows beneath it keep the old phase.
+                if (currentForm && !onScreen && currentForm.isDirty()) return;
                 await loadMine();
             } finally {
                 resyncing = false;

@@ -38,7 +38,8 @@
  * being asked once too seldom costs somebody else's afternoon.
  *
  * **4. A queued (offline) write is started, not awaited, and never stamps a revision a colleague's
- * online save could also produce.** See `queueWrite` and `queuedRevision`.
+ * online save could also produce.** See `queueWrite` and `queuedRevision`. A save, a rename and a
+ * create alike — the create names its document with an auto-id reference so it can be queued too.
  *
  * ── WHAT IS DELIBERATELY NOT HERE ───────────────────────────────────────────────────────────────
  *
@@ -136,13 +137,23 @@ export function createDesignStore(deps) {
          * design carried `updatedAt: null`, the guard treated that as "nothing to compare", and a
          * concurrent edit was clobbered silently.
          * @param {any} payload
-         * @returns {Promise<{ id: string, updatedAt: any, baseline: { loadedRevision: number|null, loadedUpdatedAt: number|null, baselineUnknown: boolean } }>}
+         * @returns {Promise<{ id: string, updatedAt: any, queued?: boolean, baseline: { loadedRevision: number|null, loadedUpdatedAt: number|null, baselineUnknown: boolean } }>}
          */
         async create(payload) {
             // Revision 1, stamped here rather than discovered by reading back (v22.18). A create has
             // nothing to race — the document did not exist — so this is the one place the number is
             // certain without a transaction, and the baseline is exact from the first save onward.
-            const ref = await withClaimRetry(() => addDoc(designsCol, { ...payload, revision: 1 }));
+            const body = { ...payload, revision: 1 };
+            // OFFLINE, RULE 4 (Sep 2026 re-review): `addDoc` resolves only on the server's ack, so it
+            // held "Saving…" until the signal came back. An auto-id reference names the document
+            // BEFORE the write, so it is queued and returned at once — still revision 1, and still
+            // exact, because nobody else can write a document whose id only this device holds.
+            if (offlineNow()) {
+                const queuedRef = doc(designsCol);
+                queueWrite(() => setDoc(queuedRef, body));
+                return { id: queuedRef.id, updatedAt: null, queued: true, baseline: baselineAfterCommit(1) };
+            }
+            const ref = await withClaimRetry(() => addDoc(designsCol, body));
             const updatedAt = await readStamp(ref);
             return {
                 id: ref.id,

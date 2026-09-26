@@ -45,7 +45,7 @@ import {
     MIN_REST_MINUTES,
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
-import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel } from './links-design-doc.js';
+import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel, recordSave } from './links-design-doc.js';
 import { parseDesignImport, summariseImport } from './links-import.js';
 import { DEFAULT_SHIFT_TIMES } from './links-default-targets.js';
 import { createTargetPanel } from './links-generator-targets.js';
@@ -180,9 +180,8 @@ export function init() {
         isLinksDesigner: true,
         canOpenOvertime: canOpenOvertime(currentUser),
         onLogoClick:     () => openAboutLightbox?.(),
-        // Asked BEFORE the drawer releases this device's push record, not inside onSignOut.
-        confirmSignOut: async () => !dirty
-            || confirmDialog({ message: 'You have unsaved changes. Sign out anyway?', confirmLabel: 'Sign out', danger: true }),
+        // Asked BEFORE the drawer releases this device's push record, so a cancel leaves it intact.
+        beforeSignOut: async () => !dirty || await confirmDialog({ message: 'You have unsaved changes. Sign out anyway?', confirmLabel: 'Sign out', danger: true }),
         onSignOut: () => {
             dirty = false;   // answered — so `beforeunload` does not ask a second time
             clearSession();
@@ -260,8 +259,11 @@ export function init() {
     let design = null;
     let dirty  = false;
     _isDirty = () => dirty;   // point the SW beforeReload at THIS pass's flag (v16.23)
-    /** A save is in flight: Save stays disabled, and a second press is ignored. */
-    let saving = false;
+    /** Designs with a save in flight — by id, or by working copy before the first save. Their Save
+     *  stays disabled and a second press is ignored; PER DESIGN, so a write that cannot finish (no
+     *  signal) never locks every other design's Save with it (Sep 2026 re-review). */
+    const savingKeys = new Set();
+    const savingHere = () => savingKeys.has(activeDesignId ?? design);
     /** Bumped whenever another design becomes the working copy, so a save that lands after a
      *  switch knows the page no longer shows what it saved (see `saveChanges`). */
     let activation = 0;
@@ -522,7 +524,7 @@ export function init() {
     /** Both Save buttons — the masthead's and the sticky row's. One label, one state. */
     const _saveBtns = () => /** @type {HTMLButtonElement[]} */ (['linksSaveBtnTop', 'linksSaveBtn'].map(id => document.getElementById(id)).filter(Boolean));
     const _headerState = () => ({
-        designs, activeId: activeDesignId, design, dirty, currentUser, saving,
+        designs, activeId: activeDesignId, design, dirty, currentUser, saving: savingHere(),
         canDelete: canSoftDelete(designs.length),
     });
 
@@ -2113,33 +2115,10 @@ export function init() {
         el.textContent = lastSavedLabel(updatedBy, updatedAt?.toDate?.() ?? null);
     }
 
-    /**
-     * Refresh the designs[] entry for the design a save WROTE, from the payload actually written.
-     *
-     * UNCONDITIONAL on the saved patterns: they are authoritative whether or not the server
-     * timestamp came back. This used to sit inside the read-back's try, so a failed read left the
-     * entry holding STALE patterns while `design.patterns` held the new ones — switching away and
-     * back then reverted the grid to the pre-save state (v16.19). The WINDOW and the REVISION were
-     * still left behind until the Sep 2026 review: switching back rebuilt the working copy on the
-     * old window, which the next save wrote over the saved one, and on the old revision, which
-     * prompted "someone else saved" about your own save.
-     * @param {string} id @param {any} written @param {any} updatedAt the server stamp, or null
-     * @param {number|null} revision
-     */
-    function _recordSave(id, written, updatedAt, revision) {
-        const entry = designs.find(x => x.id === id);
-        if (!entry || !written) return;
-        entry.patterns  = written.patterns;
-        entry.window    = written.window;
-        entry.updatedBy = currentUser;
-        if (updatedAt) entry.updatedAt = updatedAt;
-        entry.revision  = revision;
-    }
-
     async function saveChanges() {
         const btns   = _saveBtns();
         const status = document.getElementById('linksSaveStatus');
-        if (!design || saving) return;
+        if (!design || savingHere()) return;
         // THE FIRST SAVE IS WHERE A DESIGN GETS ITS NAME (v23.30; links-design-header.js rule 3).
         // Asked BEFORE the "Saving…" state, because a cancel here is a decision and not a failure.
         if (!activeDesignId) {
@@ -2166,18 +2145,23 @@ export function init() {
             return docPayload({ ...dsn, ...written }, { updatedBy: currentUser, updatedAt: serverTimestamp() });
         };
         /** A write landed: record it, and clear `dirty` only if nothing was edited since it was built. */
-        const landed = (/** @type {string} */ id, /** @type {any} */ base, /** @type {any} */ updatedAt) => {
-            _recordSave(id, written, updatedAt, base.loadedRevision);
+        // `queued`: offline, the write sits in this device's persistent Firestore queue and uploads on
+        // reconnect — so `dirty` clears (a re-save would queue a duplicate, and a leave-page warning
+        // would lie), but the words must not claim the server has it.
+        const landed = (/** @type {string} */ id, /** @type {any} */ base, /** @type {any} */ updatedAt, queued = false) => {
+            recordSave(designs.find(x => x.id === id), written, currentUser, updatedAt, base.loadedRevision);
             if (!here()) return;
             ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = base);
             const same = JSON.stringify([design?.patterns, normaliseWindow(design?.window)])
                 === JSON.stringify([written.patterns, written.window]);
             dirty = !same;
             updateSaveBtn();
-            if (status) { setStatus(status, same ? '✓ Saved' : '✓ Saved — your later changes are not saved yet'); status.className = 'links-save-status ok'; }
+            const [said, lead] = queued ? ['Saved on this device — it will upload when you’re back online', 'Saved on this device'] : ['✓ Saved', '✓ Saved'];
+            if (status) { setStatus(status, same ? said : `${lead} — your later changes are not saved yet`); status.className = `links-save-status${queued ? '' : ' ok'}`; }
             updateLastSaved(currentUser, { toDate: () => new Date() });
         };
-        saving = true;
+        const key = savingId ?? dsn;
+        savingKeys.add(key);
         for (const b of btns) { b.disabled = true; b.textContent = 'Saving…'; }
         header?.render(_headerState());
         if (status) { status.textContent = 'Saving…'; status.className = 'links-save-status'; }
@@ -2201,7 +2185,7 @@ export function init() {
                     lsSet(ACTIVE_KEY, created.id);
                     targets.adoptUnsaved();   // the targets tuned while it had no id come with it
                 }
-                landed(created.id, created.baseline, created.updatedAt);
+                landed(created.id, created.baseline, created.updatedAt, !!created.queued);
                 renderDesignPicker();
                 return;
             }
@@ -2241,13 +2225,16 @@ export function init() {
             // reported as one: the design is in their bin, and a plain overwrite here would
             // silently resurrect it — a delete undone by someone who never saw the delete. Offer
             // the fork instead, which keeps our work without contradicting their action.
-            const deletedElsewhere = async (/** @type {any} */ data) => {
-                markNotSaved();
-                // Out of the live list: it stayed in the picker, counted towards the last-design
-                // rule, and set off Duplicate's "goes back to its last save" confirm.
+            // Out of the live list: it stayed in the picker, counted towards the last-design rule, and
+            // set off Duplicate's "goes back to its last save" confirm. Also when the page moved on.
+            const dropDeleted = (/** @type {any} */ data) => {
                 designs = designs.filter(x => x.id !== savingId);
                 if (data) deletedDesigns.unshift(binEntryFromDoc(savingId, data));
                 renderDesignPicker();
+            };
+            const deletedElsewhere = async (/** @type {any} */ data) => {
+                markNotSaved();
+                dropDeleted(data);
                 const by = (data?.deletedBy || '').trim();
                 if (await confirmDialog({
                     title: 'This design was deleted',
@@ -2260,11 +2247,12 @@ export function init() {
                 return true;
             };
 
-            const declineOrFork = async () => {
+            // Worded like the conflict dialog it answers: with your OWN name on it, there is no "them".
+            const declineOrFork = async (/** @type {any} */ c) => {
                 markNotSaved();
                 if (await confirmDialog({
                     title: 'Keep your version too?',
-                    message: 'Their version stays as it is. Yours can be saved as a NEW design, so nothing is lost either way.',
+                    message: `${c?.by === currentUser ? 'That' : 'Their'} version stays as it is. Yours can be saved as a NEW design, so nothing is lost either way.`,
                     confirmLabel: 'Save mine as new',
                     cancelLabel: 'Not now',
                 })) await duplicateDesign();
@@ -2288,7 +2276,8 @@ export function init() {
             // Nothing written, and another design is open now: the conversation below would act on
             // THAT one, so say so and stop.
             if (!here() && (res.status === 'conflict' || res.status === 'deleted-elsewhere')) {
-                _designActionStatus(`“${dsn.name}” was not saved — it changed elsewhere while saving. Open it to check.`);
+                if (res.status === 'deleted-elsewhere') dropDeleted(res.deletedData);
+                _designActionStatus(`“${dsn.name}” was not saved — it ${res.status === 'conflict' ? 'changed elsewhere while saving. Open it to check.' : 'was deleted elsewhere while saving.'}`);
                 return;
             }
             if (res.status === 'deleted-elsewhere') { await deletedElsewhere(res.deletedData); return; }
@@ -2302,7 +2291,7 @@ export function init() {
                 // unbounded prompt cycle would be its own defect.
                 let pending = res.conflict;
                 for (let round = 0; ; round++) {
-                    if (!await confirmOverwrite(pending)) { await declineOrFork(); return; }
+                    if (!await confirmOverwrite(pending)) { await declineOrFork(pending); return; }
                     const forced = await store.save({
                         id: savingId, buildPayload: buildDoc,
                         baseline: loadedUpdatedAt, loadedRevision, baselineUnknown, currentUser,
@@ -2314,7 +2303,7 @@ export function init() {
                     });
                     if (forced.status === 'deleted-elsewhere') { await deletedElsewhere(forced.deletedData); return; }
                     if (forced.status === 'conflict') {
-                        if (round >= 2) { await declineOrFork(); return; }
+                        if (round >= 2) { await declineOrFork(forced.conflict); return; }
                         pending = forced.conflict;
                         continue;
                     }
@@ -2322,7 +2311,7 @@ export function init() {
                     break;
                 }
             } else {
-                landed(savingId, res.baseline, res.updatedAt);
+                landed(savingId, res.baseline, res.updatedAt, res.status === 'queued');
             }
         } catch (err) {
             console.error('[Links] Save failed:', err);
@@ -2331,7 +2320,7 @@ export function init() {
                 if (status) { status.textContent = 'Save failed — try again'; status.className = 'links-save-status err'; }
             }
         } finally {
-            saving = false;
+            savingKeys.delete(key);
             header?.render(_headerState());   // not updateSaveBtn: that would wipe the status just written
         }
     }

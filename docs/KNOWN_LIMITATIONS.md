@@ -1868,9 +1868,10 @@ which Set up accounts would then have adopted. Both exist because client sign-up
 3. **SHIPPED v24.27 — require it.** `isMember` in `firestore.rules` and `memberNameFromClaims` in
    `functions/member-identity.js` believe a member only when `member == name`, on top of the v24.23
    email binding, and `CLAIM_EPOCH` rose to 3 so every device fetches a token carrying the claim on
-   its next open that confirms a named session. (The Calendar's named boot did not run the sweep
-   until its named grant was made to — it never calls `ensureNamedSession` — so a Calendar-only
-   member waited out the hourly refresh, or met "Calendar access has expired", instead.) A
+   its next open that confirms a named session. (The sweep otherwise runs only inside
+   `ensureNamedSession`, which the Calendar's named boot never calls, so until the Calendar's full
+   named grant was made to run it too, a Calendar-only member waited out the hourly refresh, or met
+   "Calendar access has expired", instead.) A
    self-registered account — at an invented name's address or a real member's —
    now carries nothing the rules or endpoints believe. Shipped after step 2, as it had to be: a
    token without `member` loses every member read and write.

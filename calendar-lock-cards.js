@@ -54,6 +54,7 @@
  */
 
 import { clearSession } from './session.js';
+import { releaseDevicePush } from './notif.js';
 import { normalisePin, isCompletePin, attemptBackoffMs, PIN_LENGTH } from './calendar-access-core.js';
 import { mountLockCard, unmountLockCard } from './calendar-lock-slot.js';
 import { lazyImport } from './sw-register.js';
@@ -395,7 +396,11 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
     // of this panel could achieve. `decideAccess` then sees no session and no identity. Since
     // v23.19 that lands on the SIGN-IN card, so the reload carries `#staff-pin` — the one hash the
     // boot reads — and the tap still lands where it was going.
-    pinAlt.addEventListener('click', () => {
+    //
+    // It is a sign-out on a device being handed over, so it releases this device's push record
+    // first, WHILE still signed in, exactly as the drawer's Sign out does (time-boxed at 1.5s).
+    pinAlt.addEventListener('click', async () => {
+        await releaseDevicePush();
         clearSession();
         window.location.hash = PIN_FIRST_HASH;
         window.location.reload();

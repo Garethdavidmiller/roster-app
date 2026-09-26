@@ -17,6 +17,9 @@ import { isSafeStorageUrl, officeViewerUrl, resolveDocumentOpenUrl } from './sto
 
 // In-memory localStorage backing the ls.js mock — seeded/read directly by tests.
 const store = new Map();
+// Order of the sign-out steps, recorded by the notif.js mock and the page callbacks.
+/** @type {string[]} */
+const signOutLog = [];
 
 mock.module('./firebase-client.js', {
     namedExports: {
@@ -37,7 +40,7 @@ mock.module('./notif.js', {
         peekNotifState:      async () => 'off-default',
         enableNotifications: async () => 'on',
         disableNotifications: async () => 'off-default',
-        releaseDevicePush:    async () => {},
+        releaseDevicePush:    async () => { signOutLog.push('release'); },
     },
 });
 mock.module('./overlay.js', {
@@ -201,5 +204,60 @@ describe('initNavPanel', () => {
         // Must not throw, must not mutate the element further
         initNavPanel({ currentPage: 'calendar' });
         assert.equal(mutated, false, 'no DOM mutation should occur when navPanelInit is already set');
+    });
+});
+
+// ── Sign-out: the push record is released only once the page has committed ────
+// Sep 2026 re-review: the release ran BEFORE the page's onSignOut, and Links' onSignOut could still
+// be cancelled over unsaved work — leaving a signed-in device with no push record.
+
+/** A generic element stub: records listeners; every other DOM call is inert. */
+function fakeEl() {
+    /** @type {Record<string, Function>} */
+    const on = {};
+    return {
+        on, dataset: {}, style: {}, textContent: '', firstChild: null,
+        classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+        addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => { on[t] = fn; },
+        removeEventListener() {}, setAttribute() {}, removeAttribute() {}, getAttribute: () => null,
+        hasAttribute: () => false, focus() {}, remove() {}, appendChild() {},
+        querySelector: () => null, querySelectorAll: () => [],
+    };
+}
+
+/** Initialise the drawer on a fake page and return its Sign out button. */
+function mountDrawer(/** @type {any} */ opts) {
+    /** @type {Map<string, any>} */
+    const els = new Map();
+    global.document = /** @type {any} */ ({
+        getElementById: (/** @type {string} */ id) => { if (!els.has(id)) els.set(id, fakeEl()); return els.get(id); },
+        createElement: () => fakeEl(), body: fakeEl(),
+        addEventListener() {}, removeEventListener() {}, querySelector: () => null, querySelectorAll: () => [],
+    });
+    global.window = /** @type {any} */ ({ addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false }), setTimeout, clearTimeout });
+    global.history = /** @type {any} */ ({ pushState() {}, back() {} });
+    initNavPanel({ currentPage: 'links', memberName: 'A. Test', ...opts });
+    return els.get('navSignOutBtn');
+}
+
+describe('sign-out releases the device push record only once the page commits', () => {
+    beforeEach(() => { signOutLog.length = 0; });
+
+    test('a cancelled sign-out (beforeSignOut → false) releases nothing and signs nobody out', async () => {
+        const btn = mountDrawer({ beforeSignOut: async () => false, onSignOut: () => signOutLog.push('signout') });
+        await btn.on.click();
+        assert.deepEqual(signOutLog, []);
+    });
+
+    test('a confirmed sign-out releases WHILE signed in, then signs out', async () => {
+        const btn = mountDrawer({ beforeSignOut: async () => true, onSignOut: () => signOutLog.push('signout') });
+        await btn.on.click();
+        assert.deepEqual(signOutLog, ['release', 'signout']);
+    });
+
+    test('a page with no beforeSignOut releases and signs out as before', async () => {
+        const btn = mountDrawer({ onSignOut: () => signOutLog.push('signout') });
+        await btn.on.click();
+        assert.deepEqual(signOutLog, ['release', 'signout']);
     });
 });

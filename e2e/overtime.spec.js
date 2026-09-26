@@ -2028,6 +2028,35 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
     });
 
+    test('ANOTHER week changing phase DOES rebuild a CLEAN form, so the list rows are not stale', async ({ page }) => {
+        // The other half of the test above (Sep 2026 re-review). Skipping the rebuild is only worth
+        // it when there are answers to lose; with none, skipping it left the other week's list row
+        // saying "Not submitted yet · Open" about a week that had closed.
+        await seedSession(page, 'G. Miller');
+        const base = { ...W, phase: 'INITIAL_OPEN', participant: { grade: 'CEA', rosterOrder: 2 }, submission: null };
+        const other = { ...base, weekEnding: '2026-09-12', weekStart: '2026-09-06',
+            initialDeadlineAt: NOW + 60_000, finalDeadlineAt: Date.parse('2026-09-01T11:00:00Z') };
+        let calls = 0;
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] }; });
+        await page.route('**/getMyOvertimeState', r => {
+            calls += 1;
+            r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, serverNow: NOW,
+                    windows: [base, calls === 1 ? other : { ...other, phase: 'CLOSED' }] }) });
+        });
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+        const row = page.locator('.ot-week-row', { has: page.locator('[data-openweek="2026-09-12"]') });
+        await expect(row).toContainText('Not submitted yet');
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await expect.poll(() => calls, 'the card was rebuilt from a fresh read').toBeGreaterThanOrEqual(3);
+        await expect(row).toContainText('Nothing was submitted');
+        await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+    });
+
     test('leaving a form with unsubmitted answers asks first', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         const w2 = winOver({ weekEnding: '2026-09-12', weekStart: '2026-09-06',

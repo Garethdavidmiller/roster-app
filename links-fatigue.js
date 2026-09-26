@@ -417,6 +417,9 @@ function _spareCaveat(worst, certain, what) {
  * @returns {{results: FatigueResult[], present: number, standing: number, confirmNeeded: number, hoursAreFloor: boolean}}
  */
 export function assessFatigue(patterns, lines = ROTATING_LINES) {
+    // A missing patterns object reads as all-rest everywhere — `toSequence` already did; the FF18
+    // `scoreOrder` and FF13 `runDesignChecks` below dereference it raw, so normalise it once here.
+    patterns = patterns || {};
     const seq = toSequence(patterns, lines);
     const timed = seq.filter(x => startMinutes(x.shift) !== null);
 

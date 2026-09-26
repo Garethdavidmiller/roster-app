@@ -141,6 +141,12 @@ export const runTransaction = (_db, fn) => {
       }
     },
   };
+  // window.__E2E.txDelayMs holds every transaction open for N ms, so a test can act while a save is
+  // still in flight (switch designs, press another Save). No backticks: this is inside FIREBASE_STUB.
+  if (e2e.txDelayMs) return new Promise(r => setTimeout(r, e2e.txDelayMs)).then(() => fn(tx));
+  // window.__E2E.txErrorCode makes every transaction REJECT with that Firestore code — with the
+  // browser set offline, 'unavailable' is how a real offline transaction fails.
+  if (e2e.txErrorCode) return Promise.reject(Object.assign(new Error('client is offline'), { code: e2e.txErrorCode }));
   return Promise.resolve(fn(tx));
 };
 // Collection reads resolve EMPTY unless a test seeds rows via window.__E2E.docs (an array of

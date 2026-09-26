@@ -684,6 +684,24 @@ describe('a queued write does not wait for a server that is not there', () => {
         assert.equal(started, true, 'the write was still issued');
     });
 
+    test('create (Sep 2026 re-review)', async () => {
+        // `addDoc` has the same shape — it resolves on the server's ack — and the first save of a
+        // generated design still awaited it, holding "Saving…" (and, page-wide, every Save) until
+        // the connection came back. An auto-id reference names the document before the write.
+        const { api } = makeDb();
+        api.isOnline = () => false;
+        /** @type {any} */ let wrote = null;
+        api.addDoc = () => neverResolves();
+        api.setDoc = (_ref, payload) => { wrote = payload; return neverResolves(); };
+        const res = await Promise.race([createDesignStore(api).create({ name: 'New' }), hang()]);
+        assert.notEqual(res, 'hung');
+        assert.equal(/** @type {any} */ (res).queued, true);
+        assert.equal(/** @type {any} */ (res).id, ID, 'the id is known before the write lands');
+        assert.equal(wrote?.revision, 1, 'the queued create was issued, as revision 1');
+        // Revision 1 is exact: nobody else can write a document whose id only this device holds.
+        assert.equal(/** @type {any} */ (res).baseline.loadedRevision, 1);
+    });
+
     test('rename', async () => {
         const { api } = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 2 },
             failTx: { code: 'unavailable', message: 'client is offline' } });
