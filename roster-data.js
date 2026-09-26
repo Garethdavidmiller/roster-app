@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '24.31';
+export const APP_VERSION = '24.32';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -182,26 +182,6 @@ export const CONFIG = {
     //   open that CONFIRMS a named session — `ensureNamedSession`, or the Calendar's named grant — and
     //   is fire-and-forget, so a read in that same instant may still carry the old token.
     CLAIM_EPOCH:                      3,
-    // In-place sign-in (AUTH_ARCHITECTURE.md → "Phase 9 — Remove the post-login reload"). When a
-    // protected page's login overlay confirms a sign-in, OFF (false) = today's behaviour: the
-    // overlay's onSuccess does `window.location.reload()` and the reloaded page re-runs init. ON
-    // (true) = the page initialises in place — the coordinator's authorised body runs directly and
-    // the overlay is torn down — no reload, no white flash, no second auth-restore.
-    //
-    // PER-PAGE (not a single global switch) so the rollout has a SMALL blast radius — turn it on for
-    // ONE coordinator, watch it live for a few days, roll back just that page if needed. This is NOT
-    // the B1 (ENFORCE_NAMED_SESSION) class of risk: INPLACE only changes what happens AFTER an already-
-    // confirmed sign-in (render-in-place vs reload), the sign-in/session/identity are byte-for-byte the
-    // same, and every in-place path falls back to `reload()` if it throws — so a bad page self-heals to
-    // today's behaviour and can never lock anyone out. Recommended order: paycalc/operations first,
-    // admin last (highest-traffic, most-wired). Each coordinator reads ONLY its own key.
-    // ⚠️ KILL-SWITCH: set any key back to `false` to instantly restore that page's reload path.
-    //   ROLLOUT COMPLETE: paycalc (v15.07), operations (v15.08), links (v15.09), admin (v15.16),
-    //   settings (v15.17) — all five coordinators now in-place. Login confirmed stable (freeze fixed
-    //   v14.75, B1 re-enabled v14.98). settings was last because it is the one page that inits its nav
-    //   while UNSIGNED; its authorised body refreshes the nav identity after an in-place sign-in.
-    //   The per-page kill-switch above still stands — set any key back to `false` to revert that page.
-    INPLACE_LOGIN:                    { operations: true, links: true, paycalc: true, admin: true, settings: true },
     SUPPORT_EMAIL:                    'Gareth.Miller@chilternrailways.co.uk',     // Bug report destination — update here if the address ever changes
 };
 

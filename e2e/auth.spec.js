@@ -1,4 +1,4 @@
-import { test, expect, enforceNamedSession, enableInplaceLogin, forcePasswordSet } from './fixtures.js';
+import { test, expect, enforceNamedSession, forcePasswordSet } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay } from './helpers.js';
 
 // ── ADMIN (admin.html) ────────────────────────────────────────────────────
@@ -161,8 +161,8 @@ test('B1 flag ON + sign-in OK: links loads for a designer (not redirected)', asy
     await page.goto('/links.html');
     await expect(page).toHaveURL(/links\.html$/);
 });
-// ── IN-PLACE SIGN-IN (INPLACE_LOGIN flag ON) — Phase 9 ─────────────────────────
-// With the flag ON, the init()-wrapped coordinators (operations/links/paycalc) initialise the page
+// ── IN-PLACE SIGN-IN — Phase 9 (the INPLACE_LOGIN flag was retired at v24.32; this is the only path) ──
+// The init()-wrapped coordinators (operations/links/paycalc) initialise the page
 // IN PLACE after a confirmed sign-in instead of window.location.reload(). The discriminator is a
 // `window.__noReload` marker set AFTER load but BEFORE the click: a reload wipes window, so if the
 // marker survives the sign-in the page did NOT reload. We also assert the overlay was torn down and
@@ -170,7 +170,6 @@ test('B1 flag ON + sign-in OK: links loads for a designer (not redirected)', asy
 
 
 test('in-place sign-in: operations initialises without a reload', async ({ page }) => {
-    await enableInplaceLogin(page);
     await page.goto('/operations.html');           // not signed in → overlay
     await page.evaluate(() => { window.__noReload = 1; });   // a reload would wipe this
     await signInThroughOverlay(page, 'G. Miller');  // admin → passes the operations gate
@@ -187,7 +186,6 @@ test('in-place sign-in: operations initialises without a reload', async ({ page 
 });
 
 test('in-place sign-in: links initialises without a reload', async ({ page }) => {
-    await enableInplaceLogin(page);
     await page.goto('/links.html');
     await page.evaluate(() => { window.__noReload = 1; });
     await signInThroughOverlay(page, 'G. Miller');  // designer → passes the links gate
@@ -199,7 +197,6 @@ test('in-place sign-in: links initialises without a reload', async ({ page }) =>
 });
 
 test('in-place sign-in: paycalc initialises (period selector built) without a reload', async ({ page }) => {
-    await enableInplaceLogin(page);
     // Suppress the one-time notices so nothing overlays the calculator after sign-in.
     await page.addInitScript(() => {
         localStorage.setItem('myb_pc_ns_migrated', '1');
@@ -215,7 +212,6 @@ test('in-place sign-in: paycalc initialises (period selector built) without a re
 });
 
 test('in-place sign-in: admin initialises (member selector + nav identity) without a reload', async ({ page }) => {
-    await enableInplaceLogin(page);
     await page.goto('/admin.html');
     await page.evaluate(() => { window.__noReload = 1; });
     await signInThroughOverlay(page, 'G. Miller');
@@ -231,7 +227,6 @@ test('in-place sign-in: admin initialises (member selector + nav identity) witho
 });
 
 test('in-place sign-in: settings initialises (work-email card + nav identity) without a reload', async ({ page }) => {
-    await enableInplaceLogin(page);
     await page.goto('/settings.html');
     await page.evaluate(() => { window.__noReload = 1; });
     await signInThroughOverlay(page, 'G. Miller');
@@ -255,7 +250,6 @@ test('in-place sign-in: settings still offers an install the browser offered BEF
     // Chromium fires `beforeinstallprompt` once, early. On the in-place path the Device card is wired
     // only after sign-in, and until the Sep 2026 review so was its listener — so an Android member
     // who signed in here was never shown the install row.
-    await enableInplaceLogin(page);
     await page.goto('/settings.html');
     await page.evaluate(() => {
         const e = new Event('beforeinstallprompt', { cancelable: true });
@@ -275,7 +269,6 @@ test('in-place sign-in: settings still offers an install the browser offered BEF
 
 test('forced password overlay: blocks an un-migrated member right after sign-in', async ({ page }) => {
     await forcePasswordSet(page);
-    await enableInplaceLogin(page);
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
     const overlay = page.locator('#pwForceOverlay');
@@ -292,7 +285,6 @@ test('forced password overlay: blocks an un-migrated member right after sign-in'
 
 test('forced password overlay: rejects a short or mismatched password and stays up', async ({ page }) => {
     await forcePasswordSet(page);
-    await enableInplaceLogin(page);
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
     await expect(page.locator('#pwForceOverlay')).toBeVisible();
@@ -333,7 +325,6 @@ test('forced password overlay: rejects a short or mismatched password and stays 
 // write path is the same setOwnPassword the shipped Settings card uses.
 test('forced password overlay: offers a way out after repeated save failures', async ({ page }) => {
     await forcePasswordSet(page);
-    await enableInplaceLogin(page);
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
     await expect(page.locator('#pwForceOverlay')).toBeVisible();
@@ -356,7 +347,6 @@ test('forced password overlay: FAILS OPEN when the migration status cannot be re
     // complete the flow anyway, and a mandatory overlay they can't satisfy is a lockout. It simply
     // doesn't appear and tries again at their next sign-in.
     await forcePasswordSet(page);
-    await enableInplaceLogin(page);
     await page.addInitScript(() => { window.__E2E = { failGetDoc: true }; });
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
@@ -367,7 +357,6 @@ test('forced password overlay: FAILS OPEN when the migration status cannot be re
 test('forced password overlay: never appears while the kill switch is off', async ({ page }) => {
     // No forcePasswordSet() call → the suite default (FORCE_PASSWORD_SET: false). This is also what
     // keeps the rest of the suite unaffected by the feature.
-    await enableInplaceLogin(page);
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
     await expect(page.locator('#contactCard')).toBeVisible();

@@ -1,4 +1,4 @@
-import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
+import { test, expect, enforceNamedSession } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, clickInView } from './helpers.js';
 // The REAL pay tables, imported rather than restated: the unsupported-role block below asserts that
 // a CES is priced as a CES, and a literal rate there would go stale on the next award — or, worse,
@@ -37,6 +37,36 @@ test('paycalc (signed in): pay period selector is populated', async ({ page }) =
 
     expect(errors, 'Uncaught JS exceptions on paycalc.html').toHaveLength(0);
 });
+
+// THE PRIVACY LINE (v24.32, owner). One note at the foot of the page carries it on every visit; the
+// card at the TOP shows only until this member has saved settings or any hours — it is for the
+// first visit, just before somebody types in payslip figures. Three states, and the third is the
+// one a shortcut would break: ANOTHER member's data on a shared phone must not count as yours.
+for (const { name, seed, topVisible } of [
+    { name: 'a first visit shows it at the top', seed: {}, topVisible: true },
+    { name: 'saved settings hide the top copy', seed: { myb_pc_gmiller_setup: '1' }, topVisible: false },
+    { name: 'saved hours hide the top copy', seed: { myb_pc_gmiller_p3: JSON.stringify({ basic: '140' }) }, topVisible: false },
+    { name: "another member's data does not hide it", seed: { myb_pc_ssilva_setup: '1', myb_pc_ssilva_p3: '{}' }, topVisible: true },
+]) {
+    test(`paycalc privacy note: ${name}`, async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await seedSession(page);
+        await page.addInitScript((kv) => {
+            localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+            localStorage.setItem('myb_pc_ns_migrated', '1');
+            for (const [k, v] of Object.entries(kv)) localStorage.setItem(k, v);
+        }, seed);
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#periodSelect option').first()).toBeAttached();
+        const top = page.locator('#privacyNoteTop');
+        if (topVisible) await expect(top).toBeVisible();
+        else await expect(top).toBeHidden();
+        // The foot of the page says it on EVERY visit, whatever the top does.
+        await expect(page.locator('.disclaimer .disclaimer-privacy')).toBeVisible();
+        await expect(page.locator('.disclaimer .disclaimer-privacy')).toContainText('saved on this device only');
+        expect(errors).toHaveLength(0);
+    });
+}
 
 // Desktop WORKSPACE layout (v16.67): Hours + Settings span the two wide work columns; a
 // col-3 sidebar (.pc-side) stacks the result card and the four occasional cards, filling the

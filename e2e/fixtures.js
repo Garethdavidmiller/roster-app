@@ -559,18 +559,6 @@ export async function enableCalendarPin(page) {
 }
 
 /**
- * Turn in-place sign-in ON (for ALL coordinators) for one test by rewriting roster-data.js as it is
- * served — flips every per-page key in the `INPLACE_LOGIN: { … }` object to `true` without touching the
- * real file or the production default. Call BEFORE page.goto(). Each test only exercises one page, so
- * enabling all is harmless and keeps the helper simple. (AUTH_ARCHITECTURE.md Phase 9.)
- * @param {import('@playwright/test').Page} page
- */
-export async function enableInplaceLogin(page) {
-    _setConfigOverride(page, 'INPLACE_LOGIN', /INPLACE_LOGIN:\s*\{[^}]*\}/,
-        'INPLACE_LOGIN: { operations: true, links: true, paycalc: true, admin: true, settings: true }');
-}
-
-/**
  * Turn the forced set-password overlay ON for one test (PASSWORD_DESIGN.md Phase 2). The suite-wide
  * default is OFF — see the `page` fixture — because the stubbed Firestore reports every member as
  * un-migrated, so leaving it on would put the overlay over every sign-in test. Call BEFORE page.goto().

@@ -1,4 +1,4 @@
-import { test, expect, enforceNamedSession, enableInplaceLogin, enableCalendarPin } from './fixtures.js';
+import { test, expect, enforceNamedSession, enableCalendarPin } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, seedViewerAccess } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────

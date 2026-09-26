@@ -113,21 +113,17 @@ export function init() {
     // authz layer instead of an inline CONFIG.LINKS_DESIGNERS check.
     const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'links');
     if (_access.decision === 'login') {
-        // Not signed in → show the shared in-place sign-in (no redirect). On success: INPLACE_LOGIN off
-        // (the per-page rollback; ON is live) → reload + resolveSession(false) on this non-auth load; on → re-invoke
-        // init() in place (the authorised body below never ran on this pass, so re-entering runs it
-        // exactly once with the just-saved session — no reload, no double-wiring). Do NOT
-        // resolveSession(false) when in-place, or the one-shot sessionReady is poisoned before the
-        // in-place pass can resolve it true. (AUTH_ARCHITECTURE.md Phase 9.)
+        // Not signed in → show the shared in-place sign-in (no redirect). On success, re-invoke init()
+        // in place (the authorised body below never ran on this pass, so re-entering runs it exactly
+        // once with the just-saved session — no reload, no double-wiring). Do NOT resolveSession(false)
+        // here, or the one-shot sessionReady is poisoned before the in-place pass can resolve it true.
+        // (AUTH_ARCHITECTURE.md Phase 9.)
         // In-place re-invocation falls back to a reload if init() throws mid-wiring, so the in-place
         // path is never less robust than the reload path (the overlay is already torn down by then).
-        const onSuccess = CONFIG.INPLACE_LOGIN.links
-            // Reload (fresh overlay) rather than re-invoke init() into a soft-lock if saveSession
-            // silently failed (iOS private mode) and getSession() is still null. See operations-app.js.
-            ? () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } }
-            : () => window.location.reload();
+        // Reload (fresh overlay) rather than re-invoke init() into a soft-lock if saveSession
+        // silently failed (iOS private mode) and getSession() is still null. See operations-app.js.
+        const onSuccess = () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } };
         initLoginOverlay({ pageLabel: 'Links', onSuccess });
-        if (!CONFIG.INPLACE_LOGIN.links) resolveSession(false);
         return;
     }
     if (_access.decision === 'forbidden') {

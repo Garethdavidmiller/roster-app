@@ -1,4 +1,4 @@
-import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
+import { test, expect, enforceNamedSession } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation

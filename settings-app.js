@@ -114,10 +114,9 @@ export function init() {
     reconcileExpiredIdentity().catch(() => {});
 
     // ── Check session ─────────────────────────────────────────────────────────────
-    // `let` (not const): on the in-place sign-in path (CONFIG.INPLACE_LOGIN.settings, AUTH_ARCHITECTURE.md Phase 9)
-    // these are refreshed inside initAuthorised() from the just-saved session — the module loaded while
-    // signed out, so the load-time values are null. With the flag off they are assigned once and never
-    // change, identical to before.
+    // `let` (not const): after an in-place sign-in (AUTH_ARCHITECTURE.md Phase 9) these are refreshed
+    // inside initAuthorised() from the just-saved session — the module loaded while signed out, so the
+    // load-time values are null.
     let currentSession   = getSession();
     let isAuthenticated  = !!currentSession;
     let currentUser      = currentSession?.name ?? null;
@@ -127,8 +126,7 @@ export function init() {
     /** @type {any} */
     let openAboutLightbox = null;
 
-    // Nav panel. NOT wired at module scope for a signed-out visitor while `CONFIG.INPLACE_LOGIN.settings`
-    // is on — see the call site below, which defers it to initAuthorised() so the drawer renders ONCE
+    // Nav panel. NOT wired at module scope for a signed-out visitor — see the call site below, which defers it to initAuthorised() so the drawer renders ONCE
     // with the signed-in identity. (This comment said "always initialised … so the user can navigate
     // rather than being stranded" for as long as that had been untrue, which is the sentence a reader
     // would have restored the two-identity double render from. A signed-out visitor is not stranded:
@@ -154,23 +152,18 @@ export function init() {
     // preserving the exact prior trigger — so requirePage returns 'login' iff there is no local session
     // (decision identical to the old `if (!isAuthenticated)`). member is irrelevant: Settings needs no role.
     const _access = requirePage({ status: isAuthenticated ? 'named' : 'signedOut', member: currentUser }, 'settings');
-    // Wire the nav now EXCEPT on the in-place login path, where it is deferred to initAuthorised() so it
-    // renders ONCE with the signed-in identity (the full-screen overlay covers the burger meanwhile).
-    // Flag off → wired now exactly as before.
-    if (!CONFIG.INPLACE_LOGIN.settings || _access.decision !== 'login') wireNavPanel();
+    // Wire the nav now EXCEPT on the login path, where it is deferred to initAuthorised() so it renders
+    // ONCE with the signed-in identity (the full-screen overlay covers the burger meanwhile).
+    if (_access.decision !== 'login') wireNavPanel();
 
     if (_access.decision === 'login') {
-        // On success: flag off (default) → reload + resolveSession(false) on this non-auth load (today's
-        // path); flag on → initialise in place via initAuthorised(), falling back to a reload if it throws
-        // mid-wiring (never less robust than reload). Don't resolveSession(false) when in-place, or the
-        // one-shot sessionReady is poisoned before initAuthorised can resolve it true.
-        const onSuccess = CONFIG.INPLACE_LOGIN.settings
-            // Reload (fresh overlay) rather than run initAuthorised() with a null identity if saveSession
-            // silently failed (iOS private mode) and getSession() is still null. See operations-app.js.
-            ? () => { try { if (!getSession()) { window.location.reload(); return; } initAuthorised(); } catch { window.location.reload(); } }
-            : () => window.location.reload();
+        // On success, initialise in place via initAuthorised(), falling back to a reload if it throws
+        // mid-wiring (never less robust than reload). Don't resolveSession(false) here, or the one-shot
+        // sessionReady is poisoned before initAuthorised can resolve it true.
+        // Reload (fresh overlay) rather than run initAuthorised() with a null identity if saveSession
+        // silently failed (iOS private mode) and getSession() is still null. See operations-app.js.
+        const onSuccess = () => { try { if (!getSession()) { window.location.reload(); return; } initAuthorised(); } catch { window.location.reload(); } };
         initLoginOverlay({ pageLabel: 'Settings', onSuccess });
-        if (!CONFIG.INPLACE_LOGIN.settings) resolveSession(false); // fulfil sessionReady on the non-auth path
     } else {
         initAuthorised();
     }
