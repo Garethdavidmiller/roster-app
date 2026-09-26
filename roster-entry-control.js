@@ -7,6 +7,7 @@
  * Does NOT own: what an unreadable cell IS (admin-roster-upload.js), the value grammar
  *   (`manualCellValue`, override-utils.js) or the guards (`normaliseCellValue`, roster-cell-rules.js).
  * Edit here for: the control's markup, or what it says while incomplete.
+ * Read first: `.claude/rules/roster-import.md` — the import's whole contract.
  *
  * ── WHY IT EXISTS ──────────────────────────────────────────────────────────────────────────────
  *

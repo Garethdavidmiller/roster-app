@@ -6,6 +6,7 @@
  *   (`normaliseCellValue`) and the value-to-override-type mapping (`shiftValueToOverrideType`).
  * Does NOT own: the parse, the review states, the renderer, or any write.
  * Edit here for: a guard, or a new override type the import can produce.
+ * Read first: `.claude/rules/roster-import.md` — the import's whole contract.
  *
  * ── WHY IT IS ITS OWN MODULE (v22.17) ──────────────────────────────────────────────────────────
  *

@@ -16,9 +16,10 @@ Depth comes from three layered surfaces, defined in `shared.css :root`:
 **On the NAVY canvas the third rung is a white overlay, not an off-white fill** (`--on-navy-raised`
 = white 9%, `--on-navy-hairline` = white 12%, and — since v22.60 — `--on-navy-raised-strong` = white
 16% for the pressed/hover rung above it; `shared.css :root`, v22.28). A card surface would be
-a hole punched in the navy; a translucent overlay reads as the same material lifted. Three things use
-it — the nav drawer's pills, the calendar's install/notification prompt strips and the Links page's
-"How this workspace works" pill — and the first two once carried their own copy of the literals.
+a hole punched in the navy; a translucent overlay reads as the same material lifted. Two things use
+it — the nav drawer's pills and the calendar's install/notification prompt strips — and both once
+carried their own copy of the literals. (The Links page's "How this workspace works" pill was a third
+until v22.83, when it moved into the About panel as an ordinary row.)
 The strong rung was promoted out of `.nav-panel`'s scope for the same reason the text tokens below
 were: the Links pill needed an on-navy hover and the only value in the app sat behind a selector it
 could not reach, so the choice was a literal or a fourth copy of one. `.nav-panel` still declares its scoped `--nav-raised` /
@@ -58,7 +59,7 @@ polish generation): `.card-header-toggle` (collapsible) / `.card-header--row` (s
 left `<div>` (title `h2` + `.hint`) against a right `.card-header-actions` cluster (optional
 `.card-year-chip` context chip → Tips/Help `?` button → collapse arrow). `.card-year-chip` names
 the card's tax year / balance / count even while collapsed (`:empty` hides it); `.field-eyebrow`
-is the shared uppercase micro field label (GRADE, TAX CODE, …). **Used by ALL seven app pages** (paycalc + admin v18.16; operations + settings + links v18.17). The
+is the shared uppercase micro field label (GRADE, TAX CODE, …). **Used by all six card-bearing app pages** (paycalc + admin v18.16; operations + settings + links v18.17; overtime) — the calendar has no cards. The
 old `.card-collapsible-header` grid header is **retired** — only the shared `.card-collapsible-body`
 (show/hide) and `.collapse-chevron` remain. Header context chips currently: `AL left: N` on admin
 (`.al-left-chip` low/none recolours) and the Saved Changes count; the Error Log unresolved count on
@@ -199,9 +200,9 @@ viewer), which are the separate full-bleed/glass family described above.
 ## Spacing — `--space-*` is a card rhythm, NOT a general scale (measured v19.03)
 
 `shared.css :root` defines `--space-2/3/4/5` (8/12/16/24px). They name exactly two things — the
-card-body padding and the nav-drawer gaps — and are used in **seven places, all inside `shared.css`**.
-That is their whole job. Do not read them as an app-wide spacing scale, because the app does not have
-one.
+card-body padding and the nav-drawer gaps — in `shared.css`. `overtime.css` has since adopted them
+throughout, and `links.css` in two rules, so **changing a `--space-*` value moves those pages too**.
+Do not read them as an app-wide spacing scale, because the app does not have one.
 
 **A general spacing migration is a WON'T-DO, and the numbers are why** (measured across the seven app
 stylesheets, counting only `padding`/`margin`/`gap` declarations):
@@ -591,8 +592,8 @@ gutter. Full width is what the login overlay and the mobile layout already do.
 ## The picker chevron is ONE token (v23.69)
 
 `--caret-chevron` in `shared.css` `:root` is the down-chevron every control that opens a picker
-wears: `.fieldpick` triggers, Team View's `.team-week-text::after`, and Admin's
-`.week-nav-label::after`. It is a `url("data:image/svg+xml;…")`, and **the navy lives inside the
+wears: `.fieldpick` triggers, Team View's `.team-week-text::after`, Admin's
+`.week-nav-label::after`, and Overtime's `.member-context-bar select`. It is a `url("data:image/svg+xml;…")`, and **the navy lives inside the
 SVG's own `stroke`, where no token can reach it** — which is precisely why it is declared once. It
 had been written out per site, and a third copy was the point at which one of them would have
 diverged from the other two with nothing to catch it.

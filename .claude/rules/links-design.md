@@ -51,7 +51,7 @@ or in the module header beside the code.
 | 2 | **A hard limit and a fatigue factor are opposite kinds of statement.** Separate modules, separate counts, separate sections. Fatigue factors report what is PRESENT; they never pass or fail a design, and nothing here may read as a certificate. | `links-limits.js` · `links-fatigue.js` |
 | 3 | **Every fatigue rule laps the rotation.** Somebody on the last line goes to the first next week. | `links-fatigue.js` |
 | 4 | **The generator REFUSES what it cannot repair.** Reporting a shortfall is not refusing it — a design that exists gets saved, compared, printed and taken into a room. | `links-design.js` (`repairShortRest`) · `links-contract.test.mjs` |
-| 5 | **A failed read-back flags the baseline UNKNOWN, never merely null.** Every co-editing bug here has been a SILENT overwrite of a colleague's work, discovered only on reopening. | `links-concurrency.js` |
+| 5 | **A failed read-back flags the baseline UNKNOWN, never merely null.** Every co-editing bug here has been a SILENT overwrite of a colleague's work, discovered only on reopening. | `links-design-store.js` · `links-concurrency.js` |
 | 6 | **An import becomes a design or a refusal, never a half-design.** An unreadable cell is refused BY NAME, never defaulted to a rest day — an import that "succeeds" four duties light reads as a lighter week, and every panel then reports confidently about it. | `links-import.js` |
 | 7 | **The days-worked divisor is the WORKING lines, not the rotation** — unlike the hours average beside it. | `links-design.js` (`lineTotals`) |
 | 8 | **Reordering is free with respect to coverage**, so the line-order objectives compete only with each other. | `links-adjacency.js` |
@@ -71,7 +71,8 @@ the whole of v20. A number written beside the list it describes is a second copy
 
 | Module | Owns |
 |--------|------|
-| `links-app.js` | coordinator: Firestore, grid, paint, save/dirty state (+ `links-boot.js`, the CSP bootstrap) |
+| `links-app.js` | coordinator: grid, paint, dialogs, dirty state; Firestore only via the two store modules (+ `links-boot.js`, the CSP bootstrap) |
+| `links-design-store.js` | a design's PERSISTENCE lifecycle and the concurrency protocol — every design read and write (`createDesignStore`) |
 | `links-design-header.js` | the design MASTHEAD — which design, whose, saved? — the Save buttons' label and the ··· More sheet (v23.30) |
 | `links-design.js` | the design maths — classification, coverage, the generator, `runDesignChecks`, `endMinutesAbs` |
 | `links-fatigue.js` | the ORR p3 fatigue factors — ADVISORY, never pass/fail (v19.46) |
@@ -80,15 +81,20 @@ the whole of v20. A number written beside the list it describes is a second copy
 | `links-demand.js` | the SERVICE that window has to cover — trains per hour (v19.56) |
 | `links-analysis.js` | the two read-only panels — Coverage heat map + Design checks — rendered from those pure results |
 | `links-compare.js` | compare mode; sole owner of `compareMode`/`compareDesignId` |
+| `links-compare-analysis.js` | what the difference between two designs MEANS — the compare-mode coverage and fatigue comparison (pure) |
 | `links-concurrency.js` | the co-editing rules (three historical silent-overwrite bugs, one test each) |
 | `links-deletion.js` | the soft-delete/restore/purge rules |
 | `links-adjacency.js` | what happens BETWEEN the lines — the ORDER they sit in (v19.58) |
 | `links-seed.js` | the generator's TARGET SEED — read the real roster, produce the starting targets (v19.92) |
 | `links-design-doc.js` | the SHAPE of a design in memory and in Firestore, and every conversion between (v19.94) |
+| `links-design-naming.js` | what a design or a staffing setup may be CALLED — one rule for new, import, duplicate and rename |
 | `links-target-hours.js` | does a target table pay the contract, and the words the card says so in (v21.31) |
 | `links-import.js` | somebody ELSE's proposal → a design, or a refusal — the TRUST BOUNDARY (invariant 6) |
 | `links-target-sets.js` | named, shared SNAPSHOTS of the generator targets, and who may overwrite one (invariant 9) |
+| `links-target-sets-store.js` | the Firestore half of those saved sets — reading the collection, and the one guarded write |
+| `links-generator-targets.js` | the numbers the generator runs against, where they came from, and what may replace them |
 | `links-default-targets.js` | the table the generator STARTS from — designed against the Dec 2026 service, not measured from today's roster |
+| `links-tips.js` | `CARD_TIPS` for the page's `?` panels (pure data) |
 
 > **Three of those rows were missing until v21.63**, and two of them own numbered invariants in the
 > table above — so the invariants list and the module list disagreed inside one document. That is
@@ -102,7 +108,7 @@ the whole of v20. A number written beside the list it describes is a second copy
 - To grant access: add name to `CONFIG.LINKS_DESIGNERS` in `roster-data.js` — every page derives `isLinksDesigner` from that list. Current designers: `'G. Miller'`, `'S. Silva'`, `'M. Robson'`.
 - **Two more steps, or the new designer can open the page and not save a thing.** The client list only decides what the nav and the page gate show; the `linksDesigner` CLAIM comes from the server-owned `functions/roster-members.json`. So (1) run `npm run generate:roster-members` in the same commit — `sw-asset-check.test.mjs` fails the build if it drifts — and (2) after deploy, run **Operations → Set up accounts**, which is what actually mints the claim. Until then every save permission-denies (`writeWithClaimRetry` refreshes the token, but a refresh can't invent a claim the server never set).
 - **Server-side (the real control):** `linkDesigns` writes require the `linksDesigner` or `admin` claim (H2, v16.29). **Reads require a `name` claim** (v19.39) — a session that has actually signed in as a member. The previous `request.auth != null` was intended as "any signed-in member", but the calendar signs every visitor in anonymously, so it admitted anyone who could open the app URL. Reads are deliberately NOT gated on `linksDesigner`: a designer whose token predates that claim has to be able to LOAD the page for the write self-heal (`writeWithClaimRetry`) to get its chance to run.
-- **Delete is a soft delete (v19.41).** `✕` writes `deletedAt`/`deletedBy` (a MERGE write — a replace would push the deleting device's copy of `patterns` over the server's) and the design moves to **🗑 Recently deleted**, where it stays until somebody removes it by hand. **The bin is PERMANENT** (owner, 19 Sep 2026) and nothing expires a design. Automatic purging was suspended at v19.86 (no client-side age check survives a device clock running 30 days fast); at **v19.96** the last visible copy quoting a countdown went; and at **v24.10** the retention constant, `isPurgeable`, `purgeableIds`, `daysLeft`, the unwired load-time purge and the store's `purgeIfExpired` were all deleted rather than left dormant, because a soft-deleted design is already invisible and restorable and the only thing expiry adds is the power to destroy a designer's work unattended. The v19.96 story is why the dormant version cost something: the row label counted down to "removed for good in N days" **in the same dialog** as the panel intro reading "Nothing is deleted automatically" — one screen, two mutually exclusive explanations (external review P2). The real behaviour is SAFER than the promise was, which makes it a trust problem rather than a data-loss one; a designer who believed the countdown might reasonably have hurried, or written the work off. (This bullet said "then purged on load" until v19.94, contradicting the first-visit notice two sections below.) Restore clears both fields with `deleteField()`. All the decisions are pure and tested in `links-deletion.js`; the coordinator owns only the Firestore calls and the panel. Notes that matter when changing this:
+- **Delete is a soft delete (v19.41).** `✕` writes `deletedAt`/`deletedBy` (a MERGE write — a replace would push the deleting device's copy of `patterns` over the server's) and the design moves to **🗑 Recently deleted**, where it stays until somebody removes it by hand. **The bin is PERMANENT** (owner, 19 Sep 2026) and nothing expires a design. Automatic purging was suspended at v19.86 (no client-side age check survives a device clock running 30 days fast); at **v19.96** the last visible copy quoting a countdown went; and at **v24.10** the retention constant, `isPurgeable`, `purgeableIds`, `daysLeft`, the unwired load-time purge and the store's `purgeIfExpired` were all deleted rather than left dormant, because a soft-deleted design is already invisible and restorable and the only thing expiry adds is the power to destroy a designer's work unattended. The v19.96 story is why the dormant version cost something: the row label counted down to "removed for good in N days" **in the same dialog** as the panel intro reading "Nothing is deleted automatically" — one screen, two mutually exclusive explanations (external review P2). The real behaviour is SAFER than the promise was, which makes it a trust problem rather than a data-loss one; a designer who believed the countdown might reasonably have hurried, or written the work off. (This bullet said "then purged on load" until v19.94, contradicting the first-visit notice two sections below.) Restore clears both fields with `deleteField()`. All the decisions are pure and tested in `links-deletion.js`; the Firestore calls are `links-design-store.js` and the coordinator owns the panel. Notes that matter when changing this:
   - **`isDeleted` tests for the KEY, not a usable timestamp.** An unresolved `deletedAt` — what `serverTimestamp()` reads back as on the writing device — still counts as deleted, or the design sits in the picker on the device that just binned it. It used to be half of a deliberate disagreement with `isPurgeable`; that predicate is gone with the rest of the expiry machinery.
   - **A save against a design someone else deleted does not resurrect it.** `saveChanges` detects the deletion in the transaction and offers "Save mine as new" instead — an overwrite there would be one designer undoing another's delete without ever seeing it.
   - **A hard delete re-reads the server inside a TRANSACTION** (v19.84, external review P1).
@@ -211,7 +217,7 @@ its own wrapper) rather than trying to sit them side by side.
 Grid (primary object) → Auto-generator (collapsed by default) → Coverage (hourly heat map) → Design checks. The generator sits directly beneath the grid because it is the only way to create a new design.
 
 ### Firestore model (multi-design, v12.46)
-`linkDesigns` is a **collection** of named design documents `{ name, patterns, window, updatedAt, updatedBy }` with auto-IDs. The legacy singleton `linkDesigns/combined-28` (no `name` field) is auto-migrated to a named design ("Design 1") on first load and thereafter ignored — never write to it.
+`linkDesigns` is a **collection** of named design documents `{ name, patterns, window, revision, updatedAt, updatedBy }` — plus `deletedAt`/`deletedBy` while binned — with auto-IDs. The legacy singleton `linkDesigns/combined-28` (no `name` field) is auto-migrated to a named design ("Design 1") on first load and thereafter ignored — never write to it.
 
 **Every doc ↔ object conversion is `links-design-doc.js`** (v19.94). Eleven sites in the coordinator
 built these by hand in four shapes, two of them near-identical copies of the same write payload, and
@@ -238,7 +244,8 @@ Three rules the module exists to hold:
 - **The working copy DEEP copies its patterns.** The grid writes `patterns[pos][day]`, so a shallow
   copy would let an edit mutate the `designs[]` entry the concurrency baseline is compared against.
 
-`docPayload` emits exactly the five keys `firestore.rules` allows. An extra key does not warn — every
+`docPayload` emits the five content keys; the store adds `revision`, the soft delete adds `deletedAt`/`deletedBy`, and every
+key must be in the rules' `hasOnly` list (eight). An extra key does not warn — every
 save permission-denies, on every device, until the rules catch up, and hosting and rules ship from
 the same push through separate workflows with no ordering guarantee.
 
@@ -292,7 +299,7 @@ All design maths live in `links-design.js` (no DOM, no Firebase; tested by `link
 ### Save and dirty flag
 Single dirty flag + `saveChanges()`, reached from TWO buttons (`#linksSaveBtnTop` in the masthead, `#linksSaveBtn` in the sticky row) whose label and state the masthead renders. Grid clicks are **delegated** on `#linksGridBodyRows` — do NOT call `renderGrid()` from inside `saveChanges()`.
 
-**Unsaved-changes guard:** `beforeunload` + explicit `confirm()` on sign-out, logo navigation, and a capture-phase click guard on nav-drawer links (mobile browsers suppress `beforeunload` dialogs).
+**Unsaved-changes guard:** `beforeunload` + the shared `confirmDialog` (async) on sign-out, logo navigation, and a capture-phase click guard on nav-drawer links (mobile browsers suppress `beforeunload` dialogs). Because the dialog is async, the click guard calls `preventDefault()` first and navigates itself on confirm.
 
 ### Aesthetic conventions (v19.43 polish pass)
 
@@ -334,7 +341,7 @@ Deriving them from the design fixes it by construction and keeps fixing it: an i
 
 **A duty that does run past midnight is read in ONE place — `endMinutesAbs`** (v19.47). Before it, `calcHourlyCoverage` and `runDesignChecks` each carried their own inline expression and both erred the same way, towards *safer than the truth*: the heat map clamped the end to 24:00 and simply lost the post-midnight hours, and the turnaround check computed `(1440 − end) + start`, so a 00:30 finish before an 06:20 start reported ~26h of rest instead of 5h50 — the most dangerous turnaround the module can express, scored as compliant. The heat map now counts such a duty on **both** days (Sat spills round to Sun) and `links-fatigue.js`'s `dutyMinutes` delegates here. This is only reachable through legacy/imported data — the same route `canonicaliseShift` exists for — which is exactly why it is worth keeping correct: nothing exercises it, so nothing would tell you.
 
-**Shift option lists:** `EARLY_SHIFTS` / `LATE_SHIFTS` derived from `weeklyRoster` + `bilingualRoster` at module load — never a static list. **Custom…** (shortened v22.10 — it clipped at 16px in the narrow phone column) validated by `normaliseCustomShift()`.
+**Shift option lists:** `EARLY_SHIFTS` / `LATE_SHIFTS` derived from `weeklyRoster` only (the main roster, since v19.98) at module load — never a static list. The cell dropdowns (`EARLY_OPTIONS` / `LATE_OPTIONS`) add `DEFAULT_SHIFT_TIMES`; the brush bar uses the design's own times (v21.14, above). **Custom…** (shortened v22.10 — it clipped at 16px in the narrow phone column) validated by `normaliseCustomShift()`.
 
 ### The staffed operating window (v19.54)
 
@@ -476,7 +483,7 @@ of its 25 rows — a figure read at source in Aug 2026, after this file said 24 
   was counting the very same duties (fixed v19.48). And FF2 fires on every 06:20 duty, so it is a
   property of the operation — marked `standing` and counted separately, because adding it to the
   findings total would claim the designer could have avoided it.
-- **Three definitions are unsettled** (FF17, FF18, FF19) and carry `confirm: true`, rendered as
+- **Four definitions are unsettled** (MRSF's 7×8h, FF17, FF18, FF19) and carry `confirm: true`, rendered as
   "(definition to confirm)". FF18's reading is the one still worth settling with the assessing
   manager *before* the proposals are drawn: on the weekly CADENCE alone no design can avoid it, and
   that belongs in the justify/minimise/control conversation rather than on a checklist.
@@ -553,13 +560,13 @@ it. Four things that are easy to get wrong, each with a test:
 carry even **7** consecutive worked days. The live main roster's non-spare blocks reach exactly 7;
 the generator's reach 6.
 
-**Between 8 and 13 the panel reports the SAME figure twice, amber and green — and each row must say
+**Between 7 and 13 the panel reports the SAME figure twice, amber and green — and each row must say
 which threshold it was measured against** (v20.00). `runDesignChecks`'s "Longest run" row is judged
-against the design target of 7; the hard-limit row 60px below is judged against Chiltern's 13. That
+against the design target (`DEFAULT_MAX_RUN`, 6); the hard-limit row 60px below is judged against Chiltern's 13. That
 is two different questions and both answers are useful, but unlabelled they read as the panel
 contradicting itself — which is the FF13 defect of v19.48 (a hardcoded green tick directly beneath
 the amber row it duplicated) arriving in a new form. The amber row now carries
-`(design target: no more than 7)` and says in its sub-line that this is an aim rather than a limit;
+`(design target: no more than 6)` and says in its sub-line that this is an aim rather than a limit;
 the green row already stated its 13 and its source. Pinned by a test using a fixture that lands
 deliberately in that band.
 
@@ -603,7 +610,7 @@ Two consequences worth knowing. The targets are validated against the **working*
 
 > **This paragraph said SEVEN until v19.94, and it was the pre-v19.79 rule.** The correction > was made in the Design-checks section and never carried back here, so the file argued with > itself 280 lines apart — and this copy also repeated the reasoning v19.79 specifically > overturned ("over-reporting a run is the safe direction for a fatigue check"). It is not: > a 7/7 spare week fuses the blocks either side of it, which reported the live main roster at > 15 consecutive days against a true 9. A reader arriving at the generator first would have > taken away the rule the tool no longer follows.
 
-**The table no longer opens on the roster (v21.00).** A new design starts from `links-default-targets.js` — a table DESIGNED against the December 2026 service, which pays the contracted week exactly, so Generate works on a card nobody has touched. The roster seed became unusable as a default the moment the contract gate landed: today's duties pay 16 working lines, the rotation has 19, so `buildRosterTargets()` is refused with the gap named, and a designer opening the workspace met a refusal before typing anything. Both are one button away from each other — *↺ Back to the December 2026 default* and *↺ Load today's roster instead* — because they answer different questions and a proposal wants both: design tomorrow, measure today.
+**The table no longer opens on the roster (v21.00).** A new design starts from `links-default-targets.js` — a table DESIGNED against the December 2026 service, which pays the contracted week exactly, so Generate works on a card nobody has touched. The roster seed became unusable as a default the moment the contract gate landed: today's duties pay 16 working lines, fewer than the design has, so `buildRosterTargets()` is refused with the gap named, and a designer opening the workspace met a refusal before typing anything. Both are one button away from each other — *↺ Back to the December 2026 default* and *↺ Load today's roster instead* — because they answer different questions and a proposal wants both: design tomorrow, measure today.
 
 Neither label says "reset targets" without saying to WHAT. With two of them, that word alone is the one thing a designer cannot act on.
 
@@ -1117,8 +1124,8 @@ Measured at 390px and 1280px, not eyeballed. Five things, and the first is a bug
   with text beside them, which is exactly what paycalc's `.bp-mode-opt`/`.hpp-mode-opt` was built to
   replace; that rule's own comment reads *"the design system instead of two bare browser radios
   floating in space"*. `.gen-obj` now mirrors it: a bordered row, navy border + a brighter fill
-  + a subtle lift via `:has(input:checked)`, an 18px `accent-color` box (20px on a coarse pointer),
-  and the focus ring on the ROW rather than the box, because the row is what you are choosing. Same
+  + a subtle lift via `:has(input:checked)`, the shared app-drawn checkbox from `shared.css` (never
+  sized or tinted locally — see `.claude/rules/css-tokens.md`), and the focus ring on the ROW rather than the box, because the row is what you are choosing. Same
   2px border in both states so toggling one causes no reflow, and `.gen-obj + .gen-obj` spaces them —
   two adjacent checked rows with no gap read as one tall box with a line through it. A `<legend>`
   inside a flex container lays out unpredictably across engines, so the gap is a sibling margin, not
@@ -1277,8 +1284,8 @@ passes through every line, so a "vacancy" is a missing *person*, not a missing *
 It was 28 = the main 20-week cycle + the bilingual 8, because the design modelled both as one
 rotation. The December 2026 plan changed (owner, Aug 2026): the new link **does not include the
 bilingual roster at all** — not its lines, not its shift times, not its work. It is the CEA/main
-roster **widened from 20** to increase staffing, and it carries **5 spare weeks** against the
-roster's 4.
+roster **widened from 20** to increase staffing. The v19.98 plan said **5 spare weeks** against the
+roster's 4; the shipped default is 4 (`DEFAULT_COVER_WEEKS`).
 
 **The length moved twice: 22 at v19.98, corrected to 24 at v20.01** (owner — the earlier figure was
 misremembered). Evidence class **C** for both (owner-confirmed practice, no document behind either).
@@ -1315,10 +1322,16 @@ editable rotating row.
 
 The grid flags an all-rest line with an amber line-number cell (`.row-unfilled`); the Design checks "Lines not yet designed" row lists them until filled.
 
-### Concurrency & load safety (v12.37; atomic v17.02)
-`saveChanges()` writes via an **atomic Firestore transaction** (`runTransaction`) that reads the doc's `updatedAt` and writes in one step — closing the old getDoc-then-setDoc check-then-act window where a co-designer's save between our read and write was silently clobbered (Finding #13). On a baseline mismatch the transaction throws `concurrent-edit`; a `confirm()` names who saved and when, and on overwrite a plain (unconditional) `setDoc` replaces it. Transactions need connectivity, so **offline / any transaction failure falls back to the previous getDoc-check + queued `setDoc`** (persistentLocalCache syncs it) — offline-first preserved. The mismatch check (`conflictOf`) and the confirm are shared by both paths so they can't drift. A failed load sets `loadFailed` — empty state shows an error.
+### Concurrency & load safety (v12.37; atomic v17.02; store v21.87)
+**Every design write goes through `links-design-store.js`** (`createDesignStore`, Firebase handles injected by `links-app.js`); the coordinator makes no Firestore write of its own. The store's header owns three rules:
 
-**Baseline-unknown guard (v17.18):** after a successful save, `saveChanges()` re-reads the doc to re-arm the concurrency baseline (`loadedUpdatedAt`). If that read-back FAILS (brief blip), the catch now sets `baselineUnknown = true` (mirroring the transaction path) — leaving it `false` meant the NEXT save saw neither a known timestamp nor an unknown-baseline flag, so a co-editor's intervening save could be overwritten with no conflict prompt. Residual accepted limit: two devices under the SAME display name (`updatedBy` equal) still won't conflict-prompt — inherent to identifying editors by name.
+1. **A read a write depends on happens INSIDE the write's transaction** — not before it — so the decision is true at commit.
+2. **No weaker fallback while online.** Only a failure `isOfflineFailure` recognises may take the queued `setDoc` path (after consulting the cached doc for a deletion or conflict); an online transaction failure is reported and the unsaved state is kept.
+3. **The baseline (`revision`) only advances to a revision the store verified.** Anything else leaves `baselineUnknown` set, so the next save prompts.
+
+A conflict comes back as `{ status: 'conflict', conflict }` and `links-app.js` decides whether to ask, overwrite or fork — the store never asks. A design deleted elsewhere (binned, or gone entirely) comes back as `deleted-elsewhere`; a save never recreates it. The pure comparison rules (`conflictOf`, the baseline helpers) are `links-concurrency.js`. A failed load sets `loadFailed` — empty state shows an error.
+
+Residual accepted limit (`conflictOf`'s header): with the baseline UNKNOWN, two devices under the SAME display name (`updatedBy` equal) still won't conflict-prompt — inherent to identifying editors by name.
 
 ### Print (v12.37; reviewed v19.45)
 A4 landscape grid + coverage + checks; generator, brush bar, picker, save row, tips and chevrons hidden.

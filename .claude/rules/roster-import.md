@@ -11,6 +11,10 @@ paths:
   - "functions/roster-*.js"
   - "roster-parse-helpers.js"
   - "roster-geometry.js"
+  - "roster-prompt.js"
+  - "roster-cell-read.test.mjs"
+  - "functions/cell-day-rules.js"
+  - "cell-day-rules.js"
 ---
 
 # Weekly roster import — the parse, and every defence against a wrong week
@@ -22,7 +26,7 @@ and `CLAUDE.md` is loaded into EVERY session. The `paths:` list above brings it 
 anybody opens one of these files. `CLAUDE.md` keeps the pipeline in four lines and points here.
 
 > **The `paths:` list is deliberately BELT AND BRACES, and the duplicates are not an oversight.**
-> Two of these files live under `functions/`, and no other rules file in this repo globs into a
+> Several of these files live under `functions/`, and no other rules file in this repo globs into a
 > subdirectory — so whether the matcher reads a path or a basename has never been exercised here.
 > Getting it wrong is SILENT: nothing errors, the contract simply never loads, and somebody edits
 > the parser without it. Both spellings are listed so one of them matches either way. **The real
@@ -99,7 +103,7 @@ had settled. It has not settled when the early wait TIMED OUT — `awaitGeometry
 phase 2 the only await came after the model call, so a slow extraction had the model's whole latency
 plus the budget; after, it had the budget alone, and a PDF that overran it lost BOTH the geometry
 path and the witness. `settledGeometry` re-asks on `wait-timeout` and ONLY on that — every other
-fail-open reason (`no-grid`, `pdfjs-unavailable`, `no-text`, `work-budget`, `threw`) is a settled
+fail-open reason (`no-grid`, `pdfjs-unavailable`, `unreadable-pdf`, `no-text`, `work-budget`, `threw`) is a settled
 answer, and re-asking those would spend the whole budget again on every ordinary fallback.
 
 **A member legitimately absent from one week's sheet turns the geometry path OFF for that upload.**
