@@ -796,20 +796,25 @@ function decideSubmission(head, incomingDays, ifRevision) {
  * changed something and changed it back is not flagged — the current answer is the one that was
  * planned against. The revision list still proves the intermediate change if it is ever needed.
  *
+ * A form that OPENED at or after the initial deadline (a week created late — a supported recovery)
+ * has no initial boundary: nobody could answer before it existed, so nothing is late against it.
+ *
  * @param {Array<{revision:number, days:object, acceptedAt:number}>} revisions
  * @param {object|null} headDays
  * @param {number} initialDeadlineAt
+ * @param {number} [openedAt] when the window was created; 0/absent = unknown, and the rule applies
  */
-function deriveHistory(revisions, headDays, initialDeadlineAt) {
+function deriveHistory(revisions, headDays, initialDeadlineAt, openedAt = 0) {
     const sorted = [...(revisions || [])].sort((a, b) => a.revision - b.revision);
-    const before = sorted.filter(r => r.acceptedAt < initialDeadlineAt);
+    const applies = !(openedAt >= initialDeadlineAt);
+    const before = applies ? sorted.filter(r => r.acceptedAt < initialDeadlineAt) : [];
     const initialRevision = before.length ? before[before.length - 1] : null;
     const hasSubmission = sorted.length > 0;
     return {
         initialRevision,
         // A submission exists but nothing was accepted before the initial deadline — the clerk did
         // NOT have this person's availability when the draft was planned.
-        lateInitial: hasSubmission && !initialRevision,
+        lateInitial: applies && hasSubmission && !initialRevision,
         changedSinceInitial: !!(initialRevision && headDays && !daysEqual(initialRevision.days, headDays)),
         dayChangedAt: dayChangedAt(sorted),
     };

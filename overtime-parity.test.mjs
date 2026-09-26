@@ -24,10 +24,11 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { deriveHistory as clientDerive, isWithdrawn as clientWithdrawn,
     canRestoreNow as clientCanRestore } from './overtime-format.js';
+import { phaseAt as clientPhase } from './overtime-phase.js';
 
 const require = createRequire(import.meta.url);
 const { deriveHistory: serverDerive, isWithdrawn: serverWithdrawn,
-    canRestoreParticipant: serverCanRestore } = require('./functions/overtime-core.js');
+    canRestoreParticipant: serverCanRestore, phaseFor: serverPhase } = require('./functions/overtime-core.js');
 
 const A = { '2026-08-30': { mode: 'all_day' }, '2026-08-31': { mode: 'unavailable' } };
 const B = { '2026-08-30': { mode: 'unavailable' }, '2026-08-31': { mode: 'unavailable' } };
@@ -82,6 +83,28 @@ describe('client and server derive the same history', () => {
         // ask either copy to dedupe, so both could count a no-op resubmission as a change and agree.
         assert.ok(CASES.some(([, r]) => (r || []).length > 1), 'no case has a SECOND revision to dedupe against');
         assert.ok(results.some(r => Object.keys(r.dayChangedAt).length), 'no case produces a freshness map');
+    });
+
+    test('a form that OPENED after the initial deadline is measured against no initial deadline', () => {
+        // A week created late (the scheduler missed it; a reviewer pressed Create on "first deadline
+        // has passed") is legitimate, and nobody in it could have answered before the form existed.
+        // Both copies must drop the boundary — or every respondent reads "Submitted after initial
+        // deadline" on one side only, and a flag that differs by side is a flag nobody can trust.
+        for (const [name, revisions, headDays] of CASES) {
+            for (const openedAt of [DEADLINE - 1, DEADLINE, DEADLINE + 1, 0]) {
+                const c = clientDerive(revisions, headDays, DEADLINE, openedAt);
+                const s = serverDerive(revisions, headDays, DEADLINE, openedAt);
+                const at = `${name} · opened ${openedAt}`;
+                assert.equal(c.lateInitial, s.lateInitial, `lateInitial — ${at}`);
+                assert.equal(c.changedSinceInitial, s.changedSinceInitial, `changedSinceInitial — ${at}`);
+                assert.equal(c.initialRevision?.revision ?? null, s.initialRevision?.revision ?? null, `initialRevision — ${at}`);
+                assert.deepEqual(c.dayChangedAt, s.dayChangedAt, `dayChangedAt — ${at}`);
+            }
+        }
+        const late = [rev(1, A, 5000)];
+        assert.equal(clientDerive(late, A, DEADLINE).lateInitial, true, 'the ordinary late answer is still late');
+        assert.equal(clientDerive(late, A, DEADLINE, DEADLINE + 1).lateInitial, false, 'but not when the form opened after the deadline');
+        assert.equal(clientDerive(late, A, DEADLINE, DEADLINE - 1).lateInitial, true, 'and a form open before it keeps the rule');
     });
 
     test('a reordered week is not read as a change, on either side', () => {
@@ -169,6 +192,16 @@ describe('may this withdrawal be undone? — the client and the server must agre
         const closedNow = M.finalDeadlineAt + 1000;
         assert.equal(serverCanRestore(M, closedNow - 10, closedNow).ok, false);
     });
+});
+
+describe('which phase a week is in — the reviewer\'s workspace and the server must agree', () => {
+    // The overview never sends `phase`, so the workspace derives it (`phaseAt`). A client that
+    // disagrees at a boundary offers Stop-asking on a week the server has closed, or stays silent
+    // about a reminder the server says is overdue.
+    const M = { initialDeadlineAt: 1000, finalDeadlineAt: 2000 };
+    for (const now of [0, 999, 1000, 1001, 1999, 2000, 2001]) {
+        test(`at ${now}`, () => assert.equal(clientPhase(M, now), serverPhase(M, now)));
+    }
 });
 
 // ── THE TWO SURFACES STAY APART (v21.88) ────────────────────────────────────────────────────────

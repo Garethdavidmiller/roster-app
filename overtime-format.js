@@ -730,22 +730,26 @@ export function answerTone(day) {
  * cases and fails if they disagree — because a drift here is silent: the Manager view would simply
  * stop flagging a change, and a flag that is absent looks exactly like a change that never happened.
  *
+ * A form that OPENED at or after the initial deadline has no initial boundary — see the server copy.
+ *
  * @param {Array<{revision:number, days:object, acceptedAt:number}>} revisions
  * @param {Record<string, any>|null} headDays
  * @param {number} initialDeadlineAt
+ * @param {number} [openedAt] when the window was created; 0/absent = unknown, and the rule applies
  * @returns {{ initialRevision: any, lateInitial: boolean, changedSinceInitial: boolean,
  *   dayChangedAt: Record<string, number> }}
  */
-export function deriveHistory(revisions, headDays, initialDeadlineAt) {
+export function deriveHistory(revisions, headDays, initialDeadlineAt, openedAt = 0) {
     const sorted = [...(revisions || [])].sort((a, b) => a.revision - b.revision);
-    const before = sorted.filter(r => r.acceptedAt < initialDeadlineAt);
+    const applies = !(openedAt >= initialDeadlineAt);
+    const before = applies ? sorted.filter(r => r.acceptedAt < initialDeadlineAt) : [];
     const initialRevision = before.length ? before[before.length - 1] : null;
     const hasSubmission = sorted.length > 0;
     return {
         initialRevision,
         // No submission at all is NOT a late submission — it is no response, and the two are
         // different answers everywhere else in this feature too.
-        lateInitial: hasSubmission && !initialRevision,
+        lateInitial: applies && hasSubmission && !initialRevision,
         changedSinceInitial: !!(initialRevision && headDays
             && stableStringify(initialRevision.days) !== stableStringify(headDays)),
         dayChangedAt: dayChangedAt(sorted),

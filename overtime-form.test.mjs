@@ -88,11 +88,17 @@ let stateResult = { ok: false };
 let disabledDuringReread = null;
 /** The host under test, so the mock can read the button mid-flight. */
 let liveHost = null;
+/** Run while a submission is in flight — the member still has the form under their thumb. */
+let duringSubmit = null;
 
 mock.module('./overtime-data.js', {
     namedExports: {
         correctedNow: () => Date.parse('2026-08-20T09:00:00Z'),
         submitOvertimeAvailability: async (weekEnding, answers, baseRevision) => {
+            // Recorded AFTER the in-flight hook, as the real wrapper serialises the body only after
+            // awaiting the ID token — so an edit made in that gap reaches the wire unless the form
+            // handed over a snapshot.
+            if (duringSubmit) await duringSubmit();
             calls.push({ call: 'submit', weekEnding, answers: JSON.parse(JSON.stringify(answers)), baseRevision });
             return submitResults.shift() ?? { ok: true, data: { revision: 1 } };
         },
@@ -165,6 +171,7 @@ beforeEach(() => {
     stateResult = { ok: false };
     disabledDuringReread = null;
     liveHost = null;
+    duringSubmit = null;
     created = [];
 });
 
@@ -332,5 +339,90 @@ describe('a save the rest of the page can see', () => {
         const sends = calls.filter(c => c.call === 'submit');
         assert.equal(sends[0].baseRevision, 0, 'a first submission builds on nothing');
         assert.equal(sends[1].baseRevision, 4, 'and the one after it builds on what came back');
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('what is recorded as saved is what was SENT', () => {
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    test('an edit made while "Saving…" is not recorded as saved, and stays to submit', async () => {
+        // The controls stay live through the send. Copying the working answers AFTER the response
+        // stored the unsent edit as the saved week: the rows turned green, isDirty went false, and
+        // the server still held the old answer — a member told their change was recorded when it
+        // was not, with the leave-guard disarmed.
+        const f = await mountForm({ win: { submission: { days: answeredWeek('all_day'), currentRevision: 3 } } });
+        duringSubmit = () => f.fillWeek();          // "Not available all week", pressed mid-save
+        submitResults = [{ ok: true, data: { revision: 4, serverNow: Date.parse('2026-08-20T09:00:00Z') } }];
+        await f.submit();
+
+        const sent = calls.find(c => c.call === 'submit').answers;
+        for (const d of DATES) {
+            assert.equal(sent[d].mode, 'all_day', 'the send carried the answers as they were at the press');
+            assert.equal(f.win.submission.days[d].mode, 'all_day', `${d} is recorded as what was sent`);
+        }
+        assert.equal(f.handle.isDirty(), true, 'the unsent edit is still waiting to be submitted');
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('a form made after its first deadline', () => {
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    test('does not tell the member answers "were due" before it existed', async () => {
+        // The form head is where the window's `openedAt` reaches the words — the rule is pinned in
+        // overtime-format.test.mjs, this pins that the form passes the field through at all.
+        const initial = Date.parse('2026-08-18T11:00:00Z');
+        const f = await mountForm({ win: { phase: 'FINAL_OPEN', submission: null,
+            initialDeadlineAt: initial, openedAt: initial + 3600_000 } });
+        assert.doesNotMatch(f.host.innerHTML, /were due/);
+        assert.match(f.host.innerHTML, /opened after the first deadline/);
+    });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+describe('the receipt names the save that just happened', () => {
+// ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    const LOADED = Date.parse('2026-08-18T08:42:00Z');
+    const NOW = Date.parse('2026-08-20T09:00:00Z');
+    const loaded = () => ({ days: answeredWeek('all_day'), currentRevision: 3,
+        firstAcceptedAt: LOADED, updatedAt: LOADED });
+
+    test('an amendment moves "last changed" to the moment the server accepted it', async () => {
+        // The receipt read `updatedAt` from the page load, so after an amendment it went on naming
+        // the previous save — a member checking that their change landed was shown a time before it.
+        submitResults = [{ ok: true, data: { revision: 4, serverNow: NOW } }];
+        const f = await mountForm({ win: { submission: loaded() } });
+        await f.fillWeek();
+        await f.submit();
+        assert.equal(f.win.submission.updatedAt, NOW);
+        assert.equal(f.win.submission.firstAcceptedAt, LOADED, 'the first submission keeps its own time');
+    });
+
+    test('a no-op changes nothing, so the time it last changed stands', async () => {
+        submitResults = [{ ok: true, data: { revision: 3, noop: true, serverNow: NOW } }];
+        const f = await mountForm({ win: { submission: loaded() } });
+        await f.submit();
+        assert.equal(f.win.submission.updatedAt, LOADED);
+    });
+
+    test('a first submission is stamped both ways', async () => {
+        submitResults = [{ ok: true, data: { revision: 1, created: true, serverNow: NOW } }];
+        const f = await mountForm({ win: { submission: null } });
+        await f.fillWeek();
+        await f.submit();
+        assert.equal(f.win.submission.firstAcceptedAt, NOW);
+        assert.equal(f.win.submission.updatedAt, NOW);
+    });
+
+    test('showing the saved version after a conflict takes the stored time with it', async () => {
+        submitResults = [{ ok: false, code: 'revision-conflict', data: {
+            lastMutationId: 'somebody-else', currentRevision: 8, days: answeredWeek('all_day'), updatedAt: NOW } }];
+        const f = await mountForm({ win: { submission: loaded() } });
+        await f.fillWeek();
+        await f.submit();
+        await created.find(e => e.textContent === 'Show the saved version').fire('click');
+        assert.equal(f.win.submission.updatedAt, NOW);
     });
 });

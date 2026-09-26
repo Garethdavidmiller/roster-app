@@ -302,10 +302,11 @@ overtimeWindows/{weekEnding}                       the window. Doc id = the week
   policyVersion               int — which milestone rules produced the dates above
   audience                    "restricted" | "all" — resolved SERVER-side at creation, never sent
   createdAt / createdByName / createdByUid
-  reminderSentAt              Timestamp — set by the scheduler when the deadline-morning reminder
-                              was attempted (v21.47). Idempotency stamp only: it protects the ONE
-                              morning against a re-run, and once noon passes the phase moves and
-                              the question is closed. Server-written; no client reads it
+  reminderSentAt              Timestamp — CLAIMED by the scheduler, in a transaction, BEFORE the
+                              deadline-morning reminder is sent (v21.47; claimed first because,
+                              stamped after the send, two overlapping runs both sent). Idempotency
+                              stamp: it protects the ONE morning against a re-run, and once noon
+                              passes the phase moves and the question is closed. Server-written
 
   /participants/{memberName}  the FROZEN population. Written once, at creation, never rewritten
     memberName · grade · rosterOrder · createdAt
@@ -331,6 +332,9 @@ overtimeWindows/{weekEnding}                       the window. Doc id = the week
     schemaVersion
 
     /revisions/{rev}          APPEND-ONLY history: revision · days · acceptedAt · mutationId · uid
+                              `acceptedAt` (and the head's updatedAt / firstAcceptedAt) is the instant
+                              the server DECIDED the phase, not the later commit, so an answer
+                              judged in time is never stamped late
 ```
 **Deadlines are stored, never recomputed** — a window keeps the timetable it ran under even if the
 offsets change later, which is what `policyVersion` records. `initialRevision` and `lateInitial` are

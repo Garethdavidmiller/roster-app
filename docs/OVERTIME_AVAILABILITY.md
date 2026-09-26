@@ -37,7 +37,7 @@ module beside the code.
 | 2 | **An unanswered day stays unanswered.** No default, no copy-last-week, no inferring from the roster. | `overtime-form.js` · `overtime-answer.js` (v23.87 — a Sunday-release request on an unanswered day leaves it unanswered: `{ releaseRequested: true }` with no mode, which `dayUnfinished` still counts. Until then the tick wrote `unavailable` underneath) |
 | 3 | **The client never refuses a submission near a deadline.** Inside the grace band it sends and lets the server decide — a client that refuses has denied somebody who was in time. | `overtime-clock.js` (`submitDisposition`) |
 | 4 | **A timed-out write goes into RECONCILIATION, never reported as failed.** Aborting stops us waiting; it does not stop the server writing. `clientMutationId` is generated in one place so no call site can forget it. | `overtime-form.js` · `overtime-data.js` |
-| 5 | **The participant snapshot is frozen at creation.** Its one exception is a leaver: a flag, never a delete, refused on a closed week, and removing the flag rather than writing `withdrawn: false` — because `where('withdrawn','==',true)` never matches a missing field. | `functions/overtime.js` (`withdrawOvertimeParticipant`) |
+| 5 | **The participant snapshot is frozen at creation.** Its one exception is a leaver: a flag, never a delete, refused on a closed week, idempotent both ways (a second withdrawal must not re-stamp `withdrawnAt`, which restore is decided from), and removing the flag rather than writing `withdrawn: false` — because `where('withdrawn','==',true)` never matches a missing field. Creation uses `create`, not `set`, so a second concurrent creator cannot overwrite a frozen population. | `functions/overtime.js` (`withdrawOvertimeParticipant`) |
 | 6 | **Identity is always `decoded.name`, never the request body.** | `functions/overtime.js` |
 | 7 | **Deadlines are stored, never recomputed.** A window keeps the timetable it ran under; `policyVersion` records which. | `functions/overtime-core.js` |
 | 8 | **`initialRevision` and `lateInitial` are derived, never stored.** A stored summary is a second answer that can disagree with the history it summarises — and it exists twice, so it may not drift. | `overtime-format.js` · `overtime-parity.test.mjs` |
@@ -452,6 +452,12 @@ transaction so a head can never point at a revision that does not exist.
 deadline (`deriveHistory`), never stored. A stored copy is a second answer that can disagree with the
 revisions it summarises — and the summary is the one a reviewer acts on.
 
+A window that OPENED at or after its initial deadline (created late — the scheduler missed it, or a
+reviewer pressed Create on a week whose first deadline had passed) has **no initial boundary**:
+nobody could answer before the form existed, so nobody is late against it and nothing has "changed
+since" it. The reviewer's read takes the opening instant from the frozen participants'
+own `createdAt`; the member's form gets it as `openedAt` and names only the live deadline.
+
 `deriveHistory` is duplicated between `functions/overtime-core.js` (CommonJS) and
 `overtime-format.js` (browser ESM), because Cloud Functions cannot import browser ES modules without
 a build step. `overtime-parity.test.mjs` holds the two in step, like `surname-parity` and
@@ -629,7 +635,9 @@ email (the SAME derivation `setupRosterAuth` provisions with, so the two cannot 
 - **Reminder** — the morning the initial deadline falls, ONLY to participants who have submitted
   nothing (a withdrawn participant is no longer asked; somebody who answered has nothing to be
   reminded of). `reminderDue`'s 24-hour lookahead selects exactly one 05:00 run per window, and the
-  server-written `reminderSentAt` stamp makes that morning idempotent.
+  server-written `reminderSentAt` stamp — claimed in a transaction BEFORE the send — makes that
+  morning idempotent. Anybody the same run has just ASKED is left out: "answers due today"
+  seconds after "form open" reads as a failure to act on something they were only just given.
 
 **There is deliberately no broadcast branch.** During the restricted beta a fan-out would ping ~50
 staff about a restricted beta; at full launch, targeted-to-participants IS everyone eligible, so

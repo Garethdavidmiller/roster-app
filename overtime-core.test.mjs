@@ -1049,6 +1049,17 @@ describe('derived history — the flags nobody stores', () => {
         assert.equal(C.deriveHistory([rev(1, A, DEADLINE - 1)], A, DEADLINE).lateInitial, false);
     });
 
+    test('a form that opened AFTER the initial deadline flags nobody as late', () => {
+        // Creating a week in FINAL_OPEN is a supported recovery. Every answer to it arrives after the
+        // initial deadline because the form did not exist before it — that is not lateness.
+        const h = C.deriveHistory([rev(1, A, 5000), rev(2, B, 6000)], B, DEADLINE, DEADLINE + 60_000);
+        assert.equal(h.lateInitial, false);
+        assert.equal(h.changedSinceInitial, false);
+        assert.equal(h.initialRevision, null);
+        assert.equal(C.deriveHistory([rev(1, A, DEADLINE)], A, DEADLINE, DEADLINE).lateInitial, false,
+            'opened exactly ON the deadline is opened after it, the same half-open boundary');
+    });
+
     test('revisions arriving out of order are still read in revision order', () => {
         const revs = [rev(3, A, 6000), rev(1, A, 100), rev(2, B, 500)];
         assert.equal(C.deriveHistory(revs, A, DEADLINE).initialRevision.revision, 2);

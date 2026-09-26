@@ -49,6 +49,23 @@ export function deadlineLabel(ms) {
 
 
 /**
+ * The phase a window is in at `nowMs` — the client twin of `phaseFor` in functions/overtime-core.js
+ * (overtime-parity.test.mjs holds the two together).
+ *
+ * The reviewer's horizon rows are built from stored milestones and carry no `phase`; only the
+ * member's own state does. So the workspace derives it here, from the deadlines and the corrected
+ * clock, rather than reading a field the overview never sent — without it every week read as open.
+ * @param {{ initialDeadlineAt: number, finalDeadlineAt: number }} win
+ * @param {number} nowMs
+ * @returns {'INITIAL_OPEN'|'FINAL_OPEN'|'CLOSED'}
+ */
+export function phaseAt(win, nowMs) {
+    if (nowMs >= win.finalDeadlineAt) return 'CLOSED';
+    if (nowMs >= win.initialDeadlineAt) return 'FINAL_OPEN';
+    return 'INITIAL_OPEN';
+}
+
+/**
  * Staff-facing copy for a submission phase. Calm and factual — never a countdown.
  *
  * ── IT MAY NOT NAME A DOCUMENT THE MEMBER NEVER SEES ────────────────────────────────────────────
@@ -162,14 +179,19 @@ export function phaseTone(phase) {
  * rendered BELOW the dates now instead of above them: it explains the deadline, so it reads as a
  * caption to one rather than as another fact competing with it.
  *
+ * A form that OPENED after its first deadline (a week created late) names only the live one: "Answers
+ * were due" a date that passed before the form existed tells the member they missed something they
+ * were never asked. `openedAt` absent (an older server) keeps the two-deadline head.
+ *
  * @param {string} phase
  * @param {number} initialDeadlineAt
  * @param {number} finalDeadlineAt
+ * @param {number|null} [openedAt] when the form was created, if the server said
  * @returns {{ text: string, lead: boolean, label?: string, value?: string, warn?: boolean }[]} `lead` marks the date
  *   that is still to come — the one the member can still act on, which is the ONLY one worth
  *   emphasising. A line with no `label` is prose; one with a label is a named date.
  */
-export function deadlineLines(phase, initialDeadlineAt, finalDeadlineAt) {
+export function deadlineLines(phase, initialDeadlineAt, finalDeadlineAt, openedAt = null) {
     // One place builds all three, so `text` can never drift from the label and value it is made of.
     const dated = (/** @type {string} */ label, /** @type {number} */ at, /** @type {boolean} */ lead) => {
         const value = deadlineLabel(at);
@@ -180,6 +202,13 @@ export function deadlineLines(phase, initialDeadlineAt, finalDeadlineAt) {
     }
     // `warn` on the FINAL_OPEN sentence only: it is the one that is a warning rather than a
     // description, and the head renders prose only when it carries this flag (see phaseChip).
+    if (phase === 'FINAL_OPEN' && openedAt && openedAt >= initialDeadlineAt) {
+        return [
+            dated('Answer by', finalDeadlineAt, true),
+            { text: 'This form opened after the first deadline, so planning has already started.',
+                lead: false, warn: true },
+        ];
+    }
     if (phase === 'FINAL_OPEN') {
         return [
             dated('Answers were due', initialDeadlineAt, false),

@@ -92,7 +92,13 @@ export function renderWeekDetail(host, win, data,
      * as long as the page does — a `let` up here would be shared process state that no reload
      * clears and no test can reset.
      */
-    let grade = initialGrade;
+    // …but only a grade THIS week's frozen population holds. One carried from a week that had CES
+    // into a week that has none drew "0 of 0" with no strip to recover from, so it degrades to ALL
+    // here, as the day does below. `onGrade` is not called: the choice stays the reviewer's, and
+    // comes back on the next week that holds it.
+    let grade = (initialGrade === 'ALL'
+        || gradesPresent((data.participants || []).filter(p => !isWithdrawn(p))).includes(initialGrade))
+        ? initialGrade : 'ALL';
     /**
      * The day currently in view — `ALL`, or one of the window's dates. A handed-back day that is
      * not one of THIS window's dates falls back to `ALL` rather than filtering every panel to a
@@ -282,7 +288,10 @@ function build(win, data, { dates, now, grade, day = 'ALL', canRefresh = false }
                 // out, without reading Cloud Function logs. reminderLine owns the four states,
                 // including the deliberate silence on CLOSED weeks (pre-feature windows must not
                 // wear a permanent false alarm).
-                const r = reminderLine(win.phase, win.initialDeadlineAt, win.reminderSentAt);
+                // A week OPENED after its initial deadline never had a reminder morning, so the
+                // FINAL_OPEN "none recorded" warning would be a false alarm there.
+                const late = frozenAt(data.participants) >= win.initialDeadlineAt;
+                const r = late ? null : reminderLine(win.phase, win.initialDeadlineAt, win.reminderSentAt);
                 return r ? `<div class="ot-reminder-line ot-reminder-line--${r.tone}">${esc(r.text)}</div>` : '';
             })()}
             ${win.audience === 'restricted'

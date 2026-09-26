@@ -239,6 +239,10 @@ export async function loadWeekDetail(weekEnding, milestones, dates) {
         }));
         participants.sort((a, b) => (a.rosterOrder ?? 0) - (b.rosterOrder ?? 0)
             || String(a.memberName).localeCompare(String(b.memberName)));
+        // When the form OPENED: everyone frozen at creation shares its commit stamp, so the earliest
+        // is the window's own. A week created after its initial deadline has no one late against it.
+        const stamps = participants.map(p => p.createdAt).filter(t => t > 0);
+        const openedAt = stamps.length ? Math.min(...stamps) : 0;
 
         /** @type {any[]} */
         const heads = [];
@@ -270,7 +274,7 @@ export async function loadWeekDetail(weekEnding, milestones, dates) {
             if ((h.currentRevision ?? 0) === 1 && first > 0) {
                 return { ...h, history: deriveHistory(
                     [{ revision: 1, days: h.days, acceptedAt: first }],
-                    h.days, milestones.initialDeadlineAt) };
+                    h.days, milestones.initialDeadlineAt, openedAt) };
             }
 
             /** @type {any[]} */
@@ -286,7 +290,7 @@ export async function loadWeekDetail(weekEnding, milestones, dates) {
                 // they said; only the "changed since initial" marker is unavailable, so it is simply
                 // omitted rather than guessed at.
             }
-            return { ...h, history: deriveHistory(revisions, h.days, milestones.initialDeadlineAt) };
+            return { ...h, history: deriveHistory(revisions, h.days, milestones.initialDeadlineAt, openedAt) };
         }));
 
         // A FAILED roster read is not a failed week. The availability is the record; the roster is

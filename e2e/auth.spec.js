@@ -116,6 +116,14 @@ test('B1 flag ON: links clears the session and shows the in-place login on a fai
     await expect(page.locator('#loginOverlay')).toBeVisible();
 });
 
+test('B1 flag ON: overtime clears the session and shows the in-place login on a failed named session', async ({ page }) => {
+    // The one named page that had no follow-up at all: a failed sign-in left the page up under a
+    // session the endpoints would refuse, with nothing asking the member to sign in again.
+    await armEnforcementWithFailingSignIn(page);
+    await page.goto('/overtime.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+});
+
 test('B1 flag ON: paycalc stays SOFT — the calculator still renders, no redirect', async ({ page }) => {
     await armEnforcementWithFailingSignIn(page);
     // Suppress the one-time notices so nothing overlays the calculator.

@@ -152,11 +152,13 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
      * morning within 24h of the noon deadline). Somebody who answered has nothing to be reminded
      * of, and a withdrawn participant is no longer asked.
      *
-     * `reminderSentAt` is stamped after the attempt whatever the send count — it protects the one
-     * morning against a re-run, and once noon passes the phase moves and the question is closed.
+     * `reminderSentAt` is CLAIMED in a transaction before the send, whatever the count — two
+     * overlapping runs both read "unsent" when it was stamped after. Anybody this same run has just
+     * ASKED is left out: "answers due today" seconds after "form open" reads as a failure to act.
      * @param {number} nowMs
+     * @param {Array<{ milestones: any, names: string[] }>} [justAsked]
      */
-    async function sendInitialDeadlineReminders(nowMs) {
+    async function sendInitialDeadlineReminders(nowMs, justAsked = []) {
         let snap;
         try {
             snap = await db().collection(WINDOWS).get();
@@ -169,13 +171,21 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             const milestones = storedMilestones(data);
             if (!OT.reminderDue(milestones, toMillis(data.reminderSentAt), nowMs)) continue;
             try {
+                const claimed = await db().runTransaction(async (tx) => {
+                    const fresh = await tx.get(d.ref);
+                    if (!OT.reminderDue(milestones, toMillis(fresh.data().reminderSentAt), nowMs)) return false;
+                    tx.update(d.ref, { reminderSentAt: FieldValue.serverTimestamp() });
+                    return true;
+                });
+                if (!claimed) continue;
+                const asked = new Set(justAsked.filter(a => a.milestones.weekEnding === d.id).flatMap(a => a.names));
                 const [pSnap, sSnap] = await Promise.all([
                     d.ref.collection('participants').get(),
                     d.ref.collection('submissions').select().get(),
                 ]);
                 const submitted = new Set(sSnap.docs.map(s => s.id));
                 const names = pSnap.docs
-                    .filter(p => !OT.isWithdrawn(p.data()) && !submitted.has(p.id))
+                    .filter(p => !OT.isWithdrawn(p.data()) && !submitted.has(p.id) && !asked.has(p.id))
                     .map(p => p.id);
                 const uids = (await Promise.all(names.map(uidForName))).filter(Boolean);
                 if (uids.length) {
@@ -186,7 +196,6 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     });
                     await send(payload, uids, `[overtimeReminder ${d.id}]`);
                 }
-                await d.ref.update({ reminderSentAt: FieldValue.serverTimestamp() });
                 console.log(`[overtimeReminder] ${d.id} — ${names.length} unanswered, ${uids.length} resolvable target(s)`);
             } catch (err) {
                 // One bad week must not abandon the rest. NOTE there is no retry to rely on
@@ -430,26 +439,13 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
 
         const ref = db().collection(WINDOWS).doc(weekEnding);
         const existing = await ref.get();
-        if (existing.exists) {
-            // Two reviewers pressing Create at once, one pressing it twice, or the scheduler
-            // meeting a week somebody just made by hand. The deterministic id already makes a
-            // duplicate impossible; this makes the SECOND caller's experience "here is the window"
-            // rather than an error — and it never REWRITES the frozen participant snapshot.
-            //
-            // It does, since v20.78, top it up: see `addMissingParticipants`. Add-only, open weeks
-            // only, so the freeze still holds everywhere it protects anything.
-            const added = await addMissingParticipants(ref, existing.data(), nowMs);
-            return {
-                outcome: 'existed',
-                added,
-                // Who was newly asked, for the caller to notify — the top-up's additions only.
-                asked: added.length ? { milestones: storedMilestones(existing.data()), names: added } : null,
-                window: { ...storedMilestones(existing.data()), audience: existing.data().audience },
-            };
-        }
+        if (existing.exists) return existed(ref, existing.data(), nowMs);
 
+        // CREATE, not set: a concurrent creator that read "absent" too would otherwise overwrite
+        // every participant this batch froze, and both would announce the week. The loser's batch
+        // writes nothing and takes the `existed` path instead.
         const batch = db().batch();
-        batch.set(ref, {
+        batch.create(ref, {
             weekEnding:        milestones.weekEnding,
             weekStart:         milestones.weekStart,
             initialDeadlineAt: ts(milestones.initialDeadlineAt),
@@ -464,7 +460,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             createdByUid:      byUid,
         });
         for (const p of participants) {
-            batch.set(ref.collection('participants').doc(p.memberName), {
+            batch.create(ref.collection('participants').doc(p.memberName), {
                 memberName:  p.memberName,
                 uid:         null,        // resolved lazily on first submission; see the header
                 grade:       p.grade,
@@ -472,13 +468,38 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 createdAt:   FieldValue.serverTimestamp(),
             });
         }
-        await batch.commit();
+        try {
+            await batch.commit();
+        } catch (err) {
+            const now = err && (err.code === 6 || /ALREADY_EXISTS/.test(String(err.message))) ? await ref.get() : null;
+            if (!now || !now.exists) throw err;
+            return existed(ref, now.data(), nowMs);
+        }
         console.log(`[createOvertimeWindow] ${weekEnding} · ${audience} · ${participants.length} participants · by ${byName}`);
         return {
             outcome: 'created', window: preview,
             // Every participant was just asked; the caller decides when to say so (the scheduler
             // accumulates across weeks so one member gets ONE notice, not one per window).
             asked: { milestones, names: participants.map(p => p.memberName) },
+        };
+    }
+
+    /** The `existed` outcome of `createWindow`. @param {any} ref @param {any} data @param {number} nowMs */
+    async function existed(ref, data, nowMs) {
+        // Two reviewers pressing Create at once, one pressing it twice, or the scheduler
+        // meeting a week somebody just made by hand. The deterministic id already makes a
+        // duplicate impossible; this makes the SECOND caller's experience "here is the window"
+        // rather than an error — and it never REWRITES the frozen participant snapshot.
+        //
+        // It does, since v20.78, top it up: see `addMissingParticipants`. Add-only, open weeks
+        // only, so the freeze still holds everywhere it protects anything.
+        const added = await addMissingParticipants(ref, data, nowMs);
+        return {
+            outcome: 'existed',
+            added,
+            // Who was newly asked, for the caller to notify — the top-up's additions only.
+            asked: added.length ? { milestones: storedMilestones(data), names: added } : null,
+            window: { ...storedMilestones(data), audience: data.audience },
         };
     }
 
@@ -623,6 +644,11 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             const pRef = ref.collection('participants').doc(memberName);
             const pSnap = await pRef.get();
             if (!pSnap.exists) return res.status(404).json({ error: 'not-a-participant' });
+            // IDEMPOTENT both ways. A re-withdrawal re-stamped `withdrawnAt`, which the restore
+            // rule below reads — so a second press could unlock a restore the first had forbidden.
+            if (withdrawn === OT.isWithdrawn(pSnap.data())) {
+                return res.json({ ok: true, weekEnding, memberName, withdrawn, serverNow: nowMs });
+            }
 
             // RESTORING is not the mirror of withdrawing (v21.26). Putting somebody back into a week
             // whose initial deadline has already passed, when they were stood down BEFORE it, makes
@@ -747,7 +773,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             // One accumulated notice per newly-asked member, then the deadline-morning reminder.
             // Both are courtesies over writes that have already committed; neither can throw.
             await notifyAsked(asked);
-            await sendInitialDeadlineReminders(nowMs);
+            await sendInitialDeadlineReminders(nowMs, asked);
         });
 
     /**
@@ -1167,6 +1193,8 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 return {
                     ...milestones,
                     audience: d.data().audience,
+                    // When the form opened: one made after its first deadline cannot say "were due".
+                    openedAt: toMillis(d.data().createdAt) || null,
                     phase: OT.phaseFor(milestones, nowMs),
                     participant: {
                         grade:       participant.data().grade,
@@ -1298,7 +1326,9 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     }
 
                     const revision = decision.revision;
-                    const acceptedAt = FieldValue.serverTimestamp();
+                    // The instant the phase was DECIDED (above), not the later commit — or an answer
+                    // judged in time at 11:59:59.9 is stamped, and later flagged, as late.
+                    const acceptedAt = Timestamp.fromMillis(nowMs);
                     tx.set(headRef.collection('revisions').doc(OT.revisionId(revision)), {
                         weekEnding,
                         memberName: who.name,
