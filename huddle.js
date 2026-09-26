@@ -150,6 +150,10 @@ export function initHuddleNotifications({ onState } = {}) {
 // This block reveals it and wires up the upload flow only when the signed-in
 // user is an admin. Non-admins never see the card.
 
+/** Inline-HTML cap for a converted DOCX — the SAME number, and the same `<=` boundary, as
+ *  `MAX_HUDDLE_HTML_CHARS` in functions/index.js (upload-cap-parity.test.mjs pins both). */
+const MAX_HUDDLE_HTML_CHARS = 200_000;
+
 /**
  * Load the Mammoth DOCX→HTML converter from CDN once (SRI-pinned; the hash is patched by
  * generate-sri.mjs — do not edit by hand). Resolves when window.mammoth is available.
@@ -159,9 +163,9 @@ function _loadMammoth() {
     return new Promise((resolve, reject) => {
         if (/** @type {any} */ (window).mammoth) { resolve(); return; }
         const sc = document.createElement('script');
-        sc.src         = 'https://cdn.jsdelivr.net/npm/mammoth@1.12.0/mammoth.browser.min.js';
+        sc.src         = 'https://cdn.jsdelivr.net/npm/mammoth@1.12.3/mammoth.browser.min.js';
         sc.crossOrigin = 'anonymous';
-        sc.integrity   = 'sha384-fWLn06AIo00H32MDcWUZTT+4Ru3OuoYn1DRH0o6JkhDl89YFSF4tJ4odze9bI+4r';
+        sc.integrity   = 'sha384-xqNXvcKbEqifokHcBnB0H32p+OQchhD/T/xJGWCMAW5fC0c0MBf9atO3weoPCT84';
         sc.onload      = () => resolve();
         sc.onerror     = () => reject(new Error('load'));
         document.head.appendChild(sc);
@@ -188,7 +192,7 @@ async function _convertHuddleDocx(file, { setBtnText }) {
         // @ts-ignore — mammoth is loaded onto window by _loadMammoth
         const result = await mammoth.convertToHtml({ arrayBuffer });
         const html = result.value || null;
-        htmlContent = html && html.length < 200_000 ? html : null;
+        htmlContent = html && html.length <= MAX_HUDDLE_HTML_CHARS ? html : null;
     } catch (convErr) {
         console.error('[Huddle] DOCX conversion failed:', convErr);
         if ((/** @type {any} */ (convErr)).message === 'load') {

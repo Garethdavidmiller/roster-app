@@ -109,3 +109,36 @@ describe('the upload cap — one limit, three languages', () => {
         }
     });
 });
+
+describe('the Huddle HTML cap — one number on both conversion paths', () => {
+    // A Word Huddle is converted in TWO places: ingestHuddle (Power Automate) and the browser on a
+    // manual upload. Both then keep the inline HTML only up to a size, and until the v24.28 review
+    // the two disagreed at the boundary — the server kept `length <= 200000` and the browser
+    // `length < 200_000` — so a document of exactly the cap rendered inline through one door and
+    // download-only through the other. Both must also sit inside the firestore.rules ceiling, or
+    // the browser write that follows is refused outright.
+    const chars = (/** @type {string} */ src, /** @type {string} */ where) => {
+        const m = src.match(/const\s+MAX_HUDDLE_HTML_CHARS\s*=\s*([\d_]+)\s*;/);
+        assert.ok(m, `${where} no longer declares MAX_HUDDLE_HTML_CHARS — this guard is blind`);
+        return Number(m[1].replace(/_/g, ''));
+    };
+    const HUDDLE = read('huddle.js');
+
+    test('the browser and the Cloud Function keep the same size of HTML', () => {
+        assert.equal(chars(HUDDLE, 'huddle.js'), chars(FUNCTION, 'functions/index.js'));
+    });
+
+    test('and both KEEP a document of exactly the cap (the server discards only `> MAX`)', () => {
+        assert.match(read('functions/documents.js'), /htmlContent\.length\s*>\s*MAX_HUDDLE_HTML_CHARS/,
+            'functions/documents.js no longer discards on `> MAX_HUDDLE_HTML_CHARS`');
+        assert.match(HUDDLE, /\.length\s*<=\s*MAX_HUDDLE_HTML_CHARS/,
+            'huddle.js must keep `length <= MAX_HUDDLE_HTML_CHARS` — the server\'s boundary, not `<`');
+    });
+
+    test('and both fit under the firestore.rules htmlContent ceiling', () => {
+        const rules = read('firestore.rules').match(/htmlContent\.size\(\)\s*<=\s*(\d+)/);
+        assert.ok(rules, 'firestore.rules no longer caps htmlContent — this guard is blind');
+        assert.ok(chars(HUDDLE, 'huddle.js') <= Number(rules[1]),
+            `huddle.js keeps HTML up to ${chars(HUDDLE, 'huddle.js')} chars, above the rules' ${rules[1]}`);
+    });
+});
