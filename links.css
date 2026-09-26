@@ -1087,6 +1087,9 @@ body.auth-ready .container { display: grid; }
 .check-cross     { color: var(--error-red); }
 .check-info-icon { color: var(--text-mid); }
 .check-body { flex: 1; min-width: 0; }
+/* Explanations hold to the app's desktop reading width (owner, 26 Sep 2026): at 1280 they ran to
+   ~170 characters a line. The ROW keeps its full width and tint; only the prose inside is capped. */
+@media (min-width: 1024px) { .check-body .check-note, .check-body .check-sub { max-width: 72ch; } }
 .check-note { font-size: var(--type-badge); color: var(--text-mid); }
 .check-sub  { font-size: var(--type-badge); color: var(--text-mid); margin-top: 3px; }
 .check-list {
@@ -1486,7 +1489,10 @@ body.auth-ready .container { display: grid; }
 .dm-actions { display: flex; gap: 6px; flex: none; }
 /* `.btn-save` is width:100% by default; in the masthead it is a compact primary. */
 .design-masthead .btn-save.dm-save { width: auto; flex: none; padding: 0 14px; min-height: 36px; font-size: var(--type-body); }
-.design-masthead .btn-save.dm-save:disabled { background: var(--surface-sunken); color: var(--text-light); cursor: default; }
+/* The sticky save row's button wears the SAME quiet "nothing to save" state (owner, 26 Sep 2026):
+   left on the shared faded-navy disabled look, the one state read two different ways on one page. */
+.design-masthead .btn-save.dm-save:disabled,
+#linksSaveBtn:disabled { background: var(--surface-sunken); color: var(--text-light); cursor: default; }
 .design-masthead .btn-save.dm-save.is-new { box-shadow: var(--focus-ring); }
 .dm-more {
     width: 36px; min-height: 36px; border: 1px solid var(--border-light); border-radius: var(--radius-button);
