@@ -661,7 +661,11 @@ function _renderPayPeriodStrip() {
     const fmt    = /** @param {any} d */ d => formatDayMonth(d);
     const payISO = formatISO(period.payday);
     strip.innerHTML = `Pay period: <a class="pay-period-link" href="./paycalc.html?payday=${payISO}">${fmt(period.start)} – ${fmt(period.cutoff)}</a> · paid ${fmt(period.payday)}`;
-    strip.style.display = '';
+    // 'block', NOT '' — `.pay-period-strip` is `display: none` in index.css, so clearing the inline
+    // value handed the decision back to that rule and the strip never appeared for anybody. It was
+    // found in the polish pass by measuring the computed display, not by any test, because the
+    // strip's text was correct the whole time it was invisible.
+    strip.style.display = 'block';
 }
 _renderPayPeriodStrip();
 // Every "today" here is read at render time: re-render when the date turns (see `watchLocalDate`).

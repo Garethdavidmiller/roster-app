@@ -1755,6 +1755,7 @@ button.lightbox-bug-link {
     background: none;
     border: none;
     color: rgba(255, 255, 255, 0.65); /* raised from 0.45 to clear WCAG AA — an interactive dismiss whose only lift was :hover, which touch users never get */
+    font-family: inherit;   /* a <button> does not inherit the page font — "Not now" rendered in Arial */
     font-size: var(--type-body);
     line-height: 1;
     cursor: pointer;
