@@ -191,6 +191,20 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
    which section you jumped to. */
 .chip[aria-current] { background: var(--navy); color: white; border-color: var(--navy); }
 
+/* ── Touch targets without a taller chrome (v24.30 polish pass) ─────────────────────────────────
+   Measured: the ⤓ PDF button is 54×29 and every section chip 27px tall — under the 44px touch
+   target, on the two controls a reader uses most. Making them TALLER would grow the sticky stack,
+   which the guide rules already call an accepted cost on a small phone, so the hit area grows
+   instead of the drawn box: an invisible pseudo-element extends each control vertically. The PDF
+   button has the header's full 78px to extend into (29 + 2×8 = 45). A chip may only use the
+   chip-bar's own padding — the bar scrolls horizontally, so it clips anything past its box — which
+   gives 27 + 7 + 8 = 42. Coarse pointers only; a mouse needs none of it and hover is unaffected. */
+@media (pointer: coarse) {
+    .btn-pdf, .chip { position: relative; }
+    .btn-pdf::after { content: ""; position: absolute; inset: -8px -4px; }
+    .chip::after    { content: ""; position: absolute; inset: -7px 0 -8px; }
+}
+
 /* ── Print ──────────────────────────────────────────────────────────────────
    railcard/fip print the sticky header itself as the page's title banner;
    print-color-adjust keeps the navy from rendering white-on-white. guide/

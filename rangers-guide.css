@@ -287,7 +287,11 @@ h2.section:first-of-type { margin-top: 4px; }
 .rr-facts { display: flex; flex-direction: column; gap: 6px; }
 .rr-row {
     display: grid;
-    grid-template-columns: 62px 1fr;
+    /* 70px, not 62 (v24.30 polish pass): the widest label, DISCOUNTS on the Shakespeare card,
+       measures 69px at 11px/700/0.5px tracking, so at 62 it ran 7px into the 10px gap and sat
+       hard against its value. The column is shared by every row on the page, so it has to fit
+       the widest label rather than the common ones. */
+    grid-template-columns: 70px 1fr;
     gap: 10px;
     align-items: baseline;
     font-size: 13px;
@@ -420,7 +424,11 @@ h2.section:first-of-type { margin-top: 4px; }
 
 .guide-back-link {
     display: inline-block;
-    margin-top: 18px;
+    /* 12px of vertical padding makes the footer link a 44px touch target (it measured 120×20);
+       the margin drops by the same 12px so the text sits exactly where it did (v24.30 polish). */
+    margin-top: 6px;
+    padding: 12px 0;
+    min-height: 44px;
     font-size: 13px;
     color: var(--navy);
     font-weight: 600;

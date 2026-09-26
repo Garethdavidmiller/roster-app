@@ -1414,7 +1414,13 @@ button.lightbox-bug-link {
     text-align: left;
     overflow-y: auto;
 }
-.picker-head { padding: 12px 40px 12px 12px; border-bottom: 1px solid var(--border-light); }
+/* 52px on the right, not 40 (v24.30 polish pass). The sheet's ✕ is the shared 44px `.lb-close` at
+   `right: 14px`, so it occupies the panel's last 58px; the head, inside the panel's 8px padding,
+   reserved only 48. Measured at 390px: the title "Which member are you working on?" ended at x=322
+   with the close button starting at 313 — the text ran 9px under the control. 8 + 52 = 60 clears it;
+   a title that no longer fits takes a second line, which `text-wrap: balance` keeps even. */
+.picker-head { padding: 12px 52px 12px 12px; border-bottom: 1px solid var(--border-light); }
+.picker-head b { text-wrap: balance; }
 .picker-head b    { display: block; font-size: var(--type-medium); font-weight: 800; color: var(--primary-blue); letter-spacing: -0.2px; }
 .picker-head span { display: block; font-size: var(--type-small); color: var(--text-mid); margin-top: 2px; }
 /* THE FILTER ON A LONG SHEET (v23.68, external review). Only rendered from `SEARCH_FROM` options —

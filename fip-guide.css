@@ -471,6 +471,10 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     color: var(--text);
 }
 .cf-input:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; border-color: var(--navy); }
+/* The placeholder names two examples and is cut mid-glyph at phone width ("— e.g. S" at 390px,
+   measured). An ellipsis says there is more rather than showing a sliced letter (v24.30 polish). */
+.cf-input { text-overflow: ellipsis; }
+.cf-input::placeholder { text-overflow: ellipsis; }
 /* TWO CLEAR BUTTONS, ONE FIELD. `type="search"` makes WebKit and Chromium draw their own cancel
    glyph at the right edge — exactly where `.cf-clear` below already sits, in the app's own style
    — so a reader typing a country name saw the platform's ✕ overlapping ours, at a different size,

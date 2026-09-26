@@ -77,6 +77,11 @@
     box-shadow: 0 1px 3px rgba(0, 30, 60, 0.05);
 }
 .nav-tip-icon { font-size: 15px; flex-shrink: 0; }
+/* A tile whose text carries a <strong> wraps that text in ONE <span> (v24.30 polish pass). The tile
+   is a flex row, so every bare text run and every <strong> was its own flex item: "← Prev / Next →
+   buttons" rendered as four gapped columns ("← | Prev | / | Next →"), and the three Menu tiles as a
+   bold word beside a narrow ragged column. The same defect `.steps li` in guide-doc.css fixed for
+   the numbered steps at v18.80 — here the markup, not the layout, is the right place for it. */
 
 /* ── Feature cards (AL / Admin / Menu / Pay / Team) ──── */
 .feature-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -130,4 +135,5 @@
     .badge-grid, .nav-grid, .feature-row, .install-grid { gap: 4px; }
     .badge-item, .nav-tip, .feature-card, .install-card { padding: 4px 7px; border-radius: 6px; box-shadow: none; }
     .marker { padding: 2px 8px; }
+    .badge-item, .nav-tip, .feature-card, .install-card { break-inside: avoid; page-break-inside: avoid; }
 }
