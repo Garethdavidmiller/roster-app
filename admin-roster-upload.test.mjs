@@ -69,6 +69,8 @@ mock.module('./firebase-client.js', {
                     // permission-denied is preserved and NOT replaced by the refresh's own error — the
                     // caller keys its user-facing message on err.code (matches firebase-client.js).
                     try {
+                        // A SIMULATED refresh failure, not a wrap of `err` — it has no cause to carry.
+                        // eslint-disable-next-line preserve-caught-error
                         if (_refreshShouldFail) throw new Error('token refresh failed (network)');
                         _idTokenRefreshes++;
                     } catch { throw err; }

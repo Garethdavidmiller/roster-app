@@ -545,7 +545,7 @@ test('the member card falls back to the staff PIN by SIGNING OUT first', async (
     // is gone, not merely covered over. Asserted on the stored session rather than the pixels,
     // because every consumer — the drawer's name, its Sign out button, its permission pills — is
     // seeded from this one value at module scope.
-    assert_cleared: {
+    {   // assert_cleared
         const stored = await page.evaluate(() => localStorage.getItem('myb_admin_session'));
         expect(stored, 'the previous member\'s session survived the switch to the staff PIN').toBeNull();
     }

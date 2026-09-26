@@ -491,7 +491,7 @@ test('no live doc names a symbol the source does not contain', () => {
         ['e2e', /\.js$/], ['scripts', /\.mjs$/]];
     let corpus = '';
     for (const [dir, re] of dirs) {
-        let names = [];
+        /** @type {string[]} */ let names;
         try { names = readdirSync(new URL(dir, here)); } catch { continue; }
         for (const n of names.filter(f => re.test(f))) {
             // THIS FILE IS NOT PART OF THE CORPUS, and leaving it in defeated the guard entirely on
@@ -619,7 +619,7 @@ const SOURCE_ROOTS = ['', 'functions/', 'e2e/', 'scripts/', 'test-fixtures/'];
 /** Every markdown file that is not about the past. */
 function locatableDocs(dir = '.', out = []) {
     const here = new URL('.', import.meta.url);
-    let entries = [];
+    /** @type {import("node:fs").Dirent[]} */ let entries;
     try { entries = readdirSync(new URL(dir, here), { withFileTypes: true }); } catch { return out; }
     for (const e of entries) {
         if (e.name === 'node_modules' || e.name === '.git') continue;

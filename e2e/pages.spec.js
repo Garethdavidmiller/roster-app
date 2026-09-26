@@ -4120,7 +4120,6 @@ test('links: paint-mode analysis keeps up with rapid tapping', async ({ page }) 
         }
         return (performance.now() - t0) / 20;
     });
-    // eslint-disable-next-line no-console
     console.log(`[links] paint tap → full re-analysis: ${perTap.toFixed(2)} ms`);
     expect(await cells.count()).toBe(7);
     // One frame is 16.7ms. A tap costing more than that would drop frames while painting.

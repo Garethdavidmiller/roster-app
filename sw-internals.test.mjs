@@ -48,7 +48,6 @@ function extractFn(src, name) {
 const NAMES = ['_appCacheVersion', 'compareAppCacheDesc', 'ctSafe', 'unredirect'];
 const body = NAMES.map(n => extractFn(SW, n)).join('\n');
 const { _appCacheVersion, compareAppCacheDesc, ctSafe, unredirect } =
-    // eslint-disable-next-line no-new-func
     new Function('Response', `${body}\nreturn { ${NAMES.join(', ')} };`)(Response);
 
 // A minimal Response-like stub for ctSafe (it only reads headers.get). @param {string|null} ct

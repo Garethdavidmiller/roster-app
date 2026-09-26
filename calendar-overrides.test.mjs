@@ -376,7 +376,7 @@ describe('fetchOverridesForRange deletion reconciliation', () => {
             makeDoc('id1', { memberName: 'A. Smith', date: '2026-06-10', value: 'AL', type: 'annual_leave', source: 'manual', note: '', createdAt: { seconds: 500 } }),
         ];
         await fetchOverridesForRange('2026-06-01', '2026-06-30');
-        assert.equal(rosterOverridesCache.has('2026-05-20' && 'A. Smith|2026-05-20'), true, 'out-of-range May entry untouched');
+        assert.equal(rosterOverridesCache.has('A. Smith|2026-05-20'), true, 'out-of-range May entry untouched');
         assert.equal(rosterOverridesCache.get('A. Smith|2026-06-10')?.value, 'AL', 'in-range survivor kept');
     });
 
@@ -622,7 +622,7 @@ describe('ensureOverridesCached fetch failure', () => {
 
     test('a failed far-month fetch is retryable — the month is not left marked fetched', async () => {
         _getDocsThrows = true;
-        let rendered = false;
+        let rendered;
         await ensureOverridesCached(2099, 3, () => { rendered = true; });   // 2099-04, fails
         rendered = false;   // the failure's own one-shot repaint — see the test above
 

@@ -66,7 +66,6 @@ function readCardTips(file, scope = {}) {
     // textual prelude would make an undefined identifier resolve to whatever the harness happened
     // to have lying about, which is how a guard stops guarding without anyone noticing.
     const names = Object.keys(scope);
-    // eslint-disable-next-line no-new-func
     return new Function(...names, 'return (' + src.slice(start, end + 1) + ');')(
         ...names.map(n => scope[n]));
 }
