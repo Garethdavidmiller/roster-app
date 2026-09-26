@@ -13,8 +13,8 @@
  */
 
 import { enhanceSelect } from './select-sheet.js';
-import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } from './roster-data.js';
-import { formatDayMonth, formatClock, printedStamp } from './date-format.js';
+import { CONFIG, MONTH_NAMES, computeEaster } from './roster-data.js';
+import { formatClock, printedStamp } from './date-format.js';
 import { authReady, authBootstrap } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { getSession, clearSession, ensureNamedSession, refreshClaimsIfStale } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
@@ -611,66 +611,10 @@ document.getElementById('payBtn')?.addEventListener('click', () => {
 
 // lightboxPrintBtn is wired by the shared about-lightbox.js (initAboutLightbox below).
 
-// Pay period strip — shows the current pay period dates + link to the pay calculator.
-// Hidden without a local session (the `getSession()?.name` guard below). That is STRICTER than
-// the Pay button above, which has no session condition at all — this line claimed the two were
-// the same until v23.46. The strip states a period as a fact and the button only offers a page,
-// which is why they legitimately differ; if you make one follow the other, decide which.
-// A named function rather than an IIFE so a date change can recompute it (`watchLocalDate` below).
-function _renderPayPeriodStrip() {
-    const strip = document.getElementById('payPeriodStrip');
-    if (!strip) return;
-    const session = getSession();
-    if (!session?.name) return; // Not logged in — hide the strip entirely
-
-    const today = new Date();
-    let period  = null;
-
-    for (const yr of [today.getFullYear() - 1, today.getFullYear(), today.getFullYear() + 1]) {
-        const { paydays, cutoffs } = getPaydaysAndCutoffs(yr);
-        for (let i = 0; i < paydays.length; i++) {
-            const payday = paydays[i];
-            // Use the cutoff getPaydaysAndCutoffs already computed ("most recent Saturday before
-            // payday") instead of a fixed payday−6. When a bank holiday shifts a payday off Friday
-            // (e.g. Good Friday → Thursday), payday−6 lands on Friday, one day before the true
-            // Saturday cutoff — so the displayed range and the on/off window were a day early.
-            const cutoff = cutoffs[i];
-            const start  = new Date(cutoff);  start.setDate(start.getDate() - 27);
-            // Compare date-only strings: payday is at noon, so today <= payday (timestamp)
-            // would hide the strip from midday onwards on the actual payday. ISO string
-            // comparison is lexicographically correct for zero-padded YYYY-MM-DD.
-            if (formatISO(today) >= formatISO(start) && formatISO(today) <= formatISO(payday)) {
-                period = { payday, cutoff, start }; break;
-            }
-        }
-        if (period) break;
-    }
-    if (!period) { strip.style.display = 'none'; return; }
-
-    // THE DEVICE'S OWN CALENDAR, not London (v24.08). These are local-calendar Dates, built at
-    // local NOON by `getPaydaysAndCutoffs` and advanced in whole days — they are not instants, so
-    // there is no zone to convert them to. Reading them through `Europe/London` is the same defect
-    // `paycalc-format.js` records having fixed and reverted: at UTC+12 and beyond, local noon is
-    // the previous day in UTC, so the strip printed the day before. Measured before the fix: 26 of
-    // 2026's 52 payday and cut-off dates shifted at UTC+14, 10 at UTC+12, 16 at UTC−11.
-    //
-    // The tell was that the LABEL and the LINK disagreed. The `?payday=` below is `formatISO`,
-    // which reads the local getters — so a member tapping "paid 28 Aug" could land the calculator
-    // on the 29th. One of the two had to be wrong, and it was never going to be the one the
-    // Calendar grid above it also uses.
-    const fmt    = /** @param {any} d */ d => formatDayMonth(d);
-    const payISO = formatISO(period.payday);
-    strip.innerHTML = `Pay period: <a class="pay-period-link" href="./paycalc.html?payday=${payISO}">${fmt(period.start)} – ${fmt(period.cutoff)}</a> · paid ${fmt(period.payday)}`;
-    // 'block', NOT '' — `.pay-period-strip` is `display: none` in index.css, so clearing the inline
-    // value handed the decision back to that rule and the strip never appeared for anybody. It was
-    // found in the polish pass by measuring the computed display, not by any test, because the
-    // strip's text was correct the whole time it was invisible.
-    strip.style.display = 'block';
-}
-_renderPayPeriodStrip();
 // Every "today" here is read at render time: re-render when the date turns (see `watchLocalDate`).
+// (The pay-period strip under the controls was removed at v24.31 — owner decision; payday stays on
+// the grid's 💷/✂️ markers and the day panel's Pay estimate.)
 watchLocalDate(() => {
-    _renderPayPeriodStrip();
     if (_workspaceStarted && hasOverrideAccess()) _repaintAfterMonthRead();
 });
 

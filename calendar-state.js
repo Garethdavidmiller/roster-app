@@ -71,7 +71,7 @@ export function addMonths(month, year, delta) {
  * Call `onChange` when the device's LOCAL date has moved on since the last check — on a resume
  * (`visibilitychange` → visible) and at each local midnight while the page stays open.
  *
- * Every "Today" the Calendar draws (the grid's highlight, Team View's column, the pay-period strip)
+ * Every "Today" the Calendar draws (the grid's highlight, Team View's column)
  * is read from `new Date()` at render time, and nothing re-renders on its own: an installed PWA
  * resumed the next morning highlighted yesterday until the member navigated. It fires only when the
  * DATE changed, so an ordinary resume costs a string comparison, not a render.
