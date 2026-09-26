@@ -15,8 +15,9 @@ release. Everything else is routed the usual way:
 | What | Where |
 |---|---|
 | Every RULE — clock, milestones, phases, participant selection, schema, concurrency | `functions/overtime-core.js` (header + `overtime-core.test.mjs`) |
-| The five endpoints (four HTTP + the daily scheduler), auth, transactions, batches | `functions/overtime.js` |
-| Words, London time formatting, submit disposition, derived history | `overtime-format.js` |
+| The seven endpoints (five HTTP + two daily schedules), auth, transactions, batches | `functions/overtime.js` |
+| Words, London time formatting, derived history | `overtime-format.js` |
+| Submit disposition and the other client deadline decisions | `overtime-clock.js` |
 | The page: access gate, tabs, planning horizon | `overtime-app.js` |
 | The member's seven-day form | `overtime-form.js` · roster context: `overtime-roster.js` |
 | The reviewer's by-day workspace | `overtime-manager.js` |
@@ -34,7 +35,7 @@ module beside the code.
 |---|---|---|
 | 1 | **No response and not available are different answers.** No view may merge them, and an empty section still renders its heading — a hidden "No response" makes *nobody outstanding* look exactly like a section that failed to draw. | `overtime-manager.js` |
 | 2 | **An unanswered day stays unanswered.** No default, no copy-last-week, no inferring from the roster. | `overtime-form.js` · `overtime-answer.js` (v23.87 — a Sunday-release request on an unanswered day leaves it unanswered: `{ releaseRequested: true }` with no mode, which `dayUnfinished` still counts. Until then the tick wrote `unavailable` underneath) |
-| 3 | **The client never refuses a submission near a deadline.** Inside the grace band it sends and lets the server decide — a client that refuses has denied somebody who was in time. | `overtime-format.js` (`submitDisposition`) |
+| 3 | **The client never refuses a submission near a deadline.** Inside the grace band it sends and lets the server decide — a client that refuses has denied somebody who was in time. | `overtime-clock.js` (`submitDisposition`) |
 | 4 | **A timed-out write goes into RECONCILIATION, never reported as failed.** Aborting stops us waiting; it does not stop the server writing. `clientMutationId` is generated in one place so no call site can forget it. | `overtime-form.js` · `overtime-data.js` |
 | 5 | **The participant snapshot is frozen at creation.** Its one exception is a leaver: a flag, never a delete, refused on a closed week, and removing the flag rather than writing `withdrawn: false` — because `where('withdrawn','==',true)` never matches a missing field. | `functions/overtime.js` (`withdrawOvertimeParticipant`) |
 | 6 | **Identity is always `decoded.name`, never the request body.** | `functions/overtime.js` |
@@ -62,7 +63,8 @@ roster from a page that is quietly empty.
 
 The planning horizon is the answer. `getOvertimeManagerOverview` computes its week rows **from the
 calendar**, not from Firestore, then marks which of them have windows — so a missing week is a row
-that says `Not created` rather than a row that is absent. A missed week keeps its row until its
+that says *Opens automatically overnight* (or, once overdue, *Did not open overnight · create it
+here*) rather than a row that is absent. A missed week keeps its row until its
 Saturday has passed, and the card's collapsed chip counts what is *missing* ("2 without a form"),
 never what exists.
 
@@ -139,8 +141,8 @@ timetable it ran under even if the offsets change later, and `policyVersion` is 
 so a future reader can tell which rules produced them. This is why `deriveMilestones` is called once,
 at creation, and every later reader uses the stored values.
 
-**Deadline arithmetic has no date library.** `londonTimestamp` derives the Europe/London offset with
-`Intl.DateTimeFormat` + `formatToParts`, read back as if UTC. It is the highest-risk function in the
+**Deadline arithmetic has no date library.** `londonTimestamp` (`functions/london-clock.js`) derives
+the Europe/London offset with `Intl.DateTimeFormat` + `formatToParts`, read back as if UTC. It is the highest-risk function in the
 feature: one hour out either refuses somebody who was in time or accepts somebody who was late.
 `overtime-core.test.mjs` pins it either side of both 2026 DST transitions.
 
@@ -320,8 +322,8 @@ invalidate, so `answerAnchorStale` never fires on it and the reviewer's chip nee
 
 **The offer is withheld on a day whose effective roster already reaches 720 minutes** — including a
 12-hour RDW already agreed as extra — because on that day there is nothing left to offer and the
-pill would be a question with no meaning. The gate (`modesFor`, keyed on `rosteredMinutes` from
-`overtime-roster.js`) needs a POSITIVE fact to fire: an unknown day is not "already rostered
+pill would be a question with no meaning. The gate (`offersFullTwelve` — `modesFor` until v21.24 —
+keyed on `rosteredMinutes` from `overtime-roster.js`) needs a POSITIVE fact to fire: an unknown day is not "already rostered
 12 hours", so the pill shows there. That is the same direction every unknown resolves on this page —
 withhold what would ANCHOR to an unverified roster (the before/after shortcuts), keep what anchors
 to nothing (this, all-day, custom). The server accepts the mode unconditionally, deliberately: the
@@ -403,7 +405,7 @@ True of the data, false of the person, on the screen a reviewer uses to judge wh
 
 **The rule: after the initial deadline, a withdrawal may be undone only if the withdrawal ITSELF
 happened after that deadline.** `canRestoreParticipant` in `functions/overtime-core.js`; the client
-copy (`canRestoreNow` in `overtime-format.js`) only decides whether the button is offered.
+copy (`canRestoreNow` in `overtime-clock.js`) only decides whether the button is offered.
 
 This is not a new policy — it is the one the app already had, applied to the path that escaped it.
 `addMissingParticipants` returns early unless a window is `INITIAL_OPEN`, so a newly eligible member
@@ -559,11 +561,11 @@ work is idempotent, so six of every seven runs read one collection and stop.
 
 **The horizon did not become redundant — it changed job.** It was the safety net under a human; it
 is now the monitor over the scheduler. That still works because it is computed from the *calendar*,
-not from Firestore, so a week the job failed to create still appears, still says "Not created", and
-still offers the button.
+not from Firestore, so a week the job failed to create still appears, still says "Did not open
+overnight · create it here", and still offers the button.
 
 **Creating a week by hand** is therefore a fallback, not the routine: Overtime → Upcoming weeks →
-*Create*. The confirm bar previews the roster week, the initial deadline, the audience and the
+*Open now*. The confirm bar previews the roster week, the initial deadline, the audience and the
 expected participant count — the same server code that will commit it, run with `dryRun: true`, so
 the preview cannot drift from the result. Press *Open the form* to commit. The scheduler and the
 button call one `createWindow`, so they cannot disagree about what a window is.
@@ -582,8 +584,9 @@ workspace keeps a standing note that availability reflects what was submitted be
 that short-notice cover should be confirmed with the employee directly.
 
 **When a member is locked out or renamed**, or when a new starter needs to appear: regenerate
-`functions/roster-members.json` and re-run Operations → Set up accounts. Existing windows keep their
-frozen populations either way.
+`functions/roster-members.json` and re-run Operations → Set up accounts. Existing weeks gain a new
+starter overnight while their first deadline is still ahead; weeks past it keep the population they
+had.
 
 ---
 
@@ -605,7 +608,7 @@ One, stated in full in `ARCHITECTURE.md` → §3 and deliberately not re-explain
   widening it is a one-word edit plus `npm run generate:roster-members`.
 
 The retention purge's exception **closed on 19 Sep 2026** — it arms itself on a date now, and
-*Retention* below is what it does rather than what it would do.
+*Retention* above is what it does rather than what it would do.
 
 ---
 
@@ -700,7 +703,7 @@ a restricted beta means guessing. Watch for these signals and act on the item th
 
 Two review items are records rather than signals: the server-file split (#16) stays governed by the
 coordinator ratchet, and a member rename already has its recovery route (`uid` on the participant
-doc — "name-keying and the `uid` rename route" above), so no migration utility is built until a
+doc — "Identity, naming and the rename route" above), so no migration utility is built until a
 rename actually happens. One item was rejected outright: a push notice confirming a member's own
 submission would announce what the receipt on their screen already states.
 

@@ -868,7 +868,8 @@ function isPayCutoffDay(date) {
 
 /**
  * Derive the Firebase Auth email from a teamMembers display name.
- * Must stay in sync with nameToEmail() in firebase-client.js.
+ * Must stay in sync with nameToEmail() in auth-identity.js AND `memberEmailFor` in
+ * firestore.rules — a mismatch with the rules copy locks that member out.
  *
  * @param {string} fullName - e.g. "G. Miller" → "g.miller@myb-roster.local"
  */

@@ -937,7 +937,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             // Checked against all three consumers before narrowing it, because dropping documents
             // from a set something else derives an ABSENCE from is exactly how a bound goes wrong:
             //   · `overdue` asks `weeksNeedingWindows(lastSchedulerRun, byWeek.keys(), …)`, which
-            //     filters `planningWeekEndings` — the current week and the six ahead. An expired
+            //     filters `planningWeekEndings` — `PLANNING_WEEKS` weeks from the current one. An expired
             //     week is >91 days past its Saturday, so it can never appear in that list, and its
             //     absence from `have` cannot make anything look missing.
             //   · `countsByWeek` and the `planningWeeks` loop both index `byWeek` by a horizon week,

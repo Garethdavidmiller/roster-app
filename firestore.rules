@@ -140,7 +140,8 @@ service cloud.firestore {
     // session signed in with a password AND its email is the one that name derives to — which only
     // the real member's account can be. Anonymous, custom-token (PIN) and self-renamed sessions all
     // fail it. `memberEmailFor` is the rules copy of `nameToEmail`, character for character, and
-    // `member-identity-parity.test.mjs` pins the two together over every name on the roster: a
+    // the whole-roster test in `firestore.rules.test.mjs` pins the two together over every name on
+    // the roster (and `member-identity.test.mjs` does the same for the server's copy): a
     // mismatch here LOCKS THAT MEMBER OUT, which is the direction this must fail in.
     //
     // AND THE CLAIM ONLY THE SERVER CAN SET (v24.27). The binding alone left one door: a name with

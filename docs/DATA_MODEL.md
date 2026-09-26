@@ -68,7 +68,7 @@ uploadedAt   Firestore server timestamp
 uploadedBy   Member name string (manual upload) or "power-automate" (Cloud Function ingest)
 htmlContent  Converted HTML string — present when a DOCX was uploaded/ingested; absent for PDFs
 ```
-Reads: a member `name` claim, `admin`, or the shared `calendarViewer` capability (v23.18 — was open from v10.76; the client refuses the read at source behind the PIN since v23.17, see Huddle notification tap behaviour in OPERATIONS_REFERENCE.md).
+Reads: a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19), `admin`, or the shared `calendarViewer` capability (v23.18 — was open from v10.76; the client refuses the read at source behind the PIN since v23.17, see Huddle notification tap behaviour in OPERATIONS_REFERENCE.md).
 Writes: require auth + admin claim. Cloud Function writes via Admin SDK (bypasses rules).
 Auto-prunes: docs older than **3 months** (Firestore doc + Storage file) are deleted by `pruneOldHuddles()` in `functions/documents.js` (v20.55 domain split), awaited at the end of every `ingestHuddle` run (the daily path). Huddles are higher-volume than circulars/newsletters (which keep 6 months) and rarely referenced after the day, so retention is shorter (v14.29). Storage delete on `/huddles` requires the admin-delete rule (v14.29).
 
@@ -78,8 +78,8 @@ memberName  Must match teamMembers[n].name exactly — used as the document ID
 workEmail   Work email address (5–200 chars; must be the `@chilternrailways.co.uk` domain — case-insensitive, anchored so look-alikes/subdomains are rejected, and no whitespace in the local part). Enforced by firestore.rules AND the client `isChilternWorkEmail()` (roster-data.js, single source `CONFIG.WORK_EMAIL_DOMAIN`); keep the two in sync (v14.97; rule local-part whitespace tightened v16.34)
 updatedAt   Firestore server timestamp
 ```
-Read/write restricted: owner can read/write their own doc; admin can read all.
-Write requires the `name` JWT claim (set by setupRosterAuth) — anonymous fallback sessions cannot write.
+Read/write restricted: owner can read/write/delete their own doc; admin can read, write and delete any.
+The owner test is a bound member identity (`memberName()` — AUTH_AND_SESSIONS.md invariant 19) — anonymous and PIN sessions cannot write.
 Purpose: Stage 1 of password security improvements. Email will enable future account recovery (Stage 4).
 Read/written/deleted by: `getStaffContact` / `saveStaffContact` / `deleteStaffContact` in `firebase-client.js`, called from `settings-app.js` (own email) and from `operations-app.js`'s merged **Account status** card (`saveStaffContact`/`deleteStaffContact` for admin set/edit/remove on a member's behalf). `getAllStaffContacts` (reads all docs) is also called from `operations-app.js` (Account status card).
 
@@ -145,10 +145,10 @@ Written by `savePushSubscription`, deleted by `deletePushSubscription` in `fireb
 Each document ID is a SHA-256 hash of the endpoint URL (first 20 hex chars). One doc per subscribed browser/device.
 Read by the `ingestHuddle` Cloud Function (Admin SDK) when fanning out push notifications.
 Client read: denied (`allow read: if false`) — no client may enumerate endpoints/keys. Create/update:
-any authenticated session, shape-validated (`endpoint`, `keys.p256dh`, `keys.auth`, `subscribedAt`, and
+any authenticated session except the staff-PIN viewer, shape-validated (`endpoint`, `keys.p256dh`, `keys.auth`, `subscribedAt`, and
 the optional `owner`). `owner` = the writer's Firebase Auth uid, stamped by `savePushSubscription`; when
-present the rules require it to equal `request.auth.uid`, so a session can only ever claim its own
-subscription. **Delete (per-owner, A5 / F-SEC-5, v17.76 — was `request.auth != null` for any id):** an
+present the rules require it to equal `request.auth.uid`, and an update to a doc that already carries
+an `owner` must come from that same uid, so a session can only ever claim its own subscription. **Delete (per-owner, A5 / F-SEC-5, v17.76 — was `request.auth != null` for any id):** an
 authenticated session may delete a doc **only if `resource.data.owner == request.auth.uid`**, OR the doc
 carries **no `owner`** (legacy docs written by older clients — kept deletable so VAPID-rotation cleanup
 can't be locked out; orphans left by a uid change are swept server-side by `fanOutPush`'s 410/404
@@ -196,7 +196,7 @@ Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.j
 Document  analytics/pv_<YYYY-MM>   { month: "YYYY-MM", counts: { <pageId>: <int> } }  — page popularity per month
 Document  analytics/activeAccounts { months: { "YYYY-MM": <int> }, daily: { "YYYY-MM-DD": <int> } } — unique active-account counts
 Document  analytics/origins       { daily: { "<YYYY-MM-DD>|<origin>[|pwa]": <int> } } — WHICH ADDRESS each account is on (v19.23; migration tracking)
-Document  analytics/perf_<YYYY-MM> { month: "YYYY-MM", samples: { "<ver>|<page>|<metric>|<bucket>|<mode>|<conn>": <int> } } — page-load latency (Project 0, v14.89). Metrics: ttfb · fcp (first-contentful-paint, "appears") · domReady ("fully ready") · **ready** ("usable" — the page's own content on screen, from `markPageReady`; recorded whenever that mark arrives rather than only if it happened to precede the reading, v21.16) · loginTotal (sign-in) · the three BOOT PHASES swBoot/sdkLoad/appBoot (v20.33 — contiguous spans of a load: SW wake → serve, serve → the `myb-sdk-ready` mark firebase-client.js sets as its body runs, mark → DCL; they let the card's "By stage of start-up" block state WHERE a slow start went instead of inferring it). admin loads excluded (v14.95)
+Document  analytics/perf_<YYYY-MM> { month: "YYYY-MM", samples: { "<ver>|<page>|<metric>|<bucket>|<mode>|<conn>": <int> } } — page-load latency (Project 0, v14.89). Metrics: ttfb · fcp (first-contentful-paint, "appears") · domReady ("fully ready") · **ready** ("usable" — the page's own content on screen, from `markPageReady`; recorded whenever that mark arrives rather than only if it happened to precede the reading, v21.16) · loginTotal (sign-in) · the three BOOT PHASES swBoot/sdkLoad/appBoot (v20.33 — contiguous spans of a load: SW wake → serve, serve → the `myb-sdk-ready` mark firebase-client.js sets as its body runs, mark → DCL; they let the card's "By stage of start-up" block state WHERE a slow start went instead of inferring it) · the Calendar's milestone marks (authBoot, access, rosterCached, rosterLive) and further `ready` variants and revalidation counts (e.g. readyUpdate, readyProvisional, readyHeavySwr, swrCount) — `perf-reporter.js` is the list. admin loads excluded (v14.95)
 ```
 Page ids: `calendar` | `admin` | `paycalc` | `operations` | `settings` | `links` | `overtime` (added v20.59; this list said six until v20.85, the same release the Operations card learned to spell it — the id was allowlisted and counting the whole time, so nothing failed, it just rendered as the raw word). A page id needs an entry in `PAGE_META` (`operations-reports.js`) as well as the rules allowlist, or BOTH reporting cards print the bare id and a generic 📄; `page-contract-parity.test.mjs` now fails on either omission. The same `counts` map also carries the **document/guide OPEN counters** (v18.20; every guide counted since v19.95, and the Rangers guide joined them at v20.05): `huddle` | `circular` | `newsletter` | `guide-staff` | `guide-paycalc` | `guide-railcard` | `guide-fip` | `guide-rangers` — incremented by `recordOpen(itemId, identity)` in `usage-reporter.js` at the real "opened" moments (Huddle viewer auto-open in `calendar-huddle-viewer.js`; the nav-drawer Circular/Newsletter open and the guide-link taps in `nav-panel.js` — the static guides have no Firebase, so their only in-app route is where the open is counted; the notification-tap doc viewer's Open button in `calendar-doc-viewer.js`). Same write-time admin exclusion as page views (the developer's opens are never recorded); no dedup — every open counts. All of them are allowlisted in `firestore.rules` (extend the allowlist when adding one — `firestore-contract-parity.test.mjs` checks the two lists both ways, so a missing id is a test failure rather than a silently-dropped counter). **The guide id lives on its `NAV_GUIDES` entry and is stamped onto the link as `data-open-id`** — never matched from the href, because `'./paycalc-guide.html'.includes('guide.html')` is TRUE and a substring test would count every Pay Calculator Guide open as a Staff Guide open, with both bars still looking plausible. Until v19.95 only two guides had a branch at all, so the group answered a narrower question than its heading claimed; `firestore-contract-parity.test.mjs` now fails if a `NAV_GUIDES` entry has no `openId` or the two lists drift. The Operations Usage card renders them as a separate "Documents & guides — opens" bar group under Page popularity.
 Uniqueness of "active accounts" is deduped **client-side** (localStorage flags keyed by member name, which never leave the device) so the server only ever receives `increment(1)` — it stores *how many* accounts were active, never *which*. "Last 30 days" = sum of the `daily` buckets over the rolling window (each account self-suppresses for the window, so the sum is a true unique count). Counts are per account-device (multi-device users count more than once) — a usage trend, not an exact headcount. **The EXACT unique count sits beside it (v18.96)** and comes from a different source entirely: the `getSignInStats` Cloud Function reads Firebase Auth's own `lastSignInTime`, so uniqueness is a property of the data rather than something the app has to enforce — and nothing new is stored (no per-account record, no identity returned). It measures **sign-ins, not activity**: sessions last 60 days, so most page opens are session RESTORES. The 30-day sign-in window is therefore SHORTER than a session and no longer bounds active people in either direction — it misses anyone signed in 31–60 days ago who uses the app daily, as well as including anyone who signed in once and stopped (until v20.47 the session was 30 days, which made it a slight OVER-count; do not restore that claim unless the window is derived from `SESSION_MS`). There is no month-over-month history either (only the LAST sign-in is stored). Both figures are shown, each labelled with what it measures — the exact one does not replace the trend. `neverSignedIn` is the actionable number: accounts provisioned by Set up accounts that have never been used.
@@ -228,9 +228,9 @@ fileType     "pdf" | "docx" (Word uploads allowed since v16.31; no inline HTML c
 uploadedAt   Firestore server timestamp
 uploadedBy   Member name string
 ```
-Read: a member `name` claim, `admin`, or the shared `calendarViewer` (v23.18 — was open; matches the Huddle model). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
+Read: a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19), `admin`, or the shared `calendarViewer` (v23.18 — was open; matches the Huddle model). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
 Written by: `uploadCircular(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
-Read by: `getLatestCircular()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Weekly Retail Circular — opens **directly** in a new tab, one tap: a PDF by its own URL, a Word doc via the Office Online viewer) and from **`calendar-doc-viewer.js`** (the `#circular` in-app viewer used by **notification taps only**, which have no user gesture to open the file directly).
+Read by: `getLatestCircular()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Weekly Retail Circular — opens **directly** in a new tab, one tap: a PDF by its URL, a Word doc via the Office Online viewer; the URL is a short-lived one from `getDocumentUrl` when the server grants it, else the stored `storageUrl`, v24.19) and from **`calendar-doc-viewer.js`** (the `#circular` in-app viewer used by **notification taps only**, which have no user gesture to open the file directly).
 Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `pruneOldDocs()` in `doc-retention.js`.
 
 **newsletters** (v13.59)
@@ -243,9 +243,9 @@ fileType     "pdf" | "docx" (Word uploads allowed since v16.31; no inline HTML c
 uploadedAt   Firestore server timestamp
 uploadedBy   Member name string
 ```
-Read: a member `name` claim, `admin`, or the shared `calendarViewer` (v23.18 — was open; matches the Huddle model). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
+Read: a bound member identity (`isMember()` — AUTH_AND_SESSIONS.md invariant 19), `admin`, or the shared `calendarViewer` (v23.18 — was open; matches the Huddle model). Write: admin only (Storage rules also enforce PDF-or-DOCX, ≤20 MB).
 Written by: `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
-Read by: `getLatestNewsletter()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Marylebone Newsletter — opens **directly** in a new tab, one tap: a PDF by its own URL, a Word doc via the Office Online viewer) and from **`calendar-doc-viewer.js`** (the `#newsletter` in-app viewer used by **notification taps only**).
+Read by: `getLatestNewsletter()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Marylebone Newsletter — opens **directly** in a new tab, one tap: a PDF by its URL, a Word doc via the Office Online viewer; short-lived `getDocumentUrl` URL first, stored `storageUrl` as fallback, v24.19) and from **`calendar-doc-viewer.js`** (the `#newsletter` in-app viewer used by **notification taps only**).
 Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `pruneOldDocs()` in `doc-retention.js`.
 
 **linkDesigns** (v12.09)
@@ -257,6 +257,8 @@ window      The design's own OPERATING WINDOW (when the station is staffed) — 
             from this block until v21.63: a design restored without it comes back wearing the app
             default, and the next save writes that default over the boundary the design existed
             to test (the v19.55 bug). RECOVERY_RUNBOOK playbook C carried the same omission.
+revision    Optional (v22.15) — int ≥ 1, the co-editing CONCURRENCY IDENTITY a save compares against;
+            absent on designs last written before it existed
 updatedAt   Firestore server timestamp
 updatedBy   Member name string
 deletedAt   Optional (v19.41) — Firestore server timestamp. PRESENT = in the "Recently deleted"
@@ -264,7 +266,7 @@ deletedAt   Optional (v19.41) — Firestore server timestamp. PRESENT = in the "
             it with deleteField(), so absence is unambiguous.
 deletedBy   Optional (v19.41) — display name of whoever deleted it
 ```
-Read: a **named** session — `'name' in request.auth.token`, or `admin` (v19.39; was `request.auth != null`, which sounded like "any signed-in member" but included the calendar's unconditional `signInAnonymously` session, i.e. any visitor who could open the app URL). Deliberately NOT narrowed to `linksDesigner`: a designer whose token predates that claim must still be able to LOAD the workspace so their first write can permission-deny and self-heal through `writeWithClaimRetry`. Write: requires the `linksDesigner` claim OR `admin` (H2, shipped v16.29 — was any-authenticated write until then), AND (create/update, v17.02 — Finding #12) is **shape-validated** — the authoritative list is the `hasOnly([…])` in `firestore.rules` and the payload builder `docPayload` in `links-design-doc.js`; **do not restate it here, because this sentence did and was wrong**: it enumerated four keys and omitted `window` until v21.63, while the tree entry for `links-window.js` two hundred lines above correctly said the window is stored per design. `name` is a 1–100 char string, `patterns` a map, `updatedAt` a timestamp, `updatedBy` a ≤100 char string (delete carries no body). The create/update allowlist gained the optional `deletedAt`/`deletedBy` pair at **v19.41** (type-checked when present; a live design carries neither, which is why they are optional rather than required). `linksDesigner` is set by `setupRosterAuth` from `CONFIG.LINKS_DESIGNERS`; `links-app.js` wraps every write in `writeWithClaimRetry` so a stale token self-heals, and saves atomically via `runTransaction` (v17.02 — Finding #13). Designs are **not** member-owned (no per-member isolation — any designer edits, deletes or restores any design).
+Read: a **named** session — a bound member identity (`isMember()`, v24.23 — was `'name' in request.auth.token` from v19.39), or `admin` (was `request.auth != null`, which sounded like "any signed-in member" but included the calendar's unconditional `signInAnonymously` session, i.e. any visitor who could open the app URL). Deliberately NOT narrowed to `linksDesigner`: a designer whose token predates that claim must still be able to LOAD the workspace so their first write can permission-deny and self-heal through `writeWithClaimRetry`. Write: requires the `linksDesigner` claim OR `admin` (H2, shipped v16.29 — was any-authenticated write until then), AND (create/update, v17.02 — Finding #12) is **shape-validated** — the authoritative list is the `hasOnly([…])` in `firestore.rules` and the payload builder `docPayload` in `links-design-doc.js`; **do not restate it here, because this sentence did and was wrong**: it enumerated four keys and omitted `window` until v21.63, while the tree entry for `links-window.js` two hundred lines above correctly said the window is stored per design. `name` is a 1–100 char string, `patterns` a map, `updatedAt` a timestamp, `updatedBy` a ≤100 char string (delete carries no body). The create/update allowlist gained the optional `deletedAt`/`deletedBy` pair at **v19.41** (type-checked when present; a live design carries neither, which is why they are optional rather than required). `linksDesigner` is set by `setupRosterAuth` from `CONFIG.LINKS_DESIGNERS`; `links-app.js` wraps every write in `writeWithClaimRetry` so a stale token self-heals, and saves atomically via `runTransaction` (v17.02 — Finding #13). Designs are **not** member-owned (no per-member isolation — any designer edits, deletes or restores any design).
 Written/read by: `links-app.js` (the multi-design workspace collection).
 
 **linkTargetSets** (v21.04)
@@ -273,14 +275,14 @@ name         Set name, 1–60 chars (e.g. "Set A")
 slots        The generator target table: [{time: "HH:MM-HH:MM", weekday, sat, sun}], 1–60 rows
 spareLines   int ≥ 0 — whole cover-week lines
 createdBy    The CREATOR's member name — the ownership key. Pinned by the rules to the writer's own
-             `name` claim on create, and IMMUTABLE on update (ownership is not transferable by editing)
+             bound member identity (`memberName()`) on create, and IMMUTABLE on update (ownership is not transferable by editing)
 updatedBy    Whoever last wrote (the admin can overwrite anyone's set; createdBy still never moves)
 updatedAt    Firestore server timestamp
 ```
 Named snapshots of the generator's target table, shared between the designers, so "others can mess
 about but not lose my set" (owner, Aug 2026) holds across devices. Read: named session or admin
 (matches linkDesigns, same self-heal reasoning). Create: `linksDesigner` or admin, shape-validated,
-`createdBy == request.auth.token.name`. Update/delete: only the creator or the admin. The client's
+`createdBy == memberName()`. Update/delete: only the creator or the admin. The client's
 Save button asks the same question (`canOverwriteTargetSet`) but that copy only decides what is
 OFFERED — the rules are the protection. Written/read by `links-app.js` (the generator card's Saved
 sets row); rules covered case-for-case by `firestore.rules.test.mjs`. **Delete only reached the UI at
@@ -342,15 +344,12 @@ Retention: enforced in BOTH read endpoints rather than in the rules. Rules are n
 `resource.data` condition fails the whole query rather than dropping a row, so one expired document
 would blank a reviewer's workspace. `purgeExpiredOvertimeWindows` (daily, 04:00 London) then removes
 expired windows bottom-up — revisions → heads → participants → parent, **parent last**, because
-Firestore does not cascade and a parent deleted alone orphans the tree permanently. It **ships
-DISARMED** (`purgeArmed` in `functions/index.js`): it walks and logs what it would remove and deletes
-nothing until somebody has read a run. Arming changes nothing anyone sees — expired windows are
-already invisible and inert — which is why it can wait and why waiting is not free. **What waiting
-now costs is STORAGE, not latency** (v21.94): `getMyOvertimeState` used to read the whole collection
-on every page open and drop the expired rows in memory, so the member's hot path grew with it; it is
-bounded by a `retentionUntil` inequality now, and the same bound is still WORTH applying to
-`getOvertimeManagerOverview`, which derives `overdue` from all the keys and wants checking against
-`weeksNeedingWindows` first.
+Firestore does not cascade and a parent deleted alone orphans the tree permanently. It **arms itself
+on a date** (v24.10 — `PURGE_ARMS_AT` / `purgeArmedAt` in `functions/overtime-core.js`, 1 Dec 2026):
+until then it walks and logs what it would remove and deletes nothing. Arming changes nothing anyone
+sees — expired windows are already invisible and inert. Both read endpoints (`getMyOvertimeState` and
+`getOvertimeManagerOverview`) query with a `retentionUntil` inequality, so neither grows with the
+expired rows the purge has not yet reached.
 Written by: `functions/overtime.js`. Read by: `getMyOvertimeState` (members) and `loadWeekDetail` in
 `overtime-data.js` (the reviewer's one direct read). Full design: `OVERTIME_AVAILABILITY.md`.
 
@@ -360,7 +359,7 @@ Override cache key: `"memberName|YYYY-MM-DD"`
 
 Staff log in with name (dropdown) + password. The **default** password is their surname (lowercase, no spaces/special chars); since v18.63 (PASSWORD_DESIGN.md Track C) a member can **set their own password** in Settings → Password, and sign-in accepts either the typed password or — for anyone still on the default — the surname (`credentialCandidatesFor` in `auth-identity.js` builds the ordered candidate list, `ensureFirebaseSession` tries each). If a member forgets a self-set password, the **admin resets it** back to the surname default (Operations → Account status → Reset, backed by the `resetMemberPassword` Cloud Function). Sessions expire **60 days after sign-in**, full stop (60 days since v20.47, owner decision — 30 until then; the 7-day inactivity cutoff went at v20.41 with its timestamp machinery). Inactivity alone never ends a session; nothing extends one either, so `expiry` is set once at sign-in and `getSession()` is a pure read. Everything that genuinely REVOKES access is unchanged and still immediate: an explicit sign-out (which signs Firebase out too), a disabled or deleted account, revoked Firebase credentials, and the claim-epoch sweep. The Calendar **viewer** is a different thing entirely and is untouched — it holds no `name` claim and its persistence is session-only, so it ends when the browser session does. `CONFIG.ADMIN_NAMES = ['G. Miller']` — elevated access. `CONFIG.LINKS_DESIGNERS = ['G. Miller', 'S. Silva', 'M. Robson']` — access to the Links design workspace.
 
-The login dropdown groups members by grade (CEA · CES · Dispatcher · Management, in that order). `managerOnly: true` members (managers/clerks) appear **only** in the Management group and are hidden from the calendar's member selector — they have login access but no roster of their own. Their grade dropdown filtering lives in `admin-app.js` (`GRADE_ORDER`).
+The login dropdown groups members by grade (CEA · CES · Dispatcher · Management, in that order). `managerOnly: true` members (managers/clerks) appear **only** in the Management group and are hidden from the calendar's member selector — they have login access but no roster of their own. The grade order is `CONFIG.GRADE_ORDER` in `roster-data.js`, shared by `login-overlay.js` and `admin-app.js`.
 
 **Forced migration (v18.92 — PASSWORD_DESIGN.md Phase 2).** `CONFIG.FORCE_PASSWORD_SET` (a kill switch,
 currently `true`) makes `password-force.js` compel any member still on the surname default to choose
@@ -379,7 +378,7 @@ OPENS has to fire before the await, never after it (the v18.94 bug).
 
 **Password security note:** The *default* password is surname-derived and not a secret — protection relies on Firebase Auth rate-limiting (v9.53) and Firestore rules (`request.auth != null`). A member who sets their own password (v18.63) does get a real secret; the surname default remains valid **only until** they do (the sign-in candidate ladder tries the typed value first, then falls back to the surname). An admin reset returns the account to the surname default. Full design + phasing: `PASSWORD_DESIGN.md`.
 
-**Calendar access — the staff PIN (v20.12).** The Calendar opens for a named member session OR the shared staff PIN, and for nothing else. A signed-in member is never interrupted. A shared office PC enters four digits and gets the full Calendar including overrides, in a session that lives exactly as long as the browser session. Everything privileged still requires a real member sign-in — the viewer has no `name`, `admin`, `manager` or `linksDesigner` claim and cannot write anywhere. The PIN value lives only in the `CALENDAR_VIEWER_PIN` secret. Design: `calendar-access.js` / `calendar-access-core.js`; operations + rotation: OPERATIONS_REFERENCE.md; the closed limitation: KNOWN_LIMITATIONS.md.
+**Calendar access — the staff PIN (v20.12).** The Calendar opens for a named member session OR the shared staff PIN, and for nothing else. A signed-in member is never interrupted. A shared office PC enters four digits and gets the full Calendar including overrides, in a session that lives exactly as long as the browser session. Everything privileged still requires a real member sign-in — a bound member identity (`isMember()`, AUTH_AND_SESSIONS.md invariant 19), which the viewer's custom-token session can never be; it holds no `admin`, `manager` or `linksDesigner` claim and cannot write anywhere. The PIN value lives only in the `CALENDAR_VIEWER_PIN` secret. Design: `calendar-access.js` / `calendar-access-core.js`; operations + rotation: OPERATIONS_REFERENCE.md; the closed limitation: KNOWN_LIMITATIONS.md.
 
 **A consequence worth expecting in support questions:** a member who has never signed in anywhere now has to unlock each browser session, where before the Calendar simply opened. Signing in once (a 60-day session) removes the PIN entirely, which since v23.19 is what the Calendar's own front door offers first — the `sign-in-2026` notice that used to make the same ask was retired at v23.23 as a result.
 

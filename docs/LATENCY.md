@@ -397,7 +397,7 @@ DISTRIBUTION against `ready`'s answers whether those opens were any faster.
 | a substantial share | **faster** than `ready` overall | **the fix works and the diagnosis is confirmed.** Close this file |
 | a substantial share | **no faster** | **the diagnosis was wrong.** The wall is not the identity round trip, `VAL-AUTH-006` is reopened despite its field signature, and the September ladder's own shape — Roster found at 77% — is where to look next |
 
-**Read it no earlier than a full month after v23.69 ships**, for the reason the by-version tail
+**Read it no earlier than a full month after v23.70 ships**, for the reason the by-version tail
 above demonstrates rather than argues: this estate's devices run a long spread of versions, and a
 new metric reports only from the ones that have updated.
 
@@ -412,7 +412,7 @@ Against the table above, that is row one: **a small share**. So the September re
 **the identity finding stands untouched**, and `VAL-AUTH-006` is not reopened.
 
 **The denominator is NOT 2,161, and the smaller figure is the honest one.** `readyProvisional` only
-exists from v23.69, so it can report only from devices that have updated — which is the caveat the
+exists from v23.70, so it can report only from devices that have updated — which is the caveat the
 previous entry ended on. Counting the by-version rows at or past v23.70 gives roughly **800 eligible
 opens**, and exactly one of them took the path. Either way the answer is the same; stating 1-in-2,161
 would be claiming a precision the instrument does not have, in the flattering direction.
@@ -435,8 +435,9 @@ see the closing rule below.
 
 The ladder, for the record: Recognised 60% (2,099) · Unlocked 64% (2,118) · Roster found 75% (1,706)
 · Shifts shown 77% (2,192) · Confirmed 96% (2,102). The card's red headline — **Usable 34% under a
-second, 22% over three** — is this ladder's last rung, not the app being slow: `Confirmed` is the
-`accounts:lookup` round trip and `Getting ready` is zero.
+second, 22% over three** — is this ladder's last rung, not the app being slow: `Recognised` is the
+`accounts:lookup` round trip, `Confirmed` is the server's re-check of the shifts, and `Getting ready`
+is zero.
 
 ### THIS FILE IS NOW CLOSED
 

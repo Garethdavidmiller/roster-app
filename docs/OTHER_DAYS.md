@@ -30,7 +30,7 @@ Assessment / Team Day still show the base shift time — they run DURING your sh
 | Stored type | **`type: 'other'`** (renamed from `training` pre-deploy — a MEET under type `training` would have been permanently wrong) |
 | Icon | **🏷️ label/tag** (replaces 🎓 — a tag says "day labelled as something else"; the badge word IS the label). Chosen over 📌 (weaker metaphor) |
 | Badge | 🏷️ + SHORT flavour word (Train / Ind / Assess / Team — later Meet / Union). Confirmed: badge never literally reads "Other" |
-| Colour | **Leaf green `oklch(46% 0.115 136°)`** (`--other`/`--other-light`, 13% tint). NOT the original bronze — bronze (65°) was hue-identical to Early's orange (64.1°): indistinguishable at tint level and literally the same colour under red-green colour-blindness. Green 136° is the only empty band (46° from AL teal 183°); under deutan vision it keeps a yellow-olive cast while teal stays blue-grey, so it separates BETTER for colour-blind staff. Swatch proof: the "green-vs-teal" artifact, Jul 2026. "Reassess down the line" per Gareth |
+| Colour | **Leaf green `oklch(46% 0.115 136°)`** (`--other`/`--other-light`, 18% tint). NOT the original bronze — bronze (65°) was hue-identical to Early's orange (64.1°): indistinguishable at tint level and literally the same colour under red-green colour-blindness. Green 136° is the only empty band (46° from AL teal 183°); under deutan vision it keeps a yellow-olive cast while teal stays blue-grey, so it separates BETTER for colour-blind staff. Swatch proof: the "green-vs-teal" artifact, Jul 2026. "Reassess down the line" per Gareth |
 | Manual UX | One **"Other"** pill → previously-hidden submenu with **full-word** flavour chips (Training / Induction / Assessment / Team Day), the pre-ticked-on-rest-day RDW tick, optional times. **A flavour must be chosen — no default (v15.56):** the earlier Training pre-select silently mis-categorised an unnoticed induction/assessment/team day, so the save now errors until a flavour is tapped. New kinds become chips, never new pills. **Spare also lives here (v15.57):** a 📋 purple chip demoted from a top pill — but it is NOT a training flavour; picking it writes a `spare_shift`/'SPARE' (not an 'other' day) and hides the RDW tick + times |
 | Namespace note | The legacy unknown-value fallback classes were renamed `other-day`→`unknown-day`, `badge-other`→`badge-unknown` so the Other family owns the `other-*`/`--other` names coherently with `type: 'other'` |
 
@@ -61,12 +61,12 @@ from `OTHER_FLAVOURS` and the server uses an explicit alias lookup, so neither n
    `FLAVOUR_LOOKUP` entry per alias (the deliberate server-side duplicate).
 3. `firestore.rules` — add the sentinel to the training-grammar `matches()` clause (rules deploy —
    rides `deploy-rules.yml`, gated by the emulator suite).
-4. `functions/index.js` — one AI-prompt "WHAT THE CODES MEAN" line per flavour.
+4. `functions/roster-prompt.js` — one `SHIFT_VOCABULARY` ("WHAT THE CODES MEAN") line per flavour.
 5. Tests — grammar matrix rows (`override-utils.test`), recognition aliases (`roster-parse-helpers.test`),
    rules accept/reject rows (`firestore.rules.test` TYPE_VALUE_MAP loop covers the happy path),
    one pay-engine case each, badge words (`roster-data.test`).
-6. Copy strings that enumerate the flavours (only if wording should change): Sunday pill title
-   (`admin-overrides.js`), Sunday save error (`admin-app.js`), admin CARD_TIPS, `staff-guide.html` badge row,
+6. Copy strings that enumerate the flavours (only if wording should change): the Sunday row note
+   and pill aria-labels (`admin-week-editor.js`), Sunday save error (`admin-app.js`), admin CARD_TIPS, `staff-guide.html` badge row,
    `paycalc-help.js` — plus the docs sweep (CLAUDE.md shift-types row, AI_MAP, OPERATIONS_REFERENCE).
 7. One version bump; verify a new-flavour day at 375px in a private window.
 

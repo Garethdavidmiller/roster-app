@@ -72,10 +72,11 @@ Two findings from the work stay true, recorded so a revisit does not pay for the
 grouping must reveal before the `#payTransferCard` deep link scrolls**: with the cards hidden, the
 transfer card's entire landing correction runs against `display: none` and the member lands at the
 top of the page with nothing to explain why (the real e2e fails with a `TypeError` on a null box —
-assert visibility before position). And `paycalc-app.js` sits at **1,900 of a 1,900-line ratchet** — the
-room a cap carries for a fix is already spent, so the next change to that file, however small, must
-move something out first. **Do not make that move speculatively.** The seam should be drawn by the
-change that needs it; a module carved today to hold three click handlers is a guess at where that
+assert visibility before position). And `paycalc-app.js` sat at **1,900 of a 1,900-line ratchet**
+when this was decided (the current figures: `coordinator-ratchet.test.mjs`) — the room a cap carries
+for a fix was already spent, so the next change to that file, however small, had to move something
+out first. **Do not make that move speculatively.** The seam should be drawn by the change that
+needs it; a module carved today to hold three click handlers is a guess at where that
 change will want its boundary, and the ratchet is doing exactly its job by waiting. When it comes,
 the ready candidate is the cross-card navigation block (`_bannerViewCard` and the three link
 wirings, ~20 lines, no calculations), named for what it is — `paycalc-card-navigation.js`, never for
@@ -161,7 +162,7 @@ shown that yet.
 
 - **The Huddle print notice keeps `:has()` — DECLINED** (external review, 8 Sep 2026). Replacing
   `body:has(#huddleViewer.visible)` with a body-state class was proposed on portability grounds. The
-  app already leans on `:has()` in five stylesheets, and the other uses fail *worse*: an unsupported
+  app already leans on `:has()` in several stylesheets, and the other uses fail *worse*: an unsupported
   engine would leave a selected back-pay/HPP mode option and a ticked Links objective looking
   unselected, which is a wrong answer on screen, against one missing explanatory sentence here — the
   print protection itself is a plain `#huddleViewer { display: none }` and needs no `:has()` at all.
@@ -213,7 +214,7 @@ shown that yet.
   controller status and retention policies need documenting — see that gate.
 - **The Calendar PROVISIONAL FAST PATH stays — KEEP, owner decision, 19 Sep 2026.** v22.97's
   provisional paint shows a returning member their own cached roster while `accounts:lookup` is
-  still in flight. `readyProvisional` (v23.69) measured how often it actually fires: **1 open in
+  still in flight. `readyProvisional` (v23.70) measured how often it actually fires: **1 open in
   roughly 800 eligible**, and on the strength of that an external review asked whether it could
   simply be deleted. The answer is no, and the reasoning is recorded here precisely so the low
   number does not reopen it every time somebody reads the telemetry.
@@ -242,9 +243,9 @@ shown that yet.
 ## The dropdowns that stay native (8 Sep 2026, v23.33 — completed and enforced v23.38)
 
 `select-sheet.js` replaced the OS popup everywhere a reader reads a list — the Calendar's member
-picker, Admin's three member selects and its month filter, the pay-period selector and the rest of
-the calculator's fields, and the Links saved-setups picker. Two were left alone on purpose, so that
-"why is this one different?" has an answer:
+picker, Admin's member select (`#fieldMember`) and its month filter, the pay-period selector and the
+rest of the calculator's fields, and the Links saved-setups picker. Some were left alone on purpose,
+so that "why is this one different?" has an answer:
 
 - **`#otIdentityMember` (Overtime).** It is `disabled` and carries exactly one option — the signed-in
   member — because, as its own comment says, "there is genuinely nobody else to pick". It never opens
@@ -253,6 +254,10 @@ the calculator's fields, and the Links saved-setups picker. Two were left alone 
 - **`#monthJumpMonth` / `#monthJumpYear` (Calendar month jump).** These live INSIDE an already-open
   lightbox. A picker sheet over a dialog is a second modal layer, and the lists are 12 months and a
   handful of years — short, ordered and familiar, which is the one case a native popup handles well.
+- **`#alMember` / `#sickMember` (Admin's Annual Leave and Absence cards).** Hidden value holders the
+  save reads, not controls — the member is chosen once, in the top bar. They were enhanced from v23.33
+  and reverted at v23.74: the enhanced copy was a second, operable member picker, so a card could
+  save leave against one member under another's name.
 
 **The trigger that would reopen either:** a report that the month-jump selects look wrong on a phone
 (the same report that started this), or the Overtime identity bar becoming a real choice — which it
@@ -264,7 +269,7 @@ Firestore reads, so an id in that list would have been skipped silently. Both ar
 the reason they went unnoticed for a release is worth keeping: **a missed select is invisible to
 every lane the repo has.** The closed control looks identical, the popup is the platform's, and
 Playwright's `selectOption` drives both — so the e2e suite, the visual baselines and the axe gate
-are all equally green either way. The three exclusions above are therefore an EXEMPTION TABLE in
+are all equally green either way. The exclusions above are therefore an EXEMPTION TABLE in
 `select-sheet-parity.test.mjs` rather than prose alone: adding an id there is how the decision gets
 taken, and the alternative was taking it by forgetting.
 
@@ -274,12 +279,13 @@ The guard shipped looking in two places — `<select id>` in served HTML, and mo
 `createElement` — and a `<select>` reaches a reader from a third: **a JS template literal**. Two
 families were invisible to it, and neither is minor:
 
-- **`#loginGrade` / `#loginName` — the sign-in cascade. AN OPEN OWNER DECISION, not a decision
-  taken.** This is the strongest remaining candidate in the app: a grade picker that enables a
+- **`#loginGrade` / `#loginName` — the sign-in cascade. DECIDED 9 Sep 2026 (external review) and
+  now ENHANCED**; recorded at first as an open owner decision because it was the strongest remaining
+  candidate in the app: a grade picker that enables a
   roster-length name list, the FIRST dropdown any member touches, rendered on all six protected
   pages plus the Calendar's front door. It is also the highest-blast-radius change available —
-  `e2e/auth.spec.js` drives it on every one of those surfaces — which is why it is recorded rather
-  than converted in passing. **Gareth's call.**
+  `e2e/auth.spec.js` drives it on every one of those surfaces — which is why it was recorded rather
+  than converted in passing.
 - **`.gen-slot-time` (Links generator targets, one per shift slot).** Declared native: a dense table
   of times a designer sets in a run, not fields read one at a time. Replacing every cell of a table
   with a sheet trigger is a design question about tables, not a mechanical conversion. Designer-only
