@@ -17,7 +17,7 @@ import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } f
 import { formatDayMonth, formatClock, printedStamp } from './date-format.js';
 import { authReady, authBootstrap } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { getSession, clearSession, ensureNamedSession } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
+import { getSession, clearSession, ensureNamedSession, refreshClaimsIfStale } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
 import { initPasswordForce } from './password-force.js';
 import { PW_FORCE_PENDING_PREFIX, TEAM_VIEW } from './storage-keys.js';
 import { canOpenOvertime } from './auth-policy.js';       // nav-drawer pill gating only — never a boundary
@@ -32,14 +32,14 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady, markMilestone, noteProvisionalPaint } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
-import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, setOverrideAccessLostHandler, monthKey, clearFetchedMonth } from './calendar-overrides.js';
+import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, hasOverrideAccess, setOverrideAccessLostHandler, monthKey, clearFetchedMonth } from './calendar-overrides.js';
 import { forget as forgetOverrideKnowledge, knowledgeOf, decideDisplay, showsRoster } from './calendar-data-state.js';
 import { createLegend } from './calendar-legend.js';
 import { initCalendarAccess, calendarAccessReady, calendarAuthReady, getAccessType, isViewerMode, lockCalendar, handleAccessLost } from './calendar-access.js';
 import { personalActionsAllowed } from './calendar-access-core.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
 import { buildCalendarContainer } from './calendar-renderer.js';
-import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth } from './calendar-state.js';
+import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth, watchLocalDate } from './calendar-state.js';
 import { initSwipeHandler, isSwipeCooldown, isSwipeGestureActive } from './calendar-swipe.js';
 import { initCalendarLightboxes } from './calendar-al-lightbox.js';
 import { initInitialFetch } from './calendar-initial-fetch.js';
@@ -433,12 +433,7 @@ function renderCalendar() {
         // (e.g. when the user navigates beyond the initial 3-month window).
         // Skipped while the initial 3-month fetch is in flight to avoid a competing
         // fetch that could race against it and produce a blank re-render mid-load.
-        if (!_initialFetchInProgress) {
-            const _mAtFetch = getSelectedMemberIndex();
-            ensureOverridesCached(getDisplayYear(), getDisplayMonth(), () => {
-                if (!teamView.isTeamViewMode() && getSelectedMemberIndex() === _mAtFetch) renderCalendarWhenIdle();
-            });
-        }
+        if (!_initialFetchInProgress) ensureOverridesCached(getDisplayYear(), getDisplayMonth(), _repaintAfterMonthRead);
 
     } catch (error) {
         console.error('[calendar] Error rendering calendar:', error);
@@ -458,6 +453,13 @@ function renderCalendar() {
 // ============================================
 // EVENT LISTENERS
 // ============================================
+
+// The one callback for a month read that lands later — stable, so several waits on one month repaint
+// once. Deliberately unguarded by member: the read is everyone's, so a member switched mid-read is
+// waiting on it too, and so is a Team View opened on that month.
+function _repaintAfterMonthRead() {
+    if (teamView.isTeamViewMode()) teamView.refreshFromCache(); else renderCalendarWhenIdle();
+}
 
 // Deferred background render (v16.23). renderCalendar wipes #calendarDisplay — a BACKGROUND
 // caller (initial-fetch resolution, override-fetch callback) firing mid-gesture detached the
@@ -615,7 +617,8 @@ document.getElementById('payBtn')?.addEventListener('click', () => {
 // the Pay button above, which has no session condition at all — this line claimed the two were
 // the same until v23.46. The strip states a period as a fact and the button only offers a page,
 // which is why they legitimately differ; if you make one follow the other, decide which.
-(function initPayPeriodStrip() {
+// A named function rather than an IIFE so a date change can recompute it (`watchLocalDate` below).
+function _renderPayPeriodStrip() {
     const strip = document.getElementById('payPeriodStrip');
     if (!strip) return;
     const session = getSession();
@@ -643,7 +646,7 @@ document.getElementById('payBtn')?.addEventListener('click', () => {
         }
         if (period) break;
     }
-    if (!period) return;
+    if (!period) { strip.style.display = 'none'; return; }
 
     // THE DEVICE'S OWN CALENDAR, not London (v24.08). These are local-calendar Dates, built at
     // local NOON by `getPaydaysAndCutoffs` and advanced in whole days — they are not instants, so
@@ -660,7 +663,13 @@ document.getElementById('payBtn')?.addEventListener('click', () => {
     const payISO = formatISO(period.payday);
     strip.innerHTML = `Pay period: <a class="pay-period-link" href="./paycalc.html?payday=${payISO}">${fmt(period.start)} – ${fmt(period.cutoff)}</a> · paid ${fmt(period.payday)}`;
     strip.style.display = '';
-})();
+}
+_renderPayPeriodStrip();
+// Every "today" here is read at render time: re-render when the date turns (see `watchLocalDate`).
+watchLocalDate(() => {
+    _renderPayPeriodStrip();
+    if (_workspaceStarted && hasOverrideAccess()) _repaintAfterMonthRead();
+});
 
 document.getElementById('adminBtn')?.addEventListener('click', () => {
     const today = new Date();
@@ -766,7 +775,7 @@ try {
 
         // ── LET THE LOCAL CACHE WIN THE FIRST PAINT (v21.29, external latency review) ────────────
         //
-        // Phase 1 of the initial fetch reads IndexedDB with no network and no auth, and on a
+        // Phase 1 of the initial fetch reads IndexedDB with no network and no session (Auth init still gates it), and on a
         // returning device it usually answers in a few milliseconds. But the first render used to
         // fire SYNCHRONOUSLY beside it, so that device reliably painted "Checking this month…" and
         // then repainted with data that had been milliseconds away — the eye's first meaningful
@@ -821,8 +830,8 @@ try {
             isTeamViewMode: () => teamView.isTeamViewMode(),
             changeMonth,
             // Deferred: this dep only fires from restoreIncoming's background fetch callback,
-            // which can resolve during a NEW gesture (v16.23).
-            renderCalendar: renderCalendarWhenIdle,
+            // which can resolve during a NEW gesture (v16.23) — or after Team View has opened.
+            renderCalendar: _repaintAfterMonthRead,
             updateLegend,
             updateNavButtonState,
             openDayDetail: (cell) => openDayDetail?.(/** @type {HTMLElement} */ (cell)),
@@ -973,6 +982,7 @@ try {
         // KEYBOARD SHORTCUTS (Desktop)
         // ============================================
         document.addEventListener('keydown', (e) => {
+            if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;   // taken already (a grade tab's arrows), or a browser chord (Ctrl+P, Alt+←)
             // Don't fire if user is typing in an input
             if (/** @type {Element} */ (e.target).tagName === 'SELECT' || /** @type {Element} */ (e.target).tagName === 'INPUT') return;
             // Don't fire behind ANY open overlay — focus sits on a button there,
@@ -1078,7 +1088,8 @@ initHuddleViewer({ authReady, docAccess: documentAccess });
 // ============================================
 // CIRCULAR / NEWSLETTER VIEWER — opened from a #circular/#newsletter notification deep link
 // ============================================
-initDocViewer({ authReady, docAccess: documentAccess });   // same gate, same reasoning
+/** @type {(v?: any) => void} */ let _accessDecided = () => {};   // settled by initCalendarAccess below
+initDocViewer({ authReady, docAccess: documentAccess, accessDecided: new Promise(r => { _accessDecided = r; }) });   // same gate
 
 
 // `calendarAccessReady` is imported at the top of the module — it is consumed by initInitialFetch
@@ -1205,6 +1216,18 @@ async function _runPasswordForce() {
     }
 }
 
+/** A FULL grant — identity CONFIRMED, not painted for. Not `onGranted`: a provisional paint consumes
+ *  that one-shot while access is still `none`, so the password step never ran after a Calendar
+ *  sign-in, and the claim sweep (else only in `ensureNamedSession`) never ran on a named boot. */
+let _namedGrantSeen = false;
+function _onFullGrant() {
+    if (getAccessType() !== 'named') { _resolvePasswordForce(false); return; }   // the notices need not wait
+    if (_namedGrantSeen) return;
+    _namedGrantSeen = true;
+    refreshClaimsIfStale(CONFIG.CLAIM_EPOCH);   // fire-and-forget, one-shot per device per epoch
+    _resolvePasswordForce(_runPasswordForce());
+}
+
 /** Enable or disable the member selector and the Team View button. @param {boolean} on */
 function _crossMemberControls(on) {
     for (const id of ['teamMemberSelect', 'teamViewBtn']) {
@@ -1225,7 +1248,7 @@ initCalendarAccess({
     onEveryGrant: (/** @type {string|null|false} */ scope = null) => {
         // `noteProvisionalPaint` BEFORE the render this grant triggers, so a paint inside the
         // provisional window is attributed to it and one after the confirmation is not (v23.69).
-        if (scope === false) { noteProvisionalPaint(false); setOverrideAccess(false); setDocumentAccess(false); _crossMemberControls(true); return; }
+        if (scope === false) { noteProvisionalPaint(false); setOverrideAccess(false); setDocumentAccess(false); _crossMemberControls(true); _resolvePasswordForce(false); return; }
         noteProvisionalPaint(typeof scope === 'string');
         // Open the override reads BEFORE building the workspace. The reverse order would let the
         // first render's `ensureOverridesCached` run against a closed gate, silently claim nothing,
@@ -1246,6 +1269,7 @@ initCalendarAccess({
         // Huddle. `null` is the ordinary grant; this is where the Huddle subscription starts and a
         // Circular tap held back by the lock is finished.
         setDocumentAccess(scope === null);
+        if (scope === null) _onFullGrant();
         // A RE-grant also repaints (v20.45). `grant()` un-hides the workspace exactly as the
         // re-lock left it, and nothing else asks for a render — every fetch in this app is pulled
         // by one — so without this the member who just entered the rotated PIN looked at the grid
@@ -1264,7 +1288,6 @@ initCalendarAccess({
     // ONCE: re-running this would re-wire the swipe handler and re-launch the initial 3-month fetch.
     onGranted: () => {
         _workspaceStarted = true;
-        _resolvePasswordForce(_runPasswordForce());
         // CAUGHT, because the workspace start became async at v21.29 (it awaits a bounded chance
         // for the local cache to paint first). An un-awaited async call with no catch turns any
         // throw in here into an unhandled rejection — which `error-reporter.js` does capture, so it
@@ -1275,7 +1298,7 @@ initCalendarAccess({
             console.error('[Calendar] the workspace failed to start', err);
         });
     },
-});
+}).then(_accessDecided, _accessDecided);
 
 // The page's one-time notices (al-booking-2026, and whatever /new-notice adds next). `sign-in-2026`
 // was retired at v23.23 — see calendar-notices.js for why it went by decision, not by expiry.

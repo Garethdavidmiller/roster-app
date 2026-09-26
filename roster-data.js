@@ -178,9 +178,9 @@ export const CONFIG = {
     //   no-name/legacy escape is gone and overrides now require a matching `name`/admin/manager claim.
     //   See SECURITY_RELEASE_PLAN.md → B3.
     //   RAISED to 3 at v24.27, the release in which the rules and endpoints begin REQUIRING the
-    //   server-set `member` claim. Set up accounts stamped it at v24.24; this makes every device fetch
-    //   a token carrying it on next open rather than within the hour (KNOWN_LIMITATIONS → "The member
-    //   claim").
+    //   server-set `member` claim (stamped by Set up accounts at v24.24). The sweep runs on the next
+    //   open that CONFIRMS a named session — `ensureNamedSession`, or the Calendar's named grant — and
+    //   is fire-and-forget, so a read in that same instant may still carry the old token.
     CLAIM_EPOCH:                      3,
     // In-place sign-in (AUTH_ARCHITECTURE.md → "Phase 9 — Remove the post-login reload"). When a
     // protected page's login overlay confirms a sign-in, OFF (false) = today's behaviour: the

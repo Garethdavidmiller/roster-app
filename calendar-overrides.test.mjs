@@ -780,3 +780,59 @@ describe('a provisional scope lifted mid-boot', async () => {
         assert.equal(knowledgeOf(thisMonth), 'cached');
     });
 });
+
+// ── EVERY caller of an in-flight month is told it landed ─────────────────────────────────────────
+//
+// The claim dedupes the READ, and it used to dedupe the REPAINT with it: a second caller arriving
+// while the month was in flight returned on the claim and was never called back. The read fetches
+// every member's overrides, so the second caller's data was on its way all along — it simply never
+// heard. The member picker changed mid-fetch, or Team View opened on the month being fetched, and
+// that surface sat on "Checking this month" for good. Its failure repaint went the same way.
+describe('an in-flight month repaints EVERY caller that asked for it', () => {
+    beforeEach(() => {
+        rosterOverridesCache.clear(); _mockDocs = []; _getDocsThrows = false;
+        _releases.length = 0; _deferGetDocs = true;
+        setOverrideAccess(true);
+    });
+    afterEach(() => { _deferGetDocs = false; _releases.length = 0; _getDocsThrows = false; });
+
+    test('a second caller joins the read instead of being dropped', async () => {
+        /** @type {string[]} */
+        const calls = [];
+        const first  = ensureOverridesCached(2036, 2, () => calls.push('calendar'));
+        const second = ensureOverridesCached(2036, 2, () => calls.push('team view'));
+        await _tick();
+        assert.equal(_releases.length, 1, 'the read itself must still be deduped — one query per month');
+        _releases[0](); await first; await second;
+        assert.deepEqual(calls, ['calendar', 'team view'], 'a caller that joined mid-flight was never repainted');
+    });
+
+    test('the same callback asked twice repaints once', async () => {
+        let renders = 0;
+        const paint = () => { renders++; };
+        const a = ensureOverridesCached(2036, 3, paint);
+        const b = ensureOverridesCached(2036, 3, paint);
+        await _tick(); _releases[0](); await a; await b;
+        assert.equal(renders, 1);
+    });
+
+    test('a FAILED read tells every waiting caller too — once per claim', async () => {
+        _getDocsThrows = true;
+        /** @type {string[]} */
+        const calls = [];
+        const a = ensureOverridesCached(2036, 4, () => calls.push('a'));
+        const b = ensureOverridesCached(2036, 4, () => calls.push('b'));
+        await a; await b;
+        assert.deepEqual(calls, ['a', 'b'], 'the failure panel never replaced "Checking this month" for the second caller');
+    });
+
+    test('one throwing callback does not rob the others of their repaint', async () => {
+        /** @type {string[]} */
+        const calls = [];
+        const a = ensureOverridesCached(2036, 5, () => { throw new Error('render blew up'); });
+        const b = ensureOverridesCached(2036, 5, () => calls.push('b'));
+        await _tick(); _releases[0]();
+        await a; await b;
+        assert.deepEqual(calls, ['b']);
+    });
+});

@@ -418,6 +418,64 @@ test('calendar: the legend follows the grid across a SWIPE, in both directions',
     await expect(page.locator('.legend')).toBeVisible();
 });
 
+// Every "today" on the page is read at render time and nothing re-rendered by itself, so a Calendar
+// left open over midnight (or a PWA resumed the next morning) highlighted yesterday.
+test('calendar: the Today highlight moves when the local date turns', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 8, 16, 23, 59, 0) });
+    await seedMember(page);
+    await page.goto('/');
+    const today = page.locator('.calendar-day.today');
+    await expect(today).toHaveCount(1);
+    const before = (await today.textContent())?.trim() ?? '';
+    await page.clock.runFor('02:00');   // past local midnight
+    await expect(today).toHaveCount(1);
+    await expect.poll(async () => (await today.textContent())?.trim()).not.toBe(before);
+});
+
+// The page's arrow/t/p shortcuts listen on `document`, so they heard keys another control had
+// already handled (a grade tab's arrows changed the WEEK too) and browser chords (Alt+→ changed the
+// month on top of "forward"; Ctrl+P printed twice).
+test('calendar: a grade tab\'s arrows, and modified keys, do not reach the page shortcuts', async ({ page }) => {
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const month = page.locator('.month-year');
+    const before = await month.textContent();
+    await page.locator('body').focus();
+    await page.keyboard.press('Alt+ArrowRight');
+    await page.keyboard.press('Control+ArrowRight');
+    await expect(month).toHaveText(/** @type {string} */ (before));
+    await page.locator('#teamViewBtn').click();
+    const week = page.locator('.team-week-text').first();
+    await expect(week).toBeVisible();
+    const weekBefore = await week.textContent();
+    await page.locator('.grade-tab').first().focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('.grade-tab').nth(1)).toBeFocused();
+    await expect(week).toHaveText(/** @type {string} */ (weekBefore));
+});
+
+// A month read is EVERYONE's overrides, so a member switched while it is in flight is waiting on
+// it too. The repaint used to be guarded on the member who started the read, and the second caller
+// was dropped on the in-flight claim — so the new member sat on "Checking this month" for good.
+test('calendar: switching member while a month is loading still paints it when it lands', async ({ page }) => {
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { (window.__E2E = window.__E2E || {}).docsDelayMs = 1500; });
+    await page.locator('#nextMonth').click();
+    await page.locator('#nextMonth').click();   // outside the boot window — its read is now in flight
+    await expect(page.locator('.calendar-pending')).toBeVisible();
+    await page.evaluate(() => {
+        const sel = /** @type {HTMLSelectElement} */ (document.getElementById('teamMemberSelect'));
+        const other = [...sel.options].find(o => o.value !== '' && o.value !== sel.value);
+        if (other) sel.value = other.value;
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('.calendar-pending')).toHaveCount(0, { timeout: 8000 });
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+});
+
 test('calendar: a successful read renders the grid — the withholding is a gate, not a disablement', async ({ page }) => {
     await seedMember(page);
     await page.goto('/');
@@ -2191,6 +2249,33 @@ test('calendar: Team View opens on the month you were browsing, not the current 
 // from the server — up to eight seconds on a cold function, longer on a weak signal — so a member who
 // tapped straight away got a button that did nothing. The link request is HELD open here for the whole
 // test, which is the case that broke: the tap must still open the Huddle, on the stored url, at once.
+// A Daily Huddle tap with nothing to show used to do NOTHING — the hash handler opened only on a
+// loaded Huddle — and stayed armed, so one arriving later opened over whatever the member was doing.
+test('huddle: a tap with no Huddle uploaded says so', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    await expect(page.locator('#huddleViewerBody')).toContainText('No Daily Huddle has been uploaded yet');
+    await page.locator('#huddleViewerClose').click();
+    await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+});
+
+test('huddle: a tap on a Huddle that could not be read offers Try again, which re-reads', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleError: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn't load the Daily Huddle");
+    const subs = () => page.evaluate(() => /** @type {any} */ (window).__E2E?.snapshotSubs || 0);
+    const before = await subs();
+    await page.locator('#huddleRetryBtn').click();
+    await expect.poll(subs).toBeGreaterThan(before);
+    await expect(page.locator('#huddleViewerBody'), 'a retry that fails again says so again').toContainText("Couldn't load the Daily Huddle");
+});
+
 test('huddle: the Open button works immediately, while the short-lived link is still pending', async ({ page }) => {
     const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-09-25.pdf?alt=media&token=e2e';
     await page.addInitScript((stored) => {

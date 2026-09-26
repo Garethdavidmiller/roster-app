@@ -342,6 +342,23 @@ test('no team-view name is truncated on paper @print', async ({ page }) => {
     expect(clipped.map(c => c.name), 'these names would print with an ellipsis and no way to read the rest').toEqual([]);
 });
 
+// The printed header names ONE member ("Team Member: <selected>"), which is right for a personal
+// calendar and wrong for Team View, where the sheet is a whole grade.
+test('a printed Team View is not headed with one member\'s name @print', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const headerAfter = () => getComputedStyle(/** @type {Element} */ (document.querySelector('.header')), '::after').content;
+    expect(await inPrint(page, headerAfter), 'the personal calendar keeps its member line').toContain('Team Member');
+    await page.locator('#teamViewBtn').click();
+    await expect(page.locator('.team-week-text').first()).toBeVisible();
+    expect(await inPrint(page, headerAfter), 'a grade printed under one colleague\'s name').toBe('none');
+});
+
 // ── PRINT THIS COUNTRY (v24.06) ─────────────────────────────────────────────────────────────────
 // ROADMAP print item 1: "Most readers want France, not the book." The guide is 25 sheets and a
 // traveller checking one coupon before a trip needs one card.

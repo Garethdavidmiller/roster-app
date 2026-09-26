@@ -15,7 +15,7 @@
  */
 import { test, expect } from './fixtures.js';
 import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, openPinCard, signInThroughOverlay, collectFatalErrors, seedViewerAccess, clearNoticeFlags } from './helpers.js';
-import { disableCalendarPin, enableCalendarPin } from './fixtures.js';
+import { disableCalendarPin, enableCalendarPin, forcePasswordSet } from './fixtures.js';
 
 // Every test here sets `CONFIG.CALENDAR_PIN_ACCESS` explicitly rather than inheriting it, and the
 // value it ships with is deliberately NOT restated in this file — `roster-data.js` owns that, and
@@ -170,7 +170,10 @@ test('locked: a Circular deep link says what to do, issues NO read, and is FINIS
     await page.goto('/index.html#circular');
     await expect(page.locator('#calendarLock')).toBeVisible();
     await expect(page.locator('#docViewer')).toBeVisible();
-    await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular');
+    // PROMPTLY, not eventually: the viewer waits for the access decision before calling itself
+    // locked, and the lock card being up means that decision is made. Left to the default timeout this
+    // also passed on the viewer's own 8s fallback, i.e. with the decision never wired to it at all.
+    await expect(page.locator('#docViewerBody')).toContainText('Enter the staff PIN, or sign in, to read the Weekly Retail Circular', { timeout: 3000 });
     const before = await docReads(page);
     // The message sits over the PIN card, so the reader closes it to type — and the held tap has to
     // survive that close, or a notification tap could never be finished by a PIN.
@@ -902,6 +905,41 @@ test('a returning member sees their roster WHILE the identity is still being con
     await page.waitForTimeout(500);
     await expect(page.locator('#teamViewBtn')).toBeEnabled();
     await expect(page.locator('#teamMemberSelect')).toBeEnabled();
+});
+
+// THE SET-PASSWORD STEP SURVIVES THE PAINT. It hung off the one-shot `onGranted`, which the paint
+// spends while access is still `none` — so after a Calendar sign-in, the ordinary path, the step read
+// `none`, returned, and was never asked again: the marker sat unconsumed until Admin or Settings.
+// The unit suite pins the ORDER it relies on (`calendar-access.test.mjs`); only a page shows the
+// coordinator actually waiting for the confirming grant.
+test('the forced set-password step still runs when the provisional paint went first', async ({ page }) => {
+    test.setTimeout(60_000);
+    await forcePasswordSet(page);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pw_force_pending_G. Miller', '1');   // a fresh sign-in's marker
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true, authRestoreDelayMs: 5000 });
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay'), 'the paint went first').toBeVisible({ timeout: 3000 });
+    await expect(page.locator('#pwForceOverlay')).toBeVisible({ timeout: 20_000 });
+});
+
+// THE CLAIM SWEEP RUNS ON A CALENDAR BOOT TOO. `refreshClaimsIfStale` lived only inside
+// `ensureNamedSession`, which the Calendar's named boot never calls — so a device whose token predated
+// a claim change carried it into the override read and met the rules as "access has expired".
+test('a named Calendar boot runs the claim-epoch sweep', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.removeItem('myb_claim_epoch');
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('myb_claim_epoch')), { timeout: 10_000 })
+        .not.toBeNull();
 });
 
 // THE READING THE FAST PATH SHIPPED WITHOUT (v23.69). September 2026 showed v22.97 buying nothing

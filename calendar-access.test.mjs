@@ -1363,6 +1363,28 @@ describe('the provisional paint — showing a returning member their own saved r
         assert.equal(await b.done, 'none');
     });
 
+    test('the CONFIRMING grant is the one that reports `named` — onGranted, spent on the paint, does not', async () => {
+        // What the coordinator hangs its post-sign-in steps on (the forced set-password overlay and
+        // the claim sweep), and why it cannot be `onGranted`: the paint consumes that one-shot while
+        // access is still `none`, and it never fires again. Both steps once hung there, and on this
+        // path — a Calendar sign-in, the common one — the password step read `none` and never ran.
+        // `onEveryGrant(null)` is the moment `getAccessType()` first says `named`.
+        sessionValue = { name: 'G. Miller' };
+        let release = () => {};
+        reconcileGate = new Promise(r => { release = () => r(undefined); });
+        /** @type {string[]} */
+        const seen = [];
+        const done = initCalendarAccess({
+            onGranted: () => { seen.push(`onGranted:${getAccessType()}`); },
+            onEveryGrant: (/** @type {any} */ s) => { seen.push(`every:${s === undefined ? null : s}:${getAccessType()}`); },
+        });
+        await Promise.resolve(); await Promise.resolve();
+        currentUser = { uid: 'member-1', isAnonymous: false };
+        release();
+        assert.equal(await done, 'named');
+        assert.deepEqual(seen, ['every:G. Miller:none', 'onGranted:none', 'every:null:named']);
+    });
+
     // LAST IN THIS BLOCK, deliberately: `handleAccessLost` — which `beforeEach` uses to reset the
     // module's access state — early-returns on `'open'`, because there is no lock card to return
     // to when the PIN is switched off. So a test that grants `open` leaves `_accessType` at

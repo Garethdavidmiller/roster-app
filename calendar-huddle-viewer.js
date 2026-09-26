@@ -208,6 +208,11 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         // viewer never did — the cost of being the app's one documented lifecycle exception.
         if (!_viewerOpen) return;
         _viewerOpen = false;
+        // A tap answered with "none"/"couldn't load" is DONE when dismissed. Left armed, a Huddle
+        // landing later auto-opened over whatever the member had moved on to. (A LOCKED tap stays
+        // armed on purpose — closing it is how the PIN form is reached; see showLockedMessage.)
+        if (_disarmOnClose && !_autoOpened) _autoOpen = false;
+        _disarmOnClose = false;
         const focusReturn = _viewerFocusReturn;
         _viewerFocusReturn = null;
         dismissOverlay(viewer, { onKey, focusReturn, backHandler: closeViewer });
@@ -310,12 +315,40 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
     // the drawer link was there, they pressed it, and the reason nothing came is one they can act
     // on. Neutral prompt styling, not the error class — this is not a fault.
     function showLockedMessage() {
+        _disarmOnClose = false;
         body.innerHTML = '<div class="huddle-open-prompt">'
             + '<p>Enter the staff PIN, or sign in, to read the Daily Huddle.</p>'
             + '</div>';
         openViewer();
         close?.focus();
     }
+
+    /** Whether closing the viewer should drop the pending tap — see closeViewer. */
+    let _disarmOnClose = false;
+    /**
+     * A tap with nothing to show — no Huddle yet, or it could not be read — is ANSWERED, not
+     * ignored: the hashchange handler used to open only on `ready`, so the drawer link did nothing.
+     * The pending tap stays armed while the viewer is up, so a Huddle (or a retry) arriving now
+     * still opens in place of the message.
+     * @param {'none'|'error'} state
+     */
+    function showStateMessage(state) {
+        body.innerHTML = state === 'none'
+            ? '<div class="huddle-open-prompt"><p>No Daily Huddle has been uploaded yet.</p></div>'
+            : '<div class="huddle-open-prompt"><p class="huddle-error">Couldn\'t load the Daily Huddle.</p>'
+              + '<button type="button" id="huddleRetryBtn" class="huddle-open-btn">↻ Try again</button></div>';
+        const retry = document.getElementById('huddleRetryBtn');
+        retry?.addEventListener('click', () => {
+            _huddleState = 'loading';
+            body.innerHTML = '<p id="huddleViewerLoading">Loading…</p>';
+            _startHuddleSubscriptionSafe();
+        });
+        openViewer();
+        _disarmOnClose = true;
+        (retry ?? close)?.focus();
+    }
+    /** Still waiting on this tap with the viewer up? Then a settled failure should be shown in it. */
+    const _awaitingInViewer = () => _autoOpen && !_autoOpened && _viewerOpen;
 
     /** @param {any} huddle */
     function _triggerAutoOpen(huddle) {
@@ -356,6 +389,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         // Locked: say so, and keep `_autoOpen` armed so the grant that follows finishes the tap.
         if (!docAccess.has()) { showLockedMessage(); return; }
         if (_huddleState === 'ready' && _huddleData) _triggerAutoOpen(_huddleData);
+        else if (_huddleState === 'none' || _huddleState === 'error') showStateMessage(_huddleState);
     });
 
     // Real-time listener — fires from IndexedDB cache on repeat visits (near-instant)
@@ -371,6 +405,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         startHuddleSubscription().catch(err => {
             _huddleState = 'error';
             console.warn('[Huddle] Could not start the huddle subscription:', err);
+            if (_awaitingInViewer()) showStateMessage('error');
         });
     }
     let _subGen = 0;
@@ -396,6 +431,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
                 const prevUrl = _huddleData?.storageUrl;
                 if (!huddle) {
                     _huddleState = 'none';
+                    if (_awaitingInViewer()) showStateMessage('none');
                 } else {
                     _huddleData  = huddle;
                     _huddleState = 'ready';
@@ -413,6 +449,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
             /** @param {any} err */ (err) => {
                 _huddleState = 'error';
                 console.warn('[Huddle] Could not fetch latest huddle:', err);
+                if (_awaitingInViewer()) showStateMessage('error');
             }
         );
     }

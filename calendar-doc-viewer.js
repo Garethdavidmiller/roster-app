@@ -46,14 +46,18 @@ const _delay = (ms) => new Promise(r => setTimeout(r, ms));
 
 /**
  * Wire up the document viewer and open it if the page loaded on a #circular/#newsletter deep link.
- * @param {{ authReady?: Promise<any>, docAccess?: { has: () => boolean, onChange: (fn: (open: boolean) => void) => (() => void) } }} [deps]
+ * @param {{ authReady?: Promise<any>, accessDecided?: Promise<any>, docAccess?: { has: () => boolean, onChange: (fn: (open: boolean) => void) => (() => void) } }} [deps]
  *   docAccess — THE DOCUMENT GATE (v23.17, calendar-doc-access.js). A tap while it is shut shows
  *   what to do and issues NO read, cached or live; the tap is remembered and finished when access
  *   arrives, so a notification deep link that landed on the PIN card still opens the document once
  *   the PIN is in. Defaults to always-open. authReady — resolves once a Firebase session exists.
  *   Awaited before the document read (AUTH_PLAN.md → E1). Defaults to already-resolved.
+ *   accessDecided — settles once the Calendar has decided access, granted or locked. This viewer
+ *   is wired BEFORE that decision, so a cold deep link finds the gate shut only because nothing is
+ *   decided yet; until this settles a shut gate reads "Loading…", not "enter the PIN", which told
+ *   a signed-in member to use the PIN for the second their identity took to restore.
  */
-export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise.resolve()), docAccess = { has: () => true, onChange: () => () => {} } } = {}) {
+export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise.resolve()), accessDecided = /** @type {Promise<any>} */ (Promise.resolve()), docAccess = { has: () => true, onChange: () => () => {} } } = {}) {
     const overlay  = /** @type {HTMLElement|null} */ (document.getElementById('docViewer'));
     const content  = /** @type {HTMLElement|null} */ (document.getElementById('docViewerContent'));
     if (!overlay || !content) return;
@@ -80,6 +84,12 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
      *  and the reader who then enters the PIN is asking for exactly the document they tapped.
      *  @type {string|null} */
     let _pendingKey = null;
+    /** Whether access has been decided — see `accessDecided`. Bounded, so a decision that never
+     *  settles cannot leave a tap on "Loading…" for good. */
+    let _decided = false;
+    let _waitingSeq = -1;
+    /** @param {{ label: string }} d */
+    const lockedText = (d) => `Enter the staff PIN, or sign in, to read the ${d.label}.`;
 
     const lb = createLightbox({
         overlay, content, closeBtn,
@@ -116,7 +126,8 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
         // see — and the message says what unlocks it. The key is kept so the unlock can finish this.
         if (!docAccess.has()) {
             _pendingKey = key;
-            showMessage(`Enter the staff PIN, or sign in, to read the ${d.label}.`, 'doc-viewer-empty');
+            if (_decided) showMessage(lockedText(d), 'doc-viewer-empty');
+            else { _waitingSeq = seq; showMessage('Loading…', 'doc-viewer-loading'); }
             lb.open();
             return;
         }
@@ -215,6 +226,13 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
         history.replaceState(null, '', window.location.pathname + window.location.search);
         openDoc(key);
     }
+    // The decision settles: a tap still held on "Loading…" (same open, not closed or superseded)
+    // now says what unlocks it. A grant got there first through `onChange` and cleared the key.
+    Promise.race([accessDecided, _delay(DOC_FETCH_TIMEOUT_MS)]).catch(() => {}).then(() => {
+        _decided = true;
+        const d = _pendingKey ? DOCS[_pendingKey] : null;
+        if (d && !docAccess.has() && _waitingSeq === _openSeq) showMessage(lockedText(d), 'doc-viewer-empty');
+    });
     handleHash();
     window.addEventListener('hashchange', handleHash);
 }

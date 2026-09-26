@@ -288,10 +288,15 @@ export class FieldPath {}                               // literal field path (u
 // DELIVERS one snapshot when a test seeds window.__E2E.huddleDoc (v24.23) — the Huddle viewer's
 // open-file button could not be reached at all otherwise, and its v24.19 defect (a button that did
 // nothing until a network call returned) lived exactly there.
-export const onSnapshot = (_q, onNext) => {
+// huddleEmpty delivers an EMPTY snapshot (no Huddle uploaded); huddleError fails the listener.
+export const onSnapshot = (_q, onNext, onError) => {
   const e2e = globalThis.__E2E || (globalThis.__E2E = {});
   e2e.snapshotSubs = (e2e.snapshotSubs || 0) + 1;
-  if (e2e.huddleDoc && typeof onNext === 'function') {
+  if (e2e.huddleError && typeof onError === 'function') {
+    setTimeout(() => onError(new Error('e2e huddle listener failure')), 0);
+  } else if (e2e.huddleEmpty && typeof onNext === 'function') {
+    setTimeout(() => onNext({ empty: true, docs: [] }), 0);
+  } else if (e2e.huddleDoc && typeof onNext === 'function') {
     const d = e2e.huddleDoc;
     setTimeout(() => onNext({ empty: false, docs: [{ id: d.date || 'x', data: () => d }] }), 0);
   }
