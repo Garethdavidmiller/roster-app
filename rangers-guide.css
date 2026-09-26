@@ -422,18 +422,8 @@ h2.section:first-of-type { margin-top: 4px; }
     line-height: 1.6;
 }
 
-.guide-back-link {
-    display: inline-block;
-    /* 12px of vertical padding makes the footer link a 44px touch target (it measured 120×20);
-       the margin drops by the same 12px so the text sits exactly where it did (v24.30 polish). */
-    margin-top: 6px;
-    padding: 12px 0;
-    min-height: 44px;
-    font-size: 13px;
-    color: var(--navy);
-    font-weight: 600;
-}
-.guide-back-link:focus-visible { outline: 2px solid var(--navy); outline-offset: 3px; border-radius: 3px; }
+/* The footer's `.guide-back-link` is the shared recipe in guide-shell.css (polish round 2) — it
+   keeps the 44px touch target this page gave it at v24.30. */
 
 /* ── Print ──────────────────────────────────────────────────────────────────
    The sticky header prints as the title banner (guide-shell.css). The chip bar is navigation and
@@ -451,7 +441,7 @@ h2.section:first-of-type { margin-top: 4px; }
     @page { size: A4 portrait; margin: 13mm 12mm; }
     body { background: #fff; font-size: 10.5pt; }
     main { max-width: none; padding: 0 8mm 8mm; }
-    .chip-bar, .guide-back-link { display: none !important; }
+    .chip-bar { display: none !important; }   /* and the footer back link: guide-shell.css */
     .source-banner { border-bottom: 2pt solid var(--amber); print-color-adjust: exact; }
     .rr-card, .rr-no-item, .check-item, .gotcha, .quick, .rr-notes {
         break-inside: avoid;

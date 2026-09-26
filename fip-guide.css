@@ -110,6 +110,12 @@ a { color: var(--navy); font-weight: 600; text-underline-offset: 2px; text-decor
 }
 .two-up .card h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
 .two-up .card p { font-size: 12px; color: var(--mid); line-height: 1.45; }
+/* One column on a phone (polish round 2). Side by side at 390 each card was 174px wide — about 22
+   characters of 12px text a line, and 506px tall — so "What you get", the page's teaching opener,
+   read as two narrow ribbons. Screen only: the printed A4 sheet has the width for the pair. */
+@media screen and (max-width: 420px) {
+    .two-up { grid-template-columns: 1fr; }
+}
 
 /* ── Steps ───────────────────────────────── */
 .steps { list-style: none; counter-reset: step; }
@@ -471,8 +477,9 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     color: var(--text);
 }
 .cf-input:focus-visible { outline: 2px solid var(--navy); outline-offset: 1px; border-color: var(--navy); }
-/* The placeholder names two examples and is cut mid-glyph at phone width ("— e.g. S" at 390px,
-   measured). An ellipsis says there is more rather than showing a sliced letter (v24.30 polish). */
+/* The placeholder was cut mid-glyph at phone width ("— e.g. S" at 390px, measured: 418px of text
+   in a 282px field). It is now short enough to fit at 390 whole (polish round 2), and the ellipsis
+   stays as the safety net for a narrower phone or a larger text setting (v24.30 polish). */
 .cf-input { text-overflow: ellipsis; }
 .cf-input::placeholder { text-overflow: ellipsis; }
 /* TWO CLEAR BUTTONS, ONE FIELD. `type="search"` makes WebKit and Chromium draw their own cancel

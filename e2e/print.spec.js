@@ -67,6 +67,23 @@ test.describe('every printable document states A4', () => {
     }
 });
 
+// ── THE STAFF GUIDE IS TWO SHEETS: ONE STAFF, ONE ADMIN (polish round 2) ───────────────────────
+// It is two pages by design and printed as FOUR, each guide overrunning its sheet into a mostly
+// empty second one. The print rules in staff-guide.css take back the air — one sheet margin instead
+// of two stacked, tighter leading and gaps — without changing a type size or removing a word. The
+// margin is small: measured, the Staff Guide has about 7px to spare, so adding a paragraph to it
+// will print a third sheet and fail HERE. That is intended — accepting a third sheet, or finding
+// the space, should be a decision rather than something a content edit does quietly.
+test('the Staff & Admin Guide prints on two A4 sheets @print', async ({ page, browserName }) => {
+    test.skip(browserName !== 'chromium', 'page.pdf() is Chromium-only');
+    await page.goto('/staff-guide.html');
+    await expect(page.locator('.guide-header').first()).toBeAttached();
+    await page.evaluate(() => document.fonts.ready);
+    const pdf = (await page.pdf({ preferCSSPageSize: true, printBackground: true })).toString('latin1');
+    const counts = [...pdf.matchAll(/\/Count\s+(\d+)/g)].map(m => +m[1]);
+    expect(Math.max(...counts), 'one sheet for the Staff Guide, one for the Admin Guide').toBe(2);
+});
+
 // ── THE ROSTER'S ORIENTATION FOLLOWS THE VIEW ───────────────────────────────────────────────────
 // Landscape used to be installed by the About lightbox's Print button, so Ctrl+P, File → Print, the
 // `p` shortcut and AirPrint all printed the seven-column week grid portrait. This drives NONE of
