@@ -56,12 +56,16 @@ mock.module('./ls.js', {
         },
     },
 });
+// The REAL money parser, reached past the mock below via `?real` (roster-data.js loads in Node):
+// the confirmSettings block pastes "£151.86", and a stub parseFloat would test the stub.
+const _realRosterData = await import('./roster-data.js?real');
 mock.module('./roster-data.js', {
     namedExports: {
         teamMembers: _members, APP_VERSION: '13.00',
         CONFIG: { ADMIN_NAMES: [], LINKS_DESIGNERS: [], MAX_YEAR: 2027, MIN_YEAR: 2025 },
         formatISO: d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,
         parseSmartFloat: v => parseFloat(String(v)),
+        parseSmartFloatOrNull: _realRosterData.parseSmartFloatOrNull,
     },
 });
 mock.module('./paycalc-roster-suggestions.js', {
@@ -426,5 +430,69 @@ describe('the pay field and the year card agree about a joiner’s pension', () 
         const { engine, field } = priceOnePayslip(p);
         assert.ok(Math.abs(engine - field) < 0.005);
         assert.equal(field, getPensionDefault(p), 'a long-server must be charged the whole contribution');
+    });
+});
+
+// ── THE SETTINGS SAVE PATCHES THE ON-SCREEN PAYSLIP'S PENSION (72-hour review) ──────────────────────
+//
+// `confirmSettings` writes the pension field into the saved period it is showing. It did so with
+// `parseFloat(raw) || 0`, which broke both halves of the round trip `readFormData` keeps:
+//   · a value EQUAL to the period default was stored as a number, not null — freezing that payslip
+//     onto today's default so it stops following `PENSION_STEPS` (the 28 Aug £147.36 → £151.86 step
+//     is exactly the kind of change it would then silently ignore);
+//   · "£151.86", a figure pasted from the payslip, parsed to NaN → 0, a £0 opt-out nobody chose.
+// Driven through the REAL confirmSettings over a fake DOM, so the call site is what is tested.
+describe('confirmSettings — the pension it writes into the viewed payslip obeys the round trip', () => {
+    /** @type {Record<string, any>} */ let els = {};
+    const makeEl = () => {
+        /** @type {any} */ const el = {
+            value: '', checked: false, textContent: '', innerHTML: '', disabled: false, style: {},
+            classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+            setAttribute() {}, getAttribute: () => null, closest: () => null, appendChild() {},
+            querySelector: () => null,
+        };
+        el.ownerDocument = { createElement: () => makeEl(), createTextNode: () => ({}) };
+        return el;
+    };
+    /** Save Settings on payslip `p` with the pension field reading `raw`; return what was stored. */
+    async function saveWithPension(/** @type {any} */ p, /** @type {string} */ raw) {
+        const { confirmSettings } = await import('./paycalc-settings.js');
+        els = {};
+        global.document = /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => (els[id] ??= makeEl()) });
+        els.periodSelect = makeEl(); els.periodSelect.value = String(p.num);
+        els.gradeSelect  = makeEl(); els.gradeSelect.value = 'cea';
+        els.taxCode      = makeEl(); els.taxCode.value = '1257L';
+        els.studentLoan  = makeEl(); els.studentLoan.value = 'none';
+        els.pensionAmt   = makeEl(); els.pensionAmt.value = raw;
+        _ls.set(periodKey(p.num), JSON.stringify({ otH: 4, otM: 0 }));
+        confirmSettings(() => {});
+        return JSON.parse(/** @type {string} */ (_ls.get(periodKey(p.num)))).pension;
+    }
+    /** A 2026/27 payslip on or after the 28 Aug 2026 award step, so its default is the current era. */
+    const postAward = () => /** @type {any} */ (periodsInYear().find(
+        /** @param {any} p */ p => p.payday >= new Date(2026, 7, 28)));
+    const fresh = () => { beNobody(); _ls.clear(); _ls.set(SK.grade, 'cea'); };
+
+    test('the period default is stored as NULL, so the payslip keeps following the pension table', async () => {
+        fresh();
+        const p = postAward();
+        const def = periodDefaultPension(p).toFixed(2);
+        assert.equal(await saveWithPension(p, def), null,
+            `saving Settings over the default £${def} froze it onto the payslip`);
+    });
+
+    test('a payslip figure pasted with its £ sign is the default, not a £0 opt-out', async () => {
+        fresh();
+        const p = postAward();
+        assert.equal(await saveWithPension(p, `£${periodDefaultPension(p).toFixed(2)}`), null);
+    });
+
+    test('a genuinely different figure is kept, and a typed 0 is still a real opt-out', async () => {
+        fresh();
+        const p = postAward();
+        assert.equal(await saveWithPension(p, '£200.00'), 200);
+        assert.equal(await saveWithPension(p, '0'), 0);
+        assert.equal(await saveWithPension(p, ''), null, 'blank → the default, never £0');
+        assert.equal(await saveWithPension(p, 'abc'), null, 'garbage → the default, never £0');
     });
 });

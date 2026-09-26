@@ -110,6 +110,55 @@ describe('rule 3 — no base-only fills into invisible periods', () => {
     });
 });
 
+// RULE 3, HARDENED (72-hour review). Two ways the recorded-changes fetch "answers" without the
+// server: the persistent Firestore cache answers an offline query as though it were the server
+// (`fetchOverridesForPeriod` now reports that as 'cached', never 'loaded'), and a connection that is
+// up but not answering can hold the await for as long as it likes, leaving the button on "Filling…".
+describe('rule 3 — an answer from this device\'s cache, or no answer at all, is not the calendar', () => {
+    test('a CACHE-ONLY answer is unreached, never a base-only fill', async () => {
+        const { deps, writes } = makeDeps({}, { overrideState: 'cached', suggestions: { 1: { satH: 4 } } });
+        const r = await fillYearFromCalendar({ periods: [PERIODS[0]], member: { name: 'G. Miller' }, now: NOW, deps });
+        assert.equal(writes.length, 0);
+        assert.deepEqual(r.unreached.map(p => p.num), [1]);
+    });
+
+    test('a fetch that never answers is abandoned — the rest of the year still runs', async () => {
+        const { deps, writes } = makeDeps({}, { suggestions: { 1: { satH: 4 }, 2: { satH: 2 } } });
+        deps.fetchOverrides = async (/** @type {any} */ p) => (p.num === 1 ? new Promise(() => {}) : 'loaded');
+        const r = await fillYearFromCalendar({ periods: PERIODS.slice(0, 2), member: { name: 'G. Miller' },
+            now: NOW, deps: { ...deps, timeoutMs: 20 } });
+        assert.deepEqual(r.unreached.map(p => p.num), [1], 'the silent period is named, not waited on');
+        assert.deepEqual(writes.map(w => w.pNum), [2]);
+    });
+});
+
+// RULE 7 (72-hour review). Eligibility is decided BEFORE the loop, but each period's write happens
+// after an await — and the member can type into a payslip while the fill is running. The re-read
+// that rule 5 does just before the write must also re-ask the eligibility question, or the fill
+// replaces what they just typed with the calendar's guess.
+describe('rule 7 — a period that changed while the fill ran is left alone', () => {
+    test('hours typed into a period DURING the fill survive it', async () => {
+        /** @type {Record<number, any>} */ const saved = {};
+        const { deps, writes } = makeDeps(saved, { suggestions: { 1: { satH: 8 }, 2: { satH: 8 } } });
+        deps.fetchOverrides = async (/** @type {any} */ p) => {
+            if (p.num === 1) saved[2] = { data: { ...emptyPeriodData(), otH: 10 } };   // the member types
+            return 'loaded';
+        };
+        const r = await fillYearFromCalendar({ periods: PERIODS.slice(0, 2), member: { name: 'G. Miller' }, now: NOW, deps });
+        assert.deepEqual(writes.map(w => w.pNum), [1], 'the typed-into period was overwritten');
+        assert.ok(!r.filled.some(p => p.num === 2), 'and must not be claimed as filled');
+    });
+
+    test('a period that became UNREADABLE during the fill is counted corrupt, not written', async () => {
+        /** @type {Record<number, any>} */ const saved = {};
+        const { deps, writes } = makeDeps(saved, { suggestions: { 1: { satH: 8 } } });
+        deps.fetchOverrides = async () => { saved[1] = { data: null, error: new Error('bad json') }; return 'loaded'; };
+        const r = await fillYearFromCalendar({ periods: [PERIODS[0]], member: { name: 'G. Miller' }, now: NOW, deps });
+        assert.equal(writes.length, 0);
+        assert.deepEqual(r.corrupt.map(p => p.num), [1]);
+    });
+});
+
 describe('rule 4 — fills are marked, and the written shape is the schema\'s', () => {
     test('the write carries the full data shape (non-empty by the real test) AND the gold snapshot', async () => {
         const { deps, writes } = makeDeps({}, { suggestions: { 1: { satH: 4, satM: 30, rdwH: 8 } } });

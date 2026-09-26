@@ -150,6 +150,8 @@ mock.module('./paycalc-roster-suggestions.js', {
         // this file's — every count and list asserted below is independent of them.
         bhsForYear: () => [],
         getOverridesFetchState: () => 'loaded',
+        // Recorded, so section D can see the stale-fetch invalidation happen before the restore.
+        resetOverrides: () => { _events.push('reset'); },
         getRosterSuggestion: (/** @type {any} */ p) => _suggest(p),
         fetchOverridesForPeriod: async (/** @type {any} */ p) => {
             _events.push(`fetch:${p.num}`);
@@ -456,6 +458,11 @@ describe('the post-fill order', () => {
         const tail = _events.slice(_events.indexOf(`fetch:${onScreen.num}`));
         assert.deepEqual(tail, [`fetch:${onScreen.num}`, 'afterFill', 'hint'],
             'restore, then repaint, then the hint bar');
+        // A fetch the loop abandoned on its timeout could resolve AFTER the restore and put a
+        // different period's changes back — so the token is bumped (the reset) before restoring.
+        assert.equal(_events[_events.indexOf(`fetch:${onScreen.num}`) - 1], 'reset',
+            'outstanding fetches must be invalidated immediately before the on-screen restore');
+        // MUTATION: deleting the `resetOverrides(...)` call in `_runFill` fails the line above.
         // MUTATION: moving the on-screen re-fetch below `_afterFill` fails the tail assertion.
         // MUTATION: moving `updateRosterHint()` above `_afterFill` fails it too.
     });

@@ -31,7 +31,7 @@ import { periodsInTaxYear, hppPaidInTaxYear } from './paycalc-hpp-schedule.js';
 import { resolveHppForPeriod } from './paycalc-hpp.js';
 import { getLoggedMember, getProRateFactor } from './paycalc-settings.js';
 import { readSavedPeriod, periodKey, hppEstKey, hppActualKey, hppIncKey } from './paycalc-migrations.js';
-import { getRosterSuggestion, fetchOverridesForPeriod } from './paycalc-roster-suggestions.js';
+import { getRosterSuggestion, fetchOverridesForPeriod, resetOverrides } from './paycalc-roster-suggestions.js';
 import { snapKey, updateRosterHint } from './paycalc-roster-hint.js';
 import { fillYearFromCalendar, fillYearReceipt } from './paycalc-fill-year.js';
 import { fmt, fdList, fdShort } from './paycalc-format.js';
@@ -155,6 +155,10 @@ async function _runFill(btn) {
         // The loop leaves the suggestion module's override map on the LAST period it fetched —
         // put the ON-SCREEN period's back before anything repaints from it.
         const cur = getPeriods().find((/** @type {any} */ x) => x.num === currentPeriodNum());
+        // Invalidate any fetch the loop ABANDONED on its timeout first: resolving late, it would
+        // otherwise overwrite the restored map with a different period's changes (and a later Fill
+        // would write them into this one). The reset bumps the fetch token, so it returns 'cancelled'.
+        resetOverrides(cur && member.name ? 'checking' : 'base-only');
         if (cur && member.name) { try { await fetchOverridesForPeriod(cur, member.name); } catch { /* hint bar shows base-only */ } }
         _receipt = { tyLabel: ty.label, lines: fillYearReceipt(receipt, fdShort) };
         _afterFill?.(receipt);   // coordinator reloads the visible form if filled, then recalculates

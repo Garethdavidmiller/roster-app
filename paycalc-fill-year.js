@@ -31,6 +31,10 @@
 import { HM_PAIRS, isDataEmpty } from './paycalc-format.js';
 import { emptyPeriodData } from './paycalc-form-data.js';
 
+/** How long one period's recorded-changes fetch may hold the fill before it is named unreached. A
+ *  connection that is up but not answering could otherwise leave the button on "Filling…". */
+const FETCH_TIMEOUT_MS = 15000;
+
 /**
  * Which of the year's periods this action may touch — and what it must leave alone.
  *
@@ -60,6 +64,7 @@ export function fillablePeriods({ periods, now, proRateFactor, readSaved }) {
  *     proRateFactor: (p: any) => number,
  *     readSaved: (pNum: number) => {data: any, error?: any},
  *     fetchOverrides: (p: any, memberName: string) => Promise<string>,
+ *     timeoutMs?: number,
  *     suggest: (p: any, member: any) => any,
  *     write: (pNum: number, data: Record<string, any>, snap: Record<string, any>) => boolean,
  *   } }} arg
@@ -71,10 +76,25 @@ export function fillablePeriods({ periods, now, proRateFactor, readSaved }) {
 export async function fillYearFromCalendar({ periods, member, now, deps }) {
     const { fillable, corrupt } = fillablePeriods({ periods, now, proRateFactor: deps.proRateFactor, readSaved: deps.readSaved });
     const filled = [], unreached = [], nothing = [], unsaved = [];
+    const timeoutMs = deps.timeoutMs ?? FETCH_TIMEOUT_MS;
     for (const p of fillable) {
         let state = 'base-only';
-        try { state = await deps.fetchOverrides(p, member?.name); } catch { /* skip below */ }
-        if (state !== 'loaded') { unreached.push(p); continue; }       // rule 3 — never half-know
+        /** @type {ReturnType<typeof setTimeout>|undefined} */ let timer;
+        try {
+            state = await Promise.race([
+                deps.fetchOverrides(p, member?.name),
+                new Promise(r => { timer = setTimeout(() => r('timeout'), timeoutMs); }),
+            ]);
+        } catch { /* skip below */ } finally { clearTimeout(timer); }
+        // rule 3 — never half-know. Only 'loaded' is the server's answer: 'cached' (the device's
+        // persistent cache answering offline), 'base-only' and 'timeout' are all unreached.
+        if (state !== 'loaded') { unreached.push(p); continue; }
+        // RULE 7 — RE-ASK ELIGIBILITY AFTER THE AWAIT (72-hour review). The member can type into a
+        // payslip while the fill is waiting on the network; eligibility decided before the loop is
+        // then stale, and the write below would replace what they typed with the calendar's guess.
+        const fresh = deps.readSaved(p.num);
+        if (fresh?.error) { corrupt.push(p); continue; }
+        if (fresh?.data && !isDataEmpty(fresh.data)) continue;         // now entered — theirs, not ours
         const s = deps.suggest(p, member);
         if (!s) { nothing.push(p); continue; }                         // a quiet period is not an error
         // RULE 5 — PRESERVE WHAT THE CALENDAR DOES NOT OWN (v22.13).
@@ -92,7 +112,7 @@ export async function fillYearFromCalendar({ periods, member, now, deps }) {
         // saved period on top of it, and only then the calendar's own fields. Widening
         // `isDataEmpty` would have been the wrong fix — its other callers correctly need the
         // narrower meaning.
-        const savedData = deps.readSaved(p.num)?.data;
+        const savedData = fresh?.data;
         const data = /** @type {Record<string, any>} */ ({ ...emptyPeriodData(), ...(savedData || {}) });
         const snap = /** @type {Record<string, any>} */ ({});
         for (const { hId, mId } of HM_PAIRS) {

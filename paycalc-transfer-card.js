@@ -299,7 +299,8 @@ export function initTransferCard() {
         // key the backup had CREATED — leaving a half-merged pay history while telling the member
         // nothing had changed. The rules now work over the UNION of both sides and are tested
         // against a storage that fails on demand, which a browser will not do to order.
-        const entries = rekeyEntries(res.blob.data, res.blob.slug || '', memberSlug(member));
+        // Re-keyed from the slug the ladder CHECKED, not re-read from the blob.
+        const entries = rekeyEntries(res.blob.data, res.srcSlug, memberSlug(member));
         const outcome = applyStorageRestore({ get: lsGet, set: lsSet, del: lsDel, existing, entries });
 
         if (!outcome.ok) {

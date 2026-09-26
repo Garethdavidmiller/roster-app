@@ -462,6 +462,48 @@ describe('the identity rule (option A — refuse a different member)', () => {
         assert.equal(res.ok, true);
         assert.equal(res.unnamespaced, true);
     });
+
+    // THE OWNERLESS DOOR (72-hour review). Stripping `slug` from ANOTHER member's backup made it
+    // read as legacy: accepted, re-keyed under `myb_pc_gmiller_ssilva_…`, and — the restore being a
+    // REPLACE — the importing member's own history deleted to make room for keys nothing reads. A
+    // real legacy key never starts with a member's slug (that is exactly how the ownership prompt
+    // tells the two apart), so one that does is not legacy.
+    test("an 'ownerless' backup whose keys belong to another member is refused, and says so", () => {
+        const stripped = JSON.stringify({
+            format: BACKUP_FORMAT, version: BACKUP_VERSION, member: 'S. Silva',
+            data: { 'myb_pc_ssilva_p50': '{"satH":8}', 'myb_pc_ssilva_code': '1257L' },
+        });
+        const res = validateBackup(stripped, { currentSlug: SLUG });
+        assert.equal(res.ok, false);
+        assert.match(res.error, /belongs to someone else/);
+    });
+
+    test("…and so is the importer's OWN namespaced data with the slug stripped — it would be double-keyed", () => {
+        const stripped = JSON.stringify({
+            format: BACKUP_FORMAT, version: BACKUP_VERSION, member: 'G. Miller',
+            data: { 'myb_pc_gmiller_p50': '{"satH":8}' },
+        });
+        const res = validateBackup(stripped, { currentSlug: SLUG });
+        assert.equal(res.ok, false);
+        assert.match(res.error, /inconsistent/);
+    });
+
+    test('a slug that is present but not a string is refused — it would mangle every key', () => {
+        for (const slug of [7, true, ['gmiller'], { s: 'gmiller' }]) {
+            const res = validateBackup(makeBlob({ slug }), { currentSlug: SLUG });
+            assert.equal(res.ok, false, `slug ${JSON.stringify(slug)} was accepted`);
+            assert.match(res.error, /damaged/);
+        }
+    });
+
+    test('the slug the ladder CHECKED is the one handed back to re-key with', () => {
+        const own = validateBackup(makeBlob(), { currentSlug: SLUG });
+        assert.equal(own.ok && own.srcSlug, SLUG);
+        const legacy = validateBackup(JSON.stringify({
+            format: BACKUP_FORMAT, version: BACKUP_VERSION, slug: '', member: '', data: { 'myb_pc_p16': '{}' },
+        }), { currentSlug: SLUG });
+        assert.equal(legacy.ok && legacy.srcSlug, '');
+    });
 });
 
 describe('malformed input is refused in the member\'s own terms', () => {

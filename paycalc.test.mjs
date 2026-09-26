@@ -3,6 +3,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION, AWARD_RATES, awardRatesFor, getRateForPeriod, capHours,
   awardFromForYear, isPreAwardPeriod,
@@ -729,6 +730,30 @@ describe('computeTax', () => {
     assert.ok(tax >= 0, 'tax should never be negative');
   });
 
+  // THE £0 IS NOT THE WHOLE ANSWER (72-hour review). Real cumulative PAYE REFUNDS an over-collected
+  // year — a new starter coming off an emergency code, a code raised mid-year. The estimate still
+  // shows £0 tax (it never nets a refund into take-home: one wrong Year to Date figure would then
+  // inflate pay with money nobody is owed), but it must SAY a refund may be due rather than show a
+  // silently wrong £0. So computeTax reports the over-collection it clamps away.
+  test('cumulative PAYE: an over-collected year reports the refund it clamps to £0', () => {
+    // Three periods at 20% on everything (an emergency BR code), now on 1257L at period 4.
+    const pa = 12570 / P_YR, N = 4, cumGross = 9000 + 3000;
+    const taxable = Math.floor(Math.max(0, cumGross - pa * N));
+    const cumTaxDue = taxable * T25.tax.r20;            // well inside the basic band
+    const r = computeTax(3000, '1257L', T25, { ytdPay: 9000, ytdTax: 1800, periodN: N });
+    assert.equal(r.tax, 0, 'the deduction itself stays at £0');
+    approx(r.refund, 1800 - cumTaxDue, 'the over-collection is reported, to the penny');
+    assert.ok(r.refund > 0);
+  });
+
+  test('no refund is reported where none can be known — owing, or the non-cumulative method', () => {
+    assert.equal(computeTax(1200, '1257L', T25, { ytdPay: 4800, ytdTax: 200, periodN: 5 }).refund, 0,
+      'a year that still owes tax has no refund');
+    assert.equal(computeTax(1200, '1257L', T25).refund, 0, 'the standard method knows nothing of the year');
+    assert.equal(computeTax(3000, '1257LW1', T25, { ytdPay: 9000, ytdTax: 1800, periodN: 4 }).refund, 0,
+      'a week-1/month-1 code is non-cumulative and never refunds the year');
+  });
+
   // ── THE HALF-FILLED YEAR TO DATE PAIR ────────────────────────────────────────────────────────
   //
   // `calculate()` (paycalc-app.js) reads the two boxes INDEPENDENTLY, so "Taxable Pay typed, Tax
@@ -1147,6 +1172,39 @@ describe('calcProRateFactor', () => {
     const msPerDay  = 86400000;
     const totalDays = Math.round((p51cut - p51start) / msPerDay) + 1;
     assert.equal(totalDays, 28);
+  });
+
+  // THE SPRING CLOCK CHANGE (72-hour review). The count divided real milliseconds by 24 hours, and
+  // a period that contains the last Sunday of March is one hour SHORT in UK local time — so a start
+  // date before the change measured 12.458 days where the formula expects 12.5, rounded DOWN, and
+  // the joiner lost a day of contracted hours, London Allowance and pension. Only a start date on
+  // the far side of the change was right. This runs in a child process pinned to Europe/London,
+  // because the defect cannot exist in the UTC the unit lane usually runs in — a test in-process
+  // would pass with or without the fix and prove nothing.
+  test('a joining period that crosses the spring clock change loses no day (Europe/London)', () => {
+    const calcUrl = new URL('./paycalc-calc.js', import.meta.url).href;
+    const code = `import { calcProRateFactor, proRateDays } from ${JSON.stringify(calcUrl)};
+      const cases = [
+        // P50 of 2025/26's successor: start Sun 8 Mar 2026, cutoff Sat 4 Apr 2026 — change 29 Mar.
+        [new Date(2026, 2, 8, 12), new Date(2026, 3, 4, 12), [9, 20, 28, 29, 30]],
+        // The 2027 twin: start Sun 7 Mar 2027, cutoff Sat 3 Apr 2027 — change 28 Mar.
+        [new Date(2027, 2, 7, 12), new Date(2027, 3, 3, 12), [15, 27, 28, 29]],
+      ];
+      const out = cases.map(([s, c, days]) => days.map(d => {
+        const sd = new Date(s.getFullYear(), 2, d);
+        return [calcProRateFactor(sd, s, c) * 28, proRateDays(sd, s, c).daysEmployed];
+      }));
+      console.log(JSON.stringify(out));`;
+    const out = JSON.parse(String(execFileSync(process.execPath, ['--input-type=module', '-e', code],
+      { env: { ...process.env, TZ: 'Europe/London' } })));
+    // Calendar days from the start date to the cutoff inclusive, +1 — the formula's documented
+    // (payslip-verified) reading, now independent of the clock change. Each pair is [factor×28,
+    // the day count the joiner notice prints]; the two must agree.
+    const want = [[28, 17, 9, 8, 7], [21, 9, 8, 7]];
+    out.forEach((row, i) => row.forEach(([f, n], j) => {
+      approx(f, want[i][j], `case ${i}.${j} factor×28`);
+      assert.equal(n, want[i][j], `case ${i}.${j} joiner-notice day count`);
+    }));
   });
 });
 

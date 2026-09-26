@@ -19,6 +19,7 @@ import { teamMembers } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { fdShort, fdLong } from './paycalc-format.js';
 import { setStatus } from './status-text.js';
+import { pensionToStore } from './paycalc-form-data.js';
 import {
   parsePensionTimeline, serialisePensionTimeline, isOptedOutAt,
   withOptOutStartAt, withRejoinAt, optOutStartsAt, migrateLegacyOptOut,
@@ -435,8 +436,11 @@ export function confirmSettings(calculate) {
       // for an opted-out member already IS 0 — and it keeps healing, so if she ever rejoins, the
       // periods she never typed a figure into follow the scheme again instead of being frozen at
       // a £0 nobody can see the reason for. Mirrors readFormData's self-heal for the same reason.
-      const _pRaw = /** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value.trim();
-      d.pension = (isPensionOptedOut(curP) || _pRaw === '') ? null : (parseFloat(_pRaw) || 0);
+      // `pensionToStore` — the autosave's own rule, not a second copy of it. A private
+      // `parseFloat(raw) || 0` here stored the period default as a number (freezing the payslip onto
+      // it, so the next pension step never reached it) and read a pasted "£151.86" as £0.
+      const _pRaw = /** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value;
+      d.pension = isPensionOptedOut(curP) ? null : pensionToStore(_pRaw, curP ? periodDefaultPension(curP) : null);
       lsSet(periodKey(pNum), JSON.stringify(d));
     } catch (err) {
       // A corrupt saved period must not break Save — but it must not be reported as a success

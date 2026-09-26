@@ -30,14 +30,14 @@ export function fmtHrsMins(h) {
  * @param {{
  *   _bpThisPeriod:number, _hppForPeriod:number, gross:number, grossWithBp:number,
  *   _bpIsEstimate:boolean, _hppIsEstimate:boolean, pension:number, sacGross:number,
- *   usingCumulative:boolean, tax:number, ni:number, slLines:string, net:number
+ *   usingCumulative:boolean, tax:number, ni:number, slLines:string, net:number, taxRefund?:number
  * }} d
  * @returns {string} innerHTML for #summary
  */
 export function buildSummaryRows(d) {
     const {
         _bpThisPeriod, _hppForPeriod, gross, grossWithBp, _bpIsEstimate, _hppIsEstimate,
-        pension, sacGross, usingCumulative, tax, ni, slLines, net,
+        pension, sacGross, usingCumulative, tax, ni, slLines, net, taxRefund = 0,
     } = d;
     return `
         ${(_bpThisPeriod > 0 || _hppForPeriod > 0)
@@ -48,11 +48,23 @@ export function buildSummaryRows(d) {
           : `<div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(gross)}</span></div>`}
         ${pension > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Pension contribution</span><span class="val">−${fmt(pension)}</span></div>` : ''}
         ${pension > 0 ? `<div class="sum-row sum-gross"><span class="lbl">Pay after pension deduction</span><span class="val">${fmt(sacGross)}</span></div>` : ''}
-        <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:var(--type-micro);font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}</span><span class="val">−${fmt(tax)}</span></div>
+        <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:var(--type-micro);font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}${_refundNote(taxRefund)}</span><span class="val">−${fmt(tax)}</span></div>
         <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(ni)}</span></div>
         ${slLines}
         <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_netNote(d) ? `<span class="sum-net-sub">${_netNote(d)}</span>` : ''}</span><span class="val">${fmt(net)}</span></div>
       `;
+}
+
+/**
+ * The second line under Income Tax when the Year to Date figures say the year is OVER-collected
+ * (72-hour review). Real cumulative PAYE refunds that on the payslip; the estimate deliberately
+ * does not net it into take-home (one mistyped Year to Date figure would invent money), so it must
+ * say so — a bare £0 would be a silently wrong answer. '' when there is nothing to say.
+ * @param {number} refund
+ */
+function _refundNote(refund) {
+    if (!(refund >= 0.005)) return '';
+    return `<span class="sum-net-sub">Your Year to Date figures suggest a tax refund of about ${fmt(refund)} may be due on this payslip — not included in this estimate.</span>`;
 }
 
 /**
@@ -121,9 +133,11 @@ export function buildBreakdownRows(d) {
     bd += `<div class="bd-row"><span class="b-lbl">London Allowance</span><span class="b-val">${fmt(LONDON)}</span></div>`;
     if (otherAdj !== 0)
         bd += `<div class="bd-row"><span class="b-lbl">Other payroll adjustment</span><span class="b-val">${otherAdj >= 0 ? '+' : ''}${fmt(otherAdj)}</span></div>`;
-    // The repaid cutover outranks the one-off skip (mirrors the summary-row precedence).
+    // The stopped-deducting cutover outranks the one-off skip (mirrors the summary-row precedence).
+    // Worded as the observable fact, never "repaid in full" (v19.27): a loan moved to direct debit
+    // stops being deducted while still owed.
     if (slPaidOff && (plan !== 'none' || pgLoan))
-        bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student Loan repaid in full — no deduction from this payslip onwards</span><span class="b-val"></span></div>`;
+        bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student Loan — not deducted from this payslip onwards</span><span class="b-val"></span></div>`;
     else if (slSkip && (plan !== 'none' || pgLoan))
         bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student Loan not deducted this period</span><span class="b-val"></span></div>`;
     if (usingCumulative)

@@ -100,6 +100,8 @@ const _fmtOt = (/** @type {any} */ m) => { const h = Math.floor(m / 60), mm = m 
  * Returns a Promise resolving to:
  *   'loaded'    — overrides fetched and cached successfully
  *   'base-only' — fetch failed; cache remains empty
+ *   'cached'    — answered by the device's persistent cache (offline), not the server; treated
+ *                 exactly like 'base-only' (state 'base-only', cache empty) but named apart
  *   'cancelled' — a newer period change superseded this fetch; caller must ignore
  *
  * The caller (paycalc-app.js) is responsible for updating the UI after the Promise
@@ -107,7 +109,7 @@ const _fmtOt = (/** @type {any} */ m) => { const h = Math.floor(m / 60), mm = m 
  *
  * @param {{ start: Date, cutoff: Date }} p
  * @param {string} memberName
- * @returns {Promise<'loaded'|'base-only'|'cancelled'>}
+ * @returns {Promise<'loaded'|'base-only'|'cached'|'cancelled'>}
  */
 export async function fetchOverridesForPeriod(p, memberName) {
   const thisToken = _overrideFetchToken;
@@ -126,6 +128,18 @@ export async function fetchOverridesForPeriod(p, memberName) {
     );
     const snap = await getDocs(q);
     if (thisToken !== _overrideFetchToken) return 'cancelled';
+    // THE PERSISTENT CACHE ANSWERING FOR THE SERVER (72-hour review). Offline, getDocs resolves from
+    // IndexedDB instead of throwing — possibly with nothing, for a period this device never fetched.
+    // That is not "no recorded changes", so it is never 'loaded': the year fill names the period
+    // unreached, and the single Fill neither applies it nor CLEARS on it (clearZeros keys off
+    // 'loaded'). The on-screen suggestion falls back to the base pattern under the ⚠ badge, which
+    // is the truth — the changes could not be confirmed. A partial cache is not worth a third
+    // state that every consumer would have to learn to distrust.
+    if (snap?.metadata?.fromCache) {
+      _overridesByDate = new Map();
+      _overridesFetchState = 'base-only';
+      return 'cached';
+    }
     const map = new Map();
     snap.forEach(/** @param {any} doc */ doc => {
       const d = doc.data();

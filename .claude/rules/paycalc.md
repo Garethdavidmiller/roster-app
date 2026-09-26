@@ -95,11 +95,13 @@ for anything but CEA/CES, and `paycalc-app.js` then withholds the calculator beh
 gap. Before this, `getGrade()` returned `''` for a role with no stored grade and every consumer fell
 back to `GRADES.cea`, so the ten Dispatchers and seven manager accounts could open the page and be
 handed a complete, polished estimate at somebody else's rate. **Do not invent Dispatcher values** —
-the rates and contractual terms are not on record.
+the rates and contractual terms are not on record. **A session name the roster does not hold refuses
+the same way (72-hour review)** — a leaver or a renamed member keeps a valid local session, and a
+null member used to skip the check, pricing at CEA rates in the bare shared `myb_pc_` namespace.
 
 `saveSettings` guards the pension default on joining periods — writes `getPensionDefault(curP)` (full rate), not the field value (pro-rated). Without this guard, saving Settings on the joining period corrupts the default for subsequent periods.
 
-The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from base roster + Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled fields turn gold. **Viewing never persists (v18.46, sweep item 15):** the background fetch's auto-apply is DISPLAY-ONLY — the suggestion shows gold and feeds the live estimate (`_applyRosterSuggestion` + `calculate()`, no `autosave()`), but is NOT written to the period blob. Persistence requires an explicit action: typing anything into the period (autosave picks up the gold values too — implicit acceptance) or the "Fill from calendar" buttons. Before v18.46 merely VIEWING a period with special shifts autosaved it, silently marking it "entered" for HPP / year-so-far / back-pay counts.
+The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from base roster + Firestore overrides. Standard weekday hours are not pre-filled. Pre-filled fields turn gold. **Viewing never persists (v18.46, sweep item 15):** the background fetch's auto-apply is DISPLAY-ONLY — the suggestion shows gold and feeds the live estimate (`_applyRosterSuggestion` + `calculate()`, no `autosave()`), but is NOT written to the period blob. Persistence requires an explicit action: typing anything into the period (autosave picks up the gold values too — implicit acceptance) or the "Fill from calendar" buttons. Before v18.46 merely VIEWING a period with special shifts autosaved it, silently marking it "entered" for HPP / year-so-far / back-pay counts. **Only the server's answer is "recorded changes loaded" (72-hour review):** offline, Firestore's persistent cache answers `getDocs` instead of throwing — possibly with nothing — so `fetchOverridesForPeriod` returns `'cached'` and leaves the state `base-only` (⚠ badge; the single Fill neither applies nor clears on it; the year fill names the period unreached, and gives up on a fetch after 15s). The single Fill also re-checks that the payslip on screen is still the one it fetched for before writing — switching payslip mid-fetch used to write one payslip's calendar into the next.
 
 ## Payroll rules — do not change without confirmation
 
@@ -108,6 +110,7 @@ The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from ba
 - **Plan 5** is NOT repayable in 2025/26 (repayments begin 6 Apr 2026) — absent from `SL_BY_YEAR['2025/26']`, present in 2026/27. `computeSL` returns 0 for a plan5 selection on a 2025/26 period; the UI disables it for that year.
 - **One undergraduate plan + a Postgraduate Loan can apply together** — the UI is a plan `<select>` (None/1/2/4/5) plus a separate Postgraduate Loan yes/no; the coordinator sums `computeSL(plan) + computeSL('postgrad')`. HMRC deducts both independently.
 - **Scottish flat-rate codes:** `SD0`→intermediate 21% (`bands[2]`), `SD1`→higher 42% (`bands[3]`), `SD2`→advanced 45% (`bands[4]`), `SD3`→top 48% (`bands[5]`). rUK has no D2/D3.
+- **An over-collected cumulative year is REPORTED, never netted (72-hour review).** Real cumulative PAYE refunds it (a new starter off an emergency code, a code raised mid-year). `computeTax` keeps the deduction at £0 and returns the over-collection as `refund`; the summary's Income Tax row says a refund of about £X may be due and is not in the estimate. Not netted into take-home because a single mistyped Year to Date figure would then invent money — the choice between a silently wrong £0 and a guessed refund is neither.
 - **50% overriding limit (`computeTax`, PAYE reg 23):** the tax deducted in a period can never exceed 50% of the period's taxable pay — applied on both the cumulative and non-cumulative paths. Bites mainly on K codes; inert for ordinary codes.
 - **Cumulative PAYE needs BOTH Year to Date figures, and `0` is a figure** (`computeTax`'s `ytdPay != null && ytdTax != null`). `calculate()` reads the two boxes independently, so "Taxable Pay typed, Tax Paid still blank" is an ordinary mid-typing state; weakening the `&&` runs the recalc against a £0 tax-collected position and charges the whole year in one period, clipped by the overriding limit above into a plausible-looking number. Measured on the 13 Feb 2026 fixture payslip: £2,594.42 against a true £1,108.40. Pinned by `paycalc.test.mjs` → "a half-filled Year to Date pair never engages the cumulative method", both directions plus the typed-£0 control.
 - **Deductions STOP from a specific payslip (v18.41 — review item 9; REWORDED v19.27):** earlier payslips keep theirs (so they still reconcile — setting the plan to None would wrongly strip them too; the reference 2025/26 payslips show SL to Aug then £0). The `#slPaidOffFrom` select in Settings (visible only when a loan is active) records the **first payslip with no deduction** (p.num, member-level `SK.slPaidOff` — once-ever, NOT per-tax-year); `calculate()` zeroes BOTH loan legs for `p.num >=` it, the summary row reads "Student Loan — not deducted from your ⟨date⟩ payslip onwards", and the cutover outranks the per-period `slSkip`. Applies to both loans together.
@@ -223,7 +226,13 @@ not gross). Don't invent friendlier names for these — the whole point is they 
 
 **Year to Date figures are ANCHORED to their source payslip (v17.98 — owner request).** The card
 records which payslip the two totals were copied from (`ytdSrcKey(ty)`, a "From which payslip?"
-select auto-stamped to the latest PAID payslip on first entry, correctable). The cumulative PAYE
+select auto-stamped to the latest PAID payslip on first entry, correctable). **Except between the
+current payslip's cut-off and its payday (72-hour review):** payslips are issued before payday, so
+the figures may come from either payslip, and anchoring them one early made the cumulative method
+count the newest payslip's pay twice (£193.40 of tax over on a £3,300 payslip). In that window the
+picker also offers the payslip about to be paid, and the stamp records NOTHING — the figures stay
+out of the estimate, with a one-line prompt, until the member picks (`ytdAutoSource` /
+`ytdSourceOffered` in `paycalc-periods.js`). The cumulative PAYE
 method in `calculate()` engages ONLY on the payslip immediately after the source (`p.num ===
 src + 1`) — any other payslip nulls the YTD inputs and falls back to the standard non-cumulative
 method. Previously the figures were a per-year snapshot the maths silently treated as
@@ -234,7 +243,8 @@ that is using them. `e2e/paycalc.spec.js` → "Year to Date figures sharpen ONLY
 their source" asserts the two together, probing the figures by their EFFECT (clear the boxes; the £
 must move on source + 1 and must not move anywhere else). Legacy figures with no
 recorded source are stamped on load with the app's old standing assumption (the payslip before
-today's, clamped into the year) so a maintained user's next-payslip estimate is unchanged. The
+today's, clamped into the year) so a maintained user's next-payslip estimate is unchanged — outside
+the cut-off-to-payday window above, where nothing is guessed. The
 `#ytdUptoNote` states the position per payslip ("✓ … sharpen this payslip's estimate" / "uses the
 standard method — update from P__") — but is EMPTY (hidden via `:empty`) when no source is
 recorded yet (v18.49): the old copy-and-pick prompt there was the fourth statement of the same
@@ -242,7 +252,7 @@ instruction on one screen (header hint, field labels, and select label all carry
 the source select's placeholder is the short "— choose a payslip —" (the long question truncated
 at 390px), the two £ inputs carry example-figure placeholders ("e.g. 21,758.94") instead of the
 zero-like "0.00", and the always-on January-HPP pointer paragraph moved into the card's `?` help. **The January-HPP pointer then returned PERIOD-GATED (v18.50):** `#ytdJanHppHint` ("This is the January payslip your Holiday Pay Premium lands on — enter the confirmed figure…") is unhidden by `calculate()` ONLY while the viewed payslip is the January one that carries HPP (the same `_hppTy` match that gates the HPP take-home add) — as a permanent paragraph it read wrong on every other payslip. The year-round version stays in the `?` help. `buildYtdSourceSelect(ty)` (paycalc-periods.js) offers the
-year's paid payslips, newest first. **Header status chip (v18.40 — review item 6):** `#ytdStatusChip`
+year's paid payslips, newest first (plus, from its cut-off, the one about to be paid). **Header status chip (v18.40 — review item 6):** `#ytdStatusChip`
 in the card header shows the in-use state even while the card is collapsed — green "✓ in use" when
 the figures sharpen the viewed payslip, neutral "not in use" otherwise, hidden when there's nothing
 to report (no figures, no source, or the year's first payslip). Written by `_updateYtdNote`
