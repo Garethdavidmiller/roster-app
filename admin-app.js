@@ -510,7 +510,8 @@ export function init() {
     // `.value` and dispatches `change`, which is the SAME event the OS picker fired — so the
     // unsaved-changes guard below still gets its say, and still reverts on a decline.
     /** @type {HTMLElement} */ (document.getElementById('weekNavLabel'))
-        .addEventListener('click', () => openDatePicker(fieldDate, { title: 'Jump to a week' }));
+        // `week: true` — this grid's week runs Sunday–Saturday, so the picker does too, and bands it.
+        .addEventListener('click', () => openDatePicker(fieldDate, { title: 'Jump to a week', week: true }));
 
     /** @type {HTMLElement} */ (document.getElementById('thisWeekBtn')).addEventListener('click', () => {
         const go = () => {

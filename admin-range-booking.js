@@ -16,6 +16,7 @@
 import { teamMembers } from './roster-data.js';
 import { recordRangeOverrides, formatDisplay, buildMemberDateMap, isWorkingDate } from './admin-overrides.js';
 import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
+import { buildSaveReceipt } from './admin-save-receipt.js';
 
 import { setStatus } from './status-text.js';
 /**
@@ -208,6 +209,64 @@ export function createRangeBookingSection(cfg) {
              + `Answer each one — nothing is recorded until you do.</p>${rows}</div>`;
     }
 
+    /**
+     * The days this save deliberately LEAVES ALONE — rest days answered "Rest day — free" — and the
+     * subset that already holds leave (polish round 2). CLAUDE.md → "AL on a rest day is ASKED
+     * about": the receipt names the days it left alone, on BOTH surfaces, because a save may not do
+     * nothing silently. The week grid did (v23.88/v23.93); this card said only "Recorded N days".
+     *
+     * Read from the SAME projection the preview and the write use (`cfg.project`, which is
+     * `projectAlBooking`), so the list cannot disagree with what `recordRangeOverrides` skipped.
+     * Captured BEFORE the write, because a day it names as already holding leave is a fact about
+     * the record the save found. A card with no projection (Absence) leaves nothing alone this way.
+     * @param {string} member @param {string[]} dates
+     * @returns {string[]} the receipt lines, in date order — empty when nothing was left alone
+     */
+    function _leftAloneLines(member, dates) {
+        if (!cfg.project) return [];
+        const ovByDate = buildMemberDateMap(member);
+        const proj = cfg.project({ member, dates, memberObj: teamMembers.find(m => m.name === member),
+                                   ovByDate, swapAnswers });
+        const skipped = proj?.answeredFree ?? [];
+        if (!skipped.length) return [];
+        const keptLeave = skipped.filter(/** @param {string} d */ d => ovByDate?.get(d)?.type === 'annual_leave');
+        // The week grid's own wording, from its own builder — never a second copy of it here.
+        return buildSaveReceipt({ toSave: [], removed: [], memberName: member, formatDate: formatDisplay,
+                                  skipped, keptLeave, describe: () => '' }).lines;
+    }
+
+    /**
+     * The success line, with the member's name kept on ONE line (polish round 2): "Recorded 4 days
+     * of Annual Leave for R." / "Forrester-Blackstock" broke at 390px. The name goes in a nowrap
+     * span — the Change a Shift preview does the same with its `<strong>` — built as nodes, like
+     * `setStatus`, because the name is data. `textContent` still reads back the whole sentence.
+     * @param {string} text @param {string} member @param {string[]} lines
+     */
+    function _showSaved(text, member, lines) {
+        const at = member ? text.lastIndexOf(member) : -1;
+        if (at < 0) { setStatus(feedbackEl, text); }
+        else {
+            setStatus(feedbackEl, text.slice(0, at));
+            const doc  = feedbackEl.ownerDocument;
+            const name = doc.createElement('span');
+            name.className = 'feedback-name';
+            name.textContent = member;
+            feedbackEl.appendChild(name);
+            const after = text.slice(at + member.length);
+            if (after) feedbackEl.appendChild(doc.createTextNode(after));
+        }
+        if (lines.length) {
+            // Shown, not folded: these are the one part of this save the headline does not say.
+            const doc  = feedbackEl.ownerDocument;
+            const wrap = doc.createElement('div');
+            wrap.className = 'save-receipt';
+            const ul = doc.createElement('ul');
+            for (const l of lines) { const li = doc.createElement('li'); li.textContent = l; ul.appendChild(li); }
+            wrap.appendChild(ul);
+            feedbackEl.appendChild(wrap);
+        }
+    }
+
     // Delegated, because the block is rebuilt on every preview.
     previewEl.addEventListener('click', e => {
         const btn = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.swapday-opt'));
@@ -256,6 +315,9 @@ export function createRangeBookingSection(cfg) {
         saveBtn.disabled    = true;
         saveBtn.textContent = `Saving ${dates.length} day${dates.length > 1 ? 's' : ''}…`;
 
+        // Before the write: see `_leftAloneLines`.
+        const leftAlone = _leftAloneLines(member, dates);
+
         try {
             const { workingCount } = await recordRangeOverrides({
                 type: cfg.overrideType, value: cfg.overrideValue, memberName: member, dates, changedBy: cfg.getCurrentUser() ?? '',
@@ -272,9 +334,11 @@ export function createRangeBookingSection(cfg) {
             feedbackEl.className = 'feedback success';
             // Through setStatus even though the string arrives from a CONFIG CALL — `successFeedback`
             // returns '✓ Recorded …', which no regex in status-glyph-parity can see (v21.94).
-            setStatus(feedbackEl, cfg.successFeedback(workingCount, member));
+            _showSaved(cfg.successFeedback(workingCount, member), member, leftAlone);
             clearTimeout(feedbackTimer);
-            feedbackTimer = setTimeout(() => { feedbackEl.className = 'feedback'; }, 7000);
+            // A receipt that names days does not time out — the week grid's rule (v21.38): a manager
+            // checking it against a paper request can outlast any number picked here.
+            if (!leftAlone.length) feedbackTimer = setTimeout(() => { feedbackEl.className = 'feedback'; }, 7000);
             // The form resets and Change-a-Shift scrolls into view below, so also fire
             // the bottom toast — confirmation must be visible regardless of scroll.
             cfg.showSuccess?.(cfg.successToast(workingCount, member));

@@ -103,8 +103,33 @@ describe('fillFromRoster — the period on screen when the fetch returns is the 
         _resolveFetch('loaded');
         await run;
         assert.equal(String(_els.otH.value), '5');
-        assert.equal(String(_els.otM.value), String(Number(A) % 60));
+        // Numerically, because the box SHOWS two digits (polish round 2) — see the block below.
+        assert.equal(Number(_els.otM.value), Number(A) % 60);
         assert.equal(_autosaves, 1);
         assert.ok(localStorage.getItem(snapKey(Number(A))), 'the fill is marked as calendar-sourced');
+    });
+});
+
+// ── A FILLED MINUTES BOX READS "00", NOT "0" (polish round 2) ────────────────────────────────────
+// The calendar fill wrote the engine's number straight in, so 16h showed "16 : 0" beside empty boxes
+// reading "0 : 00" (their placeholder). The fix is DISPLAY ONLY — every reader parses the box — so
+// this pins both halves: the fill shows two digits, and what it saved is the number, unchanged.
+describe('fillFromRoster — the minutes box shows two digits', () => {
+    test('a whole-hour fill shows "00" and saves minutes as the number 0', async () => {
+        setupDom(A);                            // period 60 → the mock's otM is 60 % 60 = 0
+        const run = fillFromRoster(autosave);
+        _resolveFetch('loaded');
+        await run;
+        assert.equal(_els.otM.value, '00', 'a filled zero-minute box must read "00", not "0"');
+        const snap = JSON.parse(String(localStorage.getItem(snapKey(Number(A)))));
+        assert.equal(snap.otM, 0, 'the snapshot keeps the NUMBER, not the display text');
+    });
+
+    test('a single-digit minute fill shows a leading zero', async () => {
+        setupDom('62');                         // 62 % 60 = 2 → "02"
+        const run = fillFromRoster(autosave);
+        _resolveFetch('loaded');
+        await run;
+        assert.equal(_els.otM.value, '02');
     });
 });

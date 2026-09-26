@@ -54,3 +54,21 @@ test('monthCells — leap February 2028 has 29 days', () => {
     assert.equal(cells.length, 29);
     assert.equal(cells[28], '2028-02-29');
 });
+
+// ── Sunday-first, for Admin's week jump (polish round 2) ─────────────────────────────────────
+// Admin's week runs Sunday–Saturday, so its picker lays the month out Sunday-first and a week is one
+// grid ROW. The default must stay Monday-first — every other date field in the app uses it.
+test('monthCells — weekStart 0 lays the month out Sunday-first; the default stays Monday-first', () => {
+    // September 2026 starts on a Tuesday: 1 blank Monday-first, 2 blanks Sunday-first.
+    assert.equal(monthCells(2026, 8).findIndex(c => c !== null), 1, 'Monday-first default unchanged');
+    const sun = monthCells(2026, 8, 0);
+    assert.equal(sun.findIndex(c => c !== null), 2, 'Sunday-first: Sun + Mon blank before Tue 1st');
+    // Every real cell sits in the column its weekday names: column 0 is Sunday, so a grid ROW is a
+    // Sunday–Saturday week.
+    sun.forEach((iso, i) => {
+        if (!iso) return;
+        assert.equal(new Date(`${iso}T12:00:00`).getDay(), i % 7, `${iso} is in the wrong column`);
+    });
+    // February 2026 starts ON a Sunday: no blanks Sunday-first (6 Monday-first, above).
+    assert.equal(monthCells(2026, 1, 0)[0], '2026-02-01');
+});

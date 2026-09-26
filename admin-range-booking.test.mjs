@@ -82,6 +82,8 @@ function makeEl(/** @type {string} */ id) {
         // appended nothing at all.
         get textContent() { return own + kids.map((/** @type {any} */ k) => k.textContent).join(''); },
         set textContent(v) { own = String(v ?? ''); kids = []; },
+        /** The appended children, so a test can see STRUCTURE (a nowrap span), not only the text. */
+        get _kids() { return kids; },
         /** @type {Record<string, Function[]>} */ _on: {},
         addEventListener(/** @type {string} */ t, /** @type {Function} */ fn) { (this._on[t] ??= []).push(fn); },
         appendChild(/** @type {any} */ c) { if (c) kids.push(c); return c; },
@@ -94,10 +96,20 @@ function makeEl(/** @type {string} */ id) {
 }
 const el = (/** @type {string} */ id) => (_els[id] ??= makeEl(id));
 
-/** A detached node — enough for `setStatus`'s span and text node. */
-const detached = (/** @type {string} */ text = '') => ({
-    textContent: text, className: '', setAttribute() {}, appendChild() {},
-});
+/** A detached node — enough for `setStatus`'s span and text node, and for the receipt's list.
+ *  Its `textContent` COMPOSES over appended children, like `makeEl`'s: a receipt `<ul>` built from
+ *  `<li>` nodes has to read back as its lines, or a test could not see the lines at all. */
+const detached = (/** @type {string} */ text = '') => {
+    /** @type {any[]} */ const kids = [];
+    let own = String(text);
+    return {
+        get textContent() { return own + kids.map((/** @type {any} */ k) => k.textContent).join(''); },
+        set textContent(v) { own = String(v ?? ''); kids.length = 0; },
+        get _kids() { return kids; },
+        className: '', setAttribute() {},
+        appendChild(/** @type {any} */ c) { if (c) kids.push(c); return c; },
+    };
+};
 const fakeDocument = {
     getElementById: (/** @type {string} */ id) => _els[id] ?? null,
     createElement:  () => detached(),
@@ -115,12 +127,14 @@ let _record = async () => ({ workingCount: 1 });
 
 /** Dates the section treats as non-working (rest days), by ISO string. */
 /** @type {Set<string>} */ let _restDays = new Set();
+/** The member's overrides as `buildMemberDateMap` returns them — empty unless a test seeds one. */
+/** @type {Map<string, any>} */ let _ovMap = new Map();
 
 mock.module('./admin-overrides.js', {
     namedExports: {
         recordRangeOverrides: async (/** @type {any} */ payload) => { _writes.push(payload); return _record(); },
         formatDisplay: (/** @type {string} */ iso) => iso,
-        buildMemberDateMap: () => new Map(),
+        buildMemberDateMap: () => _ovMap,
         isWorkingDate: (/** @type {any} */ _m, /** @type {string} */ iso) => !_restDays.has(iso),
     },
 });
@@ -206,6 +220,7 @@ beforeEach(() => {
     _els = {};
     _writes = [];
     _restDays = new Set();
+    _ovMap = new Map();
     _pickerResets = 0;
     _record = async () => ({ workingCount: 1 });
 });
@@ -532,5 +547,105 @@ describe('the swap answers', () => {
         assert.equal(el('alSaveBtn').disabled, true, 'answered free: nothing to record');
         answer(REST, 'yes');
         assert.equal(el('alSaveBtn').disabled, false, 'answered swapped: one day to record');
+    });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// E. THE RECEIPT NAMES WHAT IT LEFT ALONE, AND WHO IT WAS FOR (polish round 2)
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+//
+// CLAUDE.md → "AL on a rest day is ASKED about": "Rest day — free" means nothing is written, and the
+// save receipt NAMES the days it left alone — on BOTH surfaces. The week grid did (v23.88, and the
+// kept-leave wording at v23.93); this card said only "Recorded N days", so a rest day answered free
+// vanished from the one line the manager reads after pressing Save. These run the REAL projection
+// and the REAL swap question (`admin-al.js` wires exactly these two), through the real listener.
+
+const { projectAlBooking } = await import('./admin-al-projection.js');
+const { swapDecisionDates } = await import('./al-swapped-days.js');
+const { getBaseShift, parseISODate } = await import('./roster-data.js');
+const { isRestShift } = await import('./override-utils.js');
+
+describe('the receipt names the rest days it left alone', () => {
+    const MEMBER_OBJ = /** @type {any} */ (teamMembers.find(m => m.name === MEMBER));
+    const iso = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    /** A working weekday followed by a non-Sunday rest day, found from the roster, never written down. */
+    const pair = (() => {
+        for (let i = 0; i < 200; i++) {
+            const a = new Date(2026, 9, 1 + i), b = new Date(2026, 9, 2 + i);
+            if (a.getDay() === 0 || b.getDay() === 0) continue;
+            if (isRestShift(getBaseShift(MEMBER_OBJ, parseISODate(iso(a))))) continue;
+            if (!isRestShift(getBaseShift(MEMBER_OBJ, parseISODate(iso(b))))) continue;
+            return { work: iso(a), rest: iso(b) };
+        }
+        return null;
+    })();
+
+    const realAlCfg = { cfg: {
+        swapQuestion: (/** @type {any} */ a) => swapDecisionDates(a),
+        project: (/** @type {any} */ { dates, memberObj, ovByDate, swapAnswers }) =>
+            projectAlBooking({ member: memberObj, dates, ovByDate, swapAnswers }),
+    } };
+    const answerFree = (/** @type {string} */ date) => {
+        const target = { closest: () => ({ dataset: { date, answer: 'no' } }) };
+        for (const fn of el('alPreview')._on.click ?? []) fn({ target });
+    };
+
+    test('the roster offers the case (a working day followed by a rest day)', () => {
+        assert.ok(pair, `no working day followed by a rest day for ${MEMBER} — the cases below prove nothing`);
+    });
+
+    test('a rest day answered "free" is NAMED in the receipt, and was not written', async () => {
+        // Teeth: replacing `_showSaved(…, leftAlone)` with the old bare setStatus, or returning []
+        // from `_leftAloneLines`, fails here — the receipt is back to the count alone.
+        const { work, rest } = /** @type {any} */ (pair);
+        const { section } = wire(realAlCfg);
+        setRange(section, work, rest);
+        answerFree(rest);
+        assert.equal(el('alSaveBtn').disabled, false, 'answered: the working day is recordable');
+        await save();
+
+        assert.deepEqual(_writes[0].swappedDates, [], 'answered free: nothing declared swapped');
+        const fb = el('alFeedback');
+        assert.equal(fb.className, 'feedback success');
+        assert.match(fb.textContent, new RegExp(`${rest} — rest day, no leave recorded`),
+            "the left-alone day must be named, in the week grid's own words");
+        assert.doesNotMatch(fb.textContent, new RegExp(`${work} — rest day`), 'the recorded day is not a rest day');
+    });
+
+    test('a rest day that ALREADY held leave is named as kept, not as clear (v23.93 wording)', async () => {
+        // The Calendar will go on showing leave there; "no leave recorded" would contradict it.
+        const { work, rest } = /** @type {any} */ (pair);
+        _ovMap = new Map([[rest, { id: 'old1', date: rest, type: 'annual_leave', value: 'AL' }]]);
+        const { section } = wire(realAlCfg);
+        setRange(section, work, rest);
+        answerFree(rest);
+        await save();
+        const text = el('alFeedback').textContent;
+        assert.match(text, new RegExp(`${rest} — rest day; the leave already recorded here was left as it is`));
+        assert.doesNotMatch(text, /no leave recorded/);
+    });
+
+    test('a range with no rest day adds no receipt lines', async () => {
+        const { work } = /** @type {any} */ (pair);
+        const { section } = wire(realAlCfg);
+        setRange(section, work, work);
+        await save();
+        assert.doesNotMatch(el('alFeedback').textContent, /rest day/);
+    });
+});
+
+describe("the receipt keeps the member's name on one line", () => {
+    test('the name is its own nowrap span, and the sentence reads back whole', async () => {
+        // Teeth: `setStatus(feedbackEl, text)` alone (the old line) leaves no `.feedback-name` child.
+        // "Recorded 4 days of Annual Leave for R. / Forrester-Blackstock" broke at 390px.
+        const { section } = wire();
+        setRange(section, '2026-10-05', '2026-10-06');
+        _record = async () => ({ workingCount: 2 });
+        await save();
+        const fb = el('alFeedback');
+        assert.equal(fb.textContent, `✓ Recorded 2 days for ${MEMBER}`, 'the sentence is unchanged');
+        const name = fb._kids.find((/** @type {any} */ k) => k.className === 'feedback-name');
+        assert.ok(name, 'the member name must be wrapped so CSS can keep it on one line');
+        assert.equal(name.textContent, MEMBER);
     });
 });

@@ -635,7 +635,11 @@
             outline-offset: 2px;
         }
 
-        .bulk-type-group { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+        /* LEFT-ALIGNED, like the "Tick days" chips above them (polish round 2). Centred, the pills'
+           first row started 39px right of the chips at 390px and the leftover pill sat alone in the
+           middle — two alignments inside one three-step card. The PER-ROW pills (`.col-pills`) stay
+           centred on phones: that is a separate, documented decision (see `.col-pills`). */
+        .bulk-type-group { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-start; }
 
         /* Type pills — outline when idle, filled when active */
         .type-pill-btn {
@@ -765,7 +769,7 @@
            sitting above the new rounded day-cards. Now a quiet uppercase label strip. */
         /* The base-roster column's width, in ONE place. It is used by the badge's `min-width` and
            by the grid template of BOTH the header and the rows — see the two notes below. */
-        .week-grid-header, .day-row, .day-row .col-base .shift-badge { --wg-base-col: 110px; --wg-time-col: 194px; }
+        .week-grid-header, .day-row, .day-row .col-base .shift-badge { --wg-base-col: 110px; }
 
         /* ── THE BASE-ROSTER COLUMN IS A COLUMN (v22.22) ────────────────────────────────────────
            The badges are right-aligned, so their LEFT edge is set by their content — measured at
@@ -912,15 +916,11 @@
             .day-row.active.fixed-type .col-time .time-sep { display: none; }
         }
 
-        /* Desktop: widen day and base columns so the date + badge have room */
-        @media (min-width: 681px) {
-            /* Both tracks tokenised (v22.22). `auto` in the last column resolved to 62px in the
-               header ("Shift time") and 194px in the row (two time inputs), so the pills column was
-               132px wider in the header than in the rows beneath it — "Record as" did not sit over
-               what it labels. Same defect as the base column, one layout along. */
-            .week-grid-header,
-            .day-row { grid-template-columns: 32px 130px var(--wg-base-col) 1fr var(--wg-time-col); }
-        }
+        /* NO FIVE-COLUMN LAYOUT ANY MORE (polish round 2). A `min-width: 681px` block here gave the
+           tablet band (681–1023px) `32px 130px base 1fr time`: the time track reserved ~194px even on
+           an untouched row, so six pills wrapped onto three lines, showed on EVERY row, and each row
+           measured 132px at 800px against 69px on a phone. The stacked layout below now starts at
+           681px, so the only templates are the two stacked ones — and they are the same template. */
 
         .col-check {
             display: flex;
@@ -1199,6 +1199,9 @@
         }
 
         .feedback.success { display: block; background: var(--green-light); color: var(--success-text); }
+        /* The member's name in a range card's receipt stays on one line (polish round 2): "…for R." /
+           "Forrester-Blackstock" broke at 390px. Same rule as `.grid-preview strong` below. */
+        .feedback-name { white-space: nowrap; }
         .feedback.error   { display: block; background: var(--error-bg);    color: var(--error-text); }
 
         /* ---- Annual Leave over-limit confirm bar (fixed bottom sheet) ---- */
@@ -2231,8 +2234,9 @@
             .col-day .day-date { display: inline; margin-left: 6px; }
         }
 
-        /* The left column is too narrow for the 5-col template at EVERY desktop width, so this
-           stacked layout applies from 1024px up with no upper bound (v22.11).
+        /* The left column is too narrow for the 5-col template at EVERY width above a phone, so this
+           stacked layout applies from 681px up with no upper bound (v22.11 from 1024px; from 681px
+           since polish round 2 — the tablet band had the same wrapped-pills defect, see above).
            Stacked layout: checkbox/day/base in row 1, pills in row 2, time in row 3.
            Pills and time are visible on selected/active rows (hidden on inactive rows).
 
@@ -2245,7 +2249,7 @@
            wrapped onto three lines. The day row went 52px → 126px and the Change a Shift card
            518px taller, on the widest screens, for no benefit. Same reserved-blank-time defect as
            v21.40, which was fixed only for the narrow layout. */
-        @media (min-width: 1024px) {
+        @media (min-width: 681px) {
             .week-grid-header {
                 grid-template-columns: 32px 1fr var(--wg-base-col);   /* one template, see v22.22 */
             }

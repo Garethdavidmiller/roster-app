@@ -118,6 +118,27 @@ describe('round trip — what is written must read back unchanged', () => {
         assert.equal(d.rdwH, 8); assert.equal(d.rdwM, 15, 'a plain pair is untouched');
     });
 
+    test('minutes SHOW two digits and still store the same number (polish round 2)', () => {
+        // Display only: a restored 5 shows "05" (as a calendar fill does), a restored 0 stays BLANK
+        // so the box's "00" placeholder shows through, and a filled "00" reads back as 0. The saved
+        // object must be identical to what went in, and a second trip identical to the first.
+        const saved = { ...emptyPeriodData(), rdwH: 16, rdwM: 0, otH: 7, otM: 5 };
+        writeFormData(saved);
+        assert.equal(_els.otM.value, '05', 'a single-digit minute shows its leading zero');
+        assert.equal(_els.rdwM.value, '', 'a zero minute stays blank — the "00" placeholder shows');
+
+        // A calendar fill of 16h writes "00" into the box — that is what the member sees.
+        _els.rdwM.value = '00';
+        const read = readFormData();
+        assert.equal(read.rdwH, 16);
+        assert.equal(read.rdwM, 0, '"00" must store the number 0');
+        assert.equal(read.otM, 5, '"05" must store the number 5');
+        const again = roundTrip(read);
+        for (const k of Object.keys(saved)) {
+            assert.deepEqual(again[k], read[k], `field "${k}" changed on a second trip`);
+        }
+    });
+
     test('a zero adjustment is not written as a spurious "0.00" string', () => {
         writeFormData({ ...emptyPeriodData(), otherAdj: 0 });
         assert.equal(_els.otherAdj.value, '', 'an empty adjustment field must stay visibly empty');

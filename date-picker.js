@@ -30,15 +30,19 @@ import { DAY_NAMES, MONTH_ABB, MONTH_NAMES, formatISO, parseISODate } from './ro
 import { createLightbox } from './overlay.js';
 
 /**
- * Pure: the day cells of a month as a flat, Monday-first grid. Leading blanks
+ * Pure: the day cells of a month as a flat grid, Monday-first by default. Leading blanks
  * (before day 1) are `null`; each real day is its ISO `YYYY-MM-DD` string. No DOM,
  * no clamping — the caller styles out-of-range days.
+ *
+ * `weekStart` is the first column's `getDay()` value: 1 (Monday, the default — every date field)
+ * or 0 (Sunday — Admin's week jump, whose week runs Sunday–Saturday; see `openDatePicker`'s `week`).
  * @param {number} year  Full year, e.g. 2026
  * @param {number} month 0-based month (0 = January)
+ * @param {number} [weekStart] 1 = Monday-first (default), 0 = Sunday-first
  * @returns {(string|null)[]}
  */
-export function monthCells(year, month) {
-    const startOff    = (new Date(year, month, 1).getDay() + 6) % 7; // Mon = 0
+export function monthCells(year, month, weekStart = 1) {
+    const startOff    = (new Date(year, month, 1).getDay() - weekStart + 7) % 7; // first column = 0
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const cells = /** @type {(string|null)[]} */ ([]);
     for (let i = 0; i < startOff; i++) cells.push(null);
@@ -66,7 +70,7 @@ function formatLabel(iso) {
  * @param {string[]} inputIds ids of the date inputs to enhance
  */
 /** The one overlay every field on a page shares. Built on first use, never at import.
- *  @type {{ open: (input: HTMLInputElement, title?: string) => void }|null} */
+ *  @type {{ open: (input: HTMLInputElement, title?: string, week?: boolean) => void }|null} */
 let _picker = null;
 
 /**
@@ -82,8 +86,16 @@ let _picker = null;
  * and the input it leaves behind is `aria-hidden`. Reading a dialog's heading out of an
  * attribute on a hidden element would work and would be a lie about where the label lives.
  * `initDatePickers` still passes the input's own label, so its four fields are unchanged.
+ *
+ * `week: true` (polish round 2) makes it a WEEK picker for a caller whose week runs Sunday–Saturday
+ * — Admin's "Jump to a week": Sunday is the first column, the week holding the chosen day is
+ * banded, and hovering or focusing a day bands ITS week, so the grid answers the question the
+ * control asks ("which week?") rather than "which day?". Picking still sets a single day; the page
+ * already reads the week that contains it. Off by default, so every date field keeps its Monday-
+ * first single-day grid — and the AL/Absence range picker is a different module altogether
+ * (`admin-rangepicker.js`) and is not touched by this.
  * @param {HTMLInputElement|null} input
- * @param {{ title?: string }} [opts]
+ * @param {{ title?: string, week?: boolean }} [opts]
  */
 export function openDatePicker(input, opts = {}) {
     if (!input) return;
@@ -103,10 +115,18 @@ export function openDatePicker(input, opts = {}) {
     // Operations. A field with no cap, as Admin's is, simply has no listener and the event is a
     // no-op; that is the point of announcing rather than asking.
     input.dispatchEvent(new CustomEvent('date-picker-opening'));
-    picker.open(input, opts.title || '');
+    picker.open(input, opts.title || '', opts.week === true);
 }
 
-/** @returns {{ open: (input: HTMLInputElement, title?: string) => void }|null} */
+/** Pure: the ISO date of the Sunday that starts `iso`'s Sunday–Saturday week.
+ *  @param {string} iso YYYY-MM-DD @returns {string} */
+function _sundayOf(iso) {
+    const d = parseISODate(iso);
+    d.setDate(d.getDate() - d.getDay());
+    return formatISO(d);
+}
+
+/** @returns {{ open: (input: HTMLInputElement, title?: string, week?: boolean) => void }|null} */
 function _ensurePicker() {
     if (_picker) return _picker;
     if (typeof document === 'undefined') return null;
@@ -145,6 +165,9 @@ function _ensurePicker() {
     /** @type {HTMLInputElement|null} */ let _pendingInput = null;
     /** The heading for that open, when the caller supplied one. */
     let _pendingTitle = '';
+    /** Week mode for the pending open, and for the open in progress (see openDatePicker). */
+    let _pendingWeek = false;
+    let _week = false;
     let _yr = new Date().getFullYear();
     let _mo = new Date().getMonth();
     let _min = '';   // ISO lower bound (inclusive) or '' for none
@@ -159,9 +182,13 @@ function _ensurePicker() {
         monthEl.textContent = `${MONTH_NAMES[_mo]} ${_yr}`;
         const selISO   = _input && _input.value ? _input.value : '';
         const todayISO = formatISO(new Date());
+        const selWeek  = _week && selISO ? _sundayOf(selISO) : '';
+        const lastDay  = new Date(_yr, _mo + 1, 0).getDate();
+        gridEl.classList.toggle('dp-week', _week);
         let html = '';
-        for (const d of ['M', 'T', 'W', 'T', 'F', 'S', 'S']) html += `<div class="dp-dow" aria-hidden="true">${d}</div>`;
-        for (const iso of monthCells(_yr, _mo)) {
+        const dows = _week ? ['S', 'M', 'T', 'W', 'T', 'F', 'S'] : ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+        for (const d of dows) html += `<div class="dp-dow" aria-hidden="true">${d}</div>`;
+        for (const iso of monthCells(_yr, _mo, _week ? 0 : 1)) {
             if (!iso) { html += '<div class="dp-filler"></div>'; continue; }
             const dd    = parseISODate(iso);
             const day   = dd.getDate();
@@ -172,12 +199,21 @@ function _ensurePicker() {
             if (sel)   cls.push('dp-sel');
             if (today) cls.push('dp-today');
             if (off)   cls.push('dp-off');
+            // Week mode: every cell knows its week, so a band can be drawn across a grid ROW. The
+            // band's ends round where the week starts or stops being drawn — its Sunday/Saturday,
+            // or the month's first/last day when the week runs into the next month.
+            const wk = _week ? _sundayOf(iso) : '';
+            if (_week) {
+                if (wk === selWeek) cls.push('dp-inweek');
+                if (dd.getDay() === 0 || day === 1)       cls.push('dp-wk-first');
+                if (dd.getDay() === 6 || day === lastDay) cls.push('dp-wk-last');
+            }
             let aria = `${DAY_NAMES[dd.getDay()]} ${day} ${MONTH_NAMES[_mo]} ${_yr}`;
             if (sel)   aria += ', selected';
             if (today) aria += ', today';
             // Plain accessible buttons (not role=gridcell — an ARIA grid needs row owners we don't
             // have; the admin range picker likewise uses buttons). Full date in aria-label.
-            html += `<button type="button" class="${cls.join(' ')}" data-iso="${iso}"`
+            html += `<button type="button" class="${cls.join(' ')}" data-iso="${iso}"${wk ? ` data-week="${wk}"` : ''}`
                  + ` aria-label="${aria}" aria-pressed="${sel}"`
                  // Out-of-bounds days: not a tab stop (keyboard skips the inert cells) and marked disabled.
                  + (off ? ' aria-disabled="true" tabindex="-1"' : '') + `>${day}</button>`;
@@ -205,6 +241,22 @@ function _ensurePicker() {
         lb.close();
     }
 
+    /** Week mode: band the week the pointer or focus is on. '' clears it. @param {string} wk */
+    function _hoverWeek(wk) {
+        gridEl.querySelectorAll('.dp-day').forEach(c =>
+            c.classList.toggle('dp-hoverweek', !!wk && /** @type {HTMLElement} */ (c).dataset.week === wk));
+    }
+    /** @param {Event} e */
+    const _onEnter = e => {
+        if (!_week) return;
+        const cell = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.dp-day'));
+        _hoverWeek(cell && !cell.classList.contains('dp-off') ? (cell.dataset.week || '') : '');
+    };
+    gridEl.addEventListener('pointerover', _onEnter);
+    gridEl.addEventListener('focusin', _onEnter);
+    gridEl.addEventListener('pointerleave', () => { if (_week) _hoverWeek(''); });
+    gridEl.addEventListener('focusout', () => { if (_week) _hoverWeek(''); });
+
     gridEl.addEventListener('click', e => {
         const cell = /** @type {Element} */ (e.target).closest('.dp-day');
         if (!cell || cell.classList.contains('dp-off')) return;
@@ -221,6 +273,7 @@ function _ensurePicker() {
             const input = _pendingInput;
             if (!input) return;
             _input = input;
+            _week = _pendingWeek;
             _min = input.min || '';
             _max = input.max || '';
             const cur = input.value ? parseISODate(input.value) : new Date();
@@ -236,8 +289,8 @@ function _ensurePicker() {
     });
 
     _picker = {
-        open: (/** @type {HTMLInputElement} */ input, /** @type {string} */ title = '') => {
-            _pendingInput = input; _pendingTitle = title; lb.open();
+        open: (/** @type {HTMLInputElement} */ input, /** @type {string} */ title = '', week = false) => {
+            _pendingInput = input; _pendingTitle = title; _pendingWeek = week; lb.open();
         },
     };
     return _picker;

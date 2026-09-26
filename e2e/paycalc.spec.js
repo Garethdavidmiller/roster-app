@@ -97,6 +97,16 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
         expect(zone.stacked, 'the occasional cards stack under the result in column 3').toBe(true);
         expect(zone.resultNotSticky, 'result is static in the sidebar (no longer a sticky rail)').toBe(true);
 
+        // "Save settings" matches the fields it sits under (polish round 2). The tablet-up 280px
+        // cap on `.btn-primary` is about buttons with nothing above them; this one ended 368px short
+        // of the Tax code field above it at 1280, which read as a leftover rather than a hierarchy.
+        const saveFit = await page.evaluate(() => {
+            const b = document.getElementById('saveSettingsBtn').getBoundingClientRect();
+            const f = document.getElementById('taxCode').getBoundingClientRect();
+            return { left: Math.round(b.left - f.left), width: Math.round(b.width - f.width) };
+        });
+        expect(saveFit, 'Save settings shares the Settings fields\' left edge and width').toEqual({ left: 0, width: 0 });
+
         // COLUMN SAFETY: the col-3 sidebar must not HORIZONTALLY overlap the two WORK cards
         // (Hours/Settings) — it is its own column. Scroll to the bottom sidebar card first.
         // Geometric, so it's robust at the tight 1024 end too.
@@ -328,6 +338,30 @@ test('paycalc: joiner ytd-mode HPP excludes pre-employment non-premium pay', asy
     const ytdAmt = await page.evaluate(() => document.getElementById('hppModeYtdAmt')?.textContent.trim() || '');
     const num = parseFloat(ytdAmt.replace(/[^0-9.]/g,'')) || 0;
     expect(num, 'joiner ytd HPP figure must be positive (not zeroed by phantom pre-employment pay)').toBeGreaterThan(0);
+});
+
+// The member's OWN Holiday Pay Premium figure is not labelled an estimate (polish round 2). The
+// card read "ESTIMATED" over a number the member had just typed from their own records — and it has
+// to keep saying "Estimated" for the two modes that ARE estimates, so all three are driven here.
+test('paycalc: the HPP card calls your own figure yours, and an estimate an estimate', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_ns_migrated', '1'); });
+    await page.goto('/paycalc.html');
+    await page.waitForSelector('#netDisplay');
+    await page.locator('#hppCardToggle').click();
+    const label = page.locator('#hppLabel');
+
+    await expect(page.locator('#hppModeHours')).toBeChecked();
+    await expect(label, 'the hours estimate is an estimate').toHaveText(/^Estimated/);
+
+    await page.locator('#hppModeExact').check();
+    await page.locator('#hppExactAmt').fill('320');
+    await expect(label, "the member's own figure is not called an estimate").not.toHaveText(/estimat/i);
+    await expect(label).toHaveText(/^Your /);
+    await expect(page.locator('#hppAmount')).toHaveText('£320.00');
+
+    await page.locator('#hppModeYtd').check();
+    await expect(label, 'the Year to Date figure is still a rough estimate').toHaveText(/^Estimated/);
 });
 
 // ── Back up your pay data (v19.16) ────────────────────────────────────────────
@@ -1230,6 +1264,40 @@ test('paycalc: the calendar fill names what it filled', async ({ page }) => {
     // expecting weekday hours reads a working button as broken.
     await expect(page.locator('#rosterHintText')).toContainText(/✓ Filled .*(Saturday|Sunday|RDW|Overtime|Bank holiday)/);
     expect(errors, 'Uncaught JS exceptions on calendar fill').toHaveLength(0);
+});
+
+// A whole-hour fill shows "16 : 00", not "16 : 0" (polish round 2) — and that is DISPLAY ONLY: what
+// is saved is the number 0, exactly as before, and a reload restores the same saved period. Two
+// recorded rest days worked, 8h each, is the owner's reported case (RDW filled as 16h).
+test('paycalc: a calendar fill shows two-digit minutes and saves the same number', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { ...(w.__E2E || {}), docs: [
+            { id: 'r1', memberName: 'G. Miller', date: '2026-07-01', type: 'rdw', value: '06:00-14:00', source: 'manual' },
+            { id: 'r2', memberName: 'G. Miller', date: '2026-07-02', type: 'rdw', value: '06:00-14:00', source: 'manual' },
+        ] };
+    });
+    await seedSession(page);
+    await seedMember(page);
+    await page.goto('/paycalc.html');
+    await expect(page.locator('#rosterHintBar')).toBeVisible({ timeout: 10000 });
+    await page.locator('#fillFromRosterBtn').click();
+    await expect(page.locator('#rosterHintText')).toContainText(/✓ Filled .*RDW/);
+    await expect(page.locator('#rdwH')).toHaveValue('16');
+    await expect(page.locator('#rdwM'), 'a filled zero-minute box reads "00", like its placeholder').toHaveValue('00');
+
+    const pNum = await page.locator('#periodSelect').inputValue();
+    const stored = () => page.evaluate(k => JSON.parse(localStorage.getItem(k) || '{}'), `myb_pc_gmiller_p${pNum}`);
+    await expect.poll(async () => (await stored()).rdwH).toBe(16);
+    const before = await stored();
+    expect(before.rdwM, 'the saved minutes are the NUMBER 0, not the display text').toBe(0);
+
+    await page.reload();
+    await expect(page.locator('#rdwH')).toHaveValue('16');
+    expect(await stored(), 'a reload restores the same saved period').toEqual(before);
+    expect(errors, 'Uncaught JS exceptions on the minutes fill').toHaveLength(0);
 });
 
 test('paycalc: a payslip with nothing fillable shows no roster card (never an enabled no-op button)', async ({ page }) => {

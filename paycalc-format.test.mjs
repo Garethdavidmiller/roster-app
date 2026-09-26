@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fd, fdShort, fdLong, fdList, fmt, clampMinute, decimalToHM } from './paycalc-format.js';
+import { fd, fdShort, fdLong, fdList, fmt, clampMinute, decimalToHM, minutesFieldText } from './paycalc-format.js';
 
 test('clampMinute clamps into [0, 59]', () => {
     assert.equal(clampMinute(0), 0);
@@ -67,4 +67,16 @@ test('fdList joins paydays, capping with an explicit overflow count', () => {
     assert.equal(fdList(ds.slice(0, 4)), '5 Jun, 3 Jul, 31 Jul, 28 Aug', 'exactly at the cap — no overflow tail');
     assert.equal(fdList(ds), '5 Jun, 3 Jul, 31 Jul, 28 Aug and 2 more', 'over the cap — count says how many are hidden');
     assert.equal(fdList(ds, 2), '5 Jun, 3 Jul and 4 more', 'custom cap');
+});
+
+test('minutesFieldText shows a minutes box as two digits, and nothing for no value', () => {
+    // Polish round 2: a filled 16h read "16 : 0" beside empty boxes reading "0 : 00".
+    assert.equal(minutesFieldText(0), '00');
+    assert.equal(minutesFieldText(5), '05');
+    assert.equal(minutesFieldText(30), '30');
+    assert.equal(minutesFieldText('7'), '07');
+    assert.equal(minutesFieldText(null), '');
+    assert.equal(minutesFieldText(undefined), '');
+    // What it shows must parse back to what it was given — the box is read with parseInt.
+    for (const m of [0, 1, 9, 10, 45, 59]) assert.equal(parseInt(minutesFieldText(m), 10), m);
 });

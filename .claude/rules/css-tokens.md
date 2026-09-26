@@ -492,9 +492,11 @@ column it labels. They shared a right edge, and only because both happen to be r
 681–1023px layout was worse: its last `auto` was 62px in the header and 194px in the rows, putting
 the pills column 132px wider in the header than beneath it.
 
-**A header and the rows it labels must share explicit tracks.** `--wg-base-col` / `--wg-time-col`
-are declared once and used by every template *and* by the badge's own `min-width`, so the three
-cannot drift. Pinned by an e2e that compares the two COMPUTED templates at eight widths — static
+**A header and the rows it labels must share explicit tracks.** `--wg-base-col` is declared once
+and used by every template *and* by the badge's own `min-width`, so the three cannot drift. (Its
+twin `--wg-time-col` went with the five-column layout it sized: since polish round 2 the stacked
+layout starts at 681px, so the tablet band no longer has a time track to reserve — it had wrapped
+six pills onto three lines on every row, 132px tall at 800px.) Pinned by an e2e that compares the two COMPUTED templates at eight widths — static
 CSS cannot see this, because the stylesheet said the same thing in both places.
 
 **Where a value column is right-aligned, give every chip in it one width.** Otherwise the left edge

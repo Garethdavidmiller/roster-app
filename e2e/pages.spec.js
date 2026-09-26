@@ -2940,16 +2940,25 @@ test('admin: the week-grid header and its rows share ONE column template, at eve
                 badgeW: Math.round(badge.width), colW: Math.round(col.width),
                 badgeGap: Math.round(r.getBoundingClientRect().right - badge.right),
                 overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+                // An UNTOUCHED row (no tick, no type): its pills must not show, and it must not be
+                // three lines of wrapped pills tall.
+                rowH: Math.round(r.getBoundingClientRect().height),
+                pillsShown: getComputedStyle(r.querySelector('.col-pills')).display !== 'none',
             };
         });
-        // In the STACKED layouts (≤680px, and 1024px up with no upper bound) the base-roster badge is
-        // the row's last column, so it sits against the right edge. Until the polish pass a ≥1400px
-        // block restated a five-column template over the stacked placement: both grids still agreed
-        // (the assertion above passed) while the badge sat mid-row at 1440 with a dead band beside it.
-        if (width <= 680 || width >= 1024) {
-            expect(m.badgeGap, `@${width}px the base-roster badge must sit against the row's right edge`)
-                .toBeLessThan(20);
-        }
+        // EVERY layout is stacked now (≤680px, and 681px up with no upper bound — polish round 2
+        // moved the start from 1024px), so the base-roster badge is the row's last column and sits
+        // against the right edge. Until the polish pass a ≥1400px block restated a five-column
+        // template over the stacked placement: both grids still agreed (the assertion below passed)
+        // while the badge sat mid-row at 1440 with a dead band beside it.
+        expect(m.badgeGap, `@${width}px the base-roster badge must sit against the row's right edge`)
+            .toBeLessThan(20);
+        // The 681–1023px band used the five-column template until polish round 2: the time track
+        // reserved ~194px on every row, so six pills wrapped onto three lines, showed on untouched
+        // rows, and each row measured 132px at 800px. Stacked, an untouched row is its phone height.
+        expect(m.pillsShown, `@${width}px an untouched row shows no type pills`).toBe(false);
+        expect(m.rowH, `@${width}px an untouched row is one line of content, not three of pills`)
+            .toBeLessThan(90);
         expect(m.head, `@${width}px the header and rows must resolve the SAME tracks`).toBe(m.row);
         expect(m.badgeW, `@${width}px the badge must not exceed the column it sits in`)
             .toBeLessThanOrEqual(m.colW);
@@ -3035,6 +3044,34 @@ test('admin: the BASE ROSTER column shows the time, not just Early/Late', async 
     expect(worked.some(x => /REST/i.test(x.text) && !x.aria), 'rest days are untouched').toBe(true);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth))
         .toBe(true);
+});
+
+test('admin: on a phone the bulk-bar pills share the chips\' left edge; the per-row pills stay centred', async ({ page }) => {
+    // Polish round 2. The bulk bar is a 1 → 2 → 3 sequence whose step-1 chips start at the content
+    // edge; the step-2 pills were centred, so their first row started ~39px in and a wrapped pill sat
+    // alone mid-card. The per-row pills are CENTRED on phones by a separate decision (`.col-pills`
+    // in admin.css, v22.22) and must not follow — both halves are asserted.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await expect(page.locator('#bulkBar')).toBeVisible();
+    // Measured against the step's own left edge (its label), not the chips: whether the chips wrap
+    // under "1 Tick days" or sit beside it depends on the engine's text metrics, and the pills wrap
+    // under "2 Choose type" on every phone. Left-aligned, the first pill starts at that edge.
+    const m = await page.evaluate(() => {
+        const edge = document.querySelectorAll('.bulk-step-label')[1].getBoundingClientRect();
+        const group = document.getElementById('bulkTypePills').getBoundingClientRect();
+        const pill = document.querySelector('#bulkTypePills .type-pill-btn').getBoundingClientRect();
+        return { edge: Math.round(edge.left), groupLeft: Math.round(group.left), pillLeft: Math.round(pill.left) };
+    });
+    expect(m.groupLeft, 'at 390px the pills wrap onto their own line under the step label').toBe(m.edge);
+    expect(m.pillLeft, 'the first bulk pill starts at the step\'s left edge, not centred').toBe(m.edge);
+
+    await page.locator('.week-panel .day-row .day-cb').first().check();
+    const rowPills = page.locator('.week-panel .day-row.selected .col-pills').first();
+    await expect(rowPills).toBeVisible();
+    await expect(rowPills, 'the per-row pills stay centred on a phone').toHaveCSS('justify-content', 'center');
 });
 
 test('admin: selecting a pill with hours causes no horizontal blowout (touch layout)', async ({ page }) => {
@@ -6850,6 +6887,46 @@ test('admin: tapping the week label opens the app calendar, and picking a day mo
         .toContain(String(sunday.getDate()));
     expect(text, `the heading should name the week containing ${iso}`)
         .toContain(String(saturday.getDate()));
+});
+
+// THE WEEK JUMP IS A WEEK PICKER (polish round 2). Admin's week runs Sunday–Saturday, and its picker
+// laid the month out Monday-first and highlighted one day — so the week a tap would open was never
+// what the grid showed. `week: true` makes it Sunday-first and bands the week. Other date fields keep
+// the Monday-first single-day grid: Operations' is checked here too, from the same shared overlay.
+test('admin: "Jump to a week" is Sunday-first and bands the week; other date pickers are unchanged',
+    async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));   // Wed 16 Sep 2026
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#weekNavLabel').click();
+    await expect(page.locator('.dp-content')).toBeVisible();
+
+    expect((await page.locator('.dp-dow').allInnerTexts()).join(''), 'Sunday is the first column')
+        .toBe('SMTWTFS');
+    // The chosen week is banded: exactly its seven days, Sun 13 – Sat 19 Sep.
+    const band = await page.locator('.dp-day.dp-inweek').evaluateAll(els => els.map(e => e.getAttribute('data-iso')));
+    expect(band).toEqual(['2026-09-13', '2026-09-14', '2026-09-15', '2026-09-16', '2026-09-17', '2026-09-18', '2026-09-19']);
+    // …and drawn as a band, one ROW of the grid: all seven share a top edge, Sunday leftmost.
+    const tops = await page.locator('.dp-day.dp-inweek').evaluateAll(els => els.map(e => Math.round(e.getBoundingClientRect().top)));
+    expect(new Set(tops).size, 'the week is one row').toBe(1);
+
+    // Hovering another day bands THAT day's week.
+    await page.locator('.dp-day[data-iso="2026-09-23"]').hover();
+    const hovered = await page.locator('.dp-day.dp-hoverweek').evaluateAll(els => els.map(e => e.getAttribute('data-iso')));
+    expect(hovered).toEqual(['2026-09-20', '2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26']);
+    await page.keyboard.press('Escape');
+
+    // The shared overlay without the option: Operations' date fields keep Monday-first, single-day.
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('circularUploadBody')?.classList.add('open'));
+    const trigger = page.locator('#circularUploadBody .date-trigger');
+    await expect(trigger).toBeVisible({ timeout: 10000 });
+    await trigger.click();
+    await expect(page.locator('.dp-content')).toBeVisible();
+    expect((await page.locator('.dp-dow').allInnerTexts()).join('')).toBe('MTWTFSS');
+    await expect(page.locator('.dp-day.dp-inweek')).toHaveCount(0);
 });
 
 test('admin: the week arrows and the swipe move the same state', async ({ page }) => {
