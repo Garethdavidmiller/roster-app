@@ -180,8 +180,10 @@ export function init() {
         isLinksDesigner: true,
         canOpenOvertime: canOpenOvertime(currentUser),
         onLogoClick:     () => openAboutLightbox?.(),
-        onSignOut: async () => {
-            if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Sign out anyway?', confirmLabel: 'Sign out', danger: true })) return;
+        // Asked BEFORE the drawer releases this device's push record, not inside onSignOut.
+        confirmSignOut: async () => !dirty
+            || confirmDialog({ message: 'You have unsaved changes. Sign out anyway?', confirmLabel: 'Sign out', danger: true }),
+        onSignOut: () => {
             dirty = false;   // answered — so `beforeunload` does not ask a second time
             clearSession();
             window.location.href = './';

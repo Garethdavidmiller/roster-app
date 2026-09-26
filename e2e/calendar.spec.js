@@ -2276,6 +2276,25 @@ test('huddle: a tap on a Huddle that could not be read offers Try again, which r
     await expect(page.locator('#huddleViewerBody'), 'a retry that fails again says so again').toContainText("Couldn't load the Daily Huddle");
 });
 
+// A COLD tap — the notification that opened the page — used to settle silently: the message needed
+// the viewer already up, which a cold tap never has. It then stayed armed, so a later resubscribe
+// opened the Huddle over whatever the member had moved on to.
+test('huddle: a cold tap on a Huddle that could not be read is answered, and closing it disarms', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleError: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/#huddle');
+    await expect(page.locator('#huddleViewerBody')).toContainText("Couldn't load the Daily Huddle", { timeout: 15_000 });
+    await page.locator('#huddleViewerClose').click();
+    await expect(page.locator('#huddleViewer')).not.toHaveClass(/visible/);
+});
+
+test('huddle: a cold tap with no Huddle uploaded says so, once the server has', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: true }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/#huddle');
+    await expect(page.locator('#huddleViewerBody')).toContainText('No Daily Huddle has been uploaded yet', { timeout: 15_000 });
+});
+
 test('huddle: the Open button works immediately, while the short-lived link is still pending', async ({ page }) => {
     const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-09-25.pdf?alt=media&token=e2e';
     await page.addInitScript((stored) => {

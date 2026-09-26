@@ -356,7 +356,8 @@ export function buildDocumentClient({
          * Subscribe to real-time updates for the latest Huddle document. Fires immediately with
          * cached data (IndexedDB) on repeat visits, then again when the network confirms — so the
          * Huddle button becomes active almost instantly — and again whenever a new huddle arrives.
-         * @param {Function} onData  called with the huddle data object, or null
+         * @param {Function} onData  called with the huddle data object, or null — and, second, whether
+         *   that answer came from the local cache only (an empty cache is not "none uploaded")
          * @param {Function} onError called with the Firestore error if the listener fails
          * @returns {Function} unsubscribe
          */
@@ -364,10 +365,11 @@ export function buildDocumentClient({
             // Single-field orderBy — Firestore auto-indexes this; no composite index needed.
             const q = query(collection(db, collections.huddles), orderBy('date', 'desc'), limit(1));
             return onSnapshot(q, /** @param {any} snap */ (snap) => {
-                if (snap.empty) { onData(null); return; }
+                const fromCache = !!snap.metadata?.fromCache;
+                if (snap.empty) { onData(null, fromCache); return; }
                 const data = snap.docs[0].data();
                 if (!data.storageUrl) console.warn('[Huddle] Document missing storageUrl:', snap.docs[0].id);
-                onData(data.storageUrl ? data : null);
+                onData(data.storageUrl ? data : null, fromCache);
             }, onError);
         },
     };

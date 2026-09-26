@@ -1521,6 +1521,29 @@ test('links: declining an unsaved-changes switch leaves the picker on the design
     await page.locator('#designPickerClose').click();
 });
 
+// The drawer released this device's push record BEFORE Links asked about unsaved work, so a member
+// who chose to stay was still signed in on a device that no longer received their notices. The
+// confirm now comes first; the resave throttle is the synchronous first thing a release clears.
+test('links: cancelling "Sign out anyway?" keeps the session AND this device\'s push record', async ({ page }) => {
+    await openLinksWithDesigns(page);
+    await switchToDesign(page, 'Design A');
+    await page.evaluate(() => localStorage.setItem('myb_push_resave_at', '12345'));
+    await page.locator('#generatorToggleHeader').click();
+    await page.locator('#genApplyBtn').click({ force: true });
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#designStatusLong')).toHaveText(/Unsaved/);
+
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navSignOutBtn').click();
+    const dialog = page.locator('.dialog-overlay').last();
+    await expect(dialog).toContainText('Sign out anyway?');
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await expect(page).toHaveURL(/links\.html/);
+    expect(await page.evaluate(() => localStorage.getItem('myb_push_resave_at')),
+        'a sign-out the member declined must not have released the push record').toBe('12345');
+});
+
 test('links: deleting a design writes a SOFT delete and leaves the document in place', async ({ page }) => {
     await openLinksWithDesigns(page);
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.setWrites = []; });

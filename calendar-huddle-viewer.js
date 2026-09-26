@@ -349,6 +349,13 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
     }
     /** Still waiting on this tap with the viewer up? Then a settled failure should be shown in it. */
     const _awaitingInViewer = () => _autoOpen && !_autoOpened && _viewerOpen;
+    /**
+     * A tap still waiting at all — including a COLD one (a notification that opened the page),
+     * where the viewer is not up yet. Left unanswered, a cold tap that settled on a failure showed
+     * nothing, stayed armed, and a later successful resubscribe opened the Huddle over whatever
+     * the member had moved on to. Answering opens the message, and closing it disarms the tap.
+     */
+    const _awaitingTap = () => _autoOpen && !_autoOpened && docAccess.has();
 
     /** @param {any} huddle */
     function _triggerAutoOpen(huddle) {
@@ -405,7 +412,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         startHuddleSubscription().catch(err => {
             _huddleState = 'error';
             console.warn('[Huddle] Could not start the huddle subscription:', err);
-            if (_awaitingInViewer()) showStateMessage('error');
+            if (_awaitingTap()) showStateMessage('error');
         });
     }
     let _subGen = 0;
@@ -427,11 +434,13 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         await authReady;
         if (_gen !== _subGen) return;
         _unsubHuddle = subscribeToLatestHuddle(
-            /** @param {any} huddle */ (huddle) => {
+            /** @param {any} huddle @param {boolean} [fromCache] */ (huddle, fromCache) => {
                 const prevUrl = _huddleData?.storageUrl;
                 if (!huddle) {
                     _huddleState = 'none';
-                    if (_awaitingInViewer()) showStateMessage('none');
+                    // A cold tap is told "none" only once the SERVER says so: a fresh device's empty
+                    // cache answers first, and would flash "no Huddle uploaded" over one that exists.
+                    if (_awaitingInViewer() || (!fromCache && _awaitingTap())) showStateMessage('none');
                 } else {
                     _huddleData  = huddle;
                     _huddleState = 'ready';
@@ -449,7 +458,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
             /** @param {any} err */ (err) => {
                 _huddleState = 'error';
                 console.warn('[Huddle] Could not fetch latest huddle:', err);
-                if (_awaitingInViewer()) showStateMessage('error');
+                if (_awaitingTap()) showStateMessage('error');
             }
         );
     }

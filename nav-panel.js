@@ -286,7 +286,7 @@ export function resetNavPanel() {
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null, authReady?: Promise<any>, canReadDocuments?: () => boolean, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime', memberName?: string|null, onSignOut?: (() => void)|null, confirmSignOut?: (() => Promise<boolean>)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null, authReady?: Promise<any>, canReadDocuments?: () => boolean, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
  *   onLockCalendar (v20.12, calendar only) — the shared-PIN viewer's way to lock the roster before
  *   walking away from a shared office PC. `isViewer` is a THUNK read at drawer-open time, never at
  *   init: Calendar access resolves asynchronously and is still `none` when this function runs.
@@ -298,7 +298,7 @@ export function resetNavPanel() {
  *   drawer logo is tapped. The header logo on sub-pages is now a back button,
  *   so About lives on the drawer logo instead.
  */
-export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, onLogoClick = null, usageIdentity = null, authReady = Promise.resolve(), onLockCalendar = null, canReadDocuments = () => true } = {}) {
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, confirmSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, onLogoClick = null, usageIdentity = null, authReady = Promise.resolve(), onLockCalendar = null, canReadDocuments = () => true } = {}) {
     // Identity for the anonymous open-counters' admin-exclusion (v18.20): the signed-in name by
     // default; the calendar passes its SELECTED member (its session is optional — same precedent
     // as recordUsage's identity there). Never stored — only compared against CONFIG.ADMIN_NAMES.
@@ -695,6 +695,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     const signOutBtn = document.getElementById('navSignOutBtn');
     signOutBtn?.addEventListener('click', async () => {
         closePanelForNavigation();
+        // A page that can refuse the sign-out (Links, with unsaved work) asks FIRST. Asking inside
+        // `onSignOut` came after the release below, so a member who then chose to stay was still
+        // signed in on a device whose push record had already been deleted.
+        if (confirmSignOut && !await confirmSignOut()) return;
         // Release this device's push record WHILE still signed in (the rules let only its owner
         // delete it), so the targeted notices addressed to this member stop reaching a device they
         // have left. Time-boxed and best-effort: it never blocks or fails the sign-out.

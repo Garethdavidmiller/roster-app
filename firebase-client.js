@@ -979,13 +979,16 @@ export function recordPerfSample({ page, metric, bucket, mode, conn }) {
     if (!bucket) return;
     _perfBatch.add(monthKey(new Date()), perfSampleKey({ version: APP_VERSION, page, metric, bucket, mode, conn }));
 }
-// ONE merged write per open, 4s after its first sample and then at idle — behind the roster's own
-// reads rather than a dozen writes ahead of them (createPerfBatcher). Drained early when the page is
-// hidden; a write queued then survives in the persistent cache and is sent on the next open.
+// ONE merged write per open, 1s after its first sample and then at idle — behind the roster's own
+// reads rather than a dozen writes ahead of them (createPerfBatcher). The delay is SHORT on purpose:
+// the pagehide/hidden drain below is only an async setDoc, and on a real unload (a same-tab
+// navigation, which is the common "open, glance, tap to another page") the IndexedDB write queue is
+// torn down with the page, so samples still waiting are LOST, not sent next open. 4s lost exactly
+// those opens and biased the speed figures toward long sessions. A backgrounded PWA resumes the write.
 const _perfBatch = createPerfBatcher((m, counts) => setDoc(doc(db, COLLECTIONS.analytics, `perf_${m}`),
     { month: m, samples: Object.fromEntries(Object.entries(counts).map(([k, n]) => [k, increment(n)])) },
     { merge: true }).catch(() => {/* best-effort analytics */}),
-(flush) => { setTimeout(() => (typeof requestIdleCallback === 'function' ? requestIdleCallback(flush, { timeout: 2000 }) : flush()), 4000); });
+(flush) => { setTimeout(() => (typeof requestIdleCallback === 'function' ? requestIdleCallback(flush, { timeout: 1000 }) : flush()), 1000); });
 try { addEventListener('pagehide', _perfBatch.flush); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') _perfBatch.flush(); }); } catch { /* no DOM */ }
 
 /**

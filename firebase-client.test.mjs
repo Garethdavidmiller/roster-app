@@ -336,7 +336,7 @@ describe('fire-and-forget writers never throw into the page', () => {
             fc.recordActiveAccount({ month: '2026-09', day: '2026-09-25' });
             fc.recordOriginUse({ day: '2026-09-25', origin: 'https://myb-roster.web.app', installed: true });
             fc.recordPerfSample({ page: 'calendar', metric: 'ready', bucket: 'lt1s', mode: 'browser', conn: '4g' });
-            mock.timers.tick(4000);   // the perf batch's flush (see the next test)
+            mock.timers.tick(1000);   // the perf batch's flush (see the next test)
         } finally { mock.timers.reset(); }
         await new Promise((r) => setImmediate(r));
         const text = JSON.stringify(writes('analytics/'));
@@ -355,7 +355,7 @@ describe('fire-and-forget writers never throw into the page', () => {
             fc.recordPerfSample({ page: 'calendar', metric: 'ready', bucket: '1-3s',    mode: 'browser', conn: '4g' });
             await new Promise((r) => setImmediate(r));
             assert.deepEqual(writes('analytics/perf_'), [], 'nothing is written while the page is still starting');
-            mock.timers.tick(4000);
+            mock.timers.tick(1000);
         } finally { mock.timers.reset(); }
         await new Promise((r) => setImmediate(r));
         const perf = writes('analytics/perf_');

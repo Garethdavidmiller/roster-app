@@ -86,7 +86,16 @@ async function post(name, body, opts = {}) {
     const tReceive = Date.now();
 
     let data = null;
-    try { data = await res.json(); } catch (_) { /* a body-less error is still an error */ }
+    try { data = await res.json(); } catch (err) {
+        // fetchWithTimeout bounds the BODY as well as the headers, so a slow body lands here —
+        // and must read as the timeout it is, not as a success with no data (every caller then
+        // dereferences `r.data` and throws, leaving "Saving…" up with Submit disabled).
+        if (isFetchTimeout(err)) return { ok: false, code: 'timeout' };
+        if (isFetchAborted(err)) return { ok: false, code: 'cancelled' };
+        /* otherwise a body-less error is still an error */
+    }
+    // Every endpoint answers a success with a JSON body; a 200 without one was cut off in transit.
+    if (res.ok && (data === null || typeof data !== 'object')) return { ok: false, code: 'network' };
 
     if (typeof data?.serverNow === 'number') _offset = clockOffset(data.serverNow, tSend, tReceive);
 
