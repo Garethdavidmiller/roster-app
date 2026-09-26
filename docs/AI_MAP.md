@@ -2396,7 +2396,7 @@ branch for a case that only matters when something is about to be deleted.
 
 ### `storage-keys.js`
 Single source for the CROSS-FILE storage key names (v16.81) — a shared key must have ONE spelling.
-- `SELECTED_MEMBER` (`myb_roster_selected_member`) + `SELECTED_MEMBER_LEGACY` (`adminLastMember`, the pre-rename alias still read as a fallback) — shared by `calendar-member.js` and `admin-app.js`
+- `SELECTED_MEMBER` (`myb_roster_selected_member`) — shared by `calendar-member.js` and `admin-app.js`
 - `VIEWED_MONTH` / `VIEWED_YEAR` — shared by `calendar-state.js` and `admin-app.js` (the "open calendar on the month I was editing" hand-off)
 - `PW_FORCE_PENDING_PREFIX` — the one-shot login marker `password-force.js` reads
 - `SW_UPDATE_RELOAD` (`myb_perf_sw_reload`, v22.92) — the "this load followed a release" stamp

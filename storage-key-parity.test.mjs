@@ -49,8 +49,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 
 const KEYS_FILE = 'storage-keys.js';
 
-/** The app's own prefix. A key without it is not one of ours (`adminLastMember` is the one legacy
- *  exception, and it is reached through the declaration list rather than by scanning). */
+/** The app's own prefix. A key without it is not one of ours. */
 const KEY_PATTERN = /myb_[a-z0-9_]*/g;
 
 /** Built by `pcPrefix()` in paycalc-migrations.js — storage-keys.js excludes these by name. */
@@ -60,7 +59,9 @@ const NAMESPACED = 'myb_pc_';
  *  exceptions — a read-only legacy fallback is a real shape and refusing it would only move the
  *  key back to a bare literal, which is worse. */
 const SINGLE_CONSUMER_OK = {
-    SELECTED_MEMBER_LEGACY: 'pre-v16.81 alias, no longer written — a READ fallback in admin-app.js only',
+    // Empty since the v24.28 review: the one entry, SELECTED_MEMBER_LEGACY (`adminLastMember`), was
+    // a one-release read fallback kept from v16.81 — some eighty releases past its own "safe to
+    // delete" note. The worst a device still holding only the old key sees is the default member.
 };
 
 /** Comments are documentation, not use. Both forms, and the `//` case guards the `://` in a URL. */

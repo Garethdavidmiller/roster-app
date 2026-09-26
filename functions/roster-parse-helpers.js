@@ -376,7 +376,7 @@ const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Fri
 // It is matched CASE-INSENSITIVELY and the scan set below shares it, so `parsed`, `sundayScan` and
 // `columnScan` cannot end up with three subtly different ideas of what empty looks like.
 const {
-    BLANK_CELL_TOKEN, NOT_AVAILABLE_TOKENS, NOT_AVAILABLE_SUNDAY_TOKENS, SUNDAY,
+    BLANK_CELL_TOKEN, SUNDAY,
     isPhysicallyBlank, isNotAvailable, isNotAvailableSunday, blankCellMeaning, notAvailableMeaning, notAvailableSundayMeaning,
 } = require('./cell-day-rules');
 const { isViewerAccount } = require('./calendar-viewer-auth');
@@ -1315,10 +1315,6 @@ module.exports = {
     mapColumnHeadersToDates,
     buildSafeEntries,
     BLANK_CELL_TOKEN,
-    NOT_AVAILABLE_TOKENS,
-    NOT_AVAILABLE_SUNDAY_TOKENS,
-    isNotAvailable,
-    isNotAvailableSunday,
     isPhysicallyBlank,
     applyColumnScanCrossCheck,
     normaliseScanValue,

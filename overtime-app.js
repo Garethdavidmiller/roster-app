@@ -36,7 +36,7 @@
  * stale data the press exists to replace.
  */
 
-import { CONFIG } from './roster-data.js';
+import { CONFIG, escapeHtml as esc } from './roster-data.js';   // esc: every innerHTML value goes through it
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -735,11 +735,4 @@ export function init() {
      */
     function el(id) { return document.getElementById(id); }
 
-    /** Escape for interpolation into innerHTML. Every dynamic value below goes through it. */
-    /** @param {any} s */
-    function esc(s) {
-        return String(s ?? '')
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-    }
 }

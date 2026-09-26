@@ -132,7 +132,7 @@ export function init() {
     // calculator. Do not "simplify" this gate into requirePage — it would regress to rendering with no
     // identity.
     if (!getSession()?.name) {
-      // On success: INPLACE_LOGIN off (default) → reload back into the calculator (today's path); on →
+      // On success: INPLACE_LOGIN off (the per-page rollback) → reload back into the calculator; on (live) →
       // re-invoke init() in place — the body below never ran on this pass, so re-entering runs it once
       // with the just-saved session. The per-member namespace is handled for free: runMigrations()
       // (below) calls setPaycalcNamespace(getLoggedMember()) and saveSession already wrote the member

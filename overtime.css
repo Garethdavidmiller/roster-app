@@ -1259,12 +1259,6 @@ body {
     color: white;
 }
 
-.ot-detail-week {
-    font-size: var(--type-medium);
-    font-weight: 700;
-    color: var(--text-dark);
-}
-
 .ot-detail-meta,
 .ot-detail-counts {
     margin-top: 2px;

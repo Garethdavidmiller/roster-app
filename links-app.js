@@ -114,7 +114,7 @@ export function init() {
     const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'links');
     if (_access.decision === 'login') {
         // Not signed in → show the shared in-place sign-in (no redirect). On success: INPLACE_LOGIN off
-        // (default) → reload (today's path) + resolveSession(false) on this non-auth load; on → re-invoke
+        // (the per-page rollback; ON is live) → reload + resolveSession(false) on this non-auth load; on → re-invoke
         // init() in place (the authorised body below never ran on this pass, so re-entering runs it
         // exactly once with the just-saved session — no reload, no double-wiring). Do NOT
         // resolveSession(false) when in-place, or the one-shot sessionReady is poisoned before the

@@ -46,10 +46,6 @@ body {
     font-size: 11px;
 }
 .key-item { display: flex; align-items: center; gap: 5px; color: var(--mid); }
-.key-swatch { width: 11px; height: 11px; border-radius: 2px; }
-.key-swatch.green { background: var(--green); }
-.key-swatch.amber { background: var(--amber); }
-.key-swatch.red   { background: var(--red); }
 
 /* ── Weekend-rule banner ─────────────────── */
 .weekend-note {
@@ -184,21 +180,6 @@ body {
 
 /* ── Three-layer time-rule breakdown (high-risk cards only) ── */
 /* Teaches: a shown morning time is a LOCAL shortcut, not a fixed national rule. */
-.time-explainer {
-    background: var(--navy-bg);
-    border-left: 3px solid var(--navy);
-    border-radius: 8px;
-    padding: 9px 11px;
-    font-size: 12px;
-    color: var(--text);
-    line-height: 1.5;
-    margin-bottom: 14px;
-}
-/* Only the FIRST strong is the box title (block). Later strongs are mid-sentence emphasis —
-   display:block on ALL of them fractured sentences onto their own lines ("Some cards have a /
-   fixed national morning cutoff / — …"), the worst readability defect on the page (v18.79). */
-.time-explainer strong { color: var(--navy); }
-.time-explainer strong:first-child { display: block; margin-bottom: 2px; }
 .tl-tag {
     display: inline-block;
     font-size: 10px;

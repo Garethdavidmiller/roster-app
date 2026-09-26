@@ -28,7 +28,7 @@ import { initSelectSheets } from './select-sheet.js';
 import { openDatePicker } from './date-picker.js';
 
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { SELECTED_MEMBER, SELECTED_MEMBER_LEGACY, VIEWED_MONTH, VIEWED_YEAR } from './storage-keys.js';
+import { SELECTED_MEMBER, VIEWED_MONTH, VIEWED_YEAR } from './storage-keys.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initPasswordForce } from './password-force.js';
@@ -367,19 +367,16 @@ export function init() {
     // hidden would set the <select> to a value with no matching <option> — leaving the STAFF
     // MEMBER dropdown blank. Reject and clear stale names so the field falls back to a real
     // member and the bad value can't recur. (v12.32)
-    const _savedMember = lsGet(SELECTED_MEMBER) || lsGet(SELECTED_MEMBER_LEGACY);
+    const _savedMember = lsGet(SELECTED_MEMBER);
     const lastMember = (_savedMember && teamMembers.find(m => m.name === _savedMember && !m.hidden))
         ? _savedMember : null;
     if (lastMember) {
         _setSelectValue(fieldMember, lastMember);
-        // Persist the member so the reverse journey (admin → index) restores it (v16.81: the
-        // legacy 'adminLastMember' mirror is no longer written — only read as a one-release fallback).
+        // Persist the member so the reverse journey (admin → index) restores it.
         lsSet(SELECTED_MEMBER, lastMember);
     } else if (_savedMember) {
-        // Stale (hidden/left) — clear it so the dropdown keeps its valid default. Clear the legacy
-        // mirror too, so a stale name can't ride back in via the read fallback above.
+        // Stale (hidden/left) — clear it so the dropdown keeps its valid default.
         lsDel(SELECTED_MEMBER);
-        lsDel(SELECTED_MEMBER_LEGACY);
     }
 
     // Default date = today, or the date passed from index.html via ?date=YYYY-MM-DD.

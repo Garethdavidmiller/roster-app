@@ -50,6 +50,7 @@ import {
     declaredAgo, isWithdrawn, withdrawnLine, canRestoreNow, weekAvailabilitySummary, reminderLine,
 } from './overtime-format.js';
 import { releaseRequestLine } from './overtime-sunday-release.js';
+import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was a local copy)
 
 /**
  * Render the workspace into `host`.
@@ -736,9 +737,3 @@ function withdrawnPanel(withdrawn, closed = false, win = {}) {
         </div>`;
 }
 
-/** @param {any} s */
-function esc(s) {
-    return String(s ?? '')
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}

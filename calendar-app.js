@@ -164,8 +164,7 @@ let _teamView = null;
 // - CSS variables for instant theme changes
 // ============================================
 
-// CONFIG.APP_VERSION is set in roster-data.js from the exported APP_VERSION constant.
-// No manual version override needed here.
+// The version is APP_VERSION in roster-data.js (read by the About lightbox). No override here.
 
 
 // Assigned by the About-lightbox IIFE; lets the nav-panel drawer logo open the
