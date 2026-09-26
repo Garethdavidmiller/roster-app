@@ -107,6 +107,9 @@ export async function assertFileSignature(file, expectedType) {
  * @param {(c:string,d:string,id:string,t:string)=>string} deps.utils.versionedDocPath
  * @param {(a:any)=>string} deps.resolveUploadCommit  the pure ambiguous-commit verdict
  * @param {(...a:any[])=>Promise<any>} deps.pruneOldDocs  the six-month sweep
+ * @param {(ms:number)=>Promise<void>} [deps.sleep]   the pause before re-reading after an ambiguous
+ *                                             write. Real time in production; a test passes an instant
+ *                                             one so each ambiguous-commit case does not cost 2 s.
  * @returns {{
  *   uploadHuddle: (date:string, file:any, uploadedBy:string, htmlContent?:string|null) => Promise<string>,
  *   uploadCircular: (date:string, file:any, uploadedBy:string) => Promise<string>,
@@ -119,6 +122,7 @@ export async function assertFileSignature(file, expectedType) {
 export function buildDocumentClient({
     db, collections, fs, getStorageSdk, uploadBytesWithClaimRetry,
     utils, resolveUploadCommit, pruneOldDocs,
+    sleep = (/** @type {number} */ ms) => new Promise(r => setTimeout(r, ms)),
 }) {
     const {
         doc, getDoc, setDoc, collection, query, where, orderBy, limit,
@@ -181,7 +185,7 @@ export function buildDocumentClient({
                 const e = /** @type {any} */ (setErr);
                 if (!RETRIABLE_FIRESTORE_CODES.has(e?.code)) throw setErr;
                 console.warn(`[upload] ${logTag} setDoc attempt 1 failed (${e?.code}) — checking what committed`);
-                await new Promise(r => setTimeout(r, 2000));
+                await sleep(2000);
                 /** @type {any} */
                 let liveNow = null;
                 let readable = true;

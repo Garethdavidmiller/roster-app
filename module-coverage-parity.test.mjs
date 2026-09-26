@@ -53,24 +53,39 @@ const NOT_RUNTIME = new Set(['eslint.config.js', 'generate-sri.mjs']);
 /**
  * Modules no test or spec NAMES, each with the reason that is acceptable.
  *
- * Two legitimate kinds, and nothing else should be here:
+ * Three legitimate kinds, and nothing else should be here:
  *   · BOOT SHIM — two lines, no branches, and `page-contract-parity.test.mjs` already asserts every
  *     page has one. There is nothing a unit test could add.
  *   · DRIVEN BY BEHAVIOUR — an e2e spec exercises the module through the DOM it owns, so the
  *     coverage is real and only the NAME is absent. Each entry says which spec.
+ *   · EXECUTED THROUGH ITS IMPORTER — a split-out piece whose single importer a unit suite loads
+ *     for real (not mocked), so every line of it runs under that suite. Each entry names both.
  */
 const UNNAMED_BY_DESIGN = {
     'operations-boot.js': 'boot shim — 13 lines, no branches; page-contract-parity asserts it exists',
     'overtime-boot.js':   'boot shim — 13 lines, no branches; page-contract-parity asserts it exists',
+    'admin-boot.js':      'boot shim — 12 lines, no branches; page-contract-parity asserts it exists',
+    'settings-boot.js':   'boot shim — 12 lines, no branches; page-contract-parity asserts it exists',
 
     'operations-errors.js': 'driven through its card by e2e/pages.spec.js (Error Log)',
     'operations-usage.js':  'driven through its card by e2e/pages.spec.js (Usage)',
     'operations-speed.js':  'driven through its card by e2e/pages.spec.js (App Speed)',
     'calendar-al-lightbox.js': 'driven by e2e/calendar.spec.js (the `day detail:` block) and pinned by lightbox-transform-parity + day-detail-explains',
-    'calendar-keyboard.js': 'driven by e2e/calendar.spec.js (arrow-key navigation and the hover tooltip)',
     'admin-sick.js':        'a thin config wrapper over admin-range-booking.js, whose factory is now directly tested; the Absence card is driven by e2e/pages.spec.js',
     'railcard-guide.js':    'guide-page chrome (print, chip-bar); content is pinned by guide-sources + guide-index-parity',
     'rangers-guide.js':     'guide-page chrome; evidence states pinned by guide-sources.test.mjs',
+
+    // ── Added at the v24.28 review, when the corpus stopped counting COMMENTS as coverage ──────
+    // Each was "named" only by a comment somewhere. Every reason below was checked against the spec
+    // it cites; the three that were NOT covered by anything (calendar-keyboard's arrow keys,
+    // error-reporter's wiring, paycalc-sticky-total, calendar-notif-prompt) got suites instead.
+    'about-lightbox.js':     'driven by e2e/pages.spec.js (opens #iconLightbox and its bug-report links) and scanned by e2e/axe.spec.js',
+    'admin-week-swipe.js':   'driven by e2e/pages.spec.js ("the week label follows the swipe", "the week arrows and the swipe move the same state")',
+    'install-prompt.js':     'driven by e2e/calendar.spec.js (the five `install strip:` tests, via a real beforeinstallprompt)',
+    'fip-guide.js':          'guide-page chrome; driven by e2e/pages.spec.js (the FIP GUIDE block: jump-to-open, malformed-hash safety)',
+    'paycalc-transfer-card.js': 'driven by e2e/pages.spec.js (the Settings "Pay Calculator Data" pointer card renders and links)',
+    'admin-week-row-state.js':  'EXECUTED through its one importer, admin-week-editor.js, which admin-week-editor.test.mjs loads and drives',
+    'roster-review-states.js':  'EXECUTED through its one importer, admin-roster-upload.js, which admin-roster-upload.test.mjs loads and drives',
 
     // ── NO GENUINE GAPS REMAIN ──────────────────────────────────────────────────────────────────
     // `paycalc-year-card.js` sat here from v23.69 as the one entry that was debt rather than a
@@ -92,12 +107,22 @@ const UNNAMED_BY_DESIGN = {
  *  would fire on all of them at once, and the main check would be satisfied by the very list it is
  *  meant to police. A guard that reads its own answer back is not a guard. */
 const SELF = 'module-coverage-parity.test.mjs';
+
+/** COMMENTS ARE NOT COVERAGE (v24.28 review). The corpus used to be the raw text, so a test whose
+ *  header merely MENTIONED a module — "see also calendar-keyboard.js", a cross-reference, a history
+ *  note — counted as naming it, and the sweep went quiet for exactly the module it exists to find.
+ *  Only code counts now. The same strip storage-key-parity.test.mjs uses (a test file cannot be
+ *  imported without running its suite, so it is copied rather than shared). */
+function stripComments(/** @type {string} */ src) {
+    return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1 ');
+}
+
 function testCorpus() {
     return [
         ...readdirSync(here('')).filter(f => f.endsWith('.test.mjs') && f !== SELF).map(f => read(f)),
         ...readdirSync(here('e2e')).filter(f => f.endsWith('.js'))
             .map(f => readFileSync(new URL('./e2e/' + f, import.meta.url), 'utf8')),
-    ].join('\n');
+    ].map(stripComments).join('\n');
 }
 
 describe('every runtime module is known to the test estate', () => {

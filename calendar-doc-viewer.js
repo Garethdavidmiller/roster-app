@@ -150,10 +150,20 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
             // returns, and in series every open paid for two round trips one after the other.
             // Its own promise never rejects (document-url.js), so it cannot fail the read.
             const signedP = authOrSoon.then(() => (seq === _openSeq ? fetchSignedDocumentUrl(/** @type {any} */ (key)) : null));
-            const doc = await Promise.race([
-                authOrSoon.then(() => (seq === _openSeq ? d.fetch() : null)),
-                _delay(DOC_FETCH_TIMEOUT_MS).then(() => { throw new Error('doc-fetch-timeout'); }),
-            ]);
+            // The deadline timer is CLEARED once the race settles: left armed, every successful open
+            // kept an 8 s timer alive for nothing (and held the test runner open for as long).
+            /** @type {any} */ let fetchTimer;
+            /** @type {any} */ let doc;
+            try {
+                doc = await Promise.race([
+                    authOrSoon.then(() => (seq === _openSeq ? d.fetch() : null)),
+                    new Promise((_, reject) => {
+                        fetchTimer = setTimeout(() => reject(new Error('doc-fetch-timeout')), DOC_FETCH_TIMEOUT_MS);
+                    }),
+                ]);
+            } finally {
+                clearTimeout(fetchTimer);
+            }
             if (seq !== _openSeq) return;   // a newer tap superseded this one — don't clobber its content
             if (doc && isSafeStorageUrl(doc.storageUrl)) {
                 // ── MINTED HERE, NOT IN THE CLICK HANDLER (v24.19) ──────────────────────────────

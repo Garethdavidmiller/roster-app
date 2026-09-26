@@ -71,12 +71,15 @@ export function notifSupported() {
  * so the Notifications card buttons never get stuck at "Enabling…" indefinitely.
  */
 function swReady() {
+    // The timer is cleared once the race settles — left armed, every call that found the worker
+    // ready still kept an 8 s timer alive for nothing (v24.28 review).
+    /** @type {any} */ let timer;
     return Promise.race([
         navigator.serviceWorker.ready,
-        new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('SW not ready')), 8000)
-        ),
-    ]);
+        new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error('SW not ready')), 8000);
+        }),
+    ]).finally(() => clearTimeout(timer));
 }
 
 /** Convert the URL-safe base64 VAPID key to the Uint8Array the Push API expects. */
