@@ -357,17 +357,22 @@ however many lines it is given, so a design's figures only mean something once t
 are one rotation. The 22-line design is one rotation by construction; the point survives as the
 general rule.
 
-## What the generator produces, measured against the real seed
+## What the generator produced from today's roster seed (v20.02)
 
-**Re-measured at 24 lines / 4 spare weeks (v20.02).** The seed is the main cycle only — **18 slot
+**Refused since v20.98, and no longer the default.** The contract gate refuses this seed — today's
+duties do not fill a contracted week across a 24-line rotation (below) — and since v21.00 the
+workspace opens on the December 2026 default table (`links-default-targets.js`) instead. The table
+here is the record of what the roster seed produced, not what the workspace ships.
+
+**Measured at 24 lines / 4 spare weeks (v20.02).** The seed is the main cycle only — **18 slot
 rows and 4 spare weeks**, exactly what the roster provides, with nothing added. (v20.01 briefly
 seeded 5; see the FF11 note below for why that was reverted.) Earlier measurements — v19.75 at 28/6,
 v19.98 at 22/4, v20.01 at 24/5 — are superseded and are not quoted here, because a figure from an
 old shape sitting beside one from the new is how a table stops being readable.
 
-Everything below is the shipped default: settled construction, all **six** line-order objectives on (v20.02 added the run cap), re-measured after the v20.02 spare-spread fix.
+Everything below was the default at the time: settled construction, all **six** line-order objectives on (v20.02 added the run cap), re-measured after the v20.02 spare-spread fix.
 
-| | live main roster (20 lines) | generated, settled (24/4, default) | generated, rotating (24/4, fallback) |
+| | live main roster (20 lines) | generated, settled (24/4, roster seed) | generated, rotating (24/4, fallback) |
 |---|---|---|---|
 | longest worked stretch | 9 days | **8 days** | 8 days |
 | FF11 (shifts between 48h breaks) | 12 | **11** | 11 |
@@ -387,7 +392,7 @@ to **FF18** — the between-lines factor those numbers have always come from.
 ### The design is six hours a week short of contract, and nothing showed it until v20.04
 
 **The measurement.** Excluding Sundays — which are not contracted for any grade here — and averaged
-over the lines that carry a timed duty:
+over every line of the rotation, with each spare week counted as a full contracted week (v20.98):
 
 | | working lines | hours a week each |
 |---|---|---|
@@ -676,9 +681,10 @@ a guess about what the comparison ought to say. (Related, and already recorded a
 both compare columns clip before Saturday, so Saturday cannot be compared without scrolling each
 column on its own.)
 
-**The generator's 28 near-identical rows.** Seeded from the current roster it renders 28 shift rows ×
-3 columns = 84 number fields, most of them zero, so reshaping one part of the day means finding one
-row among 28 similar time dropdowns. Left alone on purpose: package 4 would have changed where those targets
+**The generator's near-identical rows.** Seeded from the current roster it rendered 28 shift rows ×
+3 columns = 84 number fields while the seed spanned all 28 roster lines — since v19.98 it is 18 rows
+(the roster seed, main cycle only) or 19 (the December default) — most of them zero, so reshaping one
+part of the day means finding one row among many similar time dropdowns. Left alone on purpose: package 4 would have changed where those targets
 come from, and re-designing the table before that lands would mean doing it twice. (It said 25/75
 until v19.65; the seed takes every distinct worked time across all 28 roster lines, and
 `.claude/rules/links-design.md` already said 28 — the two docs simply disagreed.)
@@ -720,7 +726,9 @@ Ordered by how much they change if the answer is unexpected.
    FF13 at v19.48). It states the typical weekly move, the largest, and how many boundaries exceed
    two hours. **On the live main roster: typically 4h 0m a week, largest 8h 46m, 9 of 20 boundaries
    over 2h** — the baseline to read any proposal's figure against, and the number to take into the
-   conversation below. For comparison the generator's shipped default measures ~1h 35m.
+   conversation below. For comparison the workspace's December default, generated with every
+   line-order objective on, measures typically 4h 16m, largest 8h 37m, 8 of 24 over 2h
+   (`docs/proposals/tooling/default-baseline.mjs`).
 
    The STATUS deliberately stays `standing` whenever the step is measurable rather than turning
    `present` above some figure: the ORR gives no threshold for FF18, so inventing one would be the
@@ -788,8 +796,8 @@ Read as **the size of the step** — how far your working day jumps week to week
 choice, and a measurable one.
 
 *The measurements, and quote them with the switches named:* the live main roster moves **typically
-4h 0m a week, largest 8h 46m, with 9 of 20 boundaries over two hours**. The generator's shipped
-default measures **~1h 35m**. A step of ~9 min is reachable but only by turning the variety
+4h 0m a week, largest 8h 46m, with 9 of 20 boundaries over two hours**. The workspace's December
+default measures **typically 4h 16m, largest 8h 37m, 8 of 24 over two hours**. A step of ~9 min is reachable but only by turning the variety
 constraint off, which produces blocks of 8+ weeks on the same shift — judged "excessive and would be
 unpopular" by the owner, so it is not an answer to offer.
 
@@ -845,14 +853,14 @@ Recorded so the gaps are visible rather than implied:
 - **The CURRENT timetable.** Every service figure in this document is December 2026; today's is not
   measured anywhere. Recorded as a gap, **not** a blocker on package 4 — that framing was corrected
   by the owner: the tool already holds today's STAFFING, and the uplift is a figure the business
-  states rather than one derived from two timetables. See "The shape is KEPT; only the numbers grow".
+  states rather than one derived from two timetables.
 - **Whether "coverage vs service" is the business requirement at all.** It is an inference from the
   data available, not something Nathan stated. He said business requirements and fatigue guidelines;
   the fatigue half is documented on p3, the business half is not written down anywhere here.
   Partly softened by the posts steer above — the requirement is now known to be posts + relief +
   a train-driven remainder — but nobody has confirmed that is what the proposals will be judged on.
 - ~~**What CEAs actually do at Marylebone hour by hour**~~ — **PARTLY ANSWERED (owner, Aug 2026), and
-  it changes the demand model.** See "Demand is POSTS, not trains" below. The remaining unknowns are
+  it changes the demand model.** See "What actually drives CEA headcount" above. The remaining unknowns are
   the numbers, not the structure.
 - **Whether other grades cover the window's edges.** The 05:55 first departure and the post-midnight
   last trains sit outside the CEA link; something covers them, and knowing what would settle whether

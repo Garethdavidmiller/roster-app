@@ -5,7 +5,7 @@
 **Why this file exists.** ROADMAP.md had grown to 924 lines, and roughly two-thirds of it was the
 past: completed phases, shipped features, experiments that were reverted, closed audits, and
 security phases that had landed. All of that is genuinely valuable — several entries below are the
-only record of *why* something was removed, and two carry full restoration checklists — but mixed in
+only record of *why* something was removed, and two carry what it takes to bring one back — but mixed in
 with future work it made the roadmap unable to answer the one question a roadmap is for: **what
 should we build next, why, and what has to be true before we do it?**
 
@@ -23,7 +23,7 @@ than duplicating it — two copies of a plan is the failure mode this split exis
 | If you are about to… | Read |
 |---|---|
 | Re-propose lazy-loading modules for load speed | *Performance* — measured and rejected, with figures |
-| Re-add the cultural calendar or profile avatar | *Removed features* — both carry full restoration specs |
+| Re-add the cultural calendar or profile avatar | *Removed features* — a restoration path for the calendar; for the avatar, the removal checklist to reverse |
 | Re-propose FIP faceted filtering, a bottom nav bar, or a summary strip | *Tried and held back* |
 | Design a password stage | *The original five-stage design* — superseded by PASSWORD_DESIGN.md, but the reasoning survives |
 | Touch the override write-isolation rules | *Per-member override write isolation* — and SECURITY_RELEASE_PLAN.md → B2/B3 |
@@ -929,7 +929,7 @@ itself, because it only exists across a genuine browser exit.
 - **A calendar-only member now has to unlock, or sign in.** Before this, a member who never signed
   in anywhere could use the Calendar indefinitely. Now they either sign in once (a 60-day session,
   and no PIN thereafter) or enter the PIN each browser session. On a personal phone signing in is
-  clearly the better deal, and the `sign-in-2026` notice (v21.84) exists to say so — it replaced `pw-own-2026`, which nudged this same group towards a password when what they actually needed to hear was that signing in ends the code — but it
+  clearly the better deal, and the `sign-in-2026` notice (v21.84–v23.23, retired) existed to say so — it replaced `pw-own-2026`, which nudged this same group towards a password when what they actually needed to hear was that signing in ends the code — but it
   IS a change for the largest group of users and should be expected in support questions.
 - **Viewer sessions cannot subscribe to push**, by rule as well as by UI. Every office PC unlocking
   with the PIN signs in as the same uid, so a subscription written under it would be owned by an
@@ -937,7 +937,7 @@ itself, because it only exists across a genuine browser exit.
 - **Telemetry is quiet on a locked Calendar.** With no identity, the error reporter, the usage
   counter and the latency sampler cannot write — so a failing PIN exchange does NOT appear in the
   Operations Error Log. Diagnose one from the Cloud Function logs.
-- **App Check is still the missing integrity control** for the write side (below, task #4).
+- **App Check is still the missing integrity control** for the write side (`KNOWN_LIMITATIONS.md` → "Firebase App Check — declined as an immediate action, RETAINED as Track D").
 
 **Search engines** were excluded separately at v19.00 (`X-Robots-Tag: noindex` plus a mirrored
 `<meta name="robots">`, with a `robots.txt` that deliberately permits crawling so the noindex can
@@ -987,8 +987,8 @@ it by moving the failed-sync state out of the chip DOM, so first-run and Team Vi
 `.calendar-header`) get a retry offered the moment one appears instead of never.
 
 **What E1 did NOT do: it is not a security boundary.** It changes no rule and does not stop a direct
-Firestore REST read. The first phase that is a boundary at all is **E2** (`request.auth != null`),
-which remains undecided — see `AUTH_PLAN.md`.
+Firestore REST read. The first phase that was to be a boundary at all was **E2** (`request.auth != null`),
+superseded by the staff PIN at v20.12 — see `AUTH_PLAN.md`.
 
 ---
 
@@ -1012,7 +1012,7 @@ still remembers the `shift`. `consumesEntitlement` (`al-entitlement.js`) consult
 `isContractedWorkOverride`: a replaced **contracted** shift (`shift`) charges a day, a replaced
 voluntary **RDW deliberately does not**. Pre-v21.55 documents lack the field and fall back to the
 base roster — the old behaviour, so no migration. What genuinely remains open is narrower and lives
-in the Overtime/AL section below: *deleting* the AL doc still destroys the swap evidence it carried,
+in `KNOWN_LIMITATIONS.md` → "Overtime Availability — accepted gaps": *deleting* the AL doc still destroys the swap evidence it carried,
 because only the TYPE was preserved, never the time (see "Deleting an AL doc destroys the swap
 evidence it carried", v21.56).
 
@@ -1045,7 +1045,7 @@ The v10.73 fix fed `calcBackPay()`'s variable-pay portion (`_bpVarAmount`) into 
 That coupling was later found to DOUBLE-COUNT the award uplift (calcHPP already prices the
 whole year at the settled post-award rate) and was deliberately removed at v16.89 — the lump
 no longer feeds HPP. Current rule: `.claude/rules/paycalc.md` → "The lump is deliberately NOT
-added into the HPP estimate (v16.89)". See task #3 above for the original payslip confirmation.
+added into the HPP estimate (v16.89)". See `KNOWN_LIMITATIONS.md` → "The four v11 security tasks", item 3, for the original payslip confirmation.
 
 ---
 
@@ -1304,7 +1304,7 @@ limitation entry is kept for history; the underlying issue is resolved.
 
 **Removed at v12.22.** Feature was present from v12.12 (photo upload, display) through v12.21 (interactive reposition editor v12.19). Removed because it was non-vital and the interactive canvas editor was disproportionate complexity for a 26px badge. The nav-panel footer now shows initials on a stable per-name colour instead (`avatarInitials`/`avatarHue` from `roster-data.js`, painted directly in `nav-panel.js`). Firebase data cleanup required: delete `memberAvatars` collection docs and `avatars/` Storage objects via Firebase Console (no Admin SDK in client-side code).
 
-**To restore:** see "Restoration path" section below.
+**To restore:** check out the v12.21 tree and reverse the removal checklist below — but do NOT delete `avatarInitials`/`avatarHue` from `roster-data.js`: that step was never applied, and the initials badge has used both since v12.22.
 
 A member's optional profile photo — a circular badge in the nav-drawer footer (and the photo in the About panel), with an initials-on-colour fallback when no photo is set. Added v12.12; the **interactive reposition editor** (drag/pinch/zoom to frame the shot on a `<canvas>`) followed at v12.19.
 
@@ -1314,7 +1314,7 @@ A member's optional profile photo — a circular badge in the nav-drawer footer 
 - The **display + storage + cross-device-sync layer is good, well-factored code** worth keeping regardless — the shared painter (`avatar.js`), the Storage-object + Firestore-pointer model (`firebase-client.js`), and the 3-layer sync (cache → Firestore refresh → live events).
 - The **interactive editor is gold-plated for a non-vital feature.** It is ~350 of the feature's ~700 JS lines — canvas crop geometry, a Pointer-Events pinch/pan state machine, dpr-aware rendering, and a `ResizeObserver` refit. It is the highest-risk, hardest-to-maintain, untested part of the whole app, protecting a badge that renders at **26px**. At that size an off-centre face is invisible, so the precise reframing it buys is largely wasted, and it is the one chunk the owner cannot realistically debug unaided.
 
-_(The "simplify instead of remove" options are moot — the feature was fully removed at v12.22. The full-revert checklist below is the live record for a clean restoration.)_
+_(The "simplify instead of remove" options are moot — the feature was fully removed at v12.22. The checklist below is the historical REMOVAL record, applied at v12.22 except for `avatarInitials`/`avatarHue`, which stayed for the initials badge; restoring means reversing it.)_
 
 **Full-revert checklist (back to no avatar feature at all):**
 - **Delete files:** `avatar.js`, `settings-avatar.js`.
@@ -1708,7 +1708,8 @@ These are interlocking; most remain and should ship together, but the headline g
   CI-locked) instead of the client payload, with dry-run orphan removal (preview → confirm), refresh-
   token revocation on disable, and fail-closed guards on an empty admin/members config.
 - **Surname-password retirement** — the existing five-stage plan (verify work email → change →
-  recovery → migrate → retire) under "Password security improvements"; do not rush, since locking
+  recovery → migrate → retire) under "Password security — the original five-stage design" (now
+  `PASSWORD_DESIGN.md`); do not rush, since locking
   staff out of the core roster is a bigger operational risk than the present small-team model.
 
 ### Infrastructure phase
@@ -1813,7 +1814,9 @@ loads from the SW cache and hides the cold-load cost real first-time staff pay (
   (shallower graphs, less latency-critical) and rely on `preconnect` alone — `sw-asset-check.test.mjs`
   locks their zero-preload state too. There is **no plan to extend the preload further** — each
   page's SDK preload needs its own drift guard (the Batch 1 reason). **Let this settle** (watch the
-  Operations App-speed data) before the deferred lazy-Firebase pass below.
+  Operations App-speed data) before the deferred lazy-Firebase pass below. (Since superseded:
+  links.html carries its full graph; the four write pages carry the three SDK preloads but no local
+  ones.)
 
 - **v16.09–v16.10 — service-worker deep pass (owner-approved architecture changes).** Navigation
   Preload, SWR-throttling, chunked warm-up, first-install double-load fix, redirect hygiene
@@ -1907,8 +1910,8 @@ A phased plan to make the codebase easier to maintain and extend without introdu
 **Depends on Phase 7 (Firestore emulator) being in place first** — auth changes are high-risk
 without it. Phase 7 is now done.
 
-This phase is the canonical five-stage plan described in full under **"Password security
-improvements — staged plan"** above — do not re-number the stages here. In brief:
+This phase is the canonical five-stage plan described in full under **"Password security — the
+original five-stage design"** above (superseded by `PASSWORD_DESIGN.md`) — do not re-number the stages here. In brief:
 
 - Stage 1 ✓ (v12.68): Work-email registration via `staffContact`.
 - Stage 2: Email verification.
