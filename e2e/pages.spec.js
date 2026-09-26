@@ -5482,9 +5482,14 @@ test('links: the variety switch is what keeps you off one shift type for months'
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
 
     const blockAfter = async () => {
+        // Blank the line first and wait for it to be WRITTEN, not read it straight after the
+        // confirm: since the Sep 2026 review a dialog resolves once its close has landed, so the
+        // generate runs a beat after the click, and a read taken at the click saw an empty line.
+        await page.evaluate(() => { const s = document.getElementById('linksSaveStatus'); if (s) s.textContent = ''; });
         await page.locator('#genApplyBtn').click({ force: true });
         const ok = page.locator('.dialog-btn-confirm');
         if (await ok.count()) await ok.first().click();
+        await expect(page.locator('#linksSaveStatus')).toContainText(/longest block/, { timeout: 10_000 });
         const txt = await page.locator('#linksSaveStatus').innerText();
         const m = txt.match(/longest block (\d+)→(\d+) weeks/);
         if (!m) throw new Error(`status did not report the block: ${txt}`);
@@ -5995,6 +6000,10 @@ test('links generator: pressing Generate leaves the button under your finger and
         Math.round(/** @type {HTMLElement} */ (document.getElementById('genApplyBtn')).getBoundingClientRect().top));
     await page.locator('#genApplyBtn').click();
     await clickDialogConfirm(page);
+    // Wait for the design to exist before measuring anything: a dialog resolves after its close
+    // lands, so a check taken at the click would see the pre-generate page — a button that "did
+    // not move" because nothing had happened yet, and an empty status to mirror.
+    await expect(page.locator('#genStatus')).toBeVisible({ timeout: 10_000 });
 
     // The button did not move — the first-generate reflow (empty state → 24-row grid above this
     // card) is compensated, so pressing again to explore needs no re-scroll.

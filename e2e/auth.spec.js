@@ -247,7 +247,11 @@ test('in-place sign-in: settings initialises (work-email card + nav identity) wi
     expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
 });
 
-test('in-place sign-in: settings still offers an install the browser offered BEFORE the sign-in', async ({ page }) => {
+test('in-place sign-in: settings still offers an install the browser offered BEFORE the sign-in', async ({ page }, info) => {
+    // iOS never fires `beforeinstallprompt`; on an iPhone the Device card shows the Home Screen
+    // steps with the button hidden ON PURPOSE (initDeviceCard), so this Chromium event has no
+    // meaning there.
+    test.skip(info.project.name === 'mobile-safari', 'iOS has no install offer; the card shows steps instead');
     // Chromium fires `beforeinstallprompt` once, early. On the in-place path the Device card is wired
     // only after sign-in, and until the Sep 2026 review so was its listener — so an Android member
     // who signed in here was never shown the install row.
