@@ -686,7 +686,8 @@ async function initPageSpeedCard() {
         // A top-level SECTION, at the same rank as "Signing in" and "Opening pages" — it answers a
         // question of its own. It was rendered at milestone rank (the "First appears" tier), which
         // put the card's third subject one level below the two it sits beside.
-        frag.appendChild(subhead('🔍', `Why some are slower — ${meta ? meta.emoji + ' ' + meta.label : busiest.page}`, true));
+        // escapeHtml: the id is a sample key any signed-in session can write, and subhead() is innerHTML.
+        frag.appendChild(subhead('🔍', `Why some are slower — ${meta ? meta.emoji + ' ' + meta.label : escapeHtml(busiest.page)}`, true));
         frag.appendChild(noteLine(
             `The busiest page (${busiest.total.toLocaleString('en-GB')} opens), split by what was already being recorded with each one.`));
         let any = false;

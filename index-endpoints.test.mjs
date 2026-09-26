@@ -154,6 +154,10 @@ function makeAttempts({ seed = {}, failRead = false, failTx = false, failSweep =
     const reads = [];
     const writes = [];
     const deletes = [];
+    /** Transactions run one at a time, as Firestore's serialisable transactions behave to the caller:
+     *  without this, concurrent requests would interleave inside "one" transaction and a test of the
+     *  concurrent-guess race could not tell a fixed handler from a broken one. */
+    let txChain = Promise.resolve();
     const boom = (code) => Object.assign(new Error('firestore unavailable'), { code });
     const snap = (id) => ({
         id,
@@ -184,10 +188,17 @@ function makeAttempts({ seed = {}, failRead = false, failTx = false, failSweep =
         },
         async runTransaction(fn) {
             if (failTx) throw boom('aborted');
-            return fn({
-                get: async (ref) => { reads.push(`tx:${ref.id}`); return snap(ref.id); },
+            const run = txChain.then(() => fn({
+                get: async (ref) => {
+                    reads.push(`tx:${ref.id}`);
+                    if (failRead) throw boom('unavailable');
+                    return snap(ref.id);
+                },
                 set: (ref, data) => { writes.push({ id: ref.id, data }); store.set(ref.id, data); },
-            });
+                delete: (ref) => { writes.push({ id: ref.id, data: null }); store.delete(ref.id); },
+            }));
+            txChain = run.catch(() => {});
+            return run;
         },
         batch() {
             const pending = [];
@@ -214,9 +225,11 @@ function makeAuth({ token = { admin: true, name: 'G. Miller' }, viewerExists = f
         },
         getUser: async (uid) => {
             ops.push({ op: 'getUser', uid });
-            if (viewerExists) return { uid };
+            // `viewerExists` may be the RECORD itself, for the cases where a PIN holder changed it.
+            if (viewerExists) return typeof viewerExists === 'object' ? { uid, ...viewerExists } : { uid };
             throw Object.assign(new Error('no such user'), { code: 'auth/user-not-found' });
         },
+        deleteUser: async (uid) => { ops.push({ op: 'deleteUser', uid }); },
         createUser: async (props) => { ops.push({ op: 'createUser', props }); return { uid: props.uid }; },
         updateUser: async (uid, props) => { ops.push({ op: 'updateUser', uid, props }); if (authFail.updateUser) throw new Error(authFail.updateUser); return { uid }; },
         setCustomUserClaims: async (uid, claims) => {
@@ -469,6 +482,8 @@ describe('an UNCOUNTED guess is never answered (rule 5)', () => {
 
     test('a throttle store that cannot be READ refuses, even for the right PIN', async () => {
         const { ops, writes } = build({ failRead: true });
+        // (The read is inside the charging transaction since the Sep 2026 review, so this is the
+        // transaction failing on its read — the answer must not change.)
         const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
 
         assert.equal(out.code, 503, 'a PIN that cannot be rate-limited is not compared');
@@ -553,15 +568,45 @@ describe('both ceilings hold, and the all-sources one is the backstop', () => {
         for (const w of writes) assert.equal(w.data.failures, 1, 'each bucket counted the one attempt');
     });
 
-    test('a correct PIN writes NOTHING (rule 3)', async () => {
-        // Two properties in one: the normal path stays free of writes, and the collection can never
-        // be read as a record of who opened the roster and when.
-        const { writes, deletes } = build();
+    test('a correct PIN leaves NOTHING behind (rule 3) — charged first, then refunded', async () => {
+        // Since the Sep 2026 review every attempt is charged BEFORE the compare, so a right PIN is
+        // charged too — and refunded. A refund to zero DELETES the row: the collection can still
+        // never be read as a record of who opened the roster and when.
+        const { writes, deletes, store } = build();
         const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
 
         assert.equal(out.code, 200);
-        assert.deepEqual(writes, []);
-        assert.deepEqual(deletes, []);
+        assert.deepEqual(writes.filter((w) => w.data).map((w) => w.id).sort(), [STATION_KEY, GLOBAL_SOURCE_KEY].sort(),
+            'the attempt was charged before it was compared');
+        assert.equal(store.has(STATION_KEY), false, 'and refunded: no row dates the unlock');
+        assert.equal(store.has(GLOBAL_SOURCE_KEY), false);
+        assert.deepEqual(deletes, [], 'no sweep on the success path');
+    });
+
+    test('a correct PIN refunds only its OWN charge — earlier failures stay counted', async () => {
+        const { store } = build({ seed: { [STATION_KEY]: { failures: 5, windowStart: Date.now() - 1000, blockedUntil: 0 } } });
+        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
+        assert.equal(out.code, 200);
+        assert.equal(store.get(STATION_KEY).failures, 5);
+    });
+
+    test('a correct PIN whose charge reached the limit does not leave the station blocked', async () => {
+        const { store } = build({ seed: { [STATION_KEY]: { failures: 29, windowStart: Date.now() - 1000, blockedUntil: 0 } } });
+        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
+        assert.equal(out.code, 200, 'the attempt that reaches the limit is still compared');
+        assert.equal(store.get(STATION_KEY).failures, 29);
+        assert.equal(store.get(STATION_KEY).blockedUntil, 0, 'the block its own charge tripped is lifted with the refund');
+    });
+
+    test('CONCURRENT guesses cannot all be compared before any is counted (Sep 2026 review)', async () => {
+        // One guess left in the window. Five requests arrive together. The old handler read the
+        // bucket with a plain get before comparing and charged afterwards, so all five read "not
+        // blocked" and all five had their guess compared — the limit bounded the rate of CHARGING,
+        // not the number of guesses. Charged inside the transaction that checks, only one gets in.
+        build({ seed: { [STATION_KEY]: { failures: 29, windowStart: Date.now() - 1000, blockedUntil: 0 } } });
+        const outs = await Promise.all(Array.from({ length: 5 }, () => call(index.unlockCalendarViewer, pinRequest(WRONG_PIN))));
+        const codes = outs.map((o) => o.code).sort();
+        assert.deepEqual(codes, [401, 429, 429, 429, 429], `five concurrent guesses were answered ${codes}`);
     });
 });
 
@@ -603,6 +648,38 @@ describe('the token is the entire product, and a claimless one is indistinguisha
         const applied = ops.find((o) => o.op === 'setCustomUserClaims');
         assert.deepEqual(applied, { op: 'setCustomUserClaims', uid: CALENDAR_VIEWER_UID, claims: { calendarViewer: true } });
         assert.deepEqual(ops.filter((o) => o.op === 'createUser'), [], 'an existing account is not recreated');
+    });
+
+    test('a viewer account somebody LINKED a way in to is rebuilt from nothing (Sep 2026 review)', async () => {
+        // Any PIN holder can link an email/password to the shared account from their own session.
+        // A password sign-in on it would otherwise carry the viewer claim past every PIN rotation.
+        for (const tampered of [
+            { email: 'someone@myb-roster.local', providerData: [{ providerId: 'password' }] },
+            { phoneNumber: '+447700900123', providerData: [] },
+            { disabled: true, providerData: [] },
+        ]) {
+            const { ops } = build({ viewerExists: tampered });
+            const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
+            assert.equal(out.code, 200, JSON.stringify(tampered));
+            const i = (op) => ops.findIndex((o) => o.op === op);
+            assert.ok(i('deleteUser') > -1, `not rebuilt: ${JSON.stringify(tampered)}`);
+            assert.ok(i('createUser') > i('deleteUser'), 'recreated after the delete');
+            assert.ok(i('createCustomToken') > i('createUser'), 'and only then is a token minted');
+            assert.deepEqual(ops.find((o) => o.op === 'createUser').props, { uid: CALENDAR_VIEWER_UID, disabled: false });
+        }
+    });
+
+    test('an untouched viewer account is NOT rebuilt', async () => {
+        const { ops } = build({ viewerExists: { providerData: [], disabled: false } });
+        await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
+        assert.deepEqual(ops.filter((o) => o.op === 'deleteUser' || o.op === 'createUser'), []);
+    });
+
+    test('a claims stamp that fails still refuses — only the name clear is best-effort', async () => {
+        const { ops } = build({ viewerExists: true, authFail: { setCustomUserClaims: 'boom' } });
+        const out = await call(index.unlockCalendarViewer, pinRequest(FIXTURE_PIN));
+        assert.equal(out.code, 500);
+        assert.equal(minted(ops), undefined);
     });
 
     test('a missing viewer account is created on the spot, with no email and no password', async () => {

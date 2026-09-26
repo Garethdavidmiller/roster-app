@@ -173,6 +173,20 @@ service cloud.firestore {
       return isMember() ? request.auth.token.name : null;
     }
 
+    // ── WHEN THE `calendarViewer` CLAIM MAY BE BELIEVED (Sep 2026 review) ──────────────────────
+    // The claim lives on the ONE shared `calendar-viewer` account, and a PIN session signs in to it
+    // with a CUSTOM token. Any PIN holder can link an email/password to that account; a later
+    // password sign-in would then carry the claim indefinitely, and a PIN rotation — the admin's
+    // only lever — would not end it. So the claim counts only on the custom-token session the
+    // unlock function mints. The server repairs a linked account on the next unlock too
+    // (`unlockCalendarViewer`); this is the half that holds meanwhile. Every GRANT on the viewer
+    // reads this; the pushSubscriptions DENIALS keep the bare claim, which is the stricter reading.
+    function isCalendarViewer() {
+      return request.auth != null
+        && request.auth.token.get('calendarViewer', false) == true
+        && request.auth.token.get('firebase', {}).get('sign_in_provider', '') == 'custom';
+    }
+
 
     match /overrides/{document=**} {
       // ── READ REQUIRES A REAL IDENTITY (v20.12 — was `allow read;`, fully public) ──────────────
@@ -225,7 +239,7 @@ service cloud.firestore {
       allow read: if request.auth != null && (
         isMember() ||
         request.auth.token.admin == true ||
-        request.auth.token.calendarViewer == true
+        isCalendarViewer()
       );
       allow create, update: if
         request.auth != null &&
@@ -357,7 +371,7 @@ service cloud.firestore {
       allow read: if request.auth != null && (
         isMember() ||
         request.auth.token.admin == true ||
-        request.auth.token.calendarViewer == true
+        isCalendarViewer()
       );
       // Cloud Function writes use Admin SDK — bypasses these rules entirely.
       // Browser writes (manual admin upload in operations.html) require admin claim.
@@ -673,7 +687,7 @@ service cloud.firestore {
       allow read: if request.auth != null && (
         isMember() ||
         request.auth.token.admin == true ||
-        request.auth.token.calendarViewer == true
+        isCalendarViewer()
       );
       allow create, update: if
         request.auth != null &&
@@ -717,7 +731,7 @@ service cloud.firestore {
       allow read: if request.auth != null && (
         isMember() ||
         request.auth.token.admin == true ||
-        request.auth.token.calendarViewer == true
+        isCalendarViewer()
       );
       allow create, update: if
         request.auth != null &&

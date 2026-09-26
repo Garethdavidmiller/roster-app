@@ -129,9 +129,11 @@ NOW, take it seriously: the flake excuse has been spent.
 > falsified.
 
 ### The document FILES are protected by a bearer URL, not by auth
-`storage.rules` gates direct Storage SDK reads, and those are admin-only — staff never read
-Huddles/Circulars/Newsletters that way. They open a URL that carries its own access and **bypasses
-the rules entirely**.
+`storage.rules` gates direct Storage SDK reads, but staff never read Huddles/Circulars/Newsletters
+that way — they open a URL that carries its own access token and **bypasses the rules entirely**
+(documented in `storage.rules` itself: "Don't store confidential files here unless that delivery
+model changes"). The direct reads themselves are **admin-only** (Sep 2026 review): they were open to
+any session, which let an anonymous sign-in list the bucket and collect every file's permanent token.
 
 **WHICH url, as of v24.19, depends on one IAM grant.** The three opening surfaces now ask
 `getDocumentUrl` for a **15-minute signed URL** and open that. Without

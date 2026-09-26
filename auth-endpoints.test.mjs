@@ -246,6 +246,8 @@ function build({
         setCustomUserClaims: async (uid, claims) => {
             authOps.push({ op: 'setCustomUserClaims', uid, claims });
             if (authFail.setCustomUserClaims) throw new Error(authFail.setCustomUserClaims);
+            // A TRANSIENT failure: the next N stamps fail, then they succeed.
+            if (authFail.setCustomUserClaimsTimes > 0) { authFail.setCustomUserClaimsTimes--; throw new Error('transient'); }
         },
         listUsers: async (max, pageToken) => {
             // Paged the way the SDK pages: an opaque token for the next start, none on the last page.
@@ -825,6 +827,52 @@ describe('setupRosterAuth stamps `member`, and takes back an account it never st
     }
 });
 
+
+// ── THE SHARED PIN ACCOUNT IS NEVER A MEMBER (Sep 2026 review) ─────────────────────────────────
+// Any PIN holder can link an email/password to the shared `calendar-viewer` account. Linking a
+// not-yet-provisioned member's DERIVED email made this endpoint's email-already-exists path find
+// the viewer, see a claim (so no take-back), and stamp the member's claims onto the account every
+// PIN session signs in to.
+describe('setupRosterAuth never adopts the shared Calendar PIN account', () => {
+    const viewerAtMemberEmail = () => ({ uid: 'calendar-viewer', email: emailFor(MEMBER), disabled: false,
+        customClaims: { calendarViewer: true } });
+
+    test('it is reported by name, and nothing is stamped, reset or revoked on it', async () => {
+        const { eps, authOps } = build({ existingUsers: [viewerAtMemberEmail()] });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.equal(out.code, 200);
+        assert.ok(out.body.failed.some((f) => f.startsWith(`${MEMBER} (`) && /Calendar PIN/.test(f)), out.body.failed.join(' | '));
+        assert.deepEqual(authOps.filter((o) => o.uid === 'calendar-viewer'), [], 'the viewer account was touched');
+        assert.ok(!out.body.skipped.includes(MEMBER) && !out.body.reclaimed.includes(MEMBER));
+    });
+
+    test('recognised by its claim as well as its uid', async () => {
+        const acct = { ...viewerAtMemberEmail(), uid: 'some-other-uid' };
+        const { eps, authOps } = build({ existingUsers: [acct] });
+        await call(eps.setupRosterAuth, asAdmin({}));
+        assert.deepEqual(authOps.filter((o) => o.uid === 'some-other-uid'), []);
+    });
+});
+
+// A just-created account whose first stamp fails is claimless — and the NEXT run's take-back reads
+// "no claim" as an outsider's account: password reset to the surname, every session revoked. So a
+// failed stamp on an account this run created is retried once, straight away (Sep 2026 review).
+describe('a new account\'s first claim stamp is retried once', () => {
+    test('a transient failure on a just-created account is retried, and nothing is reported failed', async () => {
+        const { eps, authOps } = build({ authFail: { setCustomUserClaimsTimes: 1 } });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        const first = authOps.find((o) => o.op === 'setCustomUserClaims');
+        const forFirst = authOps.filter((o) => o.op === 'setCustomUserClaims' && o.uid === first.uid);
+        assert.equal(forFirst.length, 2, 'the failed stamp was tried again');
+        assert.ok(!out.body.failed.some((f) => /claim-failed/.test(f)), out.body.failed.join(' | '));
+    });
+
+    test('two failures in a row are still reported', async () => {
+        const { eps } = build({ authFail: { setCustomUserClaimsTimes: 2 } });
+        const out = await call(eps.setupRosterAuth, asAdmin({}));
+        assert.equal(out.body.failed.filter((f) => /claim-failed/.test(f)).length, 1);
+    });
+});
 
 describe('setupRosterAuth previews leavers before it disables them', () => {
     const leaver = { uid: 'uid_leaver', email: 'x.gone@myb-roster.local', disabled: false };

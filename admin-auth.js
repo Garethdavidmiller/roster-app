@@ -196,13 +196,19 @@ export function initAuthSetup({ currentIsAdmin, onAttention }) {
                 return;   // without this, the fetch below 403s and the catch overwrites this guidance with a raw error
             }
 
-            // Body carries ACTION flags only (B4 — server owns the member/role lists). Fetches a
-            // FRESH ID token on EVERY call — never reuses a token captured once. The orphan dry-run
-            // may be CONFIRMED >1h later (past the Firebase ID-token lifetime), so a retry that reused
-            // the captured token would keep hitting the same expired token and could never recover
-            // without a page reload. forceRefresh:true mints a current, non-expired token each time.
+            // Body carries ACTION flags only (B4 — server owns the member/role lists). Every LATER
+            // call fetches a FRESH ID token — never one captured earlier. The orphan dry-run may be
+            // CONFIRMED >1h later (past the Firebase ID-token lifetime), so a confirm that reused a
+            // captured token would keep hitting the same expired token and could never recover
+            // without a page reload. The FIRST call reuses the token minted just above, a moment ago
+            // with forceRefresh — a second forced refresh in series bought nothing (Sep 2026 review).
+            /** @type {string|null} */
+            let justMinted = tokenResult.token;
             const doSetup = async (/** @type {Record<string, any>} */ extraBody) => {
-                const fresh = await currentUser.getIdTokenResult(/* forceRefresh */ true);
+                const fresh = justMinted
+                    ? { token: justMinted }
+                    : await currentUser.getIdTokenResult(/* forceRefresh */ true);
+                justMinted = null;
                 // 130s: above the endpoint's own 120s ceiling (fetch-timeout.js). Provisioning walks
                 // the whole roster, so this is legitimately the app's slowest call — the bound is
                 // here to end an INFINITE wait, not to make it feel quick.

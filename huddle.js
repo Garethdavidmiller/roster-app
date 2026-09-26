@@ -12,7 +12,7 @@
 
 import { uploadHuddle } from './firebase-client.js';
 import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
-import { notifSupported, peekNotifState, enableNotifications, disableNotifications, isIOS } from './notif.js';
+import { notifSupported, peekNotifState, enableNotifications, disableNotifications, isIOS, notifOffByChoice } from './notif.js';
 import { initCardCollapse } from './overlay.js';
 
 /**
@@ -106,6 +106,11 @@ export function initHuddleNotifications({ onState } = {}) {
             // BLOCKED, not off. The member cannot fix this from here — the browser will refuse
             // to ask again — so the summary must name it rather than telling them to tap Enable.
             onState?.('blocked', 'Blocked');
+        } else if (notifOffByChoice()) {
+            // Switched off HERE, on purpose (Sep 2026 review). Not a to-do: the member decided.
+            _statusMsg.textContent   = 'Notifications are off on this device. Tap Enable to turn them back on.';
+            _enableBtn.style.display = 'block';
+            onState?.('ok', 'Off');
         } else {
             _statusMsg.textContent   = 'Tap Enable to get an alert when a new document arrives and before the pay cut-off.';
             _enableBtn.style.display = 'block';
@@ -118,8 +123,13 @@ export function initHuddleNotifications({ onState } = {}) {
     _enableBtn.addEventListener('click', async () => {
         _enableBtn.disabled = true;
         _enableBtn.textContent = 'Enabling…';
-        await enableNotifications().catch(err => console.warn('[Notifications] Enable failed:', err));
+        const result = await enableNotifications().catch(err => { console.warn('[Notifications] Enable failed:', err); return 'off-lapsed'; });
         await safeRefresh();
+        // A failed subscribe used to leave the card exactly as it was, as if the tap had not landed.
+        // (A dismissed permission prompt is 'off-default' and a refusal 'denied' — both say so above.)
+        if (result === 'off-lapsed') {
+            _statusMsg.textContent = 'Couldn’t turn notifications on. Check your connection and try again — if it keeps failing, contact the admin.';
+        }
     });
 
     _disableBtn.addEventListener('click', async () => {

@@ -37,6 +37,7 @@ mock.module('./notif.js', {
         peekNotifState:      async () => 'off-default',
         enableNotifications: async () => 'on',
         disableNotifications: async () => 'off-default',
+        releaseDevicePush:    async () => {},
     },
 });
 mock.module('./overlay.js', {

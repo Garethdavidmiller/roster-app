@@ -75,3 +75,48 @@ test('every exported endpoint is a defined function value, not undefined wiring'
         assert.ok(index[name], `exports.${name} is ${String(index[name])} — the factory wiring lost it`);
     }
 });
+
+// ── EVERY HANDLER THAT CAN PUSH DECLARES THE VAPID SECRET (Sep 2026 review) ─────────────────────
+//
+// A Cloud Function only sees a Secret Manager value if the secret is in its own `secrets` option;
+// without it `VAPID_PRIVATE_KEY.value()` is '' in production, `setupWebPush` throws, and the handler's
+// best-effort push catch swallows it. So a handler can ship with the push wired, tested with a mocked
+// transport, and never send one — which is how `resetMemberPassword`'s "your password was reset"
+// notice went out from v23.62 to nobody. The handler that reaches `setupWebPush` is found FROM THE
+// SOURCE (through any same-file helper, to a fixpoint), and the secret is read from the deploy
+// metadata the SDK attaches — the thing `firebase deploy` actually reads.
+test('every handler that reaches setupWebPush declares the VAPID_PRIVATE_KEY secret', async () => {
+    const { readFileSync, readdirSync } = await import('node:fs');
+    process.env.FUNCTIONS_EMULATOR = 'true';
+    const index = require('./functions/index.js');
+    // A definition starts at the head of a line indented 0 or 4 (a builder's handlers sit at 4), and
+    // runs to the next head indented no deeper than itself — so a column-0 helper keeps the
+    // statements its own body declares at 4.
+    const HEAD = /^( {0,4})(?:exports\.(\w+)\s*=|const (\w+)\s*=|(?:async )?function (\w+)\s*\()/gm;
+    const pushers = [];
+    for (const f of readdirSync(new URL('./functions/', import.meta.url)).filter(n => n.endsWith('.js'))) {
+        const src = readFileSync(new URL(`./functions/${f}`, import.meta.url), 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+        const heads = [...src.matchAll(HEAD)];
+        const defs = heads.map((m, i) => {
+            const end = heads.slice(i + 1).find(n => n[1].length <= m[1].length);
+            return { name: m[2] || m[3] || m[4], body: src.slice(m.index, end ? end.index : src.length) };
+        });
+        const reaching = new Set(['setupWebPush']);
+        const calls = (/** @type {string} */ body) => [...reaching].some(n => new RegExp(`(?<![\\w.$])${n}\\(`).test(body));
+        for (let grew = true; grew;) {
+            grew = false;
+            for (const d of defs) if (!reaching.has(d.name) && calls(d.body)) { reaching.add(d.name); grew = true; }
+        }
+        for (const d of defs) {
+            if (/=\s*on(?:Request|Schedule|Document\w+)\(/.test(d.body.slice(0, 120)) && calls(d.body)) pushers.push(d.name);
+        }
+    }
+    assert.ok(pushers.length >= 8, `found only ${pushers.length} pushing handlers — the scan is checking nothing: ${pushers}`);
+    for (const name of pushers) {
+        assert.ok(index[name], `${name} reaches setupWebPush but is not an exported function`);
+        const keys = ((index[name].__endpoint || {}).secretEnvironmentVariables || []).map((/** @type {any} */ s) => s.key);
+        assert.ok(keys.includes('VAPID_PRIVATE_KEY'),
+            `${name} can send a push but does not declare secrets: [VAPID_PRIVATE_KEY] — in production the key reads as '' and every push it sends fails inside a best-effort catch`);
+    }
+});

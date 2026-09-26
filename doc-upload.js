@@ -135,6 +135,8 @@ export function initDocUploadCard(cfg) {
       return;
     }
     uploadBtn.disabled = true;
+    // In flight until the finally below: Operations defers an SW-update reload while it is set.
+    uploadBtn.dataset.uploading = 'true';
     /** @type {HTMLElement} */ (feedback).textContent = '';
     /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback';
 
@@ -154,6 +156,7 @@ export function initDocUploadCard(cfg) {
         /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--err';
         uploadBtn.disabled = false;
         uploadBtn.textContent = cfg.btnLabel;
+        delete uploadBtn.dataset.uploading;
         return;
       }
       if (r.abortMsg) {
@@ -161,6 +164,7 @@ export function initDocUploadCard(cfg) {
         /** @type {HTMLElement} */ (feedback).className = 'huddle-feedback huddle-feedback--err';
         uploadBtn.disabled = false;
         uploadBtn.textContent = cfg.btnLabel;
+        delete uploadBtn.dataset.uploading;
         return;
       }
       extraArgs = r.extraArgs || [];
@@ -196,6 +200,7 @@ export function initDocUploadCard(cfg) {
       uploadBtn.disabled = false;
     } finally {
       uploadBtn.textContent = cfg.btnLabel;
+      delete uploadBtn.dataset.uploading;
     }
   });
 }

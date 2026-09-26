@@ -72,6 +72,10 @@ filters `pushSubscriptions` by the `owner` uid and **fails closed at every step*
 send nothing; a subscription doc with no `owner` (written before v17.76) → skipped, never assumed;
 no matches → log and stop. There is deliberately **no "no targets → fall back to everyone" branch**.
 If you add another addressed-to-one-person notification, use `sendTargetedPush` and keep that shape.
+**The `owner` does not outlive a sign-out** (Sep 2026 review): the drawer's Sign out calls
+`releaseDevicePush` (`notif.js`) while still signed in, deleting this device's record, so a targeted
+notice never follows a member onto a shared device they have left. The next load re-saves the record
+as whoever is signed in then.
 
 **The second is `password-reset` (v23.62, owner request):** when the admin resets a member's password
 from Operations, that member is told on their OWN devices. Until then the one person the reset was
@@ -152,7 +156,9 @@ adding the feature. Full rationale: OPERATIONS_REFERENCE.md → "Huddle notifica
   member lands on the card already open with the nudge showing).
 - Reset request → `operations.html#reset-requests` (opens the queue card and scrolls to it —
   `DEEP_LINK_CARDS` in `operations-app.js`; Operations is a page of collapsed cards, so landing on
-  it alone would still leave the admin hunting for the one the notification was about).
+  it alone would still leave the admin hunting for the one the notification was about). A tap while
+  Operations is ALREADY open re-reads the queue, and the hash is stripped once followed so the next
+  tap is a hash change rather than a repeat that fires nothing (Sep 2026 review).
 - Overtime → `overtime.html` (both the asked notice and the deadline reminder). **Added to this
   list at v21.63** — `overtime.html` had been in `SAFE_NOTIFICATION_PAGES` since the feature
   shipped, so the code was right and the prose was one row short. A reader auditing the allowlist

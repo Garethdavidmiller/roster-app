@@ -122,6 +122,9 @@ function _withPct(g) {
     return { quick: g.quick, ok: g.ok, slow: g.slow, total, pctQuick: pct(g.quick), pctOk: pct(g.ok), pctSlow: pct(g.slow) };
 }
 
+/** What a written page id looks like — see `summarisePerf`. */
+const PAGE_ID_TOKEN = /^[a-z][a-z0-9-]{0,39}$/;
+
 /**
  * Roll the raw `analytics/perf_<month>.samples` map up into the three speed bands — overall and
  * per page — for ONE metric (default 'domReady', i.e. how fast the page opened). PURE; no identity
@@ -141,7 +144,10 @@ export function summarisePerf(samples, { metric = 'domReady' } = {}) {
         const { page, metric: mtr, bucket } = parsePerfSampleKey(key);
         if (mtr !== metric) continue;
         const group = _BUCKET_GROUP[bucket];
-        if (!group || !page) continue;
+        // A page id is a fixed lower-case token ('calendar', 'guide-staff'). Sample keys are writable
+        // by any signed-in session, and the busiest page's id is RENDERED on the admin's card — so
+        // anything else is nobody's page and is dropped here, before it can reach the DOM.
+        if (!group || !PAGE_ID_TOKEN.test(page || '')) continue;
         overall[group] += n;
         (pages[page] || (pages[page] = { quick: 0, ok: 0, slow: 0 }))[group] += n;
         total += n;

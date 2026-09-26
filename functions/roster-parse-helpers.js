@@ -379,6 +379,7 @@ const {
     BLANK_CELL_TOKEN, NOT_AVAILABLE_TOKENS, NOT_AVAILABLE_SUNDAY_TOKENS, SUNDAY,
     isPhysicallyBlank, isNotAvailable, isNotAvailableSunday, blankCellMeaning, notAvailableMeaning, notAvailableSundayMeaning,
 } = require('./cell-day-rules');
+const { isViewerAccount } = require('./calendar-viewer-auth');
 
 function buildSafeEntries(parsedMembers, columnHeaders, dates) {
     const safeEntries = [];
@@ -1069,8 +1070,8 @@ function summariseSignIns(users, nowMs, allowedEmails) {
 
 /**
  * Which Firebase Auth accounts are leaver ORPHANS: a `@myb-roster.local` account not in the active
- * set and not already disabled. Pure detection — the handler decides whether to preview (dry-run) or
- * disable+revoke them. Skips accounts with no email and never returns an already-disabled account.
+ * set, not disabled, and never the shared PIN account (a PIN holder can link an email to it, and
+ * disabling it is a station-wide PIN outage). Pure; the handler previews or disables+revokes them.
  * @param {Array<{ uid?: string, email?: string, displayName?: string, disabled?: boolean }>} users
  * @param {Set<string>} activeEmails  emails of currently-provisioned members (never disabled)
  * @returns {Array<{ uid: string|undefined, label: string }>}
@@ -1078,7 +1079,7 @@ function summariseSignIns(users, nowMs, allowedEmails) {
 function computeOrphanLabels(users, activeEmails) {
     const out = [];
     for (const user of users || []) {
-        if (user && user.email &&
+        if (user && user.email && !isViewerAccount(user) &&
             user.email.endsWith('@myb-roster.local') &&
             !activeEmails.has(user.email) &&
             !user.disabled) {

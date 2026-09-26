@@ -168,8 +168,9 @@ blockedUntil set once the limit is REACHED; the block expires on its own, delibe
              pointed at the staff it protects
 ```
 **Server-only: `allow read, write: if false`.** No client touches it — the only writer is
-`unlockCalendarViewer` via the Admin SDK. **Only FAILURES are recorded**; a correct PIN writes
-nothing, so the collection can say who is guessing and never who is using the app. The rules and the
+`unlockCalendarViewer` via the Admin SDK. **Only FAILURES stay recorded**: every attempt is charged
+before its PIN is compared and a correct PIN is refunded (a refund to zero deletes the row — Sep 2026
+review), so the collection can say who is guessing and never who is using the app. The rules and the
 thresholds are argued in `functions/calendar-viewer-auth.js`; the operational view is
 OPERATIONS_REFERENCE.md → the Calendar PIN. Listed here because this document says it records what
 EACH collection holds, and this was the one top-level `match` in `firestore.rules` it had never named.

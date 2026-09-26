@@ -247,6 +247,23 @@ test('in-place sign-in: settings initialises (work-email card + nav identity) wi
     expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
 });
 
+test('in-place sign-in: settings still offers an install the browser offered BEFORE the sign-in', async ({ page }) => {
+    // Chromium fires `beforeinstallprompt` once, early. On the in-place path the Device card is wired
+    // only after sign-in, and until the Sep 2026 review so was its listener — so an Android member
+    // who signed in here was never shown the install row.
+    await enableInplaceLogin(page);
+    await page.goto('/settings.html');
+    await page.evaluate(() => {
+        const e = new Event('beforeinstallprompt', { cancelable: true });
+        /** @type {any} */ (e).prompt = () => Promise.resolve();
+        window.dispatchEvent(e);
+    });
+    await signInThroughOverlay(page, 'G. Miller');
+    await expect(page.locator('#loginOverlay')).toHaveCount(0);
+    await expect(page.locator('#deviceCard')).toBeVisible();
+    await expect(page.locator('#installBtn')).toBeVisible();
+});
+
 // ── FORCED SET-PASSWORD OVERLAY (PASSWORD_DESIGN.md Phase 2, v18.92) ────────────────────────────
 // The compel is a HARD BLOCK, so the tests that matter most are the ones proving it cannot become a
 // lockout: it must not appear unless it can actually be satisfied, and it must not appear at all when

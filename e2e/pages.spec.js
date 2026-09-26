@@ -3299,6 +3299,31 @@ test('operations without the hash leaves the queue card collapsed', async ({ pag
     await expect(page.locator('#resetRequestsBody')).not.toHaveClass(/\bopen\b/);
 });
 
+// A tap on the reset-request notice while Operations is ALREADY open only changes the hash. Until the
+// Sep 2026 review that opened the card over the list read at page load — "No outstanding requests"
+// beside a notification saying otherwise — and a second tap, the hash unchanged, did nothing at all.
+test('operations: a reset-request tap on an OPEN page re-reads the queue, and a second tap still lands', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { docs: [] }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#resetRequestsContent')).toContainText('No outstanding requests');
+
+    await page.evaluate(() => {
+        /** @type {any} */ (window).__E2E.docs = [{ id: 'A. Hared', requestedAt: Date.now(), count: 1, provisioned: true }];
+        location.hash = '#reset-requests';
+    });
+    await expect(page.locator('.rr-row')).toHaveCount(1);
+    // Followed, then stripped — so the next tap is a CHANGE of hash, not a repeat of one.
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('');
+
+    await page.evaluate(() => {
+        /** @type {any} */ (window).__E2E.docs.push({ id: 'K. Jedlinski', requestedAt: Date.now(), count: 1, provisioned: true });
+        location.hash = '#reset-requests';
+    });
+    await expect(page.locator('.rr-row')).toHaveCount(2);
+});
+
 // ── SETTINGS: Password card reveal toggle (v18.95) ─────────────────────────────────────────────
 // The login overlay and the forced overlay both offer a reveal; this card asked for an 8+ character
 // password TWICE with no way to see either, which is where a mistyped password comes from.

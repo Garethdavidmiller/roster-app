@@ -48,7 +48,7 @@
  * affordance and is hidden by CSS while expanded, where the rows are the count.
  */
 
-import { notifSupported, peekNotifState, enableNotifications, disableNotifications } from './notif.js';
+import { notifSupported, peekNotifState, enableNotifications, disableNotifications, releaseDevicePush } from './notif.js';
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl } from './firebase-client.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
 import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled } from './overlay.js';
@@ -693,8 +693,12 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
 
     // Sign-out footer button
     const signOutBtn = document.getElementById('navSignOutBtn');
-    signOutBtn?.addEventListener('click', () => {
+    signOutBtn?.addEventListener('click', async () => {
         closePanelForNavigation();
+        // Release this device's push record WHILE still signed in (the rules let only its owner
+        // delete it), so the targeted notices addressed to this member stop reaching a device they
+        // have left. Time-boxed and best-effort: it never blocks or fails the sign-out.
+        await releaseDevicePush();
         onSignOut?.();
     });
 

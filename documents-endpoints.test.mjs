@@ -539,7 +539,7 @@ describe('getDocumentUrl — the door, and that it is exactly the rules\' door',
     });
 
     test('each of the three doors is admitted', async () => {
-        for (const claims of [MEMBER_GM, { admin: true }, { calendarViewer: true }]) {
+        for (const claims of [MEMBER_GM, { admin: true }, { calendarViewer: true, firebase: { sign_in_provider: 'custom' } }]) {
             const w = build({ seed: PUBLISHED });
             w.setClaims(claims);
             const out = await askForUrl(w.eps, { kind: 'huddle' });

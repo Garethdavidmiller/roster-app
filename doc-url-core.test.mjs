@@ -24,6 +24,9 @@ const C = require('./functions/doc-url-core.js');
 
 const RULES = readFileSync(new URL('./firestore.rules', import.meta.url), 'utf8');
 
+/** The token a real PIN unlock produces: the claim, on a custom-token sign-in. */
+const PIN = { calendarViewer: true, firebase: { sign_in_provider: 'custom' } };
+
 describe('who may be handed a URL — and it must MIRROR firestore.rules', () => {
 
     test('the three doors the rules open, and nothing else', () => {
@@ -37,7 +40,12 @@ describe('who may be handed a URL — and it must MIRROR firestore.rules', () =>
         assert.equal(C.mayReceiveDocumentUrl({ name: 'G. Miller', firebase: { sign_in_provider: 'anonymous' } }), false,
             'an anonymous session that named itself');
         assert.equal(C.mayReceiveDocumentUrl({ admin: true }), true, 'an admin');
-        assert.equal(C.mayReceiveDocumentUrl({ calendarViewer: true }), true, 'the staff PIN capability');
+        assert.equal(C.mayReceiveDocumentUrl(PIN), true, 'the staff PIN capability');
+        // The claim lives on ONE shared account; a PIN holder can link a password to it. The claim is
+        // believed only on the custom-token session the unlock mints, exactly as `isCalendarViewer()`.
+        assert.equal(C.mayReceiveDocumentUrl({ calendarViewer: true, firebase: { sign_in_provider: 'password' } }), false,
+            'a PASSWORD sign-in on the viewer account (a linked credential)');
+        assert.equal(C.mayReceiveDocumentUrl({ calendarViewer: true }), false, 'the claim with no provider at all');
         assert.equal(C.mayReceiveDocumentUrl({ manager: true }), false,
             'a manager claim alone is NOT a door in the rules — a manager also carries `name`, and '
             + 'that is what admits them. Granting on `manager` here would make this endpoint more '
@@ -55,7 +63,7 @@ describe('who may be handed a URL — and it must MIRROR firestore.rules', () =>
         for (const v of ['true', 1, 'yes', {}]) {
             assert.equal(C.mayReceiveDocumentUrl({ admin: /** @type {any} */ (v) }), false,
                 `admin: ${JSON.stringify(v)} was honoured`);
-            assert.equal(C.mayReceiveDocumentUrl({ calendarViewer: /** @type {any} */ (v) }), false,
+            assert.equal(C.mayReceiveDocumentUrl({ ...PIN, calendarViewer: /** @type {any} */ (v) }), false,
                 `calendarViewer: ${JSON.stringify(v)} was honoured`);
         }
     });
@@ -65,6 +73,15 @@ describe('who may be handed a URL — and it must MIRROR firestore.rules', () =>
     // text itself is read rather than remembered. If somebody tightens firestore.rules and forgets
     // this module, the endpoint would go on signing for a caller the rules now refuse — silently,
     // because nothing else compares them.
+    test('the rules\' PIN door believes the claim only on a custom-token session, as this module does', () => {
+        const code = RULES.replace(/\/\/[^\n]*/g, '');
+        const fn = code.match(/function isCalendarViewer\(\) \{([\s\S]*?);\s*\}/);
+        assert.ok(fn, 'firestore.rules no longer defines isCalendarViewer()');
+        assert.match(fn[1], /'calendarViewer', false\) == true/, 'the function no longer reads the claim');
+        assert.match(fn[1], /sign_in_provider', ''\) == 'custom'/,
+            'the rules believe the viewer claim on any sign-in method — a linked password keeps it for good');
+    });
+
     test('every document collection still opens on exactly those three doors in firestore.rules', () => {
         for (const collection of ['huddles', 'circulars', 'newsletters']) {
             const m = RULES.match(new RegExp(`match /${collection}/\\{[^}]+\\} \\{([\\s\\S]*?)allow create`));
@@ -76,7 +93,7 @@ describe('who may be handed a URL — and it must MIRROR firestore.rules', () =>
             assert.match(text, /isMember\(\)/, `${collection}: the member door moved (v24.23: isMember(), never a bare 'name' in token)`);
             assert.doesNotMatch(text, /'name' in request\.auth\.token/, `${collection}: a bare name claim is a door again`);
             assert.match(text, /request\.auth\.token\.admin == true/, `${collection}: the admin door moved`);
-            assert.match(text, /request\.auth\.token\.calendarViewer == true/, `${collection}: the PIN door moved`);
+            assert.match(text, /isCalendarViewer\(\)/, `${collection}: the PIN door moved`);
             assert.doesNotMatch(text, /manager/,
                 `${collection}'s read rule has gained a manager door. doc-url-core.js refuses `
                 + 'managers on purpose — update both together or they disagree.');

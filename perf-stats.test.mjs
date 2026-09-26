@@ -94,6 +94,19 @@ describe('summarisePerf', () => {
         assert.deepEqual(r.byPage, []);
         assert.equal(summarisePerf({}).total, 0);
     });
+
+    test('a page id that is not a page-id TOKEN is dropped — sample keys are writable by any session', () => {
+        // Any authenticated session can write an analytics counter, and the busiest page's id was
+        // rendered as HTML on the admin's Operations page (Sep 2026 review). A real page id is a
+        // fixed lower-case token; markup, spaces and capitals are nobody's page.
+        const evil = '<a href="https://evil.example/login">Session expired</a>';
+        const s = samplesFrom([['calendar', 'domReady', 'lt500ms', 5], ['guide-staff', 'domReady', 'lt500ms', 1]]);
+        s[`24_28|${evil}|domReady|lt500ms|pwa|4g`] = 99999;
+        s['24_28|Calendar|domReady|lt500ms|pwa|4g'] = 7;
+        const r = summarisePerf(s, { metric: 'domReady' });
+        assert.deepEqual(r.byPage.map(p => p.page), ['calendar', 'guide-staff']);
+        assert.equal(r.total, 6);
+    });
 });
 
 /** Like samplesFrom, but every dimension is settable — this is the suite for the dimensions the

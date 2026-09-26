@@ -68,7 +68,7 @@ function designerDb(name = 'S. Silva', uid = 'uid_designer') { return testEnv.au
 /** The shared staff Calendar viewer (v20.12) — the identity the four-digit PIN mints. Exactly one
  *  claim, no `name`: it is a CAPABILITY ("may read the Calendar"), not a person. Modelled with the
  *  real uid so a rule that ever keyed on the uid rather than the claim would be caught here too. */
-function viewerDb() { return testEnv.authenticatedContext('calendar-viewer', { calendarViewer: true }).firestore(); }
+function viewerDb() { return testEnv.authenticatedContext('calendar-viewer', { calendarViewer: true, firebase: { sign_in_provider: 'custom' } }).firestore(); }
 
 // ── Data builders ─────────────────────────────────────────────────────────────
 
@@ -2049,5 +2049,33 @@ describe('a name claim is believed only from the member\'s own account (v24.23)'
 
     test('a real member still cannot write somebody else\'s leave', async () => {
         await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), alFor('S. Silva')));
+    });
+});
+
+// ── THE VIEWER CLAIM IS BELIEVED ONLY ON A PIN SESSION (Sep 2026 review) ─────────────────────────
+//
+// `calendarViewer` is a custom claim on the SHARED `calendar-viewer` account, and a PIN session holds
+// a custom-token sign-in on it. Any PIN holder could link an email/password to that account; every
+// later PASSWORD sign-in on it would then carry `calendarViewer: true` for good — surviving a PIN
+// rotation, which is the one lever the admin has. So the claim counts only when the session is the
+// custom-token one the unlock function mints.
+describe('the calendarViewer claim is believed only on a custom-token session', () => {
+    const as = (/** @type {Record<string, any>} */ claims) =>
+        testEnv.authenticatedContext('calendar-viewer', claims).firestore();
+    const LINKED = {
+        'a password sign-in on the viewer account': { calendarViewer: true, email: 'x@example.com', firebase: { sign_in_provider: 'password' } },
+        'an anonymous session carrying the claim': { calendarViewer: true, firebase: { sign_in_provider: 'anonymous' } },
+    };
+    for (const [label, claims] of Object.entries(LINKED)) {
+        for (const coll of ['overrides', 'huddles', 'circulars', 'newsletters']) {
+            test(`${label}: cannot read ${coll}`, async () => {
+                await assertFails(getDocs(collection(as(claims), coll)));
+            });
+        }
+    }
+    test('the real PIN session still reads all four', async () => {
+        for (const coll of ['overrides', 'huddles', 'circulars', 'newsletters']) {
+            await assertSucceeds(getDocs(collection(viewerDb(), coll)));
+        }
     });
 });

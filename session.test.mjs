@@ -1107,6 +1107,26 @@ describe('primeAuth + currentUser fast path', () => {
         assert.equal(_signInCalls, 0, 'and skips the sign-in network call entirely');
     });
 
+    test('a TYPED password is always checked — a live matching session is not proof of it (Sep 2026 review)', async () => {
+        // The fast path answered 'named' for any typed password whenever the restored Firebase user
+        // was this member, so during the boot window a WRONG password renewed an expired 60-day
+        // session. A typed password is an explicit sign-in, so it goes to Firebase every time.
+        auth.currentUser = { isAnonymous: false, email: nameToEmail('G. Miller') };
+        _signInBehavior  = 'auth/invalid-credential';
+        const ok = await ensureFirebaseSession('G. Miller', undefined, 'not-the-password');
+        assert.equal(ok, false, 'a wrong typed password must not sign anybody in');
+        assert.ok(_signInCalls >= 1, 'the typed password was actually checked');
+    });
+
+    test('…and a RIGHT typed password on a live matching session still signs in', async () => {
+        auth.currentUser = { isAnonymous: false, email: nameToEmail('G. Miller') };
+        _signInBehavior  = 'ok';
+        const ok = await ensureFirebaseSession('G. Miller', undefined, 'the-password');
+        assert.equal(ok, true);
+        assert.equal(_signInCalls, 1);
+        assert.equal(getFirebaseIdentity(), 'named');
+    });
+
     test('fast path still VALIDATES identity: an anonymous live session is not reused — signs out + re-auths', async () => {
         auth.currentUser = { isAnonymous: true, email: null };
         _existingUser    = null;
@@ -1317,6 +1337,16 @@ describe('shedCalendarViewer — fail closed, or the shared viewer goes long-liv
                 if (orig) Object.defineProperty(mockAuth, 'currentUser', orig);
                 else delete /** @type {any} */ (mockAuth).currentUser;
             });
+    });
+
+    test('NO current user still re-arms member persistence (Sep 2026 review)', async () => {
+        // The viewer may already be gone — reconcile signs it out when its session has lapsed — but
+        // the SESSION-only persistence its unlock set is still in force. Returning early here left
+        // the member who then signed in on session persistence, lost when the browser closed.
+        mockAuth.currentUser = null;
+        await shedCalendarViewer();
+        assert.equal(_signOutCalled, false, 'nobody to sign out');
+        assert.deepEqual(_persistenceRestores, ['member']);
     });
 
     test('a non-viewer identity is left entirely alone', async () => {

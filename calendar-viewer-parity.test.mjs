@@ -48,7 +48,7 @@ describe('Contract A — one identity, three languages', () => {
         // Comments are stripped first, deliberately: this file's own header discusses the claim at
         // length, and a guard satisfied by prose is not a guard.
         const code = rules.replace(/\/\/[^\n]*/g, '');
-        assert.ok(code.includes(`request.auth.token.${CALENDAR_VIEWER_CLAIM}`),
+        assert.ok(code.includes(`request.auth.token.get('${CALENDAR_VIEWER_CLAIM}', false) == true`),
             `firestore.rules never reads \`${CALENDAR_VIEWER_CLAIM}\` — the minted token would grant nothing`);
     });
 
@@ -79,7 +79,7 @@ describe('Contract A — one identity, three languages', () => {
 
         assert.match(block, /allow read: if request\.auth != null/,
             'the overrides read rule must require an authenticated identity');
-        assert.ok(block.includes(`request.auth.token.${CALENDAR_VIEWER_CLAIM} == true`),
+        assert.ok(block.includes('isCalendarViewer()'),
             'the viewer capability is not accepted for override reads — the PIN would unlock nothing');
         // isMember(), not a bare `'name' in token` (v24.23): Firebase copies a SELF-SET display name
         // into `name`, so the bare check admitted an anonymous session that named itself a member.
@@ -98,6 +98,9 @@ describe('Contract A — one identity, three languages', () => {
             const verbs = c.slice(0, c.indexOf(':'));
             if (!/create|update|write|delete/.test(verbs)) continue;
             const body = c.slice(c.indexOf(':'), c.indexOf(';') + 1);
+            // `isCalendarViewer()` is the GRANT form, so it may never appear in a write clause.
+            assert.ok(!body.includes('isCalendarViewer('),
+                `a write clause (allow ${verbs.trim()}) grants something to the viewer:\n${body}`);
             if (!body.includes(CALENDAR_VIEWER_CLAIM)) continue;
             // The ONE legal appearance in a write clause is a DENIAL (`!= true`).
             assert.match(body, new RegExp(`${CALENDAR_VIEWER_CLAIM}\\s*!=\\s*true`),
