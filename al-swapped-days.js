@@ -4,7 +4,7 @@
 // ── THE PROBLEM THIS EXISTS FOR ────────────────────────────────────────────────────────────────
 //
 // Annual leave on a day the base roster calls REST does not consume entitlement, and that is right:
-// it stops a stray booking (M. Robson's 5 Dec) and a declined overtime day from costing somebody a
+// it stops a stray booking and a declined overtime day from costing somebody a
 // day they never spent. But there is one case where such a day IS real leave — the member SWAPPED
 // working days and then booked the swapped-in day off — and the app's only record of it is
 // `replacedType: 'shift'` on the AL doc, which until now could be set ONLY as a side effect of
@@ -14,7 +14,7 @@
 // in opposite directions: the AL range card SKIPPED rest days without writing anything, and the week
 // grid WROTE the AL but left it costing nothing. Neither said so. The balance was simply wrong
 // afterwards, and the only way to find out was to compare against the depot's workbook by hand —
-// which is how this surfaced (owner, 14 Sep 2026: three days of C. Francisco-Charles's leave,
+// which is how this surfaced (owner, 14 Sep 2026: three days of one member's leave,
 // invisible in the app, found only because the workbook disagreed by three).
 //
 // The fix is not a better default. There is no correct default: only the person booking knows

@@ -591,7 +591,7 @@ allowance paid every period (including while on leave), so it needs no holiday p
 **✓ Code now matches this rule (v17.23):** London was wrongly folded into the HPP base at
 v16.90 and has been removed from `_varPayForPeriod`; the HPP estimate no longer includes it
 (owner-confirmed; the annual HPP lump appears as its own payslip line, separate from London
-Allowance). The per-category back-pay itemisation was confirmed from G. Miller's period 32
+Allowance). The per-category back-pay itemisation was confirmed from a period 32
 (Oct 2025) payslip (each line carries a `(Back Pay)` suffix). (History: back pay's variable
 portion was briefly added into HPP at v10.73, then removed at v16.89 as a double-count — see
 "Back pay lump sum vs HPP" below.)
