@@ -136,6 +136,11 @@ body.auth-ready .container { display: grid; }
     color: var(--text-mid);
     margin: 0;
 }
+/* "24-line" is one word to a reader, and the browser breaks after any hyphen — measured as "…an empty
+   24-" / "line grid." at 320 and 390px (polish round 2). A span rather than a U+2011 non-breaking
+   hyphen because the number is STAMPED at runtime from ROTATING_LINES (links-rotation-parity), so the
+   wrapper is written once around both halves and the count inside it stays nobody's literal. */
+.links-nowrap { white-space: nowrap; }
 /* The two ANALYSIS placeholders (coverage, checks). They can offer no action — there is nothing to
    analyse — so they state the dependency and stop. `min-height` is what stops a card that holds one
    sentence from collapsing to a 117px sliver beside a 2,000px generator. */

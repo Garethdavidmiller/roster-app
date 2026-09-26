@@ -318,6 +318,54 @@ test('calendar: the retry re-reads, and a grid appears when it succeeds', async 
     await expect(page.locator('.legend')).toBeVisible();
 });
 
+// ONE MESSAGE AT A TIME (polish round 2). The withheld-grid panel and the header sync chip used to say
+// the same thing together — "Checking this month" beside "Updating your shifts…", "Couldn't check
+// this month" + Try again beside "Couldn't update — tap to retry". The chip now steps back while a
+// panel speaks, and ONLY then: over a painted grid it is the only thing saying a sync is running.
+//
+// Each case asserts the chip EXISTS before asserting it is hidden — `toBeHidden` alone also passes
+// on a chip that was never created, which would hold whether or not the rule in index.css exists.
+test('calendar: while the grid panel speaks, the header sync chip does not repeat it', async ({ page }) => {
+    await seedMember(page);
+    await page.addInitScript(() => { (window.__E2E = window.__E2E || {}).docsDelayMs = 30000; });
+    await page.goto('/');
+    await expect(page.locator('.calendar-pending')).toBeVisible();
+    const chip = page.locator('.sync-chip');
+    await expect(chip).toHaveCount(1);            // created at 800ms — it is there, just not shown
+    await expect(chip).toBeHidden();
+    await expect(page.locator('.calendar-pending')).toBeVisible();
+});
+
+test('calendar: a FAILED panel with its own Try again is not echoed by a retry chip', async ({ page }) => {
+    await seedMember(page);
+    await page.addInitScript(() => { (window.__E2E = window.__E2E || {}).failGetDocs = true; });
+    await page.goto('/');
+    await expect(page.locator('.calendar-pending-retry')).toBeVisible();
+    const chip = page.locator('.sync-chip');
+    await expect(chip).toHaveCount(1);
+    await expect(chip).toHaveClass(/sync-chip-error/);
+    await expect(chip).toBeHidden();
+});
+
+test('calendar: over a PAINTED grid the sync chip still shows — it is the only signal there', async ({ page }) => {
+    await seedMember(page);
+    // A cached month paints from phase 1 while the server read hangs: a real grid, a sync still
+    // running, and no panel. This is the case the owner asked to keep, and the one a rule written
+    // too broadly (hiding every chip) would silently take away.
+    await page.addInitScript(() => {
+        const d = new Date();
+        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-15`;
+        window.__E2E = Object.assign(window.__E2E || {}, {
+            docsDelayMs: 30000,
+            cacheDocs: [{ id: 'x', memberName: 'G. Miller', date: iso, type: 'rdw', value: '09:00-17:00' }],
+        });
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('.calendar-pending')).toHaveCount(0);
+    await expect(page.locator('.sync-chip')).toBeVisible();
+});
+
 // Swipe helper — a real pointer drag across the grid. Left drag = next month, right = previous.
 //
 // It RETRIES until the month heading actually changes, and that is not defensive padding: a
@@ -417,6 +465,77 @@ test('calendar: the legend follows the grid across a SWIPE, in both directions',
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await expect(page.locator('.legend')).toBeVisible();
 });
+
+// A BALANCED LEGEND AT 1024px (polish round 2). As a flex row the keys wrapped greedily, so a busy
+// month — RDW, leave, an absence and an Other day on top of the fixed keys — put "✂️ Pay cut-off" and
+// "💷 Payday" alone on a second line (measured: 10 keys over 2). The four conditional keys are
+// revealed by hand here, exactly as `legendVisibility` would for such a month, so the test does not
+// depend on what today's fixture month happens to contain.
+test('calendar: a legend that wraps at 1024px wraps into EVEN lines', async ({ page }) => {
+    await seedMember(page);
+    await page.setViewportSize({ width: 1024, height: 800 });
+    await page.goto('/');
+    await expect(page.locator('.legend')).toBeVisible();
+    await page.evaluate(() => {
+        for (const id of ['legend-rdw', 'legend-al', 'legend-sick', 'legend-other']) {
+            const el = document.getElementById(id);
+            if (el) el.style.display = '';
+        }
+        const row = document.getElementById('legend-row-2');
+        if (row) row.style.display = '';
+    });
+    const lines = await page.evaluate(() => {
+        /** @type {Record<number, { n: number, left: number, right: number }>} */
+        const byTop = {};
+        for (const el of document.querySelectorAll('.legend-item')) {
+            const r = el.getBoundingClientRect();
+            if (!r.width) continue;
+            const k = Math.round(r.top);
+            const l = byTop[k] || (byTop[k] = { n: 0, left: r.left, right: r.right });
+            l.n++; l.left = Math.min(l.left, r.left); l.right = Math.max(l.right, r.right);
+        }
+        return Object.values(byTop).map(l => ({ n: l.n, width: Math.round(l.right - l.left) }));
+    });
+    expect(lines.length, 'this many keys must still need two lines at 1024px, or the test proves nothing').toBe(2);
+    const [a, b] = lines.map(l => l.width);
+    expect(Math.min(a, b) / Math.max(a, b),
+        `the two legend lines are ${a}px and ${b}px — the shorter must not be a stub (${JSON.stringify(lines)})`)
+        .toBeGreaterThan(0.6);
+});
+
+// THE DOCUMENT VIEWER'S TITLE SITS ON THE ✕ LINE (polish round 2) — the day panel's shape. It used to
+// sit below the button, leaving a 50px band above it with nothing in it but the ✕. Two things to hold
+// at once: vertically the title's first line shares the ✕'s band, and horizontally no glyph of it
+// reaches the ✕'s 44px target — the longest name, "🗞️ Marylebone Newsletter", is the one to try.
+// The widths are chosen, not sampled: the title only nears the ✕ where it JUST fits on one line, and
+// that happens at a different width for each side padding (≈350px at 16px, ≈380 at 30, ≈402 at 40).
+// At the widths either side of that it wraps or has room to spare, and any padding passes.
+for (const width of [320, 350, 380, 402, 1280]) {
+    test(`calendar: the Newsletter viewer's title shares the ✕ line and stays clear of it @${width}`, async ({ page }) => {
+        await seedMember(page);
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto('/index.html#newsletter');
+        await expect(page.locator('#docViewer')).toBeVisible();
+        await expect(page.locator('#docViewerTitle')).toContainText('Newsletter');
+        const g = await page.evaluate(() => {
+            const x = /** @type {HTMLElement} */ (document.getElementById('docViewerClose')).getBoundingClientRect();
+            const t = /** @type {HTMLElement} */ (document.getElementById('docViewerTitle'));
+            const range = document.createRange();
+            range.selectNodeContents(t);
+            const rects = [...range.getClientRects()].filter(r => r.width > 0);
+            return {
+                closeTop: x.top, closeBottom: x.bottom, closeLeft: x.left,
+                firstMid: (rects[0].top + rects[0].bottom) / 2,
+                textRight: Math.max(...rects.map(r => r.right)),
+            };
+        });
+        expect(g.firstMid, 'the title\'s first line must sit within the ✕ band, not beneath it')
+            .toBeGreaterThan(g.closeTop);
+        expect(g.firstMid).toBeLessThan(g.closeBottom);
+        expect(g.textRight, 'no part of the title may reach the ✕ touch target')
+            .toBeLessThanOrEqual(g.closeLeft);
+    });
+}
 
 // Every "today" on the page is read at render time and nothing re-rendered by itself, so a Calendar
 // left open over midnight (or a PWA resumed the next morning) highlighted yesterday.

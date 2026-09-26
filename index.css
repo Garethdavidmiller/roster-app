@@ -1144,8 +1144,32 @@
                 bottom: 6px !important;
             }
 
-            /* Legend: wider spacing on desktop */
-            .legend { gap: 6px 20px; padding: 12px 24px; }
+            /* Legend: wider spacing on desktop — and a BALANCED wrap (polish round 2, owner-approved).
+               A flex row wraps greedily, so when a busy month's keys overran one line at 1024px the
+               overflow was just the last two ("✂️ Pay cut-off", "💷 Payday") alone on line 2. Flex
+               has no balance; an inline formatting context does. So on desktop the keys become
+               atomic inline boxes in a centred block with `text-wrap: balance`, and the lines come
+               out even whichever of the conditional keys this month shows.
+
+               The geometry is the flex version's exactly: the 20px column gap is 10px of margin
+               either side of each key, with the legend's 24px side padding cut to 14px to absorb
+               the outer ones; the 6px row gap is 3px above and below, with the 12px top/bottom
+               padding cut to 9px. `font-size: 0` removes the source whitespace between keys, which
+               would otherwise add a space's width to every gap — every key sets its own size
+               (`.legend-text` below, the swatch in px), so nothing inherits the zero. The rows stay
+               `display: contents`, so the keys still pool across them as they did in flex. */
+            .legend {
+                display: block;
+                text-align: center;
+                text-wrap: balance;
+                font-size: 0;
+                padding: 9px 14px;
+            }
+            .legend-item {
+                display: inline-flex;
+                vertical-align: middle;
+                margin: 3px 10px;
+            }
             .legend-text { font-size: var(--type-label); }
 
             /* Mobile-only UI: hide on desktop. `--prompt-available` is how install-prompt.js
@@ -3178,13 +3202,23 @@
             font-weight: 700;
             color: var(--primary-blue);
             text-align: center;
-            /* Clear the absolute top-right ✕ (.lb-close at top:14/right:14, ~34px tall): sit the
-               title below it and keep centred text off it with side padding, so a long title
-               ("🗞️ Marylebone Newsletter") never collides with the close button. */
-            margin: 24px 0 16px;
-            padding: 0 30px;
+            /* ON THE ✕ LINE, NOT UNDER IT (polish round 2, owner-approved) — the day panel's shape.
+               It used to sit below the button (`margin-top: 24px`, written when the ✕ was ~34px),
+               which left a measured 50px band above the title holding nothing but the ✕. With no
+               top margin the first line starts at the panel's 26px padding and its centre lands
+               within 3px of the ✕'s (36px — the 44px target at top:14).
+
+               The side padding is what keeps a title that now SHARES the ✕'s band off it. The
+               target spans 14–58px from the panel's right edge, i.e. 34px into the 24px-padded
+               content box, so 40px — the day panel's figure — leaves a 6px floor on the longest
+               line, applied to BOTH sides because the text is centred. The longer names wrap
+               earlier for it ("🗞️ Marylebone" / "Newsletter" below ~390px); `balance` keeps the
+               two lines even, and a wrap is legible where an overlap is a fault. */
+            margin: 0 0 16px;
+            padding: 0 40px;
             line-height: 1.3;
             letter-spacing: -0.3px;
+            text-wrap: balance;
         }
         .doc-viewer-body { text-align: center; padding-bottom: 4px; }
         .doc-viewer-loading,
@@ -3385,6 +3419,25 @@
         }
         @media (prefers-reduced-motion: reduce) {
             .sync-chip { animation: none; }
+        }
+        /* ONE MESSAGE AT A TIME (polish round 2, owner-approved). While the month is WITHHELD the
+           panel below the header already says what the chip says — "Checking this month" beside
+           "Updating your shifts…", or "Couldn't check this month" with its own "Try again" beside
+           "Couldn't update — tap to retry" — so the chip steps back and the panel speaks alone.
+
+           Two cases keep the chip, and both are deliberate:
+             · a PAINTED grid (a cached month being refreshed, or a failed refresh over it) — there
+               is no panel, and the chip is the only thing saying a sync is running or has failed;
+             · a FAILED panel with NO "Try again" — drawn while the initial fetch still holds its
+               claim (the 10s timeout path), where the chip is the only retry on screen. Hiding it
+               there would leave a failure with nothing to press.
+           CSS rather than a branch in calendar-initial-fetch.js because the header and the panel are
+           rebuilt by every render, in either order, and the loading chip is not re-attached after
+           one — a selector on the rendered result is right after every transition without the
+           state machine having to know about the grid. `e2e/calendar.spec.js` pins both halves. */
+        .calendar-container:has(> .calendar-pending:not(.calendar-pending--failed)) .sync-chip,
+        .calendar-container:has(> .calendar-pending .calendar-pending-retry) .sync-chip {
+            display: none;
         }
 
         /* ---- Skeleton shimmer — shown on calendar grid during initial Firestore fetch ---- */

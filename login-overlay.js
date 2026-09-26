@@ -48,8 +48,16 @@ import { setStatus } from './status-text.js';
 // (admin-only Operations, designer-only Links) is enforced by the caller after sign-in, not here.
 const GRADE_ORDER = CONFIG.GRADE_ORDER;   // single source (roster-data CONFIG) — shared with admin-app's selector
 const GRADE_KEY   = 'myb_login_grade';
-/** Canonical label for the reset-request control — restored after every send, success or failure. */
-const RESET_BTN_LABEL = 'Can’t get in? Ask the admin to reset your password';
+/** Canonical label for the reset-request control — restored after every send, success or failure.
+ *  MARKUP, not text (polish round 2): the question and the request are each one `.login-reset-clause`
+ *  span, so the only place the line can break is BETWEEN them. `text-wrap: balance` alone measured
+ *  "Can’t get in? Ask the admin" over "to reset your password" at every width from 320 to 1280 — even
+ *  lines, split in the wrong place. Wrapping only the request was tried and is not enough: balance
+ *  then pulled "in?" down beside it ("Can’t get" / "in? Ask the admin…"), so BOTH halves are atomic.
+ *  The accessible name and `textContent` are unchanged. A constant string with no interpolation, so
+ *  writing it as HTML carries nothing from outside. */
+const RESET_BTN_LABEL = '<span class="login-reset-clause">Can’t get in?</span> '
+    + '<span class="login-reset-clause">Ask the admin to reset your password</span>';
 
 /** Resolve `promise`, or reject after `ms`, so a hung async step can't strand the login overlay.
  *  Clears the timer on either outcome. (The underlying promise keeps running — that is fine; a late
@@ -174,7 +182,7 @@ function overlayHtml(pageLabel, alternative, notice) {
              so a spurious one costs a row the admin clears, while a missing one costs a member their
              access. Those are not the same size of mistake. The repeat throttle and the member-name
              doc id (so the queue can never exceed the roster) are what make the open door safe. -->
-        <button type="button" id="loginResetRequest" class="login-reset-request">Can’t get in? Ask the admin to reset your password</button>
+        <button type="button" id="loginResetRequest" class="login-reset-request">${RESET_BTN_LABEL}</button>
         <div id="loginResetStatus" class="login-receipt" aria-live="polite"></div>
         ${alternative
             ? `<button type="button" class="login-back" id="loginAlternative"></button>` +
@@ -441,7 +449,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         if (resetBtn) {
             resetBtn.hidden = false;
             resetBtn.disabled = false;
-            resetBtn.textContent = RESET_BTN_LABEL;
+            resetBtn.innerHTML = RESET_BTN_LABEL;
             resetBtn.classList.remove('login-reset-request--prompted');
         }
         setResetStatus('');
@@ -461,7 +469,9 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         const name = nameSelect.value;
         if (!name) { setResetStatus('Choose your name first.', 'fail'); return; }
         resetBtn.disabled = true;
-        const original = resetBtn.textContent;
+        // innerHTML, not textContent: the label carries the span that places its line break, and a
+        // textContent round trip would restore it flattened — balanced in the wrong place again.
+        const original = resetBtn.innerHTML;
         resetBtn.textContent = 'Sending…';
         /** @type {(e: any) => boolean} */
         let timedOut = () => false;
@@ -488,7 +498,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             // button disabled and reading "Sending…" behind `hidden`, so a later credential failure
             // re-revealed a dead control.
             resetBtn.disabled = false;
-            resetBtn.textContent = original;
+            resetBtn.innerHTML = original;
         }
     });
 

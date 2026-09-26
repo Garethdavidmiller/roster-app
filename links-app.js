@@ -1405,7 +1405,7 @@ export function init() {
             if (emptyTitle) emptyTitle.textContent = loadFailed ? 'Couldn’t load your designs' : 'No designs yet';
             if (emptyMsg) emptyMsg.innerHTML = loadFailed
                 ? `Check your connection and refresh the page. Nothing has been lost — saved designs are on the server.`
-                : `Build a rotating pattern from staffing targets with the Auto-generate card below, or start from an empty ${TOTAL_POS}-line grid.`;
+                : `Build a rotating pattern from staffing targets with the Auto-generate card below, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`;
             if (emptyActs) /** @type {HTMLElement} */ (emptyActs).style.display = loadFailed ? 'none' : '';
             _setGridHint(false);
             _renderOverLengthNotice();   // `design` is null here, so this hides it

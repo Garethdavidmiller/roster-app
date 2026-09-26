@@ -1268,6 +1268,15 @@ button.lightbox-bug-link {
        sentence has to stay explicit about what tapping it does, because it messages a real person. */
     text-wrap: balance;
 }
+/* WHERE the balanced line breaks (polish round 2). Balance evens the two lines but chooses the break
+   by length alone, and measured "Can’t get in? Ask the admin" over "to reset your password" at every
+   width — a request cut in half. With the question and the request each one atomic inline, the only
+   break left is between them, so the question sits above the request it leads to. `inline-block`,
+   not `nowrap`: in a card too narrow for the whole request (320px phones) it still wraps INSIDE
+   itself — balanced, since `text-wrap` inherits — instead of overflowing the button.
+   `text-decoration: inherit` is load-bearing: a decoration does not PROPAGATE into an atomic inline
+   (css-tokens.md, v24.02), so without it the underline that marks this as a link simply vanished. */
+.login-reset-clause { display: inline-block; text-decoration: inherit; }
 .login-reset-request[hidden] { display: none; }
 .login-reset-request:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .login-reset-request:disabled { opacity: 0.6; cursor: default; }

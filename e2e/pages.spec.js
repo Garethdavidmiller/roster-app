@@ -5359,7 +5359,32 @@ test('links: the empty-state button opens the generator with its chevron and ARI
     await expect(page.locator('#generatorChevron')).toHaveAttribute('aria-expanded', 'true');
 });
 
-// ── The generator card has ONE left edge on desktop (v19.67) ─────────────────────────────────────
+// ── "24-line" is one word to a reader (polish round 2) ──────────────────────────────────────────
+// The empty state's sentence broke after the hyphen — "…start from an empty 24-" / "line grid." — at
+// 320 and 390px. The count is stamped from ROTATING_LINES, so the phrase is kept whole by a span
+// around the rendered count and "-line", not by a literal. One client rect per span = one line.
+test('links: the empty state never splits the "N-line" phrase across lines', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    for (const width of [320, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/links.html');
+        await expect(page.locator('#linksEmptyState')).toBeVisible();
+        const phrase = page.locator('#linksEmptyMsg .links-nowrap');
+        await expect(phrase).toHaveText(`${ROTATING_LINES}-line`);
+        const lines = await phrase.evaluate(el => {
+            const r = document.createRange();
+            r.selectNodeContents(el);
+            return new Set([...r.getClientRects()].filter(x => x.width > 0).map(x => Math.round(x.top))).size;
+        });
+        expect(lines, `at ${width}px "${ROTATING_LINES}-line" must sit on one line`).toBe(1);
+    }
+});
+
+// ── The generator card has ONE left edge on desktop (v19.67)─────────────────────────────────────
 // v19.66 centred `.generator-form` to split the 440px of dead space beside it, and left the intro
 // prose where it was — so the card ended up with TWO left edges: the intro ran 122→778 while the
 // table, objectives, action links and Generate button all ran 310→970. Nearly the same WIDTH
