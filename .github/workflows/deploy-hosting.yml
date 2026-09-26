@@ -92,9 +92,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # No separate `node --check` loop (removed at the v24.28 review): `npm run check` runs
+      # test:parse, whose module-parse.test.mjs parses every root .js (the same set `*.js` named)
+      # under the ES-module goal browsers use — the stronger of the two checks, already in this step.
       - name: Syntax check and unit tests
         run: |
-          for f in *.js; do node --check "$f" || exit 1; done
           # Canonical check command (lint + tests) lives in package.json.
           npm run check
 

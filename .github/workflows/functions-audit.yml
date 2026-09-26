@@ -32,3 +32,51 @@ jobs:
         env:
           AUDIT_UNKNOWN_IS_FAILURE: '1'
         run: bash scripts/audit-functions-deps.sh
+
+  # ── THE ROOT TREE, WHICH NOTHING AUDITED (v24.28 review) ─────────────────────────────────────
+  #
+  # Everything in the root package-lock.json is a devDependency — lint, typecheck, Playwright, the
+  # emulators, and firebase-tools, the tool the deploy jobs run with production credentials. None of
+  # it ships to a member's device, which is why the job above audits functions/ only; but "not
+  # shipped" is not "not run", and the review found 21 advisories here that no workflow had ever
+  # reported.
+  #
+  # REPORT-ONLY, deliberately, and unlike the job above. Clearing them means upgrading
+  # firebase-tools, which is the deploy tool and needs an OBSERVED deploy to validate; a monitor that
+  # goes red every Monday until then teaches everyone to ignore the workflow the Functions audit
+  # shares. So it lists what it finds in the run summary and a warning annotation, and never fails.
+  # No install: `npm audit` reads the lockfile alone. No `--omit=dev`: that would audit nothing here.
+  root:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22'
+
+      - name: Audit the root (tooling) tree — report only
+        run: |
+          set +e -uo pipefail
+          REPORT="$RUNNER_TEMP/root-audit.json"
+          npm audit --json > "$REPORT" 2>/dev/null
+          if ! jq -e 'has("metadata")' "$REPORT" >/dev/null 2>&1; then
+            echo "::warning title=Root dependency audit did NOT run::npm audit produced no usable report — the root tree was not checked this week."
+            exit 0
+          fi
+          COUNTS=$(jq -r '.metadata.vulnerabilities | "critical=\(.critical) high=\(.high) moderate=\(.moderate) low=\(.low)"' "$REPORT")
+          {
+            echo "## Root (tooling) dependency audit — report only"
+            echo ""
+            echo "$COUNTS"
+            echo ""
+            jq -r '.vulnerabilities // {} | to_entries[] | "- \(.value.severity) · \(.key) (via \([.value.via[] | if type == "string" then . else .name end] | unique | join(", ")))"' "$REPORT"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "root audit ran — $COUNTS"
+          if [ "$(jq -r '.metadata.vulnerabilities.critical + .metadata.vulnerabilities.high' "$REPORT")" != "0" ]; then
+            echo "::warning title=Root tooling has high/critical advisories::$COUNTS — see the run summary. Report-only: the fix is usually a firebase-tools upgrade, which needs an observed deploy."
+          fi
