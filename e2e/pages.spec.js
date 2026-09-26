@@ -110,6 +110,34 @@ test('settings: an iPhone in a browser is told to install, not that it is all se
     // Notifications is still honestly unavailable — the fix names the prerequisite, it does not
     // pretend the card can be turned on.
     await expect(page.locator('#notifStatusChip')).toHaveText(/not available/i);
+
+    // …and POINTS at the Install card rather than restating its steps (polish round 2). The pointer
+    // is checked against the card's REAL heading, so renaming that card cannot leave this line
+    // naming a card that no longer exists; and the taps must live in one place only.
+    const installHeading = await page.locator('#deviceCard h2').evaluate(h =>   // minus the emoji span
+        [...h.childNodes].filter(n => n.nodeType === Node.TEXT_NODE).map(n => n.textContent).join('').trim());
+    expect(installHeading).not.toBe('');
+    await expect(page.locator('#notifStatusMsg')).toContainText(installHeading);
+    await expect(page.locator('#notifStatusMsg')).not.toContainText(/Share|Add to Home Screen/);
+
+    // The Install card's opening line is the same size as every sibling card's (polish round 2) —
+    // it was a step smaller, which read as a footnote rather than as the card's own explanation.
+    const size = (sel) => page.locator(sel).first().evaluate(el => getComputedStyle(el).fontSize);
+    expect(await size('#installNote')).toBe(await size('#payDataCard .card-explainer'));
+});
+
+test('settings: a saved work email says so before it offers to remove it', async ({ page }) => {
+    // Polish round 2 (owner-approved): "Remove saved email" sat ABOVE "✓ Saved — last updated", so
+    // the card offered to undo the save before confirming it. The confirmation answers the Save
+    // button; Remove is the next thing you might do.
+    await openSettings(page, { configured: true, noPush: true });
+    await page.locator('#contactChevron').click();
+    const feedback = page.locator('#contactFeedback');
+    const remove   = page.locator('#workEmailRemoveBtn');
+    await expect(feedback).toContainText('✓ Saved');
+    await expect(remove).toBeVisible();
+    const [f, r] = [await feedback.boundingBox(), await remove.boundingBox()];
+    expect(f.y + f.height, 'the confirmation must sit above the Remove action').toBeLessThanOrEqual(r.y);
 });
 
 for (const [label, missingId, chipId, noPush, forcePush] of [
@@ -3849,7 +3877,11 @@ test('operations: a flagged roster cell can be resolved from the review table', 
 
     // A garbled cell has no readings to offer, so it stays a skip-only row — the picker must not
     // appear just because a cell was flagged.
-    await expect(page.locator('.roster-change-row .act-read')).toHaveCount(1);
+    await expect(page.locator('.roster-change-row:not(:has(.roster-pick)) .act-read')).toHaveCount(1);
+    // …but UNTIL ANSWERED all three wear the same "couldn't read" chip (polish round 2): the words
+    // were always identical, and the two rows offering readings used to wear the decision style.
+    await expect(page.locator('.roster-change-row .act-read')).toHaveCount(3);
+    await expect(page.locator('.roster-change-unreadable .act-choice')).toHaveCount(0);
 
     // A flagged row sitting over a MANUAL entry must SHOW it (v19.37). Picking writes with
     // replaceId, so the manual entry is replaced — and this table's standing guarantee is that a
@@ -3865,10 +3897,15 @@ test('operations: a flagged roster cell can be resolved from the review table', 
     const flagged = page.locator('.roster-change-row').filter({ has: page.locator('.roster-choice-btn[data-opt="0"]') });
     await flagged.last().locator('.roster-choice-btn[data-opt="0"]').click();
     await expect(saveBtn).toHaveText(/Save 4 changes/);
+    // …and its chip becomes the decision, in place (the pick patches the row, it does not re-render).
+    await expect(flagged.last().locator('.roster-act')).toHaveClass(/act-choice/);
+    await expect(flagged.last().locator('.roster-act')).toHaveText('Your choice');
 
     // …and Skip puts it back to writing nothing, so a mis-tap is always recoverable.
     await flagged.last().locator('.roster-choice-btn[data-opt="skip"]').click();
     await expect(saveBtn).toHaveText(/Save 3 changes/);
+    await expect(flagged.last().locator('.roster-act')).toHaveClass(/act-read/);
+    await expect(flagged.last().locator('.roster-act')).toHaveText("Couldn't read");
 
     // Then actually SAVE, and assert the picked value reaches the write. The counter above and the
     // save collector are two separate passes over the same state: asserting only the button text
@@ -7008,13 +7045,16 @@ test('operations: the entry control never offers a type Sunday forbids', async (
 
 test('operations: an options row keeps its own words while an entry is half-finished', async ({ page }) => {
     // TWO ROW SHAPES share `patchEntryRow` and they do not share a vocabulary. The row that offers
-    // candidate readings calls its control "Neither — enter it" and is permanently a decision
-    // (`act-choice` in every state); the row with no readings says "Enter the shift" and is
-    // `act-read` until answered. `patchEntryRow` spoke only the second row's dialect, so on an
-    // options row an incomplete draft renamed the open control to the OTHER row's phrase and
-    // restyled the tag — telling the admin the row had gone back to unreadable while they were
-    // part-way through answering it. Latent since v22.17 (only the keystroke path reached it);
-    // v22.50 routed every pill click through the same call, so it fired on the first tap.
+    // candidate readings calls its control "Neither — enter it"; the row with no readings says
+    // "Enter the shift". `patchEntryRow` spoke only the second row's dialect, so on an options row
+    // an incomplete draft renamed the open control to the OTHER row's phrase. Latent since v22.17
+    // (only the keystroke path reached it); v22.50 routed every pill click through the same call,
+    // so it fired on the first tap.
+    //
+    // The TAG follows one rule on both shapes since polish round 2 (owner-approved): the
+    // "couldn't read" style until something will be written, the decision style once it will. So a
+    // half-finished draft on an unanswered row is still `act-read` — and a row whose READING is
+    // picked stays `act-choice` while a half-finished entry sits open beside it.
     await seedSession(page, 'G. Miller');
     await openRosterReview(page);
     const row = page.locator('.roster-change-row', { has: page.locator('.roster-choice-btn--skip') })
@@ -7022,19 +7062,27 @@ test('operations: an options row keeps its own words while an entry is half-fini
     const btn = row.locator('.roster-choice-btn--enter');
     const tag = row.locator('.roster-act');
     await expect(btn).toHaveText('Neither — enter it');
+    await expect(tag).toHaveClass(/act-read/);
     await btn.click();
 
     // Half-finished: Other with no flavour yet composes to nothing, so `done` is false.
     await row.locator('.roster-entry-pill', { hasText: /^Other$/ }).click();
     await expect(btn).toHaveText('Neither — enter it');          // NOT "Enter the shift"
-    await expect(tag).toHaveClass(/act-choice/);
-    await expect(tag).not.toHaveClass(/act-read/);
+    await expect(tag).toHaveClass(/act-read/);
+    await expect(tag).toHaveText("Couldn't read");
 
     // Finished: the shared "Entered — change it" is correct on both shapes.
     await row.locator('.roster-entry-flavour', { hasText: 'Training' }).click();
     await expect(btn).toHaveText('Entered — change it');
     await expect(tag).toHaveClass(/act-choice/);
+    await expect(tag).not.toHaveClass(/act-read/);
     await expect(row.locator('.roster-entry-hint')).toContainText('will be saved');
+
+    // A picked READING, then the entry un-finished beside it: still answered, and it says so.
+    await row.locator('.roster-choice-btn[data-opt="0"]').click();
+    await row.locator('.roster-entry-pill', { hasText: /^Other$/ }).click();
+    await expect(tag).toHaveClass(/act-choice/);
+    await expect(tag).toHaveText('Your choice');
 });
 
 // ── THE HUDDLE TABLE MUST NOT DRAG THE WHOLE PAGE SIDEWAYS (v22.27) ────────────────────────────

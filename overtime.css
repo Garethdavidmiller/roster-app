@@ -1478,14 +1478,17 @@ body {
 
 /* "Not being asked" — the people this week has stopped expecting an answer from (v20.95). Muted on
    purpose: it is a footnote to the counts above, not a fourth thing to read. It is also the only
-   panel that renders CONDITIONALLY, so its presence is itself the signal. */
-.ot-day-panel--muted { opacity: 0.9; }
+   panel that renders CONDITIONALLY, so its presence is itself the signal.
+   NO WHOLE-PANEL `opacity` (polish round 2, owner-approved). It was 0.9, which multiplied every
+   line inside: the grey names, grades and notes measured 4.55:1 — 0.05 above the AA floor — and
+   the header 7.4:1. The header recolour below already says "muted"; the rows are a list a reviewer
+   still has to READ, which is css-tokens.md's rule for when not to fade (`opacity` on a group).
+   Measured after, same fixture: grey text 5.68:1, header 9.15:1. */
 /* MUTED MEANS DIMMER WHITE, NOT A LIGHT-SURFACE GREY (v21.51). This carried `--text-light` — a
    token for muted text ON A CARD — over the navy header bar, which measured 3.75:1 against the
-   4.5:1 AA floor, and the panel's own 0.9 opacity made the rendered result worse again. It is the
-   only place on this page that puts anything but `white` on navy. The fix is the drawer's idiom:
-   muting on a dark surface is done with ALPHA, at values css-tokens.md records as AA-calibrated
-   (0.70 ≈ 7:1). Measured after the fix, opacity included: 7.6:1. */
+   4.5:1 AA floor. It is the only place on this page that puts anything but `white` on navy. The
+   fix is the drawer's idiom: muting on a dark surface is done with ALPHA, at values css-tokens.md
+   records as AA-calibrated (0.70 ≈ 7:1). */
 .ot-day-panel--muted .ot-day-panel-head { color: rgba(255, 255, 255, .72); }
 
 .ot-section-note {
@@ -1766,7 +1769,6 @@ body {
        a printed sheet whose counts silently exclude somebody is the same unattributable
        exclusion the panel exists to prevent. */
     .ot-person-btn { display: none !important; }
-    .ot-day-panel--muted { opacity: 1; }
 }
 
 /* ── The all-week shortcut (v22.05) — a quiet text control, deliberately NOT a pill: it must not

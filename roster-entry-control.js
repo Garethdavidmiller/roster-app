@@ -50,6 +50,7 @@ import { escapeHtml as esc, isSunday } from './roster-data.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
 import { manualCellValue, isForbiddenOnSunday, composeOtherValue, isRestShift, OTHER_FLAVOURS } from './override-utils.js';
 import { normaliseCellValue, isZeroLengthRange } from './roster-cell-rules.js';
+import { unreadableTagClass } from './roster-review-states.js';
 
 /** What the hint under the time boxes says, in both of its states. */
 const HINT_DONE = '\u2713 this day will be saved';
@@ -216,18 +217,18 @@ export function toggleEntry(rowEl, btn, key, st, open) {
  */
 export function patchEntryRow(rowEl, done, st) {
     if (!rowEl) return;
-    // TWO ROW SHAPES REACH HERE AND THEY DO NOT SHARE A VOCABULARY (v22.54). The row that offers
-    // candidate readings is permanently a decision — its tag is `act-choice` in every state — so
-    // restyling it to `act-read` because a draft is half-finished said the row had regressed to
-    // unreadable while the admin was in the middle of answering it.
-    const optionsRow = !!rowEl.querySelector('.roster-pick');
+    // TWO ROW SHAPES REACH HERE (v22.54), and since polish round 2 their TAG follows one rule:
+    // `unreadableTagClass` — "couldn't read" styling until something will be written, the decision
+    // styling once it will. v22.54 kept the options row on `act-choice` in every state, which made
+    // an unanswered options row look unlike the garbled row saying the identical words (owner-
+    // approved change). What v22.54 got right still holds: a row whose READING is picked stays a
+    // decision while a half-finished entry is open beside it, so its words must say so too.
+    const cls = st ? unreadableTagClass(st) : (done ? 'act-choice' : 'act-read');
     const act = rowEl.querySelector('.roster-act');
     if (act) {
-        act.textContent = done ? 'Your entry' : "Couldn't read";
-        if (!optionsRow) {
-            act.classList.toggle('act-choice', done);
-            act.classList.toggle('act-read', !done);
-        }
+        act.textContent = done ? 'Your entry' : (cls === 'act-choice' ? 'Your choice' : "Couldn't read");
+        act.classList.toggle('act-choice', cls === 'act-choice');
+        act.classList.toggle('act-read', cls === 'act-read');
     }
     const note = rowEl.querySelector('.roster-remove-note');
     if (note) note.textContent = done
@@ -250,7 +251,8 @@ export function patchEntryRow(rowEl, done, st) {
     // "choose the type of Other day" with "enter both times". Pass the state and it cannot.
     const hint = rowEl.querySelector('.roster-entry-hint');
     if (hint) hint.textContent = st ? entryHint(st.draft || {}, st) : (done ? HINT_DONE : HINT_TODO);
-    rowEl.classList.toggle('roster-change-unreadable', !done);
+    // The row's tint follows the chip: unanswered until something will be written.
+    rowEl.classList.toggle('roster-change-unreadable', cls === 'act-read');
 }
 
 /**

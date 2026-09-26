@@ -907,6 +907,66 @@ describe('the review entry control refuses equal start and end', () => {
     });
 });
 
+// ── ONE "COULDN'T READ" CHIP FOR BOTH UNREADABLE ROWS (polish round 2, owner-approved) ─────────
+//
+// Both unreadable row shapes say "Couldn't read" until answered. The one offering two readings
+// wore the DECISION style (`act-choice`) from the start, so the identical words looked like two
+// different problems. The style is now `act-read` until something will be written. Presentation
+// only: the helper reads `chosen` and never sets it. The render and the in-place patches are
+// driven through the real table by e2e/pages.spec.js; this pins the rule every one of them calls.
+describe('unreadableTagClass — the chip style on an unreadable row', () => {
+    const options = [{ value: '06:00-14:00', display: '06:00-14:00' }, { value: 'RD', display: 'RD' }];
+    test('unanswered is "couldn\'t read" on BOTH shapes', async () => {
+        const { unreadableTagClass } = await import('./roster-review-states.js');
+        assert.equal(unreadableTagClass({ chosen: null }), 'act-read', 'garbled, nothing offered');
+        assert.equal(unreadableTagClass({ chosen: null, options }), 'act-read',
+            'two readings offered and none picked must look like the garbled row, not like a decision');
+    });
+    test('answered — a picked reading or a finished entry — is the decision style', async () => {
+        const { unreadableTagClass } = await import('./roster-review-states.js');
+        assert.equal(unreadableTagClass({ chosen: 0, options }), 'act-choice');
+        assert.equal(unreadableTagClass({ chosen: 1, options }), 'act-choice');
+        assert.equal(unreadableTagClass({ chosen: 'entered', entered: '06:00-14:00' }), 'act-choice');
+        assert.equal(unreadableTagClass({ chosen: 'entered', entered: '06:00-14:00', options }), 'act-choice');
+    });
+    test('an answer that would write nothing is still unanswered', async () => {
+        const { unreadableTagClass } = await import('./roster-review-states.js');
+        assert.equal(unreadableTagClass({ chosen: 'entered', entered: null, options }), 'act-read',
+            'an entry that composed to nothing writes nothing');
+        assert.equal(unreadableTagClass({ chosen: 5, options }), 'act-read', 'an index with no reading behind it');
+        assert.equal(unreadableTagClass(undefined), 'act-read');
+    });
+    test('patchEntryRow applies the same rule while an entry is typed', async () => {
+        const { patchEntryRow } = await import('./roster-entry-control.js');
+        /** A row holding only the tag — the part of the DOM `patchEntryRow` restyles. */
+        const rowWith = (/** @type {string} */ cls) => {
+            const set = new Set(['roster-act', cls]);
+            const act = { textContent: '', classList: { toggle: (/** @type {string} */ c, /** @type {boolean} */ on) => { if (on) set.add(c); else set.delete(c); } }, set };
+            const rowClasses = new Set(['roster-change-row']);
+            return { act, rowClasses, row: {
+                querySelector: (/** @type {string} */ q) => (q === '.roster-act' ? act : null),
+                classList: { toggle: (/** @type {string} */ c, /** @type {boolean} */ on) => { if (on) rowClasses.add(c); else rowClasses.delete(c); } },
+            } };
+        };
+        const unanswered = rowWith('act-choice');                 // what an options row used to wear
+        patchEntryRow(/** @type {any} */ (unanswered.row), false, { chosen: null, options });
+        assert.ok(unanswered.act.set.has('act-read') && !unanswered.act.set.has('act-choice'));
+        assert.equal(unanswered.act.textContent, "Couldn't read");
+        assert.ok(unanswered.rowClasses.has('roster-change-unreadable'), 'the row tint follows the chip');
+
+        const picked = rowWith('act-choice');                     // a reading picked, entry half-done
+        patchEntryRow(/** @type {any} */ (picked.row), false, { chosen: 0, options });
+        assert.ok(picked.act.set.has('act-choice') && !picked.act.set.has('act-read'));
+        assert.equal(picked.act.textContent, 'Your choice');
+        assert.ok(!picked.rowClasses.has('roster-change-unreadable'));
+
+        const entered = rowWith('act-read');
+        patchEntryRow(/** @type {any} */ (entered.row), true, { chosen: 'entered', entered: '06:00-14:00' });
+        assert.ok(entered.act.set.has('act-choice') && !entered.act.set.has('act-read'));
+        assert.equal(entered.act.textContent, 'Your entry');
+    });
+});
+
 
 // ── FAILING CLOSED ON A SHIFTED READ (v22.16, external review) ────────────────────────────────
 //

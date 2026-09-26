@@ -316,3 +316,23 @@ export function guardCopy(guard) {
     return 'rest day on the roster — not recorded';
 }
 
+
+/**
+ * The action tag's STYLE on an UNREADABLE row: `act-read` until the admin has answered it,
+ * `act-choice` once they have (polish round 2, owner-approved).
+ *
+ * Both unreadable row shapes wear the same "Couldn't read" chip while nobody has answered — the
+ * garbled cell with nothing to offer and the unclear cell offering two readings. The second used to
+ * wear the decision style (`act-choice`) from the start, so two rows saying the identical words
+ * looked like two different problems. The row becomes a decision the moment something WILL be
+ * written: a picked reading, or a completed entry. PRESENTATION ONLY — it reads `chosen`, it never
+ * decides it, and nothing here reaches the save.
+ *
+ * @param {{ chosen?: any, entered?: any, options?: any[] }|null|undefined} s an UNREADABLE cell state
+ * @returns {'act-read'|'act-choice'}
+ */
+export function unreadableTagClass(s) {
+    const picked  = typeof s?.chosen === 'number' && !!s.options?.[s.chosen];
+    const entered = s?.chosen === 'entered' && !!s.entered;
+    return picked || entered ? 'act-choice' : 'act-read';
+}

@@ -220,7 +220,9 @@ body {
    such event and gives a browser page no push at all, so on an iPhone the card shows itself and
    states the taps instead. Never in an already-installed PWA, and never on the Pages mirror. */
 .install-note {
-    font-size: var(--type-small);
+    /* --type-label, the size every sibling card's opening line uses (`.card-explainer`). It was
+       --type-small, so the one conditional card read a step smaller than the four beside it. */
+    font-size: var(--type-label);
     color: var(--text-mid);
     /* No top margin (polish pass): the card body already pads its top, and the extra 10px made
        this the only card whose first line sat ~26px under the header instead of 16px. */

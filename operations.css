@@ -640,8 +640,9 @@ body.auth-ready .container { display: grid; }
    rule only has to stop it shrinking. */
 .roster-cb-day .roster-chg-day { flex: 0 0 auto; }
 /* "Your choice" tag rides in the day header (right-aligned) rather than a left column,
-   so the choicebox content uses the full card width (v15.67). */
-.roster-cb-day .act-choice { margin-left: auto; align-self: center; }
+   so the choicebox content uses the full card width (v15.67). Any tag, not only `.act-choice`:
+   an unanswered row that offers readings wears `.act-read` there until it is answered. */
+.roster-cb-day .roster-act { margin-left: auto; align-self: center; }
 .roster-cb-opt { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .roster-cb-lab { flex: 0 0 66px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em;
                  text-transform: uppercase; color: var(--conflict-text); }
