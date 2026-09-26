@@ -20,7 +20,7 @@ import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoticeIfClear } from './overlay.js';
 import { openOptionSheet, readGroups } from './select-sheet.js';
 import { MAX_DESIGN_NAME, checkName, proposeCopyName } from './links-design-naming.js';
-import { createDesignHeader, proposeNewDesignName } from './links-design-header.js';
+import { createDesignHeader, proposeNewDesignName, lastSaveTime } from './links-design-header.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './links-tips.js';
@@ -286,7 +286,7 @@ export function init() {
     /** @type {Array<{time:string, weekday:number, sat:number, sun:number}>} */
 
     // Multi-design state
-    /** @type {Array<{id:string, name:string, patterns:Object, window?:*, updatedAt:*, updatedBy:string, revision?:number|null}>} */
+    /** @type {Array<{id:string, name:string, patterns:Object, window?:*, updatedAt:*, savedAt?:Date, updatedBy:string, revision?:number|null}>} */
     let designs         = [];
     /** @type {any} */ let activeDesignId  = null; // null = design not yet saved to Firestore
     /** Deleted designs, newest first — the "Recently deleted" bin (v19.41). Held in memory with
@@ -863,14 +863,14 @@ export function init() {
             if (id === activeDesignId && design) design.name = name;
             if (baselineFresh) {
                 d.updatedBy = currentUser;
-                if (renamedAt) d.updatedAt = renamedAt;
+                if (renamedAt) { d.updatedAt = renamedAt; delete d.savedAt; }   // server time wins (see recordSave)
                 // The rename COMMITTED a revision it knows, so the entry and the baseline both move
                 // to that rather than to whatever a read-back happened to see (v22.18).
                 if (typeof renamedRev === 'number') d.revision = renamedRev;
                 if (id === activeDesignId) {
                     loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? loadedUpdatedAt;
                     if (typeof renamedRev === 'number') loadedRevision = renamedRev;
-                    updateLastSaved(d.updatedBy, d.updatedAt);
+                    updateLastSaved(d.updatedBy, lastSaveTime(d));
                 }
             }
             _sortDesigns();
@@ -1188,7 +1188,7 @@ export function init() {
         paintWindowEditor();
         compare.renderCompare();
         updateSaveBtn();
-        updateLastSaved(d.updatedBy, d.updatedAt);
+        updateLastSaved(d.updatedBy, lastSaveTime(d));
         refreshGenTargetsForDesign();   // targets are per design (v19.38)
     }
 
@@ -2022,7 +2022,7 @@ export function init() {
         if (!el) return;
         if (!design) { el.textContent = ''; return; }
         const entry = designs.find(x => x.id === activeDesignId);
-        const when  = entry?.updatedAt?.toDate?.();
+        const when  = lastSaveTime(entry);
         // The provenance line describes the SAVED document; the grid prints the LIVE in-memory
         // patterns. With unsaved edits those are two different designs, so a sheet showing your
         // changes would carry someone else's "Last saved by" — and this sheet goes to the assessing
@@ -2107,12 +2107,13 @@ export function init() {
 
     /**
      * @param {any} updatedBy
-     * @param {any} updatedAt
+     * @param {Date|null} savedTime  from `lastSaveTime` — the reading the masthead pill takes too, so the
+     *                          two surfaces cannot state two different save times at once
      */
-    function updateLastSaved(updatedBy, updatedAt) {
+    function updateLastSaved(updatedBy, savedTime) {
         const el = document.getElementById('linksLastSaved');
         if (!el) return;
-        const label = lastSavedLabel(updatedBy, updatedAt?.toDate?.() ?? null);
+        const label = lastSavedLabel(updatedBy, savedTime);
         // The WHEN is one unbreakable phrase (Sep 2026 polish). The meta column is squeezed by the
         // summary chips beside it, and at 1280 the line broke inside the date — "· 24 / Jun at
         // 16:40". Only the part after the separator is held together; the name side still wraps.
@@ -2158,7 +2159,8 @@ export function init() {
         // reconnect — so `dirty` clears (a re-save would queue a duplicate, and a leave-page warning
         // would lie), but the words must not claim the server has it.
         const landed = (/** @type {string} */ id, /** @type {any} */ base, /** @type {any} */ updatedAt, queued = false) => {
-            recordSave(designs.find(x => x.id === id), written, currentUser, updatedAt, base.loadedRevision);
+            const entry = designs.find(x => x.id === id);
+            recordSave(entry, written, currentUser, updatedAt, base.loadedRevision);
             if (!here()) return;
             ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = base);
             const same = JSON.stringify([design?.patterns, normaliseWindow(design?.window)])
@@ -2167,7 +2169,7 @@ export function init() {
             updateSaveBtn();
             const [said, lead] = queued ? ['Saved on this device — it will upload when you’re back online', 'Saved on this device'] : ['✓ Saved', '✓ Saved'];
             if (status) { setStatus(status, same ? said : `${lead} — your later changes are not saved yet`); status.className = `links-save-status${queued ? '' : ' ok'}`; }
-            updateLastSaved(currentUser, { toDate: () => new Date() });
+            updateLastSaved(currentUser, lastSaveTime(entry) ?? new Date());
         };
         const key = savingId ?? dsn;
         savingKeys.add(key);
@@ -2425,7 +2427,7 @@ export function init() {
                 lsSet(ACTIVE_KEY, d.id);
                 design          = workingCopy(d);
                 ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = baselineFromEntry(d));
-                updateLastSaved(d.updatedBy, d.updatedAt);
+                updateLastSaved(d.updatedBy, lastSaveTime(d));
             } else {
                 design = null;
                 activeDesignId = null;

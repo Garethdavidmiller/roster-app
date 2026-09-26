@@ -84,7 +84,7 @@ import { formatDayMonth, formatDayMonthYear } from './date-format.js';
 import { nameConflict } from './links-design-naming.js';
 
 /**
- * @typedef {{ id: string, name: string, updatedAt?: any, updatedBy?: string }} DesignEntry
+ * @typedef {{ id: string, name: string, updatedAt?: any, savedAt?: any, updatedBy?: string }} DesignEntry
  * @typedef {{ label: string, own: boolean, designs: DesignEntry[] }} DesignGroup
  */
 
@@ -95,6 +95,24 @@ export function toDate(v) {
     if (typeof v.toDate === 'function') { const d = v.toDate(); return d instanceof Date && !Number.isNaN(d.getTime()) ? d : null; }
     if (typeof v === 'number') return new Date(v);
     return null;
+}
+
+/**
+ * WHEN A DESIGN WAS LAST SAVED, for display — the newer of the server's stamp and this device's
+ * record of a save that came back without one (Sep 2026 polish; `recordSave` in
+ * links-design-doc.js writes `savedAt` and says why it is a separate field). A queued save, or one
+ * whose read-back failed, has no server stamp, and reading `updatedAt` alone left the pill on the
+ * PREVIOUS save's time beside a save row stating the new one. Display only: the concurrency
+ * baseline stays `updatedAt`, which is the one thing that must never hold a local clock value.
+ * @param {{updatedAt?: any, savedAt?: any}|null|undefined} entry
+ * @returns {Date|null}
+ */
+export function lastSaveTime(entry) {
+    const server = toDate(entry?.updatedAt);
+    const local  = toDate(entry?.savedAt);
+    if (!server) return local;
+    if (!local) return server;
+    return local.getTime() > server.getTime() ? local : server;
 }
 
 /**
@@ -350,7 +368,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
 
         // ── the picker list (rebuilt only on a content change — rule 4) ──
         if (els.pickList) {
-            const sig = JSON.stringify([saved, activeId, open, groups.map(g => [g.label, g.designs.map(d => [d.id, d.name, toDate(d.updatedAt)?.getTime() ?? 0])])]);
+            const sig = JSON.stringify([saved, activeId, open, groups.map(g => [g.label, g.designs.map(d => [d.id, d.name, lastSaveTime(d)?.getTime() ?? 0])])]);
             if (sig !== pickSignature) {
                 pickSignature = sig;
                 els.pickList.textContent = '';
@@ -370,7 +388,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
                     h.textContent = g.label;
                     wrap.appendChild(h);
                     for (const d of g.designs) {
-                        const when = toDate(d.updatedAt);
+                        const when = lastSaveTime(d);
                         wrap.appendChild(pickRow({
                             id: d.id,
                             name: d.name,
@@ -411,7 +429,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
         }
         if (els.whoName) els.whoName.textContent = who.name;
         if (els.whoRole) els.whoRole.textContent = who.role;
-        const st = statusCopy({ saved, dirty, saving, updatedAt: entry?.updatedAt, now });
+        const st = statusCopy({ saved, dirty, saving, updatedAt: lastSaveTime(entry), now });
         if (els.status) {
             els.status.className = `dm-status dm-status--${st.tone}`;
             els.status.hidden = !open;
@@ -424,7 +442,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
         if (els.sheetSub) {
             // The LAST SAVE, read with dirty/saving off — the pill's own words ("Unsaved changes",
             // "Saving…") describe the working copy and read as nonsense after "Saved by".
-            const lastSave = statusCopy({ saved, dirty: false, saving: false, updatedAt: entry?.updatedAt, now });
+            const lastSave = statusCopy({ saved, dirty: false, saving: false, updatedAt: lastSaveTime(entry), now });
             els.sheetSub.textContent = !open ? 'Start a new design, import one, or restore one from Recently deleted.'
                 : !saved ? 'Not saved yet. Save it to give it a name.'
                 : `Saved by ${who.name} ${lastSave.long.replace(/^Saved\s*/, '')}`.trim();

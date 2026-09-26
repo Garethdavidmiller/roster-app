@@ -325,11 +325,35 @@ describe('recordSave — the list entry takes what was WRITTEN', () => {
     test('patterns, window, author and revision all move; a missing stamp keeps the old one', () => {
         const entry = /** @type {any} */ ({ id: 'd1', name: 'A', patterns: { 1: 'old' }, window: 'old-w',
             updatedBy: 'S. Silva', updatedAt: 'then', revision: 2 });
-        recordSave(entry, { patterns: { 1: 'new' }, window: 'new-w' }, 'G. Miller', null, 3);
+        const landedAt = new Date(2026, 8, 26, 9, 0);
+        recordSave(entry, { patterns: { 1: 'new' }, window: 'new-w' }, 'G. Miller', null, 3, landedAt);
         assert.deepEqual(entry, { id: 'd1', name: 'A', patterns: { 1: 'new' }, window: 'new-w',
-            updatedBy: 'G. Miller', updatedAt: 'then', revision: 3 });
+            updatedBy: 'G. Miller', updatedAt: 'then', savedAt: landedAt, revision: 3 });
         recordSave(entry, { patterns: {}, window: 'w' }, 'G. Miller', 'now', 4);
         assert.equal(entry.updatedAt, 'now');
+    });
+
+    // THE SERVER STAMP IS A BASELINE; THE DISPLAY TIME IS NOT (Sep 2026 polish). A stampless save
+    // (a queued write, a failed read-back) must record WHEN for the masthead without putting a
+    // local clock value into `updatedAt`, which the rename path compares as a concurrency baseline.
+    test('a stampless save records a display time and leaves the server stamp alone', () => {
+        const stamp = { toMillis: () => 1_000, toDate: () => new Date(1_000) };
+        const entry = /** @type {any} */ ({ id: 'd1', patterns: {}, updatedAt: stamp, revision: 1 });
+        const landedAt = new Date(2026, 8, 26, 9, 0);
+        recordSave(entry, { patterns: {}, window: null }, 'G. Miller', null, 2, landedAt);
+        assert.equal(entry.updatedAt, stamp, 'the baseline is still the server value');
+        assert.equal(entry.updatedAt.toMillis(), 1_000);
+        assert.equal(entry.savedAt, landedAt);
+    });
+    test('a stamped save clears the display time, so the server time is the one shown', () => {
+        const entry = /** @type {any} */ ({ id: 'd1', patterns: {}, savedAt: new Date(2030, 0, 1), revision: 1 });
+        recordSave(entry, { patterns: {}, window: null }, 'G. Miller', 'stamp', 2);
+        assert.equal(entry.updatedAt, 'stamp');
+        assert.equal('savedAt' in entry, false);
+    });
+    test('the display time never reaches Firestore', () => {
+        const entry = /** @type {any} */ ({ name: 'A', patterns: {}, window: null, savedAt: new Date() });
+        assert.equal('savedAt' in docPayload(entry, { updatedBy: 'X', updatedAt: 'ts' }), false);
     });
 
     test('no entry (the design left the list) or nothing written is a no-op, not a throw', () => {

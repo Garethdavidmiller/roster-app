@@ -213,19 +213,30 @@ export function restoredEntryFrom(entry, { updatedAt, updatedBy, revision = null
  * still left behind until the Sep 2026 review: switching back rebuilt the working copy on the
  * old window, which the next save wrote over the saved one, and on the old revision, which
  * prompted "someone else saved" about your own save.
- * @param {{patterns?: any, window?: any, updatedBy?: string, updatedAt?: any, revision?: number|null}|null|undefined} entry
- *        the list entry, or nothing (the design left the list)
+ *
+ * THE SAVE'S TIME, FOR DISPLAY, IS A SEPARATE FIELD FROM THE SERVER STAMP (Sep 2026 polish).
+ * `updatedAt` is the server's stamp and is also read as a concurrency BASELINE (the rename path
+ * compares its millis), so it only ever takes a value the server returned — a local clock there
+ * would weaken, or falsely trip, the conflict guard. But a save whose read-back failed, and every
+ * QUEUED (offline) save, returns no stamp, and the masthead — which read `updatedAt` — went on
+ * saying "Saved 24 Jun at 16:40" beside a save row saying "Last saved … at 09:00". So a stampless
+ * save records `savedAt`, this device's time, which nothing but the DISPLAY reads
+ * (`lastSaveTime` in links-design-header.js), and a stamped one clears it so the server's time is
+ * the one shown whenever there is one. It never reaches Firestore: `docPayload` names its keys.
+ * @param {{patterns?: any, window?: any, updatedBy?: string, updatedAt?: any, savedAt?: Date, revision?: number|null}|null|undefined} entry
  * @param {{patterns: Record<string, any>, window: any}|null} written  the payload that went
  * @param {string} by  whoever saved
  * @param {any} updatedAt  the server stamp, or null (a queued write has none yet)
  * @param {number|null} revision
+ * @param {Date} [savedAt]  when this device saw the save land — display only, injected for tests
  */
-export function recordSave(entry, written, by, updatedAt, revision) {
+export function recordSave(entry, written, by, updatedAt, revision, savedAt = new Date()) {
     if (!entry || !written) return;
     entry.patterns  = written.patterns;
     entry.window    = written.window;
     entry.updatedBy = by;
-    if (updatedAt) entry.updatedAt = updatedAt;
+    if (updatedAt) { entry.updatedAt = updatedAt; delete entry.savedAt; }
+    else entry.savedAt = savedAt;
     entry.revision  = revision;
 }
 

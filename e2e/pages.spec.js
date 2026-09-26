@@ -4104,6 +4104,43 @@ test('links: saving writes the patterns and clears the dirty state', async ({ pa
     await expect(page.locator('#linksSaveBtn')).toBeDisabled();
 });
 
+// A SAVE WHOSE READ-BACK COMES BACK EMPTY STILL MOVES THE MASTHEAD'S TIME (Sep 2026 polish).
+// Every queued offline save, and any save whose post-write read fails, returns no server stamp. The
+// pill read only the stamp, so it went on saying the PREVIOUS save's date while the save row beside
+// it said the new time — two save times on one screen. `recordSave` now records a display-only
+// `savedAt` (the server stamp stays the concurrency baseline) and both surfaces read `lastSaveTime`.
+// The unit tests pin the rule; this pins the WIRING — that `landed` records it and the header reads it.
+test('links: after a save with no server stamp, the masthead and the save row show the same new time', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window);
+        w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{
+            id: 'd1', name: 'Option A', updatedBy: 'S. Silva', revision: 1,
+            updatedAt: Date.parse('2026-06-24T16:40:00Z'),   // an old save — a different DAY
+            patterns: { '1': { sun: 'RD', mon: '06:20-14:20', tue: '14:00-22:00', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } },
+        }];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+    await expect(page.locator('#designStatusLong')).toHaveText(/^Saved 24 Jun at /);
+
+    // Every single-document read now fails, so the post-save read-back returns no stamp.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDoc = true; });
+    await page.locator('#brushBar .brush-chip.type-early').first().click();
+    await page.locator('tr[data-pos="2"] .shift-cell-btn').nth(1).click();
+    await page.locator('#linksSaveBtnTop').click();
+    await expect(page.locator('#linksSaveStatus')).toContainText('Saved');
+
+    const pill = page.locator('#designStatusLong');
+    await expect(pill, 'the pill must not keep the previous save’s date').toHaveText(/^Saved today at \d\d:\d\d$/);
+    const pillTime = (await pill.textContent())?.match(/\d\d:\d\d/)?.[0];
+    await expect(page.locator('#linksLastSaved')).toHaveText(`Last saved by G. Miller at ${pillTime}`);
+});
+
 test('links: the generator fills every line and names what it replaces', async ({ page }) => {
     // v20.98: the generator refuses targets that cannot pay the contracted week, and the
     // roster seed cannot at this rotation — so a spec that generates brings work with it.
