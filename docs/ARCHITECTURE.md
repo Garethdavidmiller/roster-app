@@ -24,9 +24,9 @@ changed once.
 | Subject | Authority | What it owns |
 |---|---|---|
 | **Arriving from outside** | `README.md` | What the app is, and which checks run with nothing installed — the front door, not a summary of this table |
-| **Repository conventions** | `CLAUDE.md` | Version bumping, the file tree, architecture decisions, wording conventions, change impact |
+| **Repository conventions** | `CLAUDE.md` | Version bumping, architecture decisions, wording conventions, change impact |
 | **Module routing** | `AI_MAP.md` | What every module is and what it exports |
-| **File routing** | `FILE_INDEX.md` | What every FILE is, one line each — the catalogue, moved out of `CLAUDE.md` on 11 Sep 2026 because a lookup table for ~430 files was 64% of a document loaded into every session |
+| **File routing** | `FILE_INDEX.md` | What every FILE is, one line each — the catalogue, moved out of `CLAUDE.md` on 11 Sep 2026 because a lookup table for every file was 64% of a document loaded into every session |
 | **Authentication & sessions** | `AUTH_AND_SESSIONS.md` | Session ↔ identity ↔ claim, and the invariants across them |
 | **Credential lifecycle** | `CREDENTIAL_LIFECYCLE.md` | How a credential is issued, recovered and retired — and the ORDER those changes go in. Holds the one open decision about what retiring the surname should MEAN |
 | **Calendar truth** | `CALENDAR_DATA.md` | What may be shown, and when — knowledge states, the access gate |
@@ -73,7 +73,7 @@ live anchors:
 | `CREDENTIAL_LIFECYCLE.md` | **Proposed** — nothing in it is started | Design + sequencing only; status stays in the canonical table. §7 is an OPEN owner decision and must not be actioned as though it were settled |
 | `AUTH_ARCHITECTURE.md` | Track 1 complete | Code comments cite it by phase number |
 | `OTHER_DAYS.md` | Shipped | Code comments cite "OTHER_DAYS.md decision N" |
-| `LOGIN_INCIDENT.md` | Resolved | `CLAUDE.md` sends you here before touching login |
+| `LOGIN_INCIDENT.md` | Resolved | `PASSWORD_DESIGN.md` and `AUTH_AND_SESSIONS.md` send you here before touching login |
 | `LATENCY.md` | **CLOSED 19 Sep 2026 — nothing open.** The identity question was answered by the fast path (v22.97), which the closing read found rarely fires and which stays by owner decision; Phase 2 closed on its own rule; Phase 3 measured and declined; Phase 4's trigger unfired | Holds the readings, the decision rules, and THE CLOSING READ of 19 Sep 2026 |
 | `LINKS_DEC2026_PLAN.md` | Live | Holds the links modules' release history |
 | `BRASS_PLAN.md` | **Gated on owner answers** | The Part 2 payslip questions decide the design; nothing ships before them |
@@ -95,7 +95,7 @@ move its content there — do not create a second archive.
       ┌───────────────────┼───────────────────┬──────────────────┐
       │                   │                   │                  │
   session.js         override-utils.js   firebase-client.js   ls.js
-  auth-state.js      (effective shift)   (db + every helper)
+  login-overlay.js   (effective shift)   (db + every helper)
   auth-policy.js           │                   │
       │                    │                   │
       └──────────┬─────────┴─────────┬─────────┘
@@ -105,6 +105,9 @@ move its content there — do not create a second archive.
         settings · paycalc ·      (+ its access gate)
         links · overtime
 ```
+
+A reading map, not the import graph — `override-utils.js` and `ls.js` import nothing, and
+`roster-data.js` itself imports `override-utils.js`.
 
 Three edits reach further than they look, and each has a row in `CLAUDE.md` → *Change impact*:
 `resolveEffectiveShift` (every surface that shows a shift), the three auth modules (all six protected

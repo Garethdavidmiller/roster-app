@@ -65,7 +65,7 @@ targeted-to-participants already reaches everyone eligible, so the reach scales 
 change. Deadlines are worded in LONDON time by the pure builders in `functions/overtime-core.js`
 (`askedNotice`/`reminderNotice`), never composed inline.
 
-**Two notifications are NOT broadcasts by design of their CONTENT** (v23.62 added the second). Every other feature here goes to all subscribed
+**Two notifications are NOT broadcasts by design of their CONTENT** (v23.62 added the second). Overtime is targeted too (below); the three documents and the pay reminder are the broadcasts, going to all subscribed
 staff; the reset request goes to the **admin's devices only** — "N. Surname is locked out" sent to
 50 people is a leak, not a notification. It is sent by `sendTargetedPush` (not `fanOutPush`), which
 filters `pushSubscriptions` by the `owner` uid and **fails closed at every step**: no target uids →

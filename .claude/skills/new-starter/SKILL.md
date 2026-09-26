@@ -7,9 +7,9 @@ description: Full checklist for onboarding a new staff member. Invoke this skill
 
 Run through every step in order. Do not skip steps.
 
-## Step 1 — `roster-data.js` (always required)
+## Step 1 — `roster-member-data.js` (always required; re-exported by `roster-data.js`)
 
-- [ ] Add entry to `teamMembers` with `name`, `currentWeek`, `rosterType`, `role` — plus any optional fields that apply (`hidden`, `managerOnly`, `permanentShift`, `noProRate`, `rosterChanges`; see CLAUDE.md → teamMembers fields)
+- [ ] Add entry to `teamMembers` with `name`, `currentWeek`, `rosterType`, `role` — plus any optional fields that apply (`hidden`, `managerOnly`, `permanentShift`, `bilingualContract`, `noProRate`, `rosterChanges`; see CLAUDE.md → teamMembers fields)
 - [ ] If joining mid-year: add `startDate: new Date(year, month-1, day)` — **midnight only, no time component**
 - [ ] If joining mid-year: add `proRatedAL: { year: N }` — **ASK THE ROSTER CLERK AND TRANSCRIBE. Do not calculate it.**
   - The clerk's annual leave workbook (`Customer Service Annual Leave <year>.xlsx` → the Marylebone Totals sheet, `AL allowance` column) is the AUTHORITY for this figure (owner, 6 Sep 2026). It is a contractual number the roster office agrees and payroll works to; this app transcribes it.
@@ -26,7 +26,7 @@ Run through every step in order. Do not skip steps.
 
 ## Step 2b — Regenerate `functions/roster-members.json` (ALWAYS — including Management)
 
-- [ ] Run `npm run generate:roster-members` — regenerates `functions/roster-members.json` from `roster-data.js`. **In the same commit as the `roster-data.js` change**; the sync is verified by `sw-asset-check.test.mjs`.
+- [ ] Run `npm run generate:roster-members` — regenerates `functions/roster-members.json` from `roster-data.js`. **In the same commit as the `roster-member-data.js` change**; the sync is verified by `sw-asset-check.test.mjs`.
 
 That file carries **two** unrelated things, which is why this step is unconditional (it said "CEA / CES / Dispatcher only — not Management" until v21.45, and that was wrong in the one direction that costs an outage):
 

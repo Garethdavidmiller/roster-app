@@ -22,7 +22,7 @@ cannot open their own roster on their last week.
       and a later import then reports their row as `missingMembers` — the same advisory a genuine
       absence produces, so the week imports looking complete with nobody on their line.
 
-- [ ] **2 · `hidden: true`** on their `teamMembers` entry in `roster-data.js`. Never delete the
+- [ ] **2 · `hidden: true`** on their `teamMembers` entry in `roster-member-data.js`. Never delete the
       entry — there is no end-date field, `hidden` is what retirement looks like, and the record
       still has to resolve for their past shifts, overrides and any frozen Overtime week.
 
@@ -44,7 +44,7 @@ cannot open their own roster on their last week.
       closed week refuses by design — that is a rule, not a fault.
 
 - [ ] **5 · Disable the login.** Operations → Staff Login Accounts → tick *"Disable accounts for
-      leavers"* → **Set up accounts** → read the dry-run preview → **Confirm**. Until this runs
+      anyone no longer on the roster (leavers)"* → **Set up accounts** → read the dry-run preview → **Confirm**. Until this runs
       their account still works and their surname default is still a valid password for it.
 
 - [ ] **6 · Verify — do not skip this.** The block above that button should read **"Everyone on the

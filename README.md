@@ -61,7 +61,7 @@ it ever appears in the source, tests or documentation.
 | Document | What it is |
 |---|---|
 | `docs/ARCHITECTURE.md` | **the index** — which document is authoritative for each subject, and where what is deployed differs from what is documented. Start here |
-| `CLAUDE.md` | the working manual: file tree, architecture decisions, data model, conventions |
+| `CLAUDE.md` | the working manual: architecture decisions, conventions, change impact (the file catalogue is `docs/FILE_INDEX.md`, the data model `docs/DATA_MODEL.md`) |
 | `docs/AI_MAP.md` | every module and its exports |
 | `docs/OPERATIONS_REFERENCE.md` | how the app is run day to day |
 | `docs/KNOWN_LIMITATIONS.md` | what is wrong or deferred, and why |

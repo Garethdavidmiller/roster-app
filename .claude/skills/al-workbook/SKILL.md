@@ -14,7 +14,7 @@ would give it a second home to drift from.
 ## Why this skill exists at all
 
 The rule in §0 has now been broken **twice, on the same person, by two different sessions**
-(8 Sep and 14 Sep 2026 — J. Davies, reported as 19 days when the answer was 20). Both times the
+(8 Sep and 14 Sep 2026 — the same colleague both times, reported one day short). Both times the
 document already contained the rule. Both times the session answered from the spreadsheet directly
 and read the document afterwards, when corrected.
 
@@ -40,7 +40,7 @@ ever worked for that is reading first.
 5. **Write the learnings back, in this session, before you finish.** Anything naming a person goes
    in `docs/AL_WORKBOOK.local.md`; a GENERAL rule goes in `docs/AL_WORKBOOK.md`, where everyone
    gets it. **Never put a name beside a leave figure in a committed file** —
-   `payroll-anonymity.test.mjs` fails the commit, and it is right to.
+   `payroll-anonymity.test.mjs` catches the common phrasings, not every one, so the rule is yours to keep.
    Update the section, turn an `[inferred]` into a `[measured]`, strike an answered open question,
    and add a row to §12. An answer that stays in the chat is lost, and the next session re-asks it.
 
