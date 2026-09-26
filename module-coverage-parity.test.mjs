@@ -84,7 +84,6 @@ const UNNAMED_BY_DESIGN = {
     'install-prompt.js':     'driven by e2e/calendar.spec.js (the five `install strip:` tests, via a real beforeinstallprompt)',
     'fip-guide.js':          'guide-page chrome; driven by e2e/pages.spec.js (the FIP GUIDE block: jump-to-open, malformed-hash safety)',
     'paycalc-transfer-card.js': 'driven by e2e/pages.spec.js (the Settings "Pay Calculator Data" pointer card renders and links)',
-    'admin-week-row-state.js':  'EXECUTED through its one importer, admin-week-editor.js, which admin-week-editor.test.mjs loads and drives',
     'roster-review-states.js':  'EXECUTED through its one importer, admin-roster-upload.js, which admin-roster-upload.test.mjs loads and drives',
 
     // ── NO GENUINE GAPS REMAIN ──────────────────────────────────────────────────────────────────

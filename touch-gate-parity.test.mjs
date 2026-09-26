@@ -45,6 +45,13 @@ const SINGLE_PROJECT_EXEMPT = [
         why: 'WCAG 2.2 SC 2.5.8 tap-target sizing. A standard about geometry, not about rendering — '
            + 'the number is the same on both engines, so a second run would cost time and prove nothing.',
     },
+    {
+        file: 'auth.spec.js',
+        match: "'iOS has no install offer; the card shows steps instead'",
+        why: 'A PLATFORM rule, not a touch one: the test dispatches Chromium\'s `beforeinstallprompt`, '
+           + 'which iOS never fires, and on an iPhone the Device card shows the Home Screen steps with '
+           + 'the button hidden on purpose. Desktop WebKit keeps the run; only the iPhone is exempt.',
+    },
 ];
 
 describe('a touch-only test runs on every touch engine', () => {
