@@ -182,6 +182,7 @@ export function init() {
         onLogoClick:     () => openAboutLightbox?.(),
         onSignOut: async () => {
             if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Sign out anyway?', confirmLabel: 'Sign out', danger: true })) return;
+            dirty = false;   // answered — so `beforeunload` does not ask a second time
             clearSession();
             window.location.href = './';
         },
@@ -257,6 +258,11 @@ export function init() {
     let design = null;
     let dirty  = false;
     _isDirty = () => dirty;   // point the SW beforeReload at THIS pass's flag (v16.23)
+    /** A save is in flight: Save stays disabled, and a second press is ignored. */
+    let saving = false;
+    /** Bumped whenever another design becomes the working copy, so a save that lands after a
+     *  switch knows the page no longer shows what it saved (see `saveChanges`). */
+    let activation = 0;
     let loadFailed      = false;
     // The concurrency baseline. `loadedRevision` is the exact identity (v22.18) and moves only to
     // a revision this page committed or read; `loadedUpdatedAt` is the fallback for a design nobody
@@ -513,7 +519,7 @@ export function init() {
     let header = null;
     /** Both Save buttons — the masthead's and the sticky row's. One label, one state. */
     const _saveBtns = () => /** @type {HTMLButtonElement[]} */ (['linksSaveBtnTop', 'linksSaveBtn'].map(id => document.getElementById(id)).filter(Boolean));
-    const _headerState = (/** @type {boolean} */ saving = false) => ({
+    const _headerState = () => ({
         designs, activeId: activeDesignId, design, dirty, currentUser, saving,
         canDelete: canSoftDelete(designs.length),
     });
@@ -697,7 +703,10 @@ export function init() {
         _importStatus('', null);
     }
 
-    function openImport() {
+    async function openImport() {
+        // An import ends in `_activateDesign`, so it replaces the working copy like the other paths
+        // that ask first — and asks here, before any typing, as `createDesign` does.
+        if (dirty && !await confirmDialog({ message: 'You have unsaved changes in the current design. Import a new one anyway? Your changes will be lost.', confirmLabel: 'Import' })) return;
         const text = _importEl('linksImportText');
         const name = _importEl('linksImportName');
         if (!text) return;
@@ -775,15 +784,17 @@ export function init() {
 
     /** Duplicate the current design as a new named design.
      * Copies the LIVE in-memory patterns, so unsaved edits are included —
-     * "duplicate what I'm looking at", not "duplicate the last save". */
-    async function duplicateDesign() {
+     * "duplicate what I'm looking at", not "duplicate the last save".
+     * @param {boolean} [originalGone] the copy rescues a design deleted elsewhere — there is no
+     *   original to "go back to its last save", so that confirm would describe a thing not there. */
+    async function duplicateDesign(originalGone = false) {
         if (!activeDesignId || !design) return;
-        // The fifth path that can lose the working copy, and the last to start asking (v22.62).
+        // The fifth path that can lose the working copy to start asking (v22.62; import the sixth).
         // Its wording is deliberately NOT the others' "changes will be lost" — the copy is taken
         // from the LIVE patterns, so the work goes INTO it and the original reverts to its last
         // save. Full reasoning: `.claude/rules/links-design.md`. Asked before the name prompt, per
         // `createDesign`: the decision that might cancel the action must not come last.
-        if (dirty && !await confirmDialog({
+        if (dirty && !originalGone && !await confirmDialog({
             message: 'Your unsaved changes will go into the copy, and "' + (design.name || 'this design')
                    + '" will go back to its last save. Duplicate anyway?',
             confirmLabel: 'Duplicate',
@@ -971,6 +982,11 @@ export function init() {
     async function restoreDesign(id) {
         const d = deletedDesigns.find(x => x.id === id);
         if (!d) return;
+        // The duplicate-name rule every other way in already holds — the bin was the way round it.
+        if (checkName(d.name, { existing: designs, noun: 'design' }).reason === 'duplicate') {
+            _binStatus(`There is already a design called “${d.name}”. Rename that one first, then restore this — two with the same name cannot be told apart in the list.`);
+            return;
+        }
         try {
             const res = await store.restore(id, currentUser);
             // TWO OUTCOMES A COLLEAGUE ALREADY SETTLED — neither changed by retrying, and both
@@ -982,9 +998,7 @@ export function init() {
                 'already-restored': `“${d.name}” had already been restored by someone else — it is back in the list.`,
             }[res.status];
             if (settledElsewhere) {
-                deletedDesigns = deletedDesigns.filter(x => x.id !== id);
-                renderBinList();
-                await loadDesigns();      // re-renders the picker and grid itself
+                await _refreshLists();
                 _binStatus(settledElsewhere);
                 return;
             }
@@ -1028,9 +1042,7 @@ export function init() {
             if (outcome === 'restored-elsewhere') {
                 // Say what happened rather than "couldn't remove": someone put it back on purpose,
                 // and the right next step is to look at it again, not to retry.
-                deletedDesigns = deletedDesigns.filter(x => x.id !== id);
-                renderBinList();
-                await loadDesigns();
+                await _refreshLists();
                 _binStatus(`“${d.name}” was restored by someone else, so it was not removed.`);
                 return;
             }
@@ -1146,6 +1158,7 @@ export function init() {
      */
     function _activateDesign(d) {
         if (!d) return;
+        activation++;
         activeDesignId  = d.id;
         lsSet(ACTIVE_KEY, d.id);
         design          = workingCopy(d);
@@ -2099,26 +2112,32 @@ export function init() {
     }
 
     /**
-     * Refresh the in-memory designs[] entry after a successful write.
+     * Refresh the designs[] entry for the design a save WROTE, from the payload actually written.
      *
      * UNCONDITIONAL on the saved patterns: they are authoritative whether or not the server
      * timestamp came back. This used to sit inside the read-back's try, so a failed read left the
      * entry holding STALE patterns while `design.patterns` held the new ones — switching away and
-     * back then reverted the grid to the pre-save state (v16.19).
-     * @param {any} updatedAt  the server stamp, or null when it could not be read
+     * back then reverted the grid to the pre-save state (v16.19). The WINDOW and the REVISION were
+     * still left behind until the Sep 2026 review: switching back rebuilt the working copy on the
+     * old window, which the next save wrote over the saved one, and on the old revision, which
+     * prompted "someone else saved" about your own save.
+     * @param {string} id @param {any} written @param {any} updatedAt the server stamp, or null
+     * @param {number|null} revision
      */
-    function _applySavedEntry(updatedAt) {
-        const entry = designs.find(x => x.id === activeDesignId);
-        if (!entry || !design) return;
-        entry.patterns  = deepCopyPatterns(design.patterns);
+    function _recordSave(id, written, updatedAt, revision) {
+        const entry = designs.find(x => x.id === id);
+        if (!entry || !written) return;
+        entry.patterns  = written.patterns;
+        entry.window    = written.window;
         entry.updatedBy = currentUser;
         if (updatedAt) entry.updatedAt = updatedAt;
+        entry.revision  = revision;
     }
 
     async function saveChanges() {
         const btns   = _saveBtns();
         const status = document.getElementById('linksSaveStatus');
-        if (!design) return;
+        if (!design || saving) return;
         // THE FIRST SAVE IS WHERE A DESIGN GETS ITS NAME (v23.30; links-design-header.js rule 3).
         // Asked BEFORE the "Saving…" state, because a cancel here is a decision and not a failure.
         if (!activeDesignId) {
@@ -2132,35 +2151,56 @@ export function init() {
             if (_designNameRejected(name)) return;
             design.name = name;
         }
+        // WHAT THIS SAVE IS FOR, fixed before the first await. The page moves on while a write is
+        // in flight — more edits, another design opened — and a result applied to whatever is on
+        // screen when it lands recorded edits that were never written as "✓ Saved", and stamped
+        // this design's id and baseline onto a different one. `written` is filled INSIDE the write
+        // (a transaction may run it twice), so it is always the payload that actually went.
+        const dsn = design, savingId = activeDesignId, act = activation;
+        const here = () => act === activation;
+        /** @type {any} */ let written = null;
+        const buildDoc = () => {
+            written = { patterns: deepCopyPatterns(dsn.patterns), window: normaliseWindow(dsn.window) };
+            return docPayload({ ...dsn, ...written }, { updatedBy: currentUser, updatedAt: serverTimestamp() });
+        };
+        /** A write landed: record it, and clear `dirty` only if nothing was edited since it was built. */
+        const landed = (/** @type {string} */ id, /** @type {any} */ base, /** @type {any} */ updatedAt) => {
+            _recordSave(id, written, updatedAt, base.loadedRevision);
+            if (!here()) return;
+            ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = base);
+            const same = JSON.stringify([design?.patterns, normaliseWindow(design?.window)])
+                === JSON.stringify([written.patterns, written.window]);
+            dirty = !same;
+            updateSaveBtn();
+            if (status) { setStatus(status, same ? '✓ Saved' : '✓ Saved — your later changes are not saved yet'); status.className = 'links-save-status ok'; }
+            updateLastSaved(currentUser, { toDate: () => new Date() });
+        };
+        saving = true;
         for (const b of btns) { b.disabled = true; b.textContent = 'Saving…'; }
-        header?.render(_headerState(true));
+        header?.render(_headerState());
         if (status) { status.textContent = 'Saving…'; status.className = 'links-save-status'; }
 
         try {
             await sessionReady;
 
-            if (!activeDesignId) {
-                // First save of a generator-created design — create the Firestore document
-                const dsn = design; // capture non-null (guarded above) so the closure keeps narrowing
+            if (!savingId) {
+                // First save of a generator-created design — create the Firestore document.
                 // One create primitive, so the baseline invariant cannot differ between a design
                 // made by the picker and one made by the generator (v21.87): an unresolved
                 // read-back must pair loadedUpdatedAt=null with baselineUnknown=true, or the next
                 // save sees neither and clobbers a co-editor with no prompt.
-                const created = await store.create(
-                    docPayload(dsn, { updatedBy: currentUser, updatedAt: serverTimestamp() }));
-                activeDesignId = created.id;
-                design.id = created.id;
-                lsSet(ACTIVE_KEY, created.id);
-                ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = created.baseline);
-                const savedAt = created.updatedAt;
-                const newEntry = restoredEntryFrom({ ...design, id: created.id, patterns: deepCopyPatterns(design.patterns) }, { updatedAt: savedAt, updatedBy: currentUser, revision: loadedRevision });
-                designs.push(newEntry);
+                const created = await store.create(buildDoc());
+                designs.push(restoredEntryFrom({ id: created.id, name: dsn.name, ...written },
+                    { updatedAt: created.updatedAt, updatedBy: currentUser, revision: created.baseline.loadedRevision }));
                 _sortDesigns();
-                dirty = false;
-                updateSaveBtn();
+                if (here() && design) {
+                    activeDesignId = created.id;
+                    design.id = created.id;
+                    lsSet(ACTIVE_KEY, created.id);
+                    targets.adoptUnsaved();   // the targets tuned while it had no id come with it
+                }
+                landed(created.id, created.baseline, created.updatedAt);
                 renderDesignPicker();
-                if (status) { setStatus(status, '✓ Saved'); status.className = 'links-save-status ok'; }
-                updateLastSaved(currentUser, { toDate: () => new Date() });
                 return;
             }
 
@@ -2169,14 +2209,16 @@ export function init() {
             // failure may take an unserialised path, which three silent overwrites came out of
             // (v16.19 / v16.23 / v17.18) and which was reinstated by accident as recently as the
             // v21.86 audit. What remains below is the conversation with the designer.
-            const dsn = design; // capture non-null (guarded above) so the closure keeps narrowing
-            const buildDoc = () => docPayload(dsn, { updatedBy: currentUser, updatedAt: serverTimestamp() });
             const confirmOverwrite = (/** @type {{by:string, at:any}} */ c) => {
                 const when = c.at?.toDate?.()?.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) ?? '';
+                // Your OWN name here is another tab or device, or a rename that could not be
+                // checked — "replace their changes" would have you overwrite yourself unasked.
+                const mine = c.by === currentUser;
                 return confirmDialog({
-                    title: 'Someone else saved',
-                    message: `${c.by} saved a different version${when ? ` at ${when}` : ''} after you opened this page.\n\n` +
-                        `Save anyway and replace their changes?`,
+                    title: mine ? 'This design changed' : 'Someone else saved',
+                    message: (mine
+                        ? `A different version was saved${when ? ` at ${when}` : ''} after you opened this page — from another tab or device, or under a rename.\n\nSave anyway and replace that version?`
+                        : `${c.by} saved a different version${when ? ` at ${when}` : ''} after you opened this page.\n\nSave anyway and replace their changes?`),
                     confirmLabel: 'Replace',
                     danger: true,
                 });
@@ -2199,14 +2241,20 @@ export function init() {
             // the fork instead, which keeps our work without contradicting their action.
             const deletedElsewhere = async (/** @type {any} */ data) => {
                 markNotSaved();
+                // Out of the live list: it stayed in the picker, counted towards the last-design
+                // rule, and set off Duplicate's "goes back to its last save" confirm.
+                designs = designs.filter(x => x.id !== savingId);
+                if (data) deletedDesigns.unshift(binEntryFromDoc(savingId, data));
+                renderDesignPicker();
                 const by = (data?.deletedBy || '').trim();
                 if (await confirmDialog({
                     title: 'This design was deleted',
-                    message: `${by || 'Someone'} deleted this design while you had it open. It is in Recently deleted.\n\n` +
+                    message: (data ? `${by || 'Someone'} deleted this design while you had it open. It is in Recently deleted.`
+                        : 'Someone removed this design for good while you had it open.') + '\n\n' +
                         'Your version can be saved as a NEW design so your work is not lost.',
                     confirmLabel: 'Save mine as new',
                     cancelLabel: 'Not now',
-                })) await duplicateDesign();
+                })) await duplicateDesign(true);
                 return true;
             };
 
@@ -2227,7 +2275,7 @@ export function init() {
             // left here is the part that genuinely belongs to a workspace: what to ASK, and what to
             // do with the answer. The store never asks anything.
             const res = await store.save({
-                id: activeDesignId,
+                id: savingId,
                 buildPayload: buildDoc,
                 baseline: loadedUpdatedAt,
                 loadedRevision,
@@ -2235,6 +2283,12 @@ export function init() {
                 currentUser,
             });
 
+            // Nothing written, and another design is open now: the conversation below would act on
+            // THAT one, so say so and stop.
+            if (!here() && (res.status === 'conflict' || res.status === 'deleted-elsewhere')) {
+                _designActionStatus(`“${dsn.name}” was not saved — it changed elsewhere while saving. Open it to check.`);
+                return;
+            }
             if (res.status === 'deleted-elsewhere') { await deletedElsewhere(res.deletedData); return; }
             if (res.status === 'conflict') {
                 // ── CONSENT IS PER VERSION, SO THE ASK CAN REPEAT (v21.96) ──────────────────
@@ -2248,7 +2302,7 @@ export function init() {
                 for (let round = 0; ; round++) {
                     if (!await confirmOverwrite(pending)) { await declineOrFork(); return; }
                     const forced = await store.save({
-                        id: activeDesignId, buildPayload: buildDoc,
+                        id: savingId, buildPayload: buildDoc,
                         baseline: loadedUpdatedAt, loadedRevision, baselineUnknown, currentUser,
                         forcing: true,
                         // BOTH, deliberately: `rev` is exact and `at` is the fallback for a design
@@ -2262,23 +2316,21 @@ export function init() {
                         pending = forced.conflict;
                         continue;
                     }
-                    ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = forced.baseline);
-                    _applySavedEntry(forced.updatedAt);
+                    landed(savingId, forced.baseline, forced.updatedAt);
                     break;
                 }
             } else {
-                ({ loadedRevision, loadedUpdatedAt, baselineUnknown } = res.baseline);
-                _applySavedEntry(res.updatedAt);
+                landed(savingId, res.baseline, res.updatedAt);
             }
-            dirty = false;
-            updateSaveBtn();
-            if (status) { setStatus(status, '✓ Saved'); status.className = 'links-save-status ok'; }
-            updateLastSaved(currentUser, { toDate: () => new Date() });
         } catch (err) {
             console.error('[Links] Save failed:', err);
-            dirty = true;
-            updateSaveBtn();
-            if (status) { status.textContent = 'Save failed — try again'; status.className = 'links-save-status err'; }
+            if (here()) {
+                dirty = true;
+                if (status) { status.textContent = 'Save failed — try again'; status.className = 'links-save-status err'; }
+            }
+        } finally {
+            saving = false;
+            header?.render(_headerState());   // not updateSaveBtn: that would wipe the status just written
         }
     }
 
@@ -2295,29 +2347,39 @@ export function init() {
         withClaimRetry: writeWithClaimRetry,
     });
 
+    /** A collection read → live designs, the bin, and the legacy singleton. One rule for both readers.
+     *  A binned design keeps its patterns so a restore is a field-clearing merge (v19.41); every
+     *  doc → object mapping is links-design-doc.js (v19.94). @param {Array<{id: string, data: any}>} docs */
+    function _splitDocs(docs) {
+        /** @type {any[]} */ const named = [], binned = [];
+        let legacyData = null;
+        for (const { id, data } of docs) {
+            const hasName = typeof data.name === 'string' && data.name.trim();
+            if (hasName && isDeleted(data)) binned.push(binEntryFromDoc(id, data));
+            else if (hasName) named.push(designFromDoc(id, data));
+            else if (id === LEGACY_DOC_ID && data.patterns) legacyData = data;
+        }
+        return { named, binned, legacyData };
+    }
+
+    /** Re-read and repaint the LISTS only. A bin row settled by a colleague used to call
+     *  `loadDesigns`, which rebuilt the working copy — discarding unsaved edits — and blanked the
+     *  grid if the read failed. The open design, its baseline and `dirty` are not a bin row's. */
+    async function _refreshLists() {
+        try {
+            const { named, binned } = _splitDocs(await store.loadAll());
+            designs = named; _sortDesigns(); deletedDesigns = sortByDeleted(binned);
+        } catch (err) { console.error('[Links] List refresh failed:', err); }
+        renderDesignPicker(); renderBinList(); compare.renderCompare();
+    }
+
     async function loadDesigns() {
         loadFailed = false;
+        activation++;
         try {
             await sessionReady;
             const snap = await getDocs(DESIGNS_COL);
-
-            const named = [];
-            /** @type {any[]} */ const binned = [];
-            let legacyData = null;
-            for (const d of snap.docs) {
-                const data = d.data();
-                if (typeof data.name === 'string' && data.name.trim() && isDeleted(data)) {
-                    // In the bin (v19.41) — kept in memory WITH its patterns so a restore is a
-                    // field-clearing merge and never re-uploads a stale copy of the design.
-                    // Every doc -> object mapping is links-design-doc.js (v19.94): eleven sites
-                    // built these by hand and the one that diverged went unnoticed for releases.
-                    binned.push(binEntryFromDoc(d.id, data));
-                } else if (typeof data.name === 'string' && data.name.trim()) {
-                    named.push(designFromDoc(d.id, data));
-                } else if (d.id === LEGACY_DOC_ID && data.patterns) {
-                    legacyData = data;
-                }
-            }
+            const { named, binned, legacyData } = _splitDocs(snap.docs.map((/** @type {any} */ d) => ({ id: d.id, data: d.data() })));
 
             // One-time migration: convert combined-28 to a named design
             if (named.length === 0 && legacyData) {

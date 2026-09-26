@@ -550,7 +550,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             `${stretchOk ? tick : warn}<div class="check-body">` +
             `<strong>Longest run</strong> — ${longestStretch} consecutive working days` +
             `<span class="check-note"> (design target: no more than ${DEFAULT_MAX_RUN})</span>` +
-            (longestStretch > 7
+            (!stretchOk   // the SAME test as the amber — it was a literal 7 left from before v20.02
                 ? `<div class="check-sub">Over the ${DEFAULT_MAX_RUN}-day design target — worth reviewing. `
                   + `This is an aim, not a limit; the company limit is checked separately below.</div>`
                 : '') +

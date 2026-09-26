@@ -32,6 +32,22 @@ test('a factor present in BOTH is named — it is the finding a comparison is li
     assert.deepEqual(r.fatigue.presentInBoth.map(p => p.code + p.title), present.map(p => p.code + p.title));
 });
 
+test('a factor present in both at DIFFERENT figures is still named as present in both', () => {
+    // It was filled only from the identical-reading branch, so two designs that both carry FF19 —
+    // at 2 and 3 successive changes — read "No factor is present in both." That is the finding a
+    // comparison is likeliest to hide, stated as its opposite.
+    const CF = { patterns: sheet('Clean-Final-CF-24-EXT.json').patterns };
+    const r = compareDesigns(CF, FT);
+    const fb = assessFatigue(FT.patterns).results;
+    const both = assessFatigue(CF.patterns).results
+        .filter((x, i) => x.status === 'present' && fb[i].status === 'present');
+    assert.ok(both.some((x, i) => String(x.value) !== String(fb.find(y => y.code === x.code && y.title === x.title)?.value)),
+        'the fixture has a factor present in both at different figures');
+    assert.deepEqual(r.fatigue.presentInBoth.map(p => p.code + p.title), both.map(p => p.code + p.title));
+    assert.equal(r.fatigue.unchanged + r.fatigue.changed.length, fb.length,
+        'a moved figure is still counted as changed, not as unchanged');
+});
+
 test('the factors that moved are reported with BOTH readings, never a verdict', () => {
     const r = compareDesigns(PT, FT);
     assert.equal(r.fatigue.present.a, assessFatigue(PT.patterns).present);

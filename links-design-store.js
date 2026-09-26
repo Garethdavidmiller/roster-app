@@ -37,6 +37,9 @@
  * `baselineUnknown`, which makes the next save prompt. Being asked once too often costs a tap;
  * being asked once too seldom costs somebody else's afternoon.
  *
+ * **4. A queued (offline) write is started, not awaited, and never stamps a revision a colleague's
+ * online save could also produce.** See `queueWrite` and `queuedRevision`.
+ *
  * ── WHAT IS DELIBERATELY NOT HERE ───────────────────────────────────────────────────────────────
  *
  * No DOM, no dialogs, no confirm, no picker, no generator, no status text, and no decision about
@@ -90,6 +93,28 @@ export function createDesignStore(deps) {
     const offlineNow = _isOnline ? () => !_isOnline() : _offlineByDefault;
     const isOffline = (/** @type {any} */ err) => isOfflineFailure(err, offlineNow);
     const refFor = (/** @type {string} */ id) => doc(db, 'linkDesigns', id);
+
+    /**
+     * RULE 4 — a queued write is STARTED, never awaited. Firestore resolves a write only when the
+     * server acknowledges it, which offline is "not until the connection returns", so awaiting one
+     * held the page on "Saving…" instead of reporting the queue. The SDK owns the queue; a later
+     * rejection (a rules refusal on sync) is logged, the one place left to see it.
+     * @param {() => Promise<any>} write
+     */
+    const queueWrite = (write) => {
+        withClaimRetry(write).catch((/** @type {any} */ err) => console.error('[Links] Queued write failed on sync:', err));
+    };
+
+    /**
+     * The revision a QUEUED write stamps. Not `known + 1`: that is precisely what a colleague's
+     * online save from the same revision commits, so the two collided and her next save matched ours
+     * and overwrote it unasked. Not absent either: a document with no revision restarts at 1 on its
+     * next save, and a tab left open on an old revision 1 would then match. The clock in ms is far
+     * above any counter a transaction produces, and still an int >= 1 as `firestore.rules` requires;
+     * `max` keeps it monotonic if an earlier queued write already moved the counter there.
+     * @param {number|null} known
+     */
+    const queuedRevision = (known) => Math.max((known ?? 0) + 1, Date.now());
 
     /** Read a document's server `updatedAt`, or null if it cannot be read. */
     const readStamp = async (/** @type {any} */ ref) => {
@@ -213,9 +238,12 @@ export function createDesignStore(deps) {
             try {
                 await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
                     const snap = await tx.get(ref);
-                    if (snap.exists() && isDeleted(snap.data())) {
+                    // A document that has GONE (removed for good from the bin) takes the same exit
+                    // as the forced path's `gone`, with no deleter. Writing here would recreate it
+                    // at revision 1 — a delete undone by somebody who never saw it.
+                    if (!snap.exists() || isDeleted(snap.data())) {
                         const e = /** @type {any} */ (new Error('design-deleted'));
-                        e.deletedData = snap.data();
+                        e.deletedData = snap.exists() ? snap.data() : null;
                         throw e;
                     }
                     const c = conflictOf(snap.data() || {}, snap.exists(),
@@ -242,19 +270,21 @@ export function createDesignStore(deps) {
                 // this replaced; dropping it was a regression I introduced and caught in review.)
                 try {
                     const cached = await getDoc(ref);
-                    if (cached.exists() && isDeleted(cached.data())) {
+                    // Offline, `getDoc` THROWS for a document the cache has never seen, so a
+                    // non-existent snapshot here is the cache KNOWING it was removed for good.
+                    if (!cached.exists()) return { status: 'deleted-elsewhere', deletedData: null };
+                    if (isDeleted(cached.data())) {
                         return { status: 'deleted-elsewhere', deletedData: cached.data() };
                     }
                     const c = conflictOf(cached.data() || {}, cached.exists(),
                         { loadedRevision, loadedUpdatedAt: baseline, baselineUnknown, currentUser });
                     if (c) return { status: 'conflict', conflict: c };
                 } catch { /* no cached state either — nothing to consult, proceed */ }
-                // A queued write increments from what we last KNEW. If we were right, the counter
-                // stays monotonic; if somebody saved while we were offline, theirs is >= ours and
-                // the mismatch surfaces as a conflict on the next save. Both directions are safe,
-                // which is the only claim available here — nothing verified the server.
-                await withClaimRetry(() => setDoc(ref,
-                    { ...buildPayload(), revision: (loadedRevision ?? 0) + 1 }));
+                // A queued write may NOT increment from what we last knew: `known + 1` is exactly
+                // the number a colleague's online save from the same revision commits, so when ours
+                // landed the two matched and her next save overwrote ours with no prompt. See
+                // `queuedRevision`. Started, not awaited — rule 4 below.
+                queueWrite(() => setDoc(ref, { ...buildPayload(), revision: queuedRevision(loadedRevision) }));
                 // Nothing verified what the server held, so the baseline is UNKNOWN, never null.
                 return { status: 'queued', baseline: baselineAfterWrite(null, false) };
             }
@@ -289,15 +319,23 @@ export function createDesignStore(deps) {
                         ? liveRev === preRevision
                         : canAdvanceBaseline(snap.data()?.updatedAt?.toMillis?.() ?? null, preBaseline);
                     committed = nextRevision(snap.data());
-                    tx.set(ref, { name, revision: committed, updatedAt: serverTimestamp(), updatedBy: by }, { merge: true });
+                    // On a STALE baseline the name and the revision are written and the "last saved
+                    // by" is not: the content under this rename is a colleague's save we never took
+                    // in, and signing it as ours made our next conflict dialog name US as the one
+                    // whose version would be replaced — so we replaced theirs believing it our own.
+                    // The revision still moves, which is all the guard needs.
+                    tx.set(ref, baselineFresh
+                        ? { name, revision: committed, updatedAt: serverTimestamp(), updatedBy: by }
+                        : { name, revision: committed }, { merge: true });
                 }));
             } catch (err) {
                 if (!isOffline(err)) throw err;
                 // A queued rename is fine — it is small and non-destructive — but nothing verified
-                // the server, so the baseline may not move (RULE 3).
+                // the server, so the baseline may not move (RULE 3). It moves the REVISION, though:
+                // left alone, a colleague holding the current one saved over the new name unasked.
+                // And like any unverified rename it does not sign the content as ours (above).
                 baselineFresh = canAdvanceBaseline(null, preBaseline, false);
-                await withClaimRetry(() => setDoc(ref,
-                    { name, updatedAt: serverTimestamp(), updatedBy: by }, { merge: true }));
+                queueWrite(() => setDoc(ref, { name, revision: queuedRevision(preRevision) }, { merge: true }));
                 return { baselineFresh, revision: null, updatedAt: null, queued: true };
             }
             // A rename that may advance the baseline advances it to the revision it COMMITTED —

@@ -261,7 +261,11 @@ window      The design's own OPERATING WINDOW (when the station is staffed) — 
 revision    Optional (v22.15) — int ≥ 1, the co-editing CONCURRENCY IDENTITY a save compares against;
             absent on designs last written before it existed
 updatedAt   Firestore server timestamp
-updatedBy   Member name string
+updatedBy   Member name string — the last to SAVE. A rename on a baseline it could not verify does
+            not write it (links-design-store.js), because the content is still that person's.
+revision    Optional int >= 1 (v22.15) — the co-editing identity, compared for equality only. A
+            transaction writes the value it read + 1; a QUEUED (offline) write stamps the clock in
+            ms instead, so it can never equal a colleague's online revision (links-design-store.js).
 deletedAt   Optional (v19.41) — Firestore server timestamp. PRESENT = in the "Recently deleted"
             bin (hidden from the picker, restorable until removed by hand — automatic expiry SUSPENDED v19.86, see KNOWN_LIMITATIONS); ABSENT = live. Restore clears
             it with deleteField(), so absence is unambiguous.

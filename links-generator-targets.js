@@ -268,9 +268,11 @@ export function createTargetPanel(deps) {
             // A remembered table the app stored ON ITS OWN must not outlive a changed default
             // (v21.05, widened v21.06). TWO routes, because they catch different devices:
             //
-            //   · STAMPED — the table declares it was written by a reset button under a named app
+            //   · STAMPED — the table declares it was written as the DEFAULT under a named app
             //     version. If that version is not the current one, it is an old default with
-            //     nothing to say, whoever's device it is on. This is what reaches the other
+            //     nothing to say, whoever's device it is on. ONLY `default`: a `seed` table is one
+            //     a designer chose ("copy staffing from today's roster"), not one the app stored on
+            //     its own, and retiring it on every release threw that choice away. This is what reaches the other
             //     designers, whose devices hold v21.00–v21.05 defaults that no content check could
             //     recognise (there were four of them in as many days).
             //   · CONTENT — for tables written before stamping existed: equal to the roster seed
@@ -279,7 +281,7 @@ export function createTargetPanel(deps) {
             // Neither route can touch a table somebody edited: an edit stamps `source: 'edited'`,
             // and an unstamped edited table matches neither comparison.
             const stamped = typeof v.source === 'string' && typeof v.ver === 'string';
-            const staleDefault = stamped && v.source !== 'edited' && v.ver !== APP_VERSION;
+            const staleDefault = stamped && v.source === 'default' && v.ver !== APP_VERSION;
             if (int(v.spareLines) && (staleDefault
                 || (!stamped && isSupersededMemory({ slots: v.slots, spareLines: v.spareLines }, buildRosterTargets())))) {
                 try { lsSet(_genTargetsKey(), ''); } catch { /* best-effort */ }
@@ -627,7 +629,9 @@ export function createTargetPanel(deps) {
                 }
                 // The table IS this set again — an overwrite is the other way of making them match,
                 // so the row must stop saying "you have changed it since".
-                genFromSetId = set.id; genFromSetName = set.name;
+                // Through saveGenTargets, so the attribution is STORED too (the delete handler's
+                // rule): set in memory only, the note lost the set's name on the next reload.
+                saveGenTargets('edited', set.name, set.id);
                 genOriginTable = _copyTable();
                 await loadTargetSets();
             } catch {
@@ -658,7 +662,7 @@ export function createTargetPanel(deps) {
                 const ref = await writeWithClaimRetry(() => addDoc(SETS_COL,
                     targetSetPayload({ name, slots: genSlots, spareLines: genSpareLines },
                         author, author, serverTimestamp())));
-                genFromSetId = ref?.id ?? ''; genFromSetName = name.trim();
+                saveGenTargets('edited', name.trim(), ref?.id ?? '');   // stored, as above
                 genOriginTable = _copyTable();
                 await loadTargetSets(ref?.id ?? '');
             } catch {
@@ -671,6 +675,19 @@ export function createTargetPanel(deps) {
     return {
         /** Show the active design's remembered targets, or the default table. */
         refreshForDesign: refreshGenTargetsForDesign,
+        /** A design's FIRST save has just given it an id: move the table tuned under the `unsaved`
+         *  key onto it, stamp and all, and clear the old key. Without this the tuning stayed under
+         *  `unsaved`, and the saved design reopened on the default. */
+        adoptUnsaved() {
+            const id = getActiveDesignId();
+            if (!id) return;
+            try {
+                const raw = lsGet(GEN_KEY_PREFIX + 'unsaved');
+                if (!raw) return;
+                lsSet(GEN_KEY_PREFIX + id, raw);
+                lsSet(GEN_KEY_PREFIX + 'unsaved', '');
+            } catch { /* quota / private mode — the default remains the fallback */ }
+        },
         /** The table the Generate button runs against. LIVE, not a copy — the loop reads it once
          *  per press and must see what is on screen at that moment. */
         getTable: () => ({ slots: genSlots, spareLines: genSpareLines }),

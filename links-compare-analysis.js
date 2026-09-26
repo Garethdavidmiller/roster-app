@@ -135,12 +135,11 @@ export function compareDesigns(a, b, { lines = ROTATING_LINES } = {}) {
     for (const r of fa.results) {
         const o = byCode.get(key(r));
         if (!o) continue;
+        // Present on both sides is named whatever the figures — asked BEFORE the same-reading test,
+        // or a factor both designs carry at different values is never listed as carried by both.
+        if (r.status === 'present' && o.status === 'present') presentInBoth.push({ code: r.code, title: r.title });
         const same = r.status === o.status && String(r.value ?? '') === String(o.value ?? '');
-        if (same) {
-            unchanged++;
-            if (r.status === 'present') presentInBoth.push({ code: r.code, title: r.title });
-            continue;
-        }
+        if (same) { unchanged++; continue; }
         // The CAVEATS travel with the reading (v24.25). v24.25 kept only status and value, so a factor
         // whose definition is still to be confirmed read here as a bare fact, and a figure lost the
         // threshold that says what it is measured against. The Design checks card shows both; a

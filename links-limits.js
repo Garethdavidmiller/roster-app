@@ -199,6 +199,26 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
 
     const run = worstCaseWorkedRun(seq);
     const breach = run > MAX_CONSECUTIVE_WORKED_DAYS;
+
+    // PART-BUILT is rule 2's other half. A line with no worked day is not designed yet, and
+    // designing it can only ADD worked days — so a breach already found stands, but "within the
+    // limit" cannot be said about lines nobody has drawn. The run so far is still stated.
+    const unfilled = new Set();
+    for (const x of seq) unfilled.add(x.line);
+    for (const x of seq) if (x.shift && x.shift !== 'RD' && x.shift !== 'OFF') unfilled.delete(x.line);
+    if (!breach && unfilled.size > 0) {
+        checks.push({
+            id: 'consecutive-days',
+            title: `More than ${MAX_CONSECUTIVE_WORKED_DAYS} consecutive days worked`,
+            status: 'unknown', value: null, limit: MAX_CONSECUTIVE_WORKED_DAYS,
+            basis: BASIS,
+            detail: `Longest run so far is ${run} days, against the ${MAX_CONSECUTIVE_WORKED_DAYS} `
+                + `${POLICY_SOURCE_CONFIRMED ? 'of Chiltern’s limit' : 'configured here from Chiltern practice'} (origin: the legacy Hidden standard). `
+                + `${unfilled.size} of ${lines} lines are not designed yet, so the limit cannot be confirmed until every line is.`,
+        });
+        return { checks, breaches: 0, assessable: false };
+    }
+
     checks.push({
         id: 'consecutive-days',
         title: `More than ${MAX_CONSECUTIVE_WORKED_DAYS} consecutive days worked`,

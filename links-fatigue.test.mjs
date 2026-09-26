@@ -582,7 +582,7 @@ describe('FF18 — the week-to-week step', () => {
             [RD, LATE, LATE, LATE, LATE, LATE, RD],
         ));
         assert.equal(withSpare.status, 'standing');
-        assert.match(String(withSpare.detail), /carry no times \(spare weeks\) and are excluded/);
+        assert.match(String(withSpare.detail), /carry no times \(spare or unfilled weeks\) and are excluded/);
     });
 
     // The v19.69 cases all passed `lines` EQUAL to the key count, so none of them could see this:
@@ -602,6 +602,25 @@ describe('FF18 — the week-to-week step', () => {
         ), 28).results.find(r => r.code === 'FF18');
         assert.equal(partial.status, 'standing');
         assert.match(String(partial.value), /typically/);
+    });
+
+    // A design saved at an OLD, longer rotation keeps its surplus lines in Firestore (links-design.md
+    // → "Designs saved against the OLD length"), and every other rule reads only 1..lines. FF18 walked
+    // every KEY, so the hidden lines were counted and the lap boundary was the wrong one.
+    test('it walks lines 1..lines, never the surplus keys of a longer legacy design', () => {
+        const flat = [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD];
+        const legacy = design(flat, flat, flat, [RD, LATE, LATE, LATE, LATE, LATE, RD]);
+        const r = assessFatigue(legacy, 3).results.find(x => x.code === 'FF18');
+        assert.match(String(r.value), /3-line rotation · typically 0h 0m/,
+            'line 4 is not in a 3-line rotation, so no step reaches it');
+        assert.match(String(r.detail), /0 of 3 line boundaries/);
+    });
+
+    test('an UNFILLED line is not called a spare week', () => {
+        const flat = [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD];
+        const r = assessFatigue(design(flat, flat), 3).results.find(x => x.code === 'FF18');
+        assert.equal(r.status, 'standing');
+        assert.match(String(r.detail), /spare or unfilled weeks/);
     });
 
     test('the stated threshold is the one actually counted against', () => {

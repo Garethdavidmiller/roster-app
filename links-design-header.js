@@ -422,9 +422,12 @@ export function createDesignHeader(els, handlers, extra = {}) {
         // ── the sheet's header ──
         if (els.sheetName) els.sheetName.textContent = name;
         if (els.sheetSub) {
+            // The LAST SAVE, read with dirty/saving off — the pill's own words ("Unsaved changes",
+            // "Saving…") describe the working copy and read as nonsense after "Saved by".
+            const lastSave = statusCopy({ saved, dirty: false, saving: false, updatedAt: entry?.updatedAt, now });
             els.sheetSub.textContent = !open ? 'Start a new design, import one, or restore one from Recently deleted.'
                 : !saved ? 'Not saved yet. Save it to give it a name.'
-                : `Saved by ${who.name} ${st.long.replace(/^Saved\s*/, '')}`.trim();
+                : `Saved by ${who.name} ${lastSave.long.replace(/^Saved\s*/, '')}`.trim();
         }
 
         // ── the buttons ──

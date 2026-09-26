@@ -5848,6 +5848,125 @@ test('links window: a RESTORED design keeps the window it was designed to', asyn
     await expect(page.locator('#winMoved')).toBeVisible();
 });
 
+// ── Found by the Sep 2026 review — each is the WIRING of a rule the unit suites cannot see ───────
+test('links review: a saved window survives switching away and back', async ({ page }) => {
+    // The saved entry took the patterns and not the window, so switching back rebuilt the working
+    // copy on the OLD window — and the next save wrote it over the one just saved.
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.locator('#winMonSatStart').fill('05:00');
+    await page.locator('#winMonSatStart').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    await expect(page.locator('#linksSaveStatus')).toContainText('Saved');
+    await switchToDesign(page, 'Other');
+    await expect(activeDesignName(page)).toHaveText('Other');
+    await switchToDesign(page, 'Morning heavy');
+    await expect(activeDesignName(page)).toHaveText('Morning heavy');
+    await expect(page.locator('#winMonSatStart')).toHaveValue('05:00');
+});
+
+test('links review: Import asks before it replaces unsaved work', async ({ page }) => {
+    await openWindowDesign(page);
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await sheetAction(page, 'importDesignBtn');
+    const dialog = page.locator('.dialog-overlay');
+    await expect(dialog).toContainText('unsaved changes');
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(page.locator('#linksImportLb.visible')).toHaveCount(0);
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();          // still dirty, still here
+});
+
+test('links review: a colleague\'s restore settled in the bin leaves your unsaved edits alone', async ({ page }) => {
+    // It called loadDesigns, which rebuilt the working copy and cleared `dirty` — the edit gone,
+    // and nothing said so.
+    await openWindowDesign(page, [{ id: 'gone', name: 'Old idea', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva', deletedAt: Date.now() - 86400000, deletedBy: 'S. Silva' }]);
+    await page.evaluate(() => {   // the server now holds it restored; this device's bin is stale
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = w.__E2E.docs.map((/** @type {any} */ d) => ({ ...d, deletedAt: undefined }));
+    });
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await sheetAction(page, 'designBinBtn');
+    await page.locator('#designBinList button:has-text("Restore")').first().click();
+    await expect(page.locator('#designBinStatus')).toContainText(/already been restored/i);
+    await page.locator('#designBinClose').click();
+    await expect(page.locator('#winMonSatEnd')).toHaveValue('14:20');
+    await expect(page.locator('#linksSaveBtn')).toBeEnabled();
+});
+
+test('links review: a binned design cannot be restored under a name already in use', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'gone', name: 'Morning heavy', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva', deletedAt: Date.now() - 86400000, deletedBy: 'S. Silva' }]);
+    await sheetAction(page, 'designBinBtn');
+    await page.locator('#designBinList button:has-text("Restore")').first().click();
+    await expect(page.locator('#designBinStatus')).toContainText('already a design called');
+    const writes = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites || []);
+    expect(writes, 'nothing was restored').toEqual([]);
+});
+
+test('links review: a design found deleted on save leaves the list, and the copy asks nothing more', async ({ page }) => {
+    await openWindowDesign(page, [{ id: 'd2', name: 'Other', patterns: morningOnlyPatterns(),
+        updatedAt: 1750000000000, updatedBy: 'S. Silva' }]);
+    await page.evaluate(() => {   // S. Silva binned it while it was open here
+        const w = /** @type {any} */ (window);
+        w.__E2E.txDocs = w.__E2E.docs.map((/** @type {any} */ d) => d.id === 'd1'
+            ? { ...d, deletedAt: Date.now(), deletedBy: 'S. Silva' } : d);
+    });
+    await page.locator('#winMonSatEnd').fill('14:20');
+    await page.locator('#winMonSatEnd').dispatchEvent('change');
+    await page.locator('#linksSaveBtn').click();
+    const dialog = page.locator('.dialog-overlay');
+    await expect(dialog).toContainText('deleted this design');
+    await expect(designOptions(page)).toHaveCount(1);                 // out of the live list
+    await dialog.locator('.dialog-btn-confirm').click();              // "Save mine as new"
+    // Straight to the name — not "goes back to its last save" about a design that is in the bin.
+    const next = page.locator('.dialog-overlay.visible');
+    await expect(next).toContainText('Name for the duplicate');
+    await expect(next).not.toContainText('last save');
+});
+
+test('links memory: a stamped SEED is a designer\'s choice and survives a release', async ({ page }) => {
+    // Only a stamped DEFAULT is one the app stored on its own; the retirement rule took the seed too.
+    const seeded = JSON.parse(JSON.stringify(STALE_SEED));
+    seeded.source = 'seed';
+    seeded.ver = '21.02';
+    await openLinksWithMemory(page, seeded);
+    await expect(page.locator('#genMemoryNote')).toBeVisible();
+    await expect(page.locator('#genHoursNote')).toContainText('short in total');
+});
+
+test('links memory: targets tuned before the first save follow the design it becomes', async ({ page }) => {
+    await seedContractTargets(page, { designIds: ['unsaved'] });
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_links_welcome_seen', '1'));
+    await page.goto('/links.html');
+    await page.locator('#genApplyBtn').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');   // "Apply"
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    await page.locator('#linksSaveBtn').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');   // the pre-filled name
+    await expect(page.locator('#linksSaveStatus')).toContainText('Saved');
+    const ls = await page.evaluate(() => {
+        const id = localStorage.getItem('myb_links_active_design');
+        return { id, mine: localStorage.getItem('myb_links_gen_' + id), unsaved: localStorage.getItem('myb_links_gen_unsaved') };
+    });
+    expect(ls.id).toMatch(/^e2e-added-/);
+    expect(ls.mine, 'the tuned table is stored under the new design').toContain('"spareLines":5');
+    expect(ls.unsaved || '', 'and no longer under the unsaved key').toBe('');
+});
+
+test('links memory: a table saved as a set keeps naming that set after a reload', async ({ page }) => {
+    await openLinksWithTargetSets(page);
+    await page.locator('#genSetSaveAsBtn').click();
+    await page.locator('.dialog-input').fill('Weekend trial');
+    await clickDialogConfirm(page);
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('myb_links_gen_unsaved') || ''))
+        .toContain('"setName":"Weekend trial"');
+});
+
 // ── The generate feedback is visible from the BUTTON, and the button stays put (v20.54) ──────────
 // Two measured failures, one press. The status line lives in the grid card's sticky save row, a
 // full card above the Generate button — after a real press-and-confirm it sat 448px above the

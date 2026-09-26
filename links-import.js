@@ -259,13 +259,24 @@ export function parseDesignImport(text, { lines = ROTATING_LINES } = {}) {
         const patterns = {};
         /** @type {Set<string>} */
         const assumptions = new Set();
-        for (const [pos, row] of Object.entries(src)) {
-            if (!/^\d{1,3}$/.test(pos)) return { ok: false, error: `“${pos}” is not a line number.` };
+        for (const [key, row] of Object.entries(src)) {
+            if (!/^\d{1,3}$/.test(key)) return { ok: false, error: `“${key}” is not a line number.` };
+            // Stored under the CANONICAL key — "01" would otherwise sit under a key nothing reads,
+            // and the preview would count a line the grid never shows. Two spellings of one line
+            // are the grid path's "appears twice", not a silent last-one-wins.
+            const pos = String(Number(key));
             if (+pos < 1 || +pos > lines) return { ok: false, error: `Line ${pos} is outside the ${lines}-line rotation.` };
+            if (patterns[pos]) return { ok: false, error: `Line ${pos} appears twice.` };
             if (!row || typeof row !== 'object') return { ok: false, error: `Line ${pos} is not a week.` };
             /** @type {Record<string, string>} */
             const out = {};
             for (const d of DAYS) {
+                // A MISSING day is refused, never read as an empty cell. The grid path refuses a
+                // six-column row; here an absent key reached `parseCell(undefined)` and became RD —
+                // a duty lost with nothing said (invariant 6).
+                if (typeof (/** @type {any} */ (row)[d]) !== 'string') {
+                    return { ok: false, error: `Line ${pos}, ${d.toUpperCase()}: the day is missing.` };
+                }
                 const res = parseCell(/** @type {any} */ (row)[d]);
                 if ('error' in res) return { ok: false, error: `Line ${pos}, ${d.toUpperCase()}: ${res.error}.` };
                 out[d] = res.value;

@@ -596,12 +596,14 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     // The 2h figure is not invented either: it is the ORR's own FF19 threshold, and the week
     // boundary is precisely the "across rest days" reading FF19's own detail flags as unconfirmed.
     // Hence `confirm: true` stays on this row.
-    const ff18Order = Object.keys(patterns || {}).sort((a, b) => Number(a) - Number(b));
+    // Lines 1..lines, like every other rule here — NOT the keys the design happens to carry. A design
+    // saved at an older, longer rotation still stores its surplus lines, and walking the keys counted
+    // those hidden lines and lapped at the wrong boundary. A missing line is unmeasurable, not skipped.
+    const ff18Order = Array.from({ length: lines }, (_, i) => String(i + 1));
     const adj = scoreOrder(patterns, ff18Order);
-    // Measurable iff at least one BOUNDARY actually produced a step. Derived from the boundaries
-    // walked, never from `lines`: `scoreOrder` iterates the keys the design really has, while
-    // `lines` is what the caller CLAIMS it has, and those differ in the ordinary case of a design
-    // that is not fully filled in. The first version tested `adj.unmeasurable < lines`, so an EMPTY
+    // Measurable iff at least one BOUNDARY actually produced a step — never merely "fewer
+    // unmeasurable boundaries than `lines`". The first version tested `adj.unmeasurable < lines`
+    // while walking only the keys the design had, so an EMPTY
     // design (0 keys, 0 unmeasurable, 28 claimed) passed as measurable and reported "typically
     // 0h 0m a week" — a confident figure about a design with no shifts in it, which is precisely
     // the flattery this module exists to prevent. Found by the v19.70 regression pass, not by the
@@ -616,7 +618,7 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         // stated threshold cannot drift from the one actually applied.
         threshold: stepMeasurable ? `${GENTLE_THRESHOLD_MINUTES / 60}h` : undefined,
         detail: stepMeasurable
-            ? `A link moves every person one line per week by construction, so the weekly cadence itself is unavoidable — what a design controls is how far the working day moves at each step. Here the typical move is ${_hm(adj.gentleMean)}, the largest is ${_hm(adj.gentleWorst)}, and ${adj.gentleOver} of ${lines} line boundaries move by more than ${GENTLE_THRESHOLD_MINUTES / 60} hours.${adj.unmeasurable ? ` ${adj.unmeasurable} boundaries carry no times (spare weeks) and are excluded rather than counted as no change.` : ''} Settle the reading with the assessing manager: on the cadence alone no design can avoid this factor.`
+            ? `A link moves every person one line per week by construction, so the weekly cadence itself is unavoidable — what a design controls is how far the working day moves at each step. Here the typical move is ${_hm(adj.gentleMean)}, the largest is ${_hm(adj.gentleWorst)}, and ${adj.gentleOver} of ${lines} line boundaries move by more than ${GENTLE_THRESHOLD_MINUTES / 60} hours.${adj.unmeasurable ? ` ${adj.unmeasurable} boundaries carry no times (spare or unfilled weeks) and are excluded rather than counted as no change.` : ''} Settle the reading with the assessing manager: on the cadence alone no design can avoid this factor.`
             : `No line carries a start time, so the week-to-week step cannot be measured. The ${lines}-line weekly cadence still applies.` });
 
     const jumps = startTimeJumps(seq);

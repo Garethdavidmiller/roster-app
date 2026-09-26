@@ -176,12 +176,15 @@ container and left the grid card's collapse chevron 21px of reachable tap target
 Do not re-add an expiry here: the audience for these facts is whoever arrives next, and there is no
 date after which a newcomer stops needing them.
 
-## Five paths can lose the working copy, and all five now ask (v22.62)
+## Six paths can lose the working copy, and all six now ask (v22.62; import Sep 2026)
 
-New design, switching design, signing out, delete (v22.58) and **duplicate** (v22.62). Duplicate was
-the last one in silence: it ends with `_activateDesign(d)`, which is exactly the moment the other
-four protect, and it said nothing — the designer was moved to the copy while the original quietly
-went back to its last save.
+New design, switching design, signing out, delete (v22.58), **duplicate** (v22.62) and **import**
+(Sep 2026 review). Duplicate was silent until v22.62 and import until the Sep 2026 review, for the
+same reason: each ends with `_activateDesign(d)`, which is exactly the moment the others protect —
+duplicate moved the designer to the copy while the original quietly went back to its last save, and
+import replaced the working copy outright. Import asks with the others' "will be lost" wording,
+because for import that is the truth; duplicate's wording is the exception, below. A sign-out that
+was answered clears `dirty`, so the browser's own "Leave site?" does not ask a second time.
 
 **Its wording is deliberately not the others'.** The copy is taken from the LIVE patterns, so the
 unsaved work is carried INTO it rather than lost; borrowing "changes will be lost" would frighten the
@@ -566,7 +569,7 @@ against the design target (`DEFAULT_MAX_RUN`, 6); the hard-limit row 60px below 
 is two different questions and both answers are useful, but unlabelled they read as the panel
 contradicting itself — which is the FF13 defect of v19.48 (a hardcoded green tick directly beneath
 the amber row it duplicated) arriving in a new form. The amber row now carries
-`(design target: no more than 6)` and says in its sub-line that this is an aim rather than a limit;
+`(design target: no more than DEFAULT_MAX_RUN)` — 6 since v20.02 — and says in its sub-line, whenever the row is amber, that this is an aim rather than a limit;
 the green row already stated its 13 and its source. Pinned by a test using a fixture that lands
 deliberately in that band.
 
@@ -1332,6 +1335,16 @@ The grid flags an all-rest line with an amber line-number cell (`.row-unfilled`)
 A conflict comes back as `{ status: 'conflict', conflict }` and `links-app.js` decides whether to ask, overwrite or fork — the store never asks. A design deleted elsewhere (binned, or gone entirely) comes back as `deleted-elsewhere`; a save never recreates it. The pure comparison rules (`conflictOf`, the baseline helpers) are `links-concurrency.js`. A failed load sets `loadFailed` — empty state shows an error.
 
 Residual accepted limit (`conflictOf`'s header): with the baseline UNKNOWN, two devices under the SAME display name (`updatedBy` equal) still won't conflict-prompt — inherent to identifying editors by name.
+
+**The protocol has lived in `links-design-store.js` since v21.87, and the paragraphs above predate
+it** — read that module's header for what is true now. Four rules from the Sep 2026 review, each
+pinned in `links-design-store.test.mjs`: an ordinary save against a design **removed for good** is
+`deleted-elsewhere`, never a revision-1 write that brings it back; a rename on a **stale** baseline
+writes the name and the revision but not `updatedBy`, or the next conflict dialog names you as the
+person whose version you are about to replace; a **queued** (offline) write stamps a revision no
+colleague's online save can also produce, and is started rather than awaited, so the save returns at
+once instead of hanging on "Saving…" until the connection comes back; and `saveChanges` records the payload it actually WROTE,
+window and revision included, clearing `dirty` only if nothing was edited while it was in flight.
 
 ### Print (v12.37; reviewed v19.45)
 A4 landscape grid + coverage + checks; generator, brush bar, picker, save row, tips and chevrons hidden.

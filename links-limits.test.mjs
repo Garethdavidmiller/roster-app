@@ -71,12 +71,24 @@ describe('the 13-consecutive-day limit', () => {
         assert.equal(only(design(wk(R, R, R, R, R, R, R), wk(R, R, R, R, R, R, R)), 2).status, 'unknown');
     });
 
-    test('a part-built design with real duties IS assessed', () => {
-        // The unknown guard must not swallow a design that is merely incomplete — otherwise the
-        // check goes quiet for the whole time somebody is building, which is when they need it.
+    test('a part-built design is `unknown`, not `ok` — its undesigned lines could still breach', () => {
+        // Rule 2 in the module header names the part-built case as well as the empty one. This test
+        // used to assert `ok` for one filled line of 28, i.e. a green "within limits" tick about 27
+        // lines nobody had drawn. The run so far is still stated, so the check does not go quiet.
         const a = assessHardLimits(design(wk(R, W, W, W, W, W, R)), 28);
-        assert.equal(a.assessable, true);
-        assert.equal(a.checks[0].status, 'ok');
+        assert.equal(a.checks[0].status, 'unknown');
+        assert.equal(a.assessable, false);
+        assert.match(a.checks[0].detail, /27 of 28 lines/);
+        assert.match(a.checks[0].detail, /5 days/, 'the longest run so far is still reported');
+    });
+
+    test('a part-built design that ALREADY breaches says so — the guard does not swallow it', () => {
+        // Designing the remaining lines can only add worked days, never remove one, so a breach
+        // found in the part that exists is a breach of the design, and it is when the designer
+        // needs to hear it.
+        const a = assessHardLimits(design(wk(W, W, W, W, W, W, W), wk(W, W, W, W, W, W, W)), 3);
+        assert.equal(a.checks[0].status, 'breach');
+        assert.equal(a.breaches, 1);
     });
 });
 
@@ -84,7 +96,9 @@ describe('the answer is the worst case, which is what makes it a hard-limit chec
     test('a spare week is counted at four duties, not seven', () => {
         // 7 worked + a spare week. At 7/7 the spare week bridges and the answer would be 14 (breach);
         // four duties cannot fill a week, so the real ceiling is 7 + 4 = 11.
-        const c = only(design(wk(W, W, W, W, W, W, W), wk(S, S, S, S, S, S, S), wk(R, R, R, R, R, R, R)), 3);
+        // Line 3 carries one isolated duty so the design is complete — an all-rest line is undesigned,
+        // and a part-built design is `unknown` rather than `ok`.
+        const c = only(design(wk(W, W, W, W, W, W, W), wk(S, S, S, S, S, S, S), wk(R, R, R, W, R, R, R)), 3);
         assert.equal(c.value, 11);
         assert.equal(c.status, 'ok');
     });

@@ -35,7 +35,7 @@
  * `links-rotation-parity.test.mjs` enforces across every `links-*.js` file including this one.
  */
 
-import { ROTATING_LINES } from './links-design.js';
+import { ROTATING_LINES, DEFAULT_MAX_RUN } from './links-design.js';
 
 export const CARD_TIPS = {
     'links-grid': {
@@ -89,7 +89,7 @@ export const CARD_TIPS = {
             { icon: '🔄', html: `<strong>All lines designed</strong> — every one of the ${ROTATING_LINES} rotating lines must carry a real pattern. A line that is all rest days is unfinished (not a vacancy), and the link can't be authorised until they are all filled.` },
             { icon: '✅', html: '<strong>Weekends off</strong> — a full weekend = Saturday rest + the following Sunday rest. Aim for at least 40% of weeks.' },
             { icon: '⏱️', html: '<strong>Rest between shifts</strong> — checks every transition between two <em>timed</em> shifts across the rotation for less than 12 hours rest. Late-to-early next morning is the classic short turnaround. A spare day has no times, so a transition either side of one can\'t be measured and isn\'t counted.' },
-            { icon: '📅', html: `<strong>Longest run</strong> — how many consecutive working days appear anywhere in the ${ROTATING_LINES}-line cycle. Over 7 days is flagged.` },
+            { icon: '📅', html: `<strong>Longest run</strong> — how many consecutive working days appear anywhere in the ${ROTATING_LINES}-line cycle. More than ${DEFAULT_MAX_RUN} days is flagged — a design aim, not a limit.` },
             { icon: '⚖️', html: '<strong>Shift balance</strong> — how the worked days split between early, late, and spare across the full rotation.' },
             { icon: '🔄', html: 'Checks cover the <em>rotation</em>, not a single week — turnarounds and run lengths wrap across line boundaries.' },
         ]}],
