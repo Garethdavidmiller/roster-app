@@ -52,7 +52,7 @@
  */
 
 import { getALEntitlement, getBaseShift, isSunday, parseISODate } from './roster-data.js';
-import { isRestShift, isContractedWorkOverride, shouldReplaceOverride } from './override-utils.js';
+import { isRestShift, isContractedWorkOverride, contractEvidence, shouldReplaceOverride } from './override-utils.js';
 
 /**
  * Does a single date consume `member`'s entitlement if AL is recorded on it?
@@ -77,15 +77,13 @@ export function consumesEntitlement(member, date, ovByDate = null) {
     // The day is (or is about to be) AL-overridden, so the question is what is UNDERNEATH it.
     const ov = ovByDate && typeof ovByDate.get === 'function' ? ovByDate.get(date) : null;
     // An AL doc has already replaced whatever it covered, so `replacedType` is the only surviving
-    // record of it; any other override IS the thing underneath and answers directly.
+    // record of it — and so has an ABSENCE carrying a chain, whose `replacedType` the leave written
+    // over it will inherit (review A2); any other override IS the thing underneath and answers directly.
     // Type alone classifies a reconstructed override: no write path preserves the replaced VALUE,
     // and it is not needed — every type whose value could matter has that value pinned by the
     // rules (`correction` is always 'RD'), which is why isContractedWorkOverride classifies
     // `correction` by type (v21.56 — the first cut read a `replacedValue` nothing ever wrote).
-    const under = ov && ov.type === 'annual_leave'
-        ? (ov.replacedType ? { type: ov.replacedType } : null)
-        : ov;
-    const contracted = isContractedWorkOverride(under);
+    const contracted = isContractedWorkOverride(contractEvidence(ov));
     if (contracted !== null) return contracted;
 
     // No override information — the base roster decides, which is what this function did for every

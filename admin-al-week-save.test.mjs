@@ -243,6 +243,18 @@ describe('ORDERING: the drop happens before `exclude` is built', () => {
         });
         assert.equal(plan.overage, null, 'deleting one day and booking another is a net nil');
     });
+
+    test('leave OVERWRITTEN BY ANOTHER TYPE is excluded too (review A16)', () => {
+        // One recorded day changed back to a Shift, one new day booked: a net nil, which used to
+        // read as "1 day over" because only leave rows' existingIds were excluded.
+        const recordedTue = { id: 'tue-al', memberName: 'C. Reen', type: 'annual_leave', date: '2026-06-16', value: 'AL' };
+        const plan = planAlWeekSave({
+            member: reen, memberName: 'C. Reen',
+            toSave: [al(MON), { memberName: 'C. Reen', date: '2026-06-16', type: 'shift', value: '12:00-19:00', note: '', existingId: 'tue-al' }],
+            ovByDate: NO_OV, overrides: [...oneDayLeft, recordedTue],
+        });
+        assert.equal(plan.overage, null, 'the day given back pays for the day booked');
+    });
 });
 
 describe('LEGACY DATA: a rest day that already holds leave, answered "rest day — free"', () => {

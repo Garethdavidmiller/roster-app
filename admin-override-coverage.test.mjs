@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 
 import {
     emptyCoverage, withMember, withAll, clearedCoverage,
-    hasAuthorityFor, coversEveryone, replaceMemberSlice,
+    hasAuthorityFor, coversEveryone, replaceMemberSlice, mergeCappedRead,
 } from './admin-override-coverage.js';
 
 describe('saying yes when it does not know', () => {
@@ -136,5 +136,40 @@ describe('replacing a member slice', () => {
         const before = [{ id: 'g1', memberName: 'G. Miller' }];
         replaceMemberSlice(before, 'G. Miller', []);
         assert.equal(before.length, 1, 'the caller\'s array is untouched');
+    });
+});
+
+// ── A CAPPED READ MUST NOT UN-KNOW A COVERED MEMBER (review A12) ────────────────────────────────
+// `withAll({complete:false})` rightly keeps individually-read members authoritative — but the cache
+// used to be REPLACED by the capped read, so their documents older than the cap were dropped while
+// the coverage still vouched for them: a write for that member then decided from half a history.
+describe('mergeCappedRead', () => {
+    const fresh = [   // newest-first, oldest read date 2026-06-10
+        { id: 'n1', memberName: 'G. Miller', date: '2026-07-01' },
+        { id: 'n2', memberName: 'S. Silva',  date: '2026-06-10' },
+    ];
+    const cache = [
+        { id: 'old-g', memberName: 'G. Miller', date: '2025-01-05' },   // beyond the cap, covered
+        { id: 'old-s', memberName: 'S. Silva',  date: '2025-01-05' },   // beyond the cap, NOT covered
+        { id: 'gone',  memberName: 'G. Miller', date: '2026-06-20' },   // inside the window, not re-read: deleted
+    ];
+
+    test('keeps a covered member\'s documents from beyond the cap', () => {
+        const ids = mergeCappedRead(cache, fresh, ['G. Miller']).map(d => d.id);
+        assert.ok(ids.includes('old-g'));
+    });
+
+    test('adds nothing for a member the coverage does not vouch for', () => {
+        assert.ok(!mergeCappedRead(cache, fresh, ['G. Miller']).some(d => d.id === 'old-s'));
+    });
+
+    test('a document inside the read window that the read did not return has been deleted', () => {
+        assert.ok(!mergeCappedRead(cache, fresh, ['G. Miller']).some(d => d.id === 'gone'));
+    });
+
+    test('no duplicates, and no covered members means the read as it came', () => {
+        const again = mergeCappedRead([...cache, fresh[0]], fresh, ['G. Miller']);
+        assert.equal(again.filter(d => d.id === 'n1').length, 1);
+        assert.deepEqual(mergeCappedRead(cache, fresh, []), fresh);
     });
 });

@@ -2,7 +2,7 @@
 // Pure: timers are injected, so nothing here waits eight real seconds.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { watchSlowCommit, withSlowSaveNotice, SLOW_SAVE_MS, SLOW_SAVE_TEXT, SLOW_SAVE_TEXT_BATCHED } from './slow-save.js';
+import { watchSlowCommit, withSlowSaveNotice, writesInFlight, SLOW_SAVE_MS, SLOW_SAVE_TEXT, SLOW_SAVE_TEXT_BATCHED } from './slow-save.js';
 
 /** A controllable clock: fire() runs every pending timer, as if its time had come. */
 function fakeTimers() {
@@ -101,4 +101,18 @@ test('the notice: batched wording wins while any batched write waits, and it cle
     } finally {
         globalThis.document = prevDoc; globalThis.__E2E = prevE2E;
     }
+});
+
+test('writesInFlight counts every wrapped write until it settles, quick or slow, success or failure (review A13)', async () => {
+    // Admin's service-worker reload asks this before reloading: a range booking commits in chunks,
+    // and a reload between two of them strands the rest.
+    const a = deferred(), b = deferred();
+    const base = writesInFlight();
+    const pa = withSlowSaveNotice(a.p);
+    const pb = withSlowSaveNotice(b.p, { batched: true });
+    assert.equal(writesInFlight(), base + 2);
+    a.resolve(); await pa; await tick();
+    assert.equal(writesInFlight(), base + 1, 'one landed, one still waiting');
+    b.reject(new Error('refused')); await pb.catch(() => {}); await tick();
+    assert.equal(writesInFlight(), base, 'a refused write is no longer in flight either');
 });

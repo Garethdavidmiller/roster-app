@@ -8169,6 +8169,13 @@ test('admin: the week grid writes NOTHING for a rest day answered free, and name
     expect(afterFree.filter((/** @type {any} */ w) => w.type === 'annual_leave' && w.date === t.date),
         'a rest day answered free must produce no annual leave document at all').toHaveLength(0);
 
+    // …AND LEAVES NOTHING UNSAVED BEHIND (review A7). That branch never cleared the dirty flag, so
+    // the next week arrow raised "unsaved changes" over a grid with nothing staged on it.
+    await clickInView(page.locator('#nextWeekBtn'));
+    await expect(page.locator('#unsavedBanner'), 'a clean grid must not claim unsaved changes').toBeHidden();
+    await clickInView(page.locator('#prevWeekBtn'));
+    await expect(row).toHaveCount(1);
+
     // ── THE CONTROL: the same row answered "Swapped — counts" IS written ────────────────────────
     // Without it the fix could be "the grid stopped writing annual leave", which is not the fix.
     await clickInView(row.locator('.type-pill-btn[data-type="annual_leave"]'));

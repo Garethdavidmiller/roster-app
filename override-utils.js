@@ -75,22 +75,43 @@ export function isContractedWorkOverride(ov) {
 }
 
 /**
+ * The override whose TYPE answers "was the member contracted to work this day?", given the one on it.
+ *
+ * Annual leave and an absence say nothing about the contract, so what they REPLACED — carried in
+ * `replacedType` — is the evidence; any other override is its own. This is the unwrapping
+ * `nextReplacedType` does when it WRITES, so the readers now agree with it: an absence on a
+ * swapped-in day was read at face value, which re-asked a settled swap and let leave written over it
+ * inherit `shift` after the admin had answered "Rest day — free" (review A2).
+ * @param {{type?:string, value?:string, replacedType?:string|null}|null|undefined} ov
+ * @returns {{type?:string, value?:string}|null} pass to `isContractedWorkOverride`
+ */
+export function contractEvidence(ov) {
+    if (!ov || !ov.type) return null;
+    if (ov.type === 'annual_leave') return ov.replacedType ? { type: ov.replacedType } : null;
+    if (ov.replacedType && isContractedWorkOverride({ type: ov.type }) === null) return { type: ov.replacedType };
+    return ov;
+}
+
+/**
  * Display-suppression rule (CLAUDE.md "Sundays are non-contracted", layer 5) — SINGLE SOURCE for the
  * calendar renderer, Team Week View, and month legend so they can never disagree. True when an
- * override must NOT replace the base shift on the calendar: a `sick` override on a rest-day base OR
- * any Sunday, and `annual_leave` / Other-family (`other`) on any Sunday. (A worked Sunday is always
+ * override must NOT replace the base shift on the calendar: a `sick` override on a rest-day base
+ * (unless it replaced contracted work — a swapped-in day) OR any Sunday, and `annual_leave` / Other-family (`other`) on any Sunday. (A worked Sunday is always
  * RDW, never AL/Absent; Sundays and rest days are non-contracted — such overrides are only ever
  * legacy/hand-written data.) `rdw`, `correction`, `spare_shift`, and plain `shift` are never suppressed.
  * Takes `sunday` as a boolean (not the date) so this module stays free of a roster-data import — that
  * would be a cycle, since roster-data imports from here. Callers pass `isSunday(dateStr)`.
- * @param {{type: string}} override
+ * @param {{type: string, replacedType?: string|null}} override
  * @param {string} baseShift  the member's base roster shift for that date
  * @param {boolean} sunday    whether the date is a Sunday
  * @returns {boolean} true → ignore the override, keep the base shift
  */
 export function isOverrideDisplaySuppressed(override, baseShift, sunday) {
     switch (override.type) {
-        case 'sick':         return isRestShift(baseShift) || sunday;
+        // A rest-day base hides an absence UNLESS the absence replaced contracted work — a swapped-in
+        // day, whose only record is `replacedType` (review A3: it rendered as Rest over a real absence).
+        case 'sick':         return sunday || (isRestShift(baseShift)
+            && isContractedWorkOverride(override.replacedType ? { type: override.replacedType } : null) !== true);
         case 'annual_leave': return sunday;
         case 'other':        return sunday;
         default:             return false;
@@ -472,11 +493,20 @@ function _shiftISODate(dateStr, deltaDays) {
  * (An earlier bug looked for an AL/sick record ON the Sunday — which never exists — and deleted
  * the correction every time.)
  *
+ * THE EDGE SUNDAY (review A1). The Recorded-dates list never shows a Sunday, so a booking that ENDS
+ * on one (Sat–Sun, or Mon–Sun with a rest-day Saturday) is listed as a range stopping short of it,
+ * and its ✕ passes that range here. The Sunday straight after `end` — or straight before `start` —
+ * reached only through rest days is therefore treated as part of the range for its correction, under
+ * the same "still spanned?" protection. `isRestGap` is how "only through rest days" is known; without
+ * it only the adjacent Sunday counts.
+ *
  * @param {Array<{id:string,memberName:string,date:string,type:string,value:string}>} allOverrides
- * @param {{type:string, memberName:string, start:string, end:string}} range  type is 'annual_leave' | 'sick'; start/end inclusive YYYY-MM-DD
+ * @param {{type:string, memberName:string, start:string, end:string,
+ *          isRestGap?: (dateStr: string) => boolean}} range  type is 'annual_leave' | 'sick'; start/end
+ *        inclusive YYYY-MM-DD; `isRestGap` true for a base rest day the booking could have skipped
  * @returns {string[]} override document IDs to delete
  */
-export function computePeriodDeleteIds(allOverrides, { type, memberName, start, end }) {
+export function computePeriodDeleteIds(allOverrides, { type, memberName, start, end, isRestGap = () => false }) {
     const inRange = (/** @type {any} */ o) => o.memberName === memberName && o.date >= start && o.date <= end;
     // Leave-type day overrides inside the range — always removed.
     const leaveIds = new Set(allOverrides.filter(o => inRange(o) && o.type === type).map(o => o.id));
@@ -497,8 +527,16 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
     // needs) resurrects a WORKED shift in the middle of someone's remaining leave, which is worse.
     const _spansSunday = (/** @type {string} */ sundayISO) =>
         [-2, -1, 1, 2].some(off => remainingLeaveDates.has(_shiftISODate(sundayISO, off)));
+    /** The first Sunday stepping `dir` from `from`, if only rest days lie between. @param {string} from @param {number} dir */
+    const edgeSunday = (from, dir) => {
+        let d = _shiftISODate(from, dir);
+        for (let i = 0; i < 6 && !_isSundayISO(d); i++, d = _shiftISODate(d, dir)) if (!isRestGap(d)) return null;
+        return _isSundayISO(d) ? d : null;
+    };
+    const edges = new Set([edgeSunday(end, 1), edgeSunday(start, -1)].filter(Boolean));
     const correctionIds = allOverrides
-        .filter(o => inRange(o) && o.type === 'correction' && o.value === 'RD' && _isSundayISO(o.date) &&
+        .filter(o => o.memberName === memberName && (inRange(o) || edges.has(o.date)) &&
+            o.type === 'correction' && o.value === 'RD' && _isSundayISO(o.date) &&
             !_spansSunday(o.date))
         .map(o => o.id);
     return [...leaveIds, ...correctionIds];

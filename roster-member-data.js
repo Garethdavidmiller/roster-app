@@ -125,8 +125,9 @@ export const teamMembers = [
     // He joins the link on Mon 20 Jul 2026. `currentWeek: 4` there is REFERENCE-ANCHORED (see
     // .claude/rules/roster-data.md) — the same value S. Faure carries, i.e. her line.
     // `proRatedAL` is 11 — TRANSCRIBED from the roster clerk's workbook, the authority for it (owner,
-    // 6 Sep 2026); a day-count rounded up gives 12, which this file used to carry. It is FLAT and
-    // suppresses the Dispatcher lieu calculation, so 2026's last three bank holidays earn none.
+    // 6 Sep 2026); a day-count rounded up gives 12, which this file used to carry. It replaces only
+    // the 22-day BASE: lieu days for bank holidays worked are still added on top by getALEntitlement
+    // (v22.50).
     { name: 'B. Toth',                 currentWeek: 2,  rosterType: 'fixed',      role: 'Dispatcher',
       startDate: new Date(2026, 5, 29), proRatedAL: { 2026: 11 },
       rosterChanges: [{ from: new Date(2026, 6, 20), rosterType: 'dispatcher', currentWeek: 4 }] },

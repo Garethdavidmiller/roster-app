@@ -226,6 +226,20 @@ describe('2 · the cache claims to know what it never read', () => {
         assert.equal(store.hasOverrideAuthorityFor('A. One'), false, 'a capped read is not a complete one');
     });
 
+    test('a TRUNCATED read keeps a covered member\'s history from beyond the cap (review A12)', async () => {
+        // The member stays authoritative after a capped read (withAll keeps `members`), so the rows
+        // the capped read could not return must stay too — replacing the cache dropped them.
+        const { store } = await freshStore();
+        _handler = async () => [row('old', 'A. One', '2020-01-01'), row('a1', 'A. One', '2026-09-01')];
+        await store.loadOverrides({ member: 'A. One' });
+        const cap = store.OVERRIDES_QUERY_CAP;
+        _handler = async () => Array.from({ length: cap + 1 }, (_, i) => row(`x${i}`, 'B. Two', '2026-09-01'));
+        await store.loadOverrides({ everyone: true });
+
+        assert.equal(store.hasOverrideAuthorityFor('A. One'), true);
+        assert.ok(store.getAllOverrides().some(o => o.id === 'old'), 'the covered member\'s old leave is still counted');
+    });
+
     test('a collection read at exactly the cap is complete, not truncated', async () => {
         const { store } = await freshStore();
         const cap = store.OVERRIDES_QUERY_CAP;
@@ -337,6 +351,17 @@ describe('4 · the screen says something untrue', () => {
         fire('retryLoadLink', 'click');
         await store.whenLoadSettled();
         assert.deepEqual(_reads.map(r => r.member), ['A. One', 'B. Two']);
+    });
+
+    test('a failed REFRESH does not repaint over staged edits (review A10)', async () => {
+        const { store, calls, stage } = await freshStore();
+        el('overrideTableBody'); el('listCount'); el('retryLoadLink');
+        el('fieldMember').value = 'A. One';
+        el('fieldDate').value   = '2026-09-01';
+        stage(true);
+        _handler = async () => { throw new Error('offline'); };
+        await store.loadOverrides({ everyone: true });
+        assert.equal(calls.grid, 0, 'the staged rows belong to a member already loaded — keep them');
     });
 
     test('nobody selected runs no query at all, and still settles', async () => {

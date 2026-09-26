@@ -257,6 +257,59 @@ describe('recordRangeOverrides — the payload, not the summary', () => {
     });
 });
 
+// ── "Rest day — free" writes NOTHING, on the range card too (review A2) ─────────────────────────
+// `recordRangeOverrides` filtered by `isWorkingDate`, which is VALUE-based — an absence's 'SICK' is
+// not a rest value, so a rest day holding an absence counted as working, and AL was written over it
+// although the admin had just been asked about that day and answered "free". The week grid honoured
+// the answer; the range card did not. CLAUDE.md: "Rest day — free" means NOTHING IS WRITTEN.
+describe('recordRangeOverrides — an answered rest day', () => {
+    const REST = '2026-09-25', WORK = '2026-09-21';   // G. Miller: Fri 25 Sep is RD, Mon 21 Sep worked
+    const sickOnRest = { id: 'sick-rest', memberName: 'G. Miller', date: REST, type: 'sick', value: 'SICK' };
+    beforeEach(() => { _batchWrites.length = 0; });
+
+    test('the premise: the dates are a rest day and a working day on his line', async () => {
+        const { getBaseShift, parseISODate } = await import('./roster-data.js');
+        const m = teamMembers.find(x => x.name === 'G. Miller');
+        assert.ok(isRestShift(getBaseShift(m, parseISODate(REST))));
+        assert.ok(!isRestShift(getBaseShift(m, parseISODate(WORK))));
+    });
+
+    test('answered "free" (not in swappedDates): the absence on it is left alone', async () => {
+        setAllOverrides([sickOnRest]);
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        const res = await recordRangeOverrides({
+            type: 'annual_leave', value: 'AL', memberName: 'G. Miller', dates: [WORK, REST], changedBy: 'G. Miller',
+        });
+        auth.currentUser = null;
+        assert.deepEqual(_batchWrites.map(w => w.date), [WORK], 'only the working day is written');
+        assert.equal(res.workingCount, 1);
+        assert.ok(getAllOverrides().some(o => o.id === 'sick-rest'), 'the absence record survives');
+    });
+
+    test('answered "swapped": written, and charged', async () => {
+        setAllOverrides([sickOnRest]);
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        await recordRangeOverrides({
+            type: 'annual_leave', value: 'AL', memberName: 'G. Miller', dates: [REST], changedBy: 'G. Miller',
+            swappedDates: [REST],
+        });
+        auth.currentUser = null;
+        const w = _batchWrites.find(x => x.date === REST);
+        assert.ok(w, 'the declared swap is written');
+        assert.equal(w.replacedType, 'shift');
+    });
+
+    test('an ABSENCE is not asked about, so an absence range still writes over a rest-day absence as before', async () => {
+        setAllOverrides([sickOnRest]);
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        await recordRangeOverrides({
+            type: 'sick', value: 'SICK', memberName: 'G. Miller', dates: [REST], changedBy: 'G. Miller',
+        });
+        auth.currentUser = null;
+        assert.deepEqual(_batchWrites.map(w => w.date), [REST]);
+    });
+});
+
 // ── getEffectiveShift ─────────────────────────────────────────────────────────
 
 describe('getEffectiveShift', () => {

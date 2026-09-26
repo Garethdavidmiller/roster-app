@@ -411,6 +411,21 @@ describe('isOverrideDisplaySuppressed', () => {
         assert.equal(isOverrideDisplaySuppressed({ type: 'other' }, 'RD', false), false);
     });
 
+    // An absence on a SWAPPED-IN working day is a real absence (review A3). The swap is recorded
+    // only in `replacedType`, so reading the base roster alone called the day Rest in the Calendar,
+    // Team Week View and the legend — hiding a correctly-recorded absence.
+    it('does NOT suppress sick on a rest-day base when it replaced contracted work (a swap)', () => {
+        assert.equal(isOverrideDisplaySuppressed({ type: 'sick', replacedType: 'shift' }, 'RD', false), false);
+        assert.equal(isOverrideDisplaySuppressed({ type: 'sick', replacedType: 'spare_shift' }, 'OFF', false), false);
+    });
+    it('still suppresses sick on a rest-day base that replaced VOLUNTARY work or nothing contracted', () => {
+        assert.equal(isOverrideDisplaySuppressed({ type: 'sick', replacedType: 'rdw' }, 'RD', false), true);
+        assert.equal(isOverrideDisplaySuppressed({ type: 'sick', replacedType: 'annual_leave' }, 'RD', false), true);
+    });
+    it('still suppresses sick on a Sunday even when it replaced contracted work', () => {
+        assert.equal(isOverrideDisplaySuppressed({ type: 'sick', replacedType: 'shift' }, '09:00-17:00', true), true);
+    });
+
     // never suppressed
     for (const type of ['rdw', 'correction', 'spare_shift', 'shift']) {
         it(`never suppresses ${type} (even on a Sunday rest-day base)`, () => {
@@ -517,6 +532,47 @@ describe('computePeriodDeleteIds', () => {
             { type: 'annual_leave', memberName: M, start: '2026-06-21', end: '2026-06-24' });
         assert.ok(!ids.includes('c21'), 'shared Sunday correction must survive — range B still spans it via Friday');
         assert.deepEqual(new Set(ids), new Set(['a22', 'a23', 'a24']));
+    });
+
+    // ── THE EDGE SUNDAY (review A1) ────────────────────────────────────────────────────────────
+    // The Recorded-dates list never shows a Sunday, so a booking that ENDS (or starts) on one is
+    // listed — and its ✕ deletes — a range that stops short of it. The correction written on that
+    // Sunday was then left behind, and the worked Sunday read as Rest in the Calendar for good.
+    // Synthetic weeks: Mon 21 … Sat 26 Sep 2026, Sundays 20 and 27.
+    const E = 'X. Edge';
+    const alDays = (/** @type {string[]} */ days) =>
+        days.map(d => ({ id: 'al' + d.slice(8), memberName: E, date: d, type: 'annual_leave', value: 'AL' }));
+    const corr = (/** @type {string} */ d) => ({ id: 'c' + d.slice(8), memberName: E, date: d, type: 'correction', value: 'RD' });
+    const monToSat = ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26'];
+
+    it('deletes the correction on the Sunday straight after a listed period (a Mon–Sun booking)', () => {
+        const ids = computePeriodDeleteIds([...alDays(monToSat), corr('2026-09-27')],
+            { type: 'annual_leave', memberName: E, start: '2026-09-21', end: '2026-09-26' });
+        assert.ok(ids.includes('c27'), 'the booking reached Sunday 27th, so its correction goes with it');
+    });
+
+    it('reaches the edge Sunday across a base rest day, but only when told the day is one', () => {
+        const all = [...alDays(monToSat.slice(0, 5)), corr('2026-09-27')];   // Sat 26 carries no leave
+        const range = { type: 'annual_leave', memberName: E, start: '2026-09-21', end: '2026-09-25' };
+        assert.ok(computePeriodDeleteIds(all, { ...range, isRestGap: d => d === '2026-09-26' }).includes('c27'),
+            'Saturday is a rest day, so a Mon–Sun booking ended its leave on the Friday');
+        assert.ok(!computePeriodDeleteIds(all, { ...range, isRestGap: () => false }).includes('c27'),
+            'Saturday is a WORKING day nobody booked — the booking never reached that Sunday');
+        assert.ok(!computePeriodDeleteIds(all, range).includes('c27'),
+            'with no rest-day knowledge only the adjacent Sunday is an edge');
+    });
+
+    it('deletes the correction on the Sunday straight before a listed period', () => {
+        const ids = computePeriodDeleteIds([corr('2026-09-20'), ...alDays(monToSat)],
+            { type: 'annual_leave', memberName: E, start: '2026-09-21', end: '2026-09-26' });
+        assert.ok(ids.includes('c20'));
+    });
+
+    it('keeps an edge-Sunday correction another booking still spans', () => {
+        const next = { id: 'n28', memberName: E, date: '2026-09-28', type: 'annual_leave', value: 'AL' };
+        const ids = computePeriodDeleteIds([...alDays(monToSat), corr('2026-09-27'), next],
+            { type: 'annual_leave', memberName: E, start: '2026-09-21', end: '2026-09-26' });
+        assert.ok(!ids.includes('c27'), 'Monday 28th still holds leave, so Sunday 27th is still covered');
     });
 
     it('ignores other members and out-of-range dates', () => {

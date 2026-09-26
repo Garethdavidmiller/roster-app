@@ -85,6 +85,7 @@ function makeEl(/** @type {string} */ id) {
         /** @type {Record<string, Function[]>} */ _on: {},
         addEventListener(/** @type {string} */ t, /** @type {Function} */ fn) { (this._on[t] ??= []).push(fn); },
         appendChild(/** @type {any} */ c) { if (c) kids.push(c); return c; },
+        insertAdjacentHTML(/** @type {string} */ _where, /** @type {string} */ html) { this.innerHTML += html; },
         scrollIntoView() {},
         ownerDocument: /** @type {any} */ (null),
     };
@@ -495,5 +496,41 @@ describe('what the admin is told', () => {
         assert.equal(calls.afterSave.length, 0);
         assert.equal(calls.jump.length, 0);
         assert.equal(calls.showSuccess.length, 0);
+    });
+});
+
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+// D. THE SWAP QUESTION'S ANSWERS REACH THE BUTTON AND THE BAR
+// ════════════════════════════════════════════════════════════════════════════════════════════════
+
+describe('the swap answers', () => {
+    const REST = '2026-10-09';
+    /** Tap one of the preview's answer buttons through the real delegated listener. */
+    const answer = (/** @type {string} */ date, /** @type {'yes'|'no'} */ a) => {
+        const target = { closest: () => ({ dataset: { date, answer: a } }) };
+        for (const fn of el('alPreview')._on.click ?? []) fn({ target });
+    };
+
+    test('changing an answer dismisses a showing over-limit bar (review A19)', () => {
+        // The bar was computed for the OLD answers; "Save anyway" then booked the new ones unchecked.
+        let dismissed = 0;
+        const { section } = wire({ cfg: { swapQuestion: () => [REST], beforePreview: () => { dismissed++; } } });
+        setRange(section, REST, REST);
+        answer(REST, 'yes');
+        assert.equal(dismissed, 1);
+    });
+
+    test('Save stays off when every day resolves to nothing written (review A2)', () => {
+        // A rest day holding an absence passes `isWorkingDate` (its value is not a rest value), so
+        // the old "any working day?" test armed Save for a range that, answered "free", writes nothing.
+        const { section } = wire({ cfg: {
+            swapQuestion: () => [REST],
+            project: (/** @type {any} */ { swapAnswers }) => ({ counts: { writing: swapAnswers.get(REST) ? 1 : 0 } }),
+        } });
+        setRange(section, REST, REST);
+        answer(REST, 'no');
+        assert.equal(el('alSaveBtn').disabled, true, 'answered free: nothing to record');
+        answer(REST, 'yes');
+        assert.equal(el('alSaveBtn').disabled, false, 'answered swapped: one day to record');
     });
 });

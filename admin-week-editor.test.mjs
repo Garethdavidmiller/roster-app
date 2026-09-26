@@ -373,3 +373,81 @@ describe('the "Base roster" column says what the day WAS', () => {
         assert.doesNotMatch(monday.innerHTML, /sunday-note/, 'only Sunday rows carry it');
     });
 });
+
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+// THE ROW'S OWN STATE — every path that turns a row on or off (review A6, A18, A9)
+// ───────────────────────────────────────────────────────────────────────────────────────────────
+
+const { _activateRow, _deactivateRow } = await import('./admin-week-row-state.js');
+const { setSaveInFlight } = await import('./admin-week-editor.js');
+
+/** A row with the sub-controls the row-state module reaches for, by selector. */
+function liveRow({ alSwapAsk = '', spareChipOn = false } = {}) {
+    const r = row();
+    r.dataset.alSwapAsk = alSwapAsk;
+    const swapBox = makeEl(); swapBox.hidden = true;
+    const swapBtns = [makeEl('button'), makeEl('button')];
+    const otherOpts = makeEl(); otherOpts.hidden = true;
+    const spare = makeEl('button'); if (spareChipOn) spare.className = 'active';
+    const start = makeEl('input'), end = makeEl('input');
+    const q = {
+        '.col-al-swap': swapBox, '.other-opts': otherOpts, '.day-start': start, '.day-end': end,
+        '.other-flavour-btn.active[data-flavour="SPARE"]': spareChipOn ? spare : null,
+    };
+    r.querySelector = sel => q[sel] ?? null;
+    r.querySelectorAll = sel => (sel === '.al-swap-btn' ? swapBtns : sel === '.other-flavour-btn' ? [spare] : []);
+    return { r, swapBox, start, end };
+}
+
+describe('the swapped-day question follows the row on every path (review A6)', () => {
+    test('BULK-applied leave on an asked rest day shows the question — Save refuses until it is answered', () => {
+        const { r, swapBox } = liveRow({ alSwapAsk: '1' });
+        _activateRow(r, null, [], null, null, 'annual_leave');   // the bulk path calls exactly this
+        assert.equal(swapBox.hidden, false);
+    });
+
+    test('another type, or a day not asked about, hides it and CLEARS the answer', () => {
+        const { r, swapBox } = liveRow({ alSwapAsk: '1' });
+        _activateRow(r, null, [], null, null, 'annual_leave');
+        r.dataset.alSwap = 'yes';
+        _activateRow(r, null, [], null, null, 'shift');
+        assert.equal(swapBox.hidden, true);
+        assert.equal(r.dataset.alSwap, undefined, 'a stale "Swapped — counts" would charge the next pick');
+        const plain = liveRow({ alSwapAsk: '' });
+        _activateRow(plain.r, null, [], null, null, 'annual_leave');
+        assert.equal(plain.swapBox.hidden, true);
+    });
+
+    test('un-selecting the row (pill, checkbox, bulk deselect) hides it and clears the answer', () => {
+        const { r, swapBox } = liveRow({ alSwapAsk: '1' });
+        _activateRow(r, null, [], null, null, 'annual_leave');
+        r.dataset.alSwap = 'no';
+        _deactivateRow(r, null, [], null, null);
+        assert.equal(swapBox.hidden, true);
+        assert.equal(r.dataset.alSwap, undefined);
+    });
+
+    test('a saved, untouched row is not being booked, so it is not asked', () => {
+        const { r, swapBox } = liveRow({ alSwapAsk: '1' });
+        r.classList.add('prefilled-existing');
+        _activateRow(r, null, [], null, null, 'annual_leave');
+        assert.equal(swapBox.hidden, true);
+    });
+});
+
+test('re-selecting Other with the Spare chip still on keeps the row in Spare mode (review A18)', () => {
+    const { r } = liveRow({ spareChipOn: true });
+    _activateRow(r, null, [], null, null, 'shift');
+    _activateRow(r, null, [], null, null, 'other');
+    assert.ok(r.classList.contains('other-spare'), 'times and the RDW tick stay hidden — it saves as Spare');
+});
+
+test('while a save is in flight the unsaved banner\'s Discard is held too (review A9)', () => {
+    grid([]);
+    put('saveBtn', makeEl('button'));
+    const discard = put('unsavedDiscardBtn', makeEl('button'));
+    setSaveInFlight(true);
+    assert.equal(discard.disabled, true, 'navigating mid-save let the landing save reset the new view');
+    setSaveInFlight(false);
+    assert.equal(discard.disabled, false);
+});

@@ -30,8 +30,7 @@ export { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache,
          loadOverrides, ensureMemberLoaded };
 import { sessionReady } from './session.js';
 import { parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
-import { replacedTypeForSwap } from './al-swapped-days.js';
-import { isWorkingDate } from './al-entitlement.js';
+import { replacedTypeForSwap, rangeWriteDates } from './al-swapped-days.js';
 import { checkShiftRules } from './admin-shift-rules.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 import { withSlowSaveNotice } from './slow-save.js';
@@ -150,6 +149,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
     const saveBtn     = /** @type {HTMLButtonElement|null} */ (document.getElementById('saveBtn'));
     const memberName  = fieldMember?.value;
+    const savedDate   = fieldDate?.value;
     // Captured BEFORE the write: after it these rows are gone, and a receipt that cannot name what
     // it removed is missing the half a manager is least able to reconstruct from the grid.
     // NOT `.filter(Boolean)` (review): an id the cache cannot resolve is still a document being
@@ -271,7 +271,9 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
         });
         _showSuccess(receipt.summary, receipt.lines);
 
-        resetStagedRows();   // the row lifecycle belongs to the week editor (v21.38)
+        // Only the view this save came from: a navigation while it waited drew rows nobody saved (A9).
+        const sameView = fieldMember?.value === memberName && fieldDate?.value === savedDate;
+        if (sameView) resetStagedRows();   // the row lifecycle belongs to the week editor (v21.38)
 
         // AND ANY LOAD ALREADY RUNNING HAS TO LAND FIRST (v21.41). `whenOverridesReady()` above is a
         // one-shot latch — it answers for the BOOT load and, once resolved, for ever after says
@@ -305,7 +307,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
         });
         renderTable();
         _onAfterSave();
-        if (fieldMember?.value && fieldDate?.value) renderWeekGrid();
+        if (sameView && fieldMember?.value && fieldDate?.value) renderWeekGrid();
 
     } catch (err) {
         console.error('[Admin] Save failed:', err);
@@ -430,9 +432,8 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // and they carry a forced `replacedType` below so the entitlement check can see what they are.
     // A Sunday can never be one: it holds no annual leave at all, for any grade.
     const swapped = new Set((Array.isArray(swappedDates) ? swappedDates : []).filter(d => !isSunday(d)));
-    const workingDates = memberObj
-        ? dates.filter(dateStr => isWorkingDate(memberObj, dateStr, ovByDate) || swapped.has(dateStr)) // single-source rule (Sundays non-contracted per CLAUDE.md)
-        : [];
+    // Which dates are written: `rangeWriteDates` — an answered-"free" rest day never (review A2).
+    const workingDates = rangeWriteDates({ type, dates, memberObj, ovByDate, swappedDates: [...swapped] });
 
     // Sundays within the range that have a worked base shift need an explicit RD correction
     // so the base roster shift doesn't still show on the calendar during the absence period.
@@ -516,7 +517,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
             // warn the user that some of the range may already have saved (v16.25). A first-chunk
             // failure committed nothing, so the cache is still consistent — no resync needed.
             if (newDocs.length || deletedIds.size) {
-                try { await loadOverrides(); } catch { /* best-effort resync */ }
+                try { await loadOverrides({ member: memberName }); } catch { /* best-effort resync — of the BOOKED member, not the dropdown's (A14) */ }
                 /** @type {any} */ (err).partialCommit = true;
             }
             throw err;
@@ -541,7 +542,8 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     renderTable();
     const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
     const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
-    if (fieldMember?.value && fieldDate?.value) renderWeekGrid();
+    // Not over staged week-grid edits (review A5); the caller's jump then asks Discard/Keep (v16.82).
+    if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
 
     return { workingCount: workingDates.length, sundayCount: sundayCorrections.length };
 }

@@ -48,7 +48,7 @@ import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter
 import { setStatus } from './status-text.js';
 import { initAdminWeekSwipe } from './admin-week-swipe.js';
 import { resolveDeepLink, createDeepLinkLanding } from './admin-deep-link.js';
-import { withSlowSaveNotice } from './slow-save.js';
+import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 
 /**
  * Programmatically open a collapsible card body, keeping the collapse control's ARIA state
@@ -401,8 +401,10 @@ export function init() {
     // dataset.type (which is set by the pre-fill as well).
     let userMadeChanges = false;
 
-    /** Returns true if the user has interacted with the week grid without saving. */
-    function hasUnsavedChanges() { return userMadeChanges; }
+    /** True if the user has edited the week grid AND something is still staged. Derived rather than
+     *  cleared by hand (review A4/A7): loads and Saved-Changes deletes keep staged rows on screen but
+     *  used to clear the flag through onAfterSave, and an all-"free" save cleared nothing. */
+    function hasUnsavedChanges() { return userMadeChanges && _hasStagedEdits(); }
 
     /** Marks the grid as having unsaved changes. Call on any user interaction. */
     function markChanged() {
@@ -536,7 +538,7 @@ export function init() {
         fieldDate: /** @type {HTMLInputElement} */ (fieldDate),
         prevWeekBtn: /** @type {HTMLElement} */ (prevWeekBtn),
         nextWeekBtn: /** @type {HTMLElement} */ (nextWeekBtn),
-        canNavigate: () => !userMadeChanges && !!fieldMember.value && !!fieldDate.value,
+        canNavigate: () => !hasUnsavedChanges() && !!fieldMember.value && !!fieldDate.value,
         // What a week change MEANS to Admin stays here; the gesture knows none of it.
         onWeekCommitted: (iso) => {
             lastFieldDate = iso;
@@ -937,6 +939,25 @@ export function init() {
     /** @type {(() => void) | null} */ let _refreshSickPreview = null;
 
     let lastFieldMember = fieldMember.value;
+    /** Point the AL/Absence cards, banner, booked lists and previews at `name` (fieldMember and
+     *  fieldDate already set). ONE list for every path that switches member: ✏️ Edit and the jump
+     *  after a booking kept their own and lost resetPinned/hideALConfirm (review A8/A11), so the
+     *  booked box's ✕ could delete the previous member's periods. @param {string} name */
+    function _followMember(name) {
+        if (name !== lastFieldMember) _bookedPeriods.resetPinned();   // a year chosen for someone else
+        lastFieldMember = name;
+        lsSet(SELECTED_MEMBER, name);
+        _setSelectValue(alMember, name);
+        _setSelectValue(sickMember, name);
+        syncMemberDisplay();
+        syncSickMemberDisplay();
+        updateALBanner(); updateALBookedBox(); updateSickBookedBox();
+        _refreshAlPreview?.();   // an already-picked range must not keep naming the previous member
+        _refreshSickPreview?.();
+        // The over-limit bar was computed for the PREVIOUS view: "Save anyway" must not book the new
+        // member with the entitlement check skipped (v16.69 review fix).
+        hideALConfirm();
+    }
     fieldMember.addEventListener('change', () => {
         const chosen   = fieldMember.value;
         const previous = lastFieldMember;
@@ -945,22 +966,7 @@ export function init() {
             // `previous` (line below) and the banner's Discard runs this later, so without
             // this the field would stay on the old member while the grid switched. (v12.32)
             _setSelectValue(fieldMember, chosen);
-            lastFieldMember  = chosen;
-            lsSet(SELECTED_MEMBER, chosen);
-            _setSelectValue(alMember, chosen);
-            _setSelectValue(sickMember, chosen);
-            syncMemberDisplay();
-            syncSickMemberDisplay();
-            _bookedPeriods.resetPinned();   // a year chosen for the last member is not a choice about this one
-            updateALBanner();
-            updateALBookedBox();
-            updateSickBookedBox();
-            _refreshAlPreview?.();   // keep the AL/absence previews pointed at the new member
-            _refreshSickPreview?.();
-            // The over-limit bar (either mode) was computed for the PREVIOUS member: the week-editor
-            // batch belongs to them, and the AL-booking confirm must not let "Save anyway" book the
-            // NEW member with the entitlement check silently skipped (v16.69 review fix).
-            hideALConfirm();
+            _followMember(chosen);
             resetTableMemberFilter(); // also calls renderTable internally
             renderWeekGrid();
             // The new member's overrides may never have been read. renderWeekGrid paints a "loading"
@@ -1013,28 +1019,13 @@ export function init() {
                 return;
             }
             fieldDate.value   = date;
-            lastFieldMember   = memberName;
             lastFieldDate     = date;
-            // _setSelectValue fires no 'change' event, so the fieldMember change handler (which
-            // re-syncs these) never runs on this path. Sync the AL/Absence selects + labels here
-            // exactly like showInChangeAShift, or a booking made from those cards right after an
-            // ✏️ edit would record against the PREVIOUSLY-selected member, not the edited one.
-            _setSelectValue(alMember, memberName);
-            _setSelectValue(sickMember, memberName);
-            syncMemberDisplay();
-            syncSickMemberDisplay();
-            // Also re-run the preview refreshers the fieldMember change handler would fire — since
-            // _setSelectValue dispatches no 'change', an already-selected AL/absence date range would
-            // otherwise keep naming the PREVIOUS member and their rest-day count (stale-preview, v16.19).
-            _refreshAlPreview?.();
-            _refreshSickPreview?.();
-            // Refresh the AL banner + booked boxes like the fieldMember change handler does (v16.23):
-            // after ✏️ Edit on member B, the banner otherwise kept showing member A's entitlement/
-            // taken/booked — and the booked boxes kept A's periods with LIVE Delete buttons — while
-            // every other control targeted B.
-            updateALBanner(); updateALBookedBox(); updateSickBookedBox();
-            lsSet(SELECTED_MEMBER, memberName);
+            // _setSelectValue fires no 'change' event, so the fieldMember handler never runs here —
+            // without this a booking made right after an ✏️ edit records against the previous member.
+            _followMember(memberName);
             renderWeekGrid();
+            // The row may come from a capped All-staff read, which covers nobody (review A11).
+            ensureMemberLoaded(memberName).catch(() => { /* the load path renders its own retry */ });
             /** @type {HTMLElement} */ (document.querySelector('.card')).scrollIntoView({ behavior: 'smooth', block: 'start' });
         };
         if (confirmNavigate(go)) go();
@@ -1052,20 +1043,14 @@ export function init() {
         const go = () => {
             _setSelectValue(fieldMember, memberName);
             fieldDate.value   = date;
-            lastFieldMember   = memberName;
             lastFieldDate     = date;
-            _setSelectValue(alMember, memberName);
-            _setSelectValue(sickMember, memberName);
-            syncMemberDisplay();
-            syncSickMemberDisplay();
-            // Keep the AL/absence previews pointed at the new member (see handleEdit — stale-preview, v16.19).
-            _refreshAlPreview?.();
-            _refreshSickPreview?.();
+            _followMember(memberName);   // the banner and booked boxes too (review A8)
             // Align the saved-changes month filter so the new days aren't filtered out.
             const monthFilter = /** @type {HTMLSelectElement} */ (document.getElementById('overridesMonthFilter'));
             if (monthFilter) monthFilter.value = date.substring(0, 7);
             renderTable();
             renderWeekGrid();
+            ensureMemberLoaded(memberName).catch(() => { /* the load path renders its own retry */ });
             // The grid was rebuilt fresh from saved data — no pending edits remain.
             userMadeChanges = false;
         };
@@ -1268,22 +1253,26 @@ export function init() {
      * @param {string}      end        YYYY-MM-DD — inclusive
      * @param {HTMLElement} feedbackEl Feedback div to write success/error into
      * @param {HTMLButtonElement} btn  The delete button (disabled during the request)
+     * @param {number} [listedCount]  How many days the row showed — what the confirmation reports
      */
-    async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, btn) {
+    async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, btn, listedCount) {
         // Scope the delete so an overlapping range's shared Sunday RD-correction is not
         // stripped. The previous check looked for an AL/sick record ON the Sunday, which the
         // range writer never creates (Sundays are non-contracted) — so it always removed the
         // correction, even when another overlapping range still needed it. The pure helper
         // keeps a Sunday correction whenever a remaining AL/sick override is adjacent to it.
         const allForDelete = getAllOverrides();
-        const deleteIds = computePeriodDeleteIds(allForDelete, { type, memberName, start, end });
+        const memberObj = teamMembers.find(m => m.name === memberName);
+        const deleteIds = computePeriodDeleteIds(allForDelete,
+            { type, memberName, start, end, isRestGap: d => isRestGap(d, memberObj) });   // edge Sunday (A1)
         // THE BUTTON'S STATES ARE NOT THIS FUNCTION'S TO SET — admin-booked-periods.js owns them and
         // restores idle when the promise this returns settles. It used to write the word "Delete"
         // back into what is now a glyph control, on exactly the paths where the row stays on screen.
         if (!deleteIds.length) return;
         const idSet = new Set(deleteIds);
-        // User-facing count = leave days only (exclude the Sunday RD corrections from the tally).
-        const leaveCount = allForDelete.filter(o => idSet.has(o.id) && o.type === type).length;
+        // The DAYS the row listed (review A15), not documents: duplicates, uncounted rest-day leave and
+        // the Sunday corrections are deleted too, and none of them is a day the row showed.
+        const leaveCount = listedCount ?? new Set(allForDelete.filter(o => idSet.has(o.id) && o.type === type).map(o => o.date)).size;
         // Wait for the Firebase Auth session to (re-)establish before writing, and surface a clear
         // message if it hasn't — parity with executeSave(). A returning user has a valid LOCAL session
         // but auth.currentUser is briefly null while Firebase restores; a delete fired in that window
@@ -1603,8 +1592,7 @@ export function init() {
             currentIsManager,
             showSuccess,
             showError,
-            onAfterSave: () => {
-                userMadeChanges = false;
+            onAfterSave: () => {   // does NOT touch userMadeChanges: loads call this too (review A4)
                 updateALBanner();
                 updateALBookedBox();
                 updateSickBookedBox();
@@ -1646,10 +1634,15 @@ export function init() {
     // If the admin has unsaved changes, wait until they navigate away before reloading.
     registerServiceWorker({
         beforeReload() {
-            if (!hasUnsavedChanges()) { window.location.reload(); return; }
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'hidden') window.location.reload();
-            }, { once: true });
+            // A write still waiting on the server counts as unsaved (review A13): a range booking
+            // commits in chunks, and reloading between them strands the rest.
+            if (!hasUnsavedChanges() && !writesInFlight()) { window.location.reload(); return; }
+            const onHidden = () => {
+                if (document.visibilityState !== 'hidden' || writesInFlight()) return;
+                document.removeEventListener('visibilitychange', onHidden);
+                window.location.reload();
+            };
+            document.addEventListener('visibilitychange', onHidden);
         },
     });
     sessionReady.then(() => { initErrorReporter(); recordUsage('admin', currentUser); recordPageLatency('admin', currentUser); });

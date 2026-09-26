@@ -133,6 +133,9 @@ export function planAlWeekSave({ member, memberName, toSave, toDelete = [],
     // SURVIVING entries, so a day left alone is not counted as one this batch replaces.
     const exclude = new Set([
         ...alInBatch.filter(e => e.existingId).map(e => e.date),
+        // …and leave another TYPE overwrites: it is being replaced, not kept (review A16). Non-leave
+        // rows are never dropped above, so reading them off `toSave` keeps ordering 1 intact.
+        ...toSave.filter(e => e.existingId && e.type !== 'annual_leave').map(e => e.date),
         ...overrides.filter(o => toDelete.includes(o.id) && o.type === 'annual_leave').map(o => o.date),
     ]);
 

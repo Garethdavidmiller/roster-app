@@ -178,7 +178,10 @@ export function createRangeBookingSection(cfg) {
         // `saving` first (v24.26): this runs on a swap answer, a date change and admin-app's
         // _refreshAlPreview, so while a held save waits it would re-arm Save from the form alone — and
         // the held save's new documents are not in the cache yet, so a second tap books every day again.
-        saveBtn.disabled = saving || answered < pending.length || (workDays + swapDays) === 0;
+        // With a projection, "anything to write?" is ITS answer: a rest day holding an absence passes
+        // `isWorkingDate` but, answered "free", writes nothing (review A2).
+        const toWrite = projection ? projection.counts.writing : workDays + swapDays;
+        saveBtn.disabled = saving || answered < pending.length || toWrite === 0;
     }
 
     /**
@@ -212,6 +215,9 @@ export function createRangeBookingSection(cfg) {
         const date = btn.dataset.date || '';
         if (!date) return;
         swapAnswers.set(date, btn.dataset.answer === 'yes');
+        // A changed answer changes what Save books, so a showing over-limit bar is stale — "Save
+        // anyway" would book the new answers unchecked (review A19; the week grid's v16.69 rule).
+        cfg.beforePreview?.();
         updatePreview();
     });
 
