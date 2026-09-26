@@ -51,7 +51,7 @@
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications } from './notif.js';
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl } from './firebase-client.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
-import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled } from './overlay.js';
 import { lsGet, lsSet } from './ls.js';
 import { isAccessFailure } from './claim-retry.js';
 import { recordOpen } from './usage-reporter.js';
@@ -703,13 +703,14 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // coming-soon link (which reuses the drawer's entry), we must POP the drawer's entry here,
     // not abandon it. closePanelForNavigation() only cleared _historyPushed without calling
     // history.back(), leaking a dead same-URL entry that swallowed the next Android Back press
-    // (and accumulated on each About-from-drawer cycle). closePanel() pops it; About opens on
-    // the next tick, AFTER the back()'s popstate settles, so About's fresh entry isn't
-    // immediately consumed by the queued back().
+    // (and accumulated on each About-from-drawer cycle). closePanel() pops it; About opens once
+    // that back()'s popstate has LANDED (closePanel's suppressNextPop is what whenHistorySettled
+    // waits on), so About's fresh entry isn't consumed by the queued back(). A setTimeout(0) here
+    // only assumed the traversal would beat the next task.
     const brandBtn = document.getElementById('navPanelBrand');
     brandBtn?.addEventListener('click', () => {
         closePanel();
-        setTimeout(() => onLogoClick?.(), 0);
+        whenHistorySettled(() => onLogoClick?.());
     });
 
     // Guides submenu accordion — an in-panel toggle, so the panel stays open.

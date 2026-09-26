@@ -702,6 +702,17 @@ test.describe('sign-in pickers', () => {
         await expect.poll(focused, { timeout: 3000 }).toBe('loginNameTrigger');
     });
 
+    // The field's own label is a tap target. It named the hidden select, so a tap focused a control
+    // nobody can see (and on iOS opened the native wheel the sheet replaces). It names the trigger.
+    test('tapping the field label opens the sheet, not the hidden select', async ({ page }) => {
+        await page.goto('/settings.html');
+        await page.locator('#loginGradeTrigger').waitFor();
+        await expect(page.locator('label[for="loginGrade"]')).toHaveCount(0);
+        await page.locator('label[for="loginGradeTrigger"]').click();
+        await expect(page.locator('.picker-sheet-overlay.open')).toBeVisible();
+        expect(await page.evaluate(() => document.activeElement?.id)).not.toBe('loginGrade');
+    });
+
     test('the sheet opens from the trigger and picking a row signs the member in', async ({ page }) => {
         // The whole point, end to end: no native popup, and the value the sheet writes is the value
         // the sign-in path reads.

@@ -1373,6 +1373,10 @@ button.lightbox-bug-link {
    as `none`). The page's own `max-width` cap still applies on top, and the face still ellipsises
    under it. */
 .fieldpick { display: grid; grid-template-columns: auto; }
+/* `display: grid` out-specifies the UA `[hidden]` rule, so without this `enhanceSelect`'s
+   `btn.hidden = select.hidden` — the guard against a retired value holder growing a live picker —
+   hid nothing. `!important` so a page's own trigger styling cannot reopen it (select-sheet-parity 13). */
+.fieldpick[hidden] { display: none !important; }
 .fieldpick-face, .fieldpick-sizer { grid-area: 1 / 1; }
 /* The face truncates rather than wrapping: a trigger that grows a line changes the row's
    height, and these sit in control rows that are already tight at 320px. */

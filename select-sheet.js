@@ -321,6 +321,15 @@ export function enhanceSelect(select, opts = {}) {
     btn.className = `${select.className} fieldpick ${opts.triggerClass || ''}`.trim();
     btn.setAttribute('aria-haspopup', 'dialog');
     if (select.id) btn.id = `${select.id}Trigger`;
+    // A `<label for>` names the control a tap on it reaches — and it still named the select, which is
+    // now aria-hidden and out of reach: tapping "Grade" focused a control nobody can see, and iOS
+    // opened its native wheel over the app's sheet. Point it at the trigger, which is the control.
+    // (A WRAPPING label needs nothing — its first labelable descendant is the trigger, inserted first.)
+    if (btn.id) {
+        for (const label of Array.from(select.labels ?? [])) {
+            if (/** @type {HTMLLabelElement} */ (label).htmlFor === select.id) /** @type {HTMLLabelElement} */ (label).htmlFor = btn.id;
+        }
+    }
 
     const face = document.createElement('span');
     face.className = 'fieldpick-face';
@@ -504,6 +513,10 @@ export function openOptionSheet(opts) {
         const row = ev.target?.closest?.('.picker-opt[data-value]');
         if (!row || row.disabled) return;
         const value = row.dataset.value;
+        // One tap, one pick. The list stays tappable through the fade, and a second close() hands
+        // back the SAME landing promise — so each extra tap chained another onPick (two `change`s;
+        // a double tap on "Custom…" stacked two promptDialogs). The next open rebinds this.
+        sheet.list.onclick = null;
         opts.onPreview?.(value);
         // A factory whose close() returns nothing (the unit tests' fakes) resolves at once; the
         // real one resolves when the close has landed — see the JSDoc above.

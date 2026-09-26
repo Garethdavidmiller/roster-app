@@ -43,6 +43,7 @@ mock.module('./overlay.js', {
     namedExports: {
         lockBodyScroll: () => {}, unlockBodyScroll: () => {},
         suppressNextPop: () => {}, registerPopInterceptor: () => {},   // v16.23 pop-ownership hooks
+        whenHistorySettled: (/** @type {() => void} */ fn) => fn(),
     },
 });
 mock.module('./ls.js', {

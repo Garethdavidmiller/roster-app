@@ -395,6 +395,30 @@ test('printing one country prints one country @print', async ({ page, browserNam
     expect(await sheets(), 'the whole guide is back after the print').toBe(whole);
 });
 
+// The engine that fires no `afterprint` (AirPrint) also need not fire `visibilitychange` — the print
+// sheet is a sheet, not a tab switch. Then "Print France" left its state in place, and the header's
+// ⤓ PDF printed France alone, with the prepare a no-op because the page was "already prepared".
+// Each print control must start from the page the reader is looking at.
+test('the header PDF after an un-restored country print prints the whole guide @print', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    await page.evaluate(() => { window.print = () => {}; });
+    await page.locator('#country-fr > summary').click();
+    const closedBefore = await page.evaluate(() => document.querySelectorAll('details:not([open])').length);
+    await page.locator('#country-fr .btn-print-country').click();
+    // No afterprint, no visibilitychange: the print sheet came and went without a word. Every card
+    // is still expanded, and the reader tidies one away — the stale prepare must not treat that
+    // collapsed card as already opened for the next print.
+    await page.evaluate(() => { /** @type {HTMLDetailsElement} */ (document.getElementById('country-be')).open = false; });
+    await page.locator('.btn-print').click();
+    expect(await page.evaluate(() => document.body.hasAttribute('data-print-country')),
+        'the header prints the whole guide, not the last country printed').toBe(false);
+    expect(await page.evaluate(() => document.querySelectorAll('.is-print-country').length)).toBe(0);
+    expect(await page.evaluate(() => document.querySelectorAll('details:not([open])').length)).toBe(0);
+    // And the restore still lands on the page as the reader left it, not on the expanded snapshot.
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    expect(await page.evaluate(() => document.querySelectorAll('details:not([open])').length)).toBe(closedBefore);
+});
+
 test('every country card offers its own print, named @print', async ({ page }) => {
     await page.goto('/fip-guide.html');
     const labels = await page.locator('.btn-print-country').evaluateAll(

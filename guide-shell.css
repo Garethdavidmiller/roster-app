@@ -132,6 +132,15 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
     outline-offset: 2px;
 }
 
+/* ── Anchor landing under the sticky header ─────────────────────────────────
+   A search hit or an in-page link lands on an id; without a scroll margin the heading sits UNDER
+   the sticky header. railcard/fip/rangers measure theirs in JS (header + chip-bar) and set their
+   own; the two document guides have no JS for it, so this is their value and everyone's fallback.
+   Measured header: 78px at ≥375px, 123px at 320px where the subtitle wraps — plus a 12px gap.
+   :where() keeps it at zero specificity, so any page rule or the JS inline value wins. */
+:where([id]) { scroll-margin-top: 90px; }
+@media (max-width: 359px) { :where([id]) { scroll-margin-top: 136px; } }
+
 /* ── Section chip-bar (shared v17.72) ────────────────────────────────────────
    Sticky quick-nav used by railcard-guide.html and fip-guide.html (guide/paycalc have
    no chip-bar — these rules are simply unused there). Unified here from the two

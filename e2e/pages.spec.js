@@ -819,6 +819,54 @@ test('promptDialog: resolves the typed value on confirm, null on cancel (not nat
     expect(r.cancelled, 'cancel resolves null').toBe(null);
 });
 
+// ── A DIALOG OPENED FROM ANOTHER DIALOG'S ANSWER STILL OWNS A BACK ENTRY ─────────────────────────
+// Links chains them (`if (!await confirmDialog(…)) return; await promptDialog(…)` — New design,
+// Duplicate). The confirm's close issues `history.back()`, whose popstate lands LATER; the prompt
+// opened in between pushed its entry on top, so the traversal popped the PROMPT's entry and its
+// echo was absorbed. The prompt stayed on screen with no entry, and Android Back left the page.
+// Only a browser can show this — the race is between a microtask and a history traversal.
+test('confirmDialog → promptDialog: Back closes the prompt and stays on the page', async ({ page }) => {
+    await page.goto('/links.html');
+    await page.evaluate(async () => {
+        const { confirmDialog, promptDialog } = await import('/overlay.js');
+        /** @type {any} */ (window).__chain = (async () => {
+            if (!await confirmDialog({ message: 'Discard?' })) return 'declined';
+            return promptDialog({ message: 'Name?' });
+        })();
+    });
+    await expect(page.locator('.dialog-overlay.open .dialog-btn-confirm')).toBeVisible();
+    // A DOM click, not a pointer one: signed out, the login overlay sits over the page. The handler
+    // under test is the same either way.
+    await page.evaluate(() => /** @type {HTMLElement} */ (document.querySelector('.dialog-overlay.open .dialog-btn-confirm')).click());
+    await expect(page.locator('.dialog-overlay.open .dialog-input')).toBeVisible();
+    await page.waitForTimeout(600);   // every traversal has landed; what remains is the steady state
+
+    await page.evaluate(() => history.back());
+    await expect(page.locator('.dialog-overlay.open .dialog-input')).toBeHidden();
+    await expect(page).toHaveURL(/links\.html/);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__chain), 'Back is a cancel').toBe(null);
+});
+
+// Same race, from the drawer: the brand button closes the drawer (a `history.back()`) and opens
+// About. About must open only once that traversal has landed, or it has no entry of its own.
+// This pins the OUTCOME, not the mechanism: Chromium and WebKit here both land a same-document
+// back() before a `setTimeout(0)`, so the old timer passes it too (measured with the mutation).
+// The fix is `whenHistorySettled` because a timer only assumes that ordering.
+test('drawer brand → About: Back closes About and stays on the page', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanelBrand').click();
+    const about = page.locator('#iconLightbox.open');
+    await expect(about).toBeVisible();
+    await page.waitForTimeout(600);
+
+    await page.evaluate(() => history.back());
+    await expect(about).toBeHidden();
+    await expect(page).toHaveURL(/admin\.html/);
+});
+
 // Guide links are SAME-TAB navigation since v18.81 (target="_blank" wrapped guides in Android's
 // Chrome Custom Tab / iOS's in-app Safari from the installed PWA — the "extra header on every
 // guide" staff report). So with unsaved changes a drawer guide link must now be CAUGHT by the
@@ -2962,6 +3010,26 @@ test('admin: selecting a pill with hours causes no horizontal blowout (touch lay
     expect(m.max, `widest element ${m.worst} at ${m.max}px vs viewport ${m.innerW}px`)
         .toBeLessThanOrEqual(m.innerW + 2);
 });
+
+// The two document guides have no JS to set a scroll margin (railcard/fip/rangers measure theirs),
+// so a cross-guide search hit landed its heading UNDER the sticky header. guide-shell.css's static
+// margin is what keeps it in view — at 375px and at 320px, where the subtitle wraps the header.
+for (const [guide, id] of [['staff-guide', 'sg-sundays'], ['paycalc-guide', 'pg-pay-types']]) {
+    for (const width of [320, 375]) {
+        test(`${guide} @${width}px: a deep-linked heading lands below the sticky header`, async ({ page }) => {
+            await page.setViewportSize({ width, height: 700 });
+            await page.goto(`/${guide}.html#${id}`);
+            await page.evaluate(() => document.fonts.ready);
+            await page.evaluate((t) => document.getElementById(t)?.scrollIntoView(), id);
+            await page.waitForTimeout(100);
+            const m = await page.evaluate((t) => ({
+                hdrBottom: /** @type {HTMLElement} */ (document.querySelector('.page-header')).getBoundingClientRect().bottom,
+                top: /** @type {HTMLElement} */ (document.getElementById(t)).getBoundingClientRect().top,
+            }), id);
+            expect(m.top, `#${id} top ${m.top} vs header bottom ${m.hdrBottom}`).toBeGreaterThanOrEqual(m.hdrBottom);
+        });
+    }
+}
 
 // ── FIP GUIDE (fip-guide.html) — jump-to-open + malformed-hash safety ──────────────
 
@@ -7674,15 +7742,19 @@ test('select-sheet: a hidden select gets a hidden trigger, and revealing it reve
         document.body.appendChild(sel);
         enhanceSelect(sel, { title: 'Probe' });
         const trig = () => /** @type {any} */ (document.getElementById('probeHiddenSelectTrigger'));
-        const whileHidden = trig()?.hidden;
+        // What the reader SEES, not the property. `.hidden` was true all along while the trigger's
+        // `display: grid` beat the UA `[hidden]` rule and drew it anyway — a probe of the property
+        // passed over a control that was on screen.
+        const shown = () => { const t = trig(); return !!t && getComputedStyle(t).display !== 'none' && t.getBoundingClientRect().height > 0; };
+        const whileHidden = shown();
         sel.hidden = false;                       // a later reveal must reach the trigger
         await new Promise(r => setTimeout(r, 50)); // the MutationObserver is async
-        const afterReveal = trig()?.hidden;
+        const afterReveal = shown();
         sel.remove(); trig()?.remove();
         return { whileHidden, afterReveal };
     });
-    expect(states.whileHidden, 'a hidden select must not produce a visible control').toBe(true);
-    expect(states.afterReveal, 'revealing the select must reveal its trigger').toBe(false);
+    expect(states.whileHidden, 'a hidden select must not produce a visible control').toBe(false);
+    expect(states.afterReveal, 'revealing the select must reveal its trigger').toBe(true);
 });
 
 test('admin: AL on a rest day asks whether it was a swap, and will not save unanswered', async ({ page }) => {

@@ -353,7 +353,19 @@ document.addEventListener('visibilitychange', function () {
 // Capture phase, so this runs before guide-print.js's own bubble-phase handler calls window.print()
 // — registration order would give the same result today, but only because of the <script> order in
 // fip-guide.html, which is not a thing this file should depend on.
-document.querySelector('.btn-print')?.addEventListener('click', expandAllForPrint, true);
+//
+// START FROM THE PAGE ON SCREEN. The engine that sends no `afterprint` for AirPrint need not send
+// `visibilitychange` either, so a "Print <country>" can still be in force here — prepared, one
+// country marked. Left alone, this button would print that country and its prepare would no-op.
+// `resetStalePrint` is idempotent, so on every engine that did restore it changes nothing.
+function resetStalePrint() {
+    clearCountryPrint();
+    restoreAfterPrint();
+}
+document.querySelector('.btn-print')?.addEventListener('click', function () {
+    resetStalePrint();
+    expandAllForPrint();
+}, true);
 
 // ── PRINT THIS COUNTRY (v24.06) ────────────────────────────────────────────────────────────────
 //
@@ -412,7 +424,7 @@ countryCards.forEach(function (card) {
     // copies of one string with nothing to tell them apart.
     btn.textContent = '⤓ Print ' + name.replace(/^\S+\s/, '');
     btn.addEventListener('click', function () {
-        clearCountryPrint();
+        resetStalePrint();   // a previous country's print may never have been restored — see above
         _fipPrintTarget = /** @type {HTMLElement} */ (card);
         card.classList.add(PRINT_COUNTRY_MARK);
         document.body.setAttribute('data-print-country', card.id);
