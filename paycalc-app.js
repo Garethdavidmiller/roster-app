@@ -305,20 +305,12 @@ export function init() {
       // un-anchored (picked the blank placeholder); that must PERSIST and never be re-stamped here —
       // otherwise the next period change silently re-engages cumulative PAYE against figures the
       // member detached (v18.12 — the un-anchor handler now records '0' rather than deleting the key).
-      // ytdAutoSource returns 0 — records NOTHING — between the current payslip's cut-off and its
-      // payday, when the figures may come from either payslip and a wrong guess double-counts one.
       if (_rawSrc == null && hasFigures) {
         src = ytdAutoSource(ty);
-        if (src) lsSet(ytdSrcKey(ty), String(src));
+        lsSet(ytdSrcKey(ty), String(src));
       }
       if (src) _setSelectPeriod(sel, src);
       _updateYtdNote(ty, p, src);
-      // The figures are typed but deliberately unused until the member names their payslip — say so,
-      // or the card reads as though they were in use.
-      const _note = document.getElementById('ytdUptoNote');
-      if (_note && !src && hasFigures && _rawSrc == null && _note.textContent === '') {
-        _note.textContent = 'Choose the payslip these figures are from — your newest payslip may already be out, so the calculator will not guess.';
-      }
     }
 
     /** The YTD note: states which payslip the figures are from and whether they sharpen the one on

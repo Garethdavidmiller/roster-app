@@ -1018,10 +1018,10 @@ test('paycalc: Year to Date figures showing tax over-collected say a refund may 
 
 // ── THE PAYSLIP IN HAND BEFORE PAYDAY (72-hour review) ───────────────────────────────────────────
 // Payslips arrive before payday. Figures typed on 22 Sep 2026 may come from the 25 Sep payslip (cut
-// off 19 Sep) — which the picker did not offer — and the first-entry stamp anchored them to 28 Aug,
-// so the cumulative method counted 25 Sep's pay twice. The rules are unit-tested in
-// paycalc-periods.test.mjs; this pins the coordinator actually asking them.
-test('paycalc: Year to Date figures typed between cut-off and payday are not guessed onto a payslip', async ({ page }) => {
+// off 19 Sep), which the picker did not offer, so a member who had it in hand could not say so. The
+// picker now offers it from its cut-off; the first-entry stamp keeps the standing rule (the payslip
+// before today's), which the member corrects by picking. Rules: paycalc-periods.test.mjs.
+test('paycalc: between cut-off and payday the new payslip can be picked as the Year to Date source', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(new Date('2026-09-22T09:00:00Z'));
     await seedSession(page);
@@ -1036,11 +1036,9 @@ test('paycalc: Year to Date figures typed between cut-off and payday are not gue
     await page.dispatchEvent('#ytdPay', 'input');
     await page.fill('#ytdTax', '3266.20');
     await page.dispatchEvent('#ytdTax', 'input');
-    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_ytd_src_2026_27')),
-        'no source may be recorded while either payslip could be the one copied').toBe(null);
     const offered = await page.locator('#ytdSrcSelect option').evaluateAll(os => os.map(o => o.textContent));
     expect(offered.some(t => /25 Sep 2026/.test(t ?? '')), 'the payslip in hand must be offered').toBe(true);
-    await expect(page.locator('#ytdUptoNote')).toContainText('Choose the payslip these figures are from');
+    expect(offered.some(t => /28 Aug 2026/.test(t ?? ''))).toBe(true);
     expect(errors).toHaveLength(0);
 });
 

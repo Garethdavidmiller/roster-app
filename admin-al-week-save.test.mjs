@@ -15,7 +15,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { teamMembers, getBaseShift } from './roster-data.js';
+import { teamMembers, getBaseShift, formatISO } from './roster-data.js';
 import { planAlWeekSave } from './admin-al-week-save.js';
 // The cross-layer block at the foot needs the surfaces the review named, not just the planner:
 // what the Calendar draws, what the entitlement costs, and what the receipt says.
@@ -39,7 +39,7 @@ const oneDayLeft = (() => {
     /** @type {string[]} */ const dates = [];
     for (let d = new Date('2026-03-02T00:00:00'); dates.length < 31; d.setDate(d.getDate() + 1)) {
         const dow = d.getDay();
-        if (dow !== 0 && dow !== 6) dates.push(d.toISOString().slice(0, 10));
+        if (dow !== 0 && dow !== 6) dates.push(formatISO(d));
     }
     return dates.map((date, i) => ({ id: 'x' + i, memberName: 'C. Reen', type: 'annual_leave', date, value: 'AL' }));
 })();

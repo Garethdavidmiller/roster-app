@@ -226,13 +226,12 @@ not gross). Don't invent friendlier names for these — the whole point is they 
 
 **Year to Date figures are ANCHORED to their source payslip (v17.98 — owner request).** The card
 records which payslip the two totals were copied from (`ytdSrcKey(ty)`, a "From which payslip?"
-select auto-stamped to the latest PAID payslip on first entry, correctable). **Except between the
-current payslip's cut-off and its payday (72-hour review):** payslips are issued before payday, so
-the figures may come from either payslip, and anchoring them one early made the cumulative method
-count the newest payslip's pay twice (£193.40 of tax over on a £3,300 payslip). In that window the
-picker also offers the payslip about to be paid, and the stamp records NOTHING — the figures stay
-out of the estimate, with a one-line prompt, until the member picks (`ytdAutoSource` /
-`ytdSourceOffered` in `paycalc-periods.js`). The cumulative PAYE
+select auto-stamped to the latest PAID payslip on first entry, correctable). **Payslips are issued before payday**, so from the
+current payslip's cut-off the picker also offers it (`ytdSourceOffered`): a member copying from it
+picks it, and an anchor one payslip early would count its pay twice. The first-entry stamp keeps the
+standing rule (`ytdAutoSource`); a window that recorded NOTHING until the member picked was tried in
+the Sep 2026 review and removed the same day, because a member who never picked was stamped one
+payslip LATE on the first open after payday. The cumulative PAYE
 method in `calculate()` engages ONLY on the payslip immediately after the source (`p.num ===
 src + 1`) — any other payslip nulls the YTD inputs and falls back to the standard non-cumulative
 method. Previously the figures were a per-year snapshot the maths silently treated as

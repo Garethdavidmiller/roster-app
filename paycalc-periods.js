@@ -320,19 +320,17 @@ export function ytdSourceOffered(p, ty, now = new Date()) {
 }
 
 /**
- * The payslip to anchor Year to Date figures to when the member has not said — or 0 when the app
- * CANNOT tell. The old standing assumption (the payslip before today's, clamped into the year) is
- * right until today's payslip could be out; from its cut-off to its payday either payslip may be the
- * one being copied, and guessing wrong double-counts a payslip's pay. So in that window nothing is
- * recorded: the figures stay out of the estimate (the standard method, never a double count) until
- * the member picks the source — the picker offers both.
+ * The payslip to anchor Year to Date figures to when the member has not said: the payslip before
+ * today's, clamped into the year — the standing assumption since v17.98. A member copying from a
+ * payslip issued before its payday can correct it: the picker offers that payslip from its cut-off
+ * (`ytdSourceOffered`). A window that recorded NOTHING until the member picked was tried in the Sep
+ * 2026 review and removed the same day: a member who never picked was stamped one payslip LATE on
+ * the first open after payday, the mirror image of the double count it set out to prevent.
  * @param {{ first:number, last:number }} ty @param {Date} [now]
- * @returns {number} a period number, or 0
+ * @returns {number} a period number
  */
 export function ytdAutoSource(ty, now = new Date()) {
-  const { upcoming, today } = _todayAt(now);
-  const inYear = !!upcoming && upcoming.num >= 48 + ty.first && upcoming.num <= 48 + ty.last;
-  if (inYear && upcoming.cutoff <= now) return 0;
+  const { today } = _todayAt(now);
   return Math.min(Math.max(today - 1, 48 + ty.first), 48 + ty.last);
 }
 

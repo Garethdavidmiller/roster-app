@@ -874,13 +874,14 @@ describe('Year to Date source — offered and auto-anchored only where the app c
         assert.equal(sep25.cutoff.getDate(), 19);
     });
 
-    test('between its cut-off and payday the new payslip is OFFERED, and nothing is guessed', () => {
+    test('between its cut-off and payday the new payslip is OFFERED; the stamp keeps the standing rule', () => {
         const now = new Date(2026, 8, 22, 10);
         assert.equal(ytdSourceOffered(sep25, TY, now), true, 'the payslip in hand must be pickable');
         assert.equal(ytdSourceOffered(aug28, TY, now), true);
         assert.equal(ytdSourceOffered(oct23, TY, now), false, 'a payslip not yet cut off cannot be in hand');
-        assert.equal(ytdAutoSource(TY, now), 0,
-            'either payslip may be the one being copied — a guess double-counts one of them');
+        // Recording nothing here was tried and removed: a member who never picked was stamped a
+        // payslip LATE on the first open after payday. The standing rule is corrected by picking.
+        assert.equal(ytdAutoSource(TY, now), aug28.num);
     });
 
     test('before the cut-off the previous payslip is the only one that can be in hand — auto-anchored', () => {
