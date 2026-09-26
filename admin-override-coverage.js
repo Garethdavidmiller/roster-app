@@ -116,7 +116,7 @@ export function withMember(cov, member) {
 export function withAll(cov, { complete = true } = {}) {
     return complete
         ? { ...cov, all: true, allPartial: false }
-        : { ...cov, allPartial: true };
+        : { ...cov, all: false, allPartial: true };   // the capped read REPLACED the cache (R-A6)
 }
 
 /**

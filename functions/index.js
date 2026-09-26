@@ -710,7 +710,7 @@ columnScan: one key per column header; every staff member appears in every colum
         // about rather than assuming away.
         const geometry = await settledGeometry(geometryEarly, geometryPromise);
         const geoStats = applyGeometryWitness(safeEntries, geometry, dates);
-        settleDisputedSundays(safeEntries, disputedSundays, geoStats, dates);
+        settleDisputedSundays(safeEntries, disputedSundays, geoStats, dates, parsed.sundayScan);
         if (geoStats.status !== 'complete') {
             console.warn(`[parseRosterPDF] geometry witness ${geoStats.status}: ${geoStats.checked}/${geoStats.total} members matched`
                 + (geoStats.unmatched.length ? ` — unmatched: ${geoStats.unmatched.join(', ')}` : '')

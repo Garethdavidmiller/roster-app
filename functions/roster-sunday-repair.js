@@ -25,15 +25,26 @@
  *    refuse — and a refusal is what unticks the member's whole row on the review. So the claim is
  *    left where it is and the member is returned as DISPUTED; `settleDisputedSundays` runs after the
  *    witness and sends to review any disputed Sunday the witness could not look at. A Sunday the
- *    grid shows as occupied keeps the row read: the physical fact beats a second reading by the
- *    same model.
+ *    grid shows as occupied keeps the row read when the scan called it EMPTY: the physical fact
+ *    beats a second reading by the same model. When the scan saw a printed rest code the grid
+ *    agrees with the scan, not the row read, and the Sunday goes to review (re-review R-A1).
  */
 
-const { blankCellMeaning } = require('./cell-day-rules');
+const { blankCellMeaning, isPhysicallyBlank, isNotAvailable, isNotAvailableSunday } = require('./cell-day-rules');
 const { reviewLabel } = require('./roster-parse-helpers');
 
 /** The value `buildSafeEntries` writes for a Saturday the model reported empty. */
 const BLANK_SATURDAY = blankCellMeaning(6, 'Saturday');
+
+/** The Sunday scan saw NOTHING in the cell — the only reading the PDF grid can contradict. */
+const scanSawEmpty = (/** @type {any} */ raw) => isPhysicallyBlank(raw) || String(raw).trim().toUpperCase() === 'EMPTY';
+
+/** The Sunday scan saw a printed rest code. NA and NS on a Sunday are both the rest day a Sunday
+ *  already is (cell-day-rules.js, which also reads `N.A.` as `NA`). */
+const scanSawRestCode = (/** @type {any} */ raw) => {
+    const s = String(raw).trim().toUpperCase();
+    return s === 'RD' || s === '-' || isNotAvailable(s) || isNotAvailableSunday(s);
+};
 
 /**
  * Apply Sunday scan corrections to safe entries (modifies in place).
@@ -75,7 +86,7 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
         // NA and NS on a Sunday are both blank-equivalent: the rest day a Sunday already is (cell-day-rules.js).
         // OFF is a rest day (the CES and bilingual rosters print it), not a claim — without this a
         // correct OFF week was right-shifted a day.
-        const isBlank = ['BLANK', '', 'RD', 'EMPTY', '-', 'N/A', 'NA', 'NS'].includes(scanStr);
+        const isBlank = scanSawEmpty(scanStr) || scanSawRestCode(scanStr);
         if (isBlank && sunShift !== 'RD' && sunShift !== 'OFF') {
             const sat = entry.shifts[satDate];
             if (sat === 'RD' || sat === BLANK_SATURDAY) {
@@ -105,22 +116,27 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
 /**
  * After the geometry witness: a disputed Sunday the witness did not look at goes to review
  * (modifies in place). One it refused is already a question; one whose cell the grid shows as
- * OCCUPIED keeps the row read.
+ * OCCUPIED keeps the row read — but ONLY when the scan saw a literally empty cell, which the grid
+ * then contradicts. A printed rest code (NS, NA, RD, '-') is ink in that cell: the grid's
+ * "occupied" AGREES with the scan and is no evidence for the worked shift the row read put there.
  *
  * @param {object[]} safeEntries
  * @param {string[]} disputed   from applySundayScanCorrections
  * @param {{ ran?: boolean, unmatched?: string[] }|null|undefined} geoStats  from applyGeometryWitness
  * @param {string[]} dates
+ * @param {Record<string, any>|null|undefined} sundayScan  the model's Sunday scan; without it no row read stands
  */
-function settleDisputedSundays(safeEntries, disputed, geoStats, dates) {
+function settleDisputedSundays(safeEntries, disputed, geoStats, dates, sundayScan) {
     if (!Array.isArray(disputed) || !disputed.length) return;
     const unmatched = new Set((geoStats && geoStats.unmatched) || []);
     for (const entry of safeEntries) {
         if (!disputed.includes(entry.memberName)) continue;
         const v = entry.shifts[dates[0]];
         if (typeof v !== 'string' || v.startsWith('UNKNOWN|')) continue;   // the witness refused it
-        if (geoStats && geoStats.ran && !unmatched.has(entry.memberName)) continue;   // the grid saw it occupied
-        entry.shifts[dates[0]] = `UNKNOWN|${reviewLabel(v)} was read for Sunday, but a second look saw an empty cell — check the PDF`;
+        const scan = sundayScan && typeof sundayScan === 'object' ? sundayScan[entry.memberName] : undefined;
+        if (geoStats && geoStats.ran && !unmatched.has(entry.memberName)
+            && scan !== undefined && scanSawEmpty(scan)) continue;   // the grid saw occupied what the scan called empty
+        entry.shifts[dates[0]] = `UNKNOWN|${reviewLabel(v)} was read for Sunday, but a second look saw no shift there — check the PDF`;
         console.warn(`[parseRosterPDF] ${entry.memberName}: disputed Sunday "${v}" could not be checked against the PDF grid — sent to review`);
     }
 }

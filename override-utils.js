@@ -500,7 +500,16 @@ function _shiftISODate(dateStr, deltaDays) {
  * the same "still spanned?" protection. `isRestGap` is how "only through rest days" is known; without
  * it only the adjacent Sunday counts.
  *
- * @param {Array<{id:string,memberName:string,date:string,type:string,value:string}>} allOverrides
+ * …BUT ONLY A CORRECTION THAT BOOKING WROTE (re-review R-A2). An edge Sunday lies OUTSIDE the listed
+ * range, so a manager's own Change-a-Shift "Rest Day" there is not the booking's to delete. No field
+ * marks a range-written correction (the rules' `hasOnly` admits none, and a new one would have to ship
+ * rules-first), so the proof is the timestamp: `recordRangeOverrides` commits the leave days and their
+ * Sunday corrections in one batch, and every `serverTimestamp()` in a batch resolves to the same
+ * instant. An edge correction whose `createdAt` equals a deleted leave day's is that booking's; any
+ * other is kept. Keeping is the safe direction — it is the pre-A1 behaviour. INTERIOR Sundays are
+ * unchanged: a Rest Day inside a leave period has nothing left to rest from once the period goes.
+ *
+ * @param {Array<{id:string,memberName:string,date:string,type:string,value:string,createdAt?:any}>} allOverrides
  * @param {{type:string, memberName:string, start:string, end:string,
  *          isRestGap?: (dateStr: string) => boolean}} range  type is 'annual_leave' | 'sick'; start/end
  *        inclusive YYYY-MM-DD; `isRestGap` true for a base rest day the booking could have skipped
@@ -534,8 +543,10 @@ export function computePeriodDeleteIds(allOverrides, { type, memberName, start, 
         return _isSundayISO(d) ? d : null;
     };
     const edges = new Set([edgeSunday(end, 1), edgeSunday(start, -1)].filter(Boolean));
+    const bookedAt = new Set(allOverrides.filter(o => leaveIds.has(o.id)).map(o => tsToMillis(o.createdAt)).filter(Boolean));
+    const sameBooking = (/** @type {any} */ o) => edges.has(o.date) && bookedAt.has(tsToMillis(o.createdAt));
     const correctionIds = allOverrides
-        .filter(o => o.memberName === memberName && (inRange(o) || edges.has(o.date)) &&
+        .filter(o => o.memberName === memberName && (inRange(o) || sameBooking(o)) &&
             o.type === 'correction' && o.value === 'RD' && _isSundayISO(o.date) &&
             !_spansSunday(o.date))
         .map(o => o.id);

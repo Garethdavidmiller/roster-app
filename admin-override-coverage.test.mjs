@@ -77,6 +77,16 @@ describe('saying no when it does know', () => {
         assert.equal(hasAuthorityFor(cov, undefined), true);
     });
 
+    test('a later CAPPED read takes back the full coverage an earlier complete one granted (re-review R-A6)', () => {
+        // The cache is replaced by the capped read, so the earlier completeness no longer describes it:
+        // leaving `all` true would vouch for every member's history past the cap, which is now gone.
+        const cov = withAll(withMember(withAll(emptyCoverage()), 'G. Miller'), { complete: false });
+        assert.equal(cov.all, false);
+        assert.equal(hasAuthorityFor(cov, 'Anybody At All'), false);
+        assert.equal(hasAuthorityFor(cov, 'G. Miller'), true, 'an individually-read member stays authoritative');
+        assert.equal(coversEveryone(cov), true, 'the list may still be drawn, with its banner');
+    });
+
     test('full coverage survives a later per-member read', () => {
         const cov = withMember(withAll(emptyCoverage()), 'G. Miller');
         assert.equal(coversEveryone(cov), true, 'refreshing one member must not demote the cache');

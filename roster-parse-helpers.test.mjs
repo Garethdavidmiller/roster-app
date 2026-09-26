@@ -847,9 +847,25 @@ describe('Case A — a left-shifted row whose empty Saturday arrives as BLANK', 
         const safe = read({ ...DRIFTED, Sat: '10:00-18:00' });
         const disputed = quiet(() => applySundayScanCorrections(safe, { 'X. Test': 'BLANK' }, true, DATES));
         const st = quiet(() => applyGeometryWitness(safe, grid([true, true, true, true, true, true, true]), DATES));
-        quiet(() => settleDisputedSundays(safe, disputed, st, DATES));
+        quiet(() => settleDisputedSundays(safe, disputed, st, DATES, { 'X. Test': 'BLANK' }));
         assert.equal(safe[0].shifts[DATES[0]], '06:00-14:00');
     });
+
+    // R-A1 (re-review). The occupancy exemption above holds only when the scan saw a LITERALLY empty
+    // cell: then the grid contradicts the scan and the row read wins. A printed rest code (NS, NA,
+    // RD, '-') is ink in the cell, so the grid's "occupied" AGREES with the scan and says nothing
+    // for the worked shift the row read put there.
+    for (const code of ['NS', 'NA', 'N.A.', 'RD', '-']) {
+        test(`a Sunday printed ${code}, grid occupied, row read a shift → a review question, not a worked Sunday`, () => {
+            const safe = read({ ...DRIFTED, Sat: '10:00-18:00' });
+            const scan = { 'X. Test': code };
+            const disputed = quiet(() => applySundayScanCorrections(safe, scan, true, DATES));
+            assert.deepEqual(disputed, ['X. Test'], `scan "${code}" is a rest code the row read disputes`);
+            const st = quiet(() => applyGeometryWitness(safe, grid([true, true, true, true, true, true, true]), DATES));
+            quiet(() => settleDisputedSundays(safe, disputed, st, DATES, scan));
+            assert.match(safe[0].shifts[DATES[0]], /^UNKNOWN\|06:00-14:00 was read for Sunday/);
+        });
+    }
 
     test('a printed OFF Sunday is a rest day, not a claim — a correct week is never shifted', () => {
         // OFF ≡ RD everywhere else in the import (the CES and bilingual rosters print it).

@@ -740,6 +740,48 @@ describe('executeSave — stale-claim retry', () => {
     });
 });
 
+// ── R-A5: a staged row's existingId is re-read at save time ─────────────────────────────────
+// A range booking made while a week-grid row is staged REPLACES that row's document underneath it
+// (and the grid is not redrawn over staged edits). The row still names the id that is gone, so
+// saving it deleted nothing and left the range's document beside the new one — a hidden duplicate.
+describe('executeSave — the replaced document is the one deleted', () => {
+    beforeEach(() => {
+        _failNextCommits = 0;
+        mockAuth.currentUser = { uid: 'mgr', getIdToken: async () => {} };
+    });
+
+    test('a stale existingId is re-read from the cache, so the date ends with ONE document', async () => {
+        setAllOverrides([{ id: 'range-al', memberName: 'G. Miller', date: '2026-06-16', type: 'annual_leave', value: 'AL',
+            source: 'manual', createdAt: new Date(2) }]);
+        await executeSave([{ memberName: 'G. Miller', date: '2026-06-16', type: 'shift', value: '07:00-15:00', note: '',
+            existingId: 'deleted-by-the-range-write' }]);
+        const day = getAllOverrides().filter(o => o.memberName === 'G. Miller' && o.date === '2026-06-16');
+        assert.equal(day.length, 1, 'the range document was replaced, not left beside the new one');
+        assert.equal(day[0].value, '07:00-15:00');
+    });
+});
+
+// ── R-A2: a range write stamps its Sunday corrections with the booking's own instant ────────────
+describe('recordRangeOverrides — the Sunday correction is provably the booking\'s', () => {
+    beforeEach(() => {
+        setAllOverrides([]);
+        _failNextCommits = 0;
+        mockAuth.currentUser = { uid: 'test-user', getIdToken: async () => {} };
+    });
+
+    test('deleting the listed Mon–Sat period right after booking Mon–Sun takes the Sunday correction with it', async () => {
+        const { computePeriodDeleteIds } = await import('./override-utils.js');
+        // 15–20 Jun 2026 are worked (Week 1 SPARE), Sunday 21 Jun is worked — so a correction is written.
+        await recordRangeOverrides({ type: 'annual_leave', value: 'AL', memberName: 'G. Miller', changedBy: 'G. Miller',
+            dates: ['2026-06-15', '2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19', '2026-06-20', '2026-06-21'] });
+        const all = getAllOverrides();
+        const corr = all.find(o => o.date === '2026-06-21' && o.type === 'correction');
+        assert.ok(corr, 'premise: the worked Sunday got its correction');
+        const ids = computePeriodDeleteIds(all, { type: 'annual_leave', memberName: 'G. Miller', start: '2026-06-15', end: '2026-06-20' });
+        assert.ok(ids.includes(corr.id), 'the edge Sunday shares the booking\'s stamp, so it is the booking\'s');
+    });
+});
+
 // ── isWorkingDate (single-source AL/absence working-day rule) ────────────────────
 describe('isWorkingDate', () => {
     const reen   = teamMembers.find(m => m.name === 'C. Reen');   // fixed roster: weekdays 12:00-19:00, weekends RD

@@ -11,7 +11,7 @@
  * Initialised by admin-app.js via initOverrides().
  */
 
-import { teamMembers, getBaseShift, formatISO, isSunday, MONTH_ABB, parseISODate } from './roster-data.js';
+import { teamMembers, getBaseShift, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { isRestShift, shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord, nextReplacedType } from './override-utils.js';
 import { db, collection, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 // The cache, what it knows, and the reads that fill it — see admin-override-store.js. Re-exported
@@ -34,6 +34,7 @@ import { replacedTypeForSwap, rangeWriteDates } from './al-swapped-days.js';
 import { checkShiftRules } from './admin-shift-rules.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 import { withSlowSaveNotice } from './slow-save.js';
+import { formatDisplay } from './admin-period-dates.js';
 
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
 let _currentUser      = '';
@@ -208,6 +209,9 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
         return;
     }
 
+    // RE-READ, not trusted (re-review R-A5): a range booking made while this row sat staged can
+    // have replaced its document, and deleting the stale id would leave the new one as a duplicate.
+    toSave = toSave.map(e => ({ ...e, existingId: buildMemberDateMap(e.memberName).get(e.date)?.id ?? null }));
     try {
         // Build + commit as a re-runnable thunk so writeWithClaimRetry can retry once on a
         // stale-claim `permission-denied` (a just-provisioned manager on a pre-`manager`-claim token).
@@ -473,10 +477,13 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // just-provisioned manager's stale `manager` claim self-heals per chunk), rebuilt on each
     // attempt because a WriteBatch can't be re-committed. Accepts the same partial-commit-on-
     // mid-range-failure trade-off _saveOverrideBatches already carries (v16.19).
+    // In DATE order, so a Sunday correction commits in the same batch as the leave beside it: one
+    // batch is one server timestamp, which is how deleting the period knows the edge Sunday is its own
+    // (computePeriodDeleteIds, re-review R-A2). The cache records share one stamp per batch to match.
     const ops = [
         ...workingDates.map(date => ({ date, type, value })),
         ...sundayCorrections.map(date => ({ date, type: 'correction', value: 'RD' })),
-    ];
+    ].sort((a, b) => a.date.localeCompare(b.date));
     const CHUNK = 200;
     /** @type {any[]} */
     const newDocs = [];
@@ -490,6 +497,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
                 const docs   = [];
                 const delIds = new Set();
                 const batch  = writeBatch(db);
+                const stamp  = new Date();
                 slice.forEach(op => {
                     const existing = ovByDate.get(op.date);
                     // Read BEFORE the delete: this is the only record that a swapped-in day was
@@ -505,7 +513,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
                     const newRef = doc(collection(db, COLLECTIONS.overrides));
                     const fields = { memberName, date: op.date, type: op.type, value: op.value, note: '', source: 'manual', changedBy, replacedType };
                     batch.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
-                    docs.push(buildOverrideCacheRecord(newRef.id, fields, new Date()));
+                    docs.push(buildOverrideCacheRecord(newRef.id, fields, stamp));
                 });
                 await batch.commit();
                 return { docs, delIds };
@@ -548,13 +556,5 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     return { workingCount: workingDates.length, sundayCount: sundayCorrections.length };
 }
 
-// ── DATE DISPLAY ──────────────────────────────────────────────────────────────
-/**
- * Formats YYYY-MM-DD as "18 Mar 2026". Returns "—" for empty input.
- * @param {string} str
- */
-export function formatDisplay(str) {
-    if (!str) return '—';
-    const [y, m, d] = str.split('-');
-    return `${parseInt(d, 10)} ${MONTH_ABB[parseInt(m, 10) - 1]} ${y}`;
-}
+// ── DATE DISPLAY — lives in admin-period-dates.js; re-exported so its importers are unchanged ──
+export { formatDisplay };

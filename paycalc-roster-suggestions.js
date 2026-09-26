@@ -220,6 +220,10 @@ export function getRosterSuggestion(p, member) {
     // BH keeps its premium at base hours; a weekday contributes nothing extra (basic pay already
     // covers it); a BASE REST DAY contributes nothing at all (the overpay guard for blanket
     // Mon–Fri OD weeks). AL is deliberately NOT changed — leave pay is payroll's own mechanism.
+    // A SWAPPED-IN day (a rest-day base whose absence records contracted work in `replacedType`) is
+    // shown as Absent by the calendar, and pays as the day underneath here too — but that day's
+    // TIMES were never kept (only its type is), so it contributes nothing rather than a guessed
+    // figure (paycalc.md invariant 1). A weekday is exact either way: basic pay covers it.
     if (ov && ov.type === 'sick') {
       effValue = baseValue; effType = null;
     }

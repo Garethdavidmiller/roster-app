@@ -539,10 +539,14 @@ describe('computePeriodDeleteIds', () => {
     // listed — and its ✕ deletes — a range that stops short of it. The correction written on that
     // Sunday was then left behind, and the worked Sunday read as Rest in the Calendar for good.
     // Synthetic weeks: Mon 21 … Sat 26 Sep 2026, Sundays 20 and 27.
+    // Every doc one range write commits shares its batch's server timestamp — that is how an edge
+    // Sunday's correction is known to be the booking's own (re-review R-A2). `BOOKED` is that stamp.
     const E = 'X. Edge';
+    const BOOKED = { seconds: 1790000000, nanoseconds: 0 };
     const alDays = (/** @type {string[]} */ days) =>
-        days.map(d => ({ id: 'al' + d.slice(8), memberName: E, date: d, type: 'annual_leave', value: 'AL' }));
-    const corr = (/** @type {string} */ d) => ({ id: 'c' + d.slice(8), memberName: E, date: d, type: 'correction', value: 'RD' });
+        days.map(d => ({ id: 'al' + d.slice(8), memberName: E, date: d, type: 'annual_leave', value: 'AL', createdAt: BOOKED }));
+    const corr = (/** @type {string} */ d, /** @type {any} */ createdAt = BOOKED) =>
+        ({ id: 'c' + d.slice(8), memberName: E, date: d, type: 'correction', value: 'RD', createdAt });
     const monToSat = ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-24', '2026-09-25', '2026-09-26'];
 
     it('deletes the correction on the Sunday straight after a listed period (a Mon–Sun booking)', () => {
@@ -573,6 +577,36 @@ describe('computePeriodDeleteIds', () => {
         const ids = computePeriodDeleteIds([...alDays(monToSat), corr('2026-09-27'), next],
             { type: 'annual_leave', memberName: E, start: '2026-09-21', end: '2026-09-26' });
         assert.ok(!ids.includes('c27'), 'Monday 28th still holds leave, so Sunday 27th is still covered');
+    });
+
+    // ── R-A2: an edge Sunday is only the booking's when the booking WROTE it ─────────────────
+    // A manager's own Change-a-Shift "Rest Day" on the Sunday beside a leave period is not part of
+    // that booking, and deleting the period must not take it. Interior Sundays are unchanged.
+    it('keeps a MANUAL Rest Day on the edge Sunday — a different save, a different stamp', () => {
+        const manual = corr('2026-09-27', { seconds: 1790500000, nanoseconds: 0 });
+        const ids = computePeriodDeleteIds([...alDays(monToSat), manual],
+            { type: 'annual_leave', memberName: E, start: '2026-09-21', end: '2026-09-26' });
+        assert.ok(!ids.includes('c27'), 'a Change-a-Shift Rest Day is not the booking\'s to delete');
+        assert.equal(ids.length, 6, 'the six leave days still go');
+    });
+
+    it('keeps an edge-Sunday correction with no timestamp — unproven is not the booking\'s', () => {
+        const ids = computePeriodDeleteIds([...alDays(monToSat), corr('2026-09-27', null)],
+            { type: 'annual_leave', memberName: E, start: '2026-09-21', end: '2026-09-26' });
+        assert.ok(!ids.includes('c27'));
+    });
+
+    it('matches the optimistic cache stamp (a Date) as well as a Firestore Timestamp', () => {
+        const at = new Date(1790000000000);
+        const all = [...alDays(monToSat).map(o => ({ ...o, createdAt: at })), corr('2026-09-27', at)];
+        assert.ok(computePeriodDeleteIds(all, { type: 'annual_leave', memberName: E, start: '2026-09-21', end: '2026-09-26' })
+            .includes('c27'));
+    });
+
+    it('an INTERIOR Sunday correction is still deleted whatever its stamp (unchanged behaviour)', () => {
+        const all = [...alDays(['2026-09-25', '2026-09-26', '2026-09-28']), corr('2026-09-27', { seconds: 1, nanoseconds: 0 })];
+        assert.ok(computePeriodDeleteIds(all, { type: 'annual_leave', memberName: E, start: '2026-09-25', end: '2026-09-28' })
+            .includes('c27'));
     });
 
     it('ignores other members and out-of-range dates', () => {

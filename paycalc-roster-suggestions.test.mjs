@@ -535,6 +535,16 @@ describe('getRosterSuggestion — absence pays as the day underneath (full pay)'
     assert.strictEqual(getRosterSuggestion(period('2026-04-11'), cReen), null);
   });
 
+  test('absence on a SWAPPED-IN rest day (contracted replacedType) → nothing, because its times were never kept', () => {
+    // The calendar shows this day as Absent (review A3), and it pays as the day underneath — but
+    // `replacedType` carries only the TYPE of that day, so there are no hours to credit and none are
+    // invented (paycalc.md invariant 1). C. Reen base Sat 2026-04-11 = RD.
+    _setOverridesForTest(new Map([
+      ['2026-04-11', { type: 'sick', value: 'SICK', replacedType: 'shift', _ts: 1, _manual: true }],
+    ]));
+    assert.strictEqual(getRosterSuggestion(period('2026-04-11'), cReen), null);
+  });
+
   test('AL is unchanged — still suppresses the day entirely', () => {
     _setOverridesForTest(new Map([
       ['2026-04-06', { type: 'annual_leave', value: 'AL', _ts: 1, _manual: true }],
