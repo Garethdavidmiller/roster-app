@@ -210,7 +210,10 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          # NODE 22 ON EVERY TEST JOB (owner, 26 Sep 2026) — the runtime functions/package.json declares
+          # and what contributors run. On 20 a suite could pass locally and fail here (Node grew a global
+          # `navigator` at 21). Only the DEPLOY workflows keep 20, for firebase-tools auth.
+          node-version: '22'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
@@ -261,7 +264,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Prove nothing is installed
         run: |
@@ -350,7 +353,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
@@ -448,7 +451,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
@@ -498,7 +501,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
@@ -539,7 +542,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
@@ -613,7 +616,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
 
       - name: Install dependencies
@@ -782,7 +785,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
           # Every job here runs its own `npm ci`. Uncached, that is twelve cold installs per run,
           # and on 4 Sep 2026 one of them took SEVEN MINUTES — which is what cancelled `smoke`
           # mid-suite against its 15-minute budget. The lockfile is the cache key, so a dependency
