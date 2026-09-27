@@ -30,6 +30,9 @@ test('a factor present in BOTH is named — it is the finding a comparison is li
     const present = assessFatigue(FT.patterns).results.filter(x => x.status === 'present');
     assert.ok(present.length > 0, 'the fixture carries present factors');
     assert.deepEqual(r.fatigue.presentInBoth.map(p => p.code + p.title), present.map(p => p.code + p.title));
+    // The caveat travels too (48-hour review) — the card shows "(definition to confirm)" for these.
+    assert.deepEqual(r.fatigue.presentInBoth.map(p => p.confirm), present.map(p => Boolean(p.confirm)));
+    assert.ok(present.some(p => p.confirm), 'the fixture carries a factor still to confirm');
 });
 
 test('a factor present in both at DIFFERENT figures is still named as present in both', () => {

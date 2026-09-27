@@ -169,7 +169,10 @@ export function _restoreRosterSuggested(pNum) {
     if (elH.value === (hVal != null ? String(hVal) : '')) elH.classList.add('roster-suggested');
     // Minutes compare in their DISPLAY form: writeFormData shows a restored 5 as "05", exactly as
     // the fill did (minutesFieldText), so the unpadded String(5) would never match again.
-    if (elM.value === minutesFieldText(mVal)) elM.classList.add('roster-suggested');
+    // …and exactly as writeFormData writes them, including a saved 0 as BLANK (48-hour review): the
+    // bare minutesFieldText(0) is "00", so a whole-hour fill came back with its hours gold and its
+    // minutes plain. Same expression as writeFormData's `mins`, so the two cannot disagree again.
+    if (elM.value === (mVal ? minutesFieldText(mVal) : '')) elM.classList.add('roster-suggested');
   }
 }
 

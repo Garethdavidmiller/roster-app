@@ -74,9 +74,11 @@ no matches → log and stop. There is deliberately **no "no targets → fall bac
 If you add another addressed-to-one-person notification, use `sendTargetedPush` and keep that shape.
 **The `owner` does not outlive a sign-out** (Sep 2026 review): the drawer's Sign out — once the page
 has committed to it (a `beforeSignOut` cancel keeps the record) — and the Calendar's "Use the staff
-PIN instead" hand-over call `releaseDevicePush` (`notif.js`) while still signed in, deleting this device's record, so a targeted
+PIN instead" hand-over call `releaseDevicePush` (`notif.js`), deleting this device's record, so a targeted
 notice never follows a member onto a shared device they have left. The next load re-saves the record
-as whoever is signed in then.
+as whoever is signed in then. **Where the delete cannot run as the owner** — the Calendar's member card
+is shown precisely when the member's Firebase identity has gone — the browser subscription is dropped
+instead, and the next send's 410 makes the server delete the record (48-hour review, v24.35).
 
 **The second is `password-reset` (v23.62, owner request):** when the admin resets a member's password
 from Operations, that member is told on their OWN devices. Until then the one person the reset was

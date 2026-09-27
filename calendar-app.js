@@ -349,6 +349,9 @@ function showFirstRunPrompt() {
     }
 }
 
+/** Withdraws the initial sync's failure chip; set once `initInitialFetch` runs. */
+let _dismissSyncError = () => {};
+
 /**
  * "Try again" from the withheld-grid panel (v20.40) — the recovery for a month whose overrides
  * could not be read, where before there was nothing to press because the base roster simply went up
@@ -362,6 +365,7 @@ function showFirstRunPrompt() {
  * @param {number} month - 0-indexed
  */
 function retryMonth(year, month) {
+    _dismissSyncError();
     const key = monthKey(year, month);
     clearFetchedMonth(key);
     forgetOverrideKnowledge(key);
@@ -719,6 +723,7 @@ try {
             // the local-cache path open behind the card.
             onAccessLost: () => { setOverrideAccess(false); setDocumentAccess(false); handleAccessLost(); },
         });
+        _dismissSyncError = _initialFetch.dismissSyncError;
 
         // ── LET THE LOCAL CACHE WIN THE FIRST PAINT (v21.29, external latency review) ────────────
         //

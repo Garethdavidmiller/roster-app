@@ -443,5 +443,16 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
     }
   });
 
-  return { cacheSettled };
+  // THE PANEL'S RETRY TAKES OVER FROM THE CHIP (48-hour review). The month panel's Try again re-reads
+  // the month without passing through `doRetry`, so a recorded failure outlived a retry that worked
+  // and the header watcher re-attached "Couldn't update" above the grid it had just loaded. From that
+  // press the panel is the recovery path (a failed re-read repaints it, and the other two months were
+  // released, so navigating re-reads them), so the chip's claim is withdrawn rather than left standing.
+  function dismissSyncError() {
+    if (!_chipState?.className.includes('sync-chip-error')) return;
+    setChipState(null);
+    if (syncChip) { syncChip.remove(); syncChip = null; }
+  }
+
+  return { cacheSettled, dismissSyncError };
 }

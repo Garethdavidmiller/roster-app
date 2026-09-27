@@ -497,6 +497,10 @@ export async function savePushSubscription(subscription) {
  */
 export async function deletePushSubscription(endpoint) {
     if (!endpoint) return;
+    // NO OWNER, NO DELETE: the rule would refuse it anyway, after a round trip a sign-out's 1.5s
+    // time-box may not have. `releaseDevicePush` then drops the BROWSER subscription instead.
+    const u = auth.currentUser;
+    if (!u || u.isAnonymous || isViewerUser(u)) throw Object.assign(new Error('push/no-owner-session'), { code: 'push/no-owner-session' });
     const id = await endpointId(endpoint);
     await deleteDoc(doc(db, COLLECTIONS.pushSubscriptions, id));
 }

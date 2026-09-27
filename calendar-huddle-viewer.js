@@ -437,10 +437,15 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
             /** @param {any} huddle @param {boolean} [fromCache] */ (huddle, fromCache) => {
                 const prevUrl = _huddleData?.storageUrl;
                 if (!huddle) {
-                    _huddleState = 'none';
-                    // A cold tap is told "none" only once the SERVER says so: a fresh device's empty
-                    // cache answers first, and would flash "no Huddle uploaded" over one that exists.
-                    if (_awaitingInViewer() || (!fromCache && _awaitingTap())) showStateMessage('none');
+                    // ONLY THE SERVER CAN SAY "NONE" (48-hour review). An empty answer from the local
+                    // cache alone means this device could not ask — the SDK raises one when offline —
+                    // so it is 'error' ("Couldn't load", with Try again), never "No Daily Huddle has
+                    // been uploaded yet", which is a claim about the world. A server answer that
+                    // follows replaces it. A cold tap still waits for the server either way: a fresh
+                    // device's empty cache answers first, and would flash over a Huddle that exists.
+                    const state = fromCache ? 'error' : 'none';
+                    _huddleState = state;
+                    if (_awaitingInViewer() || (!fromCache && _awaitingTap())) showStateMessage(state);
                 } else {
                     _huddleData  = huddle;
                     _huddleState = 'ready';

@@ -616,6 +616,14 @@ describe('FF18 — the week-to-week step', () => {
         assert.match(String(r.detail), /0 of 3 line boundaries/);
     });
 
+    test('drawn lines that are not NEIGHBOURS are standing, never "no line carries a start time" (48-hour review)', () => {
+        const flat = [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD];
+        const r = assessFatigue({ 1: design(flat)[1], 3: design(flat)[1], 5: design(flat)[1] }, 6).results.find(x => x.code === 'FF18');
+        assert.equal(r.status, 'standing', 'three lines carry times — the cadence applies to them');
+        assert.doesNotMatch(String(r.detail), /No line carries a start time/);
+        assert.match(String(r.detail), /neighbouring lines/);
+    });
+
     test('an UNFILLED line is not called a spare week', () => {
         const flat = [RD, EARLY, EARLY, EARLY, EARLY, EARLY, RD];
         const r = assessFatigue(design(flat, flat), 3).results.find(x => x.code === 'FF18');

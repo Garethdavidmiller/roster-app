@@ -2235,7 +2235,9 @@ export function init() {
             // set off Duplicate's "goes back to its last save" confirm. Also when the page moved on.
             const dropDeleted = (/** @type {any} */ data) => {
                 designs = designs.filter(x => x.id !== savingId);
-                if (data) deletedDesigns.unshift(binEntryFromDoc(savingId, data));
+                // Once (48-hour review): "Not now" leaves the design open, so each further Save
+                // lands here again, and every one of them added another copy to Recently deleted.
+                if (data) deletedDesigns = [binEntryFromDoc(savingId, data), ...deletedDesigns.filter(x => x.id !== savingId)];
                 renderDesignPicker();
             };
             const deletedElsewhere = async (/** @type {any} */ data) => {
