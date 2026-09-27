@@ -187,8 +187,54 @@ function solve(fixed, total, exclude) {
 }
 }
 
+// ---- ANNEAL=1: a fast local search for the SPLIT SWEEP (weekday and Saturday). It proves nothing; it estimates the best
+// fit at each total in seconds so the exhaustive proof need only be run at the chosen split and its neighbours. Every
+// candidate is judged by the same evaluate() as the enumeration, so it can only return tables the rules allow.
+function annealSolve(fixed, total, exclude) {
+  const ex = new Set(exclude);
+  const openersPool = POOL.filter(p => p.s === OPEN && p.e !== CLOSE && !ex.has(p.t));
+  const closersPool = POOL.filter(p => p.e === CLOSE && p.s !== OPEN && !ex.has(p.t) && (!CLOSER_ONLY || p.t === CLOSER_ONLY));
+  const midPool = POOL.filter(p => p.s !== OPEN && p.e !== CLOSE && p.e <= MID_END_MAX && !ex.has(p.t));
+  const fixedItems = []; for (const [t, n] of fixed) for (let x = 0; x < n; x++) fixedItems.push(byT[t]);
+  const fixedMin = fixedItems.reduce((a, p) => a + p.L, 0), fixedO = fixedItems.filter(p => p.s === OPEN).length, fixedC = fixedItems.filter(p => p.e === CLOSE).length;
+  const fixedCounts = new Int32Array(POOL.length); for (const p of fixedItems) fixedCounts[p.id]++;
+  let seed = Number(process.env.SEED ?? 7) >>> 0 || 7; const rnd = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; };
+  const pick = a => a[(rnd() * a.length) | 0];
+  const roleOf = p => p.s === OPEN ? openersPool : p.e === CLOSE ? closersPool : midPool;
+  const record = free => { const counts = Int32Array.from(fixedCounts), cov = new Float64Array(24), slots = new Int16Array(288);
+    for (const p of fixedItems) counts[p.id] += 0;
+    for (const p of free) { counts[p.id]++; for (let h = 0; h < 24; h++) cov[h] += p.cov[h]; for (const k of p.slots) slots[k]++; }
+    return evaluate(counts, cov, total, total - fixedMin, slots, fixedCounts); };
+  const randomState = () => { for (let tries = 0; tries < 400; tries++) {
+      const nO = OPENERS_MIN - fixedO + ((rnd() * (OPENERS_MAX - OPENERS_MIN + 1)) | 0), nC = CLOSERS_MIN - fixedC + ((rnd() * (CLOSERS_MAX - CLOSERS_MIN + 1)) | 0);
+      const nM = N - fixedItems.length - nO - nC; if (nO < 0 || nC < 0 || nM < 0) continue;
+      const free = [...Array.from({ length: nO }, () => pick(openersPool)), ...Array.from({ length: nC }, () => pick(closersPool)), ...Array.from({ length: nM }, () => pick(midPool))];
+      let d = total - fixedMin - free.reduce((a, p) => a + p.L, 0), guard = 0;
+      while (d !== 0 && guard++ < 60) { const i = (rnd() * free.length) | 0, p = free[i]; const step = Math.max(LO - p.L, Math.min(HI - p.L, d)); if (!step) continue;
+        const cand = roleOf(p).filter(q => q.L === p.L + step); if (!cand.length) continue; free[i] = pick(cand); d -= step; }
+      if (d === 0) return free; } return null; };
+  const neighbour = free => { const f = free.slice(); const i = (rnd() * f.length) | 0, p = f[i]; const pool = roleOf(p);
+    if (rnd() < 0.5) { const cand = pool.filter(q => q.L === p.L && q.id !== p.id); if (!cand.length) return null; f[i] = pick(cand); return f; }
+    const q = pick(pool); if (q.id === p.id) return null; const d = q.L - p.L; f[i] = q; if (!d) return f;
+    for (const j of f.map((_, k) => k).filter(k => k !== i).sort(() => rnd() - 0.5)) { const r = f[j], L2 = r.L - d; if (L2 < LO || L2 > HI) continue;
+      const cand = roleOf(r).filter(x => x.L === L2); if (cand.length) { f[j] = pick(cand); return f; } }
+    return null; };
+  const energy = r => r.fitRaw + 0.02 * r.turns + 0.002 * (r.starts + r.ends);
+  const MSR = Number(process.env.MS ?? 8000), RESTARTS = Number(process.env.RESTARTS ?? 8); const per = [];
+  for (let run = 0; run < RESTARTS; run++) {
+    let cur = null, rec = null; for (let t = 0; t < 200 && !rec; t++) { cur = randomState(); rec = cur && record(cur); }
+    if (!rec) { per.push(null); continue; } offer(rec); let localBest = rec; const t0 = Date.now();
+    while (Date.now() - t0 < MSR) { const frac = (Date.now() - t0) / MSR, temp = 4 * Math.pow(0.01 / 4, frac);
+      const nx = neighbour(cur); if (!nx) continue; const r2 = record(nx); if (!r2) continue;
+      if (energy(r2) <= energy(rec) || rnd() < Math.exp(-(energy(r2) - energy(rec)) / temp)) { cur = nx; rec = r2; offer(r2); if (keyOf(r2) < keyOf(localBest)) localBest = r2; } }
+    per.push(localBest.fit); }
+  console.log(`  anneal: ${RESTARTS} restarts x ${MSR} ms · per restart ${per.join(' ')}`);
+}
+
 const t0 = Date.now();
-if (CLS !== 'sun') {
+if (CLS !== 'sun' && process.env.ANNEAL === '1') {
+  annealSolve(FIXED, TOTAL, FIXED.map(([t]) => t));
+} else if (CLS !== 'sun') {
   solve(FIXED, TOTAL, FIXED.map(([t]) => t));
 } else {
   // The ticket office: 07:15–X x2 (two of the four openers) and Y–22:30 x2, with X ≥ Y. Every such pair, and every
