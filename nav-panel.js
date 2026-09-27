@@ -453,17 +453,18 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         const timed = new Promise((_res, reject) =>
             setTimeout(() => reject(new Error('doc-fetch-timeout')), 8000));
         // Wait for a Firebase session before reading (AUTH_PLAN.md → E1): the three document
-        // collections are open today, but Track E requires a session, and a read fired before
-        // signInAnonymously lands would return nothing. Each page passes its own promise (the
-        // calendar `calendarAuthReady`; the five authenticated pages `sessionReady`).
+        // collections require access (firestore.rules, since v23.18 — a member's claim, `admin`, or
+        // the PIN's `calendarViewer`), so a read fired before the session lands is refused. Each
+        // page passes its own promise (the calendar `calendarAuthReady`; the authenticated pages
+        // `sessionReady`).
         //
         // BOUNDED, not plain (v19.07). A plain `await authReady` broke the very thing E1 was meant to
         // preserve: on operations/links the in-place-login path deliberately leaves `sessionReady`
         // UNRESOLVED until the user signs in, so a SIGNED-OUT user tapping a document there sat
         // through the whole 8s race and got the failure fallback — where before it opened instantly,
-        // because these collections are open today. Waiting a moment for a session and then reading
-        // anyway restores that: it succeeds under today's rules, and once reads require a session it
-        // fails into the same fallback rather than stalling first.
+        // because at the time these collections were open to anyone. Waiting a moment and then
+        // reading anyway still matters now that they are not: a visitor with no session is refused
+        // straight into the same fallback rather than stalling for the full 8s first.
         const authOrSoon = Promise.race([authReady, new Promise(r => setTimeout(r, DOC_AUTH_WAIT_MS))]);
         // The short-lived url is requested ALONGSIDE the document read (v24.23) — the server picks
         // the latest document itself, so it needs nothing the read returns, and in series the blank
@@ -483,7 +484,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 // takes; a null is ordinary (no IAM grant, lapsed claim, timeout) and the stored
                 // url is then used, as it was before this existed.
                 const signed = await signedP;
-                const open = resolveDocumentOpenUrl({ signed, stored: safeUrl, fileType: data.fileType });
+                const open = resolveDocumentOpenUrl({ signed, stored: safeUrl, fileType: data.fileType, storagePath: data.storagePath });
                 // Unreachable while `safeUrl` is non-null (resolveDocumentOpenUrl would have to
                 // reject BOTH urls), but it is the branch that hands a url to window.open, so it
                 // fails closed rather than trusting that. Same shape as the no-document path below:

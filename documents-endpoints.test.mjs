@@ -649,6 +649,21 @@ describe('getDocumentUrl — the URL is SHORT-LIVED, which is the whole point', 
         assert.equal(out.body.expiresAt, call.expires, 'the client is told a different expiry than was signed');
     });
 
+    test('the response names the FILE it signed — the exact path, not merely the kind (v24.33)', async () => {
+        // The client reads "the latest" from Firestore and this endpoint reads it again; an upload
+        // between the two leaves the client holding one document and a url for another. The path is
+        // versioned per upload, so it is what the client compares — and it must be the path the
+        // SIGNER was given, or the comparison is checking a claim rather than the file.
+        const w = build({ seed: PUBLISHED });
+        w.setClaims({ admin: true });
+        for (const kind of ['huddle', 'circular', 'newsletter']) {
+            const out = await askForUrl(w.eps, { kind });
+            assert.equal(out.code, 200);
+            assert.equal(out.body.storagePath, w.signed.at(-1).path,
+                `${kind}: the response names a different file from the one that was signed`);
+        }
+    });
+
     test('the response carries the fileType, because the client picks the viewer from it', async () => {
         const w = build({ seed: PUBLISHED });
         w.setClaims({ admin: true });

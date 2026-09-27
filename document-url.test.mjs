@@ -41,8 +41,21 @@ describe('a good answer is used', () => {
     test('a 200 with a url returns it', async () => {
         const url = 'https://storage.googleapis.com/myb-roster.appspot.com/huddles/x.pdf?X-Goog-Expires=900';
         assert.deepEqual(await requestSignedDocumentUrl('huddle', token, res(200, { url, expiresAt: EXPIRES, fileType: 'docx' })),
-            { url, expiresAt: EXPIRES, fileType: 'docx' },
+            { url, expiresAt: EXPIRES, fileType: 'docx', storagePath: null },
             'the expiry and the SERVER\'s file type travel with the url (v24.23)');
+    });
+
+    test('the file the server signed travels with the url too (v24.33)', async () => {
+        // resolveDocumentOpenUrl compares it with the document the caller holds — an upload between
+        // the two "latest" reads made them different files. A missing or unusable value is `null`,
+        // which is what a pre-v24.33 server sends and is trusted as it always was.
+        const got = await requestSignedDocumentUrl('huddle', token,
+            res(200, { ...LOOKS_FINE, storagePath: 'huddles/2026-09-26-abc.pdf' }));
+        assert.equal(got?.storagePath, 'huddles/2026-09-26-abc.pdf');
+        for (const storagePath of [undefined, null, '', 42, {}]) {
+            const r = await requestSignedDocumentUrl('huddle', token, res(200, { ...LOOKS_FINE, storagePath }));
+            assert.equal(r?.storagePath, null, `storagePath=${JSON.stringify(storagePath)} was kept`);
+        }
     });
 
     test('a url with no readable expiry is not used — it could be lapsed and nothing could tell (v24.23)', async () => {

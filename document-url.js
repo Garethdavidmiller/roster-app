@@ -44,7 +44,7 @@ export const DOCUMENT_URL_ENDPOINT = 'https://europe-west2-myb-roster.cloudfunct
 export const DOCUMENT_URL_TIMEOUT_MS = 8_000;
 
 /**
- * @typedef {{ url: string, expiresAt: number, fileType: string|null }} SignedDocumentUrl
+ * @typedef {{ url: string, expiresAt: number, fileType: string|null, storagePath: string|null }} SignedDocumentUrl
  */
 
 /**
@@ -69,7 +69,7 @@ export async function requestSignedDocumentUrl(kind, getToken, doFetch = fetchWi
             console.warn(`[documentUrl] ${kind}: server said ${r.status} — using the stored url`);
             return null;
         }
-        const { url, expiresAt, fileType } = await r.json();
+        const { url, expiresAt, fileType, storagePath } = await r.json();
         // A 200 carrying no url is a server we do not recognise. Treat it as no url rather than
         // handing `undefined` onward to be opened.
         if (typeof url !== 'string' || !url) return null;
@@ -82,7 +82,16 @@ export async function requestSignedDocumentUrl(kind, getToken, doFetch = fetchWi
         // a .docx directly (it downloads) or send a PDF to the Office viewer. A url with no
         // readable expiry is not used — the stored one is right there.
         if (!Number.isFinite(expiresAt)) return null;
-        return { url, expiresAt, fileType: typeof fileType === 'string' ? fileType : null };
+        // ── AND SO DOES THE FILE IT SIGNED (v24.33) ─────────────────────────────────────────────
+        // `resolveDocumentOpenUrl` compares this with the document the caller is holding, because
+        // "the latest" was read twice — once here, once from Firestore — and an upload between the
+        // two made them different files. `null` means a server from before v24.33, which is
+        // accepted as it always was, so the two halves can deploy in either order.
+        return {
+            url, expiresAt,
+            fileType:    typeof fileType === 'string' ? fileType : null,
+            storagePath: typeof storagePath === 'string' && storagePath ? storagePath : null,
+        };
     } catch (err) {
         console.warn(`[documentUrl] ${kind}: could not mint a short-lived url —`, err);
         return null;

@@ -392,6 +392,22 @@ describe('doc viewer — which URL the member actually opens (v24.19)', () => {
         assert.equal(await openedUrl(), SIGNED);
     });
 
+    test('a signed url for a DIFFERENT upload is passed over — the viewer passes its own path (v24.33)', async () => {
+        // The entry point, not the helper: deleting `storagePath: doc.storagePath` from the viewer's
+        // call leaves every storage-utils test green, so the wiring is pinned here.
+        _circularImpl = () => Promise.resolve({ storageUrl: STORED, fileType: 'pdf', storagePath: 'circulars/2026-09-25-a.pdf' });
+        _signedImpl   = () => Promise.resolve({ url: SIGNED, expiresAt: Date.now() + 10 * 60_000, fileType: 'pdf',
+            storagePath: 'circulars/2026-09-26-b.pdf' });
+        assert.equal(await openedUrl(), STORED, 'the url for a newer upload was opened from this document\'s viewer');
+    });
+
+    test('and the same upload opens as the signed url', async () => {
+        _circularImpl = () => Promise.resolve({ storageUrl: STORED, fileType: 'pdf', storagePath: 'circulars/2026-09-25-a.pdf' });
+        _signedImpl   = () => Promise.resolve({ url: SIGNED, expiresAt: Date.now() + 10 * 60_000, fileType: 'pdf',
+            storagePath: 'circulars/2026-09-25-a.pdf' });
+        assert.equal(await openedUrl(), SIGNED);
+    });
+
     test('the url is minted BEFORE the click, so the gesture is not spent', async () => {
         // The constraint that shaped this design. `window.open` without a user gesture is
         // pop-up-blocked and drops the PWA out of standalone, so the fetch must have finished by

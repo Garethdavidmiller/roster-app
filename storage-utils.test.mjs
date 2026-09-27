@@ -251,3 +251,52 @@ describe('resolveDocumentOpenUrl — resolved at the tap, not at the mint', () =
         assert.equal(r.url, STORED, 'a stored PDF must not be sent to the Office viewer because a lapsed signed one was a .docx');
     });
 });
+
+// ── THE SIGNED URL MUST BE FOR THE FILE THE CALLER IS HOLDING (v24.33, external review) ──────────
+describe('resolveDocumentOpenUrl — the same FILE, not merely the latest of the kind', () => {
+    const SIGNED_URL = 'https://storage.googleapis.com/myb-roster.appspot.com/huddles/b.pdf?X-Goog-Expires=900';
+    const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2Fa.pdf?token=abc';
+    const NOW = Date.UTC(2026, 8, 27, 9, 0);
+    const signedFor = (/** @type {any} */ storagePath) =>
+        ({ url: SIGNED_URL, expiresAt: NOW + 10 * 60_000, fileType: 'pdf', storagePath });
+
+    test('the signed url is used when it is for the document being held', () => {
+        const r = resolveDocumentOpenUrl({ signed: signedFor('huddles/a.pdf'), stored: STORED,
+            fileType: 'pdf', storagePath: 'huddles/a.pdf' }, NOW);
+        assert.equal(r?.url, SIGNED_URL);
+        assert.equal(r?.signed, true);
+    });
+
+    test('an upload between the two reads: the url for the NEWER file is passed over', () => {
+        // The client read A; the server signed B. Opening B from a prompt describing A is the defect.
+        const r = resolveDocumentOpenUrl({ signed: signedFor('huddles/b.pdf'), stored: STORED,
+            fileType: 'pdf', storagePath: 'huddles/a.pdf' }, NOW);
+        assert.equal(r?.url, STORED, 'a url for a different file was opened');
+        assert.equal(r?.signed, false);
+    });
+
+    test('a same-day re-upload is caught too — the path is versioned, the date is not', () => {
+        const r = resolveDocumentOpenUrl({ signed: signedFor('huddles/2026-09-27-new.pdf'), stored: STORED,
+            fileType: 'pdf', storagePath: 'huddles/2026-09-27-old.pdf' }, NOW);
+        assert.equal(r?.signed, false);
+    });
+
+    test('a server from before v24.33 names no file and is trusted as before — either deploy order works', () => {
+        for (const storagePath of [null, undefined]) {
+            const r = resolveDocumentOpenUrl({ signed: signedFor(storagePath), stored: STORED,
+                fileType: 'pdf', storagePath: 'huddles/a.pdf' }, NOW);
+            assert.equal(r?.signed, true, `storagePath=${String(storagePath)} was refused`);
+        }
+    });
+
+    test('a held document with no path cannot be the one signed — the server never signs without one', () => {
+        const r = resolveDocumentOpenUrl({ signed: signedFor('huddles/b.pdf'), stored: STORED, fileType: 'pdf' }, NOW);
+        assert.equal(r?.signed, false);
+    });
+
+    test('a mismatch with no usable stored url opens NOTHING rather than the other file', () => {
+        const r = resolveDocumentOpenUrl({ signed: signedFor('huddles/b.pdf'), stored: 'javascript:alert(1)',
+            fileType: 'pdf', storagePath: 'huddles/a.pdf' }, NOW);
+        assert.equal(r, null);
+    });
+});

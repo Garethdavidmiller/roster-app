@@ -267,7 +267,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
             // Resolved AT THE TAP: a url minted when the prompt appeared can have lapsed by now,
             // and resolveDocumentOpenUrl passes a near-expiry one over for the stored url.
             // Defence-in-depth as before: only a recognised Firebase Storage HTTPS url is opened.
-            const open = resolveDocumentOpenUrl({ signed, stored: huddle.storageUrl, fileType: huddle.fileType });
+            const open = resolveDocumentOpenUrl({ signed, stored: huddle.storageUrl, fileType: huddle.fileType, storagePath: huddle.storagePath });
             if (open) {
                 window.open(open.url, '_blank', 'noopener');
             } else {

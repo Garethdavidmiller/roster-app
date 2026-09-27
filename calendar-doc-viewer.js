@@ -142,8 +142,9 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
             // settles, the fetch was never attempted and the viewer sat on "Loading…" forever — from
             // an explicit user action (a notification tap), with no failure ever announced to a
             // screen reader. Same shape as the nav-drawer path and the calendar retry: wait a moment
-            // for a session, then read anyway; today that succeeds, and once reads require a session
-            // it fails into the catch below, which now offers a retry.
+            // for a session, then read anyway. Reads DO require access (firestore.rules, since v23.18
+            // — a member's claim, `admin`, or the PIN's `calendarViewer`), so a read without a
+            // session fails into the catch below, which offers a retry, rather than stalling first.
             const authOrSoon = Promise.race([authReady, _delay(DOC_AUTH_WAIT_MS)]);
             // The short-lived url is requested ALONGSIDE the document read (v24.23), not after it:
             // the server picks the latest document itself, so the request needs nothing the read
@@ -178,7 +179,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
                 // resolveDocumentOpenUrl then uses the stored url, which is what shipped before.
                 const signed = await signedP;
                 if (seq !== _openSeq) return;   // a newer tap superseded this one while we waited
-                if (!resolveDocumentOpenUrl({ signed, stored: doc.storageUrl, fileType: doc.fileType })) {
+                if (!resolveDocumentOpenUrl({ signed, stored: doc.storageUrl, fileType: doc.fileType, storagePath: doc.storagePath })) {
                     showMessage(d.empty, 'doc-viewer-empty'); return;
                 }
                 bodyEl.textContent = '';
@@ -197,7 +198,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
                     // signed url was minted when the viewer opened, and a member who locked the
                     // phone and came back twenty minutes later was handed a lapsed link. A url near
                     // its expiry is passed over for the stored one, which never lapses.
-                    const open = resolveDocumentOpenUrl({ signed, stored: doc.storageUrl, fileType: doc.fileType });
+                    const open = resolveDocumentOpenUrl({ signed, stored: doc.storageUrl, fileType: doc.fileType, storagePath: doc.storagePath });
                     if (open) window.open(open.url, '_blank', 'noopener');
                 });
                 bodyEl.appendChild(btn);
