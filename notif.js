@@ -282,6 +282,15 @@ export async function disableNotifications() {
  *
  * The BROWSER subscription is kept, so the device keeps its notification setting: the re-save
  * throttle is cleared, and the next page load re-saves the record as whoever is signed in then.
+ *
+ * UNLESS THE RECORD CANNOT BE DELETED (48-hour review). The rule lets only its owner delete it, and
+ * the Calendar's member card is shown precisely when a local session has OUTLIVED its Firebase
+ * identity — so "Use the staff PIN instead" and the drawer's Sign out there ran a delete that was
+ * always refused, and the departed member's personal notices kept arriving on a shared PC. When the
+ * delete fails, the browser subscription is dropped instead: the next send to that endpoint gets a
+ * 410, and the server deletes the record itself (`sendTargetedPush`/`fanOutPush`). The cost is that
+ * the next person on this device switches notifications on again — the right way round for a
+ * device being handed over.
  * Best-effort and TIME-BOXED — a sign-out must never wait on a service worker or a network that is
  * not answering; an abandoned delete leaves exactly what was there before.
  * @param {number} [timeoutMs]
@@ -294,7 +303,13 @@ export async function releaseDevicePush(timeoutMs = 1500) {
     const work = (async () => {
         const reg = await swReady();
         const sub = await reg.pushManager.getSubscription();
-        if (sub) await deletePushSubscription(sub.endpoint);
+        if (!sub) return;
+        try {
+            await deletePushSubscription(sub.endpoint);
+        } catch (e) {
+            console.warn('[Notifications] Sign-out could not delete the record — dropping the subscription:', /** @type {any} */ (e)?.message);
+            await sub.unsubscribe();
+        }
     })().catch(e => console.warn('[Notifications] Sign-out release failed (non-fatal):', /** @type {any} */ (e)?.message));
     /** @type {ReturnType<typeof setTimeout>|undefined} */
     let timer;

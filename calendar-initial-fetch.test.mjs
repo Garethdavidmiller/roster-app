@@ -297,6 +297,31 @@ describe('failure path', () => {
         assert.equal(calls - before, 1, 'one click must issue exactly one retry request');
     });
 
+    // The month panel's own Try again (48-hour review): a failure recorded here outlived a panel
+    // retry that worked, and the next header rebuild re-attached "Couldn't update" above the grid.
+    test('dismissSyncError withdraws the failure, and a rebuilt header does not bring it back', async () => {
+        _fetchImpl = () => Promise.reject(new Error('x'));
+        const f = initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync();
+        const chip = getSyncChip();
+        assert.ok(chip?._classes.has('sync-chip-error'), 'the failure chip is there to withdraw');
+        f.dismissSyncError();
+        assert.equal(chip._removed, true, 'the chip leaves the header');
+        rebuildHeader();   // the rebuild clears the header's children, so any chip found now is a NEW one
+        assert.equal(getSyncChip(), null, 'and the header watcher does not re-attach it');
+    });
+
+    test('dismissSyncError leaves a sync that is still RUNNING alone', (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => new Promise(() => {});
+        const f = initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        t.mock.timers.tick(800);
+        const chip = getSyncChip();
+        assert.ok(chip, 'the updating chip is showing');
+        f.dismissSyncError();
+        assert.notEqual(chip._removed, true, 'only a FAILURE is withdrawn — "Updating…" is still true');
+    });
+
     test('renderCalendar() IS called when the fetch fails (v20.40 — inverted deliberately)', async () => {
         // This asserted the OPPOSITE until v20.40, and was right to: while a failed month kept
         // showing the base roster, repainting it changed nothing. Now the grid is WITHHELD until the

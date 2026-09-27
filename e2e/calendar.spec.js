@@ -311,6 +311,24 @@ test('calendar: the retry re-reads, and a grid appears when it succeeds', async 
     await expect(page.locator('.legend')).toBeVisible();
 });
 
+// A retry that WORKED must not leave the header saying it failed (48-hour review). The initial sync's
+// failure is recorded as a chip state that re-attaches whenever the header is rebuilt; the panel's own
+// Try again re-reads the month without passing through the chip, so the grid came back with
+// "Couldn't update — tap to retry" above it, contradicting the shifts it was showing.
+test('calendar: after the panel retry succeeds, no "couldn\'t update" chip is left behind', async ({ page }) => {
+    await seedMember(page);
+    await page.addInitScript(() => { (window.__E2E = window.__E2E || {}).failGetDocs = true; });
+    await page.goto('/');
+    await expect(page.locator('.calendar-pending-retry')).toBeVisible();
+    await expect(page.locator('.sync-chip.sync-chip-error')).toHaveCount(1);   // the failure WAS recorded
+
+    await page.evaluate(() => { window.__E2E.failGetDocs = false; });
+    await page.locator('.calendar-pending-retry').click();
+
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('.sync-chip-error')).toHaveCount(0);
+});
+
 // ONE MESSAGE AT A TIME (polish round 2). The withheld-grid panel and the header sync chip used to say
 // the same thing together — "Checking this month" beside "Updating your shifts…", "Couldn't check
 // this month" + Try again beside "Couldn't update — tap to retry". The chip now steps back while a
@@ -2470,6 +2488,21 @@ for (const [held, signed, expected] of [
             .toEqual([expected === 'stored' ? DOC_STORED : DOC_SIGNED]);
     });
 }
+
+test('huddle: offline with nothing cached, a tap says it could not load — never "none uploaded"', async ({ page }) => {
+    // 48-hour review: an empty answer from the local cache alone is what the SDK raises OFFLINE, and
+    // the warm tap turned it into "No Daily Huddle has been uploaded yet" — a claim about the world
+    // the device could not have checked.
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, huddleEmpty: 'cache' }; });
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(300);   // the cache-only snapshot has landed
+    await page.evaluate(() => { location.hash = '#huddle'; });
+    const body = page.locator('#huddleViewerBody');
+    await expect(body).toContainText("Couldn't load the Daily Huddle", { timeout: 10_000 });
+    await expect(body).not.toContainText('No Daily Huddle has been uploaded yet');
+});
 
 test('huddle: the Open button works immediately, while the short-lived link is still pending', async ({ page }) => {
     const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-09-25.pdf?alt=media&token=e2e';

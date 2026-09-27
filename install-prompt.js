@@ -125,7 +125,7 @@ function canBeSeen(strip) {
  *
  * @param {object} deps
  * @param {Promise<any>} deps.accessReady   resolves once the calendar's access decision is made
- * @param {() => string} deps.getAccessType 'named' | 'viewer' | 'open' | …
+ * @param {() => string} deps.getAccessType 'named' | 'viewer' | 'none' (an anonymous 'open' mode existed until v24.34)
  * @returns {void}
  */
 export function initInstallPrompt({ accessReady, getAccessType }) {
@@ -159,7 +159,7 @@ export function initInstallPrompt({ accessReady, getAccessType }) {
         deferred = e;
         accessReady.then(() => {
             const t = getAccessType();
-            if (t !== 'named' && t !== 'open') return;    // never the shared station
+            if (t !== 'named') return;    // a named member only — never the shared station
             actionBtn.hidden = false;      // there is a real prompt to fire
             stepsEl.hidden   = true;       // …so the manual instructions are not the answer
             show();
@@ -173,7 +173,7 @@ export function initInstallPrompt({ accessReady, getAccessType }) {
     if (isIOS()) {
         accessReady.then(() => {
             const t = getAccessType();
-            if (t !== 'named' && t !== 'open') return;
+            if (t !== 'named') return;
             if (deferred) return;                          // Chromium branch already handled it
             actionBtn.hidden = true;                       // there is nothing to press
             stepsEl.hidden   = false;                      // so say what to tap instead

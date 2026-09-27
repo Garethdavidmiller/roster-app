@@ -111,6 +111,15 @@ describe('a push subscription carries its owner', () => {
         assert.equal(del.op, 'delete');
         assert.equal(del.path, save.path, 'the same hashed id both ways');
     });
+    test('with no owner session it REFUSES at once and writes nothing (48-hour review)', async () => {
+        // No user, an anonymous one or the PIN viewer can never satisfy the owner-only delete rule;
+        // the caller (releaseDevicePush) needs to know NOW, not after a round trip, to drop the
+        // browser subscription instead.
+        await assert.rejects(fc.deletePushSubscription('https://push.example/abc'), /no-owner-session/);
+        signIn().isAnonymous = true;
+        await assert.rejects(fc.deletePushSubscription('https://push.example/abc'), /no-owner-session/);
+        assert.deepEqual(writes('pushSubscriptions/'), [], 'a doomed delete is not attempted');
+    });
 });
 
 // ── a member's own documents ──────────────────────────────────────────────────────────────────

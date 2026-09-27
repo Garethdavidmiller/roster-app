@@ -246,7 +246,9 @@ export function init() {
     window.addEventListener('hashchange', () => followDeepLink(true));
     // Back to a tab left open: the queue may have grown while it was hidden.
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') initResetRequests();
+        // A REFRESH, not a re-open (48-hour review): the admin may have closed the card, and every
+        // return to the tab forced it open again. The list and the count chip still update.
+        if (document.visibilityState === 'visible') initResetRequests({ autoOpen: false });
     });
 
     // The Needs-attention strip (v22.03) — an index the cards feed; it runs no reads of its own
@@ -672,7 +674,9 @@ export function init() {
     // list, never from the request body, which is what makes it safe to render.
     let _rrLoading = false;
     let _rrReloadPending = false;
-    async function initResetRequests() {
+    let _rrPendingOpen = false;   // a queued reload inherits the strongest ask it stood in for
+    /** @param {{ autoOpen?: boolean }} [opts] */
+    async function initResetRequests({ autoOpen = true } = {}) {
         const content = document.getElementById('resetRequestsContent');
         const chip    = document.getElementById('resetRequestsCountChip');
         if (!content) return;
@@ -684,7 +688,7 @@ export function init() {
         // discarded → A's in-flight snapshot (taken before B was deleted) renders B back, and nothing
         // is queued to correct it. QUEUE the request instead of dropping it, so the last word always
         // belongs to a load started AFTER the last delete.
-        if (_rrLoading) { _rrReloadPending = true; return; }
+        if (_rrLoading) { _rrReloadPending = true; _rrPendingOpen = _rrPendingOpen || autoOpen; return; }
         _rrLoading = true;
         content.setAttribute('aria-busy', 'true');
         try {
@@ -706,7 +710,7 @@ export function init() {
             }
             // Auto-open when there IS something to action — an outstanding request is time-sensitive
             // (someone is locked out right now) and this card is collapsed by default.
-            openCard('resetRequestsBody', 'resetRequestsChevron');
+            if (autoOpen) openCard('resetRequestsBody', 'resetRequestsChevron');
             content.innerHTML = `<div class="rr-list">${requests.map(r => {
                 // escapeHtml even though the writer is server-validated (v18.94). The allowlist IS the
                 // control, but it sits three layers away with no test tying it to this render, and a
@@ -751,7 +755,7 @@ export function init() {
             _rrLoading = false;
             // Run the refresh that arrived mid-load, so a delete during a load is never the one whose
             // result is missing. Not awaited — this IS the tail of the load it was queued behind.
-            if (_rrReloadPending) { _rrReloadPending = false; initResetRequests(); }
+            if (_rrReloadPending) { const open = _rrPendingOpen; _rrReloadPending = false; _rrPendingOpen = false; initResetRequests({ autoOpen: open }); }
         }
     }
     initResetRequests();

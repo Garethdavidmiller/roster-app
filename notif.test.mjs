@@ -16,13 +16,14 @@ let _saveCalls = 0;
 let _saveThrows = false;   // structural failure — savePushSubscription throws 'push/subscription-missing-keys' (keyless sub — review B2)
 let _saveThrowsTransient = false;   // transient failure — an offline/Firestore blip (a DIFFERENT, non-structural error)
 let _deleteCalls = 0;
+let _deleteThrows = false;   // the rule refused the delete — no owner session on this device
 let _lastDeletedEndpoint = null;
 const _ls = new Map();
 
 mock.module('./firebase-client.js', {
     namedExports: {
         savePushSubscription:   async () => { _saveCalls++; if (_saveThrows) throw new Error('push/subscription-missing-keys'); if (_saveThrowsTransient) throw new Error('unavailable'); },
-        deletePushSubscription: async (/** @type {string} */ endpoint) => { _deleteCalls++; _lastDeletedEndpoint = endpoint; },
+        deletePushSubscription: async (/** @type {string} */ endpoint) => { _deleteCalls++; _lastDeletedEndpoint = endpoint; if (_deleteThrows) throw new Error('push/no-owner-session'); },
     },
 });
 mock.module('./ls.js', {
@@ -98,7 +99,7 @@ function setupEnv(cfg = {}) {
 }
 
 beforeEach(() => {
-    _saveCalls = 0; _saveThrows = false; _saveThrowsTransient = false; _deleteCalls = 0; _lastDeletedEndpoint = null; _ls.clear();
+    _saveCalls = 0; _saveThrows = false; _saveThrowsTransient = false; _deleteCalls = 0; _deleteThrows = false; _lastDeletedEndpoint = null; _ls.clear();
 });
 
 // notifSupported reads `'Notification' in window` / `'serviceWorker' in navigator` / `'PushManager' in window`.
@@ -314,6 +315,17 @@ describe('releaseDevicePush', () => {
         assert.equal(_lastDeletedEndpoint, sub.endpoint);
         assert.equal(sub._unsubscribed, false, 'the device keeps its setting — the next identity re-saves it as its own');
         assert.equal(_ls.has('myb_push_resave_at'), false, 'so the next load re-saves under whoever is signed in then');
+    });
+    test('a delete the rules REFUSE drops the browser subscription instead (48-hour review)', async () => {
+        // The Calendar's member card: a local session that outlived its Firebase identity. Only the
+        // record's owner may delete it, so the delete fails — and without this the departed member's
+        // personal notices kept arriving on a shared PC. A dropped subscription 410s on the next send
+        // and the server deletes the record itself.
+        const { sub } = setupEnv({ permission: 'granted', hasSub: true });
+        _deleteThrows = true;
+        await releaseDevicePush();
+        assert.equal(_deleteCalls, 1, 'the owner delete is still tried first');
+        assert.equal(sub._unsubscribed, true, 'a record nobody here can delete must not stay reachable');
     });
     test('no subscription → nothing to delete, and it still resolves', async () => {
         setupEnv({ permission: 'granted', hasSub: false });

@@ -129,7 +129,7 @@ export function compareDesigns(a, b, { lines = ROTATING_LINES } = {}) {
     const byCode = new Map(fb.results.map(r => [key(r), r]));
     /** @type {FactorChange[]} */
     const changed = [];
-    /** @type {Array<{code: string, title: string}>} */
+    /** @type {Array<{code: string, title: string, confirm: boolean}>} */
     const presentInBoth = [];
     let unchanged = 0;
     for (const r of fa.results) {
@@ -137,7 +137,9 @@ export function compareDesigns(a, b, { lines = ROTATING_LINES } = {}) {
         if (!o) continue;
         // Present on both sides is named whatever the figures — asked BEFORE the same-reading test,
         // or a factor both designs carry at different values is never listed as carried by both.
-        if (r.status === 'present' && o.status === 'present') presentInBoth.push({ code: r.code, title: r.title });
+        // …and it keeps the caveat (48-hour review): a factor whose definition is still to confirm
+        // must not read here as a bare finding when the Design checks card qualifies it.
+        if (r.status === 'present' && o.status === 'present') presentInBoth.push({ code: r.code, title: r.title, confirm: Boolean(r.confirm || o.confirm) });
         const same = r.status === o.status && String(r.value ?? '') === String(o.value ?? '');
         if (same) { unchanged++; continue; }
         // The CAVEATS travel with the reading (v24.25). v24.25 kept only status and value, so a factor

@@ -127,7 +127,8 @@ service cloud.firestore {
     // Every member rule below keys on `request.auth.token.name`, and until now it trusted that field
     // on sight. It cannot be trusted on sight: Firebase fills an ID token's `name` from the account's
     // DISPLAY NAME whenever no custom claim overrides it, and ANY session may set its own display
-    // name. Anonymous sign-in is enabled (the Calendar and the error reporter use it), so a stranger
+    // name. Anonymous sign-in was enabled — and still is in the console, though since v24.34 nothing
+    // in the client uses it (the Calendar and the error reporter did) — so a stranger
     // with the public page could sign in anonymously, call itself "G. Miller", refresh its token —
     // and read every override, read his work email, and write annual leave into his record. Proven
     // in the emulator against these rules, not assumed. The shared PIN account was worse: it was

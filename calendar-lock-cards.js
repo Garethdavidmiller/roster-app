@@ -398,7 +398,11 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
     // boot reads — and the tap still lands where it was going.
     //
     // It is a sign-out on a device being handed over, so it releases this device's push record
-    // first, WHILE still signed in, exactly as the drawer's Sign out does (time-boxed at 1.5s).
+    // first, exactly as the drawer's Sign out does (time-boxed at 1.5s). On THIS card the member's
+    // Firebase identity is usually already gone — that is when the card shows — so the owner-only
+    // delete is refused, and `releaseDevicePush` then drops the browser subscription instead (the
+    // next send 410s and the server deletes the record). 48-hour review: before that, the departed
+    // member's personal notices kept arriving on the shared PC.
     pinAlt.addEventListener('click', async () => {
         await releaseDevicePush();
         clearSession();

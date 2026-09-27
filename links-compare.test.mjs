@@ -583,6 +583,9 @@ test('analysis: a factor present in both designs is NAMED, not folded into a cou
     assert.match(html, /Present in both: /);
     assert.match(html, /FF11 More than 13 consecutive shifts/);
     assert.match(html, /No factor changes its finding between the two designs/);
+    // …and a factor still to confirm keeps that caveat in the list (48-hour review).
+    const both = html.slice(html.indexOf('Present in both: '));
+    assert.match(both.slice(0, both.indexOf('</p>')), /\(definition to confirm\)/);
 });
 
 test('analysis: unchanged rows still render, muted — "the same" is not "not measured"', () => {

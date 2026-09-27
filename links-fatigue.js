@@ -612,8 +612,13 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     // the flattery this module exists to prevent. Found by the v19.70 regression pass, not by the
     // v19.69 tests, because those all passed `lines` equal to the key count.
     const stepMeasurable = ff18Order.length - adj.unmeasurable > 0;
+    // NOT-APPLICABLE only when no line carries a time at all (48-hour review). Walking lines 1..lines
+    // made a part-built design whose drawn lines are not NEIGHBOURS — lines 1, 3 and 5 — measure no
+    // boundary, and it reported "No line carries a start time", which is false. The weekly cadence
+    // still applies to it, so it stays `standing` and says why no step can be measured yet.
+    const anyTimed = timed.length > 0;
     add({ code: 'FF18', family: 'Circadian', title: 'Rotating pattern of about a week', confirm: true,
-        status: stepMeasurable ? 'standing' : 'n/a',
+        status: stepMeasurable || anyTimed ? 'standing' : 'n/a',
         value: stepMeasurable
             ? `${lines}-line rotation · typically ${_hm(adj.gentleMean)} a week`
             : `${lines}-line rotation`,
@@ -622,7 +627,9 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         threshold: stepMeasurable ? `${GENTLE_THRESHOLD_MINUTES / 60}h` : undefined,
         detail: stepMeasurable
             ? `A link moves every person one line per week by construction, so the weekly cadence itself is unavoidable — what a design controls is how far the working day moves at each step. Here the typical move is ${_hm(adj.gentleMean)}, the largest is ${_hm(adj.gentleWorst)}, and ${adj.gentleOver} of ${lines} line boundaries move by more than ${GENTLE_THRESHOLD_MINUTES / 60} hours.${adj.unmeasurable ? ` ${adj.unmeasurable} boundaries carry no times (spare or unfilled weeks) and are excluded rather than counted as no change.` : ''} Settle the reading with the assessing manager: on the cadence alone no design can avoid this factor.`
-            : `No line carries a start time, so the week-to-week step cannot be measured. The ${lines}-line weekly cadence still applies.` });
+            : anyTimed
+                ? `No two neighbouring lines both carry start times yet, so the week-to-week step cannot be measured. The ${lines}-line weekly cadence still applies.`
+                : `No line carries a start time, so the week-to-week step cannot be measured. The ${lines}-line weekly cadence still applies.` });
 
     const jumps = startTimeJumps(seq);
     add({ code: 'FF19', family: 'Circadian', title: 'Successive start times varying by more than 2 hours', confirm: true,

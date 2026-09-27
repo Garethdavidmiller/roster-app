@@ -306,7 +306,8 @@ export const onSnapshot = (_q, onNext, onError) => {
   if (e2e.huddleError && typeof onError === 'function') {
     setTimeout(() => onError(new Error('e2e huddle listener failure')), 0);
   } else if (e2e.huddleEmpty && typeof onNext === 'function') {
-    setTimeout(() => onNext({ empty: true, docs: [] }), 0);
+    // huddleEmpty: 'cache' answers from the LOCAL CACHE only — what the SDK raises offline.
+    setTimeout(() => onNext({ empty: true, docs: [], metadata: { fromCache: e2e.huddleEmpty === 'cache' } }), 0);
   } else if (e2e.huddleDoc && typeof onNext === 'function') {
     const d = e2e.huddleDoc;
     setTimeout(() => onNext({ empty: false, docs: [{ id: d.date || 'x', data: () => d }] }), 0);

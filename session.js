@@ -554,21 +554,20 @@ export async function refreshClaimsIfStale(epoch) {
  *
  * ⚠️ Passive expiry only clears localStorage — it does NOT sign Firebase out.
  * getSession() runs synchronously at module eval on every page (incl. the
- * calendar). The calendar's `calendarAuthReady` checks `auth.currentUser` to
- * decide whether to sign in anonymously; if getSession() fired an async
- * firebaseSignOut here it would race that check and could leave the page with
- * no Firebase identity, so its best-effort writes (push-subscription renewal,
- * usage, error reporter) get rejected by the `request.auth != null` rule — the
- * exact "bell stuck off-lapsed" bug calendarAuthReady prevents. Firebase is signed
- * out only on an EXPLICIT clearSession() (user-initiated logout), and
- * ensureFirebaseSession() replaces a mismatched identity on the next login.
+ * calendar), before the auth restore has settled. An async firebaseSignOut fired
+ * here would race the Calendar's access decision (`decideAccess` reads the restored
+ * user) and could drop a still-valid identity mid-decision. Firebase is signed
+ * out only on an EXPLICIT clearSession() (user-initiated logout), by the
+ * coordinated `reconcileExpiredIdentity()` below, and ensureFirebaseSession()
+ * replaces a mismatched identity on the next login. (Until v24.34 this also
+ * protected the Calendar's anonymous bootstrap, which no longer exists.)
  *
  * ⚠️ A lingering Firebase identity is NOT harmless post-B3/H2/B4: a named/admin/manager/designer
  * identity retains real extra access at the FIREBASE layer (read all staff emails, on-behalf override
  * writes, admin uploads, Links writes) even after the local app session expired. The exposure is a
  * shared device where someone reaches the persisted credential via devtools / a direct SDK call.
  * `reconcileExpiredIdentity()` (below) is the COORDINATED teardown — run AFTER the auth restore, not an
- * async signOut inside this synchronous getSession() (which would race the calendar's anon bootstrap).
+ * async signOut inside this synchronous getSession() (which would race the Calendar's access decision).
  * The calendar (the PWA start_url) calls it on virtually every launch, AND every protected coordinator
  * (admin/settings/operations/links/paycalc) now calls it at init (review item 7), so a lingering expired
  * identity is dropped even on a direct deep-link to a protected page — no longer only on the next login

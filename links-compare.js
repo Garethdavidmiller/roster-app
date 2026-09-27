@@ -300,7 +300,7 @@ export function initLinksCompare(deps) {
                   `<ul class="compare-an-list">${shifted.map(factor).join('')}</ul></details>`
                 : '') +
             `<p class="compare-an-note">${f.presentInBoth.length
-                ? `Present in both: ${f.presentInBoth.map(p => `${escapeHtml(p.code)} ${escapeHtml(p.title)}`).join('; ')}. `
+                ? `Present in both: ${f.presentInBoth.map(p => `${escapeHtml(p.code)} ${escapeHtml(p.title)}${p.confirm ? ' (definition to confirm)' : ''}`).join('; ')}. `
                 : 'No factor is present in both. '}` +
             `${f.unchanged} factor${f.unchanged === 1 ? '' : 's'} read the same in both.</p>` +
             (f.hoursAreFloor

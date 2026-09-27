@@ -56,7 +56,7 @@ mock.module('./paycalc-roster-suggestions.js', {
     },
 });
 
-const { fillFromRoster, snapKey } = await import('./paycalc-roster-hint.js');
+const { fillFromRoster, snapKey, _restoreRosterSuggested } = await import('./paycalc-roster-hint.js');
 
 const A = '60', B = '61';
 /** @type {number} */ let _autosaves = 0;
@@ -131,5 +131,24 @@ describe('fillFromRoster — the minutes box shows two digits', () => {
         _resolveFetch('loaded');
         await run;
         assert.equal(_els.otM.value, '02');
+    });
+});
+
+// ── THE GOLD COMES BACK ON BOTH HALVES OF A WHOLE-HOUR FILL (48-hour review) ───────────────────
+describe('restoring the calendar-fill highlight after a reload', () => {
+    test('a whole-hour fill (16h 0m) highlights the MINUTES box too, which writeFormData left blank', () => {
+        setupDom('1');
+        /** @type {Record<string, Set<string>>} */ const cls = {};
+        for (const id of HM_IDS) {
+            cls[id] = new Set();
+            _els[id].classList = { add: (/** @type {string} */ c) => cls[id].add(c), remove: (/** @type {string} */ c) => cls[id].delete(c) };
+        }
+        _store.set(snapKey(1), JSON.stringify({ satH: 16, satM: 0 }));
+        // What writeFormData puts in the boxes for a saved 16h 0m: "16", and a BLANK minutes box.
+        _els.satH.value = '16';
+        _els.satM.value = '';
+        _restoreRosterSuggested(1);
+        assert.ok(cls.satH.has('roster-suggested'), 'the hours box is gold');
+        assert.ok(cls.satM.has('roster-suggested'), 'and so is the minutes box beside it — "00" never matched a blank');
     });
 });
