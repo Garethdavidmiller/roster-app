@@ -200,13 +200,13 @@ export function init() {
         // B1.2 enforcement, decided via the policy: once the named session resolves, the store (fed by the
         // Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
         // `requirePage(getAuthSnapshot(), 'settings')` returns 'login' exactly when this member's OWN named
-        // session could not be confirmed. Flag OFF → resolves to 'allow', so this never fires (unchanged).
+        // session could not be confirmed.
         _setAuth.then(() => {
             // resetNavPanel() before the overlay (v16.25, mirrors admin-app's stale-session path):
             // clearSession() drops the identity, but the nav drawer was already wired to the OLD
             // member — on a shared/stale device that stale identity stayed behind the overlay until
             // reload. Reset tears it down; the fresh login → reload re-wires it.
-            if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'settings').decision === 'login') { clearSession(); resetNavPanel(); initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => window.location.reload() }); }
+            if (requirePage(getAuthSnapshot(), 'settings').decision === 'login') { clearSession(); resetNavPanel(); initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => window.location.reload() }); }
         });
         initApp();
         wireNavPanel();   // deduped by initNavPanel's navPanelInit guard if the nav was already wired above

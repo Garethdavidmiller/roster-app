@@ -139,12 +139,11 @@ export function init() {
     // B1.2 enforcement, now decided via the policy. Once the named session resolves, the store (fed by
     // the Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
     // `requirePage(getAuthSnapshot(), 'links')` returns 'login' exactly when the designer's OWN named
-    // session could not be confirmed — equivalent to the old `if (ENFORCE && !named)`. Flag OFF → the
-    // snapshot is 'named'/'anonymous' and the decision is 'allow', so this never fires (unchanged).
+    // session could not be confirmed.
     const _linksAuth = ensureNamedSession(currentUser);
     resolveSession(_linksAuth);
     _linksAuth.then(() => {
-        if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'links').decision === 'login') {
+        if (requirePage(getAuthSnapshot(), 'links').decision === 'login') {
             clearSession();
             // resetNavPanel() before the overlay (v16.69, mirrors settings' v16.25 fix) — the
             // drawer is wired with the now-cleared member's identity on a shared device.

@@ -64,7 +64,8 @@ version-stamped; not a runtime asset. **Read LOGIN_INCIDENT.md before touching a
 **Unchanged:**
 - The login screen shape (grade → name → password), the Firebase account model
   (`initial.surname@myb-roster.local`), the claim tiers (`admin`/`manager`/`name`/`linksDesigner`),
-  `ENFORCE_NAMED_SESSION=true`, the calendar's anonymous read, and the 60-day session rule.
+  `ENFORCE_NAMED_SESSION=true` (since retired v24.34 — the behaviour is now unconditional), the
+  calendar's anonymous read, and the 60-day session rule.
 - **No new custom claims → no `CLAIM_EPOCH` bump.** Deliberate: migration state lives in Firestore,
   not tokens, so the whole token-propagation sweep machinery stays untouched — one less way to
   reproduce the v10.94 outage class.
@@ -118,7 +119,10 @@ resolve to identity `'none'` + a re-sign-in prompt **regardless of `ENFORCE_NAME
 anonymous fallback (flag-off behaviour) keeps its original job — resilience to *network* failures —
 and only that. Without this, the documented one-line rollback (flip the flag off) becomes a trap
 once anyone has migrated: surname attempt fails → silent anonymous session → strict B3 rules
-silently deny every write — exactly the v10.94 class. This is also the `ROADMAP_HISTORY.md` Stage-3
+silently deny every write — exactly the v10.94 class. **(v24.34: the flag and the anonymous
+fallback are both retired**, because by then the rules refused the anonymous session on every path,
+not only this one — so every failure, credential or not, now resolves to `'none'`. Rollback is
+reverting a release.) This is also the `ROADMAP_HISTORY.md` Stage-3
 prerequisite ("catch wrong-password… surface a prompt rather than silently falling back"), fully
 implemented rather than only on the fresh-login path.
 
@@ -277,7 +281,7 @@ dashboard and, later, **the ≥90% metric that gates C5** — measured from day 
 would lock migrated members out. After that: forward-fix only, or admin-reset the migrated members
 back to surname (the server-side reset function survives a hosting revert — a deliberate property
 of putting reset on the server). Dogfood order (owner first) keeps this window safe. Additionally,
-once anyone has migrated, the `ENFORCE_NAMED_SESSION` kill-switch must never be flipped casually —
+once anyone has migrated, the `ENFORCE_NAMED_SESSION` kill-switch (retired v24.34) must never be flipped casually —
 §3.3 makes the credential-rejection path safe regardless, but the flag's rollback semantics are
 narrowed and SECURITY_RELEASE_PLAN's deferred-residual section should be read alongside.
 
@@ -520,7 +524,9 @@ the only fiddly part: filtering `pushSubscriptions` by `owner` uid, failing clos
 no `owner`, and never falling back to the all-devices fan-out.
 
 **Why it is a Cloud Function.** Verified rather than assumed: `signInAnonymously` runs ONLY in
-calendar-app.js, and with `ENFORCE_NAMED_SESSION` on, session.js's anonymous fallback is dead code. So a
+calendar-app.js, and with `ENFORCE_NAMED_SESSION` on, session.js's anonymous fallback is dead code
+(both are now simply gone — the calendar's since v20.12, and the fallback with the switch, retired
+v24.34). So a
 member on a protected page's login overlay has NO Firebase identity — the person who needs this feature
 is precisely the person who cannot write to Firestore. The alternatives were to establish a new anonymous
 session on the protected pages (an explicit anti-goal in SECURITY_RELEASE_PLAN.md, and new auth behaviour

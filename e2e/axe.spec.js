@@ -11,7 +11,7 @@
 
 // test/expect come from fixtures.js (NOT @playwright/test) so the hermetic Firebase stub is
 // installed — otherwise the SDK-dependent pages never render and the scan can't reach them.
-import { test, expect, enableCalendarPin } from './fixtures.js';
+import { test, expect } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
 import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin, openPinCard, clearNoticeFlags, sheetAction, openRosterReview, ROSTER_REVIEW_DATES } from './helpers.js';
 
@@ -24,14 +24,7 @@ import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinEx
 // The gate itself is covered end-to-end in calendar-pin.spec.js.
 // A test that also seeds a member session still gets the member: the stub ranks them that way,
 // exactly as `decideAccess` does.
-// These set the PIN explicitly rather than inheriting `CONFIG.CALENDAR_PIN_ACCESS`, and seed a
-// viewer session to satisfy it. Deliberate, and the value is NOT restated here — `roster-data.js`
-// owns it, and a comment repeating it is the defect this repo names most often (this one did, and
-// said "switched OFF … deployed dark" for the five weeks after the flag went live). A suite that
-// INHERITS the flag silently changes what it covers on the day the flag moves, and the direction
-// that costs something is a calendar suite falling back to the old open model with the gate
-// untested.
-test.beforeEach(async ({ page }) => { await enableCalendarPin(page); await seedViewerAccess(page); });
+test.beforeEach(async ({ page }) => { await seedViewerAccess(page); });
 
 // ── A one-time notice is suppressed by default, and scanned deliberately instead ────────────────
 // A notice opens on the Calendar 1,500ms after load, on a fade transition, and every scan of `/`

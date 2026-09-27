@@ -14,7 +14,7 @@
  *   must be accompanied by a password reset for all affected users.
  */
 
-import { auth, authReady, currentUserAfterBoot, nameToEmail, normaliseSurname, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut, restoreMemberPersistence } from './firebase-client.js';
+import { auth, authReady, currentUserAfterBoot, nameToEmail, normaliseSurname, signInWithEmailAndPassword, signOut as firebaseSignOut, restoreMemberPersistence } from './firebase-client.js';
 // PURE, and imported rather than re-derived: `isViewerUser` decides whether an identity may be
 // PRESERVED across the expired-identity teardown, so a second local copy of that predicate is a
 // second place a bypass could be introduced. calendar-access-core.js imports nothing, so this adds
@@ -26,8 +26,8 @@ import { CONFIG } from './roster-data.js';
 
 /** Auth error codes that mean the credential was DEFINITIVELY rejected — a wrong password, or no
  *  such account — as opposed to a transient/config failure (network, provider-disabled). On these
- *  the sign-in must resolve to 'none' + a re-sign-in prompt REGARDLESS of ENFORCE_NAMED_SESSION,
- *  NEVER an anonymous fallback (PASSWORD_DESIGN.md §3.3 — the critical fix: once anyone has a custom
+ *  the sign-in must resolve to 'none' + a re-sign-in prompt, NEVER an anonymous fallback
+ *  (PASSWORD_DESIGN.md §3.3 — the critical fix: once anyone has a custom
  *  password, an anonymous fallback here would be silently denied every write by the strict B3 rules,
  *  reproducing the v10.94 outage class). `invalid-credential` is the modern email-enumeration-safe
  *  code; `wrong-password`/`invalid-login-credentials`/`user-not-found` cover older SDK phrasings.
@@ -40,8 +40,8 @@ import { dispatchAuth } from './auth-state.js';
  * Feed the auth STORE (AUTH_ARCHITECTURE.md Phase 2). This is a pure side-effect, wrapped so
  * a store error can NEVER break the auth path; `sessionReady` and every existing flow are
  * untouched (session.js still owns the Firebase lifecycle). The store IS now consumed: the 5
- * write coordinators read it at init via `getAuthSnapshot()` + `requirePage()` (auth-policy.js),
- * active now that `ENFORCE_NAMED_SESSION` is on. The full single-owner auth shell (live
+ * write coordinators read it at init via `getAuthSnapshot()` + `requirePage()` (auth-policy.js).
+ * The full single-owner auth shell (live
  * subscriptions, `sessionReady` re-routed onto the store) is still future work.
  * @param {{ type: string, member?: string|null, error?: string|null }} event
  */
@@ -49,14 +49,13 @@ function _feedAuth(event) {
     try { dispatchAuth(event); } catch (e) { console.error('[Auth] store feed failed', e); }
 }
 
-/** Translate the resolved Firebase identity (the B0 signals) into a terminal store event. */
+/** Translate the resolved Firebase identity (the B0 signals) into a terminal store event.
+ *  Two outcomes only since v24.34: the write pages never fall back to an anonymous session any more
+ *  (the `ENFORCE_NAMED_SESSION` switch that could restore one was retired v24.34), so the store's
+ *  `ANONYMOUS` and `FATAL` events have no producer here. */
 function _syncAuthTerminal(/** @type {string} */ name) {
-    const id  = getFirebaseIdentity();              // 'named' | 'anonymous' | 'none'
-    const err = getFirebaseAuthError() ?? null;
-    if (id === 'named')                       _feedAuth({ type: 'NAMED', member: name });
-    else if (id === 'anonymous')              _feedAuth({ type: 'ANONYMOUS' });
-    else if (err && err.includes('anon:'))    _feedAuth({ type: 'FATAL', error: err });  // even anonymous failed
-    else                                      _feedAuth({ type: 'NONE', error: err });
+    if (getFirebaseIdentity() === 'named') _feedAuth({ type: 'NAMED', member: name });
+    else                                   _feedAuth({ type: 'NONE', error: getFirebaseAuthError() ?? null });
 }
 
 export const AUTH_KEY    = 'myb_admin_session';
@@ -134,17 +133,15 @@ export function resolveSession(result) { _sessionResolve(result); }
  * this — `ensureFirebaseSession` is only called by the write pages.
  *
  *   'named'     — signed in as the member's own account (email === nameToEmail(name)).
- *   'anonymous' — degraded fallback. Satisfies `request.auth != null` but carries NO `name` claim,
- *                 so per-member write isolation (B2/B3, now STRICT) rejects its writes. NOTE: with
- *                 `ENFORCE_NAMED_SESSION` ON (shipped v14.98), the write pages NO LONGER fall back
- *                 to anonymous (ensureFirebaseSession returns 'none' instead — see the enforce
- *                 branch below); the store then prompts a re-login. This value is still produced on
- *                 the flag-OFF path and by the calendar's own anon bootstrap.
- *   'none'      — no Firebase session could be established (or, under enforce, a non-named result).
+ *   'none'      — no named session could be established. There is NO anonymous third value any
+ *                 more: a nameless session satisfies `request.auth != null` and nothing else, and
+ *                 the strict rules (B3, v16.29; the server-set `member` claim, v24.27) refuse every
+ *                 write it could make. The switch that used to fall back to one
+ *                 (`ENFORCE_NAMED_SESSION`) was retired at v24.34; the store prompts a re-login.
  *
  * B0 (SECURITY_RELEASE_PLAN.md) made this distinction observable + tested; B1/B2/B3 then made it
  * load-bearing (strict isolation + no-anon-fallback on write pages).
- * @type {'named' | 'anonymous' | 'none'}
+ * @type {'named' | 'none'}
  */
 let _fbIdentity = 'none';
 
@@ -161,13 +158,13 @@ let _authGen = 0;
 
 /**
  * The Firebase identity `ensureFirebaseSession` last established on a write page.
- * @returns {'named' | 'anonymous' | 'none'}
+ * @returns {'named' | 'none'}
  */
 export function getFirebaseIdentity() { return _fbIdentity; }
 
 /**
- * True only when the active write-page Firebase session is the member's own named account —
- * NOT the anonymous fallback. This is the signal per-member write isolation (B2) depends on.
+ * True only when the active write-page Firebase session is the member's own named account.
+ * This is the signal per-member write isolation (B2) depends on.
  * @returns {boolean}
  */
 export function firebaseSessionIsNamed() { return _fbIdentity === 'named'; }
@@ -295,15 +292,14 @@ const _noDefaultKey = (name) => _NO_DEFAULT_PREFIX + name;
  * valid 60-day localStorage session skips that handler, so on a normal app open
  * the Firebase Auth session was never (re-)established.
  *
- * Strategy (each step falls through to the next on failure):
+ * Strategy:
  * 1. Restore persisted session from IndexedDB — free, no network.
- * 2. signInWithEmailAndPassword — normal path.
- * 3. createUserWithEmailAndPassword — account doesn't exist yet (self-heal).
- * 4. signInAnonymously — fallback when email/password provider is disabled in
- *    Firebase Console, or account has a mismatched password. Anonymous sessions
- *    satisfy `request.auth != null` and are stable across page loads on Android
- *    PWAs. The error code from step 2 is exposed via getFirebaseAuthError() so
- *    it can be surfaced in diagnostic messages.
+ * 2. signInWithEmailAndPassword — the password candidates, in order.
+ * 3. Otherwise 'none'. There is no account self-heal (accounts are provisioned server-side by
+ *    Operations → Set up accounts) and no anonymous fallback: both only ever ran with the retired
+ *    `ENFORCE_NAMED_SESSION` switch off (retired v24.34), and the strict rules refuse a session either would make.
+ *    The error code from step 2 is exposed via getFirebaseAuthError() so it can be surfaced in
+ *    diagnostic messages.
  *
  * @param {string} name - Member display name (exact teamMembers match)
  * @param {number} [_gen] - Internal: the caller's auth-attempt generation (stale-completion guard).
@@ -323,7 +319,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
     const gen = _gen ?? ++_authGen;
     const fresh = () => gen === _authGen;
     /** Publish the winning identity, then return `result` — only if this attempt is still current.
-     *  @param {'named'|'anonymous'|'none'} identity @param {boolean} result @returns {boolean} */
+     *  @param {'named'|'none'} identity @param {boolean} result @returns {boolean} */
     const commit = (identity, result) => { if (fresh()) _fbIdentity = identity; return result; };
     /** Record auth-error diagnostics for the CURRENT attempt only. @param {string|undefined} code */
     const recordError = (code) => {
@@ -379,7 +375,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
     const existing = auth.currentUser || await restoreFirstAuthUser();
     // Gen-guard EVERY shared-auth mutation from here down (like commit/recordError/the reset above):
     // a SUPERSEDED attempt resuming after this long await — the sign-out below on the mismatch path,
-    // but equally the signInWithEmailAndPassword / signInAnonymously calls further down on the
+    // but equally the signInWithEmailAndPassword calls further down on the
     // no-persisted-session (cold load) path — would otherwise replace the WINNING attempt's
     // freshly-established session on the shared `auth`, leaving the store reading 'named' for the
     // winner while auth.currentUser holds someone else (silent permission-denied writes). The
@@ -442,21 +438,6 @@ export async function ensureFirebaseSession(name, _gen, password) {
                 && _isCredentialRejection(_e.code) && _e.code !== 'auth/user-not-found') {
                 lsSet(_noDefaultKey(name), '1');
             }
-            // Self-heal a missing account by creating it — UNLESS the B1 named-session requirement
-            // is on (accounts are provisioned server-side then; dead code under the current
-            // flag=true). Always seeds the CANONICAL surname password, never a typed custom value.
-            if (_e.code === 'auth/user-not-found' && !CONFIG.ENFORCE_NAMED_SESSION) {
-                try {
-                    await createUserWithEmailAndPassword(auth, email, surnamePassword(name));
-                    console.warn('[Auth] Created Firebase Auth account for', name);
-                    lsDel(_noDefaultKey(name));   // freshly seeded WITH the surname — silent recovery valid
-                    return commit('named', true);
-                } catch (createErr) {
-                    const _ce = /** @type {any} */ (createErr);
-                    console.warn('[Auth] createUser failed:', _ce.code, 'for', email);
-                    lastError = _ce.code;
-                }
-            }
             // A definitive credential rejection for THIS candidate → try the next one (if any). A
             // NON-credential error (network / provider-disabled) → stop; it isn't a password problem.
             if (!_isCredentialRejection(_e.code)) { nonCredentialStop = true; break; }
@@ -465,33 +446,17 @@ export async function ensureFirebaseSession(name, _gen, password) {
 
     recordError(lastError);   // diagnostics (current attempt only)
 
-    // Every candidate was DEFINITIVELY rejected (wrong password / no account). Resolve to 'none' +
-    // a re-sign-in prompt — NEVER anonymous, REGARDLESS of ENFORCE_NAMED_SESSION (PASSWORD_DESIGN.md
-    // §3.3, the critical fix: a migrated member whose surname no longer works, or a mistyped
-    // password, must not land on a nameless anonymous session the strict rules then silently deny).
-    if (!nonCredentialStop) {
-        console.warn('[Auth] Credential rejected (definitive); no anonymous fallback. Error:', lastError);
-        return commit('none', false);
-    }
-
-    // A NON-credential failure (network blip, auth/operation-not-allowed, …). Under enforce, still
-    // no anonymous fallback — a write page needs the member's identity. Flag off → anonymous keeps
-    // the app working through a transient network problem (today's behaviour, unchanged).
-    if (CONFIG.ENFORCE_NAMED_SESSION) {
-        console.warn('[Auth] Named session not established; anonymous fallback disabled (ENFORCE_NAMED_SESSION). Error:', lastError);
-        return commit('none', false);
-    }
-    console.warn('[Auth] Falling back to anonymous sign-in. Original error:', lastError);
-    try {
-        await signInAnonymously(auth);
-        console.warn('[Auth] Anonymous session established for', name);
-        return commit('anonymous', true);
-    } catch (anonErr) {
-        const _ae = /** @type {any} */ (anonErr);
-        console.error('[Auth] Anonymous sign-in failed:', _ae.code);
-        recordError(`${lastError} + anon:${_ae.code}`);
-        return commit('none', false);
-    }
+    // No named session. Resolve to 'none' + a re-sign-in prompt — NEVER anonymous, whichever way it
+    // failed (PASSWORD_DESIGN.md §3.3). Every candidate DEFINITIVELY rejected (a migrated member
+    // whose surname no longer works, a mistyped password, no account) and a NON-credential failure
+    // (network blip, auth/operation-not-allowed) end the same way: a nameless session would satisfy
+    // `request.auth != null` and nothing else, so the strict rules would silently deny every write
+    // it made. The two differ only in what the caller does next — `ensureNamedSession` retries a
+    // transient code and nothing else.
+    console.warn(nonCredentialStop
+        ? '[Auth] Named session not established (non-credential failure). Error:'
+        : '[Auth] Credential rejected (definitive). Error:', lastError);
+    return commit('none', false);
 }
 
 /** Auth error codes worth a quiet retry — a momentary connectivity blip rather than a real
@@ -507,31 +472,22 @@ export function isTransientAuthError(code) { return !!code && _TRANSIENT_AUTH_CO
 /**
  * Ensure the member's OWN named Firebase session for a write page (B1.2).
  *
- * - When `CONFIG.ENFORCE_NAMED_SESSION` is **off** (default): returns exactly what
- *   `ensureFirebaseSession` returns (true if any session — incl. the anonymous fallback — is
- *   active), so callers behave identically to today.
- * - When **on**: a failed named sign-in is retried a couple of times ONLY if the error looks
- *   transient (a network blip), then returns whether the named session is genuinely active.
- *   Persistent failures (no account / wrong password) are not retried — the caller prompts a
- *   re-login or routes to admin break-glass.
+ * A failed named sign-in is retried a couple of times ONLY if the error looks transient (a network
+ * blip), then this returns whether the named session is genuinely active. Persistent failures (no
+ * account / wrong password) are not retried — the caller prompts a re-login or routes to admin
+ * break-glass. (Until v24.34 a `CONFIG.ENFORCE_NAMED_SESSION` switch could turn all of this off and
+ * accept an anonymous fallback; it was retired because the rules no longer accept that session.)
  *
  * @param {string} name
  * @param {{ retries?: number, delayMs?: number, password?: string }} [opts] - `password` is the
  *   member's TYPED login password (login overlay); omit on a page-load re-establishment (the
  *   derived surname is tried automatically). Threaded to `ensureFirebaseSession`.
- * @returns {Promise<boolean>} true if it is safe to proceed (named session, or flag off)
+ * @returns {Promise<boolean>} true if it is safe to proceed (a named session is active)
  */
 export async function ensureNamedSession(name, { retries = 2, delayMs = 300, password } = {}) {
     const gen = ++_authGen;   // generation guard — a superseded attempt must not publish a stale terminal state
     _feedAuth({ type: 'RESOLVE_START', member: name });   // store: resolving (observing only — Phase 2)
     let ok = await ensureFirebaseSession(name, gen, password);
-    if (!CONFIG.ENFORCE_NAMED_SESSION) {
-        if (gen === _authGen) {   // not superseded by a newer attempt → safe to publish the terminal state
-            _syncAuthTerminal(name);
-            if (firebaseSessionIsNamed()) refreshClaimsIfStale(CONFIG.CLAIM_EPOCH);   // B3 sweep (fire-and-forget)
-        }
-        return ok;   // flag off → legacy behaviour, no gating
-    }
     let attempt = 0;
     // `gen === _authGen` stops a superseded attempt from continuing to retry (and dispatching stale events).
     while (!ok && attempt < retries && gen === _authGen && isTransientAuthError(getFirebaseAuthError())) {
@@ -546,7 +502,7 @@ export async function ensureNamedSession(name, { retries = 2, delayMs = 300, pas
         // `_fbIdentity`/the store). But do NOT report a SPURIOUS failure (B5): a direct
         // `ensureFirebaseSession(name)` overlapping this login bumps `_authGen` at entry, superseding
         // us even though our own sign-in genuinely succeeded. Report success only if BOTH this attempt
-        // reached a named session (`ok` ⟺ named under enforce) AND the LIVE Firebase user really is
+        // reached a named session (`ok` ⟺ named) AND the LIVE Firebase user really is
         // this member — read `auth.currentUser` (ground truth), never the shared `_fbIdentity` a newer
         // attempt may have moved to a different identity. This publishes nothing, so it cannot clobber
         // the winner; it only stops the overlay showing "sign-in failed" when we ARE signed in. A

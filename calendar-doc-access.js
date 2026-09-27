@@ -15,9 +15,8 @@
  *
  * ── WHEN IT OPENS, AND WHEN IT DOES NOT ─────────────────────────────────────────────────────────
  *
- *   · It opens on a FULL access grant — `named` or `viewer` (the `open` mode too, where the
- *     server will then refuse a claimless anonymous session and the viewers show their failure
- *     state, which is the honest outcome for a mode the PIN flag has retired).
+ *   · It opens on a FULL access grant — `named` or `viewer`. (A third, anonymous `open` grant
+ *     existed while the staff PIN could be switched off; that switch was retired v24.34.)
  *   · It closes when access is LOST mid-session (a permission-denied override read, an expired
  *     viewer session). A deliberate "Lock Calendar" reloads the page, so the default applies.
  *

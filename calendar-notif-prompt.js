@@ -18,7 +18,7 @@
  *
  * ── THE TWO ACCESS RULES, AND THE ONE THAT WOULD NOT OCCUR TO YOU ───────────────────────────────
  *
- * Both halves run for `named` and `open` access and NEVER for the shared Calendar viewer:
+ * Both halves run for `named` access only, and NEVER for the shared Calendar viewer:
  *   1. RENEWAL re-stamps the subscription's `owner` with the current Firebase uid — and under the
  *      staff-PIN viewer that uid is the SAME on every office PC in the building. One machine's
  *      renewal would overwrite the owner of a real member's subscription, and any viewer anywhere
@@ -30,7 +30,8 @@
  *      Huddle into the mess room indefinitely, with nobody able to turn it off. Somebody who wants
  *      notifications wants them on their own phone, where they are signed in.
  * Both are gated on AUTH rather than access: a lapsed subscription re-subscribes, which is a
- * Firestore write, and in `open` mode access resolves before the session exists.
+ * Firestore write. (Until v24.34 an anonymous `open` mode — the staff PIN switched off — also ran
+ * both, and there access resolved before the session existed; that switch was retired.)
  *
  * ── TWO ORDERINGS THAT MUST SURVIVE AN EDIT ─────────────────────────────────────────────────────
  *
@@ -51,7 +52,7 @@ import { NOTIF_PROMPT_DONE } from './storage-keys.js';
 /**
  * @param {{ authReady: Promise<any>, getAccessType: () => string }} deps
  *   `authReady` — the Calendar's AUTH promise (persistence configured, session resolved), not its
- *   access promise; `getAccessType` — 'named' | 'open' | 'viewer' | …, read when each promise
+ *   access promise; `getAccessType` — 'named' | 'viewer' | 'none', read when each promise
  *   settles rather than at init, because access is decided asynchronously.
  */
 export function initNotifPrompt({ authReady, getAccessType }) {
@@ -73,12 +74,10 @@ export function initNotifPrompt({ authReady, getAccessType }) {
         // lost is VAPID-rotation self-healing during a viewer session, which is a rare manual event
         // on a machine that should not be carrying somebody's notifications anyway.
         authReady
-            // `open` too (v20.16): with the staff PIN switched off the Calendar is back on its
-            // pre-v20.12 anonymous model, and renewal under an anonymous uid is exactly what it did
-            // then. Only VIEWER mode is excluded, because that uid is shared by every office PC.
             // Gated on AUTH rather than access: a lapsed subscription re-subscribes, which is a
-            // Firestore write, and in `open` mode access resolves before the session exists.
-            .then(() => { const t = getAccessType(); if (t === 'named' || t === 'open') return getNotifState(); })
+            // Firestore write. (An anonymous `open` mode was also admitted here until the staff-PIN
+            // switch that produced it was retired at v24.34.)
+            .then(() => { if (getAccessType() === 'named') return getNotifState(); })
             .catch((/** @type {any} */ err) => console.warn('[Notifications] Renewal failed:', err.message));
         return;
     }
@@ -99,10 +98,8 @@ export function initNotifPrompt({ authReady, getAccessType }) {
     // indefinitely, with nobody who could turn it off. A staff member who wants notifications wants
     // them on their own phone, where they are signed in.
     authReady.then(() => {
-        // Same rule as the renewal above: everyone EXCEPT the shared viewer. With the PIN switched
-        // off that restores the prompt to every calendar visitor, which is what it was before.
-        const t = getAccessType();
-        if (t !== 'named' && t !== 'open') return;
+        // Same rule as the renewal above: a named member only.
+        if (getAccessType() !== 'named') return;
         _prompt.style.display = 'flex';
     });
     function hide() { _prompt.style.display = 'none'; }

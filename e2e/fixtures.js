@@ -398,8 +398,6 @@ export const onAuthStateChanged = (_auth, cb) => {
     return () => clearTimeout(t);
 };
 export const signInWithEmailAndPassword = _e2eAuth('auth/invalid-credential', true);
-export const createUserWithEmailAndPassword = _e2eAuth('auth/operation-not-allowed');
-export const signInAnonymously = _e2eAuth('auth/operation-not-allowed');
 // Clears the VIEWER only, never the opt-in authUser flag. authUser is a test's declaration
 // that a member is signed in on this page, and session.js legitimately signs a restored identity
 // out and back in during ensureFirebaseSession — so clearing it here made the member vanish
@@ -515,48 +513,6 @@ export const test = base.extend({
         await use(page);
     },
 });
-
-/**
- * Turn the B1 named-session kill-switch ON for one test by rewriting roster-data.js as it is
- * served — forces `ENFORCE_NAMED_SESSION` to `true` **regardless of the production default**
- * (it is `true` in prod today; matching either literal keeps this fixture correct if the
- * kill-switch is ever flipped back to `false`). Call BEFORE page.goto(). Pair with
- * `window.__E2E = { failSignIn: true }` (set via addInitScript) to exercise the enforcement paths.
- * @param {import('@playwright/test').Page} page
- */
-export async function enforceNamedSession(page) {
-    _setConfigOverride(page, 'ENFORCE_NAMED_SESSION',
-        /ENFORCE_NAMED_SESSION:\s*(?:true|false)/, 'ENFORCE_NAMED_SESSION: true');
-}
-
-/**
- * Switch the staff Calendar PIN OFF for one test — the "deploy dark" state (v20.16).
- *
- * Rewrites `CONFIG.CALENDAR_PIN_ACCESS` in roster-data.js as it is served, the same way
- * `enforceNamedSession` does, so the real file and the production default are untouched. Call
- * BEFORE page.goto().
- * @param {import('@playwright/test').Page} page
- */
-export async function disableCalendarPin(page) {
-    _setConfigOverride(page, 'CALENDAR_PIN_ACCESS',
-        /CALENDAR_PIN_ACCESS:\s*(?:true|false)/, 'CALENDAR_PIN_ACCESS: false');
-}
-
-/**
- * Switch the staff Calendar PIN ON for one test.
- *
- * The mirror of `disableCalendarPin`, and the reason both exist rather than one: whichever way the
- * shipped default points, EVERY test says which state it wants instead of inheriting it. That is
- * what stops a suite silently changing what it covers on the day the flag moves — and it is why
- * neither helper's comment records the flag's current value. `roster-data.js` owns it; the copy
- * that used to live here named the wrong one for the five weeks after the PIN went live.
- * Call BEFORE page.goto().
- * @param {import('@playwright/test').Page} page
- */
-export async function enableCalendarPin(page) {
-    _setConfigOverride(page, 'CALENDAR_PIN_ACCESS',
-        /CALENDAR_PIN_ACCESS:\s*(?:true|false)/, 'CALENDAR_PIN_ACCESS: true');
-}
 
 /**
  * Turn the forced set-password overlay ON for one test (PASSWORD_DESIGN.md Phase 2). The suite-wide

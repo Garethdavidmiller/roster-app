@@ -243,7 +243,6 @@ describe('which devices a notice is addressed to', () => {
     test('a members-only notice reaches a signed-in member and nobody else', () => {
         assert.equal(noticeAudienceAllows('members', 'named'), true);
         assert.equal(noticeAudienceAllows('members', 'viewer'), false, 'the station PC — the reported case');
-        assert.equal(noticeAudienceAllows('members', 'open'), false, 'PIN access switched off is still no identity');
         assert.equal(noticeAudienceAllows('members', 'none'), false);
     });
 
@@ -253,7 +252,6 @@ describe('which devices a notice is addressed to', () => {
         // entire audience while leaving every test about it passing.
         assert.equal(noticeAudienceAllows('everyone', 'viewer'), true);
         assert.equal(noticeAudienceAllows('everyone', 'named'), true);
-        assert.equal(noticeAudienceAllows('everyone', 'open'), true);
     });
 
     test("'signed-out' reaches the PIN station and NOT a signed-in member", () => {
@@ -262,7 +260,6 @@ describe('which devices a notice is addressed to', () => {
         // load — so such a notice stops of its own accord the moment they do, with no done-flag
         // and no retirement write anywhere else in the app to keep in step.
         assert.equal(noticeAudienceAllows('signed-out', 'viewer'), true);
-        assert.equal(noticeAudienceAllows('signed-out', 'open'), true, 'the PIN switched off is still nobody signed in');
         assert.equal(noticeAudienceAllows('signed-out', 'none'), true);
         assert.equal(noticeAudienceAllows('signed-out', 'named'), false, 'they have already done the thing it asks');
     });
@@ -297,7 +294,7 @@ describe('personalActionsAllowed — a button that says "yours" must mean it', (
     test('a COLLEAGUE’s calendar refuses, however you are signed in', () => {
         // Browsing somebody else's roster is an ordinary thing every signed-in member may do —
         // that is what the member selector is — so this is not an edge case, it is the report.
-        for (const type of ['named', 'open', 'none']) {
+        for (const type of ['named', 'none']) {
             assert.equal(
                 personalActionsAllowed({ ...OWN, accessType: type, shownMember: 'S. Silva' }), false,
                 `${type}: a colleague's day must offer no personal action`);
@@ -314,14 +311,6 @@ describe('personalActionsAllowed — a button that says "yours" must mean it', (
             'a stale local name must not survive into viewer mode');
         assert.equal(personalActionsAllowed({ accessType: 'viewer', sessionName: null, shownMember: 'G. Miller' }),
             false, 'and the ordinary PIN case, with no session at all');
-    });
-
-    test('`open` mode is decided by the NAME, not by the mode', () => {
-        // The PIN switched off says nothing about identity, so it must not be a third refusal:
-        // a signed-in member browsing their own calendar keeps the buttons.
-        assert.equal(personalActionsAllowed({ ...OWN, accessType: 'open' }), true);
-        assert.equal(personalActionsAllowed({ accessType: 'open', sessionName: null, shownMember: 'G. Miller' }),
-            false, 'and a device with no session has no name to match');
     });
 
     test('no name, a blank name and a missing member all refuse', () => {

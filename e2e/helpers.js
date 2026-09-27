@@ -3,7 +3,6 @@
 // calendar.spec.js, auth.spec.js, paycalc.spec.js, pages.spec.js, responsive.spec.js.
 
 import { expect } from '@playwright/test';
-import { enforceNamedSession } from './fixtures.js';
 
 // Collect uncaught JS exceptions on a page. Firebase network/auth errors are
 // filtered out — they're expected when running against localhost with no valid
@@ -136,9 +135,9 @@ export async function pickFirstMemberAndPassword(page) {
 // Desktop widths exercised by the geometry checks (1024 = the desktop breakpoint edge).
 export const DESKTOP_WIDTHS = [1024, 1280, 1440];
 
-// Flip the B1 kill-switch on and force every sign-in to fail, then seed a valid local session.
+// Force every sign-in to fail, then seed a valid local session — the B1 named-session requirement
+// (unconditional since the `ENFORCE_NAMED_SESSION` switch was retired v24.34) must then re-prompt.
 export async function armEnforcementWithFailingSignIn(page, name = 'G. Miller') {
-    await enforceNamedSession(page);
     await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });
     await seedSession(page, name);
 }

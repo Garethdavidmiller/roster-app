@@ -1524,13 +1524,11 @@ export function init() {
         // admin-overrides.js, huddle.js) can import sessionReady instead of window._mybSession.
         const _adminAuth = ensureNamedSession(currentUser);
         resolveSession(_adminAuth);
-        // B1.2: when the named-session requirement is on, a returning local session that can't be
-        // confirmed as this member's OWN Firebase identity is cleared and re-authenticated via the
-        // login overlay. Decided via the policy now: once the named session resolves, the store (fed
-        // by the Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
-        // `requirePage(getAuthSnapshot(), 'admin')` returns 'login' exactly when the member's OWN named
-        // session could not be confirmed — equivalent to the old `if (ENFORCE && !named)`. Flag OFF →
-        // resolves 'named'/'anonymous' to 'allow', so this never fires (unchanged).
+        // B1.2: a returning local session that can't be confirmed as this member's OWN Firebase
+        // identity is cleared and re-authenticated via the login overlay. Decided via the policy: once
+        // the named session resolves, the store (fed by the Phase-2 bridge inside ensureNamedSession)
+        // reflects the terminal Firebase identity, so `requirePage(getAuthSnapshot(), 'admin')` returns
+        // 'login' exactly when the member's OWN named session could not be confirmed.
         _adminAuth.then(() => {
             // B1: this optimistic 'allow' init turned out to be an unconfirmable session → clear it and
             // re-show the login overlay. The re-login RELOADS on success (reloadOnSuccess), because this
@@ -1538,7 +1536,7 @@ export function init() {
             // re-resolve it and would strand feature modules on a stale auth barrier. resetNavPanel() clears
             // the stale identity the optimistic pass wired into the drawer so it isn't briefly visible
             // behind the overlay before the reload (initNavPanel self-guards against re-wiring otherwise).
-            if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'admin').decision === 'login') { clearSession(); resetNavPanel(); showAdminLogin({ reloadOnSuccess: true }); }
+            if (requirePage(getAuthSnapshot(), 'admin').decision === 'login') { clearSession(); resetNavPanel(); showAdminLogin({ reloadOnSuccess: true }); }
         });
         // All dropdowns are now populated — apply permissions then load data
         document.body.classList.add('auth-ready');

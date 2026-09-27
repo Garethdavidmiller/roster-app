@@ -474,7 +474,7 @@ steps below are three separate pushes rather than one:
 
 | Brake | Where | Ships as | Released at |
 |---|---|---|---|
-| `CONFIG.CALENDAR_PIN_ACCESS` | `roster-data.js` | **RELEASED — `true` and live since v20.51.** (It shipped `false`, was released at v20.46, rolled back at v20.50 the same morning, and re-released at v20.51 once the cause was found to be a GCP IAM gap rather than app code. This row said "ships as `false` … ROLLED BACK" until v21.63, which read as though the soak had never restarted — an argument for postponing step 4 on false grounds.) | step 3 — **DONE** (soaked from v20.51); the whole sequence closed at step 4 on 26 Aug 2026 |
+| `CONFIG.CALENDAR_PIN_ACCESS` | `roster-data.js` (**retired v24.34** — the key no longer exists) | **RELEASED — `true` and live since v20.51; the switch itself retired v24.34**, because the rules had long since stopped letting its anonymous `false` mode read anything. (It shipped `false`, was released at v20.46, rolled back at v20.50 the same morning, and re-released at v20.51 once the cause was found to be a GCP IAM gap rather than app code. This row said "ships as `false` … ROLLED BACK" until v21.63, which read as though the soak had never restarted — an argument for postponing step 4 on false grounds.) | step 3 — **DONE** (soaked from v20.51); the whole sequence closed at step 4 on 26 Aug 2026 |
 | `allow read;` hold line | `firestore.rules` overrides block | **RELEASED — deleted 26 Aug 2026 (v21.78).** `overrides` reads now require a verified member (`isMember()`: password sign-in, derived email, server-set `member` claim — v24.23/v24.27), `admin`, or the `calendarViewer` capability; a request with none is refused by the SERVER | step 4 — **DONE** |
 
 The hold line was declared a second time as `OVERRIDES_READ_HELD_OPEN` in `firestore.rules.test.mjs`,
@@ -512,7 +512,7 @@ as the record of how the release ran rather than as work still to do.
    permissive a stale cached client keeps working. **Let this soak.** Rolling back is the same one
    line, and while the rules are still permissive that rollback genuinely re-opens the Calendar.
    *(Both conditions in that last sentence expired at step 4 on 26 Aug 2026. `CALENDAR_PIN_ACCESS:
-   false` is no longer a rollback — see step 4.)*
+   false` is no longer a rollback — see step 4 — and the switch was retired v24.34.)*
 
    > **⛔ DO STEP 2b FIRST — this step failed on 10 Aug 2026 and had to be reverted within hours.**
    > A correct PIN returned 500 from the function's token-mint block; every member entering the right
@@ -584,7 +584,8 @@ as the record of how the release ran rather than as work still to do.
    > and it is why this step is a person and not a job.
    >
    > **The sequence is now CLOSED end to end.** `CALENDAR_PIN_ACCESS: false` is not a rollback any
-   > more — reverting step 4's rules commit is.
+   > more — reverting step 4's rules commit is. (The switch itself was retired v24.34: the key is
+   > gone from `roster-data.js`, so there is no client-side flip left to reach for by mistake.)
 
 **The mixed-version window at step 4** is one page load wide: the service worker claims immediately
 on activate and reloads the page, so a device is on the new client by its next open. Within that one

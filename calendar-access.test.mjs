@@ -41,9 +41,7 @@ let tokenUser = undefined;
 let sessionValue = null;
 /** Queue of fetch outcomes: `{ ok, status, json }` or an Error to throw. */
 let fetchQueue = [];
-/** When true the fake `signInAnonymously` never settles — see the first-paint ordering test. */
 let signOutBehavior = 'ok';
-let signInAnonymouslyHangs = false;
 let lastFetchBody = null;
 
 const auth = { get currentUser() { return currentUser; } };
@@ -69,11 +67,12 @@ mock.module('./firebase-client.js', {
             if (signOutBehavior === 'noop') return;
             currentUser = null;
         },
+        // A RECORDER, not a feature. The Calendar no longer signs anybody in anonymously (the
+        // `CALENDAR_PIN_ACCESS` switch that did was retired v24.34), so nothing should call this.
+        // It stays in the fake so that re-introducing the call is SEEN by the "no session at all"
+        // assertions below rather than failing as an unrelated import error.
         signInAnonymously: async () => {
             ops.push('signInAnonymously');
-            // A hang, not a delay: the ordering test needs "has it been awaited?" to be decidable
-            // without a timer, and a promise that never settles makes that a plain assertion.
-            if (signInAnonymouslyHangs) return new Promise(() => {});
             currentUser = { uid: 'anon-1', isAnonymous: true };
             return { user: currentUser };
         },
@@ -148,8 +147,9 @@ mock.module('./session.js', {
             ops.push('ensureNamedSession:' + name);
             if (silentGate) await silentGate;
             // The RESULT and the resulting IDENTITY are set separately, because the real function
-            // can genuinely report success on an ANONYMOUS fallback (`ENFORCE_NAMED_SESSION` off).
-            // A fake that tied the two together would make "trust the boolean" indistinguishable
+            // once could report success on an ANONYMOUS fallback (the `ENFORCE_NAMED_SESSION` switch,
+            // retired v24.34), and ground truth is what the module must read either way. A fake that
+            // tied the two together would make "trust the boolean" indistinguishable
             // from "re-read ground truth", which is the one thing worth checking here.
             if (silentReauthUser !== undefined) currentUser = silentReauthUser;
             else if (silentReauthSucceeds) currentUser = { uid: 'member-1', isAnonymous: false };
@@ -174,10 +174,6 @@ let reconcileGate = null;
  *  `SILENT_BEFORE_CARD_MS`) before putting a card up. @type {Promise<void>|null} */
 let silentGate = null;
 
-/** Mutable so both sides of the switch are reachable — the whole point of the flag is that it has
- *  two behaviours, and a test that could only ever see one would be checking half a feature. */
-const CONFIG = { CALENDAR_PIN_ACCESS: true };
-mock.module('./roster-data.js', { namedExports: { CONFIG } });
 // The hand-over releases this device's push record before it drops the session (Sep 2026
 // re-review) — recorded into `ops`, so the ORDER against `clearSession` is what is asserted.
 mock.module('./notif.js', { namedExports: { releaseDevicePush: async () => { ops.push('releasePush'); } } });
@@ -341,8 +337,6 @@ beforeEach(async () => {
     tokenClaims = { calendarViewer: true };
     tokenUser = undefined;
     sessionValue = null;
-    CONFIG.CALENDAR_PIN_ACCESS = true;
-    signInAnonymouslyHangs = false;
     signOutBehavior = 'ok';
     silentReauthSucceeds = false;
     silentReauthUser = undefined;
@@ -372,21 +366,15 @@ beforeEach(async () => {
 // promise — so any test that grants access ahead of this one leaves both already settled and the
 // distinction unobservable. Hence the position, and hence the guard assertion below, which fails
 // loudly rather than passing vacuously if this ever stops being first.
-describe('open mode: the render gate and the WRITE gate are different instants', () => {
-    test('ACCESS resolves immediately; AUTH waits for the anonymous sign-in', async () => {
-        // ── THE REGRESSION THIS PINS ────────────────────────────────────────────────────────────
-        //
-        // v20.18 stopped awaiting the anonymous sign-in so the grid could paint without a network
-        // round trip. Right for RENDERING, wrong for everything that WRITES: the error reporter, the
-        // usage counters, the latency sampler, the document-open counters and the push renewal all
-        // need `request.auth != null`, and every one of them was gated on the access promise. So for
-        // one release they fired into a window with no token and were silently rejected — the same
-        // race as the v14.23–28 push-subscription bug, re-opened from the other side.
-        //
-        // The distinction exists ONLY in `open` mode. In `named` and `viewer` the two resolve
-        // together, so nothing else in this file would notice either promise being wired wrongly.
-        CONFIG.CALENDAR_PIN_ACCESS = false;
-        signInAnonymouslyHangs = true;
+describe('the render gate and the WRITE gate open at the same instant', () => {
+    test('a granted member resolves BOTH promises — no sign-in is left in flight', async () => {
+        // The two promises were split at v20.18 for an anonymous `open` mode that painted before
+        // its sign-in landed. That mode was retired at v24.34 (the `CALENDAR_PIN_ACCESS` switch),
+        // so every grant now holds a real user — but the WRITERS (error reporter, usage counters,
+        // push renewal) still await `calendarAuthReady`, and a grant that forgot to release it
+        // would silence all of them while the Calendar looked perfectly healthy.
+        sessionValue = { name: 'G. Miller' };
+        currentUser = { uid: 'member-1', isAnonymous: false };
         let accessResolved = false, authResolved = false;
         calendarAccessReady.then(() => { accessResolved = true; });
         calendarAuthReady.then(() => { authResolved = true; });
@@ -394,15 +382,12 @@ describe('open mode: the render gate and the WRITE gate are different instants',
         assert.equal(accessResolved, false,
             'a previous test already granted access — move this describe back to the top of the file');
 
-        await initCalendarAccess({ onGranted: () => {} });
-        await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+        assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'named');
+        await Promise.resolve(); await Promise.resolve();
 
-        assert.equal(accessResolved, true, 'the render gate waited for the network — the v20.18 fix is undone');
-        assert.equal(authResolved, false, 'the WRITE gate opened before any session existed');
-
-        // And it DOES open once the sign-in lands — a gate, not a permanent block.
-        signInAnonymouslyHangs = false;
-        handleAccessLost();
+        assert.equal(accessResolved, true, 'the render gate did not open on a grant');
+        assert.equal(authResolved, true, 'the WRITE gate stayed shut on a grant — every writer would go silent');
+        assert.equal(ops.includes('signInAnonymously'), false, 'a member was given an anonymous session');
     });
 });
 
@@ -846,9 +831,10 @@ describe('initCalendarAccess', () => {
     });
 
     test('a silent re-auth that reports success but lands ANONYMOUS grants nothing', async () => {
-        // `ensureNamedSession` returns true for an anonymous fallback when `ENFORCE_NAMED_SESSION`
-        // is off, and an anonymous identity is exactly what v20.12 stopped honouring. So the result
-        // is read from `decideAccess` against ground truth, never from the boolean.
+        // `ensureNamedSession` could once return true for an anonymous fallback (the
+        // `ENFORCE_NAMED_SESSION` switch, retired v24.34), and an anonymous identity is exactly what
+        // v20.12 stopped honouring. So the result is read from `decideAccess` against ground truth,
+        // never from the boolean.
         sessionValue = { name: 'G. Miller' };
         silentReauthSucceeds = true;
         silentReauthUser = { uid: 'anon', isAnonymous: true };
@@ -1101,73 +1087,28 @@ describe('the viewer↔member race', () => {
     });
 });
 
-describe('THE ON/OFF SWITCH — CONFIG.CALENDAR_PIN_ACCESS', () => {
-    // It exists so the feature can be deployed DARK: shipped, running, and invisible to staff, then
-    // switched on later by one line. Until v20.16 it only wrote a console warning and changed
-    // nothing, so it would have shipped as permanently ON — a knob that drives nothing, which is the
-    // `SOFT_DELETE_RETENTION_DAYS` mistake this repo has a written rule about.
+describe('a visitor with nothing is locked — there is no open, anonymous Calendar', () => {
+    // Until v24.34 a `CALENDAR_PIN_ACCESS` switch could turn this path into an ungated Calendar on
+    // an anonymous session. The rules had long since stopped letting that session read anything, so
+    // the switch was retired rather than kept as a rollback that would show a wrong roster.
 
-    test('OFF: a visitor with nothing gets the Calendar, not the card', async () => {
-        CONFIG.CALENDAR_PIN_ACCESS = false;
+    test('the visitor gets the card and no session at all', async () => {
         let started = 0;
-        const type = await initCalendarAccess({ onGranted: () => { started++; } });
-        assert.equal(type, 'open');
-        assert.equal(started, 1, 'the Calendar was not started');
-        assert.equal(getAccessType(), 'open');
-        assert.equal(isViewerMode(), false, 'open mode must not read as viewer mode');
-    });
-
-    test('OFF: the anonymous session comes back, or the telemetry goes silent', async () => {
-        // The calendar's best-effort WRITES — error reporter, usage counters, push renewal — all
-        // need `request.auth != null`. Without restoring this the app would look completely fine
-        // while going quiet on exactly the telemetry that would tell you it was not.
-        CONFIG.CALENDAR_PIN_ACCESS = false;
-        await initCalendarAccess({ onGranted: () => {} });
-        assert.ok(ops.includes('signInAnonymously'),
-            `no anonymous session was established: ${JSON.stringify(ops)}`);
-    });
-
-    test('OFF: the Calendar starts WITHOUT waiting for the anonymous sign-in to come back', async () => {
-        // ── A LATENCY PROPERTY, ASSERTED AS ONE ─────────────────────────────────────────────────
-        //
-        // `signInAnonymously` is a network POST to identitytoolkit. Awaiting it before `onGranted`
-        // put a full round trip in front of the FIRST PAINT of the grid — on a phone at the station
-        // that is hundreds of milliseconds of blank splash, and on a bad signal it is seconds. The
-        // pre-v20.12 code never did this: the calendar rendered from the local roster immediately
-        // and auth settled alongside it.
-        //
-        // Nothing depends on the ordering, which is why it is safe to drop. Rendering needs the
-        // roster (a local module) and the override cache (gated separately); the session is needed
-        // only by the best-effort WRITES, which already await their own promise. So the sign-in is
-        // started and deliberately not awaited.
-        //
-        // Asserted by making the sign-in never settle: if `onGranted` is behind it, this test times
-        // out rather than failing loudly — hence the explicit race with a resolved tick, which
-        // turns "still waiting" into a clean assertion.
-        CONFIG.CALENDAR_PIN_ACCESS = false;
-        let started = 0;
-        signInAnonymouslyHangs = true;
-        const init = initCalendarAccess({ onGranted: () => { started++; } });
-        // A handful of microtask ticks, NOT a count that means anything: the property under test is
-        // "grant does not await the network sign-in", and if it did, no finite number of ticks would
-        // ever see started=1 (the sign-in is hung). The count was exactly 3 until v20.45, when the
-        // bounded-reconcile race added one legitimate microtask hop and the test failed on tick
-        // arithmetic rather than on the latency property it exists for.
-        for (let i = 0; i < 8; i++) await Promise.resolve();
-        assert.equal(started, 1,
-            'the Calendar waited for the anonymous sign-in before its first render');
-        signInAnonymouslyHangs = false;
-        await Promise.race([init, Promise.resolve()]);
+        assert.equal(await initCalendarAccess({ onGranted: () => { started++; } }), 'none');
+        assert.equal(started, 0);
+        assert.equal(getAccessType(), 'none');
+        assert.equal(ops.includes('signInAnonymously'), false,
+            'an anonymous session was created while the Calendar was locked — it grants nothing '
+            + 'under the rules and would be a round trip for a token no rule accepts');
     });
 
     test('a HUNG reconcile cannot hold the Calendar at a blank page (v20.45)', async (t) => {
         // The wedged-auth case. `reconcileExpiredIdentity` awaits the first auth emission with no
         // timeout of its own, and it runs BEFORE `firstAuthUser` — so until v20.45 the 6-second
         // ceiling that exists for exactly this sat behind an unbounded wait on the same emission
-        // and could never fire. The decision must still resolve: a locked-or-open Calendar is
-        // recoverable, a page that never decides is not.
+        // and could never fire. The decision must still resolve: a locked Calendar is recoverable,
+        // a page that never decides is not.
         t.mock.timers.enable({ apis: ['setTimeout'] });
-        CONFIG.CALENDAR_PIN_ACCESS = false;
         reconcileHangs = true;
         try {
             let settled = null;
@@ -1178,47 +1119,10 @@ describe('THE ON/OFF SWITCH — CONFIG.CALENDAR_PIN_ACCESS', () => {
             for (let i = 0; i < 8; i++) await Promise.resolve();
             t.mock.timers.tick(6000);                    // firstAuthUser's own ceiling, if reached
             await p;
-            assert.equal(settled, 'open', 'the decision must resolve despite the hung reconcile');
+            assert.equal(settled, 'none', 'the decision must resolve despite the hung reconcile');
         } finally {
             reconcileHangs = false;
         }
-    });
-
-    test('OFF: a signed-in MEMBER is still named — only the fallback moves', async () => {
-        // The flag changes what happens to someone with nothing. It must not downgrade a member,
-        // or every member-specific behaviour would quietly switch off with it.
-        CONFIG.CALENDAR_PIN_ACCESS = false;
-        sessionValue = { name: 'G. Miller' };
-        currentUser = { uid: 'member-1', isAnonymous: false };
-        assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'named');
-        assert.equal(ops.includes('signInAnonymously'), false,
-            'a member was given an anonymous session on top of their own');
-    });
-
-    test('OFF: a restored VIEWER is still a viewer', async () => {
-        CONFIG.CALENDAR_PIN_ACCESS = false;
-        currentUser = { uid: 'calendar-viewer', isAnonymous: false };
-        assert.equal(await initCalendarAccess({ onGranted: () => {} }), 'viewer');
-    });
-
-    test('OFF: an access-loss cannot re-lock a Calendar that has no lock', async () => {
-        // Nothing to return to. Showing the card here would strand a member behind a control the
-        // deployment has deliberately disabled.
-        CONFIG.CALENDAR_PIN_ACCESS = false;
-        await initCalendarAccess({ onGranted: () => {} });
-        handleAccessLost();
-        assert.equal(getAccessType(), 'open', 'open mode was re-locked');
-    });
-
-    test('ON: the same visitor gets the card and no session at all', async () => {
-        // The other half of the switch, so neither test can pass by the flag being ignored.
-        CONFIG.CALENDAR_PIN_ACCESS = true;
-        let started = 0;
-        assert.equal(await initCalendarAccess({ onGranted: () => { started++; } }), 'none');
-        assert.equal(started, 0);
-        assert.equal(ops.includes('signInAnonymously'), false,
-            'an anonymous session was created while the Calendar was locked — it grants nothing '
-            + 'under the tightened rules and would be a round trip for a token no rule accepts');
     });
 });
 

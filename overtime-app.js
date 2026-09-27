@@ -232,7 +232,7 @@ export function init() {
         resolveSession(setAuth);
         // Every named page's follow-up: an unconfirmed OWN session is asked to sign in again.
         Promise.resolve(setAuth).then(() => {
-            if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'overtime').decision === 'login') {
+            if (requirePage(getAuthSnapshot(), 'overtime').decision === 'login') {
                 clearSession();
                 resetNavPanel();
                 initLoginOverlay({ pageLabel: 'Overtime', onSuccess: () => window.location.reload() });

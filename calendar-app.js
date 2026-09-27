@@ -1066,12 +1066,11 @@ initCalendarKeyboard({ navigateToPaycalc, openDayDetail });
 // authenticated session to collect. The cost is real and worth stating — an unlock that FAILS is
 // invisible to the error log, so a broken PIN exchange shows up in the Cloud Function logs and in
 // staff reports rather than in the Operations Error Log card.
-// `calendarAuthReady`, NOT `calendarAccessReady` (v20.22). In `open` mode the two are different
-// instants: access is granted the moment the decision is made, deliberately WITHOUT waiting for the
-// anonymous sign-in, so that the grid can paint. Every call below writes to Firestore, and every one
-// of those rules requires `request.auth != null` — so gating them on access alone fired them into a
-// window with no token and the writes were simply rejected. This is the same race the v14.23–28
-// push-subscription fix was about, re-opened from the other side.
+// `calendarAuthReady`, NOT `calendarAccessReady` (v20.22). They were different instants in the
+// anonymous `open` mode (retired v24.34 with the `CALENDAR_PIN_ACCESS` switch), where access was
+// granted before the sign-in landed; gating these writes on access alone fired them into a window
+// with no token. Every grant now holds a real user, so the two coincide — but every call below
+// writes to Firestore, and the write gate is still the right promise to wait on.
 calendarAuthReady.finally(() => {
     initErrorReporter();
     // The calendar has no Auth session of its own, and since v19.95 that no longer keeps its

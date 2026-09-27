@@ -34,7 +34,7 @@ SECURITY_RELEASE_PLAN.md for status"; it may not restate the stage.
 | **F — step-up for sensitive admin actions** | Proposed, not started | — | — | Design in `CREDENTIAL_LIFECYCLE.md` §3. **No prerequisites** — the only item in that programme with none. Server-enforced from the token's `auth_time`, never a client timer |
 | **D — App Check** | Deferred, not started | **D1** — monitor mode | Owner decision | Legitimate traffic characterised over a real window before any enforcement |
 | **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 · **the READ closure is IN FORCE since 26 Aug 2026** — the Calendar asks for a named session or the staff PIN (client live since v20.51), and the `allow read;` hold line above the `overrides` read rule was deleted at v21.78, so the SERVER now refuses anything without a verified member (`isMember()`), `admin`, or `calendarViewer`. RECOVERY_RUNBOOK step 4 records the go/no-go | **E3** — INDIVIDUAL authentication, if it is ever required. E2 was superseded, not built: it would have required merely *any* session, which an anonymous sign-in satisfies | Owner decision, most likely forced externally by a Chiltern IT requirement that each person authenticates | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
-| **Deferred residual** | Held on purpose. The CALENDAR's anonymous bootstrap is gone in EFFECT (v20.12), but the call site is not: `calendar-access.js` still calls `signInAnonymously` under the `CALENDAR_PIN_ACCESS === false` rollback path, and `session.js` keeps its soft fallback. Both are in scope when this is retired — the removal checklist below omitted the first until v21.63 | Retire the anonymous fallback + `ENFORCE_NAMED_SESSION` kill-switch | — | Track B soak complete and Track E decided |
+| **Deferred residual** | ✅ **Complete (v24.34, owner-approved).** Both switches retired with every branch that ran only when one was false: `calendar-access.js` no longer calls `signInAnonymously` (the `CALENDAR_PIN_ACCESS === false` path and its `open` access type are gone), and `session.js` no longer self-heals an account or falls back to anonymous (`ENFORCE_NAMED_SESSION`). Neither was a working rollback any more — the rules refused every session they restored | — | — | — |
 
 **Three things this table is deliberately explicit about**, because each was previously implied and
 misread: **E1 is client preparation, not protection** — the boundary moves at the READ RULE, which
@@ -69,7 +69,7 @@ rule text and gate cases:
 - **Track B (authorization release):** B0 — named-vs-anonymous identity signal (v14.39). · B1 —
   named-session enforcement behind `CONFIG.ENFORCE_NAMED_SESSION` (enabled v14.42, rolled back in the
   v14.72 login freeze, **re-enabled v14.98** after the freeze was fixed and B1 exonerated —
-  LOGIN_INCIDENT.md). · B2 — per-member `overrides` isolation, permissive 3-tier
+  LOGIN_INCIDENT.md; the switch **retired v24.34**, enforcement now unconditional). · B2 — per-member `overrides` isolation, permissive 3-tier
   `name || admin || manager` (v14.53) + the `manager` claim in `setupRosterAuth`. · **B3 — strict
   cutover (v16.29):** the `!('name' in token)` legacy escape removed from `overrides` create/update AND
   delete; shipped via the `CLAIM_EPOCH = 2` sweep + `writeWithClaimRetry` self-heal, so **no lockout /
@@ -101,8 +101,8 @@ rule text and gate cases:
   and the two are kept in step by `auth-plan-parity.test.mjs`. The most likely external trigger is a
   Chiltern-IT requirement if the app becomes official infrastructure — see ROADMAP.md → the
   governance gate.
-- **Deferred residual** — retire the anonymous fallback + the `ENFORCE_NAMED_SESSION` kill-switch
-  (held on purpose while the B release soaks — see the section at the foot).
+- **Deferred residual** — retire the anonymous fallback + the `ENFORCE_NAMED_SESSION` kill-switch.
+  **DONE v24.34** (with the `CALENDAR_PIN_ACCESS` switch too) — see the section at the foot.
 
 ---
 
@@ -174,7 +174,8 @@ Three design points that flow from this and still govern any future rule change:
   ordering (reset path ships before/with the change flow) and carries the two deep-review-critical
   design rules: the surname fallback is **gated** on the typed value normalising to the surname, and
   a definitive credential rejection resolves to `'none'` (never anonymous) **regardless of
-  `ENFORCE_NAMED_SESSION`** — see that doc before building anything password-related.
+  `ENFORCE_NAMED_SESSION`** (since retired v24.34 — no failure is anonymous now) — see that doc
+  before building anything password-related.
 - **SHIPPED — PASSWORD_DESIGN.md Phase 2 (v18.92):** `password-force.js` compels any member still on the
   surname default to set their own password at their NEXT SIGN-IN, in all seven page coordinators,
   behind the `CONFIG.FORCE_PASSWORD_SET` kill switch. No forced sign-out — sessions cap at 60 days (30 until v20.47)
@@ -378,7 +379,8 @@ REST). Staged:
   were closed at v23.18 under E6 (the reads require access; the files' bearer URLs are E6's remaining
   half).
 - **E3: require named on the calendar, SOFT posture.** Flip `PAGE_POLICIES.calendar` to require named,
-  wire the shared `login-overlay.js`, gate on `ENFORCE_NAMED_SESSION` in a **soft** posture first —
+  wire the shared `login-overlay.js`, start in a **soft** posture first (a Calendar-specific flag: the
+  `ENFORCE_NAMED_SESSION` switch this once named was retired v24.34) —
   measure how many launches hit the wall. Client UX only; the rules are unchanged at this phase.
 - **E4: offline grace mode — ships WITH E3, not after.** Without it E3 is a genuine regression for a
   member whose session lapsed while offline. Design in `AUTH_PLAN.md` §4 (durable device marker,
@@ -420,8 +422,8 @@ Never make the calendar's front door and named-only read rules a single flip. (U
 three-stage shorthand that predates the E0–E6 numbering: it began at E1, applied the soft/hard
 labels to the wrong phases, and omitted the offline-grace phase entirely. It survived the v19.08
 renumbering because the parity test checked phase HEADINGS, not prose. `auth-plan-parity.test.mjs`
-now pins this exact sequence in both documents and rejects the superseded shorthand.) Reuse
-`ENFORCE_NAMED_SESSION` + the staged posture the B-track proved. Verify only from a **fresh private
+now pins this exact sequence in both documents and rejects the superseded shorthand.) Reuse the
+staged posture the B-track proved (its `ENFORCE_NAMED_SESSION` switch itself was retired v24.34). Verify only from a **fresh private
 window**. **Track E consciously REVERSES an anti-goal** (the calendar's deliberate anonymous read
 surface) — starting E means re-stamping that anti-goal, not violating it silently.
 
@@ -473,8 +475,8 @@ surface) — starting E means re-stamping that anti-goal, not violating it silen
 - ~~**Do not** remove the calendar's anonymous read/bootstrap when hardening `ensureFirebaseSession` — that
   path is a deliberate public-read surface.~~ **SPENT — the reversal happened, deliberately, at v20.12.**
   The unconditional bootstrap is gone and `calendar-app.js` forbids restoring it ("Do not re-add it
-  'so telemetry keeps working'"); `signInAnonymously` survives on the Calendar only under the
-  `CALENDAR_PIN_ACCESS === false` rollback path. The public-read surface it protected was closed on
+  'so telemetry keeps working'"); `signInAnonymously` survived on the Calendar only under the
+  `CALENDAR_PIN_ACCESS === false` rollback path, retired v24.34. The public-read surface it protected was closed on
   26 Aug 2026. Kept struck through rather than deleted because this anti-goal was cited while it was
   live, and an anti-goal that quietly disappears reads as one nobody thought about.
 - **Do not** drop the `|| token.admin == true` bypass from the isolation rule — admin writes for other
@@ -534,9 +536,11 @@ auto-retry once or twice, then "Couldn't reach sign-in" + Retry; do **not** clea
 (paycalc stays offline-usable). **Persistent** (`invalid-credential`/`user-not-found`) → "ask your
 manager to reset your access" (break-glass).
 
-**Kill-switch (the single most important mitigation):** all B1 enforcement is gated behind
-`CONFIG.ENFORCE_NAMED_SESSION` (`roster-data.js`). Revert = flip to false, one-line deploy, no rules
-involved. Verify on the live URLs in a private window across every role **and** a deliberately-
+**Kill-switch (RETIRED v24.34):** all B1 enforcement was gated behind
+`CONFIG.ENFORCE_NAMED_SESSION` (`roster-data.js`), and while the rules were permissive "revert = flip to
+false, one-line deploy" was true. It stopped being true once B3 (v16.29) and the `member` claim
+(v24.27) made the rules refuse the anonymous session it restored, so the switch was retired: rollback
+is reverting the release. Verify on the live URLs in a private window across every role **and** a deliberately-
 unprovisioned account — never an installed phone.
 
 ### B3 — the live write-side invariant ("Live invariant — writeWithClaimRetry")
@@ -565,7 +569,15 @@ Operations → Set up accounts, then let tokens refresh (`CLAIM_EPOCH` sweep / `
 genuinely bad rules deploy is rolled back only to the immediately previous rules version — never past
 v24.23 (the member-claim binding).
 
-### Deferred residual — retire the anonymous fallback + kill-switch (NOT YET; held on purpose)
+### Deferred residual — retire the anonymous fallback + kill-switch ✅ DONE (v24.34)
+
+**Done at v24.34, owner-approved**, together with the Calendar's `CALENDAR_PIN_ACCESS` switch (whose
+`false` path was the other surviving `signInAnonymously` call). The case that settled it: neither switch
+was a rollback any more. The strict override writes (v16.29), the claim-gated override and document
+reads (v20.12, v23.18) and the server-issued `member` claim (v24.27) refuse every session either one
+restored, so flipping one would have produced silently-failing saves or a Calendar showing the base
+roster as though current — traps, not brakes. Everything below is the plan as it was written while
+held, kept for the record.
 
 With `ENFORCE_NAMED_SESSION` ON, two branches in `session.js` `ensureFirebaseSession` are **unreachable
 dead code**: the `createUserWithEmailAndPassword` self-heal (gated inline by
