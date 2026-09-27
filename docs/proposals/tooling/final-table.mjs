@@ -29,9 +29,18 @@
 //     06:20–14:20 and 06:20–14:50 as openers — every time a person could not find confusing. TODAY=1 adds today's
 //     clock times to the pool as well. No :05 or :10 otherwise.
 //   · Duties 7h to HI minutes (default 9h30, the December default's band); no turn on more than four duties; the
-//     thinnest fully-covered hour never below today's; no start in the forty minutes after the open.
+//     no start in the forty minutes after the open (the floor minimum replaced "thinnest hour never below today's").
 //   · Monday to Friday is one table (the searched families' shape), and 5W + S = 42,000 exactly. Sunday is not
 //     contracted, so its total is a range (SUN_MIN..SUN_MAX) and the fit decides within it.
+//
+// THE TICKET OFFICE IS NOT FLOOR COVER (owner, 27 Sep 2026, on reading the first Sunday): every fixed pair is the
+// ticket office — weekday 06:20–14:20 and 14:00–22:30, Saturday 06:20–14:50 and 14:30–22:00, Sunday's earlies and
+// lates — so they are left out of the cover the demand fit is measured on, and at least FLOOR_MIN (default 2) people
+// must be on the floor at every five-minute point of the staffed day. They still count for the day's headcount, the
+// openers, the closers, the five at 22:00 and the contract. The first Sunday found without this rule had all four
+// openers finishing 14:20, two of them the office, so ONE person was on the floor from 14:20 to 15:15 — a table
+// that fitted the curve beautifully and could not be worked. Sunday shifts are 8h to 9h (LO/HI), the owner's band:
+// that same table paired 7h turns with one lone 9h30.
 //
 // THE PICK: demand fit (minutes-weighted, the folder's one measure — `dayFit` in report-data.mjs), then fewer
 // distinct turns, then fewer distinct starts and finishes.
@@ -51,7 +60,8 @@ const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60)
 const WIN = { weekday: [380, 1435], sat: [380, 1435], sun: [435, 1405] }; const [OPEN, CLOSE] = WIN[CLS];
 const N = { weekday: 14, sat: 14, sun: 10 }[CLS], OPENERS_MIN = 4, OPENERS_MAX = Number(process.env.OPENERS_MAX ?? 5);
 const CLOSERS_MIN = 3, CLOSERS_MAX = Number(process.env.CLOSERS_MAX ?? 4);
-const LO = 420, HI = Number(process.env.HI ?? 570), MAX_PER = 4;
+const LO = Number(process.env.LO ?? (CLS === 'sun' ? 480 : 420)), HI = Number(process.env.HI ?? (CLS === 'sun' ? 540 : 570)), MAX_PER = 4;
+const FLOOR_MIN = Number(process.env.FLOOR_MIN ?? 2);   // people on the FLOOR (ticket office excluded) at every five-minute point
 const MID_END_MAX = Number(process.env.MID_END_MAX ?? CLOSE - 15);
 const MAX_TURNS = Number(process.env.MAX_TURNS ?? 99);
 const BOUND = process.env.BOUND !== '0';
@@ -66,7 +76,7 @@ const CLOSER_ONLY = CLS === 'weekday' ? (process.env.WK_CLOSER ?? '15:45-23:55')
 const TOTAL = Number(process.env.TOTAL ?? 7000);
 const SUN_MIN = Number(process.env.SUN_MIN ?? 4800), SUN_MAX = Number(process.env.SUN_MAX ?? 5300);
 
-const T0 = today(); const todayRows = assess(T0.patterns, T0.lines).tableRows;
+const T0 = today(); const todayRows = assess(T0.patterns, T0.lines).tableRows;   // today's clock times, for TODAY=1
 // POOL: every legal turn on the grid.
 const legalStartMin = s => s === OPEN || s >= OPEN + 40;
 const onGrid = m => m % 15 === 0;
@@ -80,27 +90,24 @@ for (let s = OPEN; s < CLOSE; s++) { if (s !== OPEN && !onGrid(s)) continue; for
 for (const e of extraOpenerEnds) addTurn(OPEN, e);
 for (const t of TODAY_TIMES) { const [a, b] = t.split('-').map(mm); addTurn(a, b); }
 for (const [t] of FIXED) { const [a, b] = t.split('-').map(mm); addTurn(a, b); }
-POOL.forEach((p, i) => { p.id = i; p.cov = new Float64Array(24); for (let m = p.s; m < p.e; m += 5) p.cov[Math.floor(m / 60)] += 1 / 12; });
+POOL.forEach((p, i) => { p.id = i; p.cov = new Float64Array(24); p.slots = []; for (let m = p.s; m < p.e; m += 5) { p.cov[Math.floor(m / 60)] += 1 / 12; p.slots.push(m / 5); } });
+const SLOT0 = OPEN / 5, SLOT1 = CLOSE / 5;
 const byT = Object.fromEntries(POOL.map(p => [p.t, p]));
 
 // The fit (dayFit's formula), and its lower bound from the over-covered hours.
 const cars = DEC_2026_DEMAND[CLS].cars; const HRS = []; for (let h = Math.floor(OPEN / 60); h <= Math.floor((CLOSE - 1) / 60); h++) HRS.push(h);
 const frac = h => Math.max(0, Math.min(CLOSE, (h + 1) * 60) - Math.max(OPEN, h * 60)) / 60;
 const D = HRS.reduce((a, h) => a + cars[h] * frac(h), 0); const TSH = new Float64Array(24); for (const h of HRS) TSH[h] = cars[h] * frac(h) / D;
-const FULL = HRS.filter(h => frac(h) >= 0.99);
 const fitOf = (cov, C) => { let f = 0; for (const h of HRS) { const d = TSH[h] - cov[h] / C; f += d * d; } return f * 1e4; };
 const lowerBound = (cov, C) => { let f = 0; for (const h of HRS) { const d = cov[h] / C - TSH[h]; if (d > 0) f += d * d; } return f * 1e4; };
-const todayDuties = todayRows.filter(r => r[CLS] > 0).map(r => [{ s: mm(r.time.split('-')[0]), e: mm(r.time.split('-')[1]) }, r[CLS]]);
-const thinnestOf = duties => { const c = new Array(24).fill(0); for (const [p, n] of duties) for (let m = p.s; m < p.e; m += 5) c[Math.floor(m / 60)] += n / 12; return Math.min(...FULL.map(h => c[h])); };
-const FLOOR = Number(process.env.FLOOR ?? thinnestOf(todayDuties).toFixed(2));
 
-function evaluate(counts, cov, total) {
+function evaluate(counts, cov, total, floorMin, floorSlots) {
   let n = 0, nO = 0, nC = 0, turns = 0; const starts = new Set(), ends = new Set();
   for (let i = 0; i < POOL.length; i++) { const k = counts[i]; if (!k) continue; const p = POOL[i]; if (k > MAX_PER) return null;
     n += k; turns++; starts.add(p.s); ends.add(p.e); if (p.s === OPEN) nO += k; if (p.e === CLOSE) nC += k; }
   if (n !== N || nO < OPENERS_MIN || nO > OPENERS_MAX || nC < CLOSERS_MIN || nC > CLOSERS_MAX || turns > MAX_TURNS) return null;
-  let thin = Infinity; for (const h of FULL) if (cov[h] < thin) thin = cov[h]; if (thin < FLOOR - 1e-9) return null;
-  const fit = fitOf(cov, total / 60);
+  let thin = Infinity; for (let k = SLOT0; k < SLOT1; k++) if (floorSlots[k] < thin) thin = floorSlots[k]; if (thin < FLOOR_MIN) return null;
+  const fit = fitOf(cov, floorMin / 60);
   return { fit: +fit.toFixed(1), fitRaw: fit, turns, total, thin: +thin.toFixed(2), starts: starts.size, ends: ends.size, closers: nC,
     duties: POOL.map((p, i) => [p.t, counts[i]]).filter(([, k]) => k).sort((a, b) => a[0].localeCompare(b[0])) };
 }
@@ -113,23 +120,26 @@ function multisets(pool, k, maxPer) { const out = []; const rec = (i, left, cur)
 // Run one configuration: fixed duties (exact) + free openers/closers/middles paying `total` exactly.
 function solve(fixed, total, exclude) {
   const counts = new Int32Array(POOL.length), cov = new Float64Array(24);
-  let distinct = 0;
-  const add = (p, sgn) => { if (sgn > 0 && counts[p.id] === 0) distinct++; counts[p.id] += sgn; if (sgn < 0 && counts[p.id] === 0) distinct--; for (let h = 0; h < 24; h++) cov[h] += sgn * p.cov[h]; };
+  let distinct = 0; const floorSlots = new Int16Array(24 * 12);
+  // THE TICKET OFFICE IS NOT FLOOR COVER (owner, 27 Sep 2026): a fixed (ticket-office) duty counts for the headcount,
+  // the openers, the closers and the contract, but adds nothing to the cover the demand fit and the floor minimum read.
+  const add = (p, sgn, floor = true) => { if (sgn > 0 && counts[p.id] === 0) distinct++; counts[p.id] += sgn; if (sgn < 0 && counts[p.id] === 0) distinct--;
+    if (floor) { for (let h = 0; h < 24; h++) cov[h] += sgn * p.cov[h]; for (const k of p.slots) floorSlots[k] += sgn; } };
   let fixedN = 0, fixedMin = 0, fixedO = 0, fixedC = 0;
-  for (const [t, n] of fixed) { const p = byT[t]; if (!p) throw new Error(`fixed ${t} not in pool`); for (let x = 0; x < n; x++) add(p, 1); fixedN += n; fixedMin += p.L * n; if (p.s === OPEN) fixedO += n; if (p.e === CLOSE) fixedC += n; }
+  for (const [t, n] of fixed) { const p = byT[t]; if (!p) throw new Error(`fixed ${t} not in pool`); for (let x = 0; x < n; x++) add(p, 1, false); fixedN += n; fixedMin += p.L * n; if (p.s === OPEN) fixedO += n; if (p.e === CLOSE) fixedC += n; }
   const ex = new Set(exclude);
   const openersPool = POOL.filter(p => p.s === OPEN && p.e !== CLOSE && !ex.has(p.t));
   const closersPool = POOL.filter(p => p.e === CLOSE && p.s !== OPEN && !ex.has(p.t) && (!CLOSER_ONLY || p.t === CLOSER_ONLY));
   const midPool = POOL.filter(p => p.s !== OPEN && p.e !== CLOSE && p.e <= MID_END_MAX && !ex.has(p.t));
 
   const midByL = {}; for (const p of midPool) (midByL[p.L] ??= []).push(p); const Ls = Object.keys(midByL).map(Number).sort((a, b) => a - b);
-  const C = (total ?? 1) / 60; const bestRaw = () => !BOUND ? Infinity : best ? best.fitRaw - 1e-9 : BEST0;
+  const C = ((total ?? 0) - fixedMin) / 60; const bestRaw = () => !BOUND ? Infinity : best ? best.fitRaw - 1e-9 : BEST0;
   for (let needO = Math.max(0, OPENERS_MIN - fixedO); needO <= OPENERS_MAX - fixedO; needO++) {
   const osets = multisets(openersPool, needO, MAX_PER);
   for (let nC = Math.max(0, CLOSERS_MIN - fixedC); nC <= CLOSERS_MAX - fixedC; nC++) {
     const csets = multisets(closersPool, nC, MAX_PER);
     const needM = N - fixedN - needO - nC; if (needM < 0) continue;
-    const leaf = () => { const rec = evaluate(counts, cov, total); if (rec) offer(rec); };
+    const leaf = () => { const rec = evaluate(counts, cov, total, total - fixedMin, floorSlots); if (rec) offer(rec); };
     const pickTurns = (lens, pos) => {
       if (pos === lens.length) { leaf(); return; }
       let end = pos; while (end < lens.length && lens[end] === lens[pos]) end++; const k = end - pos; const turns = midByL[lens[pos]];
@@ -144,7 +154,7 @@ function solve(fixed, total, exclude) {
       if (total === null) {   // Sunday: not contracted, so the total is whatever the duties sum to, inside SUN_MIN..SUN_MAX
         const base = fixedMin + O.reduce((a, p) => a + p.L, 0) + Cc.reduce((a, p) => a + p.L, 0);
         for (const M of multisets(midPool, needM, MAX_PER)) { for (const p of M) add(p, 1); const tot = base + M.reduce((a, p) => a + p.L, 0);
-          if (distinct <= MAX_TURNS && tot >= SUN_MIN && tot <= SUN_MAX) { const rec = evaluate(counts, cov, tot); if (rec) offer(rec); } for (const p of M) add(p, -1); }
+          if (distinct <= MAX_TURNS && tot >= SUN_MIN && tot <= SUN_MAX) { const rec = evaluate(counts, cov, tot, tot - fixedMin, floorSlots); if (rec) offer(rec); } for (const p of M) add(p, -1); }
       } else {
       const R = total - fixedMin - O.reduce((a, p) => a + p.L, 0) - Cc.reduce((a, p) => a + p.L, 0);
       if (needM === 0) { if (R === 0) leaf(); }
@@ -168,10 +178,10 @@ if (CLS !== 'sun') {
 }
 const ms = Date.now() - t0;
 const show = (label, b) => { if (!b) { console.log(`  ${label}: none`); return; }
-  console.log(`  ${label}: ${b.turns} turns · ${b.starts} starts + ${b.ends} finishes · ${b.closers} closers · fit ${b.fit} · pays ${b.total} · thinnest ${b.thin}`);
+  console.log(`  ${label}: ${b.turns} turns · ${b.starts} starts + ${b.ends} finishes · ${b.closers} closers · fit ${b.fit} · pays ${b.total} · fewest on the floor ${b.thin}`);
   console.log('    ' + b.duties.map(([t, n]) => `${t} x${n}`).join('  ')); };
-console.log(`${CLS}: cap ${MAX_TURNS < 99 ? MAX_TURNS : 'none'} · fixed ${FIXED.map(([t, n]) => `${t} x${n}`).join(', ') || '(ticket office enumerated)'} · pool ${POOL.length} · floor ${FLOOR} · HI ${HI} · ${CLS === 'sun' ? `total ${SUN_MIN}–${SUN_MAX}` : `total ${TOTAL}`} · ${feasible.toLocaleString()} feasible tables scored · ${nodes.toLocaleString()} nodes (${pruned.toLocaleString()} pruned) · ${(ms / 1000).toFixed(1)}s`);
+console.log(`${CLS}: cap ${MAX_TURNS < 99 ? MAX_TURNS : 'none'} · fixed ${FIXED.map(([t, n]) => `${t} x${n}`).join(', ') || '(ticket office enumerated)'} · pool ${POOL.length} · floor ≥${FLOOR_MIN} (ticket office excluded) · ${LO}–${HI} min · ${CLS === 'sun' ? `total ${SUN_MIN}–${SUN_MAX}` : `total ${TOTAL}`} · ${feasible.toLocaleString()} feasible tables scored · ${nodes.toLocaleString()} nodes (${pruned.toLocaleString()} pruned) · ${(ms / 1000).toFixed(1)}s`);
 show('best', best);
 if (process.env.LADDER === '1') for (const k of Object.keys(byTurns).sort((a, b) => a - b)) show(`${k} turns`, byTurns[k]);
-if (process.env.OUT && best) writeFileSync(process.env.OUT, JSON.stringify({ cls: CLS, total: best.total, fit: best.fit, turns: best.turns, closers: best.closers, duties: best.duties, cap: MAX_TURNS, HI, floor: FLOOR, feasible }, null, 1));
+if (process.env.OUT && best) writeFileSync(process.env.OUT, JSON.stringify({ cls: CLS, total: best.total, fit: best.fit, turns: best.turns, closers: best.closers, duties: best.duties, cap: MAX_TURNS, LO, HI, floorMin: FLOOR_MIN, feasible }, null, 1));
 if (!best) process.exit(1);
