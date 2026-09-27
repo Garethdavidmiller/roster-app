@@ -61,7 +61,18 @@ const WIN = { weekday: [380, 1435], sat: [380, 1435], sun: [435, 1405] }; const 
 const N = { weekday: 14, sat: 14, sun: 10 }[CLS], OPENERS_MIN = 4, OPENERS_MAX = Number(process.env.OPENERS_MAX ?? 5);
 const CLOSERS_MIN = 3, CLOSERS_MAX = Number(process.env.CLOSERS_MAX ?? 4);
 const LO = Number(process.env.LO ?? (CLS === 'sun' ? 480 : 420)), HI = Number(process.env.HI ?? (CLS === 'sun' ? 540 : 570)), MAX_PER = 4;
-const FLOOR_MIN = Number(process.env.FLOOR_MIN ?? 2);   // people on the FLOOR (ticket office excluded) at every five-minute point
+const FLOOR_MIN = Number(process.env.FLOOR_MIN ?? 2);
+// HANDOVER (owner, 27 Sep 2026, on the Sunday whose openers left at 15:15 as the closers arrived): every closer must
+// arrive at least HANDOVER minutes before somebody already on the floor leaves — somebody who started earlier and is
+// still there at closer-start + HANDOVER. The ticket office's own early pair must overlap its late pair by the same.   // people on the FLOOR (ticket office excluded) at every five-minute point
+const HANDOVER = Number(process.env.HANDOVER ?? 15);
+// On a Sunday the OPENERS themselves hand over (owner): every floor opener still on HANDOVER minutes after the
+// closers arrive — a middle turn standing between them does not count. Weekday and Saturday openers cannot reach a
+// 15:45 closer inside the 9h30 band, so there the general rule (someone already on the floor) is the handover.
+const OPENER_HANDOVER = CLS === 'sun' && process.env.OPENER_HANDOVER !== '0';
+// The ticket office's early pair overlaps its late pair by TO_HANDOVER (owner: 20 minutes). The owner's weekday and
+// Saturday pairs already do, to the minute (14:00/14:20, 14:30/14:50); on a Sunday it is enforced here.
+const TO_HANDOVER = Number(process.env.TO_HANDOVER ?? 20);
 const MID_END_MAX = Number(process.env.MID_END_MAX ?? CLOSE - 15);
 const MAX_TURNS = Number(process.env.MAX_TURNS ?? 99);
 const BOUND = process.env.BOUND !== '0';
@@ -101,11 +112,21 @@ const D = HRS.reduce((a, h) => a + cars[h] * frac(h), 0); const TSH = new Float6
 const fitOf = (cov, C) => { let f = 0; for (const h of HRS) { const d = TSH[h] - cov[h] / C; f += d * d; } return f * 1e4; };
 const lowerBound = (cov, C) => { let f = 0; for (const h of HRS) { const d = cov[h] / C - TSH[h]; if (d > 0) f += d * d; } return f * 1e4; };
 
-function evaluate(counts, cov, total, floorMin, floorSlots) {
+function handoverOk(counts, fixedCounts) {
+  const floor = i => counts[i] - (fixedCounts ? fixedCounts[i] : 0);
+  for (let i = 0; i < POOL.length; i++) { if (!floor(i) || POOL[i].e !== CLOSE) continue; const c = POOL[i].s;
+    let ok = false; for (let j = 0; j < POOL.length && !ok; j++) { if (!floor(j) || POOL[j].e === CLOSE) continue; if (POOL[j].s < c && POOL[j].e >= c + HANDOVER) ok = true; }
+    if (!ok) return false; }
+  if (OPENER_HANDOVER) { let lastCloser = -Infinity; for (let i = 0; i < POOL.length; i++) if (floor(i) && POOL[i].e === CLOSE) lastCloser = Math.max(lastCloser, POOL[i].s);   // EVERY closer, not just the first
+    for (let i = 0; i < POOL.length; i++) if (floor(i) && POOL[i].s === OPEN && POOL[i].e < lastCloser + HANDOVER) return false; }
+  return true;
+}
+function evaluate(counts, cov, total, floorMin, floorSlots, fixedCounts) {
   let n = 0, nO = 0, nC = 0, turns = 0; const starts = new Set(), ends = new Set();
   for (let i = 0; i < POOL.length; i++) { const k = counts[i]; if (!k) continue; const p = POOL[i]; if (k > MAX_PER) return null;
     n += k; turns++; starts.add(p.s); ends.add(p.e); if (p.s === OPEN) nO += k; if (p.e === CLOSE) nC += k; }
   if (n !== N || nO < OPENERS_MIN || nO > OPENERS_MAX || nC < CLOSERS_MIN || nC > CLOSERS_MAX || turns > MAX_TURNS) return null;
+  if (!handoverOk(counts, fixedCounts)) return null;
   let thin = Infinity; for (let k = SLOT0; k < SLOT1; k++) if (floorSlots[k] < thin) thin = floorSlots[k]; if (thin < FLOOR_MIN) return null;
   const fit = fitOf(cov, floorMin / 60);
   return { fit: +fit.toFixed(1), fitRaw: fit, turns, total, thin: +thin.toFixed(2), starts: starts.size, ends: ends.size, closers: nC,
@@ -125,8 +146,8 @@ function solve(fixed, total, exclude) {
   // the openers, the closers and the contract, but adds nothing to the cover the demand fit and the floor minimum read.
   const add = (p, sgn, floor = true) => { if (sgn > 0 && counts[p.id] === 0) distinct++; counts[p.id] += sgn; if (sgn < 0 && counts[p.id] === 0) distinct--;
     if (floor) { for (let h = 0; h < 24; h++) cov[h] += sgn * p.cov[h]; for (const k of p.slots) floorSlots[k] += sgn; } };
-  let fixedN = 0, fixedMin = 0, fixedO = 0, fixedC = 0;
-  for (const [t, n] of fixed) { const p = byT[t]; if (!p) throw new Error(`fixed ${t} not in pool`); for (let x = 0; x < n; x++) add(p, 1, false); fixedN += n; fixedMin += p.L * n; if (p.s === OPEN) fixedO += n; if (p.e === CLOSE) fixedC += n; }
+  let fixedN = 0, fixedMin = 0, fixedO = 0, fixedC = 0; const fixedCounts = new Int32Array(POOL.length);
+  for (const [t, n] of fixed) { const p = byT[t]; if (!p) throw new Error(`fixed ${t} not in pool`); for (let x = 0; x < n; x++) add(p, 1, false); fixedCounts[p.id] += n; fixedN += n; fixedMin += p.L * n; if (p.s === OPEN) fixedO += n; if (p.e === CLOSE) fixedC += n; }
   const ex = new Set(exclude);
   const openersPool = POOL.filter(p => p.s === OPEN && p.e !== CLOSE && !ex.has(p.t));
   const closersPool = POOL.filter(p => p.e === CLOSE && p.s !== OPEN && !ex.has(p.t) && (!CLOSER_ONLY || p.t === CLOSER_ONLY));
@@ -139,7 +160,7 @@ function solve(fixed, total, exclude) {
   for (let nC = Math.max(0, CLOSERS_MIN - fixedC); nC <= CLOSERS_MAX - fixedC; nC++) {
     const csets = multisets(closersPool, nC, MAX_PER);
     const needM = N - fixedN - needO - nC; if (needM < 0) continue;
-    const leaf = () => { const rec = evaluate(counts, cov, total, total - fixedMin, floorSlots); if (rec) offer(rec); };
+    const leaf = () => { const rec = evaluate(counts, cov, total, total - fixedMin, floorSlots, fixedCounts); if (rec) offer(rec); };
     const pickTurns = (lens, pos) => {
       if (pos === lens.length) { leaf(); return; }
       let end = pos; while (end < lens.length && lens[end] === lens[pos]) end++; const k = end - pos; const turns = midByL[lens[pos]];
@@ -154,7 +175,7 @@ function solve(fixed, total, exclude) {
       if (total === null) {   // Sunday: not contracted, so the total is whatever the duties sum to, inside SUN_MIN..SUN_MAX
         const base = fixedMin + O.reduce((a, p) => a + p.L, 0) + Cc.reduce((a, p) => a + p.L, 0);
         for (const M of multisets(midPool, needM, MAX_PER)) { for (const p of M) add(p, 1); const tot = base + M.reduce((a, p) => a + p.L, 0);
-          if (distinct <= MAX_TURNS && tot >= SUN_MIN && tot <= SUN_MAX) { const rec = evaluate(counts, cov, tot, tot - fixedMin, floorSlots); if (rec) offer(rec); } for (const p of M) add(p, -1); }
+          if (distinct <= MAX_TURNS && tot >= SUN_MIN && tot <= SUN_MAX) { const rec = evaluate(counts, cov, tot, tot - fixedMin, floorSlots, fixedCounts); if (rec) offer(rec); } for (const p of M) add(p, -1); }
       } else {
       const R = total - fixedMin - O.reduce((a, p) => a + p.L, 0) - Cc.reduce((a, p) => a + p.L, 0);
       if (needM === 0) { if (R === 0) leaf(); }
@@ -173,7 +194,7 @@ if (CLS !== 'sun') {
   // The ticket office: 07:15–X x2 (two of the four openers) and Y–22:30 x2, with X ≥ Y. Every such pair, and every
   // Sunday total in the range, is enumerated.
   const earlies = POOL.filter(p => p.s === OPEN && p.e !== CLOSE), lates = POOL.filter(p => p.e === 22 * 60 + 30);
-  for (const E of earlies) for (const Lt of lates) { if (E.e < Lt.s) continue;
+  for (const E of earlies) for (const Lt of lates) { if (E.e < Lt.s + TO_HANDOVER) continue;
     solve([[E.t, 2], [Lt.t, 2], ...FIXED], null, [Lt.t]); }
 }
 const ms = Date.now() - t0;
