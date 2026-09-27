@@ -42,7 +42,7 @@
 // A flaky baseline is worse than none, so mobile-calendar coverage stays with the geometry-based
 // e2e responsive/calendar specs; the calendar's pixels are still locked at desktop width below.
 
-import { test, expect, enableCalendarPin } from './fixtures.js';
+import { test, expect } from './fixtures.js';
 import { seedSession, seedMember, openRosterReview, openReference, stubPerfReads, openPinCard, sheetAction } from './helpers.js';
 import { FIXED_TIME, dismissOneTimeOverlays, prep, settle } from './visual-harness.js';
 import { ROTATING_LINES } from '../links-design.js';
@@ -998,16 +998,11 @@ test('overlay — Tips panel (settings, desktop 1280)', async ({ page }) => {
 // assert the field exists, is labelled and is 16px+, none of which would notice the card losing its
 // padding, its badge, or its surface — the exact way the links "Recently deleted" panel shipped as
 // a transparent box at v19.41 with every behavioural test green.
-// These set the PIN explicitly rather than inheriting it (`roster-data.js` owns the value; a
-// second copy in a comment is what goes stale — this line carried one)
-// the default — otherwise the front door stops being baselined the day it ships and nobody notices,
-// which is the failure mode this whole file exists to prevent.
 // The front door is the SIGN-IN card since v23.19 (owner decision); the PIN card is one tap behind
 // it. The two `calendar-lock-*` baselines keep their names — they baseline the locked front door,
 // whichever card that is — and the PIN card gets its own.
 test('calendar — front door: the sign-in card @1280', async ({ page }) => {
     await page.clock.setFixedTime(FIXED_TIME);
-    await enableCalendarPin(page);
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto('/index.html');
     await settle(page, '#calendarLock #loginCard');
@@ -1016,7 +1011,6 @@ test('calendar — front door: the sign-in card @1280', async ({ page }) => {
 
 test('calendar — front door: the sign-in card @390', async ({ page }) => {
     await page.clock.setFixedTime(FIXED_TIME);
-    await enableCalendarPin(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/index.html');
     await settle(page, '#calendarLock #loginCard');
@@ -1025,7 +1019,6 @@ test('calendar — front door: the sign-in card @390', async ({ page }) => {
 
 test('calendar — staff PIN card @390', async ({ page }) => {
     await page.clock.setFixedTime(FIXED_TIME);
-    await enableCalendarPin(page);
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/index.html');
     await openPinCard(page);

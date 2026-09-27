@@ -676,23 +676,18 @@ that is the sign-in card working as intended and the remedy is their password. I
 the four-digit PIN card, they have no session on that device — which is expected on a shared PC and
 on any browser they have not signed into.
 
-### Switching it on and off
+### There is no on/off switch any more (retired v24.34)
 
-`CONFIG.CALENDAR_PIN_ACCESS` in `roster-data.js` is the on/off switch, and both directions are a
-hosting deploy of one line:
+`CONFIG.CALENDAR_PIN_ACCESS` in `roster-data.js` used to be the on/off switch: `false` put the
+Calendar back on its pre-v20.12 model (anonymous session, no gate, no card), which was how the
+feature shipped DARK and the fast rollback while the `overrides` rule was still permissive. **It was
+retired at v24.34** because the server rules no longer allow the anonymous session it restored —
+override and document reads need a member claim, `admin`, or the PIN's `calendarViewer` — so
+flipping it would have shown every visitor a base roster under a "couldn't update" chip, a roster
+that is WRONG rather than obviously broken. Rollback is reverting the release (and, for the read
+rule, RECOVERY_RUNBOOK.md → "The Calendar PIN").
 
-- **`false`** — the Calendar is on its pre-v20.12 model: anonymous session, no gate, no card. Staff
-  see no change at all. This is how the feature ships DARK, and it is the fast rollback while the
-  `overrides` rule is still permissive.
-- **`true`** — the card is up: a member session or the staff PIN, and nothing else.
-
-**It controls friction, not protection.** Whether the roster is actually protected is decided by
-`firestore.rules`, which is a separate deploy. Once the rules are tightened, switching the flag off
-no longer re-opens anything — the client stops asking for a PIN while the server keeps refusing the
-reads, which shows every visitor a base roster under a "couldn't update" chip. Rolling back after
-that point means rolling back the rules: RECOVERY_RUNBOOK.md → "The Calendar PIN".
-
-**BOTH BRAKES ARE NOW OFF (26 Aug 2026).** The flag has been `true` since v20.51 and the
+**BOTH BRAKES ARE NOW OFF (26 Aug 2026).** The flag was `true` from v20.51 and the
 `allow read;` hold line was deleted at v21.78, so `overrides` reads require a bound member identity
 (`isMember()` — AUTH_AND_SESSIONS.md invariant 19), `admin`, or the `calendarViewer` capability and the server refuses anything else. They were released one push
 each, client first and rules second — steps 3 and 4 of RECOVERY_RUNBOOK.md → "The Calendar PIN".

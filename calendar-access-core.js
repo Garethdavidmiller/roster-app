@@ -76,8 +76,7 @@ export function isViewerUser(user) {
  *
  *   · `'members'` — a signed-in member on this device (`named`). Anything about your pay, your
  *     settings or your account belongs here.
- *   · `'signed-out'` — ONLY where no member is signed in on this device (a PIN unlock, or the
- *     Calendar with the PIN switched off). For a notice whose subject is signing in: telling
+ *   · `'signed-out'` — ONLY where no member is signed in on this device (a PIN unlock). For a notice whose subject is signing in: telling
  *     somebody who already has to sign in is noise, and the audience check re-runs on every load,
  *     so such a notice retires itself the moment they do. That is why it needs no done-flag
  *     plumbing to stop, unlike a notice that merely expires.
@@ -91,7 +90,7 @@ export function isViewerUser(user) {
  * the same device is next signed in.
  *
  * @param {'members'|'signed-out'|'everyone'|string} audience  as declared by the notice
- * @param {'named'|'viewer'|'open'|'none'} accessType  getAccessType()
+ * @param {'named'|'viewer'|'none'} accessType  getAccessType()
  * @returns {boolean}
  */
 export function noticeAudienceAllows(audience, accessType) {
@@ -126,15 +125,11 @@ export function noticeAudienceAllows(audience, accessType) {
  *      to every signed-in member — looking at a colleague's roster is an ordinary thing to do — and
  *      an action that silently switches subject is worse than one that is absent.
  *
- * `open` mode (the staff PIN switched off) is deliberately NOT a third case: it says nothing about
- * identity, so a signed-in member browsing their own calendar keeps the buttons and a device with
- * no session has no name to match. Rule 2 already answers it, correctly, in both directions.
- *
  * An absent, blank or unmatched name is a refusal — the buttons are a convenience, and the cost of
  * failing closed is a member using the nav drawer instead.
  *
  * @param {object} input
- * @param {'named'|'viewer'|'open'|'none'|string} input.accessType  getAccessType()
+ * @param {'named'|'viewer'|'none'|string} input.accessType  getAccessType()
  * @param {string|null|undefined} input.sessionName   the signed-in member (getSession()?.name)
  * @param {string|null|undefined} input.shownMember   whose calendar is on screen
  * @returns {boolean}

@@ -17,16 +17,17 @@
  * not have. There are three shapes, and they differ because the pages establish identity
  * differently:
  *
- *   1. `calendar-app.js` — the page that may have no named user at all. Wait for auth persistence,
- *      run `reconcileExpiredIdentity()` (sign out a lingering EXPIRED named identity), and sign in
- *      anonymously ONLY if no named user remains:
+ *   1. `calendar-app.js` — the page that may have no named user at all. It waits on
+ *      `calendarAuthReady` (calendar-access.js), which resolves only once access is GRANTED to a
+ *      named member or the PIN's viewer, both of which already hold a real Firebase identity:
  *
- *          authReady.then(() => reconcileExpiredIdentity())
- *                   .then(() => auth.currentUser ? null : signInAnonymously(auth).catch(() => {}))
- *                   .catch(() => {}).finally(() => initErrorReporter())
+ *          calendarAuthReady.finally(() => { initErrorReporter(); … })
  *
- *      The ordering is the point: it PRESERVES a valid named identity instead of racing with or
- *      replacing it.
+ *      A locked Calendar therefore never starts the reporter, and nothing signs in anonymously to
+ *      make it: the rules accept no anonymous session (v20.12), and the switch that last restored
+ *      one on this page (`CALENDAR_PIN_ACCESS`, its `open` mode) was retired v24.34. The access
+ *      decision runs `reconcileExpiredIdentity()` first, so a valid named identity is PRESERVED
+ *      rather than raced or replaced.
  *   2. **Authenticated pages that expose `sessionReady`** — `admin-app.js`, `settings-app.js`,
  *      `operations-app.js`, `links-app.js`: `sessionReady.then(() => initErrorReporter())`.
  *   3. `paycalc-app.js`, which has no `sessionReady`:

@@ -40,11 +40,10 @@ mock.module('./perf-reporter.js', { namedExports: { markLoginStart: () => {}, cl
 
 const { runNamedSignIn } = await import('./login-overlay.js');
 
-/** Build a deps object with call-recording session helpers and sensible defaults (enforce ON). */
+/** Build a deps object with call-recording session helpers and sensible defaults. */
 function makeDeps(over = {}) {
     const calls = { save: 0, clear: 0 };
     const deps = {
-        enforce:            true,
         ensureNamedSession: async () => true,
         saveSession:        () => { calls.save++; return true; },
         clearSession:       () => { calls.clear++; },
@@ -65,7 +64,7 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
         assert.equal(calls.clear, 0);
     });
 
-    test('enforce ON + named false → NO save, clears, ok:false, kind:credential + credential message', async () => {
+    test('named false → NO save, clears, ok:false, kind:credential + credential message', async () => {
         const { deps, calls } = makeDeps({ ensureNamedSession: async () => false });
         const r = await runNamedSignIn(deps);
         assert.equal(r.ok, false);
@@ -77,7 +76,7 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
         assert.equal(calls.clear, 1);
     });
 
-    test('enforce ON + named false + too-many-requests → kind:ratelimit, distinct message, NOT credential', async () => {
+    test('named false + too-many-requests → kind:ratelimit, distinct message, NOT credential', async () => {
         const { deps } = makeDeps({
             ensureNamedSession: async () => false,
             getAuthError: () => 'auth/too-many-requests',
@@ -89,7 +88,7 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
         assert.match(/** @type {string} */ (r.error), /Too many attempts/);
     });
 
-    test('enforce ON + named false + TRANSIENT error → connection message', async () => {
+    test('named false + TRANSIENT error → connection message', async () => {
         const { deps } = makeDeps({
             ensureNamedSession: async () => false,
             getAuthError: () => 'network-request-failed',
@@ -99,14 +98,6 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
         assert.equal(r.ok, false);
         assert.equal(r.kind, 'transient');
         assert.match(/** @type {string} */ (r.error), /reach sign-in — check your connection/);
-    });
-
-    test('enforce OFF never blocks on named → saves + ok even when named is false', async () => {
-        const { deps, calls } = makeDeps({ enforce: false, ensureNamedSession: async () => false });
-        const r = await runNamedSignIn(deps);
-        assert.deepEqual(r, { ok: true });
-        assert.equal(calls.save, 1);
-        assert.equal(calls.clear, 0);
     });
 
     test('auth TIMEOUT (never resolves) → NO save, clears, ok:false (the core freeze fix)', async () => {

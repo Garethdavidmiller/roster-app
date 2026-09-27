@@ -55,7 +55,7 @@ beforeEach(() => {
 });
 
 describe('rule 1 — renewal never runs under the shared viewer', () => {
-    for (const [access, expected] of /** @type {const} */ ([['named', 1], ['open', 1], ['viewer', 0]])) {
+    for (const [access, expected] of /** @type {const} */ ([['named', 1], ['viewer', 0], ['none', 0]])) {
         test(`permission granted, ${access} session → ${expected ? 'renews' : 'writes nothing'}`, async () => {
             /** @type {any} */ (globalThis.Notification).permission = 'granted';
             initNotifPrompt({ authReady: Promise.resolve(), getAccessType: () => access });

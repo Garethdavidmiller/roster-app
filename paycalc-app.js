@@ -1787,12 +1787,11 @@ export function init() {
       // calculator is localStorage-based and writes no isolated data, so a degraded/anonymous session
       // must NEVER block it. requirePage('paycalc') honours that — being `soft`, it returns ONLY 'allow'
       // (named confirmed) or 'soft-allow' (Firebase identity unconfirmed), never 'login'/'forbidden'. We
-      // only log when the requirement is on AND the store reports 'soft-allow' (the member's own session
-      // wasn't confirmed) — equivalent to the old `!named`. The store is fed by the Phase-2 bridge inside
-      // ensureNamedSession, so getAuthSnapshot() reflects the terminal identity here. (ROSTER_CONFIG is
-      // roster-data's CONFIG, imported as ROSTER_CONFIG to avoid the paycalc-periods CONFIG clash.)
+      // only log when the store reports 'soft-allow' (the member's own session wasn't confirmed). The
+      // store is fed by the Phase-2 bridge inside ensureNamedSession, so getAuthSnapshot() reflects the
+      // terminal identity here.
       if (name) _paycalcAuthSettled = ensureNamedSession(name)
-          .then(() => { if (ROSTER_CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'paycalc').decision === 'soft-allow') console.warn('[Auth] paycalc running without a named session — error reporting may not record.'); })
+          .then(() => { if (requirePage(getAuthSnapshot(), 'paycalc').decision === 'soft-allow') console.warn('[Auth] paycalc running without a named session — error reporting may not record.'); })
           .catch(() => {/* reporter still starts below */})
           .finally(afterAuth);
       else afterAuth();

@@ -1,4 +1,4 @@
-import { test, expect, enforceNamedSession, enableCalendarPin } from './fixtures.js';
+import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, seedViewerAccess } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
@@ -10,14 +10,7 @@ import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword
 // The gate itself is covered end-to-end in calendar-pin.spec.js.
 // A test that also seeds a member session still gets the member: the stub ranks them that way,
 // exactly as `decideAccess` does.
-// These set the PIN explicitly rather than inheriting `CONFIG.CALENDAR_PIN_ACCESS`, and seed a
-// viewer session to satisfy it. Deliberate, and the value is NOT restated here — `roster-data.js`
-// owns it, and a comment repeating it is the defect this repo names most often (this one did, and
-// said "switched OFF … deployed dark" for the five weeks after the flag went live). A suite that
-// INHERITS the flag silently changes what it covers on the day the flag moves, and the direction
-// that costs something is a calendar suite falling back to the old open model with the gate
-// untested.
-test.beforeEach(async ({ page }) => { await enableCalendarPin(page); await seedViewerAccess(page); });
+test.beforeEach(async ({ page }) => { await seedViewerAccess(page); });
 
 
 // ── DESKTOP GEOMETRY (added v14.37) ───────────────────────────────────────

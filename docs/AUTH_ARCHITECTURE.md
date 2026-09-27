@@ -80,8 +80,8 @@ out of the reducer is what delivers the authentication/authorisation separation.
 ### Layer 2 — Page-auth policy (authorisation) — *pure* (`auth-policy.js`, Phase 3)
 
 `requirePageAuth(snapshot, policy) → { decision, reason }`, driven by a **declarative policy map** — the
-single home for the per-page rules once smeared across six coordinators, and for `ENFORCE_NAMED_SESSION`
-+ the hard/soft matrix. Decisions: `allow / soft-allow / login / forbidden / pending` (`pending` was
+single home for the per-page rules once smeared across six coordinators, and for the hard/soft matrix
+(and, until it was retired v24.34, the `ENFORCE_NAMED_SESSION` switch). Decisions: `allow / soft-allow / login / forbidden / pending` (`pending` was
 added vs the original four for the resolving/degraded "not yet" states, which `subscribeAuth` fires on).
 
 | Page | Local session | Firebase (read) | Firebase (write) | Role | Anonymous |
@@ -341,7 +341,7 @@ their in-place path must not re-run `init()`'s unconditional module wiring) — 
 twice, and (c) `saveSession` precedes `onSuccess` in `runNamedSignIn`, so identity/namespace are
 committed before the body runs.
 
-**Deliberately stays a reload:** the **B1 re-show path** (`ENFORCE_NAMED_SESSION` on + named session
+**Deliberately stays a reload:** the **B1 re-show path** (named session
 fails after an apparently-valid local session → `clearSession()` + overlay — session *invalidation*,
 rare); and paycalc's **data-ownership** `resolveLegacyMigration → reload`.
 

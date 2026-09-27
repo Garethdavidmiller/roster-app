@@ -955,7 +955,7 @@ anonymous session (added v13.78), so an `allow read: if request.auth != null` ga
 near-free". **That is no longer true and must not be acted on**: the Calendar's anonymous bootstrap
 was REMOVED at v20.12, and `calendar-app.js` explicitly forbids restoring it ("Do not re-add it 'so
 telemetry keeps working'"). `signInAnonymously` now runs on the Calendar only under the
-`CONFIG.CALENDAR_PIN_ACCESS === false` rollback path, and that flag is on.
+`CONFIG.CALENDAR_PIN_ACCESS === false` rollback path, and that flag is on. *(Both retired v24.34 — the Calendar no longer calls `signInAnonymously` at all.)*
 
 The conclusion survives the inversion, by a stronger route. An `auth != null` gate was declined
 because its value is marginal — an anonymous token is as freely obtainable as the app obtains it,
@@ -1696,7 +1696,8 @@ These are interlocking; most remain and should ship together, but the headline g
   one-line, no-rules-deploy rollback for the whole B1/B2/B3 named-session + isolation release, and the
   release is still soaking. **Do it only after a few weeks of clean production running** and once
   self-service recovery (C4) reduces the value of an instant rollback. Retirement scope + checklist:
-  SECURITY_RELEASE_PLAN.md → "B1 detailed scope" → "Deferred residual".
+  SECURITY_RELEASE_PLAN.md → "B1 detailed scope" → "Deferred residual". *(Retired v24.34: the flag,
+  the fallback and the self-heal are all gone.)*
 - **Remove browser-side account creation** — ✓ **effectively DONE via B1.1** (v14.40):
   `ensureFirebaseSession` no longer self-creates a Firebase account with `createUserWithEmailAndPassword`
   on the write path. The provisioning prerequisite (every member has a server account before B1) is in

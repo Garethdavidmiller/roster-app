@@ -14,7 +14,7 @@
  * Owns: the overlay UI, grade/name dropdowns, passing the TYPED password to Firebase (the authority
  *   — no local surname pre-check since PASSWORD_DESIGN.md §3.2), the client-side wrong-password
  *   lockout, and the Firebase named-session establishment (B1: ensureNamedSession + the
- *   enforce-failure messaging).
+ *   failure messaging).
  * Does NOT own: what happens AFTER a confirmed sign-in — the caller passes onSuccess (typically a
  *   reload, or admin's inline email-check-then-reload).
  *
@@ -75,11 +75,12 @@ function withTimeout(promise, ms) {
  * The DOM-free core of a sign-in attempt (exported for tests). Establishes the member's named
  * Firebase session, time-boxed, and commits the LOCAL session ONLY if auth genuinely resolves — so
  * a slow/hung auth can never leave a "half signed-in" state (the v14.72–75 login-freeze class; see
- * LOGIN_INCIDENT.md). Pure of DOM: the caller passes the already-name-bound session helpers and the
- * enforce flag, and applies the button/error effects from the result.
+ * LOGIN_INCIDENT.md). Pure of DOM: the caller passes the already-name-bound session helpers, and
+ * applies the button/error effects from the result. A resolved-but-NOT-named result is a failure:
+ * there is no anonymous session to accept (the `enforce` dep, fed by the `ENFORCE_NAMED_SESSION`
+ * switch, was retired v24.34).
  *
  * @param {object} deps
- * @param {boolean} deps.enforce                            CONFIG.ENFORCE_NAMED_SESSION
  * @param {() => Promise<boolean>} deps.ensureNamedSession  pre-bound to the member name
  * @param {() => boolean} deps.saveSession                  pre-bound to the member name; returns false if storage is blocked
  * @param {() => void} deps.clearSession
@@ -90,14 +91,14 @@ function withTimeout(promise, ms) {
  *   ok=true ⇒ local session saved; caller runs onSuccess. On failure, `kind` names the cause
  *   ('credential' = wrong password → the caller's lockout counts it; others must not).
  */
-export async function runNamedSignIn({ enforce, ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, timeoutMs = 8000 }) {
+export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, timeoutMs = 8000 }) {
     let named = false, authResolved = true;
     try {
         named = await withTimeout(ensureNamedSession(), timeoutMs);
     } catch {
         authResolved = false;   // timed out (or threw) → treat as not signed in
     }
-    if (!authResolved || (enforce && !named)) {
+    if (!authResolved || !named) {
         clearSession();         // never leave a stale/legacy session behind a failed sign-in
         // `kind` lets the caller act on the CAUSE (only a genuine wrong-password drives the client
         // lockout; a network/rate-limit failure must not). Messages follow PASSWORD_DESIGN.md §3.5 +
@@ -556,7 +557,6 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
             // class; see runNamedSignIn / LOGIN_INCIDENT.md). On failure we restore the button and
             // show the message it returns; on success we hand off to onSuccess (reload/navigate).
             const _result = await runNamedSignIn({
-                enforce:            CONFIG.ENFORCE_NAMED_SESSION,
                 ensureNamedSession: () => ensureNamedSession(name, { password: typedPw }),
                 saveSession:        () => saveSession(name),
                 clearSession,

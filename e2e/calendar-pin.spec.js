@@ -15,18 +15,11 @@
  */
 import { test, expect } from './fixtures.js';
 import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, openPinCard, signInThroughOverlay, collectFatalErrors, seedViewerAccess, clearNoticeFlags } from './helpers.js';
-import { disableCalendarPin, enableCalendarPin, forcePasswordSet } from './fixtures.js';
+import { forcePasswordSet } from './fixtures.js';
 
-// Every test here sets `CONFIG.CALENDAR_PIN_ACCESS` explicitly rather than inheriting it, and the
-// value it ships with is deliberately NOT restated in this file — `roster-data.js` owns that, and
-// a comment carrying a second copy is the defect this repo records most often. (This comment was
-// one: it read "the shipped default is OFF … deployed dark" for the five weeks after the flag went
-// live, i.e. it told a reader the Calendar was still open when the rules had already closed it.)
-// The reasoning survives the value either way: these describe the configuration the FEATURE is
-// for, so the suite must not quietly stop testing the card because a deployment flag moved.
-// The four "switched OFF" tests below call disableCalendarPin, which writes the same map key, so
-// the later call simply wins.
-test.beforeEach(async ({ page }) => { await enableCalendarPin(page); });
+// (Until v24.34 every test here pinned `CONFIG.CALENDAR_PIN_ACCESS` on, and four more proved the
+// "switched OFF" Calendar. The switch was retired — the rules had long since stopped letting its
+// anonymous session read anything — so the gate is the only Calendar there is.)
 
 // ── Locked ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -728,58 +721,6 @@ test('a signed-in member keeps the full footer — name, bell and sign out', asy
     // Either way the footer is INTACT — which is what this test is guarding. A missing bell is a
     // capability the browser lacks; a missing name or sign-out would be a broken footer.
     await expect(page.locator('.nav-panel-footer')).toBeVisible();
-});
-
-// ── The on/off switch (v20.16) ──────────────────────────────────────────────────────────────────
-//
-// The feature ships DARK: merged, deployed and running, but invisible to staff until one line is
-// flipped. These prove the "off" state is genuinely the pre-v20.12 Calendar and not a half-disabled
-// version of the new one — which is the failure that would only be discovered by staff.
-
-test('switched OFF: a visitor with nothing gets the Calendar, exactly as before', async ({ page }) => {
-    const errors = collectFatalErrors(page);
-    await disableCalendarPin(page);
-    await seedMember(page);
-    await page.goto('/index.html');
-
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await expect(page.locator('#calendarLock')).toHaveCount(0);
-    await expect(page.locator('#calendarControls')).toBeVisible();
-    await expect(page.locator('#calendarLegend')).toBeVisible();
-    // Built, not merely revealed.
-    expect(await page.locator('#teamMemberSelect option').count()).toBeGreaterThan(0);
-    expect(errors).toEqual([]);
-});
-
-test('switched OFF: the FIRST-RUN prompt still works for a brand-new device', async ({ page }) => {
-    // No seeded member at all — the state a new starter opens the app in. Under the old model this
-    // is the "choose your name" prompt, and it must survive the switch untouched.
-    await disableCalendarPin(page);
-    await page.goto('/index.html');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await expect(page.locator('#calendarLock')).toHaveCount(0);
-});
-
-test('switched OFF: no Lock Calendar, and no empty footer', async ({ page }) => {
-    // `open` is not viewer mode. Offering "Lock Calendar" when there is no lock would be a control
-    // that does nothing.
-    await disableCalendarPin(page);
-    await seedMember(page);
-    await page.goto('/index.html');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await page.locator('#navMenuBtn').click();
-    await expect(page.locator('#navPanel')).toBeVisible();
-    await expect(page.locator('#navLockCalendarBtn')).toBeHidden();
-});
-
-test('switched OFF: a signed-in member is unaffected', async ({ page }) => {
-    await disableCalendarPin(page);
-    await seedMemberSession(page, 'G. Miller');
-    await page.goto('/index.html');
-    await expect(page.locator('#calendarDisplay')).toBeVisible();
-    await page.locator('#navMenuBtn').click();
-    await expect(page.locator('#navPanelMember')).toHaveText('G. Miller');
-    await expect(page.locator('#navSignOutBtn')).toBeVisible();
 });
 
 // ── WHO THE NOTICES ARE ADDRESSED TO (v21.81) ───────────────────────────────────────────────────

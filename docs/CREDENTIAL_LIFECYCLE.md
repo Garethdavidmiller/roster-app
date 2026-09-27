@@ -250,6 +250,14 @@ still a shared secret.
 
 ## 5 · Retire the anonymous fallback
 
+**DONE — v24.34 (owner-approved).** Both switches were retired and every branch that ran only when
+one was false went with them: `calendar-access.js` no longer calls `signInAnonymously` (the
+`CALENDAR_PIN_ACCESS === false` path and its `open` access type are gone), and `session.js` no longer
+self-heals an account or falls back to an anonymous session (`ENFORCE_NAMED_SESSION`). Neither was a
+working rollback by then — the strict override writes (v16.29), the claim-gated reads (v20.12,
+v23.18) and the server-set `member` claim (v24.27) refuse every session they restored — so they were
+traps, not brakes. Rollback is reverting a release. The reasoning as it was written before, kept:
+
 The Calendar's anonymous bootstrap is gone in effect (v20.12) but not in code: `calendar-access.js`
 still calls `signInAnonymously` under the `CALENDAR_PIN_ACCESS === false` rollback path, and
 `session.js` keeps its soft fallback. `ENFORCE_NAMED_SESSION` is the same kind of object.

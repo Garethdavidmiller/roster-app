@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '24.33';
+export const APP_VERSION = '24.34';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -53,29 +53,6 @@ export const CONFIG = {
     MANAGER_NAMES:                    ['S. Stewart', 'D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft', 'N. Sobers'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
     GRADE_ORDER:                      ['CEA', 'CES', 'Dispatcher', 'Management'], // Grade grouping order — single source for the login dropdown optgroups (login-overlay.js) AND the admin member-selector optgroups (admin-app.js), so the two can't drift
     WORK_EMAIL_DOMAIN:               'chilternrailways.co.uk',                   // Authoritative Chiltern work-email domain — single source for the auto-append + the staffContact domain validation (settings/operations/admin + firestore.rules)
-    // Security release B1 kill-switch (SECURITY_RELEASE_PLAN.md → "Appendix: B1 detailed scope").
-    // ENABLED (true, v14.42). The write pages (admin/operations/settings/links) require the
-    //   member's OWN named Firebase session — no anonymous fallback and no browser-side account
-    //   creation; paycalc stays soft (never blocks). Enabled after the owner confirmed every
-    //   active account is provisioned (Operations → Set up accounts) and the account list matches
-    //   current staff.
-    // ⚠️ KILL-SWITCH / REVERT: set this back to `false` (a one-line deploy, no rules or data
-    //   change) to instantly restore the pre-B1 behaviour — anonymous fallback + self-heal — if
-    //   any staff member is unexpectedly bounced to re-login and cannot get back in.
-    // ⚠️ TEMPORARILY DISABLED (v14.72) — staff reported freezing on the login overlay even when
-    //   signed in (B1 re-login loop: a write page can't confirm the named session, clears it, and
-    //   re-shows the overlay). Reverted to pre-B1 behaviour to restore access while the root cause is
-    //   diagnosed. See SECURITY_RELEASE_PLAN.md → B1 kill-switch.
-    // ✅ RE-ENABLED (v14.98) — the freeze root cause is FIXED: runNamedSignIn now commits the local
-    //   session ONLY after auth resolves (v14.75), reinforced by the stale-auth generation guard
-    //   (v14.87); and B1 was EXONERATED in diagnosis (the freeze persisted with B1 OFF, so B1 was
-    //   never the cause). The KILL-SWITCH above still applies — set back to `false` to revert instantly.
-    // ⚠️ NOW SAFETY-COUPLED WITH B3 STRICT RULES: with the no-name override-write escape removed
-    //   (firestore.rules, B3 v16.29), only a named/admin/manager session can write overrides. That is
-    //   safe ONLY because this flag is `true` — it disables the anonymous fallback + account self-heal
-    //   in session.js, so no no-name session ever reaches an override write. If you flip this back to
-    //   `false`, anonymous-fallback sessions would be silently DENIED override writes by the strict rule.
-    ENFORCE_NAMED_SESSION:            true,
     // Phase 2 of PASSWORD_DESIGN.md — compel un-migrated members to set their own password at their
     // NEXT SIGN-IN (password-force.js). This is the KILL SWITCH: set to `false` to stop compelling
     // instantly, with no other change. Everything else the feature needs (the Settings card, the
@@ -96,67 +73,6 @@ export const CONFIG = {
     // made the rollout FASTER for exactly the people it inconvenienced most, which was never its
     // purpose.)
     FORCE_PASSWORD_SET:               true,
-    // ── Staff PIN access for the Calendar — THE ON/OFF SWITCH (v20.12; made real v20.16) ────────
-    //
-    // true  → the Calendar opens for a named member session or the shared staff PIN, and for
-    //         nothing else. Everyone else gets the unlock card.
-    // false → the Calendar is back on its pre-v20.12 model: an anonymous session, no gate, no card.
-    //         Exactly what staff had before, with the feature shipped but invisible.
-    //
-    // Both directions are a HOSTING deploy of this one line. Neither touches `firestore.rules`,
-    // which is what makes it usable as a same-day rollback: if the exchange misbehaves in
-    // production, flipping this to false restores the Calendar in the time a deploy takes, with no
-    // rules change and nothing to wait for.
-    //
-    // **IT CONTROLS FRICTION, NOT PROTECTION**, and confusing the two is how this gets somebody
-    // hurt. Whether the roster is actually protected is decided by `firestore.rules`, and the two
-    // are separate deploys on purpose:
-    //
-    //   · flag ON  + rules permissive → the card is up, the data is NOT yet protected. The soak
-    //     state: prove the exchange against real staff and a real secret, with an instant undo.
-    //   · flag ON  + rules tightened  → the shipped state. The roster is protected.
-    //   · flag OFF + rules permissive → fully open, as it always was. Deploy-dark, or undo.
-    //   · flag OFF + rules tightened  → DO NOT. The client stops asking for a PIN while the server
-    //     keeps refusing the reads, so every visitor gets the base roster under a "couldn't update"
-    //     chip — a roster that is WRONG rather than obviously broken, which is the one outcome this
-    //     feature exists to prevent. Rolling back AFTER the rules have shipped means rolling back
-    //     the RULES (RECOVERY_RUNBOOK.md → "The Calendar PIN").
-    // ROLLED BACK to false at v20.50 (10 Aug 2026), ~2h after v20.46 switched it on. THE ROLLBACK
-    // WORKED EXACTLY AS THE RUNBOOK SAYS — one line, hosting only, rules untouched — which is the
-    // one good thing to take from this. Read the rest before switching it on again:
-    //
-    // A correct PIN could not unlock the Calendar. `unlockCalendarViewer` returned 500 from its
-    // token-mint block, so every staff member entering the right code saw "Calendar couldn't be
-    // unlocked. Try again shortly." while the roster stayed hidden. Nothing was wrong with the
-    // secret, the client or the throttle.
-    //
-    // **WHY THE PRE-FLIGHT MISSED IT, WHICH IS THE REAL LESSON.** The dark deploy was declared
-    // proven on two probes: GET → 405, and a deliberately WRONG PIN → 401. Both passed, and both
-    // stop short of the only part of the endpoint that does real work. `getUser`/`createUser`,
-    // `setCustomUserClaims` and `createCustomToken` are reachable ONLY by a correct PIN, so the
-    // entire minting path — the point of the function — had never once run in production. The e2e
-    // suite cannot cover it either: `stubPinExchange` replaces the endpoint, correctly, because a
-    // test must not hold the secret. **A verification that deliberately avoids the success path has
-    // not verified the feature.** Before re-enabling, somebody who holds the PIN must unlock the
-    // real Calendar from a real browser, once.
-    //
-    // ON, and step 2b PASSED (v20.51, 10 Aug 2026) — a human holding the PIN unlocked the live
-    // Calendar and got their roster. That is what the v20.50 outage cost and what now protects this.
-    //
-    // ── THE CAUSE, CONFIRMED BY THAT TEST ───────────────────────────────────────────────────────
-    // Not app code: an IAM gap. `admin.initializeApp()` runs on Application Default Credentials, so
-    // `createCustomToken` cannot sign locally — it calls the IAM Credentials API, which requires the
-    // Cloud Run runtime service account to hold `roles/iam.serviceAccountTokenCreator` ON ITSELF.
-    // Gen-2 does not grant that by default, so every correct PIN 500'd at the mint.
-    //
-    // **THIS IS A STANDING DEPLOYMENT PREREQUISITE, NOT A ONE-OFF REPAIR.** It lives in GCP IAM, not
-    // in this repository, so nothing here can enforce it and no test can see it. It has to be
-    // re-applied if the runtime service account ever changes, if the function is moved to its own
-    // service account, or if the project is rebuilt. Recorded in RECOVERY_RUNBOOK's project facts
-    // for that reason. Current holder: `532910998075-compute@developer.gserviceaccount.com`.
-    //
-    // Rolling back is still this one line while the `overrides` hold line stands.
-    CALENDAR_PIN_ACCESS:              true,
     // The "ask the admin to reset my password" request queue (PASSWORD_DESIGN.md — Phase 1 of the request
     // work). Kill switch for the LINK only: setting this to `false` hides it on the login overlay and
     // nobody can file a new request. It does NOT disable the endpoint (that is a functions deploy) or

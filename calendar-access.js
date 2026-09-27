@@ -66,9 +66,8 @@
  * The cards share ONE slot (`calendar-lock-slot.js`) so at most one of them can exist at a time.
  */
 
-import { auth, signInWithCustomToken, signInAnonymously, signOut, setViewerPersistence, onAuthStateChanged, currentUserAfterBoot } from './firebase-client.js';
+import { auth, signInWithCustomToken, signOut, setViewerPersistence, onAuthStateChanged, currentUserAfterBoot } from './firebase-client.js';
 import { getSession, reconcileExpiredIdentity, ensureNamedSession } from './session.js';
-import { CONFIG } from './roster-data.js';
 import { fetchWithTimeout } from './fetch-timeout.js';
 import { isViewerUser, decideAccess, isCompletePin, classifyUnlockFailure, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
 import { lockCardId, armSkeleton, showBootSkeleton } from './calendar-lock-slot.js';
@@ -92,7 +91,7 @@ const UNLOCK_TIMEOUT_MS = 15000;
  *  late-identity watcher then corrects it the moment a real identity turns up. */
 const ACCESS_DECISION_BUDGET_MS = 6500;
 
-/** @type {'named'|'viewer'|'open'|'none'} */
+/** @type {'named'|'viewer'|'none'} */
 let _accessType = 'none';
 /** @type {(() => void)|null} */
 let _resolveAccess = null;
@@ -102,9 +101,6 @@ let _onGranted = null;
 let _onEveryGrant = null;
 /** @type {(() => void)|null} */
 let _resolveAuth = null;
-/** In `open` mode, the un-awaited anonymous sign-in — held so `calendarAuthReady` can wait on the
- *  thing `calendarAccessReady` deliberately does not. @type {Promise<any>|null} */
-let _anonSettled = null;
 
 /** Resolves the FIRST time Calendar access is granted, and never rejects.
  *  Never-rejecting is deliberate: every consumer uses it as a gate, and a rejection would have each
@@ -123,21 +119,20 @@ export const calendarAccessReady = /** @type {Promise<void>} */ (new Promise(res
  * the push-subscription renewal all write to Firestore, and every one of those rules requires
  * `request.auth != null`.
  *
- * In `named` and `viewer` mode the two are the same instant: access is only granted once a real
- * user exists. In `open` mode they are NOT — the anonymous sign-in is deliberately left in flight
- * so the grid can paint — and a write issued in that window has no token. Anything that writes must
- * therefore await THIS, and anything that renders should await the other. Getting it backwards is
- * silent in both directions: a render that waits costs latency nobody attributes, and a write that
- * does not is simply rejected.
+ * Today the two are the same instant: access is only ever granted (`named` or `viewer`) once a real
+ * user exists. They were not while a third mode existed — `open`, the anonymous no-PIN Calendar of
+ * the `CALENDAR_PIN_ACCESS` switch (retired v24.34), which left its sign-in in flight so the
+ * grid could paint. The split is kept because the contract is still the right one: anything that
+ * writes awaits THIS, and anything that renders awaits the other. Getting it backwards is silent in
+ * both directions: a render that waits costs latency nobody attributes, and a write that does not
+ * is simply rejected.
  *
  * Like its sibling it never rejects, and while the Calendar is locked it never resolves — a browser
  * that was never shown the roster has nothing worth recording.
  */
 export const calendarAuthReady = /** @type {Promise<void>} */ (new Promise(resolve => { _resolveAuth = () => resolve(); }));
 
-/** @returns {'named'|'viewer'|'open'|'none'} the access this browser currently holds.
- *  `open` means the staff PIN is switched OFF (`CONFIG.CALENDAR_PIN_ACCESS`) and the Calendar is
- *  running its pre-v20.12 model — anonymous session, no gate. See `initCalendarAccess`. */
+/** @returns {'named'|'viewer'|'none'} the access this browser currently holds. */
 export function getAccessType() { return _accessType; }
 
 /** @returns {boolean} true when the Calendar is being viewed through the shared staff PIN. */
@@ -224,7 +219,7 @@ function watchForLateNamedIdentity() {
 }
 
 /** Commit an access decision exactly once, and let the Calendar start. */
-function grant(/** @type {'named'|'viewer'|'open'} */ type) {
+function grant(/** @type {'named'|'viewer'} */ type) {
     _accessType = type;
     // A fresh session starts with a clean slate on the CLIENT backoff too. Without this, a member
     // who fumbled three times at boot, unlocked, and is re-locked hours later (PIN rotation) begins
@@ -246,14 +241,8 @@ function grant(/** @type {'named'|'viewer'|'open'} */ type) {
     if (_onEveryGrant) { try { _onEveryGrant(); } catch (e) { console.error('[CalendarAccess] gate reopen failed', e); } }
     if (_onGranted) { const fn = _onGranted; _onGranted = null; try { fn(); } catch (e) { console.error('[CalendarAccess] start failed', e); } }
     if (_resolveAccess) { const r = _resolveAccess; _resolveAccess = null; r(); }
-    // The WRITE gate. `named`/`viewer` already hold a user, so it is the same instant; `open` has a
-    // sign-in still in flight, so it waits for that to SETTLE — settle, not succeed, because a
-    // failed anonymous sign-in must let the writes attempt and fail rather than hang for ever.
-    if (_resolveAuth) {
-        const r = _resolveAuth; _resolveAuth = null;
-        if (type === 'open' && _anonSettled) _anonSettled.then(r, r);
-        else r();
-    }
+    // The WRITE gate. `named` and `viewer` both already hold a user, so it is the same instant.
+    if (_resolveAuth) { const r = _resolveAuth; _resolveAuth = null; r(); }
 }
 
 // ── The unlock exchange ─────────────────────────────────────────────────────────────────────────
@@ -450,9 +439,10 @@ const SILENT_BEFORE_CARD_MS = 4000;
  * chose. It is the same page-load re-establishment every other coordinator already performs — the
  * Calendar simply never had a reason to until access depended on it.
  *
- * The RESULT is read from `decideAccess`, never from the boolean. `ensureNamedSession` returns true
- * for an anonymous fallback when `ENFORCE_NAMED_SESSION` is off, and an anonymous identity must never
- * be granted `named` access here — that is the whole substance of v20.12.
+ * The RESULT is read from `decideAccess`, never from the boolean. The boolean could once report
+ * success on an anonymous fallback (the `ENFORCE_NAMED_SESSION` switch, retired v24.34), and the
+ * ground truth is the live user either way: an anonymous identity must never be granted `named`
+ * access here — that is the whole substance of v20.12.
  *
  * @param {string} name
  * @returns {Promise<boolean>}
@@ -481,9 +471,6 @@ async function trySilentReauth(name) {
  */
 export function handleAccessLost() {
     if (_accessType === 'none') return;
-    // Nothing to return TO when the PIN is switched off: there is no lock card, and showing one
-    // would strand a member behind a control the deployment has deliberately disabled.
-    if (_accessType === 'open') return;
     // The CALLER closes the override gate (calendar-app.js passes a wrapper that calls
     // `setOverrideAccess(false)` first). It is not done here because this module deliberately does
     // not import calendar-overrides.js — the gate must not depend on the access layer it protects
@@ -522,7 +509,7 @@ export function handleAccessLost() {
  *   onEveryGrant runs on EVERY grant, including one that follows a re-lock. Anything that a re-lock
  *   TURNS OFF has to be turned back on here rather than in `onGranted`, or it stays off for the rest
  *   of the session — see the note in `grant`.
- * @returns {Promise<'named'|'viewer'|'open'|'none'>}
+ * @returns {Promise<'named'|'viewer'|'none'>}
  */
 export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
     _onGranted = onGranted;
@@ -546,57 +533,17 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
     // path out of it — `grant()` and both cards call `hideLockPanel()`, which owns the timer.
     armSkeleton(SKELETON_AFTER_MS);
 
-    /** @type {'named'|'viewer'|'open'|'none'} */
+    /** @type {'named'|'viewer'|'none'} */
     let type;
     try { type = await resolveAccess(); }
     catch (e) { console.error('[CalendarAccess] decision failed', e); type = 'none'; }
 
-    // ── THE SWITCH (v20.16) ─────────────────────────────────────────────────────────────────────
-    //
-    // `CONFIG.CALENDAR_PIN_ACCESS: false` puts the Calendar back on its pre-v20.12 model: an
-    // anonymous session, no gate, no card, exactly what staff had before. It exists so the whole
-    // feature can be deployed DARK — shipped, running, and invisible — and switched on later by a
-    // one-line change, and so it can be switched off again in seconds if the exchange misbehaves in
-    // production. Both directions are a hosting deploy; neither touches the rules.
-    //
-    // **It controls FRICTION, NOT PROTECTION, and confusing the two is the way to get hurt here.**
-    // Override reads are the server's decision. While `firestore.rules` still carries the old
-    // permissive `allow read;`, this flag is the only thing standing between a visitor and the
-    // roster — so "off" genuinely means open to anyone with the URL, as it always was. Once the
-    // rules are tightened, turning this off no longer re-opens anything: the reads are denied by the
-    // server and the anonymous session below satisfies nothing. Off is a rollback for the WINDOW
-    // between the two deploys, not afterwards.
-    //
-    // It resolves the access type normally first, so a signed-in member is still `named` and every
-    // member-specific behaviour is unchanged. Only the FALLBACK moves: `none` (locked) becomes
-    // `open` (anonymous, running).
-    if (CONFIG.CALENDAR_PIN_ACCESS === false) {
-        if (type === 'none') {
-            // The pre-v20.12 bootstrap, restored for this mode. The calendar's best-effort WRITES —
-            // the error reporter, the usage counters, the push-subscription renewal — all require
-            // `request.auth != null`, so without this they would silently stop and the app would
-            // look fine while going quiet on exactly the telemetry that would tell you it had.
-            //
-            // **STARTED, NOT AWAITED — and that is a latency property, not a style choice.**
-            // `signInAnonymously` is a network POST to identitytoolkit. Awaiting it here put a full
-            // round trip in front of the FIRST PAINT of the grid: hundreds of milliseconds of blank
-            // splash on a station phone, seconds on a bad signal, and on no signal at all the
-            // calendar would not render until the request gave up — a device holding a complete
-            // offline roster showing nothing. The pre-v20.12 code never awaited it either; it was
-            // introduced by this switch and is the one thing here that is pure cost.
-            //
-            // Nothing downstream needs it: rendering reads the local roster module, override reads
-            // are gated separately, and every write that needs a session already awaits its own
-            // promise. The `.catch` is what "best effort" means — a failed anonymous sign-in must
-            // not reject an unhandled promise, and it must not stop the Calendar.
-            try { _anonSettled = Promise.resolve(signInAnonymously(auth)).catch(() => {}); }
-            catch { _anonSettled = Promise.resolve(); }
-            type = 'open';
-        }
-        console.warn('[CalendarAccess] staff PIN is switched OFF (CONFIG.CALENDAR_PIN_ACCESS)');
-    }
-
-    if (type === 'named' || type === 'viewer' || type === 'open') { grant(type); return type; }
+    // There is no third, "open" outcome any more. Until v24.34 a `CALENDAR_PIN_ACCESS` switch could
+    // turn `none` into an anonymous, ungated Calendar; it was retired because the rules it relied
+    // on are gone — override and document reads need a member claim or the PIN's `calendarViewer`
+    // (v20.12, v23.18), so the anonymous session it started could read nothing, and flipping it
+    // would have shown the base roster as though it were current. Rollback is reverting a release.
+    if (type === 'named' || type === 'viewer') { grant(type); return type; }
 
     // Locked. Two things happen before the card goes up, and both exist because the decision above
     // is a SNAPSHOT of a restore that is not always finished (v20.79).

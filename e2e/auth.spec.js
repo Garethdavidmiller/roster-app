@@ -1,4 +1,4 @@
-import { test, expect, enforceNamedSession, forcePasswordSet } from './fixtures.js';
+import { test, expect, forcePasswordSet } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay } from './helpers.js';
 
 // ── ADMIN (admin.html) ────────────────────────────────────────────────────
@@ -57,9 +57,8 @@ test('login overlay: while auth is in flight, button shows "Signing in…", no s
     expect(stillNone, 'still no session after the (blocked) Back click').toBeNull();
 });
 
-test('login overlay: a failed named sign-in (B1 on) shows an error, restores the button, re-enables Back, writes no session', async ({ page }) => {
-    // Enforce named sessions AND force sign-in to fail → runNamedSignIn returns ok:false.
-    await enforceNamedSession(page);
+test('login overlay: a failed named sign-in (B1) shows an error, restores the button, re-enables Back, writes no session', async ({ page }) => {
+    // Force sign-in to fail → runNamedSignIn returns ok:false.
     await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });
     await page.goto('/admin.html');
     await expect(page.locator('#loginOverlay')).toBeVisible();
@@ -80,15 +79,15 @@ test('login overlay: a failed named sign-in (B1 on) shows an error, restores the
     await expect(page.locator('.login-back')).not.toHaveAttribute('aria-disabled', 'true');
 });
 
-// ── B1 NAMED-SESSION ENFORCEMENT (flag ON) ────────────────────────────────────
-// These run with the kill-switch flipped on (roster-data.js rewritten by enforceNamedSession)
-// AND sign-in forced to fail (window.__E2E.failSignIn). They prove the per-page matrix:
+// ── B1 NAMED-SESSION ENFORCEMENT ──────────────────────────────────────────────
+// These run with sign-in forced to fail (window.__E2E.failSignIn). They prove the per-page matrix:
 // admin/settings re-show the login overlay even though a valid LOCAL session was seeded;
-// operations/links redirect to admin; paycalc stays soft (calculator still renders). The
-// default-off behaviour is covered by every other test in this file (which never flips the flag).
+// operations/links redirect to admin; paycalc stays soft (calculator still renders). (They used to
+// rewrite roster-data.js to force `ENFORCE_NAMED_SESSION` on; that switch was retired v24.34 and
+// enforcement is simply how every page behaves.)
 
 
-test('B1 flag ON: admin re-shows the login overlay when the named session cannot be established', async ({ page }) => {
+test('B1: admin re-shows the login overlay when the named session cannot be established', async ({ page }) => {
     await armEnforcementWithFailingSignIn(page);
     await page.goto('/admin.html');
     // A valid local session was seeded, yet the overlay must appear because the member's OWN
@@ -96,27 +95,27 @@ test('B1 flag ON: admin re-shows the login overlay when the named session cannot
     await expect(page.locator('#loginOverlay')).toBeVisible();
 });
 
-test('B1 flag ON: settings re-shows the login overlay when the named session cannot be established', async ({ page }) => {
+test('B1: settings re-shows the login overlay when the named session cannot be established', async ({ page }) => {
     await armEnforcementWithFailingSignIn(page);
     await page.goto('/settings.html');
     await expect(page.locator('#loginOverlay')).toBeVisible();
 });
 
-test('B1 flag ON: operations clears the session and shows the in-place login on a failed named session', async ({ page }) => {
+test('B1: operations clears the session and shows the in-place login on a failed named session', async ({ page }) => {
     await armEnforcementWithFailingSignIn(page);
     await page.goto('/operations.html');
     // B1 re-auth now shows the in-place login (clears the session, no redirect to admin).
     await expect(page.locator('#loginOverlay')).toBeVisible();
 });
 
-test('B1 flag ON: links clears the session and shows the in-place login on a failed named session', async ({ page }) => {
+test('B1: links clears the session and shows the in-place login on a failed named session', async ({ page }) => {
     await armEnforcementWithFailingSignIn(page);
     await page.goto('/links.html');
     // B1 re-auth now shows the in-place login (clears the session, no redirect to admin).
     await expect(page.locator('#loginOverlay')).toBeVisible();
 });
 
-test('B1 flag ON: overtime clears the session and shows the in-place login on a failed named session', async ({ page }) => {
+test('B1: overtime clears the session and shows the in-place login on a failed named session', async ({ page }) => {
     // The one named page that had no follow-up at all: a failed sign-in left the page up under a
     // session the endpoints would refuse, with nothing asking the member to sign in again.
     await armEnforcementWithFailingSignIn(page);
@@ -124,7 +123,7 @@ test('B1 flag ON: overtime clears the session and shows the in-place login on a 
     await expect(page.locator('#loginOverlay')).toBeVisible();
 });
 
-test('B1 flag ON: paycalc stays SOFT — the calculator still renders, no redirect', async ({ page }) => {
+test('B1: paycalc stays SOFT — the calculator still renders, no redirect', async ({ page }) => {
     await armEnforcementWithFailingSignIn(page);
     // Suppress the one-time notices so nothing overlays the calculator.
     await page.addInitScript(() => {
@@ -139,24 +138,22 @@ test('B1 flag ON: paycalc stays SOFT — the calculator still renders, no redire
 // once accounts exist and the flag is flipped, every page behaves completely normally — nothing
 // is forced to re-login or redirected. Same fixture, real flag untouched (default sign-in resolves).
 
-test('B1 flag ON + sign-in OK: admin loads normally, no forced re-login', async ({ page }) => {
-    await enforceNamedSession(page);   // switch ON; no __E2E.failSignIn → sign-in resolves → named
+test('B1 + sign-in OK: admin loads normally, no forced re-login', async ({ page }) => {
+    // no __E2E.failSignIn → sign-in resolves → named
     await seedSession(page, 'G. Miller');
     await page.goto('/admin.html');
     await expect(page.locator('#loginOverlay')).toBeHidden();
     await expect(page.locator('#fieldMemberTrigger')).toBeVisible();
 });
 
-test('B1 flag ON + sign-in OK: operations loads (not redirected)', async ({ page }) => {
-    await enforceNamedSession(page);
+test('B1 + sign-in OK: operations loads (not redirected)', async ({ page }) => {
     await seedSession(page, 'G. Miller');
     await page.goto('/operations.html');
     await expect(page).toHaveURL(/operations\.html$/);
     await expect(page.locator('#huddleUploadCard')).toBeVisible();
 });
 
-test('B1 flag ON + sign-in OK: links loads for a designer (not redirected)', async ({ page }) => {
-    await enforceNamedSession(page);
+test('B1 + sign-in OK: links loads for a designer (not redirected)', async ({ page }) => {
     await seedSession(page, 'G. Miller');   // G. Miller is a links designer
     await page.goto('/links.html');
     await expect(page).toHaveURL(/links\.html$/);
@@ -380,7 +377,6 @@ test('login card: the disabled name select reads as inert and keeps its chevron'
     //   · it used the `background` SHORTHAND, which wipes a <select>'s background-image, silently
     //     deleting the dropdown arrow — so the two adjacent selects looked like different controls.
     // Asserted in CI rather than left to the opt-in visual suite, because that is what missed it.
-    await enforceNamedSession(page);
     await page.goto('/settings.html');
     const name = page.locator('#loginName');
     await expect(name).toBeDisabled();
@@ -395,7 +391,6 @@ test('login card: the disabled name select reads as inert and keeps its chevron'
 });
 
 test('reset request link: present from the moment the card opens, before any attempt', async ({ page }) => {
-    await enforceNamedSession(page);
     await page.goto('/settings.html');
     await expect(page.locator('#loginOverlay')).toBeVisible();
     const btn = page.locator('#loginResetRequest');
@@ -411,7 +406,6 @@ test('reset request link: present from the moment the card opens, before any att
 });
 
 test('reset request link: two credential failures EMPHASISE it (it never appears or moves)', async ({ page }) => {
-    await enforceNamedSession(page);
     await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });   // → auth/invalid-credential
     await page.goto('/settings.html');
     const btn = page.locator('#loginResetRequest');
@@ -438,7 +432,6 @@ test('reset request link: a network/transient failure does NOT push the reset ro
     // A reset fixes a forgotten password, not a dropped connection — pointing at one would waste the
     // admin's time and mislead the member about what is actually wrong. The link stays available
     // (it always is); what it must not do is present itself as the answer to this failure.
-    await enforceNamedSession(page);
     await page.addInitScript(() => { window.__E2E = { hangSignIn: true }; });   // → timeout, not credential
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller');
@@ -448,7 +441,6 @@ test('reset request link: a network/transient failure does NOT push the reset ro
 
 test('reset request link: with no name chosen it asks for one rather than filing nothing', async ({ page }) => {
     // The click-time read of the dropdown is what makes an always-on link correct; this is its guard.
-    await enforceNamedSession(page);
     /** @type {any[]} */
     const posted = [];
     await page.route('**/requestPasswordReset', route => {
@@ -467,7 +459,6 @@ test('reset request link: files for the member currently named in the card', asy
     // tapping filed for B — who never asked, and acting on it reset THEM. Now the link is tied to no
     // failure at all: it means "I am the person named above", so the dropdown IS the referent. The
     // property to hold is that switching identity cannot leave the previous member's state behind.
-    await enforceNamedSession(page);
     await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });
     /** @type {any[]} */
     const posted = [];
@@ -492,7 +483,6 @@ test('reset request link: files for the member currently named in the card', asy
 
 test('reset request link: a sent request does not follow the next member', async ({ page }) => {
     // "Request sent" under a different name would tell someone their request is filed when it is not.
-    await enforceNamedSession(page);
     await page.route('**/requestPasswordReset', route =>
         route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }));
     await page.goto('/settings.html');
@@ -519,7 +509,6 @@ test('reset request link: a sent request does not follow the next member', async
 });
 
 test('reset request link: a failed send keeps the button and says so', async ({ page }) => {
-    await enforceNamedSession(page);
     await page.route('**/requestPasswordReset', route => route.abort());
     await page.goto('/settings.html');
     await signInThroughOverlay(page, 'G. Miller', { submit: false });
@@ -537,7 +526,6 @@ test('reset request link: a failed send keeps the button and says so', async ({ 
 // AFTER a send as well as on arrival, because the send swaps the label for "Sending…" and restores
 // it — a textContent round trip would bring it back flattened, and nothing else would notice.
 test('reset request link: the line breaks after the question, and still does after a send', async ({ page }) => {
-    await enforceNamedSession(page);
     await page.route('**/requestPasswordReset', route => route.abort());
     await page.goto('/settings.html');
     const btn = page.locator('#loginResetRequest');

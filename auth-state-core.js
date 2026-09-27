@@ -20,9 +20,14 @@
  * Now live (since the v14.98 B1 re-enable): consumed via the store (`auth-state.js`)
  * → the write coordinators, fed by `session.js`. It maps
  * 1:1 onto the outcomes pinned by the Phase-0 characterisation tests
- * (`session.test.mjs`): a named sign-in → `named`; the flag-off anonymous fallback →
- * `anonymous`; a transient blip → `degraded` (retryable); a persistent named failure →
- * `signedOut`; total failure → `error`.
+ * (`session.test.mjs`): a named sign-in → `named`; a transient blip → `degraded` (retryable);
+ * any other named failure → `signedOut`.
+ *
+ * `anonymous` and `error` have NO live producer since v24.34: session.js's anonymous fallback (and
+ * its "even anonymous failed" → FATAL) went with the retired `ENFORCE_NAMED_SESSION` switch. They
+ * stay in the machine on purpose — the policy layer answers both with `login`, which is still the
+ * right answer if either ever reappears, and removing a state is a bigger change than retiring the
+ * one path that reached it.
  */
 
 /** @typedef {'initialising'|'resolving'|'named'|'anonymous'|'signedOut'|'degraded'|'error'} AuthStatus */
@@ -50,7 +55,7 @@ function make(/** @type {AuthStatus} */ status, /** @type {string|null} */ membe
  *  - `RESOLVE_START { member }` — begin establishing identity. `member` set → named
  *    resolution; `member` null → anonymous (calendar) bootstrap.
  *  - `NAMED { member }`         — the member's named session is confirmed.
- *  - `ANONYMOUS`                — an anonymous session is active (bootstrap / flag-off fallback).
+ *  - `ANONYMOUS`                — an anonymous session is active (no live producer since v24.34).
  *  - `NONE { error }`           — no session could be established; recoverable → `signedOut`.
  *  - `TRANSIENT { error }`      — a retryable blip mid-resolution → `degraded` (member preserved).
  *  - `RETRY`                    — resume from `degraded` → `resolving` (no-op from any other state).

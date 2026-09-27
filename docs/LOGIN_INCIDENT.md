@@ -23,7 +23,7 @@ what only this file knows: the FLAG VALUES the incident turned on, and why each 
 
 | Flag / rule | Value now | Why |
 |-------------|-----------|-----|
-| `CONFIG.ENFORCE_NAMED_SESSION` (B1) | **`true`** (re-enabled v14.98) | Exonerated (freeze persisted with B1 off); re-enabled once login was stable on the v14.75 fix |
+| `CONFIG.ENFORCE_NAMED_SESSION` (B1) | **`true`** (re-enabled v14.98) — **retired v24.34**: the key is gone and enforcement is unconditional, because the rules no longer accept the anonymous session `false` restored | Exonerated (freeze persisted with B1 off); re-enabled once login was stable on the v14.75 fix |
 | `CONFIG.CLAIM_EPOCH` (B3 sweep) | **`3`** (2 armed v15.33; 3 at v24.27 for the `member` claim) | Token sweep — devices force-refresh once per epoch. Do NOT bump again unless deliberately forcing another sweep |
 | B2 override rule + `manager` claim | **LIVE** (deployed; superseded by the B3 strict form v16.29) | Server-side; never implicated in the freeze |
 | B3 strict override rule | **SHIPPED (v16.29)** — strict; no-name escape removed | Was gated on the freeze being resolved; shipped after the CLAIM_EPOCH=2 sweep + manager re-provision |

@@ -420,8 +420,8 @@ new page means adding both metas; both guards will tell you which one you forgot
 ### localStorage session can be forged for UI access (#14)
 The `myb_admin_session` localStorage session can be modified via DevTools to
 impersonate another user or gain the admin UI. A forged local session does not by
-itself create a Firebase Auth identity. **B1 (v14.42, `ENFORCE_NAMED_SESSION = true`)
-closed the anonymous-fallback write path:** the write pages (admin/operations/settings/links)
+itself create a Firebase Auth identity. **B1 (v14.42, `ENFORCE_NAMED_SESSION = true`; the switch
+retired v24.34, the behaviour now unconditional) closed the anonymous-fallback write path:** the write pages (admin/operations/settings/links)
 now require the member's OWN named Firebase session — a session that can't establish one is
 bounced to re-login rather than proceeding as a nameless guest, so anonymous writes from a
 forged UI session no longer occur there. Per-member write isolation on `overrides` has since
@@ -486,7 +486,7 @@ can hold a valid local session with **no restorable identity** — a state that 
 about a day, became up to three weeks at v20.41, and is up to **seven weeks** at v20.47 now the
 session runs 60 days against ITP's unchanged 7.
 
-Since v20.51 (`CONFIG.CALENDAR_PIN_ACCESS: true` — v20.46 released it, v20.50 rolled it back) this is **live behaviour, not a future one**:
+Since v20.51 (`CONFIG.CALENDAR_PIN_ACCESS: true` — v20.46 released it, v20.50 rolled it back; the switch was retired v24.34) this is **live behaviour, not a future one**:
 that member gets the member sign-in card ("This device needs to sign you in again…") instead of their
 roster, despite being signed in — never the PIN. A silent re-sign-in is tried first, and one tap on
 "Sign in" re-establishes the identity, so it is recoverable rather than a lockout — but it will

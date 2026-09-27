@@ -288,8 +288,10 @@ Everything past this gate touches the app's front door, opened many times a day.
 > policy flips to `requireNamed`, and the PIN still grants exactly what it did. E3 remains dormant.
 
 Flip `PAGE_POLICIES.calendar` to `{ requireNamed: true }` in `auth-policy.js` (genuinely one line — the
-policy layer is clean) and wire the shared `login-overlay.js`. Gate on `ENFORCE_NAMED_SESSION` in **soft**
-posture and *measure* (§6) before hardening. Do not tighten rules in the same window.
+policy layer is clean) and wire the shared `login-overlay.js`. Start in a **soft**
+posture and *measure* (§6) before hardening (the `ENFORCE_NAMED_SESSION` switch this once named as
+the gate was retired v24.34 — the write pages' named-session requirement is now unconditional, so a
+soft Calendar posture would need its own policy flag). Do not tighten rules in the same window.
 
 Two things make this less of a leap than it sounds: the calendar already has session-gated affordances
 (the pay-period strip in `calendar-app.js` then; removed at v24.31), and `login-overlay.js` is proven on the six protected pages. It also

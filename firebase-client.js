@@ -21,7 +21,7 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 // lives since v21.90) — only
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signInWithCustomToken, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithCustomToken, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
 import { orderClientErrors, expiredResolvedIds, capUnresolvedErrors } from './client-errors.js';
 import { runWithClaimRetry } from './claim-retry.js';
 import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys, originKey, summariseOrigins, staleOriginKeys } from './usage-stats.js';
@@ -310,7 +310,7 @@ export function restoreMemberPersistence() { return _setMemberPersistence(); }
 export function setViewerPersistence() { return setPersistence(auth, browserSessionPersistence); }
 
 // Re-export auth operations so callers import from one place.
-export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signInWithCustomToken, signOut, onAuthStateChanged, updatePassword, reauthenticateWithCredential, EmailAuthProvider };
+export { signInWithEmailAndPassword, signInWithCustomToken, signOut, onAuthStateChanged, updatePassword, reauthenticateWithCredential, EmailAuthProvider };
 
 /**
  * Run a Firestore thunk (read OR write), self-healing a stale-claim `permission-denied` once
