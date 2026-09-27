@@ -2418,6 +2418,66 @@ test('huddle: a cold tap with no Huddle uploaded says so, once the server has', 
     await expect(page.locator('#huddleViewerBody')).toContainText('No Daily Huddle has been uploaded yet', { timeout: 15_000 });
 });
 
+// ── THE SIGNED LINK MUST BE FOR THE FILE ON SCREEN (v24.33, external review of v24.32) ─────────────
+// The server signs whatever is latest when IT looks; the page holds whatever was latest when Firestore
+// was read. An upload between the two made them different files. The server now names the file it
+// signed, and each surface passes the path of the document it holds — these pin that WIRING, which the
+// storage-utils unit tests cannot see (deleting a caller's `storagePath:` leaves them all green).
+const DOC_STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/x.pdf?alt=media&token=e2e';
+const DOC_SIGNED = 'https://storage.googleapis.com/myb-roster.appspot.com/x.pdf?X-Goog-Expires=900';
+const signedFor = (/** @type {string} */ storagePath) => JSON.stringify(
+    { url: DOC_SIGNED, expiresAt: Date.now() + 10 * 60_000, fileType: 'pdf', storagePath });
+
+for (const [held, signed, expected] of [
+    ['huddles/2026-09-25-a.pdf', 'huddles/2026-09-26-b.pdf', 'stored'],
+    ['huddles/2026-09-25-a.pdf', 'huddles/2026-09-25-a.pdf', 'signed'],
+]) {
+    test(`huddle: a signed link for ${expected === 'stored' ? 'a DIFFERENT upload is passed over' : 'the same upload is used'}`, async ({ page }) => {
+        await page.addInitScript(([stored, path]) => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true,
+                huddleDoc: { date: '2026-09-25', storageUrl: stored, fileType: 'pdf', storagePath: path } };
+            /** @type {any} */ (window).__opened = [];
+            window.open = /** @type {any} */ ((url) => { /** @type {any} */ (window).__opened.push(String(url)); return null; });
+        }, [DOC_STORED, held]);
+        await page.route('**/getDocumentUrl', route => route.fulfill({ contentType: 'application/json', body: signedFor(signed) }));
+        const minted = page.waitForResponse('**/getDocumentUrl');
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto('/#huddle');
+        await minted;
+        const btn = page.locator('#huddleOpenFileBtn');
+        await expect(btn).toBeVisible({ timeout: 15_000 });
+        await page.waitForTimeout(200);   // let the minted link land on the button's closure
+        await btn.click();
+        await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__opened), { timeout: 3000 })
+            .toEqual([expected === 'stored' ? DOC_STORED : DOC_SIGNED]);
+    });
+
+    test(`drawer Circular: a signed link for ${expected === 'stored' ? 'a DIFFERENT upload is passed over' : 'the same upload is used'}`, async ({ page }) => {
+        await page.addInitScript(() => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true };
+            /** @type {any} */ (window).__opened = [];
+            // The drawer opens a blank tab ON the gesture and sets its location once the url is known.
+            window.open = /** @type {any} */ (() => ({ opener: null, close() {},
+                location: { set href(v) { /** @type {any} */ (window).__opened.push(String(v)); } } }));
+        });
+        await page.route('**/getDocumentUrl', route => route.fulfill({ contentType: 'application/json',
+            body: signedFor(signed.replace('huddles/', 'circulars/')) }));
+        await seedMemberSession(page, 'G. Miller');
+        await page.goto('/');
+        await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+        // Seeded only now: the "latest" query has no path, so it reads the shared rows — and so would
+        // the Calendar's own reads if these were there from the start.
+        await page.evaluate(([stored, path]) => {
+            /** @type {any} */ (window).__E2E.docs = [{ id: '2026-09-25', date: '2026-09-25',
+                storageUrl: stored, fileType: 'pdf', storagePath: path }];
+        }, [DOC_STORED, held.replace('huddles/', 'circulars/')]);
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navPanel .nav-panel-link--circular').click();
+        await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__opened), { timeout: 10_000 })
+            .toEqual([expected === 'stored' ? DOC_STORED : DOC_SIGNED]);
+    });
+}
+
 test('huddle: the Open button works immediately, while the short-lived link is still pending', async ({ page }) => {
     const STORED = 'https://firebasestorage.googleapis.com/v0/b/myb-roster.appspot.com/o/huddles%2F2026-09-25.pdf?alt=media&token=e2e';
     await page.addInitScript((stored) => {

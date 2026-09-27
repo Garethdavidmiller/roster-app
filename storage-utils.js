@@ -109,12 +109,13 @@ export const SIGNED_URL_MARGIN_MS = 60_000;
  * only state this function refuses is one where NEITHER url is usable, which means the document
  * genuinely cannot be opened and the caller must say so rather than open something.
  *
- * @param {{ signed?: any, stored?: string|null, fileType?: string|null }} doc
- *   `signed` is `{ url, expiresAt, fileType }` (or a bare url string, treated as not expiring)
+ * @param {{ signed?: any, stored?: string|null, fileType?: string|null, storagePath?: string|null }} doc
+ *   `signed` is `{ url, expiresAt, fileType, storagePath }` (or a bare url string, treated as not
+ *   expiring). `storagePath` is the path of the document the CALLER is holding.
  * @param {number} [now]  epoch ms — resolve at the TAP, so an expired link is never opened
  * @returns {{ url: string, signed: boolean } | null} null when nothing safe is available
  */
-export function resolveDocumentOpenUrl({ signed, stored, fileType }, now = Date.now()) {
+export function resolveDocumentOpenUrl({ signed, stored, fileType, storagePath }, now = Date.now()) {
     // `signed` is `{ url, expiresAt, fileType }` from document-url.js (v24.23). A bare string is
     // still accepted — treated as having no expiry — so older call shapes and tests keep working.
     const s = typeof signed === 'string' ? { url: signed, expiresAt: Infinity, fileType: null }
@@ -122,7 +123,16 @@ export function resolveDocumentOpenUrl({ signed, stored, fileType }, now = Date.
     // STILL LIVE AT THE TAP, not merely when minted (v24.23). Callers resolve inside the click
     // handler — synchronously, so the gesture survives — and a url within a minute of expiry is
     // passed over for the stored one, because the Office viewer's own fetch happens after the tap.
-    const fresh = !!s && isSafeStorageUrl(s.url)
+    // THE SAME FILE, not merely the same kind (v24.33, external review of v24.32). The server signs
+    // whatever is latest when IT looks, and the caller is holding whatever was latest when Firestore
+    // was read; an upload between the two made them different files, and the button described one
+    // document while opening another. The server now says which file it signed, and a url for any
+    // other file is passed over for this document's own stored url. A server from before v24.33
+    // says nothing (`storagePath` absent) and is trusted as it always was, so the two halves can
+    // deploy in either order. A document with no storagePath cannot be the one signed — the
+    // server refuses to sign without one — so a signed url never matches it.
+    const sameFile = !s || typeof s.storagePath !== 'string' || s.storagePath === storagePath;
+    const fresh = !!s && sameFile && isSafeStorageUrl(s.url)
         && typeof s.expiresAt === 'number' && now < s.expiresAt - SIGNED_URL_MARGIN_MS;
     const pick = fresh ? { url: /** @type {string} */ (s.url), signed: true, type: s.fileType || fileType }
         : isSafeStorageUrl(stored) ? { url: /** @type {string} */ (stored), signed: false, type: fileType }

@@ -258,9 +258,9 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // it plainly would strand the chip on "Retrying…" — disabled, with no handler and no way back,
       // which is worse than the failure it was trying to recover from.
       //
-      // So: give it a short moment, then read regardless. Under today's open rules the read succeeds
-      // without a session; once reads require one it fails RETRYABLY into the error chip, which is
-      // the recoverable outcome. (Phase 1 deliberately does NOT do this — there the right answer is
+      // So: give it a short moment, then read regardless. Override reads require an identity (since
+      // v20.12 — a member's claim, `admin`, or the PIN's `calendarViewer`), so a read that goes
+      // without one fails RETRYABLY into the error chip, which is the recoverable outcome. (Phase 1 deliberately does NOT do this — there the right answer is
       // never to wait at all. Bounded-wait is right here precisely because a user is watching.)
       await Promise.race([authReady, new Promise(r => setTimeout(r, RETRY_AUTH_WAIT_MS))]);
       await fetchOverridesForRange(startStr, endStr);

@@ -754,7 +754,15 @@ const sendPayReminderNotification = onSchedule(
             const door = claims.admin === true ? 'admin' : (memberNameFromClaims(claims) ? 'member' : 'pin');
             console.log(`[getDocumentUrl] signed ${kind.kind} for a ${door} `
                 + `(${SIGNED_URL_TTL_MS / 60000} min)`);
-            return res.status(200).json({ url, expiresAt, fileType: data.fileType || null });
+            // ── THE FILE IT SIGNED TRAVELS WITH THE URL (v24.33, external review of v24.32) ──
+            // The client reads "the latest" from Firestore and this endpoint reads it again, so an
+            // upload landing between the two reads left the client holding document A with a url
+            // for document B. `storagePath` is versioned per upload (`<kind>/<date>-<uploadId>`), so
+            // it names the exact FILE — which a date or document id would not, because a same-day
+            // re-upload keeps the id and replaces the file. The client uses the url only when this
+            // matches the document it is holding. It is not new information: the client already
+            // reads the same field from the document it holds.
+            return res.status(200).json({ url, expiresAt, fileType: data.fileType || null, storagePath: data.storagePath });
         },
     );
 
