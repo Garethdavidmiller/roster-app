@@ -18,7 +18,7 @@
  "denseAlts": true,
  "extraAlternatives": [
   { "label": "WL-24-EXT — Weekday Lates, as supplied", "file": "weekday-lates.json" },
-  { "label": "WL3-24-F7 — Weekday Lates 3, searched fatigue-first", "file": "weekday-lates-3.json" },
-  { "label": "FT-24-R21 — Fifteen Turns Repaired, searched", "file": "fifteen-turns-repaired.json" }
+  { "label": "WL3-24-F7 — Frozen Block, searched fatigue-first", "file": "weekday-lates-3.json" },
+  { "label": "FT-24-R21 — Gates Mended, searched", "file": "fifteen-turns-repaired.json" }
  ]
 }

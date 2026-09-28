@@ -5,7 +5,7 @@
 //             · no duty over 8h40
 //   Saturday  two openers work 06:20 until AT LEAST 14:20 · one late works 14:00–22:30
 //   Sunday    one duty works 13:00–21:30
-// These REPLACE By the Book 2's ticket-office pins. Every other rule stands: four at the open, three through
+// These REPLACE Office Written In's ticket-office pins. Every other rule stands: four at the open, three through
 // to the close (four on a Saturday), exactly five on after 22:00 Monday to Saturday, fourteen on a Saturday
 // and ten on a Sunday, no :05 or :10 but the window's own, nothing finishing in the hour before the close
 // unless it is a closer, nothing starting in the forty minutes after the open, an evening finish only at a

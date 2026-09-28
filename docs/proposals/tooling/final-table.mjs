@@ -17,7 +17,7 @@
 //     (early finish ≥ late start), so the office is never unstaffed between 07:15 and 22:30.
 //   · Five on at 22:00 is a minimum. The owner's evening turns already make it by construction — three closers plus
 //     14:00–22:30 x2 on a weekday, 14:30–22:00 x2 on a Saturday (a fixed turn finishing AT 22:00 counts as on at
-//     22:00, the By the Book 2 reading), the ticket-office lates on a Sunday — so every OTHER duty finishes by 22:00
+//     22:00, the Office Written In reading), the ticket-office lates on a Sunday — so every OTHER duty finishes by 22:00
 //     (MID_END_MAX), and the only way to put more people on after 22:00 is a fourth closer, which the search may
 //     choose. — SUPERSEDED the same day: the owner dropped "nothing finishes in the hour before the close" ("can
 //     go"), so a free duty may now finish at any quarter hour up to the close (MID_END_MAX = CLOSE − 15), and the

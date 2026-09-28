@@ -39,7 +39,7 @@ test('a factor present in both at DIFFERENT figures is still named as present in
     // It was filled only from the identical-reading branch, so two designs that both carry FF19 —
     // at 2 and 3 successive changes — read "No factor is present in both." That is the finding a
     // comparison is likeliest to hide, stated as its opposite.
-    const CF = { patterns: sheet('Clean-Final-CF-24-EXT.json').patterns };
+    const CF = { patterns: sheet('Short-Closer-CF-24-EXT.json').patterns };
     const r = compareDesigns(CF, FT);
     const fb = assessFatigue(FT.patterns).results;
     const both = assessFatigue(CF.patterns).results
@@ -128,9 +128,9 @@ test('each design is read against its OWN staffed window, and a mismatch is flag
 });
 
 test('a figure that moves WITHOUT changing the finding is still reported', () => {
-    // Pinned Turns and Pinned Turns 2 are both clear on FF11, at 11 and 9. Reading only the status
+    // Pinned Turns and Round Times are both clear on FF11, at 11 and 9. Reading only the status
     // would call them identical; a designer weighing the two needs the 11 against the 9.
-    const p2 = { patterns: sheet('Pinned-Turns-2-P2-24-N13.json').patterns };
+    const p2 = { patterns: sheet('Round-Times-P2-24-N13.json').patterns };
     const r = compareDesigns(PT, p2);
     const ff11 = r.fatigue.changed.find(c => c.code === 'FF11');
     assert.ok(ff11, 'FF11 is reported');

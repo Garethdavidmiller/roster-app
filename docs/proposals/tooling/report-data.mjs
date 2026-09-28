@@ -30,7 +30,7 @@ export function feel(p, lines) {
  *  no times and is skipped, line 24 wraps to line 1, `endMinutesAbs` so a duty past midnight eats the
  *  rest after it — but reporting the MINIMUM rather than only the breaches. Until 24 Sep 2026 the 12h
  *  row on page 5 said "0 rests under 12h" and nothing else, so a design half an hour from the floor
- *  and one three hours from it read identically; Clean Final Tuned's 12h30 was in the README and on
+ *  and one three hours from it read identically; Light Retime's 12h30 was in the README and on
  *  no page. */
 export function tightestRest(p, lines) {
   const seq = []; for (let k = 1; k <= lines; k++) for (const d of DAYS) seq.push({ line: k, day: d, shift: p[String(k)][d] });
@@ -48,7 +48,7 @@ export function tightestRest(p, lines) {
  *  hour a duty touches: a 06:20 start is a whole person in the 06:00 hour there, and a 23:55 finish a
  *  whole person at 23:00. That is right for the heat map (is anyone on?) and wrong for a FIT, because
  *  the edge hours are exactly where these designs differ. It mattered: on the head-count measure
- *  Clean Final Tuned's three retimes made Sunday WORSE (88.2 → 93.2) while on minutes they made it
+ *  Light Retime's three retimes made Sunday WORSE (88.2 → 93.2) while on minutes they made it
  *  better (62.4 → 44.9) — and minutes is what `fit.mjs` scored every searched table on. */
 export function minuteCover(p, lines, day) {
   const c = new Array(24).fill(0);

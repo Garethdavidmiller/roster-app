@@ -12,7 +12,7 @@
 // LENGTHS; inside one of those the only freedom left is where the middle turns start, which is a small
 // search. So: enumerate, then place each one, rather than hope.
 //
-// THE PICK is the owner's brief for By the Book 2, in order: fewest distinct start and finish times,
+// THE PICK is the owner's brief for Office Written In, in order: fewest distinct start and finish times,
 // then demand fit. CLS / CAP / GAP / PSTEPS / SEED are environment knobs; CAP and GAP are read by
 // table-book.mjs itself, so the pins this honours are its pins, not a second copy of them.
 import { readFileSync } from 'node:fs';
@@ -31,7 +31,7 @@ const PIN = (process.env.PIN ?? '').split(',').filter(Boolean).map(p => {
     return { s: m(a), e: m(b), L: m(b) - m(a), n: Number(n ?? 1) };
 });
 // FIT FIRST (owner): demand fit outranks the count of distinct times. PICK=times reverses it.
-// PICK=share (24 Sep 2026, "By the Book 2 with fewer shift times"): prefer turns another day class already
+// PICK=share (24 Sep 2026, "Office Written In with fewer shift times"): prefer turns another day class already
 // works -- SHARE names that day's placed file (b2-weekday.json) -- then this day's own count, then fit.
 // Each day's own ceiling is already at its floor (a weekday fails at 6 starts, a Sunday at 4), so the only
 // lever left on the rotation's total is reuse between days, and Saturday shares the weekday's window.

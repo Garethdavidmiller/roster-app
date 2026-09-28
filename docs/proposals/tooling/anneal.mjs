@@ -36,15 +36,15 @@ const DEF = buildDefaultTargets().slots;
 const defRows = k => DEF.filter(r => r[k] > 0).map(r => [r.time, r[k]]);
 // E (12 Sep 2026): "Eight Forty" — By the Book's rules with no duty over 8h40, the table re-searched by
 // table-book.mjs and read from its output so the anneal cannot drift from what that search found.
-// G (22 Sep 2026): "By the Book 2" -- Eight Forty's 8h40 cap with two 14:00-22:30 ticket-office turns pinned
+// G (22 Sep 2026): "Office Written In" -- Eight Forty's 8h40 cap with two 14:00-22:30 ticket-office turns pinned
 // Monday to Saturday and two on a Sunday, the table placed by place-structures.mjs and read from its output
 // for the same reason E's is: so the anneal cannot drift from what that search found.
-// W (24 Sep 2026): "Quarter To 2" -- table Q's weekday with SATURDAY AND SUNDAY REBUILT under the 8h40 cap by
+// W (24 Sep 2026): "Weekend Capped" -- table Q's weekday with SATURDAY AND SUNDAY REBUILT under the 8h40 cap by
 // weekend-table.mjs, assembled by assemble-table.mjs and read from its output, as E and G are. MODE=feel, like Q.
 // P (25 Sep 2026): "Pinned Turns" -- the owner's brief from today's roster (brief-table.mjs), assembled by
 // assemble-table.mjs and read from its output. Run in BOTH modes: MODE=rules to minimise the factors, MODE=feel
 // for the like-today comparison; the picker takes whichever mode carries fewer factors.
-// N (25 Sep 2026): "Pinned Turns 2" -- the same pins with EVERY OTHER TIME ON THE QUARTER HOUR (quarter-table.mjs:
+// N (25 Sep 2026): "Round Times" -- the same pins with EVERY OTHER TIME ON THE QUARTER HOUR (quarter-table.mjs:
 // the weekday and Sunday enumerated to a proof, the Saturday too), assembled and read as P is; both modes, as P.
 // F (27 Sep 2026): the OWNER'S FINAL SOFT RULES (final-table.mjs): ticket-office pairs fixed on every day and left out of
 // the floor cover, everything else placed by demand, today's count of shift times or fewer. Assembled and read as P/N.

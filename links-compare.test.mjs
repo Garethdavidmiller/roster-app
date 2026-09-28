@@ -610,7 +610,7 @@ test('analysis: the section is NOT a live region — it is long, and the strip a
 });
 
 test('analysis: a figure that moved without changing the finding is behind its own disclosure', () => {
-    const html = analysisOf(proposal('Pinned-Turns-PT-24-P34.json'), proposal('Pinned-Turns-2-P2-24-N13.json'));
+    const html = analysisOf(proposal('Pinned-Turns-PT-24-P34.json'), proposal('Round-Times-P2-24-N13.json'));
     assert.match(html, /<details class="compare-an-more"><summary>\d+ more moved a figure without changing the finding/);
     assert.match(html, /FF11[\s\S]*?clear \(11\) → clear \(9\)/);
 });
