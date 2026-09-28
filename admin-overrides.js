@@ -522,7 +522,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
             // in-memory cache doesn't reflect (the cache update below never runs). Resync from
             // Firestore so the Saved-changes list is TRUTHFUL, and tag the error so the caller can
             // warn the user that some of the range may already have saved (v16.25). A first-chunk
-            // failure committed nothing, so the cache is still consistent — no resync needed.
+            // SIGNED_OUT may still land; the write gate (claim-retry.js) refuses a retry until reload.
             if (newDocs.length || deletedIds.size) {
                 try { await loadOverrides({ member: memberName }); } catch { /* best-effort resync — of the BOOKED member, not the dropdown's (A14) */ }
                 /** @type {any} */ (err).partialCommit = true;

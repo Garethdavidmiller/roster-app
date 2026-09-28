@@ -56,6 +56,7 @@ import { buildRosterTargets } from './links-seed.js';
 import { buildDefaultTargets, sameTargetTable, isSupersededMemory } from './links-default-targets.js';
 import { assessTargetHours, targetHoursLines, targetProvenanceNote } from './links-target-hours.js';
 import { targetSetPayload, describeSetState, describeSetList, MAX_SET_NAME, SPARE_WEEKS_CAP, targetSetProblem } from './links-target-sets.js';
+import { unconfirmedWriteLine } from './claim-retry.js';
 import { createTargetSetStore } from './links-target-sets-store.js';
 import { checkName } from './links-design-naming.js';
 
@@ -600,8 +601,8 @@ export function createTargetPanel(deps) {
                 // simply stopped being FROM a set, which is exactly what an ordinary edit records.
                 if (genFromSetId === set.id) saveGenTargets();
                 await loadTargetSets();
-            } catch {
-                if (_setHint) _setHint.textContent = `Couldn't delete “${set.name}” — check you're signed in and try again.`;
+            } catch (_err) {
+                if (_setHint) _setHint.textContent = unconfirmedWriteLine(_err, 'this delete', 'the staffing setups') ?? `Couldn't delete “${set.name}” — check you're signed in and try again.`;
             }
         });
 
@@ -637,8 +638,8 @@ export function createTargetPanel(deps) {
                 saveGenTargets('edited', set.name, set.id);
                 genOriginTable = _copyTable();
                 await loadTargetSets();
-            } catch {
-                if (_setHint) _setHint.textContent = `Couldn't save “${set.name}” — check you're signed in and try again.`;
+            } catch (_err) {
+                if (_setHint) _setHint.textContent = unconfirmedWriteLine(_err, 'this save', 'the staffing setups') ?? `Couldn't save “${set.name}” — check you're signed in and try again.`;
             }
         });
 
@@ -670,8 +671,8 @@ export function createTargetPanel(deps) {
                 saveGenTargets('edited', name.trim(), ref?.id ?? '');   // stored, as above
                 genOriginTable = _copyTable();
                 await loadTargetSets(ref?.id ?? '');
-            } catch {
-                if (_setHint) _setHint.textContent = 'Couldn\'t save the new staffing setup — check you\'re signed in and try again.';
+            } catch (_err) {
+                if (_setHint) _setHint.textContent = unconfirmedWriteLine(_err, 'the new setup', 'the staffing setups') ?? 'Couldn\'t save the new staffing setup — check you\'re signed in and try again.';
             }
         });
 

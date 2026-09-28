@@ -142,6 +142,7 @@ function harness(opts = {}) {
         // The real client waits 2 s before re-reading after an ambiguous write; that pause proves
         // nothing here and cost two seconds per ambiguous-commit case (v24.28 review).
         sleep: async () => {},
+        ...(opts.guardCommit ? { guardCommit: opts.guardCommit } : {}),
     });
 
     return { client, store, objects, deleted, uploaded, log, setDocCalls: () => setDocCalls };
@@ -183,6 +184,17 @@ describe('a live document must never point at a file that is not there', () => {
         const h = harness({ setDocFails: () => 'unavailable', liveAfterFailure: null });
         await assert.rejects(() => h.client.uploadHuddle('2026-09-01', fakeFile(PDF_BYTES), 'G'), /boom/);
         assert.deepEqual(h.deleted, [], 'the new object is LEFT in place');
+        assert.equal(h.uploaded.length, 1);
+    });
+
+    test('signed out mid-commit (v24.39): UNCONFIRMED, not a hang, and the new file is kept', async () => {
+        // The commit's account went, so Firestore will never answer it — the watcher rejects in its
+        // place. The write may still land when that admin signs back in, so nothing is rolled back.
+        const { SIGNED_OUT_CODE } = await import('./claim-retry.js');
+        const h = harness({ guardCommit: () => Promise.reject(Object.assign(new Error('gone'), { code: SIGNED_OUT_CODE })) });
+        await assert.rejects(() => h.client.uploadHuddle('2026-09-01', fakeFile(PDF_BYTES), 'G'),
+            (e) => /** @type {any} */ (e).code === 'upload/unconfirmed');
+        assert.deepEqual(h.deleted, [], 'the new object is LEFT — the document may yet name it');
         assert.equal(h.uploaded.length, 1);
     });
 

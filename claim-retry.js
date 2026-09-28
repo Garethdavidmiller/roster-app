@@ -106,6 +106,64 @@ export function signedOutLine(what, whereToCheck) {
     return `You were signed out before ${what} was confirmed. Sign in again, then check ${whereToCheck}.`;
 }
 
+// ── ONE WRITE OF UNKNOWN OUTCOME STOPS THE NEXT (v24.39, external review) ──────────────────────
+//
+// abandonOnSignOut ends the WAIT; it does not cancel the WRITE, which Firestore keeps for that
+// account and may still send. Every caller written before v24.36 assumed "rejected = not written",
+// and where a save mints fresh document ids — roster import, a long leave range, a new Links design
+// — a second attempt then wrote a SECOND copy beside the first, with nothing on screen to say so and
+// no rule to stop it (overrides have no uniqueness on member + date). A duplicate override also
+// resurfaces later: delete the winning copy and the other one takes its place.
+//
+// So the rule is made once, here, rather than remembered at every caller: once a write on this page
+// has ended unconfirmed, no new write starts until the page is reloaded — and a reload re-reads the
+// store, where a write still held for this account shows as pending. Reads are unaffected.
+
+/** The code a write is refused with while an earlier one on this page is unconfirmed. */
+export const UNCONFIRMED_CODE = 'writes/unconfirmed';
+
+/** What the reader is told when that happens. */
+export const UNCONFIRMED_LINE = 'An earlier change on this page was not confirmed. Reload the page before making another, so what actually saved is on screen.';
+
+let _unconfirmedWrites = 0;
+
+/** @returns {boolean} Has a write on this page ended with its outcome unknown? */
+export function hasUnconfirmedWrite() { return _unconfirmedWrites > 0; }
+
+/** Test seam only — a page's state lasts until reload, so nothing in the app resets it. */
+export function _resetUnconfirmedWrites() { _unconfirmedWrites = 0; }
+
+/**
+ * Run a WRITE through the gate: refused while an earlier write is unconfirmed, and recorded as
+ * unconfirmed itself if it ends with SIGNED_OUT_CODE. Pass-through otherwise.
+ * @template T
+ * @param {() => Promise<T>} run
+ * @returns {Promise<T>}
+ */
+export async function runGatedWrite(run) {
+    if (_unconfirmedWrites) throw Object.assign(new Error(UNCONFIRMED_LINE), { code: UNCONFIRMED_CODE });
+    try {
+        return await run();
+    } catch (err) {
+        if (/** @type {any} */ (err)?.code === SIGNED_OUT_CODE) _unconfirmedWrites++;
+        throw err;
+    }
+}
+
+/**
+ * The line for a write whose outcome is unknown — signed out mid-write, or refused because an
+ * earlier one was — or null for any other error, which keeps the caller's own wording.
+ * @param {any} err
+ * @param {string} what          the thing written, e.g. 'this delete'
+ * @param {string} whereToCheck  where the reader can see whether it landed
+ * @returns {string|null}
+ */
+export function unconfirmedWriteLine(err, what, whereToCheck) {
+    if (err?.code === SIGNED_OUT_CODE) return signedOutLine(what, whereToCheck);
+    if (err?.code === UNCONFIRMED_CODE) return UNCONFIRMED_LINE;
+    return null;
+}
+
 /**
  * What a failed Admin save tells the person who pressed Save. Three causes, three instructions: an
  * account that went mid-save (the change may still send once they sign back in, so it is called
@@ -115,6 +173,7 @@ export function signedOutLine(what, whereToCheck) {
  */
 export function saveFailureMessage(err) {
     if (err?.code === SIGNED_OUT_CODE) return signedOutLine('this change', 'Saved Changes');
+    if (err?.code === UNCONFIRMED_CODE) return UNCONFIRMED_LINE;
     if (err?.code === 'permission-denied') return "Couldn't save — you may have been signed out. Please sign in again.";
     return "Couldn't save — check your connection and try again.";
 }

@@ -399,6 +399,12 @@ const _authSubs = new Set();
     globalThis.__E2E.authUser = false;
     for (const cb of Array.from(_authSubs)) cb(null);
 };
+// RESTORE SEAM (v24.39): the same member signs back in (another tab, say) — the account returns
+// to this page, which is the window in which a retry could write a second copy.
+(globalThis.__E2E || (globalThis.__E2E = {})).restoreAuth = () => {
+    globalThis.__E2E.authUser = true;
+    for (const cb of Array.from(_authSubs)) cb({ uid: 'test', isAnonymous: false });
+};
 // SHARED-PC SEAM (v24.38): window.__E2E.otherTabSignIn() models a colleague signing in from another
 // tab — Firebase signs the old account out, then the new one in, and every tab hears both.
 (globalThis.__E2E || (globalThis.__E2E = {})).otherTabSignIn = () => {

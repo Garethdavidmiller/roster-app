@@ -19,7 +19,7 @@ import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 
 import { setStatus } from './status-text.js';
-import { SIGNED_OUT_CODE, saveFailureMessage, signedOutLine } from './claim-retry.js';
+import { unconfirmedWriteLine, saveFailureMessage, signedOutLine } from './claim-retry.js';
 /**
  * Wire one date-range booking section (AL or sick).
  *
@@ -362,9 +362,10 @@ export function createRangeBookingSection(cfg) {
             console.error(`[Admin] ${cfg.logLabel} save failed:`, err);
             clearTimeout(feedbackTimer);
             feedbackEl.className = 'feedback error';
-            setStatus(feedbackEl, (/** @type {any} */ (err)).code === SIGNED_OUT_CODE
+            setStatus(feedbackEl, unconfirmedWriteLine(err, 'this booking', 'Saved Changes')
                 // Signed out while a chunk waited (claim-retry.js): held for that account, and
-                // earlier chunks may have landed — the same check either way (v24.37).
+                // earlier chunks may have landed — the same check either way (v24.37). Or refused
+                // because an earlier write on this page is unconfirmed (v24.39).
                 ? '⚠ ' + ((/** @type {any} */ (err)).partialCommit ? signedOutLine('the rest of this booking', 'Saved Changes') : saveFailureMessage(err))
                 : (/** @type {any} */ (err)).partialCommit
                 // A long range failed mid-way after earlier chunks committed. recordRangeOverrides

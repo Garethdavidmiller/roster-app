@@ -21,7 +21,7 @@ import { computeCellStates, guardCopy, unreadableTagClass, RDW_PREFIX, isRdwEnco
 // gain.
 export { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange, computeCellStates };
 import { setStatus } from './status-text.js';
-import { SIGNED_OUT_CODE, signedOutLine } from './claim-retry.js';
+import { SIGNED_OUT_CODE, UNCONFIRMED_CODE, UNCONFIRMED_LINE, signedOutLine } from './claim-retry.js';
 import { assessRosterAlignment, driftCopy, stopCopy, geometryCopy } from './roster-alignment.js';
 import { withSlowSaveNotice } from './slow-save.js';
 
@@ -154,7 +154,7 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
         } catch (err) {
             // A chunk failed after earlier chunks committed → partial roster import is now in
             // Firestore. Tag the error so the caller can resync + warn rather than imply nothing
-            // saved (v16.25). First-chunk failure committed nothing — no tag.
+            // saved (v16.25). Untagged on chunk 1 — but a SIGNED_OUT there may still land (v24.39).
             if (_committedChunks > 0) /** @type {any} */ (err).partialCommit = true;
             throw err;
         }
@@ -490,7 +490,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         } catch (err) {
             console.error('[RosterUpload] Apply failed:', err);
             const _applyErr = /** @type {any} */ (err);
-            if (_applyErr?.partialCommit) {
+            // A sign-out is AMBIGUOUS even on chunk 1 (the batch may still land): close as partial (v24.39).
+            if (_applyErr?.partialCommit || _applyErr?.code === SIGNED_OUT_CODE) {
                 // Earlier chunks committed before the failure — partial import is live in Firestore.
                 // Resync the Saved-changes list and CLOSE the review (its remaining rows are now
                 // ambiguous against the partially-applied state; a fresh re-upload re-reads truth
@@ -500,15 +501,15 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 _parsedResult = null;
                 _cellStates   = null;
                 applyFeedback.textContent = _applyErr.code === SIGNED_OUT_CODE
-                    ? signedOutLine('the rest of this roster', 'Saved Changes before applying again')
+                    ? signedOutLine('this roster', 'Saved Changes before applying again')
                     : "The connection dropped part-way — some of the roster may already be saved. The saved changes list has been refreshed; re-read the roster to check before applying again.";
                 applyFeedback.className   = 'huddle-feedback huddle-feedback--err';
                 applyBtn.disabled    = true;
                 applyBtn.textContent = 'Save changes';
                 return;
             }
-            if (_applyErr?.code === SIGNED_OUT_CODE) {   // held for that account, not failed (claim-retry.js)
-                applyFeedback.textContent = signedOutLine('this roster', 'Saved Changes before applying again');
+            if (_applyErr?.code === UNCONFIRMED_CODE) {   // an earlier write on this page is unconfirmed
+                applyFeedback.textContent = UNCONFIRMED_LINE;
                 applyFeedback.className   = 'huddle-feedback huddle-feedback--err';
                 applyBtn.disabled    = true;
                 applyBtn.textContent = 'Save changes';
