@@ -94,7 +94,41 @@ export function headcounts(p, lines) {
   return out;
 }
 
-export function assess(p, lines) {
+// THE TICKET OFFICE IS NOT FLOOR COVER (owner, 27–28 Sep 2026), and it is staffed the same way today as in the
+// December plan: Monday to Friday two 06:20–14:20 and two 14:00–22:30, Saturday two 06:20–14:50 and two
+// 14:30–22:00. SUNDAY IS THE ONE DIFFERENCE — today it has one late, and that late is one of the three
+// 14:30–23:25 closers, in the office until it shuts at 22:30 and on the floor for the last hour; the plan has
+// two earlies 07:15–15:30 and two lates 13:30–22:30. [time, people, office-until] — a third element cuts the
+// office part short of the duty's own finish. Every sheet compares FLOOR with FLOOR by taking the right
+// arrangement out of each side: today's out of today, the plan's out of every proposal. Only Right Away named
+// its office turns; for every other design the plan's posts are ASSUMED to be staffed from its duties, and
+// its floor is everyone on duty less those posts — the sheet says so where the figures are.
+export const OFFICE = {
+  today: { weekday: [['06:20-14:20', 2], ['14:00-22:30', 2]], sat: [['06:20-14:50', 2], ['14:30-22:00', 2]], sun: [['07:15-15:45', 2], ['14:30-23:25', 1, '22:30']] },
+  plan:  { weekday: [['06:20-14:20', 2], ['14:00-22:30', 2]], sat: [['06:20-14:50', 2], ['14:30-22:00', 2]], sun: [['07:15-15:30', 2], ['13:30-22:30', 2]] },
+};
+export const officeSpans = (model, cls) => OFFICE[model][cls].map(([t, n, until]) => ({ time: t, st: startMinutes(t), en: until ? +until.slice(0, 2) * 60 + +until.slice(3) : endMinutes(t), n }));
+export const officePosts = (model, cls) => OFFICE[model][cls].reduce((a, [, n]) => a + n, 0);
+/** Everyone on duty, the office, and the floor, per day — heads per hour on calcHourlyCoverage's own rule so
+ *  the three rows add up cell by cell, and the floor's fit on duty minutes with the office's minutes out. */
+export function officeSplit(p, lines, hourly, model) {
+  const days = {};
+  for (const d of DAYS) { const cls = clsOf(d), sp = officeSpans(model, cls);
+    const office = Array.from({ length: 24 }, (_, h) => sp.reduce((a, t) => a + (t.st < (h+1)*60 && t.en > h*60 ? t.n : 0), 0));
+    const floor = hourly[d].hours.map((v, h) => Math.max(0, v - office[h]));
+    const offMin = Array.from({ length: 24 }, (_, h) => sp.reduce((a, t) => a + t.n * Math.max(0, Math.min(t.en, (h+1)*60) - Math.max(t.st, h*60)) / 60, 0));
+    const cov = minuteCover(p, lines, d).map((v, h) => Math.max(0, v - offMin[h]));
+    days[d] = { office, floor, cov, fit: dayFit(cov, cls) }; }
+  const WD = ['mon', 'tue', 'wed', 'thu', 'fri'];
+  const wkFit = dayFit(Array.from({ length: 24 }, (_, h) => WD.reduce((a, d) => a + days[d].cov[h], 0) / 5), 'weekday');
+  return { model, days, wkFit, fits: { sat: days.sat.fit, sun: days.sun.fit }, posts: { weekday: officePosts(model, 'weekday'), sat: officePosts(model, 'sat'), sun: officePosts(model, 'sun') } };
+}
+/** The weekday FLOOR fit of a proposal, for the alternatives tables — the plan's office taken out. */
+export const weekdayFloorFit = (p, lines = 24) => officeSplit(p, lines, calcHourlyCoverage(p, lines), lines === 20 ? 'today' : 'plan').wkFit;
+
+// The office model is TODAY'S for the live 20-line link and the PLAN'S for every 24-line proposal; nothing in this
+// folder is 20 lines except today's link, and a caller can say otherwise.
+export function assess(p, lines, officeModel = lines === 20 ? 'today' : 'plan') {
   const keys = Array.from({ length: lines }, (_, i) => String(i+1));
   const checks = runDesignChecks(p, lines), hours = weeklyHours(p, lines), totals = lineTotals(p, lines);
   const fatigue = assessFatigue(p, lines), hard = assessHardLimits(p, lines), adj = scoreOrder(p, keys, { maxRunTarget: 6 });
@@ -116,7 +150,7 @@ export function assess(p, lines) {
   // like. Until 25 Sep 2026 today's figure was taken by padding the 20-line link to 24 by repeating lines
   // 1–4 (five cover weeks, and four working weeks counted twice): 44.7, where the link itself scores
   // 51.1. That flattered today by six points and read three proposals as worse than it when they are better.
-  return { checks, hours, totals, fatigue, hard, adj, hourly, tableRows, daily, asRostered, feel: feel(p, lines), rest: tightestRest(p, lines), fits: fitsOf(p, lines), wkFit: weekdayFit(p, lines), heads: headcounts(p, lines) };
+  return { checks, hours, totals, fatigue, hard, adj, hourly, tableRows, daily, asRostered, feel: feel(p, lines), rest: tightestRest(p, lines), fits: fitsOf(p, lines), wkFit: weekdayFit(p, lines), heads: headcounts(p, lines), office: officeSplit(p, lines, hourly, officeModel) };
 }
 
 /** Every SHIPPED rotation in docs/proposals, assessed — so a sheet can say where it stands in the folder
@@ -133,7 +167,7 @@ export function folderStats(dir = new URL('..', import.meta.url)) {
     try {
       const j = JSON.parse(readFileSync(new URL(f, dir), 'utf8')); const p = j.patterns ?? j; const lines = Object.keys(p).length;
       const A = assess(p, lines);
-      out.push({ file: f, name: m[1].replace(/-/g, ' '), code: m[2], wk: weekdayFit(p, lines), sat: A.fits.sat, sun: A.fits.sun,
+      out.push({ file: f, name: m[1].replace(/-/g, ' '), code: m[2], wk: weekdayFit(p, lines), sat: A.fits.sat, sun: A.fits.sun, floor: { wk: A.office.wkFit, sat: A.office.fits.sat, sun: A.office.fits.sun },
         present: A.fatigue.present, weekends: A.checks.weekendsOff, run: A.checks.longestStretch, rest: A.rest?.minutes ?? null,
         oneTurn: A.feel.oneTurn, workingLines: A.feel.workingLines, distinct: A.feel.distinctTimes,
         newTimes: A.tableRows.filter(r => !todays.has(r.time)).length, turnarounds: A.checks.turnarounds.length });
