@@ -1193,7 +1193,8 @@ answered or which sheet came before it. **No figure changed**; the words around 
   renderer: the page-1 and page-9 figures, every grid cell, colour and total on page 4, every duty-table row
   on page 5, every hour-by-hour row on page 6, the rule values on page 7 and the page-10 paste block. It also
   read every hand-written claim. The figures were right. The words around them were not always: the
-  rules-not-met chip was nested in the fatigue chip, page 3 quoted the December Saturday/Sunday rule with
+  rules-not-met chip was nested in the fatigue chip, page 3 quoted the December Saturday/Sunday rule (on the 14 sheets
+  short of 14 and 10) with
   the design's own counts, "does not depend on how a cover week is placed" was untrue on six sheets, four
   straps misdescribed their rota, and nothing mentioned Saturday Four's half-hour with one person on duty
   (now a "thin moment" line on page 7, raised automatically for any day that drops below three).
