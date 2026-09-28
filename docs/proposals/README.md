@@ -1445,6 +1445,10 @@ answered or which sheet came before it. **No figure changed**; the words around 
   Sunday; four evenly spread cover weeks; the ticket office as two early and two late identical turns every
   day; every weekday closer at 15:45; at least two on the floor at every moment; 15-minute handovers (20 in the
   office); Sunday duties 8h–9h; no more shift times than today. Right Away, Familiar Nine and Just Enough meet 11; today's link 4 (3 before the ticket-office helper rule of 28 Sep 2026).
+- **The 22:00 rule, confirmed by the owner (28 Sep 2026):** somebody finishing **at** 22:00 does **not** count
+  towards the five — only people still on duty after 22:00 do — and the rule applies **every day, Sunday
+  included**. Both are how every sheet already checked it, so no figure moved. (The 22 Sep reading earlier in
+  this file, where a pinned 22:00 finish counted, is superseded.)
 - **The floor comes first.** Page 1's "Does it follow the trains?" and page 2's scale measure how the people on
   the floor — ticket office out — follow the trains; the everyone-on-duty figure sits beside it.
 - **Page 1** carries an *At a glance* table, today's link against the proposal, which is also the headline set
