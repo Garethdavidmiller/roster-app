@@ -105,6 +105,22 @@ POOL.forEach((p, i) => { p.id = i; p.cov = new Float64Array(24); p.slots = []; f
 const SLOT0 = OPEN / 5, SLOT1 = CLOSE / 5;
 const byT = Object.fromEntries(POOL.map(p => [p.t, p]));
 
+// WHEN THE TICKET OFFICE IS ON THE FLOOR (owner, 28 Sep 2026). One of each office pair helps on the floor at the quiet
+// ends of its shift: on a weekday and a Saturday the second morning person until 08:00 and the second evening person
+// from 19:30 to the end of the shift; on a Sunday the second morning person until 09:00, and the second evening person
+// is "mostly on the floor — queues, excess window and the ticket office break", counted here as floor for the whole
+// shift. The rest of the office's time stays out of the floor cover. TO_EARLY_HELP / TO_LATE_HELP override (minutes).
+const TO_EARLY_HELP = Number(process.env.TO_EARLY_HELP ?? (CLS === 'sun' ? 9 * 60 : 8 * 60));
+const TO_LATE_HELP = process.env.TO_LATE_HELP !== undefined ? Number(process.env.TO_LATE_HELP) : (CLS === 'sun' ? null : 19 * 60 + 30);   // null = the whole shift
+function officeOnFloor(fixed) {
+  const cov = new Float64Array(24), slots = new Int16Array(24 * 12); let minutes = 0;
+  for (const [t, n] of fixed) { const p = byT[t]; if (n < 2) continue;   // one of a PAIR helps; a lone fixed turn is not the office
+    const from = p.s === OPEN ? p.s : (TO_LATE_HELP === null ? p.s : Math.max(p.s, TO_LATE_HELP));
+    const to = p.s === OPEN ? Math.min(p.e, TO_EARLY_HELP) : p.e;
+    for (let m = from; m < to; m += 5) { cov[Math.floor(m / 60)] += 1 / 12; slots[m / 5]++; minutes += 5; } }
+  return { cov, slots, minutes };
+}
+
 // The fit (dayFit's formula), and its lower bound from the over-covered hours.
 const cars = DEC_2026_DEMAND[CLS].cars; const HRS = []; for (let h = Math.floor(OPEN / 60); h <= Math.floor((CLOSE - 1) / 60); h++) HRS.push(h);
 const frac = h => Math.max(0, Math.min(CLOSE, (h + 1) * 60) - Math.max(OPEN, h * 60)) / 60;
@@ -148,19 +164,21 @@ function solve(fixed, total, exclude) {
     if (floor) { for (let h = 0; h < 24; h++) cov[h] += sgn * p.cov[h]; for (const k of p.slots) floorSlots[k] += sgn; } };
   let fixedN = 0, fixedMin = 0, fixedO = 0, fixedC = 0; const fixedCounts = new Int32Array(POOL.length);
   for (const [t, n] of fixed) { const p = byT[t]; if (!p) throw new Error(`fixed ${t} not in pool`); for (let x = 0; x < n; x++) add(p, 1, false); fixedCounts[p.id] += n; fixedN += n; fixedMin += p.L * n; if (p.s === OPEN) fixedO += n; if (p.e === CLOSE) fixedC += n; }
+  const office = officeOnFloor(fixed); for (let h = 0; h < 24; h++) cov[h] += office.cov[h]; for (let k = 0; k < floorSlots.length; k++) floorSlots[k] += office.slots[k];
+  const floorFixed = office.minutes - fixedMin;   // add to a day's total to get its FLOOR minutes
   const ex = new Set(exclude);
   const openersPool = POOL.filter(p => p.s === OPEN && p.e !== CLOSE && !ex.has(p.t));
   const closersPool = POOL.filter(p => p.e === CLOSE && p.s !== OPEN && !ex.has(p.t) && (!CLOSER_ONLY || p.t === CLOSER_ONLY));
   const midPool = POOL.filter(p => p.s !== OPEN && p.e !== CLOSE && p.e <= MID_END_MAX && !ex.has(p.t));
 
   const midByL = {}; for (const p of midPool) (midByL[p.L] ??= []).push(p); const Ls = Object.keys(midByL).map(Number).sort((a, b) => a - b);
-  const C = ((total ?? 0) - fixedMin) / 60; const bestRaw = () => !BOUND ? Infinity : best ? best.fitRaw - 1e-9 : BEST0;
+  const C = ((total ?? 0) + floorFixed) / 60; const bestRaw = () => !BOUND ? Infinity : best ? best.fitRaw - 1e-9 : BEST0;
   for (let needO = Math.max(0, OPENERS_MIN - fixedO); needO <= OPENERS_MAX - fixedO; needO++) {
   const osets = multisets(openersPool, needO, MAX_PER);
   for (let nC = Math.max(0, CLOSERS_MIN - fixedC); nC <= CLOSERS_MAX - fixedC; nC++) {
     const csets = multisets(closersPool, nC, MAX_PER);
     const needM = N - fixedN - needO - nC; if (needM < 0) continue;
-    const leaf = () => { const rec = evaluate(counts, cov, total, total - fixedMin, floorSlots, fixedCounts); if (rec) offer(rec); };
+    const leaf = () => { const rec = evaluate(counts, cov, total, total + floorFixed, floorSlots, fixedCounts); if (rec) offer(rec); };
     const pickTurns = (lens, pos) => {
       if (pos === lens.length) { leaf(); return; }
       let end = pos; while (end < lens.length && lens[end] === lens[pos]) end++; const k = end - pos; const turns = midByL[lens[pos]];
@@ -175,7 +193,7 @@ function solve(fixed, total, exclude) {
       if (total === null) {   // Sunday: not contracted, so the total is whatever the duties sum to, inside SUN_MIN..SUN_MAX
         const base = fixedMin + O.reduce((a, p) => a + p.L, 0) + Cc.reduce((a, p) => a + p.L, 0);
         for (const M of multisets(midPool, needM, MAX_PER)) { for (const p of M) add(p, 1); const tot = base + M.reduce((a, p) => a + p.L, 0);
-          if (distinct <= MAX_TURNS && tot >= SUN_MIN && tot <= SUN_MAX) { const rec = evaluate(counts, cov, tot, tot - fixedMin, floorSlots, fixedCounts); if (rec) offer(rec); } for (const p of M) add(p, -1); }
+          if (distinct <= MAX_TURNS && tot >= SUN_MIN && tot <= SUN_MAX) { const rec = evaluate(counts, cov, tot, tot + floorFixed, floorSlots, fixedCounts); if (rec) offer(rec); } for (const p of M) add(p, -1); }
       } else {
       const R = total - fixedMin - O.reduce((a, p) => a + p.L, 0) - Cc.reduce((a, p) => a + p.L, 0);
       if (needM === 0) { if (R === 0) leaf(); }
@@ -201,10 +219,11 @@ function annealSolve(fixed, total, exclude) {
   let seed = Number(process.env.SEED ?? 7) >>> 0 || 7; const rnd = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; };
   const pick = a => a[(rnd() * a.length) | 0];
   const roleOf = p => p.s === OPEN ? openersPool : p.e === CLOSE ? closersPool : midPool;
-  const record = free => { const counts = Int32Array.from(fixedCounts), cov = new Float64Array(24), slots = new Int16Array(288);
+  const office = officeOnFloor(fixed);
+  const record = free => { const counts = Int32Array.from(fixedCounts), cov = Float64Array.from(office.cov), slots = Int16Array.from(office.slots);
     for (const p of fixedItems) counts[p.id] += 0;
     for (const p of free) { counts[p.id]++; for (let h = 0; h < 24; h++) cov[h] += p.cov[h]; for (const k of p.slots) slots[k]++; }
-    return evaluate(counts, cov, total, total - fixedMin, slots, fixedCounts); };
+    return evaluate(counts, cov, total, total - fixedMin + office.minutes, slots, fixedCounts); };
   const randomState = () => { for (let tries = 0; tries < 400; tries++) {
       const nO = OPENERS_MIN - fixedO + ((rnd() * (OPENERS_MAX - OPENERS_MIN + 1)) | 0), nC = CLOSERS_MIN - fixedC + ((rnd() * (CLOSERS_MAX - CLOSERS_MIN + 1)) | 0);
       const nM = N - fixedItems.length - nO - nC; if (nO < 0 || nC < 0 || nM < 0) continue;
