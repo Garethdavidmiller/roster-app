@@ -142,6 +142,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
     /** The mutation id of a submission whose response we never saw. */
     /** @type {string|null} */
     let pendingMutationId = null;
+    /** True from Submit until the send (and any timeout reconciliation) has settled. */
+    let submitting = false;
 
     host.innerHTML = shell();
     const daysHost = /** @type {HTMLElement} */ (host.querySelector('.ot-days'));
@@ -699,8 +701,10 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             ? `${missing} ${missing === 1 ? 'day' : 'days'} still to answer`
             : (baseRevision ? 'Save changes' : 'Submit availability');
         // NOT disabled on incompleteness — a disabled button explains nothing, and this one has a
-        // specific thing to say. It refuses on press and points at the day.
-        submitBtn.disabled = false;
+        // specific thing to say. It refuses on press and points at the day. It IS disabled while a
+        // send is in flight (v24.38): every day control calls this, and re-arming Submit mid-send
+        // let a second press race the first into a revision conflict about the member's own save.
+        submitBtn.disabled = submitting;
     }
 
     /**
@@ -734,6 +738,14 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             return;
         }
 
+        if (submitting) return;
+        submitting = true;
+        try { await sendSubmission(); }
+        finally { submitting = false; if (submitBtn) submitBtn.disabled = false; }
+    }
+
+    /** The send and everything after it, run with `submitting` held (see updateSubmitState). */
+    async function sendSubmission() {
         // The client's clock decides only what it SAYS, never whether to send. Past the grace band
         // it still sends — the server is the authority and its refusal is at least true.
         const disposition = submitDisposition(OTD.correctedNow(), win.finalDeadlineAt);

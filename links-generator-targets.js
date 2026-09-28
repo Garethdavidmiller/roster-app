@@ -55,7 +55,7 @@ import { ROTATING_LINES, normaliseCustomShift } from './links-design.js';
 import { buildRosterTargets } from './links-seed.js';
 import { buildDefaultTargets, sameTargetTable, isSupersededMemory } from './links-default-targets.js';
 import { assessTargetHours, targetHoursLines, targetProvenanceNote } from './links-target-hours.js';
-import { targetSetPayload, describeSetState, describeSetList, MAX_SET_NAME } from './links-target-sets.js';
+import { targetSetPayload, describeSetState, describeSetList, MAX_SET_NAME, SPARE_WEEKS_CAP, targetSetProblem } from './links-target-sets.js';
 import { createTargetSetStore } from './links-target-sets-store.js';
 import { checkName } from './links-design-naming.js';
 
@@ -395,7 +395,8 @@ export function createTargetPanel(deps) {
         });
 
         document.getElementById('genSpareLines')?.addEventListener('input', e => {
-            genSpareLines = Math.max(0, parseInt(/** @type {HTMLInputElement} */ (e.target).value, 10) || 0);
+            const _el = /** @type {HTMLInputElement} */ (e.target);   // capped at the field's max AND the rules' (v24.38)
+            genSpareLines = Math.min(Math.max(0, parseInt(_el.value, 10) || 0), Number(_el.max) || SPARE_WEEKS_CAP, SPARE_WEEKS_CAP);
             updateGenTotals();
             saveGenTargets();
         });
@@ -613,6 +614,8 @@ export function createTargetPanel(deps) {
                 confirmLabel: 'Overwrite',
             });
             if (!sure) return;
+            const _problem = targetSetProblem({ slots: genSlots, spareLines: genSpareLines });
+            if (_problem) { if (_setHint) _setHint.textContent = _problem; return; }
             try {
                 // `createdBy` is passed through UNCHANGED — the rules refuse an update that moves
                 // it, so ownership survives every overwrite including the admin's. And the write
@@ -654,6 +657,8 @@ export function createTargetPanel(deps) {
             if (!name?.trim()) return;
             const setCheck = checkName(name, { existing: targetSets, noun: 'staffing setup' });
             if (!setCheck.ok) { if (_setHint) _setHint.textContent = setCheck.message || ''; return; }
+            const _problem = targetSetProblem({ slots: genSlots, spareLines: genSpareLines });
+            if (_problem) { if (_setHint) _setHint.textContent = _problem; return; }
             try {
                 // Select the set that was just created (v21.07). The picker is sorted by name, so
                 // without this the new set is saved and the selection lands on whatever sorts first

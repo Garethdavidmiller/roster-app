@@ -154,7 +154,11 @@ let _fbAuthError;
  *  superseded attempt (its captured gen ≠ this counter) must drop ALL its terminal writes so it can't
  *  clobber the shared `_fbIdentity`/auth-store to a stale value (which under B1 could cause a spurious
  *  re-login). Each `ensureNamedSession` bumps it; `ensureFirebaseSession` inherits or (direct call) bumps. */
+/** How long a page waits for Firebase Auth to start before treating it as a (transient) failure. */
+export const AUTH_READY_TIMEOUT_MS = 20000;
 let _authGen = 0;
+/** The generation an explicit clearSession() took — see the late-landing check in ensureFirebaseSession. */
+let _clearedGen = -1;
 
 /**
  * The Firebase identity `ensureFirebaseSession` last established on a write page.
@@ -333,7 +337,17 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // the winner's `_fbIdentity` to 'none' and leave it stuck there (the store would read 'named' while
     // the global reads 'none' — the exact disagreement the guard exists to prevent). Found in review.
     if (fresh()) { _fbIdentity = 'none'; _fbAuthError = undefined; }
-    await authReady;
+    // BOUNDED (v24.38). `authReady` waits on Firebase Auth's own start-up, which has no limit of its
+    // own; with the browser's storage wedged it never settled, and every protected page sat with
+    // sessionReady pending — no sign-in offered, no error. A timeout is TRANSIENT, so
+    // ensureNamedSession still retries it before the page falls back to its sign-in.
+    /** @type {any} */ let _readyTimer;
+    const _ready = await Promise.race([
+        authReady.then(() => true),
+        new Promise(r => { _readyTimer = setTimeout(() => r(false), AUTH_READY_TIMEOUT_MS); }),
+    ]);
+    clearTimeout(_readyTimer);
+    if (!_ready) { recordError('auth/timeout'); return commit('none', false); }
     // A member is signing in, so the shared Calendar viewer (if this browser holds one) must go
     // FIRST — see the function's own comment for why the order is the security property, not a
     // tidiness one. This is the single choke point for the viewer→member transition: every member
@@ -423,6 +437,15 @@ export async function ensureFirebaseSession(name, _gen, password) {
         if (!fresh()) return commit('none', false);
         try {
             await signInWithEmailAndPassword(auth, email, candidate);
+            // LANDED AFTER A SIGN-OUT (v24.38). The login overlay's 8s bound gives up, calls
+            // clearSession(), and tells the member it failed — but the request it gave up on can
+            // still land, leaving Firebase signed in with no app session behind it on a shared
+            // device. Undo it only when a clearSession() is the LAST thing that happened: a newer
+            // sign-in attempt superseding this one owns the account and must be left alone.
+            if (!fresh() && _authGen === _clearedGen) {
+                await firebaseSignOut(auth).catch(() => {});
+                return false;
+            }
             // The surname default WORKED — the account is on it (or back on it, after an admin
             // reset), so the silent recovery must be re-armed for this device.
             if (candidate === surnamePassword(name)) lsDel(_noDefaultKey(name));
@@ -626,7 +649,7 @@ export function clearSession() {
     // its `gen === _authGen` guard then fails and it won't dispatch a late terminal NAMED after
     // this SIGN_OUT (which would leave the store `named` while the local session is cleared —
     // e.g. the login-overlay 8s-timeout path that calls clearSession while an attempt runs on).
-    ++_authGen;
+    _clearedGen = ++_authGen;
     lsDel(AUTH_KEY);
     firebaseSignOut(auth).catch((/** @type {any} */ err) => console.warn('[Auth] signOut failed:', err));
     _feedAuth({ type: 'SIGN_OUT' });   // store: signedOut (observing only — Phase 2)

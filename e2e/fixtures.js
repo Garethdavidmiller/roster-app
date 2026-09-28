@@ -399,6 +399,12 @@ const _authSubs = new Set();
     globalThis.__E2E.authUser = false;
     for (const cb of Array.from(_authSubs)) cb(null);
 };
+// SHARED-PC SEAM (v24.38): window.__E2E.otherTabSignIn() models a colleague signing in from another
+// tab — Firebase signs the old account out, then the new one in, and every tab hears both.
+(globalThis.__E2E || (globalThis.__E2E = {})).otherTabSignIn = () => {
+    for (const cb of Array.from(_authSubs)) cb(null);
+    for (const cb of Array.from(_authSubs)) cb({ uid: 'colleague', isAnonymous: false });
+};
 export const onAuthStateChanged = (_auth, cb) => {
     if (cb) _authSubs.add(cb);
     if (_restored()) { Promise.resolve().then(() => cb && cb(_currentUser())); return () => _authSubs.delete(cb); }

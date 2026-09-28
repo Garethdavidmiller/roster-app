@@ -2249,7 +2249,23 @@ test('admin: a save whose sign-in is revoked mid-save stops waiting and offers t
     await expect(feedback, 'the write is held, not lost').not.toContainText(/lost|not saved/i);
     await expect(page.locator('#saveBtn')).not.toContainText('Saving');
     // The sign-in box the message sends them to (v24.37) — without it "sign in again" meant a reload.
-    await expect(page.locator('#loginPassword')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('#loginPassword')).toBeVisible({ timeout: 8000 });
+});
+
+// ── …AND A COLLEAGUE SIGNING IN FROM ANOTHER TAB IS NOT THAT (v24.38) ────────────────────────────
+// Firebase shares one account across a browser's tabs. v24.37 read a colleague's sign-in elsewhere
+// (out, then in as them) as this page's loss, and its re-login signed the colleague out.
+test('admin: a colleague signing in from another tab does not sign anybody out here', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const before = await page.evaluate(() => /** @type {any} */ (window).__E2E.signOutCount || 0);
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.otherTabSignIn());
+    await page.waitForTimeout(4500);   // past the watcher's 3s settle
+    await expect(page.locator('#loginPassword')).toHaveCount(0);
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.signOutCount || 0), 'nobody signed out').toBe(before);
+    expect(await page.evaluate(() => localStorage.getItem('myb_admin_session')), 'the shared session survives').not.toBeNull();
 });
 
 // ── SUNDAY IS NOT A CONTRACTED DAY — LAYERS 1 AND 2, AS THE GRID ACTUALLY DRAWS THEM ────────────

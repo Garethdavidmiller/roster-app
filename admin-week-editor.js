@@ -534,6 +534,8 @@ export function renderWeekGrid() {
 let _saveInFlight = false;
 /** @param {boolean} on */
 export function setSaveInFlight(on) { _saveInFlight = !!on; updateSaveBtn(); }
+/** Is any override write on this page still sending? One lock for the grid AND the range cards (v24.38). @returns {boolean} */
+export function isSaveInFlight() { return _saveInFlight; }
 
 export function updateSaveBtn() {
     const weekGrid = document.getElementById('weekGrid');

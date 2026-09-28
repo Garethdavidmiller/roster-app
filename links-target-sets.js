@@ -44,6 +44,23 @@ export const MAX_SET_NAME = 60;
 /** The most rows a set may carry — far above any real table (the default runs ~31). */
 export const MAX_SET_SLOTS = 60;
 
+/** The most spare lines a set may carry — the rules refuse `spareLines >= 30` (v24.38). */
+export const SPARE_WEEKS_CAP = 29;
+
+/**
+ * Why this table cannot be saved as a set, in words for the designer, or null when it can (v24.38).
+ * The rules refuse a set with no rows or too many spare lines, and the save used to reach them and
+ * report the refusal as "check you're signed in" — true of nothing.
+ * @param {{ slots: any[], spareLines: number }} table
+ * @returns {string|null}
+ */
+export function targetSetProblem(table) {
+    if (!table.slots.length) return 'Add at least one shift row before saving a staffing setup.';
+    if (table.slots.length > MAX_SET_SLOTS) return `A staffing setup can hold at most ${MAX_SET_SLOTS} rows.`;
+    if (table.spareLines > SPARE_WEEKS_CAP) return `Spare lines can be at most ${SPARE_WEEKS_CAP}.`;
+    return null;
+}
+
 /** A shift-time string the generator can read: "HH:MM-HH:MM". Shape only — ranges are its job. */
 const TIME_RE = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
 

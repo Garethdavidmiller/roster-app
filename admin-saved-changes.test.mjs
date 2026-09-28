@@ -147,9 +147,13 @@ global.document = /** @type {any} */ (fakeDocument);
 /** @type {() => Promise<void>} */
 let _commit = async () => {};
 
+/** v24.38: the delete paths refuse up front when nobody is signed in. */
+const _mockAuth = { currentUser: /** @type {any} */ ({ uid: 'admin' }) };
+
 mock.module('./firebase-client.js', {
     namedExports: {
         db: {},
+        auth: _mockAuth,
         doc: () => ({}),
         deleteDoc: async () => {},
         writeBatch: () => ({ delete() {}, commit: () => _commit() }),
@@ -240,9 +244,21 @@ async function bulkDelete(/** @type {string[]} */ ids) {
     await fire('bulkDeleteBtn', 'click');   // deletes
 }
 
-beforeEach(() => { _commit = async () => {}; setup(); });
+beforeEach(() => { _commit = async () => {}; _mockAuth.currentUser = { uid: 'admin' }; setup(); });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
+
+describe('0. signed out (v24.38)', () => {
+    test('a bulk delete with nobody signed in says so, sends nothing, and leaves the button usable', async () => {
+        let commits = 0;
+        _commit = async () => { commits++; };
+        _mockAuth.currentUser = null;
+        await bulkDelete(['a', 'b']);
+        assert.equal(commits, 0, 'nothing reaches Firestore');
+        assert.match(el('listFeedback').textContent, /signed out/, 'not "check your connection"');
+        assert.equal(el('bulkDeleteBtn').disabled, false);
+    });
+});
 
 describe('1. stuck after SUCCESS — the shipped defect', () => {
     test('the button is usable again after a delete that worked', async () => {

@@ -171,32 +171,49 @@ export function abandonOnSignOut(request, { uid, watch }) {
 }
 
 /**
- * Call `onLost` ONCE when the page's account goes — signed out, or replaced by another — while the
- * page still believes somebody is signed in (v24.37).
+ * Call `onLost` ONCE when this page's account has GONE — nobody signed in, and still nobody after
+ * `settleMs` — while the page's own session still names the member it was opened for (v24.37;
+ * narrowed v24.38).
  *
  * The other half of abandonOnSignOut. That one ends the wait and says "sign in again", but a page
  * that has already shown itself has no sign-in box until it is reloaded, so the instruction had
  * nowhere to be followed. The caller shows its sign-in overlay from `onLost`.
  *
- * `stillSignedIn` is what separates a revoked session from a deliberate one: the drawer's Sign out
- * clears the local session FIRST, so by the time the account goes this answers false and nothing
- * is shown over a page that is about to reload anyway.
+ * ── WHY IT WAITS, AND WHY A DIFFERENT ACCOUNT IS NOT A LOSS (v24.38) ─────────────────────────────
+ *
+ * Firebase shares one signed-in account across every tab of a browser (`_onStorageEvent`). v24.37
+ * fired on ANY change, so on a shared PC with Admin left open, a colleague signing in from another
+ * tab — which signs the old account out and then the new one in — looked like a revocation here,
+ * and this tab's re-login cleared the shared session and signed the COLLEAGUE out. Now:
+ *   · a different account arriving is somebody else's sign-in, never ours to undo;
+ *   · a sign-out is judged only after it has LASTED `settleMs`, which a sign-out-then-sign-in never
+ *     does, and only if `stillLost()` still says so then — the caller answers "no account now, and
+ *     the local session still names this page's member". A deliberate Sign out clears that session
+ *     first, so it answers false and nothing is shown.
  *
  * @param {{ uid: string|null|undefined, watch: (cb: (user: { uid: string }|null) => void) => () => void,
- *           stillSignedIn: () => boolean, onLost: () => void }} deps
+ *           stillLost: () => boolean, onLost: () => void, settleMs?: number,
+ *           setTimer?: (fn: () => void, ms: number) => any, clearTimer?: (id: any) => void }} deps
  * @returns {() => void} unsubscribe
  */
-export function watchIdentityLoss({ uid, watch, stillSignedIn, onLost }) {
+export function watchIdentityLoss({ uid, watch, stillLost, onLost, settleMs = 3000,
+                                    setTimer = setTimeout, clearTimer = clearTimeout }) {
     if (!uid) return () => {};
     let fired = false;
+    /** @type {any} */ let pending = null;
     /** @type {() => void} */ let stop = () => {};
     const unsub = watch(user => {
-        if (fired || (user && user.uid === uid) || !stillSignedIn()) return;
-        fired = true;
-        stop();
-        onLost();
+        if (fired) return;
+        if (user) { if (pending !== null) { clearTimer(pending); pending = null; } return; }   // back, or someone else's sign-in
+        if (pending !== null) return;
+        pending = setTimer(() => {
+            pending = null;
+            if (fired || !stillLost()) return;
+            fired = true;
+            stop();
+            onLost();
+        }, settleMs);
     });
-    stop = unsub;
-    if (fired) unsub();
-    return unsub;
+    stop = () => { if (pending !== null) { clearTimer(pending); pending = null; } unsub(); };
+    return stop;
 }

@@ -20,9 +20,9 @@ import { saveFailureMessage } from './claim-retry.js';
 import { TYPES, PILL_TYPES, WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
 import { initSavedChanges, renderTable, resetTableMemberFilter } from './admin-saved-changes.js';
 import { initWeekEditor, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn,
-         resetBulkPills, resetStagedRows, _hasStagedEdits, setSaveInFlight } from './admin-week-editor.js';
+         resetBulkPills, resetStagedRows, _hasStagedEdits, setSaveInFlight, isSaveInFlight } from './admin-week-editor.js';
 export { TYPES, PILL_TYPES, renderTable, resetTableMemberFilter,
-         renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits, setSaveInFlight };
+         renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits, setSaveInFlight, isSaveInFlight };
 import { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache, mutateCache,
          whenOverridesReady, whenLoadSettled, isOverrideCacheLoaded, hasOverrideAuthorityFor,
          loadOverrides, ensureMemberLoaded } from './admin-override-store.js';
@@ -190,12 +190,11 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     // snapshot can resolve AFTER this write and overwrite `_allOverrides`, silently dropping the
     // change we just saved from the Saved-changes list (v16.85).
     await whenOverridesReady();
-    // A failed initial load leaves the cache empty; the just-computed toSave/toDelete would still write
-    // correctly to Firestore, but the admin is operating blind (their Saved-Changes view never loaded).
-    // Refuse uniformly with the other write paths and prompt a reload (Finding #2, v16.97).
+    // A failed load leaves the cache empty and the admin operating blind: refuse, prompt a reload (v16.97).
     // Every member this batch touches, not merely the one in the dropdown: the entries carry their
     // own `memberName`, and authority is now per member, so the question has to be asked of each.
     const writeMembers = [...new Set([memberName, ...toSave.map(e => e.memberName)].filter(Boolean))];
+    if (writeMembers.some(m => !hasOverrideAuthorityFor(m))) await whenLoadSettled().catch(() => {});   // still LOADING ≠ failed (v24.38)
     if (writeMembers.some(m => !hasOverrideAuthorityFor(m))) {
         _showError("Couldn't load your saved changes — reload the page before making changes.");
         if (saveBtn) { saveBtn.textContent = 'Save changes'; }
@@ -421,6 +420,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     // If that initial read FAILED the cache is empty, not merely cold — writing now would build the
     // exact duplicate/erased-Sunday corruption the wait above guards against. Refuse rather than corrupt;
     // the caller surfaces a "reload before recording" message (Finding #2, v16.97).
+    if (!hasOverrideAuthorityFor(memberName)) await whenLoadSettled().catch(() => {});   // still loading ≠ failed (v24.38)
     if (!hasOverrideAuthorityFor(memberName)) throw new Error('cache/load-failed');
     if (!auth.currentUser) throw new Error('auth/session-expired');
 

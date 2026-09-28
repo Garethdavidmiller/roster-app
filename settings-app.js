@@ -9,7 +9,7 @@
 
 import { CONFIG, isValidEmail, isChilternWorkEmail, workEmailLocalPart, workEmailFrom } from './roster-data.js';
 import { formatDayMonthYear } from './date-format.js';
-import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, setOwnPassword } from './firebase-client.js';
+import { auth, onAuthStateChanged, getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, setOwnPassword } from './firebase-client.js';
 import { isPasswordMigrated, isCredentialRejection, validateNewPassword } from './auth-identity.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
@@ -21,7 +21,8 @@ import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
 import { summarise, shouldOpen } from './settings-status.js';
 import { setStatus } from './status-text.js';
-import { SIGNED_OUT_CODE, signedOutLine } from './claim-retry.js';
+import { SIGNED_OUT_CODE, signedOutLine, watchIdentityLoss } from './claim-retry.js';
+import { withSlowSaveNotice } from './slow-save.js';
 import { inventoryOf } from './paycalc-inventory.js';
 import { selectBackupKeys } from './paycalc-transfer.js';
 import { pcPrefix, setPaycalcNamespace } from './paycalc-migrations.js';
@@ -207,7 +208,9 @@ export function init() {
             // clearSession() drops the identity, but the nav drawer was already wired to the OLD
             // member — on a shared/stale device that stale identity stayed behind the overlay until
             // reload. Reset tears it down; the fresh login → reload re-wires it.
-            if (requirePage(getAuthSnapshot(), 'settings').decision === 'login') { clearSession(); resetNavPanel(); initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => window.location.reload() }); }
+            const _relogin = () => { clearSession(); resetNavPanel(); initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => window.location.reload() }); };
+            if (requirePage(getAuthSnapshot(), 'settings').decision === 'login') return _relogin();
+            watchIdentityLoss({ uid: auth.currentUser?.uid, watch: cb => onAuthStateChanged(auth, cb), stillLost: () => !auth.currentUser && getSession()?.name === currentUser, onLost: _relogin });   // a revoked session, later (claim-retry.js)
         });
         initApp();
         wireNavPanel();   // deduped by initNavPanel's navPanelInit guard if the nav was already wired above
@@ -409,7 +412,9 @@ export function init() {
             saveBtn.textContent = 'Saving…';
             try {
                 await sessionReady;
-                await saveStaffContact(currentUser, email);
+                // withSlowSaveNotice: offline, a Firestore write settles only when the server answers,
+                // and "Saving…" alone read as a freeze (v24.38 — Admin has said why since v24.21).
+                await withSlowSaveNotice(saveStaffContact(currentUser, email));
                 const today = formatDayMonthYear(new Date());
                 emailInput.value = workEmailLocalPart(email);
                 showSavedState(today, email);
@@ -434,7 +439,7 @@ export function init() {
                 removeBtn.disabled = true;
                 try {
                     await sessionReady;
-                    await deleteStaffContact(currentUser);
+                    await withSlowSaveNotice(deleteStaffContact(currentUser));
                     emailInput.value = '';
                     clearSavedState();
                 } catch (err) {

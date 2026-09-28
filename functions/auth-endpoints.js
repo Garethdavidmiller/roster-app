@@ -383,6 +383,12 @@ const resetMemberPassword = onRequest(
             const email    = nameToEmail(member);
             const password = nameToPassword(member);   // surname default (reuses the parity-guarded helper)
             const user = await getAuth().getUserByEmail(email);
+            // The shared Calendar PIN account can end up holding a roster email (any PIN holder can
+            // link one). Setting up accounts already refuses to adopt it; a reset must not give it a
+            // known password and revoke every PIN session either (v24.38).
+            if (isViewerAccount(user)) {
+                return res.status(409).json({ error: `${email} is linked to the shared Calendar PIN account — run this again after the next PIN unlock` });
+            }
             await getAuth().updateUser(user.uid, { password });
             // ── PAST THIS LINE THE CREDENTIAL HAS CHANGED, AND NOTHING MAY SAY OTHERWISE ─────────
             // (v21.86, external audit.) Revocation used to be a bare `await` inside the outer try,

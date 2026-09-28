@@ -1543,7 +1543,7 @@ export function init() {
             if (requirePage(getAuthSnapshot(), 'admin').decision === 'login') return _relogin();
             // …and if the account goes LATER (a revoked session — claim-retry.js), offer the sign-in
             // then, not only on the next load: a save's "sign in again" had nowhere to be done (v24.37).
-            watchIdentityLoss({ uid: auth.currentUser?.uid, watch: cb => onAuthStateChanged(auth, cb), stillSignedIn: () => !!getSession(), onLost: _relogin });
+            watchIdentityLoss({ uid: auth.currentUser?.uid, watch: cb => onAuthStateChanged(auth, cb), stillLost: () => !auth.currentUser && getSession()?.name === currentUser, onLost: _relogin });
         });
         // All dropdowns are now populated — apply permissions then load data
         document.body.classList.add('auth-ready');

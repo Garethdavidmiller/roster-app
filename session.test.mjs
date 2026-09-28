@@ -1122,6 +1122,18 @@ describe('auth generation guard', () => {
         assert.equal(getFirebaseIdentity(), 'named', 'the stale attempt must not overwrite the winner');
     });
 
+    test('a sign-in that lands AFTER clearSession() is signed straight back out (v24.38)', async () => {
+        /** @type {() => void} */ let releaseGate = () => {};
+        _signInGate = new Promise(r => { releaseGate = r; });
+        const login = ensureNamedSession('G. Miller', { delayMs: 0 });   // parks at the gate
+        await signInEntered(1);
+        clearSession();                                                   // the overlay's timeout gives up
+        _signOutCalled = false;
+        releaseGate();                                                    // …and the request lands anyway
+        assert.equal(await login, false, 'still reported as not signed in');
+        assert.equal(_signOutCalled, true, 'and Firebase is not left signed in behind a cleared session');
+    });
+
     test('the latest (current) attempt still writes identity normally', async () => {
         // Sanity: with no superseding attempt, the guard is a pure no-op — identity is published.
         const ok = await ensureFirebaseSession('G. Miller');

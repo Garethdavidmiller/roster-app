@@ -10,7 +10,7 @@
  */
 
 import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
-import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
+import { auth, onAuthStateChanged, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
 import { _cardLoadError, _relativeTime } from './operations-reports.js';
 import { initErrorLog } from './operations-errors.js';
@@ -32,6 +32,7 @@ import { isFetchTimeout } from './fetch-timeout.js';
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
+import { watchIdentityLoss } from './claim-retry.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, confirmDialog, createLightbox } from './overlay.js';
@@ -129,7 +130,10 @@ export function init() {
             // not stay reachable behind the login on a shared device.
             resetNavPanel();
             initLoginOverlay({ pageLabel: 'Operations', onSuccess: () => window.location.reload() });
+            return;
         }
+        // A session revoked LATER gets the same sign-in, not a dead page (claim-retry.js, v24.38).
+        watchIdentityLoss({ uid: auth.currentUser?.uid, watch: cb => onAuthStateChanged(auth, cb), stillLost: () => !auth.currentUser && getSession()?.name === currentUser, onLost: () => { clearSession(); resetNavPanel(); initLoginOverlay({ pageLabel: 'Operations', onSuccess: () => window.location.reload() }); } });
     });
 
     // The Operations read cards (Work Email, Error Log, Usage, App Speed) read admin-gated collections.

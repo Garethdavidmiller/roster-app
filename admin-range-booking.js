@@ -14,12 +14,12 @@
 //   those live in admin-al.js and are injected via the preSave / renderReady hooks.
 
 import { teamMembers } from './roster-data.js';
-import { recordRangeOverrides, formatDisplay, buildMemberDateMap, isWorkingDate } from './admin-overrides.js';
+import { recordRangeOverrides, formatDisplay, buildMemberDateMap, isWorkingDate, isSaveInFlight, setSaveInFlight } from './admin-overrides.js';
 import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 
 import { setStatus } from './status-text.js';
-import { SIGNED_OUT_CODE, saveFailureMessage } from './claim-retry.js';
+import { SIGNED_OUT_CODE, saveFailureMessage, signedOutLine } from './claim-retry.js';
 /**
  * Wire one date-range booking section (AL or sick).
  *
@@ -311,8 +311,17 @@ export function createRangeBookingSection(cfg) {
             swapAnswers: new Map(swapAnswers),
         })) return;
 
+        // ONE WRITE AT A TIME ON THIS PAGE (v24.38). This card and Change a Shift each read the same
+        // day's existing record and each replace it; run together, both deleted the old document and
+        // each wrote a new one, leaving two for the day. The grid's in-flight flag is the shared lock.
+        if (isSaveInFlight()) {
+            feedbackEl.className = 'feedback error';
+            setStatus(feedbackEl, '⚠ Another change is still saving — try again when it has finished.');
+            return;
+        }
         feedbackEl.className = 'feedback';
         saving = true;
+        setSaveInFlight(true);
         saveBtn.disabled    = true;
         saveBtn.textContent = `Saving ${dates.length} day${dates.length > 1 ? 's' : ''}…`;
 
@@ -356,7 +365,7 @@ export function createRangeBookingSection(cfg) {
             setStatus(feedbackEl, (/** @type {any} */ (err)).code === SIGNED_OUT_CODE
                 // Signed out while a chunk waited (claim-retry.js): held for that account, and
                 // earlier chunks may have landed — the same check either way (v24.37).
-                ? '⚠ ' + saveFailureMessage(err)
+                ? '⚠ ' + ((/** @type {any} */ (err)).partialCommit ? signedOutLine('the rest of this booking', 'Saved Changes') : saveFailureMessage(err))
                 : (/** @type {any} */ (err)).partialCommit
                 // A long range failed mid-way after earlier chunks committed. recordRangeOverrides
                 // has already resynced the Saved-changes list from Firestore, so the admin can see
@@ -377,6 +386,7 @@ export function createRangeBookingSection(cfg) {
             // for BOTH outcomes (success → empty → disabled; error/no-op → range kept → enabled) (v16.19).
             saveBtn.textContent = cfg.savingLabel;
             saving = false;
+            setSaveInFlight(false);
             updatePreview();
         }
     });

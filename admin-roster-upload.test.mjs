@@ -166,6 +166,13 @@ describe('_saveOverrideBatches — stale-claim retry parity', () => {
         assert.equal(_idTokenRefreshes, 0);
     });
 
+    test('returns how many rows it REFUSED, so the receipt counts only what was written (v24.38)', async () => {
+        const refused = await _saveOverrideBatches([...one, { memberName: 'G. Miller', date: MON, value: '06:00-06:00', baseShift: 'RD' }], 'G. Miller');
+        assert.equal(refused, 1);
+        assert.equal(_batchOps[0].filter(o => o.op === 'set').length, 1, 'and only the real shift was set');
+        assert.equal(await _saveOverrideBatches(one, 'G. Miller'), 0);
+    });
+
     test('weekday RDW import (RDW-encoded value from computeCellStates) saves type rdw, not shift', async () => {
         // Regression: a weekday rest-day-worked import used to save the BARE time → type 'shift'
         // (RDW overtime dropped from the calendar badge + paycalc RDW pre-fill). computeCellStates
