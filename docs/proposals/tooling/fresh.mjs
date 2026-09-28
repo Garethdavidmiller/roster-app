@@ -16,9 +16,9 @@ import { dutyMinutes } from '../../../links-design.js';
  *  computer search for fewer fatigue factors. */
 export const STRAPS = {
   'FR-24-F34':  ['The ticket office rostered in fixed pairs, every other duty timed so the floor follows the trains', 'search'],
-  'PT-24-P34':  ['Today’s roster reworked: 15:45 closers, the rest of each day timed to the December trains', 'search'],
+  'PT-24-P34':  ['Today’s roster reworked: weekday closers at 15:45, the rest of each day timed to the December trains', 'search'],
   'P2-24-N13':  ['Apart from the 06:20 opening and the closing shifts, every shift starts and finishes on the quarter hour', 'search'],
-  'QT-24-Q34':  ['Today’s shift times kept, with the weekday closer starting at 15:45', 'search'],
+  'QT-24-Q34':  ['Only today’s shift times, plus a new weekday closer at 15:45', 'search'],
   'Q2-24-W21':  ['Mostly today’s shift times, weekday closers at 15:45, and no duty longer than 8h 40m on any day', 'search'],
   'ST-24-B7':   ['Today’s link widened to 24 lines, in today’s own shift times', 'search'],
   'BB-24-D7':   ['Every shift time new, built from the December staffing levels, with longer earlies and shorter lates', 'search'],
@@ -117,7 +117,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   const oqItems = [
     hardBroken.length ? `<b>${hardBroken.length === 1 ? 'A hard limit is' : 'Hard limits are'} broken</b> — ${andList(hardBroken)}. As it stands this rota cannot be run.` : '',
     failed.length ? `<b>${failed.length === 1 ? 'One December 2026 rule is' : `${failed.length} of the ${R.of} December 2026 rules are`} not met</b> — ${failed.map(r => r.rule).join('; ')}. The shaded rows above give the figures.` : `<b>Nothing to settle on the rules</b> — all ${R.of} are met.`,
-    newTimes.length ? `<b>New shift times.</b> ${newTimes.length === 1 ? `1 of the ${P.feel.distinctTimes} is a time nobody works today` : `${newTimes.length} of the ${P.feel.distinctTimes} are times nobody works today`}; page 5 lists them.` : '',
+    newTimes.length ? `<b>New shift times.</b> ${newTimes.length === 1 ? `1 of the ${P.feel.distinctTimes} is a time nobody works today` : `${newTimes.length} of the ${P.feel.distinctTimes} are times nobody works today`}; page 5 lists ${newTimes.length === 1 ? 'it' : 'them'}.` : '',
     `<b>Sunday’s finish.</b> Five trains in the December 2026 timetable arrive or leave after the 23:25 Sunday finish; whether Sunday cover should run later is still to be decided.`,
   ].filter(Boolean);
 
@@ -278,7 +278,7 @@ export function freshWords(html, { total, todayMet, of, monSat, coverSame }) {
     [/within the 13 configured here from Chiltern practice \(origin: the legacy Hidden standard\)/g, 'within Chiltern’s limit of 13'],
     [/Basis: Chiltern roster policy, citation outstanding — legacy Hidden 13-in-14 standard\. Configured from Chiltern practice; the policy citation is outstanding, so this is stated as the app states it\./g, 'The written source of the 13-day limit is still to be confirmed.'],
     [/A spare week is 4 duties of 7/g, 'A cover week is 4 duties in 7 days'], [/as a BLOCK of four/g, 'as a block of four'],
-    [/Sundays \(([\d.]+)h\) sit on top as RDW, as they do today\./g, 'Sunday duties ($1h in all) are paid on top as rest-day working, as they are today.'],
+    [/Sundays \(([^)]+)\) sit on top as RDW, as they do today\./g, 'Sunday duties ($1 in all) are paid on top as rest-day working, as they are today.'],
     [/ — and the two designers can edit it there like any other design\./g, '.'],
   ];
   const R = [

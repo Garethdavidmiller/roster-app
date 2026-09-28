@@ -240,7 +240,7 @@ export async function renderPdf(D, out) {
   const sunWorse = FRESH ? P.office.fits.sun > T.office.fits.sun : P.fits.sun !== null && T.fits.sun !== null && P.fits.sun > T.fits.sun;
   const cannot = [
     ...(FRESH ? [
-      `Whether staff accept ${newTimes.length ? `the ${newTimes.length === 1 ? 'shift time' : `${newTimes.length} shift times`} nobody works today (page 5 lists them)` : 'the weeks as written'} — this sheet counts times already worked, which is only a rough guide to what people will accept.`,
+      `Whether staff accept ${newTimes.length ? `the ${newTimes.length === 1 ? 'shift time' : `${newTimes.length} shift times`} nobody works today (page 5 lists ${newTimes.length === 1 ? 'it' : 'them'})` : 'the weeks as written'} — this sheet counts times already worked, which is only a rough guide to what people will accept.`,
       meta.coverSame ? `Where the roster clerk places a cover week’s four duties — on this design it makes no difference to any figure here.` : `Where the roster clerk places a cover week’s four duties. It changes the longest stretch without a two-day break (FF11, page 8): ${meta.ff11Block} if the four are worked together, ${meta.ff11Split} if they are spread out. The rota itself does not decide it.`,
     ] : [
     `Whether the people who would work them accept ${newTimes.length > 8 ? `a table in which ${newTimes.length} of ${P.feel.distinctTimes} times are new (page 5 lists them)` : newTimes.length ? `the ${newTimes.length === 1 ? 'time' : 'times'} nobody works today (${newTimes.join(', ')})` : 'the week shapes as written'} — familiarity is measured as "times worked today", which is a proxy for acceptability, not acceptability.`,
@@ -342,6 +342,7 @@ export async function renderPdf(D, out) {
       not: 'A weekend off beside a 42-hour week is still a weekend off; the hours by week are on the grid, page 4.' },
     { q: 'What is it like to work?', name: 'Working weeks on one turn', lower: false, lo: 0, hi: 100, fmt: v => v + '%', val: pctOf(P.feel.oneTurn, P.feel.workingLines), today: pctOf(T.feel.oneTurn, T.feel.workingLines), e: EXT.oneTurnPct, page: 5,
       what: 'The share of working weeks where a person keeps the same clock time all week. A week that mixes an early and a late is what people mean by “all over the place”.',
+      ...(FRESH ? { what: 'The share of working weeks that are one-turn weeks: the same clock time Monday to Friday, and every day of the week starting on the same side of 09:00. A week that mixes an early and a late is what people mean by “all over the place”.' } : {}),
       not: 'One turn all week can still be a bad week if the turn is long; the week-to-week move and the duty lengths are on pages 5 and 8.' },
     { q: 'Is it familiar?', name: 'Shift times people work today', lower: false, lo: 0, hi: 100, fmt: v => v + '%', val: pctOf(sharedTimes, P.feel.distinctTimes), today: 100, e: EXT.familiarPct, page: 5,
       what: 'The share of this sheet’s clock times that somebody on the 20-line link already works. It is the folder’s proxy for how much there is to learn and to accept.',
@@ -487,19 +488,19 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
     const unknown = P.hard.checks.some(c => c.status === 'unknown');
     return [
       chip(P.checks.unfilledLines.length === 0, `<strong>${lines}</strong> lines designed`),
-      chip(overMin === 0, `<strong>${hmFromHours(P.hours.exSunday)}</strong> a week${FRESH ? ' on average' : ''} — ${overMin === 0 ? 'exactly the contract'
+      chip(overMin === 0, `<strong>${hmFromHours(P.hours.exSunday)}</strong> a week${FRESH ? ' Monday to Saturday, on average' : ''} — ${overMin === 0 ? 'exactly the contract'
             : FRESH ? `${Math.abs(overMin)} minutes a week ${overMin > 0 ? 'over' : 'under'} the contract, across the whole link` : `${overMin > 0 ? 'over' : 'under'} the contract by ${Math.abs(overMin)} min`}`),
       FRESH ? chip(breach === 0 && !unknown, `longest run <strong>${P.checks.longestStretch}</strong> days (limit 13)`) : chip(breach === 0 && !unknown, `<strong>${unknown ? '—' : breach}</strong> hard-limit breach${breach === 1 ? '' : 'es'}${unknown ? ' (not assessable)' : ''}`),
       chip(rests === 0, `<strong>${rests}</strong> rest${rests === 1 ? '' : 's'} under 12h`),
     ].join('');
   })()}
-   <span class="sum-chip sum-chip--${P.fatigue.present?'warn':'ok'}">${P.fatigue.present?'⚠':'✓'} <strong>${P.fatigue.present}</strong> fatigue factor${P.fatigue.present===1?'':'s'} present${presentRos(P) !== P.fatigue.present ? ` <span class="muted">— ${presentRos(P)} as rostered</span>${meta.rulesChip ?? ''}` : ''} <span class="muted">(today: ${T.fatigue.present})</span></span></div>
+   <span class="sum-chip sum-chip--${P.fatigue.present?'warn':'ok'}">${P.fatigue.present?'⚠':'✓'} <strong>${P.fatigue.present}</strong> fatigue factor${P.fatigue.present===1?'':'s'} present${presentRos(P) !== P.fatigue.present ? ` <span class="muted">— ${presentRos(P)} as rostered</span>` : ''} <span class="muted">(today: ${T.fatigue.present})</span></span>${meta.rulesChip ?? ''}</div>
   <p class="readhint">Five questions a manager asks first, in order. Every figure is computed from the cells; <b>page 2 says how to read each one</b>, with today's link and the rest of the folder marked on a scale.</p>
   <div class="tiles head5">
     <div class="tile"><span class="q">Can it be run?</span><b>${canRun ? 'Yes' : FRESH ? 'No' : 'Not as it stands'}</b><span class="l">${FRESH ? (canRun ? 'meets every hard limit' : 'breaks a hard limit') : 'the hard limits'}</span><span class="s">${restsN} rest${restsN === 1 ? '' : 's'} under 12h · ${FRESH ? `longest run ${hard.value} days (limit 13)` : `longest run ${hard.value} of 13`} · ${contractExact ? 'contract exact' : FRESH ? `contract ${overMin > 0 ? 'over' : 'under'} by ${Math.abs(overMin)} min a week` : 'contract missed'}</span></div>
     <div class="tile"><span class="q">Does it meet the December shape?</span><b>${decMet} of ${meta.decOf ?? 4}</b><span class="l">headcount rules met</span><span class="s">${meta.decTile ?? 'four to open, three to close (four on Saturday), five at 22:00, 14 and 10 at the weekend · today meets 0 of 4'}</span></div>
     <div class="tile"><span class="q">How tiring is it?</span><b>${P.fatigue.present}</b><span class="l">fatigue factors present, of 25</span><span class="s">advisory — present means worth a look, not a breach · today ${T.fatigue.present} · fewest in the folder ${EXT.present?.best ?? '—'}</span></div>
-    ${FRESH ? `<div class="tile"><span class="q">Does it follow the trains?</span><b>${FO.wkFit}</b><span class="l">how closely the floor follows the weekday trains — 0 is a perfect match</span><span class="s">today ${TO.wkFit} · Saturday ${FO.fits.sat} · Sunday ${FO.fits.sun} · best of the others ${EXT.floorWk?.best ?? '—'}</span></div>` : `<div class="tile"><span class="q">Does it follow the trains?</span><b>${wkFitP}</b><span class="l">weekday demand fit — lower is closer</span><span class="s">Saturday ${P.fits.sat} · Sunday ${P.fits.sun} · today ${todayWk} · best in the folder ${EXT.wk?.best ?? '—'} · on the floor ${FO.wkFit} (today ${TO.wkFit})</span></div>`}
+    ${FRESH ? `<div class="tile"><span class="q">Does it follow the trains?</span><b>${Number(FO.wkFit).toFixed(1)}</b><span class="l">how closely the floor follows the weekday trains — 0 is a perfect match</span><span class="s">today ${Number(TO.wkFit).toFixed(1)} · Saturday ${Number(FO.fits.sat).toFixed(1)} (today ${Number(TO.fits.sat).toFixed(1)}) · Sunday ${Number(FO.fits.sun).toFixed(1)} (today ${Number(TO.fits.sun).toFixed(1)}) · best weekday of the others ${EXT.floorWk?.best != null ? Number(EXT.floorWk.best).toFixed(1) : '—'}</span></div>` : `<div class="tile"><span class="q">Does it follow the trains?</span><b>${wkFitP}</b><span class="l">weekday demand fit — lower is closer</span><span class="s">Saturday ${P.fits.sat} · Sunday ${P.fits.sun} · today ${todayWk} · best in the folder ${EXT.wk?.best ?? '—'} · on the floor ${FO.wkFit} (today ${TO.wkFit})</span></div>`}
     <div class="tile"><span class="q">Is it familiar?</span><b>${sharedTimes} of ${P.feel.distinctTimes}</b><span class="l">shift times people work today</span><span class="s">${newTimes.length ? `${newTimes.length} new, listed on page 5` : 'nothing new to learn'} · ${P.feel.oneTurn} of ${P.feel.workingLines} weeks are one turn (today ${T.feel.oneTurn} of ${T.feel.workingLines})</span></div>
   </div>
   <div class="tiles">
@@ -543,7 +544,10 @@ ${readHtml}${frameHtml}
   <div><h2>${meta.keptHeading ?? (RULES ? 'The shape of a week, against today' : 'Kept — the shape of a week')}</h2>
   <table class="t kept"><thead><tr><th>Measure</th><th>Today (20)</th><th>Proposed (24)</th><th></th></tr></thead><tbody>
   ${feelRow('Working weeks that are one turn <span class="muted">(one clock time Mon–Fri)</span>', `${T.feel.oneTurn} of ${T.feel.workingLines}`, `${P.feel.oneTurn} of ${P.feel.workingLines}`)}
-  ${feelRow('Weeks mixing early and late turns', `${T.feel.hybrid}`, `${P.feel.hybrid}`)}
+  ${(() => { // FRESH: early and late as the glossary defines them (11:00, classifyShift), not the search's 09:00 families
+    const mix = (pp, n) => FRESH ? Array.from({ length: n }, (_, i) => pp[String(i + 1)]).filter(r => r.mon !== 'SPARE')
+      .filter(r => new Set(DAYS.map(d => r[d]).filter(x => x !== 'RD').map(x => classifyShift(x))).size > 1).length : null;
+    return feelRow('Weeks mixing early and late turns', `${mix(T.patterns, 20) ?? T.feel.hybrid}`, `${mix(P.patterns, 24) ?? P.feel.hybrid}`); })()}
   ${feelRow('Rest-day breaks that are two days or more', `${T.feel.pairedRest} of ${T.feel.restIslands}`, `${P.feel.pairedRest} of ${P.feel.restIslands}`)}
   ${feelRow('Single rest days between duties <span class="muted">(not a 48h break)</span>', `${T.feel.isolatedRest}`, `${P.feel.isolatedRest}`)}
   ${feelRow('Days worked in a week <span class="muted">(lines × days)</span>', Object.entries(T.feel.daysHist).map(([d,n])=>`${n}×${d}`).join(', '), Object.entries(P.feel.daysHist).map(([d,n])=>`${n}×${d}`).join(', '))}
@@ -557,7 +561,7 @@ ${readHtml}${frameHtml}
   <tr><td>Monday to Friday</td><td class="num">${wdRange(T.daily)}</td><td class="num"><b>${wdRange(P.daily)}</b></td><td class="muted">the contract: 20 working lines × 35h has to be worked somewhere</td></tr>
   <tr><td>Saturday</td><td class="num">${T.daily.sat}</td><td class="num"><b>${P.daily.sat}</b></td><td class="muted">${meta.satNote ?? 'owner’s figure for December 2026, leaning late for events'}</td></tr>
   <tr><td>Sunday</td><td class="num">${T.daily.sun}</td><td class="num"><b>${P.daily.sun}</b></td><td class="muted">${meta.sunNote ?? 'owner’s figure for December 2026'}</td></tr>
-  <tr><td>Ticket office <span class="muted">wk · Sat · Sun</span></td><td class="num">${TO.posts.weekday} · ${TO.posts.sat} · ${TO.posts.sun}</td><td class="num"><b>${FO.posts.weekday} · ${FO.posts.sat} · ${FO.posts.sun}</b></td><td class="muted">not floor cover; Sunday one late today</td></tr>
+  <tr><td>Ticket office <span class="muted">wk · Sat · Sun</span></td><td class="num">${TO.posts.weekday} · ${TO.posts.sat} · ${TO.posts.sun}</td><td class="num"><b>${FO.posts.weekday} · ${FO.posts.sat} · ${FO.posts.sun}</b></td><td class="muted">${FRESH && !meta.officeNamed ? 'not rostered here as fixed pairs, so the plan’s posts are assumed to come from these duties (page 7); today Sunday has one late' : 'not floor cover; Sunday one late today'}</td></tr>
   ${headRow('Opening at 06:20 (07:15 Sunday)', 'open', 4, 4, 4, FLOORS ? 'at least four to open, every day' : 'four to open, every day')}
   ${FLOORS ? headRow('Through to the close (23:55; 23:25 Sunday)', 'close', 3, 3, 3, 'at least three to close, every day') : headRow('Through to the close (23:55; 23:25 Sunday)', 'close', 3, 4, 3, 'three to close, four on a Saturday')}
   ${FLOORS ? headRow('Still on duty at 22:00', 'at22', 5, 5, 5, 'at least five from 22:00, every day') : headRow('Still on duty at 22:00', 'at22', 5, 5, null, 'five from 22:00, Monday to Saturday')}
