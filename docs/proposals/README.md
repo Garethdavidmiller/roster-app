@@ -3,7 +3,7 @@
 The CEA link proposals drawn for the December 2026 timetable change, each a PDF with its own
 **identity** so it can be named in a room: a name, a code that says how it was built, and a
 fingerprint of the exact cells so a printout can never be confused with a variant. The same
-identity is in every page footer. All 23 were judged by the app's own Links modules
+identity is in every page footer. All 24 were judged by the app's own Links modules
 (`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) — the
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
@@ -24,6 +24,7 @@ and to the floor on 28 Sep.
 | **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no weekday duty over 8h40 (Saturday's 14:45–23:55 and Sunday's 14:30–23:25 run 9h10 and 8h55) — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
 | **Weekend Capped** | `Q2-24-W21 · 7ea671d5` | *Quarter To* with its own open question answered: **Saturday and Sunday searched again under the 8h40 cap** from today's clock times and the quarter hour — Saturday entirely in today's times (fit 23.1 against 32.7), Sunday one new turn, the capped closer (61.4 against 80.6); every one of its 20 working weeks is one turn | 1 (FF19, one jump) | 6 | 6 in 24 |
 | **Right Away** | `FR-24-F34o · be01f0db` | **The owner's final rules of 28 Sep 2026**: the ticket office rostered as fixed pairs of identical turns and **not counted as floor cover**, every weekday closer 15:45, the headcounts as minimums, at least two on the floor at every moment, 15-minute handovers (20 in the office), Sunday duties 8h–9h, no more shift times than today — each day enumerated to a proof for the fit of the **floor** (20.4 weekday, 11.6 Saturday, 19.2 Sunday; 21.9 / 12.2 / 33.6 with the office counted, the folder's best weekday), 17 turns in the week against today's 18, the rotation fatigue-first and its week order then improved (28 Sep 2026: 14 of 20 weeks on one shift time, heaviest week 41h50) | **0** | 6 | 6 in 24 |
+| **Familiar Nine** | `F9-24-K31 · c450951c` | **Right Away's rules with two more aims (28 Sep 2026)**: no duty over nine hours, and the shift times people already work wherever they cost little fit — 9 of its 15 times are worked today (Right Away 5 of 17), the longest duty 9h00 (9h30), the weekday table proven; Right Away's week structure carried over and polished until no figure was worse than Right Away's (14 of 20 weeks on one shift time, shortest rest 14h20, the thinnest Sunday floor 3 not 2), for a looser fit: 27.8 · 16.6 · 33.8 against 26.1 · 16.2 · 31.2 | **0** | 6 | 6 in 24 |
 | **Round Times** | `P2-24-N13 · 33a78cbe` | *Pinned Turns*' pins with **every other time rewritten onto the quarter hour** (the pinned 06:20–14:20 the one exception, and the contract's arithmetic needs it) and **no more shift times a day than *Pinned Turns*** — each day enumerated to a proof (weekday fit 33.8, Saturday 22.9, Sunday 62.4; 14 distinct turns in the week), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Pinned Turns** | `PT-24-P34 · dae6292e` | **The owner's brief of 25 Sep 2026** from today's roster: Mon–Fri 15:45 closers, three 06:20–14:20 openers, two 14:00–22:30 lates and an 8h40 cap; Saturday two long openers and a 14:00–22:30; Sunday a 13:00–21:30 — the rest of each day fitted to the timetable (weekday fit 32.1; three turns off the quarter hour — the pinned 06:20–14:20, Saturday's 06:20–14:50 and the weekday's 07:00–15:40), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Eight Forty** | `EF-24-E21 · 0cf19f56` | *By the Book* with no duty over 8h40 — the December table re-solved under the same rules with the ceiling at 8h40 (its earlies had run to 9h30), then the rotation searched for the ORR factors as *By the Book* was | **0** | 6 | 6 in 24 |
@@ -75,10 +76,14 @@ today: page 6 splits both today and the proposal into *everyone*, *of whom ticke
 floor*; page 5's headcount table carries the office posts (4 · 4 · 3 today, 4 · 4 · 4 planned); the fit
 figures on pages 1, 2 and 3 and the alternatives table on page 9 carry a floor fit beside the overall one.
 (Superseded 28 Sep 2026: the managers' edition leads with the floor fit on pages 1 and 2, and page 9 is now
-*Where it stands among the 23* — see that section.)
+*Where it stands among the 24* — see that section.)
 Only *Right Away* named its office turns; for every other design the plan's posts are **assumed** to be
 staffed from its duties, and its floor is everyone on duty less those posts — the sheet says so beside the
 figures. One model in `tooling/report-data.mjs` (`OFFICE`, `officeSplit`) feeds every sheet.
+
+*(Superseded 28 Sep 2026: this table counts the office as never on the floor. Every sheet now counts the second
+office person while they help at the quiet ends, and uses each design's own rostered office pairs — the current
+figures are in* The ticket office's second person on the floor, *below.)*
 
 | Sheet | Code | Weekday, everyone | Floor: weekday · Saturday · Sunday |
 |---|---|---|---|
@@ -687,7 +692,8 @@ under the cap, `tooling/quarter-to-2-table.json`; `P` the owner's 25 Sep brief,
 `tooling/pinned-turns-table.json`; `N` those pins with every other time on the quarter hour,
 `tooling/pinned-turns-2-table.json`; `F` the owner's final rules of 28 Sep, `tooling/final-rules-table.json`) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no
 week-coherence term, kept as a comparator. A trailing `o` (`FR-24-F34o`) is that seed's rotation with its
-week order improved afterwards by `order-polish.mjs` — the same duties on every day. The fingerprint is the first eight hex characters of
+week order improved afterwards by `order-polish.mjs` — the same duties on every day. `F9-24-K31` is table `K` — the final rules with no duty over 9h and
+today's times preferred (`tooling/familiar-nine-table.json`) — at `rota-polish.mjs` seed 31. The fingerprint is the first eight hex characters of
 SHA-256 over the 24 × 7 cells in line order. `TN-24-R7` is a reorder: `R7` is `optimise.mjs`'s seed in rules mode (`RULES=1`). `FT-24-R21`'s `R21` is
 its seed in the default mode — *Gates Mended* predates the rules switch, and `node optimise.mjs
 fifteen-fixed.json 60000 4 21` without `RULES` reproduces `fifteen-turns-repaired.json` (checked 28 Sep
@@ -700,7 +706,7 @@ its alternatives as `F21` and `F34`, "same rules, seed 21 / 34").
 
 The sheets group the prefixes into **six families**, printed in each identity panel (`FAMILY` in
 `tooling/fresh.mjs`): *Same Turns* (`ST`, `QT`, `Q2`) · *By the Book* (`BB`, `EF`, `B2`) · *Pinned Turns*
-(`PT`, `P2`) · *Right Away* (`FR`) · *Fifteen Turns* (`FT`) · *Weekday Lates* (every other prefix).
+(`PT`, `P2`) · *Right Away* (`FR`, `F9`) · *Fifteen Turns* (`FT`) · *Weekday Lates* (every other prefix).
 
 **Evidence class**: the 24-line length, the four cover weeks and the December headcounts are
 owner-relayed figures with no document behind them (class C — `docs/KNOWN_LIMITATIONS.md` → Links),
@@ -1159,6 +1165,106 @@ quiet ends (the morning one until 08:00, 09:00 on a Sunday; the evening one from
 evening one splits their time). `final-table.mjs` now does that by default; this sheet was built with it
 off, as the rules stood when it was asked for, and a table built with it on would be a different proposal.
 
+## The ticket office's second person on the floor (28 Sep 2026)
+
+**The owner's rule, now in every sheet:** one of each ticket-office pair helps on the floor at the quiet ends — the
+morning one from the open until 08:00 (09:00 on a Sunday), the evening one from 19:30 to the end of their office shift;
+on a Sunday evening they split their time between the office and the floor, counted as **half a person**. Until this,
+the sheets counted the office as never on the floor, and no sheet said a word about the help. `report-data.mjs` now
+applies the rule once (`officeHelpers`, `OFFICE_HELP_TEXT`) and every figure follows it:
+
+- **The floor fit** (pages 1, 2, 6 and 9): the office's minutes are taken out and the helpers' minutes put back, the
+  Sunday evening one at half.
+- **"At least two on the floor at every moment"** (page 7): the helper counts as a whole person while helping; the
+  Sunday half-person never counts towards the minimum, which counts heads.
+- **Page 6's rows** move the helper from the office row to the floor row in the hours they help.
+- **Each design's own office pairs** are taken out, not always the plan's posts. That was wrong only for a Sunday
+  office late that starts other than 13:30 — none shipped until *Familiar Nine*, whose Sunday lates are 14:00–22:30.
+- **The words**: page 2's fit note, page 6's office paragraph and reading note, the glossary, page 7's floor-rule
+  note, page 9's legend and the rules sheet each say it in one line.
+
+**What moved.** No proposal's rule count changed. **Today's link now meets 4 of the 11 rules, not 3**: its only
+one-person moment was early on a Sunday, which the morning helper now covers. The fits move the other way for the
+proposals built to leave the office off the floor — *Right Away*'s floor fit goes 20.4 · 11.6 · 19.2 → 26.1 · 16.2 ·
+31.2, because it already staffed the quiet ends as though nobody helped — and today's weekday improves, 68.8 → 52.5,
+because its office pairs really do add floor at both ends. The ranking by weekday floor fit barely moves; on
+Saturday *By the Book* (11.8) now leads *Right Away*. The current figures, from the sheets' own code:
+
+| Sheet | Code | Floor: weekday · Saturday · Sunday | Fewest on the floor | Rules met |
+|---|---|---|---|---|
+| **Right Away** | `FR-24-F34o` | 26.1 · 16.2 · 31.2 | 4 · 3 · 2 | 11 |
+| **Familiar Nine** | `F9-24-K31` | 27.8 · 16.6 · 33.8 | 3 · 3 · 3 | 11 |
+| By the Book | `BB-24-D7` | 34.7 · 11.8 · 41.8 | 2 · 3 · 1 | 5 |
+| Pinned Turns | `PT-24-P34` | 35.5 · 22.1 · 63.1 | 2 · 3 · 1 | 8 |
+| Round Times | `P2-24-N13` | 37.5 · 22.6 · 63.1 | 2 · 3 · 1 | 8 |
+| Cover at Seventeen | `C17-24-EXT` | 38 · 23.5 · 66.7 | 3 · 3 · 1 | 3 |
+| Light Retime | `CFT-24-M3` | 38 · 36.3 · 54.7 | 3 · 1 · 1 | 4 |
+| Saturday Four | `S4-24-EXT` | 38 · 38.3 · 66.7 | 3 · 0 · 1 | 4 |
+| Short Closer | `CF-24-EXT` | 38 · 56.1 · 66.7 | 3 · 1 · 1 | 3 |
+| Targeted Fatigue Redo | `TF-24-EXT` | 38 · 23.5 · 66.7 | 3 · 3 · 1 | 3 |
+| Tenth Sunday | `TN-24-R7` | 38 · 36.3 · 55.8 | 3 · 1 · 1 | 3 |
+| Three Mondays | `TM-24-EXT` | 38 · 23.5 · 66.7 | 3 · 3 · 1 | 3 |
+| Weeks 17-18 Swapped | `WS-24-EXT` | 38 · 23.5 · 66.7 | 3 · 3 · 1 | 3 |
+| Fifteen Turns | `FT-24-EXT` | 38.1 · 46 · 51.5 | 2 · 2 · 1 | 5 |
+| Gates Mended | `FT-24-R21` | 38.1 · 43.3 · 51.5 | 2 · 2 · 1 | 5 |
+| Weekday Lates | `WL-24-EXT` | 39.9 · 23.5 · 66.7 | 3 · 3 · 1 | 4 |
+| Anchored Lines | `WL4-24-F7` | 40.6 · 23.5 · 66.7 | 3 · 3 · 1 | 3 |
+| Frozen Block | `WL3-24-F7` | 40.6 · 23.5 · 66.7 | 3 · 3 · 1 | 3 |
+| Evening Peak | `WL2-24-R21` | 47.1 · 23.5 · 66.7 | 2 · 3 · 1 | 3 |
+| Quarter To | `QT-24-Q34` | 49.4 · 44.3 · 96.1 | 3 · 3 · 1 | 8 |
+| Weekend Capped | `Q2-24-W21` | 49.4 · 22.6 · 75.6 | 3 · 3 · 1 | 8 |
+| Same Turns | `ST-24-B7` | 51.7 · 44.3 · 96.1 | 3 · 3 · 1 | 7 |
+| Eight Forty | `EF-24-E21` | 81.3 · 22.9 · 30.6 | 3 · 3 · 1 | 5 |
+| Office Written In | `B2-24-G21` | 81.5 · 14 · 83.4 | 2 · 3 · 1 | 4 |
+| *Today's 20-line link* | — | 52.5 · 68.7 · 74.2 | 2 · 2 · 2 | 4 |
+
+## Familiar Nine — no duty over nine hours, and the times people know (28 Sep 2026)
+
+`F9-24-K31 · c450951c`. The owner's pick from the option sweep (below): Right Away's rules with two more aims —
+**no duty over nine hours**, and **the shift times people already work, wherever they cost little fit**.
+
+**The table (`K`, `tooling/familiar-nine-table.json`)** is `final-table.mjs` with `HI=540` (nine hours), `TODAY=1`
+(today's own clock times in the pool) and `NEWPEN=2` — every time nobody works today costs 2 on the fit, the rate at
+which the new times roughly halve. The weekday is **proven** (22.5 million tables, 10m45s); Saturday and Sunday are
+enumerated. It was built with the office off the floor, as Right Away's was, and scored better under the helper
+rule than the same aims built with the helper on (27.8 · 16.6 · 33.8 against 28.3 · 16.1 · 31.0, with 9 of its 15
+times known against 8 of 16). **9 of its 15 times are worked today** (Right Away: 5 of 17), the longest duty is
+**9h00** (9h30), and the thinnest Sunday floor is **3** (2).
+
+**The rotation** was not re-searched from scratch: a fresh anneal on a new table did not get back to Right Away's
+quality in the time given (6–7 single rest days where Right Away has 2, a factor present). Instead
+`carry-order.mjs` laid each day's new duties onto Right Away's lines in the same order — an early stays the nearest
+early, a closer a closer — and `rota-polish.mjs` then improved the week order, refusing to count any result worse
+than its reference on rest, fatigue, rest days, runs, weekends, one-turn weeks or the heaviest week: first against
+seed 34's Right Away, then against the improved Right Away. Result, against Right Away (`FR-24-F34o`): shortest rest
+**14h20** (14h05), 14 of 20 weeks on one shift time (14), heaviest Mon–Sat week **41h45** (41h50), most hours in any
+seven days **51.3** (52.8), FF11 8 (8), six weekends off, two single rest days, 0 fatigue factors, all 11 rules. The
+price is fit: 27.8 · 16.6 · 33.8 against 26.1 · 16.2 · 31.2 — still a third of today's weekday gap.
+
+**The option sweep behind it** (28 Sep 2026, scratch — only the pick shipped): 16 table variants, each with Right
+Away's structure carried on and polished (4 seeds each), and 6 built with the office helping. Familiar times cost
+almost nothing at a light penalty (`NEWPEN=1`: 9 new times, fit 21.0 · 11.7 · 19.2 before the helper rule); a
+nine-hour cap costs about a point a day; an 8h40 cap cannot pay Saturday at the current hours split and costs more
+elsewhere; fewer shift times are nearly free on a weekday and costly on a Saturday; tables built with the office
+helping, or with fewer times, relied on Saturday's office lates finishing at 22:00 and failed the 22:00 rule until
+`AT22_STRICT` was added. No variant reached seven weekends off. The strongest familiarity (only 4 new times) costs
+30.5 · 19.8 · 33.8 and is the alternative if the room prefers it.
+
+**Reproduce it** (from `tooling/`; each step's output is exactly the shipped grid's):
+
+```
+H="TO_EARLY_HELP=0 TO_LATE_HELP=1440 TO_LATE_SHARE=0"
+env $H HI=540 TODAY=1 NEWPEN=2 CLS=weekday TOTAL=6970 MAX_TURNS=8 BEST0=26.3 OUT=k-wk.json node final-table.mjs   # proof, ~11 min
+env $H HI=540 TODAY=1 NEWPEN=2 CLS=sat TOTAL=7150 MAX_TURNS=6 OUT=k-sat.json node final-table.mjs
+env $H HI=540 TODAY=1 NEWPEN=2 CLS=sun MAX_TURNS=6 OUT=k-sun.json node final-table.mjs
+# flatten each day's { duties: [[time, n], …] } to a list of times, then:
+CAP=540 PIN_WK="06:20-14:20x2,14:00-22:30x2" PIN_SAT="06:20-14:50x2,14:30-22:00x2" PIN_SUN="07:15-15:30x2,14:00-22:30x2" AT22_FLOOR=1 node assemble-table.mjs familiar-nine-table.json k-wk.flat.json k-sat.flat.json k-sun.flat.json
+node carry-order.mjs familiar-nine-table.json c0.json ../Right-Away-FR-24-F34o.json
+REST_CAP=1 node rota-polish.mjs c0.json c1.json 21 100000 results/best-RF-34.json
+REST_CAP=1 node rota-polish.mjs c1.json familiar-nine.json 31 120000 ../Right-Away-FR-24-F34o.json   # → c450951c
+node regenerate.mjs --only=F9
+```
+
 ## The shape of a sheet — headline, how to read it, then the depth (25 Sep 2026)
 
 *(Superseded 28 Sep 2026: page 1's tiles, the "x of 4" December shape, the lineage on page 9 and the method
@@ -1234,7 +1340,7 @@ changed; each fix is in the generator, not the PDF; all 22 sheets were re-render
 | `<Name>-<code>-<fingerprint>.pdf` | the proposal, 10 pages A4 — **force-added** (`git add -f`), because `.gitignore` ignores every `*.pdf` in the tree |
 | `<Name>-<code>-import.txt` | line number then Sunday–Saturday, tab-separated — paste into **Links → Import** |
 | `<Name>-<code>.json` | the same rotation in the app's own `{ name, patterns }` shape — also importable |
-| `December-2026-Rules.pdf` | **the rules on their own** (28 Sep 2026), two pages A4, force-added like the sheets: the three hard limits, the eleven December 2026 rules with what each asks exactly, today's link against each and how many of the 23 meet it, the fatigue factors with how many proposals each is present in, the preferences, and the questions still open. Rendered by `tooling/rules-sheet.mjs` from `currentRules`, `assessFatigue` and `folderStats` — the code the sheets use — and by every full `regenerate.mjs` run, so it cannot drift from them |
+| `December-2026-Rules.pdf` | **the rules on their own** (28 Sep 2026), two pages A4, force-added like the sheets: the three hard limits, the eleven December 2026 rules with what each asks exactly, today's link against each and how many of the proposals meet it, the fatigue factors with how many proposals each is present in, the preferences, and the questions still open. Rendered by `tooling/rules-sheet.mjs` from `currentRules`, `assessFatigue` and `folderStats` — the code the sheets use — and by every full `regenerate.mjs` run, so it cannot drift from them |
 
 Every import form is verified against `links-import.js` (24 lines, no warnings). Importing one
 makes the workspace's Design checks, hard limits, fatigue factors and coverage cards restate those
@@ -1243,7 +1349,7 @@ not in the workspace; they come only from `tooling/report-data.mjs`.
 
 ## The managers' edition (28 Sep 2026)
 
-The managers have seen none of these proposals, and meet all 23 at once. So every sheet is now written for a
+The managers have seen none of these proposals, and meet all 24 at once. So every sheet is now written for a
 first-time reader: it answers **one question** — *is this better than today's link, and does it meet the December
 2026 rules?* — against **one rule set**, in plain English, with no reference to how it was derived, which brief it
 answered or which sheet came before it. **No figure changed**; the words around them did.
@@ -1252,13 +1358,13 @@ answered or which sheet came before it. **No figure changed**; the words around 
   least four at the open, three at the close and five at 22:00 on every day; 14 on a Saturday and 10 on a
   Sunday; four evenly spread cover weeks; the ticket office as two early and two late identical turns every
   day; every weekday closer at 15:45; at least two on the floor at every moment; 15-minute handovers (20 in the
-  office); Sunday duties 8h–9h; no more shift times than today. Right Away meets 11, today's link 3.
+  office); Sunday duties 8h–9h; no more shift times than today. Right Away and Familiar Nine meet 11; today's link 4 (3 before the ticket-office helper rule of 28 Sep 2026).
 - **The floor comes first.** Page 1's "Does it follow the trains?" and page 2's scale measure how the people on
   the floor — ticket office out — follow the trains; the everyone-on-duty figure sits beside it.
 - **Page 1** carries an *At a glance* table, today's link against the proposal, which is also the headline set
   for the PowerPoint on each shortlisted design.
 - **Page 7** shades every rule not met; *Still to settle* is a short list.
-- **Page 9** is *Where it stands among the 23*: every proposal on the same figures, today's link at the foot.
+- **Page 9** is *Where it stands among the 24*: every proposal on the same figures, today's link at the foot.
 - **Plain English**: no "cells" (page 10 says "days", page 6 "square"); "turn" only on page 4, beside the
   glossary that defines it (the grid's Turns column and its legend), in "one-turn week", and in the plain
   phrase "every line in turn" (the duty table's header reads "Shift time", the office rule "identical

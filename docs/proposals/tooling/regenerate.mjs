@@ -40,6 +40,9 @@ export const SUPPLIED = [
     { file: 'cea-clean-final2.json',       name: 'Short Closer',       code: 'CF-24-EXT',  fp: '6d21169b', strap: 'The Weekday Lates line revised - the long Saturday closer shortened' },
     { file: 'cea-clean-final2-tuned.json', name: 'Light Retime', code: 'CFT-24-M3',  fp: 'ae1a15bd', strap: 'Short Closer with three cells retimed - the Sunday bulge broken and the Saturday morning filled' },
     { file: 'cea-clean-final-ten.json',    name: 'Tenth Sunday',   code: 'TN-24-R7',   fp: '84b60df9', strap: 'A tenth Sunday shift and a reordered wheel - fewer factors, a shorter run' },
+    // Familiar Nine (28 Sep 2026) is built rather than supplied — table K proven by final-table.mjs, Right Away's week
+    // structure carried onto it and polished — but its grid is the finished product of three tools, so it ships as a grid.
+    { file: 'familiar-nine.json',          name: 'Familiar Nine',  code: 'F9-24-K31',  fp: 'c450951c', strap: 'No duty over nine hours, and most shift times ones people already work' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

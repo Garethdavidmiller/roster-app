@@ -782,7 +782,7 @@ computed from the cells it shows, and an independent recount of all 23 on 28 Sep
 | Same Turns | Same Turns, Quarter To, Weekend Capped |
 | By the Book | By the Book, Eight Forty, Office Written In |
 | Pinned Turns | Pinned Turns, Round Times |
-| Right Away | Right Away — the only sheet that meets all 11 rules (today's link meets 3) |
+| Right Away | Right Away and Familiar Nine — the two sheets that meet all 11 rules (today's link meets 4 since the ticket-office helper rule of 28 Sep 2026; 3 before it) |
 | Fifteen Turns | Fifteen Turns, Gates Mended |
 | Weekday Lates | Weekday Lates and eleven variants of it |
 

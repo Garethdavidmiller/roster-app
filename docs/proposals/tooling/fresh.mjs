@@ -18,6 +18,7 @@ import { materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs
  *  computer search for fewer fatigue factors. */
 export const STRAPS = {
   'FR-24-F34o': ['The ticket office rostered in fixed pairs, every other duty timed so the floor follows the trains', 'search'],
+  'F9-24-K31':  ['No duty over nine hours, and most shift times ones people already work', 'search'],
   'PT-24-P34':  ['Today’s roster reworked: weekday closers at 15:45, the rest of each day timed to the December trains', 'search'],
   'P2-24-N13':  ['Apart from the 06:20 opening and the closing shifts, every shift starts and finishes on the quarter hour', 'search'],
   'QT-24-Q34':  ['Only today’s shift times, plus a new weekday closer at 15:45', 'search'],
@@ -44,7 +45,7 @@ export const STRAPS = {
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
 export const FAMILY = { ST: 'Same Turns', QT: 'Same Turns', Q2: 'Same Turns', BB: 'By the Book', EF: 'By the Book', B2: 'By the Book',
-  PT: 'Pinned Turns', P2: 'Pinned Turns', FR: 'Right Away', FT: 'Fifteen Turns',
+  PT: 'Pinned Turns', P2: 'Pinned Turns', FR: 'Right Away', F9: 'Right Away', FT: 'Fifteen Turns',
   WL: 'Weekday Lates', WL2: 'Weekday Lates', WL3: 'Weekday Lates', WL4: 'Weekday Lates', WS: 'Weekday Lates', TF: 'Weekday Lates', TM: 'Weekday Lates',
   C17: 'Weekday Lates', S4: 'Weekday Lates', CF: 'Weekday Lates', CFT: 'Weekday Lates', TN: 'Weekday Lates' };
 export const FIRST = { 'ST-24-B7': '8 Sep 2026', 'BB-24-D7': '8 Sep 2026', 'QT-24-Q34': '12 Sep 2026', 'EF-24-E21': '12 Sep 2026',
@@ -52,7 +53,7 @@ export const FIRST = { 'ST-24-B7': '8 Sep 2026', 'BB-24-D7': '8 Sep 2026', 'QT-2
   'WL-24-EXT': '17 Sep 2026', 'WL2-24-R21': '17 Sep 2026', 'WL3-24-F7': '17 Sep 2026', 'FT-24-EXT': '17 Sep 2026', 'FT-24-R21': '17 Sep 2026', 'WS-24-EXT': '17 Sep 2026',
   'WL4-24-F7': '22 Sep 2026', 'TF-24-EXT': '22 Sep 2026', 'TM-24-EXT': '22 Sep 2026', 'C17-24-EXT': '22 Sep 2026', 'S4-24-EXT': '22 Sep 2026',
   'CF-24-EXT': '22 Sep 2026', 'CFT-24-M3': '22 Sep 2026', 'TN-24-R7': '22 Sep 2026', 'B2-24-G21': '22 Sep 2026',
-  'Q2-24-W21': '24 Sep 2026', 'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34o': '28 Sep 2026' };
+  'Q2-24-W21': '24 Sep 2026', 'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34o': '28 Sep 2026', 'F9-24-K31': '28 Sep 2026' };
 const MADE = {
   search: 'Built by computer search: the duty table was chosen for how closely it follows the December 2026 timetable, and the 24 weeks put in the order that raises the fewest fatigue factors.',
   hand: 'Drawn by hand and checked by the Links designer, which measured every figure in this sheet from the grid.',
@@ -175,7 +176,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   <table class="t standings"><thead><tr><th rowspan="2">Proposal</th><th class="num" rowspan="2">Rules met</th><th class="num" rowspan="2">Fatigue factors</th><th class="num" rowspan="2">Most days in a row</th><th class="num" rowspan="2">Shortest rest</th><th class="num" rowspan="2">Full weekends off</th><th class="num grp" colspan="3">Floor fit</th><th class="num" rowspan="2">Shift times</th><th class="num" rowspan="2">Already worked today</th></tr><tr><th class="num">Mon–Fri</th><th class="num">Sat</th><th class="num">Sun</th></tr></thead><tbody>
   ${rank.map(d => tr(d, d.code === code)).join('')}${todayRow}
   </tbody></table>
-  <p class="muted">Ordered by rules met, then fewest fatigue factors, then the weekday floor fit, then name — an order, not a verdict. <b>Rules met</b> counts the ${R.of} December 2026 rules on page 7. <b>Fatigue factors</b> are the patterns present at worst, of 25 — the ORR’s list and four rail-industry checks (page 8). <b>Most days in a row</b> is at worst, against Chiltern’s limit of 13; <b>shortest rest</b> must be at least 12 hours, or the rota cannot be run. <b>Full weekends off</b> are out of 24 (20 for today’s link). <b>Floor fit</b> is how closely the people on the floor, ticket office staff not counted, follow the trains — lower is closer (page 6). <b>Shift times</b> is how many different times the rota uses, and <b>already worked today</b> how many of them people work now.</p>
+  <p class="muted">Ordered by rules met, then fewest fatigue factors, then the weekday floor fit, then name — an order, not a verdict. <b>Rules met</b> counts the ${R.of} December 2026 rules on page 7. <b>Fatigue factors</b> are the patterns present at worst, of 25 — the ORR’s list and four rail-industry checks (page 8). <b>Most days in a row</b> is at worst, against Chiltern’s limit of 13; <b>shortest rest</b> must be at least 12 hours, or the rota cannot be run. <b>Full weekends off</b> are out of 24 (20 for today’s link). <b>Floor fit</b> is how closely the people on the floor follow the trains (the ticket office counted only while its second person helps at the quiet ends) — lower is closer (page 6). <b>Shift times</b> is how many different times the rota uses, and <b>already worked today</b> how many of them people work now.</p>
   <div class="foot"><span>Page 9 of 10 — Beside the other proposals</span><span class="foot-id"><b>${name}</b> · ${code} · ${meta.identity.fingerprint} · Marylebone Roster — Links designer</span></div>
 </section>`;
 
@@ -238,7 +239,7 @@ export function freshWords(html, { total, todayMet, of, monSat, coverSame, examp
     // page 4 — the glossary, with every word the other pages lean on
     [/<div><b>Turn<\/b> — a shift time, such as 06:20-13:45\. An <b>early<\/b> starts before 09:00; a <b>late<\/b> starts after\.<\/div>/, '<div><b>Turn</b> — a shift time, such as 06:20-13:45. An <b>early</b> starts before 11:00; a <b>late</b> starts at 11:00 or later.</div>'],
     [/(<b>Turn<\/b> — a shift time, such as )06:20-13:45/, (m, a) => a + (exampleTime ?? '06:20-13:45')],
-    [/<div><b>One-turn week<\/b> — [^<]*<\/div>/, '<div><b>One-turn week</b> — one clock time Monday to Friday, with every day of the week an early or every day a late (shown bold in the Turns column); the easiest kind of week to live around.</div><div><b>The floor</b> — staff out on the station (gates, concourse, platforms), not in the ticket office.</div><div><b>Opener / closer</b> — the first people on duty in the morning and the last at night.</div><div><b>Handover</b> — the overlap when one shift takes over from another.</div><div><b>Fit</b> — how closely the number of people on duty follows the number of trains through the day; 0 is a perfect match, lower is better.</div>'],
+    [/<div><b>One-turn week<\/b> — [^<]*<\/div>/, '<div><b>One-turn week</b> — one clock time Monday to Friday, with every day of the week an early or every day a late (shown bold in the Turns column); the easiest kind of week to live around.</div><div><b>The floor</b> — staff out on the station (gates, concourse, platforms); the ticket office joins it only at the quiet ends (page 6).</div><div><b>Opener / closer</b> — the first people on duty in the morning and the last at night.</div><div><b>Handover</b> — the overlap when one shift takes over from another.</div><div><b>Fit</b> — how closely the number of people on duty follows the number of trains through the day; 0 is a perfect match, lower is better.</div>'],
     [/>Cover<\/td>/g, '>On duty</td>'], [/ one turn<\/span><\/td><\/tr>/g, ' one-turn weeks</span></td></tr>'],
     // page 5
     [/Days worked in a week <span class="muted">\(lines × days\)<\/span>/g, 'Days worked in a week <span class="muted">(Sunday included; weeks × days)</span>'],
@@ -253,7 +254,7 @@ export function freshWords(html, { total, todayMet, of, monSat, coverSame, examp
     [/Firm figure/g, 'Firm'], [/(\d+)\/(\d+) at the weekend/g, '$1 on Saturday, $2 on Sunday'],
     [/Relayed December 2026 headcounts with no document behind them/g, 'December 2026 staffing levels given verbally; not yet in writing'],
     [/Demand fit ([\d. ·]+); on the floor/g, 'Fit, everyone on duty $1; floor only'],
-    [/; floor takes the ticket office out of both sides/g, '; the floor figure leaves the ticket office out'],
+    [/; floor takes the ticket office out of both sides/g, '; the floor figure leaves the office out (page 6)'],
     [/Computed against the live 20-line link/g, 'Compared with today’s 20-line link'],
     [/Early against late: earlies/g, 'How long the shifts are: earlies'],
     [/The longest duty, ([^,<]+), and who holds it/g, 'The longest duty, $1 — the grid on page 4 shows which lines carry it'],
@@ -265,7 +266,7 @@ export function freshWords(html, { total, todayMet, of, monSat, coverSame, examp
     // page 2
     [/Lower is better on the fit and the fatigue count;/g, 'Lower is better on the fit, the fatigue count and the days in a row;'],
     // page 6
-    [/The indented rows take it out of each side, so the floor rows compare like with like\./g, 'The indented rows take the office out of each side — today’s actual office staff from today’s link, the plan’s four posts from the proposal — so the floor rows compare like with like.'],
+    [/The indented rows take it out of each side, so the floor rows compare like with like\./g, 'The indented rows take the office out of each side, less its quiet-end help, so the floor rows compare like with like.'],
     // page 7
     [/<h1>The checks sheet<\/h1>/g, '<h1>Hard limits and the December 2026 rules</h1>'],
     [/More than 13 consecutive days worked/g, 'No more than 13 days worked in a row'], [/\(today: /g, '(today '],

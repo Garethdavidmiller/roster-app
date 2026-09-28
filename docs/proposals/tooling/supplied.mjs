@@ -16,7 +16,7 @@ import { buildDefaultTargets } from '../../../links-default-targets.js';
 import { reorderLines, applyOrder, OBJECTIVES } from '../../../links-adjacency.js';
 
 const [file, NAME, STRAP, CODE] = process.argv.slice(2);
-const patterns = JSON.parse(readFileSync(file, 'utf8'));
+const patterns = (j => j.patterns ?? j)(JSON.parse(readFileSync(file, 'utf8')));   // a bare grid, or rota-polish.mjs's { feasible, patterns }
 // Optional per-design copy: <patterns>.meta.json. Any key here overrides the defaults below, so a
 // second supplied design does not mean a second copy of this script.
 const OVER = existsSync(file.replace(/\.json$/, '.meta.json'))

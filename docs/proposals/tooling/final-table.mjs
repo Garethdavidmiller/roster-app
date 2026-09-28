@@ -49,6 +49,17 @@
 // opener multiset x every middle multiset paying the exact remainder; a partial table whose over-covered hours
 // alone already lose to the incumbent is abandoned. Sunday's space is small enough to enumerate without a bound.
 //   CLS=weekday TOTAL=7000 MAX_TURNS=7 node final-table.mjs     CLS=sat TOTAL=7000 …     CLS=sun MAX_TURNS=5 …
+//
+// TWO SWITCHES ADDED 28 SEP 2026, both off by default, so every table built before is built the same way:
+//   · NEWPEN=<n> — prefer the shift times people work TODAY: every time in the table nobody works today costs n on
+//     top of the fit, so the pick trades fit for familiarity at a stated rate (0.5–1 is nearly free; 2 roughly halves
+//     the new times; 8 leaves four). The search bound adds the same penalty, so a returned table is still the best
+//     under it. With TODAY=1 today's own clock times are in the pool, which a familiar table needs.
+//   · AT22_STRICT=1 — five on AFTER 22:00, counted exactly as currentRules counts them. Without it the five at 22:00
+//     is left to the fixed turns, and on a Saturday those are the office lates FINISHING at 22:00, which the rules do
+//     not count: the option sweep found three tables that passed here and failed page 7 on exactly that.
+// Familiar Nine (F9-24-K31) is table K: HI=540 TODAY=1 NEWPEN=2, the office kept off the floor as for Right Away —
+// README → "Familiar Nine" has the commands.
 import { writeFileSync } from 'node:fs';
 import { DEC_2026_DEMAND } from '../../../links-demand.js';
 import { today, assess } from './report-data.mjs';
@@ -93,6 +104,7 @@ const legalStartMin = s => s === OPEN || s >= OPEN + 40;
 const onGrid = m => m % 15 === 0;
 const extraOpenerEnds = [14 * 60 + 20, 14 * 60 + 50];
 const TODAY_TIMES = process.env.TODAY === '1' ? new Set(todayRows.map(r => r.time)) : new Set();
+const KNOWN = new Set(todayRows.map(r => r.time)); const NEWPEN = Number(process.env.NEWPEN ?? 0);
 const POOL = []; const seenT = new Set();
 const addTurn = (s, e) => { const L = e - s, t = `${hm(s)}-${hm(e)}`; if (seenT.has(t) || L < LO || L > HI || !legalStartMin(s) || e > CLOSE) return;
   const isC = e === CLOSE, isO = s === OPEN; 
@@ -147,12 +159,14 @@ function evaluate(counts, cov, total, floorMin, floorSlots, fixedCounts) {
     n += k; turns++; starts.add(p.s); ends.add(p.e); if (p.s === OPEN) nO += k; if (p.e === CLOSE) nC += k; }
   if (n !== N || nO < OPENERS_MIN || nO > OPENERS_MAX || nC < CLOSERS_MIN || nC > CLOSERS_MAX || turns > MAX_TURNS) return null;
   if (!handoverOk(counts, fixedCounts)) return null;
+  if (process.env.AT22_STRICT === '1') { let at22 = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && POOL[i].s <= 1320 && POOL[i].e > 1320) at22 += counts[i]; if (at22 < 5) return null; }   // five on AFTER 22:00, counted as currentRules counts them
   let thin = Infinity; for (let k = SLOT0; k < SLOT1; k++) if (floorSlots[k] < thin) thin = floorSlots[k]; if (thin < FLOOR_MIN) return null;
   const fit = fitOf(cov, floorMin / 60);
-  return { fit: +fit.toFixed(1), fitRaw: fit, turns, total, thin: +thin.toFixed(2), starts: starts.size, ends: ends.size, closers: nC,
+  let newT = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && !KNOWN.has(POOL[i].t)) newT++;
+  return { newT, fit: +fit.toFixed(1), fitRaw: fit, turns, total, thin: +thin.toFixed(2), starts: starts.size, ends: ends.size, closers: nC,
     duties: POOL.map((p, i) => [p.t, counts[i]]).filter(([, k]) => k).sort((a, b) => a[0].localeCompare(b[0])) };
 }
-const keyOf = r => r.fitRaw * 1e4 + r.turns * 10 + (r.starts + r.ends);
+const keyOf = r => (r.fitRaw + NEWPEN * r.newT) * 1e4 + r.turns * 10 + (r.starts + r.ends);
 let best = null, feasible = 0, nodes = 0, pruned = 0; const byTurns = {};
 const offer = rec => { if (!rec) return; feasible++; if (!byTurns[rec.turns] || keyOf(rec) < keyOf(byTurns[rec.turns])) byTurns[rec.turns] = rec; if (!best || keyOf(rec) < keyOf(best)) best = rec; };
 
@@ -176,7 +190,7 @@ function solve(fixed, total, exclude) {
   const midPool = POOL.filter(p => p.s !== OPEN && p.e !== CLOSE && p.e <= MID_END_MAX && !ex.has(p.t));
 
   const midByL = {}; for (const p of midPool) (midByL[p.L] ??= []).push(p); const Ls = Object.keys(midByL).map(Number).sort((a, b) => a - b);
-  const C = ((total ?? 0) + floorFixed) / 60; const bestRaw = () => !BOUND ? Infinity : best ? best.fitRaw - 1e-9 : BEST0;
+  const C = ((total ?? 0) + floorFixed) / 60; const bestRaw = () => !BOUND ? Infinity : best ? best.fitRaw + NEWPEN * best.newT - 1e-9 : BEST0;
   for (let needO = Math.max(0, OPENERS_MIN - fixedO); needO <= OPENERS_MAX - fixedO; needO++) {
   const osets = multisets(openersPool, needO, MAX_PER);
   for (let nC = Math.max(0, CLOSERS_MIN - fixedC); nC <= CLOSERS_MAX - fixedC; nC++) {
@@ -242,7 +256,7 @@ function annealSolve(fixed, total, exclude) {
     for (const j of f.map((_, k) => k).filter(k => k !== i).sort(() => rnd() - 0.5)) { const r = f[j], L2 = r.L - d; if (L2 < LO || L2 > HI) continue;
       const cand = roleOf(r).filter(x => x.L === L2); if (cand.length) { f[j] = pick(cand); return f; } }
     return null; };
-  const energy = r => r.fitRaw + 0.02 * r.turns + 0.002 * (r.starts + r.ends);
+  const energy = r => r.fitRaw + NEWPEN * r.newT + 0.02 * r.turns + 0.002 * (r.starts + r.ends);
   const MSR = Number(process.env.MS ?? 8000), RESTARTS = Number(process.env.RESTARTS ?? 8); const per = [];
   for (let run = 0; run < RESTARTS; run++) {
     let cur = null, rec = null; for (let t = 0; t < 200 && !rec; t++) { cur = randomState(); rec = cur && record(cur); }
@@ -268,10 +282,10 @@ if (CLS !== 'sun' && process.env.ANNEAL === '1') {
 }
 const ms = Date.now() - t0;
 const show = (label, b) => { if (!b) { console.log(`  ${label}: none`); return; }
-  console.log(`  ${label}: ${b.turns} turns · ${b.starts} starts + ${b.ends} finishes · ${b.closers} closers · fit ${b.fit} · pays ${b.total} · fewest on the floor ${b.thin}`);
+  console.log(`  ${label}: ${b.newT} new · ${b.turns} turns · ${b.starts} starts + ${b.ends} finishes · ${b.closers} closers · fit ${b.fit} · pays ${b.total} · fewest on the floor ${b.thin}`);
   console.log('    ' + b.duties.map(([t, n]) => `${t} x${n}`).join('  ')); };
 console.log(`${CLS}: cap ${MAX_TURNS < 99 ? MAX_TURNS : 'none'} · fixed ${FIXED.map(([t, n]) => `${t} x${n}`).join(', ') || '(ticket office enumerated)'} · pool ${POOL.length} · floor ≥${FLOOR_MIN} (ticket office excluded) · ${LO}–${HI} min · ${CLS === 'sun' ? `total ${SUN_MIN}–${SUN_MAX}` : `total ${TOTAL}`} · ${feasible.toLocaleString()} feasible tables scored · ${nodes.toLocaleString()} nodes (${pruned.toLocaleString()} pruned) · ${(ms / 1000).toFixed(1)}s`);
 show('best', best);
 if (process.env.LADDER === '1') for (const k of Object.keys(byTurns).sort((a, b) => a - b)) show(`${k} turns`, byTurns[k]);
-if (process.env.OUT && best) writeFileSync(process.env.OUT, JSON.stringify({ cls: CLS, total: best.total, fit: best.fit, turns: best.turns, closers: best.closers, duties: best.duties, cap: MAX_TURNS, LO, HI, floorMin: FLOOR_MIN, feasible }, null, 1));
+if (process.env.OUT && best) writeFileSync(process.env.OUT, JSON.stringify({ cls: CLS, newT: best.newT, total: best.total, fit: best.fit, turns: best.turns, closers: best.closers, duties: best.duties, cap: MAX_TURNS, LO, HI, floorMin: FLOOR_MIN, feasible }, null, 1));
 if (!best) process.exit(1);

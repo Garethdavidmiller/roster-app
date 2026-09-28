@@ -11,7 +11,7 @@
 // A full `regenerate.mjs` run renders it too, after the 23 sheets.
 import { writeFileSync, readFileSync } from 'node:fs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
-import { today, assess, currentRules, folderStats, OFFICE, demand, MAX_CONSECUTIVE_WORKED_DAYS } from './report-data.mjs';
+import { today, assess, currentRules, folderStats, OFFICE, OFFICE_HELP_TEXT, demand, MAX_CONSECUTIVE_WORKED_DAYS } from './report-data.mjs';
 import { assessFatigue } from '../../../links-fatigue.js';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
@@ -62,7 +62,7 @@ const ASKS = {
   cover: 'Four cover weeks in the 24 lines, spaced evenly — every six lines, e.g. lines 1, 7, 13 and 19.',
   office: `Two identical early and two identical late shifts for the ticket office: Mon–Fri ${OFFICE.plan.weekday.map(([t]) => t.replace('-', '–')).join(' and ')}; Sat ${OFFICE.plan.sat.map(([t]) => t.replace('-', '–')).join(' and ')}; Sun two starting 07:15 and two finishing 22:30.`,
   closer: 'Every Monday-to-Friday shift that works to the 23:55 close starts at 15:45.',
-  floor: 'At least two people on the station floor at every moment the station is open. Ticket-office staff do not count; checked every five minutes.',
+  floor: 'At least two people on the station floor at every moment the station is open, checked every five minutes. Ticket-office staff count only while the second of a pair helps on the floor at the quiet ends, and only as a whole person.',
   handover: 'Each closer overlaps someone already on duty by 15 minutes; the two ticket-office shifts overlap by 20. On a Sunday each opener also stays until 15 minutes after the last closer arrives.',
   sunlen: 'Every Sunday duty is between 8 and 9 hours long.',
   times: `No more different shift times in the week than today’s link has (${TA.feel.distinctTimes}).`,
@@ -134,7 +134,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
     <div><b>The link.</b> 24 lines worked in turn, one week each, Sunday to Saturday; a person on the last line moves to line 1.</div>
     <div><b>Cover week.</b> A line with no fixed shifts: four duties in the week, placed by the roster clerk to cover leave and sickness.</div>
     <div><b>Early and late.</b> A shift starting before 11:00 is an early; from 11:00 it is a late.</div>
-    <div><b>The floor.</b> Everyone on duty except the four ticket-office staff, who are there for the office’s opening hours, not the trains.</div>
+    <div><b>The floor.</b> Everyone on duty except the four ticket-office staff, who are there for the office’s opening hours, not the trains. ${OFFICE_HELP_TEXT}.</div>
     <div><b>Today’s link.</b> The 20-line link worked now. It is the yardstick, not the target: it meets ${RT.met} of the ${RT.of} December rules.</div>
   </div>
 
