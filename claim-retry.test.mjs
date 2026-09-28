@@ -3,7 +3,77 @@
 // (v18.28). No mocks needed; the runner is Firebase-agnostic (deps injected). Part of test:hygiene.
 import { test, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isClaimRetryable, runWithClaimRetry, isAccessFailure } from './claim-retry.js';
+import { isClaimRetryable, runWithClaimRetry, isAccessFailure, abandonOnSignOut, SIGNED_OUT_CODE, saveFailureMessage } from './claim-retry.js';
+
+// ── abandonOnSignOut (v24.36) — a save must not wait on an account that has gone ──────────────────
+/** A fake onAuthStateChanged: `emit(user)` drives every live subscriber. */
+function fakeAuth() {
+    /** @type {Set<(u: any) => void>} */ const subs = new Set();
+    return {
+        watch: (/** @type {(u: any) => void} */ cb) => { subs.add(cb); return () => subs.delete(cb); },
+        emit: (/** @type {any} */ u) => [...subs].forEach(cb => cb(u)),
+        get live() { return subs.size; },
+    };
+}
+const never = () => new Promise(() => {});
+
+describe('abandonOnSignOut', () => {
+    it('a sign-out while the request is pending rejects with SIGNED_OUT_CODE — the Firestore hang', async () => {
+        const a = fakeAuth();
+        const p = abandonOnSignOut(never(), { uid: 'u1', watch: a.watch });
+        a.emit({ uid: 'u1' });           // the first emission is the current account — not a loss
+        a.emit(null);
+        await assert.rejects(p, e => /** @type {any} */ (e).code === SIGNED_OUT_CODE);
+        assert.equal(a.live, 0, 'the auth listener is detached');
+    });
+    it('a DIFFERENT account counts as gone too', async () => {
+        const a = fakeAuth();
+        const p = abandonOnSignOut(never(), { uid: 'u1', watch: a.watch });
+        a.emit({ uid: 'u2' });
+        await assert.rejects(p, e => /** @type {any} */ (e).code === SIGNED_OUT_CODE);
+    });
+    it('passes the result and the error through untouched, and detaches', async () => {
+        const a = fakeAuth();
+        assert.equal(await abandonOnSignOut(Promise.resolve('ok'), { uid: 'u1', watch: a.watch }), 'ok');
+        await assert.rejects(abandonOnSignOut(Promise.reject({ code: 'unavailable' }), { uid: 'u1', watch: a.watch }),
+            e => /** @type {any} */ (e).code === 'unavailable');
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(a.live, 0);
+        a.emit(null);                    // a later sign-out reaches nothing
+    });
+    it('no account at the start → the request is returned unwatched', () => {
+        const a = fakeAuth();
+        const req = Promise.resolve(1);
+        assert.equal(abandonOnSignOut(req, { uid: null, watch: a.watch }), req);
+        assert.equal(a.live, 0);
+    });
+    it('a watcher that reports synchronously on subscribe is handled', async () => {
+        const p = abandonOnSignOut(never(), { uid: 'u1', watch: cb => { cb(null); return () => {}; } });
+        await assert.rejects(p, e => /** @type {any} */ (e).code === SIGNED_OUT_CODE);
+    });
+});
+
+// THE WIRING. firebase-client.js cannot load in Node (it imports the SDK from gstatic), so the helper
+// above could be perfect and never called: removing it from withClaimRetry left every suite green.
+// Every Admin write goes through withClaimRetry, so this is the one line that has to hold.
+test('withClaimRetry wraps every request in abandonOnSignOut, watching the live auth state', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('./firebase-client.js', import.meta.url), 'utf8');
+    const body = src.slice(src.indexOf('export async function withClaimRetry('), src.indexOf('export const writeWithClaimRetry'));
+    assert.match(body, /return abandonOnSignOut\(runWithClaimRetry\(/, 'the retry runs INSIDE the sign-out watch');
+    assert.match(body, /uid: auth\.currentUser\?\.uid/, 'the account is captured when the request starts');
+    assert.match(body, /onAuthStateChanged\(auth, cb\)/, 'the watch is the real auth state');
+});
+
+test('saveFailureMessage — signed-out says unconfirmed, never lost; the other two unchanged', () => {
+    const out = saveFailureMessage({ code: SIGNED_OUT_CODE });
+    assert.match(out, /signed out/);
+    assert.match(out, /Saved Changes/);
+    assert.doesNotMatch(out, /lost|not saved/i);
+    assert.match(saveFailureMessage({ code: 'permission-denied' }), /sign in again/);
+    assert.match(saveFailureMessage({ code: 'unavailable' }), /check your connection/);
+    assert.match(saveFailureMessage(undefined), /check your connection/);
+});
 
 const PD = 'permission-denied';
 

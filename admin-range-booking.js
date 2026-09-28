@@ -19,6 +19,7 @@ import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 import { buildSaveReceipt } from './admin-save-receipt.js';
 
 import { setStatus } from './status-text.js';
+import { SIGNED_OUT_CODE, saveFailureMessage } from './claim-retry.js';
 /**
  * Wire one date-range booking section (AL or sick).
  *
@@ -363,7 +364,10 @@ export function createRangeBookingSection(cfg) {
                     ? "⚠ Couldn't load saved changes — reload the page before recording this."
                     : (/** @type {any} */ (err)).message === 'auth/session-expired'
                         ? "⚠ You've been signed out — please sign in again."
-                        : "⚠ Couldn't save — check your connection and try again.");
+                        : (/** @type {any} */ (err)).code === SIGNED_OUT_CODE
+                            // Signed out while the write waited (claim-retry.js): may still send.
+                            ? '⚠ ' + saveFailureMessage(err)
+                            : "⚠ Couldn't save — check your connection and try again.");
         } finally {
             // Restore the button LABEL only — let updatePreview() govern the disabled state. On the
             // SUCCESS path picker.reset() has already cleared the range and updatePreview() disabled

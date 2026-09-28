@@ -23,7 +23,7 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 // @ts-ignore
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithCustomToken, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
 import { orderClientErrors, expiredResolvedIds, capUnresolvedErrors } from './client-errors.js';
-import { runWithClaimRetry } from './claim-retry.js';
+import { runWithClaimRetry, abandonOnSignOut } from './claim-retry.js';
 import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys, originKey, summariseOrigins, staleOriginKeys } from './usage-stats.js';
 import { perfSampleKey, summarisePerf, createPerfBatcher } from './perf-stats.js';
 import { APP_VERSION } from './roster-data.js';
@@ -340,12 +340,13 @@ export { signInWithEmailAndPassword, signInWithCustomToken, signOut, onAuthState
 export async function withClaimRetry(fn) {
     // The retry DECISION (only `permission-denied` with a live user, at most once, preserve the
     // original error if the refresh itself fails) is the pure runWithClaimRetry in claim-retry.js,
-    // unit-tested in claim-retry.test.mjs. This wrapper only injects the Firebase auth dependencies.
-    return runWithClaimRetry(fn, {
+    // unit-tested in claim-retry.test.mjs. abandonOnSignOut stops waiting on an account that has gone,
+    // whose commit Firestore never settles — the "stuck on Saving…" of v24.36 (claim-retry.js).
+    return abandonOnSignOut(runWithClaimRetry(fn, {
         retryCode: 'permission-denied',
         hasUser: () => !!auth.currentUser,
         refresh: () => /** @type {any} */ (auth.currentUser).getIdToken(true),
-    });
+    }), { uid: auth.currentUser?.uid, watch: cb => onAuthStateChanged(auth, cb) });
 }
 
 /** Back-compat alias for the write call sites (admin-overrides, admin-roster-upload, links-app, …).
