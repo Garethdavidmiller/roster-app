@@ -739,8 +739,7 @@ Two were left as decisions and then taken (24 Sep 2026, owner: "do your suggesti
 
 - **Page 8 named a person** ("Nathan assesses against this list") in a folder the Pages mirror serves.
   It now says what the eyebrow already says — this is the list the link is assessed against — and
-  names nobody. (`Email-to-Nathan.md` still carries the name in its title; it is a draft email, and
-  renaming it is a separate call.)
+  names nobody. (The draft email that carried the name in its title was deleted on 28 Sep 2026, owner.)
 - **Two pick sentences were typed literals.** Same Turns' ("Two candidates tied on every rule; the fit
   decided it") and By the Book's ("All four candidates … full weekends off decided it (6 against 5) …
   the coherence term cost … nothing") were strings in `render.mjs`, true on the day they were written
