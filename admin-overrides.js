@@ -14,6 +14,7 @@
 import { teamMembers, getBaseShift, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { isRestShift, shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord, nextReplacedType } from './override-utils.js';
 import { db, collection, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
+import { saveFailureMessage } from './claim-retry.js';
 // The cache, what it knows, and the reads that fill it — see admin-override-store.js. Re-exported
 // below so admin-app.js and the tests keep one import site for the whole Change-a-Shift surface.
 import { TYPES, PILL_TYPES, WORKED_OVERRIDE_TYPES } from './admin-shift-types.js';
@@ -315,9 +316,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
 
     } catch (err) {
         console.error('[Admin] Save failed:', err);
-        _showError((/** @type {any} */ (err))?.code === 'permission-denied'
-            ? "Couldn't save — you may have been signed out. Please sign in again."
-            : "Couldn't save — check your connection and try again.");
+        _showError(saveFailureMessage(err));
     } finally {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save changes'; }
         setSaveInFlight(false);
