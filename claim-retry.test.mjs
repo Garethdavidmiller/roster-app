@@ -3,7 +3,8 @@
 // (v18.28). No mocks needed; the runner is Firebase-agnostic (deps injected). Part of test:hygiene.
 import { test, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isClaimRetryable, runWithClaimRetry, isAccessFailure, abandonOnSignOut, SIGNED_OUT_CODE, saveFailureMessage, signedOutLine, watchIdentityLoss } from './claim-retry.js';
+import { isClaimRetryable, runWithClaimRetry, isAccessFailure, abandonOnSignOut, SIGNED_OUT_CODE, saveFailureMessage, signedOutLine, watchIdentityLoss,
+    runGatedWrite, hasUnconfirmedWrite, _resetUnconfirmedWrites, UNCONFIRMED_CODE, unconfirmedWriteLine } from './claim-retry.js';
 
 // ── watchIdentityLoss (v24.37; narrowed v24.38) — sign-in offered only when the account is really gone ──
 describe('watchIdentityLoss', () => {
@@ -288,4 +289,37 @@ describe('isAccessFailure', () => {
             });
         }
     });
+});
+
+// ── runGatedWrite (v24.39, external review) — an unconfirmed write stops the next ──────────────────
+describe('runGatedWrite', () => {
+    it('passes results and ordinary errors through, and leaves the gate open', async () => {
+        _resetUnconfirmedWrites();
+        assert.equal(await runGatedWrite(async () => 'ok'), 'ok');
+        await assert.rejects(runGatedWrite(async () => { throw Object.assign(new Error('x'), { code: 'unavailable' }); }));
+        assert.equal(hasUnconfirmedWrite(), false, 'a plain failure is not unconfirmed');
+    });
+    it('a write ended by a sign-out closes the gate; the next is refused BEFORE it runs', async () => {
+        _resetUnconfirmedWrites();
+        await assert.rejects(runGatedWrite(async () => { throw Object.assign(new Error('gone'), { code: SIGNED_OUT_CODE }); }),
+            e => /** @type {any} */ (e).code === SIGNED_OUT_CODE);
+        assert.equal(hasUnconfirmedWrite(), true);
+        let ran = false;
+        await assert.rejects(runGatedWrite(async () => { ran = true; }), e => /** @type {any} */ (e).code === UNCONFIRMED_CODE);
+        assert.equal(ran, false, 'a refused write never reaches Firestore — that is the duplicate prevented');
+        _resetUnconfirmedWrites();
+    });
+    it('unconfirmedWriteLine names both codes and leaves others to the caller', () => {
+        assert.match(unconfirmedWriteLine({ code: SIGNED_OUT_CODE }, 'this delete', 'Saved Changes') ?? '', /signed out/);
+        assert.match(unconfirmedWriteLine({ code: UNCONFIRMED_CODE }, 'x', 'y') ?? '', /Reload the page/);
+        assert.equal(unconfirmedWriteLine({ code: 'unavailable' }, 'x', 'y'), null);
+    });
+});
+
+test('WIRING: every write, the document commit and the push record are bounded by the account', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('./firebase-client.js', import.meta.url), 'utf8');
+    assert.match(src, /export function writeWithClaimRetry\(fn\) \{ return runGatedWrite\(\(\) => withClaimRetry\(fn\)\); \}/);
+    assert.match(src, /guardCommit: \(\/\*\* @type \{Promise<any>\} \*\/ p\) => abandonOnSignOut\(p,/);
+    assert.match(src, /await abandonOnSignOut\(setDoc\(doc\(db, COLLECTIONS\.pushSubscriptions, id\), data\)/);
 });

@@ -2252,6 +2252,34 @@ test('admin: a save whose sign-in is revoked mid-save stops waiting and offers t
     await expect(page.locator('#loginPassword')).toBeVisible({ timeout: 8000 });
 });
 
+// ── AN UNCONFIRMED SAVE STOPS THE NEXT ONE UNTIL RELOAD (v24.39, external review) ──────────────
+// The abandoned write is still queued for that account. Signed back in, a second press minted fresh
+// ids and wrote a second copy beside the first. The page now refuses any new write until reloaded.
+test('admin: after a save left unconfirmed by a sign-out, the next save is refused until reload', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true }; });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2027-01-11';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Jan 2027');
+    await page.locator('#bulkSelMonFri').click();
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await page.locator('#bulkApplyBtn').click();
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#saveBtn')).toContainText('Saving');
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.revokeAuth());
+    await expect(page.locator('#formFeedback')).toContainText('signed out before this change was confirmed', { timeout: 5000 });
+    // Signed straight back in (another tab): the account is here again, so nothing else stops a retry.
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.restoreAuth());
+    const before = await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.length);
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('Reload the page before making another', { timeout: 5000 });
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.batchWrites.length), 'no second copy was written').toBe(before);
+});
+
 // ── …AND A COLLEAGUE SIGNING IN FROM ANOTHER TAB IS NOT THAT (v24.38) ────────────────────────────
 // Firebase shares one account across a browser's tabs. v24.37 read a colleague's sign-in elsewhere
 // (out, then in as them) as this page's loss, and its re-login signed the colleague out.
@@ -4058,6 +4086,19 @@ test('operations: every row type recedes when it is set aside', async ({ page })
 // feature's WIRING is asserted here where every branch runs it. What only a real browser proves is
 // that the pick reaches the save collector — the rules themselves are unit-tested in
 // admin-roster-upload.test.mjs, and duplicating them here would be a second, weaker copy.
+// v24.39 (external review): a sign-out while the FIRST batch waits used to be read as "nothing
+// committed", leaving the review open to apply again with fresh ids beside a batch that may still
+// land. It is ambiguous, so the review closes as a partial one does.
+test('operations: a roster apply signed out mid-save closes the review rather than inviting a second copy', async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true }; });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    await page.locator('#rosterApplyBtn').click();
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.revokeAuth());
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('signed out before this roster was confirmed', { timeout: 5000 });
+    await expect(page.locator('#rosterReviewSection')).not.toHaveClass(/visible/);
+});
+
 test('operations: a flagged roster cell can be resolved from the review table', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await seedSession(page, 'G. Miller');

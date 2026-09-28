@@ -17,7 +17,7 @@
 import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate, TIME_RE } from './roster-data.js';
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, onAuthStateChanged, COLLECTIONS } from './firebase-client.js';
-import { SIGNED_OUT_CODE, signedOutLine, watchIdentityLoss } from './claim-retry.js';
+import { unconfirmedWriteLine, watchIdentityLoss } from './claim-retry.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
@@ -1318,8 +1318,8 @@ export function init() {
             if (feedbackEl) {
                 const msg = (/** @type {any} */ (err)).code === 'unavailable'
                     ? '⚠ You appear to be offline — reconnect and try again.'
-                    : (/** @type {any} */ (err)).code === SIGNED_OUT_CODE
-                        ? '⚠ ' + signedOutLine('this delete', 'Saved Changes')
+                    : unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
+                        ? '⚠ ' + unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
                         : '⚠ Delete failed — check your connection and try again.';
                 feedbackEl.textContent = msg;
                 feedbackEl.className = 'feedback error';

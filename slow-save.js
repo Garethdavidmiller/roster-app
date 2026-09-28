@@ -33,6 +33,8 @@
  * be waiting at once and the first to finish must not take down the notice the second still needs.
  */
 
+import { hasUnconfirmedWrite } from './claim-retry.js';
+
 /** How long a write may wait for the server before the app says why. */
 export const SLOW_SAVE_MS = 8000;
 
@@ -108,7 +110,11 @@ let _inFlight = 0;
  * them strands the rest (review A13).
  * @returns {number}
  */
-export function writesInFlight() { return _inFlight; }
+export function writesInFlight() { return _inFlight + (hasUnconfirmedWrite() ? 1 : 0); }
+// …PLUS one while a write is UNCONFIRMED (v24.39, external review). A write abandoned on sign-out
+// settles its promise here, so the count fell to zero while Firestore still held the write — and in
+// a second tab that cache is memory-only, so an automatic reload lost it. The reader is told to
+// reload; that choice stays theirs, not the service worker's.
 
 /** Waiting writes that are part of a batched save — while any is up, the stay-here line wins. */
 let _batchedWaiting = 0;

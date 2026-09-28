@@ -56,7 +56,7 @@ import { initLinksCompare } from './links-compare.js';
 import { baselineFromEntry } from './links-concurrency.js';
 import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
-import { SIGNED_OUT_CODE, watchIdentityLoss } from './claim-retry.js';
+import { unconfirmedWriteLine, watchIdentityLoss } from './claim-retry.js';
 import {
     isDeleted, deletedLabel, canSoftDelete, sortByDeleted,
 } from './links-deletion.js';
@@ -660,7 +660,7 @@ export function init() {
             _activateDesign(d);
         } catch (err) {
             console.error('[Links] Create design failed:', err);
-            _designActionStatus('Couldn’t create the design — check your connection and try again.');
+            _designActionStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t create the design — check your connection and try again.');
         }
     }
 
@@ -778,7 +778,7 @@ export function init() {
             _designActionStatus(`Imported “${name}”. Check it against the sheet it came from.`, 'ok');   // a success, not an error (it rendered RED until v23.30)
         } catch (err) {
             console.error('[Links] Import failed:', err);
-            _importStatus('Couldn’t save the design — check your connection and try again.', 'bad');
+            _importStatus(unconfirmedWriteLine(err, 'this design', 'the design list') ?? 'Couldn’t save the design — check your connection and try again.', 'bad');
         } finally {
             if (btn) btn.disabled = false;
         }
@@ -819,7 +819,7 @@ export function init() {
             _activateDesign(d);
         } catch (err) {
             console.error('[Links] Duplicate design failed:', err);
-            _designActionStatus('Couldn’t duplicate the design — check your connection and try again.');
+            _designActionStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t duplicate the design — check your connection and try again.');
         }
     }
 
@@ -880,7 +880,7 @@ export function init() {
             if (_renameStatus) { _renameStatus.textContent = ''; _renameStatus.className = 'links-save-status'; }
         } catch (err) {
             console.error('[Links] Rename failed:', err);
-            _designActionStatus('Couldn’t rename the design — check your connection and try again.');
+            _designActionStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t rename the design — check your connection and try again.');
         }
     }
 
@@ -959,7 +959,7 @@ export function init() {
             console.error('[Links] Delete failed:', err);
             // Was console-only: a rules rejection or a dropped connection looked like the button
             // simply doing nothing. Every other design action surfaces here (v19.41).
-            _designActionStatus('Couldn’t delete the design — check your connection and try again.');
+            _designActionStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t delete the design — check your connection and try again.');
         }
     }
 
@@ -1019,7 +1019,7 @@ export function init() {
             _binStatus(`“${d.name}” restored.`, 'ok');
         } catch (err) {
             console.error('[Links] Restore failed:', err);
-            _binStatus('Couldn’t restore that design — check your connection and try again.');
+            _binStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t restore that design — check your connection and try again.');
         }
     }
 
@@ -1054,7 +1054,7 @@ export function init() {
             _binStatus(`“${d.name}” removed.`, 'ok');
         } catch (err) {
             console.error('[Links] Permanent delete failed:', err);
-            _binStatus('Couldn’t remove that design — check your connection and try again.');
+            _binStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t remove that design — check your connection and try again.');
         }
     }
 
@@ -2330,7 +2330,7 @@ export function init() {
                 dirty = true;
                 // Signed out mid-save. An ONLINE save is a transaction, which is never queued, so it
                 // may or may not have landed: say check, and keep the work unsaved (dirty) (v24.38).
-                if (status) { status.textContent = /** @type {any} */ (err)?.code === SIGNED_OUT_CODE ? 'Signed out before this saved — sign in again, then check' : 'Save failed — try again'; status.className = 'links-save-status err'; }
+                if (status) { status.textContent = unconfirmedWriteLine(err, 'this save', 'the design') ?? 'Save failed — try again'; status.className = 'links-save-status err'; }
             }
         } finally {
             savingKeys.delete(key);
