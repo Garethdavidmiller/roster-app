@@ -58,10 +58,10 @@ below is owned by somebody other than the developer.
 | Line-order objectives | ✅ Shipped v19.58–v19.60 | — | — |
 | **Hard company limits — a controlled source** | ⚠️ **Cited to the policy, but the policy is not identified** | **Before management review** | **Gareth** — get the title, clause, staff group and effective date. Evidence class B required (ROADMAP.md → Evidence class) |
 | **Sunday operating window** | ⚠️ **Decision needed** — five Dec-26 movements fall after the 23:25 finish, three of them arrivals | **Before proposals are frozen** | **Nathan** |
-| **Contracted hours — today's duties cannot fill a 24-line link** | ⚠️ **Decision needed** — **answered in practice by the proposals** (28 Sep 2026): every one of the 25 sheets pays the 35h week exactly (Fifteen Turns is 60 minutes a week over across the link) by carrying **94–98 timed duties a week against today's 76**, so every one assumes the December 2026 staffing supplies the extra duty; that assumption is what needs confirming. Background (v20.04; measure corrected and the generator GATED at v20.98). Seeded from today's duties, 24 lines averages **29h 53m** a week (4 cover weeks) or **31h 20m** (5) against a 35h contract; the live 20-line roster gives exactly 35h. **The generator now refuses to build a design that misses the contract in EITHER direction** (short v20.98, over v20.99), so this is no longer a warning that can be scrolled past — it is a blocked action with the gap named: **123h** more duty a week of rotation at 4 cover weeks, **88h** at 5. Note the shape of what that asks for: the target is an equality, so the extra service has to land on a table that totals `working x 35h` exactly — overshooting is refused too. Either the Dec-26 service supplies it — in which case the targets should be seeded from the new timetable, not today's roster — or the widened link does not fill a contracted week | **Before a proposal is frozen** | **Management / Nathan** |
+| **Contracted hours — today's duties cannot fill a 24-line link** | ⚠️ **Decision needed** — **answered in practice by the proposals** (28 Sep 2026): every sheet but one pays the 35h week exactly — 42,000 minutes Monday to Saturday — and Fifteen Turns is 60 minutes a week over across the link by carrying **94–98 timed duties a week against today's 76**, so every one assumes the December 2026 staffing supplies the extra duty; that assumption is what needs confirming. Background (v20.04; measure corrected and the generator GATED at v20.98). Seeded from today's duties, 24 lines averages **29h 53m** a week (4 cover weeks) or **31h 20m** (5) against a 35h contract; the live 20-line roster gives exactly 35h. **The generator now refuses to build a design that misses the contract in EITHER direction** (short v20.98, over v20.99), so this is no longer a warning that can be scrolled past — it is a blocked action with the gap named: **123h** more duty a week of rotation at 4 cover weeks, **88h** at 5. Note the shape of what that asks for: the target is an equality, so the extra service has to land on a table that totals `working x 35h` exactly — overshooting is refused too. Either the Dec-26 service supplies it — in which case the targets should be seeded from the new timetable, not today's roster — or the widened link does not fill a contracted week | **Before a proposal is frozen** | **Management / Nathan** |
 | **Business staffing requirement** | ⚠️ **Given verbally, not yet in writing** (owner, 27–28 Sep 2026): the December 2026 staffing levels behind the 11 rules every sheet is judged against — four at the open, three at the close, five at 22:00, 14 on a Saturday and 10 on a Sunday, the ticket office in fixed pairs, and the rest (`currentRules`, `docs/proposals/tooling/report-data.mjs`). Every sheet says they are verbal | **Before the final design** | **Management** — confirm in writing |
 | **FF18 reading — cadence or step?** | ⚠️ Unsettled; changes whether any proposal can clear it | **Before a proposal is frozen** | **Nathan** (see Open question 2) |
-| **Proposals** | ✅ **Drawn — 25 sheets** in `docs/proposals/`, the first on 8 Sep 2026, the latest (Right Away, Familiar Nine and Just Enough) on 28 Sep; all of them in the managers' edition of 28 Sep, judged against one rule set; ⚠️ **none frozen** | T−8 weeks | Freezing one waits on the decisions above. The folder's `README.md` is the index; each sheet ranks itself among the 25 on its page 9 and lists its open questions on page 7 (*Still to settle*) |
+| **Proposals** | ✅ **Drawn — 28 sheets** in `docs/proposals/`, the first on 8 Sep 2026, the latest (Right Away, Familiar Nine, Just Enough, Polished Clean, All Clear and Clean Sweep) on 28 Sep; all of them in the managers' edition of 28 Sep, judged against one rule set; ⚠️ **none frozen** | T−8 weeks | Freezing one waits on the decisions above. The folder's `README.md` is the index; each sheet ranks itself among the 28 on its page 9 and lists its open questions on page 7 (*Still to settle*) |
 | **Management review meeting** | ❌ Not scheduled | T−6 weeks | **A date.** See below |
 
 ## The backwards plan — because the only immovable deadline is outside this repository
@@ -231,8 +231,8 @@ Measured against those real windows:
 
 **Sunday's finish looks ~30 minutes short.** Two departures (23:27, 23:45) and three arrivals (23:35,
 23:51, 23:54) all fall after the 23:25 finish. Sunday's *start* is fine — the first three Sunday departures are all at or
-after 07:15. This is a business-requirement question for Nathan rather than a tool question, but the
-proposals should answer it deliberately instead of inheriting it.
+after 07:15. **SETTLED (owner, 28 Sep 2026): no duty runs past 23:25 on a Sunday — agreed practice, and it stays so.** The five
+later movements are recorded on the sheets as a known fact, not an open question.
 
 ---
 
@@ -573,8 +573,11 @@ day is not a 48h break) and that a rotation with **no** 48h break anywhere has t
 worked day rather than the sequence length — the first implementation returned the length, counting
 rest days as shifts, and its own test caught it.
 
-Still open from this package: four rows — FF17, FF18, FF19 and MRSF's 7×8h — render with
-"(definition to confirm)" until Nathan settles them.
+Settled 28 Sep 2026 (owner, against ORR's *Managing rail staff fatigue*, Aug 2024): MRSF's 7×8h reads
+eight hours or more, FF17 is ORR's own definition, FF18 is ORR's cadence factor (standing on every weekly
+link, the step kept as information). **FF19 alone still renders "(definition to confirm)"**: the owner's
+reading (a rest day resets it) is more lenient than ORR's wording, and the assessing manager should see
+that.
 
 <details><summary>Original scope</summary>
 
@@ -757,7 +760,8 @@ Ordered by how much they change if the answer is unexpected.
    `present` above some figure: the ORR gives no threshold for FF18, so inventing one would be the
    pass/fail rendering this panel must never produce. The derived branch is `n/a`, for a design with
    no timed lines at all — a row that cannot be computed does not get to claim anything.
-3. **Does the Sunday finish move?** Five movements fall after 23:25 — and the answer to question 1
+3. ~~**Does the Sunday finish move?**~~ — **ANSWERED (owner, 28 Sep 2026): no. No duty runs past 23:25 on a Sunday; agreed
+   practice.** The record: five movements fall after 23:25 — and the answer to question 1
    **strengthens** this rather than weakening it. The earlier draft noted the case would drop from
    five movements to two if arrivals needed no CEA; arrivals do count, so all five stand: 23:27 dep,
    23:35 arr, 23:45 dep, 23:51 arr, 23:54 arr. Three of those five are arrivals full of people
@@ -771,7 +775,7 @@ Ordered by how much they change if the answer is unexpected.
 
 ## Proposals drawn (8 Sep 2026 onward)
 
-**25 sheets** in `docs/proposals/`, whose README is the index, each with an identity that survives a
+**28 sheets** in `docs/proposals/`, whose README is the index, each with an identity that survives a
 meeting: a name, a code, and a fingerprint of the cells. On 28 Sep 2026 the 23 then drawn were re-issued as the
 managers' edition (the two added that day, Familiar Nine and Just Enough, were made in it) — standalone, in plain English, and judged against **one rule set**: the 11 December
 2026 rules (`currentRules`, `docs/proposals/tooling/report-data.mjs`). Every figure in a sheet is

@@ -66,13 +66,20 @@ export function minuteCover(p, lines, day) {
  *  grid. Until 24 Sep 2026 supplied.mjs and final.mjs each carried a copy of it fed with
  *  `calcHourlyCoverage` heads; both now call this. */
 const FIT_WIN = { weekday: [6*60+20, 23*60+55], sat: [6*60+20, 23*60+55], sun: [7*60+15, 23*60+25] };
+// THE EDGE HOURS COUNT THE TRAINS INSIDE THE WINDOW, NOT A SHARE OF THE HOUR (external review, 28 Sep 2026).
+// Until then the first and last hours took the hourly carriage total pro rata — Sunday's 23:00 hour counted 25/60
+// of all its traffic because the window closes at 23:25. But every movement is known to the minute
+// (DEC_2026_MOVEMENTS, which sums exactly to the hourly totals), and the edges are precisely where designs differ,
+// so each hour now counts the carriages of the movements that fall inside the staffed window [ws, we]. Middle hours
+// are unchanged; Sunday moved most (2–4 points on most sheets). Cover is still minute-weighted, as before.
 export function dayFit(cov, cls) {
-  const [ws, we] = FIT_WIN[cls]; const cars = DEC_2026_DEMAND[cls].cars;
+  const [ws, we] = FIT_WIN[cls];
   const hrs = []; for (let h = Math.floor(ws / 60); h <= Math.floor((we - 1) / 60); h++) hrs.push(h);
-  const frac = h => Math.max(0, Math.min(we, (h + 1) * 60) - Math.max(ws, h * 60)) / 60;
-  const D = hrs.reduce((a, h) => a + cars[h] * frac(h), 0), C = hrs.reduce((a, h) => a + cov[h], 0);
-  if (!C) return null;
-  return +hrs.reduce((a, h) => a + ((cars[h] * frac(h) / D) - (cov[h] / C)) ** 2 * 1e4, 0).toFixed(1);
+  const inWin = Array(24).fill(0);
+  for (const [t, n] of DEC_2026_MOVEMENTS[cls]) if (t >= ws && t <= we) inWin[Math.floor(t / 60) % 24] += n;
+  const D = hrs.reduce((a, h) => a + inWin[h], 0), C = hrs.reduce((a, h) => a + cov[h], 0);
+  if (!C || !D) return null;
+  return +hrs.reduce((a, h) => a + ((inWin[h] / D) - (cov[h] / C)) ** 2 * 1e4, 0).toFixed(1);
 }
 export const clsOf = d => d === 'sun' ? 'sun' : d === 'sat' ? 'sat' : 'weekday';
 /** Per-day fits, for page 4's fit column. */
@@ -92,8 +99,13 @@ export function headcounts(p, lines) {
   const keys = Array.from({ length: lines }, (_, i) => String(i + 1));
   const n = (d, f) => keys.filter(k => { const s = p[k][d]; return s !== 'RD' && s !== 'SPARE' && f(s); }).length;
   const out = { open: {}, close: {}, at22: {} };
-  for (const d of DAYS) { const sun = d === 'sun';
-    out.open[d] = n(d, s => s.startsWith(sun ? '07:15' : '06:20')); out.close[d] = n(d, s => s.endsWith(sun ? '23:25' : '23:55')); out.at22[d] = n(d, s => endMinutes(s) > 22 * 60); }
+  // ON DUTY AT THE MOMENT, not "starts at 06:20" / "ends at 23:55" (external review, 28 Sep 2026): a 06:15 start is
+  // present at the open and a 16:00–00:05 is still on at the close. Every shipped design stays inside the window, so
+  // no figure moved — this is so that a future import cannot be under-counted by its spelling.
+  for (const d of DAYS) { const cls = clsOf(d), op = OPEN[cls], cl = CLOSE[cls];
+    out.open[d] = n(d, s => startMinutes(s) <= op && endMinutes(s) > op);
+    out.close[d] = n(d, s => startMinutes(s) < cl && endMinutes(s) >= cl);
+    out.at22[d] = n(d, s => startMinutes(s) <= 22 * 60 && endMinutes(s) > 22 * 60); }
   return out;
 }
 

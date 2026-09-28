@@ -1,0 +1,37 @@
+{
+ "date": "28 September 2026",
+ "parent": {
+  "file": "fifteen-turns.json",
+  "name": "Fifteen Turns",
+  "code": "FT-24-EXT"
+ },
+ "sub1": "Fifteen Turns with the fewest cells changed that meet every rule with no fatigue finding at all — 41, and an exact solver proved no version with fewer does",
+ "coverNote": "lines 6, 12, 18 and 24 — gaps of 6, 6, 6, 6, exactly as Fifteen Turns has them: no cover week was touched",
+ "eyebrow3": "Fifteen Turns, cleared of every fatigue finding",
+ "h3": "What had to change, and why",
+ "sub3": "Every changed cell is outlined on the grid; each one is there because a rule or a fatigue finding could not be cleared without it",
+ "intro2": "<p>This is <b>Fifteen Turns</b> (FT-24-EXT) with the <b>fewest cells changed that meet all eleven December 2026 rules and the three hard limits</b> — 12 hours' rest, no more than 13 days in a row, and exactly the 35-hour contract — <b>with no fatigue finding left at all</b>. That number is <b>41</b>, and it is proven: an exact solver examined every way of changing the grid and found no such version with 40 or fewer.</p><p>It is the other end of the trade from <i>Just Enough</i> (JE-24-M29), which changes 29 cells and keeps three of Fifteen Turns' findings. Clearing those three costs twelve more cells. The four cover weeks have not moved.</p>",
+ "dutyNote": "What the 41 are: <b>16 are the weekday closers</b> — every weekday closer has to start at 15:45, where Fifteen Turns has three at 16:25 every weekday; fourteen move in place, one closer is made on a line that had Monday off and one old closer becomes a rest day. <b>12 give the ticket office its pairs</b> — 06:20–14:20 and 14:00–22:30 every weekday, 06:20–14:50 and 14:30–22:00 on Saturday, and the second Sunday late to 22:30. <b>7 duties become rest days and 1 rest day becomes a duty</b>: the 15:45 closers add hours and Saturday needs a fourteenth person, so the contract of exactly 42,000 minutes Monday to Saturday has to be paid back — and where those rest days fall helps break up the early blocks and the heavy seven days behind Fifteen Turns' findings. <b>5 Friday and Saturday duties are retimed</b>, for Saturday's five after 22:00 and so that no start time jumps more than two hours inside a working block.",
+ "openQuestions": "<b>No fatigue finding remains</b> — the only two marked are FF2 and FF18, which every weekly link carries and which are recorded for information, not counted. <b>The price is twelve more changes than Just Enough, and Sunday's fit</b>: clearing the findings moves Sunday's 10:00–18:30 onto a later turn, so Sunday's floor follows the trains less closely than Fifteen Turns' does, and less closely than today's link. <b>Eighteen of the twenty working lines change</b>, most by a closer moving forty minutes. <b>The longest run is nine days</b>, inside the 13-day limit and above the design target of six.",
+ "h7": "How it was made",
+ "sub7": "Reproducible: the solver, its checks and every command are in the tooling folder",
+ "methodHeading": "No fatigue findings, then the fewest changes",
+ "method": "<p><b>1 · What counts as a change.</b> One cell of the grid — one line on one day — that differs from Fifteen Turns. A new shift time, a duty becoming a rest day and a rest day becoming a duty each count as one. The shift times allowed are the ones already in use: Fifteen Turns', <i>Gates Mended</i>'s, today's link's and the ticket office's own plan times — so nothing here introduces a time nobody has seen.</p><p><b>2 · Proven, not searched for.</b> An exact solver (Google OR-Tools, CP-SAT) was given every rule as a constraint — the eleven December 2026 rules, the three hard limits, and every fatigue factor that can occur on this link, each written the way the app's own code measures it — and required to leave <b>no</b> factor present. It proved that <b>41 is the fewest changes</b> that can do that. Its reading of every rule and factor was checked against the app's own code on more than 1,400 grids, both ways, with no disagreement.</p><p><b>3 · Choosing among the 41-change versions.</b> Many versions tie, so the choice was made in a fixed order: the most full weekends off; then the smallest changes (a 16:25 closer moving to 15:45 is a small change, a closer becoming an early a large one); then the lightest busiest seven days, the shortest longest run and the most one-turn weeks. Those later choices are the best found in the time given, not proven. Every figure on these pages is measured from the grid by the Links designer's own modules. Not a recommendation.</p>",
+ "identity": {
+  "table": "— (Fifteen Turns' own duties, 41 cells changed)",
+  "seed": "— (exact solver, fixed tie-break order)",
+  "lineage": "DERIVED: “Fifteen Turns” (FT-24-EXT · 9a028392) with the fewest cells changed that meet all eleven December 2026 rules and the three hard limits with no fatigue factor present — 41, proven the minimum by an exact solver. Compare with “Just Enough” (JE-24-M29 · 49717d70): the fewest changes that meet the rules, 29, which keeps three factors."
+ },
+ "extraAlternatives": [
+  {
+   "label": "JE-24-M29 — Just Enough: 29 changes, three fatigue findings",
+   "file": "just-enough.json"
+  },
+  {
+   "label": "FT-24-EXT — Fifteen Turns as supplied",
+   "file": "fifteen-turns.json"
+  }
+ ],
+ "denseAlts": true,
+ "pickNote": "<p class=\"muted\"><b>How this one was picked:</b> no fatigue finding first, then the fewest changes that allow it (41, proven), then the most weekends off, the smallest changes, the lightest busiest week and the shortest run. The <i>Just Enough</i> row is the other end of the trade: 29 changes, three findings. Which end the room prefers is the room's call. <i>Wk fit</i> is how evenly the weekday cover follows the December 2026 timetable, lower being more even.</p>"
+}

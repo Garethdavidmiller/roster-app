@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: September 2026 — v24.30 · Updated every 0.10 version*
+*Last updated: September 2026 — v24.40 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -122,7 +122,7 @@ NOW, take it seriously: the flake excuse has been spent.
 > | | |
 > |---|---|
 > | **Still deferred** | **App Check** (Track D — declined as immediate, retained; see its entry below) · **password retirement** (Track C5, gated on the migration reaching ≥90% — `MAINTENANCE_CALENDAR.md` → Trigger points) |
-> | **Shipped** | **Per-member write isolation** — strict since v16.29; the permissive `!('name' in token)` escape is gone from `firestore.rules` · **Named-session separation** — the Calendar closed to anonymous on 26 Aug 2026; a read needs a `name` claim or the `calendarViewer` capability · **Workload Identity Federation** — all four workflows authenticate by short-lived OIDC; no `FIREBASE_SERVICE_ACCOUNT` key exists (Appendix A2) · **The firebase-admin bump** — `functions/package.json` is on `^14.3.0` |
+> | **Shipped** | **Per-member write isolation** — strict since v16.29; the permissive `!('name' in token)` escape is gone from `firestore.rules` · **Named-session separation** — the Calendar closed to anonymous on 26 Aug 2026; a read needs a `name` claim (with the server-stamped `member` claim that matches it, since v24.27) or the `calendarViewer` capability · **Workload Identity Federation** — all four workflows authenticate by short-lived OIDC; no `FIREBASE_SERVICE_ACCOUNT` key exists (Appendix A2) · **The firebase-admin bump** — `functions/package.json` is on `^14.3.0` |
 >
 > The shipped four are listed by what a reader can CHECK rather than by a version alone, because
 > that is what stops this row going stale again: each claim above is one grep away from being
@@ -146,7 +146,10 @@ made. The fallback is deliberate: a member must be able to open the document eit
 records `serviceAccountTokenCreator` on the shared gen-2 runtime service account for
 `unlockCalendarViewer` — the 10 Aug 2026 outage was its absence — and `getDocumentUrl` runs as the
 same account. So signed URLs are expected to be LIVE, which is what made the lapsed-link defect
-(fixed in v24.23: the url is now checked at the tap) a live one. Confirm by opening a document and
+(fixed in v24.23: the url is now checked at the tap) a live one. Since v24.33 a signed url is also
+used only when it names the same file the page is holding (`storagePath`): an upload landing between
+the page's read and the signing falls back to the document's own stored url rather than opening a
+different document. Confirm by opening a document and
 looking for `storage.googleapis.com` rather than `firebasestorage` in the opened address. What still
 remains is rotating the objects whose permanent URLs are already in circulation.
 
@@ -504,8 +507,10 @@ contains exactly `name`/`ver`/`expiry`.
 A returning user with a valid 60-day localStorage session skips the login click handler on
 every subsequent open, which would leave `auth.currentUser` null and break all Firestore
 writes. Fixed in v10.93 by `ensureFirebaseSession()`, which runs on page load whenever a
-localStorage session exists (waits for `onAuthStateChanged`, signs in if none found,
-self-heals a missing account). Full description and the "do not remove this call" rule:
+localStorage session exists (waits for `onAuthStateChanged` — at most 20s since v24.38 — and signs
+in if none found). The client-side account self-heal and the anonymous fallback were removed at
+v24.34: a failure now resolves to no session and a sign-in prompt. Full description and the "do not
+remove this call" rule:
 **CLAUDE.md → "Firebase Auth (complete — v7.94)"**.
 
 ### ⏰ The four v11 security tasks — current status
@@ -654,11 +659,12 @@ are architecture/App-Check territory or inherent platform behaviour, not bugs to
   The rules already validate
   SHAPE + block key-removal (the destructive wipe); per-value integrity is **App Check territory**
   (see below) on non-sensitive, admin-only aggregate counts. The `pv_` counts *are* int-checked.
-- **A late-resolving sign-in can briefly strand a privileged Firebase identity.** A
-  `signInWithEmailAndPassword` that resolves *after* an 8 s login timeout / `clearSession` can leave
-  `auth.currentUser` signed in until the next launch — Firebase sign-in is not cancellable mid-flight.
-  Mitigated already: `reconcileExpiredIdentity()` runs on virtually every calendar/protected-page
-  load and tears down a lingering expired identity. Inherent residual, not a logic error.
+- **~~A late-resolving sign-in can briefly strand a privileged Firebase identity~~ — CLOSED at
+  v24.38.** A `signInWithEmailAndPassword` that resolves *after* an 8 s login timeout / `clearSession`
+  used to leave `auth.currentUser` signed in until the next launch — Firebase sign-in is not
+  cancellable mid-flight. `ensureFirebaseSession` (`session.js`) now signs such a request straight
+  back out when a `clearSession()` was the last thing that happened; a newer sign-in attempt that
+  superseded it is left alone. `reconcileExpiredIdentity()` stays as the page-load backstop.
 - **`passwordSetAt` vs `resetAt` is a two-system stamp, not atomic.** A sub-second interleave of a
   member's self-set and an admin reset can momentarily misreport the "migrated" chip. It self-heals
   on the next set/reset and stores no password material — a monitoring signal, not a control.
@@ -790,7 +796,7 @@ The calculator estimates take-home pay from staff-entered data. Actual payslips 
 Chiltern may differ due to arrears, adjustments, and deductions not captured here.
 
 ### Pre-fill reads base roster + Firestore overrides only
-The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).
+The "Fill from calendar" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).
 Standard weekday contracted hours are not pre-filled — staff enter those manually.
 The suggestion is advisory; staff should verify it against their actual payslip.
 
@@ -1272,23 +1278,17 @@ never contingent on the beta label, and dropping it does not make any of them go
   factors are *present*; the ORR is explicit these are not prescriptive limits, and the escalation
   it defines (justify why the factor cannot be avoided, minimise it, then assess and control the
   residual risk) is a human process the panel feeds and does not perform. Specifically:
-  - **Three definitions are not settled** — FF17 (is "backward rotation" about individual steps or
-    the cycle's net direction?), FF19 (are start-time jumps counted across rest days?) and FF18
-    ("a rotating pattern of about a week"). They render as "(definition to confirm)" and the numbers
-    should not be quoted without settling them. **FF18's framing here was wrong until v19.60** and is
-    worth stating properly: this doc used to call it unavoidable because a rotating link moves everyone
-    one line a week by construction. That reads the factor as being about the weekly *cadence*, when
-    the concern is the **size of the step** — a rotation whose consecutive lines sit close together
-    asks far less of the body clock than one where they do not. The cadence is fixed; the step is a
-    design choice, is measured by `links-adjacency.js`, and the generator can tune for it. **FF18's
-    row now reads from that measurement** (v19.69) — it had reported a hardcoded `standing` since
-    v19.46, breaking the module's own "never hardcode a status" rule for the second time (FF13 was
-    the first, v19.48). It states the typical weekly move, the largest, and how many line boundaries
-    exceed two hours; the live main roster measures 4h 0m typical / 8h 46m worst / 9 of 20 over.
-    The status stays `standing` when the step is measurable — the ORR gives no threshold for FF18,
-    so promoting it to `present` above some figure would invent the pass/fail this panel forbids —
-    and derives to `n/a` for a design with no timed lines, which is the branch a hardcoded status
-    could not express.
+  - **One definition is left to confirm: FF19** (28 Sep 2026). The owner checked the once-unsettled rows
+    against ORR's *Managing rail staff fatigue* (Aug 2024) that day. **MRSF's 7×8h** reads eight hours
+    or more; **FF17** is ORR's own definition — a shift starting earlier than the previous one (7.68);
+    **FF18** is ORR's *cadence* factor — rotating about once a week is less preferable than about two
+    days or about 21 per shift type (7.68) — so it is `standing` on every weekly link, with the
+    week-to-week step kept as extra information (the step reading of v19.60–v24.38 was replaced once
+    ORR's text was read). **FF19 still renders "(definition to confirm)"** on purpose: the owner chose
+    "a rest day resets it", which is more lenient than ORR's wording ("avoid consecutive duties with
+    large variations in start times", 7.71). On the strict wording every link with early and late
+    weeks has FF19 — all 28 proposal sheets, where the owner's reading leaves 9 clear — so a manager
+    quoting the FF19 figure should know whose reading it is.
   - **Every hours figure is a FLOOR.** SPARE days carry no times, so a standby day contributes zero
     to "hours in any 7 days". The real total is higher; the panel says so on the row (it did **not**
     until v19.59 — `hoursAreFloor` had been returned "so the UI can say so" since v19.46 and nothing
@@ -1742,13 +1742,12 @@ appear in DevTools and the Operations Error Log.
 | File | Location | Why silent is correct |
 |------|----------|-----------------------|
 | `nav-panel.js` | Circular / Newsletter fetch | The `.finally()` handler resets `_docFetching` and the `.catch()` renders "Couldn't connect" — the error is surfaced to the user; logging would be noise |
-| `operations-app.js` | Clipboard copy in Error Log | `.catch()` shows '✗ Copy failed' inline — user-visible fallback; no logging needed |
+| `operations-errors.js` | Clipboard copy in Error Log | `.catch()` shows '✗ Copy failed' inline — user-visible fallback; no logging needed |
 | `firebase-client.js` | `logClientError` call inside `error-reporter.js` | Logging a logging failure would recurse; the silent swallow is the correct terminal handler |
 | `firebase-client.js` | Firestore persistence setup chain | Persistence is best-effort; a silent fallback to non-persistent mode is the documented Firebase pattern |
 | `firebase-client.js` | `getClientErrors` resolved-record cleanup | Expired resolved records are pruned fire-and-forget; individual delete failures are inconsequential |
 | `paycalc-app.js` | Firebase session failure before `initErrorReporter` | Error reporter is not yet initialised at this point; the silent fallback is the only safe option |
 | `sw-register.js` | `registration.update()` calls (hourly interval, visibility-change, pageshow) | SW update failures are not actionable — the existing SW stays active and the user experience is unaffected. Chrome also fires its own background update check that produces "Failed to update a ServiceWorker" unhandled rejections (suppressed in `error-reporter.js`); logging our own update attempts would add noise without benefit |
-| `calendar-app.js` | `authReady.then(…).catch(() => {})` around anonymous sign-in | `authReady` failure means Firebase persistence is unavailable; anonymous sign-in is best-effort (it just gives `initErrorReporter` a token). Surfacing a secondary auth error via the error reporter that hasn't yet started would recurse |
 
 ## Time-boxed maintenance (deadlines, not bugs)
 
@@ -1876,9 +1875,9 @@ which Set up accounts would then have adopted. Both exist because client sign-up
    now carries nothing the rules or endpoints believe. Shipped after step 2, as it had to be: a
    token without `member` loses every member read and write.
 4. **Client sign-up in the Firebase console — hygiene now, not a control.** After step 3 it grants
-   nothing. If it is ever switched off, remember the app still signs in ANONYMOUSLY
-   (`calendar-access.js`, `session.js`) and the switch may block new anonymous accounts too — check a
-   private-window Calendar still loads afterwards.
+   nothing. The app no longer signs in anonymously anywhere (the last call, in `calendar-access.js`,
+   went at v24.34 with the `CALENDAR_PIN_ACCESS` switch), so switching it off no longer risks the
+   Calendar; a private-window check that the Calendar still loads afterwards remains cheap.
 
 For a new starter, running "Set up accounts" promptly is still good practice, but it is no longer the
 security control: an account registered at their email before that run is refused everywhere, and

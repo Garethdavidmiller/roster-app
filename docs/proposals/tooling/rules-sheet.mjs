@@ -8,7 +8,7 @@
 // report-data.mjs and this sheet follows on its next render; it cannot say one thing while page 7 says another.
 //
 //   node docs/proposals/tooling/rules-sheet.mjs      → docs/proposals/December-2026-Rules.pdf
-// A full `regenerate.mjs` run renders it too, after the 23 sheets.
+// A full `regenerate.mjs` run renders it too, after every sheet.
 import { writeFileSync, readFileSync } from 'node:fs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
 import { today, assess, currentRules, folderStats, OFFICE, OFFICE_HELP_TEXT, demand, MAX_CONSECUTIVE_WORKED_DAYS } from './report-data.mjs';
@@ -130,7 +130,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 
   <h2>The basics every rule assumes</h2>
   <div class="basics">
-    <div><b>Opening hours.</b> The station opens at 06:20 (07:15 on a Sunday) and closes at 23:55 (23:25 on a Sunday).</div>
+    <div><b>Opening hours.</b> The station opens at 06:20 (07:15 on a Sunday) and closes at 23:55 (23:25 on a Sunday). <b>No duty runs past 23:25 on a Sunday</b> — agreed practice, settled 28 Sep 2026 — although ${sunLate.length} Sunday trains move later, the last at ${clock(sunLate[sunLate.length - 1].t)}.</div>
     <div><b>The link.</b> 24 lines worked in turn, one week each, Sunday to Saturday; a person on the last line moves to line 1.</div>
     <div><b>Cover week.</b> A line with no fixed shifts: four duties in the week, placed by the roster clerk to cover leave and sickness.</div>
     <div><b>Early and late.</b> A shift starting before 11:00 is an early; from 11:00 it is a late.</div>
@@ -160,7 +160,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <h2>Fatigue factors <span class="tag adv">advisory</span></h2>
   <p>${FZ.length} roster patterns that tend to tire people: ${FZ.filter(r => r.code !== 'MRSF').length} from the Office of Rail and Road’s good-practice guidance, <i>Fatigue Factors</i> (page 3, December 2021), and ${FZ.filter(r => r.code === 'MRSF').length} extra checks from the rail industry’s fatigue guidance (MRSF). The ORR says they are guidance, not limits. So a factor present is a question to discuss, never a pass or a fail, and a design showing none is not thereby approved.</p>
   <table class="t ff"><thead><tr><th>Code</th><th>Factor</th><th>Kind</th><th class="num">Present in</th></tr></thead><tbody>${ffRows}</tbody></table>
-  <p class="muted" style="font-size:9px"><b>Not applicable.</b> ${na.length} more factors apply to no rotation here: ${naNight.length} about night shifts (${andList(naNight.map(r => r.code))}), because CEAs do not work nights; ${naOther.map(naWhy).join('; and ')}. <b>“Every design”</b> marks a factor that comes with the station’s hours or with any rotating link, not with a design’s choices: FF2 because the station opens at 06:20, and FF18 because the link rotates weekly. The <b>early</b> in FF2 and FF15 is the ORR’s — a start from 05:00 to 07:00 — not the 11:00 used everywhere else. “Present in” counts the ${N} proposals.</p>
+  <p class="muted" style="font-size:9px"><b>Not applicable.</b> ${na.length} more factors apply to no rotation here: ${naNight.length} about night shifts (${andList(naNight.map(r => r.code))}), because CEAs do not work nights; ${naOther.map(naWhy).join('; and ')}. <b>“Every design”</b> marks a standing factor — one that comes with the station’s hours or with any weekly link, not with a design’s choices: FF2 because the station opens at 06:20, and FF18 because a weekly link changes shift type about once a week (the ORR prefers two-day or three-week rotation, <i>Managing rail staff fatigue</i> 7.68). <b>Standing factors are recorded on every sheet for information and are not counted</b> in any design’s fatigue findings, since no weekly design can remove them. The <b>early</b> in FF2 and FF15 is the ORR’s — a start from 05:00 to 07:00 — not the 11:00 used everywhere else. “Present in” counts the ${N} proposals.</p>
 
   <h2>Preferences <span class="tag adv">for staff to say, not the app</span></h2>
   <ul class="list">
@@ -177,8 +177,10 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
     <li><b>Does the 22:00 rule apply on a Sunday?</b> Today it is checked every day.</li>
     <li><b>The source of the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit.</b> Somebody confirms where it is written down.</li>
     <li><b>The December 2026 staffing levels in writing.</b> The eleven rules were given verbally.</li>
-    <li><b>${['No','One','Two','Three','Four','Five','Six'][live.filter(r => r.confirm).length] ?? live.filter(r => r.confirm).length} fatigue definitions.</b> ${andList(live.filter(r => r.confirm).map(r => r.code === 'MRSF' ? 'MRSF 7×8h' : r.code))} are counted on a reading of the guidance that is still to be agreed.</li>
-    <li><b>Sunday’s finish.</b> ${sunLate.length} trains in the December 2026 timetable arrive or leave after the 23:25 Sunday close, the last at ${clock(sunLate[sunLate.length - 1].t)}. Should Sunday cover run later?</li>
+    <li>${(() => { const c = live.filter(r => r.confirm), n = c.length, codes = andList(c.map(r => r.code === 'MRSF' ? 'MRSF 7×8h' : r.code));
+      // Settled 28 Sep 2026 against ORR's Managing rail staff fatigue (Aug 2024): only FF19 keeps the flag, because
+      // its reading (a rest day resets it) is the owner's and more lenient than ORR's wording — say which way it leans.
+      return `<b>${['No','One','Two','Three','Four','Five','Six'][n] ?? n} fatigue definition${n === 1 ? '' : 's'} to confirm.</b> ${n ? `${codes} ${n === 1 ? 'is' : 'are'} counted on a reading an assessing manager should confirm${c.some(r => r.code === 'FF19') ? ': FF19 treats a rest day as time to adjust, where the ORR’s wording (“consecutive duties”) would count across rest days — and on that reading every link has it' : ''}.` : 'Every factor is counted on the ORR’s own reading.'}`; })()}</li>
   </ol>
 
   <div class="callout"><b>Changing a rule.</b> Every proposal sheet is checked against this set by the same code. Change a rule and all ${N} sheets and this page are re-rendered together, so no sheet is ever judged against an older version of it.</div>
