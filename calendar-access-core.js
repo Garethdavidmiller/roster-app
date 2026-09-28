@@ -33,6 +33,8 @@
  *    a real guard deleted by someone who believes another file has it covered.)
  */
 
+import { nameToEmail } from './auth-identity.js';
+
 /** The dedicated Firebase Auth UID for the shared staff Calendar viewer. Not a member, not an email
  *  account — deliberately created with NO email so the roster's leaver sweep (`computeOrphanLabels`
  *  filters on `@myb-roster.local`) and the sign-in stats allowlist can never see it as staff. */
@@ -146,7 +148,7 @@ export function personalActionsAllowed({ accessType, sessionName, shownMember })
  *
  * @param {object} input
  * @param {{ name?: string|null }|null|undefined} input.session  the local MYB session (getSession())
- * @param {{ uid?: string, isAnonymous?: boolean }|null|undefined} input.firebaseUser  auth.currentUser
+ * @param {{ uid?: string, isAnonymous?: boolean, email?: string|null }|null|undefined} input.firebaseUser  auth.currentUser
  * @returns {'named'|'viewer'|'none'}
  */
 export function decideAccess({ session, firebaseUser }) {
@@ -161,7 +163,11 @@ export function decideAccess({ session, firebaseUser }) {
     //     the Calendar would silently show the base roster.
     //   · Firebase user without a session — that is precisely what `reconcileExpiredIdentity` exists
     //     to tear down. Trusting it here would let an expired member keep their privileges.
-    if (named && u && !u.isAnonymous && !isViewerUser(u)) return 'named';
+    //   · a Firebase user who is somebody ELSE (v24.38). On a shared browser another tab can sign a
+    //     different member in; the page would then show the session's name while that person's
+    //     token did the reads. An account carrying an email must carry THIS member's.
+    if (named && u && !u.isAnonymous && !isViewerUser(u)
+        && (!u.email || u.email === nameToEmail(String(session?.name).trim()))) return 'named';
 
     // Rule 2: the shared viewer capability, restored from this browser SESSION (never longer).
     if (isViewerUser(u)) return 'viewer';

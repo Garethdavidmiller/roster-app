@@ -5,42 +5,61 @@ import { test, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { isClaimRetryable, runWithClaimRetry, isAccessFailure, abandonOnSignOut, SIGNED_OUT_CODE, saveFailureMessage, signedOutLine, watchIdentityLoss } from './claim-retry.js';
 
-// ── watchIdentityLoss (v24.37) — the "sign in again" needs somewhere to be done ────────────────────
+// ── watchIdentityLoss (v24.37; narrowed v24.38) — sign-in offered only when the account is really gone ──
 describe('watchIdentityLoss', () => {
-    /** @param {{ stillSignedIn?: boolean }} [o] */
-    function setup({ stillSignedIn = true } = {}) {
+    /** Manual timers so "settled for settleMs" is a step the test takes, not a real wait. */
+    /** @param {{ lost?: boolean }} [o] */
+    function setup({ lost = true } = {}) {
         /** @type {Set<(u: any) => void>} */ const subs = new Set();
-        let lost = 0;
-        const unsub = watchIdentityLoss({
+        /** @type {Map<number, () => void>} */ const timers = new Map();
+        let id = 0, fired = 0;
+        const state = { lost };
+        watchIdentityLoss({
             uid: 'u1',
             watch: cb => { subs.add(cb); return () => subs.delete(cb); },
-            stillSignedIn: () => stillSignedIn,
-            onLost: () => { lost++; },
+            stillLost: () => state.lost,
+            onLost: () => { fired++; },
+            setTimer: fn => { timers.set(++id, fn); return id; },
+            clearTimer: t => { timers.delete(t); },
         });
-        return { emit: (/** @type {any} */ u) => [...subs].forEach(cb => cb(u)), subs, unsub, get lost() { return lost; } };
+        return {
+            emit: (/** @type {any} */ u) => [...subs].forEach(cb => cb(u)),
+            settle: () => { const fns = [...timers.values()]; timers.clear(); fns.forEach(f => f()); },
+            state, subs, timers, get fired() { return fired; },
+        };
     }
-    it('fires once when the account goes, and detaches', () => {
+    it('fires once when nobody is signed in and it lasts, then detaches', () => {
         const w = setup();
         w.emit({ uid: 'u1' });
-        assert.equal(w.lost, 0, 'the current account is not a loss');
         w.emit(null);
-        w.emit(null);
-        assert.equal(w.lost, 1);
+        assert.equal(w.fired, 0, 'not before it has lasted');
+        w.settle();
+        w.emit(null); w.settle();
+        assert.equal(w.fired, 1);
         assert.equal(w.subs.size, 0);
     });
-    it('a different account counts as a loss', () => {
+    it('SHARED PC: a colleague signing in from another tab (out, then in as them) is left alone', () => {
         const w = setup();
-        w.emit({ uid: 'u2' });
-        assert.equal(w.lost, 1);
-    });
-    it('a DELIBERATE sign-out (local session already cleared) shows nothing', () => {
-        const w = setup({ stillSignedIn: false });
         w.emit(null);
-        assert.equal(w.lost, 0);
+        w.emit({ uid: 'bob' });
+        w.settle();
+        assert.equal(w.fired, 0, 'the v24.37 regression signed the colleague out here');
+        assert.equal(w.timers.size, 0, 'the pending check was cancelled');
+    });
+    it('a different account alone is never a loss', () => {
+        const w = setup();
+        w.emit({ uid: 'bob' });
+        w.settle();
+        assert.equal(w.fired, 0);
+    });
+    it('a DELIBERATE sign-out (local session already cleared or changed) shows nothing', () => {
+        const w = setup({ lost: false });
+        w.emit(null); w.settle();
+        assert.equal(w.fired, 0);
     });
     it('no account at the start watches nothing', () => {
         let subscribed = false;
-        watchIdentityLoss({ uid: null, watch: () => { subscribed = true; return () => {}; }, stillSignedIn: () => true, onLost: () => {} });
+        watchIdentityLoss({ uid: null, watch: () => { subscribed = true; return () => {}; }, stillLost: () => true, onLost: () => {} });
         assert.equal(subscribed, false);
     });
 });

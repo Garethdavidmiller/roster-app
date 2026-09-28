@@ -11,7 +11,7 @@
 
 import { CONFIG, weeklyRoster, escapeHtml } from './roster-data.js';
 import { printedStamp, formatClock, formatDayMonthYear } from './date-format.js';
-import { db, doc, getDoc, setDoc, addDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
+import { db, auth, onAuthStateChanged, doc, getDoc, setDoc, addDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
 import { initNavPanel, resetNavPanel, archiveNotice } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
@@ -56,7 +56,7 @@ import { initLinksCompare } from './links-compare.js';
 import { baselineFromEntry } from './links-concurrency.js';
 import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
-import { SIGNED_OUT_CODE } from './claim-retry.js';
+import { SIGNED_OUT_CODE, watchIdentityLoss } from './claim-retry.js';
 import {
     isDeleted, deletedLabel, canSoftDelete, sortByDeleted,
 } from './links-deletion.js';
@@ -150,7 +150,9 @@ export function init() {
             // drawer is wired with the now-cleared member's identity on a shared device.
             resetNavPanel();
             initLoginOverlay({ pageLabel: 'Links', onSuccess: () => window.location.reload() });
+            return;
         }
+        watchIdentityLoss({ uid: auth.currentUser?.uid, watch: cb => onAuthStateChanged(auth, cb), stillLost: () => !auth.currentUser && getSession()?.name === currentUser, onLost: () => { clearSession(); resetNavPanel(); initLoginOverlay({ pageLabel: 'Links', onSuccess: () => window.location.reload() }); } });
     });
 
     // ============================================
@@ -2326,7 +2328,8 @@ export function init() {
             console.error('[Links] Save failed:', err);
             if (here()) {
                 dirty = true;
-                // Signed out mid-save: held for that account, not failed (claim-retry.js, v24.37).
+                // Signed out mid-save. An ONLINE save is a transaction, which is never queued, so it
+                // may or may not have landed: say check, and keep the work unsaved (dirty) (v24.38).
                 if (status) { status.textContent = /** @type {any} */ (err)?.code === SIGNED_OUT_CODE ? 'Signed out before this saved — sign in again, then check' : 'Save failed — try again'; status.className = 'links-save-status err'; }
             }
         } finally {

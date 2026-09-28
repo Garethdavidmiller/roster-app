@@ -217,6 +217,26 @@ describe('a timeout must never become a second, contradictory declaration', () =
         assert.equal(f.submitDisabled(), false, 'and the form is usable again once there is an answer');
     });
 
+    test('changing a day while it sends does NOT re-arm Submit, and a second press sends nothing (v24.38)', async () => {
+        // Every day control calls updateSubmitState, which set the button enabled unconditionally —
+        // so an edit during "Saving…" let a second press race the first into a revision conflict
+        // about the member's own save.
+        const f = await mountForm();
+        f.fillWeek();
+        let disabledAfterEdit = null;
+        duringSubmit = async () => {
+            duringSubmit = null;                        // once — a second send must not re-enter
+            f.fillWeek();                               // the member touches the form mid-send
+            await new Promise(r => setTimeout(r, 0));   // its confirm resolves, then it repaints
+            disabledAfterEdit = f.submitDisabled();
+            await f.submit();                           // …and presses again
+        };
+        await f.submit();
+        assert.equal(disabledAfterEdit, true, 'an edit mid-send must not re-enable Submit');
+        assert.equal(calls.filter(c => c.call === 'submit').length, 1, 'exactly one send');
+        assert.equal(f.submitDisabled(), false, 'usable again once the send has settled');
+    });
+
     test('a re-read that fails claims NOTHING, and changes nothing', async () => {
         // The copy is pinned in e2e. What is pinned here is that the form does not quietly adopt a
         // position anyway — an unknown outcome that had moved `win.submission` would make the next

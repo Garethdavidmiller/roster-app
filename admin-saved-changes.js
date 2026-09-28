@@ -24,7 +24,7 @@
  */
 
 import { escapeHtml } from './roster-data.js';
-import { db, doc, deleteDoc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
+import { db, auth, doc, deleteDoc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { TYPES, rowValueText } from './admin-shift-types.js';
 import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides } from './admin-override-store.js';
 
@@ -272,6 +272,8 @@ async function _handleDelete(e) {
         _armConfirmButton(btn, 'Delete?', '✕');
         return;
     }
+    // Signed out: say so, not "check your connection" — the write would be refused anyway (v24.38).
+    if (!auth.currentUser) { _disarmConfirmButton(btn, '✕'); if (listFeedback) { setStatus(listFeedback, "⚠ You've been signed out — please sign in again."); listFeedback.className = 'list-feedback error'; } return; }
     const deleted = getAllOverrides().find(o => o.id === btn.dataset.id);
     btn.disabled = true;
     btn.textContent = '…';
@@ -349,6 +351,10 @@ function _initOverridesTable() {
                 return;
             }
             _disarmConfirmButton(bulkDeleteBtn, 'Delete selected');   // name and class back before "Deleting…"
+            if (!auth.currentUser) {   // as the single delete (v24.38)
+                if (listFeedback) { setStatus(listFeedback, "⚠ You've been signed out — please sign in again."); listFeedback.className = 'list-feedback error'; }
+                return;
+            }
 
             bulkDeleteBtn.disabled = true;
             bulkDeleteBtn.textContent = `Deleting ${ids.length}…`;

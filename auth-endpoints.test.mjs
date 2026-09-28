@@ -846,6 +846,14 @@ describe('setupRosterAuth never adopts the shared Calendar PIN account', () => {
         assert.ok(!out.body.skipped.includes(MEMBER) && !out.body.reclaimed.includes(MEMBER));
     });
 
+    test('resetMemberPassword refuses it too — no password, no revocation, no notice (v24.38)', async () => {
+        const { eps, authOps } = build({ existingUsers: [viewerAtMemberEmail()] });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER }));
+        assert.equal(out.code, 409);
+        assert.match(out.body.error, /Calendar PIN/);
+        assert.deepEqual(authOps.filter((o) => o.uid === 'calendar-viewer'), [], 'the viewer account was touched');
+    });
+
     test('recognised by its claim as well as its uid', async () => {
         const acct = { ...viewerAtMemberEmail(), uid: 'some-other-uid' };
         const { eps, authOps } = build({ existingUsers: [acct] });

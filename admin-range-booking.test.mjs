@@ -136,8 +136,13 @@ mock.module('./admin-overrides.js', {
         formatDisplay: (/** @type {string} */ iso) => iso,
         buildMemberDateMap: () => _ovMap,
         isWorkingDate: (/** @type {any} */ _m, /** @type {string} */ iso) => !_restDays.has(iso),
+        isSaveInFlight: () => _otherSaveInFlight,
+        setSaveInFlight: (/** @type {boolean} */ on) => { _lockCalls.push(on); },
     },
 });
+/** v24.38: the page-wide write lock the range cards share with Change a Shift. */
+let _otherSaveInFlight = false;
+/** @type {boolean[]} */ let _lockCalls = [];
 
 // The RULE that decides which dates are written stays real; only the widget is stubbed.
 const { getDateRange: realGetDateRange } = await import('./admin-rangepicker.js?real');
@@ -223,6 +228,8 @@ beforeEach(() => {
     _ovMap = new Map();
     _pickerResets = 0;
     _record = async () => ({ workingCount: 1 });
+    _otherSaveInFlight = false;
+    _lockCalls = [];
 });
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════
@@ -242,6 +249,19 @@ describe('writing the wrong days', () => {
         assert.deepEqual(w.dates, ['2026-10-05', '2026-10-06', '2026-10-07']);
         assert.equal(w.type,  'annual_leave');
         assert.equal(w.value, 'AL');
+    });
+
+    test('waits for a Change-a-Shift save still sending, and holds the page lock while it writes (v24.38)', async () => {
+        // Both paths replace the same day's record; run together they left two documents for it.
+        const { section } = wire();
+        setRange(section, '2026-10-05', '2026-10-07');
+        _otherSaveInFlight = true;
+        await save();
+        assert.equal(_writes.length, 0, 'nothing written while the other save is in flight');
+        _otherSaveInFlight = false;
+        await save();
+        assert.equal(_writes.length, 1);
+        assert.deepEqual(_lockCalls, [true, false], 'the lock is taken for the write and always released');
     });
 
     test('a range EDITED after wiring is re-read at save time, not captured at wiring', async () => {

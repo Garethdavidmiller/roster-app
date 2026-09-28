@@ -15,8 +15,25 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     targetSetFromDoc, targetSetPayload, canOverwriteTargetSet, describeSetState, sortTargetSets,
-    MAX_SET_NAME, MAX_SET_SLOTS, describeSetList,
+    MAX_SET_NAME, MAX_SET_SLOTS, describeSetList, SPARE_WEEKS_CAP, targetSetProblem,
 } from './links-target-sets.js';
+import { readFileSync } from 'node:fs';
+
+// v24.38 — the save refuses what the rules would refuse, in words that are true.
+test('targetSetProblem names an empty table and too many spare lines; a good table passes', () => {
+    const slot = { time: '06:20-14:20', weekday: 1, sat: 1, sun: 0 };
+    assert.equal(targetSetProblem({ slots: [slot], spareLines: 4 }), null);
+    assert.match(targetSetProblem({ slots: [], spareLines: 0 }) ?? '', /at least one shift row/);
+    assert.match(targetSetProblem({ slots: [slot], spareLines: SPARE_WEEKS_CAP + 1 }) ?? '', /at most/);
+    assert.equal(targetSetProblem({ slots: [slot], spareLines: SPARE_WEEKS_CAP }), null);
+    assert.match(targetSetProblem({ slots: Array(MAX_SET_SLOTS + 1).fill(slot), spareLines: 0 }) ?? '', /at most/);
+});
+test('the limits match firestore.rules', () => {
+    const rules = readFileSync(new URL('./firestore.rules', import.meta.url), 'utf8');
+    assert.match(rules, new RegExp(`spareLines < ${SPARE_WEEKS_CAP + 1}\\b`));
+    assert.match(rules, /slots\.size\(\) >= 1/);
+    assert.match(rules, new RegExp(`slots\\.size\\(\\) <= ${MAX_SET_SLOTS}\\b`));
+});
 
 const GOOD = {
     name: 'Set A',

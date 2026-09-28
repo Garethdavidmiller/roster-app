@@ -207,6 +207,20 @@ describe('cache-load-failure guard (Finding #2)', () => {
         );
         auth.currentUser = null;
     });
+
+    // v24.38: a member whose load is still RUNNING is waited for, not refused as a failed load. A
+    // Save straight after switching member was told "couldn't load — reload the page".
+    test('a member still LOADING is waited for, not reported as a failed load', async () => {
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        const gate = openGetDocsGate();
+        const loading = loadOverrides({ member: 'S. Silva' });
+        const booking = recordRangeOverrides({ type: 'annual_leave', value: 'AL', memberName: 'S. Silva', dates: ['2026-06-15'], changedBy: 'G. Miller' });
+        for (let i = 0; i < 10; i++) await Promise.resolve();
+        gate.resolve([]);
+        await loading;
+        await assert.doesNotReject(booking, 'the load landed, so the booking proceeds');
+        auth.currentUser = null;
+    });
 });
 
 // ── WHAT A SAVE ACTUALLY WRITES (v21.83) ────────────────────────────────────────────────────────

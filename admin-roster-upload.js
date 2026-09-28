@@ -90,9 +90,11 @@ export function manualShiftDisplay(s) {
  *
  * @param {Array<{memberName: string, date: string, value: string|null, baseShift: string, replaceId?: string, deleteOnly?: boolean, replacedFrom?: {type?: string, replacedType?: string|null}|null}>} toWrite
  * @param {string} currentUser  Logged-in member name, written to `changedBy`.
- * @returns {Promise<void>}  Rejects (after one retry) if the write is genuinely denied.
+ * @returns {Promise<number>}  How many rows were REFUSED as zero-length and not written, so the
+ *   receipt counts only what landed (v24.38). Rejects (after one retry) if the write is denied.
  */
 export async function _saveOverrideBatches(toWrite, currentUser) {
+    const refused = toWrite.filter(w => !w.deleteOnly && typeof w.value === 'string' && isZeroLengthRange(w.value)).length;
     // Firestore batches are capped at 500 ops. Each item can be a delete + a set (2 ops),
     // so chunk at 200 to stay well under the limit.
     const CHUNK = 200;
@@ -157,6 +159,7 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
             throw err;
         }
     }
+    return refused;
 }
 
 /**
@@ -464,14 +467,16 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         applyFeedback.textContent = '';
 
         try {
-            await _saveOverrideBatches(toWrite, currentUser);
+            const refused = await _saveOverrideBatches(toWrite, currentUser);
+            const applied = toWrite.length - refused;
 
             // Update the in-memory override cache so the week grid and table refresh
             // without a round-trip to Firestore.  We don't know the new doc IDs but
             // loadOverrides() will re-fetch cleanly.
             await loadOverrides();
 
-            applyFeedback.textContent = `Done — ${toWrite.length} change${toWrite.length !== 1 ? 's' : ''} applied to the roster.`;
+            applyFeedback.textContent = `Done — ${applied} change${applied !== 1 ? 's' : ''} applied to the roster.`
+                + (refused ? ` ${refused} with a start time equal to its finish ${refused === 1 ? 'was' : 'were'} not written.` : '');
             applyFeedback.className   = 'huddle-feedback huddle-feedback--ok';
 
             // Clear the review table so it can't be applied twice

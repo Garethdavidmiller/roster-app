@@ -51,6 +51,14 @@ describe('isViewerUser — the predicate that decides what may be PRESERVED', ()
 });
 
 describe('decideAccess', () => {
+    test('a Firebase user who is somebody ELSE is not this session\'s member (v24.38)', async () => {
+        const { nameToEmail } = await import('./auth-identity.js');
+        const s = { name: 'G. Miller' };
+        assert.equal(decideAccess({ session: s, firebaseUser: { uid: 'a', isAnonymous: false, email: nameToEmail('G. Miller') } }), 'named');
+        assert.equal(decideAccess({ session: s, firebaseUser: { uid: 'b', isAnonymous: false, email: nameToEmail('S. Silva') } }), 'none',
+            'another tab signed a colleague in: the page must not show G. Miller over their reads');
+    });
+
     test('a member with a live session and a restored identity → named', () => {
         assert.equal(decideAccess({ session, firebaseUser: member }), 'named');
     });
