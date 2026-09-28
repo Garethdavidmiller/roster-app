@@ -103,9 +103,12 @@ builds toward it, and so that nobody is surprised later that the custom work was
 ### December 2026 Links proposals
 **Status:** Committed · **Owner:** Gareth + Nathan/management · **Plan:** `LINKS_DEC2026_PLAN.md`
 
-The tool is built. What remains is a **decision and meeting schedule**, not code: the Sunday
-operating-window boundary, the business staffing requirement, a controlled source for the company
-hard limits, and a management review date. The readiness dashboard at the top of that plan is
+The tool is built, and **23 proposal sheets are drawn** (`docs/proposals/`); **none is frozen**.
+What remains is a **decision and meeting schedule**, not code: the Sunday operating-window boundary,
+the business staffing requirement (given verbally, not yet in writing), the FF18 reading (cadence or
+step), the contracted-hours assumption (every sheet carries 94–98 duties a week against today's 76,
+so assumes the December staffing supplies the extra), a controlled source for the company hard
+limits, and a management review date. The readiness dashboard at the top of that plan is
 authoritative; it now carries latest-safe dates worked backwards from the timetable change.
 
 ### Roster import — let the PDF's own grid decide the day
@@ -505,7 +508,8 @@ a member (deep dive) and may never hide the first (that the thing exists). "Reco
 names what is happening; the six switches are depth.
 
 **The trigger is the owner.** It is a visible change to the card a designer uses most, the December
-2026 proposals are being built in it right now, and two of this app's collapse decisions have been
+2026 proposals are being settled against its checks right now (drawn by `docs/proposals/tooling`
+running the Links modules under Node, or supplied as grids and imported — not in this card), and two of this app's collapse decisions have been
 reverted after shipping (the admin task navigator, the drawer's notification row). It wants a
 decision, not a sweep. If it goes ahead, `links-tips.js`'s "The default table" section and the
 generator card's one `.links-desc` sentence move with it — the desktop left-edge e2e check counts

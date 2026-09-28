@@ -10,8 +10,8 @@ paths:
 
 **This is the authoritative contract for the Links workspace.** Other documents link here rather
 than restating grid, generator, coverage, fatigue, concurrency or deletion rules.
-`LINKS_DEC2026_PLAN.md` holds the project context and the modules' release history; it does not
-restate the rules.
+`LINKS_DEC2026_PLAN.md` holds the December 2026 project context and part of the modules' history
+(most is in the module headers and here); it does not restate the rules.
 
 > **The `paths:` list above uses GLOBS, and must stay that way** (fixed Aug 2026). It enumerated five
 > filenames from the extraction-programme era and had silently stopped covering **nine of the
@@ -488,7 +488,7 @@ of its 25 rows — a figure read at source in Aug 2026, after this file said 24 
   findings total would claim the designer could have avoided it.
 - **Four definitions are unsettled** (MRSF's 7×8h, FF17, FF18, FF19) and carry `confirm: true`, rendered as
   "(definition to confirm)". FF18's reading is the one still worth settling with the assessing
-  manager *before* the proposals are drawn: on the weekly CADENCE alone no design can avoid it, and
+  manager *before* a proposal is frozen: on the weekly CADENCE alone no design can avoid it, and
   that belongs in the justify/minimise/control conversation rather than on a checklist.
 - **FF18 measures the STEP, and its status is derived** (v19.69). It reported a hardcoded `standing`
   from v19.46 to v19.68 — the "never hardcode a status" rule above, broken for the second time —
@@ -497,7 +497,9 @@ of its 25 rows — a figure read at source in Aug 2026, after this file said 24 
   far the working day moves at each step**, which is a design choice and, since v19.58, measurable.
   The row now reads `scoreOrder` from `links-adjacency.js` and states the typical weekly move, the
   largest, and how many boundaries exceed 2h. **Live main roster: 4h 0m typical / 8h 46m worst /
-  9 of 20 over** — quote that as the baseline; the generator's default measures ~1h 35m.
+  9 of 20 over** — quote that as the baseline; the December default (`links-default-targets.js`, every
+  objective on) measures typically 4h 16m, largest 8h 37m, 8 of 24 over
+  (`docs/proposals/tooling/default-baseline.mjs`).
   Two things not to "tidy": the status stays **`standing`** whenever the step is measurable rather
   than turning `present` above some figure — the ORR gives no FF18 threshold, and inventing one is
   the pass/fail rendering this panel forbids — and it derives to **`n/a`** for a design with no timed
@@ -700,7 +702,8 @@ will propose it again. If it ever returns, two things must come with it:
   run that day.
 
 **The finding the control was built to surface does not go away with it**, and is the part worth
-keeping — see `LINKS_DEC2026_PLAN.md`. 22 working lines x 7 days is 154 day-slots, so every extra
+keeping — see `LINKS_DEC2026_PLAN.md`. On the 28-line / 6-spare design of that time, 22 working
+lines x 7 days is 154 day-slots, so every extra
 duty comes out of a rest day: at +25% rest days fall to 1.14 per line, and above ~+37% the targets
 do not fit the rotation at all. A service increase cannot be absorbed by making the existing lines
 denser — the link has to get bigger, which means more staff. That is an argument to take into the
@@ -1010,9 +1013,12 @@ would hide the trade. Measured on a generated design: gentle-only takes week-to-
 
 > **The all-on figure that used to sit here — "all four on gives 14 minutes and 12 weekends" — is
 > gone** (corrected v19.65). It was measured at v19.58, before `variety` existed, and it contradicted
-> the box above, which measures the shipped default at **95 min / 8 weekends** on the roster seed.
+> the box above, which measured the shipped default at **95 min / 8 weekends** on the roster seed
+> *(28 Sep 2026: the December default now measures typically 4h 16m, largest 8h 37m, 8 of 24 over
+> 2h — `docs/proposals/tooling/default-baseline.mjs`)*.
 > Both were presented as "all switches on", so this file said two different things about the one
-> configuration a designer actually gets — and named four switches when there are five.
+> configuration a designer actually gets — and named four switches when there were five (six since
+> v20.02 added the run cap — `OBJECTIVES` in `links-adjacency.js`).
 >
 > **The 9-minute gentle-only figure is the one to be careful with.** It is real, and it is *not* what
 > the tool does by default: `variety` deliberately spends that step to cap the block length. Quoting
@@ -1287,8 +1293,9 @@ passes through every line, so a "vacancy" is a missing *person*, not a missing *
 It was 28 = the main 20-week cycle + the bilingual 8, because the design modelled both as one
 rotation. The December 2026 plan changed (owner, Aug 2026): the new link **does not include the
 bilingual roster at all** — not its lines, not its shift times, not its work. It is the CEA/main
-roster **widened from 20** to increase staffing. The v19.98 plan said **5 spare weeks** against the
-roster's 4; the shipped default is 4 (`DEFAULT_COVER_WEEKS`).
+roster **widened from 20** to increase staffing. The v19.98 plan kept the roster's **4 spare weeks**
+(at 22 lines); a fifth came at v20.01 and was reverted at v20.02, so the shipped default is 4
+(`DEFAULT_COVER_WEEKS`).
 
 **The length moved twice: 22 at v19.98, corrected to 24 at v20.01** (owner — the earlier figure was
 misremembered). Evidence class **C** for both (owner-confirmed practice, no document behind either).

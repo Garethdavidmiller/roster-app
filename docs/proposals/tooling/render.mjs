@@ -57,9 +57,9 @@ function demandRow(name, cars, peak, bucket, shutFrom) {
   return `<tr><th class="cov-heat-day dem-day">${name}</th>${cells}<td class="cov-fit"></td></tr>`;
 }
 // WEEKDAYS ARE NOT ONE DAY (owner, 24 Sep 2026). Every site that said "Monday to Friday" read TUESDAY. For
-// the searched families that is exact -- every weekday works the same table -- but eleven of the sixteen
-// proposals here were supplied or hand-edited and their weekdays differ, Cover at Seventeen's midday cover
-// running 6, 8, 11, 11, 10 across the week under one row. Today's own link differs too (Mon/Wed against
+// the searched families that is exact -- every weekday works the same table -- but the supplied and hand-edited
+// proposals' weekdays differ — Cover at Seventeen's 13:00 hour runs 8, 10, 11, 11, 10 across the week — and
+// one row would hide that. Today's own link differs too (Mon/Wed against
 // Tue/Thu/Fri). So: one row per DISTINCT weekday pattern, labelled by the days it covers. A design whose
 // weekdays are identical still prints one row, now honestly labelled; nothing is averaged away.
 const WD = ['mon','tue','wed','thu','fri'], WDL = { mon:'Mon', tue:'Tue', wed:'Wed', thu:'Thu', fri:'Fri' };
@@ -80,7 +80,8 @@ export async function renderPdf(D, out) {
   // (Fifteen Turns: 35h 02.5m printed as 35h 02m). The sheet formats the unrounded figure, same definition.
   if (FRESH) for (const X of [P, T]) { const L = Object.keys(X.patterns).length, cov = Object.values(X.patterns).filter(r => r.mon === 'SPARE').length;
     const mins = Object.values(X.patterns).reduce((a, r) => a + ['mon','tue','wed','thu','fri','sat'].reduce((b, d) => b + (r[d] === 'RD' || r[d] === 'SPARE' ? 0 : dutyMinutes(r[d])), 0), 0);
-    X.hours = { ...X.hours, exSunday: (mins + cov * 35 * 60) / L / 60 }; }
+    const sunMins = Object.values(X.patterns).reduce((a, r) => a + (r.sun === 'RD' || r.sun === 'SPARE' ? 0 : dutyMinutes(r.sun)), 0);
+    X.hours = { ...X.hours, exSunday: (mins + cov * 35 * 60) / L / 60, all: (mins + sunMins + cov * 35 * 60) / L / 60 }; }
   if (FRESH) Object.assign(meta, freshMeta({ T, P, meta, folder: folderStats(), rendered: RENDERED }));
   const prepared = FRESH ? `Prepared ${RENDERED}` : meta.date === RENDERED ? `Prepared ${meta.date}` : `Prepared ${meta.date} · re-rendered ${RENDERED}`;
   // Page 5's headcount rows, COMPUTED per day class (weekday range · Sat · Sun). They were four typed
@@ -92,7 +93,7 @@ export async function renderPdf(D, out) {
   // where the plan has two. Every floor figure takes the right one out of each side (report-data OFFICE).
   const FO = P.office, TO = T.office; const floorTrio = A => `${A.wkFit} · ${A.fits.sat} · ${A.fits.sun}`; const floorTrio1 = A => [A.wkFit, A.fits.sat, A.fits.sun].map(v => v == null ? '—' : Number(v).toFixed(1)).join(' · ');
   const officeNote = FRESH
-    ? `Its staff are not floor cover. Monday to Saturday the office has two early and two late staff today, exactly as the December 2026 plan asks. <b>Sunday differs:</b> today there are two earlies and <b>one</b> late (a 14:30–23:25 closer, in the office until 22:30), where the plan has two and two.${meta.officeNamed ? '' : ' This design does not mark who works in the ticket office, so its floor figure is everyone on duty minus the four office staff the plan asks for.'}`
+    ? `Its staff are not floor cover. Monday to Saturday the office has two early and two late staff today, exactly as the December 2026 plan asks. <b>Sunday differs:</b> today there are two earlies and <b>one</b> late (a 14:30–23:25 closer, in the office until 22:30), where the plan has two and two.${meta.officeNamed ? '' : FRESH && meta.pairDays?.length ? ` This design rosters the office pairs on ${meta.pairDaysTxt}; on ${meta.otherDaysTxt} its floor figure is everyone on duty minus the four office posts the plan asks for.` : ' This design does not mark who works in the ticket office, so its floor figure is everyone on duty minus the four office staff the plan asks for.'}`
     : `Not floor cover, and staffed today exactly as in the plan Monday to Saturday (two early, two late). <b>Sunday differs:</b> today two earlies and <b>one</b> late — a 14:30–23:25 closer, in the office until 22:30 — where the plan has two and two.${(FRESH ? meta.officeNamed : meta.kind === 'FR') ? '' : ' This design does not roster the office as pairs, so its floor is everyone on duty less the plan’s posts.'}`;
   // FR — Right Away (28 Sep 2026): the owner's headcounts are FLOORS ("too few is the problem, never too many"), so a
   // row is met at or above its figure there, and exactly at it on every other family's sheet.
@@ -149,8 +150,8 @@ export async function renderPdf(D, out) {
   // 35 placements, the 10 with no two rest days together reproduce it exactly — but it needs the
   // clerk to split the week, and a cover week worked as a BLOCK always supplies a break.
   //
-  // Measured across every design in this folder, FF11 is the ONLY row where the two readings
-  // differ, and on one design they differ either side of the threshold. So both are printed, on
+  // Measured across every design in this folder, FF11 is the only row whose worst case differs between
+  // the two readings, and on three designs either side of the threshold. So both are printed, on
   // that row, each with its own mark; `cover-placement.mjs` carries the argument. Printing only the
   // ceiling flags designs that are clear as rostered; printing only the block reading is the
   // false-assurance failure links-fatigue.js names as its dominant risk. The status COLOUR of the
@@ -159,7 +160,7 @@ export async function renderPdf(D, out) {
   const asRos = (a, code) => code === 'FF11' ? a.asRostered?.ff11?.worst ?? null : null;
   const rosStatus = v => v === null ? null : (v > 13 ? 'present' : 'clear');
   const rowsFF = P.fatigue.results.map(r => { const t = T.fatigue.results.find(x => x.code === r.code && x.title === r.title);
-    const val = x => x ? (x.status === 'n/a' ? (FRESH ? '' : '–') : (x.value ?? '')) : '';
+    const val = x => x ? (x.status === 'n/a' ? (FRESH ? '' : '–') : FRESH && /hours/i.test(x.title) && typeof x.value === 'number' ? x.value.toFixed(1) : (x.value ?? '')) : '';
     const second = (a, code, have) => { const v = have ? asRos(a, code) : null; return v === null ? ''
       : `<span class="ff-alt ff-${rosStatus(v)}">${icon(rosStatus(v))} ${v} as rostered</span>`; };
     return `<tr class="ff-${r.status}"><td class="ff-code">${r.code}</td><td class="ff-title">${esc(r.title)}${r.confirm?' <span class="muted">(definition to confirm)</span>':''}<span class="ff-fam chip">${esc(r.family)}</span></td>
@@ -172,13 +173,16 @@ export async function renderPdf(D, out) {
     const times = new Set([...T.tableRows.map(r=>r.time), ...P.tableRows.map(r=>r.time)]);
     const get = (A, t) => A.tableRows.find(r => r.time === t);
     return [...times].sort((a,b)=>startMinutes(a)-startMinutes(b)||endMinutes(a)-endMinutes(b)).map(t => { const a = get(T,t), b = get(P,t);
-      const cell = (x, k, y) => { const v = x?.[k] ?? 0, w = y?.[k] ?? 0; return `<td class="${!FRESH && v!==w ? (w>v?'up':'down') : ''}">${v||''}</td>`; };
+      const cell = (x, k, y) => { const v = x?.[k] ?? 0, w = y?.[k] ?? 0; return `<td class="${!FRESH && v!==w ? (w>v?'up':'down') : FRESH ? 'num' : ''}">${v||''}</td>`; };
       const pc = (x, k, y) => { const v = x?.[k] ?? 0, w = y?.[k] ?? 0; return FRESH ? `<td class="${v!==w ? (w>v?'up':'down') : ''}"><b>${w || (v ? '0' : '')}</b>${w!==v?`<span class="delta"> (${w>v?'+':'−'}${Math.abs(w-v)})</span>`:''}</td>` : `<td class="${v!==w ? (w>v?'up':'down') : ''}"><b>${w||''}</b>${w!==v?`<span class="delta">${w>v?'+':''}${w-v}</span>`:''}</td>`; };
       const fam = classifyShift(t) === 'early' ? 'Early' : 'Late';
       return `<tr class="${!b?'gone':''}"><td class="tt">${t}<span class="muted"> ${hm(dutyMinutes(t))} · ${fam}</span></td>${cell(a,'weekday',b)}${cell(a,'sat',b)}${cell(a,'sun',b)}${pc(a,'weekday',b)}${pc(a,'sat',b)}${pc(a,'sun',b)}</tr>`; }).join('');
   })();
 
-  const importPadded = Array.from({length: 24}, (_, i) => `${String(i+1).padStart(2)}  ${DAYS.map(d => (P.patterns[String(i+1)][d] === 'SPARE' ? 'SP' : P.patterns[String(i+1)][d]).padEnd(11)).join(' ')}`).join('\n');
+  // COMMAS, not spaces (accuracy check, 28 Sep 2026): links-import.js splits a line on tabs, commas or two+ spaces,
+  // and a PDF viewer's copy keeps neither tabs nor runs of spaces — the single-space block this printed was refused
+  // by the app's own importer. A comma survives any copy; the importer trims the padding after it.
+  const importPadded = Array.from({length: 24}, (_, i) => `${String(i+1).padStart(2)}, ${DAYS.map(d => (P.patterns[String(i+1)][d] === 'SPARE' ? 'SP' : P.patterns[String(i+1)][d])).map((c, j) => j < 6 ? (c + ',').padEnd(13) : c).join('')}`).join('\n');
   const importText = Array.from({length: 24}, (_, i) => `${i+1}\t${DAYS.map(d => P.patterns[String(i+1)][d] === 'SPARE' ? 'SP' : P.patterns[String(i+1)][d]).join('\t')}`).join('\n');
 
   const hard = P.hard.checks[0], hardT = T.hard.checks[0];
@@ -246,7 +250,7 @@ export async function renderPdf(D, out) {
   const cannot = [
     ...(FRESH ? [
       `Whether staff accept ${newTimes.length ? `the ${newTimes.length === 1 ? 'shift time' : `${newTimes.length} shift times`} nobody works today (page 5 lists ${newTimes.length === 1 ? 'it' : 'them'})` : 'the weeks as written'} — this sheet counts times already worked, which is only a rough guide to what people will accept.`,
-      !meta.coverParts.length ? `Where the roster clerk places a cover week’s four duties — on this design it changes neither the most days worked in a row nor any fatigue figure.` : `Where the roster clerk places a cover week’s four duties. It changes ${meta.coverParts.length > 1 ? `${meta.coverParts.slice(0, -1).join('; ')}; and ${meta.coverParts[meta.coverParts.length - 1]}` : meta.coverParts[0]}. The rota itself does not decide it.`,
+      !meta.coverParts.length ? `Where the roster clerk places a cover week’s four duties — on this design it changes neither the most days worked in a row, FF11 nor the 55-hour row (page 8).` : `Where the roster clerk places a cover week’s four duties. It changes ${meta.coverParts.length > 1 ? `${meta.coverParts.slice(0, -1).join('; ')}; and ${meta.coverParts[meta.coverParts.length - 1]}` : meta.coverParts[0]}. The rota itself does not decide it.`,
     ] : [
     `Whether the people who would work them accept ${newTimes.length > 8 ? `a table in which ${newTimes.length} of ${P.feel.distinctTimes} times are new (page 5 lists them)` : newTimes.length ? `the ${newTimes.length === 1 ? 'time' : 'times'} nobody works today (${newTimes.join(', ')})` : 'the week shapes as written'} — familiarity is measured as "times worked today", which is a proxy for acceptability, not acceptability.`,
       `Whether the roster clerk splits a cover week day-on-day-off. It is the one thing that moves the 48-hour-break figure (${P.asRostered.ff11.worst} as a block, ${P.fatigue.results.find(r => r.code === 'FF11')?.value} split), and the link does not decide it.`,
@@ -274,14 +278,14 @@ export async function renderPdf(D, out) {
       <li>${contractExact ? '✓' : '✕'} The 35-hour contract, exactly — ${hmFromHours(P.hours.exSunday)}</li></ul></div>
     <div class="tier"><div class="tier-k">Soft — the room weighs these against each other</div>
       <ul><li>${meta.decLabel ?? 'December 2026 headcounts met'}: <b>${decMet} of ${meta.decOf ?? 4}</b> (today ${meta.decToday ?? 0} of ${meta.decOf ?? 4})</li>
-      <li>Fatigue factors present: <b>${P.fatigue.present}</b>${presentRosN !== P.fatigue.present ? ` worst case, ${presentRosN} as rostered` : ''} (today ${T.fatigue.present})</li>
+      <li>Fatigue factors present: <b>${P.fatigue.present}</b>${presentRosN !== P.fatigue.present ? ` at worst, ${presentRosN} ${FRESH ? 'with FF11 as rostered (page 8)' : 'as rostered'}` : ''} (today ${T.fatigue.present})</li>
       <li>${FRESH ? `How the floor follows the trains, weekday · Sat · Sun: <b>${floorTrio1(FO)}</b> (today ${floorTrio1(TO)}; lower is closer)` : `Demand fit weekday · Sat · Sun: <b>${weekdayFitOf}</b> · ${P.fits.sat} · ${P.fits.sun} (today ${T.wkFit} · ${T.fits.sat} · ${T.fits.sun}; lower is closer); floor <b>${floorTrio(FO)}</b> (today ${floorTrio(TO)})`}</li>
       <li>Times worked today: <b>${sharedTimes} of ${P.feel.distinctTimes}</b> · full weekends off: <b>${P.checks.weekendsOff}</b> in 24 (today ${T.checks.weekendsOff} in 20)</li></ul></div>
     <div class="tier"><div class="tier-k">Preference — staff's to state, not the tool's</div>
       <ul><li>Early against late: earlies ${famRange('E')}, lates ${famRange('L')}</li>
-      <li>${newTimes.length > 8 ? `${newTimes.length} of ${P.feel.distinctTimes} clock times are new — the duty table on page 5 lists them` : newTimes.length ? `The ${newTimes.length === 1 ? 'new time' : newTimes.length + ' new times'}: ${newTimes.join(', ')}` : 'No new clock time to learn'}</li>
+      <li>${newTimes.length > 8 ? `${newTimes.length} of ${P.feel.distinctTimes} clock times are new — the duty table on page 5 lists them` : newTimes.length ? `The ${newTimes.length === 1 ? 'new time' : newTimes.length + ' new times'}: ${newTimes.map(t => `<span class="tt">${t}</span>`).join(', ')}` : 'No new clock time to learn'}</li>
       <li>The longest duty, ${hm(longestDuty)}, and who holds it</li>
-      <li>Cover weeks at lines ${P.feel.spareLines.join(', ')}</li></ul></div>
+      ${FRESH && !meta.designRules?.find(r => /cover weeks/i.test(r.rule))?.ok ? '' : `<li>Cover weeks at lines ${P.feel.spareLines.join(', ')}</li>`}</ul></div>
   </div>
   <h2>How much to trust each figure</h2>
   <table class="t evid"><thead><tr><th>Figure on these pages</th><th>Where it comes from</th><th>Weight</th></tr></thead><tbody>
@@ -289,7 +293,7 @@ export async function renderPdf(D, out) {
     <tr><td>Longest run ${hard.value} days, inside 13</td><td>Computed; the 13-day limit's policy citation is still outstanding</td><td><b>Firm figure</b>, unconfirmed threshold</td></tr>
     <tr><td>${meta.headsEvid ?? 'Four at the open, three to close, 14 and 10 at the weekend'}</td><td>Owner-relayed December 2026 headcounts with no document behind them (class C)</td><td><b>Provisional</b></td></tr>
     <tr><td>${P.fatigue.present} fatigue factor${P.fatigue.present === 1 ? '' : 's'} present</td><td>${FRESH ? 'The ORR’s 2021 list (21 of them) and four rail-industry checks — guidance, not limits' : 'The ORR\'s 2021 list, which it states are not limits'}; ${confirmCount} factor${confirmCount === 1 ? '' : 's'} still "definition to confirm"</td><td><b>Advisory only</b> — never pass or fail</td></tr>
-    <tr><td>Demand fit ${weekdayFitOf} · ${P.fits.sat} · ${P.fits.sun}; on the floor ${floorTrio(FO)}</td><td>Measured timetable, one share-based measure on one December 2026 timetable curve; floor takes the ticket office out of both sides</td><td><b>Indicative</b></td></tr>
+    <tr><td>Demand fit ${[weekdayFitOf, P.fits.sat, P.fits.sun].map(v => v == null ? '—' : Number(v).toFixed(1)).join(' · ')}; on the floor ${floorTrio1(FO)}</td><td>Measured timetable, one share-based measure on one December 2026 timetable curve; floor takes the ticket office out of both sides</td><td><b>Indicative</b></td></tr>
     <tr><td>${sharedTimes} of ${P.feel.distinctTimes} times are today's</td><td>Computed against the live 20-line link</td><td><b>Firm</b>, but a proxy for acceptability</td></tr>
     ${!FRESH && meta.alternatives?.[0]?.score && meta.alternatives[0].score !== '—' ? `<tr><td>Search score ${meta.alternatives[0].score}</td><td>The annealer's own objective; page 9 explains it</td><td><b>Do not weigh</b></td></tr>` : ''}
     ${meta.changed ? `<tr><td>${meta.changed.cells.length} cells changed against ${esc(meta.changed.parent.name)}</td><td>Computed cell by cell; outlined on the next page</td><td><b>Firm</b></td></tr>` : ''}
@@ -346,7 +350,7 @@ export async function renderPdf(D, out) {
       what: 'The shortest gap anywhere between one duty ending and the next beginning — Saturday into Sunday and the last line into the first included. Twelve hours is the floor; a design under it cannot be run.',
       not: 'It is one gap. A rotation with many 12h05 rests and one with none read the same here; the count under 12h is in the chips on page 1.' },
     { q: 'What is it like to work?', name: 'Full weekends off', lower: false, lo: 0, hi: 50, fmt: v => v + '%', val: P.checks.weekendsOffPct, today: T.checks.weekendsOffPct, e: EXT.weekendsPct, page: FRESH ? 9 : 5,
-      what: `The share of weeks with both Saturday and Sunday off. Today’s link gives ${T.checks.weekendsOff} in ${T.lines}, ${oneIn(T.checks.weekendsOff, T.lines)}; this sheet gives ${P.checks.weekendsOff} in 24, ${oneIn(P.checks.weekendsOff, 24)}.`,
+      what: `The share of weekends off: a Saturday off followed by a Sunday off at the start of the next line. Today’s link gives ${T.checks.weekendsOff} in ${T.lines}, ${oneIn(T.checks.weekendsOff, T.lines)}; this sheet gives ${P.checks.weekendsOff} in 24, ${oneIn(P.checks.weekendsOff, 24)}.`,
       not: 'A weekend off beside a 42-hour week is still a weekend off; the hours by week are on the grid, page 4.' },
     { q: 'What is it like to work?', name: 'Working weeks on one turn', lower: false, lo: 0, hi: 100, fmt: v => v + '%', val: pctOf(P.feel.oneTurn, P.feel.workingLines), today: pctOf(T.feel.oneTurn, T.feel.workingLines), e: EXT.oneTurnPct, page: 5,
       what: 'The share of working weeks where a person keeps the same clock time all week. A week that mixes an early and a late is what people mean by “all over the place”.',
@@ -358,7 +362,7 @@ export async function renderPdf(D, out) {
   ];
   // The managers' edition measures the FLOOR: the ticket office is staffed to its hours, not the trains, and is the
   // same in every proposal, so the floor is where the designs differ. The everyone-on-duty figure stays beside it.
-  if (FRESH) Object.assign(MEASURES[0], { name: 'How well the floor follows the trains — weekday', val: FO.wkFit, today: TO.wkFit, e: EXT.floorWk,
+  if (FRESH) Object.assign(MEASURES[0], { fmt: v => Number(v).toFixed(1), name: 'How well the floor follows the trains — weekday', val: FO.wkFit, today: TO.wkFit, e: EXT.floorWk,
     hi: Math.max(90, Math.ceil(((EXT.floorWk?.worst ?? 0) + 5) / 10) * 10, Math.ceil((TO.wkFit + 5) / 10) * 10),
     what: `For each hour of an average weekday, the share of the day’s floor staff on duty is set against the share of the day’s trains — an hour with a tenth of the trains should have about a tenth of the staff. 0 would be a perfect match; a typical hour here is about ${rmsGap(FO.wkFit)} percentage points off, against ${rmsGap(TO.wkFit)} today. The ticket office is left out: it is staffed to its opening hours, not the trains.`,
     not: 'It compares shares, not numbers: an extra person in a quiet hour makes the score worse though nobody is worse off. Read it beside the hour-by-hour numbers on page 6.',
@@ -366,7 +370,7 @@ export async function renderPdf(D, out) {
   if (FRESH) {
     const byName = n => MEASURES.find(m => m.name === n);
     Object.assign(byName('Longest run of worked days') ?? {}, { name: 'Most days worked in a row',
-      what: 'The most days in a row anyone works in the worst case — a cover week’s four duties placed as badly as they can be. Chiltern’s limit is 13; six or fewer is good practice.',
+      what: 'The most days in a row anyone works in the worst case — a cover week’s four duties placed as badly as they can be. Chiltern’s limit is 13; the Links designer aims for six or fewer.',
       not: 'The roster clerk decides where a cover week’s four duties fall; page 7 says whether that changes this figure on this design.' });
     Object.assign(byName('Tightest rest between duties') ?? {}, { name: 'Shortest rest between two duties',
       what: 'The shortest gap anywhere between one duty ending and the next beginning — Saturday into Sunday and the last line into the first included. Twelve hours is the minimum; a design with less cannot be run.',
@@ -420,7 +424,7 @@ h2 { font-size: 14px; color: var(--primary-blue); margin: 13px 0 5px; font-weigh
 h3 { font-size: 11.5px; color: var(--primary-blue); margin: 12px 0 4px; font-weight: 700; }
 p { margin: 4px 0 8px; } .muted { color: var(--text-mid); font-weight: 400; }
 .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; } .cols.duty { grid-template-columns: 62% 1fr; gap: 14px; } .dutyt td, .dutyt th { padding: 2px 6px; } .bb-dense .dutyt td { padding: 1px 6px; font-size: 9px; line-height: 1.3; } .bb-dense p.muted { font-size: 9.5px; line-height: 1.35; } .ef-tight .dutyt td { padding: 0 6px; line-height: 1.2; } .ef-tight p.muted { font-size: 9px; line-height: 1.3; }
-.xx-tight .dutyt td { padding: 0 5px; font-size: 8px; line-height: 1.1; } .cols.duty.split { grid-template-columns: 1fr; } .dsplit { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; } .dsplit .dutyt td { white-space: nowrap; } .xx-tight .dutyt td .muted { font-size: 7.5px; } .changed td:nth-child(4) { width: 34%; } .stack { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.xx-tight .dutyt td { padding: 0 5px; font-size: 8px; line-height: 1.1; } p.p8note { font-size: 9px; line-height: 1.35; } .cols.duty.split { grid-template-columns: 1fr; } .dsplit { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; } .dsplit .dutyt td { white-space: nowrap; } .xx-tight .dutyt td .muted { font-size: 7.5px; } .changed td:nth-child(4) { width: 34%; } .stack { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
 table.t { border-collapse: collapse; width: 100%; font-size: 10px; }
 table.t th, table.t td { padding: 3px 6px; border-bottom: 1px solid var(--border-light); text-align: left; vertical-align: top; }
 table.t th { background: var(--surface-sunken); color: var(--text-mid); font-size: 9px; text-transform: uppercase; letter-spacing: .3px; }
@@ -435,7 +439,7 @@ td.up { background: color-mix(in srgb, var(--success-green) 10%, white); } td.do
 .print-grid td.tot-cell { font-size: 9px; padding: 0 3px; } .cov-foot { font-weight: 800; color: var(--text-dark); } .cov-sub { display: block; font-weight: 500; font-size: 8px; color: var(--shift-spare-text); }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; } .legend > span { white-space: nowrap; } .legend .muted { white-space: normal; flex-basis: 100%; }
 .legend-x { font-size: 9.5px; color: var(--text-mid); margin-top: 6px; } .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
-.t.rules tr.rule-miss td { background: color-mix(in srgb, var(--warning-amber) 12%, white); } .t.rules tr.rule-miss td:nth-child(3) { font-weight: 700; } ul.oq-list { margin: 4px 0 0 18px; padding: 0; font-size: 10px; line-height: 1.45; } ul.oq-list li { margin: 2px 0; } .t.glance { margin-top: 8px; } .t.glance td:nth-child(3) { font-weight: 700; } .ident-row.ident-minor .ident-k, .ident-row.ident-minor .ident-v { font-size: 8.5px; color: var(--text-mid); font-weight: 400; } .t.glance td.prop.better { background: color-mix(in srgb, var(--success-green, #2e7d32) 12%, white); } .t.glance td.prop.worse { background: color-mix(in srgb, var(--warning-amber) 16%, white); } .t.dutyt tr.grp th { text-align: center; border-bottom: 1px solid var(--border-light); } .t.rules td.today-v { color: var(--text-mid); } .tiers .tier:first-child ul { list-style: none; padding-left: 2px; } .t.standings td.nm { white-space: nowrap; } .t.standings th.grp { text-align: center; } .legend { margin-top: 10px; } .t.standings { font-size: 9px; } .t.standings td, .t.standings th { padding: 3px 5px; } .t.standings tr.here td { background: color-mix(in srgb, var(--accent-gold) 22%, white); font-weight: 700; } .t.standings tr.today td { border-top: 2px solid var(--border-light); color: var(--text-mid); } .cov-heat { border-collapse: collapse; width: 100%; } .cov-heat th, .cov-heat td { border: 1px solid var(--border-light); text-align: center; } .cov-heat-cell { height: 20px; min-width: 0; font-size: 9px; } .cov-heat--dense .cov-heat-cell { height: 15px; font-size: 8.5px; } tr:has(> .office-day) .cov-heat-cell, tr:has(> .floor-day) .cov-heat-cell { height: 13px; font-size: 8px; } tr:has(> .office-day) th, tr:has(> .floor-day) th { font-size: 8px; color: var(--text-mid); } tr:has(> .office-day) .cov-fit, tr:has(> .floor-day) .cov-fit { font-size: 8px; } .cov-heat-day { text-align: left !important; padding: 0 6px; white-space: nowrap; font-size: 9px; }
+.t.rules tr.rule-miss td { background: color-mix(in srgb, var(--warning-amber) 12%, white); } .t.rules tr.rule-miss td:nth-child(3) { font-weight: 700; } ul.oq-list { margin: 4px 0 0 18px; padding: 0; font-size: 10px; line-height: 1.45; } ul.oq-list li { margin: 2px 0; } .t.glance { margin-top: 8px; } .t.glance td:nth-child(3) { font-weight: 700; } .ident-row.ident-minor .ident-k, .ident-row.ident-minor .ident-v { font-size: 8.5px; color: var(--text-mid); font-weight: 400; } .t.glance td.prop.better { background: color-mix(in srgb, var(--success-green, #2e7d32) 12%, white); } .t.glance td.prop.worse { background: color-mix(in srgb, var(--warning-amber) 16%, white); } .t.dutyt tr.grp th { text-align: center; border-bottom: 1px solid var(--border-light); } .t.rules td.today-v { color: var(--text-mid); } .tiers .tier:first-child ul { list-style: none; padding-left: 2px; } .t.standings td.nm { white-space: nowrap; } .t.standings th.grp { text-align: center; } .legend { margin-top: 10px; } .t.standings { font-size: 9px; } .t.standings td, .t.standings th { padding: 3px 5px; } .t.standings tr.here td { background: color-mix(in srgb, var(--accent-gold) 22%, white); font-weight: 700; } .t.standings tr.today td { border-top: 2px solid var(--border-light); color: var(--text-mid); } .cov-heat { border-collapse: collapse; width: 100%; } .cov-heat th, .cov-heat td { border: 1px solid var(--border-light); text-align: center; } .cov-heat-cell { height: 20px; min-width: 0; font-size: 9px; } .cov-heat--dense .cov-heat-cell, .cov-heat--dense tr:has(> .floor-day) .cov-heat-cell { height: 11px; font-size: 7.5px; } tr:has(> .office-day) .cov-heat-cell, tr:has(> .floor-day) .cov-heat-cell { height: 13px; font-size: 8px; } tr:has(> .office-day) th, tr:has(> .floor-day) th { font-size: 8px; color: var(--text-mid); } tr:has(> .office-day) .cov-fit, tr:has(> .floor-day) .cov-fit { font-size: 8px; } .cov-heat-day { text-align: left !important; padding: 0 8px 0 6px; white-space: nowrap; font-size: 9px; } .cov-heat--dense .cov-heat-day { font-size: 7.5px; line-height: 1.05; }
 .check-row { font-size: 10.5px; padding: 4px 9px; } .check-rows { gap: 3px; } p.oq { font-size: 10px; line-height: 1.36; }
 table.ff { border-collapse: collapse; width: 100%; font-size: 9.5px; } table.ff td { padding: 2px 6px; border-bottom: 1px solid var(--border-light); vertical-align: top; } table.ff th { text-align: left; font-size: 9px; text-transform: uppercase; color: var(--text-mid); background: var(--surface-sunken); padding: 4px 6px; }
 .ff-code { font-weight: 800; color: var(--primary-blue); white-space: nowrap; width: 38px; } .ff-fam { display: inline; font-size: 8.5px; color: var(--text-light); margin-left: 6px; }
@@ -502,7 +506,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
       chip(rests === 0, `<strong>${rests}</strong> rest${rests === 1 ? '' : 's'} under 12h`),
     ].join('');
   })()}
-   <span class="sum-chip sum-chip--${P.fatigue.present?'warn':'ok'}">${P.fatigue.present?'⚠':'✓'} <strong>${P.fatigue.present}</strong> fatigue factor${P.fatigue.present===1?'':'s'} present${presentRos(P) !== P.fatigue.present ? ` <span class="muted">— ${presentRos(P)} as rostered</span>` : ''} <span class="muted">(today: ${T.fatigue.present})</span></span>${meta.rulesChip ?? ''}</div>
+   <span class="sum-chip sum-chip--${P.fatigue.present?'warn':'ok'}">${P.fatigue.present?'⚠':'✓'} <strong>${P.fatigue.present}</strong> fatigue factor${P.fatigue.present===1?'':'s'} present${presentRos(P) !== P.fatigue.present ? ` <span class="muted">— ${presentRos(P)} ${FRESH ? 'with FF11 as rostered' : 'as rostered'}</span>` : ''} <span class="muted">(today: ${T.fatigue.present})</span></span>${meta.rulesChip ?? ''}</div>
   <p class="readhint">Five questions a manager asks first, in order. Every figure is computed from the cells; <b>page 2 says how to read each one</b>, with today's link and the rest of the folder marked on a scale.</p>
   <div class="tiles head5">
     <div class="tile"><span class="q">Can it be run?</span><b>${canRun ? 'Yes' : FRESH ? 'No' : 'Not as it stands'}</b><span class="l">${FRESH ? (canRun ? 'meets every hard limit' : 'breaks a hard limit') : 'the hard limits'}</span><span class="s">${restsN} rest${restsN === 1 ? '' : 's'} under 12h · ${FRESH ? `longest run ${hard.value} days (limit 13)` : `longest run ${hard.value} of 13`} · ${contractExact ? 'contract exact' : FRESH ? `contract ${overMin > 0 ? 'over' : 'under'} by ${Math.abs(overMin)} min a week across the link` : 'contract missed'}</span></div>
@@ -557,7 +561,7 @@ ${readHtml}${frameHtml}
       .filter(r => new Set(DAYS.map(d => r[d]).filter(x => x !== 'RD').map(x => classifyShift(x))).size > 1).length : null;
     return feelRow('Weeks mixing early and late turns', `${mix(T.patterns, 20) ?? T.feel.hybrid}`, `${mix(P.patterns, 24) ?? P.feel.hybrid}`); })()}
   ${feelRow('Rest-day breaks that are two days or more', `${T.feel.pairedRest} of ${T.feel.restIslands}`, `${P.feel.pairedRest} of ${P.feel.restIslands}`)}
-  ${feelRow('Single rest days between duties <span class="muted">(not a 48h break)</span>', `${T.feel.isolatedRest}`, `${P.feel.isolatedRest}`)}
+  ${feelRow('Single rest days between duties <span class="muted">(not a 48h break)</span>', `${T.feel.isolatedRest}`, `${P.feel.isolatedRest}${FRESH && P.feel.isolatedBesideCover ? ` <span class="muted">(${P.feel.isolatedBesideCover} beside a cover week)</span>` : ''}`)}
   ${feelRow('Days worked in a week <span class="muted">(lines × days)</span>', Object.entries(T.feel.daysHist).map(([d,n])=>`${n}×${d}`).join(', '), Object.entries(P.feel.daysHist).map(([d,n])=>`${n}×${d}`).join(', '))}
   ${feelRow('Cover (spare) weeks <span class="muted">(whole weeks)</span>', `lines ${T.feel.spareLines.join(', ')}`, `lines ${P.feel.spareLines.join(', ')}`)}
   ${feelRow(`Distinct shift times <span class="muted">(${BB ? 'none on today’s roster' : EF ? (ef.sharedToday.length ? `${ef.sharedToday.length} on today’s roster` : 'none on today’s roster') : newTimes.length ? `all but ${newTimes.length} on today’s roster` : 'all already on today’s roster'})</span>`, `${T.feel.distinctTimes}`, `${P.feel.distinctTimes}`)}
@@ -569,7 +573,7 @@ ${readHtml}${frameHtml}
   <tr><td>Monday to Friday</td><td class="num">${wdRange(T.daily)}</td><td class="num"><b>${wdRange(P.daily)}</b></td><td class="muted">the contract: 20 working lines × 35h has to be worked somewhere</td></tr>
   <tr><td>Saturday</td><td class="num">${T.daily.sat}</td><td class="num"><b>${P.daily.sat}</b></td><td class="muted">${meta.satNote ?? 'owner’s figure for December 2026, leaning late for events'}</td></tr>
   <tr><td>Sunday</td><td class="num">${T.daily.sun}</td><td class="num"><b>${P.daily.sun}</b></td><td class="muted">${meta.sunNote ?? 'owner’s figure for December 2026'}</td></tr>
-  <tr><td>Ticket office <span class="muted">wk · Sat · Sun</span></td><td class="num">${TO.posts.weekday} · ${TO.posts.sat} · ${TO.posts.sun}</td><td class="num"><b>${FO.posts.weekday} · ${FO.posts.sat} · ${FO.posts.sun}</b></td><td class="muted">${FRESH && !meta.officeNamed ? (meta.pairDays?.length ? `rostered as pairs on ${meta.pairDaysTxt}; the plan’s posts assumed on the other days (page 7)` : 'the plan’s posts, assumed from these duties — not rostered as pairs (page 7)') : 'not floor cover; Sunday one late today'}</td></tr>
+  <tr><td>Ticket office <span class="muted">wk · Sat · Sun</span></td><td class="num">${TO.posts.weekday} · ${TO.posts.sat} · ${TO.posts.sun}</td><td class="num"><b>${FO.posts.weekday} · ${FO.posts.sat} · ${FO.posts.sun}</b></td><td class="muted">${FRESH && !meta.officeNamed ? (meta.pairDays?.length ? `rostered as pairs on ${meta.pairDaysTxt}; the plan’s posts assumed on ${meta.otherDaysTxt} (page 7)` : 'the plan’s posts, assumed from these duties — not rostered as pairs (page 7)') : 'not floor cover; Sunday one late today'}</td></tr>
   ${headRow('Opening at 06:20 (07:15 Sunday)', 'open', 4, 4, 4, FLOORS ? 'at least four to open, every day' : 'four to open, every day')}
   ${FLOORS ? headRow('Through to the close (23:55; 23:25 Sunday)', 'close', 3, 3, 3, 'at least three to close, every day') : headRow('Through to the close (23:55; 23:25 Sunday)', 'close', 3, 4, 3, 'three to close, four on a Saturday')}
   ${FLOORS ? headRow('Still on duty at 22:00', 'at22', 5, 5, 5, 'at least five from 22:00, every day') : headRow('Still on duty at 22:00', 'at22', 5, 5, null, 'five from 22:00, Monday to Saturday')}
@@ -596,7 +600,7 @@ ${readHtml}${frameHtml}
 
 <section class="page">
   <div class="mast"><div><div class="eyebrow">Cover against the service</div><h1>People on duty, hour by hour</h1><div class="sub">Cover today and proposed against the measured December 2026 timetable (arrivals and departures, weighted by train length). A darker orange hour carries more of the day's traffic.</div></div></div>
-  <p class="muted" style="margin:6px 0 2px">How to read it: each blue ${FRESH ? 'square' : 'cell'} is the number of people on duty in that hour (darker blue = more people). The orange row is the timetable — how much of the day's trains that hour carries (darker orange = busier). Read the columns top to bottom: cover should be thickest where the orange is darkest. The <b>fit</b> figure at the right end of each row scores that match for the whole day.</p>
+  <p class="muted" style="margin:6px 0 2px">How to read it: each blue ${FRESH ? 'square' : 'cell'} is the number of people on duty in that hour (darker blue = more people). The orange row is the timetable — ${FRESH ? 'the train carriages arriving and leaving in that hour, which is how busy it is' : 'how much of the day\'s trains that hour carries'} (darker orange = busier). Read the columns top to bottom: cover should be thickest where the orange is darkest. The <b>fit</b> figure at the right end of each row scores that match for the whole day.</p>
   ${['weekday','sat','sun'].map(cls => { const win = cls==='sun' ? [7,23] : [6,23]; const shut = cls==='sun' ? 23 : 24;
     const name = cls==='weekday'?'Monday to Friday':cls==='sat'?'Saturday':'Sunday';
     const gT = cls==='weekday' ? weekdayGroups(T.hourly) : [{ days:[cls], hours: T.hourly[cls].hours }];
@@ -643,9 +647,9 @@ ${readHtml}${frameHtml}
 
 <section class="page">
   <div class="mast"><div><div class="eyebrow">The rules it is assessed against · continued</div><h1>ORR fatigue factors</h1><div class="sub">Good practice guidelines — Fatigue Factors, p3 (December 2021). ⚠ present — the pattern is in this design and worth a look, not a breach · ✓ clear — it is not · ● standing — true of the station itself, not of any design · – does not apply here. This is the list the link is assessed against.</div></div></div>
-  <p class="muted" style="margin:6px 0 4px">${FRESH ? 'These are 25 roster patterns that tend to tire people — 21 from the Office of Rail and Road’s good-practice list and 4 checks from the rail industry’s fatigue guidance (MRSF) — long runs of earlies, short gaps between duties, start times that jump about.' : 'The Office of Rail and Road lists 25 roster patterns that tend to tire people — long runs of earlies, short gaps between duties, start times that jump about.'} For each one this table asks whether the pattern is in the rotation, today and proposed, and how big it is. The list is guidance: a factor present is a question for the room, never a pass or a fail, and a design showing nothing is not thereby approved.</p>
+  <p class="muted" style="margin:6px 0 4px">${FRESH ? 'These are 25 roster patterns that tend to tire people — 21 from the Office of Rail and Road’s good-practice list and 4 checks from the rail industry’s fatigue guidance (MRSF) — long runs of earlies, short gaps between duties, start times that jump about.' : 'The Office of Rail and Road lists 25 roster patterns that tend to tire people — long runs of earlies, short gaps between duties, start times that jump about.'} For each one this table asks whether the pattern is in the rotation, today and proposed, and how big it is. The list is guidance: a factor present is a question to discuss, never a pass or a fail, and a design showing nothing is not thereby approved.</p>
   <table class="ff"><thead><tr><th>Code</th><th>Factor</th><th>Today's link</th><th>Proposed</th></tr></thead><tbody>${rowsFF}</tbody></table>
-  ${meta.p8Note ? `<p class="muted">${meta.p8Note}</p>` : `<p class="muted">Present: ${P.fatigue.present}${presentRos(P) !== P.fatigue.present ? ` in the worst case, <b>${presentRos(P)}</b> as rostered` : ''} (today ${T.fatigue.present}${presentRos(T) !== T.fatigue.present ? `/${presentRos(T)}` : ''}) · standing: ${P.fatigue.standing} · FF2 fires on every 06:20 duty, so it is a property of the station's opening time rather than of any design. <b>Two readings of a cover week, on the one row they move.</b> A cover week is worked four days of seven and the link does not say which four, so a run figure is a range. The headline number is the ceiling &mdash; the four split day-on-day-off, which supplies no 48-hour break and joins the blocks either side. It is reachable: of the 35 ways to place four duties in seven days, the 10 that leave no two rest days together produce exactly it. Worked as a BLOCK, which is what a cover week looks like on the roster, the three rest days fall together and the week always supplies a break &mdash; that is the <i>as rostered</i> figure beneath it. Checked on every row: FF11 is the only one where the two differ. Which reading applies is a question for the roster office, not for this sheet. This sheet is an aid to a conversation, not a fatigue risk assessment.</p>`}
+  ${meta.p8Note ? `<p class="muted p8note">${meta.p8Note}</p>` : `<p class="muted">Present: ${P.fatigue.present}${presentRos(P) !== P.fatigue.present ? ` in the worst case, <b>${presentRos(P)}</b> as rostered` : ''} (today ${T.fatigue.present}${presentRos(T) !== T.fatigue.present ? `/${presentRos(T)}` : ''}) · standing: ${P.fatigue.standing} · FF2 fires on every 06:20 duty, so it is a property of the station's opening time rather than of any design. <b>Two readings of a cover week, on the one row they move.</b> A cover week is worked four days of seven and the link does not say which four, so a run figure is a range. The headline number is the ceiling &mdash; the four split day-on-day-off, which supplies no 48-hour break and joins the blocks either side. It is reachable: of the 35 ways to place four duties in seven days, the 10 that leave no two rest days together produce exactly it. Worked as a BLOCK, which is what a cover week looks like on the roster, the three rest days fall together and the week always supplies a break &mdash; that is the <i>as rostered</i> figure beneath it. Checked on every row: FF11 is the only one where the two differ. Which reading applies is a question for the roster office, not for this sheet. This sheet is an aid to a conversation, not a fatigue risk assessment.</p>`}
   <div class="foot"><span>Page 8 of 10 — The checks sheet: fatigue factors</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
 
@@ -680,7 +684,7 @@ ${meta.page9 ?? `<section class="page">
   <div class="foot"><span>Page 10 of 10 — Import</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
 </body></html>`;
-  if (FRESH) html = freshWords(html, { total: folderStats().length, todayMet: meta.decToday, of: meta.decOf, monSat: meta.monSat, coverSame: meta.coverSame });
+  if (FRESH) html = freshWords(html, { exampleTime: P.tableRows.find(r => classifyShift(r.time) === 'early')?.time ?? P.tableRows[0]?.time, total: folderStats().length, todayMet: meta.decToday, of: meta.decOf, monSat: meta.monSat, coverSame: meta.coverSame });
   writeFileSync(out.replace(/\.pdf$/, '.html'), html);
   const b = await chromium.launch(); const pg = await b.newPage();
   await pg.goto('file://' + out.replace(/\.pdf$/, '.html')); await pg.evaluate(() => document.fonts.ready);

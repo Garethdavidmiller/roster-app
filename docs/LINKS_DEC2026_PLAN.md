@@ -49,7 +49,7 @@ below is owned by somebody other than the developer.
 |---|---|---|---|
 | **Rotation length** | ✅ **24, main-only** (owner, Aug 2026) — 22 at v19.98, corrected v20.01. Evidence class C | — | — |
 | **Spare weeks** | ✅ **4** — the same as the roster today. A fifth was added v20.01 and reverted v20.02 once its motivating FF11 finding proved to be an optimiser bug (owner) | — | — |
-| **Existing 28-line designs** | ✅ **DECIDED (owner, 30 Aug 2026): BIN THEM.** Not kept as a record — the 28-line link is described in this document and in the module comments, which is where a record belongs; a stale design in the picker is a thing somebody opens and edits by mistake. **Execution is a click in the app and is not done yet** (soft delete ✕ → they sit in 🗑 Recently deleted until removed for good). **Generate the new 24-line design FIRST** — `canSoftDelete` refuses the last LIVE design, so binning them all requires one to exist, and that is the order the work wants anyway | Before proposals are drawn | **Gareth** — the clicks |
+| **Existing 28-line designs** | ✅ **DECIDED (owner, 30 Aug 2026): BIN THEM.** Not kept as a record — the 28-line link is described in this document and in the module comments, which is where a record belongs; a stale design in the picker is a thing somebody opens and edits by mistake. **Execution is a click in the app and is not done yet** (soft delete ✕ → they sit in 🗑 Recently deleted until removed for good). **Generate the new 24-line design FIRST** — `canSoftDelete` refuses the last LIVE design, so binning them all requires one to exist, and that is the order the work wants anyway | Before a proposal is frozen | **Gareth** — the clicks |
 | Timetable data (all three simplifiers) | ✅ Final — confirmed not provisional (owner, Aug 2026) | — | — |
 | Existing roster baseline | ✅ Measured (corrected v19.79 — 9 / 8 consecutive days, not 15 / 14) | — | — |
 | Operating-window setting | ✅ Shipped v19.54 | — | — |
@@ -61,7 +61,7 @@ below is owned by somebody other than the developer.
 | **Contracted hours — today's duties cannot fill a 24-line link** | ⚠️ **Decision needed** — **answered in practice by the proposals** (28 Sep 2026): every one of the 23 sheets pays the 35h week exactly (Fifteen Turns is 60 minutes a week over across the link) by carrying **94–98 timed duties a week against today's 76**, so every one assumes the December 2026 staffing supplies the extra duty; that assumption is what needs confirming. Background (v20.04; measure corrected and the generator GATED at v20.98). Seeded from today's duties, 24 lines averages **29h 53m** a week (4 cover weeks) or **31h 20m** (5) against a 35h contract; the live 20-line roster gives exactly 35h. **The generator now refuses to build a design that misses the contract in EITHER direction** (short v20.98, over v20.99), so this is no longer a warning that can be scrolled past — it is a blocked action with the gap named: **123h** more duty a week of rotation at 4 cover weeks, **88h** at 5. Note the shape of what that asks for: the target is an equality, so the extra service has to land on a table that totals `working x 35h` exactly — overshooting is refused too. Either the Dec-26 service supplies it — in which case the targets should be seeded from the new timetable, not today's roster — or the widened link does not fill a contracted week | **Before a proposal is frozen** | **Management / Nathan** |
 | **Business staffing requirement** | ⚠️ **Given verbally, not yet in writing** (owner, 27–28 Sep 2026): the December 2026 staffing levels behind the 11 rules every sheet is judged against — four at the open, three at the close, five at 22:00, 14 on a Saturday and 10 on a Sunday, the ticket office in fixed pairs, and the rest (`currentRules`, `docs/proposals/tooling/report-data.mjs`). Every sheet says they are verbal | **Before the final design** | **Management** — confirm in writing |
 | **FF18 reading — cadence or step?** | ⚠️ Unsettled; changes whether any proposal can clear it | **Before a proposal is frozen** | **Nathan** (see Open question 2) |
-| **Proposals** | ✅ **Drawn — 23 sheets** in `docs/proposals/`, the first on 8 Sep 2026, the latest (Right Away) on 28 Sep; all 23 re-issued on 28 Sep as the managers' edition, judged against one rule set; ⚠️ **none frozen** | T−8 weeks | Freezing one waits on the decisions above. The folder's `README.md` ranks them and records each sheet's open questions |
+| **Proposals** | ✅ **Drawn — 23 sheets** in `docs/proposals/`, the first on 8 Sep 2026, the latest (Right Away) on 28 Sep; all 23 re-issued on 28 Sep as the managers' edition, judged against one rule set; ⚠️ **none frozen** | T−8 weeks | Freezing one waits on the decisions above. The folder's `README.md` is the index; each sheet ranks itself among the 23 on its page 9 and lists its open questions on page 7 (*Still to settle*) |
 | **Management review meeting** | ❌ Not scheduled | T−6 weeks | **A date.** See below |
 
 ## The backwards plan — because the only immovable deadline is outside this repository
@@ -70,13 +70,17 @@ This document previously admitted *"the timing … is not known"*, and that was 
 written. It is now **August 2026**, the target is **December 2026**, and a very sophisticated
 technical project can still be rushed because nobody worked backwards from the date.
 
+*(28 Sep 2026: the T−10 row — the four decisions settled — falls due in early October, not late
+September as this table first said: ten weeks before a mid-December T is the first week of October.
+It is still open; see the dashboard above.)*
+
 **T = the December 2026 timetable change date.** Pin T first — everything below is relative to it,
 and T is a published industry date, not something to estimate.
 
 | Milestone | Latest safe | For a mid-December T, that is roughly |
 |---|---|---|
 | Timetable source frozen | T−12 weeks | mid-September 2026 ✅ *(already done)* |
-| The four decisions above settled | T−10 weeks | late September |
+| The four decisions above settled | T−10 weeks | early October |
 | First viable proposals | T−8 weeks | mid-October |
 | Management review | T−6 weeks | end October |
 | Adjusted proposals | T−4 weeks | mid-November |
@@ -101,7 +105,9 @@ with dedicated days and a room booked. He will then assess the proposals against
 requirements** and the **ORR good-practice fatigue factors** (p3 of *Good practice guidelines —
 Fatigue Factors*, December 2021).
 
-The Links workspace (`links.html`) is the tool those proposals will be built in. This document
+The Links workspace (`links.html`) was to be the tool those proposals were built in. *(28 Sep 2026:
+in the event they were built by `docs/proposals/tooling` running the Links modules under Node, or
+supplied as grids and imported, and the sheets are rendered by that tooling.)* This document
 records what the timetable actually demands, what the tool can and cannot currently do about it, and
 the order the work should be done in.
 
@@ -130,8 +136,8 @@ Passenger movements at Marylebone — ECS excluded:
 
 | | Movements | Cars | Shape | First → last |
 |---|---|---|---|---|
-| **SX** Mon–Fri | 311 (148 arr / 163 dep) | 1,756 | **Twin-peaked** — by movement 08:00 (23) and 17:00 (23); **by cars the evening wins**, 17:00 (140) / 18:00 (138) over 08:00 (127) | 00:01 → 23:57 |
-| **SO** Saturday | 215 (105 / 110) | 1,266 | **Flat** — 13–15 per hour across 08:00–20:00; peak 10:00 on both measures | 00:10 → 23:57 |
+| **SX** Mon–Fri | 311 (148 arr / 163 dep) | 1,756 | **Twin-peaked** — by movement 08:00, 17:00 and 18:00 tie (23 each); **by cars the evening wins**, 17:00 (140) / 18:00 (138) over 08:00 (127) | 00:01 → 23:57 |
+| **SO** Saturday | 215 (105 / 110) | 1,266 | **Flat** — 11–15 per hour across 08:00–20:00; peak 10:00 on both measures | 00:10 → 23:57 |
 | **Su** Sunday | 188 (91 / 97) | 1,059 | **Late-starting, evening-weighted** — nothing 01:00–07:00, peak 17:00 on both measures | 00:05 → 23:54 |
 
 Hourly, both measures (arrivals + departures; hours 01–04 are empty on all three days and omitted):
@@ -152,8 +158,8 @@ the working day.
 
 **Weighting by cars changes the weekday answer.** On movement count the morning and evening peaks tie
 at 23; on cars the evening is 10% heavier (140 v 127) and the peak *hour* moves from 08:00 to 17:00.
-The evening also stays high for longer — 17:00 and 18:00 are both above 135 cars, whereas 08:00 has a
-single hour at that level. A design that staffs the two peaks equally is therefore under-covering the
+The evening also stays high for longer — 17:00 and 18:00 are both above 135 cars, whereas no morning
+hour reaches that level (08:00 is 127, 09:00 is 122). A design that staffs the two peaks equally is therefore under-covering the
 one that matters more. Saturday and Sunday are unaffected: both measures agree on their peak hour.
 
 **Where the length figures come from, and the one gap.** `Max CAO` (train length in cars, 3–9) is
@@ -223,8 +229,8 @@ Measured against those real windows:
 
 **Mon–Sat needs no change.** The overhang is two minutes; the duty ends as the last train leaves.
 
-**Sunday's finish looks ~30 minutes short.** A departure at 23:45 and three arrivals to 23:54 all fall
-after the 23:25 finish. Sunday's *start* is fine — the first three Sunday departures are all at or
+**Sunday's finish looks ~30 minutes short.** Two departures (23:27, 23:45) and three arrivals (23:35,
+23:51, 23:54) all fall after the 23:25 finish. Sunday's *start* is fine — the first three Sunday departures are all at or
 after 07:15. This is a business-requirement question for Nathan rather than a tool question, but the
 proposals should answer it deliberately instead of inheriting it.
 
@@ -284,7 +290,7 @@ already; they are simply rendered as advisory ORR rows:
 | Max length of a turn | duty length (12h) | FF5, advisory |
 | Max hours in a rolling week | `maxHoursInAny7Days` | MRSF row at 55h, advisory |
 
-Worth settling before the proposals are drawn, because it changes how a reader weighs those rows: a
+Worth settling before a proposal is frozen, because it changes how a reader weighs those rows: a
 figure in the advisory half invites a justify/minimise/control conversation, while the same figure in
 the hard half ends one. The blocker is the confirmed figures from the policy document, not the code.
 
@@ -300,7 +306,7 @@ pattern scores, and Nathan will inevitably ask. Measured by running `runDesignCh
 | **Main — the comparator** | 20 | **9 days** | **12 shifts** — clear | **0** | 4/20 (20%) |
 | Bilingual — context only | 8 | **8 days** | **15 shifts** — over | **0** | 0/8 |
 
-**The MAIN row is the comparator, and since v19.98 it is the only one.** The 22-line design replaces
+**The MAIN row is the comparator, and since v19.98 it is the only one.** The 22-line design *(28 Sep 2026: 24 lines since v20.01)* replaces
 the main 20-line cycle and does not take on the bilingual roster's work, so a bilingual figure is no
 longer a like-for-like anything. The row stays because it is a measured fact about a rotation these
 staff still work, and because its structural cause (below) is the clearest worked example in this
@@ -354,7 +360,7 @@ anyway.** Splicing the 20 main lines and the 8 bilingual lines into one 28-line 
 longest stretch of **19** — an artefact of joining two unrelated rotations end to end, not a property
 of either. The numbers above are per real cycle. The tool will happily compute a stretch across
 however many lines it is given, so a design's figures only mean something once those lines genuinely
-are one rotation. The 22-line design is one rotation by construction; the point survives as the
+are one rotation. The 22-line design *(28 Sep 2026: 24 lines since v20.01)* is one rotation by construction; the point survives as the
 general rule.
 
 ## What the generator produced from today's roster seed (v20.02)
@@ -390,7 +396,10 @@ Both columns were re-measured together after the v20.02 spare-spread fix, so not
 figure from an older shape sitting beside a newer one. The row previously labelled FF19 is corrected
 to **FF18** — the between-lines factor those numbers have always come from.
 
-### The design is six hours a week short of contract, and nothing showed it until v20.04
+### The design is five hours a week short of contract, and nothing showed it until v20.04
+
+*(28 Sep 2026: this heading and the paragraph below said "six". 35h − 29h 53m is **5h 07m** on the
+measure stated here; six was 123h ÷ 20 working lines, the pre-v20.98 measure.)*
 
 **The measurement.** Excluding Sundays — which are not contracted for any grade here — and averaged
 over every line of the rotation, with each spare week counted as a full contracted week (v20.98):
@@ -410,7 +419,7 @@ instead of 16. Same work, more people, less each. It is the same counter-intuiti
 weeks below, one step further on.
 
 **So it is a question for the room, and a sharp one.** Either the December 2026 service adds enough
-work to fill six hours a week per person — in which case the targets should be seeded from the new
+work to fill about five hours a week per person (5h 07m) — in which case the targets should be seeded from the new
 timetable rather than from today's roster — or the widened link does not fill a contracted week and
 something has to give. The tool now states the figure on screen and on the printed sheet; it does not
 answer which.
@@ -437,6 +446,11 @@ and weekends off from 20% to 38%. The v20.01 fifth cover week would have spent a
 day per working line** to buy one more standby week — a legitimate trade, taken and then reverted
 once its motivating finding turned out to be a bug (below).
 
+*(28 Sep 2026: that gain holds only for today's 76 duties spread over 24 lines — the roster seed,
+refused since v20.98. The 23 proposals carry **94–98 timed duties a week**, ≈4.70–4.90 per working
+line and so ≈2.1–2.3 rest days, about today's 2.25; and they give **2–6 weekends off in 24**, not 9.
+On the proposals' own figures the widening carries more work rather than buying rest.)*
+
 **The v20.01 FF11 finding was a BUG IN THE ORDER OPTIMISER, found and fixed at v20.02.** It was
 recorded here as a property of running five spare weeks — measured across lengths 22–25, every
 configuration with 5 tripped FF11 and 4 and 6 did not. That measurement was real and the conclusion
@@ -452,7 +466,8 @@ every objective in it was a preference. It can make a design worse than the one 
 
 **The run cap does not always reach its target, and the reason is a decision for the room.** The
 "Most shifts in a row" box defaults to **6**. With that switch on alone the reorder reaches 6; with
-the full set on it reaches **8**, and the status line says so rather than letting the box imply a
+the full set on it reaches **8** on the roster seed (the shipped December default reaches 7, with 5
+of 24 weekends off — `docs/proposals/tooling/default-baseline.mjs`), and the status line says so rather than letting the box imply a
 guarantee.
 
 It could be made to reach 6 with the full set on. Re-measured after the spare-spread fix — the
@@ -473,7 +488,9 @@ weight and none is quoted as one.)
 
 **Correctness, verified rather than assumed** (v19.75). Against the real seed, both constructions:
 
-- meet every day's total **exactly** — Sun 10, Mon–Fri 16, Sat 14, matching the seed;
+- meet every day's total **exactly** — Sun 10, Mon–Fri 16, Sat 14, matching the seed *(28 Sep 2026:
+  those were the v19.75 seed's totals; the v20.02 main-only seed is Sun 8, Mon–Fri 12, Sat 10 —
+  `buildRosterTargets` in `links-seed.js`)*;
 - staff every individual shift TIME at exactly the right level on every day, not merely the totals;
 - fill every line, none blank;
 - produce **0** short turnarounds;
@@ -491,10 +508,8 @@ the operating window is what unblocks the overlay and the generator targets. The
 from the first draft so the review correction under package 1 stays legible.
 
 **Status:** 2 shipped v19.46 (with the baseline), 5 shipped v19.47, 1 shipped v19.54, 3 shipped
-v19.56. Only **4** remains — and it is now FULLY unblocked: open question 1 was answered in Aug 2026 (arrivals and
-departures, weighted by train length), package 3 has already put that profile in the tool, and open
-question 4 was answered in Aug 2026 (all three simplifiers are final), which was the last thing
-holding it — building an importer against a timetable about to be reissued would have been wasted.
+v19.56. **4 was declined** (owner, Aug 2026 — a control built at v19.78 was removed at v19.83; see
+package 4). Nothing in this list remains open.
 
 ### 1. Operating-window setting — ✅ **SHIPPED v19.54**
 
@@ -558,8 +573,8 @@ day is not a 48h break) and that a rotation with **no** 48h break anywhere has t
 worked day rather than the sequence length — the first implementation returned the length, counting
 rest days as shifts, and its own test caught it.
 
-Still open from this package: FF17/FF18/FF19 render with "(definition to confirm)" until Nathan
-settles them.
+Still open from this package: four rows — FF17, FF18, FF19 and MRSF's 7×8h — render with
+"(definition to confirm)" until Nathan settles them.
 
 <details><summary>Original scope</summary>
 
@@ -632,9 +647,14 @@ it is the argument to take into the room:
 | uplift | duties | rest days | rest days per line |
 |---|---|---|---|
 | 0% (today) | 104 | 50 | 2.27 |
-| +20% | 107 | 47 | 2.14 |
+| +20% | 124 | 30 | 1.36 |
 | +25% | 129 | 25 | **1.14** |
 | ~+37% and up | — | — | **refused: over capacity** |
+
+*(28 Sep 2026: the +20% row read 107 / 47 / 2.14, which is +3%. Recomputed the way the other rows
+are, rounding each day's total — Sun 12, Mon–Fri 19, Sat 17 = 124 duties, 154 − 124 = 30 rest
+days, ÷ 22 = 1.36; the same rounding gives +25%'s 129. The table is the 28-line /
+6-spare design of that time: 22 working lines, seed Sun 10 / Mon–Fri 16 / Sat 14.)*
 
 **A service increase of any size cannot be absorbed by making the existing lines denser — the link
 has to get bigger, which means more staff.** The generator refuses outright above ~+37% (28 people
@@ -653,8 +673,8 @@ it must carry, both of which cost a release to learn.
 `endMinutesAbs` in `links-design.js` is now the one reading of a duty that runs past midnight, and
 both callers use it: the heat map counts a wrapping duty on **both** days (Saturday spilling round to
 Sunday) instead of dropping its post-midnight hours, and the turnaround check lets that duty eat into
-the rest that follows it. `links-fatigue.js`'s `dutyMinutes` delegates to it rather than keeping a
-third copy.
+the rest that follows it. `dutyMinutes` delegates to it rather than keeping a third copy — it now
+lives in `links-design.js`, and `links-fatigue.js` re-exports it.
 
 What the two defects had in common is the part worth remembering: **both erred towards *safer than
 the truth*.** The heat map lost hours from the artefact whose entire job is showing where cover is
@@ -674,11 +694,11 @@ is a judgement for the two designers. The tool's job is to check and to show, no
 22 proposal sheets existed to build it against: cover against the service, hard limits and fatigue
 factors for both designs, under the difference strip. The reasoning for deferring it is kept below.
 Compare showed two grids with a gold cell diff; the
-Coverage and Design-checks cards below still describe only the ACTIVE design. So the reason you would
-compare two proposals — their cover against the service, their fatigue findings — is the one thing
-compare mode does not do, and the cell diff tells you *where* they differ rather than *what that
-means*. **Deliberately deferred, not rejected:** it is a real gap, but it is a feature rather than a
-polish item, and it should be built once there are two real proposals to compare, instead of against
+Coverage and Design-checks cards below described only the ACTIVE design. So the reason you would
+compare two proposals — their cover against the service, their fatigue findings — was the one thing
+compare mode did not do, and the cell diff told you *where* they differed rather than *what that
+meant*. **Deliberately deferred, not rejected:** it was a real gap, but a feature rather than a
+polish item, and it was to be built once there were two real proposals to compare, instead of against
 a guess about what the comparison ought to say. (Related, and already recorded as accepted: at 1440px
 both compare columns clip before Saturday, so Saturday cannot be compared without scrolling each
 column on its own.)
@@ -686,8 +706,9 @@ column on its own.)
 **The generator's near-identical rows.** Seeded from the current roster it rendered 28 shift rows ×
 3 columns = 84 number fields while the seed spanned all 28 roster lines — since v19.98 it is 18 rows
 (the roster seed, main cycle only) or 19 (the December default) — most of them zero, so reshaping one
-part of the day means finding one row among many similar time dropdowns. Left alone on purpose: package 4 would have changed where those targets
-come from, and re-designing the table before that lands would mean doing it twice. (It said 25/75
+part of the day means finding one row among many similar time dropdowns. Left alone on purpose while package 4 might still change where those
+targets come from, since re-designing the table first would have meant doing it twice. *(28 Sep
+2026: package 4 was declined, so that reason for waiting has lapsed.)* (It said 25/75
 until v19.65; the seed takes every distinct worked time across all 28 roster lines, and
 `.claude/rules/links-design.md` already said 28 — the two docs simply disagreed.)
 
@@ -708,7 +729,7 @@ Ordered by how much they change if the answer is unexpected.
    together asks far less of the body clock than one where they do not. The cadence is fixed; the
    step is a design choice, and a real one.
 
-   Two consequences. First, it is still worth settling with Nathan before the proposals are drawn —
+   Two consequences. First, it is still worth settling with Nathan before a proposal is frozen —
    if the factor is read as cadence-only then no proposal can avoid it, and that belongs in the
    justify/minimise/control conversation rather than a checklist. Second, the step is now
    **measurable and tunable**: `links-adjacency.js` (v19.58) scores the week-to-week movement across
@@ -742,7 +763,7 @@ Ordered by how much they change if the answer is unexpected.
    23:35 arr, 23:45 dep, 23:51 arr, 23:54 arr. Three of those five are arrivals full of people
    getting off at an unstaffed terminus.
 4. ~~**Is the weekday simplifier final?**~~ — **ANSWERED (owner, Aug 2026): yes, all three are final.**
-   The `10_of_13` naming on the weekday file is not a status. This unblocked package 4, which had no
+   The `10_of_13` naming on the weekday file is not a status. This unblocked package 4 (later declined), which had no
    business being built against a timetable about to be reissued. `DEC_2026_SOURCE.provisional` is
    cleared and the coverage card no longer says "(provisional)".
 5. **Should Saturday's window ever differ from Mon–Fri?** Currently identical; the setting can split

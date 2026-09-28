@@ -75,7 +75,7 @@ live anchors:
 | `OTHER_DAYS.md` | Shipped | Code comments cite "OTHER_DAYS.md decision N" |
 | `LOGIN_INCIDENT.md` | Resolved | `PASSWORD_DESIGN.md` and `AUTH_AND_SESSIONS.md` send you here before touching login |
 | `LATENCY.md` | **CLOSED 19 Sep 2026 — nothing open.** The identity question was answered by the fast path (v22.97), which the closing read found rarely fires and which stays by owner decision; Phase 2 closed on its own rule; Phase 3 measured and declined; Phase 4's trigger unfired | Holds the readings, the decision rules, and THE CLOSING READ of 19 Sep 2026 |
-| `LINKS_DEC2026_PLAN.md` | Live | Holds the links modules' release history |
+| `LINKS_DEC2026_PLAN.md` | Live | Holds the Dec 2026 project context |
 | `BRASS_PLAN.md` | **Gated on owner answers** | The Part 2 payslip questions decide the design; nothing ships before them |
 | `ROADMAP_HISTORY.md` | Historical | **The archive.** Everything `ROADMAP.md` used to say about the past |
 | `DECISIONS.md` | Historical | **The closed decisions.** Features declined, and choices recorded so they are not re-argued |
