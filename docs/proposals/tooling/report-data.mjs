@@ -132,7 +132,7 @@ export const weekdayFloorFit = (p, lines = 24) => officeSplit(p, lines, calcHour
 // too many"). The office checks use the plan's posts (OFFICE.plan); a design that does not roster the pairs fails
 // that row and has its floor measured with the posts assumed, exactly as page 6 does.
 const CLOSE = { weekday: 23*60+55, sat: 23*60+55, sun: 23*60+25 }, OPEN = { weekday: 6*60+20, sat: 6*60+20, sun: 7*60+15 };
-const hmm = m => `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;
+const hmm = m => `${Math.floor(m/60)}h ${String(m%60).padStart(2,'0')}m`;
 export function currentRules(P, T) {
   const lines = Object.keys(P.patterns).length, keys = Object.keys(P.patterns);
   const dutiesOn = d => keys.map(k => P.patterns[k][d]).filter(s => s && s !== 'RD' && s !== 'SPARE' && s !== 'OFF' && startMinutes(s) !== null);
@@ -154,7 +154,7 @@ export function currentRules(P, T) {
     return { duties: out, office: [], named: true, pr }; };
   const floorMin = d => { const cls = clsOf(d), f = floorOn(d); let lo = Infinity;
     for (let m = OPEN[cls]; m < CLOSE[cls]; m += 5) lo = Math.min(lo, f.duties.filter(x => x.st <= m && x.en > m).length - f.office.filter(t => t.st <= m && t.en > m).reduce((a, t) => a + t.n, 0));
-    return lo; };
+    return Math.max(0, lo); };
   const handover = d => { const cls = clsOf(d), f = floorOn(d), cl = f.duties.filter(x => x.en === CLOSE[cls]);
     let ok = cl.length > 0 && cl.every(c => f.duties.some(x => x.st < c.st && x.en >= c.st + 15));
     if (cls === 'sun' && cl.length) { const last = Math.max(...cl.map(c => c.st)); ok = ok && f.duties.filter(x => x.st === OPEN.sun).every(x => x.en >= last + 15); }
@@ -167,19 +167,21 @@ export function currentRules(P, T) {
   const floorHand = ALL.every(d => hv[d].ok), overlaps = ALL.map(d => hv[d].overlap).filter(v => v !== null);
   const sunLens = dutiesOn('sun').map(dutyMinutes);
   const wkClosers = [...new Set(WDD.flatMap(d => dutiesOn(d).filter(s => endMinutes(s) === CLOSE.weekday)))];
+  const closerStarts = [...new Set(wkClosers.map(s => s.split('-')[0]))].sort();
+  const andList = a => a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
   const all = (o, n) => ALL.every(d => o[d] >= n);
   const rows = [
-    { key: 'open', rule: 'At least four on at the open, every day', value: rng(H.open), ok: all(H.open, 4), note: '06:20; 07:15 on a Sunday' },
-    { key: 'close', rule: 'At least three through to the close, every day', value: rng(H.close), ok: all(H.close, 3), note: '23:55; 23:25 on a Sunday' },
-    { key: 'at22', rule: 'At least five still on duty at 22:00, every day', value: rng(H.at22), ok: all(H.at22, 5), note: 'a 22:00 finish is not "on at 22:00"' },
+    { key: 'open', rule: 'At least four on at the open, every day', value: rng(H.open), ok: all(H.open, 4), note: 'from 06:20 (07:15 on a Sunday)' },
+    { key: 'close', rule: 'At least three through to the close, every day', value: rng(H.close), ok: all(H.close, 3), note: 'until 23:55 (23:25 on a Sunday)' },
+    { key: 'at22', rule: 'At least five still on duty at 22:00, every day', value: rng(H.at22), ok: all(H.at22, 5), note: 'someone finishing at 22:00 does not count' },
     { key: 'heads', rule: 'Fourteen on a Saturday, ten on a Sunday', value: `${P.daily.sat} · ${P.daily.sun}`, ok: P.daily.sat === 14 && P.daily.sun === 10, note: '' },
-    { key: 'cover', rule: 'Four cover weeks, evenly spread', value: `lines ${P.feel.spareLines.join(', ')}`, ok: P.feel.spareLines.length === 4 && P.adj.spareExcess === 0, note: 'whole weeks, placed by the roster clerk' },
-    { key: 'office', rule: 'The ticket office: two early and two late, identical turns, every day', value: `Mon–Fri ${wkPairs ? 'yes' : 'no'} · Sat ${satPairs ? 'yes' : 'no'} · Sun ${sunPairs ? 'yes' : 'no'}`, ok: wkPairs && satPairs && sunPairs, note: 'Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and 14:30–22:00; Sun from 07:15 and to 22:30' },
-    { key: 'closer', rule: 'Every weekday closer starts at 15:45', value: wkClosers.join(', ') || 'none', ok: wkClosers.length > 0 && wkClosers.every(s => s === '15:45-23:55'), note: '' },
-    { key: 'floor', rule: 'At least two on the floor at every moment', value: `fewest ${wkFloor} · ${fm.sat} · ${fm.sun}`, ok: ALL.every(d => fm[d] >= 2), note: 'the ticket office left out; checked every five minutes' },
-    { key: 'handover', rule: 'Handovers: 15 minutes to each closer, 20 in the ticket office', value: `floor ${floorHand ? 'yes' : 'no'} · office ${overlaps.length ? `${Math.min(...overlaps)} min` : 'no pairs'}`, ok: floorHand && (overlaps.length === 0 ? false : overlaps.every(v => v >= 20)), note: 'on a Sunday every opener also stays 15 minutes past the last closer arrives' },
+    { key: 'cover', rule: 'Four cover weeks, evenly spread', value: `lines ${P.feel.spareLines.join(', ')}`, ok: P.feel.spareLines.length === 4 && P.adj.spareExcess === 0, note: 'evenly means every 6 lines, e.g. 1, 7, 13, 19' },
+    { key: 'office', rule: 'The ticket office: two early and two late, identical turns, every day', value: `Mon–Fri ${wkPairs ? 'yes' : 'no'} · Sat ${satPairs ? 'yes' : 'no'} · Sun ${sunPairs ? 'yes' : 'no'}`, ok: wkPairs && satPairs && sunPairs, note: 'Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and 14:30–22:00; Sun two from 07:15 and two to 22:30' },
+    { key: 'closer', rule: 'Every weekday closer starts at 15:45', value: closerStarts.length ? `closers start at ${andList(closerStarts)}` : 'no weekday closer', ok: wkClosers.length > 0 && wkClosers.every(s => s === '15:45-23:55'), note: '' },
+    { key: 'floor', rule: 'At least two on the floor at every moment', value: `fewest ${wkFloor} · ${fm.sat} · ${fm.sun}`, ok: ALL.every(d => fm[d] >= 2), note: 'ticket office staff not counted; checked every five minutes' },
+    { key: 'handover', rule: 'Handovers: 15 minutes to each closer, 20 in the ticket office', value: `floor ${floorHand ? 'met' : 'not met'} · ticket office ${overlaps.length ? `${Math.min(...overlaps)} min` : 'not in pairs'}`, ok: floorHand && (overlaps.length === 0 ? false : overlaps.every(v => v >= 20)), note: 'on a Sunday each opener also stays until 15 minutes after the last closer arrives' },
     { key: 'sunlen', rule: 'Sunday duties between 8h and 9h', value: sunLens.length ? `${hmm(Math.min(...sunLens))}–${hmm(Math.max(...sunLens))}` : '—', ok: sunLens.length > 0 && sunLens.every(m => m >= 480 && m <= 540), note: '' },
-    { key: 'times', rule: 'No more shift times than today', value: `${P.feel.distinctTimes} against today’s ${T.feel.distinctTimes}`, ok: P.feel.distinctTimes <= T.feel.distinctTimes, note: '' },
+    { key: 'times', rule: 'No more shift times than today', value: `${P.feel.distinctTimes}`, ok: P.feel.distinctTimes <= T.feel.distinctTimes, note: `today ${T.feel.distinctTimes}` },
   ];
   return { rows, met: rows.filter(r => r.ok).length, of: rows.length };
 }

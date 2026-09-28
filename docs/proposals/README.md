@@ -1184,6 +1184,14 @@ answered or which sheet came before it. **No figure changed**; the words around 
   "proxy", "folder" or "owner"; the fit is explained as *an hour that carries a tenth of the trains should have
   about a tenth of the staff*.
 
+- **A review pass over all 230 pages** (five readers, one per group of sheets) then fixed what a first-time
+  reader trips on: page 1's *At a glance* shades better cells green and worse amber; page 5's duty table labels
+  its two halves *Today's link* and *Proposed*; page 7 shows today's link beside the proposal on every rule;
+  times read "8h 10m", never "8.17h"; "early" and "late" are defined at 11:00 everywhere; and no sheet says how
+  it was made — neither "found by computer search" nor "drawn by hand".
+- **Family and first-created date** sit in the identity panel on page 1 (`FAMILY` and `FIRST` in `fresh.mjs`) —
+  deliberately small, as a finding aid when presenting, not a history.
+
 Everything lives in `tooling/fresh.mjs` — a one-line description per design (what it *is*), the page words built
 from its figures, and a last plain-English pass over the finished page. `LEGACY=1 node regenerate.mjs` renders
 the previous edition.
