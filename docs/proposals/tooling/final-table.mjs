@@ -108,18 +108,20 @@ const byT = Object.fromEntries(POOL.map(p => [p.t, p]));
 // WHEN THE TICKET OFFICE IS ON THE FLOOR (owner, 28 Sep 2026). One of each office pair helps on the floor at the quiet
 // ends of its shift: on a weekday and a Saturday the second morning person until 08:00 and the second evening person
 // from 19:30 to the end of the shift; on a Sunday the second morning person until 09:00, and the second evening person
-// is office COVER — the office queues, the excess window and the office break are all ticket-office work (owner,
-// correcting a first reading that counted that person as floor), so a Sunday evening pair adds nothing to the floor.
-// The rest of the office's time stays out of the floor cover. TO_EARLY_HELP / TO_LATE_HELP override (minutes; 'none').
+// splits their shift between the office and the floor (owner, after two corrections: the office queues and the excess
+// window are office work, so this is not "mostly floor"), counted as HALF a person on the floor for the whole shift —
+// in the demand fit only; the floor minimum counts whole people. The rest of the office's time stays out of the floor
+// cover. TO_EARLY_HELP / TO_LATE_HELP override (minutes; 'shift' for the whole shift), TO_LATE_SHARE the fraction.
 const TO_EARLY_HELP = Number(process.env.TO_EARLY_HELP ?? (CLS === 'sun' ? 9 * 60 : 8 * 60));
-const TO_LATE_HELP = process.env.TO_LATE_HELP !== undefined ? (process.env.TO_LATE_HELP === 'none' ? 'none' : Number(process.env.TO_LATE_HELP)) : (CLS === 'sun' ? 'none' : 19 * 60 + 30);
+const TO_LATE_HELP = process.env.TO_LATE_HELP !== undefined ? (process.env.TO_LATE_HELP === 'shift' ? 'shift' : Number(process.env.TO_LATE_HELP)) : (CLS === 'sun' ? 'shift' : 19 * 60 + 30);
+const TO_LATE_SHARE = Number(process.env.TO_LATE_SHARE ?? (CLS === 'sun' ? 0.5 : 1));
 function officeOnFloor(fixed) {
   const cov = new Float64Array(24), slots = new Int16Array(24 * 12); let minutes = 0;
   for (const [t, n] of fixed) { const p = byT[t]; if (n < 2) continue;   // one of a PAIR helps; a lone fixed turn is not the office
-    if (p.s !== OPEN && TO_LATE_HELP === 'none') continue;
-    const from = p.s === OPEN ? p.s : Math.max(p.s, TO_LATE_HELP);
+    const from = p.s === OPEN ? p.s : TO_LATE_HELP === 'shift' ? p.s : Math.max(p.s, TO_LATE_HELP);
+    const share = p.s === OPEN ? 1 : TO_LATE_SHARE;
     const to = p.s === OPEN ? Math.min(p.e, TO_EARLY_HELP) : p.e;
-    for (let m = from; m < to; m += 5) { cov[Math.floor(m / 60)] += 1 / 12; slots[m / 5]++; minutes += 5; } }
+    for (let m = from; m < to; m += 5) { cov[Math.floor(m / 60)] += share / 12; if (share >= 1) slots[m / 5]++; minutes += 5 * share; } }
   return { cov, slots, minutes };
 }
 
