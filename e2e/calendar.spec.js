@@ -2294,6 +2294,12 @@ test.describe('the team week jump', () => {
     test.use({ timezoneId: 'Pacific/Midway' });   // UTC−11, no DST
 
     test('calendar: the week label opens the app\'s own picker and lands on the picked week', async ({ page }) => {
+        // A PINNED clock, mid-month. The picker draws only the month on screen, so a week that runs into the
+        // next month is banded on its days in THIS month and no others — by design (date-picker.js). Run on the
+        // live date, this test failed every week that straddles a month end: first on Mon 28 Sep 2026, when
+        // Sun 27 Sep – Sat 3 Oct showed four banded days. Wed 16 Sep 2026 09:00 UTC is Tue 15 Sep 22:00 in
+        // Midway, inside Sun 13 – Sat 19 Sep, as the Admin picker's own test pins it (pages.spec.js).
+        await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
         await seedMember(page);
         await seedMemberSession(page);
         await page.setViewportSize({ width: 390, height: 820 });
