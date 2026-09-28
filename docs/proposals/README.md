@@ -8,11 +8,17 @@ identity is in every page footer. All 23 were judged by the app's own Links modu
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
 
+**Reading this file.** Sections dated before 28 Sep 2026 describe the sheets and rules of their day — page
+numbers, what each page held, the rule set and the fit measure. The sheets as they are now are described in
+*The managers' edition (28 Sep 2026)*, and every sheet is now judged against the eleven December 2026 rules
+there. Figures in the older sections use the definitions of their day: fits moved to duty minutes on 24 Sep
+and to the floor on 28 Sep.
+
 | Proposal | Code · fingerprint | What it is | Factors present | Longest run | Weekends off |
 |---|---|---|---|---|---|
 | **Same Turns** | `ST-24-B7 · d15e1b74` | Today's 20-line link widened to 24 in today's own shift times and week shapes | 1 (FF19, one jump) | 6 | 6 in 24 |
 | **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
-| **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no duty over 8h40 — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
+| **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no weekday duty over 8h40 (Saturday's 14:45–23:55 and Sunday's 14:30–23:25 run 9h10 and 8h55) — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
 | **Weekend Capped** | `Q2-24-W21 · 7ea671d5` | *Quarter To* with its own open question answered: **Saturday and Sunday searched again under the 8h40 cap** from today's clock times and the quarter hour — Saturday entirely in today's times (fit 23.1 against 32.7), Sunday one new turn, the capped closer (61.4 against 80.6); every one of its 20 working weeks is one turn | 1 (FF19, one jump) | 6 | 6 in 24 |
 | **Right Away** | `FR-24-F34 · 03a59c77` | **The owner's final rules of 28 Sep 2026**: the ticket office rostered as fixed pairs of identical turns and **not counted as floor cover**, every weekday closer 15:45, the headcounts as minimums, at least two on the floor at every moment, 15-minute handovers (20 in the office), Sunday duties 8h–9h, no more shift times than today — each day enumerated to a proof for the fit of the **floor** (20.4 weekday, 11.6 Saturday, 19.2 Sunday; 21.9 / 12.2 / 33.6 with the office counted, the folder's best weekday), 17 turns in the week against today's 18, the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Round Times** | `P2-24-N13 · 33a78cbe` | *Pinned Turns*' pins with **every other time rewritten onto the quarter hour** (the pinned 06:20–14:20 the one exception, and the contract's arithmetic needs it) and **no more shift times a day than *Pinned Turns*** — each day enumerated to a proof (weekday fit 33.8, Saturday 22.9, Sunday 62.4; 14 distinct turns in the week), the rotation fatigue-first | **0** | 6 | 6 in 24 |
@@ -20,10 +26,10 @@ nothing is typed.
 | **Eight Forty** | `EF-24-E21 · 0cf19f56` | *By the Book* with no duty over 8h40 — the December table re-solved under the same rules with the ceiling at 8h40 (its earlies had run to 9h30), then the rotation searched for the ORR factors as *By the Book* was | **0** | 6 | 6 in 24 |
 | **Office Written In** | `B2-24-G21 · 02f3c005` | *Eight Forty* with **the ticket office written in** — two `14:00-22:30` a day Mon–Sat and two `13:30-22:00` on Sunday, fixed before the search; demand fit ahead of the count of times. Saturday's fit (8.1) is level with *By the Book*'s for the best in the folder, Sunday's the price (35.8) | **0** | 6 | 5 in 24 |
 | **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5, or **4 as rostered** | 9 | 6 in 24 |
-| **Fifteen Turns** | `FT-24-EXT · 9a028392` | **Supplied as a grid**, not searched — the shortest turn table yet and a perfect cover spread, but **it does not clear two gates** | 7 | 9 | 2 in 24 |
-| **Gates Mended** | `FT-24-R21 · b76bf9e1` | The same design with both gates **repaired** and the rotation re-searched — every duty, headcount and coverage hour unchanged | **1** | 6 | 6 in 24 |
+| **Fifteen Turns** | `FT-24-EXT · 9a028392` | **Supplied as a grid**, not searched — fifteen turns and cover weeks evenly spread, but **it does not clear two gates** | 7 | 9 | 2 in 24 |
+| **Gates Mended** | `FT-24-R21 · b76bf9e1` | The same design with both gates **repaired** and the rotation re-searched — one Saturday duty shortened (`12:00–20:00` to `12:00–19:00`, Saturday cover at 19:00 seven to six), every other duty and headcount unchanged | **1** | 6 | 6 in 24 |
 | **Evening Peak** | `WL2-24-R21 · 33f70893` | Weekday Lates with the `08:30–17:00` turns re-timed into the evening to cover the 17:00 peak, then re-searched | **1** | 6 | 6 in 24 |
-| **Frozen Block** | `WL3-24-F7 · a6234195` | The same evening fix with **weeks 13–17 kept exactly as written**, then searched fatigue-first | **1** (FF19, at its floor) | 6 | 4 in 24 |
+| **Frozen Block** | `WL3-24-F7 · a6234195` | The same evening fix with **weeks 13–17 kept exactly as written**, then searched fatigue-first | **1** (FF19 at 3; the floor is 2) | 6 | 4 in 24 |
 | **Anchored Lines** | `WL4-24-F7 · f0d403d6` | The same evening fix again, with **weeks 14–17 kept in order on their own line numbers** — week 13 the one that moves | **1** (FF19, at its floor) | 7 | 6 in 24 |
 | **Weeks 17-18 Swapped** | `WS-24-EXT · 0bebb675` | **Supplied as a grid**, not searched — cover week moved to 18, midday turn at `12:00–20:30`. Clears every hard gate; not yet shape-searched | 5 | 9 | 6 in 24 |
 | **Targeted Fatigue Redo** | `TF-24-EXT · 8eef9a13` | **Supplied as a grid**, not searched — *Weeks 17-18 Swapped* re-ordered BY HAND to cut fatigue. Same duties, same days, identical coverage; MRSF cleared, FF11 depends on how a cover week is worked | 4, or **3 as rostered** | 9 | 5 in 24 |
@@ -38,8 +44,8 @@ nothing is typed.
 sequels or near-twins — three "Clean Final"s, three "Weekday Lates" after the first, a "2" on three
 families, and "Final Rules" beside "Clean Final". Each now has a name that says what is different about
 it and shares no word with another renamed sheet. **The codes and fingerprints did not change**, so a
-printout made before the rename still matches its design; each renamed sheet says what it was called on
-page 1 and in its lineage. *Right Away* was named for being catchy rather than descriptive (owner, the
+printout made before the rename still matches its design. The sheets no longer mention a former name; the
+table below is where the old names are kept. *Right Away* was named for being catchy rather than descriptive (owner, the
 same day, after a few hours as *Floor First*): it is the dispatch call that sends a train on its way.
 
 | Now | Was | Code |
@@ -65,6 +71,8 @@ office until it shuts at 22:30 and on the floor for the last hour — where the 
 today: page 6 splits both today and the proposal into *everyone*, *of whom ticket office* and *of whom on the
 floor*; page 5's headcount table carries the office posts (4 · 4 · 3 today, 4 · 4 · 4 planned); the fit
 figures on pages 1, 2 and 3 and the alternatives table on page 9 carry a floor fit beside the overall one.
+(Superseded 28 Sep 2026: the managers' edition leads with the floor fit on pages 1 and 2, and page 9 is now
+*Where it stands among the 23* — see that section.)
 Only *Right Away* named its office turns; for every other design the plan's posts are **assumed** to be
 staffed from its duties, and its floor is everyone on duty less those posts — the sheet says so beside the
 figures. One model in `tooling/report-data.mjs` (`OFFICE`, `officeSplit`) feeds every sheet.
@@ -106,7 +114,9 @@ the close and four on a Saturday, five still on at 22:00, fourteen on a Saturday
 four cover weeks at lines 1, 7, 13, 19). They differ on exactly one thing, and it is a people
 question rather than a rules one: *Same Turns* keeps 15 turns people already work and does not meet
 the late-shorter-than-early lever; *By the Book* meets every rule and none of its 19 turns is a
-time anyone works today. Each PDF states this on its page 7. **The two 12 Sep proposals are comparison examples, not base rules** (owner, 13 Sep 2026): the 15:45
+time anyone works today. Each PDF states this on its page 7. (Superseded 28 Sep 2026: that was the
+rule set of its day. Against the eleven December 2026 rules of the managers' edition, *By the Book* and
+*Eight Forty* meet 5, *Same Turns* 7 and *Quarter To* 8.) **The two 12 Sep proposals are comparison examples, not base rules** (owner, 13 Sep 2026): the 15:45
 closer and the 8h40 cap are briefs to set beside *Same Turns* and *By the Book*, and neither changes the
 December rules the workspace pins in `links-default-targets.js`. *Quarter To* (12 Sep 2026) is *Same Turns*
 with two things asked for — the closer at 15:45, nothing over 8h40 — and it clears every fatigue factor
@@ -195,9 +205,11 @@ against Thu 7,780, though Mon–Sat still totals exactly 42,000.
 because a refused design is evidence too. Two gates: one rest of **11h15** (line 7's Saturday
 12:00–20:00 into line 8's Sunday 07:15–15:45) and **60 minutes over** the contracted week — Mon–Sat
 totals 42,060 minutes against 20 × 35h = 42,000, and the contract is an equality rather than a floor.
-Both are refusals in the workspace, not findings. What it does better than anything else: **fifteen
-distinct turns** (against 18 and 19), cover weeks **perfectly even at 6, 6, 6, 6**, and a week-to-week
-step of 2h16. It is worth keeping as the shape to aim at once those two are repaired.
+Both are refusals in the workspace, not findings. What it does well: **fifteen distinct turns**, level
+with *Same Turns* (*Quarter To* already had 13, and *Round Times* 14 and *Weekend Capped* 11 came later),
+cover weeks **evenly spread at 6, 6, 6, 6**, as on every design searched from its own duty table, and a week-to-week step of
+2h16 (*Eight Forty*, *Right Away*, *Pinned Turns* and *Office Written In* are gentler). It is worth
+keeping as the shape to aim at once those two are repaired.
 
 **It also found a real defect in this tooling.** Page 1's badge row was hardcoded to
 `0 hard-limit breaches` / `0 rests under 12h` / *"exactly the contract"*, and the first four proposals
@@ -234,7 +246,7 @@ acts on. All four are in that PDF's own alternatives table with what each costs.
 **Evening Peak** (`WL2-24-R21 · 33f70893`) answers a gap the owner found in Weekday Lates: nine
 duties ran `08:30–17:00` and all nine finished at the same moment, so weekday cover fell from eight
 to ten people at 16:00 to **six** from 17:00 — at the hour the December curve peaks (≈140 cars against
-110 at 16:00). Cover was falling as demand rose. Line 9's week moved to `12:30–21:00` and line 16's
+105 at 16:00). Cover was falling as demand rose. Line 9's week moved to `12:30–21:00` and line 16's
 Mon–Wed to `14:00–22:30`; both replacements are 8h30, the same length as the turn they replace, so the
 contracted week is still paid to the minute and both lines stay one-turn weeks. Then the shape was
 re-searched. **17:00–21:00 goes 6, 6, 7, 9, 8 → 8, 8, 9, 10, 9** and **08:00–11:00 falls 7, 9, 8, 7, 8
@@ -279,7 +291,8 @@ placements and no more, so all four were run at three seeds each rather than lef
 stumble on. Twelve runs, every one clearing every threshold; the placement that keeps the weeks on
 their own numbers is the one printed. `tooling/wl4-run.mjs` is that driver.
 
-**The price is the run, and it is structural: 7 consecutive days against 6** everywhere else here.
+**The price is the run, and it is structural: 7 consecutive days against 6** on every searched or
+re-searched design here (nine of the supplied designs, never searched, reach 9).
 Week 14 works Fri–Sat and week 15 Sun–Thu, so holding those two in order is seven straight days
 whatever the rest of the wheel does. It is not a breach — FF11 allows 13 consecutive, and the "more
 than 7 consecutive 8h shifts" row needs more than seven — but it is the one figure this design
@@ -302,13 +315,13 @@ minute, no rest under 12 hours, no hard-limit breach, worst-case run 9 inside th
 its re-timed midday turn already lifts the evening to 7, 7, 8, 10, 9 across Monday to Friday.
 
 What it carries is advisory and unusually heavy: **five factors present, with FF11 at 16** — the
-highest of any design assessed here, against 14 for Weekday Lates and 10–11 for the searched ones —
+highest of any design assessed here, against 14 for Weekday Lates and 9–12 for the searched ones —
 and **MRSF at 60.6 hours**. Only **6 of its 20 working lines are a single turn**, so most weeks ask
 somebody to hold more than one start time, which is what drives FF19 to seven.
 
 **None of that requires a duty to change.** Every one is a property of which week sits beside which,
-and on the two designs already run through `optimise.mjs` the same work took the factors from five to
-one and the run from nine to six with the coverage curve asserted identical. Its cover spread is also
+and on the two designs already run through `optimise.mjs` the same work took the factors to one —
+from seven on *Fifteen Turns*, from five on *Weekday Lates* (as *Evening Peak*) — and the run from nine to six with the coverage curve asserted identical. Its cover spread is also
 one line out (7, 6, 5, 6), which that search fixes for free. It is listed un-searched deliberately,
 so the baseline it was supplied at stays on the record.
 
@@ -402,8 +415,9 @@ invents and a station cannot use. And the demand TARGET for 15:00–23:00 is lif
 Chiltern serves Wembley Stadium out of Marylebone, and an event fills trains the measured curve already
 counts, so the curve understates those hours. The traffic row printed on page 6 is still the measured one.
 
-**The fit, both ways:** against the measured curve alone it is **11.4** where today's Saturday is 20.7;
-against the Wembley-weighted target **11.8** where today's is 32.8. The weight is deliberately gentle — it
+**The fit, both ways:** against the measured curve alone it is **12.6** where its parent *Cover at
+Seventeen*'s Saturday is 20.7 (today's link 45.7); against the Wembley-weighted target **11.8** where the
+parent's is 26.6 (today's 42.4). The weight is deliberately gentle — it
 buys half a person at 16:00 and half at 22:00, paid for by half at 08:00 and half at 09:00. A heavier one was
 tried and rejected: at 1.25 it buys a whole person at 16:00 and gives a whole one back at 09:00, where the
 curve reads 81 cars. **1.10, 1.15 and 1.20 all return this same table**, so the answer does not balance on the
@@ -416,7 +430,9 @@ under the thinnest hour so nothing could be won by hollowing out the evening (`t
 which line holds which Saturday duty was searched exhaustively under the 12-hour rest rule: 90 assignments
 clear it, and the best of those on the fatigue figures is the one printed (`tooling/sat-assign.mjs`).
 
-**One December rule is now met that was not** — four through to the close, against three. **One cannot be:**
+(Superseded 28 Sep 2026 for the paragraph below: the headcounts are now minimums, so five at the open meets
+"at least four"; the arithmetic it describes still holds.) **One December rule is now met that was not** —
+four through to the close, against three. **One cannot be:**
 the rule asks four at the open and Saturday still has five. That is arithmetic, not a search failure — no
 table of 12 duties paying 5,895 minutes from that pool puts four at the open *and* four at the close, at any
 evening floor. Four at the open needs a different Saturday headcount or minutes moved in from a weekday,
@@ -455,7 +471,8 @@ produced a :05 or :10 time.
 **Where it stops is the interesting part.** A fourth move was available and was rejected: it bought 2.6
 points of fit by taking Sunday's open back from four people to three — handing back the rule move 3 had
 just met. The best fourth move that breaks no rule is worth 2.0, against move 1's 14.8. **Two costs are
-on its pages rather than in a footnote**: Sunday now closes with four where the shape asks three (22:00
+on its pages rather than in a footnote**: Sunday now closes with four where the shape asks three (superseded
+28 Sep 2026: three is now a minimum, so four meets it) (22:00
 was Sunday's deepest shortfall, so the rule and the measured demand disagree there and the move sides with
 the demand), and line 8's Friday-into-Saturday turnaround falls from 15h00 to **12h30**, the tightest rest
 in the design and half an hour above the floor — an 11:30 start would hold 13h00 and give back 2.7 points.
@@ -477,7 +494,8 @@ So the third ask decided the method: **the wheel was reordered, whole weeks only
 gained a `LINES_ONLY=1` switch that restricts it to swapping entire lines, which is the smallest edit
 that can move a fatigue factor because the factors are properties of which week follows which. Every
 week pattern in *Tuned* is still here unedited (except the one that gained the Sunday cell — the
-parent's week 24, now line 5); 16 of the 20 working weeks change line number and 7 lines stay put.
+parent's week 24, now line 5); 17 of the 20 working weeks change line number, and 7 lines stay put
+(working weeks 9, 15 and 16, and the four cover weeks).
 Result: factors present **3 → 2**, longest run **9 → 6**, full weekends off 4 → 5, worst seven-day
 window 51.6h → 50.9h, tightest rest 12h30. Coverage, headcounts and the contract are invariant by
 construction and asserted by the script; the day multisets are exactly *Tuned*'s plus the one Sunday
@@ -493,11 +511,13 @@ factor (FF19 at 4), six weekends, **13 of 20 weeks a single turn** — and 19 of
 rewritten. *Tenth Sunday* is the middle of those three.
 
 **What it costs, stated on its own pages.** Sunday now closes with five where the shape asks three (the
-parent already closed with four; a `15:20–23:20` turn keeps it at four for 0.6 of fit). Sixteen line
+parent already closed with four; a `15:20–23:20` turn keeps it at four for 0.6 of fit; superseded 28 Sep
+2026: three is now a minimum, so five meets it). Seventeen line
 numbers move, and a line number is what a member knows. The week that gains the Sunday works a late
 into three earlies across one rest day — legal by 30h55, and the one week whose *shape* a member would
 notice. FF15 sits exactly on its threshold of 4. And nothing the parent left open is answered here:
-Saturday's 5/3 open and close, 12 on a Saturday, 4.35 days, Thursday at 48.8.
+Saturday's 5/3 open and close (superseded 28 Sep 2026: as minimums both are met), 12 on a Saturday, 4.35
+days, Thursday at 48.8.
 
 **Two corrections to this tooling came out of building it**, both of the same shape — a sentence that read
 as checked and was not. `supplied.mjs` rendered the stock *"two candidates tied on every rule; the fit
@@ -518,6 +538,10 @@ sheet uses; Thursday is still the worst weekday, at 48.8 rather than 60.8. Each 
 regenerated after both fixes.
 
 ## The decision frame — page 2 of every sheet (24 Sep 2026)
+
+*(Superseded 28 Sep 2026: this describes the sheets of 24 Sep — the page numbers, the comparison against one
+design, the December headcounts "met of four" and the glossary under the grid have all moved or changed. The
+sheets as they are now: The managers' edition, below.)*
 
 An external comment, accepted by the owner: the calculation was already exhaustive; what the sheets
 lacked was **decision structure, an evidence hierarchy, staff validation and a plain statement of
@@ -568,14 +592,15 @@ it exists to answer worse.
 **Every sheet's "Monday to Friday" figures read Tuesday** until 24 Sep 2026, when the owner asked why a
 design whose weekdays differ was shown one weekday row. For the four searched families that shortcut was
 exact — every weekday works the same duty table, so Tuesday *is* the week. For the eleven supplied and
-hand-edited designs it was not: *Cover at Seventeen*'s midday cover runs **6, 8, 11, 11, 10** across the
-week, and the sheet printed one line. Today's own link differs too (Mon/Wed against Tue/Thu/Fri).
+hand-edited designs it was not: *Cover at Seventeen*'s cover in the 13:00 hour runs **8, 10, 11, 11, 10**
+across the week, and the sheet printed one line. Today's own link differs too (Mon/Wed against Tue/Thu/Fri).
 
 Six sites carried it, and all six are fixed the same way — **by distinct pattern, never by average**:
 
 - **Page 6, the hour-by-hour chart** — one row per distinct weekday pattern, labelled by the days it covers
   (`Proposed Mon`, `Today Tue · Thu · Fri`). A design whose weekdays are identical still prints one row,
-  now honestly labelled `Mon–Fri`; nothing is averaged away.
+  now honestly labelled `Mon–Fri`; nothing is averaged away. (Superseded 28 Sep 2026: a design with one
+  weekday pattern now labels its row `Proposed`.)
 - **Page 5, the Monday-to-Friday headcount** — a range where the days differ (`13–16`).
 - **The three December rule rows** (four at the open, three to the close, five at 22:00) — a range across
   the weekdays, and the **worst** weekday decides the tick.
@@ -610,15 +635,16 @@ roster, and the three rest days are necessarily together too — so the week alw
 **Checked on every run row, on all thirteen designs: FF11 is the only one where the two differ.** The
 longest-run figure, the 12-consecutive-days row, the 7×8h row and FF15 give the same answer under
 both, which the hard-limits row on page 7 now says out loud rather than leaving to be assumed. On
-**two** designs FF11 differs either side of the threshold:
+**three** designs FF11 differs either side of the threshold (recounted across all 23, 28 Sep 2026):
 
 | | worst case | as rostered |
 |---|---|---|
 | Weekday Lates | **14** — present | **10** — clear |
 | Targeted Fatigue Redo | **15** — present | **12** — clear |
+| Three Mondays | **15** — present | **12** — clear |
 | Fifteen Turns | 14 — present | 14 — present |
 | Weeks 17-18 Swapped | 16 — present | 16 — present |
-| every other design | 9–12 — clear | 9–11 — clear |
+| every other design | 9–13 — clear | 8–13 — clear |
 
 The last two breach on **either** reading, so nothing about cover-week placement rescues them —
 *Weeks 17-18 Swapped*'s 16 contains no cover week at all.
@@ -633,19 +659,25 @@ cover day IS, and never what a run is.
 **Open, and it is the owner's to answer:** does the roster clerk ever split a cover week day-on-day-off?
 If never, the block reading is the real one and the ceiling is a footnote.
 
-**The code**: family (`ST` / `BB` / `QT` / `EF` / `B2` / `Q2` / `PT` / `P2`) · rotation length · duty table (`A`/`B` today's times, `D` the
+**The code**: design prefix (`ST` / `BB` / `QT` / `EF` / `B2` / `Q2` / `PT` / `P2` / `FR`) · rotation length · duty table (`A`/`B` today's times, `D` the
 December default, `Q`/`R` table B with the closer at 15:45 and the two 06:20 openers run on to keep the
 contract — `Q` to 14:00 and 14:50, Saturday's own opening times; `R` to 14:30; `E` the December rules
 re-solved with no duty over 8h40, `tooling/eight-forty-table.json`; `G` *Eight Forty* with the ticket
 office written in, `tooling/by-the-book-2-table.json`; `W` *Quarter To* with the weekend searched again
 under the cap, `tooling/quarter-to-2-table.json`; `P` the owner's 25 Sep brief,
 `tooling/pinned-turns-table.json`; `N` those pins with every other time on the quarter hour,
-`tooling/pinned-turns-2-table.json`) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no
+`tooling/pinned-turns-2-table.json`; `F` the owner's final rules of 28 Sep, `tooling/final-rules-table.json`) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no
 week-coherence term, kept as a comparator. The fingerprint is the first eight hex characters of
 SHA-256 over the 24 × 7 cells in line order. `TN-24-R7` is a reorder: `R7` is `optimise.mjs`'s seed in rules mode, the same reading as `FT-24-R21`.
 `CFT-24-M3`'s **`M3` is a move count, not a seed** — three
 retimed cells — and it is spelled that way because a two-character suffix in this scheme otherwise reads as a
-search seed, which would be a claim this design cannot support.
+search seed, which would be a claim this design cannot support. The `F7` of `WL3-24-F7` and `WL4-24-F7` is
+not the `F` table above: it is the frozen-weeks search at seed 7 (`tooling/weekday-lates-3.meta.json` lists
+its alternatives as `F21` and `F34`, "same rules, seed 21 / 34").
+
+The sheets group the prefixes into **six families**, printed in each identity panel (`FAMILY` in
+`tooling/fresh.mjs`): *Same Turns* (`ST`, `QT`, `Q2`) · *By the Book* (`BB`, `EF`, `B2`) · *Pinned Turns*
+(`PT`, `P2`) · *Right Away* (`FR`) · *Fifteen Turns* (`FT`) · *Weekday Lates* (every other prefix).
 
 **Evidence class**: the 24-line length, the four cover weeks and the December headcounts are
 owner-relayed figures with no document behind them (class C — `docs/KNOWN_LIMITATIONS.md` → Links),
@@ -675,7 +707,8 @@ Seventeen* 42.1 → 34.4, *Same Turns* 58.5 → 46.3, *By the Book* 41.1 → 30.
 wrong, corrected to **51.1** the next day (*A recomputation of every sheet*, below). The
 ordering between designs did not change on any sheet checked. *Saturday Four*'s own 11.4 / 11.8 in its section
 above are `sat-table.mjs`'s search score, Wembley-weighted, and stay as written; on the shared measure its
-Saturday reads 12.6 on page 6.
+Saturday reads 12.6 on page 6. (Corrected 28 Sep 2026: only the 11.8 is the Wembley-weighted score; the 11.4
+did not reproduce, and its section now reads 12.6, with the parent's and today's figures told apart.)
 
 **What was added, all computed, none of it typed:**
 
@@ -706,7 +739,9 @@ Saturday reads 12.6 on page 6.
   sentences twice; once now.
 
 **Every fingerprint is unchanged**, checked by `regenerate.mjs --check` after the pass: these are changes
-to what the sheets say about the cells, not to the cells.
+to what the sheets say about the cells, not to the cells. (That check then covered only the supplied
+designs — until 25 Sep `--check` fingerprinted nothing for the eight searched proposals, see the tooling
+section. It verifies all 23 now.)
 
 **A check of that pass, the same day, found six defects — two of them its own.** All fixed, all 19
 sheets regenerated, fingerprints unchanged.
@@ -714,8 +749,9 @@ sheets regenerated, fingerprints unchanged.
 - **The grid footer contradicted page 1 on every sheet.** The Turns column counted the whole week's
   clock times, so its footer said Same Turns had 4 one-turn weeks where page 1, 3 and 7 say 18 of 20.
   The column now counts Monday-to-Friday clock times, and the bold mark and footer use the page 1
-  tile's own definition from `feel()`: one clock time Mon–Fri and one early-or-late family across
-  every worked day.
+  tile's own definition from `feel()`: one clock time Mon–Fri, and every worked day an early or every
+  worked day a late. (The split was 09:00 until the managers' edition's second accuracy check moved it to
+  11:00, the sheets' own definition of an early; `LEGACY=1` keeps 09:00.)
 - **Page 5 said "all already on today's roster" on 14 sheets** whose page 1 counted 5 to 13 new
   times; the label only branched for the searched families. It is computed from the new-times count
   on every family now.
@@ -733,7 +769,8 @@ sheets regenerated, fingerprints unchanged.
 - **The searched sheets said "Prepared 8 September" while citing v24.21.** `meta.date` is when the
   design was prepared and is stated as that; when a sheet is re-rendered on a later day it now says
   so beside it. Every supplied design carries its preparation date in its meta file, so a re-render
-  never re-dates it.
+  never re-dates it. (Superseded 28 Sep 2026: every sheet now says "Prepared 28 September 2026", and the
+  date a design was first made is the identity panel's *Created*.)
 
 Two were left as decisions and then taken (24 Sep 2026, owner: "do your suggestions"):
 
@@ -899,7 +936,7 @@ by itself was OFF the quarter-hour grid: `FINE=n` lets at most n turns take any 
 One move is worth it — the three 07:00–15:30 middles become **07:00–15:40** — and it frees the fourth
 opener to be today's 06:20–14:00: weekday fit **33.8 → 32.1**, the weekday's new times three → two, at
 the same 6,970 / 7,150 split. Saturday gains nothing at that split; Sunday would gain 62.4 → 59.7 but
-only for two moves and five new times, so it was not taken. The table above is the moved one. Saturday matches *Weekend Capped*'s and Sunday is within a point of it — with the
+only for two moves and five new times, so it was not taken. The table above is the moved one. Saturday is close to *Weekend Capped*'s (23.4 against 23.1) and Sunday is within a point of it — with the
 Sunday pin taking a turn the fit would rather have placed at 13:30.
 
 **The rotation was searched in both of the anneal's modes**, four seeds each: fatigue-first (a present
@@ -943,7 +980,7 @@ fully-covered hour never below today's.
 minutes (20 lines × 35h). On a pure quarter-hour grid every opener from 06:20 and every closer to 23:55
 is ten minutes off a multiple of fifteen, and every middle turn is a multiple — so a weekday pays
 10 mod 15, a Saturday 5 mod 15, and **no pair (W, S) balances; the contract is unreachable**. *Pinned
-Turns* balanced it with today's 07:00–15:40. Here one Saturday opener on the pinned 06:20–14:20 (8h00,
+Turns* balanced it with its 07:00–15:40, a turn nobody works today. Here one Saturday opener on the pinned 06:20–14:20 (8h00,
 a multiple of fifteen where the quarter-hour openers are not) takes the Saturday to 10 mod 15 and closes
 it. That is why the pinned turn is in the pool, and why the Saturday table has exactly one of them.
 
@@ -961,7 +998,7 @@ the calibration — on every day it reached the enumerated optimum on every rest
 | Saturday (7,150) | 215 × 210 = 45,150 | 2,184,885 (uncapped — the seven-turn cap was a bounded run, below) | 8 of 8 (uncapped) | **22.9** under the cap; 21.3 at nine turns |
 | Sunday (5,100–5,145) | 210 × 84 = 17,640 | 2,561 | 6 of 6 | **62.4** |
 
-The bounded runs finish far fewer tables (741,722 weekday, 1,654,092 Saturday uncapped, and 31,239 Saturday
+The bounded runs finish far fewer tables (738,954 weekday, 1,654,092 Saturday uncapped, and 31,239 Saturday
 under the seven-turn cap — `tooling/p2-sat.txt`, the run the sheet ships) because the bound
 abandons a partial table the moment its over-covered hours alone are worse than the incumbent; the
 unbounded runs were made so the size of each space could be stated rather than the size the bound let
@@ -985,7 +1022,7 @@ the lowest 5 × weekday fit + Saturday fit kept:
 | 6,990 | 7,050 | — | 16.7 | — |
 | 7,000 | 7,000 | 36.2 | 14.7 uncapped | 195.7 at best |
 
-The weekday wants to pay less and Saturday wants to pay more, and the contract lets neither: the three
+The weekday fits better as it pays less and so does Saturday, and the contract lets them not both: the three
 feasible splits sit within five points and 6,970 / 7,150 — *Pinned Turns*' own split — stands at the
 top, and the cap cannot change that (the other two splits lose by more than the cap costs even with
 their Saturdays uncapped). The tables, beside *Pinned Turns*':
@@ -1051,17 +1088,17 @@ share-of-traffic measure is applied. Each day is a proof, not a sample. The spli
 |---|---|---|---|---|
 | 6,960 | 7,200 | 20.2 | 12.9 | |
 | **6,970** | **7,150** | **20.4** | **11.6** | this sheet |
-| 6,975 | 7,125 | 20.6 | 10.8 | fifteen shift times a weekday |
+| 6,975 | 7,125 | 20.6 | 10.8 | a fast re-run (28 Sep) finds this weekday with 8 turns and 12 clock times; the "fifteen shift times" first written here did not reproduce |
 | 6,990 | 7,050 | 20.9 | 9.2 | |
 
 The sheet takes the weekday's side of that trade by a little; the room may prefer Saturday's, and every
 other row is one command away. The tables (`tooling/final-rules-table.json`):
 
-| Day | table | floor fit | fit with the office | today's |
-|---|---|---|---|---|
-| Weekday (6,970) | `06:20-13:45 ×1 · 06:20-14:20 ×2 (office) · 06:20-14:30 ×1 · 06:20-15:45 ×1 · 07:00-16:15 ×2 · 14:00-21:00 ×1 · 14:00-22:30 ×2 (office) · 15:45-23:55 ×4` | **20.4** | 21.9 | 50.0–55.8 |
-| Saturday (7,150) | `06:20-14:50 ×2 (office) · 06:20-15:30 ×3 · 07:15-16:45 ×2 · 14:30-22:00 ×2 (office) · 14:45-22:45 ×1 · 15:45-23:55 ×4` | **11.6** | 12.2 | 45.7 |
-| Sunday (5,070) | `07:15-15:30 ×4 (two of them the office) · 09:15-18:15 ×1 · 13:30-22:30 ×2 (office) · 15:15-23:25 ×3` | **19.2** | 33.6 | 65.9 |
+| Day | table | floor fit | fit with the office | today's floor fit | today's, everyone on duty |
+|---|---|---|---|---|---|
+| Weekday (6,970) | `06:20-13:45 ×1 · 06:20-14:20 ×2 (office) · 06:20-14:30 ×1 · 06:20-15:45 ×1 · 07:00-16:15 ×2 · 14:00-21:00 ×1 · 14:00-22:30 ×2 (office) · 15:45-23:55 ×4` | **20.4** | 21.9 | 68.8 | 50.0–55.8 |
+| Saturday (7,150) | `06:20-14:50 ×2 (office) · 06:20-15:30 ×3 · 07:15-16:45 ×2 · 14:30-22:00 ×2 (office) · 14:45-22:45 ×1 · 15:45-23:55 ×4` | **11.6** | 12.2 | 68.7 | 45.7 |
+| Sunday (5,070) | `07:15-15:30 ×4 (two of them the office) · 09:15-18:15 ×1 · 13:30-22:30 ×2 (office) · 15:15-23:25 ×3` | **19.2** | 33.6 | 72.5 | 65.9 |
 
 Everyone on duty: 5 / 5 / 4 at the open, 4 / 4 / 3 at the close, 6 / 5 / 5 on at 22:00, never fewer than
 three on the floor on a weekday or Saturday and two on a Sunday. **The fit with the office counted is
@@ -1085,6 +1122,9 @@ evening one splits their time). `final-table.mjs` now does that by default; this
 off, as the rules stood when it was asked for, and a table built with it on would be a different proposal.
 
 ## The shape of a sheet — headline, how to read it, then the depth (25 Sep 2026)
+
+*(Superseded 28 Sep 2026: page 1's tiles, the "x of 4" December shape, the lineage on page 9 and the method
+pages belong to the 25 Sep sheets. The sheets as they are now: The managers' edition, below.)*
 
 The owner's brief for the format: *headline analysis, deep analysis, but for dummies.* Ten pages now,
 in three layers a reader can stop after at any point:
@@ -1158,8 +1198,9 @@ changed; each fix is in the generator, not the PDF; all 22 sheets were re-render
 | `<Name>-<code>.json` | the same rotation in the app's own `{ name, patterns }` shape — also importable |
 
 Every import form is verified against `links-import.js` (24 lines, no warnings). Importing one
-makes the workspace's Design checks, hard limits, fatigue factors and coverage cards restate every
-figure in its PDF.
+makes the workspace's Design checks, hard limits, fatigue factors and coverage cards restate those
+figures from its PDF. The demand fits, the ticket office / floor split and the eleven-rule count are
+not in the workspace; they come only from `tooling/report-data.mjs`.
 
 ## The managers' edition (28 Sep 2026)
 
@@ -1179,8 +1220,10 @@ answered or which sheet came before it. **No figure changed**; the words around 
   for the PowerPoint on each shortlisted design.
 - **Page 7** shades every rule not met; *Still to settle* is a short list.
 - **Page 9** is *Where it stands among the 23*: every proposal on the same figures, today's link at the foot.
-- **Plain English**: no "cells", "turn" outside the glossary, "evidence class C", "citation outstanding", "RDW",
-  "proxy", "folder" or "owner"; the fit is explained as *an hour that carries a tenth of the trains should have
+- **Plain English**: no "cells" (page 10 says "days", page 6 "square"); "turn" only on page 4, beside the
+  glossary that defines it (the grid's Turns column and its legend), in "one-turn week", and in the plain
+  phrase "every line in turn" (the duty table's header reads "Shift time", the office rule "identical
+  shifts"); no "evidence class C", "citation outstanding", "RDW", "proxy", "folder" or "owner"; the fit is explained as *an hour that carries a tenth of the trains should have
   about a tenth of the staff*.
 
 - **A review pass over all 230 pages** (five readers, one per group of sheets) then fixed what a first-time
@@ -1194,9 +1237,33 @@ answered or which sheet came before it. **No figure changed**; the words around 
   read every hand-written claim. The figures were right. The words around them were not always: the
   rules-not-met chip was nested in the fatigue chip, page 3 quoted the December Saturday/Sunday rule (on the 14 sheets
   short of 14 and 10) with
-  the design's own counts, "does not depend on how a cover week is placed" was untrue on six sheets, four
-  straps misdescribed their rota, and nothing mentioned Saturday Four's half-hour with one person on duty
+  the design's own counts, "does not depend on how a cover week is placed" was untrue on nine sheets (*Cover
+  at Seventeen*, *Fifteen Turns*, *Light Retime*, *Saturday Four*, *Short Closer*, *Targeted Fatigue Redo*,
+  *Three Mondays*, *Weekday Lates* and *Weeks 17-18 Swapped*, whose longest run falls from 9 to between 6 and
+  8 with the placement), six straps misdescribed their rota and were rewritten (*Frozen Block*, *Gates
+  Mended*, *Office Written In*, *Pinned Turns*, *Quarter To*, *Targeted Fatigue Redo*; a second check
+  rewrote two more, *Light Retime* and *Three Mondays*), and nothing mentioned Saturday Four's half-hour with one person on duty
   (now a "thin moment" line on page 7, raised automatically for any day that drops below three).
+- **A second accuracy check** (28 Sep 2026) read all 23 sheets again with fresh readers and different
+  groupings, and checked this README, `docs/LINKS_DEC2026_PLAN.md` and the one-line descriptions. The
+  figures still recounted clean. It found and fixed:
+  - **The handover rule was scored unevenly.** A design with ticket-office pairs on two days passed on
+    those two alone, while one with none failed. The office overlap is now measured the way the floor is
+    — the rostered pairs where a design has them, the plan's posts where it does not — and the value says
+    when posts are assumed. *Fifteen Turns*, *Gates Mended* and *Weekend Capped* each meet one more rule;
+    none meets fewer.
+  - **Page 8 said cover-week placement changed nothing** on sheets where it moves the run, the 8-hour run
+    or FF15; it now names each such row with its "placed well" figure, and page 3 does the same.
+  - **One-turn weeks and "mixing early and late"** now use the same 11:00 split, so a week can no
+    longer count as both.
+  - **Page 10 claimed the app shows the fingerprint** and restates every figure. It shows neither the
+    fingerprint nor the fits, the office/floor split or the rules count, which come from `tooling/`.
+  - **"The ORR lists 25"** — it is 21 ORR factors and 4 rail-industry (MRSF) checks.
+  - Smaller: page 5's office row now says on which days the pairs are rostered; the *At a glance* fit row
+    is shaded only when all three days agree; page 3 names a weekday or Saturday floor fit worse than
+    today's, not only Sunday's; *Eight Forty* and *Office Written In*'s long duty tables are split in two
+    so they no longer run under the footer; two more one-line descriptions (*Light Retime*, *Three
+    Mondays*) now describe their own rota.
 - **Family and first-created date** sit in the identity panel on page 1 (`FAMILY` and `FIRST` in `fresh.mjs`) —
   deliberately small, as a finding aid when presenting, not a history.
 
@@ -1235,7 +1302,7 @@ CAP=520 PIN_N=2 PIN_MIN=1020 PIN="14:00-22:30x2" AT22_FLOOR=1 CLS=sat node place
                                      # a day table by placing EVERY enumerated length structure (Office Written In)
 CAP=520 PIN_N=2 PIN_MIN=1020 PIN="14:00-22:30x2" AT22_FLOOR=1 CLS=sat PICK=share SHARE=b2-weekday.json node place-structures.mjs
                                      # the same Saturday, preferring turns the weekday already works ("fewer shift times")
-node assemble-table.mjs by-the-book-2-table.json b2-weekday.json b2-sat.json b2-sun.json
+AT22_FLOOR=1 node assemble-table.mjs by-the-book-2-table.json b2-weekday.json b2-sat.json b2-sun.json
 MODE=rules node anneal.mjs G 100000 5 7    # Office Written In family: table G, seeds 7 13 21 34
 PROPOSAL=B2 node final.mjs results/best-RG-*.json
 CLS=sat node weekend-table.mjs > q2-sat.txt; CLS=sun node weekend-table.mjs > q2-sun.txt
@@ -1244,7 +1311,7 @@ CLS=sat node weekend-table.mjs > q2-sat.txt; CLS=sun node weekend-table.mjs > q2
 PINS=none CAP=520 node assemble-table.mjs quarter-to-2-table.json q2-weekday.json q2-sat.json q2-sun.json
 MODE=feel  node anneal.mjs W 100000 5 7    # Weekend Capped family: table W, seeds 7 13 21 34 41 55 68 89
 PROPOSAL=Q2 node final.mjs results/best-W-*.json
-CLS=weekday TOTAL=6990 node brief-table.mjs   # Pinned Turns: a day to the owner's 25 Sep brief, the rest fitted (CLS=sat TOTAL=42000-5W; CLS=sun)
+CLS=weekday TOTAL=6970 FINE=1 node brief-table.mjs   # Pinned Turns (the shipped weekday, pt-weekday.txt): a day to the owner's 25 Sep brief, the rest fitted (CLS=sat TOTAL=42000-5W; CLS=sun)
                                      # the split W is swept 6,945..7,050 with MS=15000 EXHAUSTIVE=0 and picked by 5 x weekday fit + Saturday fit
 PIN_WK="06:20-14:20x3,14:00-22:30x2,15:45-23:55x3" PIN_SAT="14:00-22:30x1" PIN_SUN="13:00-21:30x1" CAP=520 node assemble-table.mjs pinned-turns-table.json pt-weekday.json pt-sat.json pt-sun.json
 MODE=rules node anneal.mjs P 100000 5 7    # Pinned Turns: table P in BOTH modes (MODE=feel too), seeds 7 13 21 34; the mode with fewer factors is kept
