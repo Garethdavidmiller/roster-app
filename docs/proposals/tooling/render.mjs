@@ -260,7 +260,7 @@ export async function renderPdf(D, out) {
     <div class="tier"><div class="tier-k">Soft — the room weighs these against each other</div>
       <ul><li>${meta.decLabel ?? 'December 2026 headcounts met'}: <b>${decMet} of ${meta.decOf ?? 4}</b> (today ${meta.decToday ?? 0} of ${meta.decOf ?? 4})</li>
       <li>Fatigue factors present: <b>${P.fatigue.present}</b>${presentRosN !== P.fatigue.present ? ` worst case, ${presentRosN} as rostered` : ''} (today ${T.fatigue.present})</li>
-      <li>Demand fit weekday · Sat · Sun: <b>${weekdayFitOf}</b> · ${P.fits.sat} · ${P.fits.sun} (today ${T.wkFit} · ${T.fits.sat} · ${T.fits.sun}; lower is closer); floor <b>${floorTrio(FO)}</b> (today ${floorTrio(TO)})</li>
+      <li>${FRESH ? `How the floor follows the trains, weekday · Sat · Sun: <b>${floorTrio(FO)}</b> (today ${floorTrio(TO)}; lower is closer)` : `Demand fit weekday · Sat · Sun: <b>${weekdayFitOf}</b> · ${P.fits.sat} · ${P.fits.sun} (today ${T.wkFit} · ${T.fits.sat} · ${T.fits.sun}; lower is closer); floor <b>${floorTrio(FO)}</b> (today ${floorTrio(TO)})`}</li>
       <li>Times worked today: <b>${sharedTimes} of ${P.feel.distinctTimes}</b> · full weekends off: <b>${P.checks.weekendsOff}</b> in 24 (today ${T.checks.weekendsOff} in 20)</li></ul></div>
     <div class="tier"><div class="tier-k">Preference — staff's to state, not the tool's</div>
       <ul><li>Early against late: earlies ${famRange('E')}, lates ${famRange('L')}</li>
@@ -339,6 +339,13 @@ export async function renderPdf(D, out) {
       what: 'The share of this sheet’s clock times that somebody on the 20-line link already works. It is the folder’s proxy for how much there is to learn and to accept.',
       not: 'Familiar is not the same as popular — a time everyone works and nobody likes still counts — and a new time in one week is not the same as one in ten. The duty table on page 5 lists the new ones.' },
   ];
+  // The managers' edition measures the FLOOR: the ticket office is staffed to its hours, not the trains, and is the
+  // same in every proposal, so the floor is where the designs differ. The everyone-on-duty figure stays beside it.
+  if (FRESH) Object.assign(MEASURES[0], { name: 'How well the floor follows the trains — weekday', val: FO.wkFit, today: TO.wkFit, e: EXT.floorWk,
+    hi: Math.max(90, Math.ceil(((EXT.floorWk?.worst ?? 0) + 5) / 10) * 10, Math.ceil((TO.wkFit + 5) / 10) * 10),
+    what: `For each hour of an average weekday, the share of the day’s floor staff on duty is set against the share of the day’s trains: an hour that carries a tenth of the trains should have about a tenth of the staff. The score adds up how far each hour is off, so 0 would be a perfect match. In plain terms a typical hour here is about ${rmsGap(FO.wkFit)} percentage points off the trains, against ${rmsGap(TO.wkFit)} today. The ticket office is left out of both — it is staffed to its opening hours, not to the trains.`,
+    not: 'It compares shares, not numbers: the same extra person in every hour changes nothing, and an extra person in a quiet hour makes the score worse even though nobody is worse off. Read it beside the hour-by-hour numbers on page 6.',
+    extra: `Saturday <b>${FO.fits.sat}</b> (today ${TO.fits.sat}) · Sunday <b>${FO.fits.sun}</b> (today ${TO.fits.sun}). Everyone on duty, ticket office included: weekday ${wkFitP} (today ${todayWk}).` });
   const scale = m => { const span = m.hi - m.lo; const pct = v => Math.max(1.5, Math.min(98.5, (v - m.lo) / span * 100)).toFixed(1);   // clamped so an end marker stays inside the track
     const marks = [ m.e?.worst != null && { k: 'worst', v: m.e.worst, t: 'folder worst' }, m.e?.best != null && { k: 'best', v: m.e.best, t: `folder best${whoTxt(m.e)}` }, m.today != null && { k: 'today', v: m.today, t: 'today’s link' }, { k: 'this', v: m.val, t: 'this sheet' } ].filter(Boolean);
     return `<div class="scale">${marks.map(x => `<i class="m m-${x.k}" style="left:${pct(x.v)}%"></i>`).join('')}</div><div class="scale-lab"><span>${m.fmt(m.lo)}${m.lower ? ' ← better' : ''}</span><span>${m.lower ? '' : 'better → '}${m.fmt(m.hi)}</span></div><div class="scale-key">${marks.map(x => `<span><i class="m m-${x.k}"></i>${x.t} <b>${m.fmt(x.v)}</b></span>`).join('')}</div>`; };
@@ -400,7 +407,7 @@ td.up { background: color-mix(in srgb, var(--success-green) 10%, white); } td.do
 .print-grid td.tot-cell { font-size: 9px; padding: 0 3px; } .cov-foot { font-weight: 800; color: var(--text-dark); } .cov-sub { display: block; font-weight: 500; font-size: 8px; color: var(--shift-spare-text); }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; } .legend > span { white-space: nowrap; } .legend .muted { white-space: normal; flex-basis: 100%; }
 .legend-x { font-size: 9.5px; color: var(--text-mid); margin-top: 6px; } .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
-.t.standings { font-size: 9px; } .t.standings td, .t.standings th { padding: 3px 5px; } .t.standings tr.here td { background: color-mix(in srgb, var(--accent-gold) 22%, white); font-weight: 700; } .t.standings tr.today td { border-top: 2px solid var(--border-light); color: var(--text-mid); } .cov-heat { border-collapse: collapse; width: 100%; } .cov-heat th, .cov-heat td { border: 1px solid var(--border-light); text-align: center; } .cov-heat-cell { height: 20px; min-width: 0; font-size: 9px; } .cov-heat--dense .cov-heat-cell { height: 15px; font-size: 8.5px; } tr:has(> .office-day) .cov-heat-cell, tr:has(> .floor-day) .cov-heat-cell { height: 13px; font-size: 8px; } tr:has(> .office-day) th, tr:has(> .floor-day) th { font-size: 8px; color: var(--text-mid); } tr:has(> .office-day) .cov-fit, tr:has(> .floor-day) .cov-fit { font-size: 8px; } .cov-heat-day { text-align: left !important; padding: 0 6px; white-space: nowrap; font-size: 9px; }
+.t.rules tr.rule-miss td { background: color-mix(in srgb, var(--warning-amber) 12%, white); } .t.rules tr.rule-miss td:nth-child(2) { font-weight: 700; } ul.oq-list { margin: 4px 0 0 18px; padding: 0; font-size: 10px; line-height: 1.45; } ul.oq-list li { margin: 2px 0; } .t.glance { margin-top: 8px; } .t.glance td:nth-child(3) { font-weight: 700; } .t.standings { font-size: 9px; } .t.standings td, .t.standings th { padding: 3px 5px; } .t.standings tr.here td { background: color-mix(in srgb, var(--accent-gold) 22%, white); font-weight: 700; } .t.standings tr.today td { border-top: 2px solid var(--border-light); color: var(--text-mid); } .cov-heat { border-collapse: collapse; width: 100%; } .cov-heat th, .cov-heat td { border: 1px solid var(--border-light); text-align: center; } .cov-heat-cell { height: 20px; min-width: 0; font-size: 9px; } .cov-heat--dense .cov-heat-cell { height: 15px; font-size: 8.5px; } tr:has(> .office-day) .cov-heat-cell, tr:has(> .floor-day) .cov-heat-cell { height: 13px; font-size: 8px; } tr:has(> .office-day) th, tr:has(> .floor-day) th { font-size: 8px; color: var(--text-mid); } tr:has(> .office-day) .cov-fit, tr:has(> .floor-day) .cov-fit { font-size: 8px; } .cov-heat-day { text-align: left !important; padding: 0 6px; white-space: nowrap; font-size: 9px; }
 .check-row { font-size: 10.5px; padding: 4px 9px; } .check-rows { gap: 3px; } p.oq { font-size: 10px; line-height: 1.36; }
 table.ff { border-collapse: collapse; width: 100%; font-size: 9.5px; } table.ff td { padding: 2px 6px; border-bottom: 1px solid var(--border-light); vertical-align: top; } table.ff th { text-align: left; font-size: 9px; text-transform: uppercase; color: var(--text-mid); background: var(--surface-sunken); padding: 4px 6px; }
 .ff-code { font-weight: 800; color: var(--primary-blue); white-space: nowrap; width: 38px; } .ff-fam { display: inline; font-size: 8.5px; color: var(--text-light); margin-left: 6px; }
@@ -473,7 +480,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
     <div class="tile"><span class="q">Can it be run?</span><b>${canRun ? 'Yes' : 'Not as it stands'}</b><span class="l">the hard limits</span><span class="s">${restsN} rest${restsN === 1 ? '' : 's'} under 12h · longest run ${hard.value} of 13 · ${contractExact ? 'contract exact' : 'contract missed'}</span></div>
     <div class="tile"><span class="q">Does it meet the December shape?</span><b>${decMet} of ${meta.decOf ?? 4}</b><span class="l">headcount rules met</span><span class="s">${meta.decTile ?? 'four to open, three to close (four on Saturday), five at 22:00, 14 and 10 at the weekend · today meets 0 of 4'}</span></div>
     <div class="tile"><span class="q">How tiring is it?</span><b>${P.fatigue.present}</b><span class="l">fatigue factors present, of 25</span><span class="s">advisory — present means worth a look, not a breach · today ${T.fatigue.present} · fewest in the folder ${EXT.present?.best ?? '—'}</span></div>
-    <div class="tile"><span class="q">Does it follow the trains?</span><b>${wkFitP}</b><span class="l">weekday demand fit — lower is closer</span><span class="s">Saturday ${P.fits.sat} · Sunday ${P.fits.sun} · today ${todayWk} · best in the folder ${EXT.wk?.best ?? '—'} · on the floor ${FO.wkFit} (today ${TO.wkFit})</span></div>
+    ${FRESH ? `<div class="tile"><span class="q">Does it follow the trains?</span><b>${FO.wkFit}</b><span class="l">how closely the floor follows the weekday trains — 0 is a perfect match</span><span class="s">today ${TO.wkFit} · Saturday ${FO.fits.sat} · Sunday ${FO.fits.sun} · best of the others ${EXT.floorWk?.best ?? '—'}</span></div>` : `<div class="tile"><span class="q">Does it follow the trains?</span><b>${wkFitP}</b><span class="l">weekday demand fit — lower is closer</span><span class="s">Saturday ${P.fits.sat} · Sunday ${P.fits.sun} · today ${todayWk} · best in the folder ${EXT.wk?.best ?? '—'} · on the floor ${FO.wkFit} (today ${TO.wkFit})</span></div>`}
     <div class="tile"><span class="q">Is it familiar?</span><b>${sharedTimes} of ${P.feel.distinctTimes}</b><span class="l">shift times people work today</span><span class="s">${newTimes.length ? `${newTimes.length} new, listed on page 5` : 'nothing new to learn'} · ${P.feel.oneTurn} of ${P.feel.workingLines} weeks are one turn (today ${T.feel.oneTurn} of ${T.feel.workingLines})</span></div>
   </div>
   <div class="tiles">
@@ -586,14 +593,14 @@ ${readHtml}${frameHtml}
   </div>
   <h2>${meta.designHeading ?? 'December 2026 timetable design figures'} <span class="muted" style="font-weight:400;font-size:10px">${meta.designSub ?? '— the staffing shape agreed for the new timetable'}</span></h2>
   <table class="t rules"><thead><tr><th>Rule</th><th>Proposal</th><th></th></tr></thead><tbody>
-  ${meta.designRules.map(r => `<tr><td>${esc(r.rule)}</td><td>${r.ok?'✓':'✕'} ${esc(r.value)}</td><td class="muted">${esc(r.note)}</td></tr>`).join('')}
+  ${meta.designRules.map(r => `<tr${FRESH && !r.ok ? ' class="rule-miss"' : ''}><td>${esc(r.rule)}</td><td>${r.ok?'✓':'✕'} ${esc(r.value)}</td><td class="muted">${esc(r.note)}</td></tr>`).join('')}
   </tbody></table>
   <!-- The heading used to be the literal "Two things to settle" while every proposal it rendered
        listed four or five. A heading that miscounts the list under it is the kind of small untruth
        a reader checks and then stops trusting the rest for, so it is overridable. The default is
        unchanged in substance and carries no count. -->
   <h2>${esc(meta.openQuestionsHeading ?? 'To settle before it is frozen')}</h2>
-  <p class="oq">${meta.openQuestions}</p>
+  ${meta.openQuestionsHtml ?? `<p class="oq">${meta.openQuestions}</p>`}
   <div class="foot"><span>Page 7 of 10 — The checks sheet: hard limits and design figures</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
 
@@ -636,7 +643,7 @@ ${meta.page9 ?? `<section class="page">
   <div class="foot"><span>Page 10 of 10 — Import</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
 </body></html>`;
-  if (FRESH) html = freshWords(html, folderStats().length);
+  if (FRESH) html = freshWords(html, { total: folderStats().length, todayMet: meta.decToday, of: meta.decOf });
   writeFileSync(out.replace(/\.pdf$/, '.html'), html);
   const b = await chromium.launch(); const pg = await b.newPage();
   await pg.goto('file://' + out.replace(/\.pdf$/, '.html')); await pg.evaluate(() => document.fonts.ready);

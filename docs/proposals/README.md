@@ -1162,6 +1162,36 @@ Every import form is verified against `links-import.js` (24 lines, no warnings).
 makes the workspace's Design checks, hard limits, fatigue factors and coverage cards restate every
 figure in its PDF.
 
+## The managers' edition (28 Sep 2026)
+
+The managers have seen none of these proposals, and meet all 23 at once. So every sheet is now written for a
+first-time reader: it answers **one question** — *is this better than today's link, and does it meet the December
+2026 rules?* — against **one rule set**, in plain English, with no reference to how it was derived, which brief it
+answered or which sheet came before it. **No figure changed**; the words around them did.
+
+- **One rule set, eleven rules** (`currentRules`, `tooling/report-data.mjs`), read from each design's cells: at
+  least four at the open, three at the close and five at 22:00 on every day; 14 on a Saturday and 10 on a
+  Sunday; four evenly spread cover weeks; the ticket office as two early and two late identical turns every
+  day; every weekday closer at 15:45; at least two on the floor at every moment; 15-minute handovers (20 in the
+  office); Sunday duties 8h–9h; no more shift times than today. Right Away meets 11, today's link 3.
+- **The floor comes first.** Page 1's "Does it follow the trains?" and page 2's scale measure how the people on
+  the floor — ticket office out — follow the trains; the everyone-on-duty figure sits beside it.
+- **Page 1** carries an *At a glance* table, today's link against the proposal, which is also the headline set
+  for the PowerPoint on each shortlisted design.
+- **Page 7** shades every rule not met; *Still to settle* is a short list.
+- **Page 9** is *Where it stands among the 23*: every proposal on the same figures, today's link at the foot.
+- **Plain English**: no "cells", "turn" outside the glossary, "evidence class C", "citation outstanding", "RDW",
+  "proxy", "folder" or "owner"; the fit is explained as *an hour that carries a tenth of the trains should have
+  about a tenth of the staff*.
+
+Everything lives in `tooling/fresh.mjs` — a one-line description per design (what it *is*), the page words built
+from its figures, and a last plain-English pass over the finished page. `LEGACY=1 node regenerate.mjs` renders
+the previous edition.
+
+**Checks before shipping**, all run for this edition: `node regenerate.mjs --check` (23 fingerprints unchanged);
+every PDF exactly ten pages with its footers in order; a text scan of every page except page 9 for history and
+jargon words, which finds none.
+
 ## Reproducing or extending them — `tooling/`
 
 Node scripts, driven from this directory, importing the app's modules by relative path. No install
