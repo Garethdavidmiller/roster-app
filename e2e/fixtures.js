@@ -391,8 +391,17 @@ export const getAuth = () => ({ get currentUser() { return _currentUser(); } });
 // Emits the CURRENT user, not a hardcoded null (v20.12). calendar-access.js resolves the first
 // emission to decide access, so a stub that always said null would report every seeded member and
 // every restored viewer as locked out — and the whole PIN suite would pass for the wrong reason.
+// REVOKE SEAM (v24.37): window.__E2E.revokeAuth() signs the member out the way a refused token
+// refresh does in production, and tells every listener still subscribed. The initial emission below
+// is unchanged; a listener only hears the revocation while it is live.
+const _authSubs = new Set();
+(globalThis.__E2E || (globalThis.__E2E = {})).revokeAuth = () => {
+    globalThis.__E2E.authUser = false;
+    for (const cb of Array.from(_authSubs)) cb(null);
+};
 export const onAuthStateChanged = (_auth, cb) => {
-    if (_restored()) { Promise.resolve().then(() => cb && cb(_currentUser())); return noop; }
+    if (cb) _authSubs.add(cb);
+    if (_restored()) { Promise.resolve().then(() => cb && cb(_currentUser())); return () => _authSubs.delete(cb); }
     // Microtask when there is no delay, so the overwhelming majority of specs keep the timing they
     // were written against; a timer only when a delay was asked for.
     const t = setTimeout(() => cb && cb(_currentUser()), Math.max(0, _restoreDue - Date.now()));

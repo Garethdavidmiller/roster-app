@@ -57,6 +57,7 @@
 
 import { conflictOf, baselineAfterWrite, baselineAfterCommit, canAdvanceBaseline, nextRevision } from './links-concurrency.js';
 import { isDeleted } from './links-deletion.js';
+import { SIGNED_OUT_CODE } from './claim-retry.js';
 
 /**
  * @typedef {object} StoreDeps
@@ -103,7 +104,11 @@ export function createDesignStore(deps) {
      * @param {() => Promise<any>} write
      */
     const queueWrite = (write) => {
-        withClaimRetry(write).catch((/** @type {any} */ err) => console.error('[Links] Queued write failed on sync:', err));
+        withClaimRetry(write).catch((/** @type {any} */ err) => {
+            // Signed out while queued is NOT a failure: the SDK keeps it for that account (v24.37).
+            if (err?.code === SIGNED_OUT_CODE) { console.warn('[Links] Queued write held until that designer signs in again'); return; }
+            console.error('[Links] Queued write failed on sync:', err);
+        });
     };
 
     /**

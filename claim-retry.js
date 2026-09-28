@@ -95,6 +95,18 @@ export async function runWithClaimRetry(fn, { retryCode, hasUser, refresh }) {
 export const SIGNED_OUT_CODE = 'auth/signed-out-during-request';
 
 /**
+ * The one sentence every write surface uses for SIGNED_OUT_CODE (v24.37). "Confirmed", never
+ * "failed": the write is held for that account and usually lands when the same member signs back
+ * in, so a surface saying "failed — try again" invited a second copy of something already queued.
+ * @param {string} what         the thing written, e.g. 'this delete'
+ * @param {string} whereToCheck where the reader can see whether it landed
+ * @returns {string}
+ */
+export function signedOutLine(what, whereToCheck) {
+    return `You were signed out before ${what} was confirmed. Sign in again, then check ${whereToCheck}.`;
+}
+
+/**
  * What a failed Admin save tells the person who pressed Save. Three causes, three instructions: an
  * account that went mid-save (the change may still send once they sign back in, so it is called
  * unconfirmed, never lost), a refusal, and everything else.
@@ -102,7 +114,7 @@ export const SIGNED_OUT_CODE = 'auth/signed-out-during-request';
  * @returns {string}
  */
 export function saveFailureMessage(err) {
-    if (err?.code === SIGNED_OUT_CODE) return "You were signed out before this change was confirmed. Sign in again, then check Saved Changes.";
+    if (err?.code === SIGNED_OUT_CODE) return signedOutLine('this change', 'Saved Changes');
     if (err?.code === 'permission-denied') return "Couldn't save — you may have been signed out. Please sign in again.";
     return "Couldn't save — check your connection and try again.";
 }
@@ -156,4 +168,35 @@ export function abandonOnSignOut(request, { uid, watch }) {
     request.then(settle, settle);
     lost.catch(settle);
     return Promise.race([request, lost]);
+}
+
+/**
+ * Call `onLost` ONCE when the page's account goes — signed out, or replaced by another — while the
+ * page still believes somebody is signed in (v24.37).
+ *
+ * The other half of abandonOnSignOut. That one ends the wait and says "sign in again", but a page
+ * that has already shown itself has no sign-in box until it is reloaded, so the instruction had
+ * nowhere to be followed. The caller shows its sign-in overlay from `onLost`.
+ *
+ * `stillSignedIn` is what separates a revoked session from a deliberate one: the drawer's Sign out
+ * clears the local session FIRST, so by the time the account goes this answers false and nothing
+ * is shown over a page that is about to reload anyway.
+ *
+ * @param {{ uid: string|null|undefined, watch: (cb: (user: { uid: string }|null) => void) => () => void,
+ *           stillSignedIn: () => boolean, onLost: () => void }} deps
+ * @returns {() => void} unsubscribe
+ */
+export function watchIdentityLoss({ uid, watch, stillSignedIn, onLost }) {
+    if (!uid) return () => {};
+    let fired = false;
+    /** @type {() => void} */ let stop = () => {};
+    const unsub = watch(user => {
+        if (fired || (user && user.uid === uid) || !stillSignedIn()) return;
+        fired = true;
+        stop();
+        onLost();
+    });
+    stop = unsub;
+    if (fired) unsub();
+    return unsub;
 }

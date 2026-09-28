@@ -2215,6 +2215,43 @@ test('admin: a save that is waiting for the server says so, and the notice clear
     await expect(page.locator('#stagedDiscardBtn'), 'the sticky bar must come back once the save lands').toBeEnabled();
 });
 
+// ── A SAVE WHOSE ACCOUNT IS REVOKED ENDS, AND SAYS WHERE TO SIGN IN (v24.36 / v24.37) ─────────────
+//
+// Reported: a manager's or member's save sat on "Saving…" for good. A refused token refresh signs the
+// account out, and Firestore never settles that account's pending commit (claim-retry.js). This holds
+// a commit open through the REAL Change-a-Shift path, revokes the session the way production does, and
+// checks the three things the release promises: the button comes back, the message calls the change
+// unconfirmed rather than lost, and the sign-in box is there to act on it. The unit tests prove the
+// helpers; only this proves they are wired to the save.
+test('admin: a save whose sign-in is revoked mid-save stops waiting and offers the sign-in', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2027-01-11';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Jan 2027');
+    await page.locator('#bulkSelMonFri').click();
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await page.locator('#bulkApplyBtn').click();
+    await page.locator('#saveBtn').click();
+    await expect(page.locator('#saveBtn')).toContainText('Saving');
+
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.revokeAuth());
+
+    const feedback = page.locator('#formFeedback');
+    await expect(feedback).toContainText('signed out before this change was confirmed', { timeout: 5000 });
+    await expect(feedback).toContainText('Saved Changes');
+    await expect(feedback, 'the write is held, not lost').not.toContainText(/lost|not saved/i);
+    await expect(page.locator('#saveBtn')).not.toContainText('Saving');
+    // The sign-in box the message sends them to (v24.37) — without it "sign in again" meant a reload.
+    await expect(page.locator('#loginPassword')).toBeVisible({ timeout: 5000 });
+});
+
 // ── SUNDAY IS NOT A CONTRACTED DAY — LAYERS 1 AND 2, AS THE GRID ACTUALLY DRAWS THEM ────────────
 //
 // CLAUDE.md's Sunday rule has six enforcement layers and says none of them is removable alone. Two

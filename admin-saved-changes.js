@@ -29,6 +29,7 @@ import { TYPES, rowValueText } from './admin-shift-types.js';
 import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides } from './admin-override-store.js';
 
 import { setStatus } from './status-text.js';
+import { SIGNED_OUT_CODE, signedOutLine } from './claim-retry.js';
 import { withSlowSaveNotice } from './slow-save.js';
 // ── INJECTED ──────────────────────────────────────────────────────────────────
 let _currentIsAdmin   = false;
@@ -299,6 +300,7 @@ async function _handleDelete(e) {
         if (listFeedback) {
             setStatus(listFeedback, (/** @type {any} */ (err))?.code === 'unavailable'
                 ? '⚠ You appear to be offline — reconnect and try again.'
+                : (/** @type {any} */ (err))?.code === SIGNED_OUT_CODE ? '⚠ ' + signedOutLine('this delete', 'Saved Changes')
                 : '⚠ Could not delete — check your connection and try again.');
             listFeedback.className = 'list-feedback error';
         }
@@ -373,6 +375,7 @@ function _initOverridesTable() {
                 if (listFeedback) {
                     setStatus(listFeedback, (/** @type {any} */ (err))?.code === 'unavailable'
                         ? '⚠ You appear to be offline — reconnect and try again.'
+                        : (/** @type {any} */ (err))?.code === SIGNED_OUT_CODE ? '⚠ ' + signedOutLine('this delete', 'Saved Changes')
                         : '⚠ Bulk delete failed — check your connection and try again.');
                     listFeedback.className = 'list-feedback error';
                 }

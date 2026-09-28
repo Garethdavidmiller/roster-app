@@ -21,6 +21,7 @@ import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
 import { summarise, shouldOpen } from './settings-status.js';
 import { setStatus } from './status-text.js';
+import { SIGNED_OUT_CODE, signedOutLine } from './claim-retry.js';
 import { inventoryOf } from './paycalc-inventory.js';
 import { selectBackupKeys } from './paycalc-transfer.js';
 import { pcPrefix, setPaycalcNamespace } from './paycalc-migrations.js';
@@ -415,7 +416,8 @@ export function init() {
             } catch (err) {
                 console.warn('[staffContact] Save failed:', err);
                 setFeedback(
-                    (/** @type {any} */ (err))?.code === 'permission-denied'
+                    (/** @type {any} */ (err))?.code === SIGNED_OUT_CODE ? signedOutLine('your email', 'it is saved')
+                    : (/** @type {any} */ (err))?.code === 'permission-denied'
                         ? 'Couldn\'t save — please sign out and sign back in.'
                         : 'Couldn\'t save — check your connection and try again.',
                     'err'
@@ -438,7 +440,8 @@ export function init() {
                 } catch (err) {
                     console.warn('[staffContact] Remove failed:', err);
                     setFeedback(
-                        (/** @type {any} */ (err))?.code === 'permission-denied'
+                        (/** @type {any} */ (err))?.code === SIGNED_OUT_CODE ? signedOutLine('the removal', 'it is gone')
+                        : (/** @type {any} */ (err))?.code === 'permission-denied'
                             ? 'Couldn\'t remove — please sign out and sign back in.'
                             : 'Couldn\'t remove — check your connection and try again.',
                         'err'

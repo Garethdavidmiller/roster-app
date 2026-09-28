@@ -353,7 +353,11 @@ export function createRangeBookingSection(cfg) {
             console.error(`[Admin] ${cfg.logLabel} save failed:`, err);
             clearTimeout(feedbackTimer);
             feedbackEl.className = 'feedback error';
-            setStatus(feedbackEl, (/** @type {any} */ (err)).partialCommit
+            setStatus(feedbackEl, (/** @type {any} */ (err)).code === SIGNED_OUT_CODE
+                // Signed out while a chunk waited (claim-retry.js): held for that account, and
+                // earlier chunks may have landed — the same check either way (v24.37).
+                ? '⚠ ' + saveFailureMessage(err)
+                : (/** @type {any} */ (err)).partialCommit
                 // A long range failed mid-way after earlier chunks committed. recordRangeOverrides
                 // has already resynced the Saved-changes list from Firestore, so the admin can see
                 // exactly what did land before retrying (v16.25).
@@ -364,10 +368,7 @@ export function createRangeBookingSection(cfg) {
                     ? "⚠ Couldn't load saved changes — reload the page before recording this."
                     : (/** @type {any} */ (err)).message === 'auth/session-expired'
                         ? "⚠ You've been signed out — please sign in again."
-                        : (/** @type {any} */ (err)).code === SIGNED_OUT_CODE
-                            // Signed out while the write waited (claim-retry.js): may still send.
-                            ? '⚠ ' + saveFailureMessage(err)
-                            : "⚠ Couldn't save — check your connection and try again.");
+                        : "⚠ Couldn't save — check your connection and try again.");
         } finally {
             // Restore the button LABEL only — let updatePreview() govern the disabled state. On the
             // SUCCESS path picker.reset() has already cleared the range and updatePreview() disabled
