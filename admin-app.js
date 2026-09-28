@@ -16,7 +16,8 @@
 
 import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate, TIME_RE } from './roster-data.js';
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
-import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
+import { db, auth, doc, writeBatch, writeWithClaimRetry, onAuthStateChanged, COLLECTIONS } from './firebase-client.js';
+import { SIGNED_OUT_CODE, signedOutLine, watchIdentityLoss } from './claim-retry.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
@@ -1317,7 +1318,9 @@ export function init() {
             if (feedbackEl) {
                 const msg = (/** @type {any} */ (err)).code === 'unavailable'
                     ? '⚠ You appear to be offline — reconnect and try again.'
-                    : '⚠ Delete failed — check your connection and try again.';
+                    : (/** @type {any} */ (err)).code === SIGNED_OUT_CODE
+                        ? '⚠ ' + signedOutLine('this delete', 'Saved Changes')
+                        : '⚠ Delete failed — check your connection and try again.';
                 feedbackEl.textContent = msg;
                 feedbackEl.className = 'feedback error';
                 // An error has to be READ, so it stays inline rather than in a 4s toast — and is
@@ -1536,7 +1539,11 @@ export function init() {
             // re-resolve it and would strand feature modules on a stale auth barrier. resetNavPanel() clears
             // the stale identity the optimistic pass wired into the drawer so it isn't briefly visible
             // behind the overlay before the reload (initNavPanel self-guards against re-wiring otherwise).
-            if (requirePage(getAuthSnapshot(), 'admin').decision === 'login') { clearSession(); resetNavPanel(); showAdminLogin({ reloadOnSuccess: true }); }
+            const _relogin = () => { clearSession(); resetNavPanel(); showAdminLogin({ reloadOnSuccess: true }); };
+            if (requirePage(getAuthSnapshot(), 'admin').decision === 'login') return _relogin();
+            // …and if the account goes LATER (a revoked session — claim-retry.js), offer the sign-in
+            // then, not only on the next load: a save's "sign in again" had nowhere to be done (v24.37).
+            watchIdentityLoss({ uid: auth.currentUser?.uid, watch: cb => onAuthStateChanged(auth, cb), stillSignedIn: () => !!getSession(), onLost: _relogin });
         });
         // All dropdowns are now populated — apply permissions then load data
         document.body.classList.add('auth-ready');

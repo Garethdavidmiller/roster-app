@@ -56,6 +56,7 @@ import { initLinksCompare } from './links-compare.js';
 import { baselineFromEntry } from './links-concurrency.js';
 import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
+import { SIGNED_OUT_CODE } from './claim-retry.js';
 import {
     isDeleted, deletedLabel, canSoftDelete, sortByDeleted,
 } from './links-deletion.js';
@@ -2325,7 +2326,8 @@ export function init() {
             console.error('[Links] Save failed:', err);
             if (here()) {
                 dirty = true;
-                if (status) { status.textContent = 'Save failed — try again'; status.className = 'links-save-status err'; }
+                // Signed out mid-save: held for that account, not failed (claim-retry.js, v24.37).
+                if (status) { status.textContent = /** @type {any} */ (err)?.code === SIGNED_OUT_CODE ? 'Signed out before this saved — sign in again, then check' : 'Save failed — try again'; status.className = 'links-save-status err'; }
             }
         } finally {
             savingKeys.delete(key);

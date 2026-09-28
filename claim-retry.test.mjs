@@ -3,7 +3,53 @@
 // (v18.28). No mocks needed; the runner is Firebase-agnostic (deps injected). Part of test:hygiene.
 import { test, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isClaimRetryable, runWithClaimRetry, isAccessFailure, abandonOnSignOut, SIGNED_OUT_CODE, saveFailureMessage } from './claim-retry.js';
+import { isClaimRetryable, runWithClaimRetry, isAccessFailure, abandonOnSignOut, SIGNED_OUT_CODE, saveFailureMessage, signedOutLine, watchIdentityLoss } from './claim-retry.js';
+
+// ── watchIdentityLoss (v24.37) — the "sign in again" needs somewhere to be done ────────────────────
+describe('watchIdentityLoss', () => {
+    /** @param {{ stillSignedIn?: boolean }} [o] */
+    function setup({ stillSignedIn = true } = {}) {
+        /** @type {Set<(u: any) => void>} */ const subs = new Set();
+        let lost = 0;
+        const unsub = watchIdentityLoss({
+            uid: 'u1',
+            watch: cb => { subs.add(cb); return () => subs.delete(cb); },
+            stillSignedIn: () => stillSignedIn,
+            onLost: () => { lost++; },
+        });
+        return { emit: (/** @type {any} */ u) => [...subs].forEach(cb => cb(u)), subs, unsub, get lost() { return lost; } };
+    }
+    it('fires once when the account goes, and detaches', () => {
+        const w = setup();
+        w.emit({ uid: 'u1' });
+        assert.equal(w.lost, 0, 'the current account is not a loss');
+        w.emit(null);
+        w.emit(null);
+        assert.equal(w.lost, 1);
+        assert.equal(w.subs.size, 0);
+    });
+    it('a different account counts as a loss', () => {
+        const w = setup();
+        w.emit({ uid: 'u2' });
+        assert.equal(w.lost, 1);
+    });
+    it('a DELIBERATE sign-out (local session already cleared) shows nothing', () => {
+        const w = setup({ stillSignedIn: false });
+        w.emit(null);
+        assert.equal(w.lost, 0);
+    });
+    it('no account at the start watches nothing', () => {
+        let subscribed = false;
+        watchIdentityLoss({ uid: null, watch: () => { subscribed = true; return () => {}; }, stillSignedIn: () => true, onLost: () => {} });
+        assert.equal(subscribed, false);
+    });
+});
+
+test('signedOutLine — says unconfirmed and where to check, never "failed"', () => {
+    const line = signedOutLine('this delete', 'Saved Changes');
+    assert.equal(line, 'You were signed out before this delete was confirmed. Sign in again, then check Saved Changes.');
+    assert.doesNotMatch(line, /fail|lost/i);
+});
 
 // ── abandonOnSignOut (v24.36) — a save must not wait on an account that has gone ──────────────────
 /** A fake onAuthStateChanged: `emit(user)` drives every live subscriber. */

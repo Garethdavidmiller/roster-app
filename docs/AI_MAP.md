@@ -2252,6 +2252,8 @@ Pure stale-claim self-heal runner — no DOM, no Firebase. Imported by `firebase
 - `runWithClaimRetry(fn, { retryCode, hasUser, refresh })` — run `fn`; on a retryable stale-claim rejection with a user, force `refresh()` then retry ONCE; a failed refresh re-throws the ORIGINAL error (never masks an auth denial with a connectivity error); at most one retry. `fn` must build a fresh WriteBatch each call. `firebase-client.js`'s `withClaimRetry` (`permission-denied`) and `_uploadBytesWithClaimRetry` (`storage/unauthorized`) inject the Firebase auth deps.
 - `abandonOnSignOut(request, { uid, watch })` / `SIGNED_OUT_CODE` (v24.36) — reject with `SIGNED_OUT_CODE` once the signed-in account stops being `uid`. A refused token refresh signs the account out, and Firestore never settles that account's pending commit, so without this a save sat on "Saving…" for good. `withClaimRetry` wraps every request in it
 - `saveFailureMessage(err)` (v24.36) — the Admin save's error line: signed out mid-save (reported unconfirmed, never lost), refused, or connection
+- `signedOutLine(what, whereToCheck)` (v24.37) — the one sentence every write surface uses for `SIGNED_OUT_CODE`: "confirmed", never "failed", because the write is held for that account
+- `watchIdentityLoss({ uid, watch, stillSignedIn, onLost })` (v24.37) — call `onLost` once when the account goes while the local session still names somebody; Admin shows its sign-in overlay from it, so a save's "sign in again" has somewhere to be done. A deliberate Sign out clears the local session first and so shows nothing
 - Tested by `claim-retry.test.mjs` (no mocks, runs in `test:hygiene`)
 
 ### `guide-search.js` / `guide-index.js` / `nav-guide-search.js`

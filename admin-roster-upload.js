@@ -21,6 +21,7 @@ import { computeCellStates, guardCopy, unreadableTagClass, RDW_PREFIX, isRdwEnco
 // gain.
 export { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange, computeCellStates };
 import { setStatus } from './status-text.js';
+import { SIGNED_OUT_CODE, signedOutLine } from './claim-retry.js';
 import { assessRosterAlignment, driftCopy, stopCopy, geometryCopy } from './roster-alignment.js';
 import { withSlowSaveNotice } from './slow-save.js';
 
@@ -493,7 +494,16 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 reviewSection.classList.remove('visible');
                 _parsedResult = null;
                 _cellStates   = null;
-                applyFeedback.textContent = "The connection dropped part-way — some of the roster may already be saved. The saved changes list has been refreshed; re-read the roster to check before applying again.";
+                applyFeedback.textContent = _applyErr.code === SIGNED_OUT_CODE
+                    ? signedOutLine('the rest of this roster', 'Saved Changes before applying again')
+                    : "The connection dropped part-way — some of the roster may already be saved. The saved changes list has been refreshed; re-read the roster to check before applying again.";
+                applyFeedback.className   = 'huddle-feedback huddle-feedback--err';
+                applyBtn.disabled    = true;
+                applyBtn.textContent = 'Save changes';
+                return;
+            }
+            if (_applyErr?.code === SIGNED_OUT_CODE) {   // held for that account, not failed (claim-retry.js)
+                applyFeedback.textContent = signedOutLine('this roster', 'Saved Changes before applying again');
                 applyFeedback.className   = 'huddle-feedback huddle-feedback--err';
                 applyBtn.disabled    = true;
                 applyBtn.textContent = 'Save changes';
