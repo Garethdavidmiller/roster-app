@@ -4,6 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
 import { classifyShift, DAYS, hmFromHours, dutyMinutes, startMinutes, endMinutes, MAX_CONSECUTIVE_WORKED_DAYS, family, folderStats, weekdayFit } from './report-data.mjs';
 import { APP_VERSION } from '../../../roster-data.js';
+import { freshMeta, freshWords } from './fresh.mjs';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -69,9 +70,14 @@ const hourHead = () => `<tr><th class="cov-heat-hour"></th>${Array.from({length:
 
 export async function renderPdf(D, out) {
   const { today: T, prop: P, meta } = D;
+  // THE MANAGERS' EDITION is the default (fresh.mjs): one question, one rule set, no history. The family branches
+  // below — BB, QT, PT, EF and the rest — are the old edition's, reachable with LEGACY=1; in this edition every
+  // family flag is off and the standalone words replace them.
+  const FRESH = !process.env.LEGACY;
   // meta.date is when the DESIGN was prepared; a re-render changes what the sheet says, so it says so.
   const RENDERED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const prepared = meta.date === RENDERED ? `Prepared ${meta.date}` : `Prepared ${meta.date} · re-rendered ${RENDERED}`;
+  if (FRESH) Object.assign(meta, freshMeta({ T, P, meta, folder: folderStats(), rendered: RENDERED }));
+  const prepared = FRESH ? `Prepared ${RENDERED}` : meta.date === RENDERED ? `Prepared ${meta.date}` : `Prepared ${meta.date} · re-rendered ${RENDERED}`;
   // Page 5's headcount rows, COMPUTED per day class (weekday range · Sat · Sun). They were four typed
   // literals (4→4, 2→3, 2→4, 4→5) on every sheet until 24 Sep 2026 — see headcounts() in report-data.
   const rng = o => { const v = WD.map(d => o[d]); const lo = Math.min(...v), hi = Math.max(...v); return lo === hi ? String(lo) : `${lo}–${hi}`; };
@@ -80,36 +86,37 @@ export async function renderPdf(D, out) {
   // as the plan Monday to Saturday, and one late on a Sunday — a 14:30–23:25 closer, in the office until 22:30 —
   // where the plan has two. Every floor figure takes the right one out of each side (report-data OFFICE).
   const FO = P.office, TO = T.office; const floorTrio = A => `${A.wkFit} · ${A.fits.sat} · ${A.fits.sun}`;
-  const officeNote = `Not floor cover, and staffed today exactly as in the plan Monday to Saturday (two early, two late). <b>Sunday differs:</b> today two earlies and <b>one</b> late — a 14:30–23:25 closer, in the office until 22:30 — where the plan has two and two.${meta.kind === 'FR' ? '' : ' This design did not name its office turns, so its floor is everyone on duty less the plan’s posts.'}`;
+  const officeNote = `Not floor cover, and staffed today exactly as in the plan Monday to Saturday (two early, two late). <b>Sunday differs:</b> today two earlies and <b>one</b> late — a 14:30–23:25 closer, in the office until 22:30 — where the plan has two and two.${(FRESH ? meta.officeNamed : meta.kind === 'FR') ? '' : ' This design does not roster the office as pairs, so its floor is everyone on duty less the plan’s posts.'}`;
   // FR — Right Away (28 Sep 2026): the owner's headcounts are FLOORS ("too few is the problem, never too many"), so a
   // row is met at or above its figure there, and exactly at it on every other family's sheet.
-  const FLOORS = meta.kind === 'FR'; const off = (v, want) => FLOORS ? v < want : v !== want;
+  const FLOORS = FRESH || meta.kind === 'FR'; const off = (v, want) => FLOORS ? v < want : v !== want;
   const headRow = (labelText, key, wk, sat, sun, rule) => { const o = P.heads[key]; const miss = [];
     const wkBad = WD.filter(d => off(o[d], wk)); if (wk !== null && wkBad.length) miss.push(wkBad.length === 5 ? `weekdays ${rng(o)}` : wkBad.map(d => `${WDL[d]} ${o[d]}`).join(', '));
     if (sat !== null && off(o.sat, sat)) miss.push(`Saturday ${o.sat}`); if (sun !== null && off(o.sun, sun)) miss.push(`Sunday ${o.sun}`);
     return `<tr><td>${labelText} <span class="muted">wk · Sat · Sun</span></td><td class="num">${trio(T.heads[key])}</td><td class="num"><b>${trio(o)}</b></td><td class="muted">${rule}${miss.length ? ` — not met: ${miss.join(', ')}` : ' — met'}</td></tr>`; };
   // The tightest rest anywhere round the wheel, for the 12h row: "0 under 12h" said nothing about how close.
   const restLine = r => r ? `${hm(r.minutes)} — line ${r.from.line} ${DAY_LABEL[r.from.day]} ${r.from.shift} into ${r.to.line === r.from.line ? '' : `line ${r.to.line} `}${DAY_LABEL[r.to.day]} ${r.to.shift}` : '—';
-  const BB = meta.kind === 'BB';
+  const KIND = FRESH ? 'FRESH' : meta.kind;
+  const BB = KIND === 'BB';
   // QT — Quarter To: structurally a Same Turns document (it inherits every ST section), with a third
   // branch wherever ST's copy claims that every time is one people work today, because two are not.
   // Every figure in those branches is READ off the tables, never typed.
   // Q2 — Weekend Capped: a Quarter To document (it inherits every QT branch) whose Saturday and Sunday were
   // searched, not inherited — so wherever QT's copy says the weekend is Same Turns' own, Q2 says what it did instead.
-  const Q2 = meta.kind === 'Q2'; const QT = meta.kind === 'QT' || Q2;
+  const Q2 = KIND === 'Q2'; const QT = KIND === 'QT' || Q2;
   // PT — Pinned Turns: a Same Turns-shaped document (today's roster is the base) whose table was FITTED to the
   // timetable around the owner's pins, so every ST/QT sentence that says "today's times were kept" has a PT branch.
-  const PT = meta.kind === 'PT' || meta.kind === 'P2';
+  const PT = KIND === 'PT' || KIND === 'P2';
   // P2 — Round Times: the same brief, every unpinned time rewritten onto the quarter hour; a PT document wherever
   // the two agree, with its own sentence wherever PT's says "from today's clock times".
-  const P2 = meta.kind === 'P2';
+  const P2 = KIND === 'P2';
   const wkMinutes = P.tableRows.reduce((a, r) => a + r.weekday * r.minutes, 0), satMinutes = P.tableRows.reduce((a, r) => a + r.sat * r.minutes, 0);
   // EF — Eight Forty: structurally a By the Book document (the RULES branches), with its own copy wherever
   // By the Book's prose states a fact of ITS table — 9h30 earlies, nineteen turns, three off-quarter times,
   // Saturday moved in two ways. Every EF figure below is read off the finished table, never typed.
   // B2 -- Office Written In: EF's cap and EF's layout, with the ticket office pinned and its table PLACED from the
   // enumeration (place-structures.mjs) rather than annealed, so three strings differ and everything else is EF's.
-  const B2 = meta.kind === 'B2'; const EF = meta.kind === 'EF' || B2; const RULES = BB || EF;
+  const B2 = KIND === 'B2'; const EF = KIND === 'EF' || B2; const RULES = BB || EF;
   const ef = EF ? (() => {
     const rows = P.tableRows; const wk = rows.filter(r => r.weekday > 0);
     const E = wk.filter(r => startMinutes(r.time) < 11*60).sort((a, b) => a.minutes - b.minutes), L = wk.filter(r => startMinutes(r.time) >= 11*60).map(r => r.minutes);
@@ -269,7 +276,7 @@ export async function renderPdf(D, out) {
     <tr><td>${P.fatigue.present} fatigue factor${P.fatigue.present === 1 ? '' : 's'} present</td><td>The ORR's 2021 list, which it states are not limits; ${confirmCount} factor${confirmCount === 1 ? '' : 's'} still "definition to confirm"</td><td><b>Advisory only</b> — never pass or fail</td></tr>
     <tr><td>Demand fit ${weekdayFitOf} · ${P.fits.sat} · ${P.fits.sun}; on the floor ${floorTrio(FO)}</td><td>Measured timetable, one share-based measure on one December 2026 timetable curve; floor takes the ticket office out of both sides</td><td><b>Indicative</b></td></tr>
     <tr><td>${sharedTimes} of ${P.feel.distinctTimes} times are today's</td><td>Computed against the live 20-line link</td><td><b>Firm</b>, but a proxy for acceptability</td></tr>
-    ${meta.alternatives?.[0]?.score && meta.alternatives[0].score !== '—' ? `<tr><td>Search score ${meta.alternatives[0].score}</td><td>The annealer's own objective; page 9 explains it</td><td><b>Do not weigh</b></td></tr>` : ''}
+    ${!FRESH && meta.alternatives?.[0]?.score && meta.alternatives[0].score !== '—' ? `<tr><td>Search score ${meta.alternatives[0].score}</td><td>The annealer's own objective; page 9 explains it</td><td><b>Do not weigh</b></td></tr>` : ''}
     ${meta.changed ? `<tr><td>${meta.changed.cells.length} cells changed against ${esc(meta.changed.parent.name)}</td><td>Computed cell by cell; outlined on the next page</td><td><b>Firm</b></td></tr>` : ''}
   </tbody></table>
   <h2>What no page here can tell you</h2>
@@ -343,7 +350,7 @@ export async function renderPdf(D, out) {
   <div class="foot"><span>Page 2 of 10 — How to read the numbers</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
 `;
-  const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>Proposed CEA Link — December 2026</title>
+  let html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>Proposed CEA Link — December 2026</title>
 <link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/links.css">
 <style>
 @page { size: A4; margin: 11mm 11mm 13mm; }
@@ -377,7 +384,8 @@ h2 { font-size: 14px; color: var(--primary-blue); margin: 13px 0 5px; font-weigh
 .rules td, .rules th { padding: 2px 6px; }
 h3 { font-size: 11.5px; color: var(--primary-blue); margin: 12px 0 4px; font-weight: 700; }
 p { margin: 4px 0 8px; } .muted { color: var(--text-mid); font-weight: 400; }
-.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; } .cols.duty { grid-template-columns: 62% 1fr; gap: 14px; } .dutyt td, .dutyt th { padding: 2px 6px; } .bb-dense .dutyt td { padding: 1px 6px; font-size: 9px; line-height: 1.3; } .bb-dense p.muted { font-size: 9.5px; line-height: 1.35; } .ef-tight .dutyt td { padding: 0 6px; line-height: 1.2; } .ef-tight p.muted { font-size: 9px; line-height: 1.3; } .changed td:nth-child(4) { width: 34%; } .stack { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; } .cols.duty { grid-template-columns: 62% 1fr; gap: 14px; } .dutyt td, .dutyt th { padding: 2px 6px; } .bb-dense .dutyt td { padding: 1px 6px; font-size: 9px; line-height: 1.3; } .bb-dense p.muted { font-size: 9.5px; line-height: 1.35; } .ef-tight .dutyt td { padding: 0 6px; line-height: 1.2; } .ef-tight p.muted { font-size: 9px; line-height: 1.3; }
+.xx-tight .dutyt td { padding: 0 5px; font-size: 8px; line-height: 1.1; } .xx-tight .dutyt td .muted { font-size: 7.5px; } .changed td:nth-child(4) { width: 34%; } .stack { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
 table.t { border-collapse: collapse; width: 100%; font-size: 10px; }
 table.t th, table.t td { padding: 3px 6px; border-bottom: 1px solid var(--border-light); text-align: left; vertical-align: top; }
 table.t th { background: var(--surface-sunken); color: var(--text-mid); font-size: 9px; text-transform: uppercase; letter-spacing: .3px; }
@@ -392,7 +400,7 @@ td.up { background: color-mix(in srgb, var(--success-green) 10%, white); } td.do
 .print-grid td.tot-cell { font-size: 9px; padding: 0 3px; } .cov-foot { font-weight: 800; color: var(--text-dark); } .cov-sub { display: block; font-weight: 500; font-size: 8px; color: var(--shift-spare-text); }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; } .legend > span { white-space: nowrap; } .legend .muted { white-space: normal; flex-basis: 100%; }
 .legend-x { font-size: 9.5px; color: var(--text-mid); margin-top: 6px; } .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
-.cov-heat { border-collapse: collapse; width: 100%; } .cov-heat th, .cov-heat td { border: 1px solid var(--border-light); text-align: center; } .cov-heat-cell { height: 20px; min-width: 0; font-size: 9px; } .cov-heat--dense .cov-heat-cell { height: 15px; font-size: 8.5px; } tr:has(> .office-day) .cov-heat-cell, tr:has(> .floor-day) .cov-heat-cell { height: 13px; font-size: 8px; } tr:has(> .office-day) th, tr:has(> .floor-day) th { font-size: 8px; color: var(--text-mid); } tr:has(> .office-day) .cov-fit, tr:has(> .floor-day) .cov-fit { font-size: 8px; } .cov-heat-day { text-align: left !important; padding: 0 6px; white-space: nowrap; font-size: 9px; }
+.t.standings { font-size: 9px; } .t.standings td, .t.standings th { padding: 3px 5px; } .t.standings tr.here td { background: color-mix(in srgb, var(--accent-gold) 22%, white); font-weight: 700; } .t.standings tr.today td { border-top: 2px solid var(--border-light); color: var(--text-mid); } .cov-heat { border-collapse: collapse; width: 100%; } .cov-heat th, .cov-heat td { border: 1px solid var(--border-light); text-align: center; } .cov-heat-cell { height: 20px; min-width: 0; font-size: 9px; } .cov-heat--dense .cov-heat-cell { height: 15px; font-size: 8.5px; } tr:has(> .office-day) .cov-heat-cell, tr:has(> .floor-day) .cov-heat-cell { height: 13px; font-size: 8px; } tr:has(> .office-day) th, tr:has(> .floor-day) th { font-size: 8px; color: var(--text-mid); } tr:has(> .office-day) .cov-fit, tr:has(> .floor-day) .cov-fit { font-size: 8px; } .cov-heat-day { text-align: left !important; padding: 0 6px; white-space: nowrap; font-size: 9px; }
 .check-row { font-size: 10.5px; padding: 4px 9px; } .check-rows { gap: 3px; } p.oq { font-size: 10px; line-height: 1.36; }
 table.ff { border-collapse: collapse; width: 100%; font-size: 9.5px; } table.ff td { padding: 2px 6px; border-bottom: 1px solid var(--border-light); vertical-align: top; } table.ff th { text-align: left; font-size: 9px; text-transform: uppercase; color: var(--text-mid); background: var(--surface-sunken); padding: 4px 6px; }
 .ff-code { font-weight: 800; color: var(--primary-blue); white-space: nowrap; width: 38px; } .ff-fam { display: inline; font-size: 8.5px; color: var(--text-light); margin-left: 6px; }
@@ -432,9 +440,9 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
 <section class="page cover">
   <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer</div><h1>Proposed CEA Link — December 2026</h1>
   <div class="sub">${meta.sub1 ?? (BB ? 'A 24-line link built from the December 2026 staffing rules and judged on the ORR fatigue factors — nothing carried over from today’s roster except the rules' : B2 ? 'The December 2026 timetable rules with no duty over 8h40 and the ticket office written in — two 14:00–22:30 turns a day Monday to Saturday, two 13:30–22:00 on a Sunday — judged on the ORR fatigue factors' : EF ? 'A 24-line link built from the December 2026 staffing rules with no duty over 8h40, judged on the ORR fatigue factors — nothing carried over from today’s roster except the rules' : PT ? (P2 ? 'The owner’s pinned turns of 25 September 2026 with every other time rewritten onto the quarter hour, each day fitted to the December 2026 timetable and proven the closest such fit' : 'Today’s roster, widened to 24 people, built to the owner’s pinned turns of 25 September 2026, the rest of each day fitted to the December 2026 timetable') : Q2 ? 'The existing 20-line link, widened to 24 people, with the closing turn at 15:45 and Saturday and Sunday rebuilt so that nothing runs over 8h40 — the same shape of week, one more cover cycle' : QT ? 'The existing 20-line link, widened to 24 people, with the closing turn starting at 15:45 — the same shape of week, one more cover cycle, and one turn a little longer to keep the contract' : 'The existing 20-line link, widened to 24 people — the same turns, the same shape of week, one more cover cycle')}</div>
-  <div class="meta">${prepared} · built for the December 2026 timetable and assessed by the workspace's own rule modules (Marylebone Roster v${APP_VERSION}) · figures on this page are computed, not typed</div></div></div>
+  <div class="meta">${meta.metaLine ?? `${prepared} · built for the December 2026 timetable and assessed by the workspace's own rule modules (Marylebone Roster v${APP_VERSION}) · figures on this page are computed, not typed`}</div></div></div>
   <div class="ident"><div class="ident-main"><div class="ident-eyebrow">Proposal</div><div class="ident-name">${esc(meta.identity.name)}</div><div class="ident-strap">${esc(meta.identity.strap)}</div></div>
-   <div class="ident-side"><div class="ident-row"><span class="ident-k">Code</span><span class="ident-v tt">${esc(meta.identity.code)}</span></div><div class="ident-row"><span class="ident-k">Fingerprint</span><span class="ident-v tt">${esc(meta.identity.fingerprint)}</span></div>${FORMERLY[meta.identity.code] ? `<div class="ident-row"><span class="ident-k">Formerly</span><span class="ident-v">${esc(FORMERLY[meta.identity.code])}</span></div>` : ''}<div class="ident-row"><span class="ident-k">Built from</span><span class="ident-v">duty table ${esc(meta.identity.table)} · seed ${esc(String(meta.identity.seed))} · 24 lines · 4 cover weeks</span></div></div></div>
+   <div class="ident-side"><div class="ident-row"><span class="ident-k">Code</span><span class="ident-v tt">${esc(meta.identity.code)}</span></div><div class="ident-row"><span class="ident-k">Fingerprint</span><span class="ident-v tt">${esc(meta.identity.fingerprint)}</span></div>${!FRESH && FORMERLY[meta.identity.code] ? `<div class="ident-row"><span class="ident-k">Formerly</span><span class="ident-v">${esc(FORMERLY[meta.identity.code])}</span></div>` : ''}<div class="ident-row"><span class="ident-k">Built from</span><span class="ident-v">${meta.builtFrom ?? `duty table ${esc(meta.identity.table)} · seed ${esc(String(meta.identity.seed))} · 24 lines · 4 cover weeks`}</span></div></div></div>
   <div class="strip">${(() => {
     // EVERY CHIP IS DERIVED. These four were hardcoded to "24 / exactly the contract / 0 / 0" until
     // 17 Sep 2026, and the first four proposals all happened to satisfy them, so a green tick was
@@ -465,7 +473,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
     <div class="tile"><span class="q">Can it be run?</span><b>${canRun ? 'Yes' : 'Not as it stands'}</b><span class="l">the hard limits</span><span class="s">${restsN} rest${restsN === 1 ? '' : 's'} under 12h · longest run ${hard.value} of 13 · ${contractExact ? 'contract exact' : 'contract missed'}</span></div>
     <div class="tile"><span class="q">Does it meet the December shape?</span><b>${decMet} of ${meta.decOf ?? 4}</b><span class="l">headcount rules met</span><span class="s">${meta.decTile ?? 'four to open, three to close (four on Saturday), five at 22:00, 14 and 10 at the weekend · today meets 0 of 4'}</span></div>
     <div class="tile"><span class="q">How tiring is it?</span><b>${P.fatigue.present}</b><span class="l">fatigue factors present, of 25</span><span class="s">advisory — present means worth a look, not a breach · today ${T.fatigue.present} · fewest in the folder ${EXT.present?.best ?? '—'}</span></div>
-    <div class="tile"><span class="q">Does it follow the trains?</span><b>${wkFitP}</b><span class="l">weekday demand fit — lower is closer</span><span class="s">Saturday ${P.fits.sat} · Sunday ${P.fits.sun} · today ${todayWk} · best in the folder ${EXT.wk?.best ?? '—'} · <b>floor</b> ${FO.wkFit} (today ${TO.wkFit})</span></div>
+    <div class="tile"><span class="q">Does it follow the trains?</span><b>${wkFitP}</b><span class="l">weekday demand fit — lower is closer</span><span class="s">Saturday ${P.fits.sat} · Sunday ${P.fits.sun} · today ${todayWk} · best in the folder ${EXT.wk?.best ?? '—'} · on the floor ${FO.wkFit} (today ${TO.wkFit})</span></div>
     <div class="tile"><span class="q">Is it familiar?</span><b>${sharedTimes} of ${P.feel.distinctTimes}</b><span class="l">shift times people work today</span><span class="s">${newTimes.length ? `${newTimes.length} new, listed on page 5` : 'nothing new to learn'} · ${P.feel.oneTurn} of ${P.feel.workingLines} weeks are one turn (today ${T.feel.oneTurn} of ${T.feel.workingLines})</span></div>
   </div>
   <div class="tiles">
@@ -536,7 +544,7 @@ ${readHtml}${frameHtml}
   <p class="muted" style="margin:0">06:20–13:30 is the one short early; every other early (8h25–9h30) is longer than every late (7h15–8h10), which is the lever against unpopular lates. None of the 19 turns is a time people work today — that is the whole difference between this family and <i>Same Turns</i>, and it is the question to put to the room rather than to the tool.</p>` : `<p class="muted" style="margin:0">Read the table in three blocks: ${ef.monSat} turns Monday to Saturday alike${ef.wkOnly ? ` (and ${ef.wkOnly} the weekday keeps to itself)` : ''}, Saturday's own ${ef.satOwn}, and Sunday's ${ef.sunOwn} for its 07:15–23:25 window. Openers stagger by their finish and closers by their start so nobody hands over a cliff. ${ef.onQ} of the ${ef.instances} start and finish instances sit on :00, :15, :30 or :45; the ${ef.off.length} that do not (${ef.off.join(', ')}) are what four distinct opener finishes cost under a cap that leaves the long earlies about twenty minutes of room — <i>By the Book</i> has three such times.</p>
   <p class="muted" style="margin:0">${ef.shortEarly.time} is the one short early; every other early (${ef.longRange}) is longer than every late (${ef.lateRange}) — the lever against unpopular lates, at the only size the cap allows: the shortest long early is ${ef.gap} minutes longer than the longest late, where <i>By the Book</i> had fifteen and an hour on average. ${ef.sharedToday.length ? `${ef.sharedToday.length} of the ${ef.rows} turns ${ef.sharedToday.length === 1 ? 'is a time' : 'are times'} people work today (${ef.sharedToday.join(', ')})` : `None of the ${ef.rows} turns is a time people work today`} — the same trade as <i>By the Book</i>, and the question to put to the room rather than to the tool.</p>`}</div>`
   : `<h2>${meta.dutyHeading ? meta.dutyHeading : PT ? "The duty table — the brief's pins, the rest fitted to the timetable" : Q2 ? "The duty table — today's times, the closer at 15:45, Saturday and Sunday rebuilt" : QT ? "The duty table — today's times, the closer at 15:45" : "The duty table, in today's times"}</h2>
-  <div class="cols duty${meta.denseDuty ? ' bb-dense' : ''}${meta.tightDuty ? ' ef-tight' : ''}"><div>
+  <div class="cols duty${meta.denseDuty ? ' bb-dense' : ''}${meta.tightDuty ? ' ef-tight' : ''}${meta.xxTightDuty ? ' xx-tight' : ''}"><div>
   <table class="t dutyt"><thead><tr><th>Turn</th><th class="num">Wk</th><th class="num">Sat</th><th class="num">Sun</th><th class="num">Wk</th><th class="num">Sat</th><th class="num">Sun</th></tr></thead><tbody>${tableRows}</tbody></table></div>
   <div><p class="muted">Busiest weekday · Saturday · Sunday. The first three columns are what the 20-line link does now; the last three are the proposal. Green cells grew, amber shrank, a struck-through row is a time the proposal does not use.</p>
   ${QT && S ? `<p class="muted">The 15:45 closer is ${S.closerShift} minutes shorter than the 15:15 turn it replaces — three a day, ${S.closerShift * 15} minutes a week — and with today's turns alone no table reaches 42,000 exactly. The two 06:20 openers run on to put them back: ${stretchWords}, ${S.weekly} minutes a week${S.allOnToday ? " — and those are Saturday's own opening times" : ''}. Nothing runs over 8h30; the other ways of doing it under the 8h40 rule are on page 9.</p>` : ''}
@@ -576,7 +584,7 @@ ${readHtml}${frameHtml}
     <div class="check-row ${P.checks.turnarounds.length ? 'check-warn-row' : 'check-good'}"><span class="check-icon ${P.checks.turnarounds.length ? '' : 'check-tick'}">${P.checks.turnarounds.length ? '⚠' : '✓'}</span><div class="check-body"><b>At least 12 hours between duties</b> — <b>${P.checks.turnarounds.length}</b> rests under 12h anywhere in the rotation, Saturday-into-Sunday and line-into-line included (today: ${T.checks.turnarounds.length})<div class="check-sub">Tightest anywhere: <b>${restLine(P.rest)}</b> (today's tightest: ${T.rest ? hm(T.rest.minutes) : '—'}). ${meta.kind === 'EXT' ? 'The generator refuses a design it cannot repair to this; this design was checked against it, not generated.' : 'The generator refuses a design it cannot repair to this; the search here never produced one.'}</div></div></div>
     <div class="check-row ${contractExact ? 'check-good' : 'check-bad'}"><span class="check-icon ${contractExact ? 'check-tick' : 'check-cross'}">${contractExact ? '✓' : '✕'}</span><div class="check-body"><b>The contracted week, exactly</b> — <b>${hmFromHours(P.hours.exSunday)}</b> average Mon–Sat over the 24 lines, cover weeks counted as contracted weeks${contractExact ? '' : ` — <b>${Math.abs(overMin)} minutes ${overMin > 0 ? 'over' : 'under'}</b>`}<div class="check-sub">${(monSatDutyMin / 60).toLocaleString('en-GB', { maximumFractionDigits: 2 })}h of duty a week across ${P.feel.workingLines} working lines${contractExact ? '' : `, against ${(P.feel.workingLines * contractTarget).toLocaleString('en-GB')}h contracted`}. Sundays (${P.hours.sundayHours.toFixed(2)}h) sit on top as RDW, as they do today. Individual weeks range ${hm(Math.min(...P.totals.rows.filter(r=>!r.assumed).map(r=>r.exSundayMinutes)))}–${hm(Math.max(...P.totals.rows.map(r=>r.exSundayMinutes)))}; only the average is the contract.</div></div></div>
   </div>
-  <h2>December 2026 timetable design figures <span class="muted" style="font-weight:400;font-size:10px">— the staffing shape agreed for the new timetable</span></h2>
+  <h2>${meta.designHeading ?? 'December 2026 timetable design figures'} <span class="muted" style="font-weight:400;font-size:10px">${meta.designSub ?? '— the staffing shape agreed for the new timetable'}</span></h2>
   <table class="t rules"><thead><tr><th>Rule</th><th>Proposal</th><th></th></tr></thead><tbody>
   ${meta.designRules.map(r => `<tr><td>${esc(r.rule)}</td><td>${r.ok?'✓':'✕'} ${esc(r.value)}</td><td class="muted">${esc(r.note)}</td></tr>`).join('')}
   </tbody></table>
@@ -597,7 +605,7 @@ ${readHtml}${frameHtml}
   <div class="foot"><span>Page 8 of 10 — The checks sheet: fatigue factors</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
 
-<section class="page">
+${meta.page9 ?? `<section class="page">
   <div class="mast"><div><div class="eyebrow">Method</div><h1>${meta.h7 ?? 'How it was chosen'}</h1><div class="sub">${meta.sub7 ?? 'Reproducible: the same table, seed and objective give the same grid on any machine'}</div></div></div>
   <p class="lineage"><b>Lineage.</b> ${FORMERLY[meta.identity.code] ? `Formerly “${esc(FORMERLY[meta.identity.code])}” — renamed 28 Sep 2026; the cells, code and fingerprint are unchanged. ` : ''}${esc(meta.identity.lineage)}</p>
   <div class="callout plain"><b>In plain terms.</b> ${meta.kind === 'EXT' ? 'Nobody searched for this design. It was typed in from the table exactly as supplied and the app\'s own rule modules measured it; nothing below was chosen by a computer. Everything on these pages can be re-checked by pasting page 10 into the Links workspace.' : 'A computer took each day\'s duties as fixed and tried over a million different ways of arranging them across the 24 weeks, scoring every arrangement on the rules on pages 7 and 8, and kept the best. The "seed" is the number that makes that run repeat exactly on any machine, so anyone can rebuild this grid and get the same cells.'}</div>
@@ -617,7 +625,7 @@ ${readHtml}${frameHtml}
   ${meta.pickNote ?? `  <p class="muted"><b>How the winner was picked:</b> rules first (rest, run, fatigue factors present, weekends off), then <i>Wk fit</i> — how evenly the weekday cover follows the December 2026 timetable traffic curve (lower is better; today's link scores what it scores). ${meta.pickSentence} <i>Floor fit</i> is the same measure with the ticket office taken out — today's own (one Sunday late) out of today, the plan's out of every design. Score is the search's own feel objective (lower is better) and is not a verdict. The workspace default is the app's own December 2026 duty table, generated and reordered with every switch on — a good design by every panel, and not one that resembles today's.</p>`}
 
   <div class="foot"><span>Page 9 of 10 — Method</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
-</section>
+</section>`}
 
 <section class="page">
   <div class="mast"><div><div class="eyebrow">Load it</div><h1>The rotation, ready to paste</h1><div class="sub">Line number, then Sunday to Saturday. SP is a cover week. Paste the whole block into Links → Import.</div></div></div>
@@ -628,6 +636,7 @@ ${readHtml}${frameHtml}
   <div class="foot"><span>Page 10 of 10 — Import</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
 </body></html>`;
+  if (FRESH) html = freshWords(html, folderStats().length);
   writeFileSync(out.replace(/\.pdf$/, '.html'), html);
   const b = await chromium.launch(); const pg = await b.newPage();
   await pg.goto('file://' + out.replace(/\.pdf$/, '.html')); await pg.evaluate(() => document.fonts.ready);

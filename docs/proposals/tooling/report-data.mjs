@@ -126,6 +126,64 @@ export function officeSplit(p, lines, hourly, model) {
 /** The weekday FLOOR fit of a proposal, for the alternatives tables — the plan's office taken out. */
 export const weekdayFloorFit = (p, lines = 24) => officeSplit(p, lines, calcHourlyCoverage(p, lines), lines === 20 ? 'today' : 'plan').wkFit;
 
+// THE CURRENT RULES (owner, 27–28 Sep 2026) — the one set every sheet is judged against, so a reader seeing the
+// proposals for the first time can put any two side by side. Every row is READ from the cells: the design is
+// never asked what it was built for, only what it does. Headcounts are MINIMUMS ("too few is the problem, never
+// too many"). The office checks use the plan's posts (OFFICE.plan); a design that does not roster the pairs fails
+// that row and has its floor measured with the posts assumed, exactly as page 6 does.
+const CLOSE = { weekday: 23*60+55, sat: 23*60+55, sun: 23*60+25 }, OPEN = { weekday: 6*60+20, sat: 6*60+20, sun: 7*60+15 };
+const hmm = m => `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;
+export function currentRules(P, T) {
+  const lines = Object.keys(P.patterns).length, keys = Object.keys(P.patterns);
+  const dutiesOn = d => keys.map(k => P.patterns[k][d]).filter(s => s && s !== 'RD' && s !== 'SPARE' && s !== 'OFF' && startMinutes(s) !== null);
+  const count = (d, t) => dutiesOn(d).filter(s => s === t).length;
+  const WDD = ['mon', 'tue', 'wed', 'thu', 'fri'], ALL = [...WDD, 'sat', 'sun'];
+  const H = P.heads, rng = (o, f) => { const v = WDD.map(d => o[d]); const lo = Math.min(...v), hi = Math.max(...v); return `${lo === hi ? lo : `${lo}–${hi}`} · ${o.sat} · ${o.sun}`; };
+  // the office pairs this design rosters on day d, or null — Sunday's are ANY two identical 07:15 earlies and
+  // two identical lates to 22:30, which is how the owner put it
+  const pairsOn = d => { const cls = clsOf(d);
+    if (cls !== 'sun') { const [[e], [l]] = OFFICE.plan[cls]; return count(d, e) >= 2 && count(d, l) >= 2 ? { early: e, late: l } : null; }
+    const byT = {}; for (const s of dutiesOn(d)) byT[s] = (byT[s] ?? 0) + 1;
+    const e = Object.keys(byT).filter(t => startMinutes(t) === OPEN.sun && byT[t] >= 2).sort((a, b) => endMinutes(b) - endMinutes(a))[0];
+    const l = Object.keys(byT).filter(t => endMinutes(t) === 22*60+30 && byT[t] >= 2).sort((a, b) => startMinutes(a) - startMinutes(b))[0];
+    return e && l ? { early: e, late: l } : null; };
+  // the floor: the day's duties with the office taken out — the rostered pairs where there are any, else the plan's posts
+  const floorOn = d => { const pr = pairsOn(d); const ds = dutiesOn(d).map(s => ({ s, st: startMinutes(s), en: endMinutes(s) }));
+    if (!pr) return { duties: ds, office: officeSpans('plan', clsOf(d)), named: false };
+    const out = [...ds]; for (const t of [pr.early, pr.early, pr.late, pr.late]) out.splice(out.findIndex(x => x.s === t), 1);
+    return { duties: out, office: [], named: true, pr }; };
+  const floorMin = d => { const cls = clsOf(d), f = floorOn(d); let lo = Infinity;
+    for (let m = OPEN[cls]; m < CLOSE[cls]; m += 5) lo = Math.min(lo, f.duties.filter(x => x.st <= m && x.en > m).length - f.office.filter(t => t.st <= m && t.en > m).reduce((a, t) => a + t.n, 0));
+    return lo; };
+  const handover = d => { const cls = clsOf(d), f = floorOn(d), cl = f.duties.filter(x => x.en === CLOSE[cls]);
+    let ok = cl.length > 0 && cl.every(c => f.duties.some(x => x.st < c.st && x.en >= c.st + 15));
+    if (cls === 'sun' && cl.length) { const last = Math.max(...cl.map(c => c.st)); ok = ok && f.duties.filter(x => x.st === OPEN.sun).every(x => x.en >= last + 15); }
+    const overlap = f.named ? endMinutes(f.pr.early) - startMinutes(f.pr.late) : null;
+    return { ok, overlap }; };
+  const pairs = ALL.map(d => [d, pairsOn(d)]), pairsOk = d => !!pairs.find(([x]) => x === d)[1];
+  const wkPairs = WDD.every(pairsOk), satPairs = pairsOk('sat'), sunPairs = pairsOk('sun');
+  const fm = Object.fromEntries(ALL.map(d => [d, floorMin(d)])), wkFloor = Math.min(...WDD.map(d => fm[d]));
+  const hv = Object.fromEntries(ALL.map(d => [d, handover(d)]));
+  const floorHand = ALL.every(d => hv[d].ok), overlaps = ALL.map(d => hv[d].overlap).filter(v => v !== null);
+  const sunLens = dutiesOn('sun').map(dutyMinutes);
+  const wkClosers = [...new Set(WDD.flatMap(d => dutiesOn(d).filter(s => endMinutes(s) === CLOSE.weekday)))];
+  const all = (o, n) => ALL.every(d => o[d] >= n);
+  const rows = [
+    { key: 'open', rule: 'At least four on at the open, every day', value: rng(H.open), ok: all(H.open, 4), note: '06:20; 07:15 on a Sunday' },
+    { key: 'close', rule: 'At least three through to the close, every day', value: rng(H.close), ok: all(H.close, 3), note: '23:55; 23:25 on a Sunday' },
+    { key: 'at22', rule: 'At least five still on duty at 22:00, every day', value: rng(H.at22), ok: all(H.at22, 5), note: 'a 22:00 finish is not "on at 22:00"' },
+    { key: 'heads', rule: 'Fourteen on a Saturday, ten on a Sunday', value: `${P.daily.sat} · ${P.daily.sun}`, ok: P.daily.sat === 14 && P.daily.sun === 10, note: '' },
+    { key: 'cover', rule: 'Four cover weeks, evenly spread', value: `lines ${P.feel.spareLines.join(', ')}`, ok: P.feel.spareLines.length === 4 && P.adj.spareExcess === 0, note: 'whole weeks, placed by the roster clerk' },
+    { key: 'office', rule: 'The ticket office: two early and two late, identical turns, every day', value: `${wkPairs ? '✓' : '✕'} Mon–Fri · ${satPairs ? '✓' : '✕'} Sat · ${sunPairs ? '✓' : '✕'} Sun`, ok: wkPairs && satPairs && sunPairs, note: 'Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and 14:30–22:00; Sun from 07:15 and to 22:30' },
+    { key: 'closer', rule: 'Every weekday closer starts at 15:45', value: wkClosers.join(', ') || 'none', ok: wkClosers.length > 0 && wkClosers.every(s => s === '15:45-23:55'), note: '' },
+    { key: 'floor', rule: 'At least two on the floor at every moment', value: `fewest ${wkFloor} · ${fm.sat} · ${fm.sun}`, ok: ALL.every(d => fm[d] >= 2), note: 'the ticket office left out; checked every five minutes' },
+    { key: 'handover', rule: 'Handovers: 15 minutes to each closer, 20 in the ticket office', value: `floor ${floorHand ? '✓' : '✕'} · office ${overlaps.length ? `${Math.min(...overlaps)} min` : '—'}`, ok: floorHand && (overlaps.length === 0 ? false : overlaps.every(v => v >= 20)), note: 'on a Sunday every opener also stays 15 minutes past the last closer arrives' },
+    { key: 'sunlen', rule: 'Sunday duties between 8h and 9h', value: sunLens.length ? `${hmm(Math.min(...sunLens))}–${hmm(Math.max(...sunLens))}` : '—', ok: sunLens.length > 0 && sunLens.every(m => m >= 480 && m <= 540), note: '' },
+    { key: 'times', rule: 'No more shift times than today', value: `${P.feel.distinctTimes} against today’s ${T.feel.distinctTimes}`, ok: P.feel.distinctTimes <= T.feel.distinctTimes, note: '' },
+  ];
+  return { rows, met: rows.filter(r => r.ok).length, of: rows.length };
+}
+
 // The office model is TODAY'S for the live 20-line link and the PLAN'S for every 24-line proposal; nothing in this
 // folder is 20 lines except today's link, and a caller can say otherwise.
 export function assess(p, lines, officeModel = lines === 20 ? 'today' : 'plan') {
@@ -160,17 +218,17 @@ export function assess(p, lines, officeModel = lines === 20 ? 'today' : 'plan') 
 let _folder = null;
 export function folderStats(dir = new URL('..', import.meta.url)) {
   if (_folder) return _folder;
-  const T0 = today(); const todays = new Set(assess(T0.patterns, T0.lines).tableRows.map(r => r.time));
+  const T0 = today(); const TA = { patterns: T0.patterns, ...assess(T0.patterns, T0.lines) }; const todays = new Set(TA.tableRows.map(r => r.time));
   const out = [];
   for (const f of readdirSync(dir)) {
     const m = /^(.*)-([A-Z][A-Z0-9]*-24-[A-Z0-9]+)\.json$/.exec(f); if (!m) continue;
     try {
       const j = JSON.parse(readFileSync(new URL(f, dir), 'utf8')); const p = j.patterns ?? j; const lines = Object.keys(p).length;
       const A = assess(p, lines);
-      out.push({ file: f, name: m[1].replace(/-/g, ' '), code: m[2], wk: weekdayFit(p, lines), sat: A.fits.sat, sun: A.fits.sun, floor: { wk: A.office.wkFit, sat: A.office.fits.sat, sun: A.office.fits.sun },
+      out.push({ file: f, name: m[1].replace(/-/g, ' ').replace(/(\d+) (\d+)/g, '$1-$2'), code: m[2], wk: weekdayFit(p, lines), sat: A.fits.sat, sun: A.fits.sun, floor: { wk: A.office.wkFit, sat: A.office.fits.sat, sun: A.office.fits.sun },
         present: A.fatigue.present, weekends: A.checks.weekendsOff, run: A.checks.longestStretch, rest: A.rest?.minutes ?? null,
         oneTurn: A.feel.oneTurn, workingLines: A.feel.workingLines, distinct: A.feel.distinctTimes,
-        newTimes: A.tableRows.filter(r => !todays.has(r.time)).length, turnarounds: A.checks.turnarounds.length });
+        newTimes: A.tableRows.filter(r => !todays.has(r.time)).length, turnarounds: A.checks.turnarounds.length, rules: currentRules({ patterns: p, ...A }, TA) });
     } catch { /* a JSON that is not a rotation is not the folder's business */ }
   }
   _folder = out; return out;
