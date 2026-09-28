@@ -23,7 +23,7 @@ and to the floor on 28 Sep.
 | **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
 | **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no weekday duty over 8h40 (Saturday's 14:45–23:55 and Sunday's 14:30–23:25 run 9h10 and 8h55) — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
 | **Weekend Capped** | `Q2-24-W21 · 7ea671d5` | *Quarter To* with its own open question answered: **Saturday and Sunday searched again under the 8h40 cap** from today's clock times and the quarter hour — Saturday entirely in today's times (fit 23.1 against 32.7), Sunday one new turn, the capped closer (61.4 against 80.6); every one of its 20 working weeks is one turn | 1 (FF19, one jump) | 6 | 6 in 24 |
-| **Right Away** | `FR-24-F34 · 03a59c77` | **The owner's final rules of 28 Sep 2026**: the ticket office rostered as fixed pairs of identical turns and **not counted as floor cover**, every weekday closer 15:45, the headcounts as minimums, at least two on the floor at every moment, 15-minute handovers (20 in the office), Sunday duties 8h–9h, no more shift times than today — each day enumerated to a proof for the fit of the **floor** (20.4 weekday, 11.6 Saturday, 19.2 Sunday; 21.9 / 12.2 / 33.6 with the office counted, the folder's best weekday), 17 turns in the week against today's 18, the rotation fatigue-first | **0** | 6 | 6 in 24 |
+| **Right Away** | `FR-24-F34o · be01f0db` | **The owner's final rules of 28 Sep 2026**: the ticket office rostered as fixed pairs of identical turns and **not counted as floor cover**, every weekday closer 15:45, the headcounts as minimums, at least two on the floor at every moment, 15-minute handovers (20 in the office), Sunday duties 8h–9h, no more shift times than today — each day enumerated to a proof for the fit of the **floor** (20.4 weekday, 11.6 Saturday, 19.2 Sunday; 21.9 / 12.2 / 33.6 with the office counted, the folder's best weekday), 17 turns in the week against today's 18, the rotation fatigue-first and its week order then improved (28 Sep 2026: 14 of 20 weeks on one shift time, heaviest week 41h50) | **0** | 6 | 6 in 24 |
 | **Round Times** | `P2-24-N13 · 33a78cbe` | *Pinned Turns*' pins with **every other time rewritten onto the quarter hour** (the pinned 06:20–14:20 the one exception, and the contract's arithmetic needs it) and **no more shift times a day than *Pinned Turns*** — each day enumerated to a proof (weekday fit 33.8, Saturday 22.9, Sunday 62.4; 14 distinct turns in the week), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Pinned Turns** | `PT-24-P34 · dae6292e` | **The owner's brief of 25 Sep 2026** from today's roster: Mon–Fri 15:45 closers, three 06:20–14:20 openers, two 14:00–22:30 lates and an 8h40 cap; Saturday two long openers and a 14:00–22:30; Sunday a 13:00–21:30 — the rest of each day fitted to the timetable (weekday fit 32.1; three turns off the quarter hour — the pinned 06:20–14:20, Saturday's 06:20–14:50 and the weekday's 07:00–15:40), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Eight Forty** | `EF-24-E21 · 0cf19f56` | *By the Book* with no duty over 8h40 — the December table re-solved under the same rules with the ceiling at 8h40 (its earlies had run to 9h30), then the rotation searched for the ORR factors as *By the Book* was | **0** | 6 | 6 in 24 |
@@ -56,7 +56,7 @@ same day, after a few hours as *Floor First*): it is the dispatch call that send
 | **Office Written In** | By the Book 2 | `B2-24-G21` |
 | **Weekend Capped** | Quarter To 2 | `Q2-24-W21` |
 | **Round Times** | Pinned Turns 2 | `P2-24-N13` |
-| **Right Away** | Final Rules, then Floor First | `FR-24-F34` |
+| **Right Away** | Final Rules, then Floor First | `FR-24-F34o` (`FR-24-F34` until 28 Sep 2026) |
 | **Evening Peak** | Weekday Lates 2 | `WL2-24-R21` |
 | **Frozen Block** | Weekday Lates 3 | `WL3-24-F7` |
 | **Anchored Lines** | Weekday Lates 4 | `WL4-24-F7` |
@@ -82,7 +82,7 @@ figures. One model in `tooling/report-data.mjs` (`OFFICE`, `officeSplit`) feeds 
 
 | Sheet | Code | Weekday, everyone | Floor: weekday · Saturday · Sunday |
 |---|---|---|---|
-| **Right Away** | `FR-24-F34` | 21.9 | 20.4 · 11.6 · 19.2 |
+| **Right Away** | `FR-24-F34o` | 21.9 | 20.4 · 11.6 · 19.2 |
 | Pinned Turns | `PT-24-P34` | 32.1 | 30.9 · 31.7 · 58.1 |
 | By the Book | `BB-24-D7` | 30.8 | 31.9 · 9.7 · 30.9 |
 | Round Times | `P2-24-N13` | 33.8 | 33.1 · 30.8 · 58.1 |
@@ -686,7 +686,8 @@ office written in, `tooling/by-the-book-2-table.json`; `W` *Quarter To* with the
 under the cap, `tooling/quarter-to-2-table.json`; `P` the owner's 25 Sep brief,
 `tooling/pinned-turns-table.json`; `N` those pins with every other time on the quarter hour,
 `tooling/pinned-turns-2-table.json`; `F` the owner's final rules of 28 Sep, `tooling/final-rules-table.json`) · search seed. A trailing `p` (`BB-24-D21p`) is the rules-only run with no
-week-coherence term, kept as a comparator. The fingerprint is the first eight hex characters of
+week-coherence term, kept as a comparator. A trailing `o` (`FR-24-F34o`) is that seed's rotation with its
+week order improved afterwards by `order-polish.mjs` — the same duties on every day. The fingerprint is the first eight hex characters of
 SHA-256 over the 24 × 7 cells in line order. `TN-24-R7` is a reorder: `R7` is `optimise.mjs`'s seed in rules mode (`RULES=1`). `FT-24-R21`'s `R21` is
 its seed in the default mode — *Gates Mended* predates the rules switch, and `node optimise.mjs
 fifteen-fixed.json 60000 4 21` without `RULES` reproduces `fifteen-turns-repaired.json` (checked 28 Sep
@@ -1135,6 +1136,20 @@ while nobody is worse off. Read it beside the heads, never alone.
 **zero fatigue factors present**, 11 of 20 working weeks a single turn, a typical week-to-week step of
 1h50, and **17 distinct turns in the week against today's 18** — 5 of them worked today.
 
+**The week order, improved (28 Sep 2026) — the sheet is now `FR-24-F34o · be01f0db`.** `tooling/order-polish.mjs`
+searched onward from seed 34's rotation with same-day swaps and whole-line swaps only, so every day's duties — the
+eleven rules, the fit, the 17 shift times and the 35-hour average — are exactly as before. It refuses any move that
+would make a figure worse than seed 34's: a fatigue factor present or any fatigue figure higher, a heavier or lighter
+week, a bigger week-to-week move, more single rest days, a longer run of weeks on one turn, a week of 3 or 6 days.
+Two earlier attempts without those guards looked better on paper and were not: one reached 16 one-turn weeks by
+pushing FF11 to 13, at the threshold; one by splitting rest days into nine singles and adding a six-day week. The
+result, against seed 34: **14 of 20 weeks on one shift time (11)**, heaviest Mon–Sat week **41h50 (46h55)**, the
+most hours in any seven days **52.8 (53.5)**, FF11 **8 (9)**, the rotation **11 backward / 13 forward (14 / 14)**,
+a week-to-week step of 1h46 (1h50); rest, run, weekends off, single rest days and every rule unchanged. It is a
+candidate in `results/` like the seeds (`best-RF-34o.json`, `o` for the order), and `final.mjs` picks it by the
+same rule as every seed: it ties seed 34 on every rule and on fit, and wins on the search's own score, 12,660
+against 12,700. Seed 34's rotation remains in `results/` and is the runner-up on page 9.
+
 **The sheet shows the cover three ways** on page 6 — everyone on duty, of whom the ticket office, of
 whom the floor, each with its own fit — which is the only way to read a table whose fixed pairs sit
 across the day's quietest hours by design.
@@ -1352,6 +1367,7 @@ env $H CLS=weekday TOTAL=6970 MAX_TURNS=8 BEST0=20.5 OUT=fr-weekday.json node fi
 env $H CLS=sat TOTAL=7150 MAX_TURNS=6 OUT=fr-sat.json node final-table.mjs   # ~16s; CLS=sun MAX_TURNS=6 OUT=fr-sun.json ~5s (Sunday's total is searched, 4,800–5,300); ANNEAL=1 for a fast sweep of W
 CAP=570 PIN_WK="06:20-14:20x2,14:00-22:30x2" PIN_SAT="06:20-14:50x2,14:30-22:00x2" PIN_SUN="07:15-15:30x2,13:30-22:30x2" AT22_FLOOR=1 node assemble-table.mjs final-rules-table.json fr-weekday.json fr-sat.json fr-sun.json
 MODE=rules node anneal.mjs F 100000 5 7    # Right Away: table F, fatigue-first, seeds 7 13 21 34
+MODE=rules node order-polish.mjs results/best-RF-34.json results/best-RF-34o.json 1 60000 34o   # Right Away's week order improved from seed 34 (be01f0db); MODE must match
 PROPOSAL=FR node final.mjs results/best-RF-*.json
 CAP=510 COUNT=1 node table-book.mjs  # how many length structures a cap admits, WITHOUT searching -- a zero is a proof
 node regenerate.mjs --check           # every proposal's shipped JSON (and a supplied design's source grid) fingerprinted, without rendering

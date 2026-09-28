@@ -339,7 +339,7 @@ if (FR) {
   const floorTrio = `${fl.weekday} · ${fl.sat} · ${fl.sun}`;
   const newT = P.tableRows.filter(r => !todayTimes.has(r.time)).length;
   Object.assign(meta, {
-    date: '28 September 2026', steps: '100,000', restarts: 'five', runs: 'four seeded runs, fatigue-first', tightDuty: true, denseDuty: true,
+    date: '28 September 2026', steps: '100,000', restarts: 'five', runs: 'four seeded runs, fatigue-first, then a search onward from the best one’s week order that kept only moves no worse on any figure (order-polish.mjs)', tightDuty: true, denseDuty: true,
     decMet: frX.decMet, decToday: frX.decToday, decOf: 4,
     decLabel: 'The owner’s headcount minimums met',
     decTile: `at least four to open, three to close and five at 22:00, every day; 14 and 10 at the weekend · today meets ${frX.decToday} of 4`,

@@ -57,7 +57,9 @@ export const SEARCHED = [
     // kept one (FF19) on every seed. The like-today best is the labelled comparison row.
     { proposal: 'P2', fp: '33a78cbe', globs: ['results/best-RN-*.json'], env: { OTHER_MODE: 'results/best-N-7.json' } },
     // FR ran fatigue-first only, on the owner's final rules of 28 Sep 2026 (table F, final-rules-table.json, built by final-table.mjs).
-    { proposal: 'FR', fp: '03a59c77', globs: ['results/best-RF-*.json'] },
+    // 34o (28 Sep 2026) is seed 34's rotation with its week order improved by order-polish.mjs — the same duties on every
+    // day, better or equal on every figure; it wins the pick on the search's own score, by the rule every seed is judged by.
+    { proposal: 'FR', fp: 'be01f0db', globs: ['results/best-RF-*.json'] },
 ];
 
 const expand = g => { const [dir, pat] = [g.slice(0, g.lastIndexOf('/')), g.slice(g.lastIndexOf('/') + 1)];

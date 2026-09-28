@@ -17,7 +17,7 @@ import { materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs
  *  timetable. `hand`: drawn by hand and checked by the app. `hand+search`: drawn by hand, weeks put in order by
  *  computer search for fewer fatigue factors. */
 export const STRAPS = {
-  'FR-24-F34':  ['The ticket office rostered in fixed pairs, every other duty timed so the floor follows the trains', 'search'],
+  'FR-24-F34o': ['The ticket office rostered in fixed pairs, every other duty timed so the floor follows the trains', 'search'],
   'PT-24-P34':  ['Today’s roster reworked: weekday closers at 15:45, the rest of each day timed to the December trains', 'search'],
   'P2-24-N13':  ['Apart from the 06:20 opening and the closing shifts, every shift starts and finishes on the quarter hour', 'search'],
   'QT-24-Q34':  ['Only today’s shift times, plus a new weekday closer at 15:45', 'search'],
@@ -52,7 +52,7 @@ export const FIRST = { 'ST-24-B7': '8 Sep 2026', 'BB-24-D7': '8 Sep 2026', 'QT-2
   'WL-24-EXT': '17 Sep 2026', 'WL2-24-R21': '17 Sep 2026', 'WL3-24-F7': '17 Sep 2026', 'FT-24-EXT': '17 Sep 2026', 'FT-24-R21': '17 Sep 2026', 'WS-24-EXT': '17 Sep 2026',
   'WL4-24-F7': '22 Sep 2026', 'TF-24-EXT': '22 Sep 2026', 'TM-24-EXT': '22 Sep 2026', 'C17-24-EXT': '22 Sep 2026', 'S4-24-EXT': '22 Sep 2026',
   'CF-24-EXT': '22 Sep 2026', 'CFT-24-M3': '22 Sep 2026', 'TN-24-R7': '22 Sep 2026', 'B2-24-G21': '22 Sep 2026',
-  'Q2-24-W21': '24 Sep 2026', 'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34': '28 Sep 2026' };
+  'Q2-24-W21': '24 Sep 2026', 'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34o': '28 Sep 2026' };
 const MADE = {
   search: 'Built by computer search: the duty table was chosen for how closely it follows the December 2026 timetable, and the 24 weeks put in the order that raises the fewest fatigue factors.',
   hand: 'Drawn by hand and checked by the Links designer, which measured every figure in this sheet from the grid.',

@@ -235,7 +235,8 @@ export function folderStats(dir = new URL('..', import.meta.url)) {
   const T0 = today(); const TA = { patterns: T0.patterns, ...assess(T0.patterns, T0.lines) }; const todays = new Set(TA.tableRows.map(r => r.time));
   const out = [];
   for (const f of readdirSync(dir)) {
-    const m = /^(.*)-([A-Z][A-Z0-9]*-24-[A-Z0-9]+)\.json$/.exec(f); if (!m) continue;
+    // a trailing lower-case letter marks a rotation derived from a seed's (FR-24-F34o: seed 34, its week order improved)
+    const m = /^(.*)-([A-Z][A-Z0-9]*-24-[A-Z0-9]+[a-z]?)\.json$/.exec(f); if (!m) continue;
     try {
       const j = JSON.parse(readFileSync(new URL(f, dir), 'utf8')); const p = j.patterns ?? j; const lines = Object.keys(p).length;
       const A = assess(p, lines);
