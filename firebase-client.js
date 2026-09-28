@@ -23,7 +23,7 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 // @ts-ignore
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithCustomToken, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
 import { orderClientErrors, expiredResolvedIds, capUnresolvedErrors } from './client-errors.js';
-import { runWithClaimRetry, abandonOnSignOut } from './claim-retry.js';
+import { runWithClaimRetry, abandonOnSignOut, runGatedWrite } from './claim-retry.js';
 import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys, originKey, summariseOrigins, staleOriginKeys } from './usage-stats.js';
 import { perfSampleKey, summarisePerf, createPerfBatcher } from './perf-stats.js';
 import { APP_VERSION } from './roster-data.js';
@@ -349,9 +349,9 @@ export async function withClaimRetry(fn) {
     }), { uid: auth.currentUser?.uid, watch: cb => onAuthStateChanged(auth, cb) });
 }
 
-/** Back-compat alias for the write call sites (admin-overrides, admin-roster-upload, links-app, …).
- *  Identical to withClaimRetry — the retry is read/write-agnostic. */
-export const writeWithClaimRetry = withClaimRetry;
+/** withClaimRetry for WRITES, through `runGatedWrite` (claim-retry.js, v24.39): after an unconfirmed
+ *  write no new one starts until reload. @template T @param {() => Promise<T>} fn @returns {Promise<T>} */
+export function writeWithClaimRetry(fn) { return runGatedWrite(() => withClaimRetry(fn)); }
 
 /**
  * Run a Storage `uploadBytes`, self-healing a stale-claim `storage/unauthorized` once — the
@@ -405,11 +405,8 @@ function _getStorageSdk() {
 }
 
 // ---- The three date-keyed document collections ----
-// Huddle · Circular · Newsletter. The upload SEQUENCE — signature check, versioned path, and what
-// a failed or ambiguous commit does to the file — moved to documents-client.js at v21.90. It takes
-// every Firebase handle as an argument, which is both what keeps the import graph acyclic (this
-// module re-exports it) and what lets the ordering be replayed in Node against fakes; the reasoning
-// is in that module's header.
+// Huddle · Circular · Newsletter. The upload SEQUENCE lives in documents-client.js (v21.90), which
+// takes every Firebase handle as an argument so it can be replayed in Node; its header has why.
 const _docs = buildDocumentClient({
     db, collections: COLLECTIONS,
     fs: {
@@ -420,6 +417,7 @@ const _docs = buildDocumentClient({
     uploadBytesWithClaimRetry: _uploadBytesWithClaimRetry,
     utils: { isDocxUpload, uploadMimeType, legacyDocPath, versionedDocPath },
     resolveUploadCommit, pruneOldDocs,
+    guardCommit: (/** @type {Promise<any>} */ p) => abandonOnSignOut(p, { uid: auth.currentUser?.uid, watch: cb => onAuthStateChanged(auth, cb) }),
 });
 
 export const uploadHuddle            = _docs.uploadHuddle;
@@ -489,7 +487,8 @@ export async function savePushSubscription(subscription) {
     // (rule-rejected) unauthenticated case rather than writing a null.
     const owner = auth.currentUser?.uid;
     if (owner) data.owner = owner;
-    await setDoc(doc(db, COLLECTIONS.pushSubscriptions, id), data);
+    // Bounded by the account (v24.39) — else a sign-out left the bell on "Enabling…"; the id is fixed.
+    await abandonOnSignOut(setDoc(doc(db, COLLECTIONS.pushSubscriptions, id), data), { uid: owner, watch: cb => onAuthStateChanged(auth, cb) });
 }
 
 /**

@@ -46,6 +46,8 @@
  * the rules.
  */
 
+import { SIGNED_OUT_CODE } from './claim-retry.js';
+
 /**
  * Firestore error codes that warrant a single retry — transient service unavailability only.
  * @type {Set<string>}
@@ -86,6 +88,7 @@ export async function assertFileSignature(file, expectedType) {
     if (expectedType === 'docx' && !isZipSig) throw new Error('SIGNATURE_MISMATCH');
 }
 
+
 /**
  * Build the document-collection client.
  *
@@ -107,6 +110,7 @@ export async function assertFileSignature(file, expectedType) {
  * @param {(c:string,d:string,id:string,t:string)=>string} deps.utils.versionedDocPath
  * @param {(a:any)=>string} deps.resolveUploadCommit  the pure ambiguous-commit verdict
  * @param {(...a:any[])=>Promise<any>} deps.pruneOldDocs  the six-month sweep
+ * @param {(p: Promise<any>) => Promise<any>} [deps.guardCommit]  stop waiting on a commit whose account has gone (v24.39)
  * @param {(ms:number)=>Promise<void>} [deps.sleep]   the pause before re-reading after an ambiguous
  *                                             write. Real time in production; a test passes an instant
  *                                             one so each ambiguous-commit case does not cost 2 s.
@@ -123,6 +127,9 @@ export function buildDocumentClient({
     db, collections, fs, getStorageSdk, uploadBytesWithClaimRetry,
     utils, resolveUploadCommit, pruneOldDocs,
     sleep = (/** @type {number} */ ms) => new Promise(r => setTimeout(r, ms)),
+    // Stops waiting on a commit whose account has gone (claim-retry.js abandonOnSignOut). Identity
+    // by default so the replay tests need nothing; firebase-client.js passes the real one (v24.39).
+    guardCommit = (/** @type {Promise<any>} */ p) => p,
 }) {
     const {
         doc, getDoc, setDoc, collection, query, where, orderBy, limit,
@@ -180,9 +187,18 @@ export function buildDocumentClient({
                 uploadedAt: serverTimestamp(), uploadedBy, ...extraFields,
             };
             try {
-                await setDoc(doc(db, collectionName, date), firestoreDoc);
+                await guardCommit(setDoc(doc(db, collectionName, date), firestoreDoc));
             } catch (setErr) {
                 const e = /** @type {any} */ (setErr);
+                // SIGNED OUT MID-COMMIT (v24.39). Firestore keeps the write queued for that account
+                // and never settles it, so this used to sit on "Uploading…" for good. It may still
+                // land, so it is UNCONFIRMED — never a failure, and never a rollback of our object,
+                // which the live document may yet point at.
+                if (e?.code === SIGNED_OUT_CODE) {
+                    const amb = /** @type {any} */ (new Error('Signed out before the upload was confirmed.'));
+                    amb.code = 'upload/unconfirmed';
+                    throw amb;
+                }
                 if (!RETRIABLE_FIRESTORE_CODES.has(e?.code)) throw setErr;
                 console.warn(`[upload] ${logTag} setDoc attempt 1 failed (${e?.code}) — checking what committed`);
                 await sleep(2000);

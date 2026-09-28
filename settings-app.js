@@ -21,7 +21,7 @@ import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
 import { summarise, shouldOpen } from './settings-status.js';
 import { setStatus } from './status-text.js';
-import { SIGNED_OUT_CODE, signedOutLine, watchIdentityLoss } from './claim-retry.js';
+import { unconfirmedWriteLine, watchIdentityLoss } from './claim-retry.js';
 import { withSlowSaveNotice } from './slow-save.js';
 import { inventoryOf } from './paycalc-inventory.js';
 import { selectBackupKeys } from './paycalc-transfer.js';
@@ -421,7 +421,7 @@ export function init() {
             } catch (err) {
                 console.warn('[staffContact] Save failed:', err);
                 setFeedback(
-                    (/** @type {any} */ (err))?.code === SIGNED_OUT_CODE ? signedOutLine('your email', 'it is saved')
+                    unconfirmedWriteLine(err, 'your email', 'it is saved') ? /** @type {string} */ (unconfirmedWriteLine(err, 'your email', 'it is saved'))
                     : (/** @type {any} */ (err))?.code === 'permission-denied'
                         ? 'Couldn\'t save — please sign out and sign back in.'
                         : 'Couldn\'t save — check your connection and try again.',
@@ -445,7 +445,7 @@ export function init() {
                 } catch (err) {
                     console.warn('[staffContact] Remove failed:', err);
                     setFeedback(
-                        (/** @type {any} */ (err))?.code === SIGNED_OUT_CODE ? signedOutLine('the removal', 'it is gone')
+                        unconfirmedWriteLine(err, 'the removal', 'it is gone') ? /** @type {string} */ (unconfirmedWriteLine(err, 'the removal', 'it is gone'))
                         : (/** @type {any} */ (err))?.code === 'permission-denied'
                             ? 'Couldn\'t remove — please sign out and sign back in.'
                             : 'Couldn\'t remove — check your connection and try again.',

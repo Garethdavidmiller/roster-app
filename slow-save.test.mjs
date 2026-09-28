@@ -116,3 +116,13 @@ test('writesInFlight counts every wrapped write until it settles, quick or slow,
     b.reject(new Error('refused')); await pb.catch(() => {}); await tick();
     assert.equal(writesInFlight(), base, 'a refused write is no longer in flight either');
 });
+
+test('an UNCONFIRMED write keeps writesInFlight above zero, so no automatic reload strands it (v24.39)', async () => {
+    const { writesInFlight } = await import('./slow-save.js');
+    const { runGatedWrite, _resetUnconfirmedWrites, SIGNED_OUT_CODE } = await import('./claim-retry.js');
+    _resetUnconfirmedWrites();
+    assert.equal(writesInFlight(), 0);
+    await runGatedWrite(async () => { throw Object.assign(new Error('gone'), { code: SIGNED_OUT_CODE }); }).catch(() => {});
+    assert.equal(writesInFlight(), 1);
+    _resetUnconfirmedWrites();
+});
