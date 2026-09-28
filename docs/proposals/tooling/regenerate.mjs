@@ -43,6 +43,9 @@ export const SUPPLIED = [
     // Familiar Nine (28 Sep 2026) is built rather than supplied — table K proven by final-table.mjs, Right Away's week
     // structure carried onto it and polished — but its grid is the finished product of three tools, so it ships as a grid.
     { file: 'familiar-nine.json',          name: 'Familiar Nine',  code: 'F9-24-K31',  fp: 'c450951c', strap: 'No duty over nine hours, and most shift times ones people already work' },
+    // Just Enough (28 Sep 2026) is Fifteen Turns with the fewest cells changed that meet every rule — 29, proven by the exact
+    // solver in tooling/exact/ — and, among those, the fewest fatigue factors (three, also proven).
+    { file: 'just-enough.json',            name: 'Just Enough',    code: 'JE-24-M29',  fp: '49717d70', strap: 'Fifteen Turns with the fewest changes that meet every rule' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

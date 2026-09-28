@@ -1,0 +1,3 @@
+# solver outputs and scratch — the shipped grids live one folder up
+__pycache__/
+*.json

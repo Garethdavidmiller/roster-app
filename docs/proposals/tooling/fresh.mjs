@@ -15,7 +15,8 @@ import { materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs
 
 /** code → [one-line description, how it was made]. `search`: built by computer search against the rules and the
  *  timetable. `hand`: drawn by hand and checked by the app. `hand+search`: drawn by hand, weeks put in order by
- *  computer search for fewer fatigue factors. */
+ *  computer search for fewer fatigue factors. `exact`: a hand-drawn design changed in the fewest cells that meet every
+ *  rule, the minimum proven by an exact solver (tooling/exact/). */
 export const STRAPS = {
   'FR-24-F34o': ['The ticket office rostered in fixed pairs, every other duty timed so the floor follows the trains', 'search'],
   'F9-24-K31':  ['No duty over nine hours, and most shift times ones people already work', 'search'],
@@ -41,11 +42,12 @@ export const STRAPS = {
   'CF-24-EXT':  ['Weekday closers from 16:25, and no Saturday closing shift longer than 8h 40m', 'hand'],
   'CFT-24-M3':  ['Weekday closers from 16:25, with four at Sunday’s open and four through to its close', 'hand'],
   'TN-24-R7':   ['Ten on a Sunday, and nobody works more than six days in a row', 'hand+search'],
+  'JE-24-M29':  ['Fifteen shift times, changed in the fewest places that meet all eleven rules', 'exact'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
 export const FAMILY = { ST: 'Same Turns', QT: 'Same Turns', Q2: 'Same Turns', BB: 'By the Book', EF: 'By the Book', B2: 'By the Book',
-  PT: 'Pinned Turns', P2: 'Pinned Turns', FR: 'Right Away', F9: 'Right Away', FT: 'Fifteen Turns',
+  PT: 'Pinned Turns', P2: 'Pinned Turns', FR: 'Right Away', F9: 'Right Away', FT: 'Fifteen Turns', JE: 'Fifteen Turns',
   WL: 'Weekday Lates', WL2: 'Weekday Lates', WL3: 'Weekday Lates', WL4: 'Weekday Lates', WS: 'Weekday Lates', TF: 'Weekday Lates', TM: 'Weekday Lates',
   C17: 'Weekday Lates', S4: 'Weekday Lates', CF: 'Weekday Lates', CFT: 'Weekday Lates', TN: 'Weekday Lates' };
 export const FIRST = { 'ST-24-B7': '8 Sep 2026', 'BB-24-D7': '8 Sep 2026', 'QT-24-Q34': '12 Sep 2026', 'EF-24-E21': '12 Sep 2026',
@@ -53,13 +55,14 @@ export const FIRST = { 'ST-24-B7': '8 Sep 2026', 'BB-24-D7': '8 Sep 2026', 'QT-2
   'WL-24-EXT': '17 Sep 2026', 'WL2-24-R21': '17 Sep 2026', 'WL3-24-F7': '17 Sep 2026', 'FT-24-EXT': '17 Sep 2026', 'FT-24-R21': '17 Sep 2026', 'WS-24-EXT': '17 Sep 2026',
   'WL4-24-F7': '22 Sep 2026', 'TF-24-EXT': '22 Sep 2026', 'TM-24-EXT': '22 Sep 2026', 'C17-24-EXT': '22 Sep 2026', 'S4-24-EXT': '22 Sep 2026',
   'CF-24-EXT': '22 Sep 2026', 'CFT-24-M3': '22 Sep 2026', 'TN-24-R7': '22 Sep 2026', 'B2-24-G21': '22 Sep 2026',
-  'Q2-24-W21': '24 Sep 2026', 'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34o': '28 Sep 2026', 'F9-24-K31': '28 Sep 2026' };
+  'Q2-24-W21': '24 Sep 2026', 'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34o': '28 Sep 2026', 'F9-24-K31': '28 Sep 2026', 'JE-24-M29': '28 Sep 2026' };
 const MADE = {
   search: 'Built by computer search: the duty table was chosen for how closely it follows the December 2026 timetable, and the 24 weeks put in the order that raises the fewest fatigue factors.',
   hand: 'Drawn by hand and checked by the Links designer, which measured every figure in this sheet from the grid.',
   'hand+search': 'Drawn by hand, then the weeks put in order by computer search for the fewest fatigue factors; the duty times are as drawn.',
+  exact: 'A hand-drawn design changed in the fewest cells that meet every rule, the minimum proven by an exact solver.',
 };
-const MADE_SHORT = { search: 'computer search', hand: 'drawn by hand', 'hand+search': 'drawn by hand, ordered by search' };
+const MADE_SHORT = { search: 'computer search', hand: 'drawn by hand', 'hand+search': 'drawn by hand, ordered by search', exact: 'drawn by hand, fewest changes proven' };
 
 /** The standalone words for one sheet. `folder` is folderStats() — every shipped design, with its rules. */
 export function freshMeta({ T, P, meta, folder, rendered }) {
