@@ -57,7 +57,7 @@ const LATE_FROM = 11*60;
 // is unreachable for the reason the header gives one notch up: 14 duties paying 7,000 minutes mean 8h20, so a
 // ceiling of 8h30 leaves the whole set inside a band 10 minutes wide at the top and there is no room to open a
 // half-hour mean gap between earlies and lates. Sweep it to find what the cap really allows.
-// PINNED DUTIES (By the Book 2, owner 22 Sep 2026): the ticket office wants two 14:00-22:30 turns Monday to
+// PINNED DUTIES (Office Written In, owner 22 Sep 2026): the ticket office wants two 14:00-22:30 turns Monday to
 // Saturday and two 13:00-21:30 on a Sunday. They are an operational GIVEN, not a design choice, so they
 // are taken out of the day before the length structures are enumerated (PIN_N duties, PIN_MIN minutes)
 // and added back by the caller for placement -- and they sit OUTSIDE the early-vs-late ordering pin,
@@ -102,7 +102,7 @@ export function violations(cls, duties, weekday = null) {
     const longs = earlies.filter(x => x > lmax); if (longs.length) { const gap = Math.min(...longs) - lmax; if (gap < 5 || gap > 60) push(`gap ${gap}`, Math.max(5 - gap, gap - 60) / 5); }
     const mean = xs => xs.reduce((a, b) => a + b, 0) / xs.length; if (mean(earlies) - mean(lates) < MEAN_GAP[cls]) push(`means ${(mean(earlies) - mean(lates)).toFixed(0)}`, (MEAN_GAP[cls] - (mean(earlies) - mean(lates))) / 5);
   }
-  // "Five still on at 22:00" is EXACT by default. AT22_FLOOR=1 reads it as a minimum -- for By the Book 2,
+  // "Five still on at 22:00" is EXACT by default. AT22_FLOOR=1 reads it as a minimum -- for Office Written In,
   // where two pinned 14:00-22:30 ticket-office turns plus Saturday's four closers make six at 22:00 by
   // arithmetic, and the rule exists so the evening is not thin, which six does not offend.
   // A PINNED turn that finishes AT 22:00 is on at 22:00 -- the ticket office is open until then, and two people

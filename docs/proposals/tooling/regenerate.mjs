@@ -26,20 +26,23 @@ const fingerprint = p => createHash('sha256')
 /** The supplied designs: a grid, a name, a strap line and a code. */
 export const SUPPLIED = [
     { file: 'weekday-lates.json',      name: 'Weekday Lates',         code: 'WL-24-EXT',  fp: 'a52ec588', strap: 'Weekday lates at 16:25, Saturdays untouched' },
-    { file: 'weekday-lates-2.json',    name: 'Weekday Lates 2',       code: 'WL2-24-R21', fp: '33f70893', strap: 'The 08:30 turns moved under the 17:00 peak' },
-    { file: 'weekday-lates-3.json',    name: 'Weekday Lates 3',       code: 'WL3-24-F7',  fp: 'a6234195', strap: 'Weeks 13-17 protected, fatigue at its floor' },
-    { file: 'weekday-lates-4.json',    name: 'Weekday Lates 4',       code: 'WL4-24-F7',  fp: 'f0d403d6', strap: 'Weeks 14-17 kept in order, on their own line numbers' },
+    { file: 'weekday-lates-2.json',    name: 'Evening Peak',       code: 'WL2-24-R21', fp: '33f70893', strap: 'The 08:30 turns moved under the 17:00 peak' },
+    { file: 'weekday-lates-3.json',    name: 'Frozen Block',       code: 'WL3-24-F7',  fp: 'a6234195', strap: 'Weeks 13-17 protected, fatigue at its floor' },
+    { file: 'weekday-lates-4.json',    name: 'Anchored Lines',       code: 'WL4-24-F7',  fp: 'f0d403d6', strap: 'Weeks 14-17 kept in order, on their own line numbers' },
     { file: 'fifteen-turns.json',      name: 'Fifteen Turns',         code: 'FT-24-EXT',  fp: '9a028392', strap: 'Fifteen turns, cover weeks evenly spread' },
-    { file: 'fifteen-turns-repaired.json', name: 'Fifteen Turns Repaired', code: 'FT-24-R21', fp: 'b76bf9e1', strap: 'The supplied design, repaired and re-searched' },
+    { file: 'fifteen-turns-repaired.json', name: 'Gates Mended', code: 'FT-24-R21', fp: 'b76bf9e1', strap: 'The supplied design, repaired and re-searched' },
     { file: 'weeks1718.json',          name: 'Weeks 17-18 Swapped',   code: 'WS-24-EXT',  fp: '0bebb675', strap: 'Cover week at 18, midday turn at 12:00-20:30' },
     { file: 'targeted-fatigue.json',   name: 'Targeted Fatigue Redo', code: 'TF-24-EXT',  fp: '8eef9a13', strap: 'Weeks 17-18 Swapped re-ordered by hand — same duties, same days, same coverage' },
     { file: 'three-mondays.json',     name: 'Three Mondays',         code: 'TM-24-EXT',  fp: 'fe90c0b8', strap: 'The eight-day run across weeks 14-15 broken by rotating three Monday duties' },
     { file: 'cover-at-seventeen.json', name: 'Cover at Seventeen',    code: 'C17-24-EXT', fp: 'edc1b731', strap: 'Lines 17 and 18 swapped back - the cover week returns to 17, and FF11 clears' },
     { file: 'saturday-four.json',     name: 'Saturday Four',        code: 'S4-24-EXT',  fp: '481ba9ed', strap: 'Saturday rebuilt - four turns, three start times, weighted to the late for Wembley' },
-    // The three Clean Final sheets were built in a parallel session (#1513) and registered here on the merge.
-    { file: 'cea-clean-final2.json',       name: 'Clean Final',       code: 'CF-24-EXT',  fp: '6d21169b', strap: 'The Weekday Lates line revised - the long Saturday closer shortened' },
-    { file: 'cea-clean-final2-tuned.json', name: 'Clean Final Tuned', code: 'CFT-24-M3',  fp: 'ae1a15bd', strap: 'Clean Final with three cells retimed - the Sunday bulge broken and the Saturday morning filled' },
-    { file: 'cea-clean-final-ten.json',    name: 'Clean Final Ten',   code: 'TN-24-R7',   fp: '84b60df9', strap: 'A tenth Sunday shift and a reordered wheel - fewer factors, a shorter run' },
+    // Short Closer, Light Retime and Tenth Sunday were built in a parallel session (#1513) and registered here on the merge.
+    { file: 'cea-clean-final2.json',       name: 'Short Closer',       code: 'CF-24-EXT',  fp: '6d21169b', strap: 'The Weekday Lates line revised - the long Saturday closer shortened' },
+    { file: 'cea-clean-final2-tuned.json', name: 'Light Retime', code: 'CFT-24-M3',  fp: 'ae1a15bd', strap: 'Short Closer with three cells retimed - the Sunday bulge broken and the Saturday morning filled' },
+    { file: 'cea-clean-final-ten.json',    name: 'Tenth Sunday',   code: 'TN-24-R7',   fp: '84b60df9', strap: 'A tenth Sunday shift and a reordered wheel - fewer factors, a shorter run' },
+    // Familiar Nine (28 Sep 2026) is built rather than supplied — table K proven by final-table.mjs, Right Away's week
+    // structure carried onto it and polished — but its grid is the finished product of three tools, so it ships as a grid.
+    { file: 'familiar-nine.json',          name: 'Familiar Nine',  code: 'F9-24-K31',  fp: 'c450951c', strap: 'No duty over nine hours, and most shift times ones people already work' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
@@ -56,6 +59,10 @@ export const SEARCHED = [
     // P2 ran in both modes too, with the same outcome: fatigue-first (RN) cleared every factor on all four seeds, like-today (N)
     // kept one (FF19) on every seed. The like-today best is the labelled comparison row.
     { proposal: 'P2', fp: '33a78cbe', globs: ['results/best-RN-*.json'], env: { OTHER_MODE: 'results/best-N-7.json' } },
+    // FR ran fatigue-first only, on the owner's final rules of 28 Sep 2026 (table F, final-rules-table.json, built by final-table.mjs).
+    // 34o (28 Sep 2026) is seed 34's rotation with its week order improved by order-polish.mjs — the same duties on every
+    // day, better or equal on every figure; it wins the pick on the search's own score, by the rule every seed is judged by.
+    { proposal: 'FR', fp: 'be01f0db', globs: ['results/best-RF-*.json'] },
 ];
 
 const expand = g => { const [dir, pat] = [g.slice(0, g.lastIndexOf('/')), g.slice(g.lastIndexOf('/') + 1)];
@@ -109,8 +116,11 @@ for (const t of SEARCHED) {
     done++;
 }
 console.log(`\n${done} proposal${done === 1 ? '' : 's'}${failed ? `, ${failed} FAILED` : ''}`);
+// THE RULES REFERENCE (28 Sep 2026) is rendered by every full run, after the sheets, from the same currentRules
+// and the same folder — so it can never describe a rule set the sheets beside it were not judged against.
+if (!checkOnly && !only) execFileSync('node', ['rules-sheet.mjs'], { stdio: 'inherit' });
 // A SHIPPED PDF THAT GIT DOES NOT TRACK IS NOT SHIPPED. `.gitignore` ignores every *.pdf, so `git add docs/proposals`
-// updates the PDFs already tracked and silently skips a NEW one; Quarter To 2's and Pinned Turns' PDFs sat on disk
+// updates the PDFs already tracked and silently skips a NEW one; Weekend Capped's and Pinned Turns' PDFs sat on disk
 // for a day while their JSON and import files were on main (25 Sep 2026). This refuses to report success while any
 // PDF in the folder is untracked, and names the command that fixes it.
 if (ship && !checkOnly) {

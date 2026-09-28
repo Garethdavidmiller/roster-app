@@ -1,15 +1,16 @@
 // Pick the winner, offer it to the app's own reorder, assess today + proposal + comparators, render.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { assess, today, tryAppReorder, demand, hmFromHours, family, startMinutes, endMinutes, weekdayFit, folderStats } from './report-data.mjs';
+import { assess, today, tryAppReorder, demand, hmFromHours, family, startMinutes, endMinutes, weekdayFit, weekdayFloorFit, folderStats, OFFICE, officeSpans } from './report-data.mjs';
 import { evaluate } from './anneal.mjs';
 import { renderPdf } from './render.mjs';
 import { generateLink, ROTATING_LINES, DAYS } from '../../../links-design.js';
 import { buildDefaultTargets } from '../../../links-default-targets.js';
 import { reorderLines, applyOrder, OBJECTIVES } from '../../../links-adjacency.js';
 
-const PROPOSAL = process.env.PROPOSAL ?? 'ST';   // ST = Same Turns · BB = By the Book · QT = Quarter To (ST with the closer at 15:45) · EF = Eight Forty (BB with no duty over 8h40) · B2 = By the Book 2 (EF's cap, two ticket-office turns pinned) · Q2 = Quarter To 2 (QT's weekday, Saturday and Sunday rebuilt under the cap) · PT = Pinned Turns (the owner's 25 Sep brief from today's roster, fitted to the timetable) · P2 = Pinned Turns 2 (the same pins, every other time rewritten onto the quarter hour)
+const PROPOSAL = process.env.PROPOSAL ?? 'ST';   // ST = Same Turns · BB = By the Book · QT = Quarter To (ST with the closer at 15:45) · EF = Eight Forty (BB with no duty over 8h40) · B2 = Office Written In (EF's cap, two ticket-office turns pinned) · Q2 = Weekend Capped (QT's weekday, Saturday and Sunday rebuilt under the cap) · PT = Pinned Turns (the owner's 25 Sep brief from today's roster, fitted to the timetable) · P2 = Round Times (the same pins, every other time rewritten onto the quarter hour) · FR = Right Away (the owner's final rules of 28 Sep 2026: the ticket office fixed and kept off the floor, the floor fitted to the timetable)
 const PTF = PROPOSAL === 'PT' || PROPOSAL === 'P2';   // the two brief-built families share most of their sheet
+const FR = PROPOSAL === 'FR';
 const files = process.argv.slice(2).filter(existsSync);
 // Demand fit of a design's weekday cover against the December 2026 timetable curve (same formula as fit.mjs):
 // squared distance between each hour's share of cover and its share of traffic, inside the window.
@@ -39,14 +40,18 @@ const G = assess(gp, 24); const gEval = evaluate(gp);
 const fingerprint = p => createHash('sha256').update(JSON.stringify(Object.keys(p).sort((a,b)=>a-b).map(k => DAYS.map(d => p[k][d])))).digest('hex').slice(0, 8);
 // FAMILY from the result file itself, not from the PROPOSAL env — a comparator row must carry its own
 // family's code. Tables Q and R are Same Turns' table B with the closer at 15:45 (see anneal.mjs).
-const famOf = c => c.variant === 'N' ? 'P2' : c.variant === 'P' ? 'PT' : c.mode === 'rules' ? (c.variant === 'E' ? 'EF' : c.variant === 'G' ? 'B2' : 'BB') : /^[QR]$/.test(String(c.variant)) ? 'QT' : c.variant === 'W' ? 'Q2' : 'ST';
-const NAMES = { BB: 'By the Book', ST: 'Same Turns', QT: 'Quarter To', EF: 'Eight Forty', B2: 'By the Book 2', Q2: 'Quarter To 2', PT: 'Pinned Turns', P2: 'Pinned Turns 2' };
+const famOf = c => c.variant === 'F' ? 'FR' : c.variant === 'N' ? 'P2' : c.variant === 'P' ? 'PT' : c.mode === 'rules' ? (c.variant === 'E' ? 'EF' : c.variant === 'G' ? 'B2' : 'BB') : /^[QR]$/.test(String(c.variant)) ? 'QT' : c.variant === 'W' ? 'Q2' : 'ST';
+const NAMES = { BB: 'By the Book', ST: 'Same Turns', QT: 'Quarter To', EF: 'Eight Forty', B2: 'Office Written In', Q2: 'Weekend Capped', PT: 'Pinned Turns', P2: 'Round Times', FR: 'Right Away' };
 // EF: the table search's own record — how many length structures paid the day, how many placed, the fits.
-const efTable = PROPOSAL === 'EF' ? JSON.parse(readFileSync('eight-forty-table.json', 'utf8')) : PROPOSAL === 'B2' ? JSON.parse(readFileSync('by-the-book-2-table.json', 'utf8')) : PROPOSAL === 'Q2' ? JSON.parse(readFileSync('quarter-to-2-table.json', 'utf8')) : PROPOSAL === 'PT' ? JSON.parse(readFileSync('pinned-turns-table.json', 'utf8')) : PROPOSAL === 'P2' ? JSON.parse(readFileSync('pinned-turns-2-table.json', 'utf8')) : null;
+const efTable = PROPOSAL === 'EF' ? JSON.parse(readFileSync('eight-forty-table.json', 'utf8')) : PROPOSAL === 'B2' ? JSON.parse(readFileSync('by-the-book-2-table.json', 'utf8')) : PROPOSAL === 'Q2' ? JSON.parse(readFileSync('quarter-to-2-table.json', 'utf8')) : PROPOSAL === 'PT' ? JSON.parse(readFileSync('pinned-turns-table.json', 'utf8')) : PROPOSAL === 'P2' ? JSON.parse(readFileSync('pinned-turns-2-table.json', 'utf8')) : FR ? JSON.parse(readFileSync('final-rules-table.json', 'utf8')) : null;
 // P2 reads Pinned Turns' record too: its fits are the comparison the sheet is built to make.
 const ptRecord = PROPOSAL === 'P2' && existsSync('pinned-turns-table.json') ? JSON.parse(readFileSync('pinned-turns-table.json', 'utf8')) : null;
 const codeFor = c => `${famOf(c)}-24-${c.variant}${c.seed ?? '?'}`;
-const identity = PROPOSAL === 'BB' ? {
+const identity = FR ? {
+  name: 'Right Away', strap: 'The owner’s final rules — the ticket office fixed, the floor fitted to the timetable',
+  code: codeFor(win), fingerprint: fingerprint(P.patterns), table: win.variant, seed: win.seed,
+  lineage: 'Family FR — built to the owner’s final rules of 28 September 2026. The ticket office is written in first as fixed pairs of identical turns and is not counted as floor cover: Monday to Friday two 06:20–14:20 and two 14:00–22:30, Saturday two 06:20–14:50 and two 14:30–22:00, Sunday two 07:15 earlies and two lates to 22:30. Every weekday closer starts 15:45. The rest of each day was enumerated to a proof for the closest fit of the floor to the December 2026 timetable, with the headcounts as minimums, at least two on the floor at every moment, handovers of 15 minutes to each closer and 20 in the ticket office, Sunday duties of 8h to 9h, and no more shift times than today. The rotation was then searched for the fewest fatigue factors. Compare with “Round Times” (P2-24-N13 · 33a78cbe), “Pinned Turns” (PT-24-P34 · dae6292e) and “By the Book” (BB-24-D7 · 0f14abce).',
+} : PROPOSAL === 'BB' ? {
   name: 'By the Book', strap: 'The December 2026 timetable rules, built for the fatigue factors',
   code: codeFor(win), fingerprint: fingerprint(P.patterns), table: win.variant, seed: win.seed,
   lineage: 'Family BB — the workspace’s own December 2026 duty table (your rules in table form), with the rotation searched for the ORR factors and nothing carried over from today’s roster. Compare with “Same Turns” (ST-24-B7 · d15e1b74) and “Five Shift Times” (23 Aug 2026).',
@@ -55,19 +60,19 @@ const identity = PROPOSAL === 'BB' ? {
   code: codeFor(win), fingerprint: fingerprint(P.patterns), table: win.variant, seed: win.seed,
   lineage: 'Family EF — “By the Book” (BB-24-D7 · 0f14abce) under one more rule: no duty runs over 8h40. Five of that table’s eleven Mon–Sat turns did (its earlies ran to 9h30), so the whole December 2026 duty table was searched again under the same rules with the ceiling at 8h40, and the rotation then searched for the ORR factors exactly as “By the Book” was. Nothing is carried over from today’s roster. Compare with “By the Book”, “Same Turns” (ST-24-B7 · d15e1b74) and “Quarter To” (QT-24-Q34 · 70cf9874).',
 } : PROPOSAL === 'B2' ? {
-  name: 'By the Book 2', strap: 'Eight Forty, with the ticket office rostered — two 14:00–22:30 a day',
+  name: 'Office Written In', strap: 'Eight Forty, with the ticket office rostered — two 14:00–22:30 a day',
   code: codeFor(win), fingerprint: fingerprint(P.patterns), table: win.variant, seed: win.seed,
   lineage: 'Family B2 — “Eight Forty” (EF-24-E21 · 0cf19f56) with the ticket office written in: two 14:00–22:30 turns every day Monday to Saturday and two 13:30–22:00 on a Sunday, fixed before the rest of the day was searched. Same 8h40 ceiling, same December 2026 timetable rules, demand fit ahead of the count of distinct times (owner, 22 Sep 2026). The rotation was then searched for the ORR factors exactly as “By the Book” and “Eight Forty” were. Compare with “Eight Forty”, “By the Book” (BB-24-D7 · 0f14abce) and “Same Turns” (ST-24-B7 · d15e1b74).',
 } : PROPOSAL === 'PT' ? {
   name: 'Pinned Turns', strap: 'Today’s roster, the owner’s pinned turns, the rest fitted to the timetable',
   code: codeFor(win), fingerprint: fingerprint(P.patterns), table: win.variant, seed: win.seed,
-  lineage: 'Family PT — built from today’s roster to the owner’s brief of 25 September 2026: Monday to Friday every 23:55 finish starts 15:45, three openers work 06:20–14:20, two lates work 14:00–22:30 and nothing runs over 8h40; on a Saturday two openers work 06:20 until at least 14:20 and one late 14:00–22:30; on a Sunday one duty works 13:00–21:30. Those pins replace By the Book 2’s ticket-office pair. The rest of each day was searched for the closest fit to the December 2026 timetable, and the rotation for the fewest fatigue factors. Compare with “Quarter To 2” (Q2-24-W21 · 7ea671d5), “Quarter To” (QT-24-Q34 · 70cf9874) and “By the Book” (BB-24-D7 · 0f14abce).',
+  lineage: 'Family PT — built from today’s roster to the owner’s brief of 25 September 2026: Monday to Friday every 23:55 finish starts 15:45, three openers work 06:20–14:20, two lates work 14:00–22:30 and nothing runs over 8h40; on a Saturday two openers work 06:20 until at least 14:20 and one late 14:00–22:30; on a Sunday one duty works 13:00–21:30. Those pins replace Office Written In’s ticket-office pair. The rest of each day was searched for the closest fit to the December 2026 timetable, and the rotation for the fewest fatigue factors. Compare with “Weekend Capped” (Q2-24-W21 · 7ea671d5), “Quarter To” (QT-24-Q34 · 70cf9874) and “By the Book” (BB-24-D7 · 0f14abce).',
 } : PROPOSAL === 'P2' ? {
-  name: 'Pinned Turns 2', strap: 'The owner’s pinned turns, every other time on the quarter hour',
+  name: 'Round Times', strap: 'The owner’s pinned turns, every other time on the quarter hour',
   code: codeFor(win), fingerprint: fingerprint(P.patterns), table: win.variant, seed: win.seed,
-  lineage: 'Family P2 — “Pinned Turns” (PT-24-P34 · dae6292e) with the rest of the day rewritten: the brief’s pins stand exactly (Monday to Friday 15:45 closers, three 06:20–14:20 openers, two 14:00–22:30 lates, nothing over 8h40; Saturday two long openers and a 14:00–22:30; Sunday a 13:00–21:30) and EVERY OTHER DUTY starts and finishes on the quarter hour, with no clock time kept for familiarity’s sake. The weekday and Sunday were enumerated to a proof and the Saturday too; the rotation was searched for the fewest fatigue factors exactly as Pinned Turns was. Compare with “Pinned Turns”, “Quarter To 2” (Q2-24-W21 · 7ea671d5) and “By the Book” (BB-24-D7 · 0f14abce).',
+  lineage: 'Family P2 — “Pinned Turns” (PT-24-P34 · dae6292e) with the rest of the day rewritten: the brief’s pins stand exactly (Monday to Friday 15:45 closers, three 06:20–14:20 openers, two 14:00–22:30 lates, nothing over 8h40; Saturday two long openers and a 14:00–22:30; Sunday a 13:00–21:30) and EVERY OTHER DUTY starts and finishes on the quarter hour, with no clock time kept for familiarity’s sake. The weekday and Sunday were enumerated to a proof and the Saturday too; the rotation was searched for the fewest fatigue factors exactly as Pinned Turns was. Compare with “Pinned Turns”, “Weekend Capped” (Q2-24-W21 · 7ea671d5) and “By the Book” (BB-24-D7 · 0f14abce).',
 } : PROPOSAL === 'Q2' ? {
-  name: 'Quarter To 2', strap: 'Quarter To, with Saturday and Sunday rebuilt under the cap',
+  name: 'Weekend Capped', strap: 'Quarter To, with Saturday and Sunday rebuilt under the cap',
   code: codeFor(win), fingerprint: fingerprint(P.patterns), table: win.variant, seed: win.seed,
   lineage: 'Family Q2 — “Quarter To” (QT-24-Q34 · 70cf9874) with its own open question answered: the 8h40 cap reaches the weekend. The weekday is Quarter To’s table Q unchanged; Saturday and Sunday were searched again from today’s clock times and the quarter hour, under the December 2026 headcounts and nothing over 8h40, and the rotation was then searched exactly as Quarter To was. Compare with “Quarter To”, “Same Turns” (ST-24-B7 · d15e1b74) and “By the Book” (BB-24-D7 · 0f14abce).',
 } : PROPOSAL === 'QT' ? {
@@ -80,25 +85,25 @@ const identity = PROPOSAL === 'BB' ? {
   lineage: 'Family ST — the existing 20-line link kept in its own shift times and week shapes. Compare with “Five Shift Times” (23 Aug 2026, family FST) and the workspace’s own December 2026 duty-table default.',
 };
 const step = a => String(a.fatigue.results.find(r => r.code === 'FF18')?.value ?? '').replace(/.*typically /, '').replace(' a week','');
-const alt = (name, a, ev, chosen = false, p = null) => ({ name, run: a.checks.longestStretch, present: a.fatigue.present, weekends: a.checks.weekendsOff, oneTurn: `${a.feel.oneTurn}/${a.feel.workingLines}`, step: step(a), fit: p ? weekdayFit(p) : '—', score: ev ? ev.cost.toFixed(0) : '—', chosen });
+const alt = (name, a, ev, chosen = false, p = null) => ({ name, run: a.checks.longestStretch, present: a.fatigue.present, weekends: a.checks.weekendsOff, oneTurn: `${a.feel.oneTurn}/${a.feel.workingLines}`, step: step(a), fit: p ? weekdayFit(p) : '—', floor: p ? weekdayFloorFit(p) : '—', score: ev ? ev.cost.toFixed(0) : '—', chosen });
 const alternatives = [];
 // The rows that carry information. Every seed's result is in results/ and named in the note below;
 // listing all eight on the page put the alternatives table past the printable A4 height (measured
 // 1117px against 1032 — shots.mjs), so QT shows the winner, the runner-up and the other table's best.
 const shown = PROPOSAL === 'QT'
   ? [...new Set([cands[0], cands[1], cands.find(c => c.variant !== cands[0].variant)].filter(Boolean))]
-  : ['EF', 'B2', 'Q2', 'PT', 'P2'].includes(PROPOSAL) ? cands.slice(0, 2) : cands;
+  : ['EF', 'B2', 'Q2', 'PT', 'P2', 'FR'].includes(PROPOSAL) ? cands.slice(0, 2) : cands;
 for (const c of shown) { const A = assess(c.patterns, 24); alternatives.push(alt(`${codeFor(c)} · ${fingerprint(c.patterns)}${c === win ? ` — <b>${identity.name}</b> (this proposal)` : c === cands[1] ? ' — runner-up' : ''}`, A, { cost: c.cost }, c === win, c.patterns)); }
 alternatives.push(alt(`Workspace default · ${fingerprint(gp)} (Dec 2026 table, generated)`, G, gEval, false, gp));
 for (const x of (process.env.OTHER_MODE ?? '').split(',').filter(existsSync)) { const e = JSON.parse(readFileSync(x, 'utf8')); alternatives.push(alt(`${codeFor(e)} · ${fingerprint(e.patterns)} — the other mode's best (${e.mode === 'rules' ? 'fatigue-first' : 'like-today'})`, assess(e.patterns, 24), { cost: e.cost }, false, e.patterns)); }
 for (const x of (process.env.EXTRA ?? '').split(',').filter(existsSync)) { const e = JSON.parse(readFileSync(x, 'utf8')); alternatives.push(alt(`${codeFor(e)}p · ${fingerprint(e.patterns)} — rules only, no coherence term`, assess(e.patterns, 24), null, false, e.patterns)); }
 // The siblings: the OTHER shipped proposals, so a reader can put this one beside them on one table.
-const siblings = PROPOSAL === 'BB' ? ['best-B-7.json'] : PROPOSAL === 'QT' ? ['best-B-7.json', 'best-RD-7.json'] : PROPOSAL === 'EF' ? ['best-RD-7.json', 'best-B-7.json', 'best-Q-34.json'] : PROPOSAL === 'B2' ? ['best-RE-21.json', 'best-RD-7.json', 'best-B-7.json'] : PROPOSAL === 'Q2' ? ['best-Q-34.json', 'best-B-7.json', 'best-RD-7.json'] : PROPOSAL === 'PT' ? ['best-W-21.json', 'best-Q-34.json', 'best-RD-7.json'] : PROPOSAL === 'P2' ? ['best-RP-34.json', 'best-W-21.json', 'best-RD-7.json'] : ['best-RD-7.json'];
+const siblings = PROPOSAL === 'BB' ? ['best-B-7.json'] : PROPOSAL === 'QT' ? ['best-B-7.json', 'best-RD-7.json'] : PROPOSAL === 'EF' ? ['best-RD-7.json', 'best-B-7.json', 'best-Q-34.json'] : PROPOSAL === 'B2' ? ['best-RE-21.json', 'best-RD-7.json', 'best-B-7.json'] : PROPOSAL === 'Q2' ? ['best-Q-34.json', 'best-B-7.json', 'best-RD-7.json'] : PROPOSAL === 'PT' ? ['best-W-21.json', 'best-Q-34.json', 'best-RD-7.json'] : PROPOSAL === 'P2' ? ['best-RP-34.json', 'best-W-21.json', 'best-RD-7.json'] : FR ? ['best-RN-13.json', 'best-RP-34.json', 'best-RD-7.json'] : ['best-RD-7.json'];
 for (const sibling of siblings.map(f => `results/${f}`).concat(siblings).filter(existsSync).filter((f, i, a) => a.findIndex(x => x.endsWith(f.split('/').pop())) === i)) { const sb = JSON.parse(readFileSync(sibling, 'utf8')); alternatives.push(alt(`${codeFor(sb)} · ${fingerprint(sb.patterns)} — <b>${NAMES[famOf(sb)]}</b> (a sibling proposal)`, assess(sb.patterns, 24), null, false, sb.patterns)); }
 // Today's weekday fit is the 20-line link's OWN, on the same definition as every row above (T.wkFit, the
 // fit of the average Mon–Fri cover). It was padded to 24 lines by repeating lines 1–4, which scored 44.7
 // against the link's real 51.1 — see `wkFit` in report-data.mjs.
-alternatives.push(alt("Today's 20-line link (for scale)", T, null, false, null)); alternatives[alternatives.length-1].fit = T.wkFit;
+alternatives.push(alt("Today's 20-line link (for scale)", T, null, false, null)); alternatives[alternatives.length-1].fit = T.wkFit; alternatives[alternatives.length-1].floor = T.office.wkFit;
 
 // December 2026 timetable design figures, checked on the proposal itself
 const cnt = (day, pred) => Object.values(P.patterns).filter(r => r[day] !== 'RD' && r[day] !== 'SPARE' && pred(r[day])).length;
@@ -142,7 +147,7 @@ if (PTF) {
     ['Sat 14:00–22:30', n('sat', t => t === '14:00-22:30') >= 1],
     ['Sun 13:00–21:30', n('sun', t => t === '13:00-21:30') >= 1],
   ];
-  rules.push({ rule: 'The brief’s pinned turns (25 Sep 2026)', value: checks.map(([w, ok]) => `${ok ? '✓' : '✕'} ${w}`).join(' · '), ok: checks.every(([, ok]) => ok), note: 'replace By the Book 2’s ticket-office pair; fixed before the search' });
+  rules.push({ rule: 'The brief’s pinned turns (25 Sep 2026)', value: checks.map(([w, ok]) => `${ok ? '✓' : '✕'} ${w}`).join(' · '), ok: checks.every(([, ok]) => ok), note: 'replace Office Written In’s ticket-office pair; fixed before the search' });
 }
 // P2: the owner's second condition, READ from the table — every start and finish on :00/:15/:30/:45 or a window
 // instant, the pinned 06:20–14:20 being the one other time allowed (it is the owner's own).
@@ -153,6 +158,67 @@ if (PROPOSAL === 'P2') {
   const capChecks = [['weekday', 'Mon–Fri'], ['sat', 'Saturday'], ['sun', 'Sunday']].map(([c, w]) => [`${w} ${turnsOn(c)} of ${cap[c]}`, turnsOn(c) <= cap[c]]);
   rules.push({ rule: 'Quarter-hour times, and no more turns a day than Pinned Turns', value: `${off.length ? `✕ off the quarter hour: ${off.join(', ')}` : '✓ all on the quarter hour (the pinned 06:20–14:20 aside)'} · turns ${capChecks.map(([w, ok]) => `${ok ? '✓' : '✕'} ${w}`).join(' · ')}`, ok: off.length === 0 && capChecks.every(([, ok]) => ok), note: `the owner’s two conditions of 25 Sep 2026; today works ${cap.today?.weekday ?? 8} / ${cap.today?.sat ?? 6} / ${cap.today?.sun ?? 4}` });
 }
+// FR — Right Away (owner, 28 Sep 2026). The ticket office is fixed pairs of identical turns and is NOT floor
+// cover, so every figure the rules are read on comes in two forms: everyone on duty, and the floor (everyone
+// less the office). Each is READ from the finished cells; nothing here is typed from the search's own log.
+const FR_OFFICE = Object.fromEntries(['weekday', 'sat', 'sun'].map(c => [c, Object.fromEntries(OFFICE.plan[c].map(([t, n]) => [t, n]))]));
+const FR_DAY = { weekday: 'tue', sat: 'sat', sun: 'sun' };
+const FR_WIN = { weekday: [6*60+20, 23*60+55], sat: [6*60+20, 23*60+55], sun: [7*60+15, 23*60+25] };
+const frHm = m => `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;
+const frX = FR ? (() => {
+  // the office/floor split itself is report-data's (P.office), shared with every sheet; only the five-minute floor
+  // minimum — a rule of this sheet's — is computed here
+  const out = { floorFit: { weekday: P.office.wkFit, sat: P.office.fits.sat, sun: P.office.fits.sun }, floorMin: {}, checks: [] };
+  for (const cls of ['weekday', 'sat', 'sun']) {
+    const d = FR_DAY[cls], turns = officeSpans('plan', cls);
+    const duties = Object.values(P.patterns).map(r => r[d]).filter(s => s && s !== 'RD' && s !== 'SPARE').map(s => ({ st: startMinutes(s), en: endMinutes(s) }));
+    let lo = Infinity; for (let m = FR_WIN[cls][0]; m < FR_WIN[cls][1]; m += 5) lo = Math.min(lo, duties.filter(x => x.st <= m && x.en > m).length - turns.filter(t => t.st <= m && t.en > m).reduce((a, t) => a + t.n, 0));
+    out.floorMin[cls] = lo;
+  }
+  const rowsOf = cls => P.tableRows.filter(r => r[cls] > 0).map(r => ({ time: r.time, st: startMinutes(r.time), en: endMinutes(r.time), n: r[cls], office: FR_OFFICE[cls][r.time] ?? 0 }));
+  const on = (cls, t) => P.tableRows.find(r => r.time === t)?.[cls] ?? 0;
+  // handovers: every closer meets a floor duty that started before it and runs 15 minutes past its start;
+  // on a Sunday every floor opener stays 15 minutes past the last closer's start; the office pairs overlap 20.
+  const hand = cls => { const rows = rowsOf(cls), close = FR_WIN[cls][1]; const floorRows = rows.filter(r => r.n > r.office);
+    const closers = floorRows.filter(r => r.en === close);
+    const ok = closers.every(c => floorRows.some(f => f.st < c.st && f.en >= c.st + 15));
+    const lastClose = Math.max(...closers.map(c => c.st));
+    const sunOk = cls !== 'sun' || floorRows.filter(r => r.st === FR_WIN.sun[0]).every(r => r.en >= lastClose + 15);
+    const off = Object.keys(FR_OFFICE[cls]).map(t => ({ st: startMinutes(t), en: endMinutes(t) })).sort((a, b) => a.st - b.st);
+    return { ok: ok && sunOk, office: off[0].en - off[1].st }; };
+  const H = { weekday: hand('weekday'), sat: hand('sat'), sun: hand('sun') };
+  const sunRows = rowsOf('sun'), sunLens = sunRows.map(r => r.en - r.st), otherLens = [...rowsOf('weekday'), ...rowsOf('sat')].map(r => r.en - r.st);
+  const wkClosers = rowsOf('weekday').filter(r => r.en === FR_WIN.weekday[1]);
+  const pins = [
+    ['Mon–Fri 2× 06:20–14:20', on('weekday', '06:20-14:20') === 2], ['2× 14:00–22:30', on('weekday', '14:00-22:30') === 2],
+    ['Sat 2× 06:20–14:50', on('sat', '06:20-14:50') === 2], ['2× 14:30–22:00', on('sat', '14:30-22:00') === 2],
+    ['Sun 2× 07:15–15:30', on('sun', '07:15-15:30') >= 2], ['2× 13:30–22:30', on('sun', '13:30-22:30') === 2],
+  ];
+  const heads = A => [
+    ['mon','tue','wed','thu','fri','sat','sun'].every(d => A.heads.open[d] >= 4),
+    ['mon','tue','wed','thu','fri','sat','sun'].every(d => A.heads.close[d] >= 3),
+    ['mon','tue','wed','thu','fri','sat','sun'].every(d => A.heads.at22[d] >= 5),
+    A.daily.sat === 14 && A.daily.sun === 10,
+  ].filter(Boolean).length;
+  const fl = out.floorFit;
+  out.decMet = heads(P); out.decToday = heads(T);
+  out.rules = [
+    { rule: 'At least four on at the open, every day', value: `${wdCnt(t => t.startsWith('06:20'))} weekday · ${cnt('sat', t => t.startsWith('06:20'))} Saturday · ${cnt('sun', t => t.startsWith('07:15'))} Sunday`, ok: wdMin(t => t.startsWith('06:20')) >= 4 && cnt('sat', t => t.startsWith('06:20')) >= 4 && cnt('sun', t => t.startsWith('07:15')) >= 4, note: 'a minimum' },
+    { rule: 'At least three through to the close, every day', value: `${wdCnt(t => t.endsWith('23:55'))} weekday · ${cnt('sat', t => t.endsWith('23:55'))} Saturday · ${cnt('sun', t => t.endsWith('23:25'))} Sunday`, ok: wdMin(t => t.endsWith('23:55')) >= 3 && cnt('sat', t => t.endsWith('23:55')) >= 3 && cnt('sun', t => t.endsWith('23:25')) >= 3, note: 'a minimum' },
+    { rule: 'At least five on duty at 22:00, every day', value: `${wdCnt(t => endMinutes(t) > 22*60)} weekday · ${cnt('sat', t => endMinutes(t) > 22*60)} Saturday · ${cnt('sun', t => endMinutes(t) > 22*60)} Sunday`, ok: wdMin(t => endMinutes(t) > 22*60) >= 5 && cnt('sat', t => endMinutes(t) > 22*60) >= 5 && cnt('sun', t => endMinutes(t) > 22*60) >= 5, note: 'a 22:00 finish is not "on at 22:00"' },
+    { rule: 'Fourteen on a Saturday, ten on a Sunday', value: `${P.daily.sat} · ${P.daily.sun}`, ok: P.daily.sat === 14 && P.daily.sun === 10, note: '' },
+    { rule: 'Four cover weeks, evenly spread', value: `lines ${P.feel.spareLines.join(', ')} — gaps ${P.adj.spareGaps.join(', ')}`, ok: P.adj.spareExcess === 0, note: 'whole weeks, never scattered days' },
+    { rule: 'The ticket office, fixed pairs of identical turns', value: pins.map(([w, ok]) => `${ok ? '✓' : '✕'} ${w}`).join(' · '), ok: pins.every(([, ok]) => ok), note: 'not counted as floor cover' },
+    { rule: 'Every weekday closer starts 15:45', value: wkClosers.map(r => `${r.n}× ${r.time}`).join(', '), ok: wkClosers.every(r => r.time === '15:45-23:55'), note: 'was 15:15' },
+    { rule: 'At least two on the floor at every moment', value: `fewest ${out.floorMin.weekday} weekday · ${out.floorMin.sat} Saturday · ${out.floorMin.sun} Sunday`, ok: Object.values(out.floorMin).every(v => v >= 2), note: 'every five minutes, the office left out' },
+    { rule: 'Handovers — 15 minutes to each closer, 20 in the ticket office', value: `floor ${['weekday', 'sat', 'sun'].map(c => H[c].ok ? '✓' : '✕').join(' ')} · office overlap ${H.weekday.office} · ${H.sat.office} · ${H.sun.office} min`, ok: Object.values(H).every(h => h.ok && h.office >= 20), note: 'Sunday openers stay 15 min past the last closer’s start' },
+    { rule: 'Sunday duties 8h to 9h; every other day 7h to 9h30', value: `Sunday ${frHm(Math.min(...sunLens))}–${frHm(Math.max(...sunLens))} · Mon–Sat ${frHm(Math.min(...otherLens))}–${frHm(Math.max(...otherLens))}`, ok: sunLens.every(m => m >= 480 && m <= 540) && otherLens.every(m => m >= 420 && m <= 570), note: '' },
+    { rule: 'No more shift times than today', value: `${P.feel.distinctTimes} against today’s ${T.feel.distinctTimes}`, ok: P.feel.distinctTimes <= T.feel.distinctTimes, note: '' },
+    { rule: 'About 4.2 days a week worked, Mon–Sat', value: `${P.totals.daysAverage.toFixed(2)} over the 20 working lines`, ok: Math.abs(P.totals.daysAverage - 4.2) < 0.15, note: 'Sunday is outside the 35-hour average' },
+  ];
+  return out;
+})() : null;
+if (FR) rules.splice(0, rules.length, ...frX.rules);
 const sundayOut = demand.movementsOutside(demand.movements.sun, 7*60+15, 23*60+25);
 // QT: which turns were stretched to keep the contract, READ from the finished table against Same Turns'
 // (table B, best-B-7.json) — so the PDF cannot name a stretch the cells do not carry — and, for each new
@@ -196,7 +262,7 @@ const rulesOnlyNote = (() => {
   const winRow = alternatives.find(x => x.chosen); const d = winRow.present - Math.min(...ro.map(x => x.present));
   return ` The rules-only row shows what the coherence term cost against the factors: ${d <= 0 ? 'nothing' : `${d} more present`}.`;
 })();
-// Same Turns' two-table comparison and By the Book 2's Eight Forty comparison, READ rather than typed
+// Same Turns' two-table comparison and Office Written In's Eight Forty comparison, READ rather than typed
 // (24 Sep 2026): the sheet said 57.7 / 58.5 / 69.5 — heads-per-hour figures from before the one fit on
 // minutes — and would have gone on saying so. Today's figure is the alternatives table's own row (T.wkFit).
 const otherTableFit = cands.filter(c => c.variant !== win.variant).map(c => c.fit).sort((a, b) => a - b)[0] ?? null;
@@ -228,11 +294,11 @@ const meta = {
   frame: PROPOSAL === 'P2' ? {
     family: 'keep',
     question: `Should the link for the December 2026 timetable be built to the owner's pinned turns with every other time rewritten onto the quarter hour — no clock time kept because somebody works it today — accepting the ${P.tableRows.filter(r => !todayTimes.has(r.time)).length} times nobody works today that this costs, for a table proven to be the closest quarter-hour fit to the timetable?`,
-    stands: `<b>Pinned Turns 2</b> answers the owner's second question of 25 September. It is read against <b>Pinned Turns (PT-24-P34)</b>, the same brief with today's times kept where they fitted, and <b>By the Book (BB-24-D7)</b>, the rules-first answer — not against every design in the folder.`,
+    stands: `<b>Round Times</b> answers the owner's second question of 25 September. It is read against <b>Pinned Turns (PT-24-P34)</b>, the same brief with today's times kept where they fitted, and <b>By the Book (BB-24-D7)</b>, the rules-first answer — not against every design in the folder.`,
   } : PROPOSAL === 'PT' ? {
     family: 'keep',
     question: `Should the link for the December 2026 timetable be built from today's roster to the owner's pinned turns — 15:45 closers, three 06:20–14:20 openers and two 14:00–22:30 lates Monday to Friday, two long openers and a 14:00–22:30 on Saturday, a 13:00–21:30 on Sunday, nothing over 8h40 — with the rest of each day fitted to the timetable, accepting the ${P.tableRows.filter(r => !todayTimes.has(r.time)).length} times nobody works today that this costs?`,
-    stands: `<b>Pinned Turns</b> is the brief's own answer. It is read against <b>Quarter To 2 (Q2-24-W21)</b>, the nearest sheet that also starts from today's times, and <b>By the Book (BB-24-D7)</b>, the rules-first answer — not against every design in the folder.`,
+    stands: `<b>Pinned Turns</b> is the brief's own answer. It is read against <b>Weekend Capped (Q2-24-W21)</b>, the nearest sheet that also starts from today's times, and <b>By the Book (BB-24-D7)</b>, the rules-first answer — not against every design in the folder.`,
   } : undefined,
   openQuestions: PROPOSAL === 'P2' ? (() => {
     const T2 = efTable, R = ptRecord; const n = x => (x ?? 0).toLocaleString('en-GB');
@@ -249,7 +315,7 @@ const meta = {
     const fresh = cls => P.tableRows.filter(r => r[cls] > 0 && !todayTimes.has(r.time)).map(r => r.time);
     const fw = fresh('weekday'), fs = fresh('sat'), fu = fresh('sun');
     const wkFit = weekdayFit(P.patterns);
-    return `<b>What the pins cost, and what fitting bought.</b> The weekday pays ${T2.totals.weekday.toLocaleString('en-GB')} minutes and Saturday ${T2.totals.sat.toLocaleString('en-GB')}, the split the sweep scored best (page 9). Fits, lower is more even: weekday ${wkFit} against today's ${T.wkFit} and <i>Quarter To 2</i>'s ${q2p ? weekdayFit(q2p) : '—'}; Saturday ${P.fits.sat} against ${T.fits.sat} and ${Q2A?.fits.sat ?? '—'}; Sunday ${P.fits.sun} against ${T.fits.sun} and ${Q2A?.fits.sun ?? '—'}. <b>Times nobody works today:</b> ${[...new Set([...fw, ...fs, ...fu])].join(', ') || 'none'}. <b>Late turns shorter than earlies cannot be met by construction:</b> the brief pins an 8h30 late beside 8h00 openers, so the row reads not met and is not a finding against the search. <b>Sunday pays ${T2.totals.sun.toLocaleString('en-GB')} minutes</b> against <i>Quarter To</i>'s 5,145; it sits outside the contract. <b>Sunday's finish</b> — five December 2026 timetable movements fall after 23:25; the window is inherited, not decided.`; })() : PROPOSAL === 'Q2' ? (() => {
+    return `<b>What the pins cost, and what fitting bought.</b> The weekday pays ${T2.totals.weekday.toLocaleString('en-GB')} minutes and Saturday ${T2.totals.sat.toLocaleString('en-GB')}, the split the sweep scored best (page 9). Fits, lower is more even: weekday ${wkFit} against today's ${T.wkFit} and <i>Weekend Capped</i>'s ${q2p ? weekdayFit(q2p) : '—'}; Saturday ${P.fits.sat} against ${T.fits.sat} and ${Q2A?.fits.sat ?? '—'}; Sunday ${P.fits.sun} against ${T.fits.sun} and ${Q2A?.fits.sun ?? '—'}. <b>Times nobody works today:</b> ${[...new Set([...fw, ...fs, ...fu])].join(', ') || 'none'}. <b>Late turns shorter than earlies cannot be met by construction:</b> the brief pins an 8h30 late beside 8h00 openers, so the row reads not met and is not a finding against the search. <b>Sunday pays ${T2.totals.sun.toLocaleString('en-GB')} minutes</b> against <i>Quarter To</i>'s 5,145; it sits outside the contract. <b>Sunday's finish</b> — five December 2026 timetable movements fall after 23:25; the window is inherited, not decided.`; })() : PROPOSAL === 'Q2' ? (() => {
     // Every figure READ: the longest duty from the finished table, the fits from assess() on this grid,
     // Quarter To's and today's, the Sunday total from the table record, the new times against today's table.
     const hm = m => `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`; const T2 = efTable;
@@ -267,6 +333,38 @@ const meta = {
     const shared = P.tableRows.filter(r => todayTimes.has(r.time)).map(r => r.time);
     return `<b>The size of the lever.</b> Met, and the cap has squeezed it: 14 duties paying 7,000 minutes average 8h20, so with nothing over 8h40 the long earlies sit at ${hm(E[1])}–${hm(E[E.length-1])} and the lates at ${hm(Math.min(...L))}–${hm(Math.max(...L))} — the shortest long early is ${gap} minutes longer than the longest late, against <i>By the Book</i>'s 15. Whether that still buys anything against unpopular lates is the room's question. And on a Saturday the earlies can average at most 24 minutes longer than the lates (<i>By the Book</i> asks 30; four closers with distinct starts leave one split that pays 7,000): this table has ${efTable.meanGap.sat}, the weekday ${efTable.meanGap.weekday}, Sunday ${efTable.meanGap.sun}. <b>The clock.</b> ${efTable.offQuarter.length} times sit off the quarter hour against <i>By the Book</i>'s three — the price of four distinct opener finishes when the cap leaves the long earlies twenty minutes of room. <b>Sunday's minutes</b> are not fixed by the contract; the search took the largest Sunday total at which every pin holds — ${efTable.sunTotal.toLocaleString('en-GB')}, a mean of ${(() => { const m = Math.round(efTable.sunTotal / 10); return `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`; })()} against <i>By the Book</i>'s 4,965. <b>Familiarity.</b> ${shared.length ? `${shared.length} of the ${P.tableRows.length} turns ${shared.length === 1 ? 'is a time' : 'are times'} people work today (${shared.join(', ')})` : `none of the ${P.tableRows.length} turns is a time people work today`} — the same trade as <i>By the Book</i>. <b>Sunday's finish</b> — five December 2026 timetable movements fall after 23:25; the proposal inherits today's window deliberately rather than deciding it.`; })() : PROPOSAL === 'QT' ? `<b>The weekend's two long turns.</b> The rule was no duty over 8h40, and every weekday duty here is 8h30 or under — but Saturday's 14:45–23:55 (9h10) and Sunday's 14:30–23:25 (8h55) are today's own turns, carried over from <i>Same Turns</i> unchanged. Shortening Saturday's closer to 8h40 leaves 7,004 minutes a weekday, which no table of today's turns reaches, so the cap is read here as governing what the proposal introduces; if it is meant to reach the weekend too, Saturday's table has to be redesigned, and that is a different proposal. <b>The openers' finish.</b> Moving the closer to 15:45 takes ${stretch?.closerShift ?? 30} minutes off three duties a day, and the contract is exact, so the two 06:20 openers run on — ${stretch ? stretch.turns.map(t => `${t.from.slice(0,5)} to ${t.to.split('-')[1]}`).join(' and ') : 'see page 5'}${stretch?.allOnToday ? ', which are Saturday’s own opening times' : ''}; the other ways of doing it are on page 9. <b>Late-turn length</b> is inherited from <i>Same Turns</i> and still not met. <b>Sunday's finish</b> — five December 2026 timetable movements fall after 23:25; the proposal inherits today's window deliberately rather than deciding it.` : PROPOSAL === 'BB' ? `<b>Familiarity.</b> Every rule is met, and the price is that none of the 19 turns is one people work today — the earlies run to 9h30 and the closers start at 15:45–16:40 rather than 15:15. That is the trade between this family and <i>Same Turns</i>, and it is a people question rather than a rules one. <b>Sunday's finish</b> — five December 2026 timetable movements fall after 23:25; the proposal inherits today's window deliberately rather than deciding it.` : `<b>Late-turn length.</b> The one December 2026 preference this proposal does not meet is the owner's own — lates slightly shorter than most earlies. Today's link has it the other way round (a 15:15–23:55 late is 8h40, a 06:20–14:20 early 8h00) and the brief was to keep today's times; meeting both is arithmetically impossible at 14 duties a day, because the day's minutes are fixed by the contract. The choice is between today's clock times and shorter lates paid for by longer earlies (the workspace default does this, with 9h25 earlies). <b>Sunday's finish</b> — five December 2026 timetable movements fall after 23:25; the proposal inherits today's window deliberately rather than deciding it.`,
 };
+// FR's words. Every figure in them is read from the cells or the table file, never typed.
+if (FR) {
+  const fl = frX.floorFit, n = x => x.toLocaleString('en-GB'), T2 = efTable;
+  const floorTrio = `${fl.weekday} · ${fl.sat} · ${fl.sun}`;
+  const newT = P.tableRows.filter(r => !todayTimes.has(r.time)).length;
+  Object.assign(meta, {
+    date: '28 September 2026', steps: '100,000', restarts: 'five', runs: 'four seeded runs, fatigue-first, then a search onward from the best one’s week order that kept only moves no worse on any figure (order-polish.mjs)', tightDuty: true, denseDuty: true,
+    decMet: frX.decMet, decToday: frX.decToday, decOf: 4,
+    decLabel: 'The owner’s headcount minimums met',
+    decTile: `at least four to open, three to close and five at 22:00, every day; 14 and 10 at the weekend · today meets ${frX.decToday} of 4`,
+    headsEvid: 'At least four at the open, three to close, five at 22:00, 14 and 10 at the weekend',
+    satNote: 'owner’s figure for December 2026, evenly balanced to demand',
+    wembleyLine: 'Whether the December 2026 timetable demand curve holds on Wembley event days — Saturday was fitted to the timetable evenly, with no weighting for events, and the curve is a measured timetable, not a footfall count.',
+    sub1: 'A 24-line link built to the owner’s final rules: the ticket office rostered as fixed pairs, every other duty chosen so the floor follows the December 2026 timetable',
+    intro: `<p>A proposal for the CEA link once the December 2026 timetable arrives, for a team of 24, built to the owner's final rules of 28 September 2026. The ticket office is written in first, as fixed pairs of identical turns — Monday to Friday two <span class="tt">06:20-14:20</span> and two <span class="tt">14:00-22:30</span>, Saturday two <span class="tt">06:20-14:50</span> and two <span class="tt">14:30-22:00</span>, Sunday two <span class="tt">07:15-15:30</span> and two <span class="tt">13:30-22:30</span> for an office open 07:15–22:30 — and <b>those four people are not counted as floor cover</b>. Every weekday closer starts 15:45.</p>
+  <p>Everything else was chosen for one thing: how closely the people on the floor follow the trains. The headcounts are minimums, not targets — at least four at the open, three at the close and five at 22:00 on every day, 14 on a Saturday and 10 on a Sunday — with at least two on the floor at every moment, a 15-minute handover to each closer and 20 minutes in the ticket office, Sunday duties of 8h to 9h, and no more shift times than today's ${T.feel.distinctTimes}. Each day's table was enumerated to a proof rather than sampled. Page 6 shows the cover three ways: everyone on duty, the ticket office, and the floor.</p>`,
+    intro2: `<p>The rotation was then searched exactly as the other searched sheets were: Chiltern's 13-day limit, twelve hours between duties and the exact contract as walls, the 25 ORR fatigue factors as the objective, scored by the workspace's own <span class="tt">assessFatigue</span> on over a million candidate arrangements. Nothing was drawn by hand. Page 9 says how, and how to reproduce it.</p>`,
+    eyebrow3: 'The owner’s final rules of 28 September 2026', keptHeading: 'The shape of a week, against today',
+    h3: 'The rules, and what fitting did',
+    sub3: 'The ticket office is fixed; every other duty was chosen for how the floor follows the trains. How a week compares with today, and the duty table beside today’s.',
+    dutyHeading: 'The duty table — the ticket office fixed, the floor fitted to the timetable',
+    dutyNote: `A weekday pays ${n(T2.totals.weekday)} minutes and a Saturday ${n(T2.totals.sat)}, so that five weekdays and a Saturday total exactly 20 × 35h = 42,000 — and the split itself was searched (page 9). Sunday pays ${n(T2.totals.sun)}, outside the contract. The ticket office is the fixed pairs (06:20–14:20 and 14:00–22:30 on a weekday, 06:20–14:50 and 14:30–22:00 on a Saturday, 07:15–15:30 and 13:30–22:30 on a Sunday); every other row was chosen for the floor's fit. ${newT} of the ${P.feel.distinctTimes} times are ones nobody works today.`,
+    coverCallout: `The floor rows are the figure this sheet's day tables were chosen on (${floorTrio}). The fit measures <b>shape, not level</b> — each hour's share of the day's cover against its share of the day's trains — so more people in a quiet hour makes it worse even though nobody is worse off. The ticket office is staffed to its opening hours, not to the trains, which is why every everyone-on-duty row fits more loosely than its floor row. Saturday was fitted evenly to the timetable, with no weighting for events.`,
+    method1: `<p><b>1 · The table.</b> <span class="tt">final-table.mjs</span> fixed the ticket-office pairs and the 15:45 closers first, then enumerated every remaining table on the five-minute grid — each duty 7h–9h30 (8h–9h on a Sunday), starting at the window's own instant or on the quarter hour — keeping only tables that meet every minimum, keep two on the floor at every moment, hand over 15 minutes to each closer and 20 in the ticket office, and use no more shift times than today. Branch and bound kept the table whose floor, with the office's minutes taken out, follows the December 2026 timetable most closely. The weekday and Saturday minutes were swept in pairs that pay exactly 42,000 a week and each pair proven; ${n(T2.totals.weekday)} and ${n(T2.totals.sat)} were chosen (page 7 gives the frontier).</p>`,
+    frame: {
+      family: 'keep',
+      question: `Should the link for the December 2026 timetable be built to the owner's final rules — the ticket office rostered as fixed pairs and kept off the floor, 15:45 closers, the headcounts as minimums — with every other duty chosen so the floor follows the trains, accepting the ${newT} times nobody works today that this costs?`,
+      stands: `<b>Right Away</b> is the owner's final brief, answered. It is read against <b>Round Times (P2-24-N13)</b> and <b>Pinned Turns (PT-24-P34)</b>, the two earlier briefs, and <b>By the Book (BB-24-D7)</b>, the rules-first answer — not against every design in the folder.`,
+    },
+    openQuestions: `<b>Weekday against Saturday.</b> Five weekdays and a Saturday pay exactly 42,000 minutes, so each split trades one against the other; every split was proven (floor fit weekday / Saturday): 6,960 → 20.2 / 12.9 · <b>6,970 → 20.4 / 11.6, this sheet</b> · 6,975 → 20.6 / 10.8 · 6,990 → 20.9 / 9.2. <b>The fit is share-based</b> — it scores shape, not level, so read it beside the heads on page 6. <b>Floor help from the office</b> — the second office person on the floor before 08:00 and after 19:30 — is not modelled here, and would move the best table. <b>Sunday's finish</b> — ${sundayOut.after?.length ?? 5} December 2026 timetable movements fall after 23:25; inherited, not decided.`,
+  });
+}
 writeFileSync('proposal.json', JSON.stringify({ name: `${identity.name} — Dec 2026 (${identity.code} · ${identity.fingerprint})`, patterns: P.patterns }, null, 1));
 console.log('identity', JSON.stringify(identity));
 writeFileSync('proposal-import.txt', Array.from({ length: 24 }, (_, i) => `${i+1}\t${DAYS.map(d => P.patterns[String(i+1)][d] === 'SPARE' ? 'SP' : P.patterns[String(i+1)][d]).join('\t')}`).join('\n'));

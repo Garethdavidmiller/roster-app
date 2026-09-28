@@ -9,14 +9,14 @@
 //   node supplied.mjs <patterns.json> "<Name>" "<strap>" <CODE>
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { assess, today, demand, startMinutes, endMinutes, weekdayFit } from './report-data.mjs';
+import { assess, today, demand, startMinutes, endMinutes, weekdayFit, weekdayFloorFit } from './report-data.mjs';
 import { renderPdf } from './render.mjs';
 import { generateLink, ROTATING_LINES, DAYS, calcHourlyCoverage } from '../../../links-design.js';
 import { buildDefaultTargets } from '../../../links-default-targets.js';
 import { reorderLines, applyOrder, OBJECTIVES } from '../../../links-adjacency.js';
 
 const [file, NAME, STRAP, CODE] = process.argv.slice(2);
-const patterns = JSON.parse(readFileSync(file, 'utf8'));
+const patterns = (j => j.patterns ?? j)(JSON.parse(readFileSync(file, 'utf8')));   // a bare grid, or rota-polish.mjs's { feasible, patterns }
 // Optional per-design copy: <patterns>.meta.json. Any key here overrides the defaults below, so a
 // second supplied design does not mean a second copy of this script.
 const OVER = existsSync(file.replace(/\.json$/, '.meta.json'))
@@ -49,7 +49,7 @@ const gp = applyOrder(g.patterns, reorderLines(g.patterns, { on: ALL }).order);
 const step = a => String(a.fatigue.results.find(r => r.code === 'FF18')?.value ?? '').replace(/.*typically /, '').replace(' a week','');
 const alt = (name, a, chosen = false, p = null) => ({ name, run: a.checks.longestStretch, present: a.fatigue.present,
   weekends: a.checks.weekendsOff, oneTurn: `${a.feel.oneTurn}/${a.feel.workingLines}`, step: step(a),
-  fit: p ? weekdayFit(p) : '—', score: '—', chosen });
+  fit: p ? weekdayFit(p) : '—', floor: p ? weekdayFloorFit(p) : '—', score: '—', chosen });
 
 const alternatives = [alt(`${CODE} · ${fingerprint(patterns)} — <b>${NAME}</b> (this proposal)`, P, true, patterns)];
 for (const [f, label] of [['../Same-Turns-ST-24-B7.json', 'Same Turns'], ['../By-the-Book-BB-24-D7.json', 'By the Book']]) {
@@ -70,7 +70,7 @@ alternatives.push(alt(`Workspace default · ${fingerprint(gp)} (Dec 2026 table, 
 // Today's weekday fit is the 20-line link's own (T.wkFit), never the link padded to 24 by repeating
 // lines 1–4 — that read 44.7 against the real 51.1. See `wkFit` in report-data.mjs.
 alternatives.push(alt("Today's 20-line link (for scale)", T, false, null));
-alternatives[alternatives.length-1].fit = T.wkFit;
+alternatives[alternatives.length-1].fit = T.wkFit; alternatives[alternatives.length-1].floor = T.office.wkFit;
 
 // ── The December 2026 timetable design figures, every one CHECKED ON THIS DESIGN. Same expressions as final.mjs,
 //    so a rule this design misses reads as missed rather than quietly going unstated.
@@ -121,7 +121,7 @@ const meta = {
   // every rule; the fit decided it". There were no candidates: that is the whole point of this
   // renderer, and the sentence was quietly contradicting the method page opposite it. A supplied or
   // derived design gets a truthful default instead; a per-design meta may still override it.
-  pickNote: `  <p class="muted"><b>How to read this table:</b> nothing here was picked by a search &mdash; this design was supplied or derived, and the rows are the comparisons it is being judged against. <i>Wk fit</i> is how evenly the WEEKDAY cover follows the December 2026 timetable traffic curve (lower is better; today's link scores what it scores), so it says nothing about Saturday or Sunday. <b>Score</b> is the search's own feel objective and is blank here, because no search produced this design &mdash; a blank is not a bad score. The workspace default is the app's own December 2026 duty table, generated and reordered with every switch on.</p>`,
+  pickNote: `  <p class="muted"><b>How to read this table:</b> nothing here was picked by a search &mdash; this design was supplied or derived, and the rows are the comparisons it is being judged against. <i>Wk fit</i> is how evenly the WEEKDAY cover follows the December 2026 timetable traffic curve (lower is better; today's link scores what it scores), so it says nothing about Saturday or Sunday. <i>Floor fit</i> is the same measure with the ticket office taken out — today's own (one Sunday late) out of today, the plan's out of every design. <b>Score</b> is the search's own feel objective and is blank here, because no search produced this design &mdash; a blank is not a bad score. The workspace default is the app's own December 2026 duty table, generated and reordered with every switch on.</p>`,
   sundayNote: `Sunday: ${sundayOut.after?.length ?? 5} December 2026 timetable movements fall after the 23:25 finish — the standing question on whether Sunday's window moves; the window is stored per design, so this proposal can be rebuilt to either answer.`,
   designRules: rules, alternatives,
   // 23 turns in the union against Same Turns' 18: the one-column duty table overflows onto a tenth

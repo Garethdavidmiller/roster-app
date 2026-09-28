@@ -1,4 +1,4 @@
-// Weekday Lates 4 — weeks 14, 15, 16, 17 kept CONSECUTIVE AND IN ORDER; week 13 free to move.
+// Anchored Lines — weeks 14, 15, 16, 17 kept CONSECUTIVE AND IN ORDER; week 13 free to move.
 //
 // WHY THE BLOCK IS ENUMERATED RATHER THAN SEARCHED. Cover weeks are pinned at 1, 7, 12 and 17, and
 // week 17 IS one of them — a cover week is blank, so "14,15,16,17 in order" means the three working

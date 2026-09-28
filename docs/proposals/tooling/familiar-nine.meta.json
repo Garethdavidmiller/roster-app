@@ -1,0 +1,8 @@
+{
+ "date": "28 September 2026",
+ "identity": {
+  "table": "K — the final rules, no duty over 9h, today’s shift times preferred (familiar-nine-table.json)",
+  "seed": "31 (rota-polish)",
+  "lineage": "Built to the owner’s final rules of 28 September 2026 with two extra aims: no duty over nine hours, and the shift times people already work wherever they cost little fit. The duty table (K) was proven by final-table.mjs; Right Away’s week structure was carried onto it (carry-order.mjs) and the week order polished until no figure was worse than Right Away’s (rota-polish.mjs). Compare with “Right Away” (FR-24-F34o · be01f0db)."
+ }
+}

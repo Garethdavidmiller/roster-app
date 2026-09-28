@@ -1,4 +1,4 @@
-// A SATURDAY or SUNDAY table for "Quarter To 2" — Quarter To with the weekend genuinely rebuilt.
+// A SATURDAY or SUNDAY table for "Weekend Capped" — Quarter To with the weekend genuinely rebuilt.
 //
 // WHY. Quarter To (QT-24-Q34) applied its two asks — the closer at 15:45, nothing over 8h40 — to the
 // weekday only; Saturday and Sunday were Same Turns' tables carried over, and two of their turns
@@ -15,7 +15,7 @@
 // THE POOL, in Quarter To's spirit. Starts and finishes are the quarter hours plus every clock time
 // somebody works TODAY (13:35, 14:50, 13:45 …) plus the window instants; no :05 or :10 except the open
 // and close. A finish between 21:00 and 23:00 must be when the ticket office closes — 22:30 on a
-// Saturday (owner, 22 Sep 2026, sat-table.mjs) and 22:00 on a Sunday (the hour By the Book 2's Sunday
+// Saturday (owner, 22 Sep 2026, sat-table.mjs) and 22:00 on a Sunday (the hour Office Written In's Sunday
 // pair is pinned to). The thinnest fully-covered hour may not fall below today's (FLOOR).
 //
 // THE PICK. Quarter To's identity is familiarity — 12 of its 13 turns are worked today — so the default
