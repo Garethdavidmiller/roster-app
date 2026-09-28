@@ -68,11 +68,11 @@
  *    half the rotation on every design is how a check gets ignored; it is reported with a count and
  *    marked `standing`.
  *
- * 4. **Three rules carry an interpretation that is NOT settled** (FF17, FF18, FF19 — see below;
- *    this said "two" and named FF17/FF19 until v20.11, while the code has carried the flag on all
- *    three since v19.46). They are
- *    marked `confirm: true` so the UI can say so. Shipping a number whose definition is unagreed,
- *    unlabelled, is the false-assurance failure in miniature.
+ * 4. **A rule whose reading is not ORR's own is marked `confirm: true`** so the UI can say so. Four
+ *    rows carried it until 28 Sep 2026 (MRSF's 7×8h, FF17, FF18, FF19); the owner checked them against
+ *    ORR's Managing rail staff fatigue (Aug 2024) that day, and only FF19 keeps it — its reading is the
+ *    owner's choice and is more lenient than ORR's wording (see the row). Shipping a number whose
+ *    definition is unagreed, unlabelled, is the false-assurance failure in miniature.
  *
  * Hours caveat: SPARE days carry no times, so they contribute ZERO to any hours total here. A
  * standby day is worked time, so every hours figure this module produces is a FLOOR, not an
@@ -541,7 +541,8 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     const runs8 = runLengthsWhere(seq, s => (dutyMinutes(s) ?? 0) >= 8 * 60, { requireMatch: true });
     const eightPlus = runs8.length ? Math.max(...runs8) : 0;
     const certain8 = longestRunOf(seq, s => (dutyMinutes(s) ?? 0) >= 8 * 60);
-    add({ code: 'MRSF', family: 'Cumulative', title: 'More than 7 consecutive 8h shifts', confirm: true,
+    // SETTLED 28 Sep 2026 (owner): "8h shifts" means eight hours or more — the reading this row already took.
+    add({ code: 'MRSF', family: 'Cumulative', title: 'More than 7 consecutive 8h shifts',
         status: eightPlus > 7 ? 'present' : 'clear', value: eightPlus, threshold: 7,
         detail: `Longest run of duties of 8 hours or more is ${eightPlus}`
             + (eightPlus !== certain8
@@ -550,8 +551,8 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
                   + 'because a factor that goes quiet when a cover week sits in the middle of a long stretch is the '
                   + 'one thing this panel must not do.'
                 : '.')
-            + ' Read as eight hours OR MORE; confirm whether the guidance means that, a band around 8h, or exactly'
-            + ' 8h — the reading changes what this reports.' });
+            + ' An 8h shift is read as eight hours or more (confirmed 28 Sep 2026): a nine-hour duty is no less'
+            + ' tiring than an eight-hour one.' });
 
     // "More than 6 consecutive night or early shifts in a permanent pattern". NOT APPLICABLE to a
     // link, and it renders saying so rather than being left out. A link is a rotating pattern by
@@ -565,12 +566,15 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         detail: 'This link is a rotating pattern, so the permanent-pattern rule does not apply. '
             + 'FF15 above is the rotating equivalent, and its threshold is lower (4).' });
 
-    // ── Circadian phase shift — both readings unsettled ──────────────────────
+    // ── Circadian phase shift ────────────────────────────────────────────────
+    // FF17 SETTLED 28 Sep 2026: ORR's Managing rail staff fatigue (Aug 2024, 7.68) defines backward
+    // rotation as starting a shift earlier than the previous one and forward as later, and asks for
+    // forward-rotating patterns (7.67) — the step count below is that definition, applied per step.
     const rot = rotationDirection(seq);
-    add({ code: 'FF17', family: 'Circadian', title: 'Backward rotating pattern', confirm: true,
+    add({ code: 'FF17', family: 'Circadian', title: 'Backward rotating pattern',
         status: rot.backward > rot.forward ? 'present' : 'clear',
         value: `${rot.backward} backward / ${rot.forward} forward`,
-        detail: 'Counted as steps within a working block where the next duty starts earlier. Confirm whether the factor means individual steps or the cycle’s net direction.' });
+        detail: 'ORR defines backward rotation as starting a shift earlier than the previous one, and asks for forward-rotating patterns (Managing rail staff fatigue, 7.67–7.68). Counted as steps within a working block; present when backward steps outnumber forward ones.' });
 
     // FF18 — THE CADENCE IS STANDING, THE STEP IS THE DESIGN CHOICE (v19.69).
     //
@@ -617,7 +621,12 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     // boundary, and it reported "No line carries a start time", which is false. The weekly cadence
     // still applies to it, so it stays `standing` and says why no step can be measured yet.
     const anyTimed = timed.length > 0;
-    add({ code: 'FF18', family: 'Circadian', title: 'Rotating pattern of about a week', confirm: true,
+    // FF18 SETTLED 28 Sep 2026 (owner, on ORR's text): ORR's concern is how OFTEN a person's shift type
+    // changes — rapid (about two days per shift type) or slow (about 21) rotation "may be preferable to
+    // a rotating shift pattern that changes about once a week" (Managing rail staff fatigue, Aug 2024,
+    // 7.68). A weekly link changes about once a week by construction, so the row stays `standing` for
+    // every link; the week-to-week step above is kept as extra information, not as the definition.
+    add({ code: 'FF18', family: 'Circadian', title: 'Rotating pattern of about a week',
         status: stepMeasurable || anyTimed ? 'standing' : 'n/a',
         value: stepMeasurable
             ? `${lines}-line rotation · typically ${_hm(adj.gentleMean)} a week`
@@ -626,15 +635,20 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         // stated threshold cannot drift from the one actually applied.
         threshold: stepMeasurable ? `${GENTLE_THRESHOLD_MINUTES / 60}h` : undefined,
         detail: stepMeasurable
-            ? `A link moves every person one line per week by construction, so the weekly cadence itself is unavoidable — what a design controls is how far the working day moves at each step. Here the typical move is ${_hm(adj.gentleMean)}, the largest is ${_hm(adj.gentleWorst)}, and ${adj.gentleOver} of ${lines} line boundaries move by more than ${GENTLE_THRESHOLD_MINUTES / 60} hours.${adj.unmeasurable ? ` ${adj.unmeasurable} boundaries carry no times (spare or unfilled weeks) and are excluded rather than counted as no change.` : ''} Settle the reading with the assessing manager: on the cadence alone no design can avoid this factor.`
+            ? `ORR's concern is how often a person's shift type changes: rotating about once a week is less preferable than rapid (about two days per shift type) or slow (about 21 days) rotation (Managing rail staff fatigue, 7.68). A link moves every person one line a week by construction, so this applies to every link. What a design does control is how far the working day moves at each weekly step — shown as extra information: here the typical move is ${_hm(adj.gentleMean)}, the largest is ${_hm(adj.gentleWorst)}, and ${adj.gentleOver} of ${lines} line boundaries move by more than ${GENTLE_THRESHOLD_MINUTES / 60} hours.${adj.unmeasurable ? ` ${adj.unmeasurable} boundaries carry no times (spare or unfilled weeks) and are excluded rather than counted as no change.` : ''}`
             : anyTimed
                 ? `No two neighbouring lines both carry start times yet, so the week-to-week step cannot be measured. The ${lines}-line weekly cadence still applies.`
                 : `No line carries a start time, so the week-to-week step cannot be measured. The ${lines}-line weekly cadence still applies.` });
 
+    // FF19 keeps `confirm` deliberately (28 Sep 2026). The owner chose this reading — a rest day resets it
+    // — because ORR's literal wording ("avoid consecutive duties with large variations in start times",
+    // Managing rail staff fatigue, 7.71) counts across rest days, and on that reading every link with early
+    // and late weeks has the factor, so it would stop telling designs apart. The reading is the owner's,
+    // not ORR's, and an assessing manager should see that — which is what the flag is for.
     const jumps = startTimeJumps(seq);
     add({ code: 'FF19', family: 'Circadian', title: 'Successive start times varying by more than 2 hours', confirm: true,
         status: jumps.length ? 'present' : 'clear', value: jumps.length, threshold: '2h',
-        detail: 'Counted only within a block of consecutive working days — a rest day is treated as time to adjust. Confirm whether the stricter reading (across rest days) applies.' });
+        detail: 'Counted only within a block of consecutive working days — a rest day is treated as time to adjust. ORR’s wording is stricter (“avoid consecutive duties with large variations in start times”, Managing rail staff fatigue, 7.71): counted across rest days, every link with early and late weeks has this factor.' });
 
     // ── Night-shift factors that cannot apply to a link with no nights ───────
     for (const [code, title] of [

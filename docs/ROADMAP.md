@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: September 2026 — v24.30 · Updated every 0.10 version*
+*Last updated: September 2026 — v24.40 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -103,7 +103,8 @@ builds toward it, and so that nobody is surprised later that the custom work was
 ### December 2026 Links proposals
 **Status:** Committed · **Owner:** Gareth + Nathan/management · **Plan:** `LINKS_DEC2026_PLAN.md`
 
-The tool is built, and **23 proposal sheets are drawn** (`docs/proposals/`); **none is frozen**.
+The tool is built, and **25 proposal sheets are drawn** (`docs/proposals/`), all judged against the
+eleven December 2026 rules (`December-2026-Rules.pdf`); **none is frozen**.
 What remains is a **decision and meeting schedule**, not code: the Sunday operating-window boundary,
 the business staffing requirement (given verbally, not yet in writing), the FF18 reading (cadence or
 step), the contracted-hours assumption (every sheet carries 94–98 duties a week against today's 76,

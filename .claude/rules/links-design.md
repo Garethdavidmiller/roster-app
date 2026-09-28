@@ -486,15 +486,23 @@ of its 25 rows — a figure read at source in Aug 2026, after this file said 24 
   was counting the very same duties (fixed v19.48). And FF2 fires on every 06:20 duty, so it is a
   property of the operation — marked `standing` and counted separately, because adding it to the
   findings total would claim the designer could have avoided it.
-- **Four definitions are unsettled** (MRSF's 7×8h, FF17, FF18, FF19) and carry `confirm: true`, rendered as
-  "(definition to confirm)". FF18's reading is the one still worth settling with the assessing
-  manager *before* a proposal is frozen: on the weekly CADENCE alone no design can avoid it, and
-  that belongs in the justify/minimise/control conversation rather than on a checklist.
-- **FF18 measures the STEP, and its status is derived** (v19.69). It reported a hardcoded `standing`
+- **Only FF19 still carries `confirm: true`** (28 Sep 2026), rendered as "(definition to confirm)". The
+  owner checked all four once-unsettled rows against ORR's *Managing rail staff fatigue* (Aug 2024) that
+  day: MRSF's 7×8h reads **eight hours or more**; FF17 is **ORR's own definition** (a shift starting earlier
+  than the last, 7.68); FF18 is **ORR's cadence reading** (below). FF19 keeps the flag on purpose: the
+  owner chose "a rest day resets it", which is more lenient than ORR's wording ("consecutive duties",
+  7.71) — on the strict wording every link with early and late weeks has FF19, so it would stop telling
+  designs apart. The reading is the owner's, not ORR's, and the flag is how an assessing manager sees that.
+- **FF18 is ORR's CADENCE factor; the STEP is extra information** (28 Sep 2026, owner on ORR's text,
+  7.68: rotating "about once a week" is less preferable than about two days or about 21 per shift
+  type). A weekly link changes shift type about once a week by construction, so the row is `standing`
+  on every link and its detail says so. The history below is why the step is measured at all:
+- **FF18 used to be read as the STEP, and its status is derived** (v19.69). It reported a hardcoded `standing`
   from v19.46 to v19.68 — the "never hardcode a status" rule above, broken for the second time —
   because the factor was originally read as being about the cadence, which is true of every link and
-  so made the row informationless. The owner corrected the reading (Aug 2026): the concern is **how
-  far the working day moves at each step**, which is a design choice and, since v19.58, measurable.
+  so made the row informationless. The reading moved to **how far the working day moves at each step**
+  (Aug 2026), a design choice and, since v19.58, measurable — and back to the cadence on 28 Sep 2026,
+  once ORR's text was read, with the step kept as the information a design actually controls.
   The row now reads `scoreOrder` from `links-adjacency.js` and states the typical weekly move, the
   largest, and how many boundaries exceed 2h. **Live main roster: 4h 0m typical / 8h 46m worst /
   9 of 20 over** — quote that as the baseline; the December default (`links-default-targets.js`, every

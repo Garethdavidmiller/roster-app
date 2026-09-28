@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: September 2026 — v24.30 · Updated every 0.10 version*
+*Last updated: September 2026 — v24.40 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -221,7 +221,7 @@ browser's own PDF viewer and can be printed from there like any file.
 | `htmlContent` | Behaviour (identical for the nav-panel link and a notification tap) |
 |---------------|--------------------------------------------------------------------|
 | Present (DOCX converted server-side) | Renders sanitised HTML inline in the viewer overlay |
-| Absent (PDF, or DOCX conversion failed) | Shows an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`); tapping it calls `window.open(url, '_blank', 'noopener')` with the short-lived `getDocumentUrl` URL minted when the button was drawn, or the stored `storageUrl` if none has arrived by the tap (v24.19) |
+| Absent (PDF, or DOCX conversion failed) | Shows an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`); tapping it calls `window.open(url, '_blank', 'noopener')` with the short-lived `getDocumentUrl` URL minted when the button was drawn, or the stored `storageUrl` if none has arrived by the tap (v24.19) or the signed one names a different file than this Huddle's `storagePath` (v24.33 — an upload landed between the two reads) |
 
 **Why the in-overlay button (no `htmlContent`):**
 
@@ -418,7 +418,7 @@ for the browser's only destructive operation on shared data, so it is worth re-r
 2. `nav-panel.js` click handler fires. A `_docFetching` boolean guard at module scope returns early if a fetch is already in-flight (tap-guard against rapid repeated taps). On the Calendar, a visitor without access (`!canReadDocuments()`, v23.17) is refused first — the lightbox names the PIN or sign-in — and no tab is opened.
 3. `window.open('', '_blank')` is called **synchronously** in the same event tick as the click — this is required for Safari/iOS to allow the new tab. The blank tab is opened before any async work begins.
 4. `getLatestCircular()` / `getLatestNewsletter()` is awaited, raced against an 8s timeout, with a short-lived URL requested from `getDocumentUrl` alongside it (v24.19; in parallel since v24.23):
-   - On success with a `storageUrl`: `newTab.location.href = url` opens the file — the short-lived URL, or the stored `storageUrl` when none was minted (a PDF previews in the tab by its own URL; a Word `.docx` is routed through Microsoft's Office Online viewer via `officeViewerUrl` (v16.45) so it renders with images instead of downloading — still no Mammoth-style inline HTML conversion, unlike the Huddle); `closePanelForNavigation()` closes the drawer.
+   - On success with a `storageUrl`: `newTab.location.href = url` opens the file — the short-lived URL, or the stored `storageUrl` when none was minted or when the server signed a different file than the one read (v24.33 — its returned `storagePath` does not match; a PDF previews in the tab by its own URL; a Word `.docx` is routed through Microsoft's Office Online viewer via `officeViewerUrl` (v16.45) so it renders with images instead of downloading — still no Mammoth-style inline HTML conversion, unlike the Huddle); `closePanelForNavigation()` closes the drawer.
    - On success with no document (null): `newTab.close()` cancels the blank tab; the coming-soon lightbox is shown.
    - On Firestore error: same as null — cancels the blank tab, shows a retry message in the coming-soon lightbox.
 5. `_docFetching` is reset to `false` in `.finally()`.
@@ -427,7 +427,7 @@ for the browser's only destructive operation on shared data, so it is worth re-r
 
 | Operation | Requirement |
 |-----------|-------------|
-| Reads | Require access, as the Huddle does (v23.18 — open before): a bound member identity, the admin claim, or the staff-PIN viewer capability. The client refuses at source behind the PIN (v23.17, `calendar-doc-access.js`). Files open via a short-lived `getDocumentUrl` URL (v24.19), falling back to the stored `storageUrl` — a tokenised bearer URL (ARCHITECTURE.md EXC-007). |
+| Reads | Require access, as the Huddle does (v23.18 — open before): a bound member identity, the admin claim, or the staff-PIN viewer capability. The client refuses at source behind the PIN (v23.17, `calendar-doc-access.js`). Files open via a short-lived `getDocumentUrl` URL (v24.19) — used only when the path it signed matches the document on screen (v24.33) — falling back to the stored `storageUrl`, a tokenised bearer URL (ARCHITECTURE.md EXC-007). |
 | Writes | `request.auth.token.admin == true` (admin claim only) |
 | Storage create/update | Rules enforce PDF or Word (.docx) MIME type + ≤20 MB per file (Word added v16.31) |
 | Storage delete | Admin-only; MIME/size checks omitted (no `request.resource` on delete) |
@@ -455,7 +455,7 @@ for the browser's only destructive operation on shared data, so it is worth re-r
 
 `nameToEmail(name)` / `normaliseSurname()` in `auth-identity.js` (the pure browser module — re-exported by `firebase-client.js`, so importers may pull it from either) must stay in sync with the copy in `functions/roster-parse-helpers.js`. As of v12.04, `getSurname()` in `session.js` delegates to `normaliseSurname()`; since v16.50 the browser source is `auth-identity.js` (moved out of `firebase-client.js` so it is unit-testable). The derivation is duplicated in `functions/roster-parse-helpers.js` — intentional: Cloud Functions are CommonJS and cannot import browser ES modules. If the rule ever changes, update ALL THREE copies — `auth-identity.js`, `functions/roster-parse-helpers.js`, and `memberEmailFor` in `firestore.rules` (a mismatch with the rules copy locks that member out). `surname-parity.test.mjs` pins the first two together; the rules suite's whole-roster test in `firestore.rules.test.mjs` pins the third.
 
-**Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters by repeating the surname** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is; shorter ones are padded by repeating the surname cyclically (e.g. `"tuck"` → `"tucktu"`). The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it self-heals a missing account on page load. The single source for this padded default is `surnamePassword(fullName)` in `auth-identity.js` (v18.63).
+**Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters by repeating the surname** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is; shorter ones are padded by repeating the surname cyclically (e.g. `"tuck"` → `"tucktu"`). The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it re-establishes an un-migrated member's session on page load with nothing typed. It no longer CREATES a missing account: that client-side self-heal was retired at v24.34, so an account that does not exist is provisioned only by Operations → Set up accounts. The single source for this padded default is `surnamePassword(fullName)` in `auth-identity.js` (v18.63).
 
 **Chosen passwords (v18.63 — PASSWORD_DESIGN.md Track C).** The surname value above is now only the **default** password. A member can set their own in Settings → Password, after which that secret is their real password and the surname no longer works for them. Sign-in tries the typed value first and only falls back to the surname default while the account is still on it (`credentialCandidatesFor` → `ensureFirebaseSession`). **Admin break-glass:** the `resetMemberPassword` Cloud Function (Operations → Account status → Reset) sets a member's Firebase Auth password back to the surname default (`nameToPassword(member)` — the CommonJS functions-side twin of the browser's `surnamePassword`, kept equal by `surname-parity.test.mjs`) and (by default) revokes their refresh tokens, so a member who forgets a self-set password is recovered by the admin — there is no email-based self-service reset yet. **The member is now told (v23.62):** a reset sends `🔑 Password reset — set a new one` to that member's own devices, and nobody else's. It never names the new password (a push renders on a lock screen). If they have no notifications on this app the reset still stands and Operations says so, which is your cue to tell them directly — they have been signed out of their devices and would otherwise have no idea why. Migration state (`passwordSetAt` vs `resetAt`) lives in the `passwordStatus` Firestore collection.
 
@@ -665,7 +665,7 @@ looked like a fluke:
 - **The sign-in was simply slow to come back** and arrived after the app had already decided.
 
 Both used to land on the staff PIN, which is the wrong answer twice over: it asks a signed-in member
-for a shared code, and using it would have left them browsing as the anonymous shared viewer with
+for a shared code, and using it would have left them browsing as the shared PIN viewer with
 their own name still in the drawer. Since v20.79 that member gets a card addressed to them whose
 button is the normal sign-in — and for anyone still on their surname default the app quietly signs
 them back in with nothing typed, so they see nothing at all. A late sign-in is now honoured whenever

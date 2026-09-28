@@ -368,9 +368,13 @@ describe('assessFatigue — the report as a whole', () => {
         // the one that stays quiet. An unlabelled number whose definition is unagreed is this
         // module's false-assurance failure in miniature.
         const a = assessFatigue(GOOD, 2);
+        //
+        // Settled 28 Sep 2026 against ORR's Managing rail staff fatigue (Aug 2024): MRSF's 8h (eight hours
+        // or more), FF17 (ORR's own definition) and FF18 (ORR's cadence reading, standing). FF19 keeps the
+        // flag because its reading is the owner's and more lenient than ORR's wording.
         const flagged = a.results.filter(r => r.confirm).map(r => r.code).sort();
-        assert.deepEqual(flagged, ['FF17', 'FF18', 'FF19', 'MRSF']);
-        assert.equal(a.confirmNeeded, 4);
+        assert.deepEqual(flagged, ['FF19']);
+        assert.equal(a.confirmNeeded, 1);
     });
 
     test('a punishing design reports the cumulative factors', () => {

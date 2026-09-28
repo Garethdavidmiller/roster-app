@@ -17,14 +17,14 @@ numbers, what each page held, the rule set and the fit measure. The sheets as th
 there. Figures in the older sections use the definitions of their day: fits moved to duty minutes on 24 Sep
 and to the floor on 28 Sep.
 
-| Proposal | Code · fingerprint | What it is | Factors present | Longest run | Weekends off |
+| Proposal | Code · fingerprint | What it is | Fatigue findings | Longest run | Weekends off |
 |---|---|---|---|---|---|
 | **Same Turns** | `ST-24-B7 · d15e1b74` | Today's 20-line link widened to 24 in today's own shift times and week shapes | 1 (FF19, one jump) | 6 | 6 in 24 |
 | **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
 | **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no weekday duty over 8h40 (Saturday's 14:45–23:55 and Sunday's 14:30–23:25 run 9h10 and 8h55) — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
 | **Weekend Capped** | `Q2-24-W21 · 7ea671d5` | *Quarter To* with its own open question answered: **Saturday and Sunday searched again under the 8h40 cap** from today's clock times and the quarter hour — Saturday entirely in today's times (fit 23.1 against 32.7), Sunday one new turn, the capped closer (61.4 against 80.6); every one of its 20 working weeks is one turn | 1 (FF19, one jump) | 6 | 6 in 24 |
-| **Right Away** | `FR-24-F34o · be01f0db` | **The owner's final rules of 28 Sep 2026**: the ticket office rostered as fixed pairs of identical turns and **not counted as floor cover**, every weekday closer 15:45, the headcounts as minimums, at least two on the floor at every moment, 15-minute handovers (20 in the office), Sunday duties 8h–9h, no more shift times than today — each day enumerated to a proof for the fit of the **floor** (20.4 weekday, 11.6 Saturday, 19.2 Sunday; 21.9 / 12.2 / 33.6 with the office counted, the folder's best weekday), 17 turns in the week against today's 18, the rotation fatigue-first and its week order then improved (28 Sep 2026: 14 of 20 weeks on one shift time, heaviest week 41h50) | **0** | 6 | 6 in 24 |
-| **Familiar Nine** | `F9-24-K31 · c450951c` | **Right Away's rules with two more aims (28 Sep 2026)**: no duty over nine hours, and the shift times people already work wherever they cost little fit — 9 of its 15 times are worked today (Right Away 5 of 17), the longest duty 9h00 (9h30), the weekday table proven; Right Away's week structure carried over and polished until no figure was worse than Right Away's (14 of 20 weeks on one shift time, shortest rest 14h20, the thinnest Sunday floor 3 not 2), for a looser fit: 27.8 · 16.6 · 33.8 against 26.1 · 16.2 · 31.2 | **0** | 6 | 6 in 24 |
+| **Right Away** | `FR-24-F34o · be01f0db` | **The owner's final rules of 28 Sep 2026**: the ticket office rostered as fixed pairs of identical turns and **not counted as floor cover**, every weekday closer 15:45, the headcounts as minimums, at least two on the floor at every moment, 15-minute handovers (20 in the office), Sunday duties 8h–9h, no more shift times than today — each day enumerated to a proof for the fit of the **floor** as it was measured when it was built; on the sheets' current measure (the office's second person helping at the quiet ends, and the exact edges of each hour) its floor fit is 26.5 weekday, 14.6 Saturday, 28.9 Sunday — 21.7 / 10.5 / 32.5 with everyone counted, the folder's best weekday, 17 turns in the week against today's 18, the rotation fatigue-first and its week order then improved (28 Sep 2026: 14 of 20 weeks on one shift time, heaviest week 41h50) | **0** | 6 | 6 in 24 |
+| **Familiar Nine** | `F9-24-K31 · c450951c` | **Right Away's rules with two more aims (28 Sep 2026)**: no duty over nine hours, and the shift times people already work wherever they cost little fit — 9 of its 15 times are worked today (Right Away 5 of 17), the longest duty 9h00 (9h30), the weekday table proven; Right Away's week structure carried over and polished until no figure was worse than Right Away's (14 of 20 weeks on one shift time, shortest rest 14h20, the thinnest Sunday floor 3 not 2), for a looser fit: 27.7 · 15.0 · 31.3 against 26.5 · 14.6 · 28.9 | **0** | 6 | 6 in 24 |
 | **Just Enough** | `JE-24-M29 · 49717d70` | ***Fifteen Turns* with the fewest cells changed that meet every rule (28 Sep 2026)** — **29**, proven the minimum by an exact solver: all eleven December 2026 rules and the three hard limits, where *Fifteen Turns* meets five and breaks two limits. Among the 29-change versions, the fewest fatigue factors (three, also proven — none new; *Fifteen Turns* has seven), the most weekends off (two, as *Fifteen Turns*) and the smallest changes. The other 139 working cells and the four cover weeks are as drawn | 3 | 9 | 2 in 24 |
 | **Round Times** | `P2-24-N13 · 33a78cbe` | *Pinned Turns*' pins with **every other time rewritten onto the quarter hour** (the pinned 06:20–14:20 the one exception, and the contract's arithmetic needs it) and **no more shift times a day than *Pinned Turns*** — each day enumerated to a proof (weekday fit 33.8, Saturday 22.9, Sunday 62.4; 14 distinct turns in the week), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Pinned Turns** | `PT-24-P34 · dae6292e` | **The owner's brief of 25 Sep 2026** from today's roster: Mon–Fri 15:45 closers, three 06:20–14:20 openers, two 14:00–22:30 lates and an 8h40 cap; Saturday two long openers and a 14:00–22:30; Sunday a 13:00–21:30 — the rest of each day fitted to the timetable (weekday fit 32.1; three turns off the quarter hour — the pinned 06:20–14:20, Saturday's 06:20–14:50 and the weekday's 07:00–15:40), the rotation fatigue-first | **0** | 6 | 6 in 24 |
@@ -1229,7 +1229,7 @@ Saturday *By the Book* (11.8) now leads *Right Away*. The current figures, from 
 (today's own clock times in the pool) and `NEWPEN=2` — every time nobody works today costs 2 on the fit, the rate at
 which the new times roughly halve. The weekday is **proven** (22.5 million tables, 10m45s); Saturday and Sunday are
 enumerated. It was built with the office off the floor, as Right Away's was, and scored better under the helper
-rule than the same aims built with the helper on (27.8 · 16.6 · 33.8 against 28.3 · 16.1 · 31.0, with 9 of its 15
+rule than the same aims built with the helper on (27.8 · 16.6 · 33.8 against 28.3 · 16.1 · 31.0 on the fit as then measured, with 9 of its 15
 times known against 8 of 16). **9 of its 15 times are worked today** (Right Away: 5 of 17), the longest duty is
 **9h00** (9h30), and the thinnest Sunday floor is **3** (2).
 
@@ -1241,7 +1241,8 @@ than its reference on rest, fatigue, rest days, runs, weekends, one-turn weeks o
 seed 34's Right Away, then against the improved Right Away. Result, against Right Away (`FR-24-F34o`): shortest rest
 **14h20** (14h05), 14 of 20 weeks on one shift time (14), heaviest Mon–Sat week **41h45** (41h50), most hours in any
 seven days **51.3** (52.8), FF11 8 (8), six weekends off, two single rest days, 0 fatigue factors, all 11 rules. The
-price is fit: 27.8 · 16.6 · 33.8 against 26.1 · 16.2 · 31.2 — still a third of today's weekday gap.
+price is fit: 27.7 · 15.0 · 31.3 against 26.5 · 14.6 · 28.9 on the sheets' current measure (27.8 · 16.6 · 33.8 against
+26.1 · 16.2 · 31.2 when it was built) — still about half of today's weekday figure, 52.0.
 
 **The option sweep behind it** (28 Sep 2026, scratch — only the pick shipped): 16 table variants, each with Right
 Away's structure carried on and polished (4 seeds each), and 6 built with the office helping. Familiar times cost
@@ -1322,8 +1323,8 @@ and the most one-turn weeks (9). A first attempt skipped the weekend and size st
 one weekend off and a Sunday fit of 80 — which is why they come first.
 
 **Against *Fifteen Turns*:** all 11 rules (5), three hard limits met (two broken), three factors (seven), shortest rest
-14h05 (11h15), two weekends off (two), longest run 9 (9), floor fit weekday 34.4 (38.1) and Sunday 37.3 (51.5) but
-Saturday 52.2 (46.0) — the two office lates are earlier than the turns they replace — and 9 of 20 weeks on one shift
+14h05 (11h15), two weekends off (two), longest run 9 (9), floor fit weekday 34.3 (38.4) and Sunday 34.9 (49.0) but
+Saturday 51.4 (44.8) — the two office lates are earlier than the turns they replace — and 9 of 20 weeks on one shift
 time (12). **Thirteen of the twenty working lines change**; the other seven are exactly as drawn.
 
 **How the proof is trusted.** The solver (Google OR-Tools CP-SAT, `pip install ortools`) is given every rule as a
@@ -1507,7 +1508,7 @@ Everything lives in `tooling/fresh.mjs` — a one-line description per design (w
 from its figures, and a last plain-English pass over the finished page. `LEGACY=1 node regenerate.mjs` renders
 the previous edition.
 
-**Checks before shipping**, all run for this edition: `node regenerate.mjs --check` (23 fingerprints unchanged);
+**Checks before shipping**, all run for this edition: `node regenerate.mjs --check` (23 fingerprints unchanged at the time; it checks every registered sheet, and prints the count);
 every PDF exactly ten pages with its footers in order; a text scan of every page except page 9 for history and
 jargon words, which finds none.
 
