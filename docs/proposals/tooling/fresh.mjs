@@ -32,11 +32,11 @@ export const STRAPS = {
   'WL4-24-F7':  ['Weekday closers from 16:25, with lines 14–17 kept together in order', 'hand+search'],
   'WS-24-EXT':  ['A cover week at line 18 and a midday turn at 12:00–20:30', 'hand'],
   'TF-24-EXT':  ['A cover week at line 18, with Sunday and Monday duties placed to reduce fatigue', 'hand'],
-  'TM-24-EXT':  ['A cover week at line 18, with three Monday duties moved between lines', 'hand'],
+  'TM-24-EXT':  ['A cover week at line 18, with two Monday duties moved to other lines', 'hand'],
   'C17-24-EXT': ['The fourth cover week at line 17, so nobody works more than 13 shifts without a two-day break', 'hand'],
   'S4-24-EXT':  ['Saturdays on just four shift times, with more people on in the evening', 'hand'],
   'CF-24-EXT':  ['Weekday closers from 16:25, and no Saturday closing shift longer than 8h 40m', 'hand'],
-  'CFT-24-M3':  ['Saturday morning and Sunday afternoon cover evened out', 'hand'],
+  'CFT-24-M3':  ['Weekday closers from 16:25, with four at Sunday’s open and four through to its close', 'hand'],
   'TN-24-R7':   ['Ten on a Sunday, and nobody works more than six days in a row', 'hand+search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first

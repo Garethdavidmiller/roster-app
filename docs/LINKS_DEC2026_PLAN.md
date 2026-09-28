@@ -58,10 +58,10 @@ below is owned by somebody other than the developer.
 | Line-order objectives | ✅ Shipped v19.58–v19.60 | — | — |
 | **Hard company limits — a controlled source** | ⚠️ **Cited to the policy, but the policy is not identified** | **Before management review** | **Gareth** — get the title, clause, staff group and effective date. Evidence class B required (ROADMAP.md → Evidence class) |
 | **Sunday operating window** | ⚠️ **Decision needed** — five Dec-26 movements fall after the 23:25 finish, three of them arrivals | **Before proposals are frozen** | **Nathan** |
-| **Contracted hours — today's duties cannot fill a 24-line link** | ⚠️ **Decision needed** (v20.04; measure corrected and the generator GATED at v20.98). Seeded from today's duties, 24 lines averages **29h 53m** a week (4 cover weeks) or **31h 20m** (5) against a 35h contract; the live 20-line roster gives exactly 35h. **The generator now refuses to build a design that misses the contract in EITHER direction** (short v20.98, over v20.99), so this is no longer a warning that can be scrolled past — it is a blocked action with the gap named: **123h** more duty a week of rotation at 4 cover weeks, **88h** at 5. Note the shape of what that asks for: the target is an equality, so the extra service has to land on a table that totals `working x 35h` exactly — overshooting is refused too. Either the Dec-26 service supplies it — in which case the targets should be seeded from the new timetable, not today's roster — or the widened link does not fill a contracted week | **Before proposals are drawn** | **Management / Nathan** |
-| **Business staffing requirement** | ⚠️ **Never formally stated.** "Coverage vs service" is an inference from the data, not something anyone said | **Before the final design** | **Management** |
-| **FF18 reading — cadence or step?** | ⚠️ Unsettled; changes whether any proposal can clear it | **Before proposals are drawn** | **Nathan** (see Open question 2) |
-| **Proposals** | ✅ **Drawn — 22 sheets** in `docs/proposals/`, the first on 8 Sep 2026; ⚠️ **none frozen** | T−8 weeks | Freezing one waits on the four decisions above. The folder's `README.md` ranks them and records each sheet's open questions |
+| **Contracted hours — today's duties cannot fill a 24-line link** | ⚠️ **Decision needed** — **answered in practice by the proposals** (28 Sep 2026): every one of the 23 sheets pays the 35h week exactly (Fifteen Turns is 60 minutes a week over across the link) by carrying **94–98 timed duties a week against today's 76**, so every one assumes the December 2026 staffing supplies the extra duty; that assumption is what needs confirming. Background (v20.04; measure corrected and the generator GATED at v20.98). Seeded from today's duties, 24 lines averages **29h 53m** a week (4 cover weeks) or **31h 20m** (5) against a 35h contract; the live 20-line roster gives exactly 35h. **The generator now refuses to build a design that misses the contract in EITHER direction** (short v20.98, over v20.99), so this is no longer a warning that can be scrolled past — it is a blocked action with the gap named: **123h** more duty a week of rotation at 4 cover weeks, **88h** at 5. Note the shape of what that asks for: the target is an equality, so the extra service has to land on a table that totals `working x 35h` exactly — overshooting is refused too. Either the Dec-26 service supplies it — in which case the targets should be seeded from the new timetable, not today's roster — or the widened link does not fill a contracted week | **Before a proposal is frozen** | **Management / Nathan** |
+| **Business staffing requirement** | ⚠️ **Given verbally, not yet in writing** (owner, 27–28 Sep 2026): the December 2026 staffing levels behind the 11 rules every sheet is judged against — four at the open, three at the close, five at 22:00, 14 on a Saturday and 10 on a Sunday, the ticket office in fixed pairs, and the rest (`currentRules`, `docs/proposals/tooling/report-data.mjs`). Every sheet says they are verbal | **Before the final design** | **Management** — confirm in writing |
+| **FF18 reading — cadence or step?** | ⚠️ Unsettled; changes whether any proposal can clear it | **Before a proposal is frozen** | **Nathan** (see Open question 2) |
+| **Proposals** | ✅ **Drawn — 23 sheets** in `docs/proposals/`, the first on 8 Sep 2026, the latest (Right Away) on 28 Sep; all 23 re-issued on 28 Sep as the managers' edition, judged against one rule set; ⚠️ **none frozen** | T−8 weeks | Freezing one waits on the decisions above. The folder's `README.md` ranks them and records each sheet's open questions |
 | **Management review meeting** | ❌ Not scheduled | T−6 weeks | **A date.** See below |
 
 ## The backwards plan — because the only immovable deadline is outside this repository
@@ -365,7 +365,8 @@ workspace opens on the December 2026 default table (`links-default-targets.js`) 
 here is the record of what the roster seed produced, not what the workspace ships.
 
 **Measured at 24 lines / 4 spare weeks (v20.02).** The seed is the main cycle only — **18 slot
-rows and 4 spare weeks**, exactly what the roster provides, with nothing added. (v20.01 briefly
+rows and 4 spare weeks**, taken from the roster with nothing invented — but each row at its BUSIEST weekday, so it
+carries 60 weekday duties where today's link works 58 (78 a week against 76). (v20.01 briefly
 seeded 5; see the FF11 note below for why that was reverted.) Earlier measurements — v19.75 at 28/6,
 v19.98 at 22/4, v20.01 at 24/5 — are superseded and are not quoted here, because a figure from an
 old shape sitting beside one from the new is how a table stops being readable.
@@ -403,7 +404,8 @@ The live roster landing on 35.00 to the minute is the check on the measure: the 
 contract, so anything else would mean the yardstick was wrong before any design was judged by it.
 
 **The gap is arithmetic, not a fault in the design.** The seed is today's duties — 18 shift rows, 78
-timed duties a week — and widening the link from 20 lines to 24 spreads them over 20 working lines
+timed duties a week as the seed counts them (each row at its busiest weekday; today's link actually works
+76) — and widening the link from 20 lines to 24 spreads them over 20 working lines
 instead of 16. Same work, more people, less each. It is the same counter-intuitive effect as the cover
 weeks below, one step further on.
 
@@ -420,17 +422,17 @@ against a contracted week.
 ### A spare week does not add capacity — it takes a line out of the pool
 
 Worth taking into the room, because it is counter-intuitive. **A spare week removes a line from the
-pool that carries the duties.** The work is unchanged at **78 timed duties a week**, so each extra
-cover week is paid for in rest days on everyone else:
+pool that carries the duties.** The work is unchanged at **76 timed duties a week** (today's link, counted day by day — the seed's 78 counts each
+shift row at its busiest weekday), so each extra cover week is paid for in rest days on everyone else:
 
 | | working lines | duties per working line | rest days |
 |---|---|---|---|
-| live main roster (20/4) | 16 | 4.88 | **2.13** |
-| 22 lines / 4 spare (v19.98) | 18 | 4.33 | 2.67 |
-| 24 lines / 5 spare (v20.01, reverted) | 19 | 4.11 | 2.89 |
-| **24 lines / 4 spare (chosen)** | **20** | **3.90** | **3.10** |
+| live main roster (20/4) | 16 | 4.75 | **2.25** |
+| 22 lines / 4 spare (v19.98) | 18 | 4.22 | 2.78 |
+| 24 lines / 5 spare (v20.01, reverted) | 19 | 4.00 | 3.00 |
+| **24 lines / 4 spare (chosen)** | **20** | **3.80** | **3.20** |
 
-So the widening to 24 is a large gain on today's roster: **2.13 → 3.10 rest days** per working line
+So the widening to 24 is a large gain on today's roster: **2.25 → 3.20 rest days** per working line
 and weekends off from 20% to 38%. The v20.01 fifth cover week would have spent about **0.2 of a rest
 day per working line** to buy one more standby week — a legitimate trade, taken and then reverted
 once its motivating finding turned out to be a bug (below).
@@ -746,20 +748,27 @@ Ordered by how much they change if the answer is unexpected.
 5. **Should Saturday's window ever differ from Mon–Fri?** Currently identical; the setting can split
    them if the answer changes.
 
-## Proposals drawn (8 Sep 2026)
+## Proposals drawn (8 Sep 2026 onward)
 
-Two, in `docs/proposals/` (its README is the index), each with an identity that survives a meeting
-— a name, a code for how it was built, and a fingerprint of the cells. Both were built and judged
-by the app's own modules, and every figure in a PDF is computed from the cells it shows.
+**23 sheets** in `docs/proposals/`, whose README is the index, each with an identity that survives a
+meeting: a name, a code, and a fingerprint of the cells. On 28 Sep 2026 all 23 were re-issued as the
+managers' edition — standalone, in plain English, and judged against **one rule set**: the 11 December
+2026 rules (`currentRules`, `docs/proposals/tooling/report-data.mjs`). Every figure in a sheet is
+computed from the cells it shows, and an independent recount of all 23 on 28 Sep agreed with every one.
 
-| Proposal | Code · fingerprint | Built from | Factors present | Longest run | Weekends off |
-|---|---|---|---|---|---|
-| **Same Turns** | `ST-24-B7 · d15e1b74` | today's 20-line link in its own turns and week shapes, widened | 1 | 6 | 6 in 24 |
-| **By the Book** | `BB-24-D7 · 0f14abce` | the workspace's December default table, the rotation searched fatigue-first | 0 | 6 | 6 in 24 |
+| Family | Sheets |
+|---|---|
+| Same Turns | Same Turns, Quarter To, Weekend Capped |
+| By the Book | By the Book, Eight Forty, Office Written In |
+| Pinned Turns | Pinned Turns, Round Times |
+| Right Away | Right Away — the only sheet that meets all 11 rules (today's link meets 3) |
+| Fifteen Turns | Fifteen Turns, Gates Mended |
+| Weekday Lates | Weekday Lates and eleven variants of it |
 
-They bracket the one decision left: *Same Turns* keeps 15 turns people work today and does not
-meet the late-shorter lever; *By the Book* meets every rule and none of its turns is familiar. Both
-inherit today's Sunday window (open question 3) and carry the class-C caveats above.
+Where each one stands on the same figures is page 9 of any sheet. **The first two, as drawn on 8 Sep**,
+bracketed the choice as it looked then: *Same Turns* kept 15 turns people work today; *By the Book*
+met every rule then in force and none of its turns was familiar. Against the 11 December rules it
+meets 5 of 11. Both inherited today's Sunday window (open question 3).
 
 ## The four decisions, as they would be put in the room
 
@@ -829,12 +838,13 @@ lines denser.
 
 **4 · The business staffing requirement.** *What is the station actually required to staff?*
 
-Never formally stated by anyone. "Coverage versus service" is an inference this tool draws from the
-timetable; it is not a requirement anybody has issued.
+Given verbally, not yet in writing. The owner relayed the December 2026 staffing levels on 27–28 Sep
+2026, and every sheet is now judged against them as 11 rules (four at the open, three at the close,
+five at 22:00, 14 on a Saturday and 10 on a Sunday, the ticket office in fixed pairs, and the rest —
+`currentRules` in `docs/proposals/tooling/report-data.mjs`). Each sheet says they are verbal.
 
-*What turns on it:* every proposal is currently assessed against a standard the assessor has not
-set. That is a fair way to lose a design meeting, and it is the one question here with no
-measurement to offer in place of an answer.
+*What turns on it:* until they are in writing, every proposal is assessed against a standard nobody
+has signed. Getting them written down is a task, not a discussion.
 
 ---
 
@@ -854,8 +864,10 @@ Recorded so the gaps are visible rather than implied:
   measured anywhere. Recorded as a gap, **not** a blocker on package 4 — that framing was corrected
   by the owner: the tool already holds today's STAFFING, and the uplift is a figure the business
   states rather than one derived from two timetables.
-- **Whether "coverage vs service" is the business requirement at all.** It is an inference from the
-  data available, not something Nathan stated. He said business requirements and fatigue guidelines;
+- **Whether "coverage vs service" is the business requirement at all.** Partly answered: the December
+  2026 staffing levels were given verbally on 27–28 Sep 2026 and are the rules every sheet is judged
+  against; they are not yet in writing. Before that it was an inference from the data, not something
+  Nathan stated. He said business requirements and fatigue guidelines;
   the fatigue half is documented on p3, the business half is not written down anywhere here.
   Partly softened by the posts steer above — the requirement is now known to be posts + relief +
   a train-driven remainder — but nobody has confirmed that is what the proposals will be judged on.
