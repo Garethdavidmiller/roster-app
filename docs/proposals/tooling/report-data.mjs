@@ -8,7 +8,10 @@ import { scoreOrder, reorderLines, applyOrder, OBJECTIVES } from '../../../links
 import { DEC_2026_DEMAND, demandBucket, peakCars, movementsOutside, DEC_2026_MOVEMENTS } from '../../../links-demand.js';
 import { weeklyRoster } from '../../../roster-cycle-data.js';
 
-export const family = t => { const s = startMinutes(t); if (s === null) return null; return s < 9*60 ? 'E' : 'L'; };
+// Early / late for the one-turn and mixing counts. The managers' edition splits at 11:00, as every sheet defines an
+// early (accuracy check, 28 Sep 2026 — at 09:00 a week could count as one shift time AND as mixing early and late);
+// LEGACY=1 keeps the 09:00 split the searches were scored on.
+export const family = t => { const s = startMinutes(t); if (s === null) return null; return s < (process.env.LEGACY ? 9*60 : 11*60) ? 'E' : 'L'; };
 
 export function feel(p, lines) {
   const keys = Array.from({ length: lines }, (_, i) => String(i+1));
@@ -158,13 +161,17 @@ export function currentRules(P, T) {
   const handover = d => { const cls = clsOf(d), f = floorOn(d), cl = f.duties.filter(x => x.en === CLOSE[cls]);
     let ok = cl.length > 0 && cl.every(c => f.duties.some(x => x.st < c.st && x.en >= c.st + 15));
     if (cls === 'sun' && cl.length) { const last = Math.max(...cl.map(c => c.st)); ok = ok && f.duties.filter(x => x.st === OPEN.sun).every(x => x.en >= last + 15); }
-    const overlap = f.named ? endMinutes(f.pr.early) - startMinutes(f.pr.late) : null;
-    return { ok, overlap }; };
+    // the office overlap is measured the way the floor is: the rostered pairs where the design has them, the plan's
+    // posts where it does not (accuracy check, 28 Sep 2026 — a design with pairs on two days passed on those two
+    // alone, while one with none failed outright, though the posts it is assumed to staff overlap by 20 minutes too)
+    const [[pe], [pl]] = OFFICE.plan[cls];
+    const overlap = f.named ? endMinutes(f.pr.early) - startMinutes(f.pr.late) : endMinutes(pe) - startMinutes(pl);
+    return { ok, overlap, assumed: !f.named }; };
   const pairs = ALL.map(d => [d, pairsOn(d)]), pairsOk = d => !!pairs.find(([x]) => x === d)[1];
   const wkPairs = WDD.every(pairsOk), satPairs = pairsOk('sat'), sunPairs = pairsOk('sun');
   const fm = Object.fromEntries(ALL.map(d => [d, floorMin(d)])), wkFloor = Math.min(...WDD.map(d => fm[d]));
   const hv = Object.fromEntries(ALL.map(d => [d, handover(d)]));
-  const floorHand = ALL.every(d => hv[d].ok), overlaps = ALL.map(d => hv[d].overlap).filter(v => v !== null);
+  const floorHand = ALL.every(d => hv[d].ok), overlaps = ALL.map(d => hv[d].overlap), assumedDays = ALL.filter(d => hv[d].assumed).length;
   const sunLens = dutiesOn('sun').map(dutyMinutes);
   const wkClosers = [...new Set(WDD.flatMap(d => dutiesOn(d).filter(s => endMinutes(s) === CLOSE.weekday)))];
   const closerStarts = [...new Set(wkClosers.map(s => s.split('-')[0]))].sort();
@@ -176,14 +183,14 @@ export function currentRules(P, T) {
     { key: 'at22', rule: 'At least five still on duty at 22:00, every day', value: rng(H.at22), ok: all(H.at22, 5), note: 'someone finishing at 22:00 does not count' },
     { key: 'heads', rule: 'Fourteen on a Saturday, ten on a Sunday', value: `${P.daily.sat} · ${P.daily.sun}`, ok: P.daily.sat === 14 && P.daily.sun === 10, note: '' },
     { key: 'cover', rule: 'Four cover weeks, evenly spread', value: `lines ${P.feel.spareLines.join(', ')}`, ok: P.feel.spareLines.length === 4 && P.adj.spareExcess === 0, note: 'evenly means every 6 lines, e.g. 1, 7, 13, 19' },
-    { key: 'office', rule: 'The ticket office: two early and two late, identical turns, every day', value: `Mon–Fri ${wkPairs ? 'yes' : 'no'} · Sat ${satPairs ? 'yes' : 'no'} · Sun ${sunPairs ? 'yes' : 'no'}`, ok: wkPairs && satPairs && sunPairs, note: 'Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and 14:30–22:00; Sun two from 07:15 and two to 22:30' },
+    { key: 'office', rule: 'The ticket office: two early and two late, identical shifts, every day', value: `Mon–Fri ${wkPairs ? 'yes' : 'no'} · Sat ${satPairs ? 'yes' : 'no'} · Sun ${sunPairs ? 'yes' : 'no'}`, ok: wkPairs && satPairs && sunPairs, note: 'Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and 14:30–22:00; Sun two from 07:15 and two to 22:30' },
     { key: 'closer', rule: 'Every weekday closer starts at 15:45', value: closerStarts.length ? `closers start at ${andList(closerStarts)}` : 'no weekday closer', ok: wkClosers.length > 0 && wkClosers.every(s => s === '15:45-23:55'), note: '' },
     { key: 'floor', rule: 'At least two on the floor at every moment', value: `fewest ${wkFloor} · ${fm.sat} · ${fm.sun}`, ok: ALL.every(d => fm[d] >= 2), note: 'ticket office staff not counted; checked every five minutes' },
-    { key: 'handover', rule: 'Handovers: 15 minutes to each closer, 20 in the ticket office', value: `floor ${floorHand ? 'met' : 'not met'} · ticket office ${overlaps.length ? `${Math.min(...overlaps)} min` : 'not in pairs'}`, ok: floorHand && (overlaps.length === 0 ? false : overlaps.every(v => v >= 20)), note: 'on a Sunday each opener also stays until 15 minutes after the last closer arrives' },
+    { key: 'handover', rule: 'Handovers: 15 minutes to each closer, 20 in the ticket office', value: `floor ${floorHand ? 'met' : 'not met'} · ticket office ${Math.min(...overlaps)} min${assumedDays ? ` (${assumedDays === 7 ? 'posts' : `posts on ${assumedDays} day${assumedDays === 1 ? '' : 's'}`} assumed)` : ''}`, ok: floorHand && overlaps.every(v => v >= 20), note: 'on a Sunday each opener also stays until 15 minutes after the last closer arrives; where the design does not roster the office pairs, the plan’s posts are assumed' },
     { key: 'sunlen', rule: 'Sunday duties between 8h and 9h', value: sunLens.length ? `${hmm(Math.min(...sunLens))}–${hmm(Math.max(...sunLens))}` : '—', ok: sunLens.length > 0 && sunLens.every(m => m >= 480 && m <= 540), note: '' },
     { key: 'times', rule: 'No more shift times than today', value: `${P.feel.distinctTimes}`, ok: P.feel.distinctTimes <= T.feel.distinctTimes, note: `today ${T.feel.distinctTimes}` },
   ];
-  return { rows, met: rows.filter(r => r.ok).length, of: rows.length };
+  return { rows, met: rows.filter(r => r.ok).length, of: rows.length, pairDays: ALL.filter(pairsOk) };
 }
 
 // The office model is TODAY'S for the live 20-line link and the PLAN'S for every 24-line proposal; nothing in this
