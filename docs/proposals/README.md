@@ -3,7 +3,7 @@
 The CEA link proposals drawn for the December 2026 timetable change, each a PDF with its own
 **identity** so it can be named in a room: a name, a code that says how it was built, and a
 fingerprint of the exact cells so a printout can never be confused with a variant. The same
-identity is in every page footer. All 24 were judged by the app's own Links modules
+identity is in every page footer. All 25 were judged by the app's own Links modules
 (`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) — the
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
@@ -25,6 +25,7 @@ and to the floor on 28 Sep.
 | **Weekend Capped** | `Q2-24-W21 · 7ea671d5` | *Quarter To* with its own open question answered: **Saturday and Sunday searched again under the 8h40 cap** from today's clock times and the quarter hour — Saturday entirely in today's times (fit 23.1 against 32.7), Sunday one new turn, the capped closer (61.4 against 80.6); every one of its 20 working weeks is one turn | 1 (FF19, one jump) | 6 | 6 in 24 |
 | **Right Away** | `FR-24-F34o · be01f0db` | **The owner's final rules of 28 Sep 2026**: the ticket office rostered as fixed pairs of identical turns and **not counted as floor cover**, every weekday closer 15:45, the headcounts as minimums, at least two on the floor at every moment, 15-minute handovers (20 in the office), Sunday duties 8h–9h, no more shift times than today — each day enumerated to a proof for the fit of the **floor** (20.4 weekday, 11.6 Saturday, 19.2 Sunday; 21.9 / 12.2 / 33.6 with the office counted, the folder's best weekday), 17 turns in the week against today's 18, the rotation fatigue-first and its week order then improved (28 Sep 2026: 14 of 20 weeks on one shift time, heaviest week 41h50) | **0** | 6 | 6 in 24 |
 | **Familiar Nine** | `F9-24-K31 · c450951c` | **Right Away's rules with two more aims (28 Sep 2026)**: no duty over nine hours, and the shift times people already work wherever they cost little fit — 9 of its 15 times are worked today (Right Away 5 of 17), the longest duty 9h00 (9h30), the weekday table proven; Right Away's week structure carried over and polished until no figure was worse than Right Away's (14 of 20 weeks on one shift time, shortest rest 14h20, the thinnest Sunday floor 3 not 2), for a looser fit: 27.8 · 16.6 · 33.8 against 26.1 · 16.2 · 31.2 | **0** | 6 | 6 in 24 |
+| **Just Enough** | `JE-24-M29 · 49717d70` | ***Fifteen Turns* with the fewest cells changed that meet every rule (28 Sep 2026)** — **29**, proven the minimum by an exact solver: all eleven December 2026 rules and the three hard limits, where *Fifteen Turns* meets five and breaks two limits. Among the 29-change versions, the fewest fatigue factors (three, also proven — none new; *Fifteen Turns* has seven), the most weekends off (two, as *Fifteen Turns*) and the smallest changes. The other 139 working cells and the four cover weeks are as drawn | 3 | 9 | 2 in 24 |
 | **Round Times** | `P2-24-N13 · 33a78cbe` | *Pinned Turns*' pins with **every other time rewritten onto the quarter hour** (the pinned 06:20–14:20 the one exception, and the contract's arithmetic needs it) and **no more shift times a day than *Pinned Turns*** — each day enumerated to a proof (weekday fit 33.8, Saturday 22.9, Sunday 62.4; 14 distinct turns in the week), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Pinned Turns** | `PT-24-P34 · dae6292e` | **The owner's brief of 25 Sep 2026** from today's roster: Mon–Fri 15:45 closers, three 06:20–14:20 openers, two 14:00–22:30 lates and an 8h40 cap; Saturday two long openers and a 14:00–22:30; Sunday a 13:00–21:30 — the rest of each day fitted to the timetable (weekday fit 32.1; three turns off the quarter hour — the pinned 06:20–14:20, Saturday's 06:20–14:50 and the weekday's 07:00–15:40), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Eight Forty** | `EF-24-E21 · 0cf19f56` | *By the Book* with no duty over 8h40 — the December table re-solved under the same rules with the ceiling at 8h40 (its earlies had run to 9h30), then the rotation searched for the ORR factors as *By the Book* was | **0** | 6 | 6 in 24 |
@@ -1194,6 +1195,7 @@ Saturday *By the Book* (11.8) now leads *Right Away*. The current figures, from 
 |---|---|---|---|---|
 | **Right Away** | `FR-24-F34o` | 26.1 · 16.2 · 31.2 | 4 · 3 · 2 | 11 |
 | **Familiar Nine** | `F9-24-K31` | 27.8 · 16.6 · 33.8 | 3 · 3 · 3 | 11 |
+| **Just Enough** | `JE-24-M29` | 34.4 · 52.2 · 37.3 | 2 · 2 · 2 | 11 |
 | By the Book | `BB-24-D7` | 34.7 · 11.8 · 41.8 | 2 · 3 · 1 | 5 |
 | Pinned Turns | `PT-24-P34` | 35.5 · 22.1 · 63.1 | 2 · 3 · 1 | 8 |
 | Round Times | `P2-24-N13` | 37.5 · 22.6 · 63.1 | 2 · 3 · 1 | 8 |
@@ -1264,6 +1266,90 @@ REST_CAP=1 node rota-polish.mjs c0.json c1.json 21 100000 results/best-RF-34.jso
 REST_CAP=1 node rota-polish.mjs c1.json familiar-nine.json 31 120000 ../Right-Away-FR-24-F34o.json   # → c450951c
 node regenerate.mjs --only=F9
 ```
+
+## Just Enough — Fifteen Turns with the fewest changes that meet every rule (28 Sep 2026)
+
+`JE-24-M29 · 49717d70`. The owner's brief: *redo Fifteen Turns with the minimum number of changes to follow the hard
+and soft rules and minimise fatigue factors — search all possible combinations*, then *minimise the number of changes
+if possible*. So the order is **changes first, fatigue factors second**, and both are **proven**, not searched for.
+
+**What counts as a change.** One cell — one line on one day — that differs from *Fifteen Turns* (`FT-24-EXT`). A
+retimed duty, a duty becoming a rest day and a rest day becoming a duty each count one. The shift times allowed are
+the ones already in use: *Fifteen Turns'*, *Gates Mended*'s, today's link's and the ticket office's plan times (32
+in all), so the answer introduces no time nobody has seen. The cover weeks may not move (they already meet the
+cover rule).
+
+**The answer: 29, and no fewer is possible.** Why, in plain terms — the rules force most of it:
+
+| Changes | Why they are needed |
+|---|---|
+| 15 | **Every weekday closer at 15:45.** *Fifteen Turns* has three 16:25 closers every weekday; at least three must close, and each must be a 15:45. Twelve 16:25s simply move to 15:45; three closers are made on other lines (line 1 Fri, line 11 Wed and Thu) where moving one in place would break a rest or a run |
+| 6 | **The ticket office, weekdays** — a second 06:20–14:20 every weekday (line 11 Mon and Tue, line 19 Wed, line 17 Thu and Fri) and a second Friday 14:00–22:30 (line 11) |
+| 4 | **Saturday** — two 14:30–22:00 office lates (lines 5 and 13); line 7's 12:00–20:00 becomes the 06:20–14:50 that line 5 gave up, **which also clears the 11h15 rest** into line 8's Sunday; and line 15 works Saturday 16:25–23:55, the **fourteenth person** and a fifth still on at 22:00 |
+| 2 | **Sunday** — lines 13 and 17 go from 14:00–22:00 to 14:00–22:30: the office's late pair, and five on at 22:00 |
+| 2 | **The contract.** The 15:45 closers add ten hours a week and Saturday's fourteenth person another seven and a half; the contract is exactly 42,000 minutes Monday to Saturday, so two weekday duties become rest days (line 3 Mon, line 17 Wed) |
+
+The lower bound can be seen by hand. The rules force 26 cells (15 closers, 6 weekday office, 2 Saturday office, 1
+Saturday headcount, 2 Sunday office), and even arranged as thriftily as possible those 26 leave Monday to Saturday at
+least 840 minutes over the contract. A retime between the times allowed saves at most 90 minutes, so two more cells
+must be duties removed outright. The 11h15 rest then needs a 29th: the only two cells that touch it are one of the
+four Sunday openers the open rule needs and a Saturday duty, and removing either loses a rule, so one of them has to
+be retimed. The solver proves the 29 outright.
+
+**The trade between changes and fatigue factors**, every row from the solver (`tooling/exact/frontier.py`,
+`fewest.py`); *proven* means the solver finished with a proof, not a time-out:
+
+| Fatigue factors present | Fewest cells changed |
+|---|---|
+| 7 (*Fifteen Turns* as drawn) | — it breaks two hard limits and meets 5 of 11 rules |
+| 3 | **29 — proven** (this proposal) |
+| 2 | at least 31 (33 found) |
+| 1 | at least 32 (40 found) |
+| 0 | **41 — proven** |
+
+So the fewest-changes answer keeps three factors, all three already in *Fifteen Turns* (a block of early starts
+without two rest days after, FF8b; a 58-hour seven days, MRSF; start times moving more than two hours inside a
+working block, FF19); clearing them costs twelve more cells. *Fifteen Turns'* other four — FF11, FF15, the 8-hour
+run and the 11h15 rest (FF13) — are gone.
+
+**Choosing among the 29-change versions.** Many tie on 29 changes and three factors, so the choice was made in a
+fixed order, each stage holding the ones before it: the most full weekends off (**two**, as *Fifteen Turns* —
+proven the most possible); then the **smallest changes** — the sum over the changed cells of how far the start and
+finish move, a rest day ⇄ duty counted as a whole duty, so a 16:25 closer moving to 15:45 is small and a closer
+becoming an early is large (proven the smallest possible); then the fewest two-hour start-time jumps (8), early
+blocks without rest (7), the lightest heaviest week (58h, as *Fifteen Turns*), the shortest longest run (9, proven)
+and the most one-turn weeks (9). A first attempt skipped the weekend and size stages and came back worse on both —
+one weekend off and a Sunday fit of 80 — which is why they come first.
+
+**Against *Fifteen Turns*:** all 11 rules (5), three hard limits met (two broken), three factors (seven), shortest rest
+14h05 (11h15), two weekends off (two), longest run 9 (9), floor fit weekday 34.4 (38.1) and Sunday 37.3 (51.5) but
+Saturday 52.2 (46.0) — the two office lates are earlier than the turns they replace — and 9 of 20 weeks on one shift
+time (12). **Thirteen of the twenty working lines change**; the other seven are exactly as drawn.
+
+**How the proof is trusted.** The solver (Google OR-Tools CP-SAT, `pip install ortools`) is given every rule as a
+constraint, written the way the app's code measures it. Two independent checks stand between it and the sheets:
+`evaluator.py` re-implements the eleven rules, the three limits and the nine fatigue factors that can occur here,
+and `check_evaluator.py` compares it with the sheets' own code (`jsjudge.mjs`, which calls `currentRules`,
+`assessFatigue`, `runDesignChecks` and `assessHardLimits`) on every shipped design and random edits of each —
+**1,224 grids, 0 disagreements**, every factor seen present (the rarest 31 times). `check_model.py` then pins the solver
+to test grids and asks it, rule by rule and factor by factor, whether each passes — **224 grids, 0 disagreements**,
+every rule seen both passing and failing, including runs into and out of a cover week. Every grid the solver
+returned was re-judged by the sheets' own code before it was used.
+
+**Reproduce it** (from `tooling/exact/`; the proven numbers reproduce exactly — with four solver threads the grid
+chosen among exact ties can differ run to run, so the shipped grid is `tooling/just-enough.json`):
+
+```
+pip install ortools
+python3 check_evaluator.py 3 50                      # 1,224 grids against the sheets' code: 0 mismatches
+python3 frontier.py 1200 8,7,6,5,4,3,2,1,0           # fewest changes at each factor budget → front-f<N>.json
+python3 fewest.py 0 3600 front-f0.json zero.json     # 0 factors: 41, proven (a hint speeds the proof)
+python3 tiebreak.py 29 3 just-enough.json 600 front-f3.json wk,size,jumps,ff8,h,run,one
+python3 check_model.py just-enough.json              # 224 grids, the solver's reading against the evaluator: 0 mismatches
+cd .. && node regenerate.mjs --only=JE
+```
+
+The 0-factor version (`tooling/just-enough-zero.json`) is kept for the comparison and is not a proposal.
 
 ## The shape of a sheet — headline, how to read it, then the depth (25 Sep 2026)
 
@@ -1349,7 +1435,7 @@ not in the workspace; they come only from `tooling/report-data.mjs`.
 
 ## The managers' edition (28 Sep 2026)
 
-The managers have seen none of these proposals, and meet all 24 at once. So every sheet is now written for a
+The managers have seen none of these proposals, and meet all 25 at once. So every sheet is now written for a
 first-time reader: it answers **one question** — *is this better than today's link, and does it meet the December
 2026 rules?* — against **one rule set**, in plain English, with no reference to how it was derived, which brief it
 answered or which sheet came before it. **No figure changed**; the words around them did.
@@ -1358,7 +1444,7 @@ answered or which sheet came before it. **No figure changed**; the words around 
   least four at the open, three at the close and five at 22:00 on every day; 14 on a Saturday and 10 on a
   Sunday; four evenly spread cover weeks; the ticket office as two early and two late identical turns every
   day; every weekday closer at 15:45; at least two on the floor at every moment; 15-minute handovers (20 in the
-  office); Sunday duties 8h–9h; no more shift times than today. Right Away and Familiar Nine meet 11; today's link 4 (3 before the ticket-office helper rule of 28 Sep 2026).
+  office); Sunday duties 8h–9h; no more shift times than today. Right Away, Familiar Nine and Just Enough meet 11; today's link 4 (3 before the ticket-office helper rule of 28 Sep 2026).
 - **The floor comes first.** Page 1's "Does it follow the trains?" and page 2's scale measure how the people on
   the floor — ticket office out — follow the trains; the everyone-on-duty figure sits beside it.
 - **Page 1** carries an *At a glance* table, today's link against the proposal, which is also the headline set
