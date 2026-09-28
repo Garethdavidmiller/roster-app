@@ -16,7 +16,8 @@ import { materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs
 /** code → [one-line description, how it was made]. `search`: built by computer search against the rules and the
  *  timetable. `hand`: drawn by hand and checked by the app. `hand+search`: drawn by hand, weeks put in order by
  *  computer search for fewer fatigue factors. `exact`: a hand-drawn design changed in the fewest cells that meet every
- *  rule, the minimum proven by an exact solver (tooling/exact/). */
+ *  rule, the minimum proven by an exact solver (tooling/exact/). `exact-waived`: the same, with one rule the owner
+ *  waived for that design (Clean Sweep keeps its 16:25 weekday closers, owner 28 Sep 2026). */
 export const STRAPS = {
   'FR-24-F34o': ['The ticket office rostered in fixed pairs, every other duty timed so the floor follows the trains', 'search'],
   'F9-24-K31':  ['No duty over nine hours, and most shift times ones people already work', 'search'],
@@ -44,11 +45,13 @@ export const STRAPS = {
   'TN-24-R7':   ['Ten on a Sunday, and nobody works more than six days in a row', 'hand+search'],
   'PC-24-EXT':  ['Weekday closers from 16:25, with twelve on a Saturday and the cover weeks at lines 1, 7, 12 and 17', 'hand'],
   'JE-24-M29':  ['Fifteen shift times, changed in the fewest places that meet all eleven rules', 'exact'],
+  'AC-24-M41':  ['Fifteen shift times, changed in the fewest places that meet all eleven rules with no fatigue finding', 'exact'],
+  'CS-24-M34':  ['Weekday closers from 16:25, changed in the fewest places that meet the other ten rules', 'exact-waived'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
 export const FAMILY = { ST: 'Same Turns', QT: 'Same Turns', Q2: 'Same Turns', BB: 'By the Book', EF: 'By the Book', B2: 'By the Book',
-  PT: 'Pinned Turns', P2: 'Pinned Turns', FR: 'Right Away', F9: 'Right Away', FT: 'Fifteen Turns', JE: 'Fifteen Turns', PC: 'Weekday Lates',
+  PT: 'Pinned Turns', P2: 'Pinned Turns', FR: 'Right Away', F9: 'Right Away', FT: 'Fifteen Turns', JE: 'Fifteen Turns', AC: 'Fifteen Turns', PC: 'Weekday Lates', CS: 'Weekday Lates',
   WL: 'Weekday Lates', WL2: 'Weekday Lates', WL3: 'Weekday Lates', WL4: 'Weekday Lates', WS: 'Weekday Lates', TF: 'Weekday Lates', TM: 'Weekday Lates',
   C17: 'Weekday Lates', S4: 'Weekday Lates', CF: 'Weekday Lates', CFT: 'Weekday Lates', TN: 'Weekday Lates' };
 export const FIRST = { 'ST-24-B7': '8 Sep 2026', 'BB-24-D7': '8 Sep 2026', 'QT-24-Q34': '12 Sep 2026', 'EF-24-E21': '12 Sep 2026',
@@ -56,14 +59,16 @@ export const FIRST = { 'ST-24-B7': '8 Sep 2026', 'BB-24-D7': '8 Sep 2026', 'QT-2
   'WL-24-EXT': '17 Sep 2026', 'WL2-24-R21': '17 Sep 2026', 'WL3-24-F7': '17 Sep 2026', 'FT-24-EXT': '17 Sep 2026', 'FT-24-R21': '17 Sep 2026', 'WS-24-EXT': '17 Sep 2026',
   'WL4-24-F7': '22 Sep 2026', 'TF-24-EXT': '22 Sep 2026', 'TM-24-EXT': '22 Sep 2026', 'C17-24-EXT': '22 Sep 2026', 'S4-24-EXT': '22 Sep 2026',
   'CF-24-EXT': '22 Sep 2026', 'CFT-24-M3': '22 Sep 2026', 'TN-24-R7': '22 Sep 2026', 'B2-24-G21': '22 Sep 2026',
-  'Q2-24-W21': '24 Sep 2026', 'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34o': '28 Sep 2026', 'F9-24-K31': '28 Sep 2026', 'JE-24-M29': '28 Sep 2026', 'PC-24-EXT': '28 Sep 2026' };
+  'Q2-24-W21': '24 Sep 2026', 'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34o': '28 Sep 2026', 'F9-24-K31': '28 Sep 2026', 'JE-24-M29': '28 Sep 2026', 'PC-24-EXT': '28 Sep 2026',
+  'AC-24-M41': '28 Sep 2026', 'CS-24-M34': '28 Sep 2026' };
 const MADE = {
   search: 'Built by computer search: the duty table was chosen for how closely it follows the December 2026 timetable, and the 24 weeks put in the order that raises the fewest fatigue factors.',
   hand: 'Drawn by hand and checked by the Links designer, which measured every figure in this sheet from the grid.',
   'hand+search': 'Drawn by hand, then the weeks put in order by computer search for the fewest fatigue factors; the duty times are as drawn.',
   exact: 'A hand-drawn design changed in the fewest cells that meet every rule, the minimum proven by an exact solver.',
+  'exact-waived': 'A hand-drawn design changed in the fewest cells that meet every rule but the one waived for it (its weekday closers stay at 16:25), the minimum proven by an exact solver.',
 };
-const MADE_SHORT = { search: 'computer search', hand: 'drawn by hand', 'hand+search': 'drawn by hand, ordered by search', exact: 'drawn by hand, fewest changes proven' };
+const MADE_SHORT = { search: 'computer search', hand: 'drawn by hand', 'hand+search': 'drawn by hand, ordered by search', exact: 'drawn by hand, fewest changes proven', 'exact-waived': 'drawn by hand, fewest changes proven' };
 
 /** The standalone words for one sheet. `folder` is folderStats() — every shipped design, with its rules. */
 export function freshMeta({ T, P, meta, folder, rendered }) {
@@ -158,7 +163,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   ].filter(Boolean);
   const oqItems = [
     hardBroken.length ? `<b>${hardBroken.length === 1 ? 'A hard limit is' : 'Hard limits are'} broken</b> — ${andList(hardBroken)}. As it stands this rota cannot be run.` : '',
-    failed.length ? `<b>${failed.length === 1 ? 'One December 2026 rule is' : `${failed.length} of the ${R.of} December 2026 rules are`} not met</b> — ${failed.map(r => r.rule).join('; ')}. The shaded rows above give the figures.` : `<b>Nothing to settle on the rules</b> — all ${R.of} are met.`,
+    failed.length ? `<b>${failed.length === 1 ? 'One December 2026 rule is' : `${failed.length} of the ${R.of} December 2026 rules are`} not met</b> — ${failed.map(r => r.rule + (meta.waived === r.key ? ` (waived by the owner for this design${meta.waivedWhy ? `, ${meta.waivedWhy}` : ''})` : '')).join('; ')}. The shaded rows above give the figures.` : `<b>Nothing to settle on the rules</b> — all ${R.of} are met.`,
     newTimes.length ? `<b>New shift times.</b> ${newTimes.length === 1 ? `1 of the ${P.feel.distinctTimes} is a time nobody works today` : `${newTimes.length} of the ${P.feel.distinctTimes} are times nobody works today`}; page 5 lists ${newTimes.length === 1 ? 'it' : 'them'}.` : '',
     // THE THIN MOMENT (accuracy check, 28 Sep 2026): the hour-by-hour page counts a head in every hour a duty
     // TOUCHES, so a half-hour when nearly nobody is on shows as a full hour. Saturday Four had one person on duty in
@@ -201,7 +206,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     ...(() => { const k = new Set([...T.tableRows, ...P.tableRows].map(r => r.time)).size; return k > 36 ? { denseDuty: true, tightDuty: true, xxTightDuty: true } : k > 26 ? { denseDuty: true, tightDuty: true } : {}; })(),
     fresh: true, changed: null, officeNamed: R.rows.find(r => r.key === 'office').ok,
     coverSame: coverParts.length === 0, coverParts, ff11Split, ff11Block, pairDays: R.pairDays, otherDaysTxt: (() => { const NM = { sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat' }; const o = ['mon','tue','wed','thu','fri','sat','sun'].filter(x => !(R.pairDays ?? []).includes(x)); const wk = ['mon','tue','wed','thu','fri'].every(x => o.includes(x)); const parts = [...(wk ? ['Mon–Fri'] : o.filter(x => !['sat','sun'].includes(x)).map(x => NM[x])), ...o.filter(x => x === 'sat' || x === 'sun').map(x => NM[x])]; return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts.join(''); })(), pairDaysTxt: (() => { const NM = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' }; const d = R.pairDays ?? []; const wk = ['mon','tue','wed','thu','fri'].every(x => d.includes(x)); const parts = [...(wk ? ['Mon–Fri'] : d.filter(x => !['sat','sun'].includes(x)).map(x => NM[x])), ...d.filter(x => x === 'sat' || x === 'sun').map(x => NM[x])]; return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts.join(''); })(), readLines, p8Note, monSat, f1,
-    rulesChip: (failed.length ? `<span class="sum-chip sum-chip--warn">⚠ <strong>${failed.length}</strong> of ${R.of} current working rules not met</span>` : `<span class="sum-chip sum-chip--ok">✓ all <strong>${R.of}</strong> current working rules met</span>`)
+    rulesChip: (failed.length ? `<span class="sum-chip sum-chip--warn">⚠ <strong>${failed.length}</strong> of ${R.of} current working rules not met${failed.length === 1 ? ` — ${failed[0].rule.charAt(0).toLowerCase() + failed[0].rule.slice(1)}${meta.waived === failed[0].key ? ', waived for this design' : ''}` : ''}</span>` : `<span class="sum-chip sum-chip--ok">✓ all <strong>${R.of}</strong> current working rules met</span>`)
       // Sunday's finish can change the winner, so it is on page 1 of every sheet, not only page 7 (external review, 28 Sep 2026)
       + `<span class="sum-chip sum-chip--warn">⚠ Sunday’s finish undecided — ${demand.movementsOutside(demand.movements.sun, 7*60+15, 23*60+25).after.length} trains after 23:25</span>`,
     metaLine: `Prepared ${rendered} · every figure is calculated from the rota, not entered by hand`,
@@ -209,7 +214,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     sub1: 'How this rota would work from December 2026, and how it compares with today’s link',
     intro, intro2: '',
     decMet: R.met, decOf: R.of, decToday: RT.met, decLabel: 'December 2026 rules met',
-    decTile: `current working rules, given verbally and not yet in writing — the staffing levels, the ticket office, the floor and the handovers (page 7) · today’s link meets ${RT.met} of ${R.of}`,
+    decTile: `current working rules, given verbally and not yet in writing (page 7) · today’s link meets ${RT.met} of ${R.of}`,
     headsEvid: `At least four at the open, three at the close, five at 22:00; 14 on Saturday, 10 on Sunday`,
     satNote: satMet ? 'meets the December 2026 figure of 14' : 'short of the December 2026 figure of 14',
     sunNote: sunMet ? 'meets the December 2026 figure of 10' : 'short of the December 2026 figure of 10',
@@ -244,7 +249,7 @@ export function freshWords(html, { total, todayMet, of, monSat, coverSame, examp
   // ask about is either explained where it stands or replaced with the everyday word. The second half of this list
   // is the page-by-page review of all 23 sheets (five reviewers, every page read as an image).
   const PLAIN = [
-    [/<div class="callout"><b>What it is not\.<\/b>[\s\S]*?<\/div>/, '<div class="callout"><b>What it is not.</b> Not a recommendation and not a finished roster: nothing here has been through the roster office or a union rep yet. The December 2026 staffing levels were given verbally and are not yet in writing.</div>'],
+    [/<div class="callout"><b>What it is not\.<\/b>[\s\S]*?<\/div>/, '<div class="callout"><b>What it is not.</b> Not a recommendation or a finished roster: nothing here has been through the roster office or a union rep yet.</div>'],
     // page 4 — the glossary, with every word the other pages lean on
     [/<div><b>Turn<\/b> — a shift time, such as 06:20-13:45\. An <b>early<\/b> starts before 09:00; a <b>late<\/b> starts after\.<\/div>/, '<div><b>Turn</b> — a shift time, such as 06:20-13:45. An <b>early</b> starts before 11:00; a <b>late</b> starts at 11:00 or later.</div>'],
     [/(<b>Turn<\/b> — a shift time, such as )06:20-13:45/, (m, a) => a + (exampleTime ?? '06:20-13:45')],

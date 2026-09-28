@@ -1287,7 +1287,7 @@ never contingent on the beta label, and dropping it does not make any of them go
     ORR's text was read). **FF19 still renders "(definition to confirm)"** on purpose: the owner chose
     "a rest day resets it", which is more lenient than ORR's wording ("avoid consecutive duties with
     large variations in start times", 7.71). On the strict wording every link with early and late
-    weeks has FF19 — all 26 proposal sheets, where the owner's reading leaves 8 clear — so a manager
+    weeks has FF19 — all 28 proposal sheets, where the owner's reading leaves 9 clear — so a manager
     quoting the FF19 figure should know whose reading it is.
   - **Every hours figure is a FLOOR.** SPARE days carry no times, so a standby day contributes zero
     to "hours in any 7 days". The real total is higher; the panel says so on the row (it did **not**

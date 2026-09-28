@@ -48,6 +48,10 @@ export const SUPPLIED = [
     { file: 'just-enough.json',            name: 'Just Enough',    code: 'JE-24-M29',  fp: '49717d70', strap: 'Fifteen Turns with the fewest changes that meet every rule' },
     // Polished Clean (28 Sep 2026) was supplied as a one-page Word table; every weekly total was checked against its cells.
     { file: 'polished-clean.json',         name: 'Polished Clean', code: 'PC-24-EXT',  fp: '12424ed2', strap: 'Weekday closers from 16:25, on a one-page table' },
+    // All Clear and Clean Sweep (28 Sep 2026): the exact solver's other two answers — Fifteen Turns with no fatigue factor
+    // at all (41 changes, proven), and Polished Clean made to meet the rules but its waived 15:45 closer (34, proven).
+    { file: 'all-clear.json',              name: 'All Clear',      code: 'AC-24-M41',  fp: '094fd369', strap: 'Fifteen Turns with the fewest changes that meet every rule with no fatigue finding' },
+    { file: 'clean-sweep.json',            name: 'Clean Sweep',    code: 'CS-24-M34',  fp: '92366924', strap: 'Polished Clean with the fewest changes that meet every rule but the 15:45 closer' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

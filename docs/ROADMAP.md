@@ -103,7 +103,7 @@ builds toward it, and so that nobody is surprised later that the custom work was
 ### December 2026 Links proposals
 **Status:** Committed · **Owner:** Gareth + Nathan/management · **Plan:** `LINKS_DEC2026_PLAN.md`
 
-The tool is built, and **25 proposal sheets are drawn** (`docs/proposals/`), all judged against the
+The tool is built, and **28 proposal sheets are drawn** (`docs/proposals/`), all judged against the
 eleven December 2026 rules (`December-2026-Rules.pdf`); **none is frozen**.
 What remains is a **decision and meeting schedule**, not code: the Sunday operating-window boundary,
 the business staffing requirement (given verbally, not yet in writing), the FF18 reading (cadence or

@@ -1,26 +1,30 @@
 # Exact CP-SAT model: Fifteen Turns with the fewest cell changes that meet all 11 December rules and the three
 # hard rules, with the nine fatigue factors that can occur on this link counted exactly as links-fatigue.js does.
-import os, sys, json, time
-sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
+import sys, json, time
+sys.path.insert(0,'.')
 from common import *
 from ortools.sat.python import cp_model
 
 ALLPARTS={'open','close','at22','heads','office','closer','floorhand','times','contract','rest','run'}
-def build(base=FT, fmax=None, cmax=None, fix=None, forbid_factors=(), parts=ALLPARTS, domains=None):
+def build(base=FT, fmax=None, cmax=None, fix=None, forbid_factors=(), parts=ALLPARTS, domains=None, spares=None, uni=None, closers=('15:45-23:55',)):
+    # spares: the cover-week lines (default 6, 12, 18, 24); uni: the shift times allowed (default U); closers: the
+    # weekday closer turns the closer rule accepts (the rule is 15:45; an owner may allow another, as for Polished Clean)
+    SP=set(spares or SPARE_LINES); UNI=uni or U
+    def dom(d):
+        c=cls(d); return [s for s in UNI if st(s)>=OPEN[c] and en(s)<=CLOSE[c] and (c!='sun' or 480<=dur(s)<=540)]
     m=cp_model.CpModel()
     LINES=[str(k) for k in range(1,25)]
-    WORK=[k for k in LINES if int(k) not in SPARE_LINES]
-    DOM=domains or domain
+    WORK=[k for k in LINES if int(k) not in SP]
+    DOM=domains or dom
     VALS={d:DOM(d)+['RD'] for d in DAYS}
     x={}
     for k in WORK:
         for d in DAYS:
-            assert base[k][d] in VALS[d], (k,d,base[k][d])
             for v in VALS[d]: x[k,d,v]=m.NewBoolVar(f'x{k}{d}{v}')
             m.AddExactlyOne(x[k,d,v] for v in VALS[d])
     # the sequence
     POS=[(k,d) for k in LINES for d in DAYS]; N=len(POS)
-    spare=lambda i: int(POS[i][0]) in SPARE_LINES
+    spare=lambda i: int(POS[i][0]) in SP
     def lin(i, f):   # sum of x over values v with f(v) at position i (non-spare)
         k,d=POS[i]; return sum(x[k,d,v] for v in VALS[d] if v!='RD' and f(v))
     def R(i): k,d=POS[i]; return x[k,d,'RD']
@@ -40,13 +44,13 @@ def build(base=FT, fmax=None, cmax=None, fix=None, forbid_factors=(), parts=ALLP
     if 'heads' in parts: m.Add(cnt('sat', lambda v: True)>=14); m.Add(cnt('sun', lambda v: True)>=10)
     for d in WD:
         if 'office' in parts: m.Add(cntv(d,'06:20-14:20')>=2); m.Add(cntv(d,'14:00-22:30')>=2)
-        for v in domain(d):
-            if 'closer' in parts and en(v)==1435 and v!='15:45-23:55': m.Add(cntv(d,v)==0)
+        for v in dom(d):
+            if 'closer' in parts and en(v)==1435 and v not in closers: m.Add(cntv(d,v)==0)
     if 'closer' in parts: m.Add(sum(cnt(d, lambda v: en(v)==1435) for d in WD)>=1)   # wkClosers.length > 0
     if 'office' in parts: m.Add(cntv('sat','06:20-14:50')>=2); m.Add(cntv('sat','14:30-22:00')>=2)
     # Sunday pairs, selected exactly as rosteredPairs does
-    SE=sorted([v for v in domain('sun') if st(v)==435], key=lambda v:-en(v))    # latest end first
-    SL=sorted([v for v in domain('sun') if en(v)==1350], key=lambda v:st(v))     # earliest start first
+    SE=sorted([v for v in dom('sun') if st(v)==435], key=lambda v:-en(v))    # latest end first
+    SL=sorted([v for v in dom('sun') if en(v)==1350], key=lambda v:st(v))     # earliest start first
     g={}
     for v in SE+SL:
         g[v]=m.NewBoolVar('g'+v); m.Add(cntv('sun',v)>=2).OnlyEnforceIf(g[v]); m.Add(cntv('sun',v)<=1).OnlyEnforceIf(g[v].Not())
@@ -62,7 +66,7 @@ def build(base=FT, fmax=None, cmax=None, fix=None, forbid_factors=(), parts=ALLP
     # used-on-day booleans
     used={}
     for d in DAYS:
-        for v in domain(d):
+        for v in dom(d):
             u=m.NewBoolVar(f'u{d}{v}'); used[d,v]=u
             m.Add(cntv(d,v)>=1).OnlyEnforceIf(u); m.Add(cntv(d,v)==0).OnlyEnforceIf(u.Not())
     # floor + handover, per day, per pair combination
@@ -77,23 +81,23 @@ def build(base=FT, fmax=None, cmax=None, fix=None, forbid_factors=(), parts=ALLP
                     e2=min(en(t),540 if c=='sun' else 480)
                     if e2>st(t): hp.append((st(t),e2))
                 elif c!='sun' and en(t)>1170: hp.append((max(st(t),1170),en(t)))
-            ticks=sorted({OPEN[c]}|{t for v in domain(d) for t in (st(v),en(v)) if OPEN[c]<=t<CLOSE[c]}|{t for h in hp for t in h if OPEN[c]<=t<CLOSE[c]})
+            ticks=sorted({OPEN[c]}|{t for v in dom(d) for t in (st(v),en(v)) if OPEN[c]<=t<CLOSE[c]}|{t for h in hp for t in h if OPEN[c]<=t<CLOSE[c]})
             for tk in ticks:
                 cov=cnt(d, lambda v: st(v)<=tk<en(v)) - 2*(st(pe)<=tk<en(pe)) - 2*(st(pl)<=tk<en(pl)) + sum(1 for h in hp if h[0]<=tk<h[1])
                 ct=m.Add(cov>=2)
                 if enf: ct.OnlyEnforceIf(enf)
             # handover: every floor closer has a floor duty starting before it and running 15 minutes past its start
-            for cv in [v for v in domain(d) if en(v)==CLOSE[c]]:
+            for cv in [v for v in dom(d) if en(v)==CLOSE[c]]:
                 Q=lambda v: st(v)<st(cv) and en(v)>=st(cv)+15
                 ct=m.Add(cnt(d,Q) - 2*Q(pe) - 2*Q(pl) >= 1); ct.OnlyEnforceIf([used[d,cv]]+enf)
                 if c=='sun':
-                    for t in [v for v in domain(d) if st(v)==OPEN['sun'] and en(v)<st(cv)+15]:
+                    for t in [v for v in dom(d) if st(v)==OPEN['sun'] and en(v)<st(cv)+15]:
                         # a FLOOR opener t (beyond the office pair) must stay until 15 minutes after this closer arrives
                         ct=m.Add(cntv(d,t) <= (2 if t==pe else 0)); ct.OnlyEnforceIf([used[d,cv]]+enf)
             assert en(pe)-st(pl)>=20
     # no more shift times than today (18), across working lines, every day
     tu={}
-    for v in U:
+    for v in UNI:
         tu[v]=m.NewBoolVar('t'+v)
         for k in WORK:
             for d in DAYS:
@@ -108,8 +112,8 @@ def build(base=FT, fmax=None, cmax=None, fix=None, forbid_factors=(), parts=ALLP
             if not spare(i) and not spare(j): yield i,j
     for i,j in adj_pairs():
         (k1,d1),(k2,d2)=POS[i],POS[j]
-        for v in domain(d1):
-            bad=[w for w in domain(d2) if (1440-en(v))+st(w)<720]
+        for v in dom(d1):
+            bad=[w for w in dom(d2) if (1440-en(v))+st(w)<720]
             if bad and 'rest' in parts: m.Add(x[k1,d1,v]+sum(x[k2,d2,w] for w in bad)<=1)
     before=[i for i in range(N) if not spare(i) and spare((i+1)%N)]   # Sat before a cover week
     after=[i for i in range(N) if not spare(i) and spare((i-1)%N)]    # Sun after one
@@ -144,7 +148,7 @@ def build(base=FT, fmax=None, cmax=None, fix=None, forbid_factors=(), parts=ALLP
     # FF11: compressed sequence, a cover week = four shifts and never a break
     comp=[]
     for k in LINES:
-        if int(k) in SPARE_LINES: comp+= [('S',None)]*4
+        if int(k) in SP: comp+= [('S',None)]*4
         else: comp+=[('C',(k,d)) for d in DAYS]
     M=len(comp)
     sh=lambda t: 1 if comp[t][0]=='S' else 1-x[comp[t][1][0],comp[t][1][1],'RD']
@@ -163,15 +167,17 @@ def build(base=FT, fmax=None, cmax=None, fix=None, forbid_factors=(), parts=ALLP
         (k1,d1),(k2,d2)=POS[i],POS[j]
         b=m.NewBoolVar(f'bw{i}'); f=m.NewBoolVar(f'fw{i}'); bw.append(b); fw.append(f)
         m.Add(f<=1-x[k1,d1,'RD'])
-        for v in domain(d1):
-            jump=[w for w in domain(d2) if abs(st(w)-st(v))>120]
+        for v in dom(d1):
+            jump=[w for w in dom(d2) if abs(st(w)-st(v))>120]
             if jump: m.Add(x[k1,d1,v]+sum(x[k2,d2,w] for w in jump)<=1+z['FF19'])
-            earlier=[w for w in domain(d2) if st(w)<st(v)]
+            earlier=[w for w in dom(d2) if st(w)<st(v)]
             if earlier: m.Add(b>=x[k1,d1,v]+sum(x[k2,d2,w] for w in earlier)-1)
-            m.Add(f<=1-x[k1,d1,v]+sum(x[k2,d2,w] for w in domain(d2) if st(w)>st(v)))
+            m.Add(f<=1-x[k1,d1,v]+sum(x[k2,d2,w] for w in dom(d2) if st(w)>st(v)))
     m.Add(sum(bw)-sum(fw) <= 400*z['FF17'])
     # ── objectives ──────────────────────────────────────────────
-    changes=sum(1-x[k,d,base[k][d]] for k in WORK for d in DAYS)
+    # a cell counts as changed when it differs from the base; a base value outside the allowed times, or a line that
+    # becomes (or stops being) a cover week, is a change whatever the solver picks
+    changes=sum((1-x[k,d,base[k][d]]) if (k,d,base[k][d]) in x else 1 for k in WORK for d in DAYS) + sum(1 for k in LINES if int(k) in SP for d in DAYS if base[k][d]!='SPARE')
     factors=sum(z.values())
     if fmax is not None: m.Add(factors<=fmax)
     if cmax is not None: m.Add(changes<=cmax)
@@ -182,7 +188,7 @@ def build(base=FT, fmax=None, cmax=None, fix=None, forbid_factors=(), parts=ALLP
 PAIRS_FIXED={'wk':('06:20-14:20','14:00-22:30'),'sat':('06:20-14:50','14:30-22:00')}
 
 def extract(solver,x,WORK,base=FT):
-    p={k:dict(base[k]) for k in base}
+    p={k:(dict(base[k]) if k in WORK else {d:'SPARE' for d in DAYS}) for k in base}
     for (k,d,v),var in x.items():
         if solver.Value(var): p[k][d]=v
     return p

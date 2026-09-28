@@ -7,18 +7,25 @@
 #   5 · the most weeks with one clock time Mon–Fri (keeps a line's week coherent)
 #   usage: python3 tiebreak.py C F out.json [seconds-per-stage]
 import os, sys, json, time
-sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0,'.')
 from common import *
 from model import build, extract
 from evaluator import judge
 from ortools.sat.python import cp_model
 
 C,F,OUT=int(sys.argv[1]),int(sys.argv[2]),sys.argv[3]; T=float(sys.argv[4]) if len(sys.argv)>4 else 600
+# BASE=<grid.json, e.g. ../../Polished-Clean-PC-24-EXT.json> SPARES=1,7,13,19 CLOSERS=15:45-23:55,16:25-23:55 — for a base other than Fifteen Turns (Polished Clean)
+BASE=load(os.environ['BASE']) if os.environ.get('BASE') else FT
+SPS={int(v) for v in os.environ['SPARES'].split(',')} if os.environ.get('SPARES') else SPARE_LINES
+CLS_=tuple(os.environ['CLOSERS'].split(',')) if os.environ.get('CLOSERS') else ('15:45-23:55',)
+UNI=sorted(set(U)|times_of(BASE), key=lambda s:(st(s),en(s)))
+def domain(d):
+    c=cls(d); return [s for s in UNI if st(s)>=OPEN[c] and en(s)<=CLOSE[c] and (c!='sun' or 480<=dur(s)<=540)]
 
 def model():
-    m,x,z,changes,factors,WORK=build(fmax=F,cmax=C)
+    m,x,z,changes,factors,WORK=build(base=BASE,spares=SPS,uni=UNI,closers=CLS_,fmax=F,cmax=C)
     LINES=[str(k) for k in range(1,25)]; POS=[(k,d) for k in LINES for d in DAYS]; N=len(POS)
-    spare=lambda i: int(POS[i][0]) in SPARE_LINES
+    spare=lambda i: int(POS[i][0]) in SPS
     V=lambda d: domain(d)
     E=lambda i: 0 if spare(i) else sum(x[POS[i][0],POS[i][1],v] for v in V(POS[i][1]) if 300<=st(v)<420)
     R=lambda i: x[POS[i][0],POS[i][1],'RD']
@@ -58,7 +65,7 @@ def model():
     # one-turn weeks (feel.oneTurn): Mon–Fri worked days on one clock time, and every worked day in one family
     fam=lambda v: 'early' if st(v)<11*60 else 'late'   # report-data family(): early before 11:00
     one=[]
-    WORKL=[k for k in LINES if int(k) not in SPARE_LINES]
+    WORKL=[k for k in LINES if int(k) not in SPS]
     for k in WORKL:
         o=m.NewBoolVar(f'one{k}'); one.append(o)
         # o -> exists a single value v used on every worked Mon–Fri day ... encoded as: for each pair of weekdays both worked, same value
@@ -78,30 +85,31 @@ def model():
     wkends=[]
     for i,k in enumerate(LINES):
         nk=LINES[(i+1)%24]
-        if int(k) in SPARE_LINES or int(nk) in SPARE_LINES: continue
+        if int(k) in SPS or int(nk) in SPS: continue
         w=m.NewBoolVar(f'wk{k}'); m.Add(w<=x[k,'sat','RD']); m.Add(w<=x[nk,'sun','RD']); wkends.append(w)
     # the SIZE of the changes: minutes the start and finish move, a rest day <-> duty counted as a whole duty (8h each end)
     def size(a,b):
         if a==b: return 0
-        if a=='RD' or b=='RD': return 960
+        if a in ('RD','SPARE') or b=='RD': return 960
         return abs(st(a)-st(b))+abs(en(a)-en(b))
-    sz=sum(size(FT[k][d],v)*var for (k,d,v),var in x.items() if size(FT[k][d],v))
+    sz=sum(size(BASE[k][d],v)*var for (k,d,v),var in x.items() if size(BASE[k][d],v))
     return m,x,z,changes,factors,WORK,sum(jumps),sum(ff8),h,run,sum(one),sum(wkends),sz
 
 stages=(sys.argv[6].split(',') if len(sys.argv)>6 else ['jumps','ff8','h','run','one'])
-HINT=json.load(open(sys.argv[5])) if len(sys.argv)>5 else FT
-fixed={}
+HINT=json.load(open(sys.argv[5])) if len(sys.argv)>5 else BASE
+# FIXED=wk=-2,size=16770 — resume after a lost run: stages already proven/settled, fixed at these values
+fixed={kv.split('=')[0]:int(kv.split('=')[1]) for kv in os.environ['FIXED'].split(',')} if os.environ.get('FIXED') else {}
 for si,st_ in enumerate(stages):
     m,x,z,changes,factors,WORK,J,F8,H,RUN,ONE,WK,SZ=model()
     exprs={'jumps':J,'ff8':F8,'h':H,'run':RUN,'one':-ONE,'wk':-WK,'size':SZ}
     for k,v in fixed.items():
         m.Add(exprs[k]<=v)
     m.Minimize(exprs[st_])
-    for (k,d,v),var in x.items(): m.AddHint(var, 1 if HINT[k][d]==v else 0)
+    for (k,d,v),var in x.items(): m.AddHint(var, 1 if HINT.get(k,{}).get(d)==v else 0)
     s=cp_model.CpSolver(); s.parameters.max_time_in_seconds=T; s.parameters.num_workers=4
     t0=time.time(); r=s.Solve(m)
     assert r in (cp_model.OPTIMAL,cp_model.FEASIBLE), 'no solution at stage '+st_
     val=int(round(s.ObjectiveValue())); fixed[st_]=val
     print(st_, s.StatusName(r), 'value', val, 'bound', s.BestObjectiveBound(), 'time', round(time.time()-t0,1), flush=True)
-    p=extract(s,x,WORK); json.dump(p,open(OUT,'w'),indent=1); HINT=p
+    p=extract(s,x,WORK,base=BASE); json.dump(p,open(OUT,'w'),indent=1); HINT=p
 Jd=judge(p); print('final', 'changes', s.Value(changes), 'factors', [f for f,v in Jd['factors'].items() if v], 'run', Jd['run'], 'rules', all(Jd['rules'].values()))

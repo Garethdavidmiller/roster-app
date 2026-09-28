@@ -1,0 +1,35 @@
+{
+ "date": "28 September 2026",
+ "parent": {
+  "file": "polished-clean.json",
+  "name": "Polished Clean",
+  "code": "PC-24-EXT"
+ },
+ "sub1": "Polished Clean with the fewest cells changed that meet every rule but the 15:45 closer, which the owner waived for it — 34, and an exact solver proved no version with fewer does",
+ "coverNote": "lines 1, 7, 13 and 19 — gaps of 6, 6, 6, 6. Polished Clean drew them at 1, 7, 12 and 17; moving two of them is what evenly spread asks for, and it is most of the change",
+ "eyebrow3": "Polished Clean, changed as little as possible",
+ "h3": "What had to change, and why",
+ "sub3": "Every changed cell is outlined on the grid; each one is there because a rule could not be met without it",
+ "intro2": "<p>This is <b>Polished Clean</b> (PC-24-EXT) with the <b>fewest cells changed that meet the December 2026 rules and the three hard limits</b> — 12 hours' rest, no more than 13 days in a row, and exactly the 35-hour contract — <b>keeping its weekday closers at 16:25</b>. The owner allowed that for this design, so the rule that every weekday closer starts at 15:45 is the one it does not meet, by choice; the other ten are all met, where Polished Clean as drawn meets two. The number is <b>34</b>, and it is proven: an exact solver examined every way of changing the grid and found no version with 33 or fewer.</p><p>Among every 34-change version, this one also has the <b>fewest fatigue findings — three</b>, down from Polished Clean's four, and none of the three is new. That is proven too.</p>",
+ "dutyNote": "Why these 34 and no fewer: <b>28 are the cover weeks</b> — the rules need them evenly spread, every six lines, and Polished Clean has them at 1, 7, 12 and 17; the cheapest even spacing is 1, 7, 13 and 19, which moves two of them, and a cover week that moves takes its line's seven days with it (every other spacing costs 45 to 59 changes). Moving them is also where the solver rebuilt those four lines' duties to give the <b>ticket office its pairs</b> every day. <b>6 more</b> finish the job: lines 16 and 20 work Saturday lates where they had a rest day, Saturday's <b>thirteenth and fourteenth people</b> — line 20 the office's 14:30–22:00, line 16 a 14:30–23:25 that keeps five on after 22:00, line 24's Saturday opener becomes the office's 06:20–14:50, line 3's Sunday becomes a 07:15 opener (four at Sunday's open), and line 18's Monday and Tuesday trade an early for the office's 06:20–14:20 and a rest day, which keeps the contract exact. Had the cover weeks been left as drawn, 12 changes would meet every other rule — the even spread costs the other 22.",
+ "openQuestions": "<b>The weekday closers stay at 16:25.</b> That is the owner's allowance for this design, not an oversight, and it is why the sheet shows ten of the eleven rules. <b>Three fatigue findings remain, all already in Polished Clean:</b> <b>1 · Blocks of early starts without two rest days after</b> (FF8b); <b>2 · More than four early starts in a row on a rotating pattern</b> (FF15); <b>3 · Start times moving more than two hours inside a working block</b> (FF19). Clearing them was not asked for: the brief was the fewest changes. <b>Nine lines change</b>, four of them wholly because a cover week moved. <b>The longest run is nine days</b> — inside the 13-day limit, above the design target of six — and the shortest possible once the choices above it were fixed.",
+ "h7": "How it was made",
+ "sub7": "Reproducible: the solver, its checks and every command are in the tooling folder",
+ "methodHeading": "Fewest changes first, then fewest fatigue findings",
+ "method": "<p><b>1 · What counts as a change.</b> One cell of the grid — one line on one day — that differs from Polished Clean. A new shift time, a duty becoming a rest day, a rest day becoming a duty and a day becoming or ceasing to be a cover day each count as one. The shift times allowed are the ones already in use: Polished Clean's own, <i>Fifteen Turns</i>' and <i>Gates Mended</i>'s, today's link's and the ticket office's plan times.</p><p><b>2 · Proven, not searched for.</b> An exact solver (Google OR-Tools, CP-SAT) was given every rule as a constraint — the December 2026 rules with a weekday closer allowed at 16:25 as well as 15:45, the three hard limits, and every fatigue factor that can occur on this link, each written the way the app's own code measures it — and solved once for each of the six even spacings of the cover weeks, and once with them where drawn. It proved that <b>34 is the fewest changes</b>, and that <b>three is the fewest fatigue findings at 34</b>.</p><p><b>3 · Choosing among the 34-change versions.</b> Many tie, so the choice was made in a fixed order: the most full weekends off (two, as Polished Clean — proven the most possible); then the <b>smallest</b> changes (proven); then the fewest two-hour start-time jumps, early blocks without rest (proven), the lightest busiest seven days (proven), the shortest longest run (proven) and the most one-turn weeks. Every figure on these pages is measured from the grid by the Links designer's own modules. Not a recommendation.</p>",
+ "identity": {
+  "table": "— (Polished Clean's own duties, 34 cells changed)",
+  "seed": "— (exact solver, fixed tie-break order)",
+  "lineage": "DERIVED: “Polished Clean” (PC-24-EXT · 12424ed2) with the fewest cells changed that meet every December 2026 rule but the 15:45 closer (waived by the owner for this design) and the three hard limits — 34, proven the minimum by an exact solver — and, among those, the fewest fatigue findings (three, also proven)."
+ },
+ "extraAlternatives": [
+  {
+   "label": "PC-24-EXT — Polished Clean as supplied (2 of 11 rules)",
+   "file": "polished-clean.json"
+  }
+ ],
+ "denseAlts": true,
+ "pickNote": "<p class=\"muted\"><b>How this one was picked:</b> fewest changes first (34, proven), then fewest fatigue findings at that number of changes (three, proven), then the most weekends off, the smallest changes and the mildest remaining findings. <i>Wk fit</i> is how evenly the weekday cover follows the December 2026 timetable, lower being more even.</p>",
+ "waived": "closer",
+ "waivedWhy": "which keeps its 16:25 closers"
+}
