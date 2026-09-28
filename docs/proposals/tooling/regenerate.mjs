@@ -46,6 +46,8 @@ export const SUPPLIED = [
     // Just Enough (28 Sep 2026) is Fifteen Turns with the fewest cells changed that meet every rule — 29, proven by the exact
     // solver in tooling/exact/ — and, among those, the fewest fatigue factors (three, also proven).
     { file: 'just-enough.json',            name: 'Just Enough',    code: 'JE-24-M29',  fp: '49717d70', strap: 'Fifteen Turns with the fewest changes that meet every rule' },
+    // Polished Clean (28 Sep 2026) was supplied as a one-page Word table; every weekly total was checked against its cells.
+    { file: 'polished-clean.json',         name: 'Polished Clean', code: 'PC-24-EXT',  fp: '12424ed2', strap: 'Weekday closers from 16:25, on a one-page table' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
