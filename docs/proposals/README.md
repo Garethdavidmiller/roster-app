@@ -1189,6 +1189,14 @@ answered or which sheet came before it. **No figure changed**; the words around 
   its two halves *Today's link* and *Proposed*; page 7 shows today's link beside the proposal on every rule;
   times read "8h 10m", never "8.17h"; "early" and "late" are defined at 11:00 everywhere; and no sheet says how
   it was made — neither "found by computer search" nor "drawn by hand".
+- **An accuracy check** (28 Sep 2026) recounted every sheet from its rota with code written separately from the
+  renderer: the page-1 and page-9 figures, every grid cell, colour and total on page 4, every duty-table row
+  on page 5, every hour-by-hour row on page 6, the rule values on page 7 and the page-10 paste block. It also
+  read every hand-written claim. The figures were right. The words around them were not always: the
+  rules-not-met chip was nested in the fatigue chip, page 3 quoted the December Saturday/Sunday rule with
+  the design's own counts, "does not depend on how a cover week is placed" was untrue on six sheets, four
+  straps misdescribed their rota, and nothing mentioned Saturday Four's half-hour with one person on duty
+  (now a "thin moment" line on page 7, raised automatically for any day that drops below three).
 - **Family and first-created date** sit in the identity panel on page 1 (`FAMILY` and `FIRST` in `fresh.mjs`) —
   deliberately small, as a finding aid when presenting, not a history.
 
