@@ -56,6 +56,8 @@ export const SEARCHED = [
     // P2 ran in both modes too, with the same outcome: fatigue-first (RN) cleared every factor on all four seeds, like-today (N)
     // kept one (FF19) on every seed. The like-today best is the labelled comparison row.
     { proposal: 'P2', fp: '33a78cbe', globs: ['results/best-RN-*.json'], env: { OTHER_MODE: 'results/best-N-7.json' } },
+    // FR ran fatigue-first only, on the owner's final rules of 28 Sep 2026 (table F, final-rules-table.json, built by final-table.mjs).
+    { proposal: 'FR', fp: '03a59c77', globs: ['results/best-RF-*.json'] },
 ];
 
 const expand = g => { const [dir, pat] = [g.slice(0, g.lastIndexOf('/')), g.slice(g.lastIndexOf('/') + 1)];

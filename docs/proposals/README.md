@@ -3,7 +3,7 @@
 The CEA link proposals drawn for the December 2026 timetable change, each a PDF with its own
 **identity** so it can be named in a room: a name, a code that says how it was built, and a
 fingerprint of the exact cells so a printout can never be confused with a variant. The same
-identity is in every page footer. All 22 were judged by the app's own Links modules
+identity is in every page footer. All 23 were judged by the app's own Links modules
 (`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) — the
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
@@ -14,6 +14,7 @@ nothing is typed.
 | **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
 | **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no duty over 8h40 — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
 | **Quarter To 2** | `Q2-24-W21 · 7ea671d5` | *Quarter To* with its own open question answered: **Saturday and Sunday searched again under the 8h40 cap** from today's clock times and the quarter hour — Saturday entirely in today's times (fit 23.1 against 32.7), Sunday one new turn, the capped closer (61.4 against 80.6); every one of its 20 working weeks is one turn | 1 (FF19, one jump) | 6 | 6 in 24 |
+| **Final Rules** | `FR-24-F34 · 03a59c77` | **The owner's final rules of 28 Sep 2026**: the ticket office rostered as fixed pairs of identical turns and **not counted as floor cover**, every weekday closer 15:45, the headcounts as minimums, at least two on the floor at every moment, 15-minute handovers (20 in the office), Sunday duties 8h–9h, no more shift times than today — each day enumerated to a proof for the fit of the **floor** (20.4 weekday, 11.6 Saturday, 19.2 Sunday; 21.9 / 12.2 / 33.6 with the office counted, the folder's best weekday), 17 turns in the week against today's 18, the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Pinned Turns 2** | `P2-24-N13 · 33a78cbe` | *Pinned Turns*' pins with **every other time rewritten onto the quarter hour** (the pinned 06:20–14:20 the one exception, and the contract's arithmetic needs it) and **no more shift times a day than *Pinned Turns*** — each day enumerated to a proof (weekday fit 33.8, Saturday 22.9, Sunday 62.4; 14 distinct turns in the week), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Pinned Turns** | `PT-24-P34 · dae6292e` | **The owner's brief of 25 Sep 2026** from today's roster: Mon–Fri 15:45 closers, three 06:20–14:20 openers, two 14:00–22:30 lates and an 8h40 cap; Saturday two long openers and a 14:00–22:30; Sunday a 13:00–21:30 — the rest of each day fitted to the timetable (weekday fit 32.1; three turns off the quarter hour — the pinned 06:20–14:20, Saturday's 06:20–14:50 and the weekday's 07:00–15:40), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Eight Forty** | `EF-24-E21 · 0cf19f56` | *By the Book* with no duty over 8h40 — the December table re-solved under the same rules with the ceiling at 8h40 (its earlies had run to 9h30), then the rotation searched for the ORR factors as *By the Book* was | **0** | 6 | 6 in 24 |
@@ -33,7 +34,7 @@ nothing is typed.
 | **Clean Final Tuned** | `CFT-24-M3 · ae1a15bd` | *Clean Final* with **three cells retimed** and nothing else — Saturday's demand fit 28.5→20.5 and Sunday's 62.4→44.9, every headcount, cover week and contracted hour unchanged | 3 | 9 | 4 in 24 |
 | **Clean Final Ten** | `TN-24-R7 · 84b60df9` | *Clean Final Tuned* with **a tenth Sunday duty added** (`15:25–23:25`) and the wheel then **reordered, whole weeks only** — Sunday's fit 44.9→35.3, ten on a Sunday met, every week pattern intact | **2** | 6 | 5 in 24 |
 
-The first four searched proposals — *Same Turns*, *By the Book*, *Quarter To*, *Eight Forty* (of eight searched families; *By the Book 2*, *Quarter To 2*, *Pinned Turns* and *Pinned Turns 2* have their own sections below) — clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
+The first four searched proposals — *Same Turns*, *By the Book*, *Quarter To*, *Eight Forty* (of nine searched families; *By the Book 2*, *Quarter To 2*, *Pinned Turns*, *Pinned Turns 2* and *Final Rules* have their own sections below) — clear every hard rule — Chiltern's 13-day limit, twelve hours between duties, the exact
 35-hour contracted week — and meet the December staffing shape (four to open, three through to
 the close and four on a Saturday, five still on at 22:00, fourteen on a Saturday, ten on a Sunday,
 four cover weeks at lines 1, 7, 13, 19). They differ on exactly one thing, and it is a people
@@ -954,6 +955,70 @@ roster eighteen), and 6 of its 14 times worked today. Beside *Pinned Turns*: the
 weekday fit 1.7 worse and a Saturday half a point better, every unpinned time on the quarter hour, two
 fewer shift times to hold.
 
+## Final Rules — the owner's final rules, the ticket office kept off the floor (28 Sep 2026)
+
+The owner's final set of rules, given over 27–28 September after reading the league table of every
+design against them. **Hard:** Chiltern's 13-day limit, twelve hours between duties, the exact 35-hour
+week (Sunday outside it), 14 on a Saturday and 10 on a Sunday, four cover weeks. **Fixed turns, exact
+counts:** Monday to Friday two `06:20-14:20` and two `14:00-22:30`; Saturday two `06:20-14:50` and two
+`14:30-22:00`; Sunday two identical earlies from 07:15 and two identical lates to 22:30, for a ticket
+office open 07:15–22:30. **Every weekday closer starts 15:45** (today's 15:15). **Everything else is
+demand based, and demand matching is important** — with these soft rules around it:
+
+- the headcounts are **minimums**, never marked down for more: at least four at the open, at least three
+  at the close (Saturday included), at least five on at 22:00, every day;
+- **the fixed pairs are the ticket office and are not floor cover**, and at least two people are on the
+  floor at every moment — the first Sunday found without that rule left one person on the floor from
+  14:20 to 15:15;
+- a **15-minute handover** to each closer (on a Sunday every floor opener stays 15 minutes past the last
+  closer's start) and **20 minutes** between the two ticket-office pairs;
+- Sunday duties **8h to 9h** (every other day 7h to 9h30), Sunday free to use up to six shift times;
+- no more shift times than today (18 in the week); Saturday **evenly balanced to demand**, not leant late
+  for events; "nothing finishes in the hour before the close" dropped.
+
+**How it was built.** `tooling/final-table.mjs` fixes the pairs and the 15:45 closers, then enumerates
+every remaining table on the five-minute grid (quarter-hour starts, or the window's own instants) with a
+branch-and-bound on the fit **of the floor** — the office's minutes taken out of the cover before the
+share-of-traffic measure is applied. Each day is a proof, not a sample. The split was swept as before —
+5W + S = 42,000 — and every point proven (floor fit, weekday / Saturday):
+
+| W (weekday) | S (Saturday) | weekday floor fit | Saturday floor fit | note |
+|---|---|---|---|---|
+| 6,960 | 7,200 | 20.2 | 12.9 | |
+| **6,970** | **7,150** | **20.4** | **11.6** | this sheet |
+| 6,975 | 7,125 | 20.6 | 10.8 | fifteen shift times a weekday |
+| 6,990 | 7,050 | 20.9 | 9.2 | |
+
+The sheet takes the weekday's side of that trade by a little; the room may prefer Saturday's, and every
+other row is one command away. The tables (`tooling/final-rules-table.json`):
+
+| Day | table | floor fit | fit with the office | today's |
+|---|---|---|---|---|
+| Weekday (6,970) | `06:20-13:45 ×1 · 06:20-14:20 ×2 (office) · 06:20-14:30 ×1 · 06:20-15:45 ×1 · 07:00-16:15 ×2 · 14:00-21:00 ×1 · 14:00-22:30 ×2 (office) · 15:45-23:55 ×4` | **20.4** | 21.9 | 50.0–55.8 |
+| Saturday (7,150) | `06:20-14:50 ×2 (office) · 06:20-15:30 ×3 · 07:15-16:45 ×2 · 14:30-22:00 ×2 (office) · 14:45-22:45 ×1 · 15:45-23:55 ×4` | **11.6** | 12.2 | 45.7 |
+| Sunday (5,070) | `07:15-15:30 ×4 (two of them the office) · 09:15-18:15 ×1 · 13:30-22:30 ×2 (office) · 15:15-23:25 ×3` | **19.2** | 33.6 | 65.9 |
+
+Everyone on duty: 5 / 5 / 4 at the open, 4 / 4 / 3 at the close, 6 / 5 / 5 on at 22:00, never fewer than
+three on the floor on a weekday or Saturday and two on a Sunday. **The fit with the office counted is
+always looser than the floor's**, because the office is staffed to its opening hours rather than to the
+trains — and the fit is a measure of shape, not level, so a person added to a quiet hour worsens it
+while nobody is worse off. Read it beside the heads, never alone.
+
+**The rotation** was searched fatigue-first (`MODE=rules`, table F, 100,000 steps × 5 restarts, seeds
+7 13 21 34). Three seeds cleared every factor; seed 34 has the most full weekends off of those three:
+`FR-24-F34 · 03a59c77` — no rest under 12h (tightest 14h05), a longest run of 6, six full weekends off,
+**zero fatigue factors present**, 11 of 20 working weeks a single turn, a typical week-to-week step of
+1h50, and **17 distinct turns in the week against today's 18** — 5 of them worked today.
+
+**The sheet shows the cover three ways** on page 6 — everyone on duty, of whom the ticket office, of
+whom the floor, each with its own fit — which is the only way to read a table whose fixed pairs sit
+across the day's quietest hours by design.
+
+**What it does not model.** The owner has since said the second office person helps on the floor at the
+quiet ends (the morning one until 08:00, 09:00 on a Sunday; the evening one from 19:30; on a Sunday the
+evening one splits their time). `final-table.mjs` now does that by default; this sheet was built with it
+off, as the rules stood when it was asked for, and a table built with it on would be a different proposal.
+
 ## The shape of a sheet — headline, how to read it, then the depth (25 Sep 2026)
 
 The owner's brief for the format: *headline analysis, deep analysis, but for dummies.* Ten pages now,
@@ -1077,6 +1142,12 @@ CLS=weekday TOTAL=6970 node quarter-table.mjs   # Pinned Turns 2: the same pins,
 PIN_WK="06:20-14:20x3,14:00-22:30x2,15:45-23:55x3" PIN_SAT="14:00-22:30x1" PIN_SUN="13:00-21:30x1" CAP=520 COUNTS_JSON=… EXTRA_JSON=… node assemble-table.mjs pinned-turns-2-table.json p2-weekday.json p2-sat.json p2-sun.json
 MODE=rules node anneal.mjs N 100000 5 7    # Pinned Turns 2: table N in BOTH modes (MODE=feel too), seeds 7 13 21 34, as P
 PROPOSAL=P2 node final.mjs results/best-RN-*.json
+H="TO_EARLY_HELP=0 TO_LATE_HELP=1440 TO_LATE_SHARE=0"   # Final Rules: the ticket office kept entirely off the floor (the default now lends it at the quiet ends)
+env $H CLS=weekday TOTAL=6970 MAX_TURNS=8 BEST0=20.5 OUT=fr-weekday.json node final-table.mjs   # the owner's final rules, the floor fitted, enumerated to a proof (the slow one; BEST0 seeds the bound)
+env $H CLS=sat TOTAL=7150 MAX_TURNS=6 OUT=fr-sat.json node final-table.mjs   # ~16s; CLS=sun MAX_TURNS=6 OUT=fr-sun.json ~5s (Sunday's total is searched, 4,800–5,300); ANNEAL=1 for a fast sweep of W
+CAP=570 PIN_WK="06:20-14:20x2,14:00-22:30x2" PIN_SAT="06:20-14:50x2,14:30-22:00x2" PIN_SUN="07:15-15:30x2,13:30-22:30x2" AT22_FLOOR=1 node assemble-table.mjs final-rules-table.json fr-weekday.json fr-sat.json fr-sun.json
+MODE=rules node anneal.mjs F 100000 5 7    # Final Rules: table F, fatigue-first, seeds 7 13 21 34
+PROPOSAL=FR node final.mjs results/best-RF-*.json
 CAP=510 COUNT=1 node table-book.mjs  # how many length structures a cap admits, WITHOUT searching -- a zero is a proof
 node regenerate.mjs --check           # every proposal's shipped JSON (and a supplied design's source grid) fingerprinted, without rendering
 node regenerate.mjs                  # re-render EVERY sheet from the same inputs that produced it
