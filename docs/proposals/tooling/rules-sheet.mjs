@@ -130,7 +130,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 
   <h2>The basics every rule assumes</h2>
   <div class="basics">
-    <div><b>Opening hours.</b> The station opens at 06:20 (07:15 on a Sunday) and closes at 23:55 (23:25 on a Sunday).</div>
+    <div><b>Opening hours.</b> The station opens at 06:20 (07:15 on a Sunday) and closes at 23:55 (23:25 on a Sunday). <b>No duty runs past 23:25 on a Sunday</b> — agreed practice, settled 28 Sep 2026 — although ${sunLate.length} Sunday trains move later, the last at ${clock(sunLate[sunLate.length - 1].t)}.</div>
     <div><b>The link.</b> 24 lines worked in turn, one week each, Sunday to Saturday; a person on the last line moves to line 1.</div>
     <div><b>Cover week.</b> A line with no fixed shifts: four duties in the week, placed by the roster clerk to cover leave and sickness.</div>
     <div><b>Early and late.</b> A shift starting before 11:00 is an early; from 11:00 it is a late.</div>
@@ -181,7 +181,6 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
       // Settled 28 Sep 2026 against ORR's Managing rail staff fatigue (Aug 2024): only FF19 keeps the flag, because
       // its reading (a rest day resets it) is the owner's and more lenient than ORR's wording — say which way it leans.
       return `<b>${['No','One','Two','Three','Four','Five','Six'][n] ?? n} fatigue definition${n === 1 ? '' : 's'} to confirm.</b> ${n ? `${codes} ${n === 1 ? 'is' : 'are'} counted on a reading an assessing manager should confirm${c.some(r => r.code === 'FF19') ? ': FF19 treats a rest day as time to adjust, where the ORR’s wording (“consecutive duties”) would count across rest days — and on that reading every link has it' : ''}.` : 'Every factor is counted on the ORR’s own reading.'}`; })()}</li>
-    <li><b>Sunday’s finish.</b> ${sunLate.length} trains in the December 2026 timetable arrive or leave after the 23:25 Sunday close, the last at ${clock(sunLate[sunLate.length - 1].t)}. Should Sunday cover run later?</li>
   </ol>
 
   <div class="callout"><b>Changing a rule.</b> Every proposal sheet is checked against this set by the same code. Change a rule and all ${N} sheets and this page are re-rendered together, so no sheet is ever judged against an older version of it.</div>

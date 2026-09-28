@@ -1473,8 +1473,10 @@ on; the ones that held were adopted, and the one that no longer held was not.
 - **"0 design-specific fatigue findings, plus 2 standing factors"**, not "0 factors". See FF18, below.
 - **"11 of 11 current working rules"**, not "December 2026 rules met": the rules were given verbally and are not
   yet in writing, and the sheets now say so where the count appears.
-- **The Sunday caveat moves to page 1** — an amber chip, *Sunday's finish undecided — N trains after 23:25*, on
-  every sheet, because a reader who stops at page 1 should know the Sunday close is still open.
+- **The Sunday caveat on page 1** — adopted, then withdrawn the same day, because the owner **settled the question**:
+  **no duty runs past 23:25 on a Sunday; that is agreed practice and will remain so** (28 Sep 2026). The five later
+  movements (the last at 23:54) are now stated as a settled fact beside the Sunday figures and on the rules sheet, not
+  as an open question, and no sheet carries the amber chip. Nothing re-solves: every design already stops at 23:25.
 - **Page 9 is grouped by rules met, then fewest fatigue findings, then alphabetical** — it never claimed to rank by
   fit, and now says so, so nobody reads a fit ranking into the order.
 

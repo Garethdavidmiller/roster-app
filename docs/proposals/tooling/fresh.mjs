@@ -8,7 +8,7 @@
 //
 // The one-line descriptions are the only typed words about a design, and each says what the design IS, never
 // what it was derived from.
-import { currentRules, demand } from './report-data.mjs';
+import { currentRules } from './report-data.mjs';
 import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.js';
 import { maxHoursInAny7Days, toSequence } from '../../../links-fatigue.js';
 import { materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs';
@@ -177,7 +177,6 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
         const t = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
         if (lo < 3) out.push(`<b>A thin moment.</b> ${NM[d]} ${t(from)}–${t(to)}: only ${lo === 1 ? 'one person' : `${lo} people`} on duty in the whole station, ticket office included. Page 6 counts by the hour, so it does not show this.`); }
       return out; })(),
-    `<b>Sunday’s finish.</b> Five trains in the December 2026 timetable arrive or leave after the 23:25 Sunday finish; whether Sunday cover should run later is still to be decided.`,
   ].filter(Boolean);
 
   const tr = (d, here) => `<tr${here ? ' class="here"' : ''}><td class="nm">${d.name}</td><td class="num">${d.rules.met} of ${d.rules.of}</td><td class="num">${d.present}</td><td class="num">${d.run}</td><td class="num">${hmR(d.rest)}</td><td class="num">${d.weekends}</td><td class="num">${f1(d.floor.wk)}</td><td class="num">${f1(d.floor.sat)}</td><td class="num">${f1(d.floor.sun)}</td><td class="num">${d.distinct}</td><td class="num">${d.distinct - d.newTimes}</td></tr>`;
@@ -206,9 +205,9 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     ...(() => { const k = new Set([...T.tableRows, ...P.tableRows].map(r => r.time)).size; return k > 36 ? { denseDuty: true, tightDuty: true, xxTightDuty: true } : k > 26 ? { denseDuty: true, tightDuty: true } : {}; })(),
     fresh: true, changed: null, officeNamed: R.rows.find(r => r.key === 'office').ok,
     coverSame: coverParts.length === 0, coverParts, ff11Split, ff11Block, pairDays: R.pairDays, otherDaysTxt: (() => { const NM = { sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat' }; const o = ['mon','tue','wed','thu','fri','sat','sun'].filter(x => !(R.pairDays ?? []).includes(x)); const wk = ['mon','tue','wed','thu','fri'].every(x => o.includes(x)); const parts = [...(wk ? ['Mon–Fri'] : o.filter(x => !['sat','sun'].includes(x)).map(x => NM[x])), ...o.filter(x => x === 'sat' || x === 'sun').map(x => NM[x])]; return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts.join(''); })(), pairDaysTxt: (() => { const NM = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' }; const d = R.pairDays ?? []; const wk = ['mon','tue','wed','thu','fri'].every(x => d.includes(x)); const parts = [...(wk ? ['Mon–Fri'] : d.filter(x => !['sat','sun'].includes(x)).map(x => NM[x])), ...d.filter(x => x === 'sat' || x === 'sun').map(x => NM[x])]; return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts.join(''); })(), readLines, p8Note, monSat, f1,
-    rulesChip: (failed.length ? `<span class="sum-chip sum-chip--warn">⚠ <strong>${failed.length}</strong> of ${R.of} current working rules not met${failed.length === 1 ? ` — ${failed[0].rule.charAt(0).toLowerCase() + failed[0].rule.slice(1)}${meta.waived === failed[0].key ? ', waived for this design' : ''}` : ''}</span>` : `<span class="sum-chip sum-chip--ok">✓ all <strong>${R.of}</strong> current working rules met</span>`)
-      // Sunday's finish can change the winner, so it is on page 1 of every sheet, not only page 7 (external review, 28 Sep 2026)
-      + `<span class="sum-chip sum-chip--warn">⚠ Sunday’s finish undecided — ${demand.movementsOutside(demand.movements.sun, 7*60+15, 23*60+25).after.length} trains after 23:25</span>`,
+    rulesChip: (failed.length ? `<span class="sum-chip sum-chip--warn">⚠ <strong>${failed.length}</strong> of ${R.of} current working rules not met${failed.length === 1 ? ` — ${failed[0].rule.charAt(0).toLowerCase() + failed[0].rule.slice(1)}${meta.waived === failed[0].key ? ', waived for this design' : ''}` : ''}</span>` : `<span class="sum-chip sum-chip--ok">✓ all <strong>${R.of}</strong> current working rules met</span>`),
+      // No Sunday chip: the 23:25 finish is SETTLED (owner, 28 Sep 2026 — no duty runs past it, agreed practice). The
+      // external review asked for an amber "undecided" chip here; it shipped for one release and was withdrawn the same day.
     metaLine: `Prepared ${rendered} · every figure is calculated from the rota, not entered by hand`,
     identExtra: `<div class="ident-row ident-minor"><span class="ident-k">Family</span><span class="ident-v">${FAMILY[code.split('-')[0]] ?? '—'}</span></div><div class="ident-row ident-minor"><span class="ident-k">Created</span><span class="ident-v">${(FIRST[code] ?? '—').replace('Sep', 'September')}</span></div>`,
     sub1: 'How this rota would work from December 2026, and how it compares with today’s link',
@@ -222,7 +221,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     designRules: R.rows.map((r, i) => ({ rule: r.rule, value: r.value, ok: r.ok, note: r.note, today: RT.rows[i].value, todayOk: RT.rows[i].ok })),
     openQuestionsHeading: 'Still to settle', openQuestions: oqItems.join(' '), openQuestionsHtml: `<ul class="oq-list">${oqItems.map(x => `<li>${x}</li>`).join('')}</ul>`,
     wembleyLine: 'Whether this pattern holds on Wembley event days — it is based on the train timetable, not on passenger numbers.',
-    sundayNote: 'On Sundays five trains in the December 2026 timetable arrive or leave after the 23:25 finish (the last at 23:54); the bar under the Sunday 23:00 hour marks the time after the finish. Whether Sunday cover should run later is still to be decided.',
+    sundayNote: 'On Sundays five trains in the December 2026 timetable arrive or leave after the 23:25 finish (the last at 23:54); the bar under the Sunday 23:00 hour marks the time after the finish. No duty runs past 23:25 on a Sunday — that is agreed practice and stays so (settled 28 Sep 2026) — so those trains fall outside every design’s staffed day, today’s included.',
     coverNote: gaps.length ? (new Set(gaps).size === 1 ? `evenly spaced, every ${gaps[0]} lines · today’s are at lines ${T.feel.spareLines.join(', ')}` : `not evenly spaced (gaps of ${andList(gaps.map(String))} lines, the last back round to line ${Math.min(...P.feel.spareLines)}; even would be every 6) · today’s are at lines ${T.feel.spareLines.join(', ')}`) : undefined,
     eyebrow3: 'Against today’s link', h3: 'A week, and the duty table',
     sub3: 'How a working week compares with today’s, and every shift time beside the ones worked today.',

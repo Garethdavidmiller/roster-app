@@ -231,8 +231,8 @@ Measured against those real windows:
 
 **Sunday's finish looks ~30 minutes short.** Two departures (23:27, 23:45) and three arrivals (23:35,
 23:51, 23:54) all fall after the 23:25 finish. Sunday's *start* is fine — the first three Sunday departures are all at or
-after 07:15. This is a business-requirement question for Nathan rather than a tool question, but the
-proposals should answer it deliberately instead of inheriting it.
+after 07:15. **SETTLED (owner, 28 Sep 2026): no duty runs past 23:25 on a Sunday — agreed practice, and it stays so.** The five
+later movements are recorded on the sheets as a known fact, not an open question.
 
 ---
 
@@ -760,7 +760,8 @@ Ordered by how much they change if the answer is unexpected.
    `present` above some figure: the ORR gives no threshold for FF18, so inventing one would be the
    pass/fail rendering this panel must never produce. The derived branch is `n/a`, for a design with
    no timed lines at all — a row that cannot be computed does not get to claim anything.
-3. **Does the Sunday finish move?** Five movements fall after 23:25 — and the answer to question 1
+3. ~~**Does the Sunday finish move?**~~ — **ANSWERED (owner, 28 Sep 2026): no. No duty runs past 23:25 on a Sunday; agreed
+   practice.** The record: five movements fall after 23:25 — and the answer to question 1
    **strengthens** this rather than weakening it. The earlier draft noted the case would drop from
    five movements to two if arrivals needed no CEA; arrivals do count, so all five stand: 23:27 dep,
    23:35 arr, 23:45 dep, 23:51 arr, 23:54 arr. Three of those five are arrivals full of people
