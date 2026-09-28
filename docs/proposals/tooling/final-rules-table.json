@@ -1,0 +1,147 @@
+{
+ "cap": 570,
+ "pins": {
+  "weekday": "06:20-14:20x2,14:00-22:30x2",
+  "sat": "06:20-14:50x2,14:30-22:00x2",
+  "sun": "07:15-15:30x2,13:30-22:30x2"
+ },
+ "at22": "floor",
+ "sunTotal": 5070,
+ "totals": {
+  "weekday": 6970,
+  "sat": 7150,
+  "sun": 5070
+ },
+ "fit": {
+  "weekday": 21.9,
+  "sat": 12.2,
+  "sun": 33.6
+ },
+ "distinct": {
+  "weekday": {
+   "starts": 4,
+   "finishes": 8,
+   "turns": 8
+  },
+  "sat": {
+   "starts": 5,
+   "finishes": 6,
+   "turns": 6
+  },
+  "sun": {
+   "starts": 4,
+   "finishes": 4,
+   "turns": 4
+  }
+ },
+ "longest": 570,
+ "offQuarter": [
+  "14:20",
+  "14:50"
+ ],
+ "slots": [
+  {
+   "time": "06:20-13:45",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:20",
+   "weekday": 2,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:30",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:50",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "06:20-15:30",
+   "weekday": 0,
+   "sat": 3,
+   "sun": 0
+  },
+  {
+   "time": "06:20-15:45",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "07:00-16:15",
+   "weekday": 2,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "07:15-15:30",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 4
+  },
+  {
+   "time": "07:15-16:45",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "09:15-18:15",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 1
+  },
+  {
+   "time": "13:30-22:30",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 2
+  },
+  {
+   "time": "14:00-21:00",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "14:00-22:30",
+   "weekday": 2,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "14:30-22:00",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "14:45-22:45",
+   "weekday": 0,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "15:15-23:25",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 3
+  },
+  {
+   "time": "15:45-23:55",
+   "weekday": 4,
+   "sat": 4,
+   "sun": 0
+  }
+ ],
+ "spareLines": 4
+}
