@@ -30,7 +30,7 @@ export const STRAPS = {
   'WL3-24-F7':  ['Weekday lates from 16:25, with weeks 13–17 fixed exactly as drawn', 'hand+search'],
   'WL4-24-F7':  ['Weekday lates from 16:25, with weeks 14–17 fixed in order on their own line numbers', 'hand+search'],
   'WS-24-EXT':  ['A cover week at line 18 and a midday turn at 12:00–20:30', 'hand'],
-  'TF-24-EXT':  ['A cover week at line 18, the weeks ordered by hand to reduce fatigue', 'hand'],
+  'TF-24-EXT':  ['A cover week at line 18, with the weeks ordered to reduce fatigue', 'hand'],
   'TM-24-EXT':  ['Three Monday duties rotated to break up an eight-day run', 'hand'],
   'C17-24-EXT': ['The cover week at line 17, which clears the 48-hour-break fatigue factor', 'hand'],
   'S4-24-EXT':  ['Saturday on four shift times and three start times, weighted to the evening', 'hand'],
@@ -38,6 +38,17 @@ export const STRAPS = {
   'CFT-24-M3':  ['Three shifts retimed to even out Saturday morning and Sunday afternoon', 'hand'],
   'TN-24-R7':   ['A tenth Sunday duty, with whole weeks reordered for fewer fatigue factors', 'hand+search'],
 };
+/** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
+ *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
+export const FAMILY = { ST: 'Same Turns', QT: 'Same Turns', Q2: 'Same Turns', BB: 'By the Book', EF: 'By the Book', B2: 'By the Book',
+  PT: 'Pinned Turns', P2: 'Pinned Turns', FR: 'Right Away', FT: 'Fifteen Turns',
+  WL: 'Weekday Lates', WL2: 'Weekday Lates', WL3: 'Weekday Lates', WL4: 'Weekday Lates', WS: 'Weekday Lates', TF: 'Weekday Lates', TM: 'Weekday Lates',
+  C17: 'Weekday Lates', S4: 'Weekday Lates', CF: 'Weekday Lates', CFT: 'Weekday Lates', TN: 'Weekday Lates' };
+export const FIRST = { 'ST-24-B7': '8 Sep 2026', 'BB-24-D7': '8 Sep 2026', 'QT-24-Q34': '12 Sep 2026', 'EF-24-E21': '12 Sep 2026',
+  'WL-24-EXT': '18 Sep 2026', 'WL2-24-R21': '18 Sep 2026', 'WL3-24-F7': '18 Sep 2026', 'FT-24-EXT': '18 Sep 2026', 'FT-24-R21': '18 Sep 2026', 'WS-24-EXT': '18 Sep 2026',
+  'WL4-24-F7': '22 Sep 2026', 'TF-24-EXT': '22 Sep 2026', 'TM-24-EXT': '22 Sep 2026', 'C17-24-EXT': '22 Sep 2026', 'S4-24-EXT': '22 Sep 2026',
+  'CF-24-EXT': '22 Sep 2026', 'CFT-24-M3': '22 Sep 2026', 'TN-24-R7': '22 Sep 2026', 'B2-24-G21': '22 Sep 2026',
+  'Q2-24-W21': '24 Sep 2026', 'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34': '28 Sep 2026' };
 const MADE = {
   search: 'Built by computer search: the duty table was chosen for how closely it follows the December 2026 timetable, and the 24 weeks put in the order that raises the fewest fatigue factors.',
   hand: 'Drawn by hand and checked by the Links designer, which measured every figure in this sheet from the grid.',
@@ -74,7 +85,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     <tr><td>Full weekends off</td><td class="num">${T.checks.weekendsOff} in ${T.feel.workingLines + T.feel.spareLines.length}</td><td class="num">${P.checks.weekendsOff} in 24</td></tr>
     <tr><td>Different shift times <span class="muted">(how many already worked today)</span></td><td class="num">${T.feel.distinctTimes}</td><td class="num">${P.feel.distinctTimes} (${shared})</td></tr>
   </tbody></table>`;
-  const intro = `<p><b>${name}</b> is a proposal for the CEA link on the December 2026 timetable: a 24-line rotation for 24 people, where today’s link has 20. In short: ${strap.charAt(0).toLowerCase() + strap.slice(1)}. ${MADE[made]}</p>
+  const intro = `<p><b>${name}</b> is a proposal for the CEA link on the December 2026 timetable: a 24-line rotation for 24 people, where today’s link has 20. In short: ${strap.charAt(0).toLowerCase() + strap.slice(1)}.</p>
   <p><b>Against today’s link</b> — the table below; page 2 explains each figure.</p>${glance}`;
 
   const oqItems = [
@@ -88,7 +99,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   const todayRow = `<tr class="today"><td><i>Today’s 20-line link</i></td><td class="num">${RT.met}/${RT.of}</td><td class="num">${T.fatigue.present}</td><td class="num">${T.checks.longestStretch}</td><td class="num">${T.checks.weekendsOff}</td><td class="num">${TO.wkFit}</td><td class="num">${TO.fits.sat}</td><td class="num">${TO.fits.sun}</td><td class="num">${T.feel.distinctTimes}</td><td class="num">${T.feel.distinctTimes}</td></tr>`;
   const page9 = `<section class="page">
   <div class="mast"><div><div class="eyebrow">Beside the others</div><h1>Where it stands among the ${folder.length}</h1><div class="sub">Every proposal on the same figures, with today’s link at the foot. This sheet’s row is in bold.</div></div></div>
-  <div class="callout plain"><b>How it was made.</b> ${MADE[made]} Every figure below was measured the same way for every proposal, from its grid, by the Links designer’s own rule modules.</div>
+  <div class="callout plain"><b>Like with like.</b> Every figure below was worked out the same way for every proposal, from its rota, by the Marylebone Roster app — so any two rows can be compared directly.</div>
   <table class="t standings"><thead><tr><th>Proposal</th><th class="num">Rules met</th><th class="num">Fatigue factors</th><th class="num">Longest run</th><th class="num">Full weekends off</th><th class="num" colspan="3">Floor fit — wk · Sat · Sun</th><th class="num">Shift times</th><th class="num">Worked today</th></tr></thead><tbody>
   ${rank.map(d => tr(d, d.code === code)).join('')}${todayRow}
   </tbody></table>
@@ -102,7 +113,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     ...(() => { const n = new Set([...T.tableRows, ...P.tableRows].map(r => r.time)).size; return n > 36 ? { denseDuty: true, tightDuty: true, xxTightDuty: true } : n > 26 ? { denseDuty: true, tightDuty: true } : {}; })(),
     fresh: true, changed: null, officeNamed: R.rows.find(r => r.key === 'office').ok,
     metaLine: `Prepared ${rendered} · every figure is worked out from the rota itself by the Marylebone Roster app, not typed in`,
-    builtFrom: `${MADE_SHORT[made]} · 24 lines, 4 of them cover weeks`,
+    identExtra: `<div class="ident-row ident-minor"><span class="ident-k">Family</span><span class="ident-v">${FAMILY[code.split('-')[0]] ?? '—'}</span></div><div class="ident-row ident-minor"><span class="ident-k">First created</span><span class="ident-v">${FIRST[code] ?? '—'}</span></div>`,
     sub1: 'How this rota would work from December 2026, and how it compares with today’s',
     intro, intro2: '',
     decMet: R.met, decOf: R.of, decToday: RT.met, decLabel: 'December 2026 rules met',
@@ -122,7 +133,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     frame: {
       family: 'keep',
       question: `Should the CEA link for the December 2026 timetable be <b>${name}</b>? It is judged against today’s 20-line link and the December 2026 rules, and page 9 sets it beside the other ${others.length} proposals on the same figures.`,
-      stands: `<b>${name}</b> — ${strap.charAt(0).toLowerCase() + strap.slice(1)}. ${MADE[made]}`,
+      stands: `<b>${name}</b> — ${strap.charAt(0).toLowerCase() + strap.slice(1)}.`,
       read: '',
     },
     page9,
