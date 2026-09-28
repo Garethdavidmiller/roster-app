@@ -8,6 +8,9 @@ identity is in every page footer. All 23 were judged by the app's own Links modu
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
 
+**The rules on their own:** `December-2026-Rules.pdf` — the hard limits, the eleven December 2026 rules, the
+fatigue factors and the open questions, on two pages, from the same code the sheets are judged by.
+
 **Reading this file.** Sections dated before 28 Sep 2026 describe the sheets and rules of their day — page
 numbers, what each page held, the rule set and the fit measure. The sheets as they are now are described in
 *The managers' edition (28 Sep 2026)*, and every sheet is now judged against the eleven December 2026 rules
@@ -1216,6 +1219,7 @@ changed; each fix is in the generator, not the PDF; all 22 sheets were re-render
 | `<Name>-<code>-<fingerprint>.pdf` | the proposal, 10 pages A4 — **force-added** (`git add -f`), because `.gitignore` ignores every `*.pdf` in the tree |
 | `<Name>-<code>-import.txt` | line number then Sunday–Saturday, tab-separated — paste into **Links → Import** |
 | `<Name>-<code>.json` | the same rotation in the app's own `{ name, patterns }` shape — also importable |
+| `December-2026-Rules.pdf` | **the rules on their own** (28 Sep 2026), two pages A4, force-added like the sheets: the three hard limits, the eleven December 2026 rules with what each asks exactly, today's link against each and how many of the 23 meet it, the fatigue factors with how many proposals each is present in, the preferences, and the questions still open. Rendered by `tooling/rules-sheet.mjs` from `currentRules`, `assessFatigue` and `folderStats` — the code the sheets use — and by every full `regenerate.mjs` run, so it cannot drift from them |
 
 Every import form is verified against `links-import.js` (24 lines, no warnings). Importing one
 makes the workspace's Design checks, hard limits, fatigue factors and coverage cards restate those
