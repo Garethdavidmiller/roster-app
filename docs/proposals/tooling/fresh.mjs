@@ -44,9 +44,9 @@ export const STRAPS = {
   'CFT-24-M3':  ['Weekday closers from 16:25, with four at Sunday’s open and four through to its close', 'hand'],
   'TN-24-R7':   ['Ten on a Sunday, and nobody works more than six days in a row', 'hand+search'],
   'PC-24-EXT':  ['Weekday closers from 16:25, with twelve on a Saturday and the cover weeks at lines 1, 7, 12 and 17', 'hand'],
-  'JE-24-M29':  ['Fifteen shift times, changed in the fewest places that meet all eleven rules', 'exact'],
-  'AC-24-M41':  ['Fifteen shift times, changed in the fewest places that meet all eleven rules with no fatigue finding', 'exact'],
-  'CS-24-M34':  ['Weekday closers from 16:25, changed in the fewest places that meet the other ten rules', 'exact-waived'],
+  'JE-24-M29':  ['Fifteen shift times, meeting all eleven rules', 'exact'],
+  'AC-24-M41':  ['Fifteen shift times, meeting all eleven rules with no fatigue finding', 'exact'],
+  'CS-24-M34':  ['Weekday closers from 16:25, meeting the other ten rules', 'exact-waived'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */

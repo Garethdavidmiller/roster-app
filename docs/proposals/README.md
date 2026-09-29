@@ -20,6 +20,19 @@ as PowerPoint and PDF (29 Sep 2026). Built with pptxgenjs outside this repositor
 the rotas in this folder and checked against an independent recount. They are copies, so a change to a sheet does not
 reach them.
 
+**The sheets are the plain edition (29 Sep 2026)** — eight pages each, written for a manager deciding rather
+than for someone checking the analysis (owner: *"I can't overload Nathan, it needs to be easy to understand"*).
+Page 1 answers five questions in a word or two with one line of proof each — does it meet the December staffing
+levels, can it be run within the limits, is it tiring, what does it take, are staff where the trains are — then
+what staff are likely to welcome and to worry about, and what is still to settle. Page 2 sets it against today's
+link in numbers, with a plain translation of each row. Pages 3–7 are the workings, unchanged from the technical
+edition (the grid, the week and duty table, the hour-by-hour cover, the limits and rules, the ORR table), and page 8
+says in plain words how every figure is worked out. **Today's link is the only comparison**: no sheet, and not the
+rules sheet, names, counts or ranks another proposal, because a manager is not shown the drafts — the one-page
+summary is where they sit side by side, for the owner. Rendered by `tooling/plain.mjs` from the same assessed
+figures as the appendix; `TECH=1 node regenerate.mjs` still produces the ten-page technical edition. Every
+fingerprint was unchanged by the re-render (`regenerate.mjs --check`, 28 of 28).
+
 **The rules on their own:** `December-2026-Rules.pdf` — the hard limits, the eleven December 2026 rules, the
 fatigue factors and the open questions, on two pages, from the same code the sheets are judged by.
 

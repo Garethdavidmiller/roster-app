@@ -5,6 +5,7 @@ import { chromium } from '../../../node_modules/playwright/index.mjs';
 import { classifyShift, DAYS, hmFromHours, dutyMinutes, startMinutes, endMinutes, MAX_CONSECUTIVE_WORKED_DAYS, family, folderStats, weekdayFit } from './report-data.mjs';
 import { APP_VERSION } from '../../../roster-data.js';
 import { freshMeta, freshWords } from './fresh.mjs';
+import { plainEdition } from './plain.mjs';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -685,6 +686,9 @@ ${meta.page9 ?? `<section class="page">
 </section>
 </body></html>`;
   if (FRESH) html = freshWords(html, { exampleTime: P.tableRows.find(r => classifyShift(r.time) === 'early')?.time ?? P.tableRows[0]?.time, total: folderStats().length, todayMet: meta.decToday, of: meta.decOf, monSat: meta.monSat, coverSame: meta.coverSame });
+  // THE PLAIN EDITION (29 Sep 2026) is what ships: two front pages for the manager deciding, these five analysis pages as
+  // the workings, and a method page. TECH=1 keeps the ten-page technical sheet (plain.mjs has the reasoning).
+  if (FRESH && !process.env.TECH) html = plainEdition(html, { T, P, meta });
   writeFileSync(out.replace(/\.pdf$/, '.html'), html);
   const b = await chromium.launch(); const pg = await b.newPage();
   await pg.goto('file://' + out.replace(/\.pdf$/, '.html')); await pg.evaluate(() => document.fonts.ready);
