@@ -274,6 +274,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('Starting at 06:20, the open — each, a year', Math.round(tp.open0620), Math.round(pp.open0620), '', Math.abs(openDiff) < 1 ? 'about the same as today' : `about one ${openDiff > 0 ? 'extra' : 'fewer'} every ${weeksWords(52 / Math.abs(openDiff))} weeks`),
     row('Saturdays worked — each, a year', Math.round(tp.sat), Math.round(pp.sat), '', 'a rostered Saturday is paid at time and a quarter; cover weeks not counted'),
     row('Sunday overtime to share — each, a year', Math.round(tp.sun), Math.round(pp.sun), '', 'Sundays are overtime, as today'),
+    row('Ticket office on a Sunday evening', 1, 2, '', `the December rules ask for two, as on every other day; today one 14:30–23:25 closer keeps it until 22:30${(meta.pairDays ?? []).includes('sun') ? '' : ' — this rota does not mark them, so two are assumed from its duties'}`),
     row('Different shift times', T.feel.distinctTimes, `${distinct} (${shared} worked today)`, cmp(distinct < T.feel.distinctTimes, distinct === T.feel.distinctTimes), newTimes ? `${newTimes} new to learn, on ${newLines.length} of the ${P.feel.workingLines} working weeks — on page 4, the times with no figure under today’s link` : 'nothing new to learn'),
     row('Avoidable tiring patterns (ORR and rail-industry lists)', T.fatigue.present, P.fatigue.present, cmp(P.fatigue.present < T.fatigue.present, P.fatigue.present === T.fatigue.present), 'early starts and a weekly rotation come with every link'),
     row('December staffing rules met', `${meta.decToday} of ${meta.decOf}`, `${meta.decMet} of ${meta.decOf}`, cmp(meta.decMet > meta.decToday, meta.decMet === meta.decToday), `staffing levels confirmed verbally, 29 Sep 2026${waived.length ? `; ${waivedPhrase(waived.map(w => w.key))} for this design` : ''}`),
@@ -302,7 +303,8 @@ function methodPage({ meta, pages }) {
     ['Cover weeks', 'A cover week is marked on all seven days but works four of them, placed by the roster clerk. It counts as a full contracted week of hours and as four days at work. Where a figure depends on where those four fall, the worst case is shown. Cover-week shift times are not known in advance, so the yearly counts of early and late starts, Saturdays and Sundays, and the rest gaps between shifts, cover the fixed duties only; whatever is later given in a cover week must still be rostered within the normal limits.'],
     ['Sundays', 'Sunday is not in the contract: Sunday duties are overtime, as today. So “days at work” and the 35-hour week are Monday to Saturday. A Sunday off costs no annual leave.'],
     ['Each person, a year', 'Figures given “each, a year” are averages across the whole link: every week’s duties, times 52, divided by the number of people; these counts include Sunday overtime duties. “Days at work a year” is Monday to Saturday only: the days a week times 365 ÷ 7. Somebody’s own year depends on which week they start on.'],
-    ['Following the trains', 'For each hour, the share of the day’s floor staff on duty is set against the share of the day’s train movements in the December 2026 timetable. Hour by hour, the difference between the two shares is squared — so a big mismatch counts far more than several small ones — and the squares are added up and multiplied by 10,000. 0 would be a perfect match; lower is closer. The staff share is worked out from the minutes each person spends on the floor, with the ticket office’s fixed posts taken out — finer than the whole-person counts on page 5, where a person counts in every hour they are on duty for any part of, so a handover inside an hour counts both people. It measures the shape of the day, not a staffing requirement or passenger numbers, and it compares shares, not headcounts: an extra person in a quiet hour makes the figure worse although nobody is worse off. The ticket office is left out, except its second person helping at the quiet ends.'],
+    ['Following the trains', 'For each hour, the share of the day’s floor staff on duty is set against the share of the day’s train movements in the December 2026 timetable. Hour by hour, the difference between the two shares is squared — so a big mismatch counts far more than several small ones — and the squares are added up and multiplied by 10,000. 0 would be a perfect match; lower is closer. The staff share is worked out from the minutes each person spends on the floor, with the ticket office’s fixed posts taken out — finer than the whole-person counts on page 5, where a person counts in every hour they are on duty for any part of, so a handover inside an hour counts both people. It measures the shape of the day, not a staffing requirement or passenger numbers, and it compares shares, not headcounts: an extra person in a quiet hour makes the figure worse although nobody is worse off. The ticket office is left out, except for the help described under “The ticket office”.'],
+    ['The ticket office', 'The December plan has two people on every ticket-office shift. They are not floor cover, except that one of each pair helps on the floor at the quiet ends: until 08:00 (09:00 on a Sunday) and from 19:30. On a Sunday evening that person splits the whole shift between the office and the floor, so the match counts them as half a person and the two-on-the-floor rule not at all. Today one person, not two, keeps the office on a Sunday evening.'],
     ['Rest, runs and weekends', 'The shortest gap is one gap — the tightest anywhere, Saturday into Sunday and the last week into the first included; a rota with many gaps just over 12 hours reads the same as one with none. The most days in a row counts every day with a duty, Sunday overtime included, and is the worst case, with a cover week’s four duties placed as badly as they can be. A full weekend off is a Saturday off followed by a Sunday off.'],
     ['Familiar shift times', 'How many of the shift times somebody already works today. A rough guide to how much there is to learn, not to what staff will accept.'],
     ['Fatigue', 'The Office of Rail and Road’s good-practice list of roster patterns that tend to tire people, with four rail-industry checks. It is guidance, not a pass or fail, and this is not a fatigue risk assessment. Two patterns — early starts at a 06:20 station, and a weekly rotation — come with every link, today’s included, so they are recorded on page 7 and not counted. In the ORR’s checks an early start is one from 05:00 up to 06:59; a “block” of earlies is two or more in a row; the start-time rows count how many times a start moves by more than two hours (a count, not hours); and the week-to-week move is the average change in a week’s mean start time, Sundays included and cover weeks left out.'],
@@ -349,7 +351,32 @@ table.pcmp tbody tr:nth-child(even) td.down { background-color: color-mix(in srg
 tr.gone td { text-decoration: none; color: var(--text-light); font-style: italic; }
 dl.pmethod { column-count: 2; column-gap: 22px; } dl.pmethod .pmi { break-inside: avoid; margin-bottom: 6px; } dl.pmethod dt { margin-top: 0; }
 ul.p5key { margin: 6px 0 4px 16px; padding: 0; font-size: 9.6px; line-height: 1.4; } ul.p5key li { margin: 1px 0; } h2.p5gtk { font-size: 12px; margin: 10px 0 2px; } ul.p5notes { margin: 2px 0 6px 16px; padding: 0; font-size: 9.2px; line-height: 1.4; color: var(--text-mid); } ul.p5notes li { margin: 2px 0; } ul.p5notes b { color: var(--text-dark, #1a1a2e); }
-tr:has(> th.prop-row) > * { border-top: 2px solid var(--primary-blue) !important; }
+/* PAGE 5, THE HOUR-BY-HOUR TABLES (owner, 29 Sep 2026: "needs a lot of aesthetic polish"). One grid for all three
+   tables — a fixed label column and equal hour columns, so an hour sits in the same place down the whole page — with
+   heatmap cells rather than ruled boxes, labels in sentence case, today's block on a grey bar and the proposal's on
+   gold, and a gap before the trains. Every number is unchanged; only the drawing is. */
+.p5 h2 { margin: 11px 0 3px; }
+.p5legend { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 18px; margin: 8px 0 4px; font-size: 9px; line-height: 1.35; color: var(--text-mid); }
+.p5legend b { color: var(--text-dark, #1a1a2e); }
+.p5legend .sw { display: inline-block; width: 34px; height: 9px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+.p5legend .sw-blue { background: linear-gradient(90deg, color-mix(in srgb, var(--cov-early) 14%, white), color-mix(in srgb, var(--cov-early) 92%, black)); }
+.p5legend .sw-orange { background: linear-gradient(90deg, color-mix(in srgb, var(--cov-late) 12%, white), color-mix(in srgb, var(--cov-late) 78%, black)); }
+table.p5t { table-layout: fixed; width: calc(100% + 4px); border-collapse: separate; border-spacing: 2px; margin: 0 -2px; }
+table.p5t th, table.p5t td { border: 0 !important; }
+table.p5t th.cov-heat-hour { background: none; font-size: 8px; font-weight: 700; color: var(--text-mid); padding: 0 0 1px; }
+table.p5t th.cov-heat-hour:first-child { width: 28%; }
+table.p5t th.cov-fit-h { width: 40px; text-transform: none; letter-spacing: 0; font-size: 8px; color: var(--primary-blue); }
+table.p5t .cov-heat-day { background: none; text-transform: none; letter-spacing: 0; font-size: 9px !important; font-weight: 700; color: var(--text-dark, #1a1a2e); padding: 0 6px 0 7px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid var(--border-mid) !important; }
+table.p5t .office-day, table.p5t .floor-day { font-weight: 500; color: var(--text-mid); padding-left: 15px; font-size: 8.4px !important; }
+table.p5t th.prop-row, table.p5t tr:has(> th.prop-row) ~ tr > th.cov-heat-day:not(.dem-day) { border-left-color: var(--accent-gold) !important; }
+table.p5t th.prop-row { color: var(--primary-blue); }
+table.p5t th.dem-day { border-left-color: var(--cov-late) !important; }
+table.p5t .cov-heat-cell { height: 15px !important; min-width: 0; font-size: 8.5px !important; border-radius: 2px; font-variant-numeric: tabular-nums; }
+table.p5t tr:has(> .office-day) .cov-heat-cell, table.p5t tr:has(> .floor-day) .cov-heat-cell { height: 12px !important; font-size: 7.8px !important; font-weight: 600; }
+table.p5t .cov-heat-cell.heat-b0 { background: color-mix(in srgb, var(--surface-sunken) 55%, white); }
+table.p5t tr.p5gap td { height: 3px; padding: 0; background: none; }
+table.p5t td.cov-fit { background: color-mix(in srgb, var(--primary-blue) 8%, white); border-radius: 2px; font-size: 9px; color: var(--primary-blue); }
+table.p5t td.cov-fit:empty { background: none; }
 ul.p8list { margin: 8px 0 0 16px; padding: 0; font-size: 9.2px; line-height: 1.45; color: var(--text-dark, #1a1a2e); } ul.p8list li { margin: 3px 0; } tr.ff-na-note td { font-size: 9px; color: var(--text-mid); padding-top: 5px; border-bottom: 0; }
 table.pcmp { font-size: 9.8px; margin-top: 8px; } table.pcmp td { padding: 2.6px 6px; line-height: 1.3; } table.pcmp td.num, table.pcmp th.num { text-align: center; } table.pcmp { table-layout: fixed; width: 100%; } table.pcmp th:nth-child(1) { width: 29%; } table.pcmp th:nth-child(2) { width: 16%; } table.pcmp th:nth-child(3) { width: 19%; } table.pcmp th:nth-child(4) { width: 36%; }
 table.pcontents td { font-size: 10px; padding: 1.8px 6px; } table.pcontents td.num { width: 24px; font-weight: 800; color: var(--primary-blue); }
@@ -366,11 +393,13 @@ function hourPage(s) {
   const must = (re, to, what) => { if (!re.test(s)) throw new Error(`hourPage: ${what} not found`); re.lastIndex = 0; s = s.replace(re, to); };
   must(/<div class="sub">Cover today and proposed against the measured December 2026 timetable \(arrivals and departures, weighted by train length\)\. /,
     '<div class="sub">Today’s link and the proposal, hour by hour, against the December 2026 timetable. ', 'the subtitle');
-  must(/<p class="muted" style="margin:6px 0 2px">How to read it:[\s\S]*?<\/p>/, `<ul class="p5key">
-    <li><b>Blue squares</b> — how many people are on duty in that hour (darker blue = more). Anyone on duty for any part of the hour counts, so a handover counts both people.</li>
-    <li><b>Orange row</b> — the train service: carriages arriving and leaving in that hour (darker orange = more service). A guide from the timetable, not passenger numbers.</li>
-    <li><b>Read down each column</b> — the most people should be under the darkest orange.</li>
-    <li><b>Match</b>, the right-hand column — how closely the floor follows the trains over the whole day. 0 is a perfect match; lower is better.</li></ul>`, 'the how-to-read paragraph');
+  must(/<p class="muted" style="margin:6px 0 2px">How to read it:[\s\S]*?<\/p>/, `<div class="p5legend">
+    <span><i class="sw sw-blue"></i><b>People on duty</b> in that hour — darker blue is more. Anyone on for any part of the hour counts, so a handover counts both people.</span>
+    <span><i class="sw sw-orange"></i><b>Trains</b> — carriages arriving and leaving in that hour; darker is busier. A guide from the timetable, not passenger numbers.</span>
+    <span><b>Read down each column:</b> the most people should be under the darkest orange.</span>
+    <span><b>Match</b>, on the right — how closely the floor follows the trains over the whole day. 0 is a perfect match; lower is better.</span></div>`, 'the how-to-read paragraph');
+  must(/<section class="page">/, '<section class="page p5">', 'the page section');
+  must(/<table class="cov-heat/g, '<table class="p5t cov-heat', 'the hour tables');
   // row labels: the group, then what it splits into
   must(/<th class="cov-heat-day ">(Today|Proposed)(?: ([^<]+))?<\/th>/g, (m, who, days) => `<th class="cov-heat-day ${who === 'Proposed' ? 'prop-row' : ''}">${who}${days ? `, ${days}` : ''} — all on duty</th>`, 'the Today/Proposed rows');
   must(/(<th class="cov-heat-day office-day">(?:&nbsp;)+)in the ticket office/g, '$1of whom in the ticket office', 'the ticket-office rows');
@@ -378,7 +407,9 @@ function hourPage(s) {
   must(/(<th class="cov-heat-day dem-day">)Train carriages, Dec 2026/g, '$1Trains — carriages in and out', 'the trains row');
   // one match figure per group: the floor row's; the all-on-duty rows' figures go
   must(/(<th class="cov-heat-day (?:prop-row)?">[^<]*<\/th>(?:<td[^>]*>[^<]*<\/td>)*?)<td class="cov-fit">[^<]*<\/td><\/tr>/g, '$1<td class="cov-fit"></td></tr>', 'the all-on-duty fit cells');
-  must(/<th class="cov-heat-hour cov-fit-h">fit<\/th>/g, '<th class="cov-heat-hour cov-fit-h">match</th>', 'the fit header');
+  must(/<th class="cov-heat-hour cov-fit-h">fit<\/th>/g, '<th class="cov-heat-hour cov-fit-h">Match</th>', 'the fit header');
+  // a small gap before the proposal's block and before the trains, instead of a rule
+  must(/<tr>(?=<th class="cov-heat-day (?:prop-row|dem-day)">)/g, '<tr class="p5gap"><td colspan="21"></td></tr><tr>', 'the group gaps');
   // the notes beneath: one short list
   const office = /<p class="muted" style="margin-top:8px"><b>Ticket office\.<\/b> ([\s\S]*?)<\/p>/.exec(s);
   const rest = /<p class="muted" style="margin-top:6px">([\s\S]*?)<\/p>/.exec(s);
@@ -387,8 +418,15 @@ function hourPage(s) {
   const m = /^(Cover weeks[^.]*\.)\s*<b>Fit<\/b> is one number for how closely the people on duty follow the trains through the day: 0 would be a perfect match, lower is better\.\s*([^.]*not an average of the scores shown\.)\s*([\s\S]*)$/.exec(rest[1].trim());
   if (!m) throw new Error('hourPage: the cover-weeks / fit note has changed');
   const varies = /cov-heat--dense/.test(s);
+  // THE TICKET OFFICE, IN PLAIN WORDS (owner, 29 Sep 2026: the helper rule and the Sunday late were "not explained").
+  // The table moves a whole helper from the office row to the floor row (report-data officeHelpers), which reads as an
+  // understaffed office unless it is said; the Sunday evening half-person stays in the office row. The design's own
+  // sentence — whether it rosters the pairs or they are assumed — is kept from the technical note.
+  const tail = (/where the plan has two and two\.([\s\S]*)$/.exec(officeText)?.[1] ?? '').replace(/ The “of whom” rows split it out of each side, so the floor rows compare like with like\./, '').trim();
+  if (!/where the plan has two and two\./.test(officeText)) throw new Error('hourPage: the ticket-office note has changed');
   const items = [
-    `<b>The ticket office.</b> ${officeText}`,
+    `<b>The ticket office.</b> The December plan puts two people on every ticket-office shift, and they are not floor cover — except at the quiet ends of the day, when one of each pair helps on the floor: in the morning from the open until 08:00 (09:00 on a Sunday), and in the evening from 19:30 until their office shift ends. That is why the “of whom in the ticket office” row drops to 1 in those hours and the floor row gains one. Where it shows 4 (3 on today’s Sunday), the early and late pairs are both there at the changeover.${tail ? ' ' + tail : ''} The “of whom” rows split the office out of each side, so the floor rows compare like with like.`,
+    `<b>Sunday evening is the one change from today.</b> Today one person keeps the ticket office on a Sunday evening — one of the three 14:30–23:25 closers, in the office until it shuts at 22:30 and then on the floor. The December rules ask for two, as on every other day, so the proposal’s office row reads 2 on a Sunday evening where today’s reads 1. The second of them splits the whole shift between the office and the floor: the table keeps them in the office row, the match counts them as half a person on the floor, and “at least two on the floor at every moment” does not count them.`,
     `<b>Only the floor is matched to the trains.</b> The ticket office is staffed to its opening hours, not to the trains, so its rows carry no match figure. ${m[2]}`,
     ...(varies ? ['<b>More than one weekday row.</b> Where weekdays are staffed differently, each different weekday gets its own row, labelled with its days.'] : []),
     `<b>Cover weeks.</b> ${m[1].replace(/^Cover weeks /, 'They ')}`,
