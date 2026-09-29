@@ -27,7 +27,7 @@ const fingerprint = p => createHash('sha256')
 // Weeks 17-18 Swapped (WS-24-EXT · 0bebb675), Targeted Fatigue Redo (TF-24-EXT · 8eef9a13) and Three Mondays
 // (TM-24-EXT · fe90c0b8) were WITHDRAWN on 29 Sep 2026 (owner: "we have better options"); git history holds their grids.
 // Frozen Block (WL3-24-F7 · a6234195) and Tenth Sunday (TN-24-R7 · 84b60df9) followed the same day (owner).
-// Short Closer (CF-24-EXT · 6d21169b) too; Light Retime, built from it, stays.
+// Short Closer (CF-24-EXT · 6d21169b) and Light Retime (CFT-24-M3 · ae1a15bd), built from it, too.
 export const SUPPLIED = [
     { file: 'weekday-lates.json',      name: 'Weekday Lates',         code: 'WL-24-EXT',  fp: 'a52ec588', strap: 'Weekday lates at 16:25, Saturdays untouched' },
     { file: 'weekday-lates-2.json',    name: 'Evening Peak',       code: 'WL2-24-R21', fp: '33f70893', strap: 'The 08:30 turns moved under the 17:00 peak' },
@@ -36,8 +36,6 @@ export const SUPPLIED = [
     { file: 'fifteen-turns-repaired.json', name: 'Gates Mended', code: 'FT-24-R21', fp: 'b76bf9e1', strap: 'The supplied design, repaired and re-searched' },
     { file: 'cover-at-seventeen.json', name: 'Cover at Seventeen',    code: 'C17-24-EXT', fp: 'edc1b731', strap: 'Lines 17 and 18 swapped back - the cover week returns to 17, and FF11 clears' },
     { file: 'saturday-four.json',     name: 'Saturday Four',        code: 'S4-24-EXT',  fp: '481ba9ed', strap: 'Saturday rebuilt - four turns, three start times, weighted to the late for Wembley' },
-    // Light Retime was built in a parallel session (#1513) and registered here on the merge.
-    { file: 'cea-clean-final2-tuned.json', name: 'Light Retime', code: 'CFT-24-M3',  fp: 'ae1a15bd', strap: 'Short Closer with three cells retimed - the Sunday bulge broken and the Saturday morning filled' },
     // Familiar Nine (28 Sep 2026) is built rather than supplied — table K proven by final-table.mjs, Right Away's week
     // structure carried onto it and polished — but its grid is the finished product of three tools, so it ships as a grid.
     // 29 Sep 2026: its Sunday re-searched under the owner's December Sunday office plan — three Sunday cells (the
