@@ -15,7 +15,7 @@ re-render of the sheets does not update it, so rebuild it after one.
 **The one-page summary:** `Proposals-Summary.pdf` — every proposal against today's link on one A4 page, rendered by
 `tooling/summary-sheet.mjs` from `folderStats` and the same JSON rotations (its header states each column's formula).
 
-**The Familiar Nine presentations:** `presentations/` — one for colleagues (15 slides) and one for managers (9), each
+**The Familiar Nine presentations:** `presentations/` — one for colleagues (15 slides) and one for managers (10), each
 as PowerPoint and PDF (29 Sep 2026). Built with pptxgenjs outside this repository; every figure in them was counted from
 the rotas in this folder and checked against an independent recount. They are copies, so a change to a sheet does not
 reach them.
