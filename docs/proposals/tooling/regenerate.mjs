@@ -59,6 +59,7 @@ export const SUPPLIED = [
     // sheets (exact/mixsa.mjs → exact/rr-mix.json), then the rota built in the fewest changes for that mix (exact/tiebreak.py
     // with MIX= and WIDE=1): up to four tiring patterns (Running Repair) and none (Full Overhaul).
     { file: 'running-repair.json',         name: 'Running Repair', code: 'RR-24-M34',  fp: '621165eb', strap: 'Weekday Lates retimed to follow the trains, no more than four tiring patterns' },
+    { file: 'full-overhaul.json',          name: 'Full Overhaul',  code: 'FO-24-M49',  fp: 'bb9b6c24', strap: 'Weekday Lates retimed to follow the trains, with no tiring pattern' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
