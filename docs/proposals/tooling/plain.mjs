@@ -341,11 +341,58 @@ const CSS = `
 .pbox-good { border-left-color: var(--success-green); } .pbox-good h3 { color: var(--success-green); }
 .pbox-warn { border-left-color: var(--warning-amber); } .pbox-warn h3 { color: var(--warning-amber); }
 .pbox-decide { margin-top: 12px; border-left-color: var(--accent-gold); } .pbox-decide h3 { color: var(--primary-blue); }
+ul.p5key { margin: 6px 0 4px 16px; padding: 0; font-size: 9.6px; line-height: 1.4; } ul.p5key li { margin: 1px 0; } h2.p5gtk { font-size: 12px; margin: 10px 0 2px; } ul.p5notes { margin: 2px 0 6px 16px; padding: 0; font-size: 9.2px; line-height: 1.4; color: var(--text-mid); } ul.p5notes li { margin: 2px 0; } ul.p5notes b { color: var(--text-dark, #1a1a2e); }
+tr:has(> th.prop-row) > * { border-top: 2px solid var(--primary-blue) !important; }
 ul.p8list { margin: 8px 0 0 16px; padding: 0; font-size: 9.2px; line-height: 1.45; color: var(--text-dark, #1a1a2e); } ul.p8list li { margin: 3px 0; } tr.ff-na-note td { font-size: 9px; color: var(--text-mid); padding-top: 5px; border-bottom: 0; }
 table.pcmp { font-size: 9.8px; margin-top: 8px; } table.pcmp td { padding: 2.6px 6px; line-height: 1.3; } table.pcmp td.num, table.pcmp th.num { text-align: center; } table.pcmp { table-layout: fixed; width: 100%; } table.pcmp th:nth-child(1) { width: 29%; } table.pcmp th:nth-child(2) { width: 16%; } table.pcmp th:nth-child(3) { width: 19%; } table.pcmp th:nth-child(4) { width: 36%; }
 table.pcontents td { font-size: 10px; padding: 1.8px 6px; } table.pcontents td.num { width: 24px; font-weight: 800; color: var(--primary-blue); }
 dl.pmethod { margin: 10px 0; } dl.pmethod dt { font-weight: 800; color: var(--primary-blue); font-size: 11.5px; margin-top: 7px; } dl.pmethod dd { margin: 2px 0 0; font-size: 10.2px; line-height: 1.42; max-width: 175mm; }
 `;
+
+/** Page 5, people on duty hour by hour (owner, 29 Sep 2026: "the table wording is a little confusing"). The tables and
+ *  every number stay exactly as rendered; what changes is what the rows and the right-hand column SAY. Each group now
+ *  reads "all on duty", then "of whom in the ticket office" and "of whom on the floor", so the split is stated rather
+ *  than left to an indent. Only the floor rows carry a match figure — the one the page itself calls the fair comparison
+ *  — instead of two figures a group with nothing saying which one counts. The notes become a short key above and a
+ *  "good to know" list below. Throws if an anchor moves, so a change to render.mjs cannot leave half the old wording. */
+function hourPage(s) {
+  const must = (re, to, what) => { if (!re.test(s)) throw new Error(`hourPage: ${what} not found`); re.lastIndex = 0; s = s.replace(re, to); };
+  must(/<div class="sub">Cover today and proposed against the measured December 2026 timetable \(arrivals and departures, weighted by train length\)\. /,
+    '<div class="sub">Today’s link and the proposal, hour by hour, against the December 2026 timetable. ', 'the subtitle');
+  must(/<p class="muted" style="margin:6px 0 2px">How to read it:[\s\S]*?<\/p>/, `<ul class="p5key">
+    <li><b>Blue squares</b> — how many people are on duty in that hour (darker blue = more). Anyone on duty for any part of the hour counts, so a handover counts both people.</li>
+    <li><b>Orange row</b> — the trains: carriages arriving and leaving in that hour (darker orange = busier).</li>
+    <li><b>Read down each column</b> — the most people should be under the darkest orange.</li>
+    <li><b>Match</b>, the right-hand column — how closely the floor follows the trains over the whole day. 0 is a perfect match; lower is better.</li></ul>`, 'the how-to-read paragraph');
+  // row labels: the group, then what it splits into
+  must(/<th class="cov-heat-day ">(Today|Proposed)(?: ([^<]+))?<\/th>/g, (m, who, days) => `<th class="cov-heat-day ${who === 'Proposed' ? 'prop-row' : ''}">${who}${days ? `, ${days}` : ''} — all on duty</th>`, 'the Today/Proposed rows');
+  must(/(<th class="cov-heat-day office-day">(?:&nbsp;)+)in the ticket office/g, '$1of whom in the ticket office', 'the ticket-office rows');
+  must(/(<th class="cov-heat-day floor-day">(?:&nbsp;)+)on the floor/g, '$1of whom on the floor', 'the floor rows');
+  must(/(<th class="cov-heat-day dem-day">)Train carriages, Dec 2026/g, '$1Trains — carriages in and out', 'the trains row');
+  // one match figure per group: the floor row's; the all-on-duty rows' figures go
+  must(/(<th class="cov-heat-day (?:prop-row)?">[^<]*<\/th>(?:<td[^>]*>[^<]*<\/td>)*?)<td class="cov-fit">[^<]*<\/td><\/tr>/g, '$1<td class="cov-fit"></td></tr>', 'the all-on-duty fit cells');
+  must(/<th class="cov-heat-hour cov-fit-h">fit<\/th>/g, '<th class="cov-heat-hour cov-fit-h">match</th>', 'the fit header');
+  // the notes beneath: one short list
+  const office = /<p class="muted" style="margin-top:8px"><b>Ticket office\.<\/b> ([\s\S]*?)<\/p>/.exec(s);
+  const rest = /<p class="muted" style="margin-top:6px">([\s\S]*?)<\/p>/.exec(s);
+  if (!office || !rest) throw new Error('hourPage: the notes beneath the tables not found');
+  const officeText = office[1].replace(/ The indented rows take the office out of each side, less its quiet-end help, so the floor rows compare like with like\./, ' The “of whom” rows split it out of each side, so the floor rows compare like with like.');
+  const m = /^(Cover weeks[^.]*\.)\s*<b>Fit<\/b> is one number for how closely the people on duty follow the trains through the day: 0 would be a perfect match, lower is better\.\s*([^.]*not an average of the scores shown\.)\s*([\s\S]*)$/.exec(rest[1].trim());
+  if (!m) throw new Error('hourPage: the cover-weeks / fit note has changed');
+  const varies = /cov-heat--dense/.test(s);
+  const items = [
+    `<b>The ticket office.</b> ${officeText}`,
+    `<b>Only the floor is matched to the trains.</b> The ticket office is staffed to its opening hours, not to the trains, so its rows carry no match figure. ${m[2]}`,
+    ...(varies ? ['<b>More than one weekday row.</b> Where weekdays are staffed differently, each different weekday gets its own row, labelled with its days.'] : []),
+    `<b>Cover weeks.</b> ${m[1].replace(/^Cover weeks /, 'They ')}`,
+    ...(m[3].trim() ? [`<b>Sunday’s last trains.</b> ${m[3].trim()}`] : []),
+  ];
+  s = s.replace(office[0], `<h2 class="p5gtk">Good to know</h2><ul class="p5notes">${items.map(x => `<li>${x}</li>`).join('')}</ul>`).replace(rest[0], '');
+  // the callout's first point is now the "only the floor is matched" note; it keeps the one thing that note does not say
+  s = s.replace(/<b>Reading it\.<\/b> The <b>floor<\/b> rows are the fair comparison\. The ticket office is staffed to its opening hours, not to the trains, so counting it in can make a day look better or worse than the floor really is\. The fit measures <b>shape, not numbers<\/b>/,
+    '<b>Reading the match.</b> It measures <b>shape, not numbers</b>');
+  return s;
+}
 
 /** Turns the ten-page technical sheet into the plain edition: two new front pages, the five analysis pages kept
  *  as the appendix (renumbered, their cross-references and one comparison sentence rewritten), a method page. */
@@ -368,6 +415,7 @@ export function plainEdition(html, ctx) {
     s = s.replace(/<p class="muted p8note">([\s\S]*?)<\/p>/, (m, body) => `<ul class="p8list">${body.replace(/^Design-specific findings:/, 'Avoidable tiring patterns found:').split(/(?=<b>)/).map(x => x.trim()).filter(Boolean).map(x => `<li>${x}</li>`).join('')}</ul>`);
     s = s.replace(/>Weeks on one shift time</g, '>Weeks on one shift time — all earlies or all lates<');
     s = s.replace(/every design’s staffed day/g, 'any link’s staffed day').replace(/so every design has FF2/g, 'so any link has FF2');
+    if (k === 6) s = hourPage(s);
     return s;
   });
   const p1 = sections.find(x => pageOf(x) === 1) ?? '';
