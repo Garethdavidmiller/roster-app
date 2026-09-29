@@ -5,6 +5,8 @@ import { chromium } from '../../../node_modules/playwright/index.mjs';
 import { classifyShift, DAYS, hmFromHours, dutyMinutes, startMinutes, endMinutes, MAX_CONSECUTIVE_WORKED_DAYS, family, folderStats, weekdayFit } from './report-data.mjs';
 import { APP_VERSION } from '../../../roster-data.js';
 import { freshMeta, freshWords } from './fresh.mjs';
+import { soloEdition } from './solo.mjs';
+import { plainEdition } from './plain.mjs';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -159,8 +161,15 @@ export async function renderPdf(D, out) {
   // cautious number.
   const asRos = (a, code) => code === 'FF11' ? a.asRostered?.ff11?.worst ?? null : null;
   const rosStatus = v => v === null ? null : (v > 13 ? 'present' : 'clear');
-  const rowsFF = P.fatigue.results.map(r => { const t = T.fatigue.results.find(x => x.code === r.code && x.title === r.title);
-    const val = x => x ? (x.status === 'n/a' ? (FRESH ? '' : '–') : FRESH && /hours/i.test(x.title) && typeof x.value === 'number' ? x.value.toFixed(1) : (x.value ?? '')) : '';
+  // Plain edition: a factor that applies to NEITHER link (night shifts, nothing before 05:00) is one line under the
+  // table, not a row of blanks — nine of twenty-five rows read as empty to a manager. The technical edition keeps them.
+  const PLAIN = FRESH && !process.env.TECH;
+  const tOf = r => T.fatigue.results.find(x => x.code === r.code && x.title === r.title);
+  const naBoth = r => PLAIN && r.status === 'n/a' && tOf(r)?.status === 'n/a';
+  const naGroups = [...new Set(P.fatigue.results.filter(naBoth).map(r => r.family))].map(f => `${f.toLowerCase()} (${P.fatigue.results.filter(r => naBoth(r) && r.family === f).map(r => r.code).join(', ')})`);
+  const naNote = naGroups.length ? `<tr class="ff-na-note"><td colspan="4">Also on the list, and applying to neither link: ${esc(naGroups.join(' · '))}.</td></tr>` : '';
+  const rowsFF = P.fatigue.results.filter(r => !naBoth(r)).map(r => { const t = tOf(r);
+    const val = x => x ? (x.status === 'n/a' ? (FRESH ? '' : '–') : FRESH && /55 hours/i.test(x.title) && typeof x.value === 'number' ? x.value.toFixed(1) : (x.value ?? '')) : '';
     const second = (a, code, have) => { const v = have ? asRos(a, code) : null; return v === null ? ''
       : `<span class="ff-alt ff-${rosStatus(v)}">${icon(rosStatus(v))} ${v} as rostered</span>`; };
     return `<tr class="ff-${r.status}"><td class="ff-code">${r.code}</td><td class="ff-title">${esc(r.title)}${r.confirm?' <span class="muted">(definition to confirm)</span>':''}<span class="ff-fam chip">${esc(r.family)}</span></td>
@@ -349,7 +358,7 @@ export async function renderPdf(D, out) {
     { q: 'Can it be run?', name: 'Tightest rest between duties', lower: false, lo: 660, hi: 900, fmt: v => hm(v), val: P.rest.minutes, today: T.rest?.minutes ?? null, e: EXT.rest, page: 7,
       what: 'The shortest gap anywhere between one duty ending and the next beginning — Saturday into Sunday and the last line into the first included. Twelve hours is the floor; a design under it cannot be run.',
       not: 'It is one gap. A rotation with many 12h05 rests and one with none read the same here; the count under 12h is in the chips on page 1.' },
-    { q: 'What is it like to work?', name: 'Full weekends off', lower: false, lo: 0, hi: 50, fmt: v => v + '%', val: P.checks.weekendsOffPct, today: T.checks.weekendsOffPct, e: EXT.weekendsPct, page: FRESH ? 9 : 5,
+    { q: 'What is it like to work?', name: 'Full weekends off', lower: false, lo: 0, hi: 50, fmt: v => v + '%', val: P.checks.weekendsOffPct, today: T.checks.weekendsOffPct, e: EXT.weekendsPct, page: FRESH ? 4 : 5,   // the grid shows every weekend; page 9 is now the import page
       what: `The share of weekends off: a Saturday off followed by a Sunday off at the start of the next line. Today’s link gives ${T.checks.weekendsOff} in ${T.lines}, ${oneIn(T.checks.weekendsOff, T.lines)}; this sheet gives ${P.checks.weekendsOff} in 24, ${oneIn(P.checks.weekendsOff, 24)}.`,
       not: 'A weekend off beside a 42-hour week is still a weekend off; the hours by week are on the grid, page 4.' },
     { q: 'What is it like to work?', name: 'Working weeks on one turn', lower: false, lo: 0, hi: 100, fmt: v => v + '%', val: pctOf(P.feel.oneTurn, P.feel.workingLines), today: pctOf(T.feel.oneTurn, T.feel.workingLines), e: EXT.oneTurnPct, page: 5,
@@ -450,6 +459,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
 .foot-id b { color: var(--primary-blue); }
 .foot { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 8.5px; color: var(--text-light); border-top: 1px solid var(--border-light); padding-top: 4px; }
 .callout { border-left: 3px solid var(--accent-gold); background: var(--surface-sunken); padding: 7px 12px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin: 6px 0; }
+.callout.warn { border-left-color: var(--warning-amber); margin-top: 6px; }
 .rule-list td:first-child { width: 46%; }
 .kept td:nth-child(1) { width: 38%; } .kept td:nth-child(2), .kept td:nth-child(3) { width: 24%; white-space: nowrap; } .kept td:nth-child(4) { display: none; } .kept th:nth-child(4) { display: none; }
 .changed td:nth-child(1) { width: 36%; } .changed td.num { width: 12%; } .changed td.num { white-space: nowrap; }
@@ -506,7 +516,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
       chip(rests === 0, `<strong>${rests}</strong> rest${rests === 1 ? '' : 's'} under 12h`),
     ].join('');
   })()}
-   <span class="sum-chip sum-chip--${P.fatigue.present?'warn':'ok'}">${P.fatigue.present?'⚠':'✓'} <strong>${P.fatigue.present}</strong> ${FRESH ? `design-specific fatigue finding${P.fatigue.present===1?'':'s'}` : `fatigue factor${P.fatigue.present===1?'':'s'} present`}${presentRos(P) !== P.fatigue.present ? ` <span class="muted">— ${presentRos(P)} ${FRESH ? 'with FF11 as rostered' : 'as rostered'}</span>` : ''} <span class="muted">(today: ${T.fatigue.present})</span></span>${meta.rulesChip ?? ''}</div>
+   <span class="sum-chip sum-chip--${P.fatigue.present?'warn':'ok'}">${P.fatigue.present?'⚠':'✓'} <strong>${P.fatigue.present}</strong> ${FRESH ? `design-specific fatigue finding${P.fatigue.present===1?'':'s'}` : `fatigue factor${P.fatigue.present===1?'':'s'} present`}${presentRos(P) !== P.fatigue.present ? ` <span class="muted">— ${presentRos(P)} ${FRESH ? 'with FF11 as rostered' : 'as rostered'}</span>` : ''} <span class="muted">(today: ${T.fatigue.present})</span></span>${meta.rulesChip ?? ''}${(meta.thinMoments ?? []).map(t => { const m = /(\w+day) (\d\d:\d\d–\d\d:\d\d): only (one person|\d+ people)/.exec(t.replace(/<[^>]+>/g, '')); return m ? `<span class="sum-chip sum-chip--warn">⚠ only <strong>${m[3]}</strong> on duty ${m[1]} ${m[2]} <span class="muted">(page 7)</span></span>` : ''; }).join('')}</div>
   <p class="readhint">Five questions a manager asks first, in order. Every figure is computed from the cells; <b>page 2 says how to read each one</b>, with today's link and the rest of the folder marked on a scale.</p>
   <div class="tiles head5">
     <div class="tile"><span class="q">Can it be run?</span><b>${canRun ? 'Yes' : FRESH ? 'No' : 'Not as it stands'}</b><span class="l">${FRESH ? (canRun ? 'meets every hard limit' : 'breaks a hard limit') : 'the hard limits'}</span><span class="s">${restsN} rest${restsN === 1 ? '' : 's'} under 12h · ${FRESH ? `longest run ${hard.value} days (limit 13)` : `longest run ${hard.value} of 13`} · ${contractExact ? 'contract exact' : FRESH ? `contract ${overMin > 0 ? 'over' : 'under'} by ${Math.abs(overMin)} min a week across the link` : 'contract missed'}</span></div>
@@ -600,7 +610,7 @@ ${readHtml}${frameHtml}
 
 <section class="page">
   <div class="mast"><div><div class="eyebrow">Cover against the service</div><h1>People on duty, hour by hour</h1><div class="sub">Cover today and proposed against the measured December 2026 timetable (arrivals and departures, weighted by train length). A darker orange hour carries more of the day's traffic.</div></div></div>
-  <p class="muted" style="margin:6px 0 2px">How to read it: each blue ${FRESH ? 'square' : 'cell'} is the number of people on duty in that hour (darker blue = more people). The orange row is the timetable — ${FRESH ? 'the train carriages arriving and leaving in that hour, which is how busy it is' : 'how much of the day\'s trains that hour carries'} (darker orange = busier). Read the columns top to bottom: cover should be thickest where the orange is darkest. The <b>fit</b> figure at the right end of each row scores that match for the whole day.</p>
+  <p class="muted" style="margin:6px 0 2px">How to read it: each blue ${FRESH ? 'square' : 'cell'} is the number of people on duty at any point in that hour (a handover inside the hour counts both people) (darker blue = more people). The orange row is the timetable — ${FRESH ? 'the train carriages arriving and leaving in that hour, which is how busy it is' : 'how much of the day\'s trains that hour carries'} (darker orange = busier). Read the columns top to bottom: cover should be thickest where the orange is darkest. The <b>fit</b> figure at the right end of each row scores that match for the whole day.</p>
   ${['weekday','sat','sun'].map(cls => { const win = cls==='sun' ? [7,23] : [6,23]; const shut = cls==='sun' ? 23 : 24;
     const name = cls==='weekday'?'Monday to Friday':cls==='sat'?'Saturday':'Sunday';
     const gT = cls==='weekday' ? weekdayGroups(T.hourly) : [{ days:[cls], hours: T.hourly[cls].hours }];
@@ -634,7 +644,7 @@ ${readHtml}${frameHtml}
   </div>
   <h2>${meta.designHeading ?? 'December 2026 timetable design figures'} <span class="muted" style="font-weight:400;font-size:10px">${meta.designSub ?? '— the staffing shape agreed for the new timetable'}</span></h2>
   <table class="t rules"><thead><tr><th>Rule</th>${FRESH ? '<th>Today’s link</th>' : ''}<th>${FRESH ? 'This proposal' : 'Proposal'}</th><th>${FRESH ? 'What the rule asks' : ''}</th></tr></thead><tbody>
-  ${meta.designRules.map(r => `<tr${FRESH && !r.ok ? ' class="rule-miss"' : ''}><td>${esc(r.rule)}</td>${FRESH ? `<td class="today-v">${r.todayOk ? '✓' : '✕'} ${esc(r.today)}</td>` : ''}<td>${r.ok?'✓':'✕'} ${esc(r.value)}</td><td class="muted">${esc(r.note)}</td></tr>`).join('')}
+  ${meta.designRules.map(r => `<tr${FRESH && !r.ok && !r.waived ? ' class="rule-miss"' : ''}><td>${esc(r.rule)}</td>${FRESH ? `<td class="today-v">${r.todayOk ? '✓' : '✕'} ${esc(r.today)}</td>` : ''}<td>${r.ok ? '✓' : r.waived ? '○ waived —' : '✕'} ${esc(r.value)}</td><td class="muted">${esc(r.note)}</td></tr>`).join('')}
   </tbody></table>
   <!-- The heading used to be the literal "Two things to settle" while every proposal it rendered
        listed four or five. A heading that miscounts the list under it is the kind of small untruth
@@ -648,7 +658,7 @@ ${readHtml}${frameHtml}
 <section class="page">
   <div class="mast"><div><div class="eyebrow">The rules it is assessed against · continued</div><h1>ORR fatigue factors</h1><div class="sub">Good practice guidelines — Fatigue Factors, p3 (December 2021). ⚠ present — the pattern is in this design and worth a look, not a breach · ✓ clear — it is not · ● standing — true of the station itself, not of any design · – does not apply here. This is the list the link is assessed against.</div></div></div>
   <p class="muted" style="margin:6px 0 4px">${FRESH ? 'These are 25 roster patterns that tend to tire people — 21 from the Office of Rail and Road’s good-practice list and 4 checks from the rail industry’s fatigue guidance (MRSF) — long runs of earlies, short gaps between duties, start times that jump about.' : 'The Office of Rail and Road lists 25 roster patterns that tend to tire people — long runs of earlies, short gaps between duties, start times that jump about.'} For each one this table asks whether the pattern is in the rotation, today and proposed, and how big it is. The list is guidance: a factor present is a question to discuss, never a pass or a fail, and a design showing nothing is not thereby approved.</p>
-  <table class="ff"><thead><tr><th>Code</th><th>Factor</th><th>Today's link</th><th>Proposed</th></tr></thead><tbody>${rowsFF}</tbody></table>
+  <table class="ff"><thead><tr><th>Code</th><th>Factor</th><th>Today's link</th><th>Proposed</th></tr></thead><tbody>${rowsFF}${naNote}</tbody></table>
   ${meta.p8Note ? `<p class="muted p8note">${meta.p8Note}</p>` : `<p class="muted">Present: ${P.fatigue.present}${presentRos(P) !== P.fatigue.present ? ` in the worst case, <b>${presentRos(P)}</b> as rostered` : ''} (today ${T.fatigue.present}${presentRos(T) !== T.fatigue.present ? `/${presentRos(T)}` : ''}) · standing: ${P.fatigue.standing} · FF2 fires on every 06:20 duty, so it is a property of the station's opening time rather than of any design. <b>Two readings of a cover week, on the one row they move.</b> A cover week is worked four days of seven and the link does not say which four, so a run figure is a range. The headline number is the ceiling &mdash; the four split day-on-day-off, which supplies no 48-hour break and joins the blocks either side. It is reachable: of the 35 ways to place four duties in seven days, the 10 that leave no two rest days together produce exactly it. Worked as a BLOCK, which is what a cover week looks like on the roster, the three rest days fall together and the week always supplies a break &mdash; that is the <i>as rostered</i> figure beneath it. Checked on every row: FF11 is the only one where the two differ. Which reading applies is a question for the roster office, not for this sheet. This sheet is an aid to a conversation, not a fatigue risk assessment.</p>`}
   <div class="foot"><span>Page 8 of 10 — The checks sheet: fatigue factors</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
@@ -685,6 +695,10 @@ ${meta.page9 ?? `<section class="page">
 </section>
 </body></html>`;
   if (FRESH) html = freshWords(html, { exampleTime: P.tableRows.find(r => classifyShift(r.time) === 'early')?.time ?? P.tableRows[0]?.time, total: folderStats().length, todayMet: meta.decToday, of: meta.decOf, monSat: meta.monSat, coverSame: meta.coverSame });
+  // THE PLAIN EDITION ships (owner, 29 Sep 2026): the answer on page 1, today's link beside every figure on page 2, the
+  // workings, and a method page — compared with today's link only (plain.mjs). TECH=1 renders the technical sheet,
+  // with its comparisons against the other proposals removed (solo.mjs).
+  if (FRESH) html = process.env.TECH ? soloEdition(html) : plainEdition(html, { T, P, meta });
   writeFileSync(out.replace(/\.pdf$/, '.html'), html);
   const b = await chromium.launch(); const pg = await b.newPage();
   await pg.goto('file://' + out.replace(/\.pdf$/, '.html')); await pg.evaluate(() => document.fonts.ready);

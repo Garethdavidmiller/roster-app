@@ -46,11 +46,11 @@ td.good{color:#1E7B4B;font-weight:700}
 </style></head><body>
 <h1>December 2026 link proposals — at a glance</h1>
 <p class="lead">All ${rows.length} proposals against today’s link, sorted by December rules met, then fatigue factors. Every figure is worked out from the rota by the Marylebone Roster app. Staffing levels, a 24-person link and Sunday cover confirmed verbally (29 Sep 2026).</p>
-<table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>ORR fatigue factors</th><th>Most days in a row</th><th>Full weekends off</th><th>Shortest rest</th><th>Shift times</th><th>Days a week*</th><th>Days a year*</th><th>Average shift</th><th>Finishes 23:00+ a year†</th><th>Saturdays a year†</th></tr></thead><tbody>
+<table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Fatigue patterns (ORR + industry)</th><th>Most days in a row</th><th>Full weekends off</th><th>Shortest rest</th><th>Shift times</th><th>Days a week*</th><th>Days a year*</th><th>Average shift, Mon–Sat</th><th>Finishes 23:00+ a year†</th><th>Saturdays a year†</th></tr></thead><tbody>
 ${tr(todayRow,'today')}
 ${rows.map(r=>tr(r)).join('\n')}
 </tbody></table>
-<p class="foot">* Monday to Saturday, with a cover week counted as 4 days (Sundays are overtime and left out). † Each person, on average across the whole link; cover weeks add none. “Shift times” counts different start–finish times; “new” means nobody works that time today. Fatigue factors are ORR good practice — reported, never pass or fail. Full detail for each proposal is in its own ten-page sheet; the rules themselves are in December-2026-Rules.pdf.</p>
+<p class="foot">* Monday to Saturday, with a cover week counted as 4 days (Sundays are overtime and left out). † Each person, on average across the whole link; cover weeks add none. “Shift times” counts different start–finish times; “new” means nobody works that time today. Fatigue patterns are the ORR’s good-practice list plus rail-industry checks — reported, never pass or fail. Full detail for each proposal is in its own eight-page sheet; the rules themselves are in December-2026-Rules.pdf.</p>
 </body></html>`;
 const b = await chromium.launch(); const pg = await b.newPage(); await pg.setContent(html, { waitUntil: 'load' });
 await pg.pdf({ path: new URL('Proposals-Summary.pdf', DIR).pathname, format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });

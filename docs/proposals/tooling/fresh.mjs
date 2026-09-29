@@ -34,19 +34,19 @@ export const STRAPS = {
   'WL-24-EXT':  ['Weekday closers from 16:25, with Saturday largely in today’s shift times', 'hand'],
   'WL2-24-R21': ['Weekday closers from 16:25, with extra cover under the 17:00 peak', 'hand+search'],
   'WL3-24-F7':  ['Weekday closers from 16:25, with five of its weeks fixed in place and the others ordered around them', 'hand+search'],
-  'WL4-24-F7':  ['Weekday closers from 16:25, with lines 14–17 kept together in order', 'hand+search'],
+  'WL4-24-F7':  ['Weekday closers from 16:25, built around four weeks (lines 14–17) that stay together in a fixed order', 'hand+search'],
   'WS-24-EXT':  ['A cover week at line 18 and a midday shift at 12:00–20:30', 'hand'],
   'TF-24-EXT':  ['A cover week at line 18, with Sunday and Monday duties placed to reduce fatigue', 'hand'],
   'TM-24-EXT':  ['A cover week at line 18, with two Monday duties moved to other lines', 'hand'],
-  'C17-24-EXT': ['The fourth cover week at line 17, so nobody works more than 13 shifts without a two-day break', 'hand'],
+  'C17-24-EXT': ['Cover weeks at lines 1, 7, 12 and 17, so nobody works more than 13 shifts without a two-day break', 'hand'],
   'S4-24-EXT':  ['Saturdays on just four shift times, with more people on in the evening', 'hand'],
   'CF-24-EXT':  ['Weekday closers from 16:25, and no Saturday closing shift longer than 8h 40m', 'hand'],
   'CFT-24-M3':  ['Weekday closers from 16:25, with four at Sunday’s open and four through to its close', 'hand'],
   'TN-24-R7':   ['Ten on a Sunday, and nobody works more than six days in a row', 'hand+search'],
   'PC-24-EXT':  ['Weekday closers from 16:25, with twelve on a Saturday and the cover weeks at lines 1, 7, 12 and 17', 'hand'],
-  'JE-24-M29':  ['Fifteen shift times, changed in the fewest places that meet all eleven rules', 'exact'],
-  'AC-24-M41':  ['Fifteen shift times, changed in the fewest places that meet all eleven rules with no fatigue finding', 'exact'],
-  'CS-24-M34':  ['Weekday closers from 16:25, changed in the fewest places that meet the other ten rules', 'exact-waived'],
+  'JE-24-M29':  ['Fifteen shift times, meeting all eleven rules', 'exact'],
+  'AC-24-M41':  ['Sixteen shift times, meeting all eleven rules with no avoidable tiring pattern', 'exact'],
+  'CS-24-M34':  ['Weekday closers from 16:25, meeting the other ten rules', 'exact-waived'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
@@ -84,7 +84,9 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   const plural = (k, one, many) => `${k} ${k === 1 ? one : many}`;
   const newTimes = P.tableRows.filter(r => !T.tableRows.some(t => t.time === r.time)).map(r => r.time);
   const shared = P.feel.distinctTimes - newTimes.length;
-  const failed = R.rows.filter(r => !r.ok);
+  // A rule the owner waived for this one design is reported as waived everywhere — never as a failure.
+  const waivedRow = STRAPS[code]?.[1] === 'exact-waived' ? R.rows.find(r => !r.ok && /closer starts at 15:45/i.test(r.rule)) ?? null : null;
+  const failed = R.rows.filter(r => !r.ok && r !== waivedRow);
   const FO = P.office, TO = T.office;
   // gaps in the order the lines are printed, the last one back round to the first line (accuracy check, 28 Sep 2026 —
   // the order spareGaps comes in started with the wrap-round gap, so '1, 7, 12, 17 · gaps of 8, 6, 5, 5' read 1→7 as 8)
@@ -95,7 +97,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   // summing it gave a "weekday" that no day works (a review found 5 × 10,590 + 5,895 printed as 42,000).
   const dayMin = d => keys.reduce((a, k) => { const c = P.patterns[k][d]; return a + (c && c !== 'RD' && c !== 'SPARE' ? dutyMinutes(c) : 0); }, 0);
   const wkTot = WDD.reduce((a, d) => a + dayMin(d), 0), satMin = dayMin('sat'), sunMin = dayMin('sun'), monSat = wkTot + satMin;
-  const contractWords = monSat === 42000 ? 'together exactly 20 people × 35 hours = 42,000 minutes, the contract' : `together ${n(monSat)} — ${n(Math.abs(monSat - 42000))} minutes ${monSat > 42000 ? 'over' : 'under'} the 42,000 of the contract`;
+  const contractWords = monSat === 42000 ? 'together exactly 42,000 minutes — 35 hours for each of the 20 working weeks, the contract (a cover week counts as a full 35-hour week on top)' : `together ${n(monSat)} — ${n(Math.abs(monSat - 42000))} minutes ${monSat > 42000 ? 'over' : 'under'} the 42,000 of the contract`;
   const others = folder.filter(d => d.code !== code);
   // TIERS, NOT A RANKING (external review, 28 Sep 2026): rules met, then fatigue findings, then ALPHABETICAL. Sorting a tie
   // on the weekday floor fit put a proxy ahead of tangible things it does not weigh — familiar times, the longest duty,
@@ -161,22 +163,24 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     runN > 13 ? `a run of ${runN} days worked in a row` : '',
     monSat !== 42000 ? `${n(Math.abs(monSat - 42000))} minutes a week ${monSat > 42000 ? 'over' : 'under'} the contract, across the whole link` : '',
   ].filter(Boolean);
-  const oqItems = [
-    hardBroken.length ? `<b>${hardBroken.length === 1 ? 'A hard limit is' : 'Hard limits are'} broken</b> — ${andList(hardBroken)}. As it stands this rota cannot be run.` : '',
-    failed.length ? `<b>${failed.length === 1 ? 'One December 2026 rule is' : `${failed.length} of the ${R.of} December 2026 rules are`} not met</b> — ${failed.map(r => r.rule + (meta.waived === r.key ? ` (waived by the owner for this design${meta.waivedWhy ? `, ${meta.waivedWhy}` : ''})` : '')).join('; ')}. The shaded rows above give the figures.` : `<b>Nothing to settle on the rules</b> — all ${R.of} are met.`,
-    newTimes.length ? `<b>New shift times.</b> ${newTimes.length === 1 ? `1 of the ${P.feel.distinctTimes} is a time nobody works today` : `${newTimes.length} of the ${P.feel.distinctTimes} are times nobody works today`}; page 5 lists ${newTimes.length === 1 ? 'it' : 'them'}.` : '',
-    // THE THIN MOMENT (accuracy check, 28 Sep 2026): the hour-by-hour page counts a head in every hour a duty
-    // TOUCHES, so a half-hour when nearly nobody is on shows as a full hour. Saturday Four had one person on duty in
-    // the whole station from 14:45 to 15:15 on a Saturday and no page said so. Checked every five minutes, whole
-    // station, ticket office included; anything under three (the close's own minimum) is named.
-    ...(() => { const out = []; const NM = { sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday' };
+  const thin = (() => { const out = []; const NM = { sun: 'Sunday', mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', thu: 'Thursday', fri: 'Friday', sat: 'Saturday' };
       for (const d of ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']) { const [o, c] = d === 'sun' ? [435, 1405] : [380, 1435];
         const on = m => keys.filter(k => { const x = P.patterns[k][d]; const a = startMinutes(x), b = endMinutesAbs(x); return a !== null && b !== null && a <= m && m < b; }).length;
         let lo = Infinity, from = null, to = null;
         for (let m = o; m < c; m += 5) { const v = on(m); if (v < lo) { lo = v; from = m; to = m + 5; } else if (v === lo && to === m) to = m + 5; }
         const t = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
         if (lo < 3) out.push(`<b>A thin moment.</b> ${NM[d]} ${t(from)}–${t(to)}: only ${lo === 1 ? 'one person' : `${lo} people`} on duty in the whole station, ticket office included. Page 6 counts by the hour, so it does not show this.`); }
-      return out; })(),
+      return out; })();
+  const oqItems = [
+    hardBroken.length ? `<b>${hardBroken.length === 1 ? 'A hard limit is' : 'Hard limits are'} broken</b> — ${andList(hardBroken)}. As it stands this rota cannot be run.` : '',
+    failed.length ? `<b>${failed.length === 1 ? 'One December 2026 rule is' : `${failed.length} of the ${R.of} December 2026 rules are`} not met</b> — ${failed.map(r => r.rule).join('; ')}. The shaded rows above give the figures.` : `<b>Nothing to settle on the rules</b> — ${waivedRow ? `the other ${R.of - 1} are met` : `all ${R.of} are met`}.`,
+    waivedRow ? `<b>Waived for this design</b> — ${waivedRow.rule}: here ${waivedRow.value}. The owner agreed this on 28 September 2026.` : '',
+    newTimes.length ? `<b>New shift times.</b> ${newTimes.length === 1 ? `1 of the ${P.feel.distinctTimes} is a time nobody works today` : `${newTimes.length} of the ${P.feel.distinctTimes} are times nobody works today`}; page 5 lists ${newTimes.length === 1 ? 'it' : 'them'}.` : '',
+    // THE THIN MOMENT (accuracy check, 28 Sep 2026): the hour-by-hour page counts a head in every hour a duty
+    // TOUCHES, so a half-hour when nearly nobody is on shows as a full hour. Saturday Four had one person on duty in
+    // the whole station from 14:45 to 15:15 on a Saturday and no page said so. Checked every five minutes, whole
+    // station, ticket office included; anything under three (the close's own minimum) is named.
+    ...thin,
   ].filter(Boolean);
 
   const tr = (d, here) => `<tr${here ? ' class="here"' : ''}><td class="nm">${d.name}</td><td class="num">${d.rules.met} of ${d.rules.of}</td><td class="num">${d.present}</td><td class="num">${d.run}</td><td class="num">${hmR(d.rest)}</td><td class="num">${d.weekends}</td><td class="num">${f1(d.floor.wk)}</td><td class="num">${f1(d.floor.sat)}</td><td class="num">${f1(d.floor.sun)}</td><td class="num">${d.distinct}</td><td class="num">${d.distinct - d.newTimes}</td></tr>`;
@@ -197,7 +201,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     if (newLines.length) return `${newLines.length === w ? `Every working line` : `${newLines.length} of the ${w} working lines`} (${newLines.length === w ? 'all of them' : `lines ${andList(newLines.map(String))}`}) ${newLines.length === 1 || newLines.length === w ? 'holds' : 'hold'} at least one shift time nobody works today. On a rotating link everyone works every line in turn, so staff read those weeks first and say in one line each what they would change.`;
     return `The longest duty (${hmR(longest)}) is on ${longLines.length === 1 ? 'line' : 'lines'} ${andList(longLines.map(String))}; staff read those weeks first and say in one line each what they would change.`;
   })();
-  const p8Note = `Design-specific findings: ${P.fatigue.present} (today ${T.fatigue.present}). <b>Standing factors (●) are recorded for information, not counted.</b> FF2 comes with the station’s 06:20 open, and FF18 — the ORR’s concern with a rotation that changes shift type about once a week (Managing rail staff fatigue, 7.68) — comes with every weekly link, which moves everyone one line a week by construction; its week-to-week step is shown as information. <b>How to read the table.</b> The figure beside each mark is the worst case found, for today’s link as for the proposal, except where a row counts only the duties the rota fixes: the 55-hour row counts a cover week as no hours, and FF8b counts none of its days as early. “As rostered” under FF11 is the worst of the places a cover week’s four duties could fall when worked together, which is usual. The MRSF rows are extra checks from the rail industry’s guidance on managing staff fatigue, listed beside the ORR’s own. FF2 and FF15 use the ORR’s early — a start from 05:00 to 07:00, not the 11:00 used elsewhere on this sheet; the station opens at 06:20, so every design has FF2. FF11 counts shifts between two-day breaks, so a single rest day does not reset it — that is why it can be longer than the most days worked in a row. <b>Cover weeks.</b> ${p8Moves.length ? `A cover week’s four duties can fall in different ways, and on this design that moves ${andList(p8Moves)}. Where they fall is for the roster office.` : `On this design, where the roster clerk places a cover week’s four duties does not change the runs, FF11 or the 55-hour row.`} This page is an aid to discussion, not a fatigue risk assessment.`;
+  const p8Note = `Design-specific findings: ${P.fatigue.present} (today ${T.fatigue.present}). <b>Standing factors (●) are recorded for information, not counted.</b> FF2 comes with the station’s 06:20 open, and FF18 — the ORR’s concern with a rotation that changes shift type about once a week (Managing rail staff fatigue, 7.68) — comes with every weekly link, which moves everyone one line a week by construction; its week-to-week step is shown as information. <b>How to read the table.</b> The figure beside each mark is the worst case found, for today’s link as for the proposal, except where a row counts only the duties the rota fixes: the 55-hour row counts a cover week as no hours, and FF8b counts none of its days as early. “As rostered” under FF11 is the worst of the places a cover week’s four duties could fall when worked together, which is usual. The MRSF rows are extra checks from the rail industry’s guidance on managing staff fatigue, listed beside the ORR’s own. FF2 and FF15 use the ORR’s early — a start from 05:00 up to 06:59, not the 11:00 used elsewhere on this sheet; the station opens at 06:20, so every link has FF2. FF11 counts shifts between two-day breaks, so a single rest day does not reset it — that is why it can be longer than the most days worked in a row. <b>Cover weeks.</b> ${p8Moves.length ? `A cover week’s four duties can fall in different ways, and on this design that moves ${andList(p8Moves)}. Where they fall is for the roster office.` : `On this design, where the roster clerk places a cover week’s four duties does not change the runs, FF11 or the 55-hour row.`} This page is an aid to discussion, not a fatigue risk assessment.`;
 
   return {
     identity: { ...meta.identity, strap },
@@ -205,7 +209,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     ...(() => { const k = new Set([...T.tableRows, ...P.tableRows].map(r => r.time)).size; return k > 36 ? { denseDuty: true, tightDuty: true, xxTightDuty: true } : k > 26 ? { denseDuty: true, tightDuty: true } : {}; })(),
     fresh: true, changed: null, officeNamed: R.rows.find(r => r.key === 'office').ok,
     coverSame: coverParts.length === 0, coverParts, ff11Split, ff11Block, pairDays: R.pairDays, otherDaysTxt: (() => { const NM = { sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat' }; const o = ['mon','tue','wed','thu','fri','sat','sun'].filter(x => !(R.pairDays ?? []).includes(x)); const wk = ['mon','tue','wed','thu','fri'].every(x => o.includes(x)); const parts = [...(wk ? ['Mon–Fri'] : o.filter(x => !['sat','sun'].includes(x)).map(x => NM[x])), ...o.filter(x => x === 'sat' || x === 'sun').map(x => NM[x])]; return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts.join(''); })(), pairDaysTxt: (() => { const NM = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' }; const d = R.pairDays ?? []; const wk = ['mon','tue','wed','thu','fri'].every(x => d.includes(x)); const parts = [...(wk ? ['Mon–Fri'] : d.filter(x => !['sat','sun'].includes(x)).map(x => NM[x])), ...d.filter(x => x === 'sat' || x === 'sun').map(x => NM[x])]; return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts.join(''); })(), readLines, p8Note, monSat, f1,
-    rulesChip: (failed.length ? `<span class="sum-chip sum-chip--warn">⚠ <strong>${failed.length}</strong> of ${R.of} current working rules not met${failed.length === 1 ? ` — ${failed[0].rule.charAt(0).toLowerCase() + failed[0].rule.slice(1)}${meta.waived === failed[0].key ? ', waived for this design' : ''}` : ''}</span>` : `<span class="sum-chip sum-chip--ok">✓ all <strong>${R.of}</strong> current working rules met</span>`),
+    rulesChip: (failed.length ? `<span class="sum-chip sum-chip--warn">⚠ <strong>${failed.length}</strong> of ${R.of} current working rules not met${failed.length === 1 ? ` — ${failed[0].rule.charAt(0).toLowerCase() + failed[0].rule.slice(1)}${meta.waived === failed[0].key ? ', waived for this design' : ''}` : ''}</span>` : waivedRow ? `<span class="sum-chip sum-chip--ok">✓ <strong>${R.of - 1}</strong> of ${R.of} current working rules met — the 15:45 closer rule is waived for this design</span>` : `<span class="sum-chip sum-chip--ok">✓ all <strong>${R.of}</strong> current working rules met</span>`),
       // No Sunday chip: the 23:25 finish is SETTLED (owner, 28 Sep 2026 — no duty runs past it, agreed practice). The
       // external review asked for an amber "undecided" chip here; it shipped for one release and was withdrawn the same day.
     metaLine: `Prepared ${rendered} · every figure is calculated from the rota, not entered by hand`,
@@ -217,11 +221,12 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     headsEvid: `At least four at the open, three at the close, five at 22:00; 14 on Saturday, 10 on Sunday`,
     satNote: satMet ? 'meets the December 2026 figure of 14' : 'short of the December 2026 figure of 14',
     sunNote: sunMet ? 'meets the December 2026 figure of 10' : 'short of the December 2026 figure of 10',
-    designHeading: 'The December 2026 rules', designSub: '— the same rules every proposal is measured against, with today’s link beside them',
-    designRules: R.rows.map((r, i) => ({ rule: r.rule, value: r.value, ok: r.ok, note: r.note, today: RT.rows[i].value, todayOk: RT.rows[i].ok })),
+    thinMoments: thin,
+    designHeading: 'The December 2026 rules', designSub: '— each one, with today’s link beside it',
+    designRules: R.rows.map((r, i) => ({ rule: r.rule, value: r.value, ok: r.ok, waived: r === waivedRow, note: r.note, today: RT.rows[i].value, todayOk: RT.rows[i].ok })),
     openQuestionsHeading: 'Still to settle', openQuestions: oqItems.join(' '), openQuestionsHtml: `<ul class="oq-list">${oqItems.map(x => `<li>${x}</li>`).join('')}</ul>`,
     wembleyLine: 'Whether this pattern holds on Wembley event days — it is based on the train timetable, not on passenger numbers.',
-    sundayNote: 'On Sundays five trains in the December 2026 timetable arrive or leave after the 23:25 finish (the last at 23:54); the bar under the Sunday 23:00 hour marks the time after the finish. No duty runs past 23:25 on a Sunday — that is agreed practice and stays so (settled 28 Sep 2026) — so those trains fall outside every design’s staffed day, today’s included.',
+    sundayNote: 'On Sundays five trains in the December 2026 timetable arrive or leave after the 23:25 finish (the last at 23:54); the bar under the Sunday 23:00 hour marks the time after the finish. No duty runs past 23:25 on a Sunday — that is agreed practice and stays so (settled 28 Sep 2026) — so those trains fall outside the staffed day of any link, today’s included.',
     coverNote: gaps.length ? (new Set(gaps).size === 1 ? `evenly spaced, every ${gaps[0]} lines · today’s are at lines ${T.feel.spareLines.join(', ')}` : `not evenly spaced (gaps of ${andList(gaps.map(String))} lines, the last back round to line ${Math.min(...P.feel.spareLines)}; even would be every 6) · today’s are at lines ${T.feel.spareLines.join(', ')}`) : undefined,
     eyebrow3: 'Against today’s link', h3: 'A week, and the duty table',
     sub3: 'How a working week compares with today’s, and every shift time beside the ones worked today.',
