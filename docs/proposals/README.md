@@ -3,7 +3,7 @@
 The CEA link proposals drawn for the December 2026 timetable change, each a PDF with its own
 **identity** so it can be named in a room: a name, a code that says how it was built, and a
 fingerprint of the exact cells so a printout can never be confused with a variant. The same
-identity is in every page footer. All 15 were judged by the app's own Links modules
+identity is in every page footer. All 12 were judged by the app's own Links modules
 (`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) — the
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
@@ -44,6 +44,10 @@ then with the 15:45 closer and the 8h40 cap, meeting 8 to 9 of the rules — are
 summary: **15 sheets**. As with By the Book, their search candidates stay in `tooling/results/` and `final.mjs` keeps
 their code (the note above `SEARCHED` says how to rebuild one); git history holds the sheets. *Pinned Turns* and *Round
 Times*, which also start from today's roster but were built fresh to the owner's brief of 25 Sep, stay and did not change.
+Then three supplied tables (owner, 29 Sep 2026): *Polished Clean* (`PC-24-EXT · 12424ed2`, 2 of the rules), *Cover at
+Seventeen* (`C17-24-EXT · edc1b731`, 4) and *Saturday Four* (`S4-24-EXT · 481ba9ed`, 4): **12 sheets**. Polished Clean's
+grid stays as `tooling/polished-clean.json`, because *Clean Sweep* is counted from it and its solver (`exact/pc.py`) reads
+it; Clean Sweep's sheet did not change. The other two grids are gone; git history holds all three sheets.
 The Links compare test that used Short Closer as its
 real-design fixture now uses *Weekday Lates*, which has the same shape (tiring patterns present in both at different figures).
 
@@ -82,7 +86,7 @@ project's history, kept as the record: where one describes a ten-page sheet, 23 
 is describing an earlier edition.
 
 **Everything in one download:** `December-2026-Link-Proposals.zip` (29 Sep 2026) — the one-page summary, the
-rules, both presentations, all 15 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
+rules, both presentations, all 12 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
 re-render of the sheets does not update it, so rebuild it after one.
 
 **The one-page summary:** `Proposals-Summary.pdf` — every proposal against today's link on one A4 page, rendered by
@@ -109,7 +113,6 @@ and to the floor on 28 Sep.
 | **Just Enough** | `JE-24-M29 · 49717d70` | ***Fifteen Turns* with the fewest cells changed that meet every rule (28 Sep 2026)** — **29**, proven the minimum by an exact solver: all eleven December 2026 rules and the three hard limits, where *Fifteen Turns* meets five and breaks two limits. Among the 29-change versions, the fewest fatigue factors (three, also proven — none new; *Fifteen Turns* has seven), the most weekends off (two, as *Fifteen Turns*) and the smallest changes. The other 139 working cells and the four cover weeks are as drawn | 3 | 9 | 2 in 24 |
 | **All Clear** | `AC-24-M41 · 094fd369` | ***Fifteen Turns* with the fewest cells changed that meet every rule with no fatigue finding at all (28 Sep 2026)** — **41**, proven the minimum; the other end of *Just Enough*'s trade, twelve more changes for three fewer findings. Cover weeks untouched; its price is Sunday's fit | **0** | 9 | 2 in 24 |
 | **Clean Sweep** | `CS-24-M34 · 92366924` | ***Polished Clean* with the fewest cells changed that meet the rules, its 16:25 weekday closers kept by the owner's allowance (28 Sep 2026)** — **34**, proven the minimum, 22 of them from spreading the cover weeks evenly (1, 7, 13, 19); among those, the fewest fatigue findings (three, proven — none new). 10 of the 11 rules: the one not met is the 15:45 closer, waived for this design | 3 | 9 | 2 in 24 |
-| **Polished Clean** | `PC-24-EXT · 12424ed2` | **Supplied as a one-page Word table (28 Sep 2026)**, not searched — weekday closers from 16:25, twelve on a Saturday, the cover weeks at lines 1, 7, 12 and 17; every weekly total in the document agrees with its cells. Meets 2 of the 11 rules | 4 | 9 | 2 in 24 |
 | **Round Times** | `P2-24-N13 · 33a78cbe` | *Pinned Turns*' pins with **every other time rewritten onto the quarter hour** (the pinned 06:20–14:20 the one exception, and the contract's arithmetic needs it) and **no more shift times a day than *Pinned Turns*** — each day enumerated to a proof (weekday fit 33.8, Saturday 22.9, Sunday 62.4; 14 distinct turns in the week), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Pinned Turns** | `PT-24-P34 · dae6292e` | **The owner's brief of 25 Sep 2026** from today's roster: Mon–Fri 15:45 closers, three 06:20–14:20 openers, two 14:00–22:30 lates and an 8h40 cap; Saturday two long openers and a 14:00–22:30; Sunday a 13:00–21:30 — the rest of each day fitted to the timetable (weekday fit 32.1; three turns off the quarter hour — the pinned 06:20–14:20, Saturday's 06:20–14:50 and the weekday's 07:00–15:40), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5, or **4 as rostered** | 9 | 6 in 24 |
@@ -117,8 +120,6 @@ and to the floor on 28 Sep.
 | **Gates Mended** | `FT-24-R21 · b76bf9e1` | The same design with both gates **repaired** and the rotation re-searched — one Saturday duty shortened (`12:00–20:00` to `12:00–19:00`, Saturday cover at 19:00 seven to six), every other duty and headcount unchanged | **1** | 6 | 6 in 24 |
 | **Evening Peak** | `WL2-24-R21 · 33f70893` | Weekday Lates with eight of its nine `08:30–17:00` turns re-timed into the evening to cover the 17:00 peak, then re-searched | **1** | 6 | 6 in 24 |
 | **Anchored Lines** | `WL4-24-F7 · f0d403d6` | The same evening fix again, with **weeks 14–17 kept in order on their own line numbers** — week 13 the one that moves | **1** (FF19 at 2, the fewest found) | 7 | 6 in 24 |
-| **Cover at Seventeen** | `C17-24-EXT · edc1b731` | **Supplied as a grid**, not searched — *Three Mondays* with lines 17 and 18 swapped back, so the cover week returns to 17. **FF11 clears** for the first time in this line | **3** (on both readings) | 9 | 5 in 24 |
-| **Saturday Four** | `S4-24-EXT · 481ba9ed` | *Cover at Seventeen* with **Saturday rebuilt** on its own minute budget — nine turns down to four, six start times down to three, weighted to the late for Wembley. The first duty change in this line | **3** (on both readings) | 9 | 5 in 24 |
 
 **Renamed 28 Sep 2026** (owner: *give them distinctive names*). Eleven sheets had become numbered
 sequels or near-twins — three "Clean Final"s, three "Weekday Lates" after the first, a "2" on three

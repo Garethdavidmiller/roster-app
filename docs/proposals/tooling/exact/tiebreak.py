@@ -14,7 +14,7 @@ from evaluator import judge
 from ortools.sat.python import cp_model
 
 C,F,OUT=int(sys.argv[1]),int(sys.argv[2]),sys.argv[3]; T=float(sys.argv[4]) if len(sys.argv)>4 else 600
-# BASE=<grid.json, e.g. ../../Polished-Clean-PC-24-EXT.json> SPARES=1,7,13,19 CLOSERS=15:45-23:55,16:25-23:55 — for a base other than Fifteen Turns (Polished Clean)
+# BASE=<grid.json, e.g. ../polished-clean.json> SPARES=1,7,13,19 CLOSERS=15:45-23:55,16:25-23:55 — for a base other than Fifteen Turns (Polished Clean)
 BASE=load(os.environ['BASE']) if os.environ.get('BASE') else FT
 SPS={int(v) for v in os.environ['SPARES'].split(',')} if os.environ.get('SPARES') else SPARE_LINES
 CLS_=tuple(os.environ['CLOSERS'].split(',')) if os.environ.get('CLOSERS') else ('15:45-23:55',)

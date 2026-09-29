@@ -34,8 +34,8 @@ export const SUPPLIED = [
     { file: 'weekday-lates-4.json',    name: 'Anchored Lines',       code: 'WL4-24-F7',  fp: 'f0d403d6', strap: 'Weeks 14-17 kept in order, on their own line numbers' },
     { file: 'fifteen-turns.json',      name: 'Fifteen Turns',         code: 'FT-24-EXT',  fp: '9a028392', strap: 'Fifteen turns, cover weeks evenly spread' },
     { file: 'fifteen-turns-repaired.json', name: 'Gates Mended', code: 'FT-24-R21', fp: 'b76bf9e1', strap: 'The supplied design, repaired and re-searched' },
-    { file: 'cover-at-seventeen.json', name: 'Cover at Seventeen',    code: 'C17-24-EXT', fp: 'edc1b731', strap: 'Lines 17 and 18 swapped back - the cover week returns to 17, and FF11 clears' },
-    { file: 'saturday-four.json',     name: 'Saturday Four',        code: 'S4-24-EXT',  fp: '481ba9ed', strap: 'Saturday rebuilt - four turns, three start times, weighted to the late for Wembley' },
+    // Cover at Seventeen (C17-24-EXT · edc1b731) and Saturday Four (S4-24-EXT · 481ba9ed) were WITHDRAWN on 29 Sep 2026
+    // (owner), with their source grids; git history holds both (sat-assign.mjs built Saturday Four from the first).
     // Familiar Nine (28 Sep 2026) is built rather than supplied — table K proven by final-table.mjs, Right Away's week
     // structure carried onto it and polished — but its grid is the finished product of three tools, so it ships as a grid.
     // 29 Sep 2026: its Sunday re-searched under the owner's December Sunday office plan — three Sunday cells (the
@@ -46,7 +46,8 @@ export const SUPPLIED = [
     // solver in tooling/exact/ — and, among those, the fewest fatigue factors (three, also proven).
     { file: 'just-enough.json',            name: 'Just Enough',    code: 'JE-24-M29',  fp: '49717d70', strap: 'Fifteen Turns with the fewest changes that meet every rule' },
     // Polished Clean (28 Sep 2026) was supplied as a one-page Word table; every weekly total was checked against its cells.
-    { file: 'polished-clean.json',         name: 'Polished Clean', code: 'PC-24-EXT',  fp: '12424ed2', strap: 'Weekday closers from 16:25, on a one-page table' },
+    // Polished Clean (PC-24-EXT · 12424ed2) was WITHDRAWN on 29 Sep 2026 (owner). Its grid stays as tooling/polished-clean.json
+    // because Clean Sweep is counted from it; it no longer ships a sheet.
     // All Clear and Clean Sweep (28 Sep 2026): the exact solver's other two answers — Fifteen Turns with no fatigue factor
     // at all (41 changes, proven), and Polished Clean made to meet the rules but its waived 15:45 closer (34, proven).
     { file: 'all-clear.json',              name: 'All Clear',      code: 'AC-24-M41',  fp: '094fd369', strap: 'Fifteen Turns with the fewest changes that meet every rule with no fatigue finding' },
