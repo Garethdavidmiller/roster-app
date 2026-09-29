@@ -23,9 +23,6 @@ export const STRAPS = {
   'F9-24-K31s': ['No duty over nine hours, and most shift times ones people already work', 'search'],
   'PT-24-P34':  ['Today’s roster reworked: weekday closers at 15:45, the rest of each day timed to the December trains', 'search'],
   'P2-24-N13':  ['Apart from the 06:20 opening and the closing shifts, every shift starts and finishes on the quarter hour', 'search'],
-  'QT-24-Q34':  ['Only today’s shift times, plus a new weekday closer at 15:45', 'search'],
-  'Q2-24-W21':  ['Mostly today’s shift times, weekday closers at 15:45, and no duty longer than 8h 40m on any day', 'search'],
-  'ST-24-B7':   ['Today’s link widened to 24 lines, in today’s own shift times', 'search'],
   'FT-24-EXT':  ['Fifteen shift times with the cover weeks evenly spread', 'hand'],
   'FT-24-R21':  ['Fifteen shift times, arranged to pass every hard limit', 'hand+search'],
   'WL-24-EXT':  ['Weekday closers from 16:25, with Saturday largely in today’s shift times', 'hand'],
@@ -40,16 +37,15 @@ export const STRAPS = {
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
-export const FAMILY = { ST: 'Same Turns', QT: 'Same Turns', Q2: 'Same Turns',
+export const FAMILY = {
   PT: 'Pinned Turns', P2: 'Pinned Turns', FR: 'Right Away', F9: 'Right Away', FT: 'Fifteen Turns', JE: 'Fifteen Turns', AC: 'Fifteen Turns', PC: 'Weekday Lates', CS: 'Weekday Lates',
   WL: 'Weekday Lates', WL2: 'Weekday Lates', WL4: 'Weekday Lates',
   C17: 'Weekday Lates', S4: 'Weekday Lates' };
-export const FIRST = { 'ST-24-B7': '8 Sep 2026', 'QT-24-Q34': '12 Sep 2026',
+export const FIRST = {
   // 17 Sep, not 18: each of these six was committed, with the same fingerprint, on 17 Sep (accuracy check, 28 Sep 2026)
   'WL-24-EXT': '17 Sep 2026', 'WL2-24-R21': '17 Sep 2026', 'FT-24-EXT': '17 Sep 2026', 'FT-24-R21': '17 Sep 2026',
   'WL4-24-F7': '22 Sep 2026', 'C17-24-EXT': '22 Sep 2026', 'S4-24-EXT': '22 Sep 2026',
- 
-  'Q2-24-W21': '24 Sep 2026', 'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34s': '28 Sep 2026', 'F9-24-K31s': '28 Sep 2026', 'JE-24-M29': '28 Sep 2026', 'PC-24-EXT': '28 Sep 2026',
+  'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34s': '28 Sep 2026', 'F9-24-K31s': '28 Sep 2026', 'JE-24-M29': '28 Sep 2026', 'PC-24-EXT': '28 Sep 2026',
   'AC-24-M41': '28 Sep 2026', 'CS-24-M34': '28 Sep 2026' };
 const MADE = {
   search: 'Built by computer search: the duty table was chosen for how closely it follows the December 2026 timetable, and the 24 weeks put in the order that raises the fewest fatigue factors.',

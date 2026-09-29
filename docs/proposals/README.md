@@ -3,7 +3,7 @@
 The CEA link proposals drawn for the December 2026 timetable change, each a PDF with its own
 **identity** so it can be named in a room: a name, a code that says how it was built, and a
 fingerprint of the exact cells so a printout can never be confused with a variant. The same
-identity is in every page footer. All 18 were judged by the app's own Links modules
+identity is in every page footer. All 15 were judged by the app's own Links modules
 (`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) — the
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
@@ -38,6 +38,12 @@ both supplied tables with small hand edits and a computer re-ordering of the wee
 with their source grids: 22 sheets became 20. *Anchored Lines*, whose technical edition listed Frozen Block as a comparison,
 is unchanged. Git history holds both. Then *Short Closer* (`CF-24-EXT · 6d21169b`, a supplied Word table, 3 of the rules):
 19 sheets; and *Light Retime* (`CFT-24-M3 · ae1a15bd`, Short Closer with three cells retimed, 4 of the rules): 18 sheets.
+Then the **Same Turns family** (owner, 29 Sep 2026): *Same Turns* (`ST-24-B7 · d15e1b74`), *Quarter To*
+(`QT-24-Q34 · 70cf9874`) and *Weekend Capped* (`Q2-24-W21 · 7ea671d5`) — today's link widened to 24 in today's own times,
+then with the 15:45 closer and the 8h40 cap, meeting 8 to 9 of the rules — are gone from the folder, the pack and the
+summary: **15 sheets**. As with By the Book, their search candidates stay in `tooling/results/` and `final.mjs` keeps
+their code (the note above `SEARCHED` says how to rebuild one); git history holds the sheets. *Pinned Turns* and *Round
+Times*, which also start from today's roster but were built fresh to the owner's brief of 25 Sep, stay and did not change.
 The Links compare test that used Short Closer as its
 real-design fixture now uses *Weekday Lates*, which has the same shape (tiring patterns present in both at different figures).
 
@@ -76,7 +82,7 @@ project's history, kept as the record: where one describes a ten-page sheet, 23 
 is describing an earlier edition.
 
 **Everything in one download:** `December-2026-Link-Proposals.zip` (29 Sep 2026) — the one-page summary, the
-rules, both presentations, all 18 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
+rules, both presentations, all 15 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
 re-render of the sheets does not update it, so rebuild it after one.
 
 **The one-page summary:** `Proposals-Summary.pdf` — every proposal against today's link on one A4 page, rendered by
@@ -98,9 +104,6 @@ and to the floor on 28 Sep.
 
 | Proposal | Code · fingerprint | What it is | Fatigue findings | Longest run | Weekends off |
 |---|---|---|---|---|---|
-| **Same Turns** | `ST-24-B7 · d15e1b74` | Today's 20-line link widened to 24 in today's own shift times and week shapes | 1 (FF19, one jump) | 6 | 6 in 24 |
-| **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no weekday duty over 8h40 (Saturday's 14:45–23:55 and Sunday's 14:30–23:25 run 9h10 and 8h55) — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
-| **Weekend Capped** | `Q2-24-W21 · 7ea671d5` | *Quarter To* with its own open question answered: **Saturday and Sunday searched again under the 8h40 cap** from today's clock times and the quarter hour — Saturday entirely in today's times (fit 23.1 against 32.7), Sunday one new turn, the capped closer (61.4 against 80.6); every one of its 20 working weeks is one turn | 1 (FF19, one jump) | 6 | 6 in 24 |
 | **Right Away** | `FR-24-F34s · 745e98b0` (was `FR-24-F34o · be01f0db`) | **The owner's final rules of 28 Sep 2026**: the ticket office rostered as fixed pairs of identical turns and **not counted as floor cover**, every weekday closer 15:45, the headcounts as minimums, at least two on the floor at every moment, 15-minute handovers (20 in the office), Sunday duties 8h–9h, no more shift times than today — each day enumerated to a proof for the fit of the **floor** as it was measured when it was built; on the sheets' current measure (the office's second person helping at the quiet ends, and the exact edges of each hour) its floor fit is 26.5 weekday, 14.6 Saturday, 28.9 Sunday — 21.7 / 10.5 / 32.5 with everyone counted, the folder's best weekday, 17 turns in the week against today's 18, the rotation fatigue-first and its week order then improved (28 Sep 2026: 14 of 20 weeks on one shift time, heaviest week 41h50) | **0** | 6 | 6 in 24 |
 | **Familiar Nine** | `F9-24-K31s · 598a1294` (was `F9-24-K31 · c450951c`) | **Right Away's rules with two more aims (28 Sep 2026)**: no duty over nine hours, and the shift times people already work wherever they cost little fit — 9 of its 15 times are worked today (Right Away 5 of 17), the longest duty 9h00 (9h30), the weekday table proven; Right Away's week structure carried over and polished until no figure was worse than Right Away's (14 of 20 weeks on one shift time, shortest rest 14h20, the thinnest Sunday floor 3 not 2), for a looser fit: 27.7 · 15.0 · 31.3 against 26.5 · 14.6 · 28.9 | **0** | 6 | 6 in 24 |
 | **Just Enough** | `JE-24-M29 · 49717d70` | ***Fifteen Turns* with the fewest cells changed that meet every rule (28 Sep 2026)** — **29**, proven the minimum by an exact solver: all eleven December 2026 rules and the three hard limits, where *Fifteen Turns* meets five and breaks two limits. Among the 29-change versions, the fewest fatigue factors (three, also proven — none new; *Fifteen Turns* has seven), the most weekends off (two, as *Fifteen Turns*) and the smallest changes. The other 139 working cells and the four cover weeks are as drawn | 3 | 9 | 2 in 24 |

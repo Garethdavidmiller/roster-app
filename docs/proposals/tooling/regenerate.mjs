@@ -57,10 +57,9 @@ export const SUPPLIED = [
 // The By the Book family (BB-24-D7 · 0f14abce, EF-24-E21 · 0cf19f56, B2-24-G21 · 02f3c005) was WITHDRAWN on 29 Sep 2026
 // (owner). Its candidates stay in results/ and final.mjs keeps its code; to rebuild one, restore its entry here and its
 // strap, family and date in fresh.mjs from git history. Unlisted, a full run cannot ship them back into the folder.
+// The Same Turns family (ST-24-B7 · d15e1b74, QT-24-Q34 · 70cf9874, Q2-24-W21 · 7ea671d5) was withdrawn the same way
+// the same day: its entries were { ST: results/best-{A,B}-*.json }, { QT: results/best-{Q,R}-*.json }, { Q2: results/best-W-*.json }.
 export const SEARCHED = [
-    { proposal: 'ST', fp: 'd15e1b74', globs: ['results/best-A-*.json', 'results/best-B-*.json'] },
-    { proposal: 'QT', fp: '70cf9874', globs: ['results/best-Q-*.json', 'results/best-R-*.json'] },
-    { proposal: 'Q2', fp: '7ea671d5', globs: ['results/best-W-*.json'] },
     // PT ran in both modes; fatigue-first (RP) cleared every factor where like-today (P) kept one or two, so RP
     // is the family and the best like-today result is shown beside it as a labelled row.
     { proposal: 'PT', fp: 'dae6292e', globs: ['results/best-RP-*.json'], env: { OTHER_MODE: 'results/best-P-13.json' } },
