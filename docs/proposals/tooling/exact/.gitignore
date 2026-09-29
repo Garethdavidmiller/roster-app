@@ -4,3 +4,4 @@ __pycache__/
 *.log
 tiebreak_model.py
 wl-spec.json
+!rr-mix.json
