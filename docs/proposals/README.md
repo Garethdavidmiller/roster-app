@@ -12,13 +12,17 @@ nothing is typed.
 colleagues alike (owner: *"I can't overload Nathan, it needs to be easy to understand"*). Page 1 answers five questions
 in a word or two with one line of proof each — does it meet the December staffing levels, can it be run within the
 limits, is it tiring, what does it take, are staff where the trains are — then three tiles on what it is like to work,
-what staff are likely to welcome and to worry about, and what is still to settle. Page 2 sets every figure against
+the likely positives for staff and what colleagues may be concerned about, and what is still to settle. Page 2 sets every figure against
 today's link, with a plain translation of each row. Pages 3–7 are the workings (the grid, the week and duty table, the
 hour-by-hour cover, the limits and rules, the ORR table), and page 8 says in plain words how every figure is worked
 out. **Today's link is the only comparison**: no sheet, and not the rules sheet, names, counts or ranks another
 proposal — the one-page summary is where they sit side by side, for the owner. Rendered by `tooling/plain.mjs`;
 `TECH=1 node regenerate.mjs` renders the technical sheet instead, with its comparisons removed by `tooling/solo.mjs`.
 Every claim on pages 1–2 is judged shift by shift, never on an average, after five independent checks on 29 Sep 2026.
+
+**How to read this file.** The paragraphs above describe the pack as it is now. Every dated section below is the
+project's history, kept as the record: where one describes a ten-page sheet, 23 designs or a page 9 comparison, it
+is describing an earlier edition.
 
 **Everything in one download:** `December-2026-Link-Proposals.zip` (29 Sep 2026) — the one-page summary, the
 rules, both presentations, all 28 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
@@ -1599,7 +1603,7 @@ changed; each fix is in the generator, not the PDF; all 22 sheets were re-render
 
 | File | Use |
 |---|---|
-| `<Name>-<code>-<fingerprint>.pdf` | the proposal, 10 pages A4 — **force-added** (`git add -f`), because `.gitignore` ignores every `*.pdf` in the tree |
+| `<Name>-<code>-<fingerprint>.pdf` | the proposal, 8 pages A4 (the plain edition) — **force-added** (`git add -f`), because `.gitignore` ignores every `*.pdf` in the tree |
 | `<Name>-<code>-import.txt` | line number then Sunday–Saturday, tab-separated — paste into **Links → Import** |
 | `<Name>-<code>.json` | the same rotation in the app's own `{ name, patterns }` shape — also importable |
 | `December-2026-Rules.pdf` | **the rules on their own** (28 Sep 2026), two pages A4, force-added like the sheets: the three hard limits, the eleven December 2026 rules with what each asks exactly, today's link against each and how many of the proposals meet it, the fatigue factors with how many proposals each is present in, the preferences, and the questions still open. Rendered by `tooling/rules-sheet.mjs` from `currentRules`, `assessFatigue` and `folderStats` — the code the sheets use — and by every full `regenerate.mjs` run, so it cannot drift from them |
@@ -1610,6 +1614,8 @@ figures from its PDF. The demand fits, the ticket office / floor split and the e
 not in the workspace; they come only from `tooling/report-data.mjs`.
 
 ## The managers' edition (28 Sep 2026)
+
+*(Superseded 29 Sep 2026 by the plain edition — eight pages, compared with today's link only; see the top of this file. Kept as the record of how the ten-page sheet was built and checked.)*
 
 The managers have seen none of these proposals, and meet all 28 at once. So every sheet is now written for a
 first-time reader: it answers **one question** — *is this better than today's link, and does it meet the December

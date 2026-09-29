@@ -229,8 +229,8 @@ function front({ T, P, meta, pages, coverHead }) {
   <div class="tiles head5">${tiles}</div>
   <div class="tiles pfeel">${feel}</div>
   <div class="pcols">
-    <div class="pbox pbox-good"><h3>Staff are likely to welcome</h3>${good.length ? `<ul>${listOf(good).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="muted">Nothing notably better than today.</p>'}</div>
-    <div class="pbox pbox-warn"><h3>Staff are likely to worry about</h3>${bad.length ? `<ul>${listOf(bad).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="muted">Nothing notably worse than today.</p>'}</div>
+    <div class="pbox pbox-good"><h3>Likely positives for staff</h3>${good.length ? `<ul>${listOf(good).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="muted">Nothing notably better than today.</p>'}</div>
+    <div class="pbox pbox-warn"><h3>What colleagues may be concerned about</h3>${bad.length ? `<ul>${listOf(bad).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="muted">Nothing notably worse than today.</p>'}</div>
   </div>
   <div class="pbox pbox-decide"><h3>Still to settle</h3><ul>${decide.map(x => `<li>${x}</li>`).join('')}</ul></div>
   ${foot(1, 'On one page')}
@@ -299,7 +299,7 @@ function methodPage({ meta, pages }) {
   const name = esc(meta.identity.name);
   const items = [
     ['Where the figures come from', 'Every figure is worked out from the rota itself — the 24 weeks on page 3 — by the Marylebone Roster app. None is typed in by hand, and the same calculation is run on today’s link.'],
-    ['Cover weeks', 'A cover week is marked on all seven days but works four of them, placed by the roster clerk. It counts as a full contracted week of hours and as four days at work. Where a figure depends on where those four fall, the worst case is shown.'],
+    ['Cover weeks', 'A cover week is marked on all seven days but works four of them, placed by the roster clerk. It counts as a full contracted week of hours and as four days at work. Where a figure depends on where those four fall, the worst case is shown. Cover-week shift times are not known in advance, so the yearly counts of early and late starts, Saturdays and Sundays, and the rest gaps between shifts, cover the fixed duties only; whatever is later given in a cover week must still be rostered within the normal limits.'],
     ['Sundays', 'Sunday is not in the contract: Sunday duties are overtime, as today. So “days at work” and the 35-hour week are Monday to Saturday. A Sunday off costs no annual leave.'],
     ['Each person, a year', 'Figures given “each, a year” are averages across the whole link: every week’s duties, times 52, divided by the number of people; these counts include Sunday overtime duties. “Days at work a year” is Monday to Saturday only: the days a week times 365 ÷ 7. Somebody’s own year depends on which week they start on.'],
     ['Following the trains', 'For each hour, the share of the day’s floor staff on duty is set against the share of the day’s train movements in the December 2026 timetable. Hour by hour, the difference between the two shares is squared — so a big mismatch counts far more than several small ones — and the squares are added up and multiplied by 10,000. 0 would be a perfect match; lower is closer. The staff share is worked out from the minutes each person spends on the floor, with the ticket office’s fixed posts taken out — finer than the whole-person counts on page 5, where a person counts in every hour they are on duty for any part of, so a handover inside an hour counts both people. It measures the shape of the day, not a staffing requirement or passenger numbers, and it compares shares, not headcounts: an extra person in a quiet hour makes the figure worse although nobody is worse off. The ticket office is left out, except its second person helping at the quiet ends.'],
@@ -368,7 +368,7 @@ function hourPage(s) {
     '<div class="sub">Today’s link and the proposal, hour by hour, against the December 2026 timetable. ', 'the subtitle');
   must(/<p class="muted" style="margin:6px 0 2px">How to read it:[\s\S]*?<\/p>/, `<ul class="p5key">
     <li><b>Blue squares</b> — how many people are on duty in that hour (darker blue = more). Anyone on duty for any part of the hour counts, so a handover counts both people.</li>
-    <li><b>Orange row</b> — the trains: carriages arriving and leaving in that hour (darker orange = busier).</li>
+    <li><b>Orange row</b> — the train service: carriages arriving and leaving in that hour (darker orange = more service). A guide from the timetable, not passenger numbers.</li>
     <li><b>Read down each column</b> — the most people should be under the darkest orange.</li>
     <li><b>Match</b>, the right-hand column — how closely the floor follows the trains over the whole day. 0 is a perfect match; lower is better.</li></ul>`, 'the how-to-read paragraph');
   // row labels: the group, then what it splits into
