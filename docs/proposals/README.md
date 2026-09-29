@@ -3,7 +3,7 @@
 The CEA link proposals drawn for the December 2026 timetable change, each a PDF with its own
 **identity** so it can be named in a room: a name, a code that says how it was built, and a
 fingerprint of the exact cells so a printout can never be confused with a variant. The same
-identity is in every page footer. All 25 were judged by the app's own Links modules
+identity is in every page footer. All 22 were judged by the app's own Links modules
 (`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) — the
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
@@ -27,12 +27,24 @@ candidates stay in `tooling/results/` and `final.mjs` keeps their code, so any o
 `SEARCHED` in `tooling/regenerate.mjs` says how), and git history holds the sheets as shipped. The dated sections below
 still describe them, as history. No other sheet changed: the plain edition never names another proposal.
 
+**Three more withdrawn (29 Sep 2026, owner: "we have better options").** *Weeks 17-18 Swapped* (`WS-24-EXT · 0bebb675`),
+*Targeted Fatigue Redo* (`TF-24-EXT · 8eef9a13`) and *Three Mondays* (`TM-24-EXT · fe90c0b8`) — three hand edits on one line
+of the Weekday Lates family, meeting 3 of the 11 rules each — are gone from the folder, the pack and the summary, with their
+source grids: 25 sheets became 22. *Cover at Seventeen* and *Saturday Four*, built further down the same line, stay; neither
+sheet changed, because the plain edition never names the design it came from. Git history holds all three.
+
+**Page 5 and the ticket office, redrawn (29 Sep 2026).** Page 5's three tables are one grid — each hour in the same place
+down the page — drawn as a heatmap, with today's block on a grey bar and the proposal's on gold; its notes say in plain
+words that one of each ticket-office pair helps on the floor at the quiet ends, and that Sunday evening is the one change
+from today (one person in the office today, two in the December rules). Page 8 and a new page 2 row say the same. No
+figure changed: 22 of 22 fingerprints hold and the independent recount finds no mismatch.
+
 **How to read this file.** The paragraphs above describe the pack as it is now. Every dated section below is the
 project's history, kept as the record: where one describes a ten-page sheet, 23 designs or a page 9 comparison, it
 is describing an earlier edition.
 
 **Everything in one download:** `December-2026-Link-Proposals.zip` (29 Sep 2026) — the one-page summary, the
-rules, both presentations, all 25 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
+rules, both presentations, all 22 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
 re-render of the sheets does not update it, so rebuild it after one.
 
 **The one-page summary:** `Proposals-Summary.pdf` — every proposal against today's link on one A4 page, rendered by
@@ -71,9 +83,6 @@ and to the floor on 28 Sep.
 | **Evening Peak** | `WL2-24-R21 · 33f70893` | Weekday Lates with eight of its nine `08:30–17:00` turns re-timed into the evening to cover the 17:00 peak, then re-searched | **1** | 6 | 6 in 24 |
 | **Frozen Block** | `WL3-24-F7 · a6234195` | The same evening fix with **weeks 13–17 kept exactly as written**, then searched fatigue-first | **1** (FF19 at 3; the fewest found is 2) | 6 | 4 in 24 |
 | **Anchored Lines** | `WL4-24-F7 · f0d403d6` | The same evening fix again, with **weeks 14–17 kept in order on their own line numbers** — week 13 the one that moves | **1** (FF19 at 2, the fewest found) | 7 | 6 in 24 |
-| **Weeks 17-18 Swapped** | `WS-24-EXT · 0bebb675` | **Supplied as a grid**, not searched — cover week moved to 18, midday turn at `12:00–20:30`. Clears every hard gate; not yet shape-searched | 5 | 9 | 6 in 24 |
-| **Targeted Fatigue Redo** | `TF-24-EXT · 8eef9a13` | **Supplied as a grid**, not searched — *Weeks 17-18 Swapped* with same-day Sunday and Monday duties moved between lines BY HAND to cut fatigue, no week reordered. Same duties, same days, identical coverage; MRSF cleared, FF11 depends on how a cover week is worked | 4, or **3 as rostered** | 9 | 5 in 24 |
-| **Three Mondays** | `TM-24-EXT · fe90c0b8` | **Supplied as a grid**, not searched — the *Targeted Fatigue Redo* with three Monday cells changed (two duties move, one line gains a rest day and another loses one). Breaks the eight-day run across weeks 14–15; the binding figures are elsewhere and do not move | 4, or **3 as rostered** | 9 | 5 in 24 |
 | **Cover at Seventeen** | `C17-24-EXT · edc1b731` | **Supplied as a grid**, not searched — *Three Mondays* with lines 17 and 18 swapped back, so the cover week returns to 17. **FF11 clears** for the first time in this line | **3** (on both readings) | 9 | 5 in 24 |
 | **Saturday Four** | `S4-24-EXT · 481ba9ed` | *Cover at Seventeen* with **Saturday rebuilt** on its own minute budget — nine turns down to four, six start times down to three, weighted to the late for Wembley. The first duty change in this line | **3** (on both readings) | 9 | 5 in 24 |
 | **Short Closer** | `CF-24-EXT · 6d21169b` | **Supplied as a Word table**, not searched — the Weekday Lates line revised again: the 9h10 Saturday closer shortened to 8h40 and the cover week back at 17 | 3 | 9 | 4 in 24 |
@@ -1247,17 +1256,15 @@ review*, below), and ordered by rules met, then weekday floor fit:
 | Weekday Lates | `WL-24-EXT` | 40.4 · 20.7 · 64.8 | 3 · 3 · 1 | 4 |
 | Cover at Seventeen | `C17-24-EXT` | 38.5 · 20.7 · 64.8 | 3 · 3 · 1 | 3 |
 | Short Closer | `CF-24-EXT` | 38.5 · 53.3 · 64.8 | 3 · 1 · 1 | 3 |
-| Targeted Fatigue Redo | `TF-24-EXT` | 38.5 · 20.7 · 64.8 | 3 · 3 · 1 | 3 |
 | Tenth Sunday | `TN-24-R7` | 38.5 · 33.5 · 52.1 | 3 · 1 · 1 | 3 |
-| Three Mondays | `TM-24-EXT` | 38.5 · 20.7 · 64.8 | 3 · 3 · 1 | 3 |
-| Weeks 17-18 Swapped | `WS-24-EXT` | 38.5 · 20.7 · 64.8 | 3 · 3 · 1 | 3 |
 | Anchored Lines | `WL4-24-F7` | 41.1 · 20.7 · 64.8 | 3 · 3 · 1 | 3 |
 | Frozen Block | `WL3-24-F7` | 41.1 · 20.7 · 64.8 | 3 · 3 · 1 | 3 |
 | Evening Peak | `WL2-24-R21` | 47.6 · 20.7 · 64.8 | 2 · 3 · 1 | 3 |
 | Polished Clean | `PC-24-EXT` | 38.7 · 51.4 · 72.4 | 3 · 0 · 2 | 2 |
 | *Today's 20-line link* | — | 52 · 65.9 · 71.7 | 2 · 2 · 2 | 4 |
 
-*(29 Sep 2026: the By the Book family's three rows — 5, 5 and 4 rules — removed with the family.)*
+*(29 Sep 2026: the By the Book family's three rows — 5, 5 and 4 rules — removed with the family; later the same day
+Weeks 17-18 Swapped, Targeted Fatigue Redo and Three Mondays, 3 each.)*
 
 ## Familiar Nine — no duty over nine hours, and the times people know (28 Sep 2026)
 

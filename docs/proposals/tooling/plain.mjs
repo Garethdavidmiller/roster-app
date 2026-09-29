@@ -377,6 +377,14 @@ table.p5t .cov-heat-cell.heat-b0 { background: color-mix(in srgb, var(--surface-
 table.p5t tr.p5gap td { height: 3px; padding: 0; background: none; }
 table.p5t td.cov-fit { background: color-mix(in srgb, var(--primary-blue) 8%, white); border-radius: 2px; font-size: 9px; color: var(--primary-blue); }
 table.p5t td.cov-fit:empty { background: none; }
+/* a weekday table with a row per day (Cover at Seventeen has five) keeps the grid but tightens it to fit the page */
+table.p5t.cov-heat--dense { border-spacing: 2px 1.5px; }
+table.p5t.cov-heat--dense .cov-heat-cell { height: 13px !important; font-size: 8px !important; }
+table.p5t.cov-heat--dense tr:has(> .office-day) .cov-heat-cell, table.p5t.cov-heat--dense tr:has(> .floor-day) .cov-heat-cell { height: 10.5px !important; font-size: 7.4px !important; }
+table.p5t.cov-heat--dense .cov-heat-day { font-size: 8.4px !important; } table.p5t.cov-heat--dense .office-day, table.p5t.cov-heat--dense .floor-day { font-size: 7.8px !important; }
+.p5 ul.p5notes { column-count: 2; column-gap: 20px; margin-left: 14px; font-size: 8.7px; line-height: 1.34; } .p5 ul.p5notes li { break-inside: avoid; margin: 0 0 3px; }
+.p5 h2.p5gtk { margin: 6px 0 2px; font-size: 11px; } .p5 .p5legend { font-size: 8.6px; margin: 5px 0 1px; gap: 2px 18px; } .p5 h2 { margin: 7px 0 2px; }
+.p5 .callout { margin-top: 6px; padding-top: 6px; padding-bottom: 6px; font-size: 9.2px; }
 ul.p8list { margin: 8px 0 0 16px; padding: 0; font-size: 9.2px; line-height: 1.45; color: var(--text-dark, #1a1a2e); } ul.p8list li { margin: 3px 0; } tr.ff-na-note td { font-size: 9px; color: var(--text-mid); padding-top: 5px; border-bottom: 0; }
 table.pcmp { font-size: 9.8px; margin-top: 8px; } table.pcmp td { padding: 2.6px 6px; line-height: 1.3; } table.pcmp td.num, table.pcmp th.num { text-align: center; } table.pcmp { table-layout: fixed; width: 100%; } table.pcmp th:nth-child(1) { width: 29%; } table.pcmp th:nth-child(2) { width: 16%; } table.pcmp th:nth-child(3) { width: 19%; } table.pcmp th:nth-child(4) { width: 36%; }
 table.pcontents td { font-size: 10px; padding: 1.8px 6px; } table.pcontents td.num { width: 24px; font-weight: 800; color: var(--primary-blue); }
@@ -409,7 +417,9 @@ function hourPage(s) {
   must(/(<th class="cov-heat-day (?:prop-row)?">[^<]*<\/th>(?:<td[^>]*>[^<]*<\/td>)*?)<td class="cov-fit">[^<]*<\/td><\/tr>/g, '$1<td class="cov-fit"></td></tr>', 'the all-on-duty fit cells');
   must(/<th class="cov-heat-hour cov-fit-h">fit<\/th>/g, '<th class="cov-heat-hour cov-fit-h">Match</th>', 'the fit header');
   // a small gap before the proposal's block and before the trains, instead of a rule
-  must(/<tr>(?=<th class="cov-heat-day (?:prop-row|dem-day)">)/g, '<tr class="p5gap"><td colspan="21"></td></tr><tr>', 'the group gaps');
+  // (once per table: a weekday table with a row per day has several "Proposed" rows, and only the first opens a group)
+  if (!/<th class="cov-heat-day prop-row">/.test(s)) throw new Error('hourPage: the group gaps not found');
+  s = s.split('<table class="p5t').map((t, i) => i === 0 ? t : t.replace(/<tr>(?=<th class="cov-heat-day prop-row">)/, '<tr class="p5gap"><td colspan="21"></td></tr><tr>').replace(/<tr>(?=<th class="cov-heat-day dem-day">)/, '<tr class="p5gap"><td colspan="21"></td></tr><tr>')).join('<table class="p5t');
   // the notes beneath: one short list
   const office = /<p class="muted" style="margin-top:8px"><b>Ticket office\.<\/b> ([\s\S]*?)<\/p>/.exec(s);
   const rest = /<p class="muted" style="margin-top:6px">([\s\S]*?)<\/p>/.exec(s);
@@ -428,7 +438,6 @@ function hourPage(s) {
     `<b>The ticket office.</b> The December plan puts two people on every ticket-office shift, and they are not floor cover — except at the quiet ends of the day, when one of each pair helps on the floor: in the morning from the open until 08:00 (09:00 on a Sunday), and in the evening from 19:30 until their office shift ends. That is why the “of whom in the ticket office” row drops to 1 in those hours and the floor row gains one. Where it shows 4 (3 on today’s Sunday), the early and late pairs are both there at the changeover.${tail ? ' ' + tail : ''} The “of whom” rows split the office out of each side, so the floor rows compare like with like.`,
     `<b>Sunday evening is the one change from today.</b> Today one person keeps the ticket office on a Sunday evening — one of the three 14:30–23:25 closers, in the office until it shuts at 22:30 and then on the floor. The December rules ask for two, as on every other day, so the proposal’s office row reads 2 on a Sunday evening where today’s reads 1. The second of them splits the whole shift between the office and the floor: the table keeps them in the office row, the match counts them as half a person on the floor, and “at least two on the floor at every moment” does not count them.`,
     `<b>Only the floor is matched to the trains.</b> The ticket office is staffed to its opening hours, not to the trains, so its rows carry no match figure. ${m[2]}`,
-    ...(varies ? ['<b>More than one weekday row.</b> Where weekdays are staffed differently, each different weekday gets its own row, labelled with its days.'] : []),
     `<b>Cover weeks.</b> ${m[1].replace(/^Cover weeks /, 'They ')}`,
     ...(m[3].trim() ? [`<b>Sunday’s last trains.</b> ${m[3].trim()}`] : []),
   ];
@@ -436,6 +445,11 @@ function hourPage(s) {
   // the callout's first point is now the "only the floor is matched" note; it keeps the one thing that note does not say
   s = s.replace(/<b>Reading it\.<\/b> The <b>floor<\/b> rows are the fair comparison\. The ticket office is staffed to its opening hours, not to the trains, so counting it in can make a day look better or worse than the floor really is\. The fit measures <b>shape, not numbers<\/b>/,
     '<b>Reading the match.</b> It measures <b>shape, not numbers</b>');
+  // …and it joins the list, beside the note it belongs with, rather than sitting in a box of its own: on the sheets with a
+  // weekday row per day (Tenth Sunday has seven) the box ran into the page footer (29 Sep 2026)
+  const call = /<div class="callout"><b>Reading the match\.<\/b>([\s\S]*?)<\/div>/.exec(s);
+  if (!call) throw new Error('hourPage: the reading-the-match callout not found');
+  s = s.replace(call[0], '').replace(/(<li><b>Only the floor is matched to the trains\.<\/b>[\s\S]*?<\/li>)/, `$1<li><b>Reading the match.</b>${call[1]}</li>`);
   return s;
 }
 

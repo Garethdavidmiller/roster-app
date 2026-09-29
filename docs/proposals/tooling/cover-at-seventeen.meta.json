@@ -1,6 +1,5 @@
 {
  "date": "22 September 2026",
- "parent": { "file": "three-mondays.json", "name": "Three Mondays", "code": "TM-24-EXT" },
  "sub1": "Three Mondays with lines 17 and 18 swapped back — the cover week returns to 17, and FF11 clears for the first time in this line",
  "eyebrow3": "One whole-line swap, assessed",
  "h3": "Same feel, more people",
@@ -17,14 +16,6 @@
  "denseDuty": true,
  "denseAlts": true,
  "extraAlternatives": [
-  {
-   "label": "TM-24-EXT — the version this swaps",
-   "file": "three-mondays.json"
-  },
-  {
-   "label": "WS-24-EXT — where the line started",
-   "file": "weeks1718.json"
-  },
   {
    "label": "WL4-24-F7 — the same work, searched",
    "file": "weekday-lates-4.json"

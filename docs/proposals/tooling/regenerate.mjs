@@ -24,6 +24,8 @@ const fingerprint = p => createHash('sha256')
     .digest('hex').slice(0, 8);
 
 /** The supplied designs: a grid, a name, a strap line and a code. */
+// Weeks 17-18 Swapped (WS-24-EXT · 0bebb675), Targeted Fatigue Redo (TF-24-EXT · 8eef9a13) and Three Mondays
+// (TM-24-EXT · fe90c0b8) were WITHDRAWN on 29 Sep 2026 (owner: "we have better options"); git history holds their grids.
 export const SUPPLIED = [
     { file: 'weekday-lates.json',      name: 'Weekday Lates',         code: 'WL-24-EXT',  fp: 'a52ec588', strap: 'Weekday lates at 16:25, Saturdays untouched' },
     { file: 'weekday-lates-2.json',    name: 'Evening Peak',       code: 'WL2-24-R21', fp: '33f70893', strap: 'The 08:30 turns moved under the 17:00 peak' },
@@ -31,9 +33,6 @@ export const SUPPLIED = [
     { file: 'weekday-lates-4.json',    name: 'Anchored Lines',       code: 'WL4-24-F7',  fp: 'f0d403d6', strap: 'Weeks 14-17 kept in order, on their own line numbers' },
     { file: 'fifteen-turns.json',      name: 'Fifteen Turns',         code: 'FT-24-EXT',  fp: '9a028392', strap: 'Fifteen turns, cover weeks evenly spread' },
     { file: 'fifteen-turns-repaired.json', name: 'Gates Mended', code: 'FT-24-R21', fp: 'b76bf9e1', strap: 'The supplied design, repaired and re-searched' },
-    { file: 'weeks1718.json',          name: 'Weeks 17-18 Swapped',   code: 'WS-24-EXT',  fp: '0bebb675', strap: 'Cover week at 18, midday turn at 12:00-20:30' },
-    { file: 'targeted-fatigue.json',   name: 'Targeted Fatigue Redo', code: 'TF-24-EXT',  fp: '8eef9a13', strap: 'Weeks 17-18 Swapped re-ordered by hand — same duties, same days, same coverage' },
-    { file: 'three-mondays.json',     name: 'Three Mondays',         code: 'TM-24-EXT',  fp: 'fe90c0b8', strap: 'The eight-day run across weeks 14-15 broken by rotating three Monday duties' },
     { file: 'cover-at-seventeen.json', name: 'Cover at Seventeen',    code: 'C17-24-EXT', fp: 'edc1b731', strap: 'Lines 17 and 18 swapped back - the cover week returns to 17, and FF11 clears' },
     { file: 'saturday-four.json',     name: 'Saturday Four',        code: 'S4-24-EXT',  fp: '481ba9ed', strap: 'Saturday rebuilt - four turns, three start times, weighted to the late for Wembley' },
     // Short Closer, Light Retime and Tenth Sunday were built in a parallel session (#1513) and registered here on the merge.
