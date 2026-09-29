@@ -3,3 +3,4 @@ __pycache__/
 *.json
 *.log
 tiebreak_model.py
+wl-spec.json

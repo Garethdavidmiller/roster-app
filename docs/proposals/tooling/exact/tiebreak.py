@@ -18,7 +18,13 @@ C,F,OUT=int(sys.argv[1]),int(sys.argv[2]),sys.argv[3]; T=float(sys.argv[4]) if l
 BASE=load(os.environ['BASE']) if os.environ.get('BASE') else FT
 SPS={int(v) for v in os.environ['SPARES'].split(',')} if os.environ.get('SPARES') else SPARE_LINES
 CLS_=tuple(os.environ['CLOSERS'].split(',')) if os.environ.get('CLOSERS') else ('15:45-23:55',)
-UNI=sorted(set(U)|times_of(BASE), key=lambda s:(st(s),en(s)))
+_uni=set(U)|times_of(BASE)
+# WIDE=1 — every shift time used by any sheet in the folder joins the pool (Running Repair, 29 Sep 2026: the fits must
+# compete with the best sheets, whose Saturday times are not in the Fifteen Turns pool)
+if os.environ.get('WIDE'):
+    import glob
+    for f in glob.glob(PROP+'*.json'): _uni|=times_of(load(f))
+UNI=sorted(_uni, key=lambda s:(st(s),en(s)))
 # SATMIN=12 TMAX=18 — the Saturday headcount and the most distinct shift times (Weekday Lates' repair, 29 Sep 2026)
 SATMIN=int(os.environ.get('SATMIN','14')); TMAX=int(os.environ.get('TMAX','18'))
 def domain(d):
@@ -26,6 +32,11 @@ def domain(d):
 
 def model():
     m,x,z,changes,factors,WORK=build(base=BASE,spares=SPS,uni=UNI,closers=CLS_,fmax=F,cmax=C,sat_min=SATMIN,tmax=TMAX)
+    # MIX=<file.json> — each day's duty mix fixed ({"mix": {day: {time|RD: count}}}): the rota for a chosen mix
+    if os.environ.get('MIX'):
+        MX=json.load(open(os.environ['MIX'])); MX=MX.get('mix',MX)
+        for d in DAYS:
+            for v in domain(d)+['RD']: m.Add(sum(x[k,d,v] for k in WORK if (k,d,v) in x)==MX[d].get(v,0))
     LINES=[str(k) for k in range(1,25)]; POS=[(k,d) for k in LINES for d in DAYS]; N=len(POS)
     spare=lambda i: int(POS[i][0]) in SPS
     V=lambda d: domain(d)
