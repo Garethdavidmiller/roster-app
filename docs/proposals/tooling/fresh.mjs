@@ -26,9 +26,6 @@ export const STRAPS = {
   'QT-24-Q34':  ['Only today’s shift times, plus a new weekday closer at 15:45', 'search'],
   'Q2-24-W21':  ['Mostly today’s shift times, weekday closers at 15:45, and no duty longer than 8h 40m on any day', 'search'],
   'ST-24-B7':   ['Today’s link widened to 24 lines, in today’s own shift times', 'search'],
-  'BB-24-D7':   ['Every shift time new, built from the December staffing levels, with longer earlies and shorter lates', 'search'],
-  'EF-24-E21':  ['Built from the December staffing levels, with no duty longer than 8h 40m', 'search'],
-  'B2-24-G21':  ['No duty longer than 8h 40m, with two matching late shifts every day', 'search'],
   'FT-24-EXT':  ['Fifteen shift times with the cover weeks evenly spread', 'hand'],
   'FT-24-R21':  ['Fifteen shift times, arranged to pass every hard limit', 'hand+search'],
   'WL-24-EXT':  ['Weekday closers from 16:25, with Saturday largely in today’s shift times', 'hand'],
@@ -50,15 +47,15 @@ export const STRAPS = {
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
-export const FAMILY = { ST: 'Same Turns', QT: 'Same Turns', Q2: 'Same Turns', BB: 'By the Book', EF: 'By the Book', B2: 'By the Book',
+export const FAMILY = { ST: 'Same Turns', QT: 'Same Turns', Q2: 'Same Turns',
   PT: 'Pinned Turns', P2: 'Pinned Turns', FR: 'Right Away', F9: 'Right Away', FT: 'Fifteen Turns', JE: 'Fifteen Turns', AC: 'Fifteen Turns', PC: 'Weekday Lates', CS: 'Weekday Lates',
   WL: 'Weekday Lates', WL2: 'Weekday Lates', WL3: 'Weekday Lates', WL4: 'Weekday Lates', WS: 'Weekday Lates', TF: 'Weekday Lates', TM: 'Weekday Lates',
   C17: 'Weekday Lates', S4: 'Weekday Lates', CF: 'Weekday Lates', CFT: 'Weekday Lates', TN: 'Weekday Lates' };
-export const FIRST = { 'ST-24-B7': '8 Sep 2026', 'BB-24-D7': '8 Sep 2026', 'QT-24-Q34': '12 Sep 2026', 'EF-24-E21': '12 Sep 2026',
+export const FIRST = { 'ST-24-B7': '8 Sep 2026', 'QT-24-Q34': '12 Sep 2026',
   // 17 Sep, not 18: each of these six was committed, with the same fingerprint, on 17 Sep (accuracy check, 28 Sep 2026)
   'WL-24-EXT': '17 Sep 2026', 'WL2-24-R21': '17 Sep 2026', 'WL3-24-F7': '17 Sep 2026', 'FT-24-EXT': '17 Sep 2026', 'FT-24-R21': '17 Sep 2026', 'WS-24-EXT': '17 Sep 2026',
   'WL4-24-F7': '22 Sep 2026', 'TF-24-EXT': '22 Sep 2026', 'TM-24-EXT': '22 Sep 2026', 'C17-24-EXT': '22 Sep 2026', 'S4-24-EXT': '22 Sep 2026',
-  'CF-24-EXT': '22 Sep 2026', 'CFT-24-M3': '22 Sep 2026', 'TN-24-R7': '22 Sep 2026', 'B2-24-G21': '22 Sep 2026',
+  'CF-24-EXT': '22 Sep 2026', 'CFT-24-M3': '22 Sep 2026', 'TN-24-R7': '22 Sep 2026',
   'Q2-24-W21': '24 Sep 2026', 'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34o': '28 Sep 2026', 'F9-24-K31': '28 Sep 2026', 'JE-24-M29': '28 Sep 2026', 'PC-24-EXT': '28 Sep 2026',
   'AC-24-M41': '28 Sep 2026', 'CS-24-M34': '28 Sep 2026' };
 const MADE = {

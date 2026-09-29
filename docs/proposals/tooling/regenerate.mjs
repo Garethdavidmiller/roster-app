@@ -55,12 +55,12 @@ export const SUPPLIED = [
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
+// The By the Book family (BB-24-D7 · 0f14abce, EF-24-E21 · 0cf19f56, B2-24-G21 · 02f3c005) was WITHDRAWN on 29 Sep 2026
+// (owner). Its candidates stay in results/ and final.mjs keeps its code; to rebuild one, restore its entry here and its
+// strap, family and date in fresh.mjs from git history. Unlisted, a full run cannot ship them back into the folder.
 export const SEARCHED = [
     { proposal: 'ST', fp: 'd15e1b74', globs: ['results/best-A-*.json', 'results/best-B-*.json'] },
-    { proposal: 'BB', fp: '0f14abce', globs: ['results/best-RD-*.json'], env: { EXTRA: 'results/best-RDpure-21.json' } },
     { proposal: 'QT', fp: '70cf9874', globs: ['results/best-Q-*.json', 'results/best-R-*.json'] },
-    { proposal: 'EF', fp: '0cf19f56', globs: ['results/best-RE-*.json'] },
-    { proposal: 'B2', fp: '02f3c005', globs: ['results/best-RG-*.json'] },
     { proposal: 'Q2', fp: '7ea671d5', globs: ['results/best-W-*.json'] },
     // PT ran in both modes; fatigue-first (RP) cleared every factor where like-today (P) kept one or two, so RP
     // is the family and the best like-today result is shown beside it as a labelled row.
