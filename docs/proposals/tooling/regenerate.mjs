@@ -54,6 +54,11 @@ export const SUPPLIED = [
     // at all (41 changes, proven), and Polished Clean made to meet the rules but its waived 15:45 closer (34, proven).
     { file: 'all-clear.json',              name: 'All Clear',      code: 'AC-24-M41',  fp: '094fd369', strap: 'Fifteen Turns with the fewest changes that meet every rule with no fatigue finding' },
     { file: 'clean-sweep.json',            name: 'Clean Sweep',    code: 'CS-24-M34',  fp: '92366924', strap: 'Polished Clean with the fewest changes that meet every rule but the 15:45 closer' },
+    // The Running Repair family (29 Sep 2026, owner): Weekday Lates with three rules waived (16:25 closers, twelve on a
+    // Saturday, cover weeks anywhere not side by side), each day's duty mix re-searched so the fits compete with the best
+    // sheets (exact/mixsa.mjs → exact/rr-mix.json), then the rota built in the fewest changes for that mix (exact/tiebreak.py
+    // with MIX= and WIDE=1): up to four tiring patterns (Running Repair) and none (Full Overhaul).
+    { file: 'running-repair.json',         name: 'Running Repair', code: 'RR-24-M34',  fp: '621165eb', strap: 'Weekday Lates retimed to follow the trains, no more than four tiring patterns' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

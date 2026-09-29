@@ -30,6 +30,7 @@ SATMIN=int(os.environ.get('SATMIN','14')); TMAX=int(os.environ.get('TMAX','18'))
 def domain(d):
     c=cls(d); return [s for s in UNI if st(s)>=OPEN[c] and en(s)<=CLOSE[c] and (c!='sun' or 480<=dur(s)<=540)]
 
+EXTRA={}
 def model():
     m,x,z,changes,factors,WORK=build(base=BASE,spares=SPS,uni=UNI,closers=CLS_,fmax=F,cmax=C,sat_min=SATMIN,tmax=TMAX)
     # MIX=<file.json> — each day's duty mix fixed ({"mix": {day: {time|RD: count}}}): the rota for a chosen mix
@@ -113,6 +114,16 @@ def model():
         if not uses: continue
         tv=m.NewBoolVar('tt'+v); tvars.append(tv)
         for var in uses: m.AddImplication(var, tv)
+    # single rest days (feel.isolatedRest: a rest day with a worked or cover day either side) and six-day weeks
+    # (feel.daysHist[6]: a working line with exactly six days not rest) — the two shapes page 1 flags against today
+    iso=[]
+    for i in range(N):
+        if spare(i): continue
+        b=m.NewBoolVar(f'iso{i}'); iso.append(b); m.Add(b>=R(i)+W((i-1)%N)+W((i+1)%N)-2)
+    six=[]
+    for k in WORKL:
+        b=m.NewBoolVar(f'six{k}'); six.append(b); m.Add(sum(1-x[k,d,'RD'] for d in DAYS)!=6).OnlyEnforceIf(b.Not())
+    EXTRA.update(singles=sum(iso), six=sum(six))
     return m,x,z,changes,factors,WORK,sum(jumps),sum(ff8),h,run,sum(one),sum(wkends),sz,sum(tvars)
 
 stages=(sys.argv[6].split(',') if len(sys.argv)>6 else ['jumps','ff8','h','run','one'])
@@ -122,6 +133,7 @@ fixed={kv.split('=')[0]:int(kv.split('=')[1]) for kv in os.environ['FIXED'].spli
 for si,st_ in enumerate(stages):
     m,x,z,changes,factors,WORK,J,F8,H,RUN,ONE,WK,SZ,TT=model()
     exprs={'jumps':J,'ff8':F8,'h':H,'run':RUN,'one':-ONE,'wk':-WK,'size':SZ,'factors':factors,'times':TT,'changes':changes}
+    exprs.update(EXTRA)
     for k,v in fixed.items():
         m.Add(exprs[k]<=v)
     m.Minimize(exprs[st_])

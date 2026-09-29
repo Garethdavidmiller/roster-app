@@ -29,8 +29,8 @@ export const STRAPS = {
   'WL4-24-F7':  ['Weekday closers from 16:25, built around four weeks (lines 14–17) that stay together in a fixed order', 'hand+search'],
   'AC-24-M41':  ['Sixteen shift times, meeting all eleven rules with no avoidable tiring pattern', 'exact'],
   'CS-24-M34':  ['Weekday closers from 16:25, meeting the other ten rules', 'exact-waived'],
-  'RR-24-M11':  ['Weekday Lates repaired in eleven cells, with no more than four tiring patterns', 'exact-waived3'],
-  'FO-24-M24':  ['Weekday Lates repaired with no tiring pattern at all', 'exact-waived3'],
+  'RR-24-M34':  ['Weekday Lates retimed to follow the trains as closely as the best sheets, with no more than four tiring patterns', 'exact-waived3'],
+  'FO-24-M49':  ['Weekday Lates retimed to follow the trains as closely as the best sheets, with no tiring pattern at all', 'exact-waived3'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
@@ -42,14 +42,14 @@ export const FIRST = {
   'WL-24-EXT': '17 Sep 2026', 'WL2-24-R21': '17 Sep 2026', 'FT-24-EXT': '17 Sep 2026',
   'WL4-24-F7': '22 Sep 2026',
   'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34s': '28 Sep 2026', 'F9-24-K31s': '28 Sep 2026',
-  'AC-24-M41': '28 Sep 2026', 'CS-24-M34': '28 Sep 2026', 'RR-24-M11': '29 Sep 2026', 'FO-24-M24': '29 Sep 2026' };
+  'AC-24-M41': '28 Sep 2026', 'CS-24-M34': '28 Sep 2026', 'RR-24-M34': '29 Sep 2026', 'FO-24-M49': '29 Sep 2026' };
 const MADE = {
   search: 'Built by computer search: the duty table was chosen for how closely it follows the December 2026 timetable, and the 24 weeks put in the order that raises the fewest fatigue factors.',
   hand: 'Drawn by hand and checked by the Links designer, which measured every figure in this sheet from the grid.',
   'hand+search': 'Drawn by hand, then the weeks put in order by computer search for the fewest fatigue factors; the duty times are as drawn.',
   exact: 'A hand-drawn design changed in the fewest cells that meet every rule, the minimum proven by an exact solver.',
   'exact-waived': 'A hand-drawn design changed in the fewest cells that meet every rule but the one waived for it (its weekday closers stay at 16:25), the minimum proven by an exact solver.',
-  'exact-waived3': 'A hand-drawn design changed in the fewest cells that meet every rule once three are waived for it (weekday closers may start at 16:25, twelve on a Saturday, cover weeks anywhere but side by side), the minimum proven by an exact solver.',
+  'exact-waived3': 'A hand-drawn design with each day’s mix of shift times searched again so the floor follows the trains as closely as the best sheets, then changed in the fewest cells that give that mix and meet every rule once three are waived for it (weekday closers may start at 16:25, twelve on a Saturday, cover weeks anywhere but side by side) — the fewest for that mix, proven by an exact solver.',
 };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
@@ -58,8 +58,8 @@ const MADE = {
  *  next to each other. */
 export const WAIVERS = {
   'CS-24-M34': { date: '28 September 2026', keys: ['closer'] },
-  'RR-24-M11': { date: '29 September 2026', keys: ['closer', 'heads', 'cover'] },
-  'FO-24-M24': { date: '29 September 2026', keys: ['closer', 'heads', 'cover'] },
+  'RR-24-M34': { date: '29 September 2026', keys: ['closer', 'heads', 'cover'] },
+  'FO-24-M49': { date: '29 September 2026', keys: ['closer', 'heads', 'cover'] },
 };
 const WAIVE = {
   closer: { short: '15:45 closer', allows: v => /^closers start at /.test(v) && v.replace(/^closers start at /, '').split(/, | and /).every(t => t === '15:45' || t === '16:25') },
@@ -72,7 +72,7 @@ const WAIVE = {
 export const waivedRows = (code, rows) => rows.filter(r => !r.ok && (WAIVERS[code]?.keys ?? []).includes(r.key) && WAIVE[r.key].allows(r.value));
 /** "the 15:45 closer rule is waived" · "the 15:45 closer and Saturday fourteen rules are waived" */
 export const waivedPhrase = keys => keys.length === 1 ? `the ${WAIVE[keys[0]].short} rule is waived` : `the ${keys.slice(0, -1).map(k => WAIVE[k].short).join(', ')} and ${WAIVE[keys[keys.length - 1]].short} rules are waived`;
-const MADE_SHORT = { search: 'computer search', hand: 'drawn by hand', 'hand+search': 'drawn by hand, ordered by search', exact: 'drawn by hand, fewest changes proven', 'exact-waived': 'drawn by hand, fewest changes proven', 'exact-waived3': 'drawn by hand, fewest changes proven' };
+const MADE_SHORT = { search: 'computer search', hand: 'drawn by hand', 'hand+search': 'drawn by hand, ordered by search', exact: 'drawn by hand, fewest changes proven', 'exact-waived': 'drawn by hand, fewest changes proven', 'exact-waived3': 'drawn by hand, retimed by computer' };
 
 /** The standalone words for one sheet. `folder` is folderStats() — every shipped design, with its rules. */
 export function freshMeta({ T, P, meta, folder, rendered }) {
