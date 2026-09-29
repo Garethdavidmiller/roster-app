@@ -312,7 +312,7 @@ function methodPage({ meta, pages }) {
   ];
   return `<section class="page plain">
   <div class="mast"><div><div class="eyebrow">For anyone checking</div><h1>How the figures are worked out</h1><div class="sub">In plain words — what each figure means and what it does not.</div></div></div>
-  <dl class="pmethod">${items.map(([h, t]) => `<dt>${h}</dt><dd>${t}</dd>`).join('')}</dl>
+  <dl class="pmethod">${items.map(([h, t]) => `<div class="pmi"><dt>${h}</dt><dd>${t}</dd></div>`).join('')}</dl>
   <p class="muted">The rota is supplied beside this PDF as <span class="tt">${esc(meta.identity.name.replace(/ /g, '-'))}-${esc(meta.identity.code)}-import.txt</span>, ready to paste into the Links page (Import), which re-runs every check here from the pasted weeks. The code <b>${esc(meta.identity.fingerprint)}</b> in every footer is worked out from the 168 days of the rota and nothing else, so a printout always matches the design it came from.</p>
   <div class="foot"><span>Page ${pages} of ${pages} — How the figures are worked out</span><span class="foot-id"><b>${name}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>`;
@@ -341,6 +341,13 @@ const CSS = `
 .pbox-good { border-left-color: var(--success-green); } .pbox-good h3 { color: var(--success-green); }
 .pbox-warn { border-left-color: var(--warning-amber); } .pbox-warn h3 { color: var(--warning-amber); }
 .pbox-decide { margin-top: 12px; border-left-color: var(--accent-gold); } .pbox-decide h3 { color: var(--primary-blue); }
+/* polish (owner, 29 Sep 2026: "aesthetic polish with screenshots throughout") */
+table.pcmp tbody tr:nth-child(even) td { background-color: color-mix(in srgb, var(--surface-sunken) 60%, white); }
+table.pcmp tbody tr:nth-child(even) td.up { background-color: color-mix(in srgb, var(--success-green) 14%, white); }
+table.pcmp tbody tr:nth-child(even) td.down { background-color: color-mix(in srgb, var(--warning-amber) 18%, white); }
+.gloss { display: block; column-count: 2; column-gap: 20px; } .gloss > div { break-inside: avoid; margin: 0 0 5px; }
+tr.gone td { text-decoration: none; color: var(--text-light); font-style: italic; }
+dl.pmethod { column-count: 2; column-gap: 22px; } dl.pmethod .pmi { break-inside: avoid; margin-bottom: 6px; } dl.pmethod dt { margin-top: 0; }
 ul.p5key { margin: 6px 0 4px 16px; padding: 0; font-size: 9.6px; line-height: 1.4; } ul.p5key li { margin: 1px 0; } h2.p5gtk { font-size: 12px; margin: 10px 0 2px; } ul.p5notes { margin: 2px 0 6px 16px; padding: 0; font-size: 9.2px; line-height: 1.4; color: var(--text-mid); } ul.p5notes li { margin: 2px 0; } ul.p5notes b { color: var(--text-dark, #1a1a2e); }
 tr:has(> th.prop-row) > * { border-top: 2px solid var(--primary-blue) !important; }
 ul.p8list { margin: 8px 0 0 16px; padding: 0; font-size: 9.2px; line-height: 1.45; color: var(--text-dark, #1a1a2e); } ul.p8list li { margin: 3px 0; } tr.ff-na-note td { font-size: 9px; color: var(--text-mid); padding-top: 5px; border-bottom: 0; }
@@ -416,6 +423,11 @@ export function plainEdition(html, ctx) {
     s = s.replace(/>Weeks on one shift time</g, '>Weeks on one shift time — all earlies or all lates<');
     s = s.replace(/every design’s staffed day/g, 'any link’s staffed day').replace(/so every design has FF2/g, 'so any link has FF2');
     if (k === 6) s = hourPage(s);
+    if (k === 5) s = s.replace(/struck through: not used/g, 'grey italics: a time the proposal drops');
+    if (k === 4) s = s   // the rota page: the glossary term matches page 5, and the contract note counts weeks, not people
+      .replace('<div><b>Fit</b> — how closely the number of people on duty follows the number of trains through the day; 0 is a perfect match, lower is better.</div>',
+        '<div><b>Match</b> — how closely the number of people on the floor follows the number of trains through the day (page 5); 0 is a perfect match, lower is better.</div>')
+      .replace('(20 people × 35 hours = 42,000 minutes)', '(35 hours for each of the 20 working weeks = 42,000 minutes)');
     return s;
   });
   const p1 = sections.find(x => pageOf(x) === 1) ?? '';
