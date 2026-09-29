@@ -57,11 +57,11 @@ below is owned by somebody other than the developer.
 | Demand overlay | ✅ Shipped v19.56 | — | — |
 | Line-order objectives | ✅ Shipped v19.58–v19.60 | — | — |
 | **Hard company limits — a controlled source** | ⚠️ **Cited to the policy, but the policy is not identified** | **Before management review** | **Gareth** — get the title, clause, staff group and effective date. Evidence class B required (ROADMAP.md → Evidence class) |
-| **Sunday operating window** | ⚠️ **Decision needed** — five Dec-26 movements fall after the 23:25 finish, three of them arrivals | **Before proposals are frozen** | **Nathan** |
-| **Contracted hours — today's duties cannot fill a 24-line link** | ⚠️ **Decision needed** — **answered in practice by the proposals** (28 Sep 2026): every sheet but one pays the 35h week exactly — 42,000 minutes Monday to Saturday — and Fifteen Turns is 60 minutes a week over across the link by carrying **94–98 timed duties a week against today's 76**, so every one assumes the December 2026 staffing supplies the extra duty; that assumption is what needs confirming. Background (v20.04; measure corrected and the generator GATED at v20.98). Seeded from today's duties, 24 lines averages **29h 53m** a week (4 cover weeks) or **31h 20m** (5) against a 35h contract; the live 20-line roster gives exactly 35h. **The generator now refuses to build a design that misses the contract in EITHER direction** (short v20.98, over v20.99), so this is no longer a warning that can be scrolled past — it is a blocked action with the gap named: **123h** more duty a week of rotation at 4 cover weeks, **88h** at 5. Note the shape of what that asks for: the target is an equality, so the extra service has to land on a table that totals `working x 35h` exactly — overshooting is refused too. Either the Dec-26 service supplies it — in which case the targets should be seeded from the new timetable, not today's roster — or the widened link does not fill a contracted week | **Before a proposal is frozen** | **Management / Nathan** |
-| **Business staffing requirement** | ⚠️ **Given verbally, not yet in writing** (owner, 27–28 Sep 2026): the December 2026 staffing levels behind the 11 rules every sheet is judged against — four at the open, three at the close, five at 22:00, 14 on a Saturday and 10 on a Sunday, the ticket office in fixed pairs, and the rest (`currentRules`, `docs/proposals/tooling/report-data.mjs`). Every sheet says they are verbal | **Before the final design** | **Management** — confirm in writing |
-| **FF18 reading — cadence or step?** | ⚠️ Unsettled; changes whether any proposal can clear it | **Before a proposal is frozen** | **Nathan** (see Open question 2) |
-| **Proposals** | ✅ **Drawn — 28 sheets** in `docs/proposals/`, the first on 8 Sep 2026, the latest (Right Away, Familiar Nine, Just Enough, Polished Clean, All Clear and Clean Sweep) on 28 Sep; all of them in the managers' edition of 28 Sep, judged against one rule set; ⚠️ **none frozen** | T−8 weeks | Freezing one waits on the decisions above. The folder's `README.md` is the index; each sheet ranks itself among the 28 on its page 9 and lists its open questions on page 7 (*Still to settle*) |
+| **Sunday operating window** | ✅ **Settled (owner, 28 Sep 2026): no duty runs past 23:25 on a Sunday** — agreed practice, and it will remain so. The five later movements are outside the staffed window on every design, and the heat map keeps showing them as a neutral fact | — | — |
+| **Contracted hours — today's duties cannot fill a 24-line link** | ✅ **Answered (owner, 29 Sep 2026)**: the December 2026 staffing levels and a 24-person link are both confirmed verbally, so the December staffing supplies the extra duty. Every sheet but one pays the 35h week exactly — 42,000 minutes Monday to Saturday — carrying **94–98 timed duties a week against today's 76**; Fifteen Turns is 60 minutes a week over. Background (v20.04; generator gated v20.98/v20.99): seeded from today's duties, 24 lines averages **29h 53m** a week against 35h, and the generator refuses a table that misses the contract in either direction | — | — |
+| **Business staffing requirement** | ✅ **Confirmed verbally (owner, 29 Sep 2026)**, with the 24-person link and the Sunday cover (10 on a Sunday, worked as overtime): the December 2026 staffing levels behind the 11 rules every sheet is judged against — four at the open, three at the close, five at 22:00, 14 on a Saturday and 10 on a Sunday, the ticket office in fixed pairs, and the rest (`currentRules`, `docs/proposals/tooling/report-data.mjs`). First relayed 27–28 Sep. Every sheet and the rules sheet say *confirmed verbally* | — | — |
+| **FF18 reading — cadence or step?** | ✅ **Settled (owner, 28 Sep 2026, on ORR's text, 7.68): the CADENCE reading.** Standing on every weekly link; the step is reported beside it as information a design controls | — | — |
+| **Proposals** | ✅ **Drawn — 28 sheets** in `docs/proposals/`, the first on 8 Sep 2026, the latest (Right Away, Familiar Nine, Just Enough, Polished Clean, All Clear and Clean Sweep) on 28 Sep; all of them in the managers' edition of 28 Sep, judged against one rule set; ⚠️ **none frozen** | T−8 weeks | The four decisions above are settled (29 Sep 2026), so freezing one now waits on the management review. The folder's `README.md` is the index; each sheet ranks itself among the 28 on its page 9 and lists its open questions on page 7 (*Still to settle*) |
 | **Management review meeting** | ❌ Not scheduled | T−6 weeks | **A date.** See below |
 
 ## The backwards plan — because the only immovable deadline is outside this repository
@@ -72,7 +72,8 @@ technical project can still be rushed because nobody worked backwards from the d
 
 *(28 Sep 2026: the T−10 row — the four decisions settled — falls due in early October, not late
 September as this table first said: ten weeks before a mid-December T is the first week of October.
-It is still open; see the dashboard above.)*
+**29 Sep 2026: all four are now settled** — the Sunday finish and FF18 on 28 Sep, the staffing
+requirement and the contracted week on 29 Sep. See the dashboard above.)*
 
 **T = the December 2026 timetable change date.** Pin T first — everything below is relative to it,
 and T is a published industry date, not something to estimate.
@@ -808,6 +809,9 @@ question spread across a plan is not a question anyone has been asked.
 
 **1 · The Sunday finish.** *Does the staffed window on a Sunday move past 23:25?*
 
+> **Answered (owner, 28 Sep 2026): no.** No duty runs past 23:25 on a Sunday; that is agreed
+> practice and will remain so. The question is kept below as it was asked.
+
 Five December 2026 movements fall after it: 23:27 dep, 23:35 arr, 23:45 dep, 23:51 arr, 23:54 arr.
 **Three of the five are arrivals** — trains full of people getting off at a terminus with nobody on.
 That the arrivals count is the owner's own answer to what drives CEA workload, so this is not a
@@ -824,6 +828,9 @@ rather than a finding, deliberately, because a shut station is not a coverage ho
 
 **2 · FF18 — cadence, or step?** *Which reading of the ORR's "rotating pattern of about a week" is
 being assessed against?*
+
+> **Answered (owner, 28 Sep 2026, on ORR's text, 7.68): cadence.** FF18 is standing on every weekly
+> link, and the step is reported beside it as information. The question is kept below as it was asked.
 
 Read as **cadence**, no link can avoid it: a link moves everyone one line a week by construction.
 Read as **the size of the step** — how far your working day jumps week to week — it is a design
@@ -844,6 +851,9 @@ reading the proposals should be compared on the figure, and the tool already pro
 **3 · The contracted week.** *Today's duties cannot fill a 24-line link. Where does the rest come
 from?*
 
+> **Answered (owner, 29 Sep 2026): from the December 2026 staffing**, now confirmed verbally along
+> with a 24-person link. The question is kept below as it was asked.
+
 Seeded from today's duties, 24 lines average **29h 53m** a week against a 35h contract. The live
 20-line roster gives exactly **35h 00m** — that is the check on the measure, not a coincidence.
 The gap is **123 hours of duty a week of rotation** at four cover weeks (88h at five).
@@ -863,13 +873,14 @@ lines denser.
 
 **4 · The business staffing requirement.** *What is the station actually required to staff?*
 
-Given verbally, not yet in writing. The owner relayed the December 2026 staffing levels on 27–28 Sep
-2026, and every sheet is now judged against them as 11 rules (four at the open, three at the close,
-five at 22:00, 14 on a Saturday and 10 on a Sunday, the ticket office in fixed pairs, and the rest —
-`currentRules` in `docs/proposals/tooling/report-data.mjs`). Each sheet says they are verbal.
+**Confirmed verbally (owner, 29 Sep 2026)**, together with the 24-person link and the Sunday cover.
+The owner relayed the December 2026 staffing levels on 27–28 Sep 2026, and every sheet is judged
+against them as 11 rules (four at the open, three at the close, five at 22:00, 14 on a Saturday and
+10 on a Sunday, the ticket office in fixed pairs, and the rest — `currentRules` in
+`docs/proposals/tooling/report-data.mjs`). Each sheet and the rules sheet say *confirmed verbally*.
 
-*What turns on it:* until they are in writing, every proposal is assessed against a standard nobody
-has signed. Getting them written down is a task, not a discussion.
+*What turned on it:* whether every proposal was being assessed against the standard it will be
+judged on. It is.
 
 ---
 
@@ -889,9 +900,9 @@ Recorded so the gaps are visible rather than implied:
   measured anywhere. Recorded as a gap, **not** a blocker on package 4 — that framing was corrected
   by the owner: the tool already holds today's STAFFING, and the uplift is a figure the business
   states rather than one derived from two timetables.
-- **Whether "coverage vs service" is the business requirement at all.** Partly answered: the December
-  2026 staffing levels were given verbally on 27–28 Sep 2026 and are the rules every sheet is judged
-  against; they are not yet in writing. Before that it was an inference from the data, not something
+- **Whether "coverage vs service" is the business requirement at all.** Answered: the December
+  2026 staffing levels were relayed on 27–28 Sep 2026, confirmed verbally on 29 Sep, and are the rules
+  every sheet is judged against. Before that it was an inference from the data, not something
   Nathan stated. He said business requirements and fatigue guidelines;
   the fatigue half is documented on p3, the business half is not written down anywhere here.
   Partly softened by the posts steer above — the requirement is now known to be posts + relief +

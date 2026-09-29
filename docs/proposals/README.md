@@ -1471,8 +1471,10 @@ on; the ones that held were adopted, and the one that no longer held was not.
 - **The README's Right Away figures** were the fit it was *built* against (office off the floor, the old edges);
   the table row now gives the current figures and says which is which.
 - **"0 design-specific fatigue findings, plus 2 standing factors"**, not "0 factors". See FF18, below.
-- **"11 of 11 current working rules"**, not "December 2026 rules met": the rules were given verbally and are not
-  yet in writing, and the sheets now say so where the count appears.
+- **"11 of 11 current working rules"**, not "December 2026 rules met": the rules were given verbally and were not
+  yet in writing, and the sheets said so where the count appears. *(29 Sep 2026: the owner confirmed the staffing
+  levels, the 24-person link and the Sunday cover verbally; the sheets and the rules sheet now say "confirmed
+  verbally", and the rules sheet no longer lists getting them in writing as an open question.)*
 - **The Sunday caveat on page 1** — adopted, then withdrawn the same day, because the owner **settled the question**:
   **no duty runs past 23:25 on a Sunday; that is agreed practice and will remain so** (28 Sep 2026). The five later
   movements (the last at 23:54) are now stated as a settled fact beside the Sunday figures and on the rules sheet, not

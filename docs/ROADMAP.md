@@ -105,11 +105,10 @@ builds toward it, and so that nobody is surprised later that the custom work was
 
 The tool is built, and **28 proposal sheets are drawn** (`docs/proposals/`), all judged against the
 eleven December 2026 rules (`December-2026-Rules.pdf`); **none is frozen**.
-What remains is a **decision and meeting schedule**, not code: the Sunday operating-window boundary,
-the business staffing requirement (given verbally, not yet in writing), the FF18 reading (cadence or
-step), the contracted-hours assumption (every sheet carries 94–98 duties a week against today's 76,
-so assumes the December staffing supplies the extra), a controlled source for the company hard
-limits, and a management review date. The readiness dashboard at the top of that plan is
+What remains is a **meeting schedule**, not code: the four design decisions are settled (the Sunday
+finish stays at 23:25 and FF18 reads as cadence, 28 Sep 2026; the December staffing levels, a
+24-person link and the Sunday cover are confirmed verbally, 29 Sep 2026), leaving a controlled source
+for the company hard limits and a management review date. The readiness dashboard at the top of that plan is
 authoritative; it now carries latest-safe dates worked backwards from the timetable change.
 
 ### Roster import — let the PDF's own grid decide the day

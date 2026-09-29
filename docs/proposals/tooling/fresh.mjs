@@ -142,7 +142,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   const wdR = o => { const v = WDD.map(d => o[d]); const lo = Math.min(...v), hi = Math.max(...v); return lo === hi ? `${lo}` : `${lo}–${hi}`; };
   const row = (label, t, p, cls = '') => `<tr><td>${label}</td><td class="num">${t}</td><td class="num prop${cls}">${p}</td></tr>`;
   const glance = `<table class="t glance"><thead><tr><th>At a glance <span class="muted">— green is better than today, amber is worse, unshaded is neither</span></th><th class="num">Today’s link</th><th class="num">${name}</th></tr></thead><tbody>
-    ${row('December 2026 working rules met <span class="muted">(given verbally — page 7)</span>', `${RT.met} of ${R.of}`, `${R.met} of ${R.of}`, mark(R.met, RT.met, false))}
+    ${row('December 2026 working rules met <span class="muted">(confirmed verbally — page 7)</span>', `${RT.met} of ${R.of}`, `${R.met} of ${R.of}`, mark(R.met, RT.met, false))}
     ${row('People working each day — weekday · Saturday · Sunday', `${wdR(T.daily)} · ${T.daily.sat} · ${T.daily.sun}`, `${wdR(P.daily)} · ${P.daily.sat} · ${P.daily.sun}`)}
     ${row('How closely the floor follows the trains — weekday · Sat · Sun <span class="muted">(lower is closer)</span>', `${f1(TO.wkFit)} · ${f1(TO.fits.sat)} · ${f1(TO.fits.sun)}`, `${f1(FO.wkFit)} · ${f1(FO.fits.sat)} · ${f1(FO.fits.sun)}`, (() => { const m = [mark(FO.wkFit, TO.wkFit), mark(FO.fits.sat, TO.fits.sat), mark(FO.fits.sun, TO.fits.sun)]; return m.every(x => x === m[0]) ? m[0] : ''; })())}
     ${row('Design-specific fatigue findings <span class="muted">(page 8; FF2 and FF18, on every weekly link, are not counted)</span>', T.fatigue.present, P.fatigue.present, mark(P.fatigue.present, T.fatigue.present))}
@@ -213,7 +213,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     sub1: 'How this rota would work from December 2026, and how it compares with today’s link',
     intro, intro2: '',
     decMet: R.met, decOf: R.of, decToday: RT.met, decLabel: 'December 2026 rules met',
-    decTile: `current working rules, given verbally and not yet in writing (page 7) · today’s link meets ${RT.met} of ${R.of}`,
+    decTile: `December 2026 rules, confirmed verbally (page 7) · today’s link meets ${RT.met} of ${R.of}`,
     headsEvid: `At least four at the open, three at the close, five at 22:00; 14 on Saturday, 10 on Sunday`,
     satNote: satMet ? 'meets the December 2026 figure of 14' : 'short of the December 2026 figure of 14',
     sunNote: sunMet ? 'meets the December 2026 figure of 10' : 'short of the December 2026 figure of 10',
@@ -265,7 +265,6 @@ export function freshWords(html, { total, todayMet, of, monSat, coverSame, examp
     [/Busiest weekday · Saturday · Sunday\. The first three columns are what the 20-line link does now; the last three are the proposal\. Green cells grew, amber shrank, a struck-through row is a time the proposal does not use\./g, 'People on each shift time on a Saturday, a Sunday and — under Mon–Fri — the weekday with most of that time, so Mon–Fri can add up to more than work on one day. Green: more than today; amber: fewer; struck through: not used.'],
     // page 3
     [/Firm figure/g, 'Firm'], [/(\d+)\/(\d+) at the weekend/g, '$1 on Saturday, $2 on Sunday'],
-    [/Relayed December 2026 headcounts with no document behind them/g, 'December 2026 staffing levels given verbally; not yet in writing'],
     [/Demand fit ([\d. ·]+); on the floor/g, 'Fit, everyone on duty $1; floor only'],
     [/; floor takes the ticket office out of both sides/g, '; the floor figure leaves the office out (page 6)'],
     [/Computed against the live 20-line link/g, 'Compared with today’s 20-line link'],
