@@ -385,6 +385,34 @@ table.p5t.cov-heat--dense .cov-heat-day { font-size: 8.4px !important; } table.p
 .p5 ul.p5notes { column-count: 2; column-gap: 20px; margin-left: 14px; font-size: 8.7px; line-height: 1.34; } .p5 ul.p5notes li { break-inside: avoid; margin: 0 0 3px; }
 .p5 h2.p5gtk { margin: 6px 0 2px; font-size: 11px; } .p5 .p5legend { font-size: 8.6px; margin: 5px 0 1px; gap: 2px 18px; } .p5 h2 { margin: 7px 0 2px; }
 .p5 .callout { margin-top: 6px; padding-top: 6px; padding-bottom: 6px; font-size: 9.2px; }
+/* THE WHOLE SHEET IN PAGE 5'S LANGUAGE (owner, 29 Sep 2026: "the other pages … still lots of rough edges"). One card:
+   a quiet sunken panel with ONE accent — a straight bar, square on its own side and rounded elsewhere, never the
+   curved bracket a radius puts on a side border — and the accent's colour always means the same thing: green good,
+   amber a concern, red a hard limit broken, navy plain information. Tables stripe like page 2's, ticks and crosses
+   carry their meaning in colour, and loose notes sit in a card of their own. No figure or word changes. */
+.cover.plain .head5 .tile, .cover.plain .pfeel .tile { border: 0 !important; border-radius: 8px; background: var(--surface-sunken); box-shadow: inset 0 3px 0 var(--bar, var(--border-mid)); padding: 8px 10px 6px; }
+.cover.plain .ptile-good { --bar: var(--success-green); } .cover.plain .ptile-warn { --bar: var(--warning-amber); }
+.cover.plain .ptile-bad { --bar: var(--danger-red, #b3261e); } .cover.plain .ptile-info { --bar: var(--primary-blue); }
+.cover.plain .pfeel .tile { --bar: color-mix(in srgb, var(--primary-blue) 35%, white); }
+.cover.plain .tiles.head5 { gap: 8px; } .cover.plain .tiles.pfeel { gap: 8px; margin-top: 6px; }
+.pbox, .check-row, .callout { border-radius: 0 8px 8px 0 !important; }
+.cover.plain .pcols { gap: 12px; align-items: stretch; }
+.cover.plain .pbox { padding: 8px 14px; }
+/* tables: page 2's stripe, one header style */
+table.t.kept tbody tr:nth-child(even) td, table.t.changed tbody tr:nth-child(even) td, table.t.dutyt tbody tr:nth-child(even) td:not(.up):not(.down), table.t.rules tbody tr:nth-child(even):not(.rule-miss) td, table.ff tbody tr:nth-child(even):not(.ff-na-note) td { background-color: color-mix(in srgb, var(--surface-sunken) 60%, white); }
+table.t th { border-bottom: 0 !important; } table.t thead tr:last-child th { box-shadow: inset 0 -1px 0 var(--border-mid); }
+.stack table.t td { padding: 2.5px 6px; }
+.stack table.t.kept { table-layout: fixed; } .stack table.t.kept th:nth-child(1) { width: 40%; } .stack table.t.kept th:nth-child(2) { width: 27%; } .stack table.t.kept th:nth-child(3) { width: 33%; }
+.stack table.t td { white-space: normal !important; overflow-wrap: anywhere; } .stack table.t td.num { white-space: nowrap !important; overflow-wrap: normal; }
+.stack table.t.changed { table-layout: fixed; } .stack table.t.changed th:nth-child(1) { width: 27%; } .stack table.t.changed th:nth-child(2) { width: 15%; } .stack table.t.changed th:nth-child(3) { width: 19%; } .stack table.t.changed th:nth-child(4) { width: 39%; }
+/* the duty table's notes: a card beside the table, not text floating in the margin */
+.cols.duty > div:last-child { background: var(--surface-sunken); border-radius: 8px; padding: 9px 11px; align-self: start; }
+.cols.duty > div:last-child p { margin: 0 0 6px; } .cols.duty > div:last-child p:last-child { margin: 0; }
+/* ticks and crosses */
+.mk { display: inline-block; width: 1.05em; font-weight: 800; } .mk-ok { color: var(--success-green); } .mk-no { color: var(--danger-red, #b3261e); } .mk-wv { color: var(--text-mid); }
+.check-row .check-icon { align-self: flex-start; margin-top: 1px; }
+/* the fatigue table: a factor's name is read in one colour; the verdict columns carry the colour */
+td.ff-title { color: var(--text-dark, #1a1a2e) !important; }
 ul.p8list { margin: 8px 0 0 16px; padding: 0; font-size: 9.2px; line-height: 1.45; color: var(--text-dark, #1a1a2e); } ul.p8list li { margin: 3px 0; } tr.ff-na-note td { font-size: 9px; color: var(--text-mid); padding-top: 5px; border-bottom: 0; }
 table.pcmp { font-size: 9.8px; margin-top: 8px; } table.pcmp td { padding: 2.6px 6px; line-height: 1.3; } table.pcmp td.num, table.pcmp th.num { text-align: center; } table.pcmp { table-layout: fixed; width: 100%; } table.pcmp th:nth-child(1) { width: 29%; } table.pcmp th:nth-child(2) { width: 16%; } table.pcmp th:nth-child(3) { width: 19%; } table.pcmp th:nth-child(4) { width: 36%; }
 table.pcontents td { font-size: 10px; padding: 1.8px 6px; } table.pcontents td.num { width: 24px; font-weight: 800; color: var(--primary-blue); }
@@ -491,6 +519,8 @@ export function plainEdition(html, ctx) {
     .replace(/current working rules/g, 'December staffing rules')
     .replace(/<span class="muted">\(page 7\)<\/span>/g, '<span class="muted">(page 6)</span>');   // the rules page is page 6 here
   if (!coverHead) throw new Error('plainEdition: no cover head on page 1 of the technical sheet');
-  const out = head.replace('</style>', CSS + '</style>') + front({ ...ctx, pages, coverHead }) + appendix.join('') + methodPage({ ...ctx, pages }) + tail;
+  let out = head.replace('</style>', CSS + '</style>') + front({ ...ctx, pages, coverHead }) + appendix.join('') + methodPage({ ...ctx, pages }) + tail;
+  // the rules table's ticks and crosses, in the colour they mean
+  out = out.replace(/<table class="t rules">[\s\S]*?<\/table>/, t => t.replace(/<td( class="today-v")?>(✓|✕|○)/g, (m, c, k) => `<td${c ?? ''}><span class="mk mk-${k === '✓' ? 'ok' : k === '✕' ? 'no' : 'wv'}">${k}</span>`));
   return out;
 }
