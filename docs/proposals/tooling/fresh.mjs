@@ -30,13 +30,11 @@ export const STRAPS = {
   'FT-24-R21':  ['Fifteen shift times, arranged to pass every hard limit', 'hand+search'],
   'WL-24-EXT':  ['Weekday closers from 16:25, with Saturday largely in today’s shift times', 'hand'],
   'WL2-24-R21': ['Weekday closers from 16:25, with extra cover under the 17:00 peak', 'hand+search'],
-  'WL3-24-F7':  ['Weekday closers from 16:25, with five of its weeks fixed in place and the others ordered around them', 'hand+search'],
   'WL4-24-F7':  ['Weekday closers from 16:25, built around four weeks (lines 14–17) that stay together in a fixed order', 'hand+search'],
   'C17-24-EXT': ['Cover weeks at lines 1, 7, 12 and 17, so nobody works more than 13 shifts without a two-day break', 'hand'],
   'S4-24-EXT':  ['Saturdays on just four shift times, with more people on in the evening', 'hand'],
   'CF-24-EXT':  ['Weekday closers from 16:25, and no Saturday closing shift longer than 8h 40m', 'hand'],
   'CFT-24-M3':  ['Weekday closers from 16:25, with four at Sunday’s open and four through to its close', 'hand'],
-  'TN-24-R7':   ['Ten on a Sunday, and nobody works more than six days in a row', 'hand+search'],
   'PC-24-EXT':  ['Weekday closers from 16:25, with twelve on a Saturday and the cover weeks at lines 1, 7, 12 and 17', 'hand'],
   'JE-24-M29':  ['Fifteen shift times, meeting all eleven rules', 'exact'],
   'AC-24-M41':  ['Sixteen shift times, meeting all eleven rules with no avoidable tiring pattern', 'exact'],
@@ -46,13 +44,13 @@ export const STRAPS = {
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
 export const FAMILY = { ST: 'Same Turns', QT: 'Same Turns', Q2: 'Same Turns',
   PT: 'Pinned Turns', P2: 'Pinned Turns', FR: 'Right Away', F9: 'Right Away', FT: 'Fifteen Turns', JE: 'Fifteen Turns', AC: 'Fifteen Turns', PC: 'Weekday Lates', CS: 'Weekday Lates',
-  WL: 'Weekday Lates', WL2: 'Weekday Lates', WL3: 'Weekday Lates', WL4: 'Weekday Lates',
-  C17: 'Weekday Lates', S4: 'Weekday Lates', CF: 'Weekday Lates', CFT: 'Weekday Lates', TN: 'Weekday Lates' };
+  WL: 'Weekday Lates', WL2: 'Weekday Lates', WL4: 'Weekday Lates',
+  C17: 'Weekday Lates', S4: 'Weekday Lates', CF: 'Weekday Lates', CFT: 'Weekday Lates' };
 export const FIRST = { 'ST-24-B7': '8 Sep 2026', 'QT-24-Q34': '12 Sep 2026',
   // 17 Sep, not 18: each of these six was committed, with the same fingerprint, on 17 Sep (accuracy check, 28 Sep 2026)
-  'WL-24-EXT': '17 Sep 2026', 'WL2-24-R21': '17 Sep 2026', 'WL3-24-F7': '17 Sep 2026', 'FT-24-EXT': '17 Sep 2026', 'FT-24-R21': '17 Sep 2026',
+  'WL-24-EXT': '17 Sep 2026', 'WL2-24-R21': '17 Sep 2026', 'FT-24-EXT': '17 Sep 2026', 'FT-24-R21': '17 Sep 2026',
   'WL4-24-F7': '22 Sep 2026', 'C17-24-EXT': '22 Sep 2026', 'S4-24-EXT': '22 Sep 2026',
-  'CF-24-EXT': '22 Sep 2026', 'CFT-24-M3': '22 Sep 2026', 'TN-24-R7': '22 Sep 2026',
+  'CF-24-EXT': '22 Sep 2026', 'CFT-24-M3': '22 Sep 2026',
   'Q2-24-W21': '24 Sep 2026', 'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34s': '28 Sep 2026', 'F9-24-K31s': '28 Sep 2026', 'JE-24-M29': '28 Sep 2026', 'PC-24-EXT': '28 Sep 2026',
   'AC-24-M41': '28 Sep 2026', 'CS-24-M34': '28 Sep 2026' };
 const MADE = {

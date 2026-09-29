@@ -47,8 +47,8 @@ function gridHtml(p, lines, totals, daily, opts = {}) {
 // renamed sheet says what it used to be called, keyed by the code that stayed the same.
 export const FORMERLY = {
   'Q2-24-W21': 'Quarter To 2', 'P2-24-N13': 'Pinned Turns 2', 'FR-24-F34s': 'Final Rules, then Floor First',
-  'WL2-24-R21': 'Weekday Lates 2', 'WL3-24-F7': 'Weekday Lates 3', 'WL4-24-F7': 'Weekday Lates 4', 'FT-24-R21': 'Fifteen Turns Repaired',
-  'CF-24-EXT': 'Clean Final', 'CFT-24-M3': 'Clean Final Tuned', 'TN-24-R7': 'Clean Final Ten',
+  'WL2-24-R21': 'Weekday Lates 2', 'WL4-24-F7': 'Weekday Lates 4', 'FT-24-R21': 'Fifteen Turns Repaired',
+  'CF-24-EXT': 'Clean Final', 'CFT-24-M3': 'Clean Final Tuned',
 };
 function heatRow(name, hours, max, cls = '', fit = null) {
   const cells = hours.map((n, h) => { if (h < 5) return null; const b = n === 0 ? 0 : Math.max(1, Math.ceil((n / max) * 5)); return `<td class="cov-heat-cell heat-b${b}">${n ? n.toFixed(0) : ''}</td>`; }).filter(Boolean).join('');
