@@ -16,8 +16,8 @@ import { materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs
 /** code → [one-line description, how it was made]. `search`: built by computer search against the rules and the
  *  timetable. `hand`: drawn by hand and checked by the app. `hand+search`: drawn by hand, weeks put in order by
  *  computer search for fewer fatigue factors. `exact`: a hand-drawn design changed in the fewest cells that meet every
- *  rule, the minimum proven by an exact solver (tooling/exact/). `exact-waived`: the same, with one rule the owner
- *  waived for that design (Clean Sweep keeps its 16:25 weekday closers, owner 28 Sep 2026). */
+ *  rule, the minimum proven by an exact solver (tooling/exact/). `exact-waived`: the same, with rules the owner
+ *  waived for that design (WAIVERS, below). */
 export const STRAPS = {
   'FR-24-F34o': ['The ticket office rostered in fixed pairs, every other duty timed so the floor follows the trains', 'search'],
   'F9-24-K31':  ['No duty over nine hours, and most shift times ones people already work', 'search'],
@@ -65,6 +65,21 @@ const MADE = {
   exact: 'A hand-drawn design changed in the fewest cells that meet every rule, the minimum proven by an exact solver.',
   'exact-waived': 'A hand-drawn design changed in the fewest cells that meet every rule but the one waived for it (its weekday closers stay at 16:25), the minimum proven by an exact solver.',
 };
+/** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
+ *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
+ *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a
+ *  Saturday will do; Sunday's ten still stands. */
+export const WAIVERS = {
+  'CS-24-M34': { date: '28 September 2026', keys: ['closer'] },
+};
+const WAIVE = {
+  closer: { short: '15:45 closer', allows: v => /^closers start at /.test(v) && v.replace(/^closers start at /, '').split(/, | and /).every(t => t === '15:45' || t === '16:25') },
+  heads: { short: 'Saturday fourteen', allows: v => { const [sa, su] = String(v).split(' · ').map(Number); return sa >= 12 && su >= 10; } },
+};
+/** The rows of a rules table (currentRules) that the owner waived for this design and that it meets as allowed. */
+export const waivedRows = (code, rows) => rows.filter(r => !r.ok && (WAIVERS[code]?.keys ?? []).includes(r.key) && WAIVE[r.key].allows(r.value));
+/** "the 15:45 closer rule is waived" · "the 15:45 closer and Saturday fourteen rules are waived" */
+export const waivedPhrase = keys => keys.length === 1 ? `the ${WAIVE[keys[0]].short} rule is waived` : `the ${keys.slice(0, -1).map(k => WAIVE[k].short).join(', ')} and ${WAIVE[keys[keys.length - 1]].short} rules are waived`;
 const MADE_SHORT = { search: 'computer search', hand: 'drawn by hand', 'hand+search': 'drawn by hand, ordered by search', exact: 'drawn by hand, fewest changes proven', 'exact-waived': 'drawn by hand, fewest changes proven' };
 
 /** The standalone words for one sheet. `folder` is folderStats() — every shipped design, with its rules. */
@@ -82,8 +97,8 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   const newTimes = P.tableRows.filter(r => !T.tableRows.some(t => t.time === r.time)).map(r => r.time);
   const shared = P.feel.distinctTimes - newTimes.length;
   // A rule the owner waived for this one design is reported as waived everywhere — never as a failure.
-  const waivedRow = STRAPS[code]?.[1] === 'exact-waived' ? R.rows.find(r => !r.ok && /closer starts at 15:45/i.test(r.rule)) ?? null : null;
-  const failed = R.rows.filter(r => !r.ok && r !== waivedRow);
+  const waived = waivedRows(code, R.rows);
+  const failed = R.rows.filter(r => !r.ok && !waived.includes(r));
   const FO = P.office, TO = T.office;
   // gaps in the order the lines are printed, the last one back round to the first line (accuracy check, 28 Sep 2026 —
   // the order spareGaps comes in started with the wrap-round gap, so '1, 7, 12, 17 · gaps of 8, 6, 5, 5' read 1→7 as 8)
@@ -170,8 +185,8 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
       return out; })();
   const oqItems = [
     hardBroken.length ? `<b>${hardBroken.length === 1 ? 'A hard limit is' : 'Hard limits are'} broken</b> — ${andList(hardBroken)}. As it stands this rota cannot be run.` : '',
-    failed.length ? `<b>${failed.length === 1 ? 'One December 2026 rule is' : `${failed.length} of the ${R.of} December 2026 rules are`} not met</b> — ${failed.map(r => r.rule).join('; ')}. The shaded rows above give the figures.` : `<b>Nothing to settle on the rules</b> — ${waivedRow ? `the other ${R.of - 1} are met` : `all ${R.of} are met`}.`,
-    waivedRow ? `<b>Waived for this design</b> — ${waivedRow.rule}: here ${waivedRow.value}. The owner agreed this on 28 September 2026.` : '',
+    failed.length ? `<b>${failed.length === 1 ? 'One December 2026 rule is' : `${failed.length} of the ${R.of} December 2026 rules are`} not met</b> — ${failed.map(r => r.rule).join('; ')}. The shaded rows above give the figures.` : `<b>Nothing to settle on the rules</b> — ${waived.length ? `the other ${R.of - waived.length} are met` : `all ${R.of} are met`}.`,
+    ...waived.map(w => `<b>Waived for this design</b> — ${w.rule}: here ${w.value}. The owner agreed this on ${WAIVERS[code].date}.`),
     newTimes.length ? `<b>New shift times.</b> ${newTimes.length === 1 ? `1 of the ${P.feel.distinctTimes} is a time nobody works today` : `${newTimes.length} of the ${P.feel.distinctTimes} are times nobody works today`}; page 5 lists ${newTimes.length === 1 ? 'it' : 'them'}.` : '',
     // THE THIN MOMENT (accuracy check, 28 Sep 2026): the hour-by-hour page counts a head in every hour a duty
     // TOUCHES, so a half-hour when nearly nobody is on shows as a full hour. Saturday Four had one person on duty in
@@ -206,7 +221,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     ...(() => { const k = new Set([...T.tableRows, ...P.tableRows].map(r => r.time)).size; return k > 36 ? { denseDuty: true, tightDuty: true, xxTightDuty: true } : k > 26 ? { denseDuty: true, tightDuty: true } : {}; })(),
     fresh: true, changed: null, officeNamed: R.rows.find(r => r.key === 'office').ok,
     coverSame: coverParts.length === 0, coverParts, ff11Split, ff11Block, pairDays: R.pairDays, otherDaysTxt: (() => { const NM = { sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat' }; const o = ['mon','tue','wed','thu','fri','sat','sun'].filter(x => !(R.pairDays ?? []).includes(x)); const wk = ['mon','tue','wed','thu','fri'].every(x => o.includes(x)); const parts = [...(wk ? ['Mon–Fri'] : o.filter(x => !['sat','sun'].includes(x)).map(x => NM[x])), ...o.filter(x => x === 'sat' || x === 'sun').map(x => NM[x])]; return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts.join(''); })(), pairDaysTxt: (() => { const NM = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' }; const d = R.pairDays ?? []; const wk = ['mon','tue','wed','thu','fri'].every(x => d.includes(x)); const parts = [...(wk ? ['Mon–Fri'] : d.filter(x => !['sat','sun'].includes(x)).map(x => NM[x])), ...d.filter(x => x === 'sat' || x === 'sun').map(x => NM[x])]; return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts.join(''); })(), readLines, p8Note, monSat, f1,
-    rulesChip: (failed.length ? `<span class="sum-chip sum-chip--warn">⚠ <strong>${failed.length}</strong> of ${R.of} current working rules not met${failed.length === 1 ? ` — ${failed[0].rule.charAt(0).toLowerCase() + failed[0].rule.slice(1)}${meta.waived === failed[0].key ? ', waived for this design' : ''}` : ''}</span>` : waivedRow ? `<span class="sum-chip sum-chip--ok">✓ <strong>${R.of - 1}</strong> of ${R.of} current working rules met — the 15:45 closer rule is waived for this design</span>` : `<span class="sum-chip sum-chip--ok">✓ all <strong>${R.of}</strong> current working rules met</span>`),
+    rulesChip: (failed.length ? `<span class="sum-chip sum-chip--warn">⚠ <strong>${failed.length}</strong> of ${R.of} current working rules not met${failed.length === 1 ? ` — ${failed[0].rule.charAt(0).toLowerCase() + failed[0].rule.slice(1)}` : ''}</span>` : waived.length ? `<span class="sum-chip sum-chip--ok">✓ <strong>${R.of - waived.length}</strong> of ${R.of} current working rules met — ${waivedPhrase(waived.map(w => w.key))} for this design</span>` : `<span class="sum-chip sum-chip--ok">✓ all <strong>${R.of}</strong> current working rules met</span>`),
       // No Sunday chip: the 23:25 finish is SETTLED (owner, 28 Sep 2026 — no duty runs past it, agreed practice). The
       // external review asked for an amber "undecided" chip here; it shipped for one release and was withdrawn the same day.
     metaLine: `Prepared ${rendered} · every figure is calculated from the rota, not entered by hand`,
@@ -220,7 +235,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     sunNote: sunMet ? 'meets the December 2026 figure of 10' : 'short of the December 2026 figure of 10',
     thinMoments: thin,
     designHeading: 'The December 2026 rules', designSub: '— each one, with today’s link beside it',
-    designRules: R.rows.map((r, i) => ({ rule: r.rule, value: r.value, ok: r.ok, waived: r === waivedRow, note: r.note, today: RT.rows[i].value, todayOk: RT.rows[i].ok })),
+    designRules: R.rows.map((r, i) => ({ rule: r.rule, value: r.value, ok: r.ok, waived: waived.includes(r), key: r.key, note: r.note, today: RT.rows[i].value, todayOk: RT.rows[i].ok })),
     openQuestionsHeading: 'Still to settle', openQuestions: oqItems.join(' '), openQuestionsHtml: `<ul class="oq-list">${oqItems.map(x => `<li>${x}</li>`).join('')}</ul>`,
     wembleyLine: 'Whether this pattern holds on Wembley event days — it is based on the train timetable, not on passenger numbers.',
     sundayNote: 'On Sundays five trains in the December 2026 timetable arrive or leave after the 23:25 finish (the last at 23:54); the bar under the Sunday 23:00 hour marks the time after the finish. No duty runs past 23:25 on a Sunday — that is agreed practice and stays so (settled 28 Sep 2026) — so those trains fall outside the staffed day of any link, today’s included.',

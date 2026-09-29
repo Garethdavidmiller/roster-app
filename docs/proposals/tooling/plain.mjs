@@ -18,7 +18,7 @@
 //
 // `TECH=1` renders the ten-page technical sheet instead (render.mjs), unchanged.
 import { dutyMinutes, startMinutes, endMinutes } from './report-data.mjs';
-import { STRAPS } from './fresh.mjs';
+import { waivedPhrase } from './fresh.mjs';
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -80,10 +80,10 @@ function front({ T, P, meta, pages, coverHead }) {
   const name = esc(meta.identity.name), strap = esc(meta.identity.strap);
   const tp = personal(T.patterns), pp = personal(P.patterns);
   const rules = meta.designRules ?? [], missed = rules.filter(r => !r.ok);
-  // A rule the owner waived for one design (Clean Sweep keeps its 16:25 weekday closers, 28 Sep 2026) is reported
-  // as waived, never as a failure — the sheet would otherwise say "No" about the one thing that was agreed.
-  const waived = STRAPS[meta.identity.code]?.[1] === 'exact-waived' ? missed.find(r => /closer starts at 15:45/i.test(r.rule)) ?? null : null;
-  const failed = missed.filter(r => r !== waived);
+  // A rule the owner waived for one design (WAIVERS in fresh.mjs — Clean Sweep keeps its 16:25 weekday closers) is
+  // reported as waived, never as a failure — the sheet would otherwise say "No" about the one thing that was agreed.
+  const waived = missed.filter(r => r.waived);
+  const failed = missed.filter(r => !r.waived);
   const monSat = meta.monSat ?? 42000;
   const rests = P.checks.turnarounds.length, run = P.checks.longestStretch, restMin = P.rest?.minutes;
   const breaks = [rests ? `${rests} ${rests === 1 ? 'gap' : 'gaps'} of under 12 hours between shifts` : '',
@@ -184,7 +184,7 @@ function front({ T, P, meta, pages, coverHead }) {
   const decide = [
     ...breaks.map(b => `<b>It cannot be run as it stands</b> — ${b}.`),
     ...failed.map(r => `<b>Rule not met:</b> ${esc(r.rule)} — here ${esc(String(r.value))}.`),
-    ...(waived ? [`<b>Waived for this design:</b> ${esc(waived.rule)} — here ${esc(String(waived.value))}.`] : []),
+    ...waived.map(w => `<b>Waived for this design:</b> ${esc(w.rule)} — here ${esc(String(w.value))}.`),
     `<b>Which link is used.</b> This is a proposal; colleagues' views come first.`,
     `<b>Then who starts on which line.</b> The rota does not say who works which week.`,
   ];
@@ -197,7 +197,7 @@ function front({ T, P, meta, pages, coverHead }) {
   const tile = (cls, qn, big, label, small) => `<div class="tile ptile ptile-${cls}"><span class="q">${qn}</span><b>${big}</b><span class="l">${label}</span><span class="s">${small}</span></div>`;
   const tiles = [
     tile(failed.length ? 'warn' : 'good', 'Does it meet the December staffing levels?', `${meta.decMet} of ${meta.decOf}`,
-      waived ? 'rules met — one waived for this design' : failed.length ? `rules met — ${failed.length} not met` : 'rules met',
+      waived.length ? `rules met — ${waived.length === 1 ? 'one' : waived.length === 2 ? 'two' : waived.length} waived for this design` : failed.length ? `rules met — ${failed.length} not met` : 'rules met',
       `today’s link meets ${meta.decToday} · each rule on page 6`),
     tile(breaks.length ? 'bad' : 'good', 'Can it be run within the limits?', breaks.length ? 'No' : 'Yes',
       breaks.length ? 'not as it stands' : 'inside every hard limit',
@@ -214,7 +214,7 @@ function front({ T, P, meta, pages, coverHead }) {
   ].join('');
   // the rules chip is re-derived here so a waived rule reads as waived, as it does in the tile beneath it
   const rulesChip = failed.length ? `<span class="sum-chip sum-chip--warn">⚠ <strong>${failed.length}</strong> of ${meta.decOf} December staffing rules not met</span>`
-    : `<span class="sum-chip sum-chip--ok">✓ ${waived ? `<strong>${meta.decMet}</strong> of ${meta.decOf} December staffing rules met — the 15:45 closer rule is waived for this design` : `all <strong>${meta.decOf}</strong> December staffing rules met`}</span>`;
+    : `<span class="sum-chip sum-chip--ok">✓ ${waived.length ? `<strong>${meta.decMet}</strong> of ${meta.decOf} December staffing rules met — ${waivedPhrase(waived.map(w => w.key))} for this design` : `all <strong>${meta.decOf}</strong> December staffing rules met`}</span>`;
   const head1 = coverHead.replace(/<span class="sum-chip sum-chip--(?:warn|ok)">(?:(?!<\/span>)[\s\S])*?December staffing rules(?:(?!<\/span>)[\s\S])*?<\/span>/, rulesChip);
   // what it is like to work — the three things colleagues ask first, each against today
   const feelTile = (big, label, small) => `<div class="tile"><b>${big}</b><span class="l">${label}</span><span class="s">${small}</span></div>`;
@@ -276,7 +276,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('Sunday overtime to share — each, a year', Math.round(tp.sun), Math.round(pp.sun), '', 'Sundays are overtime, as today'),
     row('Different shift times', T.feel.distinctTimes, `${distinct} (${shared} worked today)`, cmp(distinct < T.feel.distinctTimes, distinct === T.feel.distinctTimes), newTimes ? `${newTimes} new to learn, on ${newLines.length} of the ${P.feel.workingLines} working weeks — on page 4, the times with no figure under today’s link` : 'nothing new to learn'),
     row('Avoidable tiring patterns (ORR and rail-industry lists)', T.fatigue.present, P.fatigue.present, cmp(P.fatigue.present < T.fatigue.present, P.fatigue.present === T.fatigue.present), 'early starts and a weekly rotation come with every link'),
-    row('December staffing rules met', `${meta.decToday} of ${meta.decOf}`, `${meta.decMet} of ${meta.decOf}`, cmp(meta.decMet > meta.decToday, meta.decMet === meta.decToday), `staffing levels confirmed verbally, 29 Sep 2026${waived ? '; the 15:45 closer rule is waived for this design' : ''}`),
+    row('December staffing rules met', `${meta.decToday} of ${meta.decOf}`, `${meta.decMet} of ${meta.decOf}`, cmp(meta.decMet > meta.decToday, meta.decMet === meta.decToday), `staffing levels confirmed verbally, 29 Sep 2026${waived.length ? `; ${waivedPhrase(waived.map(w => w.key))} for this design` : ''}`),
   ].join('');
   const page2 = `<section class="page plain">
   <div class="mast"><div><div class="eyebrow">Against today’s link</div><h1>What changes, in numbers</h1><div class="sub">Today’s 20-week link beside ${name}. Green is better than today, amber is worse, unshaded is neither.</div></div></div>

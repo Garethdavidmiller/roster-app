@@ -19,11 +19,13 @@ BASE=load(os.environ['BASE']) if os.environ.get('BASE') else FT
 SPS={int(v) for v in os.environ['SPARES'].split(',')} if os.environ.get('SPARES') else SPARE_LINES
 CLS_=tuple(os.environ['CLOSERS'].split(',')) if os.environ.get('CLOSERS') else ('15:45-23:55',)
 UNI=sorted(set(U)|times_of(BASE), key=lambda s:(st(s),en(s)))
+# SATMIN=12 TMAX=18 — the Saturday headcount and the most distinct shift times (Weekday Lates' repair, 29 Sep 2026)
+SATMIN=int(os.environ.get('SATMIN','14')); TMAX=int(os.environ.get('TMAX','18'))
 def domain(d):
     c=cls(d); return [s for s in UNI if st(s)>=OPEN[c] and en(s)<=CLOSE[c] and (c!='sun' or 480<=dur(s)<=540)]
 
 def model():
-    m,x,z,changes,factors,WORK=build(base=BASE,spares=SPS,uni=UNI,closers=CLS_,fmax=F,cmax=C)
+    m,x,z,changes,factors,WORK=build(base=BASE,spares=SPS,uni=UNI,closers=CLS_,fmax=F,cmax=C,sat_min=SATMIN,tmax=TMAX)
     LINES=[str(k) for k in range(1,25)]; POS=[(k,d) for k in LINES for d in DAYS]; N=len(POS)
     spare=lambda i: int(POS[i][0]) in SPS
     V=lambda d: domain(d)
@@ -93,15 +95,22 @@ def model():
         if a in ('RD','SPARE') or b=='RD': return 960
         return abs(st(a)-st(b))+abs(en(a)-en(b))
     sz=sum(size(BASE[k][d],v)*var for (k,d,v),var in x.items() if size(BASE[k][d],v))
-    return m,x,z,changes,factors,WORK,sum(jumps),sum(ff8),h,run,sum(one),sum(wkends),sz
+    # the number of distinct shift times worked (feel.distinctTimes): a time counts once it is used on any day
+    tvars=[]
+    for v in UNI:
+        uses=[var for (k,d,w),var in x.items() if w==v]
+        if not uses: continue
+        tv=m.NewBoolVar('tt'+v); tvars.append(tv)
+        for var in uses: m.AddImplication(var, tv)
+    return m,x,z,changes,factors,WORK,sum(jumps),sum(ff8),h,run,sum(one),sum(wkends),sz,sum(tvars)
 
 stages=(sys.argv[6].split(',') if len(sys.argv)>6 else ['jumps','ff8','h','run','one'])
 HINT=json.load(open(sys.argv[5])) if len(sys.argv)>5 else BASE
 # FIXED=wk=-2,size=16770 — resume after a lost run: stages already proven/settled, fixed at these values
 fixed={kv.split('=')[0]:int(kv.split('=')[1]) for kv in os.environ['FIXED'].split(',')} if os.environ.get('FIXED') else {}
 for si,st_ in enumerate(stages):
-    m,x,z,changes,factors,WORK,J,F8,H,RUN,ONE,WK,SZ=model()
-    exprs={'jumps':J,'ff8':F8,'h':H,'run':RUN,'one':-ONE,'wk':-WK,'size':SZ}
+    m,x,z,changes,factors,WORK,J,F8,H,RUN,ONE,WK,SZ,TT=model()
+    exprs={'jumps':J,'ff8':F8,'h':H,'run':RUN,'one':-ONE,'wk':-WK,'size':SZ,'factors':factors,'times':TT,'changes':changes}
     for k,v in fixed.items():
         m.Add(exprs[k]<=v)
     m.Minimize(exprs[st_])
