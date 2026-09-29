@@ -3,17 +3,22 @@
 The CEA link proposals drawn for the December 2026 timetable change, each a PDF with its own
 **identity** so it can be named in a room: a name, a code that says how it was built, and a
 fingerprint of the exact cells so a printout can never be confused with a variant. The same
-identity is in every page footer. All 25 were judged by the app's own Links modules
+identity is in every page footer. All 28 were judged by the app's own Links modules
 (`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) — the
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
+
+**Each sheet stands on its own (29 Sep 2026).** A sheet compares its proposal with today's link and nothing else: the
+"Beside the other proposals" page, the best/worst ticks on page 2, the "of the others" notes on page 1 and the family
+row are removed by `tooling/solo.mjs`, which throws if any comparison is left behind, so every sheet is nine pages. The
+one-page summary is the only place the drafts are compared, and it is for the owner.
 
 **Everything in one download:** `December-2026-Link-Proposals.zip` (29 Sep 2026) — the one-page summary, the
 rules, both presentations, all 28 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
 re-render of the sheets does not update it, so rebuild it after one.
 
 **The one-page summary:** `Proposals-Summary.pdf` — every proposal against today's link on one A4 page, rendered by
-`tooling/summary-sheet.mjs` from `folderStats` and the same JSON rotations (its header states each column's formula).
+`tooling/summary-sheet.mjs` from `folderStats` and the same JSON rotations (the script's header comment states each column's formula).
 
 **The Familiar Nine presentations:** `presentations/` — one for colleagues (15 slides) and one for managers (10), each
 as PowerPoint and PDF (29 Sep 2026). Built with pptxgenjs outside this repository; every figure in them was counted from

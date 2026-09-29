@@ -1,11 +1,13 @@
 // THE RULES REFERENCE (owner, 28 Sep 2026: "one rules sheet based on our current rules for reference").
-// Every proposal sheet restates the rules on pages 3, 7 and 8, beside that design's own figures. This is the
-// same set on its own, once, so the rules can be read, argued about and changed without opening a design.
+// Every proposal sheet restates the rules on page 6, beside that design's own figures. This is the same set on
+// its own, once, so the rules can be read, argued about and changed without opening a design.
 //
 // Nothing here is typed that the proposal sheets compute. The eleven December rows are `currentRules` —
-// the function every sheet calls — run on today's link; the fatigue list is `assessFatigue`'s own; the
-// "proposals meeting it" column is `folderStats` over the same 23 JSON files. Change a rule in
-// report-data.mjs and this sheet follows on its next render; it cannot say one thing while page 7 says another.
+// the function every sheet calls — run on today's link; the fatigue list is `assessFatigue`'s own. Change a
+// rule in report-data.mjs and this sheet follows on its next render; it cannot say one thing while a sheet says
+// another. TODAY'S LINK IS THE ONLY COMPARISON (owner, 29 Sep 2026): the "met by N proposals" and "present in N"
+// columns went, because a manager reading this is not shown the drafts. The folder is still read, but only to
+// decide which fatigue factors apply to any rotation here; the drafts side by side are the one-page summary.
 //
 //   node docs/proposals/tooling/rules-sheet.mjs      → docs/proposals/December-2026-Rules.pdf
 // A full `regenerate.mjs` run renders it too, after every sheet.
@@ -26,7 +28,6 @@ const T0 = today();
 const TA = { patterns: T0.patterns, ...assess(T0.patterns, T0.lines) };
 const RT = currentRules(TA, TA, 'today');
 const F = folderStats(), N = F.length;
-const meeting = i => F.filter(f => f.rules.rows[i].ok).length;
 
 // Hard limits across the folder, measured the way page 7 measures them.
 const restOk = F.filter(f => f.turnarounds === 0).length;
@@ -68,11 +69,11 @@ const ASKS = {
   times: `No more different shift times in the week than today’s link has (${TA.feel.distinctTimes}).`,
 };
 
-const decRows = RT.rows.map((r, i) => `<tr><td><b>${esc(r.rule)}</b></td><td>${ASKS[r.key] ?? esc(r.note)}</td><td class="tt ${r.ok ? 'ok' : 'miss'}">${r.ok ? '✓' : '✕'} ${esc(r.value)}</td><td class="num"><b>${meeting(i)}</b> of ${N}</td></tr>`).join('');
-const allMet = F.filter(f => f.rules.met === f.rules.of).length;
-const bestMet = Math.max(...F.map(f => f.rules.met));
+const decRows = RT.rows.map((r, i) => `<tr><td><b>${esc(r.rule)}</b></td><td>${ASKS[r.key] ?? esc(r.note)}</td><td class="tt ${r.ok ? 'ok' : 'miss'}">${r.ok ? '✓' : '✕'} ${esc(r.value)}</td></tr>`).join('');
 
-const ffStatus = r => r.status === 'standing' ? 'Every design' : `${presentIn[key(r)] ?? 0}`;
+// Today's link is the only comparison on this sheet (owner, 29 Sep 2026: a manager is not shown the drafts), so the
+// last column is TODAY's status, not a count of the proposals each factor is present in.
+const ffStatus = r => r.status === 'standing' ? 'Every link' : r.status === 'present' ? `Present (${r.value})` : 'Clear';
 const ffRows = live.map(r => `<tr><td class="ff-code">${esc(r.code)}</td><td>${esc(r.title)}${r.confirm ? ' <span class="conf">definition to confirm</span>' : ''}</td><td class="fam">${esc(r.family)}</td><td class="num">${ffStatus(r)}</td></tr>`).join('');
 
 const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>December 2026 Rules</title>
@@ -118,8 +119,8 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 </style></head><body>
 
 <section class="page">
-  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · reference</div><h1>The rules every proposal is judged against</h1>
-  <div class="sub">The CEA link for the December 2026 timetable — the one set of rules all ${N} proposal sheets are measured against</div>
+  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · reference</div><h1>The December 2026 rules</h1>
+  <div class="sub">The rules any proposed CEA link for the December 2026 timetable is measured against, with today’s link beside each one</div>
   <div class="meta">Prepared ${RENDERED} · the rules and every figure below are read from the same code that writes the proposal sheets, not typed</div></div></div>
 
   <div class="tiers">
@@ -139,16 +140,16 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   </div>
 
   <h2>Hard limits <span class="tag hard">must be met</span></h2>
-  <table class="t hard"><thead><tr><th>Limit</th><th>What it means</th><th>Today’s link</th><th class="num">Met by</th></tr></thead><tbody>
-    <tr><td><b>At least 12 hours between duties</b></td><td>From the end of one duty to the start of the next, anywhere in the rotation — Saturday into Sunday, and the last line into line 1, included.</td><td class="tt ${cls(TA.checks.turnarounds.length === 0)}">${mark(TA.checks.turnarounds.length === 0)} shortest ${todayRest !== null ? hm(todayRest) : '—'}</td><td class="num"><b>${restOk}</b> of ${N}</td></tr>
-    <tr><td><b>No more than ${MAX_CONSECUTIVE_WORKED_DAYS} days worked in a row</b></td><td>Chiltern’s limit, taken at its worst case: a cover week’s four duties placed as badly as they can be. The written source of the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit is still to be confirmed.</td><td class="tt ${cls(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)}">${mark(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)} longest ${TA.checks.longestStretch} days</td><td class="num"><b>${runOk}</b> of ${N}</td></tr>
-    <tr><td><b>The contracted week, exactly</b></td><td>35 hours a week on average, Monday to Saturday, across all 24 lines; a cover week counts as a contracted week. Sunday duties are paid on top as rest-day working, as they are today. Individual weeks may be longer or shorter; only the average is the contract.</td><td class="tt ${cls(todayContract)}">${mark(todayContract)} ${todayContract ? 'exactly 35h' : 'not 35h'}</td><td class="num"><b>${contractOk}</b> of ${N}</td></tr>
+  <table class="t hard"><thead><tr><th>Limit</th><th>What it means</th><th>Today’s link</th></tr></thead><tbody>
+    <tr><td><b>At least 12 hours between duties</b></td><td>From the end of one duty to the start of the next, anywhere in the rotation — Saturday into Sunday, and the last line into line 1, included.</td><td class="tt ${cls(TA.checks.turnarounds.length === 0)}">${mark(TA.checks.turnarounds.length === 0)} shortest ${todayRest !== null ? hm(todayRest) : '—'}</td></tr>
+    <tr><td><b>No more than ${MAX_CONSECUTIVE_WORKED_DAYS} days worked in a row</b></td><td>Chiltern’s limit, taken at its worst case: a cover week’s four duties placed as badly as they can be. The written source of the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit is still to be confirmed.</td><td class="tt ${cls(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)}">${mark(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)} longest ${TA.checks.longestStretch} days</td></tr>
+    <tr><td><b>The contracted week, exactly</b></td><td>35 hours a week on average, Monday to Saturday, across all 24 lines; a cover week counts as a contracted week. Sunday duties are paid on top as rest-day working, as they are today. Individual weeks may be longer or shorter; only the average is the contract.</td><td class="tt ${cls(todayContract)}">${mark(todayContract)} ${todayContract ? 'exactly 35h' : 'not 35h'}</td></tr>
   </tbody></table>
 
   <h2>The December 2026 rules <span class="tag soft">met or not</span></h2>
-  <p class="lead">Every number is a <b>minimum</b>: too few is the problem, never too many. The staffing levels, the 24-person link and the Sunday cover have all been confirmed verbally. <b>${allMet ? `${allMet} proposal${allMet === 1 ? ' meets' : 's meet'} all eleven` : 'No proposal meets all eleven'}</b>${allMet ? ` (${andList(F.filter(f => f.rules.met === f.rules.of).map(f => f.name))})` : `; the most any meets is ${bestMet}`}.</p>
-  <table class="t dec"><thead><tr><th>Rule</th><th>What it asks, exactly</th><th>Today’s link</th><th class="num">Met by</th></tr></thead><tbody>${decRows}</tbody></table>
-  <p class="muted" style="font-size:9px">Today’s figures read Mon–Fri · Saturday · Sunday; a range means the weekdays differ. “Met by” counts the ${N} proposal sheets in the folder.</p>
+  <p class="lead">Every number is a <b>minimum</b>: too few is the problem, never too many. The staffing levels, the 24-person link and the Sunday cover have all been confirmed verbally.</p>
+  <table class="t dec"><thead><tr><th>Rule</th><th>What it asks, exactly</th><th>Today’s link</th></tr></thead><tbody>${decRows}</tbody></table>
+  <p class="muted" style="font-size:9px">Today’s figures read Mon–Fri · Saturday · Sunday; a range means the weekdays differ.</p>
 
   <div class="foot"><span>Page 1 of 2 — Hard limits and the December 2026 rules</span><span><b>December 2026 rules</b> · Marylebone Roster — Links designer</span></div>
 </section>
@@ -159,8 +160,8 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 
   <h2>Fatigue factors <span class="tag adv">advisory</span></h2>
   <p>${FZ.length} roster patterns that tend to tire people: ${FZ.filter(r => r.code !== 'MRSF').length} from the Office of Rail and Road’s good-practice guidance, <i>Fatigue Factors</i> (page 3, December 2021), and ${FZ.filter(r => r.code === 'MRSF').length} extra checks from the rail industry’s fatigue guidance (MRSF). The ORR says they are guidance, not limits. So a factor present is a question to discuss, never a pass or a fail, and a design showing none is not thereby approved.</p>
-  <table class="t ff"><thead><tr><th>Code</th><th>Factor</th><th>Kind</th><th class="num">Present in</th></tr></thead><tbody>${ffRows}</tbody></table>
-  <p class="muted" style="font-size:9px"><b>Not applicable.</b> ${na.length} more factors apply to no rotation here: ${naNight.length} about night shifts (${andList(naNight.map(r => r.code))}), because CEAs do not work nights; ${naOther.map(naWhy).join('; and ')}. <b>“Every design”</b> marks a standing factor — one that comes with the station’s hours or with any weekly link, not with a design’s choices: FF2 because the station opens at 06:20, and FF18 because a weekly link changes shift type about once a week (the ORR prefers two-day or three-week rotation, <i>Managing rail staff fatigue</i> 7.68). <b>Standing factors are recorded on every sheet for information and are not counted</b> in any design’s fatigue findings, since no weekly design can remove them. The <b>early</b> in FF2 and FF15 is the ORR’s — a start from 05:00 to 07:00 — not the 11:00 used everywhere else. “Present in” counts the ${N} proposals.</p>
+  <table class="t ff"><thead><tr><th>Code</th><th>Factor</th><th>Kind</th><th class="num">Today’s link</th></tr></thead><tbody>${ffRows}</tbody></table>
+  <p class="muted" style="font-size:9px"><b>Not applicable.</b> ${na.length} more factors apply to no rotation here: ${naNight.length} about night shifts (${andList(naNight.map(r => r.code))}), because CEAs do not work nights; ${naOther.map(naWhy).join('; and ')}. <b>“Every link”</b> marks a standing factor — one that comes with the station’s hours or with any weekly link, not with a design’s choices: FF2 because the station opens at 06:20, and FF18 because a weekly link changes shift type about once a week (the ORR prefers two-day or three-week rotation, <i>Managing rail staff fatigue</i> 7.68). <b>Standing factors are recorded on every sheet for information and are not counted</b> in any design’s fatigue findings, since no weekly design can remove them. The <b>early</b> in FF2 and FF15 is the ORR’s — a start from 05:00 to 07:00 — not the 11:00 used everywhere else. The last column is today’s link.</p>
 
   <h2>Preferences <span class="tag adv">for staff to say, not the app</span></h2>
   <ul class="list">
@@ -182,7 +183,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
       return `<b>${['No','One','Two','Three','Four','Five','Six'][n] ?? n} fatigue definition${n === 1 ? '' : 's'} to confirm.</b> ${n ? `${codes} ${n === 1 ? 'is' : 'are'} counted on a reading an assessing manager should confirm${c.some(r => r.code === 'FF19') ? ': FF19 treats a rest day as time to adjust, where the ORR’s wording (“consecutive duties”) would count across rest days — and on that reading every link has it' : ''}.` : 'Every factor is counted on the ORR’s own reading.'}`; })()}</li>
   </ol>
 
-  <div class="callout"><b>Changing a rule.</b> Every proposal sheet is checked against this set by the same code. Change a rule and all ${N} sheets and this page are re-rendered together, so no sheet is ever judged against an older version of it.</div>
+  <div class="callout"><b>Changing a rule.</b> Every proposal sheet is checked against this set by the same code. Change a rule and every sheet and this page are re-rendered together, so no sheet is ever judged against an older version of it.</div>
 
   <div class="foot"><span>Page 2 of 2 — Fatigue factors, preferences and open questions</span><span><b>December 2026 rules</b> · Marylebone Roster — Links designer</span></div>
 </section>
