@@ -229,7 +229,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('Saturdays worked — each, a year', Math.round(tp.sat), Math.round(pp.sat), '', 'a rostered Saturday is paid at time and a quarter'),
     row('Sunday overtime to share — each, a year', Math.round(tp.sun), Math.round(pp.sun), '', 'Sundays are overtime, as today'),
     row('Different shift times', T.feel.distinctTimes, `${distinct} (${shared} worked today)`, cmp(distinct < T.feel.distinctTimes, distinct === T.feel.distinctTimes), newTimes ? `${newTimes} new to learn, on ${newLines.length} of the ${P.feel.workingLines} working weeks — listed on page 4` : 'nothing new to learn'),
-    row('Avoidable tiring patterns (ORR list)', T.fatigue.present, P.fatigue.present, cmp(P.fatigue.present < T.fatigue.present, P.fatigue.present === T.fatigue.present), 'early starts and a weekly rotation come with every link'),
+    row('Avoidable tiring patterns (ORR and rail-industry lists)', T.fatigue.present, P.fatigue.present, cmp(P.fatigue.present < T.fatigue.present, P.fatigue.present === T.fatigue.present), 'early starts and a weekly rotation come with every link'),
     row('December staffing rules met', `${meta.decToday} of ${meta.decOf}`, `${meta.decMet} of ${meta.decOf}`, cmp(meta.decMet > meta.decToday, meta.decMet === meta.decToday), `staffing levels confirmed verbally, 29 Sep 2026${waived ? '; the 15:45 closer rule is waived for this design' : ''}`),
   ].join('');
   const page2 = `<section class="page plain">
@@ -320,7 +320,7 @@ export function plainEdition(html, ctx) {
     s = s.replace(/\b([Pp])age (\d+)\b(?! of)/g, (m, P1, d) => NEW[+d] ? `${P1}age ${NEW[+d]}` : m);
     s = s.replace(/p@@3/g, 'page 3');
     s = s.replace(/<p class="muted p8note">([\s\S]*?)<\/p>/, (m, body) => `<ul class="p8list">${body.replace(/^Design-specific findings:/, 'Avoidable tiring patterns found:').split(/(?=<b>)/).map(x => x.trim()).filter(Boolean).map(x => `<li>${x}</li>`).join('')}</ul>`);
-    s = s.replace(/>Weeks on one shift time</g, '>Weeks on one shift time Mon–Fri<');
+    s = s.replace(/>Weeks on one shift time</g, '>Weeks on one shift time — all earlies or all lates<');
     s = s.replace(/every design’s staffed day/g, 'any link’s staffed day').replace(/so every design has FF2/g, 'so any link has FF2');
     return s;
   });
