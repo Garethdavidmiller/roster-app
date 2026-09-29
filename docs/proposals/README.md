@@ -3,7 +3,7 @@
 The CEA link proposals drawn for the December 2026 timetable change, each a PDF with its own
 **identity** so it can be named in a room: a name, a code that says how it was built, and a
 fingerprint of the exact cells so a printout can never be confused with a variant. The same
-identity is in every page footer. All 20 were judged by the app's own Links modules
+identity is in every page footer. All 19 were judged by the app's own Links modules
 (`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) — the
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
@@ -36,7 +36,9 @@ sheet changed, because the plain edition never names the design it came from. Gi
 **And two more (29 Sep 2026, owner).** *Frozen Block* (`WL3-24-F7 · a6234195`) and *Tenth Sunday* (`TN-24-R7 · 84b60df9`) —
 both supplied tables with small hand edits and a computer re-ordering of the weeks, meeting 4 and 3 of the rules — are gone
 with their source grids: 22 sheets became 20. *Anchored Lines*, whose technical edition listed Frozen Block as a comparison,
-is unchanged. Git history holds both.
+is unchanged. Git history holds both. Then *Short Closer* (`CF-24-EXT · 6d21169b`, a supplied Word table, 3 of the rules):
+19 sheets. *Light Retime*, built from it, stays and is unchanged; the Links compare test that used Short Closer as its
+real-design fixture now uses *Weekday Lates*, which has the same shape (tiring patterns present in both at different figures).
 
 **Page 5 and the ticket office, redrawn (29 Sep 2026).** Page 5's three tables are one grid — each hour in the same place
 down the page — drawn as a heatmap, with today's block on a grey bar and the proposal's on gold; its notes say in plain
@@ -73,7 +75,7 @@ project's history, kept as the record: where one describes a ten-page sheet, 23 
 is describing an earlier edition.
 
 **Everything in one download:** `December-2026-Link-Proposals.zip` (29 Sep 2026) — the one-page summary, the
-rules, both presentations, all 20 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
+rules, both presentations, all 19 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
 re-render of the sheets does not update it, so rebuild it after one.
 
 **The one-page summary:** `Proposals-Summary.pdf` — every proposal against today's link on one A4 page, rendered by
@@ -113,7 +115,6 @@ and to the floor on 28 Sep.
 | **Anchored Lines** | `WL4-24-F7 · f0d403d6` | The same evening fix again, with **weeks 14–17 kept in order on their own line numbers** — week 13 the one that moves | **1** (FF19 at 2, the fewest found) | 7 | 6 in 24 |
 | **Cover at Seventeen** | `C17-24-EXT · edc1b731` | **Supplied as a grid**, not searched — *Three Mondays* with lines 17 and 18 swapped back, so the cover week returns to 17. **FF11 clears** for the first time in this line | **3** (on both readings) | 9 | 5 in 24 |
 | **Saturday Four** | `S4-24-EXT · 481ba9ed` | *Cover at Seventeen* with **Saturday rebuilt** on its own minute budget — nine turns down to four, six start times down to three, weighted to the late for Wembley. The first duty change in this line | **3** (on both readings) | 9 | 5 in 24 |
-| **Short Closer** | `CF-24-EXT · 6d21169b` | **Supplied as a Word table**, not searched — the Weekday Lates line revised again: the 9h10 Saturday closer shortened to 8h40 and the cover week back at 17 | 3 | 9 | 4 in 24 |
 | **Light Retime** | `CFT-24-M3 · ae1a15bd` | *Short Closer* with **three cells retimed** and nothing else — Saturday's demand fit 28.5→20.5 and Sunday's 62.4→44.9, every contracted hour and cover week unchanged; Sunday's open, close and 22:00 each gain one | 3 | 9 | 4 in 24 |
 
 **Renamed 28 Sep 2026** (owner: *give them distinctive names*). Eleven sheets had become numbered
@@ -1282,7 +1283,6 @@ review*, below), and ordered by rules met, then weekday floor fit:
 | Saturday Four | `S4-24-EXT` | 38.5 · 35.8 · 64.8 | 3 · 0 · 1 | 4 |
 | Weekday Lates | `WL-24-EXT` | 40.4 · 20.7 · 64.8 | 3 · 3 · 1 | 4 |
 | Cover at Seventeen | `C17-24-EXT` | 38.5 · 20.7 · 64.8 | 3 · 3 · 1 | 3 |
-| Short Closer | `CF-24-EXT` | 38.5 · 53.3 · 64.8 | 3 · 1 · 1 | 3 |
 | Anchored Lines | `WL4-24-F7` | 41.1 · 20.7 · 64.8 | 3 · 3 · 1 | 3 |
 | Evening Peak | `WL2-24-R21` | 47.6 · 20.7 · 64.8 | 2 · 3 · 1 | 3 |
 | Polished Clean | `PC-24-EXT` | 38.7 · 51.4 · 72.4 | 3 · 0 · 2 | 2 |

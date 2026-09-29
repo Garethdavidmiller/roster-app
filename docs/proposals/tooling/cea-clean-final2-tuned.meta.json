@@ -1,16 +1,9 @@
 {
  "date": "22 September 2026",
- "parent": { "file": "cea-clean-final2.json", "name": "Short Closer", "code": "CF-24-EXT" },
  "identity": {
   "lineage": "DERIVED, not supplied and not searched: it is “Short Closer” (CF-24-EXT · 6d21169b) with THREE cells retimed, and nothing else. The code's M3 counts those three moves — it is not a table or a seed, because no table was enumerated and no grid annealed. Each move keeps its duty's LENGTH, so the contract, the headcounts, the cover weeks and every line's 35h are invariant by construction rather than by re-checking."
  },
  "sub1": "Short Closer with three cells retimed — the Sunday afternoon bulge broken, the Saturday morning dip filled, and a fourth pair of hands on the Sunday open",
- "extraAlternatives": [
-  {
-   "label": "Short Closer — the parent, before the three moves",
-   "file": "../Short-Closer-CF-24-EXT.json"
-  }
- ],
  "h7": "The three moves",
  "sub7": "Not a search — a bounded retime of a design that already existed, with every figure computed from the cells",
  "methodHeading": "Where this design came from",
