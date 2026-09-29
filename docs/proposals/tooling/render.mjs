@@ -6,6 +6,7 @@ import { classifyShift, DAYS, hmFromHours, dutyMinutes, startMinutes, endMinutes
 import { APP_VERSION } from '../../../roster-data.js';
 import { freshMeta, freshWords } from './fresh.mjs';
 import { soloEdition } from './solo.mjs';
+import { plainEdition } from './plain.mjs';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -160,7 +161,14 @@ export async function renderPdf(D, out) {
   // cautious number.
   const asRos = (a, code) => code === 'FF11' ? a.asRostered?.ff11?.worst ?? null : null;
   const rosStatus = v => v === null ? null : (v > 13 ? 'present' : 'clear');
-  const rowsFF = P.fatigue.results.map(r => { const t = T.fatigue.results.find(x => x.code === r.code && x.title === r.title);
+  // Plain edition: a factor that applies to NEITHER link (night shifts, nothing before 05:00) is one line under the
+  // table, not a row of blanks — nine of twenty-five rows read as empty to a manager. The technical edition keeps them.
+  const PLAIN = FRESH && !process.env.TECH;
+  const tOf = r => T.fatigue.results.find(x => x.code === r.code && x.title === r.title);
+  const naBoth = r => PLAIN && r.status === 'n/a' && tOf(r)?.status === 'n/a';
+  const naGroups = [...new Set(P.fatigue.results.filter(naBoth).map(r => r.family))].map(f => `${f.toLowerCase()} (${P.fatigue.results.filter(r => naBoth(r) && r.family === f).map(r => r.code).join(', ')})`);
+  const naNote = naGroups.length ? `<tr class="ff-na-note"><td colspan="4">Also on the list, and applying to neither link: ${esc(naGroups.join(' · '))}.</td></tr>` : '';
+  const rowsFF = P.fatigue.results.filter(r => !naBoth(r)).map(r => { const t = tOf(r);
     const val = x => x ? (x.status === 'n/a' ? (FRESH ? '' : '–') : FRESH && /55 hours/i.test(x.title) && typeof x.value === 'number' ? x.value.toFixed(1) : (x.value ?? '')) : '';
     const second = (a, code, have) => { const v = have ? asRos(a, code) : null; return v === null ? ''
       : `<span class="ff-alt ff-${rosStatus(v)}">${icon(rosStatus(v))} ${v} as rostered</span>`; };
@@ -650,7 +658,7 @@ ${readHtml}${frameHtml}
 <section class="page">
   <div class="mast"><div><div class="eyebrow">The rules it is assessed against · continued</div><h1>ORR fatigue factors</h1><div class="sub">Good practice guidelines — Fatigue Factors, p3 (December 2021). ⚠ present — the pattern is in this design and worth a look, not a breach · ✓ clear — it is not · ● standing — true of the station itself, not of any design · – does not apply here. This is the list the link is assessed against.</div></div></div>
   <p class="muted" style="margin:6px 0 4px">${FRESH ? 'These are 25 roster patterns that tend to tire people — 21 from the Office of Rail and Road’s good-practice list and 4 checks from the rail industry’s fatigue guidance (MRSF) — long runs of earlies, short gaps between duties, start times that jump about.' : 'The Office of Rail and Road lists 25 roster patterns that tend to tire people — long runs of earlies, short gaps between duties, start times that jump about.'} For each one this table asks whether the pattern is in the rotation, today and proposed, and how big it is. The list is guidance: a factor present is a question to discuss, never a pass or a fail, and a design showing nothing is not thereby approved.</p>
-  <table class="ff"><thead><tr><th>Code</th><th>Factor</th><th>Today's link</th><th>Proposed</th></tr></thead><tbody>${rowsFF}</tbody></table>
+  <table class="ff"><thead><tr><th>Code</th><th>Factor</th><th>Today's link</th><th>Proposed</th></tr></thead><tbody>${rowsFF}${naNote}</tbody></table>
   ${meta.p8Note ? `<p class="muted p8note">${meta.p8Note}</p>` : `<p class="muted">Present: ${P.fatigue.present}${presentRos(P) !== P.fatigue.present ? ` in the worst case, <b>${presentRos(P)}</b> as rostered` : ''} (today ${T.fatigue.present}${presentRos(T) !== T.fatigue.present ? `/${presentRos(T)}` : ''}) · standing: ${P.fatigue.standing} · FF2 fires on every 06:20 duty, so it is a property of the station's opening time rather than of any design. <b>Two readings of a cover week, on the one row they move.</b> A cover week is worked four days of seven and the link does not say which four, so a run figure is a range. The headline number is the ceiling &mdash; the four split day-on-day-off, which supplies no 48-hour break and joins the blocks either side. It is reachable: of the 35 ways to place four duties in seven days, the 10 that leave no two rest days together produce exactly it. Worked as a BLOCK, which is what a cover week looks like on the roster, the three rest days fall together and the week always supplies a break &mdash; that is the <i>as rostered</i> figure beneath it. Checked on every row: FF11 is the only one where the two differ. Which reading applies is a question for the roster office, not for this sheet. This sheet is an aid to a conversation, not a fatigue risk assessment.</p>`}
   <div class="foot"><span>Page 8 of 10 — The checks sheet: fatigue factors</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
@@ -687,7 +695,10 @@ ${meta.page9 ?? `<section class="page">
 </section>
 </body></html>`;
   if (FRESH) html = freshWords(html, { exampleTime: P.tableRows.find(r => classifyShift(r.time) === 'early')?.time ?? P.tableRows[0]?.time, total: folderStats().length, todayMet: meta.decToday, of: meta.decOf, monSat: meta.monSat, coverSame: meta.coverSame });
-  if (FRESH) html = soloEdition(html);   // each sheet stands alone: compared with today's link only (solo.mjs)
+  // THE PLAIN EDITION ships (owner, 29 Sep 2026): the answer on page 1, today's link beside every figure on page 2, the
+  // workings, and a method page — compared with today's link only (plain.mjs). TECH=1 renders the technical sheet,
+  // with its comparisons against the other proposals removed (solo.mjs).
+  if (FRESH) html = process.env.TECH ? soloEdition(html) : plainEdition(html, { T, P, meta });
   writeFileSync(out.replace(/\.pdf$/, '.html'), html);
   const b = await chromium.launch(); const pg = await b.newPage();
   await pg.goto('file://' + out.replace(/\.pdf$/, '.html')); await pg.evaluate(() => document.fonts.ready);

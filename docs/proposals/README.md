@@ -8,10 +8,17 @@ identity is in every page footer. All 28 were judged by the app's own Links modu
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
 
-**Each sheet stands on its own (29 Sep 2026).** A sheet compares its proposal with today's link and nothing else: the
-"Beside the other proposals" page, the best/worst ticks on page 2, the "of the others" notes on page 1 and the family
-row are removed by `tooling/solo.mjs`, which throws if any comparison is left behind, so every sheet is nine pages. The
-one-page summary is the only place the drafts are compared, and it is for the owner.
+**The sheets are the plain edition (29 Sep 2026)** — eight pages each, one version for the owner, managers and
+colleagues alike (owner: *"I can't overload Nathan, it needs to be easy to understand"*). Page 1 answers five questions
+in a word or two with one line of proof each — does it meet the December staffing levels, can it be run within the
+limits, is it tiring, what does it take, are staff where the trains are — then three tiles on what it is like to work,
+what staff are likely to welcome and to worry about, and what is still to settle. Page 2 sets every figure against
+today's link, with a plain translation of each row. Pages 3–7 are the workings (the grid, the week and duty table, the
+hour-by-hour cover, the limits and rules, the ORR table), and page 8 says in plain words how every figure is worked
+out. **Today's link is the only comparison**: no sheet, and not the rules sheet, names, counts or ranks another
+proposal — the one-page summary is where they sit side by side, for the owner. Rendered by `tooling/plain.mjs`;
+`TECH=1 node regenerate.mjs` renders the technical sheet instead, with its comparisons removed by `tooling/solo.mjs`.
+Every claim on pages 1–2 is judged shift by shift, never on an average, after five independent checks on 29 Sep 2026.
 
 **Everything in one download:** `December-2026-Link-Proposals.zip` (29 Sep 2026) — the one-page summary, the
 rules, both presentations, all 28 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
