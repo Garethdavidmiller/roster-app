@@ -146,7 +146,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   </tbody></table>
 
   <h2>The December 2026 rules <span class="tag soft">met or not</span></h2>
-  <p class="lead">Every number is a <b>minimum</b>: too few is the problem, never too many. The staffing levels were given verbally and are not yet in writing. <b>${allMet ? `${allMet} proposal${allMet === 1 ? ' meets' : 's meet'} all eleven` : 'No proposal meets all eleven'}</b>${allMet ? ` (${andList(F.filter(f => f.rules.met === f.rules.of).map(f => f.name))})` : `; the most any meets is ${bestMet}`}.</p>
+  <p class="lead">Every number is a <b>minimum</b>: too few is the problem, never too many. The staffing levels, the 24-person link and the Sunday cover have all been confirmed verbally. <b>${allMet ? `${allMet} proposal${allMet === 1 ? ' meets' : 's meet'} all eleven` : 'No proposal meets all eleven'}</b>${allMet ? ` (${andList(F.filter(f => f.rules.met === f.rules.of).map(f => f.name))})` : `; the most any meets is ${bestMet}`}.</p>
   <table class="t dec"><thead><tr><th>Rule</th><th>What it asks, exactly</th><th>Today’s link</th><th class="num">Met by</th></tr></thead><tbody>${decRows}</tbody></table>
   <p class="muted" style="font-size:9px">Today’s figures read Mon–Fri · Saturday · Sunday; a range means the weekdays differ. “Met by” counts the ${N} proposal sheets in the folder.</p>
 
@@ -176,7 +176,6 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
     <li><b>Does someone finishing at 22:00 count as “still on duty at 22:00”?</b> Today they do not. Counting them would change the 22:00 rule on many designs, because a lot of late turns end at 22:00.</li>
     <li><b>Does the 22:00 rule apply on a Sunday?</b> Today it is checked every day.</li>
     <li><b>The source of the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit.</b> Somebody confirms where it is written down.</li>
-    <li><b>The December 2026 staffing levels in writing.</b> The eleven rules were given verbally.</li>
     <li>${(() => { const c = live.filter(r => r.confirm), n = c.length, codes = andList(c.map(r => r.code === 'MRSF' ? 'MRSF 7×8h' : r.code));
       // Settled 28 Sep 2026 against ORR's Managing rail staff fatigue (Aug 2024): only FF19 keeps the flag, because
       // its reading (a rest day resets it) is the owner's and more lenient than ORR's wording — say which way it leans.
