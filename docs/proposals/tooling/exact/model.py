@@ -77,12 +77,18 @@ def build(base=FT, fmax=None, cmax=None, fix=None, forbid_factors=(), parts=ALLP
         m.Add(cnt(d, lambda v: en(v)==CLOSE[c])>=1)   # handover needs a floor closer to exist (cl.length > 0)
         combos=[((PAIRS_FIXED[c][0],PAIRS_FIXED[c][1]),[]) ] if c!='sun' else [((e,l),[selE[e],selL[l]]) for e in SE for l in SL]
         for (pe,pl),enf in combos:
+            if c=='sun' and en(pe)-max(st(pl),900)<30:   # the Sunday office handover: 30 minutes from 15:00
+                m.AddBoolOr([v.Not() for v in enf]); continue
             hp=[]
             for t in (pe,pl):
                 if st(t)==OPEN[c]:
                     e2=min(en(t),540 if c=='sun' else 480)
                     if e2>st(t): hp.append((st(t),e2))
                 elif c!='sun' and en(t)>1170: hp.append((max(st(t),1170),en(t)))
+                elif c=='sun':
+                    # the December Sunday (owner, 29 Sep 2026): both lates on the floor until 15:00, one again from 18:00
+                    if st(t)<900: hp += [(st(t),900),(st(t),900)]
+                    hp.append((max(st(t),1080),en(t)))
             ticks=sorted({OPEN[c]}|{t for v in dom(d) for t in (st(v),en(v)) if OPEN[c]<=t<CLOSE[c]}|{t for h in hp for t in h if OPEN[c]<=t<CLOSE[c]})
             for tk in ticks:
                 cov=cnt(d, lambda v: st(v)<=tk<en(v)) - 2*(st(pe)<=tk<en(pe)) - 2*(st(pl)<=tk<en(pl)) + sum(1 for h in hp if h[0]<=tk<h[1])

@@ -39,6 +39,19 @@ words that one of each ticket-office pair helps on the floor at the quiet ends, 
 from today (one person in the office today, two in the December rules). Page 8 and a new page 2 row say the same. No
 figure changed: 22 of 22 fingerprints hold and the independent recount finds no mismatch.
 
+**The December Sunday office plan (29 Sep 2026, owner, with Familiar Nine as the example).** One Sunday early is on the
+floor until 09:00, as before. The two lates are now on the floor from the start of their shift until 15:00, then both in the
+office, handing over for at least 30 minutes before the earlies leave; one goes back to the floor from 18:00 to the end of
+the shift, as a whole person. This replaces the reading that one late split the whole shift, counted as half a person.
+**Today's link keeps today's Sunday** (one office late, a 14:30–23:25 closer). Only Sunday figures moved, no rota changed,
+and every fingerprint holds. The Sunday floor fit moved on every proposal — Right Away 28.9 → 35.4, Just Enough 34.9 → 42.1,
+Familiar Nine 31.3 → 42.8 (the managers' deck chart updated to match) — and twelve designs now meet "at least two on the
+floor at every moment", the second late back on the floor from 18:00 covering the thin Sunday evening: Pinned Turns, Round
+Times, Quarter To and Weekend Capped 8 → 9 rules; Same Turns 7 → 8; Fifteen Turns and Gates Mended 5 → 6; Weekday Lates
+4 → 5; Anchored Lines, Cover at Seventeen, Evening Peak and Frozen Block 3 → 4. The handover rule now reads "20 in the
+ticket office (30 on a Sunday)", the Sunday overlap counted from 15:00. Code: `officeHelpers` in `tooling/report-data.mjs`
+(model `'today'` keeps today's Sunday), and the exact solver's floor rule in `tooling/exact/model.py`.
+
 **How to read this file.** The paragraphs above describe the pack as it is now. Every dated section below is the
 project's history, kept as the record: where one describes a ten-page sheet, 23 designs or a page 9 comparison, it
 is describing an earlier edition.

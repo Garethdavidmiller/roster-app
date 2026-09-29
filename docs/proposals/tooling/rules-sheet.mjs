@@ -64,7 +64,7 @@ const ASKS = {
   office: `Two identical early and two identical late shifts for the ticket office: Mon–Fri ${OFFICE.plan.weekday.map(([t]) => t.replace('-', '–')).join(' and ')}; Sat ${OFFICE.plan.sat.map(([t]) => t.replace('-', '–')).join(' and ')}; Sun two starting 07:15 and two finishing 22:30.`,
   closer: 'Every Monday-to-Friday shift that works to the 23:55 close starts at 15:45.',
   floor: 'At least two people on the station floor at every moment the station is open, checked every five minutes. Ticket-office staff count only while the second of a pair helps on the floor at the quiet ends, and only as a whole person.',
-  handover: 'Each closer overlaps someone already on duty by 15 minutes; the two ticket-office shifts overlap by 20. On a Sunday each opener also stays until 15 minutes after the last closer arrives.',
+  handover: 'Each closer overlaps someone already on duty by 15 minutes; the two ticket-office shifts overlap by 20 (on a Sunday 30, from 15:00). On a Sunday each opener also stays until 15 minutes after the last closer arrives.',
   sunlen: 'Every Sunday duty is between 8 and 9 hours long.',
   times: `No more different shift times in the week than today’s link has (${TA.feel.distinctTimes}).`,
 };
