@@ -168,7 +168,7 @@ export async function renderPdf(D, out) {
   const naGroups = [...new Set(P.fatigue.results.filter(naBoth).map(r => r.family))].map(f => `${f.toLowerCase()} (${P.fatigue.results.filter(r => naBoth(r) && r.family === f).map(r => r.code).join(', ')})`);
   const naNote = naGroups.length ? `<tr class="ff-na-note"><td colspan="4">Also on the list, and applying to neither link: ${esc(naGroups.join(' · '))}.</td></tr>` : '';
   const rowsFF = P.fatigue.results.filter(r => !naBoth(r)).map(r => { const t = tOf(r);
-    const val = x => x ? (x.status === 'n/a' ? (FRESH ? '' : '–') : FRESH && /hours/i.test(x.title) && typeof x.value === 'number' ? x.value.toFixed(1) : (x.value ?? '')) : '';
+    const val = x => x ? (x.status === 'n/a' ? (FRESH ? '' : '–') : FRESH && /55 hours/i.test(x.title) && typeof x.value === 'number' ? x.value.toFixed(1) : (x.value ?? '')) : '';
     const second = (a, code, have) => { const v = have ? asRos(a, code) : null; return v === null ? ''
       : `<span class="ff-alt ff-${rosStatus(v)}">${icon(rosStatus(v))} ${v} as rostered</span>`; };
     return `<tr class="ff-${r.status}"><td class="ff-code">${r.code}</td><td class="ff-title">${esc(r.title)}${r.confirm?' <span class="muted">(definition to confirm)</span>':''}<span class="ff-fam chip">${esc(r.family)}</span></td>
@@ -642,7 +642,7 @@ ${readHtml}${frameHtml}
   </div>
   <h2>${meta.designHeading ?? 'December 2026 timetable design figures'} <span class="muted" style="font-weight:400;font-size:10px">${meta.designSub ?? '— the staffing shape agreed for the new timetable'}</span></h2>
   <table class="t rules"><thead><tr><th>Rule</th>${FRESH ? '<th>Today’s link</th>' : ''}<th>${FRESH ? 'This proposal' : 'Proposal'}</th><th>${FRESH ? 'What the rule asks' : ''}</th></tr></thead><tbody>
-  ${meta.designRules.map(r => `<tr${FRESH && !r.ok ? ' class="rule-miss"' : ''}><td>${esc(r.rule)}</td>${FRESH ? `<td class="today-v">${r.todayOk ? '✓' : '✕'} ${esc(r.today)}</td>` : ''}<td>${r.ok?'✓':'✕'} ${esc(r.value)}</td><td class="muted">${esc(r.note)}</td></tr>`).join('')}
+  ${meta.designRules.map(r => `<tr${FRESH && !r.ok && !r.waived ? ' class="rule-miss"' : ''}><td>${esc(r.rule)}</td>${FRESH ? `<td class="today-v">${r.todayOk ? '✓' : '✕'} ${esc(r.today)}</td>` : ''}<td>${r.ok ? '✓' : r.waived ? '○ waived —' : '✕'} ${esc(r.value)}</td><td class="muted">${esc(r.note)}</td></tr>`).join('')}
   </tbody></table>
   <!-- The heading used to be the literal "Two things to settle" while every proposal it rendered
        listed four or five. A heading that miscounts the list under it is the kind of small untruth
