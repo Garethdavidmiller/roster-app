@@ -58,7 +58,7 @@ const sunLate = demand.movementsOutside(demand.movements.sun, 7 * 60 + 15, 23 * 
 const ASKS = {
   open: 'Four people on duty from the moment the station opens: 06:20, or 07:15 on a Sunday.',
   close: 'Three people still on duty until the station closes: 23:55, or 23:25 on a Sunday.',
-  at22: 'Five people still on duty at 22:00. Only people working <i>after</i> 22:00 count; someone finishing at 22:00 does not.',
+  at22: 'Five people still on duty at 22:00, every day, Sunday included. Only people working <i>after</i> 22:00 count; someone finishing at 22:00 does not (both settled 28 Sep 2026).',
   heads: 'Fourteen people working on a Saturday and ten on a Sunday, counted as duties rostered that day.',
   cover: 'Four cover weeks in the 24 lines, spaced evenly — every six lines, e.g. lines 1, 7, 13 and 19.',
   office: `Two identical early and two identical late shifts for the ticket office: Mon–Fri ${OFFICE.plan.weekday.map(([t]) => t.replace('-', '–')).join(' and ')}; Sat ${OFFICE.plan.sat.map(([t]) => t.replace('-', '–')).join(' and ')}; Sun two starting 07:15 and two finishing 22:30.`,
@@ -174,8 +174,6 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 
   <h2>Still to settle</h2>
   <ol class="open">
-    <li><b>Does someone finishing at 22:00 count as “still on duty at 22:00”?</b> Today they do not. Counting them would change the 22:00 rule on many designs, because a lot of late turns end at 22:00.</li>
-    <li><b>Does the 22:00 rule apply on a Sunday?</b> Today it is checked every day.</li>
     <li><b>The source of the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit.</b> Somebody confirms where it is written down.</li>
     <li>${(() => { const c = live.filter(r => r.confirm), n = c.length, codes = andList(c.map(r => r.code === 'MRSF' ? 'MRSF 7×8h' : r.code));
       // Settled 28 Sep 2026 against ORR's Managing rail staff fatigue (Aug 2024): only FF19 keeps the flag, because
