@@ -19,8 +19,8 @@ import { materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs
  *  rule, the minimum proven by an exact solver (tooling/exact/). `exact-waived`: the same, with rules the owner
  *  waived for that design (WAIVERS, below). */
 export const STRAPS = {
-  'FR-24-F34o': ['The ticket office rostered in fixed pairs, every other duty timed so the floor follows the trains', 'search'],
-  'F9-24-K31':  ['No duty over nine hours, and most shift times ones people already work', 'search'],
+  'FR-24-F34s': ['The ticket office rostered in fixed pairs, every other duty timed so the floor follows the trains', 'search'],
+  'F9-24-K31s': ['No duty over nine hours, and most shift times ones people already work', 'search'],
   'PT-24-P34':  ['Today’s roster reworked: weekday closers at 15:45, the rest of each day timed to the December trains', 'search'],
   'P2-24-N13':  ['Apart from the 06:20 opening and the closing shifts, every shift starts and finishes on the quarter hour', 'search'],
   'QT-24-Q34':  ['Only today’s shift times, plus a new weekday closer at 15:45', 'search'],
@@ -53,7 +53,7 @@ export const FIRST = { 'ST-24-B7': '8 Sep 2026', 'QT-24-Q34': '12 Sep 2026',
   'WL-24-EXT': '17 Sep 2026', 'WL2-24-R21': '17 Sep 2026', 'WL3-24-F7': '17 Sep 2026', 'FT-24-EXT': '17 Sep 2026', 'FT-24-R21': '17 Sep 2026',
   'WL4-24-F7': '22 Sep 2026', 'C17-24-EXT': '22 Sep 2026', 'S4-24-EXT': '22 Sep 2026',
   'CF-24-EXT': '22 Sep 2026', 'CFT-24-M3': '22 Sep 2026', 'TN-24-R7': '22 Sep 2026',
-  'Q2-24-W21': '24 Sep 2026', 'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34o': '28 Sep 2026', 'F9-24-K31': '28 Sep 2026', 'JE-24-M29': '28 Sep 2026', 'PC-24-EXT': '28 Sep 2026',
+  'Q2-24-W21': '24 Sep 2026', 'PT-24-P34': '25 Sep 2026', 'P2-24-N13': '25 Sep 2026', 'FR-24-F34s': '28 Sep 2026', 'F9-24-K31s': '28 Sep 2026', 'JE-24-M29': '28 Sep 2026', 'PC-24-EXT': '28 Sep 2026',
   'AC-24-M41': '28 Sep 2026', 'CS-24-M34': '28 Sep 2026' };
 const MADE = {
   search: 'Built by computer search: the duty table was chosen for how closely it follows the December 2026 timetable, and the 24 weeks put in the order that raises the fewest fatigue factors.',

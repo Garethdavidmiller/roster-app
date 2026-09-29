@@ -41,7 +41,10 @@ export const SUPPLIED = [
     { file: 'cea-clean-final-ten.json',    name: 'Tenth Sunday',   code: 'TN-24-R7',   fp: '84b60df9', strap: 'A tenth Sunday shift and a reordered wheel - fewer factors, a shorter run' },
     // Familiar Nine (28 Sep 2026) is built rather than supplied — table K proven by final-table.mjs, Right Away's week
     // structure carried onto it and polished — but its grid is the finished product of three tools, so it ships as a grid.
-    { file: 'familiar-nine.json',          name: 'Familiar Nine',  code: 'F9-24-K31',  fp: 'c450951c', strap: 'No duty over nine hours, and most shift times ones people already work' },
+    // 29 Sep 2026: its Sunday re-searched under the owner's December Sunday office plan — three Sunday cells (the
+    // 08:30–16:30 now 09:00–18:00, the office lates 14:30–22:30 not 14:00), was F9-24-K31 · c450951c.
+    { file: 'right-away.json',             name: 'Right Away',     code: 'FR-24-F34s', fp: '745e98b0', strap: 'The ticket office rostered in fixed pairs, every other duty timed so the floor follows the trains' },
+    { file: 'familiar-nine.json',          name: 'Familiar Nine',  code: 'F9-24-K31s', fp: '598a1294', strap: 'No duty over nine hours, and most shift times ones people already work' },
     // Just Enough (28 Sep 2026) is Fifteen Turns with the fewest cells changed that meet every rule — 29, proven by the exact
     // solver in tooling/exact/ — and, among those, the fewest fatigue factors (three, also proven).
     { file: 'just-enough.json',            name: 'Just Enough',    code: 'JE-24-M29',  fp: '49717d70', strap: 'Fifteen Turns with the fewest changes that meet every rule' },
@@ -70,7 +73,9 @@ export const SEARCHED = [
     // FR ran fatigue-first only, on the owner's final rules of 28 Sep 2026 (table F, final-rules-table.json, built by final-table.mjs).
     // 34o (28 Sep 2026) is seed 34's rotation with its week order improved by order-polish.mjs — the same duties on every
     // day, better or equal on every figure; it wins the pick on the search's own score, by the rule every seed is judged by.
-    { proposal: 'FR', fp: 'be01f0db', globs: ['results/best-RF-*.json'] },
+    // Right Away left this list on 29 Sep 2026: its Sunday was re-searched under the owner's December Sunday office plan
+    // (three Sunday cells — the 09:15–18:15 now 09:00–18:00, the office lates 14:30–22:30 not 13:30), so it ships as a
+    // grid (SUPPLIED, right-away.json); the searched FR-24-F34o · be01f0db it came from is still rebuilt by final.mjs.
 ];
 
 const expand = g => { const [dir, pat] = [g.slice(0, g.lastIndexOf('/')), g.slice(g.lastIndexOf('/') + 1)];

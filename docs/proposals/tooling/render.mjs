@@ -46,7 +46,7 @@ function gridHtml(p, lines, totals, daily, opts = {}) {
 // a number; codes and fingerprints did not move. A printout made before the rename carries the old name, so every
 // renamed sheet says what it used to be called, keyed by the code that stayed the same.
 export const FORMERLY = {
-  'Q2-24-W21': 'Quarter To 2', 'P2-24-N13': 'Pinned Turns 2', 'FR-24-F34o': 'Final Rules, then Floor First',
+  'Q2-24-W21': 'Quarter To 2', 'P2-24-N13': 'Pinned Turns 2', 'FR-24-F34s': 'Final Rules, then Floor First',
   'WL2-24-R21': 'Weekday Lates 2', 'WL3-24-F7': 'Weekday Lates 3', 'WL4-24-F7': 'Weekday Lates 4', 'FT-24-R21': 'Fifteen Turns Repaired',
   'CF-24-EXT': 'Clean Final', 'CFT-24-M3': 'Clean Final Tuned', 'TN-24-R7': 'Clean Final Ten',
 };

@@ -127,8 +127,17 @@ const byT = Object.fromEntries(POOL.map(p => [p.t, p]));
 const TO_EARLY_HELP = Number(process.env.TO_EARLY_HELP ?? (CLS === 'sun' ? 9 * 60 : 8 * 60));
 const TO_LATE_HELP = process.env.TO_LATE_HELP !== undefined ? (process.env.TO_LATE_HELP === 'shift' ? 'shift' : Number(process.env.TO_LATE_HELP)) : (CLS === 'sun' ? 'shift' : 19 * 60 + 30);
 const TO_LATE_SHARE = Number(process.env.TO_LATE_SHARE ?? (CLS === 'sun' ? 0.5 : 1));
+// SUN_PLAN=1 — THE DECEMBER SUNDAY (owner, 29 Sep 2026): one early on the floor until 09:00; both lates on the floor
+// from their start until 15:00, then both in the office, and one back on the floor from 18:00 to the end, a WHOLE
+// person; the office handover at least 30 minutes, counted from 15:00. Off by default, so every table built before
+// rebuilds exactly; report-data.mjs measures every sheet this way.
+const SUN_PLAN = CLS === 'sun' && process.env.SUN_PLAN === '1';
 function officeOnFloor(fixed) {
   const cov = new Float64Array(24), slots = new Int16Array(24 * 12); let minutes = 0;
+  if (SUN_PLAN) { for (const [t, n] of fixed) { const p = byT[t]; if (n < 2) continue;
+      const spans = p.s === OPEN ? [[p.s, Math.min(p.e, 9 * 60), 1]] : [[p.s, Math.min(p.e, 15 * 60), 2], [Math.max(p.s, 18 * 60), p.e, 1]];
+      for (const [a, b, k] of spans) for (let m = a; m < b; m += 5) { cov[Math.floor(m / 60)] += k / 12; slots[m / 5] += k; minutes += 5 * k; } }
+    return { cov, slots, minutes }; }
   for (const [t, n] of fixed) { const p = byT[t]; if (n < 2) continue;   // one of a PAIR helps; a lone fixed turn is not the office
     const from = p.s === OPEN ? p.s : TO_LATE_HELP === 'shift' ? p.s : Math.max(p.s, TO_LATE_HELP);
     const share = p.s === OPEN ? 1 : TO_LATE_SHARE;
@@ -277,7 +286,7 @@ if (CLS !== 'sun' && process.env.ANNEAL === '1') {
   // The ticket office: 07:15–X x2 (two of the four openers) and Y–22:30 x2, with X ≥ Y. Every such pair, and every
   // Sunday total in the range, is enumerated.
   const earlies = POOL.filter(p => p.s === OPEN && p.e !== CLOSE), lates = POOL.filter(p => p.e === 22 * 60 + 30);
-  for (const E of earlies) for (const Lt of lates) { if (E.e < Lt.s + TO_HANDOVER) continue;
+  for (const E of earlies) for (const Lt of lates) { if (SUN_PLAN ? E.e < Math.max(Lt.s, 15 * 60) + 30 : E.e < Lt.s + TO_HANDOVER) continue;
     solve([[E.t, 2], [Lt.t, 2], ...FIXED], null, [Lt.t]); }
 }
 const ms = Date.now() - t0;
