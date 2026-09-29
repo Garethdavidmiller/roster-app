@@ -217,7 +217,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     headsEvid: `At least four at the open, three at the close, five at 22:00; 14 on Saturday, 10 on Sunday`,
     satNote: satMet ? 'meets the December 2026 figure of 14' : 'short of the December 2026 figure of 14',
     sunNote: sunMet ? 'meets the December 2026 figure of 10' : 'short of the December 2026 figure of 10',
-    designHeading: 'The December 2026 rules', designSub: '— the same rules every proposal is measured against, with today’s link beside them',
+    designHeading: 'The December 2026 rules', designSub: '— each one, with today’s link beside it',
     designRules: R.rows.map((r, i) => ({ rule: r.rule, value: r.value, ok: r.ok, note: r.note, today: RT.rows[i].value, todayOk: RT.rows[i].ok })),
     openQuestionsHeading: 'Still to settle', openQuestions: oqItems.join(' '), openQuestionsHtml: `<ul class="oq-list">${oqItems.map(x => `<li>${x}</li>`).join('')}</ul>`,
     wembleyLine: 'Whether this pattern holds on Wembley event days — it is based on the train timetable, not on passenger numbers.',

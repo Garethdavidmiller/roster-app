@@ -76,7 +76,7 @@ const plainFatigue = t => (PLAIN_FATIGUE.find(([re]) => re.test(t))?.[1]) ?? t.c
 const andList = a => a.length <= 1 ? (a[0] ?? '') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
 
 /** The two front pages. */
-function front({ T, P, meta, pages }) {
+function front({ T, P, meta, pages, coverHead }) {
   const name = esc(meta.identity.name), strap = esc(meta.identity.strap);
   const tp = personal(T.patterns), pp = personal(P.patterns);
   const rules = meta.designRules ?? [], missed = rules.filter(r => !r.ok);
@@ -122,7 +122,7 @@ function front({ T, P, meta, pages }) {
   push(shared * 2 >= distinct, good, `${shared} of its ${distinct} shift times are already worked today`);
   push(newTimes > 0, bad, `${newTimes} new shift ${newTimes === 1 ? 'time' : 'times'} to learn`);
   push(restMin != null && T.rest?.minutes != null && restMin > T.rest.minutes, good, `More rest between shifts — at least ${hm(restMin)} (today ${hm(T.rest.minutes)})`);
-  const lateDiff = pp.late23 - tp.late23;
+  const lateDiff = pp.late23 - tp.late23, openDiff = pp.open0620 - tp.open0620;
   push(lateDiff >= 2, bad, `More late finishes — about one extra every ${weeksWords(52 / lateDiff)} weeks each`);
   push(lateDiff <= -2, good, `Fewer late finishes — about one fewer every ${weeksWords(52 / -lateDiff)} weeks each`);
   const dayDiff = pp.daysYear - tp.daysYear;
@@ -145,19 +145,44 @@ function front({ T, P, meta, pages }) {
   ];
   const foot = (k, title) => `<div class="foot"><span>Page ${k} of ${pages} — ${title}</span><span class="foot-id"><b>${name}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>`;
 
-  const page1 = `<section class="page plain">
-  <div class="mast"><div><div class="eyebrow">Proposed CEA link · December 2026</div><h1>${name}</h1><div class="sub">${strap}</div></div></div>
-  <p class="plead">A proposal for discussion, not a decision — it has not yet been through the roster office or a union rep. Every figure is worked out from the rota by the Marylebone Roster app and set against <b>today’s 20-week link</b>.</p>
-  ${q('Does it meet the December staffing levels?', failed.length ? verdict(`No — ${meta.decMet} of ${meta.decOf}`, 'warn') : waived ? verdict(`Yes — ${meta.decMet} of ${meta.decOf}, one waived`, 'good') : verdict(`Yes — all ${meta.decOf}`, 'good'),
-      `${failed.length ? `${failed.length} not met, listed below. ` : ''}${waived ? `One rule is waived for this design: ${esc(waived.rule.charAt(0).toLowerCase() + waived.rule.slice(1))} — here ${esc(String(waived.value))}. ` : ''}Today’s link meets ${meta.decToday}. The eleven rules are on page 6.`)}
-  ${q('Can it be run within the limits?', breaks.length ? verdict('No', 'bad') : verdict('Yes', 'good'),
-      breaks.length ? esc(andList(breaks)).replace(/^./, c => c.toUpperCase()) + '.' : `At least ${hm(restMin)} between any two shifts (the limit is 12h) · never more than ${run} days in a row (the limit is 13) · exactly the 35-hour contract.`)}
-  ${q('Is it tiring?', present.length ? verdict(`${present.length} ${present.length === 1 ? 'pattern' : 'patterns'} to look at`, 'warn') : verdict('No avoidable tiring patterns', 'good'),
-      `${present.length ? `${esc(andList(presentPlain)).replace(/^./, c => c.toUpperCase())}. ` : ''}Today’s link has ${T.fatigue.present}. Early starts and a weekly rotation come with every link, so are not counted. Detail on page 7.`)}
-  ${q('What does it take?', verdict(`${pp.L} people`, 'info'),
-      `${pp.L - tp.L > 0 ? `${pp.L - tp.L} more than today` : 'as today'} · a 35-hour week · ${pp.cover} cover weeks · ${P.daily.sun} on a Sunday as overtime (today ${T.daily.sun}).`)}
-  ${q('Are staff where the trains are?', verdict(fitVerdict[0], fitVerdict[1]),
-      `${fitWords}. The figures are on page 2, hour by hour on page 5.`)}
+  // Page 1 keeps the technical sheet's document head — the masthead, the gold proposal band and the chip strip —
+  // because that is what makes it read as a formal paper (owner, 29 Sep 2026: the bare question list "seems less
+  // professional"). Beneath it the five answers are tiles in the same style, and every comparison is with today.
+  const n1f = x => x == null ? '—' : Number(x).toFixed(1);
+  const tile = (cls, qn, big, label, small) => `<div class="tile ptile ptile-${cls}"><span class="q">${qn}</span><b>${big}</b><span class="l">${label}</span><span class="s">${small}</span></div>`;
+  const tiles = [
+    tile(failed.length ? 'warn' : 'good', 'Does it meet the December staffing levels?', `${meta.decMet} of ${meta.decOf}`,
+      waived ? 'rules met — one waived for this design' : failed.length ? `rules met — ${failed.length} not met` : 'rules met',
+      `today’s link meets ${meta.decToday} · each rule on page 6`),
+    tile(breaks.length ? 'bad' : 'good', 'Can it be run within the limits?', breaks.length ? 'No' : 'Yes',
+      breaks.length ? 'not as it stands' : 'inside every hard limit',
+      `shortest gap ${hm(restMin)} (limit 12h) · most days in a row ${run} (limit 13) · ${monSat === 42000 ? '35-hour contract exact' : `${Math.abs(monSat - 42000).toLocaleString('en-GB')} min a week ${monSat > 42000 ? 'over' : 'under'} the contract`}`),
+    tile(present.length ? 'warn' : 'good', 'Is it tiring?', `${present.length}`,
+      `avoidable tiring ${present.length === 1 ? 'pattern' : 'patterns'}`,
+      `today’s link has ${T.fatigue.present}${present.length && presentPlain.length <= 2 ? ` · ${esc(andList(presentPlain))}` : ''} · page 7`),
+    tile('info', 'What does it take?', `${pp.L} people`,
+      pp.L - tp.L > 0 ? `${pp.L - tp.L} more than today’s ${tp.L}` : `as today’s ${tp.L}`,
+      `${pp.cover} cover weeks for leave and sickness · ${P.daily.sun} on a Sunday as overtime (today ${T.daily.sun})`),
+    tile(fitVerdict[1] === 'good' ? 'good' : 'warn', 'Are staff where the trains are?', fitVerdict[1] === 'good' ? 'Closer' : fitVerdict[1] === 'warn' ? 'Less close' : `${closerDays.length} of 3`,
+      fitVerdict[1] === 'good' ? 'than today, every day of the week' : fitVerdict[1] === 'warn' ? 'than today, every day of the week' : 'days closer than today',
+      `weekdays ${n1f(pw)} (today ${n1f(tw)}) · Sat ${n1f(ps)} (${n1f(ts)}) · Sun ${n1f(psu)} (${n1f(tsu)}) · 0 is a perfect match · page 5`),
+  ].join('');
+  // the rules chip is re-derived here so a waived rule reads as waived, as it does in the tile beneath it
+  const rulesChip = failed.length ? `<span class="sum-chip sum-chip--warn">⚠ <strong>${failed.length}</strong> of ${meta.decOf} December staffing rules not met</span>`
+    : `<span class="sum-chip sum-chip--ok">✓ ${waived ? `<strong>${meta.decMet}</strong> of ${meta.decOf} December staffing rules met — the 15:45 closer rule is waived for this design` : `all <strong>${meta.decOf}</strong> December staffing rules met`}</span>`;
+  const head1 = coverHead.replace(/<span class="sum-chip sum-chip--(?:warn|ok)">(?:(?!<\/span>)[\s\S])*?December staffing rules(?:(?!<\/span>)[\s\S])*?<\/span>/, rulesChip);
+  // what it is like to work — the three things colleagues ask first, each against today
+  const feelTile = (big, label, small) => `<div class="tile"><b>${big}</b><span class="l">${label}</span><span class="s">${small}</span></div>`;
+  const feel = [
+    feelTile(`${P.checks.weekendsOff} in ${pp.L}`, 'full weekends off', `${everyN(pWeekShare)} weeks — today ${everyN(tWeekShare)} (${T.checks.weekendsOff} in ${tp.L})`),
+    feelTile(`${Math.round(pp.late23)} a year`, 'finishes at 23:00 or later, each', `today ${Math.round(tp.late23)} · ${Math.abs(lateDiff) < 1 ? 'about the same' : `about one ${lateDiff > 0 ? 'extra' : 'fewer'} every ${weeksWords(52 / Math.abs(lateDiff))} weeks`}`),
+    feelTile(`${Math.round(pp.open0620)} a year`, 'starts at 06:20, the open, each', `today ${Math.round(tp.open0620)} · ${Math.abs(openDiff) < 1 ? 'about the same' : `about one ${openDiff > 0 ? 'extra' : 'fewer'} every ${weeksWords(52 / Math.abs(openDiff))} weeks`}`),
+  ].join('');
+  const page1 = `<section class="page cover plain">
+  ${head1}
+  <p class="plead"><b>What this is.</b> ${name} is a proposal for the CEA link on the December 2026 timetable: a ${pp.L}-week rotation for ${pp.L} people, where today’s link has ${tp.L}. It is for discussion, not a decision — it has not yet been through the roster office or a union rep.</p>
+  <div class="tiles head5">${tiles}</div>
+  <div class="tiles pfeel">${feel}</div>
   <div class="pcols">
     <div class="pbox pbox-good"><h3>Staff are likely to welcome</h3>${good.length ? `<ul>${good.slice(0, 6).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="muted">Nothing notably better than today.</p>'}</div>
     <div class="pbox pbox-warn"><h3>Staff are likely to worry about</h3>${bad.length ? `<ul>${bad.slice(0, 6).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="muted">Nothing notably worse than today.</p>'}</div>
@@ -195,10 +220,12 @@ function front({ T, P, meta, pages }) {
     row('Full weekends off', `${T.checks.weekendsOff} in ${tp.L}`, `${P.checks.weekendsOff} in ${pp.L}`, cmp(pWeekShare > tWeekShare, Math.abs(pWeekShare - tWeekShare) < 1e-9), `${everyN(pWeekShare)} weeks, against ${everyN(tWeekShare)} today`),
     row('Days at work a year, not counting Sundays', Math.round(tp.daysYear), Math.round(pp.daysYear), cmp(pp.daysYear < tp.daysYear, Math.round(pp.daysYear) === Math.round(tp.daysYear)), 'Sundays are overtime; a cover week counts as 4 days'),
     row('Average shift · longest shift', `${hm(tp.avgShift)} · ${hm(tp.longest)}`, `${hm(pp.avgShift)} · ${hm(pp.longest)}`, '', 'Monday to Saturday'),
-    row('Early shifts · late shifts, shortest to longest', `${tp.earlySpan} · ${tp.lateSpan}`, `${pp.earlySpan} · ${pp.lateSpan}`, '', 'an early starts before 11:00'),
+    row('Early shifts, shortest to longest', tp.earlySpan, pp.earlySpan, '', 'an early starts before 11:00'),
+    row('Late shifts, shortest to longest', tp.lateSpan, pp.lateSpan, '', 'a late starts at 11:00 or after'),
     row('Closing shift — weekday · Sat · Sun', ['wk', 'sat', 'sun'].map(k => tp.closerSpan[k]).join(' · '), ['wk', 'sat', 'sun'].map(k => pp.closerSpan[k]).join(' · '), cmp(shorter.length > longer.length, shorter.length === longer.length), 'the shift that locks up'),
     ...(stepT && stepP ? [row('How far the start time moves from one week to the next — typical', stepT, stepP, '', 'smaller is easier on the body clock')] : []),
     row('Finishing at 23:00 or later — each, a year', Math.round(tp.late23), Math.round(pp.late23), cmp(pp.late23 < tp.late23, Math.abs(lateDiff) < 1), Math.abs(lateDiff) < 1 ? 'about the same as today' : `about one ${lateDiff > 0 ? 'extra' : 'fewer'} every ${weeksWords(52 / Math.abs(lateDiff))} weeks`),
+    row('Starting at 06:20, the open — each, a year', Math.round(tp.open0620), Math.round(pp.open0620), '', Math.abs(openDiff) < 1 ? 'about the same as today' : `about one ${openDiff > 0 ? 'extra' : 'fewer'} every ${weeksWords(52 / Math.abs(openDiff))} weeks`),
     row('Saturdays worked — each, a year', Math.round(tp.sat), Math.round(pp.sat), '', 'a rostered Saturday is paid at time and a quarter'),
     row('Sunday overtime to share — each, a year', Math.round(tp.sun), Math.round(pp.sun), '', 'Sundays are overtime, as today'),
     row('Different shift times', T.feel.distinctTimes, `${distinct} (${shared} worked today)`, cmp(distinct < T.feel.distinctTimes, distinct === T.feel.distinctTimes), newTimes ? `${newTimes} new to learn, on ${newLines.length} of the ${P.feel.workingLines} working weeks — listed on page 4` : 'nothing new to learn'),
@@ -255,6 +282,12 @@ const CSS = `
 .pv-warn, .pv-mid { background: color-mix(in srgb, var(--warning-amber) 16%, white); color: var(--warning-amber); }
 .pv-bad { background: color-mix(in srgb, var(--danger-red, #b3261e) 14%, white); color: var(--danger-red, #b3261e); }
 .pv-info { background: var(--surface-sunken); color: var(--primary-blue); }
+.cover.plain .plead { font-size: 10.5px; margin: 10px 0 4px; line-height: 1.45; }
+.ptile { border-top: 4px solid var(--border-mid); } .ptile-good { border-top-color: var(--success-green); } .ptile-warn { border-top-color: var(--warning-amber); } .ptile-bad { border-top-color: var(--danger-red, #b3261e); } .ptile-info { border-top-color: var(--primary-blue); }
+.ptile-good b { color: var(--success-green); } .ptile-warn b { color: color-mix(in srgb, var(--warning-amber) 70%, black); } .ptile-bad b { color: var(--danger-red, #b3261e); }
+.cover.plain .head5 .tile .q { min-height: 30px; } .cover.plain .head5 .tile b { font-size: 21px; }
+.tiles.pfeel { margin: 0 0 4px; } .pfeel .tile b { font-size: 18px; } .pfeel .tile .l { font-size: 9.5px; } .pfeel .tile .s { font-size: 8.8px; }
+.cover.plain .pbox ul { font-size: 10.2px; line-height: 1.45; } .cover.plain .pbox h3 { font-size: 11.5px; }
 .pcols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
 .pbox { border-radius: var(--radius); padding: 9px 14px; background: var(--surface-sunken); border-left: 4px solid var(--primary-blue); }
 .pbox h3 { margin: 0 0 4px; font-size: 12.5px; }
@@ -262,6 +295,7 @@ const CSS = `
 .pbox-good { border-left-color: var(--success-green); } .pbox-good h3 { color: var(--success-green); }
 .pbox-warn { border-left-color: var(--warning-amber); } .pbox-warn h3 { color: var(--warning-amber); }
 .pbox-decide { margin-top: 12px; border-left-color: var(--accent-gold); } .pbox-decide h3 { color: var(--primary-blue); }
+ul.p8list { margin: 8px 0 0 16px; padding: 0; font-size: 9.2px; line-height: 1.45; color: var(--text-dark, #1a1a2e); } ul.p8list li { margin: 3px 0; } tr.ff-na-note td { font-size: 9px; color: var(--text-mid); padding-top: 5px; border-bottom: 0; }
 table.pcmp { font-size: 10.2px; margin-top: 10px; } table.pcmp td { padding: 3.2px 6px; } table.pcmp td.num, table.pcmp th.num { text-align: center; white-space: nowrap; }
 table.pcontents td { font-size: 10.5px; padding: 2.5px 6px; } table.pcontents td.num { width: 24px; font-weight: 800; color: var(--primary-blue); }
 dl.pmethod { margin: 12px 0; } dl.pmethod dt { font-weight: 800; color: var(--primary-blue); font-size: 12px; margin-top: 10px; } dl.pmethod dd { margin: 2px 0 0; font-size: 11px; line-height: 1.5; max-width: 170mm; }
@@ -285,11 +319,19 @@ export function plainEdition(html, ctx) {
     s = s.replace(/Fatigue Factors, page 3/g, 'Fatigue Factors, p@@3');                       // the ORR's own page, not ours
     s = s.replace(/\b([Pp])age (\d+)\b(?! of)/g, (m, P1, d) => NEW[+d] ? `${P1}age ${NEW[+d]}` : m);
     s = s.replace(/p@@3/g, 'page 3');
-    s = s.replace(/ — the same rules every proposal is measured against, with today’s link beside them/g, ' — with today’s link beside them');
+    s = s.replace(/<p class="muted p8note">([\s\S]*?)<\/p>/, (m, body) => `<ul class="p8list">${body.replace(/^Design-specific findings:/, 'Avoidable tiring patterns found:').split(/(?=<b>)/).map(x => x.trim()).filter(Boolean).map(x => `<li>${x}</li>`).join('')}</ul>`);
     s = s.replace(/>Weeks on one shift time</g, '>Weeks on one shift time Mon–Fri<');
     s = s.replace(/every design’s staffed day/g, 'any link’s staffed day').replace(/so every design has FF2/g, 'so any link has FF2');
     return s;
   });
-  const out = head.replace('</style>', CSS + '</style>') + front({ ...ctx, pages }) + appendix.join('') + methodPage({ ...ctx, pages }) + tail;
+  const p1 = sections.find(x => pageOf(x) === 1) ?? '';
+  const coverHead = (p1.match(/<div class="mast">[\s\S]*?(?=<p class="readhint">)/)?.[0] ?? '')
+    .replace(/<div class="ident-row ident-minor"><span class="ident-k">Family<\/span><span class="ident-v">[^<]*<\/span><\/div>/, '')   // names another proposal
+    .replace(/(<div class="ident-row ident-minor"><span class="ident-k">Created)/, `<div class="ident-row ident-minor"><span class="ident-k">Set against</span><span class="ident-v">today’s 20-week link</span></div>$1`)
+    .replace(/design-specific fatigue findings?/g, m => m.endsWith('s') ? 'avoidable tiring patterns' : 'avoidable tiring pattern')
+    .replace(/ with FF11 as rostered/g, ' as rostered')
+    .replace(/current working rules/g, 'December staffing rules');
+  if (!coverHead) throw new Error('plainEdition: no cover head on page 1 of the technical sheet');
+  const out = head.replace('</style>', CSS + '</style>') + front({ ...ctx, pages, coverHead }) + appendix.join('') + methodPage({ ...ctx, pages }) + tail;
   return out;
 }
