@@ -33,7 +33,8 @@ export const SUPPLIED = [
     { file: 'weekday-lates-2.json',    name: 'Evening Peak',       code: 'WL2-24-R21', fp: '33f70893', strap: 'The 08:30 turns moved under the 17:00 peak' },
     { file: 'weekday-lates-4.json',    name: 'Anchored Lines',       code: 'WL4-24-F7',  fp: 'f0d403d6', strap: 'Weeks 14-17 kept in order, on their own line numbers' },
     { file: 'fifteen-turns.json',      name: 'Fifteen Turns',         code: 'FT-24-EXT',  fp: '9a028392', strap: 'Fifteen turns, cover weeks evenly spread' },
-    { file: 'fifteen-turns-repaired.json', name: 'Gates Mended', code: 'FT-24-R21', fp: 'b76bf9e1', strap: 'The supplied design, repaired and re-searched' },
+    // Gates Mended (FT-24-R21 · b76bf9e1) was WITHDRAWN on 29 Sep 2026 (owner). Its grid stays as fifteen-turns-repaired.json:
+    // its shift times are part of the exact solver's allowed pool (exact/common.py), so All Clear stays reproducible.
     // Cover at Seventeen (C17-24-EXT · edc1b731) and Saturday Four (S4-24-EXT · 481ba9ed) were WITHDRAWN on 29 Sep 2026
     // (owner), with their source grids; git history holds both (sat-assign.mjs built Saturday Four from the first).
     // Familiar Nine (28 Sep 2026) is built rather than supplied — table K proven by final-table.mjs, Right Away's week
@@ -44,7 +45,8 @@ export const SUPPLIED = [
     { file: 'familiar-nine.json',          name: 'Familiar Nine',  code: 'F9-24-K31s', fp: '598a1294', strap: 'No duty over nine hours, and most shift times ones people already work' },
     // Just Enough (28 Sep 2026) is Fifteen Turns with the fewest cells changed that meet every rule — 29, proven by the exact
     // solver in tooling/exact/ — and, among those, the fewest fatigue factors (three, also proven).
-    { file: 'just-enough.json',            name: 'Just Enough',    code: 'JE-24-M29',  fp: '49717d70', strap: 'Fifteen Turns with the fewest changes that meet every rule' },
+    // Just Enough (JE-24-M29 · 49717d70) was WITHDRAWN on 29 Sep 2026 (owner). Its grid stays as just-enough.json, the
+    // exact solver's 29-change answer, which All Clear is the zero-fatigue end of; it no longer ships a sheet.
     // Polished Clean (28 Sep 2026) was supplied as a one-page Word table; every weekly total was checked against its cells.
     // Polished Clean (PC-24-EXT · 12424ed2) was WITHDRAWN on 29 Sep 2026 (owner). Its grid stays as tooling/polished-clean.json
     // because Clean Sweep is counted from it; it no longer ships a sheet.
