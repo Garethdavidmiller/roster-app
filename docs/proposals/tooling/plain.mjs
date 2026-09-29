@@ -18,6 +18,7 @@
 //
 // `TECH=1` renders the ten-page technical sheet instead (render.mjs), unchanged.
 import { dutyMinutes, startMinutes, endMinutes } from './report-data.mjs';
+import { STRAPS } from './fresh.mjs';
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -36,7 +37,7 @@ export function personal(patterns) {
   const rows = Object.keys(patterns).sort((a, b) => a - b).map(k => patterns[k]);
   const L = rows.length, cover = rows.filter(r => DAYS.every(d => r[d] === 'SPARE')).length;
   let monSat = 0, monSatMins = 0, late23 = 0, sat = 0, sun = 0, open = 0, longest = 0;
-  const closers = { wk: [], sat: [], sun: [] };
+  const closers = { wk: [], sat: [], sun: [] }, early = [], late = [];
   for (const r of rows) for (const d of DAYS) {
     const s = r[d]; if (!timed(s)) continue;
     const len = dutyMinutes(s), end = endAbs(s); longest = Math.max(longest, len);
@@ -45,12 +46,17 @@ export function personal(patterns) {
     if (d === 'sat') sat++; if (d === 'sun') sun++;
     if (startMinutes(s) === 380) open++;
     if (d === 'sun' ? end === 1405 : end === 1435) closers[d === 'sun' ? 'sun' : d === 'sat' ? 'sat' : 'wk'].push(len);
+    (startMinutes(s) < 660 ? early : late).push(len);
   }
   const perYear = x => x * 52 / L, avg = a => a.length ? a.reduce((p, q) => p + q, 0) / a.length : null;
+  const span = a => !a.length ? '—' : Math.min(...a) === Math.max(...a) ? hm(a[0]) : `${hm(Math.min(...a))}–${hm(Math.max(...a))}`;
   const daysWeek = (monSat + 4 * cover) / L;
   return { L, cover, daysWeek, daysYear: daysWeek * 365 / 7, avgShift: monSatMins / monSat, longest,
     late23: perYear(late23), sat: perYear(sat), sun: perYear(sun), open0620: perYear(open),
-    closer: { wk: avg(closers.wk), sat: avg(closers.sat), sun: avg(closers.sun) } };
+    closer: { wk: avg(closers.wk), sat: avg(closers.sat), sun: avg(closers.sun) },
+    // the range, for printing: an average of two different closing shifts is a shift nobody works
+    closerSpan: { wk: span(closers.wk), sat: span(closers.sat), sun: span(closers.sun) },
+    earlySpan: span(early), lateSpan: span(late) };
 }
 
 /** The ORR and industry factors in the words a manager uses. The appendix keeps the ORR's own wording. */
@@ -73,7 +79,11 @@ const andList = a => a.length <= 1 ? (a[0] ?? '') : `${a.slice(0, -1).join(', ')
 function front({ T, P, meta, pages }) {
   const name = esc(meta.identity.name), strap = esc(meta.identity.strap);
   const tp = personal(T.patterns), pp = personal(P.patterns);
-  const rules = meta.designRules ?? [], failed = rules.filter(r => !r.ok);
+  const rules = meta.designRules ?? [], missed = rules.filter(r => !r.ok);
+  // A rule the owner waived for one design (Clean Sweep keeps its 16:25 weekday closers, 28 Sep 2026) is reported
+  // as waived, never as a failure — the sheet would otherwise say "No" about the one thing that was agreed.
+  const waived = STRAPS[meta.identity.code]?.[1] === 'exact-waived' ? missed.find(r => /closer starts at 15:45/i.test(r.rule)) ?? null : null;
+  const failed = missed.filter(r => r !== waived);
   const monSat = meta.monSat ?? 42000;
   const rests = P.checks.turnarounds.length, run = P.checks.longestStretch, restMin = P.rest?.minutes;
   const breaks = [rests ? `${rests} ${rests === 1 ? 'gap' : 'gaps'} of under 12 hours between shifts` : '',
@@ -83,6 +93,11 @@ function front({ T, P, meta, pages }) {
   const presentPlain = [...new Set(present.map(r => plainFatigue(r.title)))];
   const [tw, ts, tsu] = [T.office.wkFit, T.office.fits.sat, T.office.fits.sun], [pw, ps, psu] = [P.office.wkFit, P.office.fits.sat, P.office.fits.sun];
   const closerDays = [['weekday', pw, tw], ['Saturday', ps, ts], ['Sunday', psu, tsu]].filter(([, p, t]) => p != null && t != null && p < t).map(([d]) => d);
+  const fitDay = ([d, p, t]) => p == null || t == null ? null : p < t ? [d, 'closer'] : p > t ? [d, 'further'] : [d, 'the same'];
+  const fitBits = [['weekdays', pw, tw], ['Saturday', ps, ts], ['Sunday', psu, tsu]].map(fitDay).filter(Boolean);
+  const fitWords = fitBits.every(([, w]) => w === 'closer') ? 'On weekdays, Saturdays and Sundays, the number of staff on the floor rises and falls with the December trains more closely than today’s link'
+    : fitBits.every(([, w]) => w === 'further') ? 'On every day the number of staff on the floor follows the December trains less closely than today’s link'
+    : 'Against today’s link, the floor follows the December trains ' + andList(fitBits.map(([d, w]) => `${w === 'the same' ? 'about the same' : `${w}`} on ${d}`)).replace(/closer on/g, 'more closely on').replace(/further on/g, 'less closely on');
   const fitVerdict = closerDays.length === 3 ? ['Closer than today', 'good'] : closerDays.length === 0 ? ['Not as close as today', 'warn'] : [`Closer on ${closerDays.length} of 3 days`, 'mid'];
   const tWeekShare = T.checks.weekendsOff / tp.L, pWeekShare = P.checks.weekendsOff / pp.L;
   const shared = P.tableRows.filter(r => T.tableRows.some(t => t.time === r.time)).length, distinct = P.feel.distinctTimes, newTimes = distinct - shared;
@@ -97,9 +112,13 @@ function front({ T, P, meta, pages }) {
   const cl = ['wk', 'sat', 'sun'].map(k => [k, pp.closer[k], tp.closer[k]]).filter(([, p, t]) => p != null && t != null);
   const shorter = cl.filter(([, p, t]) => p < t - 2), longer = cl.filter(([, p, t]) => p > t + 2);
   const cname = { wk: 'weekday', sat: 'Saturday', sun: 'Sunday' };
-  if (shorter.length === cl.length && cl.length) good.push(`Every closing shift shorter — by ${andList([...new Set(shorter.map(([, p, t]) => Math.round(t - p)))].sort((a, b) => a - b).map(m => `${m}`))} minutes`);
+  const cuts = shorter.map(([, p, t]) => Math.max(5, Math.round((t - p) / 5) * 5)), lo = Math.min(...cuts), hi = Math.max(...cuts);
+  if (shorter.length === cl.length && cl.length) good.push(`Every closing shift shorter — by about ${lo === hi ? lo : `${lo} to ${hi}`} minutes`);
   else if (shorter.length) good.push(`Shorter ${andList(shorter.map(([k]) => cname[k]))} closing ${shorter.length === 1 ? 'shift' : 'shifts'}`);
   if (longer.length) bad.push(`Longer ${andList(longer.map(([k]) => cname[k]))} closing ${longer.length === 1 ? 'shift' : 'shifts'}`);
+  const ffP = P.fatigue.present, ffT = T.fatigue.present;
+  push(ffP < ffT, good, ffP ? `Fewer tiring patterns — ${ffP} (today ${ffT})` : `No avoidable tiring patterns (today ${ffT})`);
+  push(ffP > ffT, bad, `More tiring patterns — ${ffP} (today ${ffT})`);
   push(shared * 2 >= distinct, good, `${shared} of its ${distinct} shift times are already worked today`);
   push(newTimes > 0, bad, `${newTimes} new shift ${newTimes === 1 ? 'time' : 'times'} to learn`);
   push(restMin != null && T.rest?.minutes != null && restMin > T.rest.minutes, good, `More rest between shifts — at least ${hm(restMin)} (today ${hm(T.rest.minutes)})`);
@@ -120,6 +139,7 @@ function front({ T, P, meta, pages }) {
   const decide = [
     ...breaks.map(b => `<b>It cannot be run as it stands</b> — ${b}.`),
     ...failed.map(r => `<b>Rule not met:</b> ${esc(r.rule)} — here ${esc(String(r.value))}.`),
+    ...(waived ? [`<b>Waived for this design:</b> ${esc(waived.rule)} — here ${esc(String(waived.value))}.`] : []),
     `<b>Which link is used.</b> This is a proposal; colleagues' views come first.`,
     `<b>Then who starts on which line.</b> The rota does not say who works which week.`,
   ];
@@ -127,9 +147,9 @@ function front({ T, P, meta, pages }) {
 
   const page1 = `<section class="page plain">
   <div class="mast"><div><div class="eyebrow">Proposed CEA link · December 2026</div><h1>${name}</h1><div class="sub">${strap}</div></div></div>
-  <p class="plead">A proposal for discussion, not a decision. Every figure is worked out from the rota by the Marylebone Roster app and set against <b>today’s 20-week link</b>.</p>
-  ${q('Does it meet the December staffing levels?', failed.length ? verdict(`No — ${meta.decMet} of ${meta.decOf}`, 'warn') : verdict(`Yes — all ${meta.decOf}`, 'good'),
-      `${failed.length ? `${failed.length} not met, listed below. ` : ''}Today’s link meets ${meta.decToday}. The eleven rules are on page 6.`)}
+  <p class="plead">A proposal for discussion, not a decision — it has not yet been through the roster office or a union rep. Every figure is worked out from the rota by the Marylebone Roster app and set against <b>today’s 20-week link</b>.</p>
+  ${q('Does it meet the December staffing levels?', failed.length ? verdict(`No — ${meta.decMet} of ${meta.decOf}`, 'warn') : waived ? verdict(`Yes — ${meta.decMet} of ${meta.decOf}, one waived`, 'good') : verdict(`Yes — all ${meta.decOf}`, 'good'),
+      `${failed.length ? `${failed.length} not met, listed below. ` : ''}${waived ? `One rule is waived for this design: ${esc(waived.rule.charAt(0).toLowerCase() + waived.rule.slice(1))} — here ${esc(String(waived.value))}. ` : ''}Today’s link meets ${meta.decToday}. The eleven rules are on page 6.`)}
   ${q('Can it be run within the limits?', breaks.length ? verdict('No', 'bad') : verdict('Yes', 'good'),
       breaks.length ? esc(andList(breaks)).replace(/^./, c => c.toUpperCase()) + '.' : `At least ${hm(restMin)} between any two shifts (the limit is 12h) · never more than ${run} days in a row (the limit is 13) · exactly the 35-hour contract.`)}
   ${q('Is it tiring?', present.length ? verdict(`${present.length} ${present.length === 1 ? 'pattern' : 'patterns'} to look at`, 'warn') : verdict('No avoidable tiring patterns', 'good'),
@@ -137,7 +157,7 @@ function front({ T, P, meta, pages }) {
   ${q('What does it take?', verdict(`${pp.L} people`, 'info'),
       `${pp.L - tp.L > 0 ? `${pp.L - tp.L} more than today` : 'as today'} · a 35-hour week · ${pp.cover} cover weeks · ${P.daily.sun} on a Sunday as overtime (today ${T.daily.sun}).`)}
   ${q('Are staff where the trains are?', verdict(fitVerdict[0], fitVerdict[1]),
-      `How closely floor staffing follows the December timetable, weekday · Saturday · Sunday: ${n1(pw)} · ${n1(ps)} · ${n1(psu)} (today ${n1(tw)} · ${n1(ts)} · ${n1(tsu)}). Lower is closer; 0 would be a perfect match. Hour by hour on page 5.`)}
+      `${fitWords}. The figures are on page 2, hour by hour on page 5.`)}
   <div class="pcols">
     <div class="pbox pbox-good"><h3>Staff are likely to welcome</h3>${good.length ? `<ul>${good.slice(0, 6).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="muted">Nothing notably better than today.</p>'}</div>
     <div class="pbox pbox-warn"><h3>Staff are likely to worry about</h3>${bad.length ? `<ul>${bad.slice(0, 6).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '<p class="muted">Nothing notably worse than today.</p>'}</div>
@@ -153,24 +173,37 @@ function front({ T, P, meta, pages }) {
   const headTrio = o => `${wkRange(o)} · ${o.sat} · ${o.sun}`;
   const row = (label, t, p, cls, words) => `<tr><td>${label}</td><td class="num">${t}</td><td class="num ${cls}"><b>${p}</b></td><td class="muted">${words}</td></tr>`;
   const sumD = o => Object.values(o).reduce((a, b) => a + b, 0);
+  const ruleOf = key => rules.find(r => ({ open: /at the open/i, at22: /22:00/, close: /to the close/i })[key].test(r.rule));
+  const ruleMet = key => { const r = ruleOf(key); return !r ? '' : r.ok ? 'met' : 'not met'; };
+  const ruleCls = key => { const r = ruleOf(key); return !r ? '' : r.ok ? 'up' : 'down'; };
+  const gaps = P.feel.spareLines.map((l, i, a) => ((a[(i + 1) % a.length] - l + pp.L - 1) % pp.L) + 1);
+  const coverWords = gaps.length && gaps.every(g => g === gaps[0]) ? `evenly spaced — one week in ${gaps[0]}` : `not evenly spaced (gaps of ${andList([...new Set(gaps)].map(String))} weeks)`;
+  const stepOf = X => { const v = X.fatigue.results.find(r => r.code === 'FF18')?.value; const m = /typically ([^·]+?) a week/.exec(String(v ?? '')); const t = m && /(\d+)h\s*(\d+)m/.exec(m[1]); return t ? `${t[1]}h${t[2].padStart(2, '0')}` : null; };
+  const stepT = stepOf(T), stepP = stepOf(P);
+  const newSet = new Set(P.tableRows.filter(r => !T.tableRows.some(t => t.time === r.time)).map(r => r.time));
+  const newLines = Object.values(P.patterns).filter(r => DAYS.some(d => newSet.has(r[d])));
   const rows2 = [
     row('People on the link', tp.L, pp.L, '', `${pp.L - tp.L} more people, one per line`),
     row('On duty each day — weekday · Saturday · Sunday', headTrio(T.daily), headTrio(P.daily), cmp(sumD(P.daily) > sumD(T.daily), sumD(P.daily) === sumD(T.daily)), 'the December levels ask for 14 on a Saturday and 10 on a Sunday'),
-    row('On at the open — weekday · Sat · Sun', headTrio(T.heads.open), headTrio(P.heads.open), '', 'at least 4 every day'),
-    row('Still on after 22:00 — weekday · Sat · Sun', headTrio(T.heads.at22), headTrio(P.heads.at22), '', 'at least 5 every day'),
-    row('Through to the close — weekday · Sat · Sun', headTrio(T.heads.close), headTrio(P.heads.close), '', 'at least 3 every day'),
+    row('On at the open — weekday · Sat · Sun', headTrio(T.heads.open), headTrio(P.heads.open), ruleCls('open'), `at least 4 every day — ${ruleMet('open')}`),
+    row('Still on after 22:00 — weekday · Sat · Sun', headTrio(T.heads.at22), headTrio(P.heads.at22), ruleCls('at22'), `at least 5 every day — ${ruleMet('at22')}`),
+    row('Through to the close — weekday · Sat · Sun', headTrio(T.heads.close), headTrio(P.heads.close), ruleCls('close'), `at least 3 every day — ${ruleMet('close')}`),
+    row('How closely staff follow the trains — weekday · Sat · Sun', `${n1(tw)} · ${n1(ts)} · ${n1(tsu)}`, `${n1(pw)} · ${n1(ps)} · ${n1(psu)}`, closerDays.length === 3 ? 'up' : closerDays.length === 0 ? 'down' : '', 'lower is closer; 0 would be a perfect match — see page 5'),
+    row('Cover weeks — for leave and sickness', `lines ${T.feel.spareLines.join(', ')}`, `lines ${P.feel.spareLines.join(', ')}`, '', coverWords),
     row('Most days worked in a row', T.checks.longestStretch, run, cmp(run < T.checks.longestStretch, run === T.checks.longestStretch), 'Chiltern’s limit is 13 (written source to confirm)'),
     row('Shortest gap between two shifts', hm(T.rest?.minutes), hm(restMin), cmp(restMin > T.rest?.minutes, restMin === T.rest?.minutes), 'the limit is 12 hours'),
     row('Full weekends off', `${T.checks.weekendsOff} in ${tp.L}`, `${P.checks.weekendsOff} in ${pp.L}`, cmp(pWeekShare > tWeekShare, Math.abs(pWeekShare - tWeekShare) < 1e-9), `${everyN(pWeekShare)} weeks, against ${everyN(tWeekShare)} today`),
     row('Days at work a year, not counting Sundays', Math.round(tp.daysYear), Math.round(pp.daysYear), cmp(pp.daysYear < tp.daysYear, Math.round(pp.daysYear) === Math.round(tp.daysYear)), 'Sundays are overtime; a cover week counts as 4 days'),
     row('Average shift · longest shift', `${hm(tp.avgShift)} · ${hm(tp.longest)}`, `${hm(pp.avgShift)} · ${hm(pp.longest)}`, '', 'Monday to Saturday'),
-    row('Closing shift — weekday · Sat · Sun', trio(tp.closer, hm), trio(pp.closer, hm), cmp(shorter.length > longer.length, shorter.length === longer.length), 'the shift that locks up'),
+    row('Early shifts · late shifts, shortest to longest', `${tp.earlySpan} · ${tp.lateSpan}`, `${pp.earlySpan} · ${pp.lateSpan}`, '', 'an early starts before 11:00'),
+    row('Closing shift — weekday · Sat · Sun', ['wk', 'sat', 'sun'].map(k => tp.closerSpan[k]).join(' · '), ['wk', 'sat', 'sun'].map(k => pp.closerSpan[k]).join(' · '), cmp(shorter.length > longer.length, shorter.length === longer.length), 'the shift that locks up'),
+    ...(stepT && stepP ? [row('How far the start time moves from one week to the next — typical', stepT, stepP, '', 'smaller is easier on the body clock')] : []),
     row('Finishing at 23:00 or later — each, a year', Math.round(tp.late23), Math.round(pp.late23), cmp(pp.late23 < tp.late23, Math.abs(lateDiff) < 1), Math.abs(lateDiff) < 1 ? 'about the same as today' : `about one ${lateDiff > 0 ? 'extra' : 'fewer'} every ${weeksWords(52 / Math.abs(lateDiff))} weeks`),
     row('Saturdays worked — each, a year', Math.round(tp.sat), Math.round(pp.sat), '', 'a rostered Saturday is paid at time and a quarter'),
     row('Sunday overtime to share — each, a year', Math.round(tp.sun), Math.round(pp.sun), '', 'Sundays are overtime, as today'),
-    row('Different shift times', T.feel.distinctTimes, `${distinct} (${shared} worked today)`, cmp(distinct < T.feel.distinctTimes, distinct === T.feel.distinctTimes), newTimes ? `${newTimes} new to learn — listed on page 4` : 'nothing new to learn'),
+    row('Different shift times', T.feel.distinctTimes, `${distinct} (${shared} worked today)`, cmp(distinct < T.feel.distinctTimes, distinct === T.feel.distinctTimes), newTimes ? `${newTimes} new to learn, on ${newLines.length} of the ${P.feel.workingLines} working weeks — listed on page 4` : 'nothing new to learn'),
     row('Avoidable tiring patterns (ORR list)', T.fatigue.present, P.fatigue.present, cmp(P.fatigue.present < T.fatigue.present, P.fatigue.present === T.fatigue.present), 'early starts and a weekly rotation come with every link'),
-    row('December staffing rules met', `${meta.decToday} of ${meta.decOf}`, `${meta.decMet} of ${meta.decOf}`, cmp(meta.decMet > meta.decToday, meta.decMet === meta.decToday), 'staffing levels confirmed verbally, 29 Sep 2026'),
+    row('December staffing rules met', `${meta.decToday} of ${meta.decOf}`, `${meta.decMet} of ${meta.decOf}`, cmp(meta.decMet > meta.decToday, meta.decMet === meta.decToday), `staffing levels confirmed verbally, 29 Sep 2026${waived ? '; the 15:45 closer rule is waived for this design' : ''}`),
   ].join('');
   const page2 = `<section class="page plain">
   <div class="mast"><div><div class="eyebrow">Against today’s link</div><h1>What changes, in numbers</h1><div class="sub">Today’s 20-week link beside ${name}. Green is better than today, amber is worse, unshaded is neither.</div></div></div>
@@ -196,10 +229,13 @@ function methodPage({ meta, pages }) {
     ['Cover weeks', 'A cover week is marked on all seven days but works four of them, placed by the roster clerk. It counts as a full contracted week of hours and as four days at work. Where a figure depends on where those four fall, the worst case is shown.'],
     ['Sundays', 'Sunday is not in the contract: Sunday duties are overtime, as today. So “days at work” and the 35-hour week are Monday to Saturday. A Sunday off costs no annual leave.'],
     ['Each person, a year', 'Figures given “each, a year” are averages across the whole link: every week’s duties, times 52, divided by the number of people. Somebody’s own year depends on which week they start on.'],
-    ['Following the trains', 'For each hour, the share of the day’s floor staff on duty is set against the share of the day’s train movements in the December 2026 timetable. 0 would be a perfect match; lower is closer. It measures the shape of the day, not a staffing requirement or passenger numbers. The ticket office is left out, except its second person helping at the quiet ends.'],
+    ['Following the trains', 'For each hour, the share of the day’s floor staff on duty is set against the share of the day’s train movements in the December 2026 timetable. 0 would be a perfect match; lower is closer. It measures the shape of the day, not a staffing requirement or passenger numbers, and it compares shares, not headcounts: an extra person in a quiet hour makes the figure worse although nobody is worse off. The ticket office is left out, except its second person helping at the quiet ends.'],
+    ['Rest, runs and weekends', 'The shortest gap is one gap — the tightest anywhere, Saturday into Sunday and the last week into the first included; a rota with many gaps just over 12 hours reads the same as one with none. The most days in a row is the worst case, with a cover week’s four duties placed as badly as they can be. A full weekend off is a Saturday off followed by a Sunday off.'],
+    ['Familiar shift times', 'How many of the shift times somebody already works today. A rough guide to how much there is to learn, not to what staff will accept.'],
     ['Fatigue', 'The Office of Rail and Road’s good-practice list of roster patterns that tend to tire people, with four rail-industry checks. It is guidance, not a pass or fail, and this is not a fatigue risk assessment. Two patterns — early starts at a 06:20 station, and a weekly rotation — come with every link, today’s included, so they are recorded on page 7 and not counted.'],
     ['What is confirmed', 'The December 2026 staffing levels, a 24-person link and the Sunday cover were confirmed verbally on 29 September 2026. The written source of Chiltern’s 13-day limit is still to be confirmed.'],
-    ['What no page can tell you', 'Whether staff accept the new shift times, how leave and sickness cover land, and who starts on which week. Those are for the people who work it and the managers who roster it.'],
+    ['How firm each figure is', 'Firm: the rest gaps, the contract, the days in a row and the staffing counts — worked out from the rota and checked again by the app. Confirmed verbally: the December staffing levels. Advisory: the fatigue patterns — guidance, never a pass or fail. A guide: how closely staff follow the trains, and how familiar the shift times are.'],
+    ['What no page can tell you', 'Whether staff accept the new shift times; where the roster clerk places a cover week’s four duties; how leave and sickness cover land; whether the pattern holds on Wembley event days, since it follows the train timetable rather than passenger numbers; and who starts on which week. Those are for the people who work it and the managers who roster it.'],
   ];
   return `<section class="page plain">
   <div class="mast"><div><div class="eyebrow">For anyone checking</div><h1>How the figures are worked out</h1><div class="sub">In plain words — what each figure means and what it does not.</div></div></div>
@@ -226,8 +262,8 @@ const CSS = `
 .pbox-good { border-left-color: var(--success-green); } .pbox-good h3 { color: var(--success-green); }
 .pbox-warn { border-left-color: var(--warning-amber); } .pbox-warn h3 { color: var(--warning-amber); }
 .pbox-decide { margin-top: 12px; border-left-color: var(--accent-gold); } .pbox-decide h3 { color: var(--primary-blue); }
-table.pcmp { font-size: 10.5px; margin-top: 12px; } table.pcmp td { padding: 4.5px 6px; } table.pcmp td.num, table.pcmp th.num { text-align: center; white-space: nowrap; }
-table.pcontents td { font-size: 11px; padding: 4px 6px; } table.pcontents td.num { width: 24px; font-weight: 800; color: var(--primary-blue); }
+table.pcmp { font-size: 10.2px; margin-top: 10px; } table.pcmp td { padding: 3.2px 6px; } table.pcmp td.num, table.pcmp th.num { text-align: center; white-space: nowrap; }
+table.pcontents td { font-size: 10.5px; padding: 2.5px 6px; } table.pcontents td.num { width: 24px; font-weight: 800; color: var(--primary-blue); }
 dl.pmethod { margin: 12px 0; } dl.pmethod dt { font-weight: 800; color: var(--primary-blue); font-size: 12px; margin-top: 10px; } dl.pmethod dd { margin: 2px 0 0; font-size: 11px; line-height: 1.5; max-width: 170mm; }
 `;
 
