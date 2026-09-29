@@ -8,6 +8,18 @@ identity is in every page footer. All 25 were judged by the app's own Links modu
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
 
+**Everything in one download:** `December-2026-Link-Proposals.zip` (29 Sep 2026) — the one-page summary, the
+rules, both presentations, all 28 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
+re-render of the sheets does not update it, so rebuild it after one.
+
+**The one-page summary:** `Proposals-Summary.pdf` — every proposal against today's link on one A4 page, rendered by
+`tooling/summary-sheet.mjs` from `folderStats` and the same JSON rotations (its header states each column's formula).
+
+**The Familiar Nine presentations:** `presentations/` — one for colleagues (15 slides) and one for managers (9), each
+as PowerPoint and PDF (29 Sep 2026). Built with pptxgenjs outside this repository; every figure in them was counted from
+the rotas in this folder and checked against an independent recount. They are copies, so a change to a sheet does not
+reach them.
+
 **The rules on their own:** `December-2026-Rules.pdf` — the hard limits, the eleven December 2026 rules, the
 fatigue factors and the open questions, on two pages, from the same code the sheets are judged by.
 
