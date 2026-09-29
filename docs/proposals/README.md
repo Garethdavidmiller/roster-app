@@ -3,7 +3,7 @@
 The CEA link proposals drawn for the December 2026 timetable change, each a PDF with its own
 **identity** so it can be named in a room: a name, a code that says how it was built, and a
 fingerprint of the exact cells so a printout can never be confused with a variant. The same
-identity is in every page footer. All 28 were judged by the app's own Links modules
+identity is in every page footer. All 25 were judged by the app's own Links modules
 (`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) — the
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
@@ -20,12 +20,19 @@ proposal — the one-page summary is where they sit side by side, for the owner.
 `TECH=1 node regenerate.mjs` renders the technical sheet instead, with its comparisons removed by `tooling/solo.mjs`.
 Every claim on pages 1–2 is judged shift by shift, never on an average, after five independent checks on 29 Sep 2026.
 
+**The By the Book family was withdrawn (29 Sep 2026, owner).** *By the Book* (`BB-24-D7 · 0f14abce`), *Eight Forty*
+(`EF-24-E21 · 0cf19f56`) and *Office Written In* (`B2-24-G21 · 02f3c005`) — the rules-first family, meeting 4 to 5 of
+the eleven December rules — are no longer in the folder, the pack or the summary: 28 sheets became 25. Their search
+candidates stay in `tooling/results/` and `final.mjs` keeps their code, so any of them can be rebuilt (the note above
+`SEARCHED` in `tooling/regenerate.mjs` says how), and git history holds the sheets as shipped. The dated sections below
+still describe them, as history. No other sheet changed: the plain edition never names another proposal.
+
 **How to read this file.** The paragraphs above describe the pack as it is now. Every dated section below is the
 project's history, kept as the record: where one describes a ten-page sheet, 23 designs or a page 9 comparison, it
 is describing an earlier edition.
 
 **Everything in one download:** `December-2026-Link-Proposals.zip` (29 Sep 2026) — the one-page summary, the
-rules, both presentations, all 28 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
+rules, both presentations, all 25 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
 re-render of the sheets does not update it, so rebuild it after one.
 
 **The one-page summary:** `Proposals-Summary.pdf` — every proposal against today's link on one A4 page, rendered by
@@ -48,7 +55,6 @@ and to the floor on 28 Sep.
 | Proposal | Code · fingerprint | What it is | Fatigue findings | Longest run | Weekends off |
 |---|---|---|---|---|---|
 | **Same Turns** | `ST-24-B7 · d15e1b74` | Today's 20-line link widened to 24 in today's own shift times and week shapes | 1 (FF19, one jump) | 6 | 6 in 24 |
-| **By the Book** | `BB-24-D7 · 0f14abce` | The workspace's December duty table (the owner's rules in table form), the rotation searched for the ORR factors | **0** | 6 | 6 in 24 |
 | **Quarter To** | `QT-24-Q34 · 70cf9874` | *Same Turns* with the weekday closer at 15:45 and no weekday duty over 8h40 (Saturday's 14:45–23:55 and Sunday's 14:30–23:25 run 9h10 and 8h55) — the two 06:20 openers run on to Saturday's own opening times to keep the contract, so the closer is the only time nobody works today | **0** | 6 | 6 in 24 |
 | **Weekend Capped** | `Q2-24-W21 · 7ea671d5` | *Quarter To* with its own open question answered: **Saturday and Sunday searched again under the 8h40 cap** from today's clock times and the quarter hour — Saturday entirely in today's times (fit 23.1 against 32.7), Sunday one new turn, the capped closer (61.4 against 80.6); every one of its 20 working weeks is one turn | 1 (FF19, one jump) | 6 | 6 in 24 |
 | **Right Away** | `FR-24-F34o · be01f0db` | **The owner's final rules of 28 Sep 2026**: the ticket office rostered as fixed pairs of identical turns and **not counted as floor cover**, every weekday closer 15:45, the headcounts as minimums, at least two on the floor at every moment, 15-minute handovers (20 in the office), Sunday duties 8h–9h, no more shift times than today — each day enumerated to a proof for the fit of the **floor** as it was measured when it was built; on the sheets' current measure (the office's second person helping at the quiet ends, and the exact edges of each hour) its floor fit is 26.5 weekday, 14.6 Saturday, 28.9 Sunday — 21.7 / 10.5 / 32.5 with everyone counted, the folder's best weekday, 17 turns in the week against today's 18, the rotation fatigue-first and its week order then improved (28 Sep 2026: 14 of 20 weeks on one shift time, heaviest week 41h50) | **0** | 6 | 6 in 24 |
@@ -59,8 +65,6 @@ and to the floor on 28 Sep.
 | **Polished Clean** | `PC-24-EXT · 12424ed2` | **Supplied as a one-page Word table (28 Sep 2026)**, not searched — weekday closers from 16:25, twelve on a Saturday, the cover weeks at lines 1, 7, 12 and 17; every weekly total in the document agrees with its cells. Meets 2 of the 11 rules | 4 | 9 | 2 in 24 |
 | **Round Times** | `P2-24-N13 · 33a78cbe` | *Pinned Turns*' pins with **every other time rewritten onto the quarter hour** (the pinned 06:20–14:20 the one exception, and the contract's arithmetic needs it) and **no more shift times a day than *Pinned Turns*** — each day enumerated to a proof (weekday fit 33.8, Saturday 22.9, Sunday 62.4; 14 distinct turns in the week), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Pinned Turns** | `PT-24-P34 · dae6292e` | **The owner's brief of 25 Sep 2026** from today's roster: Mon–Fri 15:45 closers, three 06:20–14:20 openers, two 14:00–22:30 lates and an 8h40 cap; Saturday two long openers and a 14:00–22:30; Sunday a 13:00–21:30 — the rest of each day fitted to the timetable (weekday fit 32.1; three turns off the quarter hour — the pinned 06:20–14:20, Saturday's 06:20–14:50 and the weekday's 07:00–15:40), the rotation fatigue-first | **0** | 6 | 6 in 24 |
-| **Eight Forty** | `EF-24-E21 · 0cf19f56` | *By the Book* with no duty over 8h40 — the December table re-solved under the same rules with the ceiling at 8h40 (its earlies had run to 9h30), then the rotation searched for the ORR factors as *By the Book* was | **0** | 6 | 6 in 24 |
-| **Office Written In** | `B2-24-G21 · 02f3c005` | *Eight Forty* with **two matching late turns a day** (pinned as ticket-office lates on 22 Sep) — two `14:00-22:30` Mon–Sat and two `13:30-22:00` on Sunday, fixed before the search; demand fit ahead of the count of times (superseded 28 Sep: under the December 2026 rules the office needs an early pair too, and a Sunday late to 22:30, so the office rule is not met). Saturday's fit (8.1) is level with *By the Book*'s for the best in the folder, Sunday's the price (35.8) | **0** | 6 | 5 in 24 |
 | **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5, or **4 as rostered** | 9 | 6 in 24 |
 | **Fifteen Turns** | `FT-24-EXT · 9a028392` | **Supplied as a grid**, not searched — fifteen turns and cover weeks evenly spread, but **it does not clear two gates** | 7 | 9 | 2 in 24 |
 | **Gates Mended** | `FT-24-R21 · b76bf9e1` | The same design with both gates **repaired** and the rotation re-searched — one Saturday duty shortened (`12:00–20:00` to `12:00–19:00`, Saturday cover at 19:00 seven to six), every other duty and headcount unchanged | **1** | 6 | 6 in 24 |
@@ -736,9 +740,10 @@ search seed, which would be a claim this design cannot support. The `F7` of `WL3
 not the `F` table above: it is the frozen-weeks search at seed 7 (`tooling/weekday-lates-3.meta.json` lists
 its alternatives as `F21` and `F34`, "same rules, seed 21 / 34").
 
-The sheets group the prefixes into **six families**, printed in each identity panel (`FAMILY` in
-`tooling/fresh.mjs`): *Same Turns* (`ST`, `QT`, `Q2`) · *By the Book* (`BB`, `EF`, `B2`) · *Pinned Turns*
-(`PT`, `P2`) · *Right Away* (`FR`, `F9`) · *Fifteen Turns* (`FT`) · *Weekday Lates* (every other prefix).
+The sheets group the prefixes into **five families** (`FAMILY` in `tooling/fresh.mjs`): *Same Turns* (`ST`, `QT`,
+`Q2`) · *Pinned Turns* (`PT`, `P2`) · *Right Away* (`FR`, `F9`) · *Fifteen Turns* (`FT`, and the exact solver's
+`JE` and `AC`, both built from it) · *Weekday Lates* (every other prefix, `PC` and `CS` included). There were six
+until 29 Sep 2026, when the *By the Book* family (`BB`, `EF`, `B2`) was withdrawn.
 
 **Evidence class**: the 24-line length, the four cover weeks and the December headcounts are
 owner-relayed figures with no document behind them (class C — `docs/KNOWN_LIMITATIONS.md` → Links),
@@ -1235,14 +1240,11 @@ review*, below), and ordered by rules met, then weekday floor fit:
 | Quarter To | `QT-24-Q34` | 49.7 · 43.7 · 93.9 | 3 · 3 · 1 | 8 |
 | Weekend Capped | `Q2-24-W21` | 49.7 · 21.9 · 73.4 | 3 · 3 · 1 | 8 |
 | Same Turns | `ST-24-B7` | 52 · 43.7 · 93.9 | 3 · 3 · 1 | 7 |
-| By the Book | `BB-24-D7` | 35 · 11.1 · 39.4 | 2 · 3 · 1 | 5 |
 | Fifteen Turns | `FT-24-EXT` | 38.4 · 44.8 · 49 | 2 · 2 · 1 | 5 |
 | Gates Mended | `FT-24-R21` | 38.4 · 42 · 49 | 2 · 2 · 1 | 5 |
-| Eight Forty | `EF-24-E21` | 81.6 · 22.3 · 27.9 | 3 · 3 · 1 | 5 |
 | Light Retime | `CFT-24-M3` | 38.5 · 33.5 · 50.6 | 3 · 1 · 1 | 4 |
 | Saturday Four | `S4-24-EXT` | 38.5 · 35.8 · 64.8 | 3 · 0 · 1 | 4 |
 | Weekday Lates | `WL-24-EXT` | 40.4 · 20.7 · 64.8 | 3 · 3 · 1 | 4 |
-| Office Written In | `B2-24-G21` | 81.8 · 13.3 · 80.6 | 2 · 3 · 1 | 4 |
 | Cover at Seventeen | `C17-24-EXT` | 38.5 · 20.7 · 64.8 | 3 · 3 · 1 | 3 |
 | Short Closer | `CF-24-EXT` | 38.5 · 53.3 · 64.8 | 3 · 1 · 1 | 3 |
 | Targeted Fatigue Redo | `TF-24-EXT` | 38.5 · 20.7 · 64.8 | 3 · 3 · 1 | 3 |
@@ -1254,6 +1256,8 @@ review*, below), and ordered by rules met, then weekday floor fit:
 | Evening Peak | `WL2-24-R21` | 47.6 · 20.7 · 64.8 | 2 · 3 · 1 | 3 |
 | Polished Clean | `PC-24-EXT` | 38.7 · 51.4 · 72.4 | 3 · 0 · 2 | 2 |
 | *Today's 20-line link* | — | 52 · 65.9 · 71.7 | 2 · 2 · 2 | 4 |
+
+*(29 Sep 2026: the By the Book family's three rows — 5, 5 and 4 rules — removed with the family.)*
 
 ## Familiar Nine — no duty over nine hours, and the times people know (28 Sep 2026)
 
