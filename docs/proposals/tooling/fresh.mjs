@@ -68,13 +68,17 @@ const MADE = {
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
  *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a
- *  Saturday will do; Sunday's ten still stands. */
+ *  Saturday will do; Sunday's ten still stands. `cover`: the four cover weeks need not be evenly spread, only never
+ *  next to each other. */
 export const WAIVERS = {
   'CS-24-M34': { date: '28 September 2026', keys: ['closer'] },
 };
 const WAIVE = {
   closer: { short: '15:45 closer', allows: v => /^closers start at /.test(v) && v.replace(/^closers start at /, '').split(/, | and /).every(t => t === '15:45' || t === '16:25') },
   heads: { short: 'Saturday fourteen', allows: v => { const [sa, su] = String(v).split(' · ').map(Number); return sa >= 12 && su >= 10; } },
+  // four cover weeks, anywhere, so long as no two are next to each other (line 24 runs into line 1)
+  cover: { short: 'even cover-week', allows: v => { const L = String(v).replace(/^lines /, '').split(/, | and /).map(Number).sort((a, b) => a - b);
+    return L.length === 4 && L.every((l, i) => (i < 3 ? L[i + 1] - l : L[0] + 24 - l) > 1); } },
 };
 /** The rows of a rules table (currentRules) that the owner waived for this design and that it meets as allowed. */
 export const waivedRows = (code, rows) => rows.filter(r => !r.ok && (WAIVERS[code]?.keys ?? []).includes(r.key) && WAIVE[r.key].allows(r.value));
