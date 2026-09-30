@@ -25,6 +25,13 @@ whole proposal:
   fatigue count keep their places among the five when they apply; every positive left off is a page-2 row. A concern
   is never left off.
 
+**Three readability fixes (30 Sep 2026, owner).** (1) The match to the trains is always given in words beside the
+number — "about half as far off as today" — on page 1's tile, page 2's row and page 5's answer (`offWords` in
+`tooling/plain.mjs`: a ratio of the two figures, nearest simple fraction). (2) Every length of time is written one way,
+"13h 35m": page 2 wrote "13h35", which also reads as a clock time, while page 6 wrote "13h 35m" for the same figure.
+(3) Page 7 leads each fatigue row with its plain name ("Too little rest after a run of early starts"); the ORR code,
+wording and category follow in small print.
+
 **A second pass, same day (owner, after asking whether the new version was weaker than the first).** It was not weaker in
 content, but a comparison showed page 1 set about 6% smaller, the "for discussion, not a decision" line demoted to the
 masthead's small print, and the shortest rest and fatigue count reduced to a tile's small print. All three were my

@@ -74,6 +74,21 @@ const PLAIN_FATIGUE = [
 ];
 const plainFatigue = t => (PLAIN_FATIGUE.find(([re]) => re.test(t))?.[1]) ?? t.charAt(0).toLowerCase() + t.slice(1);
 const andList = a => a.length <= 1 ? (a[0] ?? '') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
+/** The match to the trains IN WORDS (owner, 30 Sep 2026): "27.7 against 52.0, lower is closer" means nothing to a
+ *  reader without a scale, so every match figure carries a plain comparison with today's — "about half as far off as
+ *  today". The figure is a sum of squared differences, so a ratio is the honest reading of two of them: it says how
+ *  far off the trains the floor is, relative to today, not by how many people. */
+const FRACS = [[0.1, 'a tenth'], [0.2, 'a fifth'], [0.25, 'a quarter'], [1 / 3, 'a third'], [0.4, 'two-fifths'], [0.5, 'half'], [0.6, 'three-fifths'], [2 / 3, 'two-thirds'], [0.75, 'three-quarters'], [0.8, 'four-fifths'], [0.9, 'nine-tenths']];
+const nearest = x => FRACS.reduce((a, b) => Math.abs(b[0] - x) < Math.abs(a[0] - x) ? b : a)[1];
+export const offWords = (p, t) => {
+  if (p == null || t == null || !(t > 0)) return null;
+  const r = p / t;
+  if (r >= 0.95 && r <= 1.05) return 'about as far off as today';
+  if (r < 0.07) return 'almost exactly on the trains';
+  if (r < 1) return `about ${nearest(r)} as far off as today`;
+  if (r < 1.9) return `about ${nearest(r - 1)} further off than today`;
+  return r < 2.25 ? 'about twice as far off as today' : r < 2.75 ? 'about two and a half times as far off as today' : `about ${Math.round(r)} times as far off as today`;
+};
 
 /** The two front pages. */
 function front({ T, P, meta, pages, coverHead }) {
@@ -248,7 +263,7 @@ function front({ T, P, meta, pages, coverHead }) {
       present.length ? `avoidable fatigue ${present.length === 1 ? 'warning' : 'warnings'}` : 'none found',
       `${present.length && presentPlain.length <= 2 ? `${esc(andList(presentPlain))} · ` : ''}today’s link has ${T.fatigue.present} · cover weeks at their worst · guidance, not a pass or fail · page 7`),
     tile(trainsV[2], 'Does staffing follow the trains better?', trainsV[0], trainsV[1],
-      `weekdays ${n1f(pw)} (today ${n1f(tw)}) · Sat ${n1f(ps)} (${n1f(ts)}) · Sun ${n1f(psu)} (${n1f(tsu)}) · lower is closer · page 5`),
+      `weekdays ${n1f(pw)} (today ${n1f(tw)}) · Sat ${n1f(ps)} (${n1f(ts)}) · Sun ${n1f(psu)} (${n1f(tsu)}) · on weekdays ${offWords(pw, tw) ?? 'lower is closer'} · page 5`),
   ].join('');
   const failItems = [...(breaks.length ? [`<b>It cannot be run as it stands</b> — ${esc(andList(breaks))}.`] : []), ...failed.map(r => `<b>${esc(r.rule)}</b> — here ${esc(String(r.value))}`)];
   const failBox = failItems.length ? `<div class="pbox pbox-bad"><h3>${breaks.length ? (failed.length ? `What stops it being run, and the ${nWord(failed.length)} December ${failed.length === 1 ? 'rule' : 'rules'} it does not meet` : 'What stops it being run') : `The ${nWord(failed.length)} December ${failed.length === 1 ? 'rule' : 'rules'} it does not meet`}</h3><ul>${failItems.map(x => `<li>${x}</li>`).join('')}</ul></div>` : '';
@@ -283,7 +298,7 @@ function front({ T, P, meta, pages, coverHead }) {
   const page1 = `<section class="page cover plain">
   ${head1}
   <p class="pbottom"><span class="pb-k">In short</span>${bottom}</p>
-  <p class="pcaveat"><b>For discussion, not a decision.</b> This proposal has not yet been through the roster office or a union rep. Still to settle: which link is used — colleagues’ views come first — and then who starts on which line; the rota does not say who works which week. This page is the whole proposal; pages 2 to 8 are the workings.</p>
+  <p class="pcaveat"><b>For discussion, not a decision.</b> This proposal has not yet been through the roster office or a union rep. Still to settle: which link is used — colleagues’ views come first — and then who starts on which line; the rota does not say who works which week.</p>
   ${takes}
   <h2 class="psec">Can it work?</h2>
   <div class="tiles head4">${work}</div>
@@ -328,7 +343,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('On at the open — weekday · Sat · Sun', headTrio(T.heads.open), headTrio(P.heads.open), byRule('open', headCls('open')), `at least 4 every day — ${ruleMet('open')}`),
     row('Still on duty at 22:00 — weekday · Sat · Sun', headTrio(T.heads.at22), headTrio(P.heads.at22), byRule('at22', headCls('at22')), `at least 5 every day — ${ruleMet('at22')}`),
     row('Through to the close — weekday · Sat · Sun', headTrio(T.heads.close), headTrio(P.heads.close), byRule('close', headCls('close')), `at least 3 every day — ${ruleMet('close')}`),
-    row('How closely staff follow the trains — weekday · Sat · Sun', `${n1(tw)} · ${n1(ts)} · ${n1(tsu)}`, `${n1(pw)} · ${n1(ps)} · ${n1(psu)}`, closerDays.length === 3 ? 'up' : closerDays.length === 0 ? 'down' : '', 'lower is closer; 0 would be a perfect match — page 5'),
+    row('How closely staff follow the trains — weekday · Sat · Sun', `${n1(tw)} · ${n1(ts)} · ${n1(tsu)}`, `${n1(pw)} · ${n1(ps)} · ${n1(psu)}`, closerDays.length === 3 ? 'up' : closerDays.length === 0 ? 'down' : '', `lower is closer — on weekdays ${offWords(pw, tw) ?? 'as today'}; page 5`),
     row('Cover weeks — for leave and sickness', `lines ${T.feel.spareLines.join(', ')}`, `lines ${P.feel.spareLines.join(', ')}`, '', coverWords),
     row('Ticket office late shift on a Sunday — people', 1, 2, '', `the December plan: both in the office 15:00–18:00, then one on the floor; today one 14:30–23:25 closer keeps it until 22:30${(meta.pairDays ?? []).includes('sun') ? '' : ' — this rota does not mark them, so two are assumed from its duties'}`),
     grp('Working pattern'),
@@ -515,6 +530,7 @@ h2.p4shape-h { margin-top: 10px; }
 .cover.plain .pbw { margin: 5px 0 0; padding-top: 4px; border-top: 1px dashed color-mix(in srgb, var(--danger-red, #b3261e) 30%, white); font-size: 9.4px; line-height: 1.35; color: var(--text-mid); } .cover.plain .pbw b { color: var(--primary-blue); }
 .cover.plain .pcaveat { font-size: 10.4px; line-height: 1.45; margin: 7px 0 0; color: var(--text-dark, #1a1a2e); } .cover.plain .pcaveat b { color: var(--danger-red, #b3261e); }
 .cover.plain .pbox li.pmore { list-style: none; margin-left: -16px; font-style: italic; color: var(--text-mid); }
+table.ff .ff-plain { display: block; font-weight: 700; } table.ff .ff-orr { display: block; font-size: 8.4px; color: var(--text-mid); margin-top: 1px; }
 .cover.plain .ptakes { font-size: 10.4px; margin: 6px 0 0; line-height: 1.4; color: var(--text-dark, #1a1a2e); } .cover.plain .ptakes b { color: var(--primary-blue); }
 .cover.plain .pcols .pbox ul { font-size: 10.2px; line-height: 1.42; }
 .cover.plain h2.psec { font-size: 12.5px; margin: 11px 0 5px; color: var(--primary-blue); letter-spacing: .01em; }
@@ -722,12 +738,18 @@ function hourAnswer(s, { T, P, meta }) {
   const names = ['weekdays', 'Saturday', 'Sunday'];
   const better = names.filter((_, i) => p[i] != null && t[i] != null && p[i] < t[i]), worse = names.filter((_, i) => p[i] != null && t[i] != null && p[i] > t[i]);
   const verdict = !worse.length ? 'The floor follows the trains more closely than today on weekdays, Saturday and Sunday.'
-    : !better.length ? 'The floor follows the trains less closely than today on every day.'
+    : !better.length ? 'The floor follows the trains less closely than today on weekdays, Saturday and Sunday.'
     : `The floor follows the trains more closely than today on ${andList(better)}, less closely on ${andList(worse)}.`;
+  // the verdict with each day in words; when every day is closer, the days are named once and "as far off" once
+  const p5words = (v, pv, tv, allCloser) => {
+    const w = ['weekdays', 'Saturday', 'Sunday'].map((d, i) => [d, offWords(pv[i], tv[i])]).filter(([, x]) => x)
+      .map(([d, x], i) => `${d} ${x.replace(/ (as|than) today$/, '').replace(/^about as far off$/, 'about the same').replace(allCloser && i ? / as far off$/ : /$^/, '')}`);
+    return allCloser ? `<b>The floor follows the trains more closely than today</b> — ${w.join(', ')}.` : `<b>${v.replace(/\.$/, '')}</b> — ${w.join(', ')}.`;
+  };
   const answer = `<div class="p5res"><table class="p5r"><thead><tr><th>How closely the floor follows the trains</th><th>Weekdays</th><th>Saturday</th><th>Sunday</th></tr></thead><tbody>
     <tr><td>Today’s link</td>${t.map(v => `<td>${f(v)}</td>`).join('')}</tr>
     <tr class="p5r-p"><td>${esc(meta.identity.name)}</td>${p.map((v, i) => cell(v, t[i])).join('')}</tr></tbody></table>
-    <p><b>${verdict}</b> Lower is closer; 0 is a perfect match. The tables below are the workings.</p></div>`;
+    <p>${p5words(verdict, p, t, !worse.length)} Lower is closer; 0 is a perfect match.</p></div>`;
   s = must(s, MAST_END, `$1\n  ${answer}`, 'the hour page head');
   // the legend's match line is now the answer box above; one shorter key remains
   s = must(s, /\s*<span><b>Match<\/b>, on the right[\s\S]*?<\/span><\/div>/, '<span><b>Strongest rows:</b> the floor and the trains — the two the match compares.</span></div>', 'the legend match line');
@@ -774,6 +796,23 @@ function fatiguePage(s, { T, P }) {
   s = must(s, MAST_END, `$1\n  ${cards}`, 'the fatigue page head');
   s = must(s, /<p class="muted" style="margin:6px 0 4px">These are 25 roster patterns[\s\S]*?<\/p>/, '<p class="muted" style="margin:6px 0 4px">For each of the 25 patterns this table asks whether it is in the rotation, today and proposed, and how big it is. A design showing nothing is not thereby approved: this is guidance, not a fatigue risk assessment.</p>', 'the fatigue intro');
   s = must(s, /<li>Avoidable tiring patterns found: [^<]*<\/li>/, '', 'the found-count bullet');
+  // THE PLAIN NAME LEADS (owner, 30 Sep 2026): a manager reads "too little rest after a run of early starts", not
+  // "FF8b"; the ORR's code, wording and category follow in small print, so nothing is lost for anyone checking.
+  const PLAIN_FF = [[/^Early shift starting 05:00/, 'Early starts, 05:00 to 06:59'], [/^Very early shift/, 'Very early starts, before 05:00'],
+    [/^Day shift over 12h/, 'Shifts over 12 hours'], [/^Early shift over 10h/, 'Early shifts over 10 hours'],
+    [/rest after a block of early/, 'Too little rest after a run of early starts'], [/13 consecutive shifts without a 48h/, 'Too many shifts without a two-day break'],
+    [/4 consecutive 12h day/, 'Runs of 12-hour day shifts'], [/consecutive early shifts/, 'Long runs of early shifts'],
+    [/12 consecutive day shifts/, 'Long runs of day shifts'], [/55 hours/, 'More than 55 hours in a week'],
+    [/consecutive 8h shifts/, 'Long runs of 8-hour shifts'], [/^Backward rotating/, 'Start times moving earlier through the week'],
+    [/^Rotating pattern of about a week/, 'Changing shift type about once a week'], [/^Successive start times varying/, 'Start times that jump by more than two hours'],
+    [/^Less than 12h rest/, 'Less than 12 hours between two shifts']];
+  s = must(s, /<th>Code<\/th><th>Factor<\/th>/, '<th>Pattern</th>', 'the fatigue table head');
+  s = s.replace(/<td class="ff-code">([^<]*)<\/td><td class="ff-title">([^<]*)((?:<span[^>]*>[^<]*<\/span>)*)<\/td>/g, (m, code, title, spans) => {
+    const plain = PLAIN_FF.find(([re]) => re.test(title.trim()))?.[1] ?? title.trim();
+    const extra = [...spans.matchAll(/<span[^>]*>([^<]*)<\/span>/g)].map(x => x[1].trim()).filter(Boolean);
+    return `<td class="ff-title"><b class="ff-plain">${plain}</b><span class="ff-orr">${code} · ${title.trim()}${extra.length ? ` · ${extra.join(' · ')}` : ''}</span></td>`;
+  });
+  if (/class="ff-code"/.test(s)) throw new Error('fatiguePage: a fatigue row kept its code column');
   return s;
 }
 
@@ -821,5 +860,9 @@ export function plainEdition(html, ctx) {
   let out = head.replace('</style>', CSS + '</style>') + front({ ...ctx, pages, coverHead }) + appendix.join('') + methodPage({ ...ctx, pages }) + tail;
   // the rules table's ticks and crosses, in the colour they mean
   out = out.replace(/<table class="t rules">[\s\S]*?<\/table>/, t => t.replace(/<td( class="today-v")?>(✓|✕|○)/g, (m, c, k) => `<td${c ?? ''}><span class="mk mk-${k === '✓' ? 'ok' : k === '✕' ? 'no' : 'wv'}">${k}</span>`));
+  // ONE WAY OF WRITING A LENGTH OF TIME (owner, 30 Sep 2026). Page 2 wrote "13h35" and page 6 "13h 35m" for the same
+  // figure, and "13h35" also reads as a clock time. Every duration on every page is "13h 35m"; clock times keep their
+  // colon (13:35), so the two can no longer be confused. Text only — never inside a tag or the stylesheet.
+  out = out.replace(/(<style[\s\S]*?<\/style>)|>([^<]+)</g, (m, st, txt) => st ?? `>${txt.replace(/\b(\d{1,3})h(\d{2})\b(?!m)/g, '$1h&nbsp;$2m')}<`);
   return out;
 }
