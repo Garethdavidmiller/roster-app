@@ -25,8 +25,8 @@ export const STRAPS = {
   'WL-24-EXT':  ['Weekday closers from 16:25, with Saturday largely in today’s shift times', 'hand'],
   'WL2-24-R21': ['Weekday closers from 16:25, with extra cover under the 17:00 peak', 'hand+search'],
   'WL4-24-F7':  ['Weekday closers from 16:25, built around four weeks (lines 14–17) that stay together in a fixed order', 'hand+search'],
-  'AC-24-M41':  ['Sixteen shift times, meeting all eleven rules with no avoidable fatigue warning', 'exact'],
-  'CS-24-M34':  ['Weekday closers from 16:25, meeting the other ten rules', 'exact-waived'],
+  'AC-24-M41':  ['Sixteen shift times, meeting every December rule with no avoidable fatigue warning', 'exact'],
+  'CS-24-M34':  ['Weekday closers from 16:25, meeting every December rule', 'exact-waived'],
   'FO-24-M49':  ['Weekday Lates retimed to follow the trains as closely as the best sheets, with no fatigue warning at all', 'exact-waived3'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
@@ -54,16 +54,11 @@ const MADE = {
  *  Saturday will do; Sunday's ten still stands. `cover`: the four cover weeks need not be evenly spread, only never
  *  next to each other. */
 export const WAIVERS = {
-  'CS-24-M34': { date: '28 September 2026', keys: ['closer'] },
-  'FO-24-M49': { date: '29 September 2026', keys: ['closer', 'heads', 'cover'] },
-  // Owner, 30 Sep 2026: "on the links that don't have them, drop the 15:45 closer, evenly spaced cover weeks and 14 on
-  // Saturday rules — essentially waived". Only a rule a design misses is ever reported as waived (waivedRows), and each
-  // waiver keeps its bound in WAIVE below. The Saturday waiver never covers Sunday's ten: where that half is still
-  // missed, the row reports the Sunday half alone as not met (headsPart, in freshMeta).
-  'WL-24-EXT': { date: '30 September 2026', keys: ['closer', 'heads', 'cover'] },
-  'WL2-24-R21': { date: '30 September 2026', keys: ['closer', 'heads', 'cover'] },
-  'WL4-24-F7': { date: '30 September 2026', keys: ['closer', 'heads', 'cover'] },
-  'FT-24-EXT': { date: '30 September 2026', keys: ['closer', 'heads', 'cover'] },
+  // EMPTY SINCE 30 SEP 2026. The three rules waived here — the 15:45 weekday closer (Clean Sweep, Full Overhaul, then the
+  // Weekday Lates family and Fifteen Turns), four evenly spread cover weeks, and fourteen on a Saturday — were soft rules
+  // the owner then relaxed for every design: "they probably don't need to appear at all". They left the rule set
+  // itself (currentRules, RELAXED_RULES in report-data.mjs), so no sheet scores, lists or waives them. The mechanism is
+  // kept for a future per-design waiver.
 };
 const WAIVE = {
   closer: { short: '15:45 closer', allows: v => /^closers start at /.test(v) && v.replace(/^closers start at /, '').split(/, | and /).every(t => t === '15:45' || t === '16:25') },
@@ -95,8 +90,6 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   // A rule the owner waived for this one design is reported as waived everywhere — never as a failure.
   const waived = waivedRows(code, R.rows);
   const failed = R.rows.filter(r => !r.ok && !waived.includes(r));
-  // Saturday's fourteen waived but Sunday's ten still missed: the row is not met, and says only what is still asked
-  const headsPart = r => r.key === 'heads' && !r.ok && !waived.includes(r) && (WAIVERS[code]?.keys ?? []).includes('heads') && Number(String(r.value).split(' · ')[0]) >= 12;
   const FO = P.office, TO = T.office;
   // gaps in the order the lines are printed, the last one back round to the first line (accuracy check, 28 Sep 2026 —
   // the order spareGaps comes in started with the wrap-round gap, so '1, 7, 12, 17 · gaps of 8, 6, 5, 5' read 1→7 as 8)
@@ -205,7 +198,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   <div class="foot"><span>Page 9 of 10 — Beside the other proposals</span><span class="foot-id"><b>${name}</b> · ${code} · ${meta.identity.fingerprint} · Marylebone Roster — Links designer</span></div>
 </section>`;
 
-  const satMet = P.daily.sat >= 14, sunMet = P.daily.sun >= 10;
+  const sunMet = P.daily.sun >= 10;
   const readLines = (() => {
     const w = P.feel.workingLines;
     if (newLines.length) return `${newLines.length === w ? `Every working line` : `${newLines.length} of the ${w} working lines`} (${newLines.length === w ? 'all of them' : `lines ${andList(newLines.map(String))}`}) ${newLines.length === 1 || newLines.length === w ? 'holds' : 'hold'} at least one shift time nobody works today. On a rotating link everyone works every line in turn, so staff read those weeks first and say in one line each what they would change.`;
@@ -228,16 +221,12 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     intro, intro2: '',
     decMet: R.met, decOf: R.of, decToday: RT.met, decLabel: 'December 2026 rules met',
     decTile: `December 2026 rules, confirmed verbally (page 7) · today’s link meets ${RT.met} of ${R.of}`,
-    headsEvid: `At least four at the open, three at the close, five at 22:00; 14 on Saturday, 10 on Sunday`,
-    satNote: satMet ? 'meets the December 2026 figure of 14' : 'short of the December 2026 figure of 14',
+    headsEvid: `At least four at the open, three at the close, five at 22:00; 10 on Sunday`,
+    satNote: 'no Saturday figure is required (relaxed 30 Sep 2026)',
     sunNote: sunMet ? 'meets the December 2026 figure of 10' : 'short of the December 2026 figure of 10',
     thinMoments: thin,
     designHeading: 'The December 2026 rules', designSub: '— each one, with today’s link beside it',
-    designRules: R.rows.map((r, i) => headsPart(r) ? {
-      rule: 'Ten on a Sunday', value: String(r.value).split(' · ')[1], ok: false, waived: false, partial: true, key: r.key,
-      note: `Saturday’s fourteen is waived for this design (here ${String(r.value).split(' · ')[0]})`,
-      today: String(RT.rows[i].value).split(' · ')[1], todayOk: Number(String(RT.rows[i].value).split(' · ')[1]) >= 10 }
-      : ({ rule: r.rule, value: r.value, ok: r.ok, waived: waived.includes(r), key: r.key, note: r.note, today: RT.rows[i].value, todayOk: RT.rows[i].ok })),
+    designRules: R.rows.map((r, i) => ({ rule: r.rule, value: r.value, ok: r.ok, waived: waived.includes(r), key: r.key, note: r.note, today: RT.rows[i].value, todayOk: RT.rows[i].ok })),
     openQuestionsHeading: 'Still to settle', openQuestions: oqItems.join(' '), openQuestionsHtml: `<ul class="oq-list">${oqItems.map(x => `<li>${x}</li>`).join('')}</ul>`,
     wembleyLine: 'Whether this pattern holds on Wembley event days — it is based on the train timetable, not on passenger numbers.',
     sundayNote: 'On Sundays five trains in the December 2026 timetable arrive or leave after the 23:25 finish (the last at 23:54); the bar under the Sunday 23:00 hour marks the time after the finish. No duty runs past 23:25 on a Sunday — that is agreed practice and stays so (settled 28 Sep 2026) — so those trains fall outside the staffed day of any link, today’s included.',

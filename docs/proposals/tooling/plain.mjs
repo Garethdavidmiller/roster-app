@@ -241,13 +241,9 @@ function front({ T, P, meta, pages, coverHead }) {
   const failItems = [...(breaks.length ? [`<b>It cannot be run as it stands</b> — ${esc(andList(breaks))}.`] : []), ...failed.map(r => `<b>${esc(r.rule)}</b> — here ${esc(String(r.value))}`)];
   const failBox = failItems.length ? `<div class="pbox pbox-bad"><h3>${breaks.length ? (failed.length ? `What stops it being run, and the ${nWord(failed.length)} December ${failed.length === 1 ? 'rule' : 'rules'} it does not meet` : 'What stops it being run') : `The ${nWord(failed.length)} December ${failed.length === 1 ? 'rule' : 'rules'} it does not meet`}</h3><ul>${failItems.map(x => `<li>${x}</li>`).join('')}</ul></div>` : '';
   const wv = WAIVERS[meta.identity.code];
-  // one compact paragraph, not a list: the waived rules are recorded, not argued (owner, 30 Sep 2026: "essentially
-  // waived / not mentioned"). Saturday's fourteen is named on its own — Sunday's ten is never waived with it.
-  const partial = rules.find(r => r.partial);
-  const wItem = w => w.key === 'heads' ? `Saturday’s fourteen — here ${esc(String(w.value).split(' · ')[0])} (Sunday’s ten is met)`
-    : w.key === 'cover' ? `four evenly spread cover weeks — here lines ${esc(String(w.value).replace(/^lines /, ''))}`
-    : w.key === 'closer' ? `weekday closers from 15:45 — here ${esc(String(w.value).replace(/^closers start at /, ''))}` : `${esc(w.rule)} — here ${esc(String(w.value))}`;
-  const wItems = [...waived.map(wItem), ...(partial ? [`Saturday’s fourteen — here ${esc(partial.note.match(/here (\d+)/)?.[1] ?? '')} (Sunday’s ten still applies)`] : [])];
+  // A per-design waiver (WAIVERS in fresh.mjs — none today: the three soft rules were relaxed for every design on
+  // 30 Sep 2026 and left the rule set) is recorded in one line, never argued.
+  const wItems = waived.map(w => `${esc(w.rule)} — here ${esc(String(w.value))}`);
   const waivedBox = wItems.length ? `<div class="pbox pbox-info pwaived"><b>Waived for this design</b>${wv?.date ? ` (agreed by the owner, ${esc(wv.date)})` : ''}: ${wItems.join(' · ')}.</div>` : '';
 
   // WHAT IT WOULD MEAN FOR STAFF — the colleague's four questions, put to the manager who reads the sheet; figures averaged over the link say "about"
@@ -299,15 +295,16 @@ function front({ T, P, meta, pages, coverHead }) {
   // (a 5 at the open beats today's 4 but still breaks "at least four"; a green tick beside "not met" contradicted itself)
   const broken = key => rules.some(r => r.key === key && !r.ok && !r.waived);
   const byRule = (key, cls) => broken(key) ? 'no' : cls;
-  const isWaived = key => rules.some(r => r.key === key && r.waived), headsPartial = rules.some(r => r.key === 'heads' && r.partial);
+  const isWaived = key => rules.some(r => r.key === key && r.waived);
   const row = (label, t, p, cls, words) => `<tr><td>${label}</td><td class="num">${t}</td><td class="num ${cls}">${mark(cls)}<b>${p}</b></td><td class="muted">${words}</td></tr>`;
   const grp = title => `<tr class="pgrp"><td colspan="4">${title}</td></tr>`;
   const sumD = o => Object.values(o).reduce((a, b) => a + b, 0);
   const ruleOf = key => rules.find(r => ({ open: /at the open/i, at22: /22:00/, close: /to the close/i })[key].test(r.rule));
   const ruleMet = key => { const r = ruleOf(key); return !r ? '' : r.ok ? 'met' : 'not met'; };
+  const ruleMetKey = key => { const r = rules.find(x => x.key === key); return !r ? '' : r.ok ? 'met' : 'not met'; };
   const headCls = key => { const ds = Object.keys(T.heads[key]); const up = ds.some(d => P.heads[key][d] > T.heads[key][d]), dn = ds.some(d => P.heads[key][d] < T.heads[key][d]); return up && dn ? '' : cmp(up, !up && !dn); };
   const gaps = P.feel.spareLines.map((l, i, a) => ((a[(i + 1) % a.length] - l + pp.L - 1) % pp.L) + 1);
-  const coverWords = gaps.length && gaps.every(g => g === gaps[0]) ? `evenly spaced — one week in ${gaps[0]}` : `not evenly spaced (gaps of ${andList(gaps.map(String))} weeks)`;
+  const coverWords = gaps.length && gaps.every(g => g === gaps[0]) ? `evenly spaced — one week in ${gaps[0]}` : `gaps of ${andList(gaps.map(String))} weeks`;
   const stepOf = X => { const v = X.fatigue.results.find(r => r.code === 'FF18')?.value; const m = /typically ([^·]+?) a week/.exec(String(v ?? '')); const t = m && /(\d+)h\s*(\d+)m/.exec(m[1]); return t ? `${t[1]}h${t[2].padStart(2, '0')}` : null; };
   const stepT = stepOf(T), stepP = stepOf(P);
   const newSet = new Set(P.tableRows.filter(r => !T.tableRows.some(t => t.time === r.time)).map(r => r.time));
@@ -316,12 +313,12 @@ function front({ T, P, meta, pages, coverHead }) {
   const rows2 = [
     grp('Staffing'),
     row('People on the link', tp.L, pp.L, '', `${pp.L - tp.L} more people, one per line`),
-    row('On duty each day — weekday · Saturday · Sunday', headTrio(T.daily), headTrio(P.daily), byRule('heads', cmp(sumD(P.daily) > sumD(T.daily), sumD(P.daily) === sumD(T.daily))), isWaived('heads') || headsPartial ? `the rules ask for 10 on a Sunday${headsPartial ? ' — not met' : ''}; Saturday’s 14 waived` : 'the December levels ask for 14 on a Saturday and 10 on a Sunday'),
+    row('On duty each day — weekday · Saturday · Sunday', headTrio(T.daily), headTrio(P.daily), byRule('sunday', cmp(sumD(P.daily) > sumD(T.daily), sumD(P.daily) === sumD(T.daily))), `the December levels ask for 10 on a Sunday — ${ruleMetKey('sunday')}`),
     row('On at the open — weekday · Sat · Sun', headTrio(T.heads.open), headTrio(P.heads.open), byRule('open', headCls('open')), `at least 4 every day — ${ruleMet('open')}`),
     row('Still on duty at 22:00 — weekday · Sat · Sun', headTrio(T.heads.at22), headTrio(P.heads.at22), byRule('at22', headCls('at22')), `at least 5 every day — ${ruleMet('at22')}`),
     row('Through to the close — weekday · Sat · Sun', headTrio(T.heads.close), headTrio(P.heads.close), byRule('close', headCls('close')), `at least 3 every day — ${ruleMet('close')}`),
     row('How closely staff follow the trains — weekday · Sat · Sun', `${n1(tw)} · ${n1(ts)} · ${n1(tsu)}`, `${n1(pw)} · ${n1(ps)} · ${n1(psu)}`, closerDays.length === 3 ? 'up' : closerDays.length === 0 ? 'down' : '', 'lower is closer; 0 would be a perfect match — page 5'),
-    row('Cover weeks — for leave and sickness', `lines ${T.feel.spareLines.join(', ')}`, `lines ${P.feel.spareLines.join(', ')}`, '', isWaived('cover') ? `waived: gaps of ${andList(gaps.map(String))} weeks` : coverWords),
+    row('Cover weeks — for leave and sickness', `lines ${T.feel.spareLines.join(', ')}`, `lines ${P.feel.spareLines.join(', ')}`, '', coverWords),
     row('Ticket office late shift on a Sunday — people', 1, 2, '', `the December plan: both in the office 15:00–18:00, then one on the floor; today one 14:30–23:25 closer keeps it until 22:30${(meta.pairDays ?? []).includes('sun') ? '' : ' — this rota does not mark them, so two are assumed from its duties'}`),
     grp('Working pattern'),
     row('Most days worked in a row', T.checks.longestStretch, run, run > 13 ? 'no' : cmp(run < T.checks.longestStretch, run === T.checks.longestStretch), 'Chiltern’s limit is 13 (written source to confirm)'),
@@ -730,7 +727,7 @@ function hourAnswer(s, { T, P, meta }) {
 /** Page 6 — the rules. Three hard limits as cards (each a number against its limit), a count for the December rules,
  *  and the full table. The "Still to settle" list goes: a failed rule is shaded in the table and named on page 1. */
 function rulesPage(s, { T, P, meta }) {
-  s = retitle(s, 'The rules', 'Hard limits and the December 2026 rules', 'Three hard limits a rota must meet to be run at all, then the eleven December 2026 staffing rules, each with today’s link beside it.');
+  s = retitle(s, 'The rules', 'Hard limits and the December 2026 rules', `Three hard limits a rota must meet to be run at all, then the ${['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven'][meta.decOf] ?? meta.decOf} December 2026 staffing rules, each with today’s link beside it.`);
   const rows = [...s.matchAll(/<div class="check-row check-(good|bad|warn)"><span class="check-icon[^"]*">[^<]*<\/span><div class="check-body"><b>([^<]*)<\/b>[\s\S]*?<div class="check-sub">([\s\S]*?)<\/div><\/div><\/div>/g)];
   if (rows.length !== 3) throw new Error(`plain appendix: expected 3 hard-limit rows, found ${rows.length}`);
   const hm2 = m => m == null ? '—' : `${Math.floor(m / 60)}h&nbsp;${String(m % 60).padStart(2, '0')}m`;

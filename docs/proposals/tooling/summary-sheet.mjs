@@ -27,9 +27,9 @@ const TA = assess(T.patterns, 20);
 const rows = folderStats().map(f => { const j=JSON.parse(fs.readFileSync(new URL(f.file, DIR),'utf8')); const p=j.patterns??j; const x=extra(p);
   return { name:f.name, code:f.code, met:f.rules.met, of:f.rules.of, present:f.present, run:f.run, wkd:`${f.weekends} in ${x.L}`, rest:f.rest, times:`${f.distinct} (${f.newTimes} new)`, ...x }; });
 rows.sort((a,b)=> b.met-a.met || a.present-b.present || a.name.localeCompare(b.name));
-const todayRow = { name:'Today’s link', code:'20 weeks', met:null, of:11, present:TA.fatigue.present, run:TA.checks.longestStretch, wkd:`${TA.checks.weekendsOff} in 20`, rest:TA.rest?.minutes, times:`${TA.feel.distinctTimes}`, ...extra(T.patterns) };
+const todayRow = { name:'Today’s link', code:'20 weeks', met:null, of:null, present:TA.fatigue.present, run:TA.checks.longestStretch, wkd:`${TA.checks.weekendsOff} in 20`, rest:TA.rest?.minutes, times:`${TA.feel.distinctTimes}`, ...extra(T.patterns) };
 // today's rules met, the rules sheet's own figure
-todayRow.met = currentRules({ patterns:T.patterns, ...TA }, TA, 'today').met;
+{ const R0 = currentRules({ patterns:T.patterns, ...TA }, TA, 'today'); todayRow.met = R0.met; todayRow.of = R0.of; }
 const tr = (r, cls='') => `<tr class="${cls}"><td class="n"><b>${r.name}</b><span>${r.code}</span></td><td class="${r.met===r.of?'good':''}">${r.met} of ${r.of}</td><td class="${r.present===0?'good':''}">${r.present}</td><td>${r.run}</td><td>${r.wkd}</td><td>${r.rest==null?'—':hm(r.rest)}</td><td>${r.times}</td><td>${r.dpw.toFixed(2)}</td><td>${Math.round(r.dpy)}</td><td>${hm(r.avg)}</td><td>${Math.round(r.late)}</td><td>${Math.round(r.sat)}</td></tr>`;
 const html = `<!doctype html><html><head><meta charset="utf-8"><title>December 2026 link proposals — summary</title><style>
 @page{size:A4 landscape;margin:8mm 10mm}
@@ -46,12 +46,12 @@ td.good{color:#1E7B4B;font-weight:700}
 </style></head><body>
 <h1>December 2026 link proposals — at a glance</h1>
 <p class="lead">All ${rows.length} proposals against today’s link, sorted by December rules met, then fatigue factors. Every figure is worked out from the rota by the Marylebone Roster app. Staffing levels, a 24-person link and Sunday cover confirmed verbally (29 Sep 2026).</p>
-<table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Fatigue patterns (ORR + industry)</th><th>Most days in a row</th><th>Full weekends off</th><th>Shortest rest</th><th>Shift times</th><th>Days a week*</th><th>Days a year*</th><th>Average shift, Mon–Sat</th><th>Finishes 23:00+ a year†</th><th>Saturdays a year†</th></tr></thead><tbody>
+<table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Fatigue warnings (ORR + industry)</th><th>Most days in a row</th><th>Full weekends off</th><th>Shortest rest</th><th>Shift times</th><th>Days a week*</th><th>Days a year*</th><th>Average shift, Mon–Sat</th><th>Finishes 23:00+ a year†</th><th>Saturdays a year†</th></tr></thead><tbody>
 ${tr(todayRow,'today')}
 ${rows.map(r=>tr(r)).join('\n')}
 </tbody></table>
-<p class="foot">* Monday to Saturday, with a cover week counted as 4 days (Sundays are overtime and left out). † Each person, on average across the whole link; cover weeks add none. “Shift times” counts different start–finish times; “new” means nobody works that time today. Fatigue patterns are the ORR’s good-practice list plus rail-industry checks — reported, never pass or fail. Full detail for each proposal is in its own eight-page sheet; the rules themselves are in December-2026-Rules.pdf.</p>
+<p class="foot">* Monday to Saturday, with a cover week counted as 4 days (Sundays are overtime and left out). † Each person, on average across the whole link; cover weeks add none. “Shift times” counts different start–finish times; “new” means nobody works that time today. Fatigue warnings are the ORR’s good-practice list plus rail-industry checks — reported, never pass or fail. Full detail for each proposal is in its own eight-page sheet; the rules themselves are in December-2026-Rules.pdf.</p>
 </body></html>`;
 const b = await chromium.launch(); const pg = await b.newPage(); await pg.setContent(html, { waitUntil: 'load' });
 await pg.pdf({ path: new URL('Proposals-Summary.pdf', DIR).pathname, format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
-await b.close(); console.log(`wrote Proposals-Summary.pdf — ${rows.length} proposals, today meets ${todayRow.met} of 11`);
+await b.close(); console.log(`wrote Proposals-Summary.pdf — ${rows.length} proposals, today meets ${todayRow.met} of ${todayRow.of}`);

@@ -2,7 +2,8 @@
 // Every proposal sheet restates the rules on page 6, beside that design's own figures. This is the same set on
 // its own, once, so the rules can be read, argued about and changed without opening a design.
 //
-// Nothing here is typed that the proposal sheets compute. The eleven December rows are `currentRules` —
+// Nothing here is typed that the proposal sheets compute. The December rows are `currentRules` (nine since the owner
+// relaxed three soft rules on 30 Sep 2026, named once beneath the table from RELAXED_RULES) —
 // the function every sheet calls — run on today's link; the fatigue list is `assessFatigue`'s own. Change a
 // rule in report-data.mjs and this sheet follows on its next render; it cannot say one thing while a sheet says
 // another. TODAY'S LINK IS THE ONLY COMPARISON (owner, 29 Sep 2026): the "met by N proposals" and "present in N"
@@ -13,7 +14,7 @@
 // A full `regenerate.mjs` run renders it too, after every sheet.
 import { writeFileSync, readFileSync } from 'node:fs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
-import { today, assess, currentRules, folderStats, OFFICE, OFFICE_HELP_TEXT, demand, MAX_CONSECUTIVE_WORKED_DAYS } from './report-data.mjs';
+import { today, assess, currentRules, RELAXED_RULES, folderStats, OFFICE, OFFICE_HELP_TEXT, demand, MAX_CONSECUTIVE_WORKED_DAYS } from './report-data.mjs';
 import { assessFatigue } from '../../../links-fatigue.js';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
@@ -59,10 +60,8 @@ const ASKS = {
   open: 'Four people on duty from the moment the station opens: 06:20, or 07:15 on a Sunday.',
   close: 'Three people still on duty until the station closes: 23:55, or 23:25 on a Sunday.',
   at22: 'Five people still on duty at 22:00, every day, Sunday included. Only people working <i>after</i> 22:00 count; someone finishing at 22:00 does not (both settled 28 Sep 2026).',
-  heads: 'Fourteen people working on a Saturday and ten on a Sunday, counted as duties rostered that day.',
-  cover: 'Four cover weeks in the 24 lines, spaced evenly — every six lines, e.g. lines 1, 7, 13 and 19.',
+  sunday: 'Ten people working on a Sunday, counted as duties rostered that day.',
   office: `Two identical early and two identical late shifts for the ticket office: Mon–Fri ${OFFICE.plan.weekday.map(([t]) => t.replace('-', '–')).join(' and ')}; Sat ${OFFICE.plan.sat.map(([t]) => t.replace('-', '–')).join(' and ')}; Sun two starting 07:15 and two finishing 22:30.`,
-  closer: 'Every Monday-to-Friday shift that works to the 23:55 close starts at 15:45.',
   floor: 'At least two people on the station floor at every moment the station is open, checked every five minutes. Ticket-office staff count only while the second of a pair helps on the floor at the quiet ends, and only as a whole person.',
   handover: 'Each closer overlaps someone already on duty by 15 minutes; the two ticket-office shifts overlap by 20 (on a Sunday 30, from 15:00). On a Sunday each opener also stays until 15 minutes after the last closer arrives.',
   sunlen: 'Every Sunday duty is between 8 and 9 hours long.',
@@ -125,7 +124,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 
   <div class="tiers">
     <div class="tier"><b class="k">Hard limits</b>A design must meet these or it cannot be run. Three of them.</div>
-    <div class="tier"><b class="k">December 2026 rules</b>The staffing the station has asked for. Eleven of them, each met or not. Weigh them against each other.</div>
+    <div class="tier"><b class="k">December 2026 rules</b>The staffing the station has asked for. ${['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven'][RT.of]} of them, each met or not. Weigh them against each other.</div>
     <div class="tier"><b class="k">Fatigue factors</b>Patterns that tend to tire people. Advisory only: “present” means worth a look, never a breach.</div>
   </div>
 
@@ -149,7 +148,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <h2>The December 2026 rules <span class="tag soft">met or not</span></h2>
   <p class="lead">Every number is a <b>minimum</b>: too few is the problem, never too many. The staffing levels, the 24-person link and the Sunday cover have all been confirmed verbally.</p>
   <table class="t dec"><thead><tr><th>Rule</th><th>What it asks, exactly</th><th>Today’s link</th></tr></thead><tbody>${decRows}</tbody></table>
-  <p class="muted" style="font-size:9px">Today’s figures read Mon–Fri · Saturday · Sunday; a range means the weekdays differ.</p>
+  <p class="muted" style="font-size:9px">Today’s figures read Mon–Fri · Saturday · Sunday; a range means the weekdays differ. <b>Relaxed on 30 September 2026 and no longer scored:</b> ${RELAXED_RULES.map(esc).join(' · ')}.</p>
 
   <div class="foot"><span>Page 1 of 2 — Hard limits and the December 2026 rules</span><span><b>December 2026 rules</b> · Marylebone Roster — Links designer</span></div>
 </section>
