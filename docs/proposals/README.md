@@ -13,14 +13,22 @@ nothing is typed.
 be easy to understand"*). They speak *about* staff, never *to* them, and name no audience on any page. **Page 1** is the
 whole proposal:
 - an *In short* sentence built from the page's own lists (the verdict, the two biggest gains and trade-offs for staff);
+- **"For discussion, not a decision"** in the body text, with what is still to settle (which link, who starts where);
 - a **What it takes** line: the people (24, 4 more than today), the cover weeks, and the Sunday overtime every week in
   people and hours, against today and against the 10 the rules ask for;
-- four *Can it work?* tiles (the nine December rules, the hard limits, avoidable fatigue warnings with cover weeks at their
-  worst, and the match to the trains with each day's figure against today's);
+- four *Can it work?* tiles (the nine December rules, the hard limits, avoidable fatigue warnings with cover weeks at
+  their worst, and the match to the trains with each day's figure against today's);
 - a red box naming every rule or limit broken;
-- four *What it would mean for staff* tiles (annual figures marked "about");
-- **every** likely positive and concern for staff — nothing a tile does not already state is left off;
-- one line on what is still to settle.
+- under *What it would mean for staff*, **every** likely positive and concern — weekends, late finishes, 06:20 starts,
+  shift times to learn, the shortest rest and the fatigue count among them. Only the trains tile's own point is left
+  to the tile.
+
+**A second pass, same day (owner, after asking whether the new version was weaker than the first).** It was not weaker in
+content, but a comparison showed page 1 set about 6% smaller, the "for discussion, not a decision" line demoted to the
+masthead's small print, and the shortest rest and fatigue count reduced to a tile's small print. All three were my
+choices, not the reviews'. So the four staff tiles left page 1 — every figure on them is a page-2 row, and each is now a
+bullet — which gave the space back: the type is at the first edition's size again (median 12.8pt), the caveat is in the
+body, and the two points are bullets.
 
 **Page 2** sets every figure against today's link in five named groups (staffing, working pattern, shifts, each person's
 year, fatigue and the rules). **Pages 3–7** are the workings, each opening with its answer: the rota; shift times (new,

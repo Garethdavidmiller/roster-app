@@ -120,6 +120,9 @@ function front({ T, P, meta, pages, coverHead }) {
   const lateDiff = Math.round(pp.late23) - Math.round(tp.late23), openDiff = Math.round(pp.open0620) - Math.round(tp.open0620);
   add(lateDiff >= 2, bad, 30, `More late finishes — about one extra every ${weeksWords(52 / lateDiff)} weeks each`);
   add(lateDiff <= -2, good, 30, `Fewer late finishes — about one fewer every ${weeksWords(52 / -lateDiff)} weeks each`);
+  // the 06:20 open was a page-1 tile until the staff tiles left page 1 (owner, 30 Sep 2026); it is a bullet now
+  add(openDiff >= 2, bad, 42, `More 06:20 starts — about one extra every ${weeksWords(52 / openDiff)} weeks each`);
+  add(openDiff <= -2, good, 42, `Fewer 06:20 starts — about one fewer every ${weeksWords(52 / -openDiff)} weeks each`);
   // Closing shifts are judged SHIFT BY SHIFT (independent check, 29 Sep 2026): an average across a day's closers said
   // "every closing shift shorter" of a Saturday still carrying today's 9h10 closer beside two shorter ones.
   const cl = ['wk', 'sat', 'sun'].map(k => [k, pp.closerAll[k], tp.closerAll[k]]).filter(([, p, t]) => p.length && t.length);
@@ -191,14 +194,14 @@ function front({ T, P, meta, pages, coverHead }) {
   const sorted = l => l.slice().sort((a, b) => a[0] - b[0]).map(([, t]) => t);
   const goodAll = sorted(good), badAll = sorted(bad);
   const nWord = k => ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven'][k] ?? String(k);
-  // A point a tile on this page already states is left out of the boxes: weekends, late finishes, the 06:20 starts and
-  // new shift times (the "for staff" tiles), and the shortest rest, the fatigue count and the trains (the "Can it
-  // work?" tiles). EVERYTHING ELSE IS SHOWN. v2 capped each box at three or four and hid the rest behind "the full
-  // comparison is on page 2" — on a page that calls itself the whole proposal, that silently dropped up to four
-  // concerns, fatigue findings among them (owner, 30 Sep 2026: "no important insight must be lost"). The same fault
-  // an independent check caught on 29 Sep with a six-item cap; a cap is kept only as a guard, and says what it hid.
-  const onTiles = t => /weekend off|weekends off|late finishes|already worked today|to learn|^Shortest rest between shifts|^No avoidable fatigue warnings|^(Fewer|More) fatigue warnings — |follow the trains less closely/i.test(t);
-  const CAP = 8, boxOf = all => { const l = all.filter(t => !onTiles(t)); return { items: l.length > CAP ? [...l.slice(0, CAP - 1), `…and ${l.length - CAP + 1} more — on page 2`] : l, more: false }; };
+  // A point a tile on this page already states is left out of the boxes — since 30 Sep 2026 only the trains tile's
+  // (owner: "make those fixes"): the staff tiles left page 1, so weekends, late finishes, 06:20 starts and shift times
+  // to learn are bullets again, and the shortest rest and the fatigue count are bullets as well as tile figures,
+  // because a manager reads the lists as the case for and against. EVERYTHING ELSE IS SHOWN: v2 once capped each box
+  // at three or four behind "the full comparison is on page 2", on a page that calls itself the whole proposal; the
+  // cap left is a guard, and says what it hid.
+  const onTiles = t => /follow the trains less closely/i.test(t);
+  const CAP = 14, boxOf = all => { const l = all.filter(t => !onTiles(t)); return { items: l.length > CAP ? [...l.slice(0, CAP - 1), `…and ${l.length - CAP + 1} more — on page 2`] : l, more: false }; };
   const goodBox = boxOf(goodAll), badBox = boxOf(badAll);
 
   // THE BOTTOM LINE — one sentence built from the same lists, never typed: the verdict on the rules and limits, the
@@ -267,21 +270,20 @@ function front({ T, P, meta, pages, coverHead }) {
   const takes = `<p class="ptakes"><b>What it takes:</b> ${pp.L} people, ${pp.L - tp.L} more than today’s ${tp.L} · ${pp.cover} cover weeks for leave and sickness · ${P.daily.sun} on duty every Sunday (today ${T.daily.sun}; the rules ask for ${SUN_RULE}), all paid as overtime — ${hmS(sunMins(P))} a week (today ${hmS(sunMins(T))}).</p>`;
   // the masthead's date line also carries the caveat (it was a paragraph of its own; page 8 keeps "not typed in by hand")
   const head1 = must(coverHead.replace(/\s*<div class="strip">[\s\S]*?<\/div>/, ''), /(<div class="meta">Prepared [^·<]*)·[^<]*<\/div>/,
-    `$1· for discussion, not a decision: not yet through the roster office or a union rep · this page is the whole proposal; pages 2 to 8 are the workings</div>`, 'the masthead date line');
+    `$1· every figure is calculated from the rota, not entered by hand</div>`, 'the masthead date line');
   const page1 = `<section class="page cover plain">
   ${head1}
   <p class="pbottom"><span class="pb-k">In short</span>${bottom}</p>
+  <p class="pcaveat"><b>For discussion, not a decision.</b> This proposal has not yet been through the roster office or a union rep. Still to settle: which link is used — colleagues’ views come first — and then who starts on which line; the rota does not say who works which week. This page is the whole proposal; pages 2 to 8 are the workings.</p>
   ${takes}
   <h2 class="psec">Can it work?</h2>
   <div class="tiles head4">${work}</div>
   ${failBox && waivedBox ? failBox.replace(/<\/div>$/, `<p class="pbw">${waivedBox.replace(/^<div class="pbox pbox-info pwaived">|<\/div>$/g, '')}</p></div>`) : failBox + waivedBox}
   <h2 class="psec">What it would mean for staff</h2>
-  <div class="tiles pfeel four">${feel}</div>
   <div class="pcols">
     ${boxHtml('pbox-good', 'Likely positives for staff', goodBox, 'Nothing else notably better than today.')}
     ${boxHtml('pbox-warn', 'What colleagues may be concerned about', badBox, 'Nothing else notably worse than today.')}
   </div>
-  <div class="pbox pbox-decide pdecide1"><b>Still to settle:</b> which link is used — colleagues’ views come first — and then who starts on which line.</div>
   ${foot(1, 'On one page')}
 </section>`;
 
@@ -494,16 +496,17 @@ dl.pmethod { margin: 10px 0; } dl.pmethod dt { font-weight: 800; color: var(--pr
 /* page 1 head, compacted (30 Sep 2026): the space goes to the positives and concerns, which are now shown in full */
 .cover.plain .mast { padding: 12px 24px 11px; } .cover.plain .mast h1 { font-size: 24px; } .cover.plain .mast img { width: 40px; height: 40px; }
 .cover.plain .ident { margin-top: 9px; } .cover.plain .ident-name { font-size: 26px; }
-.cover.plain .pbottom { font-size: 11.6px; line-height: 1.45; margin-top: 9px; padding: 7px 14px; }
-.cover.plain h2.psec { margin: 7px 0 4px !important; } .cover.plain .head4 .tile b { font-size: 20px !important; } .cover.plain .pfeel .tile b { font-size: 16px; }
+.cover.plain .pbottom { font-size: 12.2px; line-height: 1.5; margin-top: 10px; padding: 8px 14px; }
+.cover.plain h2.psec { margin: 10px 0 5px !important; }
 .cover.plain .pcols { margin-top: 8px; } .cover.plain .pdecide1 { margin-top: 8px; } .cover.plain .pbox-bad { margin-top: 6px; }
 table.p4shape { margin-top: 4px; font-size: 9.4px; table-layout: fixed; width: 100%; } table.p4shape td, table.p4shape th { padding: 2.5px 6px; } table.p4shape th:nth-child(1) { width: 29%; } table.p4shape th:nth-child(2) { width: 27%; } table.p4shape th:nth-child(3) { width: 19%; } table.p4shape td:nth-child(2), table.p4shape td:nth-child(3) { white-space: nowrap; }
 h2.p4shape-h { margin-top: 10px; }
 .cover.plain .pwaived { margin-top: 6px; font-size: 9.6px; line-height: 1.4; padding: 6px 14px; } .cover.plain .pwaived b { color: var(--primary-blue); }
-.cover.plain .head4 .tile .s { font-size: 9px; line-height: 1.3; } .cover.plain .head4 .tile .l { font-size: 10.4px; line-height: 1.3; }
+.cover.plain .head4 .tile .s { font-size: 9.5px; line-height: 1.35; }
 .cover.plain .pbw { margin: 5px 0 0; padding-top: 4px; border-top: 1px dashed color-mix(in srgb, var(--danger-red, #b3261e) 30%, white); font-size: 9.4px; line-height: 1.35; color: var(--text-mid); } .cover.plain .pbw b { color: var(--primary-blue); }
-.cover.plain .ptakes { font-size: 10px; margin: 6px 0 0; line-height: 1.4; color: var(--text-dark, #1a1a2e); } .cover.plain .ptakes b { color: var(--primary-blue); }
-.cover.plain .pcols .pbox ul { font-size: 9.6px; line-height: 1.32; }
+.cover.plain .pcaveat { font-size: 10.4px; line-height: 1.45; margin: 7px 0 0; color: var(--text-dark, #1a1a2e); } .cover.plain .pcaveat b { color: var(--danger-red, #b3261e); }
+.cover.plain .ptakes { font-size: 10.4px; margin: 6px 0 0; line-height: 1.4; color: var(--text-dark, #1a1a2e); } .cover.plain .ptakes b { color: var(--primary-blue); }
+.cover.plain .pcols .pbox ul { font-size: 10.2px; line-height: 1.42; }
 .cover.plain h2.psec { font-size: 12.5px; margin: 11px 0 5px; color: var(--primary-blue); letter-spacing: .01em; }
 .cover.plain .tiles.head4, .cover.plain .tiles.pfeel.four { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .cover.plain .head4 .tile .q { min-height: 26px; } .cover.plain .head4 .tile b { font-size: 22px; }
