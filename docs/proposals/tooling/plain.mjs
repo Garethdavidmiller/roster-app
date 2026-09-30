@@ -202,7 +202,15 @@ function front({ T, P, meta, pages, coverHead }) {
   // cap left is a guard, and says what it hid.
   const onTiles = t => /follow the trains less closely/i.test(t);
   const CAP = 14, boxOf = all => { const l = all.filter(t => !onTiles(t)); return { items: l.length > CAP ? [...l.slice(0, CAP - 1), `…and ${l.length - CAP + 1} more — on page 2`] : l, more: false }; };
-  const goodBox = boxOf(goodAll), badBox = boxOf(badAll);
+  // POSITIVES ARE CAPPED AT FIVE; CONCERNS NEVER ARE (external review, 30 Sep 2026: ten positives against four concerns
+  // read as though the sheet were selling the design). A positive left off is a page-2 row, so nothing is lost; a
+  // concern is never left off. The shortest rest and the fatigue count keep their places when they apply — the owner
+  // asked for them as bullets, not tile small print — and the rest are the highest-ranked, in the page's order.
+  const GOOD_CAP = 5, pinned = t => /^Shortest rest between shifts|^No avoidable fatigue warnings|^Fewer fatigue warnings/.test(t);
+  const goodOf = all => { const l = all.filter(t => !onTiles(t)); if (l.length <= GOOD_CAP) return { items: l, more: false };
+    const pins = l.filter(pinned).slice(0, GOOD_CAP), keep = new Set([...pins, ...l.filter(t => !pinned(t)).slice(0, GOOD_CAP - pins.length)]);
+    return { items: [...l.filter(t => keep.has(t)), `…and ${l.length - keep.size} more on page 2`], more: false }; };
+  const goodBox = goodOf(goodAll), badBox = boxOf(badAll);
 
   // THE BOTTOM LINE — one sentence built from the same lists, never typed: the verdict on the rules and limits, the
   // two gains staff weigh most and the two costs they weigh most, each against today.
@@ -225,7 +233,7 @@ function front({ T, P, meta, pages, coverHead }) {
 
   // CAN IT WORK? — the manager's four questions
   const trainsV = closerDays.length === 3
-    ? (worseWeekdays.length ? ['Mostly', `closer than today — less close on ${andList(worseWeekdays)}`, 'warn'] : ['Yes', 'closer than today on every day', 'good'])
+    ? (worseWeekdays.length ? ['Mostly', `closer than today — less close on ${andList(worseWeekdays)}`, 'warn'] : ['Yes', 'closer than today on weekdays, Saturday and Sunday', 'good'])
     : closerDays.length === 0 ? ['No', 'less close than today on every day', 'warn']
     : ['Partly', `closer than today on ${andList(closerDays.map(d => d === 'weekday' ? 'weekdays' : d))} only`, 'warn'];
   const work = [
@@ -259,7 +267,7 @@ function front({ T, P, meta, pages, coverHead }) {
     feelTile(ab(Math.round(pp.open0620)), 'starts at 06:20, the open, each a year', `today about ${Math.round(tp.open0620)} · ${often(openDiff)}`),
     feelTile(newTimes ? `${newTimes} new` : 'None new', `shift ${newTimes === 1 ? 'time' : 'times'} to learn`, `${distinct} shift times in all, ${shared} worked today · ${newTimes ? 'the new ones are listed on page 4' : 'page 4'}`),
   ].join('');
-  const boxHtml = (cls, title, b, none) => `<div class="pbox ${cls}"><h3>${title}</h3>${b.items.length ? `<ul>${b.items.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : `<p class="muted">${none}</p>`}</div>`;
+  const boxHtml = (cls, title, b, none) => `<div class="pbox ${cls}"><h3>${title}</h3>${b.items.length ? `<ul>${b.items.map(x => /^…and \d+ more/.test(x) ? `<li class="pmore">${esc(x)}</li>` : `<li>${esc(x)}</li>`).join('')}</ul>` : `<p class="muted">${none}</p>`}</div>`;
   // WHAT IT TAKES — the manager's resource line, restored from the first plain edition's "What does it take?" tile
   // (v2 dropped it): the people, the cover weeks, and the Sunday overtime every week, which is paid on top of the
   // contract and is where two designs meeting the same rules can differ in cost (Full Overhaul rosters 12 a Sunday
@@ -267,7 +275,7 @@ function front({ T, P, meta, pages, coverHead }) {
   const SUN_RULE = 10;
   const sunMins = X => Object.values(X.patterns).reduce((a, r) => a + (r.sun === 'RD' || r.sun === 'OFF' || r.sun === 'SPARE' ? 0 : dutyMinutes(r.sun)), 0);
   const hmS = m => `${Math.floor(m / 60)}h&nbsp;${String(Math.round(m % 60)).padStart(2, '0')}m`;
-  const takes = `<p class="ptakes"><b>What it takes:</b> ${pp.L} people, ${pp.L - tp.L} more than today’s ${tp.L} · ${pp.cover} cover weeks for leave and sickness · ${P.daily.sun} on duty every Sunday (today ${T.daily.sun}; the rules ask for ${SUN_RULE}), all paid as overtime — ${hmS(sunMins(P))} a week (today ${hmS(sunMins(T))}).</p>`;
+  const takes = `<p class="ptakes"><b>What it takes:</b> ${pp.L} people, ${pp.L - tp.L} more than today’s ${tp.L} · ${pp.cover} cover weeks for leave and sickness · ${P.daily.sun} on duty every Sunday (today ${T.daily.sun}; the rules ask for ${SUN_RULE}) — ${hmS(sunMins(P))} of Sunday overtime across the whole link each week (today ${hmS(sunMins(T))}).</p>`;
   // the masthead's date line also carries the caveat (it was a paragraph of its own; page 8 keeps "not typed in by hand")
   const head1 = must(coverHead.replace(/\s*<div class="strip">[\s\S]*?<\/div>/, ''), /(<div class="meta">Prepared [^·<]*)·[^<]*<\/div>/,
     `$1· every figure is calculated from the rota, not entered by hand</div>`, 'the masthead date line');
@@ -505,6 +513,7 @@ h2.p4shape-h { margin-top: 10px; }
 .cover.plain .head4 .tile .s { font-size: 9.5px; line-height: 1.35; }
 .cover.plain .pbw { margin: 5px 0 0; padding-top: 4px; border-top: 1px dashed color-mix(in srgb, var(--danger-red, #b3261e) 30%, white); font-size: 9.4px; line-height: 1.35; color: var(--text-mid); } .cover.plain .pbw b { color: var(--primary-blue); }
 .cover.plain .pcaveat { font-size: 10.4px; line-height: 1.45; margin: 7px 0 0; color: var(--text-dark, #1a1a2e); } .cover.plain .pcaveat b { color: var(--danger-red, #b3261e); }
+.cover.plain .pbox li.pmore { list-style: none; margin-left: -16px; font-style: italic; color: var(--text-mid); }
 .cover.plain .ptakes { font-size: 10.4px; margin: 6px 0 0; line-height: 1.4; color: var(--text-dark, #1a1a2e); } .cover.plain .ptakes b { color: var(--primary-blue); }
 .cover.plain .pcols .pbox ul { font-size: 10.2px; line-height: 1.42; }
 .cover.plain h2.psec { font-size: 12.5px; margin: 11px 0 5px; color: var(--primary-blue); letter-spacing: .01em; }
