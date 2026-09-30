@@ -151,7 +151,7 @@ best whatever the constraints — `07:15-15:30 x4 · 09:00-18:00 x1 · 14:30-22:
 joining the floor only half an hour before 15:00. Both designs take it in **three Sunday cells** and nothing else:
 *Right Away* `FR-24-F34s · 745e98b0` (09:15–18:15 → 09:00–18:00, the lates 13:30 → 14:30) and *Familiar Nine*
 `F9-24-K31s · 598a1294` (08:30–16:30 → 09:00–18:00, the lates 14:00 → 14:30). Sunday floor fit 35.4 → **26.4** and
-42.8 → **26.4**; every rule, limit and fatigue check unchanged (11 rules, 0 findings, run 6, 6 weekends). Familiar Nine's
+42.8 → **26.4**; every rule, limit and fatigue check unchanged (all 9 soft rules and all 3 flexible ones, 0 findings, run 6, 6 weekends). Familiar Nine's
 one cost is familiarity — 8 of its 16 times are worked today, was 9 of 15 — and both presentations are updated to match.
 Right Away now ships as a grid (`tooling/right-away.json`); `final.mjs` still rebuilds the searched `FR-24-F34o` it came from.
 
@@ -163,14 +163,22 @@ is describing an earlier edition.
 rules, both presentations, all 9 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
 re-render of the sheets does not update it, so rebuild it after one.
 
-**The one-page summary:** `Proposals-Summary.pdf` — every proposal against today's link on one A4 page, rendered by
+**The one-page summary:** `Proposals-Summary.pdf` (*Proposals at a glance.pdf* in the zip) — every proposal against today's link on one A4 page, rendered by
 `tooling/summary-sheet.mjs` from `folderStats` and the same JSON rotations (the script's header comment states each column's formula).
 
 **The Familiar Nine presentations:** `presentations/` — one for colleagues (15 slides) and one for managers (10), each
 as PowerPoint and PDF (29 Sep 2026; corrected 30 Sep 2026). Built with pptxgenjs outside this repository, so their figures
 were typed in from counts of the rotas in this folder and checked against an independent recount — unlike the sheets,
 nothing recalculates them. They are copies, so a change to a sheet does not
-reach them.
+reach them. Two of their inputs are not on any sheet, so they are recorded here:
+- *The leave figures* (colleague deck: 14 days' leave buys at best 28 days off, 23.6 on average, 20 at worst; four
+  full weeks off costs 15 days; today 30 · 23.4 · 19 · 14). Walk the rotation day by day from every possible first day
+  of leave, and count the days off in a row before a 15th day of leave would be needed. A Monday-to-Saturday working
+  day costs one day of leave; a rest day and a Sunday (overtime, not contracted) cost none; a cover week costs at most
+  four, its first four Monday-to-Saturday days in the stretch. Best, average and worst are over every first day.
+  "Four full weeks" is the least leave for 28 days in a row starting on a Sunday.
+- *Saturday pay.* A rostered Saturday is paid at time and a quarter (1.25×), the Marylebone Roster pay calculator's
+  own rule (`.claude/rules/paycalc.md`); it is a pay rule, not something the rota shows.
 
 **The rules on their own:** `December-2026-Rules.pdf` — the hard limits, the nine soft December 2026 rules the sheets score, and the three flexible rules as their own tier, the
 fatigue factors and the open questions, on two pages, from the same code the sheets are judged by.
@@ -219,8 +227,9 @@ same day, after a few hours as *Floor First*): it is the dispatch call that send
 it is staffed **today exactly as in the plan** Monday to Saturday — two `06:20-14:20` and two `14:00-22:30` on
 a weekday, two `06:20-14:50` and two `14:30-22:00` on a Saturday. **Sunday is the one difference:** today it
 has two earlies (two of the `07:15-15:45`s) and **one** late — one of the three `14:30-23:25` closers, in the
-office until it shuts at 22:30 and on the floor for the last hour — where the plan has two earlies
-`07:15-15:30` and two lates `13:30-22:30`. Every sheet now makes that explicit wherever it compares with
+office until it shuts at 22:30 and on the floor for the last hour — where the plan has two identical earlies
+and two identical lates, the lates finishing 22:30 when the office shuts (the rule fixes the pairs and the 22:30 finish, not
+the times; Familiar Nine and Right Away use `07:15-15:30` and `14:30-22:30`, and `13:30-22:30` was an earlier pinned turn). Every sheet now makes that explicit wherever it compares with
 today: page 6 splits both today and the proposal into *everyone*, *of whom ticket office* and *of whom on the
 floor*; page 5's headcount table carries the office posts (4 · 4 · 3 today, 4 · 4 · 4 planned); the fit
 figures on pages 1, 2 and 3 and the alternatives table on page 9 carry a floor fit beside the overall one.
@@ -1694,7 +1703,7 @@ not backward. That is exactly what `links-fatigue.js` measures, so FF17 is settl
 | MRSF 7×8h | "an 8h shift" is **eight hours or more** | The ORR lists "more than 7 consecutive 8h shifts" (7.65) but does not define 8h; the owner's decision |
 | FF17 backward rotation | forward rotation is the good practice | ORR 7.67–7.68 — settled |
 | FF18 rotating about weekly | the ORR's cadence reading: a rotation that changes shift type about once a week | ORR 7.68 — settled, and **standing** (below) |
-| FF19 start times varying over 2h | **a rest day resets** the comparison | The owner's reading, more lenient than the ORR's wording ("consecutive duties", 7.71); **the one definition still flagged to confirm** |
+| FF19 start times varying over 2h | **a rest day resets** the comparison | The owner's reading. The ORR speaks of successive start times varying by more than two hours and of avoiding consecutive duties with large variations (7.71), but does not say whether a rest day breaks the succession; if it does not, every link has FF19. **The one definition still flagged to confirm** |
 
 **FF18 is a standing factor, recorded and not counted** (owner, 28 Sep 2026). The ORR prefers a two-day or a
 three-week rotation to one that changes about once a week (7.68). Every weekly link does that by construction —

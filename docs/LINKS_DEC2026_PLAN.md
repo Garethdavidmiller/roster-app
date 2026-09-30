@@ -788,7 +788,7 @@ and each edition has been checked by an independent recount.
 | Fifteen Turns | Fifteen Turns, and All Clear — Fifteen Turns with the fewest cells changed that meet every rule with no fatigue finding: 41, proven the minimum |
 | Weekday Lates | Weekday Lates, Evening Peak and Anchored Lines; Clean Sweep (by way of Polished Clean) and Full Overhaul (by way of Running Repair) |
 
-The sheets never compare one proposal with another; `Proposals-Summary.pdf` sets all nine beside each other.
+The sheets never compare one proposal with another; `Proposals-Summary.pdf` (*Proposals at a glance.pdf* in the zip) sets all nine beside each other.
 **The first two, as drawn on 8 Sep**, bracketed the choice as it looked then: *Same Turns* kept 15 turns people
 work today; *By the Book* met every rule then in force and none of its turns was familiar. Both are withdrawn, and
 both inherited today's Sunday window (open question 3).
@@ -871,10 +871,11 @@ lines denser.
 **4 · The business staffing requirement.** *What is the station actually required to staff?*
 
 **Confirmed verbally (owner, 29 Sep 2026)**, together with the 24-person link and the Sunday cover.
-The owner relayed the December 2026 staffing levels on 27–28 Sep 2026, and every sheet is judged
-against them as 11 rules (four at the open, three at the close, five at 22:00, 14 on a Saturday and
-10 on a Sunday, the ticket office in fixed pairs, and the rest — `currentRules` in
-`docs/proposals/tooling/report-data.mjs`). Each sheet and the rules sheet say *confirmed verbally*.
+The owner relayed the December 2026 staffing levels on 27–28 Sep 2026, and every sheet is scored
+against nine of them as soft rules (four at the open, three at the close, five at 22:00, 10 on a Sunday,
+the ticket office in fixed pairs, and the rest — `sheetRules` in
+`docs/proposals/tooling/report-data.mjs`). Fourteen on a Saturday, evenly spread cover weeks and 15:45
+weekday closers are flexible rules since 30 Sep 2026: designed to, never scored on a sheet. Each sheet and the rules sheet say *confirmed verbally*.
 
 *What turned on it:* whether every proposal was being assessed against the standard it will be
 judged on. It is.
