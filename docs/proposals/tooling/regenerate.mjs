@@ -48,8 +48,9 @@ export const SUPPLIED = [
     // Just Enough (JE-24-M29 · 49717d70) was WITHDRAWN on 29 Sep 2026 (owner). Its grid stays as just-enough.json, the
     // exact solver's 29-change answer, which All Clear is the zero-fatigue end of; it no longer ships a sheet.
     // Polished Clean (28 Sep 2026) was supplied as a one-page Word table; every weekly total was checked against its cells.
-    // Polished Clean (PC-24-EXT · 12424ed2) was WITHDRAWN on 29 Sep 2026 (owner). Its grid stays as tooling/polished-clean.json
-    // because Clean Sweep is counted from it; it no longer ships a sheet.
+    // Polished Clean (PC-24-EXT · 12424ed2) was WITHDRAWN on 29 Sep 2026 (owner) and RESTORED on 30 Sep 2026 (owner),
+    // re-rendered in the managers' plain edition against the nine December rules. Clean Sweep is still counted from it.
+    { file: 'polished-clean.json',         name: 'Polished Clean', code: 'PC-24-EXT',  fp: '12424ed2', strap: 'Weekday closers from 16:25, with twelve on a Saturday' },
     // All Clear and Clean Sweep (28 Sep 2026): the exact solver's other two answers — Fifteen Turns with no fatigue factor
     // at all (41 changes, proven), and Polished Clean made to meet the rules but its waived 15:45 closer (34, proven).
     { file: 'all-clear.json',              name: 'All Clear',      code: 'AC-24-M41',  fp: '094fd369', strap: 'Fifteen Turns with the fewest changes that meet every rule with no fatigue finding' },

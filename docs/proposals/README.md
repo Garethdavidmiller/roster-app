@@ -77,9 +77,10 @@ presentation but not in the proposals."*
 Saturday's fourteen shared `currentRules`' row with Sunday's ten, which is a **soft** rule: on the sheets it stands on
 its own as "Ten on a Sunday". The facts behind the flexible rules are on every sheet as facts — the Saturday headcount,
 the cover-week lines and their spacing, every closing shift's start — just never as rules. The per-design waivers
-(`WAIVERS` in `tooling/fresh.mjs`) are empty: nothing is left to waive. Soft rules met, of nine: *All Clear*, *Clean
+(`WAIVERS` in `tooling/fresh.mjs`) hold one entry: *Polished Clean* is not held to the ticket office pairs rule (owner,
+30 Sep 2026), which its sheet and the summary report as waived, never as a failure. Soft rules met, of nine: *All Clear*, *Clean
 Sweep*, *Familiar Nine*, *Full Overhaul* and *Right Away* 9; *Fifteen Turns* 6 (and it still breaks two hard limits);
-*Weekday Lates* 5; *Evening Peak* and *Anchored Lines* 4; today's link 4. Flexible rules met, of three (not shown on any sheet): *All Clear*, *Familiar Nine* and *Right Away* 3; *Clean Sweep* 2 (not the 15:45 closer); *Fifteen Turns* 1 (the cover-week spacing) and *Full Overhaul* 1 (Saturday's fourteen); *Weekday Lates*, *Evening Peak* and *Anchored Lines* 0 — "designed to" is what the tooling checks by default, not a claim that every proposal was built to all three. The Familiar Nine decks say 9 of 9, and — being
+*Weekday Lates* 5; *Evening Peak* and *Anchored Lines* 4; *Polished Clean* 3, and the ticket office pairs waived; today's link 4. Flexible rules met, of three (not shown on any sheet): *All Clear*, *Familiar Nine* and *Right Away* 3; *Clean Sweep* 2 (not the 15:45 closer); *Fifteen Turns* 1 (the cover-week spacing) and *Full Overhaul* 1 (Saturday's fourteen); *Weekday Lates*, *Evening Peak*, *Anchored Lines* and *Polished Clean* 0 — "designed to" is what the tooling checks by default, not a claim that every proposal was built to all three. The Familiar Nine decks say 9 of 9, and — being
 a presentation — that it meets all three flexible rules too.
 
 **The By the Book family was withdrawn (29 Sep 2026, owner).** *By the Book* (`BB-24-D7 · 0f14abce`), *Eight Forty*
@@ -122,6 +123,12 @@ kept unchanged in `test-fixtures/links-designs/`, because the Links compare test
 Then *Running Repair* (`RR-24-M34 · 621165eb`, the family's 34-change member with four tiring patterns; owner, 30 Sep 2026):
 **9 sheets**. *Full Overhaul*, the same duty mix with no tiring pattern, stays and did not change; the family section below
 still describes both, and its commands rebuild Running Repair exactly.
+Then *Polished Clean* (`PC-24-EXT · 12424ed2`) was **restored** (owner, 30 Sep 2026), from the grid kept in
+`tooling/polished-clean.json`, and rendered in the plain edition v2 like every other sheet: **10 sheets**. The owner set
+the ticket office pairs rule aside for it alone (`WAIVERS` in `tooling/fresh.mjs`); it meets 3 of the other eight soft
+rules. Its page 5 sets the *Good to know* notes a touch tighter (`p5notes--dense` in `tooling/plain.mjs`), because it
+carries both long notes — the partly-rostered office and Sunday's last trains — and the list otherwise ran into the footer.
+No other sheet changed.
 The Links compare test that used Short Closer as its
 real-design fixture now uses *Weekday Lates*, which has the same shape (tiring patterns present in both at different figures).
 
@@ -160,7 +167,7 @@ project's history, kept as the record: where one describes a ten-page sheet, 23 
 is describing an earlier edition.
 
 **Everything in one download:** `December-2026-Link-Proposals.zip` (30 Sep 2026) — the one-page summary, the
-rules, both presentations, all 9 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
+rules, both presentations, all 10 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
 re-render of the sheets does not update it, so rebuild it after one.
 
 **The one-page summary:** `Proposals-Summary.pdf` (*Proposals at a glance.pdf* in the zip) — every proposal against today's link on one A4 page, rendered by
@@ -197,6 +204,7 @@ and to the floor on 28 Sep.
 | **All Clear** | `AC-24-M41 · 094fd369` | ***Fifteen Turns* with the fewest cells changed that meet every rule with no fatigue finding at all (28 Sep 2026)** — **41**, proven the minimum; the other end of *Just Enough*'s trade, twelve more changes for three fewer findings. Cover weeks untouched; its price is Sunday's fit | **0** | 9 | 2 in 24 |
 | **Clean Sweep** | `CS-24-M34 · 92366924` | ***Polished Clean* with the fewest cells changed that meet the rules, its 16:25 weekday closers kept by the owner's allowance (28 Sep 2026)** — **34**, proven the minimum, 22 of them from spreading the cover weeks evenly (1, 7, 13, 19); among those, the fewest fatigue findings (three, proven — none new). All 9 soft rules; of the three flexible rules it meets two — its weekday closers start at 16:25, not 15:45 | 3 | 9 | 2 in 24 |
 | **Full Overhaul** | `FO-24-M49 · bb9b6c24` | ***Running Repair*'s duty mix with no tiring pattern at all (29 Sep 2026)** — the same fit, 27.0 · 12.3 · 26.4, in the fewest changes that allow no finding, **49**, proven for the mix. All 9 soft rules; of the three flexible rules only 14 on a Saturday — its closers start at 16:25 and its cover weeks are not evenly spread | **0** | 8 | 3 in 24 |
+| **Polished Clean** | `PC-24-EXT · 12424ed2` | **Supplied as a one-page Word table (28 Sep 2026), restored 30 Sep 2026** — weekday closers from 16:25, twelve on a Saturday, cover weeks at lines 1, 7, 12 and 17; 3 of the 9 soft rules, the ticket office pairs rule waived for it by the owner | 4 | 9 | 2 in 24 |
 | **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5, or **4 as rostered** | 9 | 6 in 24 |
 | **Fifteen Turns** | `FT-24-EXT · 9a028392` | **Supplied as a grid**, not searched — fifteen turns and cover weeks evenly spread, but **it does not clear two gates** | 7 | 9 | 2 in 24 |
 | **Evening Peak** | `WL2-24-R21 · 33f70893` | Weekday Lates with eight of its nine `08:30–17:00` turns re-timed into the evening to cover the 17:00 peak, then re-searched | **1** | 6 | 6 in 24 |
@@ -1808,7 +1816,7 @@ answered or which sheet came before it. **No figure changed**; the words around 
 - **One rule set: eleven rows to design to — nine soft rules scored on the sheets and three flexible rules (Saturday and Sunday share one row, so 9 + 3 makes eleven rows), since 30 Sep 2026** (`currentRules` and `sheetRules`, `tooling/report-data.mjs`), read from each design's cells: at
   least four at the open, three at the close and five at 22:00 on every day; 10 on a Sunday; the ticket office
   as two early and two late identical turns every day; at least two on the floor at every moment; 15-minute
-  handovers (20 in the office); Sunday duties 8h–9h; no more shift times than today. Five of the nine sheets meet
+  handovers (20 in the office); Sunday duties 8h–9h; no more shift times than today. Five of the ten sheets meet
   all nine; today's link meets 4. (The design set also holds 14 on a Saturday, four evenly spread cover
   weeks and a 15:45 start for every weekday closer; the flexible rules — designed to, never on a proposal sheet; see the note near the top.)
 - **The 22:00 rule, confirmed by the owner (28 Sep 2026):** somebody finishing **at** 22:00 does **not** count

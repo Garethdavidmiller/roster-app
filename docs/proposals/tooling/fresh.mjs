@@ -27,20 +27,21 @@ export const STRAPS = {
   'WL2-24-R21': ['Weekday closers from 16:25, with extra cover under the 17:00 peak', 'hand+search'],
   'WL4-24-F7':  ['Weekday closers from 16:25, built around four weeks (lines 14–17) that stay together in a fixed order', 'hand+search'],
   'AC-24-M41':  ['Sixteen shift times, meeting every December rule and every hard limit', 'exact'],
+  'PC-24-EXT':  ['Weekday closers from 16:25, with twelve on a Saturday', 'hand'],
   'CS-24-M34':  ['Weekday closers from 16:25, meeting every December rule', 'exact-waived'],
   'FO-24-M49':  ['Weekday closers from 16:25, retimed so the floor follows the trains closely', 'exact-waived3'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
 export const FAMILY = {
-  FR: 'Right Away', F9: 'Right Away', FT: 'Fifteen Turns', AC: 'Fifteen Turns', FO: 'Running Repair', CS: 'Weekday Lates',
+  FR: 'Right Away', F9: 'Right Away', FT: 'Fifteen Turns', AC: 'Fifteen Turns', FO: 'Running Repair', PC: 'Weekday Lates', CS: 'Weekday Lates',
   WL: 'Weekday Lates', WL2: 'Weekday Lates', WL4: 'Weekday Lates' };
 export const FIRST = {
   // 17 Sep, not 18: each of these six was committed, with the same fingerprint, on 17 Sep (accuracy check, 28 Sep 2026)
   'WL-24-EXT': '17 Sep 2026', 'WL2-24-R21': '17 Sep 2026', 'FT-24-EXT': '17 Sep 2026',
   'WL4-24-F7': '22 Sep 2026',
   'FR-24-F34s': '28 Sep 2026', 'F9-24-K31s': '28 Sep 2026',
-  'AC-24-M41': '28 Sep 2026', 'CS-24-M34': '28 Sep 2026', 'FO-24-M49': '29 Sep 2026' };
+  'AC-24-M41': '28 Sep 2026', 'PC-24-EXT': '28 Sep 2026', 'CS-24-M34': '28 Sep 2026', 'FO-24-M49': '29 Sep 2026' };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
  *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a
@@ -52,11 +53,16 @@ export const WAIVERS = {
   // rules for every design (owner, 30 Sep 2026: "they should stay in the background as flexible rules"). The proposal
   // sheets read sheetRules (report-data.mjs), which leaves them out, so there is nothing to waive; the searches and
   // solvers still read currentRules, which keeps them. The mechanism is kept for a future waiver.
+  // 30 Sep 2026 (owner): Polished Clean, restored the same day, is not held to the ticket office pairs rule — its office
+  // pairs fall only on Thursday and Friday, and the owner chose to set that rule aside for this design alone.
+  'PC-24-EXT': { date: '30 September 2026', keys: ['office'] },
 };
 const WAIVE = {
   closer: { short: '15:45 closer', allows: v => /^closers start at /.test(v) && v.replace(/^closers start at /, '').split(/, | and /).every(t => t === '15:45' || t === '16:25') },
   heads: { short: 'Saturday fourteen', allows: v => { const [sa, su] = String(v).split(' · ').map(Number); return sa >= 12 && su >= 10; } },
   // four cover weeks, anywhere, so long as no two are next to each other (line 24 runs into line 1)
+  // set aside entirely for the one design that names it (owner, 30 Sep 2026): any value is allowed
+  office: { short: 'ticket office pairs', allows: () => true },
   cover: { short: 'even cover-week', allows: v => { const L = String(v).replace(/^lines /, '').split(/, | and /).map(Number).sort((a, b) => a - b);
     return L.length === 4 && L.every((l, i) => (i < 3 ? L[i + 1] - l : L[0] + 24 - l) > 1); } },
 };

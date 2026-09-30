@@ -480,7 +480,7 @@ table.p5t.cov-heat--dense { border-spacing: 2px 1.5px; }
 table.p5t.cov-heat--dense .cov-heat-cell { height: 13px !important; font-size: 8px !important; }
 table.p5t.cov-heat--dense tr:has(> .office-day) .cov-heat-cell, table.p5t.cov-heat--dense tr:has(> .floor-day) .cov-heat-cell { height: 10.5px !important; font-size: 7.4px !important; }
 table.p5t.cov-heat--dense .cov-heat-day { font-size: 8.4px !important; } table.p5t.cov-heat--dense .office-day, table.p5t.cov-heat--dense .floor-day { font-size: 7.8px !important; }
-.p5 ul.p5notes { column-count: 2; column-gap: 20px; margin-left: 14px; font-size: 8.7px; line-height: 1.34; } .p5 ul.p5notes li { break-inside: avoid; margin: 0 0 3px; }
+.p5 ul.p5notes { column-count: 2; column-gap: 20px; margin-left: 14px; font-size: 8.7px; line-height: 1.34; } .p5 ul.p5notes li { break-inside: avoid; margin: 0 0 3px; } .p5 ul.p5notes.p5notes--dense { line-height: 1.24; } .p5 ul.p5notes.p5notes--dense li { margin: 0 0 2px; }
 .p5 h2.p5gtk { margin: 6px 0 2px; font-size: 11px; } .p5 .p5legend { font-size: 8.6px; margin: 5px 0 1px; gap: 2px 18px; } .p5 h2 { margin: 7px 0 2px; }
 .p5 .callout { margin-top: 6px; padding-top: 6px; padding-bottom: 6px; font-size: 9.2px; }
 /* THE WHOLE SHEET IN PAGE 5'S LANGUAGE (owner, 29 Sep 2026: "the other pages … still lots of rough edges"). One card:
@@ -658,7 +658,10 @@ function hourPage(s) {
     `<b>Cover weeks.</b> ${m[1].replace(/^Cover weeks /, 'They ')}`,
     ...(m[3].trim() ? [`<b>Sunday’s last trains.</b> ${m[3].trim()}`] : []),
   ];
-  s = s.replace(office[0], `<h2 class="p5gtk">Good to know</h2><ul class="p5notes">${items.map(x => `<li>${x}</li>`).join('')}</ul>`).replace(rest[0], '');
+  // a design that rosters only some office pairs AND has the Sunday last-trains note carries both long notes: set the list a
+  // touch tighter so it clears the footer (Polished Clean, 30 Sep 2026), leaving every other sheet as it was
+  const denseNotes = tail && m[3].trim() ? ' p5notes--dense' : '';
+  s = s.replace(office[0], `<h2 class="p5gtk">Good to know</h2><ul class="p5notes${denseNotes}">${items.map(x => `<li>${x}</li>`).join('')}</ul>`).replace(rest[0], '');
   // the callout's first point is now the "only the floor is matched" note; it keeps the one thing that note does not say
   s = s.replace(/<b>Reading it\.<\/b> The <b>floor<\/b> rows are the fair comparison\. The ticket office is staffed to its opening hours, not to the trains, so counting it in can make a day look better or worse than the floor really is\. The fit measures <b>shape, not numbers<\/b>/,
     '<b>Reading the match.</b> It measures <b>shape, not numbers</b>');
