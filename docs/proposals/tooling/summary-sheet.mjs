@@ -22,7 +22,7 @@ function extra(p){ const L=Object.keys(p).length; let cover=0,dx=0,mins=0,minsAl
   const dpw=(dx+4*cover)/L; return { L, cover, dpw, dpy: dpw*365/7, avg: mins/dx, avgAll: minsAll/nAll, late: late*52/L, sat: sat*52/L }; }
 const T=today();
 
-const hm = m => `${Math.floor(m/60)}h${String(Math.round(m%60)).padStart(2,'0')}`;
+const hm = m => `${Math.floor(m/60)}h ${String(Math.round(m%60)).padStart(2,'0')}m`;  // the sheets' own format, "13h 35m"
 const TA = assess(T.patterns, 20);
 const rows = folderStats().map(f => { const j=JSON.parse(fs.readFileSync(new URL(f.file, DIR),'utf8')); const p=j.patterns??j; const x=extra(p);
   return { name:f.name, code:f.code, met:f.rules.met, of:f.rules.of, present:f.present, run:f.run, wkd:`${f.weekends} in ${x.L}`, rest:f.rest, times:`${f.distinct} (${f.newTimes} new)`, ...x }; });
@@ -34,15 +34,15 @@ const tr = (r, cls='') => `<tr class="${cls}"><td class="n"><b>${r.name}</b><spa
 const html = `<!doctype html><html><head><meta charset="utf-8"><title>December 2026 link proposals — summary</title><style>
 @page{size:A4 landscape;margin:8mm 10mm}
 body{font-family:Inter,Arial,sans-serif;color:#1B2533;margin:0;font-size:9pt}
-h1{color:#001E3C;font-size:17pt;margin:0 0 2px} .lead{color:#5B6778;margin:0 0 8px;font-size:9pt;max-width:none}
+h1{color:#001E3C;font-size:20pt;margin:0 0 4px} .lead{color:#5B6778;margin:0 0 12px;font-size:10.5pt;line-height:1.4;max-width:none}
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
-th{background:#001E3C;color:#fff;font-weight:600;font-size:7.6pt;padding:4px 4px;text-align:center;vertical-align:bottom}
+th{background:#001E3C;color:#fff;font-weight:600;font-size:9pt;padding:6px 5px;text-align:center;vertical-align:bottom}
 th:first-child{text-align:left}
-td{white-space:nowrap;border-bottom:1px solid #DDE3EA;padding:1.6px 4px;text-align:center;font-size:7.9pt}
-td.n{text-align:left} td.n span{color:#5B6778;font-size:7pt;margin-left:6px}
+td{white-space:nowrap;border-bottom:1px solid #DDE3EA;padding:6px 5px;text-align:center;font-size:10pt}
+td.n{text-align:left} td.n span{color:#5B6778;font-size:8.5pt;margin-left:6px}
 tr.today td{background:#FFF4C2;border-bottom:2px solid #F5C800}
 td.good{color:#1E7B4B;font-weight:700}
-.foot{margin-top:6px;color:#5B6778;font-size:7.4pt;line-height:1.35}
+.foot{margin-top:10px;color:#5B6778;font-size:9pt;line-height:1.45}
 </style></head><body>
 <h1>December 2026 link proposals — at a glance</h1>
 <p class="lead">All ${rows.length} proposals against today’s link, sorted by December rules met, then avoidable fatigue warnings. Every figure is worked out from the rota by the Marylebone Roster app. Staffing levels, a 24-person link and Sunday cover confirmed verbally (29 Sep 2026).</p>
