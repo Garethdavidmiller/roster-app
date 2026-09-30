@@ -24,44 +24,51 @@ const fingerprint = p => createHash('sha256')
     .digest('hex').slice(0, 8);
 
 /** The supplied designs: a grid, a name, a strap line and a code. */
+// Weeks 17-18 Swapped (WS-24-EXT · 0bebb675), Targeted Fatigue Redo (TF-24-EXT · 8eef9a13) and Three Mondays
+// (TM-24-EXT · fe90c0b8) were WITHDRAWN on 29 Sep 2026 (owner: "we have better options"); git history holds their grids.
+// Frozen Block (WL3-24-F7 · a6234195) and Tenth Sunday (TN-24-R7 · 84b60df9) followed the same day (owner).
+// Short Closer (CF-24-EXT · 6d21169b) and Light Retime (CFT-24-M3 · ae1a15bd), built from it, too.
 export const SUPPLIED = [
     { file: 'weekday-lates.json',      name: 'Weekday Lates',         code: 'WL-24-EXT',  fp: 'a52ec588', strap: 'Weekday lates at 16:25, Saturdays untouched' },
     { file: 'weekday-lates-2.json',    name: 'Evening Peak',       code: 'WL2-24-R21', fp: '33f70893', strap: 'The 08:30 turns moved under the 17:00 peak' },
-    { file: 'weekday-lates-3.json',    name: 'Frozen Block',       code: 'WL3-24-F7',  fp: 'a6234195', strap: 'Weeks 13-17 protected, fatigue at its floor' },
     { file: 'weekday-lates-4.json',    name: 'Anchored Lines',       code: 'WL4-24-F7',  fp: 'f0d403d6', strap: 'Weeks 14-17 kept in order, on their own line numbers' },
     { file: 'fifteen-turns.json',      name: 'Fifteen Turns',         code: 'FT-24-EXT',  fp: '9a028392', strap: 'Fifteen turns, cover weeks evenly spread' },
-    { file: 'fifteen-turns-repaired.json', name: 'Gates Mended', code: 'FT-24-R21', fp: 'b76bf9e1', strap: 'The supplied design, repaired and re-searched' },
-    { file: 'weeks1718.json',          name: 'Weeks 17-18 Swapped',   code: 'WS-24-EXT',  fp: '0bebb675', strap: 'Cover week at 18, midday turn at 12:00-20:30' },
-    { file: 'targeted-fatigue.json',   name: 'Targeted Fatigue Redo', code: 'TF-24-EXT',  fp: '8eef9a13', strap: 'Weeks 17-18 Swapped re-ordered by hand — same duties, same days, same coverage' },
-    { file: 'three-mondays.json',     name: 'Three Mondays',         code: 'TM-24-EXT',  fp: 'fe90c0b8', strap: 'The eight-day run across weeks 14-15 broken by rotating three Monday duties' },
-    { file: 'cover-at-seventeen.json', name: 'Cover at Seventeen',    code: 'C17-24-EXT', fp: 'edc1b731', strap: 'Lines 17 and 18 swapped back - the cover week returns to 17, and FF11 clears' },
-    { file: 'saturday-four.json',     name: 'Saturday Four',        code: 'S4-24-EXT',  fp: '481ba9ed', strap: 'Saturday rebuilt - four turns, three start times, weighted to the late for Wembley' },
-    // Short Closer, Light Retime and Tenth Sunday were built in a parallel session (#1513) and registered here on the merge.
-    { file: 'cea-clean-final2.json',       name: 'Short Closer',       code: 'CF-24-EXT',  fp: '6d21169b', strap: 'The Weekday Lates line revised - the long Saturday closer shortened' },
-    { file: 'cea-clean-final2-tuned.json', name: 'Light Retime', code: 'CFT-24-M3',  fp: 'ae1a15bd', strap: 'Short Closer with three cells retimed - the Sunday bulge broken and the Saturday morning filled' },
-    { file: 'cea-clean-final-ten.json',    name: 'Tenth Sunday',   code: 'TN-24-R7',   fp: '84b60df9', strap: 'A tenth Sunday shift and a reordered wheel - fewer factors, a shorter run' },
+    // Gates Mended (FT-24-R21 · b76bf9e1) was WITHDRAWN on 29 Sep 2026 (owner). Its grid stays as fifteen-turns-repaired.json:
+    // its shift times are part of the exact solver's allowed pool (exact/common.py), so All Clear stays reproducible.
+    // Cover at Seventeen (C17-24-EXT · edc1b731) and Saturday Four (S4-24-EXT · 481ba9ed) were WITHDRAWN on 29 Sep 2026
+    // (owner), with their source grids; git history holds both (sat-assign.mjs built Saturday Four from the first).
     // Familiar Nine (28 Sep 2026) is built rather than supplied — table K proven by final-table.mjs, Right Away's week
     // structure carried onto it and polished — but its grid is the finished product of three tools, so it ships as a grid.
-    { file: 'familiar-nine.json',          name: 'Familiar Nine',  code: 'F9-24-K31',  fp: 'c450951c', strap: 'No duty over nine hours, and most shift times ones people already work' },
+    // 29 Sep 2026: its Sunday re-searched under the owner's December Sunday office plan — three Sunday cells (the
+    // 08:30–16:30 now 09:00–18:00, the office lates 14:30–22:30 not 14:00), was F9-24-K31 · c450951c.
+    { file: 'right-away.json',             name: 'Right Away',     code: 'FR-24-F34s', fp: '745e98b0', strap: 'The ticket office rostered in fixed pairs, every other duty timed so the floor follows the trains' },
+    { file: 'familiar-nine.json',          name: 'Familiar Nine',  code: 'F9-24-K31s', fp: '598a1294', strap: 'No duty over nine hours, and most shift times ones people already work' },
     // Just Enough (28 Sep 2026) is Fifteen Turns with the fewest cells changed that meet every rule — 29, proven by the exact
     // solver in tooling/exact/ — and, among those, the fewest fatigue factors (three, also proven).
-    { file: 'just-enough.json',            name: 'Just Enough',    code: 'JE-24-M29',  fp: '49717d70', strap: 'Fifteen Turns with the fewest changes that meet every rule' },
+    // Just Enough (JE-24-M29 · 49717d70) was WITHDRAWN on 29 Sep 2026 (owner). Its grid stays as just-enough.json, the
+    // exact solver's 29-change answer, which All Clear is the zero-fatigue end of; it no longer ships a sheet.
     // Polished Clean (28 Sep 2026) was supplied as a one-page Word table; every weekly total was checked against its cells.
-    { file: 'polished-clean.json',         name: 'Polished Clean', code: 'PC-24-EXT',  fp: '12424ed2', strap: 'Weekday closers from 16:25, on a one-page table' },
+    // Polished Clean (PC-24-EXT · 12424ed2) was WITHDRAWN on 29 Sep 2026 (owner). Its grid stays as tooling/polished-clean.json
+    // because Clean Sweep is counted from it; it no longer ships a sheet.
     // All Clear and Clean Sweep (28 Sep 2026): the exact solver's other two answers — Fifteen Turns with no fatigue factor
     // at all (41 changes, proven), and Polished Clean made to meet the rules but its waived 15:45 closer (34, proven).
     { file: 'all-clear.json',              name: 'All Clear',      code: 'AC-24-M41',  fp: '094fd369', strap: 'Fifteen Turns with the fewest changes that meet every rule with no fatigue finding' },
     { file: 'clean-sweep.json',            name: 'Clean Sweep',    code: 'CS-24-M34',  fp: '92366924', strap: 'Polished Clean with the fewest changes that meet every rule but the 15:45 closer' },
+    // The Running Repair family (29 Sep 2026, owner): Weekday Lates with three rules waived (16:25 closers, twelve on a
+    // Saturday, cover weeks anywhere not side by side), each day's duty mix re-searched so the fits compete with the best
+    // sheets (exact/mixsa.mjs → exact/rr-mix.json), then the rota built in the fewest changes for that mix (exact/tiebreak.py
+    // with MIX= and WIDE=1): up to four tiring patterns (Running Repair) and none (Full Overhaul).
+    { file: 'running-repair.json',         name: 'Running Repair', code: 'RR-24-M34',  fp: '621165eb', strap: 'Weekday Lates retimed to follow the trains, no more than four tiring patterns' },
+    { file: 'full-overhaul.json',          name: 'Full Overhaul',  code: 'FO-24-M49',  fp: 'bb9b6c24', strap: 'Weekday Lates retimed to follow the trains, with no tiring pattern' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
 // The By the Book family (BB-24-D7 · 0f14abce, EF-24-E21 · 0cf19f56, B2-24-G21 · 02f3c005) was WITHDRAWN on 29 Sep 2026
 // (owner). Its candidates stay in results/ and final.mjs keeps its code; to rebuild one, restore its entry here and its
 // strap, family and date in fresh.mjs from git history. Unlisted, a full run cannot ship them back into the folder.
+// The Same Turns family (ST-24-B7 · d15e1b74, QT-24-Q34 · 70cf9874, Q2-24-W21 · 7ea671d5) was withdrawn the same way
+// the same day: its entries were { ST: results/best-{A,B}-*.json }, { QT: results/best-{Q,R}-*.json }, { Q2: results/best-W-*.json }.
 export const SEARCHED = [
-    { proposal: 'ST', fp: 'd15e1b74', globs: ['results/best-A-*.json', 'results/best-B-*.json'] },
-    { proposal: 'QT', fp: '70cf9874', globs: ['results/best-Q-*.json', 'results/best-R-*.json'] },
-    { proposal: 'Q2', fp: '7ea671d5', globs: ['results/best-W-*.json'] },
     // PT ran in both modes; fatigue-first (RP) cleared every factor where like-today (P) kept one or two, so RP
     // is the family and the best like-today result is shown beside it as a labelled row.
     { proposal: 'PT', fp: 'dae6292e', globs: ['results/best-RP-*.json'], env: { OTHER_MODE: 'results/best-P-13.json' } },
@@ -71,7 +78,9 @@ export const SEARCHED = [
     // FR ran fatigue-first only, on the owner's final rules of 28 Sep 2026 (table F, final-rules-table.json, built by final-table.mjs).
     // 34o (28 Sep 2026) is seed 34's rotation with its week order improved by order-polish.mjs — the same duties on every
     // day, better or equal on every figure; it wins the pick on the search's own score, by the rule every seed is judged by.
-    { proposal: 'FR', fp: 'be01f0db', globs: ['results/best-RF-*.json'] },
+    // Right Away left this list on 29 Sep 2026: its Sunday was re-searched under the owner's December Sunday office plan
+    // (three Sunday cells — the 09:15–18:15 now 09:00–18:00, the office lates 14:30–22:30 not 13:30), so it ships as a
+    // grid (SUPPLIED, right-away.json); the searched FR-24-F34o · be01f0db it came from is still rebuilt by final.mjs.
 ];
 
 const expand = g => { const [dir, pat] = [g.slice(0, g.lastIndexOf('/')), g.slice(g.lastIndexOf('/') + 1)];

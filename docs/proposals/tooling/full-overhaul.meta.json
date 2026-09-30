@@ -1,0 +1,25 @@
+{
+ "date": "29 September 2026",
+ "parent": {
+  "file": "weekday-lates.json",
+  "name": "Weekday Lates",
+  "code": "WL-24-EXT"
+ },
+ "sub1": "Weekday Lates with each day's mix of shift times searched again so the floor follows the trains as closely as the best sheets, then the fewest cells changed that give that mix with no tiring pattern at all — 49, proven for it — with three rules waived by the owner",
+ "coverNote": "lines 1, 7, 12 and 17 — gaps of 6, 5, 5, 8, exactly as Weekday Lates has them: the owner allowed the cover weeks anywhere not side by side, and none moved",
+ "eyebrow3": "Weekday Lates, retimed to follow the trains",
+ "h3": "What had to change, and why",
+ "sub3": "Every changed cell is outlined on the grid; each one is there because the day's new mix of times, or a rule, needed it",
+ "identity": {
+  "table": "— (Weekday Lates' duties, each day's mix re-searched, 49 cells changed)",
+  "seed": "— (duty-mix search, then an exact solver with a fixed tie-break order)",
+  "lineage": "DERIVED: “Weekday Lates” (WL-24-EXT · a52ec588) with the same duty mix as Running Repair (RR-24-M34) — floor fit 27.0 · 12.3 · 26.4 — built by an exact solver in the fewest cell changes that give that mix with no tiring pattern present: 49, proven for the mix, under the December 2026 rules with three waived by the owner on 29 September 2026: weekday closers may start at 16:25, twelve on a Saturday, and cover weeks anywhere not side by side."
+ },
+ "extraAlternatives": [
+  {
+   "label": "WL-24-EXT — Weekday Lates as supplied",
+   "file": "weekday-lates.json"
+  }
+ ],
+ "denseAlts": true
+}

@@ -39,10 +39,12 @@ test('a factor present in both at DIFFERENT figures is still named as present in
     // It was filled only from the identical-reading branch, so two designs that both carry FF19 —
     // at 2 and 3 successive changes — read "No factor is present in both." That is the finding a
     // comparison is likeliest to hide, stated as its opposite.
-    const CF = { patterns: sheet('Short-Closer-CF-24-EXT.json').patterns };
-    const r = compareDesigns(CF, FT);
+    // Weekday Lates: FF8b, FF15, MRSF and FF19 present in both, at different figures (Short Closer, the fixture until
+    // it was withdrawn on 29 Sep 2026, had the same shape)
+    const WL = { patterns: sheet('Weekday-Lates-WL-24-EXT.json').patterns };
+    const r = compareDesigns(WL, FT);
     const fb = assessFatigue(FT.patterns).results;
-    const both = assessFatigue(CF.patterns).results
+    const both = assessFatigue(WL.patterns).results
         .filter((x, i) => x.status === 'present' && fb[i].status === 'present');
     assert.ok(both.some((x, i) => String(x.value) !== String(fb.find(y => y.code === x.code && y.title === x.title)?.value)),
         'the fixture has a factor present in both at different figures');

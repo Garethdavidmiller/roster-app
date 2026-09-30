@@ -18,7 +18,7 @@
 //
 // `TECH=1` renders the ten-page technical sheet instead (render.mjs), unchanged.
 import { dutyMinutes, startMinutes, endMinutes } from './report-data.mjs';
-import { STRAPS } from './fresh.mjs';
+import { waivedPhrase } from './fresh.mjs';
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -80,10 +80,10 @@ function front({ T, P, meta, pages, coverHead }) {
   const name = esc(meta.identity.name), strap = esc(meta.identity.strap);
   const tp = personal(T.patterns), pp = personal(P.patterns);
   const rules = meta.designRules ?? [], missed = rules.filter(r => !r.ok);
-  // A rule the owner waived for one design (Clean Sweep keeps its 16:25 weekday closers, 28 Sep 2026) is reported
-  // as waived, never as a failure — the sheet would otherwise say "No" about the one thing that was agreed.
-  const waived = STRAPS[meta.identity.code]?.[1] === 'exact-waived' ? missed.find(r => /closer starts at 15:45/i.test(r.rule)) ?? null : null;
-  const failed = missed.filter(r => r !== waived);
+  // A rule the owner waived for one design (WAIVERS in fresh.mjs — Clean Sweep keeps its 16:25 weekday closers) is
+  // reported as waived, never as a failure — the sheet would otherwise say "No" about the one thing that was agreed.
+  const waived = missed.filter(r => r.waived);
+  const failed = missed.filter(r => !r.waived);
   const monSat = meta.monSat ?? 42000;
   const rests = P.checks.turnarounds.length, run = P.checks.longestStretch, restMin = P.rest?.minutes;
   const breaks = [rests ? `${rests} ${rests === 1 ? 'gap' : 'gaps'} of under 12 hours between shifts` : '',
@@ -184,7 +184,7 @@ function front({ T, P, meta, pages, coverHead }) {
   const decide = [
     ...breaks.map(b => `<b>It cannot be run as it stands</b> — ${b}.`),
     ...failed.map(r => `<b>Rule not met:</b> ${esc(r.rule)} — here ${esc(String(r.value))}.`),
-    ...(waived ? [`<b>Waived for this design:</b> ${esc(waived.rule)} — here ${esc(String(waived.value))}.`] : []),
+    ...waived.map(w => `<b>Waived for this design:</b> ${esc(w.rule)} — here ${esc(String(w.value))}.`),
     `<b>Which link is used.</b> This is a proposal; colleagues' views come first.`,
     `<b>Then who starts on which line.</b> The rota does not say who works which week.`,
   ];
@@ -197,7 +197,7 @@ function front({ T, P, meta, pages, coverHead }) {
   const tile = (cls, qn, big, label, small) => `<div class="tile ptile ptile-${cls}"><span class="q">${qn}</span><b>${big}</b><span class="l">${label}</span><span class="s">${small}</span></div>`;
   const tiles = [
     tile(failed.length ? 'warn' : 'good', 'Does it meet the December staffing levels?', `${meta.decMet} of ${meta.decOf}`,
-      waived ? 'rules met — one waived for this design' : failed.length ? `rules met — ${failed.length} not met` : 'rules met',
+      waived.length ? `rules met — ${waived.length === 1 ? 'one' : waived.length === 2 ? 'two' : waived.length} waived for this design` : failed.length ? `rules met — ${failed.length} not met` : 'rules met',
       `today’s link meets ${meta.decToday} · each rule on page 6`),
     tile(breaks.length ? 'bad' : 'good', 'Can it be run within the limits?', breaks.length ? 'No' : 'Yes',
       breaks.length ? 'not as it stands' : 'inside every hard limit',
@@ -214,7 +214,7 @@ function front({ T, P, meta, pages, coverHead }) {
   ].join('');
   // the rules chip is re-derived here so a waived rule reads as waived, as it does in the tile beneath it
   const rulesChip = failed.length ? `<span class="sum-chip sum-chip--warn">⚠ <strong>${failed.length}</strong> of ${meta.decOf} December staffing rules not met</span>`
-    : `<span class="sum-chip sum-chip--ok">✓ ${waived ? `<strong>${meta.decMet}</strong> of ${meta.decOf} December staffing rules met — the 15:45 closer rule is waived for this design` : `all <strong>${meta.decOf}</strong> December staffing rules met`}</span>`;
+    : `<span class="sum-chip sum-chip--ok">✓ ${waived.length ? `<strong>${meta.decMet}</strong> of ${meta.decOf} December staffing rules met — ${waivedPhrase(waived.map(w => w.key))} for this design` : `all <strong>${meta.decOf}</strong> December staffing rules met`}</span>`;
   const head1 = coverHead.replace(/<span class="sum-chip sum-chip--(?:warn|ok)">(?:(?!<\/span>)[\s\S])*?December staffing rules(?:(?!<\/span>)[\s\S])*?<\/span>/, rulesChip);
   // what it is like to work — the three things colleagues ask first, each against today
   const feelTile = (big, label, small) => `<div class="tile"><b>${big}</b><span class="l">${label}</span><span class="s">${small}</span></div>`;
@@ -274,9 +274,10 @@ function front({ T, P, meta, pages, coverHead }) {
     row('Starting at 06:20, the open — each, a year', Math.round(tp.open0620), Math.round(pp.open0620), '', Math.abs(openDiff) < 1 ? 'about the same as today' : `about one ${openDiff > 0 ? 'extra' : 'fewer'} every ${weeksWords(52 / Math.abs(openDiff))} weeks`),
     row('Saturdays worked — each, a year', Math.round(tp.sat), Math.round(pp.sat), '', 'a rostered Saturday is paid at time and a quarter; cover weeks not counted'),
     row('Sunday overtime to share — each, a year', Math.round(tp.sun), Math.round(pp.sun), '', 'Sundays are overtime, as today'),
+    row('Ticket office late shift on a Sunday — people', 1, 2, '', `the December plan: both in the office 15:00–18:00, then one of them on the floor; today one 14:30–23:25 closer keeps it until 22:30${(meta.pairDays ?? []).includes('sun') ? '' : ' — this rota does not mark them, so two are assumed from its duties'}`),
     row('Different shift times', T.feel.distinctTimes, `${distinct} (${shared} worked today)`, cmp(distinct < T.feel.distinctTimes, distinct === T.feel.distinctTimes), newTimes ? `${newTimes} new to learn, on ${newLines.length} of the ${P.feel.workingLines} working weeks — on page 4, the times with no figure under today’s link` : 'nothing new to learn'),
     row('Avoidable tiring patterns (ORR and rail-industry lists)', T.fatigue.present, P.fatigue.present, cmp(P.fatigue.present < T.fatigue.present, P.fatigue.present === T.fatigue.present), 'early starts and a weekly rotation come with every link'),
-    row('December staffing rules met', `${meta.decToday} of ${meta.decOf}`, `${meta.decMet} of ${meta.decOf}`, cmp(meta.decMet > meta.decToday, meta.decMet === meta.decToday), `staffing levels confirmed verbally, 29 Sep 2026${waived ? '; the 15:45 closer rule is waived for this design' : ''}`),
+    row('December staffing rules met', `${meta.decToday} of ${meta.decOf}`, `${meta.decMet} of ${meta.decOf}`, cmp(meta.decMet > meta.decToday, meta.decMet === meta.decToday), `staffing levels confirmed verbally, 29 Sep 2026${waived.length ? `; ${waivedPhrase(waived.map(w => w.key))} for this design` : ''}`),
   ].join('');
   const page2 = `<section class="page plain">
   <div class="mast"><div><div class="eyebrow">Against today’s link</div><h1>What changes, in numbers</h1><div class="sub">Today’s 20-week link beside ${name}. Green is better than today, amber is worse, unshaded is neither.</div></div></div>
@@ -302,7 +303,8 @@ function methodPage({ meta, pages }) {
     ['Cover weeks', 'A cover week is marked on all seven days but works four of them, placed by the roster clerk. It counts as a full contracted week of hours and as four days at work. Where a figure depends on where those four fall, the worst case is shown. Cover-week shift times are not known in advance, so the yearly counts of early and late starts, Saturdays and Sundays, and the rest gaps between shifts, cover the fixed duties only; whatever is later given in a cover week must still be rostered within the normal limits.'],
     ['Sundays', 'Sunday is not in the contract: Sunday duties are overtime, as today. So “days at work” and the 35-hour week are Monday to Saturday. A Sunday off costs no annual leave.'],
     ['Each person, a year', 'Figures given “each, a year” are averages across the whole link: every week’s duties, times 52, divided by the number of people; these counts include Sunday overtime duties. “Days at work a year” is Monday to Saturday only: the days a week times 365 ÷ 7. Somebody’s own year depends on which week they start on.'],
-    ['Following the trains', 'For each hour, the share of the day’s floor staff on duty is set against the share of the day’s train movements in the December 2026 timetable. Hour by hour, the difference between the two shares is squared — so a big mismatch counts far more than several small ones — and the squares are added up and multiplied by 10,000. 0 would be a perfect match; lower is closer. The staff share is worked out from the minutes each person spends on the floor, with the ticket office’s fixed posts taken out — finer than the whole-person counts on page 5, where a person counts in every hour they are on duty for any part of, so a handover inside an hour counts both people. It measures the shape of the day, not a staffing requirement or passenger numbers, and it compares shares, not headcounts: an extra person in a quiet hour makes the figure worse although nobody is worse off. The ticket office is left out, except its second person helping at the quiet ends.'],
+    ['Following the trains', 'For each hour, the share of the day’s floor staff on duty is set against the share of the day’s train movements in the December 2026 timetable. Hour by hour, the difference between the two shares is squared — so a big mismatch counts far more than several small ones — and the squares are added up and multiplied by 10,000. 0 would be a perfect match; lower is closer. The staff share is worked out from the minutes each person spends on the floor, with the ticket office’s fixed posts taken out — finer than the whole-person counts on page 5, where a person counts in every hour they are on duty for any part of, so a handover inside an hour counts both people. It measures the shape of the day, not a staffing requirement or passenger numbers, and it compares shares, not headcounts: an extra person in a quiet hour makes the figure worse although nobody is worse off. The ticket office is left out, except for the help described under “The ticket office”.'],
+    ['The ticket office', 'The December plan has two people on every ticket-office shift. They are not floor cover, except at the quiet ends: Monday to Saturday one of each pair helps on the floor until 08:00 and from 19:30. On a Sunday one early helps until 09:00, and the two lates are on the floor until 15:00, then both in the office, one going back to the floor from 18:00. Today one person, not two, keeps the office on a Sunday afternoon and evening.'],
     ['Rest, runs and weekends', 'The shortest gap is one gap — the tightest anywhere, Saturday into Sunday and the last week into the first included; a rota with many gaps just over 12 hours reads the same as one with none. The most days in a row counts every day with a duty, Sunday overtime included, and is the worst case, with a cover week’s four duties placed as badly as they can be. A full weekend off is a Saturday off followed by a Sunday off.'],
     ['Familiar shift times', 'How many of the shift times somebody already works today. A rough guide to how much there is to learn, not to what staff will accept.'],
     ['Fatigue', 'The Office of Rail and Road’s good-practice list of roster patterns that tend to tire people, with four rail-industry checks. It is guidance, not a pass or fail, and this is not a fatigue risk assessment. Two patterns — early starts at a 06:20 station, and a weekly rotation — come with every link, today’s included, so they are recorded on page 7 and not counted. In the ORR’s checks an early start is one from 05:00 up to 06:59; a “block” of earlies is two or more in a row; the start-time rows count how many times a start moves by more than two hours (a count, not hours); and the week-to-week move is the average change in a week’s mean start time, Sundays included and cover weeks left out.'],
@@ -349,7 +351,68 @@ table.pcmp tbody tr:nth-child(even) td.down { background-color: color-mix(in srg
 tr.gone td { text-decoration: none; color: var(--text-light); font-style: italic; }
 dl.pmethod { column-count: 2; column-gap: 22px; } dl.pmethod .pmi { break-inside: avoid; margin-bottom: 6px; } dl.pmethod dt { margin-top: 0; }
 ul.p5key { margin: 6px 0 4px 16px; padding: 0; font-size: 9.6px; line-height: 1.4; } ul.p5key li { margin: 1px 0; } h2.p5gtk { font-size: 12px; margin: 10px 0 2px; } ul.p5notes { margin: 2px 0 6px 16px; padding: 0; font-size: 9.2px; line-height: 1.4; color: var(--text-mid); } ul.p5notes li { margin: 2px 0; } ul.p5notes b { color: var(--text-dark, #1a1a2e); }
-tr:has(> th.prop-row) > * { border-top: 2px solid var(--primary-blue) !important; }
+/* PAGE 5, THE HOUR-BY-HOUR TABLES (owner, 29 Sep 2026: "needs a lot of aesthetic polish"). One grid for all three
+   tables — a fixed label column and equal hour columns, so an hour sits in the same place down the whole page — with
+   heatmap cells rather than ruled boxes, labels in sentence case, today's block on a grey bar and the proposal's on
+   gold, and a gap before the trains. Every number is unchanged; only the drawing is. */
+.p5 h2 { margin: 11px 0 3px; }
+.p5legend { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 18px; margin: 8px 0 4px; font-size: 9px; line-height: 1.35; color: var(--text-mid); }
+.p5legend b { color: var(--text-dark, #1a1a2e); }
+.p5legend .sw { display: inline-block; width: 34px; height: 9px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+.p5legend .sw-blue { background: linear-gradient(90deg, color-mix(in srgb, var(--cov-early) 14%, white), color-mix(in srgb, var(--cov-early) 92%, black)); }
+.p5legend .sw-orange { background: linear-gradient(90deg, color-mix(in srgb, var(--cov-late) 12%, white), color-mix(in srgb, var(--cov-late) 78%, black)); }
+table.p5t { table-layout: fixed; width: calc(100% + 4px); border-collapse: separate; border-spacing: 2px; margin: 0 -2px; }
+table.p5t th, table.p5t td { border: 0 !important; }
+table.p5t th.cov-heat-hour { background: none; font-size: 8px; font-weight: 700; color: var(--text-mid); padding: 0 0 1px; }
+table.p5t th.cov-heat-hour:first-child { width: 28%; }
+table.p5t th.cov-fit-h { width: 40px; text-transform: none; letter-spacing: 0; font-size: 8px; color: var(--primary-blue); }
+table.p5t .cov-heat-day { background: none; text-transform: none; letter-spacing: 0; font-size: 9px !important; font-weight: 700; color: var(--text-dark, #1a1a2e); padding: 0 6px 0 7px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid var(--border-mid) !important; }
+table.p5t .office-day, table.p5t .floor-day { font-weight: 500; color: var(--text-mid); padding-left: 15px; font-size: 8.4px !important; }
+table.p5t th.prop-row, table.p5t tr:has(> th.prop-row) ~ tr > th.cov-heat-day:not(.dem-day) { border-left-color: var(--accent-gold) !important; }
+table.p5t th.prop-row { color: var(--primary-blue); }
+table.p5t th.dem-day { border-left-color: var(--cov-late) !important; }
+table.p5t .cov-heat-cell { height: 15px !important; min-width: 0; font-size: 8.5px !important; border-radius: 2px; font-variant-numeric: tabular-nums; }
+table.p5t tr:has(> .office-day) .cov-heat-cell, table.p5t tr:has(> .floor-day) .cov-heat-cell { height: 12px !important; font-size: 7.8px !important; font-weight: 600; }
+table.p5t .cov-heat-cell.heat-b0 { background: color-mix(in srgb, var(--surface-sunken) 55%, white); }
+table.p5t tr.p5gap td { height: 3px; padding: 0; background: none; }
+table.p5t td.cov-fit { background: color-mix(in srgb, var(--primary-blue) 8%, white); border-radius: 2px; font-size: 9px; color: var(--primary-blue); }
+table.p5t td.cov-fit:empty { background: none; }
+/* a weekday table with a row per day (Cover at Seventeen has five) keeps the grid but tightens it to fit the page */
+table.p5t.cov-heat--dense { border-spacing: 2px 1.5px; }
+table.p5t.cov-heat--dense .cov-heat-cell { height: 13px !important; font-size: 8px !important; }
+table.p5t.cov-heat--dense tr:has(> .office-day) .cov-heat-cell, table.p5t.cov-heat--dense tr:has(> .floor-day) .cov-heat-cell { height: 10.5px !important; font-size: 7.4px !important; }
+table.p5t.cov-heat--dense .cov-heat-day { font-size: 8.4px !important; } table.p5t.cov-heat--dense .office-day, table.p5t.cov-heat--dense .floor-day { font-size: 7.8px !important; }
+.p5 ul.p5notes { column-count: 2; column-gap: 20px; margin-left: 14px; font-size: 8.7px; line-height: 1.34; } .p5 ul.p5notes li { break-inside: avoid; margin: 0 0 3px; }
+.p5 h2.p5gtk { margin: 6px 0 2px; font-size: 11px; } .p5 .p5legend { font-size: 8.6px; margin: 5px 0 1px; gap: 2px 18px; } .p5 h2 { margin: 7px 0 2px; }
+.p5 .callout { margin-top: 6px; padding-top: 6px; padding-bottom: 6px; font-size: 9.2px; }
+/* THE WHOLE SHEET IN PAGE 5'S LANGUAGE (owner, 29 Sep 2026: "the other pages … still lots of rough edges"). One card:
+   a quiet sunken panel with ONE accent — a straight bar, square on its own side and rounded elsewhere, never the
+   curved bracket a radius puts on a side border — and the accent's colour always means the same thing: green good,
+   amber a concern, red a hard limit broken, navy plain information. Tables stripe like page 2's, ticks and crosses
+   carry their meaning in colour, and loose notes sit in a card of their own. No figure or word changes. */
+.cover.plain .head5 .tile, .cover.plain .pfeel .tile { border: 0 !important; border-radius: 8px; background: var(--surface-sunken); box-shadow: inset 0 3px 0 var(--bar, var(--border-mid)); padding: 8px 10px 6px; }
+.cover.plain .ptile-good { --bar: var(--success-green); } .cover.plain .ptile-warn { --bar: var(--warning-amber); }
+.cover.plain .ptile-bad { --bar: var(--danger-red, #b3261e); } .cover.plain .ptile-info { --bar: var(--primary-blue); }
+.cover.plain .pfeel .tile { --bar: color-mix(in srgb, var(--primary-blue) 35%, white); }
+.cover.plain .tiles.head5 { gap: 8px; } .cover.plain .tiles.pfeel { gap: 8px; margin-top: 6px; }
+.pbox, .check-row, .callout { border-radius: 0 8px 8px 0 !important; }
+.cover.plain .pcols { gap: 12px; align-items: stretch; }
+.cover.plain .pbox { padding: 8px 14px; }
+/* tables: page 2's stripe, one header style */
+table.t.kept tbody tr:nth-child(even) td, table.t.changed tbody tr:nth-child(even) td, table.t.dutyt tbody tr:nth-child(even) td:not(.up):not(.down), table.t.rules tbody tr:nth-child(even):not(.rule-miss) td, table.ff tbody tr:nth-child(even):not(.ff-na-note) td { background-color: color-mix(in srgb, var(--surface-sunken) 60%, white); }
+table.t th { border-bottom: 0 !important; } table.t thead tr:last-child th { box-shadow: inset 0 -1px 0 var(--border-mid); }
+.stack table.t td { padding: 2.5px 6px; }
+.stack table.t.kept { table-layout: fixed; } .stack table.t.kept th:nth-child(1) { width: 40%; } .stack table.t.kept th:nth-child(2) { width: 27%; } .stack table.t.kept th:nth-child(3) { width: 33%; }
+.stack table.t td { white-space: normal !important; overflow-wrap: anywhere; } .stack table.t td.num { white-space: nowrap !important; overflow-wrap: normal; }
+.stack table.t.changed { table-layout: fixed; } .stack table.t.changed th:nth-child(1) { width: 27%; } .stack table.t.changed th:nth-child(2) { width: 15%; } .stack table.t.changed th:nth-child(3) { width: 19%; } .stack table.t.changed th:nth-child(4) { width: 39%; }
+/* the duty table's notes: a card beside the table, not text floating in the margin */
+.cols.duty > div:last-child { background: var(--surface-sunken); border-radius: 8px; padding: 9px 11px; align-self: start; }
+.cols.duty > div:last-child p { margin: 0 0 6px; } .cols.duty > div:last-child p:last-child { margin: 0; }
+/* ticks and crosses */
+.mk { display: inline-block; width: 1.05em; font-weight: 800; } .mk-ok { color: var(--success-green); } .mk-no { color: var(--danger-red, #b3261e); } .mk-wv { color: var(--text-mid); }
+.check-row .check-icon { align-self: flex-start; margin-top: 1px; }
+/* the fatigue table: a factor's name is read in one colour; the verdict columns carry the colour */
+td.ff-title { color: var(--text-dark, #1a1a2e) !important; }
 ul.p8list { margin: 8px 0 0 16px; padding: 0; font-size: 9.2px; line-height: 1.45; color: var(--text-dark, #1a1a2e); } ul.p8list li { margin: 3px 0; } tr.ff-na-note td { font-size: 9px; color: var(--text-mid); padding-top: 5px; border-bottom: 0; }
 table.pcmp { font-size: 9.8px; margin-top: 8px; } table.pcmp td { padding: 2.6px 6px; line-height: 1.3; } table.pcmp td.num, table.pcmp th.num { text-align: center; } table.pcmp { table-layout: fixed; width: 100%; } table.pcmp th:nth-child(1) { width: 29%; } table.pcmp th:nth-child(2) { width: 16%; } table.pcmp th:nth-child(3) { width: 19%; } table.pcmp th:nth-child(4) { width: 36%; }
 table.pcontents td { font-size: 10px; padding: 1.8px 6px; } table.pcontents td.num { width: 24px; font-weight: 800; color: var(--primary-blue); }
@@ -366,11 +429,13 @@ function hourPage(s) {
   const must = (re, to, what) => { if (!re.test(s)) throw new Error(`hourPage: ${what} not found`); re.lastIndex = 0; s = s.replace(re, to); };
   must(/<div class="sub">Cover today and proposed against the measured December 2026 timetable \(arrivals and departures, weighted by train length\)\. /,
     '<div class="sub">Today’s link and the proposal, hour by hour, against the December 2026 timetable. ', 'the subtitle');
-  must(/<p class="muted" style="margin:6px 0 2px">How to read it:[\s\S]*?<\/p>/, `<ul class="p5key">
-    <li><b>Blue squares</b> — how many people are on duty in that hour (darker blue = more). Anyone on duty for any part of the hour counts, so a handover counts both people.</li>
-    <li><b>Orange row</b> — the train service: carriages arriving and leaving in that hour (darker orange = more service). A guide from the timetable, not passenger numbers.</li>
-    <li><b>Read down each column</b> — the most people should be under the darkest orange.</li>
-    <li><b>Match</b>, the right-hand column — how closely the floor follows the trains over the whole day. 0 is a perfect match; lower is better.</li></ul>`, 'the how-to-read paragraph');
+  must(/<p class="muted" style="margin:6px 0 2px">How to read it:[\s\S]*?<\/p>/, `<div class="p5legend">
+    <span><i class="sw sw-blue"></i><b>People on duty</b> in that hour — darker blue is more. Anyone on for any part of the hour counts, so a handover counts both people.</span>
+    <span><i class="sw sw-orange"></i><b>Trains</b> — carriages arriving and leaving in that hour; darker is busier. A guide from the timetable, not passenger numbers.</span>
+    <span><b>Read down each column:</b> the most people should be under the darkest orange.</span>
+    <span><b>Match</b>, on the right — how closely the floor follows the trains over the whole day. 0 is a perfect match; lower is better.</span></div>`, 'the how-to-read paragraph');
+  must(/<section class="page">/, '<section class="page p5">', 'the page section');
+  must(/<table class="cov-heat/g, '<table class="p5t cov-heat', 'the hour tables');
   // row labels: the group, then what it splits into
   must(/<th class="cov-heat-day ">(Today|Proposed)(?: ([^<]+))?<\/th>/g, (m, who, days) => `<th class="cov-heat-day ${who === 'Proposed' ? 'prop-row' : ''}">${who}${days ? `, ${days}` : ''} — all on duty</th>`, 'the Today/Proposed rows');
   must(/(<th class="cov-heat-day office-day">(?:&nbsp;)+)in the ticket office/g, '$1of whom in the ticket office', 'the ticket-office rows');
@@ -378,7 +443,11 @@ function hourPage(s) {
   must(/(<th class="cov-heat-day dem-day">)Train carriages, Dec 2026/g, '$1Trains — carriages in and out', 'the trains row');
   // one match figure per group: the floor row's; the all-on-duty rows' figures go
   must(/(<th class="cov-heat-day (?:prop-row)?">[^<]*<\/th>(?:<td[^>]*>[^<]*<\/td>)*?)<td class="cov-fit">[^<]*<\/td><\/tr>/g, '$1<td class="cov-fit"></td></tr>', 'the all-on-duty fit cells');
-  must(/<th class="cov-heat-hour cov-fit-h">fit<\/th>/g, '<th class="cov-heat-hour cov-fit-h">match</th>', 'the fit header');
+  must(/<th class="cov-heat-hour cov-fit-h">fit<\/th>/g, '<th class="cov-heat-hour cov-fit-h">Match</th>', 'the fit header');
+  // a small gap before the proposal's block and before the trains, instead of a rule
+  // (once per table: a weekday table with a row per day has several "Proposed" rows, and only the first opens a group)
+  if (!/<th class="cov-heat-day prop-row">/.test(s)) throw new Error('hourPage: the group gaps not found');
+  s = s.split('<table class="p5t').map((t, i) => i === 0 ? t : t.replace(/<tr>(?=<th class="cov-heat-day prop-row">)/, '<tr class="p5gap"><td colspan="21"></td></tr><tr>').replace(/<tr>(?=<th class="cov-heat-day dem-day">)/, '<tr class="p5gap"><td colspan="21"></td></tr><tr>')).join('<table class="p5t');
   // the notes beneath: one short list
   const office = /<p class="muted" style="margin-top:8px"><b>Ticket office\.<\/b> ([\s\S]*?)<\/p>/.exec(s);
   const rest = /<p class="muted" style="margin-top:6px">([\s\S]*?)<\/p>/.exec(s);
@@ -387,10 +456,16 @@ function hourPage(s) {
   const m = /^(Cover weeks[^.]*\.)\s*<b>Fit<\/b> is one number for how closely the people on duty follow the trains through the day: 0 would be a perfect match, lower is better\.\s*([^.]*not an average of the scores shown\.)\s*([\s\S]*)$/.exec(rest[1].trim());
   if (!m) throw new Error('hourPage: the cover-weeks / fit note has changed');
   const varies = /cov-heat--dense/.test(s);
+  // THE TICKET OFFICE, IN PLAIN WORDS (owner, 29 Sep 2026: the helper rule and the Sunday late were "not explained").
+  // The table moves a whole helper from the office row to the floor row (report-data officeHelpers), which reads as an
+  // understaffed office unless it is said; the Sunday evening half-person stays in the office row. The design's own
+  // sentence — whether it rosters the pairs or they are assumed — is kept from the technical note.
+  const tail = (/where the plan has two and two\.([\s\S]*)$/.exec(officeText)?.[1] ?? '').replace(/ The “of whom” rows split it out of each side, so the floor rows compare like with like\./, '').trim();
+  if (!/where the plan has two and two\./.test(officeText)) throw new Error('hourPage: the ticket-office note has changed');
   const items = [
-    `<b>The ticket office.</b> ${officeText}`,
+    `<b>The ticket office.</b> The December plan puts two people on every ticket-office shift, and they are not floor cover — except at the quiet ends of the day. Monday to Saturday one of each pair helps on the floor: in the morning from the open until 08:00, and in the evening from 19:30 until their office shift ends. That is why the “of whom in the ticket office” row drops to 1 in those hours and the floor row gains one. Where it shows 4, the early and late pairs are both there at the changeover.${tail ? ' ' + tail : ''} The “of whom” rows split the office out of each side, so the floor rows compare like with like.`,
+    `<b>Sunday.</b> One early is on the floor until 09:00. The two lates are on the floor from the start of their shift until 15:00, then both in the office — at least 30 minutes’ handover before the earlies leave — and one goes back to the floor from 18:00 to the end of the shift. Today is different: one person keeps the office on a Sunday afternoon and evening — one of the three 14:30–23:25 closers, in the office until it shuts at 22:30 and then on the floor — so between 15:00 and 18:00 today’s office row reads 1 where the proposal’s reads 2.`,
     `<b>Only the floor is matched to the trains.</b> The ticket office is staffed to its opening hours, not to the trains, so its rows carry no match figure. ${m[2]}`,
-    ...(varies ? ['<b>More than one weekday row.</b> Where weekdays are staffed differently, each different weekday gets its own row, labelled with its days.'] : []),
     `<b>Cover weeks.</b> ${m[1].replace(/^Cover weeks /, 'They ')}`,
     ...(m[3].trim() ? [`<b>Sunday’s last trains.</b> ${m[3].trim()}`] : []),
   ];
@@ -398,6 +473,11 @@ function hourPage(s) {
   // the callout's first point is now the "only the floor is matched" note; it keeps the one thing that note does not say
   s = s.replace(/<b>Reading it\.<\/b> The <b>floor<\/b> rows are the fair comparison\. The ticket office is staffed to its opening hours, not to the trains, so counting it in can make a day look better or worse than the floor really is\. The fit measures <b>shape, not numbers<\/b>/,
     '<b>Reading the match.</b> It measures <b>shape, not numbers</b>');
+  // …and it joins the list, beside the note it belongs with, rather than sitting in a box of its own: on the sheets with a
+  // weekday row per day (Tenth Sunday has seven) the box ran into the page footer (29 Sep 2026)
+  const call = /<div class="callout"><b>Reading the match\.<\/b>([\s\S]*?)<\/div>/.exec(s);
+  if (!call) throw new Error('hourPage: the reading-the-match callout not found');
+  s = s.replace(call[0], '').replace(/(<li><b>Only the floor is matched to the trains\.<\/b>[\s\S]*?<\/li>)/, `$1<li><b>Reading the match.</b>${call[1]}</li>`);
   return s;
 }
 
@@ -439,6 +519,8 @@ export function plainEdition(html, ctx) {
     .replace(/current working rules/g, 'December staffing rules')
     .replace(/<span class="muted">\(page 7\)<\/span>/g, '<span class="muted">(page 6)</span>');   // the rules page is page 6 here
   if (!coverHead) throw new Error('plainEdition: no cover head on page 1 of the technical sheet');
-  const out = head.replace('</style>', CSS + '</style>') + front({ ...ctx, pages, coverHead }) + appendix.join('') + methodPage({ ...ctx, pages }) + tail;
+  let out = head.replace('</style>', CSS + '</style>') + front({ ...ctx, pages, coverHead }) + appendix.join('') + methodPage({ ...ctx, pages }) + tail;
+  // the rules table's ticks and crosses, in the colour they mean
+  out = out.replace(/<table class="t rules">[\s\S]*?<\/table>/, t => t.replace(/<td( class="today-v")?>(✓|✕|○)/g, (m, c, k) => `<td${c ?? ''}><span class="mk mk-${k === '✓' ? 'ok' : k === '✕' ? 'no' : 'wv'}">${k}</span>`));
   return out;
 }

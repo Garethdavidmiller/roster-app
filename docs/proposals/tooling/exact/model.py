@@ -6,9 +6,11 @@ from common import *
 from ortools.sat.python import cp_model
 
 ALLPARTS={'open','close','at22','heads','office','closer','floorhand','times','contract','rest','run'}
-def build(base=FT, fmax=None, cmax=None, fix=None, forbid_factors=(), parts=ALLPARTS, domains=None, spares=None, uni=None, closers=('15:45-23:55',)):
+def build(base=FT, fmax=None, cmax=None, fix=None, forbid_factors=(), parts=ALLPARTS, domains=None, spares=None, uni=None, closers=('15:45-23:55',), sat_min=14, tmax=18):
     # spares: the cover-week lines (default 6, 12, 18, 24); uni: the shift times allowed (default U); closers: the
     # weekday closer turns the closer rule accepts (the rule is 15:45; an owner may allow another, as for Polished Clean)
+    # sat_min: the Saturday headcount (the rule is 14; the owner allowed 12 for Weekday Lates' repair, 29 Sep 2026);
+    # tmax: the most distinct shift times (the rule is today's 18; a repair may be held to its own base's count)
     SP=set(spares or SPARE_LINES); UNI=uni or U
     def dom(d):
         c=cls(d); return [s for s in UNI if st(s)>=OPEN[c] and en(s)<=CLOSE[c] and (c!='sun' or 480<=dur(s)<=540)]
@@ -41,7 +43,7 @@ def build(base=FT, fmax=None, cmax=None, fix=None, forbid_factors=(), parts=ALLP
         if 'open' in parts: m.Add(cnt(d, lambda v: st(v)==OPEN[c])>=4)
         if 'close' in parts: m.Add(cnt(d, lambda v: en(v)==CLOSE[c])>=3)
         if 'at22' in parts: m.Add(cnt(d, lambda v: en(v)>1320)>=5)
-    if 'heads' in parts: m.Add(cnt('sat', lambda v: True)>=14); m.Add(cnt('sun', lambda v: True)>=10)
+    if 'heads' in parts: m.Add(cnt('sat', lambda v: True)>=sat_min); m.Add(cnt('sun', lambda v: True)>=10)
     for d in WD:
         if 'office' in parts: m.Add(cntv(d,'06:20-14:20')>=2); m.Add(cntv(d,'14:00-22:30')>=2)
         for v in dom(d):
@@ -75,12 +77,18 @@ def build(base=FT, fmax=None, cmax=None, fix=None, forbid_factors=(), parts=ALLP
         m.Add(cnt(d, lambda v: en(v)==CLOSE[c])>=1)   # handover needs a floor closer to exist (cl.length > 0)
         combos=[((PAIRS_FIXED[c][0],PAIRS_FIXED[c][1]),[]) ] if c!='sun' else [((e,l),[selE[e],selL[l]]) for e in SE for l in SL]
         for (pe,pl),enf in combos:
+            if c=='sun' and en(pe)-max(st(pl),900)<30:   # the Sunday office handover: 30 minutes from 15:00
+                m.AddBoolOr([v.Not() for v in enf]); continue
             hp=[]
             for t in (pe,pl):
                 if st(t)==OPEN[c]:
                     e2=min(en(t),540 if c=='sun' else 480)
                     if e2>st(t): hp.append((st(t),e2))
                 elif c!='sun' and en(t)>1170: hp.append((max(st(t),1170),en(t)))
+                elif c=='sun':
+                    # the December Sunday (owner, 29 Sep 2026): both lates on the floor until 15:00, one again from 18:00
+                    if st(t)<900: hp += [(st(t),900),(st(t),900)]
+                    hp.append((max(st(t),1080),en(t)))
             ticks=sorted({OPEN[c]}|{t for v in dom(d) for t in (st(v),en(v)) if OPEN[c]<=t<CLOSE[c]}|{t for h in hp for t in h if OPEN[c]<=t<CLOSE[c]})
             for tk in ticks:
                 cov=cnt(d, lambda v: st(v)<=tk<en(v)) - 2*(st(pe)<=tk<en(pe)) - 2*(st(pl)<=tk<en(pl)) + sum(1 for h in hp if h[0]<=tk<h[1])
@@ -102,7 +110,7 @@ def build(base=FT, fmax=None, cmax=None, fix=None, forbid_factors=(), parts=ALLP
         for k in WORK:
             for d in DAYS:
                 if (k,d,v) in x: m.AddImplication(x[k,d,v], tu[v])
-    if 'times' in parts: m.Add(sum(tu.values())<=18)
+    if 'times' in parts: m.Add(sum(tu.values())<=tmax)
     # the contract: Mon–Sat duty minutes exactly 20 x 35h
     if 'contract' in parts: m.Add(sum(D(i) for i in range(N) if POS[i][1]!='sun')==42000)
     # ── hard: 12h rest between adjacent timed duties; worst-case run ≤ 13 ─────────────

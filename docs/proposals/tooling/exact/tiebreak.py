@@ -14,16 +14,30 @@ from evaluator import judge
 from ortools.sat.python import cp_model
 
 C,F,OUT=int(sys.argv[1]),int(sys.argv[2]),sys.argv[3]; T=float(sys.argv[4]) if len(sys.argv)>4 else 600
-# BASE=<grid.json, e.g. ../../Polished-Clean-PC-24-EXT.json> SPARES=1,7,13,19 CLOSERS=15:45-23:55,16:25-23:55 — for a base other than Fifteen Turns (Polished Clean)
+# BASE=<grid.json, e.g. ../polished-clean.json> SPARES=1,7,13,19 CLOSERS=15:45-23:55,16:25-23:55 — for a base other than Fifteen Turns (Polished Clean)
 BASE=load(os.environ['BASE']) if os.environ.get('BASE') else FT
 SPS={int(v) for v in os.environ['SPARES'].split(',')} if os.environ.get('SPARES') else SPARE_LINES
 CLS_=tuple(os.environ['CLOSERS'].split(',')) if os.environ.get('CLOSERS') else ('15:45-23:55',)
-UNI=sorted(set(U)|times_of(BASE), key=lambda s:(st(s),en(s)))
+_uni=set(U)|times_of(BASE)
+# WIDE=1 — every shift time used by any sheet in the folder joins the pool (Running Repair, 29 Sep 2026: the fits must
+# compete with the best sheets, whose Saturday times are not in the Fifteen Turns pool)
+if os.environ.get('WIDE'):
+    import glob
+    for f in glob.glob(PROP+'*.json'): _uni|=times_of(load(f))
+UNI=sorted(_uni, key=lambda s:(st(s),en(s)))
+# SATMIN=12 TMAX=18 — the Saturday headcount and the most distinct shift times (Weekday Lates' repair, 29 Sep 2026)
+SATMIN=int(os.environ.get('SATMIN','14')); TMAX=int(os.environ.get('TMAX','18'))
 def domain(d):
     c=cls(d); return [s for s in UNI if st(s)>=OPEN[c] and en(s)<=CLOSE[c] and (c!='sun' or 480<=dur(s)<=540)]
 
+EXTRA={}
 def model():
-    m,x,z,changes,factors,WORK=build(base=BASE,spares=SPS,uni=UNI,closers=CLS_,fmax=F,cmax=C)
+    m,x,z,changes,factors,WORK=build(base=BASE,spares=SPS,uni=UNI,closers=CLS_,fmax=F,cmax=C,sat_min=SATMIN,tmax=TMAX)
+    # MIX=<file.json> — each day's duty mix fixed ({"mix": {day: {time|RD: count}}}): the rota for a chosen mix
+    if os.environ.get('MIX'):
+        MX=json.load(open(os.environ['MIX'])); MX=MX.get('mix',MX)
+        for d in DAYS:
+            for v in domain(d)+['RD']: m.Add(sum(x[k,d,v] for k in WORK if (k,d,v) in x)==MX[d].get(v,0))
     LINES=[str(k) for k in range(1,25)]; POS=[(k,d) for k in LINES for d in DAYS]; N=len(POS)
     spare=lambda i: int(POS[i][0]) in SPS
     V=lambda d: domain(d)
@@ -93,15 +107,33 @@ def model():
         if a in ('RD','SPARE') or b=='RD': return 960
         return abs(st(a)-st(b))+abs(en(a)-en(b))
     sz=sum(size(BASE[k][d],v)*var for (k,d,v),var in x.items() if size(BASE[k][d],v))
-    return m,x,z,changes,factors,WORK,sum(jumps),sum(ff8),h,run,sum(one),sum(wkends),sz
+    # the number of distinct shift times worked (feel.distinctTimes): a time counts once it is used on any day
+    tvars=[]
+    for v in UNI:
+        uses=[var for (k,d,w),var in x.items() if w==v]
+        if not uses: continue
+        tv=m.NewBoolVar('tt'+v); tvars.append(tv)
+        for var in uses: m.AddImplication(var, tv)
+    # single rest days (feel.isolatedRest: a rest day with a worked or cover day either side) and six-day weeks
+    # (feel.daysHist[6]: a working line with exactly six days not rest) — the two shapes page 1 flags against today
+    iso=[]
+    for i in range(N):
+        if spare(i): continue
+        b=m.NewBoolVar(f'iso{i}'); iso.append(b); m.Add(b>=R(i)+W((i-1)%N)+W((i+1)%N)-2)
+    six=[]
+    for k in WORKL:
+        b=m.NewBoolVar(f'six{k}'); six.append(b); m.Add(sum(1-x[k,d,'RD'] for d in DAYS)!=6).OnlyEnforceIf(b.Not())
+    EXTRA.update(singles=sum(iso), six=sum(six))
+    return m,x,z,changes,factors,WORK,sum(jumps),sum(ff8),h,run,sum(one),sum(wkends),sz,sum(tvars)
 
 stages=(sys.argv[6].split(',') if len(sys.argv)>6 else ['jumps','ff8','h','run','one'])
 HINT=json.load(open(sys.argv[5])) if len(sys.argv)>5 else BASE
 # FIXED=wk=-2,size=16770 — resume after a lost run: stages already proven/settled, fixed at these values
 fixed={kv.split('=')[0]:int(kv.split('=')[1]) for kv in os.environ['FIXED'].split(',')} if os.environ.get('FIXED') else {}
 for si,st_ in enumerate(stages):
-    m,x,z,changes,factors,WORK,J,F8,H,RUN,ONE,WK,SZ=model()
-    exprs={'jumps':J,'ff8':F8,'h':H,'run':RUN,'one':-ONE,'wk':-WK,'size':SZ}
+    m,x,z,changes,factors,WORK,J,F8,H,RUN,ONE,WK,SZ,TT=model()
+    exprs={'jumps':J,'ff8':F8,'h':H,'run':RUN,'one':-ONE,'wk':-WK,'size':SZ,'factors':factors,'times':TT,'changes':changes}
+    exprs.update(EXTRA)
     for k,v in fixed.items():
         m.Add(exprs[k]<=v)
     m.Minimize(exprs[st_])

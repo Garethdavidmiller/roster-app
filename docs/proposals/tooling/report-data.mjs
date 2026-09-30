@@ -134,10 +134,21 @@ const CLOSE = { weekday: 23*60+55, sat: 23*60+55, sun: 23*60+25 }, OPEN = { week
 // whole people. A lone office duty is not a pair and does not help — today's single Sunday late. final-table.mjs builds
 // tables on the same reading; until this the sheets counted the office as never on the floor, which over-counted
 // how thin the quiet ends are and was nowhere explained. OFFICE_HELP_TEXT is the one sentence every page prints.
-export const OFFICE_HELP_TEXT = 'One of each ticket-office pair helps on the floor at the quiet ends: the morning one until 08:00 (09:00 on a Sunday), the evening one from 19:30; on a Sunday evening they split their time, counted as half a person';
-export function officeHelpers(spans, cls) {
+// THE DECEMBER SUNDAY (owner, 29 Sep 2026, with Familiar Nine as the example) replaces the Sunday reading above for the
+// PROPOSALS: one Sunday early is on the floor until 09:00, as today, and then in the office; the two lates are on the floor from their start
+// until 15:00, then both in the office — a handover of at least 30 minutes before the earlies leave — and the second
+// goes back to the floor from 18:00 to the end of the shift, as a whole person. TODAY'S link keeps today's Sunday
+// practice (the morning helper until 09:00; its one Sunday office late is a lone duty and never helps): model 'today'.
+export const SUN_OFFICE_FROM = 15*60, SUN_FLOOR_AGAIN = 18*60, SUN_OFFICE_HANDOVER = 30;
+export const OFFICE_HELP_TEXT = 'Monday to Saturday, one of each ticket-office pair helps on the floor at the quiet ends: the morning one until 08:00, the evening one from 19:30. On a Sunday one early is on the floor until 09:00; the two lates are on the floor until 15:00, then both in the office, and one goes back to the floor from 18:00';
+export function officeHelpers(spans, cls, model = 'plan') {
   const out = [];
   for (const t of spans) { if (t.n < 2) continue;
+    if (cls === 'sun' && model !== 'today') {
+      if (t.st === OPEN.sun) { const en = Math.min(t.en, 9*60); if (en > t.st) out.push({ st: t.st, en, share: 1 }); continue; } // one early: floor until 09:00
+      if (t.st < SUN_OFFICE_FROM) out.push({ st: t.st, en: SUN_OFFICE_FROM, share: 1 }, { st: t.st, en: SUN_OFFICE_FROM, share: 1 });
+      out.push({ st: Math.max(t.st, SUN_FLOOR_AGAIN), en: t.en, share: 1 });              // the second, back on the floor
+      continue; }
     if (t.st === OPEN[cls]) { const en = Math.min(t.en, cls === 'sun' ? 9*60 : 8*60); if (en > t.st) out.push({ st: t.st, en, share: 1 }); }
     else if (cls === 'sun') out.push({ st: t.st, en: t.en, share: 0.5 });
     else if (t.en > 19*60+30) out.push({ st: Math.max(t.st, 19*60+30), en: t.en, share: 1 }); }
@@ -168,7 +179,7 @@ export function officeFor(p, d, model) {
 export function officeSplit(p, lines, hourly, model) {
   const days = {};
   const inHour = (t, h) => t.st < (h+1)*60 && t.en > h*60, minsIn = (t, h) => Math.max(0, Math.min(t.en, (h+1)*60) - Math.max(t.st, h*60)) / 60;
-  for (const d of DAYS) { const cls = clsOf(d), sp = officeFor(p, d, model), hp = officeHelpers(sp, cls);
+  for (const d of DAYS) { const cls = clsOf(d), sp = officeFor(p, d, model), hp = officeHelpers(sp, cls, model);
     const office = Array.from({ length: 24 }, (_, h) => sp.reduce((a, t) => a + (inHour(t, h) ? t.n : 0), 0) - hp.filter(x => x.share >= 1 && inHour(x, h)).length);
     const floor = hourly[d].hours.map((v, h) => Math.max(0, v - office[h]));
     const offMin = Array.from({ length: 24 }, (_, h) => sp.reduce((a, t) => a + t.n * minsIn(t, h), 0) - hp.reduce((a, x) => a + x.share * minsIn(x, h), 0));
@@ -201,9 +212,9 @@ export function currentRules(P, T, model = 'plan') {
   // the floor: the day's duties with the office taken out — the rostered pairs where there are any, else the plan's
   // posts — and the helping office person added back while they help (whole people only: the minimum counts heads)
   const floorOn = d => { const cls = clsOf(d), pr = pairsOn(d); const ds = dutiesOn(d).map(s => ({ s, st: startMinutes(s), en: endMinutes(s) }));
-    if (!pr) { const office = officeSpans(model, cls); return { duties: ds, office, help: officeHelpers(office, cls), named: false }; }
+    if (!pr) { const office = officeSpans(model, cls); return { duties: ds, office, help: officeHelpers(office, cls, model), named: false }; }
     const out = [...ds]; for (const t of [pr.early, pr.early, pr.late, pr.late]) out.splice(out.findIndex(x => x.s === t), 1);
-    return { duties: out, office: [], help: officeHelpers([pr.early, pr.late].map(t => ({ st: startMinutes(t), en: endMinutes(t), n: 2 })), cls), named: true, pr }; };
+    return { duties: out, office: [], help: officeHelpers([pr.early, pr.late].map(t => ({ st: startMinutes(t), en: endMinutes(t), n: 2 })), cls, model), named: true, pr }; };
   const floorMin = d => { const cls = clsOf(d), f = floorOn(d); let lo = Infinity;
     for (let m = OPEN[cls]; m < CLOSE[cls]; m += 5) lo = Math.min(lo, f.duties.filter(x => x.st <= m && x.en > m).length - f.office.filter(t => t.st <= m && t.en > m).reduce((a, t) => a + t.n, 0)
       + f.help.filter(x => x.share >= 1 && x.st <= m && x.en > m).length);
@@ -215,8 +226,10 @@ export function currentRules(P, T, model = 'plan') {
     // posts where it does not (accuracy check, 28 Sep 2026 — a design with pairs on two days passed on those two
     // alone, while one with none failed outright, though the posts it is assumed to staff overlap by 20 minutes too)
     const [[pe], [pl]] = OFFICE[model][cls];
-    const overlap = f.named ? endMinutes(f.pr.early) - startMinutes(f.pr.late) : endMinutes(pe) - startMinutes(pl);
-    return { ok, overlap, assumed: !f.named }; };
+    // a December Sunday's lates join the office at 15:00 whenever their shift starts, so that is where the handover begins
+    const lateIn = t => cls === 'sun' && model !== 'today' ? Math.max(startMinutes(t), SUN_OFFICE_FROM) : startMinutes(t);
+    const overlap = f.named ? endMinutes(f.pr.early) - lateIn(f.pr.late) : endMinutes(pe) - lateIn(pl);
+    return { ok, overlap, assumed: !f.named, need: cls === 'sun' && model !== 'today' ? SUN_OFFICE_HANDOVER : 20 }; };
   const pairs = ALL.map(d => [d, pairsOn(d)]), pairsOk = d => !!pairs.find(([x]) => x === d)[1];
   const wkPairs = WDD.every(pairsOk), satPairs = pairsOk('sat'), sunPairs = pairsOk('sun');
   const fm = Object.fromEntries(ALL.map(d => [d, floorMin(d)])), wkFloor = Math.min(...WDD.map(d => fm[d]));
@@ -235,8 +248,8 @@ export function currentRules(P, T, model = 'plan') {
     { key: 'cover', rule: 'Four cover weeks, evenly spread', value: `lines ${P.feel.spareLines.join(', ')}`, ok: P.feel.spareLines.length === 4 && P.adj.spareExcess === 0, note: 'evenly means every 6 lines, e.g. 1, 7, 13, 19' },
     { key: 'office', rule: 'The ticket office: two early and two late, identical shifts, every day', value: `Mon–Fri ${wkPairs ? 'yes' : 'no'} · Sat ${satPairs ? 'yes' : 'no'} · Sun ${sunPairs ? 'yes' : 'no'}`, ok: wkPairs && satPairs && sunPairs, note: 'Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and 14:30–22:00; Sun two from 07:15 and two to 22:30' },
     { key: 'closer', rule: 'Every weekday closer starts at 15:45', value: closerStarts.length ? `closers start at ${andList(closerStarts)}` : 'no weekday closer', ok: wkClosers.length > 0 && wkClosers.every(s => s === '15:45-23:55'), note: '' },
-    { key: 'floor', rule: 'At least two on the floor at every moment', value: `fewest ${wkFloor} · ${fm.sat} · ${fm.sun}`, ok: ALL.every(d => fm[d] >= 2), note: 'the ticket office counts only while its second person helps on the floor (until 08:00 or 09:00 on a Sunday, and from 19:30); checked every five minutes' },
-    { key: 'handover', rule: 'Handovers: 15 minutes to each closer, 20 in the ticket office', value: `floor ${floorHand ? 'met' : 'not met'} · ticket office ${Math.min(...overlaps)} min${assumedDays && model === 'plan' ? ` (${assumedDays === 7 ? 'posts' : `posts on ${assumedDays} day${assumedDays === 1 ? '' : 's'}`} assumed)` : ''}`, ok: floorHand && overlaps.every(v => v >= 20), note: 'on a Sunday each opener also stays until 15 minutes after the last closer arrives; where the design does not roster the office pairs, the plan’s posts are assumed' },
+    { key: 'floor', rule: 'At least two on the floor at every moment', value: `fewest ${wkFloor} · ${fm.sat} · ${fm.sun}`, ok: ALL.every(d => fm[d] >= 2), note: 'the ticket office counts only while its staff help on the floor — Mon–Sat one of each pair until 08:00 and from 19:30; on a Sunday one early until 09:00, both lates until 15:00 and one from 18:00; checked every five minutes' },
+    { key: 'handover', rule: 'Handovers: 15 minutes to each closer, 20 in the ticket office (30 on a Sunday)', value: `floor ${floorHand ? 'met' : 'not met'} · ticket office ${Math.min(...overlaps)} min${assumedDays && model === 'plan' ? ` (${assumedDays === 7 ? 'posts' : `posts on ${assumedDays} day${assumedDays === 1 ? '' : 's'}`} assumed)` : ''}`, ok: floorHand && ALL.every(d => hv[d].overlap >= hv[d].need), note: 'the Sunday office handover runs from 15:00, when the lates join it; on a Sunday each opener also stays until 15 minutes after the last closer arrives; where the design does not roster the office pairs, the plan’s posts are assumed' },
     { key: 'sunlen', rule: 'Sunday duties between 8h and 9h', value: sunLens.length ? `${hmm(Math.min(...sunLens))}–${hmm(Math.max(...sunLens))}` : '—', ok: sunLens.length > 0 && sunLens.every(m => m >= 480 && m <= 540), note: '' },
     { key: 'times', rule: 'No more shift times than today', value: `${P.feel.distinctTimes}`, ok: P.feel.distinctTimes <= T.feel.distinctTimes, note: `today ${T.feel.distinctTimes}` },
   ];

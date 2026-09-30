@@ -6,7 +6,7 @@ from common import *
 from model import build, extract
 from evaluator import judge
 from ortools.sat.python import cp_model
-P=load(PROP+'Polished-Clean-PC-24-EXT.json')
+P=load(PROP+'tooling/polished-clean.json')
 UP=sorted(set(U)|times_of(P), key=lambda s:(st(s),en(s)))
 CL=('15:45-23:55','16:25-23:55')
 T=float(sys.argv[1]); cases=sys.argv[2].split(',')

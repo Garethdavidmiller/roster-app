@@ -46,9 +46,8 @@ function gridHtml(p, lines, totals, daily, opts = {}) {
 // a number; codes and fingerprints did not move. A printout made before the rename carries the old name, so every
 // renamed sheet says what it used to be called, keyed by the code that stayed the same.
 export const FORMERLY = {
-  'Q2-24-W21': 'Quarter To 2', 'P2-24-N13': 'Pinned Turns 2', 'FR-24-F34o': 'Final Rules, then Floor First',
-  'WL2-24-R21': 'Weekday Lates 2', 'WL3-24-F7': 'Weekday Lates 3', 'WL4-24-F7': 'Weekday Lates 4', 'FT-24-R21': 'Fifteen Turns Repaired',
-  'CF-24-EXT': 'Clean Final', 'CFT-24-M3': 'Clean Final Tuned', 'TN-24-R7': 'Clean Final Ten',
+  'P2-24-N13': 'Pinned Turns 2', 'FR-24-F34s': 'Final Rules, then Floor First',
+  'WL2-24-R21': 'Weekday Lates 2', 'WL4-24-F7': 'Weekday Lates 4',
 };
 function heatRow(name, hours, max, cls = '', fit = null) {
   const cells = hours.map((n, h) => { if (h < 5) return null; const b = n === 0 ? 0 : Math.max(1, Math.ceil((n / max) * 5)); return `<td class="cov-heat-cell heat-b${b}">${n ? n.toFixed(0) : ''}</td>`; }).filter(Boolean).join('');
@@ -95,7 +94,7 @@ export async function renderPdf(D, out) {
   // where the plan has two. Every floor figure takes the right one out of each side (report-data OFFICE).
   const FO = P.office, TO = T.office; const floorTrio = A => `${A.wkFit} · ${A.fits.sat} · ${A.fits.sun}`; const floorTrio1 = A => [A.wkFit, A.fits.sat, A.fits.sun].map(v => v == null ? '—' : Number(v).toFixed(1)).join(' · ');
   const officeNote = FRESH
-    ? `Its staff are not floor cover, bar one of each pair at the quiet ends (until 08:00, or 09:00 Sunday; from 19:30; half on a Sunday evening). Today’s office matches the plan except on <b>Sunday</b>: two earlies and <b>one</b> late (a 14:30–23:25 closer, in the office until 22:30), where the plan has two and two.${meta.officeNamed ? '' : FRESH && meta.pairDays?.length ? ` This design rosters the office pairs on ${meta.pairDaysTxt}; on ${meta.otherDaysTxt} its floor figure is everyone on duty minus the four office posts the plan asks for.` : ' This design does not mark who works in the ticket office, so its floor figure is everyone on duty minus the four office staff the plan asks for.'}`
+    ? `Its staff are not floor cover, bar their help at the quiet ends (Mon–Sat until 08:00 and from 19:30; Sunday one early until 09:00, both lates until 15:00 and one from 18:00). Today’s office matches the plan except on <b>Sunday</b>: two earlies and <b>one</b> late (a 14:30–23:25 closer, in the office until 22:30), where the plan has two and two.${meta.officeNamed ? '' : FRESH && meta.pairDays?.length ? ` This design rosters the office pairs on ${meta.pairDaysTxt}; on ${meta.otherDaysTxt} its floor figure is everyone on duty minus the four office posts the plan asks for.` : ' This design does not mark who works in the ticket office, so its floor figure is everyone on duty minus the four office staff the plan asks for.'}`
     : `Not floor cover, and staffed today exactly as in the plan Monday to Saturday (two early, two late). <b>Sunday differs:</b> today two earlies and <b>one</b> late — a 14:30–23:25 closer, in the office until 22:30 — where the plan has two and two.${(FRESH ? meta.officeNamed : meta.kind === 'FR') ? '' : ' This design does not roster the office as pairs, so its floor is everyone on duty less the plan’s posts.'}`;
   // FR — Right Away (28 Sep 2026): the owner's headcounts are FLOORS ("too few is the problem, never too many"), so a
   // row is met at or above its figure there, and exactly at it on every other family's sheet.

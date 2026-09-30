@@ -5,7 +5,7 @@ from common import *
 from model import build, extract
 from evaluator import judge
 from ortools.sat.python import cp_model
-P=load(PROP+'Polished-Clean-PC-24-EXT.json'); UP=sorted(set(U)|times_of(P), key=lambda s:(st(s),en(s))); CL=('15:45-23:55','16:25-23:55')
+P=load(PROP+'tooling/polished-clean.json'); UP=sorted(set(U)|times_of(P), key=lambda s:(st(s),en(s))); CL=('15:45-23:55','16:25-23:55')
 C=int(sys.argv[1]); S={int(v) for v in sys.argv[2].split(',')}; T=float(sys.argv[3]); hint=load(sys.argv[4]); out=sys.argv[5]
 m,x,z,changes,factors,WORK=build(base=P, spares=S, uni=UP, closers=CL, cmax=C)
 m.Minimize(factors)
