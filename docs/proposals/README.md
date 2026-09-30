@@ -8,17 +8,70 @@ identity is in every page footer. All 9 were judged by the app's own Links modul
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
 
-**The sheets are the plain edition (29 Sep 2026)** — eight pages each, one version for the owner, managers and
-colleagues alike (owner: *"I can't overload Nathan, it needs to be easy to understand"*). Page 1 answers five questions
-in a word or two with one line of proof each — does it meet the December staffing levels, can it be run within the
-limits, is it tiring, what does it take, are staff where the trains are — then three tiles on what it is like to work,
-the likely positives for staff and what colleagues may be concerned about, and what is still to settle. Page 2 sets every figure against
-today's link, with a plain translation of each row. Pages 3–7 are the workings (the grid, the week and duty table, the
-hour-by-hour cover, the limits and rules, the ORR table), and page 8 says in plain words how every figure is worked
-out. **Today's link is the only comparison**: no sheet, and not the rules sheet, names, counts or ranks another
-proposal — the one-page summary is where they sit side by side, for the owner. Rendered by `tooling/plain.mjs`;
-`TECH=1 node regenerate.mjs` renders the technical sheet instead, with its comparisons removed by `tooling/solo.mjs`.
-Every claim on pages 1–2 is judged shift by shift, never on an average, after five independent checks on 29 Sep 2026.
+**The sheets are the plain edition, second version (30 Sep 2026)** — eight pages each, **written for a manager first**
+(owner, 30 Sep 2026: *"the proposal sheet is predominantly for managers"*; earlier: *"I can't overload Nathan, it needs to
+be easy to understand"*). They speak *about* staff, never *to* them, and name no audience on any page. **Page 1** is the
+whole proposal:
+- an *In short* sentence built from the page's own lists (the verdict, the two biggest gains and trade-offs for staff);
+- **"For discussion, not a decision"** in the body text, with what is still to settle (which link, who starts where);
+- a **What it takes** line: the people (24, 4 more than today), the cover weeks, and the Sunday overtime every week in
+  people and hours, against today and against the 10 the rules ask for;
+- four *Can it work?* tiles (the nine December rules, the hard limits, avoidable fatigue warnings with cover weeks at
+  their worst, and the match to the trains with each day's figure against today's);
+- a red box naming every rule or limit broken;
+- under *What it would mean for staff*, **every** likely positive and concern — weekends, late finishes, 06:20 starts,
+  shift times to learn, the shortest rest and the fatigue count among them. Only the trains tile's own point is left
+  to the tile.
+
+**A second pass, same day (owner, after asking whether the new version was weaker than the first).** It was not weaker in
+content, but a comparison showed page 1 set about 6% smaller, the "for discussion, not a decision" line demoted to the
+masthead's small print, and the shortest rest and fatigue count reduced to a tile's small print. All three were my
+choices, not the reviews'. So the four staff tiles left page 1 — every figure on them is a page-2 row, and each is now a
+bullet — which gave the space back: the type is at the first edition's size again (median 12.8pt), the caveat is in the
+body, and the two points are bullets.
+
+**Page 2** sets every figure against today's link in five named groups (staffing, working pattern, shifts, each person's
+year, fatigue and the rules). **Pages 3–7** are the workings, each opening with its answer: the rota; shift times (new,
+kept and dropped) and **the shape of a week** (rest breaks of two days or more, single rest days and those beside a cover
+week, weeks by days worked, working weeks with a Sunday); staffing through the day; the rules; and the fatigue checks,
+with their source (the ORR's *Fatigue Factors*, December 2021, 21 patterns, plus 4 MRSF checks). **Page 8**, *Can I trust
+these numbers?*, says which figures are exact, which are a guide, what no rota can say, and how each one is worked out.
+**One colour meaning on every page:** green ✓ meets a rule or is better on something the rules, the limits or the fatigue
+guidance aim for; amber ▲ is worse on one of those; red ✕ is a rule or limit broken; no colour is a difference for
+colleagues to weigh. On the fatigue page ⚠ marks a pattern present. The symbol is always printed beside the colour,
+because the sheets are printed in black and white. "Tiring patterns" is now "fatigue warnings" everywhere, the Familiar
+Nine decks included.
+
+**Nothing the first plain edition said was dropped.** The second version was first published with four regressions,
+caught by a sentence-by-sentence comparison with the first before it was accepted: the positives and concerns were capped
+at three or four on a page that calls itself the whole proposal (up to four concerns hidden, fatigue findings among them);
+the *What does it take?* tile (people, cover weeks, Sunday overtime) was gone; page 4's *shape of a week* table was cut to
+the rows page 2 carries; and page 7 had lost its source citation, page 8 several of its definitions (the handover, the Sunday leave rule, how the match and the start-time rows are worked out, and what the shortest gap cannot show). All are back, and the same
+comparison now finds only rewordings. **Today's link is the only comparison**: no sheet, and not the rules sheet, names,
+counts or ranks another proposal — the one-page summary is where they sit side by side, for the owner. Rendered by
+`tooling/plain.mjs`; `TECH=1 node regenerate.mjs` renders the technical sheet instead, with its comparisons removed by
+`tooling/solo.mjs`. Every claim on pages 1–2 is judged shift by shift, never on an average. The first plain edition
+(29 Sep 2026) passed five independent checks; this one was re-checked by an independent recount of every page-2 row,
+every page-1 tile and verdict, the *What it takes* line and the *shape of a week* table against the rotas (0 mismatches
+across the 9 sheets), and a footer-overlap check on every page.
+
+**Three tiers of rule (30 Sep 2026, owner).** *"Those three rules should stay in the background as flexible rules. So
+we now have hard rules, soft rules which are explicitly mentioned and these flexible rules which can be in the
+presentation but not in the proposals."*
+
+| Tier | Which | Designed to | Proposal sheets | Presentations | Rules sheet |
+|---|---|---|---|---|---|
+| **Hard limits** | 12 hours' rest · 13 days in a row · the exact contract | yes | stated, met or the rota cannot run | yes | yes |
+| **Soft rules** | the nine December 2026 staffing rules (`sheetRules`) | yes | stated and scored, "N of 9" | yes | yes |
+| **Flexible rules** | 14 on a Saturday · four evenly spread cover weeks · weekday closers from 15:45 (`flexibleRules`) | yes — every search, solver and judge reads `currentRules`, which holds all eleven | **never mentioned** | may be mentioned | named as their own tier (page 2) |
+
+Saturday's fourteen shared `currentRules`' row with Sunday's ten, which is a **soft** rule: on the sheets it stands on
+its own as "Ten on a Sunday". The facts behind the flexible rules are on every sheet as facts — the Saturday headcount,
+the cover-week lines and their spacing, every closing shift's start — just never as rules. The per-design waivers
+(`WAIVERS` in `tooling/fresh.mjs`) are empty: nothing is left to waive. Soft rules met, of nine: *All Clear*, *Clean
+Sweep*, *Familiar Nine*, *Full Overhaul* and *Right Away* 9; *Fifteen Turns* 6 (and it still breaks two hard limits);
+*Weekday Lates* 5; *Evening Peak* and *Anchored Lines* 4; today's link 4. The Familiar Nine decks say 9 of 9, and — being
+a presentation — that it meets all three flexible rules too.
 
 **The By the Book family was withdrawn (29 Sep 2026, owner).** *By the Book* (`BB-24-D7 · 0f14abce`), *Eight Forty*
 (`EF-24-E21 · 0cf19f56`) and *Office Written In* (`B2-24-G21 · 02f3c005`) — the rules-first family, meeting 4 to 5 of
@@ -109,7 +162,7 @@ as PowerPoint and PDF (29 Sep 2026). Built with pptxgenjs outside this repositor
 the rotas in this folder and checked against an independent recount. They are copies, so a change to a sheet does not
 reach them.
 
-**The rules on their own:** `December-2026-Rules.pdf` — the hard limits, the eleven December 2026 rules, the
+**The rules on their own:** `December-2026-Rules.pdf` — the hard limits, the nine soft December 2026 rules the sheets score, and the three flexible rules as their own tier, the
 fatigue factors and the open questions, on two pages, from the same code the sheets are judged by.
 
 **Reading this file.** Sections dated before 28 Sep 2026 describe the sheets and rules of their day — page
@@ -1716,11 +1769,11 @@ changed; each fix is in the generator, not the PDF; all 22 sheets were re-render
 | `<Name>-<code>-<fingerprint>.pdf` | the proposal, 8 pages A4 (the plain edition) — **force-added** (`git add -f`), because `.gitignore` ignores every `*.pdf` in the tree |
 | `<Name>-<code>-import.txt` | line number then Sunday–Saturday, tab-separated — paste into **Links → Import** |
 | `<Name>-<code>.json` | the same rotation in the app's own `{ name, patterns }` shape — also importable |
-| `December-2026-Rules.pdf` | **the rules on their own** (28 Sep 2026), two pages A4, force-added like the sheets: the three hard limits, the eleven December 2026 rules with what each asks exactly, today's link against each and how many of the proposals meet it, the fatigue factors with how many proposals each is present in, the preferences, and the questions still open. Rendered by `tooling/rules-sheet.mjs` from `currentRules`, `assessFatigue` and `folderStats` — the code the sheets use — and by every full `regenerate.mjs` run, so it cannot drift from them |
+| `December-2026-Rules.pdf` | **the rules on their own** (28 Sep 2026), two pages A4, force-added like the sheets: the three hard limits, the nine soft December 2026 rules the sheets score and the three flexible rules, with what each asks exactly, today's link against each and how many of the proposals meet it, the fatigue factors with how many proposals each is present in, the preferences, and the questions still open. Rendered by `tooling/rules-sheet.mjs` from `currentRules`, `assessFatigue` and `folderStats` — the code the sheets use — and by every full `regenerate.mjs` run, so it cannot drift from them |
 
 Every import form is verified against `links-import.js` (24 lines, no warnings). Importing one
 makes the workspace's Design checks, hard limits, fatigue factors and coverage cards restate those
-figures from its PDF. The demand fits, the ticket office / floor split and the eleven-rule count are
+figures from its PDF. The demand fits, the ticket office / floor split and the rule count are
 not in the workspace; they come only from `tooling/report-data.mjs`.
 
 ## The managers' edition (28 Sep 2026)
@@ -1732,11 +1785,12 @@ first-time reader: it answers **one question** — *is this better than today's 
 2026 rules?* — against **one rule set**, in plain English, with no reference to how it was derived, which brief it
 answered or which sheet came before it. **No figure changed**; the words around them did.
 
-- **One rule set, eleven rules** (`currentRules`, `tooling/report-data.mjs`), read from each design's cells: at
-  least four at the open, three at the close and five at 22:00 on every day; 14 on a Saturday and 10 on a
-  Sunday; four evenly spread cover weeks; the ticket office as two early and two late identical turns every
-  day; every weekday closer at 15:45; at least two on the floor at every moment; 15-minute handovers (20 in the
-  office); Sunday duties 8h–9h; no more shift times than today. Right Away, Familiar Nine, Just Enough and All Clear meet 11; today's link 4 (3 before the ticket-office helper rule of 28 Sep 2026).
+- **One rule set: eleven rules to design to — nine soft rules scored on the sheets and three flexible rules, since 30 Sep 2026** (`currentRules` and `sheetRules`, `tooling/report-data.mjs`), read from each design's cells: at
+  least four at the open, three at the close and five at 22:00 on every day; 10 on a Sunday; the ticket office
+  as two early and two late identical turns every day; at least two on the floor at every moment; 15-minute
+  handovers (20 in the office); Sunday duties 8h–9h; no more shift times than today. Five of the nine sheets meet
+  all nine; today's link meets 4. (The design set also holds 14 on a Saturday, four evenly spread cover
+  weeks and a 15:45 start for every weekday closer; the flexible rules — designed to, never on a proposal sheet; see the note near the top.)
 - **The 22:00 rule, confirmed by the owner (28 Sep 2026):** somebody finishing **at** 22:00 does **not** count
   towards the five — only people still on duty after 22:00 do — and the rule applies **every day, Sunday
   included**. Both are how every sheet already checked it, so no figure moved. (The 22 Sep reading earlier in

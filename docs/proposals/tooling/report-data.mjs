@@ -201,6 +201,28 @@ const hmm = m => `${Math.floor(m/60)}h ${String(m%60).padStart(2,'0')}m`;
 // `model` is whose office is taken out where a day has no rostered pairs: the plan's posts for a proposal, today's own
 // office for today's link (accuracy check, 28 Sep 2026 — today's Sunday was measured on the plan's posts while page 6
 // used today's own office; no figure moved, the method now agrees).
+/** THREE TIERS OF RULE (owner, 30 Sep 2026):
+ *  · HARD limits — 12 hours' rest, 13 days in a row, the exact contract. Met, or the rota cannot be run.
+ *  · SOFT rules — the nine December 2026 staffing rules (sheetRules). Each met or not, and stated and scored on every
+ *    proposal sheet, the summary and the rules sheet.
+ *  · FLEXIBLE rules — fourteen on a Saturday, four evenly spread cover weeks, a 15:45 start for every weekday closer
+ *    (flexibleRules). "They should stay in the background": every search, solver and judge designs to them (they stay
+ *    in currentRules, which all eleven are), a PRESENTATION may mention them, and a PROPOSAL SHEET never does. The
+ *    rules sheet names them as their own tier.
+ *  Saturday's fourteen shares currentRules' row with Sunday's ten, which is a SOFT rule: sheetRules gives it a row of
+ *  its own, flexibleRules gives Saturday its own. */
+export function flexibleRules(P, T, model = 'plan') {
+  const R = currentRules(P, T, model), by = k => R.rows.find(r => r.key === k);
+  const rows = [{ key: 'saturday', rule: 'Fourteen on a Saturday', value: `${P.daily.sat}`, ok: P.daily.sat >= 14, note: '' }, by('cover'), by('closer')];
+  return { rows, met: rows.filter(r => r.ok).length, of: rows.length };
+}
+export function sheetRules(P, T, model = 'plan') {
+  const R = currentRules(P, T, model);
+  const rows = R.rows.flatMap(r => r.key === 'heads' ? [{ key: 'sunday', rule: 'Ten on a Sunday', value: `${P.daily.sun}`, ok: P.daily.sun >= 10, note: '' }]
+    : r.key === 'cover' || r.key === 'closer' ? [] : [r]);
+  return { ...R, rows, met: rows.filter(r => r.ok).length, of: rows.length };
+}
+
 export function currentRules(P, T, model = 'plan') {
   const lines = Object.keys(P.patterns).length, keys = Object.keys(P.patterns);
   const dutiesOn = d => keys.map(k => P.patterns[k][d]).filter(s => s && s !== 'RD' && s !== 'SPARE' && s !== 'OFF' && startMinutes(s) !== null);
@@ -302,7 +324,7 @@ export function folderStats(dir = new URL('..', import.meta.url)) {
       out.push({ file: f, name: m[1].replace(/-/g, ' ').replace(/(\d+) (\d+)/g, '$1-$2'), code: m[2], wk: weekdayFit(p, lines), sat: A.fits.sat, sun: A.fits.sun, floor: { wk: A.office.wkFit, sat: A.office.fits.sat, sun: A.office.fits.sun },
         present: A.fatigue.present, weekends: A.checks.weekendsOff, run: A.checks.longestStretch, rest: A.rest?.minutes ?? null,
         oneTurn: A.feel.oneTurn, workingLines: A.feel.workingLines, distinct: A.feel.distinctTimes,
-        newTimes: A.tableRows.filter(r => !todays.has(r.time)).length, turnarounds: A.checks.turnarounds.length, rules: currentRules({ patterns: p, ...A }, TA) });
+        newTimes: A.tableRows.filter(r => !todays.has(r.time)).length, turnarounds: A.checks.turnarounds.length, rules: sheetRules({ patterns: p, ...A }, TA) });
     } catch { /* a JSON that is not a rotation is not the folder's business */ }
   }
   _folder = out; return out;

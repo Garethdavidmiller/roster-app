@@ -8,7 +8,7 @@
 //
 // The one-line descriptions are the only typed words about a design, and each says what the design IS, never
 // what it was derived from.
-import { currentRules } from './report-data.mjs';
+import { sheetRules as currentRules } from './report-data.mjs';
 import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.js';
 import { maxHoursInAny7Days, toSequence } from '../../../links-fatigue.js';
 import { materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs';
@@ -25,9 +25,9 @@ export const STRAPS = {
   'WL-24-EXT':  ['Weekday closers from 16:25, with Saturday largely in today’s shift times', 'hand'],
   'WL2-24-R21': ['Weekday closers from 16:25, with extra cover under the 17:00 peak', 'hand+search'],
   'WL4-24-F7':  ['Weekday closers from 16:25, built around four weeks (lines 14–17) that stay together in a fixed order', 'hand+search'],
-  'AC-24-M41':  ['Sixteen shift times, meeting all eleven rules with no avoidable tiring pattern', 'exact'],
-  'CS-24-M34':  ['Weekday closers from 16:25, meeting the other ten rules', 'exact-waived'],
-  'FO-24-M49':  ['Weekday Lates retimed to follow the trains as closely as the best sheets, with no tiring pattern at all', 'exact-waived3'],
+  'AC-24-M41':  ['Sixteen shift times, meeting every December rule with no avoidable fatigue warning', 'exact'],
+  'CS-24-M34':  ['Weekday closers from 16:25, meeting every December rule', 'exact-waived'],
+  'FO-24-M49':  ['Weekday Lates retimed to follow the trains as closely as the best sheets, with no fatigue warning at all', 'exact-waived3'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
@@ -54,8 +54,11 @@ const MADE = {
  *  Saturday will do; Sunday's ten still stands. `cover`: the four cover weeks need not be evenly spread, only never
  *  next to each other. */
 export const WAIVERS = {
-  'CS-24-M34': { date: '28 September 2026', keys: ['closer'] },
-  'FO-24-M49': { date: '29 September 2026', keys: ['closer', 'heads', 'cover'] },
+  // EMPTY SINCE 30 SEP 2026. The three rules waived here — the 15:45 weekday closer (Clean Sweep, Full Overhaul, then the
+  // Weekday Lates family and Fifteen Turns), four evenly spread cover weeks, and fourteen on a Saturday — became FLEXIBLE
+  // rules for every design (owner, 30 Sep 2026: "they should stay in the background as flexible rules"). The proposal
+  // sheets read sheetRules (report-data.mjs), which leaves them out, so there is nothing to waive; the searches and
+  // solvers still read currentRules, which keeps them. The mechanism is kept for a future waiver.
 };
 const WAIVE = {
   closer: { short: '15:45 closer', allows: v => /^closers start at /.test(v) && v.replace(/^closers start at /, '').split(/, | and /).every(t => t === '15:45' || t === '16:25') },
@@ -195,7 +198,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   <div class="foot"><span>Page 9 of 10 — Beside the other proposals</span><span class="foot-id"><b>${name}</b> · ${code} · ${meta.identity.fingerprint} · Marylebone Roster — Links designer</span></div>
 </section>`;
 
-  const satMet = P.daily.sat >= 14, sunMet = P.daily.sun >= 10;
+  const sunMet = P.daily.sun >= 10;
   const readLines = (() => {
     const w = P.feel.workingLines;
     if (newLines.length) return `${newLines.length === w ? `Every working line` : `${newLines.length} of the ${w} working lines`} (${newLines.length === w ? 'all of them' : `lines ${andList(newLines.map(String))}`}) ${newLines.length === 1 || newLines.length === w ? 'holds' : 'hold'} at least one shift time nobody works today. On a rotating link everyone works every line in turn, so staff read those weeks first and say in one line each what they would change.`;
@@ -218,8 +221,8 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     intro, intro2: '',
     decMet: R.met, decOf: R.of, decToday: RT.met, decLabel: 'December 2026 rules met',
     decTile: `December 2026 rules, confirmed verbally (page 7) · today’s link meets ${RT.met} of ${R.of}`,
-    headsEvid: `At least four at the open, three at the close, five at 22:00; 14 on Saturday, 10 on Sunday`,
-    satNote: satMet ? 'meets the December 2026 figure of 14' : 'short of the December 2026 figure of 14',
+    headsEvid: `At least four at the open, three at the close, five at 22:00; 10 on Sunday`,
+    satNote: 'no Saturday figure is required (relaxed 30 Sep 2026)',
     sunNote: sunMet ? 'meets the December 2026 figure of 10' : 'short of the December 2026 figure of 10',
     thinMoments: thin,
     designHeading: 'The December 2026 rules', designSub: '— each one, with today’s link beside it',

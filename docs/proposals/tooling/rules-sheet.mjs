@@ -2,7 +2,9 @@
 // Every proposal sheet restates the rules on page 6, beside that design's own figures. This is the same set on
 // its own, once, so the rules can be read, argued about and changed without opening a design.
 //
-// Nothing here is typed that the proposal sheets compute. The eleven December rows are `currentRules` —
+// Nothing here is typed that the proposal sheets compute. Three tiers (owner, 30 Sep 2026; report-data.mjs): the hard
+// limits, the nine SOFT December rules (`sheetRules`, as the proposal sheets score them) and the three FLEXIBLE rules
+// (`flexibleRules`, designed to but never on a proposal sheet) — this sheet is the one place that names all three —
 // the function every sheet calls — run on today's link; the fatigue list is `assessFatigue`'s own. Change a
 // rule in report-data.mjs and this sheet follows on its next render; it cannot say one thing while a sheet says
 // another. TODAY'S LINK IS THE ONLY COMPARISON (owner, 29 Sep 2026): the "met by N proposals" and "present in N"
@@ -13,7 +15,7 @@
 // A full `regenerate.mjs` run renders it too, after every sheet.
 import { writeFileSync, readFileSync } from 'node:fs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
-import { today, assess, currentRules, folderStats, OFFICE, OFFICE_HELP_TEXT, demand, MAX_CONSECUTIVE_WORKED_DAYS } from './report-data.mjs';
+import { today, assess, sheetRules as currentRules, flexibleRules, folderStats, OFFICE, OFFICE_HELP_TEXT, demand, MAX_CONSECUTIVE_WORKED_DAYS } from './report-data.mjs';
 import { assessFatigue } from '../../../links-fatigue.js';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
@@ -26,7 +28,7 @@ const clock = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 
 // ── the figures ─────────────────────────────────────────────────────────────────────────────────────────
 const T0 = today();
 const TA = { patterns: T0.patterns, ...assess(T0.patterns, T0.lines) };
-const RT = currentRules(TA, TA, 'today');
+const RT = currentRules(TA, TA, 'today'), FT = flexibleRules(TA, TA, 'today');
 const F = folderStats(), N = F.length;
 
 // Hard limits across the folder, measured the way page 7 measures them.
@@ -59,16 +61,18 @@ const ASKS = {
   open: 'Four people on duty from the moment the station opens: 06:20, or 07:15 on a Sunday.',
   close: 'Three people still on duty until the station closes: 23:55, or 23:25 on a Sunday.',
   at22: 'Five people still on duty at 22:00, every day, Sunday included. Only people working <i>after</i> 22:00 count; someone finishing at 22:00 does not (both settled 28 Sep 2026).',
-  heads: 'Fourteen people working on a Saturday and ten on a Sunday, counted as duties rostered that day.',
+  sunday: 'Ten people working on a Sunday, counted as duties rostered that day.',
+  saturday: 'Fourteen people working on a Saturday, counted as duties rostered that day.',
   cover: 'Four cover weeks in the 24 lines, spaced evenly — every six lines, e.g. lines 1, 7, 13 and 19.',
-  office: `Two identical early and two identical late shifts for the ticket office: Mon–Fri ${OFFICE.plan.weekday.map(([t]) => t.replace('-', '–')).join(' and ')}; Sat ${OFFICE.plan.sat.map(([t]) => t.replace('-', '–')).join(' and ')}; Sun two starting 07:15 and two finishing 22:30.`,
   closer: 'Every Monday-to-Friday shift that works to the 23:55 close starts at 15:45.',
+  office: `Two identical early and two identical late shifts for the ticket office: Mon–Fri ${OFFICE.plan.weekday.map(([t]) => t.replace('-', '–')).join(' and ')}; Sat ${OFFICE.plan.sat.map(([t]) => t.replace('-', '–')).join(' and ')}; Sun two starting 07:15 and two finishing 22:30.`,
   floor: 'At least two people on the station floor at every moment the station is open, checked every five minutes. Ticket-office staff count only while the second of a pair helps on the floor at the quiet ends, and only as a whole person.',
   handover: 'Each closer overlaps someone already on duty by 15 minutes; the two ticket-office shifts overlap by 20 (on a Sunday 30, from 15:00). On a Sunday each opener also stays until 15 minutes after the last closer arrives.',
   sunlen: 'Every Sunday duty is between 8 and 9 hours long.',
   times: `No more different shift times in the week than today’s link has (${TA.feel.distinctTimes}).`,
 };
 
+const flexRows = FT.rows.map(r => `<tr><td><b>${esc(r.rule)}</b></td><td>${ASKS[r.key] ?? esc(r.note)}</td><td class="tt ${r.ok ? 'ok' : 'miss'}">${r.ok ? '✓' : '✕'} ${esc(r.value)}</td></tr>`).join('');
 const decRows = RT.rows.map((r, i) => `<tr><td><b>${esc(r.rule)}</b></td><td>${ASKS[r.key] ?? esc(r.note)}</td><td class="tt ${r.ok ? 'ok' : 'miss'}">${r.ok ? '✓' : '✕'} ${esc(r.value)}</td></tr>`).join('');
 
 // Today's link is the only comparison on this sheet (owner, 29 Sep 2026: a manager is not shown the drafts), so the
@@ -94,9 +98,9 @@ h2 .tag { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-sp
 .tag.hard { background: var(--primary-blue); color: white; } .tag.soft { background: var(--accent-gold); color: var(--primary-blue); } .tag.adv { background: var(--surface-sunken); color: var(--text-mid); }
 p { margin: 3px 0 6px; } .muted { color: var(--text-mid); }
 .lead { font-size: 10.5px; }
-.tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 8px 0 2px; }
+.tiers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 8px 0 2px; }
 .tier { background: var(--surface-sunken); border-radius: var(--radius-sm); padding: 6px 10px; font-size: 9.4px; line-height: 1.35; border-top: 3px solid var(--primary-blue); }
-.tier:nth-child(2) { border-top-color: var(--accent-gold); } .tier:nth-child(3) { border-top-color: var(--border-mid); }
+.tier:nth-child(2) { border-top-color: var(--accent-gold); } .tier:nth-child(3) { border-top-color: color-mix(in srgb, var(--accent-gold) 45%, white); } .tier:nth-child(4) { border-top-color: var(--border-mid); }
 .tier b.k { display: block; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .3px; color: var(--primary-blue); margin-bottom: 3px; }
 .basics { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; font-size: 9.4px; line-height: 1.36; }
 .basics b { color: var(--text-dark); }
@@ -125,7 +129,8 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 
   <div class="tiers">
     <div class="tier"><b class="k">Hard limits</b>A design must meet these or it cannot be run. Three of them.</div>
-    <div class="tier"><b class="k">December 2026 rules</b>The staffing the station has asked for. Eleven of them, each met or not. Weigh them against each other.</div>
+    <div class="tier"><b class="k">Soft rules</b>The December 2026 staffing rules. ${['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven'][RT.of]} of them, each met or not, and scored on every proposal sheet.</div>
+    <div class="tier"><b class="k">Flexible rules</b>Three more every design aims for. Not scored on the proposal sheets; a presentation may mention them. Page 2.</div>
     <div class="tier"><b class="k">Fatigue factors</b>Patterns that tend to tire people. Advisory only: “present” means worth a look, never a breach.</div>
   </div>
 
@@ -146,7 +151,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
     <tr><td><b>The contracted week, exactly</b></td><td>35 hours a week on average, Monday to Saturday, across all 24 lines; a cover week counts as a contracted week. Sunday duties are paid on top as rest-day working, as they are today. Individual weeks may be longer or shorter; only the average is the contract.</td><td class="tt ${cls(todayContract)}">${mark(todayContract)} ${todayContract ? 'exactly 35h' : 'not 35h'}</td></tr>
   </tbody></table>
 
-  <h2>The December 2026 rules <span class="tag soft">met or not</span></h2>
+  <h2>Soft rules — the December 2026 rules <span class="tag soft">met or not</span></h2>
   <p class="lead">Every number is a <b>minimum</b>: too few is the problem, never too many. The staffing levels, the 24-person link and the Sunday cover have all been confirmed verbally.</p>
   <table class="t dec"><thead><tr><th>Rule</th><th>What it asks, exactly</th><th>Today’s link</th></tr></thead><tbody>${decRows}</tbody></table>
   <p class="muted" style="font-size:9px">Today’s figures read Mon–Fri · Saturday · Sunday; a range means the weekdays differ.</p>
@@ -155,8 +160,12 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 </section>
 
 <section class="page">
-  <div class="mast"><div><div class="eyebrow">The rules · continued</div><h1>Fatigue factors, preferences, and what is still open</h1>
-  <div class="sub">The advisory list, what is for staff to say rather than the rules, and the questions not yet settled</div></div></div>
+  <div class="mast"><div><div class="eyebrow">The rules · continued</div><h1>Flexible rules, fatigue factors, preferences and what is still open</h1>
+  <div class="sub">The rules designs aim for but are not scored on, the advisory list, what is for staff to say rather than the rules, and the questions not yet settled</div></div></div>
+
+  <h2>Flexible rules <span class="tag soft">aimed for, not scored</span></h2>
+  <p class="lead">Every design aims for these three, and the searches and solvers that built the proposals check them. They are <b>not scored on the proposal sheets</b>: a proposal that misses one can still be put forward, and a presentation may say which it meets.</p>
+  <table class="t dec"><thead><tr><th>Rule</th><th>What it asks, exactly</th><th>Today’s link</th></tr></thead><tbody>${flexRows}</tbody></table>
 
   <h2>Fatigue factors <span class="tag adv">advisory</span></h2>
   <p>${FZ.length} roster patterns that tend to tire people: ${FZ.filter(r => r.code !== 'MRSF').length} from the Office of Rail and Road’s good-practice guidance, <i>Fatigue Factors</i> (page 3, December 2021), and ${FZ.filter(r => r.code === 'MRSF').length} extra checks from the rail industry’s fatigue guidance (MRSF). The ORR says they are guidance, not limits. So a factor present is a question to discuss, never a pass or a fail, and a design showing none is not thereby approved.</p>
@@ -183,7 +192,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 
   <div class="callout"><b>Changing a rule.</b> Every proposal sheet is checked against this set by the same code. Change a rule and every sheet and this page are re-rendered together, so no sheet is ever judged against an older version of it.</div>
 
-  <div class="foot"><span>Page 2 of 2 — Fatigue factors, preferences and open questions</span><span><b>December 2026 rules</b> · Marylebone Roster — Links designer</span></div>
+  <div class="foot"><span>Page 2 of 2 — Flexible rules, fatigue factors, preferences and open questions</span><span><b>December 2026 rules</b> · Marylebone Roster — Links designer</span></div>
 </section>
 </body></html>`;
 
