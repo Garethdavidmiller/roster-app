@@ -47,6 +47,20 @@ counts or ranks another proposal — the one-page summary is where they sit side
 every page-1 tile and verdict, the *What it takes* line and the *shape of a week* table against the rotas (0 mismatches
 across the 9 sheets), and a footer-overlap check on every page.
 
+**Three rules waived wherever a link misses them (30 Sep 2026, owner).** *"On the links that don't have them, you can
+drop the 15:45 closer shift, evenly spaced cover weeks and 14 on Saturday rules from the proposal sheets. Essentially
+waived."* So *Weekday Lates*, *Evening Peak*, *Anchored Lines* and *Fifteen Turns* now carry the same waivers *Clean Sweep*
+(the closer) and *Full Overhaul* (closer and cover weeks) already had — `WAIVERS` in `tooling/fresh.mjs`. A waived rule is
+never reported as a failure: page 1 names it in one line ("Waived for this design"), and page 6 marks its row ○. Only a
+rule a link actually misses is waived, and each waiver keeps its bound (closers at 15:45 or 16:25; four cover weeks, no
+two together; Saturday at least 12). **The Saturday waiver never covers Sunday's ten**, which shares its rule: *Weekday
+Lates*, *Evening Peak* and *Anchored Lines* roster 9 on a Sunday, so on those three the row becomes **"Ten on a Sunday —
+here 9"**, still not met, with Saturday's 12 noted as waived beside it. The rules met are unchanged (a waived rule is not
+counted as met): *Weekday Lates* 5 of 11 with two waived and four not met; *Evening Peak* and *Anchored Lines* 4 of 11,
+two waived, five not met; *Fifteen Turns* 6 of 11, two waived (Saturday's 13 is fine under the waiver; Sunday has 10),
+three not met — and it still cannot be run as it stands, because of the hard limits. The one-page summary is unchanged:
+it is the owner's side-by-side view and reports every rule as it stands.
+
 **The By the Book family was withdrawn (29 Sep 2026, owner).** *By the Book* (`BB-24-D7 · 0f14abce`), *Eight Forty*
 (`EF-24-E21 · 0cf19f56`) and *Office Written In* (`B2-24-G21 · 02f3c005`) — the rules-first family, meeting 4 to 5 of
 the eleven December rules — are no longer in the folder, the pack or the summary: 28 sheets became 25. Their search

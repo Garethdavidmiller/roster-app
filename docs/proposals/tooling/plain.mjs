@@ -18,7 +18,7 @@
 //
 // `TECH=1` renders the ten-page technical sheet instead (render.mjs), unchanged.
 import { dutyMinutes, startMinutes, endMinutes } from './report-data.mjs';
-import { waivedPhrase, WAIVERS } from './fresh.mjs';
+import { WAIVERS } from './fresh.mjs';
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -204,7 +204,7 @@ function front({ T, P, meta, pages, coverHead }) {
   // THE BOTTOM LINE — one sentence built from the same lists, never typed: the verdict on the rules and limits, the
   // two gains staff weigh most and the two costs they weigh most, each against today.
   const lead = breaks.length ? `${name} cannot be run as it stands: ${esc(breaks[0])}.`
-    : failed.length ? `${name} stays inside every hard limit but meets only ${meta.decMet} of the ${meta.decOf} December staffing rules.`
+    : failed.length ? `${name} stays inside every hard limit but meets only ${meta.decMet} of the ${meta.decOf} December staffing rules${waived.length ? `; ${nWord(waived.length)} more ${waived.length === 1 ? 'is' : 'are'} waived for it` : ''}.`
     : waived.length ? `${name} stays inside every hard limit and meets ${meta.decMet} of the ${meta.decOf} December staffing rules; the other ${nWord(waived.length)} ${waived.length === 1 ? 'is' : 'are'} waived for it.`
     : `${name} meets all ${meta.decOf} December staffing rules and stays inside every hard limit.`;
   // a list item's own dash reads as a break in the sentence ("more late finishes — about one extra … and the average
@@ -227,7 +227,7 @@ function front({ T, P, meta, pages, coverHead }) {
     : ['Partly', `closer than today on ${andList(closerDays.map(d => d === 'weekday' ? 'weekdays' : d))} only`, 'warn'];
   const work = [
     tile(failed.length ? 'bad' : 'good', 'Does it meet the December staffing rules?', `${meta.decMet} of ${meta.decOf}`,
-      failed.length ? `met — ${nWord(failed.length)} not met` : waived.length ? `met — the other ${nWord(waived.length)} waived for it` : 'rules met',
+      failed.length ? `met — ${nWord(failed.length)} not met${waived.length ? `, ${nWord(waived.length)} waived` : ''}` : waived.length ? `met — the other ${nWord(waived.length)} waived for it` : 'rules met',
       `today’s link meets ${meta.decToday} · each rule on page 6`),
     tile(breaks.length ? 'bad' : 'good', 'Can it be run within the hard limits?', breaks.length ? 'No' : 'Yes',
       breaks.length ? 'not as it stands' : 'inside every hard limit',
@@ -238,10 +238,17 @@ function front({ T, P, meta, pages, coverHead }) {
     tile(trainsV[2], 'Does staffing follow the trains better?', trainsV[0], trainsV[1],
       `weekdays ${n1f(pw)} (today ${n1f(tw)}) · Sat ${n1f(ps)} (${n1f(ts)}) · Sun ${n1f(psu)} (${n1f(tsu)}) · lower is closer · page 5`),
   ].join('');
-  const failItems = [...breaks.map(b => `<b>It cannot be run as it stands</b> — ${esc(b)}.`), ...failed.map(r => `<b>${esc(r.rule)}</b> — here ${esc(String(r.value))}`)];
+  const failItems = [...(breaks.length ? [`<b>It cannot be run as it stands</b> — ${esc(andList(breaks))}.`] : []), ...failed.map(r => `<b>${esc(r.rule)}</b> — here ${esc(String(r.value))}`)];
   const failBox = failItems.length ? `<div class="pbox pbox-bad"><h3>${breaks.length ? (failed.length ? `What stops it being run, and the ${nWord(failed.length)} December ${failed.length === 1 ? 'rule' : 'rules'} it does not meet` : 'What stops it being run') : `The ${nWord(failed.length)} December ${failed.length === 1 ? 'rule' : 'rules'} it does not meet`}</h3><ul>${failItems.map(x => `<li>${x}</li>`).join('')}</ul></div>` : '';
   const wv = WAIVERS[meta.identity.code];
-  const waivedBox = waived.length ? `<div class="pbox pbox-info"><h3>Waived for this design</h3><ul>${waived.map(w => `<li><b>${esc(w.rule)}</b> — here ${esc(String(w.value))}${wv?.date ? `; agreed by the owner on ${esc(wv.date)}` : ''}</li>`).join('')}</ul></div>` : '';
+  // one compact paragraph, not a list: the waived rules are recorded, not argued (owner, 30 Sep 2026: "essentially
+  // waived / not mentioned"). Saturday's fourteen is named on its own — Sunday's ten is never waived with it.
+  const partial = rules.find(r => r.partial);
+  const wItem = w => w.key === 'heads' ? `Saturday’s fourteen — here ${esc(String(w.value).split(' · ')[0])} (Sunday’s ten is met)`
+    : w.key === 'cover' ? `four evenly spread cover weeks — here lines ${esc(String(w.value).replace(/^lines /, ''))}`
+    : w.key === 'closer' ? `weekday closers from 15:45 — here ${esc(String(w.value).replace(/^closers start at /, ''))}` : `${esc(w.rule)} — here ${esc(String(w.value))}`;
+  const wItems = [...waived.map(wItem), ...(partial ? [`Saturday’s fourteen — here ${esc(partial.note.match(/here (\d+)/)?.[1] ?? '')} (Sunday’s ten still applies)`] : [])];
+  const waivedBox = wItems.length ? `<div class="pbox pbox-info pwaived"><b>Waived for this design</b>${wv?.date ? ` (agreed by the owner, ${esc(wv.date)})` : ''}: ${wItems.join(' · ')}.</div>` : '';
 
   // WHAT IT WOULD MEAN FOR STAFF — the colleague's four questions, put to the manager who reads the sheet; figures averaged over the link say "about"
   const feelTile = (big, label, small) => `<div class="tile"><b>${big}</b><span class="l">${label}</span><span class="s">${small}</span></div>`;
@@ -271,7 +278,7 @@ function front({ T, P, meta, pages, coverHead }) {
   ${takes}
   <h2 class="psec">Can it work?</h2>
   <div class="tiles head4">${work}</div>
-  ${failBox}${waivedBox}
+  ${failBox && waivedBox ? failBox.replace(/<\/div>$/, `<p class="pbw">${waivedBox.replace(/^<div class="pbox pbox-info pwaived">|<\/div>$/g, '')}</p></div>`) : failBox + waivedBox}
   <h2 class="psec">What it would mean for staff</h2>
   <div class="tiles pfeel four">${feel}</div>
   <div class="pcols">
@@ -292,6 +299,7 @@ function front({ T, P, meta, pages, coverHead }) {
   // (a 5 at the open beats today's 4 but still breaks "at least four"; a green tick beside "not met" contradicted itself)
   const broken = key => rules.some(r => r.key === key && !r.ok && !r.waived);
   const byRule = (key, cls) => broken(key) ? 'no' : cls;
+  const isWaived = key => rules.some(r => r.key === key && r.waived), headsPartial = rules.some(r => r.key === 'heads' && r.partial);
   const row = (label, t, p, cls, words) => `<tr><td>${label}</td><td class="num">${t}</td><td class="num ${cls}">${mark(cls)}<b>${p}</b></td><td class="muted">${words}</td></tr>`;
   const grp = title => `<tr class="pgrp"><td colspan="4">${title}</td></tr>`;
   const sumD = o => Object.values(o).reduce((a, b) => a + b, 0);
@@ -308,12 +316,12 @@ function front({ T, P, meta, pages, coverHead }) {
   const rows2 = [
     grp('Staffing'),
     row('People on the link', tp.L, pp.L, '', `${pp.L - tp.L} more people, one per line`),
-    row('On duty each day — weekday · Saturday · Sunday', headTrio(T.daily), headTrio(P.daily), byRule('heads', cmp(sumD(P.daily) > sumD(T.daily), sumD(P.daily) === sumD(T.daily))), 'the December levels ask for 14 on a Saturday and 10 on a Sunday'),
+    row('On duty each day — weekday · Saturday · Sunday', headTrio(T.daily), headTrio(P.daily), byRule('heads', cmp(sumD(P.daily) > sumD(T.daily), sumD(P.daily) === sumD(T.daily))), isWaived('heads') || headsPartial ? `the rules ask for 10 on a Sunday${headsPartial ? ' — not met' : ''}; Saturday’s 14 waived` : 'the December levels ask for 14 on a Saturday and 10 on a Sunday'),
     row('On at the open — weekday · Sat · Sun', headTrio(T.heads.open), headTrio(P.heads.open), byRule('open', headCls('open')), `at least 4 every day — ${ruleMet('open')}`),
     row('Still on duty at 22:00 — weekday · Sat · Sun', headTrio(T.heads.at22), headTrio(P.heads.at22), byRule('at22', headCls('at22')), `at least 5 every day — ${ruleMet('at22')}`),
     row('Through to the close — weekday · Sat · Sun', headTrio(T.heads.close), headTrio(P.heads.close), byRule('close', headCls('close')), `at least 3 every day — ${ruleMet('close')}`),
     row('How closely staff follow the trains — weekday · Sat · Sun', `${n1(tw)} · ${n1(ts)} · ${n1(tsu)}`, `${n1(pw)} · ${n1(ps)} · ${n1(psu)}`, closerDays.length === 3 ? 'up' : closerDays.length === 0 ? 'down' : '', 'lower is closer; 0 would be a perfect match — page 5'),
-    row('Cover weeks — for leave and sickness', `lines ${T.feel.spareLines.join(', ')}`, `lines ${P.feel.spareLines.join(', ')}`, '', coverWords),
+    row('Cover weeks — for leave and sickness', `lines ${T.feel.spareLines.join(', ')}`, `lines ${P.feel.spareLines.join(', ')}`, '', isWaived('cover') ? `waived: gaps of ${andList(gaps.map(String))} weeks` : coverWords),
     row('Ticket office late shift on a Sunday — people', 1, 2, '', `the December plan: both in the office 15:00–18:00, then one on the floor; today one 14:30–23:25 closer keeps it until 22:30${(meta.pairDays ?? []).includes('sun') ? '' : ' — this rota does not mark them, so two are assumed from its duties'}`),
     grp('Working pattern'),
     row('Most days worked in a row', T.checks.longestStretch, run, run > 13 ? 'no' : cmp(run < T.checks.longestStretch, run === T.checks.longestStretch), 'Chiltern’s limit is 13 (written source to confirm)'),
@@ -338,7 +346,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('Sunday overtime to share', Math.round(tp.sun), Math.round(pp.sun), '', 'Sundays are overtime, as today'),
     grp('Fatigue and the rules'),
     row('Avoidable fatigue warnings (ORR and rail-industry guidance)', T.fatigue.present, P.fatigue.present, cmp(P.fatigue.present < T.fatigue.present, P.fatigue.present === T.fatigue.present), 'guidance, not a pass or fail; early starts and a weekly rotation come with every link — page 7'),
-    row('December staffing rules met', `${meta.decToday} of ${meta.decOf}`, `${meta.decMet} of ${meta.decOf}`, failed.length ? 'no' : cmp(meta.decMet > meta.decToday, meta.decMet === meta.decToday), `staffing levels confirmed verbally, 29 Sep 2026${waived.length ? `; ${waivedPhrase(waived.map(w => w.key))} for this design` : ''} — page 6`),
+    row('December staffing rules met', `${meta.decToday} of ${meta.decOf}`, `${meta.decMet} of ${meta.decOf}`, failed.length ? 'no' : cmp(meta.decMet > meta.decToday, meta.decMet === meta.decToday), `confirmed verbally, 29 Sep 2026${waived.length ? `; ${nWord(waived.length)} more waived for this design` : ''} — page 6`),
   ].join('');
   const page2 = `<section class="page plain">
   <div class="mast"><div><div class="eyebrow">Against today’s link</div><h1>What changes, in numbers</h1><div class="sub">Today’s 20-week link beside ${name}. <b>✓ green</b>: better than today on something the rules, the hard limits or the fatigue guidance aim for · <b>▲ amber</b>: worse on one of those · <b>✕ red</b>: a rule or limit broken · <b>unshaded</b>: a difference for colleagues to weigh.</div></div></div>
@@ -490,12 +498,15 @@ dl.pmethod { margin: 10px 0; } dl.pmethod dt { font-weight: 800; color: var(--pr
 .cover.plain .mast { padding: 12px 24px 11px; } .cover.plain .mast h1 { font-size: 24px; } .cover.plain .mast img { width: 40px; height: 40px; }
 .cover.plain .ident { margin-top: 9px; } .cover.plain .ident-name { font-size: 26px; }
 .cover.plain .pbottom { font-size: 11.6px; line-height: 1.45; margin-top: 9px; padding: 7px 14px; }
-.cover.plain h2.psec { margin: 8px 0 4px !important; } .cover.plain .head4 .tile b { font-size: 20px !important; } .cover.plain .pfeel .tile b { font-size: 16px; }
+.cover.plain h2.psec { margin: 7px 0 4px !important; } .cover.plain .head4 .tile b { font-size: 20px !important; } .cover.plain .pfeel .tile b { font-size: 16px; }
 .cover.plain .pcols { margin-top: 8px; } .cover.plain .pdecide1 { margin-top: 8px; } .cover.plain .pbox-bad { margin-top: 6px; }
 table.p4shape { margin-top: 4px; font-size: 9.4px; table-layout: fixed; width: 100%; } table.p4shape td, table.p4shape th { padding: 2.5px 6px; } table.p4shape th:nth-child(1) { width: 29%; } table.p4shape th:nth-child(2) { width: 27%; } table.p4shape th:nth-child(3) { width: 19%; } table.p4shape td:nth-child(2), table.p4shape td:nth-child(3) { white-space: nowrap; }
 h2.p4shape-h { margin-top: 10px; }
+.cover.plain .pwaived { margin-top: 6px; font-size: 9.6px; line-height: 1.4; padding: 6px 14px; } .cover.plain .pwaived b { color: var(--primary-blue); }
+.cover.plain .head4 .tile .s { font-size: 9px; line-height: 1.3; } .cover.plain .head4 .tile .l { font-size: 10.4px; line-height: 1.3; }
+.cover.plain .pbw { margin: 5px 0 0; padding-top: 4px; border-top: 1px dashed color-mix(in srgb, var(--danger-red, #b3261e) 30%, white); font-size: 9.4px; line-height: 1.35; color: var(--text-mid); } .cover.plain .pbw b { color: var(--primary-blue); }
 .cover.plain .ptakes { font-size: 10px; margin: 6px 0 0; line-height: 1.4; color: var(--text-dark, #1a1a2e); } .cover.plain .ptakes b { color: var(--primary-blue); }
-.cover.plain .pcols .pbox ul { font-size: 9.8px; line-height: 1.38; }
+.cover.plain .pcols .pbox ul { font-size: 9.6px; line-height: 1.32; }
 .cover.plain h2.psec { font-size: 12.5px; margin: 11px 0 5px; color: var(--primary-blue); letter-spacing: .01em; }
 .cover.plain .tiles.head4, .cover.plain .tiles.pfeel.four { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .cover.plain .head4 .tile .q { min-height: 26px; } .cover.plain .head4 .tile b { font-size: 22px; }
@@ -734,7 +745,7 @@ function rulesPage(s, { T, P, meta }) {
   s = must(s, /<h2>Hard limits <span[\s\S]*?<\/span><\/h2>\s*<div class="check-rows">[\s\S]*?<\/div>\s*<\/div>\s*<\/div>\s*<\/div>\s*(?=<h2>The December 2026 rules)/,
     `<h2>Hard limits <span class="muted" style="font-weight:400;font-size:10px">— met, or the rota cannot be run</span></h2>\n  <div class="hl-cards">${rows.map(card).join('')}</div>\n  `, 'the hard-limit rows');
   const rules = meta.designRules ?? [], failed = rules.filter(r => !r.ok && !r.waived), waived = rules.filter(r => !r.ok && r.waived);
-  const pill = failed.length ? `<span class="rpill rpill-no">✕ ${meta.decMet} of ${meta.decOf} met — ${failed.length} not met, shaded below</span>`
+  const pill = failed.length ? `<span class="rpill rpill-no">✕ ${meta.decMet} of ${meta.decOf} met — ${failed.length} not met, shaded below${waived.length ? `; ${waived.length} waived for this design` : ''}</span>`
     : `<span class="rpill rpill-ok">✓ ${meta.decMet} of ${meta.decOf} met${waived.length ? ` — the other ${waived.length === 1 ? 'one' : waived.length} waived for this design` : ''}</span>`;
   s = must(s, /<h2>The December 2026 rules <span[^>]*>[^<]*<\/span><\/h2>/, `<h2>The December 2026 rules ${pill}</h2>`, 'the rules heading');
   s = must(s, /\s*<!-- The heading used to be[\s\S]*?-->\s*<h2>Still to settle<\/h2>\s*<ul class="oq-list">[\s\S]*?<\/ul>/, '', 'the rules page still-to-settle list');
