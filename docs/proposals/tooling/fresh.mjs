@@ -335,7 +335,7 @@ export function freshWords(html, { total, todayMet, of, monSat, coverSame, examp
     [/the contract: 20 working lines × 35h has to be worked somewhere/g, '20 working weeks of 35 hours have to be worked somewhere'],
     [/one row per distinct weekday/g, 'a row for each different weekday'],
     [/of whom ticket office/g, 'in the ticket office'], [/of whom on the floor/g, 'on the floor'], [/Dec 2026 traffic/g, 'Train carriages, Dec 2026'],
-    [/Spare cover is not in these figures — a cover week carries no times, so the rows are a floor\./g, 'Cover weeks are not in these figures — a cover week has no fixed times — so real cover is a little higher.'],
+    [/Spare cover is not in these figures — a cover week carries no times, so the rows are a floor\./g, 'Cover weeks are not in these figures, because their times are not known yet; actual staffing depends on where those duties are used.'],
     [/, and today's link scores what it scores/g, ''], [/ \(For the record:[^)]*\)/g, ''],
     [/within the 13 configured here from Chiltern practice \(origin: the legacy Hidden standard\)/g, 'within Chiltern’s limit of 13'],
     [/Basis: Chiltern roster policy, citation outstanding — legacy Hidden 13-in-14 standard\. Configured from Chiltern practice; the policy citation is outstanding, so this is stated as the app states it\./g, 'The written source of the 13-day limit is still to be confirmed.'],
