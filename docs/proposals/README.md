@@ -166,13 +166,14 @@ re-render of the sheets does not update it, so rebuild it after one.
 **The one-page summary:** `Proposals-Summary.pdf` (*Proposals at a glance.pdf* in the zip) — every proposal against today's link on one A4 page, rendered by
 `tooling/summary-sheet.mjs` from `folderStats` and the same JSON rotations (the script's header comment states each column's formula).
 
-**The Familiar Nine presentations:** `presentations/` — one for colleagues (15 slides) and one for managers (10), each
-as PowerPoint and PDF (29 Sep 2026; corrected 30 Sep 2026). Built with pptxgenjs outside this repository, so their figures
+**The presentations:** `presentations/` — for *Familiar Nine* and *Right Away* (added 30 Sep 2026, built on the Familiar
+Nine decks as a template), one for colleagues (15 slides) and one for managers (10) each, as PowerPoint and PDF
+(29 Sep 2026; corrected 30 Sep 2026). Right Away's pair had its own independent recount of every slide and note. Built with pptxgenjs outside this repository, so their figures
 were typed in from counts of the rotas in this folder and checked against an independent recount — unlike the sheets,
 nothing recalculates them. They are copies, so a change to a sheet does not
 reach them. Two of their inputs are not on any sheet, so they are recorded here:
-- *The leave figures* (colleague deck: 14 days' leave buys at best 28 days off, 23.6 on average, 20 at worst; four
-  full weeks off costs 15 days; today 30 · 23.4 · 19 · 14). Walk the rotation day by day from every possible first day
+- *The leave figures* (colleague decks: 14 days' leave buys at best 28 days off, 23.6 on average, 20 at worst; four
+  full weeks off costs 15 days — the same for both, which share their pattern of rest days; today 30 · 23.4 · 19 · 14). Walk the rotation day by day from every possible first day
   of leave, and count the days off in a row before a 15th day of leave would be needed. A Monday-to-Saturday working
   day costs one day of leave; a rest day and a Sunday (overtime, not contracted) cost none; a cover week costs at most
   four, its first four Monday-to-Saturday days in the stretch. Best, average and worst are over every first day.
