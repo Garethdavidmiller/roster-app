@@ -152,7 +152,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   </tbody></table>
 
   <h2>Soft rules — the December 2026 rules <span class="tag soft">met or not</span></h2>
-  <p class="lead">Every number is a <b>minimum</b>: too few is the problem, never too many. The staffing levels, the 24-person link and the Sunday cover have all been confirmed verbally.</p>
+  <p class="lead">The staffing headcounts are <b>minimums</b>: too few is the problem, never too many. The other rules use the bounds shown. The staffing levels, the 24-person link and the Sunday cover have all been confirmed verbally.</p>
   <table class="t dec"><thead><tr><th>Rule</th><th>What it asks, exactly</th><th>Today’s link</th></tr></thead><tbody>${decRows}</tbody></table>
   <p class="muted" style="font-size:9px">Today’s figures read Mon–Fri · Saturday · Sunday; a range means the weekdays differ.</p>
 
@@ -186,8 +186,9 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
     <li><b>The source of the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit.</b> Somebody confirms where it is written down.</li>
     <li>${(() => { const c = live.filter(r => r.confirm), n = c.length, codes = andList(c.map(r => r.code === 'MRSF' ? 'MRSF 7×8h' : r.code));
       // Settled 28 Sep 2026 against ORR's Managing rail staff fatigue (Aug 2024): only FF19 keeps the flag, because
-      // its reading (a rest day resets it) is the owner's and more lenient than ORR's wording — say which way it leans.
-      return `<b>${['No','One','Two','Three','Four','Five','Six'][n] ?? n} fatigue definition${n === 1 ? '' : 's'} to confirm.</b> ${n ? `${codes} ${n === 1 ? 'is' : 'are'} counted on a reading an assessing manager should confirm${c.some(r => r.code === 'FF19') ? ': FF19 treats a rest day as time to adjust, where the ORR’s wording (“consecutive duties”) would count across rest days — and on that reading every link has it' : ''}.` : 'Every factor is counted on the ORR’s own reading.'}`; })()}</li>
+      // its reading (a rest day resets it) is the owner's, and ORR's wording does not settle whether a rest day breaks the
+      // succession (external audit, 30 Sep 2026) — say what is open, not which way it leans.
+      return `<b>${['No','One','Two','Three','Four','Five','Six'][n] ?? n} fatigue definition${n === 1 ? '' : 's'} to confirm.</b> ${n ? `${codes} ${n === 1 ? 'is' : 'are'} counted on a reading an assessing manager should confirm${c.some(r => r.code === 'FF19') ? ': FF19 treats a rest day as time to adjust; the ORR (7.71) does not say whether a rest day breaks a run of successive start times — if it does not, every link has it' : ''}.` : 'Every factor is counted on the ORR’s own reading.'}`; })()}</li>
   </ol>
 
   <div class="callout"><b>Changing a rule.</b> Every proposal sheet is checked against this set by the same code. Change a rule and every sheet and this page are re-rendered together, so no sheet is ever judged against an older version of it.</div>
