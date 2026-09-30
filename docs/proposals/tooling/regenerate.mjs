@@ -58,7 +58,8 @@ export const SUPPLIED = [
     // Saturday, cover weeks anywhere not side by side), each day's duty mix re-searched so the fits compete with the best
     // sheets (exact/mixsa.mjs → exact/rr-mix.json), then the rota built in the fewest changes for that mix (exact/tiebreak.py
     // with MIX= and WIDE=1): up to four tiring patterns (Running Repair) and none (Full Overhaul).
-    { file: 'running-repair.json',         name: 'Running Repair', code: 'RR-24-M34',  fp: '621165eb', strap: 'Weekday Lates retimed to follow the trains, no more than four tiring patterns' },
+    // Running Repair (RR-24-M34 · 621165eb, the 34-change, four-pattern member) was WITHDRAWN on 30 Sep 2026 (owner);
+    // exact/rr-mix.json and the commands in the README rebuild it. Full Overhaul, the same mix with no pattern, stays.
     { file: 'full-overhaul.json',          name: 'Full Overhaul',  code: 'FO-24-M49',  fp: 'bb9b6c24', strap: 'Weekday Lates retimed to follow the trains, with no tiring pattern' },
 ];
 
@@ -68,13 +69,10 @@ export const SUPPLIED = [
 // strap, family and date in fresh.mjs from git history. Unlisted, a full run cannot ship them back into the folder.
 // The Same Turns family (ST-24-B7 · d15e1b74, QT-24-Q34 · 70cf9874, Q2-24-W21 · 7ea671d5) was withdrawn the same way
 // the same day: its entries were { ST: results/best-{A,B}-*.json }, { QT: results/best-{Q,R}-*.json }, { Q2: results/best-W-*.json }.
+// The Pinned Turns family (PT-24-P34 · dae6292e, P2-24-N13 · 33a78cbe) was withdrawn the same way on 30 Sep 2026 (owner):
+// its entries were { PT: results/best-RP-*.json, OTHER_MODE results/best-P-13.json } and { P2: results/best-RN-*.json,
+// OTHER_MODE results/best-N-7.json }. Both grids are kept unchanged in test-fixtures/links-designs/ for the Links compare tests.
 export const SEARCHED = [
-    // PT ran in both modes; fatigue-first (RP) cleared every factor where like-today (P) kept one or two, so RP
-    // is the family and the best like-today result is shown beside it as a labelled row.
-    { proposal: 'PT', fp: 'dae6292e', globs: ['results/best-RP-*.json'], env: { OTHER_MODE: 'results/best-P-13.json' } },
-    // P2 ran in both modes too, with the same outcome: fatigue-first (RN) cleared every factor on all four seeds, like-today (N)
-    // kept one (FF19) on every seed. The like-today best is the labelled comparison row.
-    { proposal: 'P2', fp: '33a78cbe', globs: ['results/best-RN-*.json'], env: { OTHER_MODE: 'results/best-N-7.json' } },
     // FR ran fatigue-first only, on the owner's final rules of 28 Sep 2026 (table F, final-rules-table.json, built by final-table.mjs).
     // 34o (28 Sep 2026) is seed 34's rotation with its week order improved by order-polish.mjs — the same duties on every
     // day, better or equal on every figure; it wins the pick on the search's own score, by the rule every seed is judged by.

@@ -1,8 +1,8 @@
 // links-compare-analysis.test.mjs — what the difference between two Links designs MEANS (v24.25).
 // Pure: no DOM, no install. The render is pinned in links-compare.test.mjs; this pins the arithmetic.
 //
-// The fixtures are REAL designs: two proposal sheets from docs/proposals, whose fingerprints the
-// regenerate script checks, so a comparison asserted here is one a designer would actually make.
+// The fixtures are REAL designs — proposal sheets from docs/proposals, or withdrawn ones kept unchanged in
+// test-fixtures/links-designs/ — so a comparison asserted here is one a designer would actually make.
 // Organised by what a wrong answer costs: a comparison that paired the wrong rows, read a design
 // against the other's hours, or hid a factor both carry would mislead the room it is taken into.
 import { test } from 'node:test';
@@ -14,7 +14,10 @@ import { assessHardLimits } from './links-limits.js';
 import { calcHourlyCoverage, ROTATING_LINES } from './links-design.js';
 
 const sheet = (/** @type {string} */ f) => JSON.parse(readFileSync(new URL(`./docs/proposals/${f}`, import.meta.url), 'utf8'));
-const PT = { patterns: sheet('Pinned-Turns-PT-24-P34.json').patterns };   // zero factors present
+// Pinned Turns and Round Times were withdrawn from the proposal folder (owner, 30 Sep 2026); their grids are kept,
+// unchanged, as fixtures, because the figures asserted here are theirs.
+const fixture = (/** @type {string} */ f) => JSON.parse(readFileSync(new URL(`./test-fixtures/links-designs/${f}`, import.meta.url), 'utf8'));
+const PT = { patterns: fixture('pinned-turns-PT-24-P34.json').patterns };   // zero factors present
 const FT = { patterns: sheet('Fifteen-Turns-FT-24-EXT.json').patterns };  // seven present, an 11h15 rest
 
 test('two identical designs: nothing changes, and every factor is counted as the same', () => {
@@ -132,7 +135,7 @@ test('each design is read against its OWN staffed window, and a mismatch is flag
 test('a figure that moves WITHOUT changing the finding is still reported', () => {
     // Pinned Turns and Round Times are both clear on FF11, at 11 and 9. Reading only the status
     // would call them identical; a designer weighing the two needs the 11 against the 9.
-    const p2 = { patterns: sheet('Round-Times-P2-24-N13.json').patterns };
+    const p2 = { patterns: fixture('round-times-P2-24-N13.json').patterns };
     const r = compareDesigns(PT, p2);
     const ff11 = r.fatigue.changed.find(c => c.code === 'FF11');
     assert.ok(ff11, 'FF11 is reported');

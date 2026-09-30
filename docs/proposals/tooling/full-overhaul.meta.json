@@ -13,7 +13,7 @@
  "identity": {
   "table": "— (Weekday Lates' duties, each day's mix re-searched, 49 cells changed)",
   "seed": "— (duty-mix search, then an exact solver with a fixed tie-break order)",
-  "lineage": "DERIVED: “Weekday Lates” (WL-24-EXT · a52ec588) with the same duty mix as Running Repair (RR-24-M34) — floor fit 27.0 · 12.3 · 26.4 — built by an exact solver in the fewest cell changes that give that mix with no tiring pattern present: 49, proven for the mix, under the December 2026 rules with three waived by the owner on 29 September 2026: weekday closers may start at 16:25, twelve on a Saturday, and cover weeks anywhere not side by side."
+  "lineage": "DERIVED: “Weekday Lates” (WL-24-EXT · a52ec588) with each day's duty mix re-searched (tooling/exact/rr-mix.json) so its floor fit is 27.0 · 12.3 · 26.4 — built by an exact solver in the fewest cell changes that give that mix with no tiring pattern present: 49, proven for the mix, under the December 2026 rules with three waived by the owner on 29 September 2026: weekday closers may start at 16:25, twelve on a Saturday, and cover weeks anywhere not side by side."
  },
  "extraAlternatives": [
   {
