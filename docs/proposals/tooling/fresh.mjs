@@ -8,7 +8,7 @@
 //
 // The one-line descriptions are the only typed words about a design, and each says what the design IS, never
 // what it was derived from.
-import { currentRules } from './report-data.mjs';
+import { sheetRules as currentRules } from './report-data.mjs';
 import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.js';
 import { maxHoursInAny7Days, toSequence } from '../../../links-fatigue.js';
 import { materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs';
@@ -55,10 +55,10 @@ const MADE = {
  *  next to each other. */
 export const WAIVERS = {
   // EMPTY SINCE 30 SEP 2026. The three rules waived here — the 15:45 weekday closer (Clean Sweep, Full Overhaul, then the
-  // Weekday Lates family and Fifteen Turns), four evenly spread cover weeks, and fourteen on a Saturday — were soft rules
-  // the owner then relaxed for every design: "they probably don't need to appear at all". They left the rule set
-  // itself (currentRules, RELAXED_RULES in report-data.mjs), so no sheet scores, lists or waives them. The mechanism is
-  // kept for a future per-design waiver.
+  // Weekday Lates family and Fifteen Turns), four evenly spread cover weeks, and fourteen on a Saturday — became soft
+  // rules for every design: "they probably don't need to appear at all", but "I want to keep those rules when
+  // designing". The sheets read sheetRules (report-data.mjs), which leaves them out, so there is nothing to waive; the
+  // searches and solvers still read currentRules, which keeps them. The mechanism is kept for a future waiver.
 };
 const WAIVE = {
   closer: { short: '15:45 closer', allows: v => /^closers start at /.test(v) && v.replace(/^closers start at /, '').split(/, | and /).every(t => t === '15:45' || t === '16:25') },

@@ -9,7 +9,7 @@
 //   finishes 23:00+ and Saturdays a year — per person, averaged over the whole link; cover weeks add none
 //
 //   node docs/proposals/tooling/summary-sheet.mjs   → docs/proposals/Proposals-Summary.pdf
-import { folderStats, today, assess, currentRules, dutyMinutes, startMinutes, endMinutes } from './report-data.mjs';
+import { folderStats, today, assess, sheetRules as currentRules, dutyMinutes, startMinutes, endMinutes } from './report-data.mjs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
 import fs from 'node:fs';
 const DIR = new URL('../', import.meta.url);

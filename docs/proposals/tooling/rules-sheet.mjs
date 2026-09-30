@@ -2,8 +2,8 @@
 // Every proposal sheet restates the rules on page 6, beside that design's own figures. This is the same set on
 // its own, once, so the rules can be read, argued about and changed without opening a design.
 //
-// Nothing here is typed that the proposal sheets compute. The December rows are `currentRules` (nine since the owner
-// relaxed three soft rules on 30 Sep 2026, named once beneath the table from RELAXED_RULES) —
+// Nothing here is typed that the proposal sheets compute. The December rows are `sheetRules` — currentRules less the
+// three soft rules (owner, 30 Sep 2026), which are named once beneath the table from RELAXED_RULES as design aims —
 // the function every sheet calls — run on today's link; the fatigue list is `assessFatigue`'s own. Change a
 // rule in report-data.mjs and this sheet follows on its next render; it cannot say one thing while a sheet says
 // another. TODAY'S LINK IS THE ONLY COMPARISON (owner, 29 Sep 2026): the "met by N proposals" and "present in N"
@@ -14,7 +14,7 @@
 // A full `regenerate.mjs` run renders it too, after every sheet.
 import { writeFileSync, readFileSync } from 'node:fs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
-import { today, assess, currentRules, RELAXED_RULES, folderStats, OFFICE, OFFICE_HELP_TEXT, demand, MAX_CONSECUTIVE_WORKED_DAYS } from './report-data.mjs';
+import { today, assess, sheetRules as currentRules, RELAXED_RULES, folderStats, OFFICE, OFFICE_HELP_TEXT, demand, MAX_CONSECUTIVE_WORKED_DAYS } from './report-data.mjs';
 import { assessFatigue } from '../../../links-fatigue.js';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
@@ -148,7 +148,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <h2>The December 2026 rules <span class="tag soft">met or not</span></h2>
   <p class="lead">Every number is a <b>minimum</b>: too few is the problem, never too many. The staffing levels, the 24-person link and the Sunday cover have all been confirmed verbally.</p>
   <table class="t dec"><thead><tr><th>Rule</th><th>What it asks, exactly</th><th>Today’s link</th></tr></thead><tbody>${decRows}</tbody></table>
-  <p class="muted" style="font-size:9px">Today’s figures read Mon–Fri · Saturday · Sunday; a range means the weekdays differ. <b>Relaxed on 30 September 2026 and no longer scored:</b> ${RELAXED_RULES.map(esc).join(' · ')}.</p>
+  <p class="muted" style="font-size:9px">Today’s figures read Mon–Fri · Saturday · Sunday; a range means the weekdays differ. <b>Kept as design aims, not scored:</b> ${RELAXED_RULES.map(esc).join(' · ')} — soft rules since 30 September 2026. The proposals were designed to them where possible; the sheets do not count them.</p>
 
   <div class="foot"><span>Page 1 of 2 — Hard limits and the December 2026 rules</span><span><b>December 2026 rules</b> · Marylebone Roster — Links designer</span></div>
 </section>

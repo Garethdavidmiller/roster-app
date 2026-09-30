@@ -47,19 +47,19 @@ counts or ranks another proposal — the one-page summary is where they sit side
 every page-1 tile and verdict, the *What it takes* line and the *shape of a week* table against the rotas (0 mismatches
 across the 9 sheets), and a footer-overlap check on every page.
 
-**Three soft rules relaxed — nine December rules, not eleven (30 Sep 2026, owner).** *"Those three were soft rules
-that were relaxed; they probably don't need to appear at all."* **Fourteen on a Saturday**, **four evenly spread cover
-weeks** and **every weekday closer starting at 15:45** left the rule set itself (`currentRules` in
-`tooling/report-data.mjs`; the three are named in `RELAXED_RULES`). Every sheet, the one-page summary and today's link
-are now scored against the same **nine** rules, so the counts compare directly; no sheet lists, scores or waives the
-three, and the rules sheet names them once, beneath its table, as relaxed. Saturday's fourteen shared a rule with
-Sunday's ten: **Sunday's ten was not relaxed** and stands as a rule of its own, "Ten on a Sunday". The facts behind the
-relaxed rules are still on every sheet as facts — the Saturday headcount, the cover-week lines and their spacing, every
-closing shift's start — just not as rules. The per-design waivers (`WAIVERS` in `tooling/fresh.mjs`: Clean Sweep's and
-Full Overhaul's 16:25 closers and cover weeks, then briefly the Weekday Lates family and Fifteen Turns) are empty: there
-is nothing left to waive. Rules met, of nine: *All Clear*, *Clean Sweep*, *Familiar Nine*, *Full Overhaul* and *Right
-Away* 9; *Fifteen Turns* 6 (and it still breaks two hard limits); *Weekday Lates* 5; *Evening Peak* and *Anchored Lines*
-4; today's link 4. The Familiar Nine decks say nine too.
+**Three soft rules — designed to, not scored (30 Sep 2026, owner).** *"Those three were soft rules that were relaxed;
+they probably don't need to appear at all"*, and then: *"I want to keep those rules when designing though."* So
+**fourteen on a Saturday**, **four evenly spread cover weeks** and **every weekday closer starting at 15:45** stay in
+`currentRules` (`tooling/report-data.mjs`), which every search, solver and judge reads (`exact/jsjudge.mjs` among them), and
+are left only off what a reader is shown: the proposal sheets, the one-page summary and the rules sheet read
+`sheetRules`, the same rules less those three, and score every link, today's included, out of the same **nine**, so the
+counts compare directly. The rules sheet names the three once, beneath its table, as design aims. Saturday's fourteen
+shared a rule with Sunday's ten: **Sunday's ten is not soft** and stands on the sheets as a rule of its own, "Ten on a
+Sunday". The facts behind the soft rules are still on every sheet as facts — the Saturday headcount, the cover-week lines
+and their spacing, every closing shift's start. The per-design waivers (`WAIVERS` in `tooling/fresh.mjs`) are empty:
+there is nothing left to waive. Rules met, of nine: *All Clear*, *Clean Sweep*, *Familiar Nine*, *Full Overhaul* and
+*Right Away* 9; *Fifteen Turns* 6 (and it still breaks two hard limits); *Weekday Lates* 5; *Evening Peak* and *Anchored
+Lines* 4; today's link 4. The Familiar Nine decks say nine too.
 
 **The By the Book family was withdrawn (29 Sep 2026, owner).** *By the Book* (`BB-24-D7 · 0f14abce`), *Eight Forty*
 (`EF-24-E21 · 0cf19f56`) and *Office Written In* (`B2-24-G21 · 02f3c005`) — the rules-first family, meeting 4 to 5 of
@@ -150,7 +150,7 @@ as PowerPoint and PDF (29 Sep 2026). Built with pptxgenjs outside this repositor
 the rotas in this folder and checked against an independent recount. They are copies, so a change to a sheet does not
 reach them.
 
-**The rules on their own:** `December-2026-Rules.pdf` — the hard limits, the nine December 2026 rules (eleven until three soft ones were relaxed on 30 Sep 2026), the
+**The rules on their own:** `December-2026-Rules.pdf` — the hard limits, the nine December 2026 rules the sheets score (the three soft ones named as design aims), the
 fatigue factors and the open questions, on two pages, from the same code the sheets are judged by.
 
 **Reading this file.** Sections dated before 28 Sep 2026 describe the sheets and rules of their day — page
@@ -1757,7 +1757,7 @@ changed; each fix is in the generator, not the PDF; all 22 sheets were re-render
 | `<Name>-<code>-<fingerprint>.pdf` | the proposal, 8 pages A4 (the plain edition) — **force-added** (`git add -f`), because `.gitignore` ignores every `*.pdf` in the tree |
 | `<Name>-<code>-import.txt` | line number then Sunday–Saturday, tab-separated — paste into **Links → Import** |
 | `<Name>-<code>.json` | the same rotation in the app's own `{ name, patterns }` shape — also importable |
-| `December-2026-Rules.pdf` | **the rules on their own** (28 Sep 2026), two pages A4, force-added like the sheets: the three hard limits, the nine December 2026 rules (eleven until 30 Sep 2026) with what each asks exactly, today's link against each and how many of the proposals meet it, the fatigue factors with how many proposals each is present in, the preferences, and the questions still open. Rendered by `tooling/rules-sheet.mjs` from `currentRules`, `assessFatigue` and `folderStats` — the code the sheets use — and by every full `regenerate.mjs` run, so it cannot drift from them |
+| `December-2026-Rules.pdf` | **the rules on their own** (28 Sep 2026), two pages A4, force-added like the sheets: the three hard limits, the nine December 2026 rules the sheets score (the three soft ones named beneath) with what each asks exactly, today's link against each and how many of the proposals meet it, the fatigue factors with how many proposals each is present in, the preferences, and the questions still open. Rendered by `tooling/rules-sheet.mjs` from `currentRules`, `assessFatigue` and `folderStats` — the code the sheets use — and by every full `regenerate.mjs` run, so it cannot drift from them |
 
 Every import form is verified against `links-import.js` (24 lines, no warnings). Importing one
 makes the workspace's Design checks, hard limits, fatigue factors and coverage cards restate those
@@ -1773,12 +1773,12 @@ first-time reader: it answers **one question** — *is this better than today's 
 2026 rules?* — against **one rule set**, in plain English, with no reference to how it was derived, which brief it
 answered or which sheet came before it. **No figure changed**; the words around them did.
 
-- **One rule set, nine rules since 30 Sep 2026 (eleven before)** (`currentRules`, `tooling/report-data.mjs`), read from each design's cells: at
+- **One rule set: eleven rules to design to, nine scored on the sheets since 30 Sep 2026** (`currentRules` and `sheetRules`, `tooling/report-data.mjs`), read from each design's cells: at
   least four at the open, three at the close and five at 22:00 on every day; 10 on a Sunday; the ticket office
   as two early and two late identical turns every day; at least two on the floor at every moment; 15-minute
   handovers (20 in the office); Sunday duties 8h–9h; no more shift times than today. Five of the nine sheets meet
-  all nine; today's link meets 4. (Until 30 Sep 2026 the set also held 14 on a Saturday, four evenly spread cover
-  weeks and a 15:45 start for every weekday closer — relaxed by the owner; see the note near the top.)
+  all nine; today's link meets 4. (The design set also holds 14 on a Saturday, four evenly spread cover
+  weeks and a 15:45 start for every weekday closer; they are still designed to, and no longer scored — see the note near the top.)
 - **The 22:00 rule, confirmed by the owner (28 Sep 2026):** somebody finishing **at** 22:00 does **not** count
   towards the five — only people still on duty after 22:00 do — and the rule applies **every day, Sunday
   included**. Both are how every sheet already checked it, so no figure moved. (The 22 Sep reading earlier in
