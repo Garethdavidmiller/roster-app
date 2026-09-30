@@ -128,7 +128,11 @@ Then *Polished Clean* (`PC-24-EXT · 12424ed2`) was **restored** (owner, 30 Sep 
 the ticket office pairs rule aside for it alone (`WAIVERS` in `tooling/fresh.mjs`); it meets 3 of the other eight soft
 rules. Its page 5 sets the *Good to know* notes a touch tighter (`p5notes--dense` in `tooling/plain.mjs`), because it
 carries both long notes — the partly-rostered office and Sunday's last trains — and the list otherwise ran into the footer.
-No other sheet changed.
+No other sheet changed. Its screenshot check the same day found one defect shared by **every** sheet: on page 4, *The shape
+of a week*'s "working weeks by days worked" figure did not wrap and ran into the next column. It now wraps between counts
+(never inside one), the columns are rebalanced and the table sits a little tighter, so every sheet's page 4 clears its
+footer. No figure changed on any sheet. Polished Clean's page-1 waiver line also says which days its office pairs are
+rostered (Thu and Fri), rather than repeating page 6's day-group value.
 The Links compare test that used Short Closer as its
 real-design fixture now uses *Weekday Lates*, which has the same shape (tiring patterns present in both at different figures).
 
