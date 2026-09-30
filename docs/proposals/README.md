@@ -14,14 +14,16 @@ be easy to understand"*). They speak *about* staff, never *to* them, and name no
 whole proposal:
 - an *In short* sentence built from the page's own lists (the verdict, the two biggest gains and trade-offs for staff);
 - **"For discussion, not a decision"** in the body text, with what is still to settle (which link, who starts where);
-- a **What it takes** line: the people (24, 4 more than today), the cover weeks, and the Sunday overtime every week in
-  people and hours, against today and against the 10 the rules ask for;
+- a **What it takes** line: the people (24, 4 more than today), the cover weeks, and the Sunday overtime — people on duty,
+  and hours across the whole link each week — against today and against the 10 the rules ask for;
 - four *Can it work?* tiles (the nine December rules, the hard limits, avoidable fatigue warnings with cover weeks at
   their worst, and the match to the trains with each day's figure against today's);
 - a red box naming every rule or limit broken;
-- under *What it would mean for staff*, **every** likely positive and concern — weekends, late finishes, 06:20 starts,
-  shift times to learn, the shortest rest and the fatigue count among them. Only the trains tile's own point is left
-  to the tile.
+- under *What it would mean for staff*, **every** concern, and the **five** strongest positives with "More detail on
+  page 2" (external review: ten positives against four concerns read as a sales pitch, and a count of the rest read as
+  keeping score). The shortest rest and the
+  fatigue count keep their places among the five when they apply; every positive left off is a page-2 row. A concern
+  is never left off.
 
 **A second pass, same day (owner, after asking whether the new version was weaker than the first).** It was not weaker in
 content, but a comparison showed page 1 set about 6% smaller, the "for discussion, not a decision" line demoted to the
