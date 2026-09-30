@@ -58,10 +58,10 @@ below is owned by somebody other than the developer.
 | Line-order objectives | ✅ Shipped v19.58–v19.60 | — | — |
 | **Hard company limits — a controlled source** | ⚠️ **Cited to the policy, but the policy is not identified** | **Before management review** | **Gareth** — get the title, clause, staff group and effective date. Evidence class B required (ROADMAP.md → Evidence class) |
 | **Sunday operating window** | ✅ **Settled (owner, 28 Sep 2026): no duty runs past 23:25 on a Sunday** — agreed practice, and it will remain so. The five later movements are outside the staffed window on every design, and the heat map keeps showing them as a neutral fact | — | — |
-| **Contracted hours — today's duties cannot fill a 24-line link** | ✅ **Answered (owner, 29 Sep 2026)**: the December 2026 staffing levels and a 24-person link are both confirmed verbally, so the December staffing supplies the extra duty. Every sheet but one pays the 35h week exactly — 42,000 minutes Monday to Saturday — carrying **94–98 timed duties a week against today's 76**; Fifteen Turns is 60 minutes a week over. Background (v20.04; generator gated v20.98/v20.99): seeded from today's duties, 24 lines averages **29h 53m** a week against 35h, and the generator refuses a table that misses the contract in either direction | — | — |
-| **Business staffing requirement** | ✅ **Confirmed verbally (owner, 29 Sep 2026)**, with the 24-person link and the Sunday cover (10 on a Sunday, worked as overtime): the December 2026 staffing levels behind the 11 rules every sheet is judged against — four at the open, three at the close, five at 22:00, 14 on a Saturday and 10 on a Sunday, the ticket office in fixed pairs, and the rest (`currentRules`, `docs/proposals/tooling/report-data.mjs`). First relayed 27–28 Sep. Every sheet and the rules sheet say *confirmed verbally* | — | — |
+| **Contracted hours — today's duties cannot fill a 24-line link** | ✅ **Answered (owner, 29 Sep 2026)**: the December 2026 staffing levels and a 24-person link are both confirmed verbally, so the December staffing supplies the extra duty. Every sheet but one pays the 35h week exactly — 42,000 minutes Monday to Saturday — carrying **94–99 timed duties a week against today's 76**; Fifteen Turns is 60 minutes a week over. Background (v20.04; generator gated v20.98/v20.99): seeded from today's duties, 24 lines averages **29h 53m** a week against 35h, and the generator refuses a table that misses the contract in either direction | — | — |
+| **Business staffing requirement** | ✅ **Confirmed verbally (owner, 29 Sep 2026)**, with the 24-person link and the Sunday cover (10 on a Sunday, worked as overtime): the December 2026 staffing levels behind the nine soft rules every sheet is scored against — four at the open, three at the close, five at 22:00, 10 on a Sunday, the ticket office in fixed pairs, and the rest (`sheetRules`, `docs/proposals/tooling/report-data.mjs`). Three more — 14 on a Saturday, evenly spread cover weeks and weekday closers from 15:45 — are flexible rules since 30 Sep 2026: designed to (`currentRules` keeps all of them for the searches), never shown on a sheet (`flexibleRules`). First relayed 27–28 Sep. Every sheet and the rules sheet say *confirmed verbally* | — | — |
 | **FF18 reading — cadence or step?** | ✅ **Settled (owner, 28 Sep 2026, on ORR's text, 7.68): the CADENCE reading.** Standing on every weekly link; the step is reported beside it as information a design controls | — | — |
-| **Proposals** | ✅ **Drawn — 9 sheets** in `docs/proposals/` (28 until twenty-one were withdrawn on 29–30 Sep 2026: the *By the Book*, *Same Turns* and *Pinned Turns* families, *Running Repair*, *Weeks 17-18 Swapped*, *Targeted Fatigue Redo*, *Three Mondays*, *Frozen Block*, *Tenth Sunday*, *Short Closer*, *Light Retime*, *Polished Clean*, *Cover at Seventeen*, *Saturday Four*, *Just Enough* and *Gates Mended* — and two added the same day), the first on 17 Sep 2026, the latest (Full Overhaul, of the Running Repair family) on 29 Sep; all of them in the managers' edition of 28 Sep, judged against one rule set; ⚠️ **none frozen** | T−8 weeks | The four decisions above are settled (29 Sep 2026), so freezing one now waits on the management review. The folder's `README.md` is the index; each sheet is eight pages, compared only with today's link, and lists its open questions on page 1 (*Still to settle*); `Proposals-Summary.pdf` sets all 9 side by side |
+| **Proposals** | ✅ **Drawn — 9 sheets** in `docs/proposals/` (28 until twenty-one were withdrawn on 29–30 Sep 2026: the *By the Book*, *Same Turns* and *Pinned Turns* families, *Running Repair*, *Weeks 17-18 Swapped*, *Targeted Fatigue Redo*, *Three Mondays*, *Frozen Block*, *Tenth Sunday*, *Short Closer*, *Light Retime*, *Polished Clean*, *Cover at Seventeen*, *Saturday Four*, *Just Enough* and *Gates Mended* — and two added the same day), the first on 17 Sep 2026, the latest (Full Overhaul, of the Running Repair family) on 29 Sep; all of them in the plain edition v2 of 30 Sep, scored against the nine soft rules; ⚠️ **none frozen** | T−8 weeks | The four decisions above are settled (29 Sep 2026), so freezing one now waits on the management review. The folder's `README.md` is the index; each sheet is eight pages, compared only with today's link, and lists its open questions on page 1 (*Still to settle*); `Proposals-Summary.pdf` sets all 9 side by side |
 | **Management review meeting** | ❌ Not scheduled | T−6 weeks | **A date.** See below |
 
 ## The backwards plan — because the only immovable deadline is outside this repository
@@ -776,25 +776,22 @@ Ordered by how much they change if the answer is unexpected.
 
 ## Proposals drawn (8 Sep 2026 onward)
 
-**9 sheets** in `docs/proposals/` (28 until twenty-one were withdrawn on 29–30 Sep 2026, with Full Overhaul added), whose README is the index, each with an identity that survives a
-meeting: a name, a code, and a fingerprint of the cells. On 28 Sep 2026 the 23 then drawn were re-issued as the
-managers' edition (the two added that day, Familiar Nine and Just Enough, were made in it) — standalone, in plain English, and judged against **one rule set**: the 11 December
-2026 rules (`currentRules`, `docs/proposals/tooling/report-data.mjs`). Every figure in a sheet is
-computed from the cells it shows, and an independent recount of every sheet on 28 Sep agreed with every one.
+**9 sheets** in `docs/proposals/` (28 until twenty-one were withdrawn on 29–30 Sep 2026 and two added — see the Proposals row above), whose README is the index, each with an identity that survives a
+meeting: a name, a code, and a fingerprint of the cells. They are the plain edition v2 of 30 Sep 2026 — eight pages,
+written for managers, compared only with today's link, and scored against the nine soft December 2026 rules
+(`sheetRules`, `docs/proposals/tooling/report-data.mjs`). Every figure in a sheet is computed from the cells it shows,
+and each edition has been checked by an independent recount.
 
 | Family | Sheets |
 |---|---|
-| Same Turns | Same Turns, Quarter To, Weekend Capped |
-| By the Book | By the Book, Eight Forty, Office Written In |
-| Pinned Turns | Pinned Turns, Round Times |
-| Right Away | Right Away and Familiar Nine — both meet all 11 rules (today's link meets 4 since the ticket-office helper rule of 28 Sep 2026; 3 before it) |
-| Fifteen Turns | Fifteen Turns, Gates Mended, and Just Enough (28 Sep 2026) — Fifteen Turns with the fewest cells changed that meet all 11 rules: 29, proven the minimum |
-| Weekday Lates | Weekday Lates and eleven variants of it |
+| Right Away | Right Away and Familiar Nine — both meet all 9 soft rules and all 3 flexible rules (today's link meets 4 of the 9) |
+| Fifteen Turns | Fifteen Turns, and All Clear — Fifteen Turns with the fewest cells changed that meet every rule with no fatigue finding: 41, proven the minimum |
+| Weekday Lates | Weekday Lates, Evening Peak and Anchored Lines; Clean Sweep (by way of Polished Clean) and Full Overhaul (by way of Running Repair) |
 
-Where each one stands on the same figures is page 9 of any sheet. **The first two, as drawn on 8 Sep**,
-bracketed the choice as it looked then: *Same Turns* kept 15 turns people work today; *By the Book*
-met every rule then in force and none of its turns was familiar. Against the 11 December rules it
-meets 5 of 11. Both inherited today's Sunday window (open question 3).
+The sheets never compare one proposal with another; `Proposals-Summary.pdf` sets all nine beside each other.
+**The first two, as drawn on 8 Sep**, bracketed the choice as it looked then: *Same Turns* kept 15 turns people
+work today; *By the Book* met every rule then in force and none of its turns was familiar. Both are withdrawn, and
+both inherited today's Sunday window (open question 3).
 
 ## The four decisions, as they would be put in the room
 

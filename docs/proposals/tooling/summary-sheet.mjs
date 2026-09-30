@@ -50,7 +50,7 @@ td.good{color:#1E7B4B;font-weight:700}
 ${tr(todayRow,'today')}
 ${rows.map(r=>tr(r)).join('\n')}
 </tbody></table>
-<p class="foot">* Monday to Saturday, with a cover week counted as 4 days (Sundays are overtime and left out). † Each person, on average across the whole link; cover weeks add none. “Shift times” counts different start–finish times; “new” means nobody works that time today. Fatigue warnings are the ORR’s good-practice list plus rail-industry checks — reported, never pass or fail. Full detail for each proposal is in its own eight-page sheet; the rules themselves are in December-2026-Rules.pdf.</p>
+<p class="foot">* Monday to Saturday, with a cover week counted as 4 days (Sundays are overtime and left out). † Each person, on average across the whole link, Sundays included; cover weeks add none. “Shift times” counts different start–finish times; “new” means nobody works that time today. Fatigue warnings are the ORR’s good-practice list plus rail-industry checks — reported, never pass or fail. Full detail for each proposal is in its own eight-page sheet; the rules themselves are in December-2026-Rules.pdf.</p>
 </body></html>`;
 const b = await chromium.launch(); const pg = await b.newPage(); await pg.setContent(html, { waitUntil: 'load' });
 await pg.pdf({ path: new URL('Proposals-Summary.pdf', DIR).pathname, format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });

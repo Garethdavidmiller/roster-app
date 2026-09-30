@@ -1,5 +1,5 @@
 // Fast one-day evaluator (Saturday or Sunday): a day's duty multiset -> floor fit + that day's rows of the December
-// rules. Mirrors report-data.mjs (officeSplit / currentRules / headcounts) for the plan model. Validated by validate2.mjs.
+// rules. Mirrors report-data.mjs (officeSplit / currentRules / headcounts) for the plan model. Validated by check_dayfast.mjs.
 import { DEC_2026_MOVEMENTS } from '../../../../links-demand.js';
 const sm = t => { const [a] = t.split('-'); const [h, m] = a.split(':'); return +h * 60 + +m; };
 const em = t => { const b = t.split('-')[1]; const [h, m] = b.split(':'); const v = +h * 60 + +m; return v > sm(t) ? v : v + 1440; };

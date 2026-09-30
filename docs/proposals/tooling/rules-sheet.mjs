@@ -48,7 +48,7 @@ for (const f of F) { const j = JSON.parse(readFileSync(new URL(`../${f.file}`, i
 // A factor that applies to no rotation here — today's or any proposal — is listed apart, with the reason.
 const live = FZ.filter(r => applies.has(key(r))), na = FZ.filter(r => !applies.has(key(r)));
 const naNight = na.filter(r => r.family === 'Night shifts' || /^Night shift/.test(r.title)), naOther = na.filter(r => !naNight.includes(r));
-const naWhy = r => r.code === 'FF4' ? 'FF4, because no shift starts before 05:00' : /permanent/.test(r.title) ? 'the MRSF permanent-pattern check, because the link rotates (FF15 is its rotating equivalent)' : `${r.code} (${r.title})`;
+const naWhy = r => r.code === 'FF4' ? 'FF4, because no shift starts before 05:00 (FF3 counts those)' : /permanent/.test(r.title) ? 'the MRSF permanent-pattern check, because the link rotates (FF15 is its rotating equivalent)' : `${r.code} (${r.title})`;
 const andList = a => a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
 const todayContract = (() => { const h = TA.hours; return Math.round(h.exSundayHours * 60 + h.coverLines * (h.target ?? 35) * 60 - h.lines * (h.target ?? 35) * 60) === 0; })();
 const mark = ok => ok ? '✓' : '✕', cls = ok => ok ? 'ok' : 'miss';
@@ -130,7 +130,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <div class="tiers">
     <div class="tier"><b class="k">Hard limits</b>A design must meet these or it cannot be run. Three of them.</div>
     <div class="tier"><b class="k">Soft rules</b>The December 2026 staffing rules. ${['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven'][RT.of]} of them, each met or not, and scored on every proposal sheet.</div>
-    <div class="tier"><b class="k">Flexible rules</b>Three more every design aims for. Not scored on the proposal sheets; a presentation may mention them. Page 2.</div>
+    <div class="tier"><b class="k">Flexible rules</b>Three more aimed for when designing, and met by some proposals, not all. Not scored on the proposal sheets; a presentation may mention them. Page 2.</div>
     <div class="tier"><b class="k">Fatigue factors</b>Patterns that tend to tire people. Advisory only: “present” means worth a look, never a breach.</div>
   </div>
 
@@ -148,7 +148,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <table class="t hard"><thead><tr><th>Limit</th><th>What it means</th><th>Today’s link</th></tr></thead><tbody>
     <tr><td><b>At least 12 hours between duties</b></td><td>From the end of one duty to the start of the next, anywhere in the rotation — Saturday into Sunday, and the last line into line 1, included.</td><td class="tt ${cls(TA.checks.turnarounds.length === 0)}">${mark(TA.checks.turnarounds.length === 0)} shortest ${todayRest !== null ? hm(todayRest) : '—'}</td></tr>
     <tr><td><b>No more than ${MAX_CONSECUTIVE_WORKED_DAYS} days worked in a row</b></td><td>Chiltern’s limit, taken at its worst case: a cover week’s four duties placed as badly as they can be. The written source of the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit is still to be confirmed.</td><td class="tt ${cls(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)}">${mark(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)} longest ${TA.checks.longestStretch} days</td></tr>
-    <tr><td><b>The contracted week, exactly</b></td><td>35 hours a week on average, Monday to Saturday, across all 24 lines; a cover week counts as a contracted week. Sunday duties are paid on top as rest-day working, as they are today. Individual weeks may be longer or shorter; only the average is the contract.</td><td class="tt ${cls(todayContract)}">${mark(todayContract)} ${todayContract ? 'exactly 35h' : 'not 35h'}</td></tr>
+    <tr><td><b>The contracted week, exactly</b></td><td>35 hours a week on average, Monday to Saturday, across every line of the link; a cover week counts as a contracted week. Sunday duties are paid on top as rest-day working, as they are today. Individual weeks may be longer or shorter; only the average is the contract.</td><td class="tt ${cls(todayContract)}">${mark(todayContract)} ${todayContract ? 'exactly 35h' : 'not 35h'}</td></tr>
   </tbody></table>
 
   <h2>Soft rules — the December 2026 rules <span class="tag soft">met or not</span></h2>
@@ -164,7 +164,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <div class="sub">The rules designs aim for but are not scored on, the advisory list, what is for staff to say rather than the rules, and the questions not yet settled</div></div></div>
 
   <h2>Flexible rules <span class="tag soft">aimed for, not scored</span></h2>
-  <p class="lead">Every design aims for these three, and the searches and solvers that built the proposals check them. They are <b>not scored on the proposal sheets</b>: a proposal that misses one can still be put forward, and a presentation may say which it meets.</p>
+  <p class="lead">Aimed for when designing, and checked by the searches and solvers — though several proposals were built without one or more. They are <b>not scored on the proposal sheets</b>: a proposal that misses one can still be put forward, and a presentation may say which it meets.</p>
   <table class="t dec"><thead><tr><th>Rule</th><th>What it asks, exactly</th><th>Today’s link</th></tr></thead><tbody>${flexRows}</tbody></table>
 
   <h2>Fatigue factors <span class="tag adv">advisory</span></h2>

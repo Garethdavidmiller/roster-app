@@ -64,7 +64,9 @@ function demandRow(name, cars, peak, bucket, shutFrom) {
 // Tue/Thu/Fri). So: one row per DISTINCT weekday pattern, labelled by the days it covers. A design whose
 // weekdays are identical still prints one row, now honestly labelled; nothing is averaged away.
 const WD = ['mon','tue','wed','thu','fri'], WDL = { mon:'Mon', tue:'Tue', wed:'Wed', thu:'Thu', fri:'Fri' };
-const weekdayGroups = hourly => { const g = []; for (const d of WD) { const k = hourly[d].hours.join(','); const f = g.find(x => x.key === k); if (f) f.days.push(d); else g.push({ key: k, days: [d], hours: hourly[d].hours }); } return g; };
+// a row stands for several weekdays only when their hours AND their match figure agree: the same cover against a
+// different day's trains fits differently, and the row prints one figure (audit, 30 Sep 2026 — All Clear's Friday was hidden)
+const weekdayGroups = (hourly, fits) => { const g = []; for (const d of WD) { const k = hourly[d].hours.join(',') + '|' + (fits?.[d] ?? ''); const f = g.find(x => x.key === k); if (f) f.days.push(d); else g.push({ key: k, days: [d], hours: hourly[d].hours }); } return g; };
 const groupLabel = days => days.length === 5 ? 'Mon–Fri' : days.map(d => WDL[d]).join(' · ');
 const wdRange = daily => { const v = WD.map(d => daily[d]); const lo = Math.min(...v), hi = Math.max(...v); return lo === hi ? String(lo) : `${lo}–${hi}`; };
 const hourHead = () => `<tr><th class="cov-heat-hour"></th>${Array.from({length:19},(_,i)=>`<th class="cov-heat-hour">${String(i+5).padStart(2,'0')}</th>`).join('')}<th class="cov-heat-hour cov-fit-h">fit</th></tr>`;
@@ -612,12 +614,12 @@ ${readHtml}${frameHtml}
   <p class="muted" style="margin:6px 0 2px">How to read it: each blue ${FRESH ? 'square' : 'cell'} is the number of people on duty at any point in that hour (a handover inside the hour counts both people) (darker blue = more people). The orange row is the timetable — ${FRESH ? 'the train carriages arriving and leaving in that hour, which is how busy it is' : 'how much of the day\'s trains that hour carries'} (darker orange = busier). Read the columns top to bottom: cover should be thickest where the orange is darkest. The <b>fit</b> figure at the right end of each row scores that match for the whole day.</p>
   ${['weekday','sat','sun'].map(cls => { const win = cls==='sun' ? [7,23] : [6,23]; const shut = cls==='sun' ? 23 : 24;
     const name = cls==='weekday'?'Monday to Friday':cls==='sat'?'Saturday':'Sunday';
-    const gT = cls==='weekday' ? weekdayGroups(T.hourly) : [{ days:[cls], hours: T.hourly[cls].hours }];
-    const gP = cls==='weekday' ? weekdayGroups(P.hourly) : [{ days:[cls], hours: P.hourly[cls].hours }];
+    const gT = cls==='weekday' ? weekdayGroups(T.hourly, T.fits) : [{ days:[cls], hours: T.hourly[cls].hours }];
+    const gP = cls==='weekday' ? weekdayGroups(P.hourly, P.fits) : [{ days:[cls], hours: P.hourly[cls].hours }];
     // everyone / of whom the ticket office / of whom the floor, on BOTH sides — today's office out of today, the plan's
     // out of the proposal; the floor rows regroup their own weekdays, since taking the same office out of two
     // different weekday patterns can leave the same floor
-    const fl = A => cls==='weekday' ? weekdayGroups(Object.fromEntries(WD.map(d => [d, { hours: A.office.days[d].floor }]))) : [{ days:[cls], hours: A.office.days[cls].floor }];
+    const fl = A => cls==='weekday' ? weekdayGroups(Object.fromEntries(WD.map(d => [d, { hours: A.office.days[d].floor }])), Object.fromEntries(WD.map(d => [d, A.office.days[d].fit]))) : [{ days:[cls], hours: A.office.days[cls].floor }];
     const fT = fl(T), fP = fl(P), oDay = cls==='weekday' ? 'tue' : cls;
     const max = Math.max(...gT.flatMap(g => g.hours), ...gP.flatMap(g => g.hours));
     const lab = (who, g, n) => n === 1 ? who : `${who} ${groupLabel(g.days)}`;
