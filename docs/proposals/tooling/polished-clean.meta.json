@@ -2,5 +2,7 @@
  "date": "28 September 2026",
  "identity": {
   "lineage": "Supplied as a one-page Word table (CEA_Roster_Polished_Clean_OnePage.docx) and read straight into the app's shape; every weekly total in the document was checked against its cells before anything was built on it (all 24 agree, 840:00 in all)."
- }
+ },
+ "officeWaived": "Monday to Friday a 06:20–14:20 and a 07:00–15:30 run the office in the morning and two 14:00–22:30s in the evening",
+ "officeHow": "Monday to Friday this design’s office is a 06:20–14:20 and a 07:00–15:30 (in the office from 08:00) and two 14:00–22:30s — not identical pairs, a rule waived for it; counted that way, the fewest on the floor is the same, 3 at the open."
 }

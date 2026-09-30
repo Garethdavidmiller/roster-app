@@ -275,7 +275,7 @@ function front({ T, P, meta, pages, coverHead }) {
   // 30 Sep 2026 and left the rule set) is recorded in one line, never argued.
   // the ticket office's own value ("Mon–Fri no · Sat no · Sun no") reads as though no pair is rostered anywhere; where the
   // design does roster some, say which days — page 5 says the same
-  const wValue = w => w.key === 'office' && meta.pairDays?.length ? `the pairs are rostered on ${meta.pairDaysTxt} only` : String(w.value);
+  const wValue = w => w.key === 'office' && meta.officeWaived ? meta.officeWaived : w.key === 'office' && meta.pairDays?.length ? `the pairs are rostered on ${meta.pairDaysTxt} only` : String(w.value);
   const wItems = waived.map(w => `${esc(w.rule)} — here ${esc(wValue(w))}`);
   const waivedBox = wItems.length ? `<div class="pbox pbox-info pwaived"><b>Waived for this design</b>${wv?.date ? ` (agreed by the owner, ${esc(wv.date)})` : ''}: ${wItems.join(' · ')}.</div>` : '';
 
@@ -617,7 +617,7 @@ p.pimport { font-size: 9px; margin-top: 8px; }
  *  than left to an indent. Only the floor rows carry a match figure — the one the page itself calls the fair comparison
  *  — instead of two figures a group with nothing saying which one counts. The notes become a short key above and a
  *  "good to know" list below. Throws if an anchor moves, so a change to render.mjs cannot leave half the old wording. */
-function hourPage(s) {
+function hourPage(s, ctx) {
   const must = (re, to, what) => { if (!re.test(s)) throw new Error(`hourPage: ${what} not found`); re.lastIndex = 0; s = s.replace(re, to); };
   must(/<div class="sub">Cover today and proposed against the measured December 2026 timetable \(arrivals and departures, weighted by train length\)\. /,
     '<div class="sub">Today’s link and the proposal, hour by hour, against the December 2026 timetable. ', 'the subtitle');
@@ -652,7 +652,8 @@ function hourPage(s) {
   // The table moves a whole helper from the office row to the floor row (report-data officeHelpers), which reads as an
   // understaffed office unless it is said; the Sunday evening half-person stays in the office row. The design's own
   // sentence — whether it rosters the pairs or they are assumed — is kept from the technical note.
-  const tail = (/where the plan has two and two\.([\s\S]*)$/.exec(officeText)?.[1] ?? '').replace(/ The “of whom” rows split it out of each side, so the floor rows compare like with like\./, '').trim();
+  // a design can say in its own meta how its office is run (`officeHow`), where the generic sentence would mislead
+  const tail = ctx?.meta?.officeHow ?? (/where the plan has two and two\.([\s\S]*)$/.exec(officeText)?.[1] ?? '').replace(/ The “of whom” rows split it out of each side, so the floor rows compare like with like\./, '').trim();
   if (!/where the plan has two and two\./.test(officeText)) throw new Error('hourPage: the ticket-office note has changed');
   const items = [
     `<b>The ticket office.</b> In the proposal, two people on every ticket-office shift, and not floor cover except at the quiet ends: Monday to Saturday one of each pair is on the floor until 08:00 and from 19:30, so the office row drops to 1 in those hours and the floor row gains one; where it shows 4, both pairs are there at the changeover.${tail ? ' ' + tail : ''} The “of whom” rows take the office out of each side, so the floor rows compare like with like.`,
@@ -852,7 +853,7 @@ export function plainEdition(html, ctx) {
     s = s.replace(/<p class="muted p8note">([\s\S]*?)<\/p>/, (m, body) => `<ul class="p8list">${body.replace(/^Design-specific findings:/, 'Avoidable tiring patterns found:').split(/(?=<b>)/).map(x => x.trim()).filter(Boolean).map(x => `<li>${x}</li>`).join('')}</ul>`);
     s = s.replace(/>Weeks on one shift time</g, '>Weeks on one shift time — all earlies or all lates<');
     s = s.replace(/every design’s staffed day/g, 'any link’s staffed day').replace(/so every design has FF2/g, 'so any link has FF2');
-    if (k === 6) s = hourAnswer(hourPage(s), ctx);
+    if (k === 6) s = hourAnswer(hourPage(s, ctx), ctx);
     if (k === 5) s = shiftPage(s.replace(/struck through: not used/g, 'grey italics: a time the proposal drops'), ctx);
     if (k === 7) s = rulesPage(s, ctx);
     if (k === 8) s = fatiguePage(s, ctx);
