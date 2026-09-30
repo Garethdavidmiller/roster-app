@@ -8,26 +8,44 @@ identity is in every page footer. All 9 were judged by the app's own Links modul
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
 
-**The sheets are the plain edition, second version (30 Sep 2026)** — eight pages each, one version for the owner,
-managers and colleagues alike (owner: *"I can't overload Nathan, it needs to be easy to understand"*), redesigned after
-an external review and our own. **Page 1** opens with an *In short* sentence built from the same lists as the rest of the
-page (the verdict, the two biggest gains and the two biggest trade-offs, each against today), then four *Can it work?*
-tiles (the December staffing rules, the hard limits, avoidable fatigue warnings, does staffing follow the trains), a red
-box naming every rule or limit a design breaks, four *What it would mean for you* tiles (annual figures marked "about"),
-up to four likely positives and concerns, and one line on what is still to settle. **Page 2** sets every figure against
-today's link in five named groups (staffing, working pattern, shifts, your year, fatigue and the rules), with a plain translation of each row. **Pages 3–7** are the workings, each opening with
-its answer: the rota (familiar, new and dropped shift times), shift times, staffing through the day, the rules (a count
-pill on the heading) and the fatigue checks. **Page 8**, *Can I trust these numbers?*, says which figures are exact, which
-are a guide and what the sheet cannot know. **One colour meaning on every page:** green ✓ meets a rule or is better on
-something the rules, the limits or the fatigue guidance aim for; amber ▲ is worse on one of those; red ✕ is a rule or
-limit broken; no colour is a preference for colleagues to weigh. The symbol is always printed beside the colour, because
-the sheets are printed in black and white. "Tiring patterns" is now "fatigue warnings" everywhere, the Familiar Nine decks
-included. **Today's link is the only comparison**: no sheet, and not the rules sheet, names, counts or ranks another
-proposal — the one-page summary is where they sit side by side, for the owner. Rendered by `tooling/plain.mjs`;
-`TECH=1 node regenerate.mjs` renders the technical sheet instead, with its comparisons removed by `tooling/solo.mjs`.
-Every claim on pages 1–2 is judged shift by shift, never on an average. The first plain edition (29 Sep 2026) passed five
-independent checks; this one was re-checked by an independent recount of every page-2 row and every page-1 tile and
-verdict against the rotas (0 mismatches across the 9 sheets), and a footer-overlap check on every page.
+**The sheets are the plain edition, second version (30 Sep 2026)** — eight pages each, **written for a manager first**
+(owner, 30 Sep 2026: *"the proposal sheet is predominantly for managers"*; earlier: *"I can't overload Nathan, it needs to
+be easy to understand"*). They speak *about* staff, never *to* them, and name no audience on any page. **Page 1** is the
+whole proposal:
+- an *In short* sentence built from the page's own lists (the verdict, the two biggest gains and trade-offs for staff);
+- a **What it takes** line: the people (24, 4 more than today), the cover weeks, and the Sunday overtime every week in
+  people and hours, against today and against the 10 the rules ask for;
+- four *Can it work?* tiles (the December rules, the hard limits, avoidable fatigue warnings with cover weeks at their
+  worst, and the match to the trains with each day's figure against today's);
+- a red box naming every rule or limit broken, or a box for the waived ones;
+- four *What it would mean for staff* tiles (annual figures marked "about");
+- **every** likely positive and concern for staff — nothing a tile does not already state is left off;
+- one line on what is still to settle.
+
+**Page 2** sets every figure against today's link in five named groups (staffing, working pattern, shifts, each person's
+year, fatigue and the rules). **Pages 3–7** are the workings, each opening with its answer: the rota; shift times (new,
+kept and dropped) and **the shape of a week** (rest breaks of two days or more, single rest days and those beside a cover
+week, weeks by days worked, working weeks with a Sunday); staffing through the day; the rules; and the fatigue checks,
+with their source (the ORR's *Fatigue Factors*, December 2021, 21 patterns, plus 4 MRSF checks). **Page 8**, *Can I trust
+these numbers?*, says which figures are exact, which are a guide, what no rota can say, and how each one is worked out.
+**One colour meaning on every page:** green ✓ meets a rule or is better on something the rules, the limits or the fatigue
+guidance aim for; amber ▲ is worse on one of those; red ✕ is a rule or limit broken; no colour is a difference for
+colleagues to weigh. On the fatigue page ⚠ marks a pattern present. The symbol is always printed beside the colour,
+because the sheets are printed in black and white. "Tiring patterns" is now "fatigue warnings" everywhere, the Familiar
+Nine decks included.
+
+**Nothing the first plain edition said was dropped.** The second version was first published with four regressions,
+caught by a sentence-by-sentence comparison with the first before it was accepted: the positives and concerns were capped
+at three or four on a page that calls itself the whole proposal (up to four concerns hidden, fatigue findings among them);
+the *What does it take?* tile (people, cover weeks, Sunday overtime) was gone; page 4's *shape of a week* table was cut to
+the rows page 2 carries; and page 7 had lost its source citation, page 8 several of its definitions (the handover, the Sunday leave rule, how the match and the start-time rows are worked out, and what the shortest gap cannot show). All are back, and the same
+comparison now finds only rewordings. **Today's link is the only comparison**: no sheet, and not the rules sheet, names,
+counts or ranks another proposal — the one-page summary is where they sit side by side, for the owner. Rendered by
+`tooling/plain.mjs`; `TECH=1 node regenerate.mjs` renders the technical sheet instead, with its comparisons removed by
+`tooling/solo.mjs`. Every claim on pages 1–2 is judged shift by shift, never on an average. The first plain edition
+(29 Sep 2026) passed five independent checks; this one was re-checked by an independent recount of every page-2 row,
+every page-1 tile and verdict, the *What it takes* line and the *shape of a week* table against the rotas (0 mismatches
+across the 9 sheets), and a footer-overlap check on every page.
 
 **The By the Book family was withdrawn (29 Sep 2026, owner).** *By the Book* (`BB-24-D7 · 0f14abce`), *Eight Forty*
 (`EF-24-E21 · 0cf19f56`) and *Office Written In* (`B2-24-G21 · 02f3c005`) — the rules-first family, meeting 4 to 5 of
