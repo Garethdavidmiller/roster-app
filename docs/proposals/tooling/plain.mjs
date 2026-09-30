@@ -177,7 +177,7 @@ function front({ T, P, meta, pages, coverHead }) {
   // the 55-hour row counts a cover week as no hours; where working its four duties would cross 55, page 1 says so
   // rather than calling the count clear (audit, 30 Sep 2026 — page 7 said it, page 1 did not)
   const h55c = meta.h55Cover;
-  add(ffP < ffT, good, 50, `${ffP ? `Fewer fatigue warnings — ${ffP} (today ${ffT})` : `No avoidable fatigue warnings (today ${ffT})`}${h55c ? `; a worked cover week could still reach ${h55c.hi.toFixed(1)} hours in 7 days, over the 55 the guidance names (page 7)` : ''}`);
+  add(ffP < ffT, good, 50, `${ffP ? `Fewer fatigue warnings — ${ffP} (today ${ffT})` : `No avoidable fatigue warnings in the fixed duties (today ${ffT})`}${h55c ? `; a worked cover week could still reach ${h55c.hi.toFixed(1)} hours in 7 days, over the 55 the guidance names (page 7)` : ''}`);
   add(ffP > ffT, bad, 50, `More fatigue warnings — ${ffP} (today ${ffT})`);
   const tFF = r => T.fatigue.results.find(x => x.code === r.code && x.title === r.title);
   const newFFPlain = [...new Set(present.filter(r => tFF(r)?.status !== 'present').map(r => plainFatigue(r.title)))];
@@ -263,7 +263,7 @@ function front({ T, P, meta, pages, coverHead }) {
       breaks.length ? 'not as it stands' : 'inside every hard limit',
       `shortest gap ${hm(restMin)} (limit 12h) · most days in a row ${run} (limit 13) · ${monSat === 42000 ? '35-hour contract exact' : `${Math.abs(monSat - 42000).toLocaleString('en-GB')} min a week ${monSat > 42000 ? 'over' : 'under'} the contract, across the link`}`),
     tile(present.length ? 'warn' : 'good', 'Any avoidable fatigue warnings?', `${present.length}`,
-      present.length ? `avoidable fatigue ${present.length === 1 ? 'warning' : 'warnings'}` : 'none found',
+      present.length ? `avoidable ${present.length === 1 ? 'warning' : 'warnings'} in the fixed duties` : 'none in the fixed duties',
       `${present.length && presentPlain.length <= 2 ? `${esc(andList(presentPlain))} · ` : ''}today’s link has ${T.fatigue.present}${h55c ? ` · a worked cover week could add a 55-hour week` : ''} · guidance, not a pass or fail · page 7`),
     tile(trainsV[2], 'Does staffing follow the trains better?', trainsV[0], trainsV[1],
       `weekdays ${n1f(pw)} (today ${n1f(tw)}) · Sat ${n1f(ps)} (${n1f(ts)}) · Sun ${n1f(psu)} (${n1f(tsu)}) · on weekdays ${offWords(pw, tw) ?? 'lower is closer'} · page 5`),
@@ -796,7 +796,7 @@ function fatiguePage(s, { T, P }) {
   s = retitle(s, 'Fatigue checks', 'Fatigue checks', 'From the Office of Rail and Road’s good-practice guidance, <i>Fatigue Factors</i>, page 3 (December 2021): 21 roster patterns that tend to tire people, with 4 checks from the rail industry’s fatigue guidance (MRSF). <b>⚠</b> present — worth a look, not a breach · <b>✓</b> clear · <b>●</b> standing — comes with the station’s hours or any weekly link.');
   const pn = P.fatigue.present, tn = T.fatigue.present, st = P.fatigue.standing;
   const cards = `<div class="fcards">
-    <div class="fc fc-${pn ? 'warn' : 'ok'}"><div class="fc-k">Avoidable fatigue warnings</div><div class="fc-v">${pn}</div><div class="fc-l">today’s link has ${tn} · each is a question to discuss, not a breach</div></div>
+    <div class="fc fc-${pn ? 'warn' : 'ok'}"><div class="fc-k">Avoidable fatigue warnings</div><div class="fc-v">${pn}</div><div class="fc-l">in the fixed duties; cover-week duties are not known yet · today’s link has ${tn} · each is a question to discuss, not a breach</div></div>
     <div class="fc fc-info"><div class="fc-k">Standing — come with every weekly link</div><div class="fc-v">${st}</div><div class="fc-l">early starts at a 06:20 station, and a rotation that moves everyone one line a week · recorded, not counted</div></div>
   </div>`;
   s = must(s, MAST_END, `$1\n  ${cards}`, 'the fatigue page head');
