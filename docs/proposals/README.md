@@ -167,7 +167,7 @@ re-render of the sheets does not update it, so rebuild it after one.
 `tooling/summary-sheet.mjs` from `folderStats` and the same JSON rotations (the script's header comment states each column's formula).
 
 **The presentations:** `presentations/` — for *Familiar Nine* and *Right Away* (added 30 Sep 2026, built on the Familiar
-Nine decks as a template), one for colleagues (15 slides) and one for managers (10) each, as PowerPoint and PDF
+Nine decks as a template), one for colleagues (15 slides; Right Away 16, its new shift times given a slide of their own) and one for managers (10) each, as PowerPoint and PDF
 (29 Sep 2026; corrected 30 Sep 2026). Right Away's pair had its own independent recount of every slide and note. Built with pptxgenjs outside this repository, so their figures
 were typed in from counts of the rotas in this folder and checked against an independent recount — unlike the sheets,
 nothing recalculates them. They are copies, so a change to a sheet does not

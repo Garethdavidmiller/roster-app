@@ -129,8 +129,8 @@ function front({ T, P, meta, pages, coverHead }) {
   add(run < T.checks.longestStretch, good, 20, `Never more than ${run} days in a row (today ${T.checks.longestStretch})`);
   add(run > T.checks.longestStretch, bad, 20, `Up to ${run} days in a row (today ${T.checks.longestStretch})`);
   const dayDiff = Math.round(pp.daysYear) - Math.round(tp.daysYear);
-  add(dayDiff <= -1, good, 25, `About ${-dayDiff} fewer ${dayDiff === -1 ? 'day' : 'days'} at work a year`);
-  add(dayDiff >= 1, bad, 25, `About ${dayDiff} more ${dayDiff === 1 ? 'day' : 'days'} at work a year`);
+  add(dayDiff <= -1, good, 25, `About ${-dayDiff} fewer contracted ${dayDiff === -1 ? 'day' : 'days'} at work a year`);
+  add(dayDiff >= 1, bad, 25, `About ${dayDiff} more contracted ${dayDiff === 1 ? 'day' : 'days'} at work a year`);
   // figures from the ROUNDED values each side, so a phrase always agrees with the two numbers printed beside it
   const lateDiff = Math.round(pp.late23) - Math.round(tp.late23), openDiff = Math.round(pp.open0620) - Math.round(tp.open0620);
   add(lateDiff >= 2, bad, 30, `More late finishes — about one extra every ${weeksWords(52 / lateDiff)} weeks each`);
