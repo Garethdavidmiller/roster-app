@@ -201,13 +201,21 @@ const hmm = m => `${Math.floor(m/60)}h ${String(m%60).padStart(2,'0')}m`;
 // `model` is whose office is taken out where a day has no rostered pairs: the plan's posts for a proposal, today's own
 // office for today's link (accuracy check, 28 Sep 2026 — today's Sunday was measured on the plan's posts while page 6
 // used today's own office; no figure moved, the method now agrees).
-/** THE SHEETS' RULES (owner, 30 Sep 2026). Three of the eleven December rules are SOFT: fourteen on a Saturday, four
- *  evenly spread cover weeks and a 15:45 start for every weekday closer. They stay in currentRules — the owner: "I want
- *  to keep those rules when designing" — so every search, solver and judge that reads currentRules still designs to
- *  them. They are only left off what a reader is shown: the proposal sheets, the summary and the rules sheet score
- *  every link, today's included, against the other nine, and name the three once as design aims. Saturday's fourteen
- *  shares a row with Sunday's ten, which is NOT soft: on the sheets it stands as a rule of its own. */
-export const RELAXED_RULES = ['fourteen on a Saturday (Sunday’s ten is a rule)', 'four evenly spread cover weeks', 'every weekday closer starting at 15:45'];
+/** THREE TIERS OF RULE (owner, 30 Sep 2026):
+ *  · HARD limits — 12 hours' rest, 13 days in a row, the exact contract. Met, or the rota cannot be run.
+ *  · SOFT rules — the nine December 2026 staffing rules (sheetRules). Each met or not, and stated and scored on every
+ *    proposal sheet, the summary and the rules sheet.
+ *  · FLEXIBLE rules — fourteen on a Saturday, four evenly spread cover weeks, a 15:45 start for every weekday closer
+ *    (flexibleRules). "They should stay in the background": every search, solver and judge designs to them (they stay
+ *    in currentRules, which all eleven are), a PRESENTATION may mention them, and a PROPOSAL SHEET never does. The
+ *    rules sheet names them as their own tier.
+ *  Saturday's fourteen shares currentRules' row with Sunday's ten, which is a SOFT rule: sheetRules gives it a row of
+ *  its own, flexibleRules gives Saturday its own. */
+export function flexibleRules(P, T, model = 'plan') {
+  const R = currentRules(P, T, model), by = k => R.rows.find(r => r.key === k);
+  const rows = [{ key: 'saturday', rule: 'Fourteen on a Saturday', value: `${P.daily.sat}`, ok: P.daily.sat >= 14, note: '' }, by('cover'), by('closer')];
+  return { rows, met: rows.filter(r => r.ok).length, of: rows.length };
+}
 export function sheetRules(P, T, model = 'plan') {
   const R = currentRules(P, T, model);
   const rows = R.rows.flatMap(r => r.key === 'heads' ? [{ key: 'sunday', rule: 'Ten on a Sunday', value: `${P.daily.sun}`, ok: P.daily.sun >= 10, note: '' }]
