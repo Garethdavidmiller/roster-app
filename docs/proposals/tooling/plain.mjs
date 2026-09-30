@@ -203,13 +203,14 @@ function front({ T, P, meta, pages, coverHead }) {
   const onTiles = t => /follow the trains less closely/i.test(t);
   const CAP = 14, boxOf = all => { const l = all.filter(t => !onTiles(t)); return { items: l.length > CAP ? [...l.slice(0, CAP - 1), `…and ${l.length - CAP + 1} more — on page 2`] : l, more: false }; };
   // POSITIVES ARE CAPPED AT FIVE; CONCERNS NEVER ARE (external review, 30 Sep 2026: ten positives against four concerns
-  // read as though the sheet were selling the design). A positive left off is a page-2 row, so nothing is lost; a
+  // read as though the sheet were selling the design). A positive left off is a page-2 row, so nothing is lost —
+  // the pointer says "More detail on page 2", not a count, which read as keeping score (same review); a
   // concern is never left off. The shortest rest and the fatigue count keep their places when they apply — the owner
   // asked for them as bullets, not tile small print — and the rest are the highest-ranked, in the page's order.
   const GOOD_CAP = 5, pinned = t => /^Shortest rest between shifts|^No avoidable fatigue warnings|^Fewer fatigue warnings/.test(t);
   const goodOf = all => { const l = all.filter(t => !onTiles(t)); if (l.length <= GOOD_CAP) return { items: l, more: false };
     const pins = l.filter(pinned).slice(0, GOOD_CAP), keep = new Set([...pins, ...l.filter(t => !pinned(t)).slice(0, GOOD_CAP - pins.length)]);
-    return { items: [...l.filter(t => keep.has(t)), `…and ${l.length - keep.size} more on page 2`], more: false }; };
+    return { items: [...l.filter(t => keep.has(t)), 'More detail on page 2'], more: false }; };
   const goodBox = goodOf(goodAll), badBox = boxOf(badAll);
 
   // THE BOTTOM LINE — one sentence built from the same lists, never typed: the verdict on the rules and limits, the
@@ -267,7 +268,7 @@ function front({ T, P, meta, pages, coverHead }) {
     feelTile(ab(Math.round(pp.open0620)), 'starts at 06:20, the open, each a year', `today about ${Math.round(tp.open0620)} · ${often(openDiff)}`),
     feelTile(newTimes ? `${newTimes} new` : 'None new', `shift ${newTimes === 1 ? 'time' : 'times'} to learn`, `${distinct} shift times in all, ${shared} worked today · ${newTimes ? 'the new ones are listed on page 4' : 'page 4'}`),
   ].join('');
-  const boxHtml = (cls, title, b, none) => `<div class="pbox ${cls}"><h3>${title}</h3>${b.items.length ? `<ul>${b.items.map(x => /^…and \d+ more/.test(x) ? `<li class="pmore">${esc(x)}</li>` : `<li>${esc(x)}</li>`).join('')}</ul>` : `<p class="muted">${none}</p>`}</div>`;
+  const boxHtml = (cls, title, b, none) => `<div class="pbox ${cls}"><h3>${title}</h3>${b.items.length ? `<ul>${b.items.map(x => /^More detail on page 2$|^…and \d+ more/.test(x) ? `<li class="pmore">${esc(x)}</li>` : `<li>${esc(x)}</li>`).join('')}</ul>` : `<p class="muted">${none}</p>`}</div>`;
   // WHAT IT TAKES — the manager's resource line, restored from the first plain edition's "What does it take?" tile
   // (v2 dropped it): the people, the cover weeks, and the Sunday overtime every week, which is paid on top of the
   // contract and is where two designs meeting the same rules can differ in cost (Full Overhaul rosters 12 a Sunday

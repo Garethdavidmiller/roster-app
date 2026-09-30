@@ -19,8 +19,9 @@ whole proposal:
 - four *Can it work?* tiles (the nine December rules, the hard limits, avoidable fatigue warnings with cover weeks at
   their worst, and the match to the trains with each day's figure against today's);
 - a red box naming every rule or limit broken;
-- under *What it would mean for staff*, **every** concern, and the **five** strongest positives with "…and N more on
-  page 2" (external review: ten positives against four concerns read as a sales pitch). The shortest rest and the
+- under *What it would mean for staff*, **every** concern, and the **five** strongest positives with "More detail on
+  page 2" (external review: ten positives against four concerns read as a sales pitch, and a count of the rest read as
+  keeping score). The shortest rest and the
   fatigue count keep their places among the five when they apply; every positive left off is a page-2 row. A concern
   is never left off.
 
