@@ -58,7 +58,8 @@ export const SUPPLIED = [
     // Saturday, cover weeks anywhere not side by side), each day's duty mix re-searched so the fits compete with the best
     // sheets (exact/mixsa.mjs → exact/rr-mix.json), then the rota built in the fewest changes for that mix (exact/tiebreak.py
     // with MIX= and WIDE=1): up to four tiring patterns (Running Repair) and none (Full Overhaul).
-    { file: 'running-repair.json',         name: 'Running Repair', code: 'RR-24-M34',  fp: '621165eb', strap: 'Weekday Lates retimed to follow the trains, no more than four tiring patterns' },
+    // Running Repair (RR-24-M34 · 621165eb, the 34-change, four-pattern member) was WITHDRAWN on 30 Sep 2026 (owner);
+    // exact/rr-mix.json and the commands in the README rebuild it. Full Overhaul, the same mix with no pattern, stays.
     { file: 'full-overhaul.json',          name: 'Full Overhaul',  code: 'FO-24-M49',  fp: 'bb9b6c24', strap: 'Weekday Lates retimed to follow the trains, with no tiring pattern' },
 ];
 

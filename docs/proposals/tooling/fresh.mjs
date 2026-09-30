@@ -27,20 +27,19 @@ export const STRAPS = {
   'WL4-24-F7':  ['Weekday closers from 16:25, built around four weeks (lines 14–17) that stay together in a fixed order', 'hand+search'],
   'AC-24-M41':  ['Sixteen shift times, meeting all eleven rules with no avoidable tiring pattern', 'exact'],
   'CS-24-M34':  ['Weekday closers from 16:25, meeting the other ten rules', 'exact-waived'],
-  'RR-24-M34':  ['Weekday Lates retimed to follow the trains as closely as the best sheets, with no more than four tiring patterns', 'exact-waived3'],
   'FO-24-M49':  ['Weekday Lates retimed to follow the trains as closely as the best sheets, with no tiring pattern at all', 'exact-waived3'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
 export const FAMILY = {
-  FR: 'Right Away', F9: 'Right Away', FT: 'Fifteen Turns', AC: 'Fifteen Turns', RR: 'Running Repair', FO: 'Running Repair', CS: 'Weekday Lates',
+  FR: 'Right Away', F9: 'Right Away', FT: 'Fifteen Turns', AC: 'Fifteen Turns', FO: 'Running Repair', CS: 'Weekday Lates',
   WL: 'Weekday Lates', WL2: 'Weekday Lates', WL4: 'Weekday Lates' };
 export const FIRST = {
   // 17 Sep, not 18: each of these six was committed, with the same fingerprint, on 17 Sep (accuracy check, 28 Sep 2026)
   'WL-24-EXT': '17 Sep 2026', 'WL2-24-R21': '17 Sep 2026', 'FT-24-EXT': '17 Sep 2026',
   'WL4-24-F7': '22 Sep 2026',
   'FR-24-F34s': '28 Sep 2026', 'F9-24-K31s': '28 Sep 2026',
-  'AC-24-M41': '28 Sep 2026', 'CS-24-M34': '28 Sep 2026', 'RR-24-M34': '29 Sep 2026', 'FO-24-M49': '29 Sep 2026' };
+  'AC-24-M41': '28 Sep 2026', 'CS-24-M34': '28 Sep 2026', 'FO-24-M49': '29 Sep 2026' };
 const MADE = {
   search: 'Built by computer search: the duty table was chosen for how closely it follows the December 2026 timetable, and the 24 weeks put in the order that raises the fewest fatigue factors.',
   hand: 'Drawn by hand and checked by the Links designer, which measured every figure in this sheet from the grid.',
@@ -56,7 +55,6 @@ const MADE = {
  *  next to each other. */
 export const WAIVERS = {
   'CS-24-M34': { date: '28 September 2026', keys: ['closer'] },
-  'RR-24-M34': { date: '29 September 2026', keys: ['closer', 'heads', 'cover'] },
   'FO-24-M49': { date: '29 September 2026', keys: ['closer', 'heads', 'cover'] },
 };
 const WAIVE = {

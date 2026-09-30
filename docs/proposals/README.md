@@ -3,7 +3,7 @@
 The CEA link proposals drawn for the December 2026 timetable change, each a PDF with its own
 **identity** so it can be named in a room: a name, a code that says how it was built, and a
 fingerprint of the exact cells so a printout can never be confused with a variant. The same
-identity is in every page footer. All 10 were judged by the app's own Links modules
+identity is in every page footer. All 9 were judged by the app's own Links modules
 (`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) — the
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
@@ -57,6 +57,9 @@ Then the **Pinned Turns family** (owner, 30 Sep 2026): *Pinned Turns* (`PT-24-P3
 (`P2-24-N13 · 33a78cbe`), both built to the owner's brief of 25 Sep and meeting 9 of the 11 rules: **10 sheets**. As with the
 other searched families, their candidates stay in `tooling/results/` and `final.mjs` keeps their code; both grids are also
 kept unchanged in `test-fixtures/links-designs/`, because the Links compare tests assert figures that are theirs.
+Then *Running Repair* (`RR-24-M34 · 621165eb`, the family's 34-change member with four tiring patterns; owner, 30 Sep 2026):
+**9 sheets**. *Full Overhaul*, the same duty mix with no tiring pattern, stays and did not change; the family section below
+still describes both, and its commands rebuild Running Repair exactly.
 The Links compare test that used Short Closer as its
 real-design fixture now uses *Weekday Lates*, which has the same shape (tiring patterns present in both at different figures).
 
@@ -95,7 +98,7 @@ project's history, kept as the record: where one describes a ten-page sheet, 23 
 is describing an earlier edition.
 
 **Everything in one download:** `December-2026-Link-Proposals.zip` (29 Sep 2026) — the one-page summary, the
-rules, both presentations, all 10 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
+rules, both presentations, all 9 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
 re-render of the sheets does not update it, so rebuild it after one.
 
 **The one-page summary:** `Proposals-Summary.pdf` — every proposal against today's link on one A4 page, rendered by
@@ -121,7 +124,6 @@ and to the floor on 28 Sep.
 | **Familiar Nine** | `F9-24-K31s · 598a1294` (was `F9-24-K31 · c450951c`) | **Right Away's rules with two more aims (28 Sep 2026)**: no duty over nine hours, and the shift times people already work wherever they cost little fit — 9 of its 15 times are worked today (Right Away 5 of 17), the longest duty 9h00 (9h30), the weekday table proven; Right Away's week structure carried over and polished until no figure was worse than Right Away's (14 of 20 weeks on one shift time, shortest rest 14h20, the thinnest Sunday floor 3 not 2), for a looser fit: 27.7 · 15.0 · 31.3 against 26.5 · 14.6 · 28.9 | **0** | 6 | 6 in 24 |
 | **All Clear** | `AC-24-M41 · 094fd369` | ***Fifteen Turns* with the fewest cells changed that meet every rule with no fatigue finding at all (28 Sep 2026)** — **41**, proven the minimum; the other end of *Just Enough*'s trade, twelve more changes for three fewer findings. Cover weeks untouched; its price is Sunday's fit | **0** | 9 | 2 in 24 |
 | **Clean Sweep** | `CS-24-M34 · 92366924` | ***Polished Clean* with the fewest cells changed that meet the rules, its 16:25 weekday closers kept by the owner's allowance (28 Sep 2026)** — **34**, proven the minimum, 22 of them from spreading the cover weeks evenly (1, 7, 13, 19); among those, the fewest fatigue findings (three, proven — none new). 10 of the 11 rules: the one not met is the 15:45 closer, waived for this design | 3 | 9 | 2 in 24 |
-| **Running Repair** | `RR-24-M34 · 621165eb` | ***Weekday Lates* retimed so its floor follows the trains as closely as the best sheets (29 Sep 2026)** — each day's duty mix re-searched to fit 27.0 · 12.3 · 26.4, then the fewest changes for that mix, **34**, proven for it; three rules waived by the owner (16:25 closers, twelve on a Saturday, cover weeks anywhere not side by side) | 4 | 9 | 5 in 24 |
 | **Full Overhaul** | `FO-24-M49 · bb9b6c24` | ***Running Repair*'s duty mix with no tiring pattern at all (29 Sep 2026)** — the same fit, 27.0 · 12.3 · 26.4, in the fewest changes that allow no finding, **49**, proven for the mix; the same three waivers | **0** | 8 | 3 in 24 |
 | **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5, or **4 as rostered** | 9 | 6 in 24 |
 | **Fifteen Turns** | `FT-24-EXT · 9a028392` | **Supplied as a grid**, not searched — fifteen turns and cover weeks evenly spread, but **it does not clear two gates** | 7 | 9 | 2 in 24 |
@@ -1528,7 +1530,7 @@ env $E python3 mixspec.py                                                   # wl
 START=rr-final.json node mixsa.mjs 27 15 27 300000 1 rr-mix.json           # the duty mix (rr-final: the 11-change answer)
 env $E MIX=rr-mix.json python3 tiebreak.py 34 4 rr3-final.json 300 rr-final.json factors,times,run,wk,singles,six,h,jumps,ff8,size,one
 env $E MIX=rr-mix.json python3 tiebreak.py 49 0 fo3-final.json 600 rr3-final.json times,run,wk,singles,six,h,jumps,ff8,size,one
-cd .. && node regenerate.mjs --only=RR,FO
+cd .. && node regenerate.mjs --only=FO   # Running Repair's sheet was withdrawn 30 Sep: restore its SUPPLIED entry to re-render it
 ```
 
 ## Clean Sweep — Polished Clean with the fewest changes, its 16:25 closers kept (28 Sep 2026)
