@@ -3,7 +3,7 @@
 The CEA link proposals drawn for the December 2026 timetable change, each a PDF with its own
 **identity** so it can be named in a room: a name, a code that says how it was built, and a
 fingerprint of the exact cells so a printout can never be confused with a variant. The same
-identity is in every page footer. All 12 were judged by the app's own Links modules
+identity is in every page footer. All 10 were judged by the app's own Links modules
 (`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) — the
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
@@ -53,6 +53,10 @@ Then *Just Enough* (`JE-24-M29 · 49717d70`, 11 rules, three fatigue findings) a
 answer that *All Clear* is the zero-finding end of, and Gates Mended's shift times are part of the solver's allowed pool
 (`exact/common.py` now reads `tooling/fifteen-turns-repaired.json`), so All Clear stays reproducible. No sheet changed.
 Then the **Running Repair family** was added the same evening — *Running Repair* and *Full Overhaul*: **12 sheets**.
+Then the **Pinned Turns family** (owner, 30 Sep 2026): *Pinned Turns* (`PT-24-P34 · dae6292e`) and *Round Times*
+(`P2-24-N13 · 33a78cbe`), both built to the owner's brief of 25 Sep and meeting 9 of the 11 rules: **10 sheets**. As with the
+other searched families, their candidates stay in `tooling/results/` and `final.mjs` keeps their code; both grids are also
+kept unchanged in `test-fixtures/links-designs/`, because the Links compare tests assert figures that are theirs.
 The Links compare test that used Short Closer as its
 real-design fixture now uses *Weekday Lates*, which has the same shape (tiring patterns present in both at different figures).
 
@@ -91,7 +95,7 @@ project's history, kept as the record: where one describes a ten-page sheet, 23 
 is describing an earlier edition.
 
 **Everything in one download:** `December-2026-Link-Proposals.zip` (29 Sep 2026) — the one-page summary, the
-rules, both presentations, all 12 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
+rules, both presentations, all 10 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
 re-render of the sheets does not update it, so rebuild it after one.
 
 **The one-page summary:** `Proposals-Summary.pdf` — every proposal against today's link on one A4 page, rendered by
@@ -119,8 +123,6 @@ and to the floor on 28 Sep.
 | **Clean Sweep** | `CS-24-M34 · 92366924` | ***Polished Clean* with the fewest cells changed that meet the rules, its 16:25 weekday closers kept by the owner's allowance (28 Sep 2026)** — **34**, proven the minimum, 22 of them from spreading the cover weeks evenly (1, 7, 13, 19); among those, the fewest fatigue findings (three, proven — none new). 10 of the 11 rules: the one not met is the 15:45 closer, waived for this design | 3 | 9 | 2 in 24 |
 | **Running Repair** | `RR-24-M34 · 621165eb` | ***Weekday Lates* retimed so its floor follows the trains as closely as the best sheets (29 Sep 2026)** — each day's duty mix re-searched to fit 27.0 · 12.3 · 26.4, then the fewest changes for that mix, **34**, proven for it; three rules waived by the owner (16:25 closers, twelve on a Saturday, cover weeks anywhere not side by side) | 4 | 9 | 5 in 24 |
 | **Full Overhaul** | `FO-24-M49 · bb9b6c24` | ***Running Repair*'s duty mix with no tiring pattern at all (29 Sep 2026)** — the same fit, 27.0 · 12.3 · 26.4, in the fewest changes that allow no finding, **49**, proven for the mix; the same three waivers | **0** | 8 | 3 in 24 |
-| **Round Times** | `P2-24-N13 · 33a78cbe` | *Pinned Turns*' pins with **every other time rewritten onto the quarter hour** (the pinned 06:20–14:20 the one exception, and the contract's arithmetic needs it) and **no more shift times a day than *Pinned Turns*** — each day enumerated to a proof (weekday fit 33.8, Saturday 22.9, Sunday 62.4; 14 distinct turns in the week), the rotation fatigue-first | **0** | 6 | 6 in 24 |
-| **Pinned Turns** | `PT-24-P34 · dae6292e` | **The owner's brief of 25 Sep 2026** from today's roster: Mon–Fri 15:45 closers, three 06:20–14:20 openers, two 14:00–22:30 lates and an 8h40 cap; Saturday two long openers and a 14:00–22:30; Sunday a 13:00–21:30 — the rest of each day fitted to the timetable (weekday fit 32.1; three turns off the quarter hour — the pinned 06:20–14:20, Saturday's 06:20–14:50 and the weekday's 07:00–15:40), the rotation fatigue-first | **0** | 6 | 6 in 24 |
 | **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5, or **4 as rostered** | 9 | 6 in 24 |
 | **Fifteen Turns** | `FT-24-EXT · 9a028392` | **Supplied as a grid**, not searched — fifteen turns and cover weeks evenly spread, but **it does not clear two gates** | 7 | 9 | 2 in 24 |
 | **Evening Peak** | `WL2-24-R21 · 33f70893` | Weekday Lates with eight of its nine `08:30–17:00` turns re-timed into the evening to cover the 17:00 peak, then re-searched | **1** | 6 | 6 in 24 |
