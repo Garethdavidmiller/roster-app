@@ -84,7 +84,7 @@ const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><tit
 <link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/links.css">
 <style>
 @page { size: A4; margin: 11mm 11mm 13mm; }
-html, body { background: white !important; color: var(--text-dark); padding: 0 !important; margin: 0; font-family: var(--font-sans); font-size: 10.5px; line-height: 1.4; }
+html, body { background: white !important; color: var(--text-dark); padding: 0 !important; margin: 0; font-family: var(--font-sans); font-size: 10.5px; line-height: 1.36; }
 .page { page-break-after: always; position: relative; min-height: 270mm; }
 .page:last-child { page-break-after: auto; }
 .mast { background: var(--primary-blue); color: white; padding: 12px 20px 11px; border-bottom: 4px solid var(--accent-gold); border-radius: var(--radius); display: flex; gap: 16px; align-items: center; }

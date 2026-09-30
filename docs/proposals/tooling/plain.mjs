@@ -307,7 +307,7 @@ function front({ T, P, meta, pages, coverHead }) {
   <div class="tiles head4">${work}</div>
   ${failBox && waivedBox ? failBox.replace(/<\/div>$/, `<p class="pbw">${waivedBox.replace(/^<div class="pbox pbox-info pwaived">|<\/div>$/g, '')}</p></div>`) : failBox + waivedBox}
   <h2 class="psec">What it would mean for staff</h2>
-  <div class="pcols">
+  <div class="pcols${badBox.items.length >= 10 ? ' pcols--dense' : ''}">
     ${boxHtml('pbox-good', 'Likely positives for staff', goodBox, 'Nothing else notably better than today.')}
     ${boxHtml('pbox-warn', 'What colleagues may be concerned about', badBox, 'Nothing else notably worse than today.')}
   </div>
@@ -536,6 +536,9 @@ h2.p4shape-h { margin-top: 10px; }
 table.ff .ff-plain { display: block; font-weight: 700; } table.ff .ff-orr { display: block; font-size: 8.4px; color: var(--text-mid); margin-top: 1px; }
 .cover.plain .ptakes { font-size: 10.4px; margin: 6px 0 0; line-height: 1.4; color: var(--text-dark, #1a1a2e); } .cover.plain .ptakes b { color: var(--primary-blue); }
 .cover.plain .pcols .pbox ul { font-size: 10.2px; line-height: 1.42; }
+/* a long concerns list (Fifteen Turns: every concern shown, never capped) ran its panel onto the footer — tighten it,
+   never cut it (screenshot check, 30 Sep 2026) */
+.cover.plain .pcols--dense .pbox ul { font-size: 9.8px; line-height: 1.3; }
 .cover.plain h2.psec { font-size: 12.5px; margin: 11px 0 5px; color: var(--primary-blue); letter-spacing: .01em; }
 .cover.plain .tiles.head4, .cover.plain .tiles.pfeel.four { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .cover.plain .head4 .tile .q { min-height: 26px; } .cover.plain .head4 .tile b { font-size: 22px; }
