@@ -11,8 +11,8 @@
 // one moves, because a moved fingerprint means the cells changed and a printout that has been in a
 // room no longer matches its name. Pass --check to do that and nothing else.
 //
-// The four SEARCHED proposals are rebuilt from the committed candidates in `results/`, so they
-// depend on those files and not on a re-run of the annealer, which would take hours and is not
+// SEARCHED proposals (none in the folder since the 29 Sep 2026 withdrawals) are rebuilt from the committed candidates
+// in `results/`, so they depend on those files and not on a re-run of the annealer, which would take hours and is not
 // deterministic across Node versions in the way the candidates are.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync, readdirSync, copyFileSync } from 'node:fs';
@@ -132,8 +132,8 @@ for (const t of SEARCHED) {
     done++;
 }
 console.log(`\n${done} proposal${done === 1 ? '' : 's'}${failed ? `, ${failed} FAILED` : ''}`);
-// THE RULES REFERENCE (28 Sep 2026) is rendered by every full run, after the sheets, from the same currentRules
-// and the same folder — so it can never describe a rule set the sheets beside it were not judged against.
+// THE RULES REFERENCE (28 Sep 2026) is rendered by every full run, after the sheets, from the same rule code
+// (sheetRules and flexibleRules, both built on currentRules) and the same folder — so it can never describe a rule set the sheets beside it were not judged against.
 if (!checkOnly && !only) execFileSync('node', ['rules-sheet.mjs'], { stdio: 'inherit' });
 // A SHIPPED PDF THAT GIT DOES NOT TRACK IS NOT SHIPPED. `.gitignore` ignores every *.pdf, so `git add docs/proposals`
 // updates the PDFs already tracked and silently skips a NEW one; Weekend Capped's and Pinned Turns' PDFs sat on disk

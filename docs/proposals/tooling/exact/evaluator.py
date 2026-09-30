@@ -21,7 +21,11 @@ def helpers(pr,c):
         if st(t)==OPEN[c]:
             e=min(en(t),540 if c=='sun' else 480)
             if e>st(t): out.append((st(t),e,1))
-        elif c=='sun': out.append((st(t),en(t),0.5))
+        elif c=='sun':
+            # the December Sunday (owner, 29 Sep 2026), as report-data officeHelpers and model.py: both lates on the
+            # floor until 15:00, one of them again from 18:00 (audit, 30 Sep 2026 — this was the old half-share model)
+            if st(t)<900: out += [(st(t),900,1),(st(t),900,1)]
+            out.append((max(st(t),1080),en(t),1))
         elif en(t)>1170: out.append((max(st(t),1170),en(t),1))
     return out
 def rules(p):
@@ -63,9 +67,10 @@ def rules(p):
         ok=len(cls_)>0 and all(any(x[1]<y[1] and x[2]>=y[1]+15 for x in ds) for y in cls_)
         if c=='sun' and cls_:
             last=max(y[1] for y in cls_); ok=ok and all(x[2]>=last+15 for x in ds if x[1]==OPEN['sun'])
-        hv[d]=(ok, en(pr[0])-st(pr[1]))
+        # the office handover: 20 minutes, and on a Sunday 30 counted from 15:00, when both lates come off the floor
+        hv[d]=(ok, en(pr[0])-max(st(pr[1]),900) if c=='sun' else en(pr[0])-st(pr[1]), 30 if c=='sun' else 20)
     r['floor']=all(fm[d] is not None and fm[d]>=2 for d in DAYS) if r['office'] else None
-    r['handover']=all(hv[d][0] and hv[d][1]>=20 for d in DAYS) if r['office'] else None
+    r['handover']=all(hv[d][0] and hv[d][1]>=hv[d][2] for d in DAYS) if r['office'] else None
     r['sunlen']=len(duties['sun'])>0 and all(480<=dur(s)<=540 for s in duties['sun'])
     work=[k for k in lines if p[k]['mon']!='SPARE']
     r['times']=len({p[k][d] for k in work for d in DAYS if p[k][d]!='RD'})<=TODAY_DISTINCT
