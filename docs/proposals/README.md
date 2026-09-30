@@ -8,17 +8,26 @@ identity is in every page footer. All 9 were judged by the app's own Links modul
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
 
-**The sheets are the plain edition (29 Sep 2026)** — eight pages each, one version for the owner, managers and
-colleagues alike (owner: *"I can't overload Nathan, it needs to be easy to understand"*). Page 1 answers five questions
-in a word or two with one line of proof each — does it meet the December staffing levels, can it be run within the
-limits, is it tiring, what does it take, are staff where the trains are — then three tiles on what it is like to work,
-the likely positives for staff and what colleagues may be concerned about, and what is still to settle. Page 2 sets every figure against
-today's link, with a plain translation of each row. Pages 3–7 are the workings (the grid, the week and duty table, the
-hour-by-hour cover, the limits and rules, the ORR table), and page 8 says in plain words how every figure is worked
-out. **Today's link is the only comparison**: no sheet, and not the rules sheet, names, counts or ranks another
+**The sheets are the plain edition, second version (30 Sep 2026)** — eight pages each, one version for the owner,
+managers and colleagues alike (owner: *"I can't overload Nathan, it needs to be easy to understand"*), redesigned after
+an external review and our own. **Page 1** opens with an *In short* sentence built from the same lists as the rest of the
+page (the verdict, the two biggest gains and the two biggest trade-offs, each against today), then four *Can it work?*
+tiles (the December staffing rules, the hard limits, avoidable fatigue warnings, does staffing follow the trains), a red
+box naming every rule or limit a design breaks, four *What it would mean for you* tiles (annual figures marked "about"),
+up to four likely positives and concerns, and one line on what is still to settle. **Page 2** sets every figure against
+today's link in five named groups (staffing, working pattern, shifts, your year, fatigue and the rules), with a plain translation of each row. **Pages 3–7** are the workings, each opening with
+its answer: the rota (familiar, new and dropped shift times), shift times, staffing through the day, the rules (a count
+pill on the heading) and the fatigue checks. **Page 8**, *Can I trust these numbers?*, says which figures are exact, which
+are a guide and what the sheet cannot know. **One colour meaning on every page:** green ✓ meets a rule or is better on
+something the rules, the limits or the fatigue guidance aim for; amber ▲ is worse on one of those; red ✕ is a rule or
+limit broken; no colour is a preference for colleagues to weigh. The symbol is always printed beside the colour, because
+the sheets are printed in black and white. "Tiring patterns" is now "fatigue warnings" everywhere, the Familiar Nine decks
+included. **Today's link is the only comparison**: no sheet, and not the rules sheet, names, counts or ranks another
 proposal — the one-page summary is where they sit side by side, for the owner. Rendered by `tooling/plain.mjs`;
 `TECH=1 node regenerate.mjs` renders the technical sheet instead, with its comparisons removed by `tooling/solo.mjs`.
-Every claim on pages 1–2 is judged shift by shift, never on an average, after five independent checks on 29 Sep 2026.
+Every claim on pages 1–2 is judged shift by shift, never on an average. The first plain edition (29 Sep 2026) passed five
+independent checks; this one was re-checked by an independent recount of every page-2 row and every page-1 tile and
+verdict against the rotas (0 mismatches across the 9 sheets), and a footer-overlap check on every page.
 
 **The By the Book family was withdrawn (29 Sep 2026, owner).** *By the Book* (`BB-24-D7 · 0f14abce`), *Eight Forty*
 (`EF-24-E21 · 0cf19f56`) and *Office Written In* (`B2-24-G21 · 02f3c005`) — the rules-first family, meeting 4 to 5 of
