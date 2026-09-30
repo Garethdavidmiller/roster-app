@@ -12,6 +12,7 @@
 import { folderStats, today, assess, sheetRules as currentRules, dutyMinutes, startMinutes, endMinutes } from './report-data.mjs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
 import fs from 'node:fs';
+import { waivedRows } from './fresh.mjs';
 const DIR = new URL('../', import.meta.url);
 const DAYS=['sun','mon','tue','wed','thu','fri','sat'];
 const timed = s => /^\d\d:\d\d-\d\d:\d\d$/.test(s);
@@ -25,12 +26,12 @@ const T=today();
 const hm = m => `${Math.floor(m/60)}h ${String(Math.round(m%60)).padStart(2,'0')}m`;  // the sheets' own format, "13h 35m"
 const TA = assess(T.patterns, 20);
 const rows = folderStats().map(f => { const j=JSON.parse(fs.readFileSync(new URL(f.file, DIR),'utf8')); const p=j.patterns??j; const x=extra(p);
-  return { name:f.name, code:f.code, met:f.rules.met, of:f.rules.of, present:f.present, run:f.run, wkd:`${f.weekends} in ${x.L}`, rest:f.rest, times:`${f.distinct} (${f.newTimes} new)`, ...x }; });
+  return { name:f.name, code:f.code, met:f.rules.met, of:f.rules.of, waived:waivedRows(f.code, f.rules.rows).length, present:f.present, run:f.run, wkd:`${f.weekends} in ${x.L}`, rest:f.rest, times:`${f.distinct} (${f.newTimes} new)`, ...x }; });
 rows.sort((a,b)=> b.met-a.met || a.present-b.present || a.name.localeCompare(b.name));
 const todayRow = { name:'Today’s link', code:'20 weeks', met:null, of:null, present:TA.fatigue.present, run:TA.checks.longestStretch, wkd:`${TA.checks.weekendsOff} in 20`, rest:TA.rest?.minutes, times:`${TA.feel.distinctTimes}`, ...extra(T.patterns) };
 // today's rules met, the rules sheet's own figure
 { const R0 = currentRules({ patterns:T.patterns, ...TA }, TA, 'today'); todayRow.met = R0.met; todayRow.of = R0.of; }
-const tr = (r, cls='') => `<tr class="${cls}"><td class="n"><b>${r.name}</b><span>${r.code}</span></td><td class="${r.met===r.of?'good':''}">${r.met} of ${r.of}</td><td class="${r.present===0?'good':''}">${r.present}</td><td>${r.run}</td><td>${r.wkd}</td><td>${r.rest==null?'—':hm(r.rest)}</td><td>${r.times}</td><td>${r.dpw.toFixed(2)}</td><td>${Math.round(r.dpy)}</td><td>${hm(r.avg)}</td><td>${Math.round(r.late)}</td><td>${Math.round(r.sat)}</td></tr>`;
+const tr = (r, cls='') => `<tr class="${cls}"><td class="n"><b>${r.name}</b><span>${r.code}</span></td><td class="${r.met===r.of?'good':''}">${r.met} of ${r.of}${r.waived ? `<span class="wv">+${r.waived} waived‡</span>` : ''}</td><td class="${r.present===0?'good':''}">${r.present}</td><td>${r.run}</td><td>${r.wkd}</td><td>${r.rest==null?'—':hm(r.rest)}</td><td>${r.times}</td><td>${r.dpw.toFixed(2)}</td><td>${Math.round(r.dpy)}</td><td>${hm(r.avg)}</td><td>${Math.round(r.late)}</td><td>${Math.round(r.sat)}</td></tr>`;
 const html = `<!doctype html><html><head><meta charset="utf-8"><title>December 2026 link proposals — summary</title><style>
 @page{size:A4 landscape;margin:8mm 10mm}
 body{font-family:Inter,Arial,sans-serif;color:#1B2533;margin:0;font-size:9pt}
@@ -39,7 +40,7 @@ table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 th{background:#001E3C;color:#fff;font-weight:600;font-size:9pt;padding:6px 5px;text-align:center;vertical-align:bottom}
 th:first-child{text-align:left}
 td{white-space:nowrap;border-bottom:1px solid #DDE3EA;padding:6px 5px;text-align:center;font-size:10pt}
-td.n{text-align:left} td.n span{color:#5B6778;font-size:8.5pt;margin-left:6px}
+td.n{text-align:left} td.n span{color:#5B6778;font-size:8.5pt;margin-left:6px} td .wv{display:block;color:#5B6778;font-size:8pt}
 tr.today td{background:#FFF4C2;border-bottom:2px solid #F5C800}
 td.good{color:#1E7B4B;font-weight:700}
 .foot{margin-top:10px;color:#5B6778;font-size:9pt;line-height:1.45}
@@ -50,7 +51,7 @@ td.good{color:#1E7B4B;font-weight:700}
 ${tr(todayRow,'today')}
 ${rows.map(r=>tr(r)).join('\n')}
 </tbody></table>
-<p class="foot">* Monday to Saturday, with a cover week counted as 4 days (Sundays are overtime and left out). † Each person, on average across the whole link, Sundays included; cover-week duties are not known yet and are left out. “Shift times” counts different start–finish times; “new” means nobody works that time today. Avoidable fatigue warnings come from the ORR’s good-practice list plus rail-industry checks, leaving out the two that come with every weekly link — reported, never pass or fail. Full detail for each proposal is in its own eight-page sheet; the rules themselves are in December-2026-Rules.pdf.</p>
+<p class="foot">* Monday to Saturday, with a cover week counted as 4 days (Sundays are overtime and left out). † Each person, on average across the whole link, Sundays included; cover-week duties are not known yet and are left out. “Shift times” counts different start–finish times; “new” means nobody works that time today. Avoidable fatigue warnings come from the ORR’s good-practice list plus rail-industry checks, leaving out the two that come with every weekly link — reported, never pass or fail.${rows.some(r => r.waived) ? ` ‡ A rule the owner set aside for that proposal alone (${rows.filter(r => r.waived).map(r => r.name).join(', ')}: the ticket office pairs, 30 Sep 2026).` : ''} Full detail for each proposal is in its own eight-page sheet; the rules themselves are in December-2026-Rules.pdf.</p>
 </body></html>`;
 const b = await chromium.launch(); const pg = await b.newPage(); await pg.setContent(html, { waitUntil: 'load' });
 await pg.pdf({ path: new URL('Proposals-Summary.pdf', DIR).pathname, format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });

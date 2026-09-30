@@ -273,7 +273,10 @@ function front({ T, P, meta, pages, coverHead }) {
   const wv = WAIVERS[meta.identity.code];
   // A per-design waiver (WAIVERS in fresh.mjs — none today: the three soft rules were relaxed for every design on
   // 30 Sep 2026 and left the rule set) is recorded in one line, never argued.
-  const wItems = waived.map(w => `${esc(w.rule)} — here ${esc(String(w.value))}`);
+  // the ticket office's own value ("Mon–Fri no · Sat no · Sun no") reads as though no pair is rostered anywhere; where the
+  // design does roster some, say which days — page 5 says the same
+  const wValue = w => w.key === 'office' && meta.pairDays?.length ? `the pairs are rostered on ${meta.pairDaysTxt} only` : String(w.value);
+  const wItems = waived.map(w => `${esc(w.rule)} — here ${esc(wValue(w))}`);
   const waivedBox = wItems.length ? `<div class="pbox pbox-info pwaived"><b>Waived for this design</b>${wv?.date ? ` (agreed by the owner, ${esc(wv.date)})` : ''}: ${wItems.join(' · ')}.</div>` : '';
 
   // WHAT IT WOULD MEAN FOR STAFF — the colleague's four questions, put to the manager who reads the sheet; figures averaged over the link say "about"
@@ -480,7 +483,7 @@ table.p5t.cov-heat--dense { border-spacing: 2px 1.5px; }
 table.p5t.cov-heat--dense .cov-heat-cell { height: 13px !important; font-size: 8px !important; }
 table.p5t.cov-heat--dense tr:has(> .office-day) .cov-heat-cell, table.p5t.cov-heat--dense tr:has(> .floor-day) .cov-heat-cell { height: 10.5px !important; font-size: 7.4px !important; }
 table.p5t.cov-heat--dense .cov-heat-day { font-size: 8.4px !important; } table.p5t.cov-heat--dense .office-day, table.p5t.cov-heat--dense .floor-day { font-size: 7.8px !important; }
-.p5 ul.p5notes { column-count: 2; column-gap: 20px; margin-left: 14px; font-size: 8.7px; line-height: 1.34; } .p5 ul.p5notes li { break-inside: avoid; margin: 0 0 3px; }
+.p5 ul.p5notes { column-count: 2; column-gap: 20px; margin-left: 14px; font-size: 8.7px; line-height: 1.34; } .p5 ul.p5notes li { break-inside: avoid; margin: 0 0 3px; } .p5 ul.p5notes.p5notes--dense { line-height: 1.24; } .p5 ul.p5notes.p5notes--dense li { margin: 0 0 2px; }
 .p5 h2.p5gtk { margin: 6px 0 2px; font-size: 11px; } .p5 .p5legend { font-size: 8.6px; margin: 5px 0 1px; gap: 2px 18px; } .p5 h2 { margin: 7px 0 2px; }
 .p5 .callout { margin-top: 6px; padding-top: 6px; padding-bottom: 6px; font-size: 9.2px; }
 /* THE WHOLE SHEET IN PAGE 5'S LANGUAGE (owner, 29 Sep 2026: "the other pages … still lots of rough edges"). One card:
@@ -526,8 +529,8 @@ dl.pmethod { margin: 10px 0; } dl.pmethod dt { font-weight: 800; color: var(--pr
 .cover.plain .pbottom { font-size: 12.2px; line-height: 1.5; margin-top: 10px; padding: 8px 14px; }
 .cover.plain h2.psec { margin: 10px 0 5px !important; }
 .cover.plain .pcols { margin-top: 8px; } .cover.plain .pdecide1 { margin-top: 8px; } .cover.plain .pbox-bad { margin-top: 6px; }
-table.p4shape { margin-top: 4px; font-size: 9.4px; table-layout: fixed; width: 100%; } table.p4shape td, table.p4shape th { padding: 2.5px 6px; } table.p4shape th:nth-child(1) { width: 29%; } table.p4shape th:nth-child(2) { width: 27%; } table.p4shape th:nth-child(3) { width: 19%; } table.p4shape td:nth-child(2), table.p4shape td:nth-child(3) { white-space: nowrap; }
-h2.p4shape-h { margin-top: 10px; }
+table.p4shape { margin-top: 4px; font-size: 9.4px; table-layout: fixed; width: 100%; } table.p4shape td, table.p4shape th { padding: 2px 6px; line-height: 1.3; } table.p4shape th:nth-child(1) { width: 26%; } table.p4shape th:nth-child(2) { width: 30%; } table.p4shape th:nth-child(3) { width: 21%; } table.p4shape td:nth-child(2), table.p4shape td:nth-child(3) { white-space: nowrap; } table.p4shape td.p4wrap { white-space: normal; } table.p4shape .p4nw { white-space: nowrap; }
+h2.p4shape-h { margin-top: 7px; }
 .cover.plain .pwaived { margin-top: 6px; font-size: 9.6px; line-height: 1.4; padding: 6px 14px; } .cover.plain .pwaived b { color: var(--primary-blue); }
 .cover.plain .head4 .tile .s { font-size: 9.5px; line-height: 1.35; }
 .cover.plain .pbw { margin: 5px 0 0; padding-top: 4px; border-top: 1px dashed color-mix(in srgb, var(--danger-red, #b3261e) 30%, white); font-size: 9.4px; line-height: 1.35; color: var(--text-mid); } .cover.plain .pbw b { color: var(--primary-blue); }
@@ -658,7 +661,10 @@ function hourPage(s) {
     `<b>Cover weeks.</b> ${m[1].replace(/^Cover weeks /, 'They ')}`,
     ...(m[3].trim() ? [`<b>Sunday’s last trains.</b> ${m[3].trim()}`] : []),
   ];
-  s = s.replace(office[0], `<h2 class="p5gtk">Good to know</h2><ul class="p5notes">${items.map(x => `<li>${x}</li>`).join('')}</ul>`).replace(rest[0], '');
+  // a design that rosters only some office pairs AND has the Sunday last-trains note carries both long notes: set the list a
+  // touch tighter so it clears the footer (Polished Clean, 30 Sep 2026), leaving every other sheet as it was
+  const denseNotes = tail && m[3].trim() ? ' p5notes--dense' : '';
+  s = s.replace(office[0], `<h2 class="p5gtk">Good to know</h2><ul class="p5notes${denseNotes}">${items.map(x => `<li>${x}</li>`).join('')}</ul>`).replace(rest[0], '');
   // the callout's first point is now the "only the floor is matched" note; it keeps the one thing that note does not say
   s = s.replace(/<b>Reading it\.<\/b> The <b>floor<\/b> rows are the fair comparison\. The ticket office is staffed to its opening hours, not to the trains, so counting it in can make a day look better or worse than the floor really is\. The fit measures <b>shape, not numbers<\/b>/,
     '<b>Reading the match.</b> It measures <b>shape, not numbers</b>');
@@ -717,13 +723,13 @@ function shiftPage(s, { T, P }) {
   // THE SHAPE OF A WEEK — restored (30 Sep 2026, "no important insight must be lost"). v2 moved four of the old table's
   // rows to page 2 and dropped the rest; these are the ones page 2 does not carry, plus the single rest days with the
   // cover-week detail page 2 has no room for. (The ticket-office posts row is not restored: pages 2, 5 and 6 carry it.)
-  const dist = X => Object.entries(X.feel.daysHist).sort((a, b) => a[0] - b[0]).map(([d, n]) => `${n} × ${d}-day`).join(', ');
+  const dist = X => Object.entries(X.feel.daysHist).sort((a, b) => a[0] - b[0]).map(([d, n]) => `<span class="p4nw">${n} × ${d}-day</span>`).join(', ');
   const iso = X => `${X.feel.isolatedRest}${X.feel.isolatedBesideCover ? ` (${X.feel.isolatedBesideCover} beside a cover week)` : ''}`;
     const shape = `<h2 class="p4shape-h">The shape of a week</h2>
   <table class="t p4shape"><thead><tr><th>Measure</th><th>Today</th><th>Proposed</th><th>In plain words</th></tr></thead><tbody>
     <tr><td>Rest breaks of two days or more</td><td>${T.feel.pairedRest} of ${T.feel.restIslands}</td><td><b>${P.feel.pairedRest} of ${P.feel.restIslands}</b></td><td class="muted">of all the breaks between duties</td></tr>
     <tr><td>Single rest days</td><td>${iso(T)}</td><td><b>${iso(P)}</b></td><td class="muted">one beside a cover week depends on where its four duties fall</td></tr>
-    <tr><td>Working weeks by days worked, Sunday in</td><td>${dist(T)}</td><td><b>${dist(P)}</b></td><td class="muted">cover weeks left out</td></tr>
+    <tr><td>Working weeks by days worked, Sunday in</td><td class="p4wrap">${dist(T)}</td><td class="p4wrap"><b>${dist(P)}</b></td><td class="muted">cover weeks left out</td></tr>
     <tr><td>Working weeks with a Sunday</td><td>${T.hours.sundayDuties} of ${T.feel.workingLines}</td><td><b>${P.hours.sundayDuties} of ${P.feel.workingLines}</b></td><td class="muted">the number on duty each Sunday — all overtime</td></tr>
   </tbody></table>`;
   s = must(s, /<h2>The duty table, beside today’s<\/h2>/, '<h2>Every shift time, beside today’s</h2>', 'the duty table heading');
