@@ -64,7 +64,9 @@ export const SUPPLIED = [
     { file: 'full-overhaul.json',          name: 'Full Overhaul',  code: 'FO-24-M49',  fp: 'bb9b6c24', strap: 'Weekday Lates retimed to follow the trains, with no tiring pattern' },
     // Silva Lining (1 Oct 2026, owner): version H of the series in ../silva-lining/, the one chosen from eight on the
     // standing weighted league. Polished Clean with the owner's changes of that day, its weeks put in order by search.
-    { file: 'silva-lining.json',           name: 'Silva Lining',   code: 'SL-24-H',    fp: '7fc9745f', strap: 'Thirteen shift times, five fewer than today, and no duty over nine hours' },
+    // The same day its Sunday was re-searched (owner: "can we fix Sundays"): three Sunday closers moved from 14:30–23:25
+    // to 15:25–23:25 (lines 6, 9 and 11), was SL-24-H · 7fc9745f — the 's' suffix as Familiar Nine's Sunday re-search.
+    { file: 'silva-lining.json',           name: 'Silva Lining',   code: 'SL-24-Hs',   fp: '15475b65', strap: 'Fourteen shift times, four fewer than today, and no duty over nine hours' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

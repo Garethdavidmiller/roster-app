@@ -2,7 +2,7 @@
 
 > **FROZEN, 1 Oct 2026.** The link was confirmed that day as **26 lines, not 24**. This folder (it was `docs/proposals/`)
 > is kept exactly as it stood, for reference and in case the 24-line link returns. **New work goes in `../links-26/`.**
-> One sheet was added that day, before the freeze took hold: **Silva Lining** (`SL-24-H`), chosen from the eight-design
+> One sheet was added that day, before the freeze took hold: **Silva Lining** (`SL-24-Hs`), chosen from the eight-design
 > series recorded in `silva-lining/`.
 
 > **Where things stand (1 Oct 2026) — read this first.** Everything below this box is a dated record, oldest decisions
@@ -2110,7 +2110,7 @@ unsafe.
 
 ## Silva Lining — the eleventh sheet (1 Oct 2026)
 
-*Silva Lining* (`SL-24-H · 7fc9745f`) is version H of the series in `silva-lining/`: Polished Clean with the owner's
+*Silva Lining* (`SL-24-Hs · 15475b65`, first issued as `SL-24-H · 7fc9745f`) is version H of the series in `silva-lining/`: Polished Clean with the owner's
 changes of 1 Oct 2026 (two weekday closers at 15:45, the short weekday earlies merged into one 06:20–13:45, fourteen on
 duty Monday to Saturday, no duty over nine hours, no 14:45 closer, as few shift times as possible), its weeks put in
 order by search. It was chosen from eight on the standing weighted league (rules 35, fatigue 20, floor fit 20, weekends
@@ -2134,4 +2134,21 @@ it now lists every design in `WAIVERS` with its own rule and date (`waiveShort` 
 Adding it changed no other sheet's text: every other PDF re-rendered word for word the same and was left as it was.
 The summary gained its row (8 of 9, between Clean Sweep and Weekday Lates) and the zip was rebuilt with the sheet, its
 import file and the new summary.
+
+**Its Sunday, re-searched (1 Oct 2026, owner: "can we fix Sundays").** Sunday was the one figure that kept it behind
+the top three — a floor fit of 54.6, against 26.4 for Familiar Nine, Right Away and Full Overhaul — because its
+Sunday duties were Polished Clean's, unchanged. The Sunday rules leave almost nothing free: four on at 07:15, three to
+the close and five at 22:00 fix nine of the ten Sunday duties, and the office fixes the tenth. With only today's shift
+times and Silva Lining's own, no arrangement beats 54.6 without an FF19 start-time jump. One more time does it:
+**15:25–23:25**, Full Overhaul's Sunday closer. Three floor closers (lines 6, 9 and 11) move from 14:30–23:25 to
+15:25–23:25 — the office's three Sunday duties do not move — and the Sunday floor fit goes from **54.6 to 30.7**, with
+no fatigue warning, the shortest rest still 13h 30m and the worst week down from 52.1 to 51.2 hours. Sunday overtime
+falls from 86h 10m to 83h 25m a week across the link (the new closer is 8h 00m, the old 8h 55m). It costs one shift
+time: 14, four fewer than today, and six new to learn. The search (every Sunday set from today's times, Silva
+Lining's and each single extra time from the other sheets, then every arrangement on the ten Sunday lines with no
+FF19 jump and 12 hours' rest either side) found 15:25 best by a distance; 15:15–23:25 was next at 35.1.
+
+The changed cells give it a new fingerprint, so it is reissued as **SL-24-Hs** (the `s` as Familiar Nine's Sunday
+re-search), and its `NAMED_OFFICE` key followed. On the standing league it scores **85.8 and moves to third**, past
+Full Overhaul (85.3), behind Familiar Nine (94.2) and Right Away (89.7).
 

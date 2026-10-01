@@ -30,7 +30,7 @@ export const STRAPS = {
   'PC-24-EXT':  ['Weekday closers from 16:25, with twelve on a Saturday', 'hand'],
   'CS-24-M34':  ['Weekday closers from 16:25, meeting every December rule', 'exact-waived'],
   'FO-24-M49':  ['Weekday closers from 16:25, retimed so the floor follows the trains closely', 'exact-waived3'],
-  'SL-24-H':    ['Thirteen shift times, five fewer than today, and no duty over nine hours', 'hand+search'],
+  'SL-24-Hs':   ['Fourteen shift times, four fewer than today, and no duty over nine hours', 'hand+search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
@@ -42,7 +42,7 @@ export const FIRST = {
   'WL-24-EXT': '17 Sep 2026', 'WL2-24-R21': '17 Sep 2026', 'FT-24-EXT': '17 Sep 2026',
   'WL4-24-F7': '22 Sep 2026',
   'FR-24-F34s': '28 Sep 2026', 'F9-24-K31s': '28 Sep 2026',
-  'AC-24-M41': '28 Sep 2026', 'PC-24-EXT': '28 Sep 2026', 'CS-24-M34': '28 Sep 2026', 'FO-24-M49': '29 Sep 2026', 'SL-24-H': '1 Oct 2026' };
+  'AC-24-M41': '28 Sep 2026', 'PC-24-EXT': '28 Sep 2026', 'CS-24-M34': '28 Sep 2026', 'FO-24-M49': '29 Sep 2026', 'SL-24-Hs': '1 Oct 2026' };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
  *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a
@@ -58,7 +58,7 @@ export const WAIVERS = {
   // pairs fall only on Thursday and Friday, and the owner chose to set that rule aside for this design alone.
   'PC-24-EXT': { date: '30 September 2026', keys: ['office'] },
   // 1 Oct 2026 (owner): Silva Lining, built from Polished Clean, runs the same office and has the same rule set aside.
-  'SL-24-H': { date: '1 October 2026', keys: ['office'] },
+  'SL-24-Hs': { date: '1 October 2026', keys: ['office'] },
 };
 const WAIVE = {
   closer: { short: '15:45 closer', allows: v => /^closers start at /.test(v) && v.replace(/^closers start at /, '').split(/, | and /).every(t => t === '15:45' || t === '16:25') },

@@ -1,8 +1,8 @@
 # Silva Lining — a 24-line design series (1 Oct 2026)
 
 **The record behind one proposal sheet.** Eight designs were explored in one session on 1 Oct 2026. The owner chose
-**H** on the standing weighted league, and it became the proposal sheet **Silva Lining** (`../Silva-Lining-SL-24-H-7fc9745f.pdf`,
-grid `../Silva-Lining-SL-24-H.json`). **The other seven were deleted** (owner), and so was this folder's copy of H, so
+**H** on the standing weighted league, and it became the proposal sheet **Silva Lining** (`../Silva-Lining-SL-24-Hs-15475b65.pdf`,
+grid `../Silva-Lining-SL-24-Hs.json`; three Sunday closers since moved to 15:25, see `../README.md`). **The other seven were deleted** (owner), and so was this folder's copy of H, so
 that its grid has one home. Every grid is in git history: the eight were last together at commit `4c8aedd` (PR #1567),
 as `docs/links-24/silva-lining/silva-lining-<letter>.json`. This page keeps their figures, so the choice can be
 followed without them.
