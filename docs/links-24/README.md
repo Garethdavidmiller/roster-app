@@ -2175,3 +2175,28 @@ eleven sheets were re-rendered — no fingerprint moved — and every page 1 and
 of the reviewer's claims were slightly overstated and changed nothing: Fifteen Turns breaks ONE hard limit, and the fit
 score is set against the December train service weighted by train length — not passengers, but not staff shape alone.
 
+## A second polish pass, from screenshots (1 Oct 2026)
+
+Every page of five sheets was read at full size, then every page type across all eleven side by side, and each
+page's lowest line was measured against its footer (`pdftotext -bbox`). No figure changed and no fingerprint moved;
+the one wording change is a tile line.
+
+- **Page 4, every shift time:** a row with no NEW or DROPPED tag had its length jammed against the time, so the lengths
+  zig-zagged. Each row now has a time (tabular digits, so every time is the same width), a tag slot — empty where there
+  is no tag — and its length, which line up as a column. *The shape of a week* gives the narrow TODAY column less room
+  and IN PLAIN WORDS more.
+- **Page 3:** a cover week's days were a pale gold within a shade of an early turn's peach, in the grid and its key.
+  They are now a light diagonal hatch on the same gold. This is the sheet's stylesheet; the Links page is untouched.
+- **Page 6:** two rules missed in a row read as one shaded block, and now have a hairline between them. The page's spare
+  bottom sixth is shared out as row padding in the rules table, measured, up to 4px a row.
+- **Page 5:** Clean Sweep's and Full Overhaul's last note sat under the footer rule (already on main; their weekday
+  tables have a row per day). The tighter notes setting is now switched on whenever the page measures too full, not by
+  a rule about which notes a design carries.
+- **Page 3's word list** ended 2mm above the footer on every sheet; slightly less leading gives it the margin the other
+  pages have. **Page 1's** staff lists gain up to 3px between items where the page has room, the same in both columns.
+- **Page 1 tile:** "met — the other one waived for it" left "for it" alone on a line; it is now "met — one waived",
+  which also matches Polished Clean's "four not met, one waived".
+
+After the pass the tightest page in the set is page 8, 6.7pt above its footer, which is where its closing note sits by
+design. The external reviewer had asked for no visual change; these are the defects the screenshots found.
+

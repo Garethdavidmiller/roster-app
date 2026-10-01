@@ -556,7 +556,7 @@ ${readHtml}${frameHtml}
 <section class="page">
   <div class="mast"><div><div class="eyebrow">The rotation</div><h1>The 24-line link</h1><div class="sub">Sunday to Saturday per line; everyone moves down one line each week and line 24 goes back to line 1. Hours and days at the right, cover beneath.</div></div></div>
   <div style="margin-top:10px">${gridHtml(P.patterns, 24, P.totals, P.daily, { spare: 4, avgEx: hmFromHours(P.hours.exSunday), avgAll: hmFromHours(P.hours.all), avgDays: P.totals.daysAverage.toFixed(2), changed: meta.changed ? new Set(meta.changed.cells) : null })}</div>
-  <div class="legend"><span><i style="background:color-mix(in srgb, var(--shift-early-fill) 16%, white)"></i>Early turns</span><span><i style="background:color-mix(in srgb, var(--shift-late-fill) 16%, white)"></i>Late turns</span><span><i style="background:color-mix(in srgb, var(--accent-gold) 22%, white)"></i>Cover (spare) week — four duties of seven, any turn</span><span><i style="background:var(--surface-sunken);border:1px solid var(--border-mid)"></i>Rest day</span>${meta.changed ? `<span><i class="i-changed"></i>Changed against <em>${esc(meta.changed.parent.name)}</em> (${esc(meta.changed.parent.code)}) — ${meta.changed.cells.length} cell${meta.changed.cells.length === 1 ? '' : 's'} on ${meta.changed.lines} line${meta.changed.lines === 1 ? '' : 's'}</span>` : ''}<span class="muted">Mon–Sat hours average ${hmFromHours(P.hours.exSunday)} over 24 lines, a cover week counted as a contracted week · days worked average over the 20 working lines · Turns: distinct clock times Monday to Friday, <b>bold</b> where the week is one turn (one clock time Mon–Fri and one early-or-late family across every worked day — the page 1 figure) · Minutes: duty minutes per day, and Mon–Sat is the contract (20 × 35h = 42,000)</span></div>
+  <div class="legend"><span><i style="background:color-mix(in srgb, var(--shift-early-fill) 16%, white)"></i>Early turns</span><span><i style="background:color-mix(in srgb, var(--shift-late-fill) 16%, white)"></i>Late turns</span><span><i class="lg-cover" style="background:color-mix(in srgb, var(--accent-gold) 22%, white)"></i>Cover (spare) week — four duties of seven, any turn</span><span><i style="background:var(--surface-sunken);border:1px solid var(--border-mid)"></i>Rest day</span>${meta.changed ? `<span><i class="i-changed"></i>Changed against <em>${esc(meta.changed.parent.name)}</em> (${esc(meta.changed.parent.code)}) — ${meta.changed.cells.length} cell${meta.changed.cells.length === 1 ? '' : 's'} on ${meta.changed.lines} line${meta.changed.lines === 1 ? '' : 's'}</span>` : ''}<span class="muted">Mon–Sat hours average ${hmFromHours(P.hours.exSunday)} over 24 lines, a cover week counted as a contracted week · days worked average over the 20 working lines · Turns: distinct clock times Monday to Friday, <b>bold</b> where the week is one turn (one clock time Mon–Fri and one early-or-late family across every worked day — the page 1 figure) · Minutes: duty minutes per day, and Mon–Sat is the contract (20 × 35h = 42,000)</span></div>
   <h2 style="margin-top:14px">The words on this page</h2>
   <div class="gloss">
     <div><b>Link</b> — the whole rota: 24 weeks laid out as 24 lines. Everyone works line 1, then line 2, and so on round the wheel; the link needs 24 people.</div>
@@ -732,6 +732,31 @@ ${meta.page9 ?? `<section class="page">
       if (left < 24 || !blocks.length) return;
       const each = Math.min(14, left / blocks.length);
       for (const b of blocks) b.style.marginTop = `${parseFloat(getComputedStyle(b).marginTop) + each}px`;
+      // SECOND POLISH PASS: what is still spare opens the staff lists a little — up to 3px between items, the same
+      // in both columns so their rows stay level. Items do not re-wrap (only the gap between them grows).
+      const lists = [...sec.querySelectorAll('.pcols ul')], most = Math.max(0, ...lists.map(u => u.children.length));
+      const still = spare(); if (most && still > 40) { const gap = Math.min(3, (still - 30) / most);
+        for (const u of lists) for (const li of u.children) li.style.marginBottom = `${parseFloat(getComputedStyle(li).marginBottom) + gap}px`; }
+    });
+    // PAGE 5'S NOTES CLEAR THE FOOTER, MEASURED (second polish pass, 1 Oct 2026). The tighter notes setting was switched on
+    // by a rule about which notes a design carries, and so missed Clean Sweep and Full Overhaul, whose weekday tables
+    // have a row per day: their last note sat under the footer rule. Now it is switched on whenever the page measures
+    // too full, which is the thing the rule was standing in for.
+    await pg.evaluate(() => {
+      for (const sec of document.querySelectorAll('section.page')) {
+        const foot = sec.querySelector(':scope > .foot'), notes = sec.querySelector('ul.p5notes'); if (!foot || !notes) continue;
+        const bottom = Math.max(...[...sec.children].filter(e => e !== foot).map(e => e.getBoundingClientRect().bottom));
+        if (foot.getBoundingClientRect().top - bottom < 8) notes.classList.add('p5notes--dense');
+      }
+      // PAGE 6 TAKES ITS ROOM. The rules page left its bottom sixth empty on every sheet; what is spare (less a margin)
+      // is shared out as row padding in the rules table — up to 4px a row, top and bottom alike. No text re-wraps.
+      for (const sec of document.querySelectorAll('section.page')) {
+        const foot = sec.querySelector(':scope > .foot'), rows = [...sec.querySelectorAll('table.t.rules tbody tr')]; if (!foot || !rows.length) continue;
+        const bottom = Math.max(...[...sec.children].filter(e => e !== foot).map(e => e.getBoundingClientRect().bottom));
+        const extra = Math.min(4, (foot.getBoundingClientRect().top - bottom - 28) / rows.length); if (extra < 1) continue;
+        for (const tr of rows) for (const td of tr.children) { const cs = getComputedStyle(td);
+          td.style.paddingTop = `${parseFloat(cs.paddingTop) + extra / 2}px`; td.style.paddingBottom = `${parseFloat(cs.paddingBottom) + extra / 2}px`; }
+      }
     });
   }
   await pg.pdf({ path: out, format: 'A4', printBackground: true, preferCSSPageSize: true });

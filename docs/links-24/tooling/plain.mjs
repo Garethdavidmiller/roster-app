@@ -295,7 +295,7 @@ function front({ T, P, meta, pages, coverHead }) {
     : ['Partly', `closer than today on ${andList(closerDays.map(d => d === 'weekday' ? 'weekdays' : d))} only`, 'warn'];
   const work = [
     tile(failed.length ? 'bad' : 'good', 'Does it meet the December staffing rules?', `${meta.decMet} of ${meta.decOf}`,
-      failed.length ? `met — ${nWord(failed.length)} not met${waived.length ? `, ${nWord(waived.length)} waived` : ''}` : waived.length ? `met — the other ${nWord(waived.length)} waived for it` : 'rules met',
+      failed.length ? `met — ${nWord(failed.length)} not met${waived.length ? `, ${nWord(waived.length)} waived` : ''}` : waived.length ? `met — ${nWord(waived.length)} waived` : 'rules met',
       `today’s link meets ${meta.decToday} · each rule on page 6`),
     tile(breaks.length ? 'bad' : 'good', 'Can it be run within the hard limits?', breaks.length ? 'No' : 'Yes',
       breaks.length ? 'not as it stands' : 'inside every hard limit',
@@ -665,6 +665,24 @@ table.t.rules { font-size: 10.8px; } table.t.rules td { padding: 5.5px 8px; line
 /* page 2: the day key under a question is a second line of its own, never a word or two wrapped off the first */
 table.pcmp td { padding-top: 1.9px; padding-bottom: 1.9px; }
 table.pcmp td .psub { display: block; font-size: 8.6px; color: var(--text-mid); line-height: 1.2; margin-top: 1px; }
+/* SECOND POLISH PASS (1 Oct 2026, owner: "use screenshots to aesthetic polish the proposal sheets"). Spacing, colour
+   and alignment only — no figure and no word moves except the one tile line noted where it is built.
+   Page 4: every row of the duty table gives its time, its tag slot and its length in three fixed columns. A row with no
+   NEW or DROPPED tag had its length jammed against the time, so the lengths zig-zagged down the table. */
+table.dutyt td.tt .tm { display: inline-block; font-variant-numeric: tabular-nums; margin-right: 5px; white-space: nowrap; }
+table.dutyt td.tt .tag { width: 46px; margin-left: 0; margin-right: 4px; padding: 0; text-align: center; box-sizing: border-box; }
+table.dutyt td.tt .tag-none { visibility: hidden; }
+/* page 4's shape-of-a-week table: TODAY was the widest column for the shortest words, and IN PLAIN WORDS wrapped */
+table.p4shape th:nth-child(1) { width: 25% !important; } table.p4shape th:nth-child(2) { width: 25% !important; } table.p4shape th:nth-child(3) { width: 21% !important; }
+/* page 6: two rules missed in a row read as one shaded block — a hairline keeps them two rows */
+table.t.rules tr.rule-miss + tr.rule-miss td { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--warning-amber) 32%, white); }
+/* page 3's word list ended 2mm above the footer rule on every sheet: a touch less leading gives it the margin the
+   other pages have */
+section.page .gloss { line-height: 1.33; } section.page .gloss > div { margin-bottom: 4px; }
+/* page 3: a cover week's days were a pale gold within a shade of an early turn's peach, in the grid and in its key.
+   A light diagonal hatch on the same gold says "not yet given a turn" at a glance, in colour or not. The app's own
+   Links page is untouched: this is the sheet's stylesheet. */
+.print-grid .shift-cell-btn.type-spare, .legend i.lg-cover { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--accent-gold) 26%, white) 0 3px, color-mix(in srgb, var(--accent-gold) 9%, white) 3px 6px) !important; }
 `;
 
 /** Page 5, people on duty hour by hour (owner, 29 Sep 2026: "the table wording is a little confusing"). The tables and
@@ -795,7 +813,9 @@ function shiftPage(s, { T, P }) {
   s = s.replace(/(<table class="t dutyt">[\s\S]*?<\/table>)/, t => t
     .replace(/<td class="(?:up|down)">/g, '<td class="chg">')
     .replace(/<tr class="gone"><td class="tt">([^<]*)/g, '<tr class="gone"><td class="tt">$1<span class="tag tag-gone">dropped</span>')
-    .replace(/<tr class=""><td class="tt">(\d\d:\d\d-\d\d:\d\d)/g, (m, time) => tSet.has(time) ? m : `<tr class="isnew"><td class="tt">${time}<span class="tag tag-new">new</span>`));
+    .replace(/<tr class=""><td class="tt">(\d\d:\d\d-\d\d:\d\d)/g, (m, time) => tSet.has(time) ? m : `<tr class="isnew"><td class="tt">${time}<span class="tag tag-new">new</span>`)
+    // the time, then a tag slot every row has (an empty one where there is no tag), so the lengths line up
+    .replace(/<td class="tt">([^<]*)(<span class="tag [^"]*">[^<]*<\/span>)?/g, (m, time, tag) => `<td class="tt"><span class="tm">${time}</span>${tag ?? '<span class="tag tag-none"></span>'}`));
   s = must(s, /Green: more than today; amber: fewer; grey italics: a time the proposal drops\./,
     '<b>(+2)</b> and <b>(−1)</b>: more or fewer people on that time than today — a difference, not a verdict. <b>New</b>: nobody works it today. <b>Dropped</b>: worked today, not in this link.', 'the duty table key');
   return must(s, /(\s*<div class="foot">)/, `\n  ${shape}$1`, 'the shift page footer');
