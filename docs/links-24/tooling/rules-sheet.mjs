@@ -11,7 +11,7 @@
 // columns went, because a manager reading this is not shown the drafts. The folder is still read, but only to
 // decide which fatigue factors apply to any rotation here; the drafts side by side are the one-page summary.
 //
-//   node docs/proposals/tooling/rules-sheet.mjs      → docs/proposals/December-2026-Rules.pdf
+//   node docs/links-24/tooling/rules-sheet.mjs      → docs/links-24/December-2026-Rules.pdf
 // A full `regenerate.mjs` run renders it too, after every sheet.
 import { writeFileSync, readFileSync } from 'node:fs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';

@@ -375,7 +375,7 @@ export function assess(p, lines, officeModel = lines === 20 ? 'today' : 'plan') 
   return { checks, hours, totals, fatigue, hard, adj, hourly, tableRows, daily, asRostered, fixed: fixedView(p, lines), feel: feel(p, lines), rest: tightestRest(p, lines), fits: fitsOf(p, lines), wkFit: weekdayFit(p, lines), heads: headcounts(p, lines), office: officeSplit(p, lines, hourly, officeModel) };
 }
 
-/** Every SHIPPED rotation in docs/proposals, assessed — so a sheet can say where it stands in the folder
+/** Every SHIPPED rotation in docs/links-24, assessed — so a sheet can say where it stands in the folder
  *  ("the best of 21 on weekday fit", "one of six with no factor present") as a computed fact rather than a
  *  claim. Read at render time from `<Name>-<CODE>.json`; the sheet being rendered is in the set, which is
  *  what "best in the folder is this one" means. Cached per process. */

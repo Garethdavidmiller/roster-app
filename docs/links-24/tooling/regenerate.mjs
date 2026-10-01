@@ -88,7 +88,7 @@ const expand = g => { const [dir, pat] = [g.slice(0, g.lastIndexOf('/')), g.slic
 
 const checkOnly = process.argv.includes('--check');
 const only = process.argv.find(a => a.startsWith('--only='))?.slice(7);
-// SHIP: copy each render's three artefacts up into docs/proposals under the names the folder uses
+// SHIP: copy each render's three artefacts up into docs/links-24 under the names the folder uses
 // (`<Name>-<CODE>-<fp>.pdf`, `<Name>-<CODE>.json`, `<Name>-<CODE>-import.txt`). This used to be a
 // hand-typed cp per proposal after every regeneration, and a hand-typed cp is how a folder ends up
 // with a PDF from one render and a JSON from another. --no-ship leaves the outputs in tooling/.
@@ -136,12 +136,12 @@ console.log(`\n${done} proposal${done === 1 ? '' : 's'}${failed ? `, ${failed} F
 // THE RULES REFERENCE (28 Sep 2026) is rendered by every full run, after the sheets, from the same rule code
 // (sheetRules and flexibleRules, both built on currentRules) and the same folder — so it can never describe a rule set the sheets beside it were not judged against.
 if (!checkOnly && !only) execFileSync('node', ['rules-sheet.mjs'], { stdio: 'inherit' });
-// A SHIPPED PDF THAT GIT DOES NOT TRACK IS NOT SHIPPED. `.gitignore` ignores every *.pdf, so `git add docs/proposals`
+// A SHIPPED PDF THAT GIT DOES NOT TRACK IS NOT SHIPPED. `.gitignore` ignores every *.pdf, so `git add docs/links-24`
 // updates the PDFs already tracked and silently skips a NEW one; Weekend Capped's and Pinned Turns' PDFs sat on disk
 // for a day while their JSON and import files were on main (25 Sep 2026). This refuses to report success while any
 // PDF in the folder is untracked, and names the command that fixes it.
 if (ship && !checkOnly) {
     const untracked = readdirSync('..').filter(f => f.endsWith('.pdf')).filter(f => { try { execFileSync('git', ['ls-files', '--error-unmatch', `../${f}`], { stdio: 'ignore' }); return false; } catch { return true; } });
-    if (untracked.length) { console.log(`\nNOT TRACKED BY GIT — run: git add -f ${untracked.map(f => `docs/proposals/${f}`).join(' ')}`); process.exit(1); }
+    if (untracked.length) { console.log(`\nNOT TRACKED BY GIT — run: git add -f ${untracked.map(f => `docs/links-24/${f}`).join(' ')}`); process.exit(1); }
 }
 process.exit(failed ? 1 : 0);

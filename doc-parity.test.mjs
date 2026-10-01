@@ -601,7 +601,7 @@ test('the symbol guard would catch the two defects that motivated it — guard t
  * history doc recording "`X` was in `functions/index.js` before the split" cannot be made to
  * fail by writing the truth. Do not read the passing mutation as a reason to delete it.
  */
-const PAST_DOCS = /ROADMAP_HISTORY|LOGIN_INCIDENT|docs\/proposals|experiments\//;
+const PAST_DOCS = /ROADMAP_HISTORY|LOGIN_INCIDENT|docs\/links-24|experiments\//;
 
 /** leading-underscore · lowerCamel with an inner capital · UPPER_SNAKE. */
 const LOCATABLE = String.raw`_[A-Za-z][A-Za-z0-9_]{3,}|[a-z][a-z0-9]*[A-Z][A-Za-z0-9_]*|[A-Z][A-Z0-9]*_[A-Z0-9_]+`;

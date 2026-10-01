@@ -108,10 +108,10 @@ function namesOn(line) {
 
 /** Binary shapes nothing can leak a name through, and the one directory scanned on purpose. */
 const SKIP_EXT = /\.(png|pdf|woff2|ico|jpg|jpeg|webp|zip)$/i;
-/** `docs/proposals/**` is excluded on purpose: the December 2026 link proposals carry rota names
+/** `docs/links-24/**` and `docs/links-26/**` are excluded on purpose: the December 2026 link proposals carry rota names
  *  throughout and no pay at all, so scanning them yields a long list of matches on the word
  *  "pension" in a fatigue-rule paragraph and nothing else. */
-const SKIP_DIR = 'docs/proposals/';
+const SKIP_DIR = /^docs\/links-2[46]\//;
 
 /**
  * Directories a WALK must not descend into. `git ls-files` excludes these for free; a filesystem
@@ -146,7 +146,7 @@ const UNTRACKED_DIRS = new Set([
  * @returns {string[]} repo-relative paths, scannable text files only
  */
 function listFiles({ allowGit = true } = {}) {
-    const keep = (/** @type {string} */ f) => !SKIP_EXT.test(f) && !f.startsWith(SKIP_DIR);
+    const keep = (/** @type {string} */ f) => !SKIP_EXT.test(f) && !SKIP_DIR.test(f);
     if (allowGit) {
         try {
             return execFileSync('git', ['ls-files'], {

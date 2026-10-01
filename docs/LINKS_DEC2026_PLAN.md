@@ -9,6 +9,11 @@ authoritative for how the workspace is built.*
 > `isChristmasRD()` forces 25/26 December to rest days. The two are unrelated. Anywhere this document
 > says Dec 2026 it means the timetable change; anywhere the code says 26 Dec it means Boxing Day.
 
+> **26 LINES, NOT 24 (1 Oct 2026).** The December 2026 link was confirmed on 1 Oct 2026 as **26 lines**. Everything
+> below that says 24 describes the work done before then. That work is kept, unchanged, in `docs/links-24/` (it was
+> `docs/proposals/`) for reference and in case the 24-line link returns. The work from here on is in `docs/links-26/`,
+> whose README lists what carries over and what has to be recomputed.
+
 ---
 
 # 🗓 DECEMBER 2026 READINESS — read this first
@@ -59,9 +64,9 @@ below is owned by somebody other than the developer.
 | **Hard company limits — a controlled source** | ⚠️ **Cited to the policy, but the policy is not identified** | **Before management review** | **Gareth** — get the title, clause, staff group and effective date. Evidence class B required (ROADMAP.md → Evidence class) |
 | **Sunday operating window** | ✅ **Settled (owner, 28 Sep 2026): no duty runs past 23:25 on a Sunday** — agreed practice, and it will remain so. The five later movements are outside the staffed window on every design, and the heat map keeps showing them as a neutral fact | — | — |
 | **Contracted hours — today's duties cannot fill a 24-line link** | ✅ **Answered (owner, 29 Sep 2026)**: the December 2026 staffing levels and a 24-person link are both confirmed verbally, so the December staffing supplies the extra duty. Every sheet but one pays the 35h week exactly — 42,000 minutes Monday to Saturday — carrying **94–99 timed duties a week against today's 76**; Fifteen Turns is 60 minutes a week over. Background (v20.04; generator gated v20.98/v20.99): seeded from today's duties, 24 lines averages **29h 53m** a week against 35h, and the generator refuses a table that misses the contract in either direction | — | — |
-| **Business staffing requirement** | ✅ **Confirmed verbally (owner, 29 Sep 2026)**, with the 24-person link and the Sunday cover (10 on a Sunday, worked as overtime): the December 2026 staffing levels behind the nine soft rules every sheet is scored against — four at the open, three at the close, five at 22:00, 10 on a Sunday, the ticket office in fixed pairs, and the rest (`sheetRules`, `docs/proposals/tooling/report-data.mjs`). Three more — 14 on a Saturday, evenly spread cover weeks and weekday closers from 15:45 — are flexible rules since 30 Sep 2026: designed to (`currentRules` keeps all of them for the searches), never shown on a sheet (`flexibleRules`). First relayed 27–28 Sep. Every sheet and the rules sheet say *confirmed verbally* | — | — |
+| **Business staffing requirement** | ✅ **Confirmed verbally (owner, 29 Sep 2026)**, with the 24-person link and the Sunday cover (10 on a Sunday, worked as overtime): the December 2026 staffing levels behind the nine soft rules every sheet is scored against — four at the open, three at the close, five at 22:00, 10 on a Sunday, the ticket office in fixed pairs, and the rest (`sheetRules`, `docs/links-24/tooling/report-data.mjs`). Three more — 14 on a Saturday, evenly spread cover weeks and weekday closers from 15:45 — are flexible rules since 30 Sep 2026: designed to (`currentRules` keeps all of them for the searches), never shown on a sheet (`flexibleRules`). First relayed 27–28 Sep. Every sheet and the rules sheet say *confirmed verbally* | — | — |
 | **FF18 reading — cadence or step?** | ✅ **Settled (owner, 28 Sep 2026, on ORR's text, 7.68): the CADENCE reading.** Standing on every weekly link; the step is reported beside it as information a design controls | — | — |
-| **Proposals** | ✅ **Drawn — 10 sheets** in `docs/proposals/` (28 until twenty-one were withdrawn on 29–30 Sep 2026: the *By the Book*, *Same Turns* and *Pinned Turns* families, *Running Repair*, *Weeks 17-18 Swapped*, *Targeted Fatigue Redo*, *Three Mondays*, *Frozen Block*, *Tenth Sunday*, *Short Closer*, *Light Retime*, *Polished Clean* (restored 30 Sep, the ticket office pairs rule waived for it), *Cover at Seventeen*, *Saturday Four*, *Just Enough* and *Gates Mended* — and two added the same day), the first on 17 Sep 2026, the latest (Full Overhaul, of the Running Repair family) on 29 Sep; all of them in the plain edition v2 of 30 Sep, scored against the nine soft rules; ⚠️ **none frozen** | T−8 weeks | The four decisions above are settled (29 Sep 2026), so freezing one now waits on the management review. The folder's `README.md` is the index; each sheet is eight pages, compared only with today's link, and lists its open questions on page 1 (*Still to settle*); `Proposals-Summary.pdf` sets all 10 side by side |
+| **Proposals** | ✅ **Drawn — 10 sheets** in `docs/links-24/` (28 until twenty-one were withdrawn on 29–30 Sep 2026: the *By the Book*, *Same Turns* and *Pinned Turns* families, *Running Repair*, *Weeks 17-18 Swapped*, *Targeted Fatigue Redo*, *Three Mondays*, *Frozen Block*, *Tenth Sunday*, *Short Closer*, *Light Retime*, *Polished Clean* (restored 30 Sep, the ticket office pairs rule waived for it), *Cover at Seventeen*, *Saturday Four*, *Just Enough* and *Gates Mended* — and two added the same day), the first on 17 Sep 2026, the latest (Full Overhaul, of the Running Repair family) on 29 Sep; all of them in the plain edition v2 of 30 Sep, scored against the nine soft rules; ⚠️ **none frozen** | T−8 weeks | The four decisions above are settled (29 Sep 2026), so freezing one now waits on the management review. The folder's `README.md` is the index; each sheet is eight pages, compared only with today's link, and lists its open questions on page 1 (*Still to settle*); `Proposals-Summary.pdf` sets all 10 side by side |
 | **Management review meeting** | ❌ Not scheduled | T−6 weeks | **A date.** See below |
 
 ## The backwards plan — because the only immovable deadline is outside this repository
@@ -107,7 +112,7 @@ requirements** and the **ORR good-practice fatigue factors** (p3 of *Good practi
 Fatigue Factors*, December 2021).
 
 The Links workspace (`links.html`) was to be the tool those proposals were built in. *(28 Sep 2026:
-in the event they were built by `docs/proposals/tooling` running the Links modules under Node, or
+in the event they were built by `docs/links-24/tooling` running the Links modules under Node, or
 supplied as grids and imported, and the sheets are rendered by that tooling.)* This document
 records what the timetable actually demands, what the tool can and cannot currently do about it, and
 the order the work should be done in.
@@ -468,7 +473,7 @@ every objective in it was a preference. It can make a design worse than the one 
 **The run cap does not always reach its target, and the reason is a decision for the room.** The
 "Most shifts in a row" box defaults to **6**. With that switch on alone the reorder reaches 6; with
 the full set on it reaches **8** on the roster seed (the shipped December default reaches 7, with 5
-of 24 weekends off — `docs/proposals/tooling/default-baseline.mjs`), and the status line says so rather than letting the box imply a
+of 24 weekends off — `docs/links-24/tooling/default-baseline.mjs`), and the status line says so rather than letting the box imply a
 guarantee.
 
 It could be made to reach 6 with the full set on. Re-measured after the spare-spread fix — the
@@ -755,7 +760,7 @@ Ordered by how much they change if the answer is unexpected.
    over 2h** — the baseline to read any proposal's figure against, and the number to take into the
    conversation below. For comparison the workspace's December default, generated with every
    line-order objective on, measures typically 4h 16m, largest 8h 37m, 8 of 24 over 2h
-   (`docs/proposals/tooling/default-baseline.mjs`).
+   (`docs/links-24/tooling/default-baseline.mjs`).
 
    The STATUS deliberately stays `standing` whenever the step is measurable rather than turning
    `present` above some figure: the ORR gives no threshold for FF18, so inventing one would be the
@@ -776,10 +781,10 @@ Ordered by how much they change if the answer is unexpected.
 
 ## Proposals drawn (8 Sep 2026 onward)
 
-**10 sheets** in `docs/proposals/` (28 until twenty-one were withdrawn on 29–30 Sep 2026, two added and one restored — see the Proposals row above), whose README is the index, each with an identity that survives a
+**10 sheets** in `docs/links-24/` (28 until twenty-one were withdrawn on 29–30 Sep 2026, two added and one restored — see the Proposals row above), whose README is the index, each with an identity that survives a
 meeting: a name, a code, and a fingerprint of the cells. They are the plain edition v2 of 30 Sep 2026 — eight pages,
 written for managers, compared only with today's link, and scored against the nine soft December 2026 rules
-(`sheetRules`, `docs/proposals/tooling/report-data.mjs`). Every figure in a sheet is computed from the cells it shows,
+(`sheetRules`, `docs/links-24/tooling/report-data.mjs`). Every figure in a sheet is computed from the cells it shows,
 and each edition has been checked by an independent recount.
 
 | Family | Sheets |
@@ -874,7 +879,7 @@ lines denser.
 The owner relayed the December 2026 staffing levels on 27–28 Sep 2026, and every sheet is scored
 against nine of them as soft rules (four at the open, three at the close, five at 22:00, 10 on a Sunday,
 the ticket office in fixed pairs, and the rest — `sheetRules` in
-`docs/proposals/tooling/report-data.mjs`). Fourteen on a Saturday, evenly spread cover weeks and 15:45
+`docs/links-24/tooling/report-data.mjs`). Fourteen on a Saturday, evenly spread cover weeks and 15:45
 weekday closers are flexible rules since 30 Sep 2026: designed to, never scored on a sheet. Each sheet and the rules sheet say *confirmed verbally*.
 
 *What turned on it:* whether every proposal was being assessed against the standard it will be
