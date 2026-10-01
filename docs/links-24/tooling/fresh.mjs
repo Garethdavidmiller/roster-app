@@ -57,6 +57,8 @@ export const WAIVERS = {
   // 30 Sep 2026 (owner): Polished Clean, restored the same day, is not held to the ticket office pairs rule — its office
   // pairs fall only on Thursday and Friday, and the owner chose to set that rule aside for this design alone.
   'PC-24-EXT': { date: '30 September 2026', keys: ['office'] },
+  // 1 Oct 2026 (owner): Silva Lining, built from Polished Clean, runs the same office and has the same rule set aside.
+  'SL-24-H': { date: '1 October 2026', keys: ['office'] },
 };
 const WAIVE = {
   closer: { short: '15:45 closer', allows: v => /^closers start at /.test(v) && v.replace(/^closers start at /, '').split(/, | and /).every(t => t === '15:45' || t === '16:25') },
@@ -68,6 +70,8 @@ const WAIVE = {
     return L.length === 4 && L.every((l, i) => (i < 3 ? L[i + 1] - l : L[0] + 24 - l) > 1); } },
 };
 /** The rows of a rules table (currentRules) that the owner waived for this design and that it meets as allowed. */
+/** The short name of a waivable rule ("ticket office pairs"), for a footnote that lists the waivers. */
+export const waiveShort = key => WAIVE[key]?.short ?? key;
 export const waivedRows = (code, rows) => rows.filter(r => !r.ok && (WAIVERS[code]?.keys ?? []).includes(r.key) && WAIVE[r.key].allows(r.value));
 /** "the 15:45 closer rule is waived" · "the 15:45 closer and Saturday fourteen rules are waived" */
 export const waivedPhrase = keys => keys.length === 1 ? `the ${WAIVE[keys[0]].short} rule is waived` : `the ${keys.slice(0, -1).map(k => WAIVE[k].short).join(', ')} and ${WAIVE[keys[keys.length - 1]].short} rules are waived`;

@@ -75,8 +75,8 @@ closer.
 1. **Polished Clean's ticket office does not carry over.** Its office duties are its author's own, named by the sheet
    tooling against Polished Clean's fingerprint (`NAMED_OFFICE` in `../tooling/report-data.mjs`). A variant has a new
    fingerprint, so its office is measured the default way. Every design here meets 8 of the 9 December rules, and the
-   one it fails is that office rule. The author's office would have to be written back in, and the Silva Lining sheet
-   says so.
+   one it fails is that office rule. For H, the Silva Lining sheet, the owner carried the author's office across and
+   waived the pairs rule as for Polished Clean (1 Oct 2026): its fingerprint has its own `NAMED_OFFICE` entry.
 2. **There was an invalid H before this one.** An early version of the annealer could swap a whole cover line into a
    working slot, and then split a cover week across days. That produced an "H" with 193 contracted days and two split
    cover weeks. It was caught and thrown away, and `search/ff7.mjs` carries the fix: it never touches a cover (`SPARE`)

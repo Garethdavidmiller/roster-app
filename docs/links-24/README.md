@@ -18,8 +18,8 @@
 > - **The match to the trains is a score**, lower is closer, and is put in words as a score ("a score about half of
 >   today's") — never as "half as far off", which read as half as many people out of place.
 > - **Today's link:** 4 of the 9 rules; 4 avoidable fatigue warnings in the fixed duties (up to 5); 7 days in a row (up to 9).
-> - **Rules met, of 9:** All Clear, Clean Sweep, Familiar Nine, Full Overhaul, Right Away 9 · Silva Lining 8, missing only the
->   ticket office pairs · Fifteen Turns 6, and it
+> - **Rules met, of 9:** All Clear, Clean Sweep, Familiar Nine, Full Overhaul, Right Away 9 · Silva Lining 8, with the ticket office
+>   pairs rule waived for it (owner, 1 Oct 2026) · Fifteen Turns 6, and it
 >   breaks the 12-hour hard limit · Weekday Lates 5 · Anchored Lines, Evening Peak 4 · Polished Clean 4, with the ticket
 >   office pairs rule waived for it (owner, 30 Sep 2026) and its office measured on its author's own duties.
 > - **Presentations:** Familiar Nine and Right Away, for colleagues and for managers. Their figures are typed into the
@@ -2119,12 +2119,17 @@ behind Familiar Nine, Right Away and Full Overhaul. The other seven were deleted
 `silva-lining/README.md` and their grids in git history.
 
 It is a SUPPLIED design (`tooling/silva-lining.json`, `silva-lining.meta.json`, an entry in `regenerate.mjs`), coded
-`hand+search` in `fresh.mjs`. **It meets 8 of the 9 December rules; the one it misses is the ticket office pairs.**
-Polished Clean's office is its author's own and is keyed to Polished Clean's fingerprint (`NAMED_OFFICE`), and the
-waiver of the pairs rule was the owner's for Polished Clean alone — so neither was carried over, and the sheet measures
-the office the general way and says the rule is not met. Whether to carry the author's office and the waiver across is
-the owner's call; H rosters almost every duty that office needs (the Saturday 13:30 is a 13:30–22:00 where Polished
-Clean's office used 13:30–21:30, and the Sunday late is 14:30–23:25, not 14:20).
+`hand+search` in `fresh.mjs`. **It meets 8 of the 9 December rules, and the ninth — the ticket office pairs — is
+waived for it** (owner, 1 Oct 2026), exactly as for Polished Clean. It runs Polished Clean's office, its author's own
+(`NAMED_OFFICE` in `report-data.mjs`, a second entry keyed to Silva Lining's fingerprint), on Silva Lining's own duties
+and with no change to the rota: every weekday duty is the same shift, and two differ by the rota's own times while doing
+the same job — Saturday's 13:30 is a 13:30–22:00 (Polished Clean's 13:30–21:30) and Sunday's late a 14:30–23:25 (14:20).
+Measuring that office rather than the plan's assumed posts moved the floor fit to 37.1 · 17.7 · 54.6 (from 38.3 ·
+19.8 · 67.5), and the standing league to **82.3**, still fourth. The league scores rules MET, and a waived rule is not
+counted as met — the same as Polished Clean's 4 of 9 — so the waiver itself adds nothing there.
+
+The summary's ‡ footnote used to name Polished Clean's waiver as the only one ("set aside for that proposal alone");
+it now lists every design in `WAIVERS` with its own rule and date (`waiveShort` in `fresh.mjs`).
 
 Adding it changed no other sheet's text: every other PDF re-rendered word for word the same and was left as it was.
 The summary gained its row (8 of 9, between Clean Sweep and Weekday Lates) and the zip was rebuilt with the sheet, its
