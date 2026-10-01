@@ -1,23 +1,47 @@
 # Link proposals — December 2026
 
+> **Where things stand (1 Oct 2026) — read this first.** Everything below this box is a dated record, oldest decisions
+> first; where an older section disagrees with this box, this box is current.
+> - **10 proposals**, each an eight-page sheet compared **only with today's link**; the one-page summary is the only place
+>   they sit side by side. A work-in-progress pack, not a decision pack.
+> - **Three tiers of rule:** 3 hard limits (a rota that breaks one cannot be run), the 9 December staffing rules (scored
+>   on every sheet), and 3 flexible rules (14 on a Saturday, evenly spread cover weeks, 15:45 weekday closers) that never
+>   appear on a sheet and may appear in a presentation.
+> - **One basis for runs and fatigue warnings:** the fixed duties first, the cover weeks left out for the proposal and
+>   today's link alike; the worst place a cover week's four duties could fall is given beside it as "up to", and that
+>   worst case includes the 55-hour week four 8-hour cover duties can make. Hard limits are tested at the worst case.
+> - **The match to the trains is a score**, lower is closer, and is put in words as a score ("a score about half of
+>   today's") — never as "half as far off", which read as half as many people out of place.
+> - **Today's link:** 4 of the 9 rules; 4 avoidable fatigue warnings in the fixed duties (up to 5); 7 days in a row (up to 9).
+> - **Rules met, of 9:** All Clear, Clean Sweep, Familiar Nine, Full Overhaul, Right Away 9 · Fifteen Turns 6, and it
+>   breaks the 12-hour hard limit · Weekday Lates 5 · Anchored Lines, Evening Peak 4 · Polished Clean 4, with the ticket
+>   office pairs rule waived for it (owner, 30 Sep 2026) and its office measured on its author's own duties.
+> - **Presentations:** Familiar Nine and Right Away, for colleagues and for managers. Their figures are typed into the
+>   slides by hand (the build scripts are not in this repository), so `node tooling/deck-check.mjs` compares every
+>   figure in their two summary tables with the same counts the sheets print — run it after any change to a rota or to a
+>   deck, before the decks go anywhere.
+> - **Still open:** the staffing levels, the 24-person link and the Sunday cover were confirmed **verbally** (29 Sep
+>   2026); the written source of the 13-day limit; FF19's reading of a rest day. Any change to the first regenerates
+>   every sheet (`node tooling/regenerate.mjs`).
+
 The CEA link proposals drawn for the December 2026 timetable change, each a PDF with its own
 **identity** so it can be named in a room: a name, a code that says how it was built, and a
 fingerprint of the exact cells so a printout can never be confused with a variant. The same
-identity is in every page footer. All 9 were judged by the app's own Links modules
+identity is in every page footer. All 10 were judged by the app's own Links modules
 (`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) — the
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
 
 **The sheets are the plain edition, second version (30 Sep 2026)** — eight pages each, **written for a manager first**
-(owner, 30 Sep 2026: *"the proposal sheet is predominantly for managers"*; earlier: *"I can't overload Nathan, it needs to
-be easy to understand"*). They speak *about* staff, never *to* them, and name no audience on any page. **Page 1** is the
+(owner, 30 Sep 2026: *"the proposal sheet is predominantly for managers"*; earlier, that a busy manager must not be
+overloaded — *"it needs to be easy to understand"*). They speak *about* staff, never *to* them, and name no audience on any page. **Page 1** is the
 whole proposal:
 - an *In short* sentence built from the page's own lists (the verdict, the two biggest gains and trade-offs for staff);
 - **"For discussion, not a decision"** in the body text, with what is still to settle (which link, who starts where);
 - a **What it takes** line: the people (24, 4 more than today), the cover weeks, and the Sunday overtime — people on duty,
   and hours across the whole link each week — against today and against the 10 the rules ask for;
-- four *Can it work?* tiles (the nine December rules, the hard limits, avoidable fatigue warnings with cover weeks at
-  their worst, and the match to the trains with each day's figure against today's);
+- four *Can it work?* tiles (the nine December rules, the hard limits, avoidable fatigue warnings (since 1 Oct 2026 on the fixed
+  duties, with the worst cover-week placement as "up to"), and the match to the trains with each day's figure against today's);
 - a red box naming every rule or limit broken;
 - under *What it would mean for staff*, **every** concern, and the **five** strongest positives with "More detail on
   page 2" (external review: ten positives against four concerns read as a sales pitch, and a count of the rest read as
@@ -26,7 +50,7 @@ whole proposal:
   is never left off.
 
 **Three readability fixes (30 Sep 2026, owner).** (1) The match to the trains is always given in words beside the
-number — "about half as far off as today" — on page 1's tile, page 2's row and page 5's answer (`offWords` in
+number — "about half as far off as today", reworded on 1 Oct 2026 as a score, "a score about half of today's" — on page 1's tile, page 2's row and page 5's answer (`offWords` in
 `tooling/plain.mjs`: a ratio of the two figures, nearest simple fraction). (2) Every length of time is written one way,
 "13h 35m": page 2 wrote "13h35", which also reads as a clock time, while page 6 wrote "13h 35m" for the same figure.
 (3) Page 7 leads each fatigue row with its plain name ("Too little rest after a run of early starts"); the ORR code,
@@ -1053,7 +1077,7 @@ sheets regenerated, fingerprints unchanged.
 
 Two were left as decisions and then taken (24 Sep 2026, owner: "do your suggestions"):
 
-- **Page 8 named a person** ("Nathan assesses against this list") in a folder the Pages mirror serves.
+- **Page 8 named a person** (the manager who would assess against this list) in a folder the Pages mirror serves.
   It now says what the eyebrow already says — this is the list the link is assessed against — and
   names nobody. (The draft email that carried the name in its title was deleted on 28 Sep 2026, owner.)
 - **Two pick sentences were typed literals.** Same Turns' ("Two candidates tied on every rule; the fit

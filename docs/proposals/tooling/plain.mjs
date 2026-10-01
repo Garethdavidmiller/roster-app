@@ -1,4 +1,4 @@
-// THE PLAIN EDITION (owner, 29 Sep 2026: "I can't overload Nathan, it needs to be easy to understand").
+// THE PLAIN EDITION (owner, 29 Sep 2026: a busy manager must not be overloaded — "it needs to be easy to understand").
 //
 // Every proposal sheet is read by a manager deciding, not by someone checking the analysis. The managers' edition
 // (fresh.mjs) put the answer first but still met the reader with the method before the rota: eight metric tiles,
