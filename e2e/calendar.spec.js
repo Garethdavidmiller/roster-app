@@ -1684,6 +1684,10 @@ test('calendar: the team week is ANNOUNCED with the full month name, not the on-
 
 test('day detail: states the roster week under the date', async ({ page }) => {
     await seedMember(page);
+    // PINNED (1 Oct 2026): it opens the first day of the month on screen, and on 1 Oct WebKit placed the date's box
+    // about 3px into the week line's — a sub-pixel layout difference with the month, not a visible overlap — where
+    // every September run had passed. A fixed day keeps the geometry check about layout, not about the calendar.
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
     await page.goto('/');
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await page.locator('.calendar-day:not(.other-month)').first().click();
