@@ -30,18 +30,19 @@ export const STRAPS = {
   'PC-24-EXT':  ['Weekday closers from 16:25, with twelve on a Saturday', 'hand'],
   'CS-24-M34':  ['Weekday closers from 16:25, meeting every December rule', 'exact-waived'],
   'FO-24-M49':  ['Weekday closers from 16:25, retimed so the floor follows the trains closely', 'exact-waived3'],
+  'SL-24-Hs':   ['Fourteen shift times, four fewer than today, and no duty over nine hours', 'hand+search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
 export const FAMILY = {
   FR: 'Right Away', F9: 'Right Away', FT: 'Fifteen Turns', AC: 'Fifteen Turns', FO: 'Running Repair', PC: 'Weekday Lates', CS: 'Weekday Lates',
-  WL: 'Weekday Lates', WL2: 'Weekday Lates', WL4: 'Weekday Lates' };
+  WL: 'Weekday Lates', WL2: 'Weekday Lates', WL4: 'Weekday Lates', SL: 'Weekday Lates' };
 export const FIRST = {
   // 17 Sep, not 18: each of these six was committed, with the same fingerprint, on 17 Sep (accuracy check, 28 Sep 2026)
   'WL-24-EXT': '17 Sep 2026', 'WL2-24-R21': '17 Sep 2026', 'FT-24-EXT': '17 Sep 2026',
   'WL4-24-F7': '22 Sep 2026',
   'FR-24-F34s': '28 Sep 2026', 'F9-24-K31s': '28 Sep 2026',
-  'AC-24-M41': '28 Sep 2026', 'PC-24-EXT': '28 Sep 2026', 'CS-24-M34': '28 Sep 2026', 'FO-24-M49': '29 Sep 2026' };
+  'AC-24-M41': '28 Sep 2026', 'PC-24-EXT': '28 Sep 2026', 'CS-24-M34': '28 Sep 2026', 'FO-24-M49': '29 Sep 2026', 'SL-24-Hs': '1 Oct 2026' };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
  *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a
@@ -56,6 +57,8 @@ export const WAIVERS = {
   // 30 Sep 2026 (owner): Polished Clean, restored the same day, is not held to the ticket office pairs rule — its office
   // pairs fall only on Thursday and Friday, and the owner chose to set that rule aside for this design alone.
   'PC-24-EXT': { date: '30 September 2026', keys: ['office'] },
+  // 1 Oct 2026 (owner): Silva Lining, built from Polished Clean, runs the same office and has the same rule set aside.
+  'SL-24-Hs': { date: '1 October 2026', keys: ['office'] },
 };
 const WAIVE = {
   closer: { short: '15:45 closer', allows: v => /^closers start at /.test(v) && v.replace(/^closers start at /, '').split(/, | and /).every(t => t === '15:45' || t === '16:25') },
@@ -67,6 +70,8 @@ const WAIVE = {
     return L.length === 4 && L.every((l, i) => (i < 3 ? L[i + 1] - l : L[0] + 24 - l) > 1); } },
 };
 /** The rows of a rules table (currentRules) that the owner waived for this design and that it meets as allowed. */
+/** The short name of a waivable rule ("ticket office pairs"), for a footnote that lists the waivers. */
+export const waiveShort = key => WAIVE[key]?.short ?? key;
 export const waivedRows = (code, rows) => rows.filter(r => !r.ok && (WAIVERS[code]?.keys ?? []).includes(r.key) && WAIVE[r.key].allows(r.value));
 /** "the 15:45 closer rule is waived" · "the 15:45 closer and Saturday fourteen rules are waived" */
 export const waivedPhrase = keys => keys.length === 1 ? `the ${WAIVE[keys[0]].short} rule is waived` : `the ${keys.slice(0, -1).map(k => WAIVE[k].short).join(', ')} and ${WAIVE[keys[keys.length - 1]].short} rules are waived`;

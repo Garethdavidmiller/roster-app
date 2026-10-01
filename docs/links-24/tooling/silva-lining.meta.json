@@ -1,0 +1,12 @@
+{
+ "date": "1 October 2026",
+ "identity": {
+  "lineage": "Polished Clean (PC-24-EXT · 12424ed2) with the owner’s changes of 1 October 2026: two of the three weekday closers start at 15:45, the short weekday earlies merged into one 06:20–13:45, fourteen on duty Monday to Saturday (fifteen on Tuesday), no duty over nine hours, no 14:45 closer, and as few shift times as possible. Each day’s duties were then put in order by computer search (same-day and whole-line swaps only) for no fatigue finding. Sunday then re-searched the same day for a closer match to the trains: three Sunday closers start at 15:25 instead of 14:30 (was SL-24-H · 7fc9745f). Version H of eight (../silva-lining/), chosen on the standing weighted league."
+ },
+ "namedOfficeWaived": "the office is run as planned for this design, not as identical pairs — the shifts for each day are on page 5",
+ "namedOfficeNote": "As planned for this design. Monday to Friday a 06:20–14:20 opens the office and a 07:00–15:30 joins at 08:00, on the floor until then; a 13:30–22:00 and a 14:00–22:30 take over, the 13:30 on the floor from 19:30. Saturday two 06:20–14:30s, one on the floor until 08:00, then a 13:30–22:00, on the floor from 19:30, and a 14:00–22:30 until 22:00. Not identical pairs: a rule waived for this design. The “of whom” rows take these people out of each side, so the floor rows compare like with like.",
+ "namedOfficeSunday": "A 07:15–15:45 opens the office and an 08:30–16:30 joins it; a 14:30–23:25 takes over from 14:30 and keeps it until 22:30, then joins the floor — one late, as today, where the December plan has two. Today one 14:30–23:25 closer keeps the office until 22:30.",
+ "namedOfficeP8": "Run as planned for this design, not as identical pairs: Monday to Friday 06:20 and 07:00 earlies, then 13:30 and 14:00 lates; Saturday two 06:20s, then 13:30 and 14:00; Sunday 07:15 and 08:30, then one late from 14:30, as today. Office staff count as floor only at the quiet ends and once the office has closed (page 5).",
+ "namedOfficeSunLates": 1,
+ "namedOfficeSunWords": "the December plan has two; this design keeps one, a 14:30–23:25, in the office until 22:30 — as today’s 14:30–23:25 closer does"
+}

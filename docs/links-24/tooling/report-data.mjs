@@ -185,6 +185,19 @@ export const NAMED_OFFICE = {
           officer('13:30-21:30', 'late', ['19:30', '21:30']), officer('14:00-22:30', 'late', ['22:00', '22:30'])],
     sun: [officer('07:15-15:45', 'early'), officer('08:30-16:30', 'early'), officer('14:20-23:25', 'late', ['22:30', '23:25'])],
   },
+  // Silva Lining (SL-24-Hs · 15475b65), the same office carried across (owner, 1 Oct 2026). Every weekday duty is the same
+  // shift; two differ by the rota's own times, doing the same job: Saturday's 13:30 is a 13:30–22:00 (on the floor from
+  // 19:30 to its finish, as the 13:30–21:30 was), and Sunday's late is a 14:30–23:25 (taking the office at 14:30, not
+  // 14:20). The pairs rule is waived for it as for Polished Clean (WAIVERS in fresh.mjs). Its Sunday re-search (1 Oct 2026)
+  // moved three FLOOR closers to 15:25 and left the office's three Sunday duties as they were; the key followed the cells
+  // (was 7fc9745f, SL-24-H).
+  '15475b65': {
+    weekday: [officer('06:20-14:20', 'early'), officer('07:00-15:30', 'early', ['07:00', '08:00']),
+              officer('13:30-22:00', 'late', ['19:30', '22:00']), officer('14:00-22:30', 'late')],
+    sat: [officer('06:20-14:30', 'early'), officer('06:20-14:30', 'early', ['06:20', '08:00']),
+          officer('13:30-22:00', 'late', ['19:30', '22:00']), officer('14:00-22:30', 'late', ['22:00', '22:30'])],
+    sun: [officer('07:15-15:45', 'early'), officer('08:30-16:30', 'early'), officer('14:30-23:25', 'late', ['22:30', '23:25'])],
+  },
 };
 const fpOf = p => createHash('sha256').update(JSON.stringify(Object.keys(p).sort((a, b) => a - b).map(k => DAYS.map(d => p[k][d])))).digest('hex').slice(0, 8);
 const fpCache = new WeakMap();

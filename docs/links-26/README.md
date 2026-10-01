@@ -37,7 +37,8 @@ Monday-to-Saturday duties to place, which is more than one extra person a day.
 - **The shift-time sets** of the strongest 24-line designs, as starting points:
   - **Familiar Nine** (`../links-24/Familiar-Nine-F9-24-K31s.json`): every rule met, 14 of 20 weeks on one turn.
   - **Right Away** (`../links-24/Right-Away-FR-24-F34s.json`).
-  - **Silva Lining H** (`../links-24/silva-lining/silva-lining-H.json`): 13 times, no fatigue warnings, a 9-hour cap.
+  - **Silva Lining** (`../links-24/Silva-Lining-SL-24-Hs.json`, version H of its series): 14 times, no fatigue warnings, a
+    9-hour cap.
 - **The judging.** Every figure comes from the app's own Links modules, which take the line count as a parameter.
 
 ## Where the code assumes 24

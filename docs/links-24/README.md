@@ -2,11 +2,12 @@
 
 > **FROZEN, 1 Oct 2026.** The link was confirmed that day as **26 lines, not 24**. This folder (it was `docs/proposals/`)
 > is kept exactly as it stood, for reference and in case the 24-line link returns. **New work goes in `../links-26/`.**
-> The Silva Lining design series explored that day is in `silva-lining/`.
+> One sheet was added that day, before the freeze took hold: **Silva Lining** (`SL-24-Hs`), chosen from the eight-design
+> series recorded in `silva-lining/`.
 
 > **Where things stand (1 Oct 2026) — read this first.** Everything below this box is a dated record, oldest decisions
 > first; where an older section disagrees with this box, this box is current.
-> - **10 proposals**, each an eight-page sheet compared **only with today's link**; the one-page summary is the only place
+> - **11 proposals**, each an eight-page sheet compared **only with today's link**; the one-page summary is the only place
 >   they sit side by side. A work-in-progress pack, not a decision pack.
 > - **Three tiers of rule:** 3 hard limits (a rota that breaks one cannot be run), the 9 December staffing rules (scored
 >   on every sheet), and 3 flexible rules (14 on a Saturday, evenly spread cover weeks, 15:45 weekday closers) that never
@@ -17,7 +18,8 @@
 > - **The match to the trains is a score**, lower is closer, and is put in words as a score ("a score about half of
 >   today's") — never as "half as far off", which read as half as many people out of place.
 > - **Today's link:** 4 of the 9 rules; 4 avoidable fatigue warnings in the fixed duties (up to 5); 7 days in a row (up to 9).
-> - **Rules met, of 9:** All Clear, Clean Sweep, Familiar Nine, Full Overhaul, Right Away 9 · Fifteen Turns 6, and it
+> - **Rules met, of 9:** All Clear, Clean Sweep, Familiar Nine, Full Overhaul, Right Away 9 · Silva Lining 8, with the ticket office
+>   pairs rule waived for it (owner, 1 Oct 2026) · Fifteen Turns 6, and it
 >   breaks the 12-hour hard limit · Weekday Lates 5 · Anchored Lines, Evening Peak 4 · Polished Clean 4, with the ticket
 >   office pairs rule waived for it (owner, 30 Sep 2026) and its office measured on its author's own duties.
 > - **Presentations:** Familiar Nine and Right Away, for colleagues and for managers. Their figures are typed into the
@@ -31,7 +33,7 @@
 The CEA link proposals drawn for the December 2026 timetable change, each a PDF with its own
 **identity** so it can be named in a room: a name, a code that says how it was built, and a
 fingerprint of the exact cells so a printout can never be confused with a variant. The same
-identity is in every page footer. All 10 were judged by the app's own Links modules
+identity is in every page footer. All 11 were judged by the app's own Links modules
 (`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) — the
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
@@ -275,8 +277,8 @@ Right Away now ships as a grid (`tooling/right-away.json`); `final.mjs` still re
 project's history, kept as the record: where one describes a ten-page sheet, 23 designs or a page 9 comparison, it
 is describing an earlier edition.
 
-**Everything in one download:** `December-2026-Link-Proposals.zip` (30 Sep 2026) — the one-page summary, the
-rules, both presentations, all 10 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
+**Everything in one download:** `December-2026-Link-Proposals.zip` (1 Oct 2026) — the one-page summary, the
+rules, both presentations, all 11 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
 re-render of the sheets does not update it, so rebuild it after one.
 
 **The one-page summary:** `Proposals-Summary.pdf` (*Proposals at a glance.pdf* in the zip) — every proposal against today's link on one A4 page, rendered by
@@ -2105,3 +2107,96 @@ in the repo root's web tree is a served page).
 whole tree regardless, `.txt`, `.json`, `.mjs` and PDF alike. Nothing in them is new information (the
 base roster is public by the classification in `AUTH_PLAN.md` §2), so this is untidy rather than
 unsafe.
+
+## Silva Lining — the eleventh sheet (1 Oct 2026)
+
+*Silva Lining* (`SL-24-Hs · 15475b65`, first issued as `SL-24-H · 7fc9745f`) is version H of the series in `silva-lining/`: Polished Clean with the owner's
+changes of 1 Oct 2026 (two weekday closers at 15:45, the short weekday earlies merged into one 06:20–13:45, fourteen on
+duty Monday to Saturday, no duty over nine hours, no 14:45 closer, as few shift times as possible), its weeks put in
+order by search. It was chosen from eight on the standing weighted league (rules 35, fatigue 20, floor fit 20, weekends
+off 10, familiar times 10, longest run 5), where it scored 97.6 among the series and 79.3 among every sheet — fourth,
+behind Familiar Nine, Right Away and Full Overhaul. The other seven were deleted (owner); their figures stay in
+`silva-lining/README.md` and their grids in git history.
+
+It is a SUPPLIED design (`tooling/silva-lining.json`, `silva-lining.meta.json`, an entry in `regenerate.mjs`), coded
+`hand+search` in `fresh.mjs`. **It meets 8 of the 9 December rules, and the ninth — the ticket office pairs — is
+waived for it** (owner, 1 Oct 2026), exactly as for Polished Clean. It runs Polished Clean's office, its author's own
+(`NAMED_OFFICE` in `report-data.mjs`, a second entry keyed to Silva Lining's fingerprint), on Silva Lining's own duties
+and with no change to the rota: every weekday duty is the same shift, and two differ by the rota's own times while doing
+the same job — Saturday's 13:30 is a 13:30–22:00 (Polished Clean's 13:30–21:30) and Sunday's late a 14:30–23:25 (14:20).
+Measuring that office rather than the plan's assumed posts moved the floor fit to 37.1 · 17.7 · 54.6 (from 38.3 ·
+19.8 · 67.5), and the standing league to **82.3**, still fourth. The league scores rules MET, and a waived rule is not
+counted as met — the same as Polished Clean's 4 of 9 — so the waiver itself adds nothing there.
+
+The summary's ‡ footnote used to name Polished Clean's waiver as the only one ("set aside for that proposal alone");
+it now lists every design in `WAIVERS` with its own rule and date (`waiveShort` in `fresh.mjs`).
+
+Adding it changed no other sheet's text: every other PDF re-rendered word for word the same and was left as it was.
+The summary gained its row (8 of 9, between Clean Sweep and Weekday Lates) and the zip was rebuilt with the sheet, its
+import file and the new summary.
+
+**Its Sunday, re-searched (1 Oct 2026, owner: "can we fix Sundays").** Sunday was the one figure that kept it behind
+the top three — a floor fit of 54.6, against 26.4 for Familiar Nine, Right Away and Full Overhaul — because its
+Sunday duties were Polished Clean's, unchanged. The Sunday rules leave almost nothing free: four on at 07:15, three to
+the close and five at 22:00 fix nine of the ten Sunday duties, and the office fixes the tenth. With only today's shift
+times and Silva Lining's own, no arrangement beats 54.6 without an FF19 start-time jump. One more time does it:
+**15:25–23:25**, Full Overhaul's Sunday closer. Three floor closers (lines 6, 9 and 11) move from 14:30–23:25 to
+15:25–23:25 — the office's three Sunday duties do not move — and the Sunday floor fit goes from **54.6 to 30.7**, with
+no fatigue warning, the shortest rest still 13h 30m and the worst week down from 52.1 to 51.2 hours. Sunday overtime
+falls from 86h 10m to 83h 25m a week across the link (the new closer is 8h 00m, the old 8h 55m). It costs one shift
+time: 14, four fewer than today, and six new to learn. The search (every Sunday set from today's times, Silva
+Lining's and each single extra time from the other sheets, then every arrangement on the ten Sunday lines with no
+FF19 jump and 12 hours' rest either side) found 15:25 best by a distance; 15:15–23:25 was next at 35.1.
+
+The changed cells give it a new fingerprint, so it is reissued as **SL-24-Hs** (the `s` as Familiar Nine's Sunday
+re-search), and its `NAMED_OFFICE` key followed. On the standing league it scores **85.8 and moves to third**, past
+Full Overhaul (85.3), behind Familiar Nine (94.2) and Right Away (89.7).
+
+## An external review, and the two changes it led to (1 Oct 2026)
+
+A reviewer read the ten-sheet pack (before Silva Lining) and recounted the import files. The figures they checked —
+contracted hours, full weekends off, longest duties, shortest fixed-duty rest, late finishes — all agreed. They would lead
+with Familiar Nine and offer Right Away as the alternative, which is also the standing league's first and second. They
+asked for no change to how the pack looks. Two of their points changed the words, in `tooling/plain.mjs` and the decks:
+
+- **"A full weekend off one in 4 weeks" is an average, not a rhythm.** Familiar Nine's six weekends fall 3, 1, 7, 5, 1 and
+  7 weeks apart; today's four, 3, 4, 6 and 7. Every sheet now gives the COUNT ("6 full weekends off in 24 weeks, today 4
+  in 20") and the longest wait between two of them (`weekendGap`, counted the way `checkLinkConstraints` counts the
+  weekends): "never more than 7 weeks apart, as today" where it is no longer than today's, "though up to 10 weeks apart
+  (today 7)" where it is longer — a cost is never phrased as reassurance. Page 2 says "uneven: never more than N weeks
+  apart (today M)". The decks' "one week in four" became "6 in 24" (slides) and the notes explain the uneven spacing.
+- **More late finishes is the main trade-off, and the rate undersold it.** "About one extra every 2 or 3 weeks" became
+  "about 59 a year each (today 39)" on page 1 and in the decks; the rate stays on page 2.
+
+Three things followed from fitting the longer words: the *In short* sentence keeps each item's headline and drops the
+weekend gap (it ran into the next item); page 1's late-finish item lost its rate (it pushed Polished Clean's concern list
+into the footer); and page 2's weekend note is one line (two pushed "The workings" into the footer on every sheet). All
+eleven sheets were re-rendered — no fingerprint moved — and every page 1 and page 2 was checked against the footer. Two
+of the reviewer's claims were slightly overstated and changed nothing: Fifteen Turns breaks ONE hard limit, and the fit
+score is set against the December train service weighted by train length — not passengers, but not staff shape alone.
+
+## A second polish pass, from screenshots (1 Oct 2026)
+
+Every page of five sheets was read at full size, then every page type across all eleven side by side, and each
+page's lowest line was measured against its footer (`pdftotext -bbox`). No figure changed and no fingerprint moved;
+the one wording change is a tile line.
+
+- **Page 4, every shift time:** a row with no NEW or DROPPED tag had its length jammed against the time, so the lengths
+  zig-zagged. Each row now has a time (tabular digits, so every time is the same width), a tag slot — empty where there
+  is no tag — and its length, which line up as a column. *The shape of a week* gives the narrow TODAY column less room
+  and IN PLAIN WORDS more.
+- **Page 3:** a cover week's days were a pale gold within a shade of an early turn's peach, in the grid and its key.
+  They are now a light diagonal hatch on the same gold. This is the sheet's stylesheet; the Links page is untouched.
+- **Page 6:** two rules missed in a row read as one shaded block, and now have a hairline between them. The page's spare
+  bottom sixth is shared out as row padding in the rules table, measured, up to 4px a row.
+- **Page 5:** Clean Sweep's and Full Overhaul's last note sat under the footer rule (already on main; their weekday
+  tables have a row per day). The tighter notes setting is now switched on whenever the page measures too full, not by
+  a rule about which notes a design carries.
+- **Page 3's word list** ended 2mm above the footer on every sheet; slightly less leading gives it the margin the other
+  pages have. **Page 1's** staff lists gain up to 3px between items where the page has room, the same in both columns.
+- **Page 1 tile:** "met — the other one waived for it" left "for it" alone on a line; it is now "met — one waived",
+  which also matches Polished Clean's "four not met, one waived".
+
+After the pass the tightest page in the set is page 8, 6.7pt above its footer, which is where its closing note sits by
+design. The external reviewer had asked for no visual change; these are the defects the screenshots found.
+
