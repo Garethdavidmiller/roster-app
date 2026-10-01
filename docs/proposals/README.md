@@ -171,6 +171,34 @@ on the floor" → "**rostered** on the floor" (it is the rota, not sickness or d
 says "on the fixed rota"; Familiar Nine's strap says "more than half its duties at times people already work" (54 of 94
 duties, 57%), not "most". Not done: a page-6 line naming the three flexible rules — the owner's decision of 30 Sep 2026 is
 that they never appear on a proposal sheet (the manager decks name them).
+**An accuracy audit of every sheet and deck (1 Oct 2026, owner: "deep think, look for misleading information").** Every
+figure was recounted and was right; what changed was wording, one missing worst case and some attribution.
+- **The 55-hour week a worked cover week can make is now in the worst case.** The app's 55-hour row counts a cover week as
+  no hours, so "up to N if a cover week falls badly" missed it. `h55Worst` in `tooling/report-data.mjs` works the four
+  duties as 8-hour shifts in every placement; where that crosses 55 the "up to" count gains one (`worstPresent` in
+  `folderStats`): All Clear 0 (up to 1), Full Overhaul 0 (1), Anchored Lines 1 (2), Clean Sweep 2 (4), Polished Clean 2
+  (5). Page 1 lists it as a concern, not as a caveat on a positive; page 7's 55-hour row shows the figure.
+- **Match figures are scores, not distances.** "About half as far off as today" read as half as many people out of place;
+  the figure is a sum of squared differences, so the sheets and the Right Away decks now say "a score about half of
+  today's".
+- **Cadence from unrounded figures** — rounding each side first turned a 2.6 difference into 3.
+- **Labels:** "the floor follows the trains" (it is the floor that is matched), "fixed duties" on the rest gap,
+  "Sundays counted" on six-day weeks, "confirmed verbally, 29 Sep 2026", cover-week gaps without "evenly" (a flexible
+  rule, which never appears on a sheet), page 8's cover-week and rest cards rewritten to the one fixed-duty basis, FF13
+  marked where it is also the broken 12-hour hard limit (and no longer listed twice on page 1).
+- **The floor rule says when** its minimum first occurs ("fewest 2 · 2 · 2 — first at Mon 13:45, Sat 14:30, Sun 07:15").
+- **Summary:** a proposal that breaks a hard limit is marked ✕ and sorted last (Fifteen Turns); "1 waived", not "+1".
+- **Rules sheet:** today's fatigue column on the fixed duties with "up to", like every sheet; FF2's early is "05:00 to
+  06:59" — the ORR's list says "between 05:00 and 07:00", and Managing Rail Staff Fatigue, Appendix E, makes 07:00 a day
+  shift, which is how the app counts it (settled: Familiar Nine and Right Away keep no FF2/FF15 finding from a 07:00 start).
+- **Decks:** "more people on duty with you, all day" was false at some hours (Right Away has fewer than today at 13:00 on
+  Tue/Thu/Fri and 14:00 on Sunday; Familiar Nine at 16:00 Tue/Thu/Fri) — now "more people rostered every day, at the open
+  and the close". The late finishes were credited wholly to the December rules; three to the close accounts for about 6.5
+  of the ~20 extra a year each once spread over 24 people (15 closers a week today → 21 required; the designs have 27), so
+  the slides and notes now say "only partly from the December rules". "Contract paid exactly" → "rostered exactly, on
+  average"; "more weekends" → "more full weekends off" (notes add the four more Saturdays a year); four weeks' leave "15
+  days at best"; a cover week "at most 4 days of leave"; Sunday 23:25 is "agreed practice (settled 28 Sep 2026)", not
+  "will remain so"; "confirmed" → "confirmed verbally (29 Sep 2026)"; today's link "four in the fixed rota (up to five)".
 The Links compare test that used Short Closer as its
 real-design fixture now uses *Weekday Lates*, which has the same shape (tiring patterns present in both at different figures).
 
