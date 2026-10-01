@@ -46,6 +46,10 @@ test('day detail: names the roster it was changed from, and opens at full size',
     // panel used to be the touch affordance alone, a desktop click opened nothing, and the first cut
     // of this test ran on both projects and failed on chromium for exactly that reason. The click
     // now opens the panel on every pointer type, so the gate would skip real coverage on two engines.
+    // PINNED TO SEPTEMBER 2026 (1 Oct 2026): this fixture is written against September's base roster and a weekday 4th,
+    // and it read the real clock — it went red on 1 Oct, when the month on screen became October (the 4th a Sunday,
+    // where leave is never shown, and G. Miller's 3rd–6th no longer a cover week). A fixed mid-month day keeps it honest.
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
     await seedMember(page);
     await page.addInitScript(() => {
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
@@ -1857,6 +1861,10 @@ test('day detail: an annual-leave day offers the leave dates, and no other day d
     // `seedMemberSession`, not `seedSession` — `decideAccess` rule 1 wants a restored FIREBASE USER
     // as well as a local session, so a session alone leaves the access type `none` and the Calendar
     // never paints at all (measured, not assumed).
+    // PINNED TO SEPTEMBER 2026 (1 Oct 2026): this fixture is written against September's base roster and a weekday 4th,
+    // and it read the real clock — it went red on 1 Oct, when the month on screen became October (the 4th a Sunday,
+    // where leave is never shown, and G. Miller's 3rd–6th no longer a cover week). A fixed mid-month day keeps it honest.
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
     await seedMemberSession(page, 'G. Miller');
     await page.addInitScript(() => {
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
@@ -1953,6 +1961,10 @@ test('day detail: a COLLEAGUE’s day offers neither personal action', async ({ 
     // colleague rule was never reached. Proven by mutation: comparing the session name with ITSELF
     // (a tautology that can never refuse) left that version green. A later `addInitScript` wins, so
     // this is a signed-in G. Miller genuinely looking at S. Silva.
+    // PINNED TO SEPTEMBER 2026 (1 Oct 2026): this fixture is written against September's base roster and a weekday 4th,
+    // and it read the real clock — it went red on 1 Oct, when the month on screen became October (the 4th a Sunday,
+    // where leave is never shown, and G. Miller's 3rd–6th no longer a cover week). A fixed mid-month day keeps it honest.
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
     await seedMemberSession(page, 'G. Miller');
     await page.addInitScript(() => localStorage.setItem('myb_roster_selected_member', 'S. Silva'));
     await page.addInitScript(() => {
