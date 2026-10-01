@@ -1,8 +1,9 @@
 // Everything the PDF states, computed by the app's own modules for BOTH the live roster and the proposal.
 import { readFileSync, readdirSync } from 'node:fs';
-import { asRosteredRuns } from './cover-placement.mjs';
+import { createHash } from 'node:crypto';
+import { asRosteredRuns, materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs';
 import { runDesignChecks, weeklyHours, lineTotals, calcHourlyCoverage, classifyShift, startMinutes, endMinutes, endMinutesAbs, dutyMinutes, DAYS, hmFromHours } from '../../../links-design.js';
-import { assessFatigue } from '../../../links-fatigue.js';
+import { assessFatigue, maxHoursInAny7Days, toSequence } from '../../../links-fatigue.js';
 import { assessHardLimits, MAX_CONSECUTIVE_WORKED_DAYS } from '../../../links-limits.js';
 import { scoreOrder, reorderLines, applyOrder, OBJECTIVES } from '../../../links-adjacency.js';
 import { DEC_2026_DEMAND, demandBucket, peakCars, movementsOutside, DEC_2026_MOVEMENTS } from '../../../links-demand.js';
@@ -143,7 +144,8 @@ export const SUN_OFFICE_FROM = 15*60, SUN_FLOOR_AGAIN = 18*60, SUN_OFFICE_HANDOV
 export const OFFICE_HELP_TEXT = 'Monday to Saturday, one of each ticket-office pair helps on the floor at the quiet ends: the morning one until 08:00, the evening one from 19:30. On a Sunday one early is on the floor until 09:00; the two lates are on the floor until 15:00, then both in the office, and one goes back to the floor from 18:00';
 export function officeHelpers(spans, cls, model = 'plan') {
   const out = [];
-  for (const t of spans) { if (t.n < 2) continue;
+  for (const t of spans) { if (t.help) { for (const [st, en] of t.help) out.push({ st, en, share: 1 }); continue; }  // a named office says its own help
+    if (t.n < 2) continue;
     if (cls === 'sun' && model !== 'today') {
       if (t.st === OPEN.sun) { const en = Math.min(t.en, 9*60); if (en > t.st) out.push({ st: t.st, en, share: 1 }); continue; } // one early: floor until 09:00
       if (t.st < SUN_OFFICE_FROM) out.push({ st: t.st, en: SUN_OFFICE_FROM, share: 1 }, { st: t.st, en: SUN_OFFICE_FROM, share: 1 });
@@ -164,12 +166,44 @@ export function rosteredPairs(p, d) {
   const l = Object.keys(byT).filter(t => endMinutes(t) === 22*60+30 && byT[t] >= 2).sort((a, b) => startMinutes(a) - startMinutes(b))[0];
   return e && l ? { early: e, late: l } : null;
 }
+// A DESIGN'S OWN TICKET OFFICE (owner, 1 Oct 2026). A hand-drawn design whose author has said which duties run the
+// office is measured on THOSE duties, not on pairs found in the cells or the plan's posts assumed. Keyed by the
+// design's fingerprint, so it can only ever apply to the exact grid its author drew: a single changed cell gives a new
+// fingerprint and the design falls back to the general reading. Each entry is one person: the duty they work, `early`
+// or `late`, and the stretches of it they spend on the FLOOR rather than in the office (the plan's quiet-end help, the
+// time after the office closes). Polished Clean (PC-24-EXT · 12424ed2), as its author confirmed it: Mon–Fri earlies
+// starting 06:20 and 07:00 (her "7:30" is the 07:00–15:30, the only second weekday early in her table), handover at
+// 13:30 and 14:00; Saturday two 06:20–14:30s, handover 13:30 and 14:00; Sunday 07:15 and 08:30, handover 14:20 —
+// one Sunday late, as today. The office pairs rule is waived for it (WAIVERS in fresh.mjs): these are not identical pairs.
+const hm2m = t => +t.slice(0, 2) * 60 + +t.slice(3);
+const officer = (time, role, ...help) => ({ time, role, help: help.map(([a, b]) => [hm2m(a), hm2m(b)]) });
+export const NAMED_OFFICE = {
+  '12424ed2': {
+    weekday: [officer('06:20-14:20', 'early'), officer('07:00-15:30', 'early', ['07:00', '08:00']),
+              officer('13:30-22:00', 'late', ['19:30', '22:00']), officer('14:00-22:30', 'late')],
+    sat: [officer('06:20-14:30', 'early'), officer('06:20-14:30', 'early', ['06:20', '08:00']),
+          officer('13:30-21:30', 'late', ['19:30', '21:30']), officer('14:00-22:30', 'late', ['22:00', '22:30'])],
+    sun: [officer('07:15-15:45', 'early'), officer('08:30-16:30', 'early'), officer('14:20-23:25', 'late', ['22:30', '23:25'])],
+  },
+};
+const fpOf = p => createHash('sha256').update(JSON.stringify(Object.keys(p).sort((a, b) => a - b).map(k => DAYS.map(d => p[k][d])))).digest('hex').slice(0, 8);
+const fpCache = new WeakMap();
+/** The office this design's author named for day d, or null. Throws if a named duty is not in that day's cells. */
+export function namedOffice(p, d) {
+  if (!fpCache.has(p)) fpCache.set(p, fpOf(p));
+  const spec = NAMED_OFFICE[fpCache.get(p)]; if (!spec) return null;
+  const list = spec[clsOf(d)], pool = Object.values(p).map(r => r[d]);
+  for (const x of list) { const i = pool.indexOf(x.time); if (i < 0) throw new Error(`namedOffice: ${x.time} is not rostered on ${d}`); pool.splice(i, 1); }
+  return list;
+}
 // The office taken out of day d: today's own for today's link; for a proposal the pairs it rosters, else the plan's posts
 // (assumed staffed from the duties). Before 28 Sep's helper change a proposal always had the plan's posts taken out, which was wrong only
 // for a design whose Sunday office lates start at another time than 13:30 — none shipped, the first was about to.
 export function officeFor(p, d, model) {
   const cls = clsOf(d);
   if (model !== 'plan') return officeSpans(model, cls);
+  const nm = namedOffice(p, d);
+  if (nm) return nm.map(x => ({ time: x.time, st: startMinutes(x.time), en: endMinutes(x.time), n: 1, help: x.help, role: x.role }));
   const pr = rosteredPairs(p, d);
   return pr ? [pr.early, pr.late].map(t => ({ time: t, st: startMinutes(t), en: endMinutes(t), n: 2 })) : officeSpans('plan', cls);
 }
@@ -218,7 +252,7 @@ export function flexibleRules(P, T, model = 'plan') {
 }
 export function sheetRules(P, T, model = 'plan') {
   const R = currentRules(P, T, model);
-  const rows = R.rows.flatMap(r => r.key === 'heads' ? [{ key: 'sunday', rule: 'Ten on a Sunday', value: `${P.daily.sun}`, ok: P.daily.sun >= 10, note: '' }]
+  const rows = R.rows.flatMap(r => r.key === 'heads' ? [{ key: 'sunday', rule: 'Ten on a Sunday', value: `${P.daily.sun}`, ok: P.daily.sun >= 10, note: 'every duty rostered that day counts' }]
     : r.key === 'cover' || r.key === 'closer' ? [] : [r]);
   return { ...R, rows, met: rows.filter(r => r.ok).length, of: rows.length };
 }
@@ -234,13 +268,20 @@ export function currentRules(P, T, model = 'plan') {
   // the floor: the day's duties with the office taken out — the rostered pairs where there are any, else the plan's
   // posts — and the helping office person added back while they help (whole people only: the minimum counts heads)
   const floorOn = d => { const cls = clsOf(d), pr = pairsOn(d); const ds = dutiesOn(d).map(s => ({ s, st: startMinutes(s), en: endMinutes(s) }));
+    const nm = model === 'plan' ? namedOffice(P.patterns, d) : null;
+    if (nm) { const out = [...ds]; for (const x of nm) out.splice(out.findIndex(y => y.s === x.time), 1);
+      return { duties: out, office: [], help: officeHelpers(officeFor(P.patterns, d, model), cls, model), named: true, nm }; }
     if (!pr) { const office = officeSpans(model, cls); return { duties: ds, office, help: officeHelpers(office, cls, model), named: false }; }
     const out = [...ds]; for (const t of [pr.early, pr.early, pr.late, pr.late]) out.splice(out.findIndex(x => x.s === t), 1);
     return { duties: out, office: [], help: officeHelpers([pr.early, pr.late].map(t => ({ st: startMinutes(t), en: endMinutes(t), n: 2 })), cls, model), named: true, pr }; };
-  const floorMin = d => { const cls = clsOf(d), f = floorOn(d); let lo = Infinity;
-    for (let m = OPEN[cls]; m < CLOSE[cls]; m += 5) lo = Math.min(lo, f.duties.filter(x => x.st <= m && x.en > m).length - f.office.filter(t => t.st <= m && t.en > m).reduce((a, t) => a + t.n, 0)
-      + f.help.filter(x => x.share >= 1 && x.st <= m && x.en > m).length);
-    return Math.max(0, lo); };
+  // WHEN, as well as how few (accuracy check, 1 Oct 2026): page 5 counts anyone on for part of an hour, so a dip of a
+  // quarter of an hour between one shift leaving and the next arriving never shows there. The rule's value names the
+  // first moment each figure is reached, so a reader can find it.
+  const floorAt = {};
+  const floorMin = d => { const cls = clsOf(d), f = floorOn(d); let lo = Infinity, at = null;
+    for (let m = OPEN[cls]; m < CLOSE[cls]; m += 5) { const v = f.duties.filter(x => x.st <= m && x.en > m).length - f.office.filter(t => t.st <= m && t.en > m).reduce((a, t) => a + t.n, 0)
+      + f.help.filter(x => x.share >= 1 && x.st <= m && x.en > m).length; if (v < lo) { lo = v; at = m; } }
+    floorAt[d] = at; return Math.max(0, lo); };
   const handover = d => { const cls = clsOf(d), f = floorOn(d), cl = f.duties.filter(x => x.en === CLOSE[cls]);
     let ok = cl.length > 0 && cl.every(c => f.duties.some(x => x.st < c.st && x.en >= c.st + 15));
     if (cls === 'sun' && cl.length) { const last = Math.max(...cl.map(c => c.st)); ok = ok && f.duties.filter(x => x.st === OPEN.sun).every(x => x.en >= last + 15); }
@@ -250,11 +291,18 @@ export function currentRules(P, T, model = 'plan') {
     const [[pe], [pl]] = OFFICE[model][cls];
     // a December Sunday's lates join the office at 15:00 whenever their shift starts, so that is where the handover begins
     const lateIn = t => cls === 'sun' && model !== 'today' ? Math.max(startMinutes(t), SUN_OFFICE_FROM) : startMinutes(t);
-    const overlap = f.named ? endMinutes(f.pr.early) - lateIn(f.pr.late) : endMinutes(pe) - lateIn(pl);
+    // a named office hands over when its first late arrives before its last early leaves, from the time the design says
+    const overlap = f.nm ? Math.max(...f.nm.filter(x => x.role === 'early').map(x => endMinutes(x.time))) - Math.min(...f.nm.filter(x => x.role === 'late').map(x => startMinutes(x.time)))
+      : f.named ? endMinutes(f.pr.early) - lateIn(f.pr.late) : endMinutes(pe) - lateIn(pl);
     return { ok, overlap, assumed: !f.named, need: cls === 'sun' && model !== 'today' ? SUN_OFFICE_HANDOVER : 20 }; };
   const pairs = ALL.map(d => [d, pairsOn(d)]), pairsOk = d => !!pairs.find(([x]) => x === d)[1];
+  const namedAll = model === 'plan' && ALL.every(d => namedOffice(P.patterns, d));
   const wkPairs = WDD.every(pairsOk), satPairs = pairsOk('sat'), sunPairs = pairsOk('sun');
   const fm = Object.fromEntries(ALL.map(d => [d, floorMin(d)])), wkFloor = Math.min(...WDD.map(d => fm[d]));
+  const DN3 = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
+  const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const wkLowDay = WDD.find(d => fm[d] === wkFloor);
+  const floorWhen = [[wkLowDay, wkFloor], ['sat', fm.sat], ['sun', fm.sun]].filter(([d]) => d && floorAt[d] != null).map(([d]) => `${DN3[d]} ${hhmm(floorAt[d])}`).join(', ');
   const hv = Object.fromEntries(ALL.map(d => [d, handover(d)]));
   const floorHand = ALL.every(d => hv[d].ok), overlaps = ALL.map(d => hv[d].overlap), assumedDays = ALL.filter(d => hv[d].assumed).length;
   const sunLens = dutiesOn('sun').map(dutyMinutes);
@@ -270,9 +318,9 @@ export function currentRules(P, T, model = 'plan') {
     { key: 'cover', rule: 'Four cover weeks, evenly spread', value: `lines ${P.feel.spareLines.join(', ')}`, ok: P.feel.spareLines.length === 4 && P.adj.spareExcess === 0, note: 'evenly means every 6 lines, e.g. 1, 7, 13, 19' },
     { key: 'office', rule: 'The ticket office: two early and two late, identical shifts, every day', value: `Mon–Fri ${wkPairs ? 'yes' : 'no'} · Sat ${satPairs ? 'yes' : 'no'} · Sun ${sunPairs ? 'yes' : 'no'}`, ok: wkPairs && satPairs && sunPairs, note: 'Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and 14:30–22:00; Sun two from 07:15 and two to 22:30' },
     { key: 'closer', rule: 'Every weekday closer starts at 15:45', value: closerStarts.length ? `closers start at ${andList(closerStarts)}` : 'no weekday closer', ok: wkClosers.length > 0 && wkClosers.every(s => s === '15:45-23:55'), note: '' },
-    { key: 'floor', rule: 'At least two on the floor at every moment', value: `fewest ${wkFloor} · ${fm.sat} · ${fm.sun}`, ok: ALL.every(d => fm[d] >= 2), note: 'the ticket office counts only while its staff help on the floor — Mon–Sat one of each pair until 08:00 and from 19:30; on a Sunday one early until 09:00, both lates until 15:00 and one from 18:00; checked every five minutes' },
-    { key: 'handover', rule: 'Handovers: 15 minutes to each closer, 20 in the ticket office (30 on a Sunday)', value: `floor ${floorHand ? 'met' : 'not met'} · ticket office ${Math.min(...overlaps)} min${assumedDays && model === 'plan' ? ` (${assumedDays === 7 ? 'posts' : `posts on ${assumedDays} day${assumedDays === 1 ? '' : 's'}`} assumed)` : ''}`, ok: floorHand && ALL.every(d => hv[d].overlap >= hv[d].need), note: 'the Sunday office handover runs from 15:00, when the lates join it; on a Sunday each opener also stays until 15 minutes after the last closer arrives; where the design does not roster the office pairs, the plan’s posts are assumed' },
-    { key: 'sunlen', rule: 'Sunday duties between 8h and 9h', value: sunLens.length ? `${hmm(Math.min(...sunLens))}–${hmm(Math.max(...sunLens))}` : '—', ok: sunLens.length > 0 && sunLens.every(m => m >= 480 && m <= 540), note: '' },
+    { key: 'floor', rule: 'At least two on the floor at every moment', value: `fewest ${wkFloor} · ${fm.sat} · ${fm.sun}${floorWhen ? ` — first at ${floorWhen}` : ''}`, ok: ALL.every(d => fm[d] >= 2), note: namedAll ? 'the ticket office counts only while its staff are on the floor — at the quiet ends and once the office has closed, as this design runs it; checked every five minutes' : 'the ticket office counts only while its staff help on the floor — Mon–Sat one of each pair until 08:00 and from 19:30; on a Sunday one early until 09:00, both lates until 15:00 and one from 18:00; checked every five minutes' },
+    { key: 'handover', rule: 'Handovers: 15 minutes to each closer, 20 in the ticket office (30 on a Sunday)', value: `floor ${floorHand ? 'met' : 'not met'} · ticket office ${Math.min(...overlaps)} min${assumedDays && model === 'plan' ? ` (${assumedDays === 7 ? 'posts' : `posts on ${assumedDays} day${assumedDays === 1 ? '' : 's'}`} assumed)` : ''}`, ok: floorHand && ALL.every(d => hv[d].overlap >= hv[d].need), note: namedAll ? 'the ticket office overlap is from its first late arriving to its last early leaving, as this design runs it; on a Sunday each opener also stays until 15 minutes after the last closer arrives' : 'the Sunday office handover runs from 15:00, when the lates join it; on a Sunday each opener also stays until 15 minutes after the last closer arrives; where the design does not roster the office pairs, the plan’s posts are assumed' },
+    { key: 'sunlen', rule: 'Sunday duties between 8h and 9h', value: sunLens.length ? `${hmm(Math.min(...sunLens))}–${hmm(Math.max(...sunLens))}` : '—', ok: sunLens.length > 0 && sunLens.every(m => m >= 480 && m <= 540), note: 'every Sunday duty, start to finish' },
     { key: 'times', rule: 'No more shift times than today', value: `${P.feel.distinctTimes}`, ok: P.feel.distinctTimes <= T.feel.distinctTimes, note: `today ${T.feel.distinctTimes}` },
   ];
   return { rows, met: rows.filter(r => r.ok).length, of: rows.length, pairDays: ALL.filter(pairsOk) };
@@ -280,6 +328,27 @@ export function currentRules(P, T, model = 'plan') {
 
 // The office model is TODAY'S for the live 20-line link and the PLAN'S for every 24-line proposal; nothing in this
 // folder is 20 lines except today's link, and a caller can say otherwise.
+// THE 55-HOUR ROW AT ITS WORST (accuracy check, 1 Oct 2026): the app counts a cover week's days as no hours, so its
+// figure is a floor. Filled in as four 8-hour duties in every block placement it can cross 55; fresh.mjs states the range
+// on the sheet, and the summary's "up to" adds the row when it would. One function, so the two cannot disagree.
+export function h55Worst(p, lines) {
+  const table = assessFatigue(p, lines).results.find(r => r.code === 'MRSF' && /55 hours/.test(r.title))?.value; const n = coverLines(p, lines).length;
+  let acc = [[]]; for (let i = 0; i < n; i++) acc = acc.flatMap(c => BLOCK_PLACEMENTS.map((_, j) => [...c, j]));
+  const v = acc.map(c => maxHoursInAny7Days(toSequence(materialise(p, lines, c, '09:00-17:00'), lines)));
+  return table == null ? null : { table, lo: Math.min(...v), hi: Math.max(...v), adds: Math.max(...v) > 55 && table <= 55 };
+}
+// THE FIXED DUTIES (owner, 1 Oct 2026: "you were highlighting worst case on cover-week placement for days in a row — now
+// you are just doing worst possible with cover week. Isn't that misleading?"). A cover week is four duties the roster
+// clerk places later, so every run and fatigue figure has two honest answers: on the duties the rota FIXES (the cover
+// weeks left out — the basis every sheet now leads with, for the proposal and today's link alike), and at the WORST place
+// a cover week's four duties could fall (stated beside it as "up to"). The fatigue checks' own figures are the worst case;
+// this is the same checks run with each cover day read as a day off. Hard limits are still tested at the worst case —
+// a limit must hold wherever the clerk puts the four.
+function fixedView(p, lines) {
+  const q = {}; for (const k of Object.keys(p)) { q[k] = {}; for (const d of DAYS) q[k][d] = p[k][d] === 'SPARE' ? 'RD' : p[k][d]; }
+  const fatigue = assessFatigue(q, lines);
+  return { fatigue, present: fatigue.present, run: runDesignChecks(q, lines).longestStretch };
+}
 export function assess(p, lines, officeModel = lines === 20 ? 'today' : 'plan') {
   const keys = Array.from({ length: lines }, (_, i) => String(i+1));
   const checks = runDesignChecks(p, lines), hours = weeklyHours(p, lines), totals = lineTotals(p, lines);
@@ -303,7 +372,7 @@ export function assess(p, lines, officeModel = lines === 20 ? 'today' : 'plan') 
   // like. Until 25 Sep 2026 today's figure was taken by padding the 20-line link to 24 by repeating lines
   // 1–4 (five cover weeks, and four working weeks counted twice): 44.7, where the link itself scores
   // 51.1. That flattered today by six points and read three proposals as worse than it when they are better.
-  return { checks, hours, totals, fatigue, hard, adj, hourly, tableRows, daily, asRostered, feel: feel(p, lines), rest: tightestRest(p, lines), fits: fitsOf(p, lines), wkFit: weekdayFit(p, lines), heads: headcounts(p, lines), office: officeSplit(p, lines, hourly, officeModel) };
+  return { checks, hours, totals, fatigue, hard, adj, hourly, tableRows, daily, asRostered, fixed: fixedView(p, lines), feel: feel(p, lines), rest: tightestRest(p, lines), fits: fitsOf(p, lines), wkFit: weekdayFit(p, lines), heads: headcounts(p, lines), office: officeSplit(p, lines, hourly, officeModel) };
 }
 
 /** Every SHIPPED rotation in docs/proposals, assessed — so a sheet can say where it stands in the folder
@@ -322,7 +391,7 @@ export function folderStats(dir = new URL('..', import.meta.url)) {
       const j = JSON.parse(readFileSync(new URL(f, dir), 'utf8')); const p = j.patterns ?? j; const lines = Object.keys(p).length;
       const A = assess(p, lines);
       out.push({ file: f, name: m[1].replace(/-/g, ' ').replace(/(\d+) (\d+)/g, '$1-$2'), code: m[2], wk: weekdayFit(p, lines), sat: A.fits.sat, sun: A.fits.sun, floor: { wk: A.office.wkFit, sat: A.office.fits.sat, sun: A.office.fits.sun },
-        present: A.fatigue.present, weekends: A.checks.weekendsOff, run: A.checks.longestStretch, rest: A.rest?.minutes ?? null,
+        present: A.fatigue.present, weekends: A.checks.weekendsOff, run: A.checks.longestStretch, fixedPresent: A.fixed.present, fixedRun: A.fixed.run, worstPresent: A.fatigue.present + (h55Worst(p, 24)?.adds ? 1 : 0), rest: A.rest?.minutes ?? null,
         oneTurn: A.feel.oneTurn, workingLines: A.feel.workingLines, distinct: A.feel.distinctTimes,
         newTimes: A.tableRows.filter(r => !todays.has(r.time)).length, turnarounds: A.checks.turnarounds.length, rules: sheetRules({ patterns: p, ...A }, TA) });
     } catch { /* a JSON that is not a rotation is not the folder's business */ }

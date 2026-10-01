@@ -73,12 +73,21 @@ const ASKS = {
 };
 
 const flexRows = FT.rows.map(r => `<tr><td><b>${esc(r.rule)}</b></td><td>${ASKS[r.key] ?? esc(r.note)}</td><td class="tt ${r.ok ? 'ok' : 'miss'}">${r.ok ? '✓' : '✕'} ${esc(r.value)}</td></tr>`).join('');
-const decRows = RT.rows.map((r, i) => `<tr><td><b>${esc(r.rule)}</b></td><td>${ASKS[r.key] ?? esc(r.note)}</td><td class="tt ${r.ok ? 'ok' : 'miss'}">${r.ok ? '✓' : '✕'} ${esc(r.value)}</td></tr>`).join('');
+// the floor's "— first at …" goes on a second line: the column does not wrap
+const valCell = v => { const [a, b] = String(v).split(' — first at '); return b ? `${esc(a)}<span class="upto">first at ${esc(b)}</span>` : esc(a); };
+const decRows = RT.rows.map((r, i) => `<tr><td><b>${esc(r.rule)}</b></td><td>${ASKS[r.key] ?? esc(r.note)}</td><td class="tt ${r.ok ? 'ok' : 'miss'}">${r.ok ? '✓' : '✕'} ${valCell(r.value)}</td></tr>`).join('');
 
 // Today's link is the only comparison on this sheet (owner, 29 Sep 2026: a manager is not shown the drafts), so the
 // last column is TODAY's status, not a count of the proposals each factor is present in.
-const ffStatus = r => r.status === 'standing' ? 'Every link' : r.status === 'present' ? `Present (${r.value})` : 'Clear';
-const ffRows = live.map(r => `<tr><td class="ff-code">${esc(r.code)}</td><td>${esc(r.title)}${r.confirm ? ' <span class="conf">definition to confirm</span>' : ''}</td><td class="fam">${esc(r.family)}</td><td class="num">${ffStatus(r)}</td></tr>`).join('');
+// ONE BASIS, as on every sheet (accuracy audit, 1 Oct 2026 — this column alone showed the worst case): the status is
+// today's FIXED duties, the cover weeks left out, with the worst cover-week placement beside it as "up to"
+const fixedT = r => TA.fixed?.fatigue.results.find(x => key(x) === key(r)) ?? r;
+const one = r => r.status === 'standing' ? 'Every link' : r.status === 'present' ? `Present (${r.value})` : 'Clear';
+const ffStatus = r => { const f = fixedT(r), a = one(f), w = one(r); return a === w ? a : `${a} · <span class="upto-i">up to ${r.status === 'present' ? esc(String(r.value)) : w.toLowerCase()}</span>`; };
+// FF2 in the ORR's words is "starting between 05:00 and 07:00"; Managing Rail Staff Fatigue, Appendix E, makes 07:00 a
+// day shift, which is how the app counts it — so the sheet says so rather than leave 07:00 ambiguous
+const ffTitle = r => r.code === 'FF2' ? 'Early shift starting 05:00 to 06:59' : esc(r.title);
+const ffRows = live.map(r => `<tr><td class="ff-code">${esc(r.code)}</td><td>${ffTitle(r)}${r.confirm ? ' <span class="conf">definition to confirm</span>' : ''}</td><td class="fam">${esc(r.family)}</td><td class="num">${ffStatus(r)}</td></tr>`).join('');
 
 const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>December 2026 Rules</title>
 <link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/links.css">
@@ -114,12 +123,20 @@ td.ok { color: color-mix(in srgb, var(--success-green) 80%, black); } td.miss { 
 .dec td:nth-child(1) { width: 22%; } .dec td:nth-child(2) { width: 50%; } .dec td:nth-child(3) { width: 19%; } table.t td.num { white-space: nowrap; }
 .hard td:nth-child(1) { width: 22%; } .hard td:nth-child(2) { width: 50%; } .hard td:nth-child(3) { width: 19%; }
 .ff td.ff-code { font-weight: 800; color: var(--primary-blue); white-space: nowrap; width: 40px; } .ff td.fam { color: var(--text-light); white-space: nowrap; width: 110px; }
+.upto-i { color: var(--text-muted, #5B6778); font-weight: 400; }
+.upto { display: block; font-size: 8px; color: var(--text-muted, #5B6778); font-weight: 400; }
 .conf { display: inline-block; font-size: 8px; padding: 0 6px; border-radius: 8px; background: color-mix(in srgb, var(--warning-amber) 18%, white); color: color-mix(in srgb, var(--warning-amber) 55%, black); margin-left: 4px; vertical-align: 1px; }
 .callout { border-left: 3px solid var(--accent-gold); background: var(--surface-sunken); padding: 6px 12px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin: 6px 0; font-size: 9.8px; }
 ul.list { margin: 3px 0 4px; padding-left: 17px; font-size: 9.8px; line-height: 1.42; } ul.list li { margin: 2px 0; }
 ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 1.42; } ol.open li { margin: 3px 0; }
 .foot { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 8.5px; color: var(--text-light); border-top: 1px solid var(--border-light); padding-top: 4px; }
 .foot b { color: var(--primary-blue); }
+/* POLISH (1 Oct 2026): the basics flow down two columns rather than sitting in a grid whose rows took the height of
+   the longer left-hand item, which left the right-hand ones floating in uneven gaps; a top bar is square on its own
+   side, as on the sheets; no paragraph ends on a lone word */
+.basics { display: block; column-count: 2; column-gap: 18px; } .basics > div { break-inside: avoid; margin: 0 0 4px; }
+.tier { border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
+* { text-wrap: pretty; } h1, h2 { text-wrap: balance; }
 </style></head><body>
 
 <section class="page">
@@ -170,7 +187,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <h2>Fatigue factors <span class="tag adv">advisory</span></h2>
   <p>${FZ.length} roster patterns that tend to tire people: ${FZ.filter(r => r.code !== 'MRSF').length} from the Office of Rail and Road’s good-practice guidance, <i>Fatigue Factors</i> (page 3, December 2021), and ${FZ.filter(r => r.code === 'MRSF').length} extra checks from the rail industry’s fatigue guidance (MRSF). The ORR says they are guidance, not limits. So a factor present is a question to discuss, never a pass or a fail, and a design showing none is not thereby approved.</p>
   <table class="t ff"><thead><tr><th>Code</th><th>Factor</th><th>Kind</th><th class="num">Today’s link</th></tr></thead><tbody>${ffRows}</tbody></table>
-  <p class="muted" style="font-size:9px"><b>Not applicable.</b> ${na.length} more factors apply to no rotation here: ${naNight.length} about night shifts (${andList(naNight.map(r => r.code))}), because CEAs do not work nights; ${naOther.map(naWhy).join('; and ')}. <b>“Every link”</b> marks a standing factor — one that comes with the station’s hours or with any weekly link, not with a design’s choices: FF2 because the station opens at 06:20, and FF18 because a weekly link changes shift type about once a week (the ORR prefers two-day or three-week rotation, <i>Managing rail staff fatigue</i> 7.68). <b>Standing factors are recorded on every sheet for information and are not counted</b> in any design’s fatigue findings, since no weekly design can remove them. The <b>early</b> in FF2 and FF15 is the ORR’s — a start from 05:00 to 07:00 — not the 11:00 used everywhere else. The last column is today’s link.</p>
+  <p class="muted" style="font-size:9px"><b>Not applicable.</b> ${na.length} more factors apply to no rotation here: ${naNight.length} about night shifts (${andList(naNight.map(r => r.code))}), because CEAs do not work nights; ${naOther.map(naWhy).join('; and ')}. <b>“Every link”</b> marks a standing factor — one that comes with the station’s hours or with any weekly link, not with a design’s choices: FF2 because the station opens at 06:20, and FF18 because a weekly link changes shift type about once a week (the ORR prefers two-day or three-week rotation, <i>Managing rail staff fatigue</i> 7.68). <b>Standing factors are recorded on every sheet for information and are not counted</b> in any design’s fatigue findings, since no weekly design can remove them. The <b>early</b> in FF2 and FF15 is the ORR’s — a start from 05:00 to 06:59, since 07:00 is a day shift (Managing Rail Staff Fatigue, Appendix E) — not the 11:00 used everywhere else. The last column is today’s link, on its fixed duties — the cover weeks left out, as on every sheet; “up to” is the worst place a cover week’s four duties could fall.</p>
 
   <h2>Preferences <span class="tag adv">for staff to say, not the app</span></h2>
   <ul class="list">

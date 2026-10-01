@@ -42,7 +42,7 @@ export const SUPPLIED = [
     // 29 Sep 2026: its Sunday re-searched under the owner's December Sunday office plan — three Sunday cells (the
     // 08:30–16:30 now 09:00–18:00, the office lates 14:30–22:30 not 14:00), was F9-24-K31 · c450951c.
     { file: 'right-away.json',             name: 'Right Away',     code: 'FR-24-F34s', fp: '745e98b0', strap: 'The ticket office rostered in fixed pairs, every other duty timed so the floor follows the trains' },
-    { file: 'familiar-nine.json',          name: 'Familiar Nine',  code: 'F9-24-K31s', fp: '598a1294', strap: 'No duty over nine hours, and most shift times ones people already work' },
+    { file: 'familiar-nine.json',          name: 'Familiar Nine',  code: 'F9-24-K31s', fp: '598a1294', strap: 'No duty over nine hours, and more than half its duties at times people already work' },
     // Just Enough (28 Sep 2026) is Fifteen Turns with the fewest cells changed that meet every rule — 29, proven by the exact
     // solver in tooling/exact/ — and, among those, the fewest fatigue factors (three, also proven).
     // Just Enough (JE-24-M29 · 49717d70) was WITHDRAWN on 29 Sep 2026 (owner). Its grid stays as just-enough.json, the

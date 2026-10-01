@@ -1,23 +1,47 @@
 # Link proposals — December 2026
 
+> **Where things stand (1 Oct 2026) — read this first.** Everything below this box is a dated record, oldest decisions
+> first; where an older section disagrees with this box, this box is current.
+> - **10 proposals**, each an eight-page sheet compared **only with today's link**; the one-page summary is the only place
+>   they sit side by side. A work-in-progress pack, not a decision pack.
+> - **Three tiers of rule:** 3 hard limits (a rota that breaks one cannot be run), the 9 December staffing rules (scored
+>   on every sheet), and 3 flexible rules (14 on a Saturday, evenly spread cover weeks, 15:45 weekday closers) that never
+>   appear on a sheet and may appear in a presentation.
+> - **One basis for runs and fatigue warnings:** the fixed duties first, the cover weeks left out for the proposal and
+>   today's link alike; the worst place a cover week's four duties could fall is given beside it as "up to", and that
+>   worst case includes the 55-hour week four 8-hour cover duties can make. Hard limits are tested at the worst case.
+> - **The match to the trains is a score**, lower is closer, and is put in words as a score ("a score about half of
+>   today's") — never as "half as far off", which read as half as many people out of place.
+> - **Today's link:** 4 of the 9 rules; 4 avoidable fatigue warnings in the fixed duties (up to 5); 7 days in a row (up to 9).
+> - **Rules met, of 9:** All Clear, Clean Sweep, Familiar Nine, Full Overhaul, Right Away 9 · Fifteen Turns 6, and it
+>   breaks the 12-hour hard limit · Weekday Lates 5 · Anchored Lines, Evening Peak 4 · Polished Clean 4, with the ticket
+>   office pairs rule waived for it (owner, 30 Sep 2026) and its office measured on its author's own duties.
+> - **Presentations:** Familiar Nine and Right Away, for colleagues and for managers. Their figures are typed into the
+>   slides by hand (the build scripts are not in this repository), so `node tooling/deck-check.mjs` compares every
+>   figure in their two summary tables with the same counts the sheets print — run it after any change to a rota or to a
+>   deck, before the decks go anywhere.
+> - **Still open:** the staffing levels, the 24-person link and the Sunday cover were confirmed **verbally** (29 Sep
+>   2026); the written source of the 13-day limit; FF19's reading of a rest day. Any change to the first regenerates
+>   every sheet (`node tooling/regenerate.mjs`).
+
 The CEA link proposals drawn for the December 2026 timetable change, each a PDF with its own
 **identity** so it can be named in a room: a name, a code that says how it was built, and a
 fingerprint of the exact cells so a printout can never be confused with a variant. The same
-identity is in every page footer. All 9 were judged by the app's own Links modules
+identity is in every page footer. All 10 were judged by the app's own Links modules
 (`runDesignChecks`, `assessFatigue`, `assessHardLimits`, `scoreOrder`, `weeklyHours`) — the
 searched families built by them too — and every figure in a PDF is computed from the cells it shows —
 nothing is typed.
 
 **The sheets are the plain edition, second version (30 Sep 2026)** — eight pages each, **written for a manager first**
-(owner, 30 Sep 2026: *"the proposal sheet is predominantly for managers"*; earlier: *"I can't overload Nathan, it needs to
-be easy to understand"*). They speak *about* staff, never *to* them, and name no audience on any page. **Page 1** is the
+(owner, 30 Sep 2026: *"the proposal sheet is predominantly for managers"*; earlier, that a busy manager must not be
+overloaded — *"it needs to be easy to understand"*). They speak *about* staff, never *to* them, and name no audience on any page. **Page 1** is the
 whole proposal:
 - an *In short* sentence built from the page's own lists (the verdict, the two biggest gains and trade-offs for staff);
 - **"For discussion, not a decision"** in the body text, with what is still to settle (which link, who starts where);
 - a **What it takes** line: the people (24, 4 more than today), the cover weeks, and the Sunday overtime — people on duty,
   and hours across the whole link each week — against today and against the 10 the rules ask for;
-- four *Can it work?* tiles (the nine December rules, the hard limits, avoidable fatigue warnings with cover weeks at
-  their worst, and the match to the trains with each day's figure against today's);
+- four *Can it work?* tiles (the nine December rules, the hard limits, avoidable fatigue warnings (since 1 Oct 2026 on the fixed
+  duties, with the worst cover-week placement as "up to"), and the match to the trains with each day's figure against today's);
 - a red box naming every rule or limit broken;
 - under *What it would mean for staff*, **every** concern, and the **five** strongest positives with "More detail on
   page 2" (external review: ten positives against four concerns read as a sales pitch, and a count of the rest read as
@@ -26,7 +50,7 @@ whole proposal:
   is never left off.
 
 **Three readability fixes (30 Sep 2026, owner).** (1) The match to the trains is always given in words beside the
-number — "about half as far off as today" — on page 1's tile, page 2's row and page 5's answer (`offWords` in
+number — "about half as far off as today", reworded on 1 Oct 2026 as a score, "a score about half of today's" — on page 1's tile, page 2's row and page 5's answer (`offWords` in
 `tooling/plain.mjs`: a ratio of the two figures, nearest simple fraction). (2) Every length of time is written one way,
 "13h 35m": page 2 wrote "13h35", which also reads as a clock time, while page 6 wrote "13h 35m" for the same figure.
 (3) Page 7 leads each fatigue row with its plain name ("Too little rest after a run of early starts"); the ORR code,
@@ -80,7 +104,7 @@ the cover-week lines and their spacing, every closing shift's start — just nev
 (`WAIVERS` in `tooling/fresh.mjs`) hold one entry: *Polished Clean* is not held to the ticket office pairs rule (owner,
 30 Sep 2026), which its sheet and the summary report as waived, never as a failure. Soft rules met, of nine: *All Clear*, *Clean
 Sweep*, *Familiar Nine*, *Full Overhaul* and *Right Away* 9; *Fifteen Turns* 6 (and it still breaks two hard limits);
-*Weekday Lates* 5; *Evening Peak* and *Anchored Lines* 4; *Polished Clean* 3, and the ticket office pairs waived; today's link 4. Flexible rules met, of three (not shown on any sheet): *All Clear*, *Familiar Nine* and *Right Away* 3; *Clean Sweep* 2 (not the 15:45 closer); *Fifteen Turns* 1 (the cover-week spacing) and *Full Overhaul* 1 (Saturday's fourteen); *Weekday Lates*, *Evening Peak*, *Anchored Lines* and *Polished Clean* 0 — "designed to" is what the tooling checks by default, not a claim that every proposal was built to all three. The Familiar Nine decks say 9 of 9, and — being
+*Weekday Lates* 5; *Evening Peak* and *Anchored Lines* 4; *Polished Clean* 4, and the ticket office pairs waived; today's link 4. Flexible rules met, of three (not shown on any sheet): *All Clear*, *Familiar Nine* and *Right Away* 3; *Clean Sweep* 2 (not the 15:45 closer); *Fifteen Turns* 1 (the cover-week spacing) and *Full Overhaul* 1 (Saturday's fourteen); *Weekday Lates*, *Evening Peak*, *Anchored Lines* and *Polished Clean* 0 — "designed to" is what the tooling checks by default, not a claim that every proposal was built to all three. The Familiar Nine decks say 9 of 9, and — being
 a presentation — that it meets all three flexible rules too.
 
 **The By the Book family was withdrawn (29 Sep 2026, owner).** *By the Book* (`BB-24-D7 · 0f14abce`), *Eight Forty*
@@ -125,14 +149,91 @@ Then *Running Repair* (`RR-24-M34 · 621165eb`, the family's 34-change member wi
 still describes both, and its commands rebuild Running Repair exactly.
 Then *Polished Clean* (`PC-24-EXT · 12424ed2`) was **restored** (owner, 30 Sep 2026), from the grid kept in
 `tooling/polished-clean.json`, and rendered in the plain edition v2 like every other sheet: **10 sheets**. The owner set
-the ticket office pairs rule aside for it alone (`WAIVERS` in `tooling/fresh.mjs`); it meets 3 of the other eight soft
-rules. Its page 5 sets the *Good to know* notes a touch tighter (`p5notes--dense` in `tooling/plain.mjs`), because it
+the ticket office pairs rule aside for it alone (`WAIVERS` in `tooling/fresh.mjs`); it meets 4 of the other eight soft
+rules (3 until its author named its office, below). Its page 5 sets the *Good to know* notes a touch tighter (`p5notes--dense` in `tooling/plain.mjs`), because it
 carries both long notes — the partly-rostered office and Sunday's last trains — and the list otherwise ran into the footer.
 No other sheet changed. Its screenshot check the same day found one defect shared by **every** sheet: on page 4, *The shape
 of a week*'s "working weeks by days worked" figure did not wrap and ran into the next column. It now wraps between counts
 (never inside one), the columns are rebalanced and the table sits a little tighter, so every sheet's page 4 clears its
 footer. No figure changed on any sheet. Polished Clean's page-1 waiver line also says which days its office pairs are
 rostered (Thu and Fri), rather than repeating page 6's day-group value.
+
+**Polished Clean's own ticket office (1 Oct 2026, owner, from its author).** The design's author confirmed which duties
+run the office: Monday to Friday earlies at 06:20 and 07:00 (her "7:30" is the 07:00–15:30 — her Word table, checked cell
+for cell against `PC-24-EXT · 12424ed2`, has no 07:30 start) with a 13:30 and a 14:00 taking over; Saturday two
+06:20–14:30s, then 13:30 and 14:00; Sunday 07:15 and 08:30, then one late from 14:20, as today. `NAMED_OFFICE` in
+`tooling/report-data.mjs` holds it, keyed by the fingerprint so it can never reach another grid, and the floor, the match
+figures, the two-on-the-floor rule and the office handover are now measured on those duties instead of the plan's posts
+assumed. It moved Polished Clean's figures and nothing else's: two on the floor at every moment is now met (fewest
+2 · 2 · 2, was 3 · 0 · 2 — Saturday's 0 came from the assumed posts), so it meets **4 of the 9** soft rules plus the waived
+one; the floor follows the trains 35.9 · 52.9 · 69.6 (was 38.7 · 51.4 · 74.1); the office handover is 60 minutes at its
+shortest (Saturday). Its sheet says so on pages 1, 2, 5, 6 and 8 (the `namedOffice…` keys in `polished-clean.meta.json`).
+
+**One basis for runs and fatigue warnings (1 Oct 2026, owner: "you were highlighting worst case on cover-week placement for
+days in a row — now you are just doing worst possible with cover week. Isn't that misleading?").** It was: page 1's tile
+said "N avoidable warnings **in the fixed duties**" while N was the worst place a cover week's four duties could fall,
+and the decks set the proposals' fixed-rota figures against today's worst case. Every sheet now LEADS with the duties the
+rota fixes — the cover weeks left out, for the proposal and today's link alike (`fixedView` in `tooling/report-data.mjs`)
+— and states the worst placement beside it as "up to": page 1 (the hard-limit and fatigue tiles, the staff bullets),
+page 2 (the two rows, now "…, fixed duties"), page 3's summary line, page 6's run card, page 7 (the head card and every row
+of the table, worst case on the line beneath) and the summary's two columns. Hard limits are still TESTED at the worst
+case: a limit must hold wherever the clerk puts the four. On the fixed duties today's link has **4** avoidable warnings
+(up to 5) and **7** days in a row (up to 9); the proposals, fixed (worst): All Clear 0 (0) and 6 (9) · Familiar Nine 0 (0)
+and 6 (6) · Full Overhaul 0 (0) and 7 (8) · Right Away 0 (0) and 6 (6) · Clean Sweep 2 (3) and 6 (9) · Fifteen Turns 6 (7)
+and 7 (9) · Weekday Lates 4 (5) and 7 (9) · Anchored Lines 1 (1) and 7 (7) · Evening Peak 1 (1) and 6 (6) · Polished Clean
+2 (4) and 6 (9). The four presentations were corrected to match — today's link 4 (up to 5) warnings and 7 (up to 9) days
+in a row, where they had said 5 and 9 against the proposals' fixed-rota 0 and 6 — by editing the PowerPoint files
+directly (the pptxgenjs build scripts live outside this repository) and re-exporting the PDFs. The index table below keeps
+its worst-case figures, as labelled.
+
+**Shorthand tightened after an external review (1 Oct 2026).** The review found nothing numerically misleading but some
+true figures framed more strongly than the calculation behind them. Already right before it (the reviewer had an earlier
+copy): "contracted days", "Sunday work stays overtime", Familiar Nine's "8 of 16 shift times you already work", "in the
+fixed rota" on every fatigue figure, and the yearly-figures note on the pay and late-finish slides. Changed: "no extra
+hours" → "no extra **contracted** hours" (colleague slide 2); every "never fewer than three on the floor" / "fewest ever
+on the floor" → "**rostered** on the floor" (it is the rota, not sickness or disruption); the late-finish trade-off
+says "on the fixed rota"; Familiar Nine's strap says "more than half its duties at times people already work" (54 of 94
+duties, 57%), not "most". Not done: a page-6 line naming the three flexible rules — the owner's decision of 30 Sep 2026 is
+that they never appear on a proposal sheet (the manager decks name them).
+**An accuracy audit of every sheet and deck (1 Oct 2026, owner: "deep think, look for misleading information").** Every
+figure was recounted and was right; what changed was wording, one missing worst case and some attribution.
+- **The 55-hour week a worked cover week can make is now in the worst case.** The app's 55-hour row counts a cover week as
+  no hours, so "up to N if a cover week falls badly" missed it. `h55Worst` in `tooling/report-data.mjs` works the four
+  duties as 8-hour shifts in every placement; where that crosses 55 the "up to" count gains one (`worstPresent` in
+  `folderStats`): All Clear 0 (up to 1), Full Overhaul 0 (1), Anchored Lines 1 (2), Clean Sweep 2 (4), Polished Clean 2
+  (5). Page 1 lists it as a concern, not as a caveat on a positive; page 7's 55-hour row shows the figure.
+- **Match figures are scores, not distances.** "About half as far off as today" read as half as many people out of place;
+  the figure is a sum of squared differences, so the sheets and the Right Away decks now say "a score about half of
+  today's".
+- **Cadence from unrounded figures** — rounding each side first turned a 2.6 difference into 3.
+- **Labels:** "the floor follows the trains" (it is the floor that is matched), "fixed duties" on the rest gap,
+  "Sundays counted" on six-day weeks, "confirmed verbally, 29 Sep 2026", cover-week gaps without "evenly" (a flexible
+  rule, which never appears on a sheet), page 8's cover-week and rest cards rewritten to the one fixed-duty basis, FF13
+  marked where it is also the broken 12-hour hard limit (and no longer listed twice on page 1).
+- **The floor rule says when** its minimum first occurs ("fewest 2 · 2 · 2 — first at Mon 13:45, Sat 14:30, Sun 07:15").
+- **Summary:** a proposal that breaks a hard limit is marked ✕ and sorted last (Fifteen Turns); "1 waived", not "+1".
+- **Rules sheet:** today's fatigue column on the fixed duties with "up to", like every sheet; FF2's early is "05:00 to
+  06:59" — the ORR's list says "between 05:00 and 07:00", and Managing Rail Staff Fatigue, Appendix E, makes 07:00 a day
+  shift, which is how the app counts it (settled: Familiar Nine and Right Away keep no FF2/FF15 finding from a 07:00 start).
+- **Decks:** "more people on duty with you, all day" was false at some hours (Right Away has fewer than today at 13:00 on
+  Tue/Thu/Fri and 14:00 on Sunday; Familiar Nine at 16:00 Tue/Thu/Fri) — now "more people rostered every day, at the open
+  and the close". The late finishes were credited wholly to the December rules; three to the close accounts for about 6.5
+  of the ~20 extra a year each once spread over 24 people (15 closers a week today → 21 required; the designs have 27), so
+  the slides and notes now say "only partly from the December rules". "Contract paid exactly" → "rostered exactly, on
+  average"; "more weekends" → "more full weekends off" (notes add the four more Saturdays a year); four weeks' leave "15
+  days at best"; a cover week "at most 4 days of leave"; Sunday 23:25 is "agreed practice (settled 28 Sep 2026)", not
+  "will remain so"; "confirmed" → "confirmed verbally (29 Sep 2026)"; today's link "four in the fixed rota (up to five)".
+**A screenshot polish pass (1 Oct 2026, owner).** Every page of every sheet, the summary, the rules sheet and every
+slide was rendered and looked at; no figure changed. Sheets (`tooling/plain.mjs`, `render.mjs`): page 1's four "Can it
+work?" tiles had two accents (a gold side bar under the status bar) and now have one; every top-barred card is square on
+its barred side, so the bar no longer bends into the corners; no paragraph ends on a lone word (`text-wrap: pretty`); a
+"·" separator never starts a line; clock ranges are written 06:20–14:25 on every page (page 4 used a hyphen); page 2's
+day keys ("weekday · Sat · Sun") sit on a line of their own under the question instead of wrapping a word off it; page
+6's rules table and limit cards are set larger to use the third of the page they left empty, and its two blank "what
+the rule asks" cells are filled; page 1 shares any spare room as a little extra space between its sections. Summary: an
+"up to" note under a good figure is grey, not green. Rules sheet: the basics flow down two columns instead of floating
+in uneven gaps. Decks: five taglines that left one word on a second line now fit on one, the leave-table label no
+longer wraps, and the two half-empty slides ("Why the link has to change", "The honest trade-offs") use the slide.
 The Links compare test that used Short Closer as its
 real-design fixture now uses *Weekday Lates*, which has the same shape (tiring patterns present in both at different figures).
 
@@ -201,14 +302,14 @@ this file, and every sheet is scored against the nine soft December 2026 rules (
 rules are designed to but never shown on a sheet. Figures in the older sections use the definitions of their day: fits moved to duty minutes on 24 Sep
 and to the floor on 28 Sep.
 
-| Proposal | Code · fingerprint | What it is | Fatigue findings | Longest run | Weekends off |
+| Proposal | Code · fingerprint | What it is | Fatigue findings (worst cover-week placement) | Longest run (worst) | Weekends off |
 |---|---|---|---|---|---|
 | **Right Away** | `FR-24-F34s · 745e98b0` (was `FR-24-F34o · be01f0db`) | **The owner's final rules of 28 Sep 2026**: the ticket office rostered as fixed pairs of identical turns and **not counted as floor cover**, every weekday closer 15:45, the headcounts as minimums, at least two on the floor at every moment, 15-minute handovers (20 in the office), Sunday duties 8h–9h, no more shift times than today — each day enumerated to a proof for the fit of the **floor** as it was measured when it was built; on the sheets' current measure (the office's second person helping at the quiet ends, and the exact edges of each hour) its floor fit is 26.5 weekday, 14.6 Saturday, 26.4 Sunday — 21.7 / 10.5 / 25.9 with everyone counted (the Sunday figures since the 30 Sep 2026 Sunday retime above), the folder's best weekday, 17 turns in the week against today's 18, the rotation fatigue-first and its week order then improved (28 Sep 2026: 14 of 20 weeks on one shift time, heaviest week 41h50) | **0** | 6 | 6 in 24 |
 | **Familiar Nine** | `F9-24-K31s · 598a1294` (was `F9-24-K31 · c450951c`) | **Right Away's rules with two more aims (28 Sep 2026)**: no duty over nine hours, and the shift times people already work wherever they cost little fit — 8 of its 16 times are worked today (9 of 15 before the Sunday retime; Right Away 5 of 17), the longest duty 9h00 (9h30), the weekday table proven; Right Away's week structure carried over and polished until no figure was worse than Right Away's (14 of 20 weeks on one shift time, shortest rest 14h20), for a looser weekday and Saturday fit: 27.7 · 15.0 · 26.4 against 26.5 · 14.6 · 26.4 — the Sunday retime gave both the same Sunday | **0** | 6 | 6 in 24 |
 | **All Clear** | `AC-24-M41 · 094fd369` | ***Fifteen Turns* with the fewest cells changed that meet every rule with no fatigue finding at all (28 Sep 2026)** — **41**, proven the minimum; the other end of *Just Enough*'s trade, twelve more changes for three fewer findings. Cover weeks untouched; its price is Sunday's fit | **0** | 9 | 2 in 24 |
 | **Clean Sweep** | `CS-24-M34 · 92366924` | ***Polished Clean* with the fewest cells changed that meet the rules, its 16:25 weekday closers kept by the owner's allowance (28 Sep 2026)** — **34**, proven the minimum, 22 of them from spreading the cover weeks evenly (1, 7, 13, 19); among those, the fewest fatigue findings (three, proven — none new). All 9 soft rules; of the three flexible rules it meets two — its weekday closers start at 16:25, not 15:45 | 3 | 9 | 2 in 24 |
 | **Full Overhaul** | `FO-24-M49 · bb9b6c24` | ***Running Repair*'s duty mix with no tiring pattern at all (29 Sep 2026)** — the same fit, 27.0 · 12.3 · 26.4, in the fewest changes that allow no finding, **49**, proven for the mix. All 9 soft rules; of the three flexible rules only 14 on a Saturday — its closers start at 16:25 and its cover weeks are not evenly spread | **0** | 8 | 3 in 24 |
-| **Polished Clean** | `PC-24-EXT · 12424ed2` | **Supplied as a one-page Word table (28 Sep 2026), restored 30 Sep 2026** — weekday closers from 16:25, twelve on a Saturday, cover weeks at lines 1, 7, 12 and 17; 3 of the 9 soft rules, the ticket office pairs rule waived for it by the owner | 4 | 9 | 2 in 24 |
+| **Polished Clean** | `PC-24-EXT · 12424ed2` | **Supplied as a one-page Word table (28 Sep 2026), restored 30 Sep 2026** — weekday closers from 16:25, twelve on a Saturday, cover weeks at lines 1, 7, 12 and 17; 4 of the 9 soft rules, the ticket office pairs rule waived for it by the owner | 4 | 9 | 2 in 24 |
 | **Weekday Lates** | `WL-24-EXT · a52ec588` | **Supplied as a Word table**, not searched — weekday lates at 16:25, Saturdays left alone | 5, or **4 as rostered** | 9 | 6 in 24 |
 | **Fifteen Turns** | `FT-24-EXT · 9a028392` | **Supplied as a grid**, not searched — fifteen turns and cover weeks evenly spread, but **it does not clear two gates** | 7 | 9 | 2 in 24 |
 | **Evening Peak** | `WL2-24-R21 · 33f70893` | Weekday Lates with eight of its nine `08:30–17:00` turns re-timed into the evening to cover the 17:00 peak, then re-searched | **1** | 6 | 6 in 24 |
@@ -976,7 +1077,7 @@ sheets regenerated, fingerprints unchanged.
 
 Two were left as decisions and then taken (24 Sep 2026, owner: "do your suggestions"):
 
-- **Page 8 named a person** ("Nathan assesses against this list") in a folder the Pages mirror serves.
+- **Page 8 named a person** (the manager who would assess against this list) in a folder the Pages mirror serves.
   It now says what the eyebrow already says — this is the list the link is assessed against — and
   names nobody. (The draft email that carried the name in its title was deleted on 28 Sep 2026, owner.)
 - **Two pick sentences were typed literals.** Same Turns' ("Two candidates tied on every rule; the fit

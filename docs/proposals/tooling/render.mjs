@@ -169,11 +169,21 @@ export async function renderPdf(D, out) {
   const naBoth = r => PLAIN && r.status === 'n/a' && tOf(r)?.status === 'n/a';
   const naGroups = [...new Set(P.fatigue.results.filter(naBoth).map(r => r.family))].map(f => `${f.toLowerCase()} (${P.fatigue.results.filter(r => naBoth(r) && r.family === f).map(r => r.code).join(', ')})`);
   const naNote = naGroups.length ? `<tr class="ff-na-note"><td colspan="4">Also on the list, and applying to neither link: ${esc(naGroups.join(' · '))}.</td></tr>` : '';
-  const rowsFF = P.fatigue.results.filter(r => !naBoth(r)).map(r => { const t = tOf(r);
+  // PLAIN: each mark and figure is for the FIXED duties (fixedView, report-data.mjs) and the worst cover-week placement,
+  // where it differs, is the line beneath — "up to". The technical edition keeps the worst case and FF11's block reading.
+  const fixedOf = (a, r) => a.fixed?.fatigue.results.find(x => x.code === r.code && x.title === r.title);
+  const rowsFF = P.fatigue.results.filter(r => !naBoth(r)).map(r0 => { const t0 = tOf(r0);
+    const r = PLAIN ? (fixedOf(P, r0) ?? r0) : r0, t = PLAIN && t0 ? (fixedOf(T, t0) ?? t0) : t0;
     const val = x => x ? (x.status === 'n/a' ? (FRESH ? '' : '–') : FRESH && /55 hours/i.test(x.title) && typeof x.value === 'number' ? x.value.toFixed(1) : (x.value ?? '')) : '';
-    const second = (a, code, have) => { const v = have ? asRos(a, code) : null; return v === null ? ''
+    const second = (a, code, have) => { if (PLAIN) { const w = a === P ? r0 : t0, f = a === P ? r : t;
+        // the 55-hour row counts a cover week as no hours, so its own worst case cannot show the week four 8-hour
+        // duties would make; h55Cover (fresh.mjs) is that figure (accuracy audit, 1 Oct 2026)
+        if (a === P && /55 hours/i.test(r0.title) && meta.h55Cover) return `<span class="ff-alt ff-present">${icon('present')} up to ${meta.h55Cover.hi.toFixed(1)} if a cover week is worked as four 8-hour duties</span>`;
+        return !have || !w || !f || (w.status === f.status && String(val(w)) === String(val(f))) ? ''
+          : `<span class="ff-alt ff-${w.status}">${icon(w.status)} up to ${esc(val(w))} if a cover week falls badly</span>`; }
+      const v = have ? asRos(a, code) : null; return v === null ? ''
       : `<span class="ff-alt ff-${rosStatus(v)}">${icon(rosStatus(v))} ${v} as rostered</span>`; };
-    return `<tr class="ff-${r.status}"><td class="ff-code">${r.code}</td><td class="ff-title">${esc(r.title)}${r.confirm?' <span class="muted">(definition to confirm)</span>':''}<span class="ff-fam chip">${esc(r.family)}</span></td>
+    return `<tr class="ff-${r.status}"><td class="ff-code">${r.code}</td><td class="ff-title">${esc(r.title)}${r.confirm?' <span class="muted">(definition to confirm)</span>':''}${PLAIN && r.code === 'FF13' && r.status === 'present' && P.checks.turnarounds.length ? ' <span class="muted">— also breaks the 12-hour hard limit, page 6</span>' : ''}<span class="ff-fam chip">${esc(r.family)}</span></td>
       <td class="ff-st ff-${t?.status}">${icon(t?.status)} ${esc(val(t))}${second(T, r.code, !!t)}</td><td class="ff-st ff-${r.status}">${icon(r.status)} ${esc(val(r))}${second(P, r.code, true)}</td></tr>`; }).join('');
   // Factors present under the block reading — the same count, less FF11 when only the ceiling fires.
   const presentRos = a => a.fatigue.present - ((asRos(a, 'FF11') !== null
@@ -703,6 +713,27 @@ ${meta.page9 ?? `<section class="page">
   writeFileSync(out.replace(/\.pdf$/, '.html'), html);
   const b = await chromium.launch(); const pg = await b.newPage();
   await pg.goto('file://' + out.replace(/\.pdf$/, '.html')); await pg.evaluate(() => document.fonts.ready);
+  // PAGE 1 BREATHES (polish pass, 1 Oct 2026). A sheet with short staff lists left a fifth of its first page empty
+  // above the footer while every other page is full. The spare room is measured in the PRINTED layout (A4 less the
+  // @page margins, print media) and shared out as extra space above the page's three sections — never more than 14px
+  // each, so a nearly-full page is untouched and an emptier one gains a little air between its parts. A short page
+  // keeps some room at the bottom: fewer concerns is itself the information, and stretching it reads as padding.
+  // Only spacing moves; no text, size or figure.
+  if (FRESH && !process.env.TECH) {
+    await pg.setViewportSize({ width: 711, height: 1032 }); await pg.emulateMedia({ media: 'print' });
+    await pg.evaluate(() => document.fonts.ready);
+    await pg.evaluate(() => {
+      const sec = document.querySelector('section.page.cover.plain'); if (!sec) return;
+      const foot = sec.querySelector(':scope > .foot'), kids = [...sec.children].filter(e => e !== foot);
+      const spare = () => foot.getBoundingClientRect().top - Math.max(...kids.map(e => e.getBoundingClientRect().bottom)) - 16;
+      if (spare() < 24) return;
+      // the staff lists keep their size: larger type wrapped items mid-thought, which reads worse than air
+      const blocks = [...sec.querySelectorAll(':scope > .pbottom, :scope > h2.psec')], left = spare();
+      if (left < 24 || !blocks.length) return;
+      const each = Math.min(14, left / blocks.length);
+      for (const b of blocks) b.style.marginTop = `${parseFloat(getComputedStyle(b).marginTop) + each}px`;
+    });
+  }
   await pg.pdf({ path: out, format: 'A4', printBackground: true, preferCSSPageSize: true });
   await b.close();
 }
