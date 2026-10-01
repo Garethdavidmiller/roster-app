@@ -12,7 +12,8 @@ authoritative for how the workspace is built.*
 > **26 LINES, NOT 24 (1 Oct 2026).** The December 2026 link was confirmed on 1 Oct 2026 as **26 lines**. Everything
 > below that says 24 describes the work done before then. That work is kept, unchanged, in `docs/links-24/` (it was
 > `docs/proposals/`) for reference and in case the 24-line link returns. The work from here on is in `docs/links-26/`,
-> whose README lists what carries over and what has to be recomputed.
+> whose README lists what carries over and what has to be recomputed. **The 26-line rules are `docs/links-26/RULES.md`**
+> (owner, 1 Oct 2026): five cover weeks as evenly spread as 26 allows, and 219 contracted days a year or fewer.
 
 ---
 

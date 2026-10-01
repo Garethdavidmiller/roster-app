@@ -6,34 +6,21 @@
 The 24-line work is not wasted. The rules, the duty tables, the tooling and the designs all carry over. What has to
 change is the arithmetic that depends on the number of lines.
 
-## Settle these first
+## The rules — settled 1 Oct 2026
 
-Each of these changes every design, so it is worth having the answer before drawing anything:
+**`RULES.md` is the rule set for 26 lines.** It is the 24-line set with the owner's changes marked in it: 26 lines;
+**5 cover weeks**, as evenly spread as 26 allows (gaps of 5, 5, 5, 5 and 6); and **219 contracted days a year or
+fewer**, today's figure as a ceiling. Everything else is unchanged, fourteen on a Saturday included (still a flexible
+rule).
 
-| Question | What 24 lines assumed |
-|---|---|
-| How many of the 26 are **cover weeks** (for leave and sickness)? | 4 (one in 6) |
-| How many on duty each day, Monday to Saturday? | 14, with 15 on Tuesday in the latest designs |
-| Is **Sunday** still covered by overtime, and with how many? | 10 on duty, all as overtime |
-| Do the **contracted hours** stay at 35 a week? | 35 |
-| Is the target still **217–219 contracted days a year**? | 217–219, to match Familiar Nine and today |
-
-## The arithmetic that changes
-
-With **W** working lines (26 less the cover weeks), the Monday-to-Saturday duties must add up to the contract
-exactly:
-
-- **Contract minutes** = W × 35 h × 60 = **W × 2,100**. At 24 lines this was 20 × 2,100 = 42,000.
-- **Days a year** = (Mon–Sat duties + 4 × cover weeks) ÷ 26 × 365 ÷ 7.
-
-*Worked example, if cover stays at 4.* W = 22, so the contract is 46,200 minutes. About **93 duties** gives 218.6 days
-a year, at an average of 8h17. At 24 lines the equivalent was 85 duties, 219.4 days and 8h14. That makes about 8 more
-Monday-to-Saturday duties to place, which is more than one extra person a day.
+What that means in numbers: 21 working lines, so the contract is **44,100** Monday-to-Saturday minutes a week; and the
+ceiling allows **at most 89 Monday-to-Saturday duties, averaging at least about 8h 16m** (89 gives 218.6 days a year,
+90 would give 220.6). With fourteen on a Saturday, that is about 15 a weekday. The working is in `RULES.md`.
 
 ## What carries over unchanged
 
-- **The rules, in their three tiers.** That is the 3 hard limits, the 9 December staffing rules and the 3 flexible
-  rules. See `../links-24/README.md` and `../LINKS_DEC2026_PLAN.md`.
+- **The rules, in their three tiers,** with the changes above: the 3 hard limits, the 9 December staffing rules
+  and the 3 flexible rules. See `RULES.md`.
 - **The shift-time sets** of the strongest 24-line designs, as starting points:
   - **Familiar Nine** (`../links-24/Familiar-Nine-F9-24-K31s.json`): every rule met, 14 of 20 weeks on one turn.
   - **Right Away** (`../links-24/Right-Away-FR-24-F34s.json`).
@@ -53,12 +40,12 @@ these files:
 
 | File | Where |
 |---|---|
-| `anneal.mjs` | `LINES = 24`, and the cover lines `SPARE = {1, 7, 13, 19}` |
+| `anneal.mjs` | `LINES = 24`, and the cover lines `SPARE = {1, 7, 13, 19}` — five covers at 26 lines |
 | `render.mjs` | the import text (`length: 24`), the `k <= 24` loops, and "in 24" in the page text |
 | `report-data.mjs` | the default `lines = 24` in `weekdayFit` and `weekdayFloorFit` |
 | `final.mjs`, `deck-check.mjs` | `assess(p, 24)` and `figures(p, 24, …)` |
 | the Silva Lining scripts | `assess(p, 24)` and `h55Worst(p, 24)` |
-| `fresh.mjs` | the cover-spacing check (`L[0] + 24`) |
+| `fresh.mjs`, `report-data.mjs` | the cover-spacing check (`L[0] + 24`) and the count of four in the cover rule |
 
 **Most of the other 24s in that tooling are hours of the day**, such as `new Array(24)` and `24 * 60`. Leave those
 alone.
