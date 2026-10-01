@@ -52,11 +52,28 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 | 2 · rota | `anneal.mjs` | arranges a table on the 26 lines; `TABLE=<table.json>`, `MODE=rules` for fatigue first |
 | | `carry-order.mjs` | lays a table onto an existing rota's week structure (how Familiar Nine borrowed Right Away's) |
 | | `rota-polish.mjs`, `order-polish.mjs` | reorder only (same-day and whole-line swaps), never worse than a reference |
+| check | `check.mjs` | the self-check: settings agree, the test rota recounts independently, and each 26-line rule fails when its condition is broken (`node tooling/check.mjs`) |
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
 | | `rules-sheet.mjs`, `summary-sheet.mjs` | the rules reference (`../December-2026-Rules.pdf`) and the one-page summary |
 
+**Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
+- **No 24-line default leaks through.** The app functions that default to 24 lines (`runDesignChecks`, `assessFatigue`,
+  `assessHardLimits`, `weeklyHours`, `toSequence`…) are given the line count by every caller in this folder, and pass it on
+  to each other internally.
+- **The figures recount.** `check.mjs` counts the test rota again from its cells alone, and every figure agrees: minutes,
+  days a year, cover lines and the number on duty each day.
+- **Each new rule bites.** Each is broken on purpose (`scripts/mutate.mjs` on its decisive line), and `check.mjs` then
+  fails:
+  - one duty too many, and also one duty too many at exactly the contract's minutes, is over the ceiling;
+  - a cover week moved one line breaks the even spread;
+  - a duty 15 minutes shorter breaks the contract.
+- **The sheets show the breach where it happens.** A design over the ceiling is "cannot be run" on page 1, and on page 6
+  the contract card is ✕ even when the hours are exact.
+- **The summary counts it.** Its "cannot be run" flag counts the contract and the ceiling as well as rest and days in a
+  row, and days a year are printed to one decimal: 218.6, not a rounded 219 that reads the same as today's figure.
+
 **Proven working end to end on 1 Oct 2026** with a throwaway table (not a proposal), using Familiar Nine's settings:
-- **Duty table:** a weekday of 15 duties and 7,440 minutes, proven; a Saturday of 14 at 6,900, proven, every time
+- **Duty table:** a weekday of 15 duties and 7,440 minutes, found by the quick search (`ANNEAL=1`, not a proof — the exhaustive run to prove it was started on 1 Oct 2026); a Saturday of 14 at 6,900, proven, every time
   already worked today; a Sunday of 10. Together that is 44,100 Monday-to-Saturday minutes over 89 duties, exactly the
   contract at the 219-day ceiling (218.6).
 - **Rota and sheet:** a 2.5-minute rota search on that table (`MODE=rules`, 40,000 steps × 2 restarts, seed 7) placed

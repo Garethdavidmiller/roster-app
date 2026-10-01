@@ -870,7 +870,8 @@ function rulesPage(s, { T, P, meta }) {
   const hm2 = m => m == null ? '—' : `${Math.floor(m / 60)}h&nbsp;${String(m % 60).padStart(2, '0')}m`;
   const run = P.checks.longestStretch, rest = P.rest?.minutes, monSat = meta.monSat ?? CONTRACT_MINUTES;
   const card = ([, state, title, sub]) => {
-    const ok = state === 'good';
+    // the contract card also carries the days ceiling (RULES.md): exact hours with too many, shorter duties is still a breach
+    const ok = state === 'good' && (/13 days|12 hours/.test(title) || daysAYear(P.patterns) <= DAYS_CEILING + 1e-9);
     const [k, v, lim] = /13 days/.test(title) ? ['Most days in a row', `${run}`, `longest possible · limit 13 · today ${T.checks.longestStretch}${run !== P.fixed.run || T.checks.longestStretch !== T.fixed.run ? ` · fixed duties ${P.fixed.run} (today ${T.fixed.run})` : ''}`]
       : /12 hours/.test(title) ? ['Shortest rest between shifts', hm2(rest), `in the fixed duties · limit 12h · today ${hm2(T.rest?.minutes)}`]
       : ['The contract', hm2(Math.round(monSat / WORKING_LINES)), `a week, Monday to Saturday, on average · must be exact · ${daysAYear(P.patterns).toFixed(1)} contracted days a year, ${DAYS_CEILING} at most`];

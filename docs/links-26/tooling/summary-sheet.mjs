@@ -9,6 +9,7 @@
 //   finishes 23:00+ and Saturdays a year — per person, averaged over the whole link; cover weeks add none
 //
 //   node docs/links-26/tooling/summary-sheet.mjs   → docs/links-26/Proposals-Summary.pdf
+import { LINES, COVER_WEEKS, DAYS_CEILING, CONTRACT_MINUTES, daysAYear, monSatMinutes } from './link.mjs';
 import { folderStats, today, assess, sheetRules as currentRules, dutyMinutes, startMinutes, endMinutes } from './report-data.mjs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
 import fs from 'node:fs';
@@ -26,14 +27,15 @@ const T=today();
 const hm = m => `${Math.floor(m/60)}h ${String(Math.round(m%60)).padStart(2,'0')}m`;  // the sheets' own format, "13h 35m"
 const TA = assess(T.patterns, 20);
 const rows = folderStats().map(f => { const j=JSON.parse(fs.readFileSync(new URL(f.file, DIR),'utf8')); const p=j.patterns??j; const x=extra(p);
-  return { name:f.name, code:f.code, met:f.rules.met, of:f.rules.of, waived:waivedRows(f.code, f.rules.rows).length, present:f.fixedPresent, presentW:f.worstPresent, hard:f.turnarounds>0 || f.run>13, turns:f.turnarounds, run:f.fixedRun, runW:f.run, wkd:`${f.weekends} in ${x.L}`, rest:f.rest, times:`${f.distinct} (${f.newTimes} new)`, ...x }; });
+  return { name:f.name, code:f.code, met:f.rules.met, of:f.rules.of, waived:waivedRows(f.code, f.rules.rows).length, present:f.fixedPresent, presentW:f.worstPresent, hard:f.turnarounds>0 || f.run>13 || monSatMinutes(p)!==CONTRACT_MINUTES || daysAYear(p)>DAYS_CEILING+1e-9,   // every hard limit, the contract and the days ceiling (RULES.md) included
+    turns:f.turnarounds, run:f.fixedRun, runW:f.run, wkd:`${f.weekends} in ${x.L}`, rest:f.rest, times:`${f.distinct} (${f.newTimes} new)`, ...x }; });
 // a proposal that breaks a HARD limit cannot be run as it stands, so it sorts last whatever it scores (accuracy audit,
 // 1 Oct 2026 — it sat mid-table on its rules count)
 rows.sort((a,b)=> a.hard-b.hard || b.met-a.met || a.present-b.present || a.name.localeCompare(b.name));
 const todayRow = { name:'Today’s link', code:'20 weeks', met:null, of:null, present:TA.fixed.present, presentW:TA.fatigue.present, run:TA.fixed.run, runW:TA.checks.longestStretch, wkd:`${TA.checks.weekendsOff} in 20`, rest:TA.rest?.minutes, times:`${TA.feel.distinctTimes}`, ...extra(T.patterns) };
 // today's rules met, the rules sheet's own figure
 { const R0 = currentRules({ patterns:T.patterns, ...TA }, TA, 'today'); todayRow.met = R0.met; todayRow.of = R0.of; }
-const tr = (r, cls='') => `<tr class="${cls}"><td class="n"><b>${r.name}</b><span>${r.code}</span>${r.hard ? '<em class="hl">✕ cannot be run as it stands</em>' : ''}</td><td class="${r.met===r.of?'good':''}">${r.met} of ${r.of}${r.waived ? `<span class="wv">${r.waived} waived‡</span>` : ''}</td><td class="${r.present===0?'good':''}">${r.present}${r.presentW !== r.present ? `<span class="wv">up to ${r.presentW}§</span>` : ''}</td><td>${r.run}${r.runW !== r.run ? `<span class="wv">up to ${r.runW}§</span>` : ''}</td><td>${r.wkd}</td><td class="${r.turns ? 'bad' : ''}">${r.rest==null?'—':`${r.turns ? '✕ ' : ''}${hm(r.rest)}`}${r.turns ? '<span class="wv">under the 12-hour limit</span>' : ''}</td><td>${r.times}</td><td>${r.dpw.toFixed(2)}</td><td>${Math.round(r.dpy)}</td><td>${hm(r.avg)}</td><td>${Math.round(r.late)}</td><td>${Math.round(r.sat)}</td></tr>`;
+const tr = (r, cls='') => `<tr class="${cls}"><td class="n"><b>${r.name}</b><span>${r.code}</span>${r.hard ? '<em class="hl">✕ cannot be run as it stands</em>' : ''}</td><td class="${r.met===r.of?'good':''}">${r.met} of ${r.of}${r.waived ? `<span class="wv">${r.waived} waived‡</span>` : ''}</td><td class="${r.present===0?'good':''}">${r.present}${r.presentW !== r.present ? `<span class="wv">up to ${r.presentW}§</span>` : ''}</td><td>${r.run}${r.runW !== r.run ? `<span class="wv">up to ${r.runW}§</span>` : ''}</td><td>${r.wkd}</td><td class="${r.turns ? 'bad' : ''}">${r.rest==null?'—':`${r.turns ? '✕ ' : ''}${hm(r.rest)}`}${r.turns ? '<span class="wv">under the 12-hour limit</span>' : ''}</td><td>${r.times}</td><td>${r.dpw.toFixed(2)}</td><td${r.L === LINES && r.dpy > DAYS_CEILING + 1e-9 ? ' class="bad"' : ''}>${r.dpy.toFixed(1)}</td><td>${hm(r.avg)}</td><td>${Math.round(r.late)}</td><td>${Math.round(r.sat)}</td></tr>`;
 const html = `<!doctype html><html><head><meta charset="utf-8"><title>December 2026 link proposals — summary</title><style>
 @page{size:A4 landscape;margin:8mm 10mm}
 body{font-family:Inter,Arial,sans-serif;color:#1B2533;margin:0;font-size:9pt}
@@ -51,7 +53,7 @@ td.good .wv { color: #5B6778; font-weight: 400; }
 .lead, .foot { text-wrap: pretty; }
 </style></head><body>
 <h1>December 2026 link proposals — at a glance</h1>
-<p class="lead">All ${rows.length} proposals against today’s link, sorted by December rules met, then avoidable fatigue warnings; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota by the Marylebone Roster app. Staffing levels, a 24-person link and Sunday cover confirmed verbally (29 Sep 2026).</p>
+<p class="lead">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link, sorted by December rules met, then avoidable fatigue warnings; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota by the Marylebone Roster app. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</p>
 <table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Avoidable fatigue warnings§</th><th>Most days in a row§</th><th>Full weekends off</th><th>Shortest fixed-duty rest</th><th>Shift times</th><th>Days a week*</th><th>Days a year*</th><th>Average fixed shift, Mon–Sat</th><th>Finishes 23:00+ a year†</th><th>Saturdays a year†</th></tr></thead><tbody>
 ${tr(todayRow,'today')}
 ${rows.map(r=>tr(r)).join('\n')}
