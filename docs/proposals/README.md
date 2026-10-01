@@ -161,6 +161,16 @@ and 7 (9) · Weekday Lates 4 (5) and 7 (9) · Anchored Lines 1 (1) and 7 (7) · 
 in a row, where they had said 5 and 9 against the proposals' fixed-rota 0 and 6 — by editing the PowerPoint files
 directly (the pptxgenjs build scripts live outside this repository) and re-exporting the PDFs. The index table below keeps
 its worst-case figures, as labelled.
+
+**Shorthand tightened after an external review (1 Oct 2026).** The review found nothing numerically misleading but some
+true figures framed more strongly than the calculation behind them. Already right before it (the reviewer had an earlier
+copy): "contracted days", "Sunday work stays overtime", Familiar Nine's "8 of 16 shift times you already work", "in the
+fixed rota" on every fatigue figure, and the yearly-figures note on the pay and late-finish slides. Changed: "no extra
+hours" → "no extra **contracted** hours" (colleague slide 2); every "never fewer than three on the floor" / "fewest ever
+on the floor" → "**rostered** on the floor" (it is the rota, not sickness or disruption); the late-finish trade-off
+says "on the fixed rota"; Familiar Nine's strap says "more than half its duties at times people already work" (54 of 94
+duties, 57%), not "most". Not done: a page-6 line naming the three flexible rules — the owner's decision of 30 Sep 2026 is
+that they never appear on a proposal sheet (the manager decks name them).
 The Links compare test that used Short Closer as its
 real-design fixture now uses *Weekday Lates*, which has the same shape (tiring patterns present in both at different figures).
 

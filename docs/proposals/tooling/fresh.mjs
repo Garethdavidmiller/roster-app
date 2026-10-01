@@ -21,7 +21,7 @@ import { materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs
  *  waived for that design (WAIVERS, below). */
 export const STRAPS = {
   'FR-24-F34s': ['The ticket office rostered in fixed pairs, every other duty timed so the floor follows the trains', 'search'],
-  'F9-24-K31s': ['No duty over nine hours, and most duties at times people already work', 'search'],
+  'F9-24-K31s': ['No duty over nine hours, and more than half its duties at times people already work', 'search'],
   'FT-24-EXT':  ['Fifteen shift times, three fewer than today', 'hand'],
   'WL-24-EXT':  ['Weekday closers from 16:25, with Saturday largely in today’s shift times', 'hand'],
   'WL2-24-R21': ['Weekday closers from 16:25, with extra cover under the 17:00 peak', 'hand+search'],
