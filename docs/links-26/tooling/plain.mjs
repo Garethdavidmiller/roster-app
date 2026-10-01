@@ -682,6 +682,9 @@ table.t.rules tr.rule-miss + tr.rule-miss td { box-shadow: inset 0 1px 0 color-m
 /* page 3's word list ended 2mm above the footer rule on every sheet: a touch less leading gives it the margin the
    other pages have */
 section.page .gloss { line-height: 1.33; } section.page .gloss > div { margin-bottom: 4px; }
+/* page 3 at 26 lines (render.mjs measures and adds these only when the word list would cross the footer) */
+section.page.rota-tight .gloss { font-size: 8.9px; line-height: 1.27; } section.page.rota-tight .gloss > div { margin-bottom: 2px; } section.page.rota-tight h2 { margin-top: 8px !important; }
+section.page.rota-tighter .print-grid .shift-cell { height: 18px; } section.page.rota-tighter .print-grid .shift-cell-btn { line-height: 1.05; font-size: 8.2px; }
 /* page 3: a cover week's days were a pale gold within a shade of an early turn's peach, in the grid and in its key.
    A light diagonal hatch on the same gold says "not yet given a turn" at a glance, in colour or not. The app's own
    Links page is untouched: this is the sheet's stylesheet. */

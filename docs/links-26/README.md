@@ -59,7 +59,19 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 - **Duty table:** a weekday of 15 duties and 7,440 minutes, proven; a Saturday of 14 at 6,900, proven, every time
   already worked today; a Sunday of 10. Together that is 44,100 Monday-to-Saturday minutes over 89 duties, exactly the
   contract at the 219-day ceiling (218.6).
-- **Rota and sheet:** being checked next. The rota search runs on that table, and a sheet will be rendered from the result.
+- **Rota and sheet:** a 2.5-minute rota search on that table (`MODE=rules`, 40,000 steps × 2 restarts, seed 7) placed
+  it on 26 lines, and its eight-page sheet rendered with every figure and word at 26 lines. Page 3's word list is set
+  tighter, by measurement, when the extra rows push it towards the footer.
+
+**What the test rota shows** (`tooling/results/test-rota-RT26-7.json`, from `tooling/results/test-table.json`). It is
+a pipeline check, not a proposal: nobody has looked at it as a rota. But it meets **all 9 December rules and all 3
+flexible rules**, with these figures:
+- no fatigue warnings, at most 6 days in a row, shortest rest 14h 05m;
+- 6 full weekends off, 13 of 21 weeks on one turn;
+- 218.6 contracted days a year;
+- cover weeks at 1, 6, 11, 16 and 21.
+
+Its weak spot is 7 single rest days. So the 26-line rules can be met, and comfortably.
 
 **Commands** (from `tooling/`; the `H=` settings are Familiar Nine's office handling — see `../links-24/README.md`):
 
