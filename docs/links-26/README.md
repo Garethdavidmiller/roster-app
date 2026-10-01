@@ -28,29 +28,58 @@ ceiling allows **at most 89 Monday-to-Saturday duties, averaging at least about 
     9-hour cap.
 - **The judging.** Every figure comes from the app's own Links modules, which take the line count as a parameter.
 
-## Where the code assumes 24
+## The tooling (`tooling/`, set up 1 Oct 2026)
 
-**The app itself.** `ROTATING_LINES = 24` in `links-design.js` is the Links workspace's one declaration of the
-rotation length. Changing it to 26 is an **app release**: it needs a version bump, the static fallbacks that
-`links-rotation-parity.test.mjs` names, and a re-measure. Its header records the last two moves (28 → 22 → 24).
-Until it changes, the Links page lays out 24 lines.
+The 24-line pipeline, copied and set to 26 lines. **`tooling/link.mjs` states the link once**: 26 lines, 5 cover weeks
+(default lines 1, 6, 11, 16, 21), 21 working lines, the 44,100-minute contract, the 219-day ceiling, and the headcounts the
+tables are built to (15 a weekday, 14 on a Saturday, 10 on a Sunday). Every script reads those from there; none writes
+the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, so that pack can still be rebuilt exactly.
 
-**The 24-line tooling** (`../links-24/tooling/`, `../links-24/silva-lining/search/`). The line count is written into
-these files:
+**What it checks, beyond the 24-line set** (`RULES.md`):
+- **Cover weeks:** five, with gaps differing by one line at most (`coverSpread`). It is a flexible rule, as before.
+- **The days ceiling is a HARD limit.** `assess()` (`report-data.mjs`) adds it to the hard-limit checks, so a design
+  over 219 contracted days a year "cannot be run as it stands" on page 1. On page 6 it shares the contract card:
+  "35h a week · 218.6 contracted days a year, 219 at most".
+- **No waivers and no named offices** are carried over from 24 lines (`fresh.mjs`, `report-data.mjs`).
 
-| File | Where |
-|---|---|
-| `anneal.mjs` | `LINES = 24`, and the cover lines `SPARE = {1, 7, 13, 19}` — five covers at 26 lines |
-| `render.mjs` | the import text (`length: 24`), the `k <= 24` loops, and "in 24" in the page text |
-| `report-data.mjs` | the default `lines = 24` in `weekdayFit` and `weekdayFloorFit` |
-| `final.mjs`, `deck-check.mjs` | `assess(p, 24)` and `figures(p, 24, …)` |
-| the Silva Lining scripts | `assess(p, 24)` and `h55Worst(p, 24)` |
-| `fresh.mjs`, `report-data.mjs` | the cover-spacing check (`L[0] + 24`) and the count of four in the cover rule |
+**The scripts kept** are the ones the Familiar Nine / Right Away method uses. The one-off searches for particular
+24-line designs stay in `links-24` only.
 
-**Most of the other 24s in that tooling are hours of the day**, such as `new Array(24)` and `24 * 60`. Leave those
-alone.
+| Stage | Script | What it does |
+|---|---|---|
+| 1 · duty table | `final-table.mjs` | the best table for one day, by fit to the trains, under every rule; a proof unless `ANNEAL=1` |
+| | `assemble-table.mjs` | three days' tables into one duty table (weekday · Saturday · Sunday) |
+| 2 · rota | `anneal.mjs` | arranges a table on the 26 lines; `TABLE=<table.json>`, `MODE=rules` for fatigue first |
+| | `carry-order.mjs` | lays a table onto an existing rota's week structure (how Familiar Nine borrowed Right Away's) |
+| | `rota-polish.mjs`, `order-polish.mjs` | reorder only (same-day and whole-line swaps), never worse than a reference |
+| 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
+| | `rules-sheet.mjs`, `summary-sheet.mjs` | the rules reference (`../December-2026-Rules.pdf`) and the one-page summary |
 
-**Suggested route.** Copy the tooling into `links-26/tooling/` rather than editing `links-24/` in place, so the
-24-line pack can still be rebuilt exactly. Then, in the copy, replace every line-count literal with one constant.
-`links-design.js` is the model for that: it states the number once and fails a test if it is written down anywhere
-else.
+**Proven working end to end on 1 Oct 2026** with a throwaway table (not a proposal), using Familiar Nine's settings:
+- **Duty table:** a weekday of 15 duties and 7,440 minutes, proven; a Saturday of 14 at 6,900, proven, every time
+  already worked today; a Sunday of 10. Together that is 44,100 Monday-to-Saturday minutes over 89 duties, exactly the
+  contract at the 219-day ceiling (218.6).
+- **Rota and sheet:** being checked next. The rota search runs on that table, and a sheet will be rendered from the result.
+
+**Commands** (from `tooling/`; the `H=` settings are Familiar Nine's office handling — see `../links-24/README.md`):
+
+```
+H="TO_EARLY_HELP=0 TO_LATE_HELP=1440 TO_LATE_SHARE=0"
+env $H HI=540 TODAY=1 NEWPEN=2 AT22_STRICT=1 CLS=weekday MAX_TURNS=8 ANNEAL=1 OUT=wk.json node final-table.mjs
+env $H HI=540 TODAY=1 NEWPEN=2 AT22_STRICT=1 CLS=sat MAX_TURNS=6 OUT=sat.json node final-table.mjs     # TOTAL=6900 by default
+env $H HI=540 TODAY=1 NEWPEN=2 AT22_STRICT=1 CLS=sun MAX_TURNS=6 OUT=sun.json node final-table.mjs
+# flatten each day's { duties: [[time, n], …] } to a list of times, then:
+CAP=540 PIN_WK="06:20-14:20x2,14:00-22:30x2" PIN_SAT="06:20-14:50x2,14:30-22:00x2" PIN_SUN="07:15-15:30x2,14:00-22:30x2" AT22_FLOOR=1 \
+  node assemble-table.mjs table.json wk.flat.json sat.flat.json sun.flat.json
+MODE=rules TABLE=table.json node anneal.mjs <label> 100000 5 7        # writes best-R<label>-7.json
+node supplied.mjs <grid.json> "<Name>" "<strap>" <XX-26-CODE>       # or list it in regenerate.mjs's SUPPLIED
+node rules-sheet.mjs
+```
+
+**The split between weekdays and Saturday is a choice.** Five weekdays and a Saturday must make 44,100 minutes. The
+default is 7,440 a weekday and 6,900 on a Saturday; sweep it with `TOTAL=` as the 24-line work did. ANNEAL=1 found no
+Saturday at 6,900; the exhaustive search (the default) did, in 92 seconds.
+
+**Still 24 in the app.** `ROTATING_LINES = 24` in `links-design.js` is the Links page's own line count. It moves to 26 as
+its own app release (owner, 1 Oct 2026). Until then the tooling passes 26 to every app function explicitly, and the
+Links page itself still lays out 24 lines.

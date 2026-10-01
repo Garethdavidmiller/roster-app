@@ -1,0 +1,144 @@
+// Render a proposal PDF for a design that was SUPPLIED rather than searched.
+//
+// `final.mjs` picks a winner out of the annealer's candidates and renders it. A design that arrived
+// as somebody's Word table has no candidates, no table variant and no seed — and the method page
+// must not claim a search it never had, which is why `meta.method` exists and why the identity code
+// ends in EXT. Everything else is identical: every figure on every page is computed from the cells
+// by the app's own modules, exactly as it is for the two searched proposals.
+//
+//   node supplied.mjs <patterns.json> "<Name>" "<strap>" <CODE>
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { assess, today, demand, startMinutes, endMinutes, weekdayFit, weekdayFloorFit } from './report-data.mjs';
+import { renderPdf } from './render.mjs';
+import { DAYS, calcHourlyCoverage } from '../../../links-design.js';
+import { LINES, COVER_WEEKS, WORKING_LINES } from './link.mjs';
+
+const [file, NAME, STRAP, CODE] = process.argv.slice(2);
+const patterns = (j => j.patterns ?? j)(JSON.parse(readFileSync(file, 'utf8')));   // a bare grid, or rota-polish.mjs's { feasible, patterns }
+// Optional per-design copy: <patterns>.meta.json. Any key here overrides the defaults below, so a
+// second supplied design does not mean a second copy of this script.
+const OVER = existsSync(file.replace(/\.json$/, '.meta.json'))
+  ? JSON.parse(readFileSync(file.replace(/\.json$/, '.meta.json'), 'utf8')) : {};
+
+const fingerprint = p => createHash('sha256').update(JSON.stringify(Object.keys(p).sort((a,b)=>a-b).map(k => DAYS.map(d => p[k][d])))).digest('hex').slice(0, 8);
+
+if (Object.keys(patterns).length !== LINES) throw new Error(`${file}: ${Object.keys(patterns).length} lines, the link has ${LINES} (link.mjs)`);
+const P = { patterns, lines: LINES, ...assess(patterns, LINES) };
+
+// CHANGED CELLS AGAINST THE PARENT (24 Sep 2026). A hand-edited design names its parent in its
+// meta.json (`parent: { file, name, code }`) and the cells that differ are OUTLINED on the page 4
+// grid, so a reader sees the edit rather than reconstructing it from the lineage prose. Only a
+// LOCAL edit is worth this — a re-searched or reordered child differs on most of the grid, and
+// outlining a hundred cells says nothing — which is why the searched and reordered designs carry no
+// `parent` key. The count is stated in the legend and never typed.
+const changed = (() => {
+  if (!OVER.parent?.file || !existsSync(OVER.parent.file)) return null;
+  const q = JSON.parse(readFileSync(OVER.parent.file, 'utf8')); const pp = q.patterns ?? q; const cells = [];
+  for (let k = 1; k <= LINES; k++) for (const d of DAYS) if (patterns[String(k)][d] !== pp[String(k)][d]) cells.push(`${k}|${d}`);
+  return { cells, lines: new Set(cells.map(c => c.split('|')[0])).size, parent: OVER.parent };
+})();
+const T0 = today(); const T = { ...T0, ...assess(T0.patterns, T0.lines) };
+
+// Comparators (26 lines, 1 Oct 2026): this design and today's link only. The 24-line renderer also set the workspace's
+// generated default and two searched 24-line proposals beside it; none of those is a 26-line design.
+const step = a => String(a.fatigue.results.find(r => r.code === 'FF18')?.value ?? '').replace(/.*typically /, '').replace(' a week','');
+const alt = (name, a, chosen = false, p = null) => ({ name, run: a.checks.longestStretch, present: a.fatigue.present,
+  weekends: a.checks.weekendsOff, oneTurn: `${a.feel.oneTurn}/${a.feel.workingLines}`, step: step(a),
+  fit: p ? weekdayFit(p) : '—', floor: p ? weekdayFloorFit(p) : '—', score: '—', chosen });
+
+const alternatives = [alt(`${CODE} · ${fingerprint(patterns)} — <b>${NAME}</b> (this proposal)`, P, true, patterns)];
+// Other candidates this design was chosen OVER — named in the meta file as {label, file}. The
+// point of listing them is the repo's own "switches, not a formula": show what the pick cost,
+// rather than hide four different answers behind one score.
+for (const x of (OVER.extraAlternatives ?? [])) {
+  if (!existsSync(x.file)) continue;
+  const j = JSON.parse(readFileSync(x.file, 'utf8'));
+  const pp = j.patterns ?? j;
+  alternatives.push(alt(`${x.label} · ${fingerprint(pp)}`, assess(pp, Object.keys(pp).length), false, pp));
+}
+// Today's weekday fit is the 20-line link's own (T.wkFit), never the link padded to 24 by repeating
+// lines 1–4 — that read 44.7 against the real 51.1. See `wkFit` in report-data.mjs.
+alternatives.push(alt("Today's 20-line link (for scale)", T, false, null));
+alternatives[alternatives.length-1].fit = T.wkFit; alternatives[alternatives.length-1].floor = T.office.wkFit;
+
+// ── The December 2026 timetable design figures, every one CHECKED ON THIS DESIGN. Same expressions as final.mjs,
+//    so a rule this design misses reads as missed rather than quietly going unstated.
+const cnt = (day, pred) => Object.values(P.patterns).filter(r => r[day] !== 'RD' && r[day] !== 'SPARE' && pred(r[day])).length;
+// Weekdays are not one day: a range across Mon-Fri where they differ, and the WORST weekday decides a pass
+// (owner, 24 Sep 2026 -- every one of these rows read Tuesday and called it the week).
+const WDAYS = ['mon','tue','wed','thu','fri'];
+const wdMin = pred => Math.min(...WDAYS.map(d => cnt(d, pred)));
+const wdCnt = pred => { const v = WDAYS.map(d => cnt(d, pred)); const lo = Math.min(...v), hi = Math.max(...v); return lo === hi ? String(lo) : `${lo}–${hi}`; };
+const hm = m => `${Math.floor(m/60)}h${String(m%60).padStart(2,'0')}`;
+const rules = [
+  { rule: 'Four on at the open, every day', value: `${wdCnt(t => t.startsWith('06:20'))} weekday · ${cnt('sat', t => t.startsWith('06:20'))} Saturday · ${cnt('sun', t => t.startsWith('07:15'))} Sunday`, ok: wdMin(t => t.startsWith('06:20')) === 4 && cnt('sat', t => t.startsWith('06:20')) === 4 && cnt('sun', t => t.startsWith('07:15')) === 4, note: '' },
+  { rule: 'Three through to the close; four on a Saturday', value: `${wdCnt(t => t.endsWith('23:55'))} weekday · ${cnt('sat', t => t.endsWith('23:55'))} Saturday · ${cnt('sun', t => t.endsWith('23:25'))} Sunday`, ok: wdMin(t => t.endsWith('23:55')) === 3 && cnt('sat', t => t.endsWith('23:55')) === 4 && cnt('sun', t => t.endsWith('23:25')) === 3, note: '' },
+  { rule: 'Five still on duty at 22:00', value: `${wdCnt(t => endMinutes(t) > 22*60)} weekday · ${cnt('sat', t => endMinutes(t) > 22*60)} Saturday`, ok: wdMin(t => endMinutes(t) > 22*60) === 5 && cnt('sat', t => endMinutes(t) > 22*60) === 5, note: 'a 22:00 finish is not "on at 22:00"' },
+  { rule: 'Fourteen on a Saturday, ten on a Sunday', value: `${P.daily.sat} · ${P.daily.sun}`, ok: P.daily.sat === 14 && P.daily.sun === 10, note: '' },
+  { rule: 'Cover weeks, evenly spread', value: `${P.feel.spareLines.length} weeks at lines ${P.feel.spareLines.join(', ')} — gaps ${P.adj.spareGaps.join(', ')}`, ok: P.feel.spareLines.length === COVER_WEEKS && P.adj.spareExcess === 0, note: P.feel.spareLines.length !== 4 ? `the December 2026 staffing shape asks for four; this design has ${P.feel.spareLines.length}` : P.adj.spareExcess === 0 ? '' : 'the December 2026 staffing shape asks for four, evenly spread — the count is right; the spread is not' },
+  { rule: 'About 4.2 days a week worked, Mon–Sat', value: `${P.totals.daysAverage.toFixed(2)} over the ${P.feel.workingLines} working lines`, ok: Math.abs(P.totals.daysAverage - 4.2) < 0.15, note: '' },
+  { rule: 'No :05 or :10 times except the open and close', value: P.tableRows.every(r => !/[:](05|10)$/.test(r.time.split('-')[0]) && !/[:](05|10)$/.test(r.time.split('-')[1])) ? 'none' : 'present', ok: P.tableRows.every(r => !/[:](05|10)$/.test(r.time.split('-')[0]) && !/[:](05|10)$/.test(r.time.split('-')[1])), note: '' },
+  (() => { const rows = P.tableRows.filter(r => r.weekday > 0 || r.sat > 0);
+      const E = rows.filter(r => startMinutes(r.time) < 11*60).map(r => r.minutes).sort((a,b)=>a-b);
+      const L = rows.filter(r => startMinutes(r.time) >= 11*60).map(r => r.minutes);
+      const ok = E.length > 1 && L.length > 0 && E[0] < Math.min(...L) && E[1] > Math.max(...L);
+      return { rule: 'Late turns slightly shorter than most earlies', ok,
+        value: ok ? `met — lates ${hm(Math.min(...L))}–${hm(Math.max(...L))}, earlies ${hm(E[0])} then ${hm(E[1])}–${hm(E[E.length-1])}`
+                  : `not met — lates ${hm(Math.min(...L))}–${hm(Math.max(...L))}, earlies ${hm(E[0])}–${hm(E[E.length-1])}`,
+        note: ok ? 'one short open turn, then every other early longer than every late' : 'the longest late is longer than the longest early' }; })(),
+];
+
+const dm = (await import('../../../links-design.js')).dutyMinutes;
+const dayMin = d => Object.values(P.patterns).reduce((a,r)=> a + (r[d]==='RD'||r[d]==='SPARE' ? 0 : dm(r[d])), 0);
+const WK = ['mon','tue','wed','thu','fri'].map(dayMin), SAT = dayMin('sat');
+const monSat = WK.reduce((a,b)=>a+b,0) + SAT;
+
+const sundayOut = demand.movementsOutside(demand.movements.sun, 7*60+15, 23*60+25);
+const meta = {
+  date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+  tables: '—', steps: '—', kind: 'EXT',
+  changed,
+  identity: { name: NAME, strap: STRAP, code: CODE, fingerprint: fingerprint(patterns), table: '—', seed: '—',
+    lineage: 'Supplied as a grid and assessed here: every figure is computed from its cells by the same modules as every other design.' },
+  h7: 'Where it came from',
+  sub7: 'Checkable rather than reproducible: there is no search behind it, and every figure is computed from the cells',
+  methodHeading: 'Where this design came from',
+  method: `<p><b>1 · It was supplied, not searched.</b> This rotation arrived as a Word table and was read straight into the app's own shape — ${LINES} lines, Sunday to Saturday, cover weeks as whole weeks. No table was enumerated for it, no grid was annealed and no seed produced it, so unlike <i>Same Turns</i> and <i>By the Book</i> there is no search to reproduce. What can be reproduced is every figure on these pages: they are computed from the cells opposite.</p>
+  <p><b>2 · The judge is the same.</b> Scored by the workspace's own modules — <span class="tt">runDesignChecks</span>, <span class="tt">weeklyHours</span>, <span class="tt">assessHardLimits</span>, <span class="tt">assessFatigue</span>, <span class="tt">scoreOrder</span>, <span class="tt">calcHourlyCoverage</span> — with no figure typed by hand and none softened. Where the design misses one of the December 2026 timetable rules, the table opposite says so rather than omitting the row.</p>
+  <p><b>3 · What that means for the room.</b> A supplied design is judged on the same evidence as a searched one, and it carries the same class-C caveats: the ${LINES}-line length, the cover-week count and the December 2026 headcounts are owner-relayed figures, and the 13-day limit's policy citation is still outstanding. This is not a recommendation.</p>`,
+  // The stock paragraph under the alternatives table narrates a SEARCH — "two candidates tied on
+  // every rule; the fit decided it". There were no candidates: that is the whole point of this
+  // renderer, and the sentence was quietly contradicting the method page opposite it. A supplied or
+  // derived design gets a truthful default instead; a per-design meta may still override it.
+  pickNote: `  <p class="muted"><b>How to read this table:</b> nothing here was picked by a search &mdash; this design was supplied or derived, and the rows are the comparisons it is being judged against. <i>Wk fit</i> is how evenly the WEEKDAY cover follows the December 2026 timetable traffic curve (lower is better; today's link scores what it scores), so it says nothing about Saturday or Sunday. <i>Floor fit</i> is the same measure with the ticket office taken out — today's own (one Sunday late) out of today, the plan's out of every design. <b>Score</b> is the search's own feel objective and is blank here, because no search produced this design &mdash; a blank is not a bad score. The workspace default is the app's own December 2026 duty table, generated and reordered with every switch on.</p>`,
+  sundayNote: `Sunday: ${sundayOut.after?.length ?? 5} December 2026 timetable movements fall after the 23:25 finish — the standing question on whether Sunday's window moves; the window is stored per design, so this proposal can be rebuilt to either answer.`,
+  designRules: rules, alternatives,
+  // 23 turns in the union against Same Turns' 18: the one-column duty table overflows onto a tenth
+  // page at the default size, so this design takes the dense recipe By the Book already uses.
+  denseDuty: true,
+  sub1: `A ${LINES}-line link supplied as a Word table and assessed here — weekday lates at 16:25, Saturdays left as they are, and every turn a time people already work`,
+  coverNote: `gaps of ${P.adj.spareGaps.join(', ')} around the wheel — today's sit at 1, 7, 12, 17`,
+  intro2: `<p>It was not drawn by this app. It arrived as a Word table — a proposal from outside the workspace — and was read straight into the app's own shape, then judged by the same modules that judge a design the workspace generated itself: <span class="tt">runDesignChecks</span>, <span class="tt">weeklyHours</span>, <span class="tt">assessHardLimits</span>, <span class="tt">assessFatigue</span>, <span class="tt">scoreOrder</span> and <span class="tt">calcHourlyCoverage</span>. There is no search behind it and nothing to reproduce; what can be checked is every figure on these pages, each computed from the cells on page 8. Paste those cells into Links &rarr; Import and the workspace restates all of it.</p>`,
+  eyebrow3: 'A supplied design, assessed',
+  h3: 'Same feel, more people',
+  sub3: 'What this design keeps of today, and where the December 2026 headcounts differ',
+  // The stock sentence quotes Same Turns' own 6,980/7,100 split. This design does NOT have a uniform
+  // weekday table, so that line would be false here — the figures below are computed from the cells.
+  dutyNote: `Why the duties land where they do: Monday to Saturday totals exactly ${monSat.toLocaleString('en-GB')} minutes, which is ${WORKING_LINES} &times; 35h to the minute, so the contract is paid. But unlike a table built day-uniform, <b>the weekdays here are not equal</b> &mdash; ${WK.map((m,i)=>`${['Mon','Tue','Wed','Thu','Fri'][i]} ${m.toLocaleString('en-GB')}`).join(' &middot; ')}, and Saturday ${SAT.toLocaleString('en-GB')}. Monday is the lightest day by some margin and Thursday the heaviest; that is a property of the design rather than a fault, but it is the first thing to put to the roster office, because it decides how much cover each day really has.`,
+  // COMPUTED default. The first default was Weekday Lates' own prose — its 9h10 closer, its cover-week
+  // gaps and a "five" the December 2026 staffing shape never asked for — and every supplied design without a meta
+  // file would have inherited those figures as its own. Weekday Lates keeps its prose in its meta.
+  openQuestions: `<b>The December 2026 timetable figures this design does not meet:</b> ${rules.filter(r => !r.ok).map(r => `${r.rule.replace(/^[A-Z]/, c => c.toLowerCase())} (${r.value})`).join('; ') || 'none — every row on this page is met'}. <b>Sunday's finish</b> — ${sundayOut.after?.length ?? 5} December 2026 timetable movements fall after 23:25; this design inherits today's window rather than deciding it.`,
+};
+
+writeFileSync('supplied-import.txt', Array.from({ length: LINES }, (_, i) => `${i+1}\t${DAYS.map(d => P.patterns[String(i+1)][d] === 'SPARE' ? 'SP' : P.patterns[String(i+1)][d]).join('\t')}`).join('\n'));
+writeFileSync('supplied.json', JSON.stringify({ name: `${NAME} — Dec 2026 (${CODE} · ${fingerprint(patterns)})`, patterns }, null, 1));
+const out = process.env.OUT ?? `${process.cwd()}/${NAME.replace(/ /g,'-')}-${CODE}-${fingerprint(patterns)}.pdf`;
+// `identity` is merged rather than replaced: a per-design file should be able to correct the
+// lineage without having to restate the code, and above all without restating the FINGERPRINT,
+// which must stay computed from the cells.
+await renderPdf({ today: T, prop: P,
+  meta: { ...meta, ...OVER, identity: { ...meta.identity, ...(OVER.identity ?? {}) } }, demand }, out);
+console.log('rendered ->', out);
+console.log('facts:', JSON.stringify({ hoursExSun: P.hours.exSunday, run: P.checks.longestStretch, turnarounds: P.checks.turnarounds.length, weekends: P.checks.weekendsOff, present: P.fatigue.present, fingerprint: fingerprint(patterns) }));
