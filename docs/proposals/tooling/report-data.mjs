@@ -252,7 +252,7 @@ export function flexibleRules(P, T, model = 'plan') {
 }
 export function sheetRules(P, T, model = 'plan') {
   const R = currentRules(P, T, model);
-  const rows = R.rows.flatMap(r => r.key === 'heads' ? [{ key: 'sunday', rule: 'Ten on a Sunday', value: `${P.daily.sun}`, ok: P.daily.sun >= 10, note: '' }]
+  const rows = R.rows.flatMap(r => r.key === 'heads' ? [{ key: 'sunday', rule: 'Ten on a Sunday', value: `${P.daily.sun}`, ok: P.daily.sun >= 10, note: 'every duty rostered that day counts' }]
     : r.key === 'cover' || r.key === 'closer' ? [] : [r]);
   return { ...R, rows, met: rows.filter(r => r.ok).length, of: rows.length };
 }
@@ -320,7 +320,7 @@ export function currentRules(P, T, model = 'plan') {
     { key: 'closer', rule: 'Every weekday closer starts at 15:45', value: closerStarts.length ? `closers start at ${andList(closerStarts)}` : 'no weekday closer', ok: wkClosers.length > 0 && wkClosers.every(s => s === '15:45-23:55'), note: '' },
     { key: 'floor', rule: 'At least two on the floor at every moment', value: `fewest ${wkFloor} · ${fm.sat} · ${fm.sun}${floorWhen ? ` — first at ${floorWhen}` : ''}`, ok: ALL.every(d => fm[d] >= 2), note: namedAll ? 'the ticket office counts only while its staff are on the floor — at the quiet ends and once the office has closed, as this design runs it; checked every five minutes' : 'the ticket office counts only while its staff help on the floor — Mon–Sat one of each pair until 08:00 and from 19:30; on a Sunday one early until 09:00, both lates until 15:00 and one from 18:00; checked every five minutes' },
     { key: 'handover', rule: 'Handovers: 15 minutes to each closer, 20 in the ticket office (30 on a Sunday)', value: `floor ${floorHand ? 'met' : 'not met'} · ticket office ${Math.min(...overlaps)} min${assumedDays && model === 'plan' ? ` (${assumedDays === 7 ? 'posts' : `posts on ${assumedDays} day${assumedDays === 1 ? '' : 's'}`} assumed)` : ''}`, ok: floorHand && ALL.every(d => hv[d].overlap >= hv[d].need), note: namedAll ? 'the ticket office overlap is from its first late arriving to its last early leaving, as this design runs it; on a Sunday each opener also stays until 15 minutes after the last closer arrives' : 'the Sunday office handover runs from 15:00, when the lates join it; on a Sunday each opener also stays until 15 minutes after the last closer arrives; where the design does not roster the office pairs, the plan’s posts are assumed' },
-    { key: 'sunlen', rule: 'Sunday duties between 8h and 9h', value: sunLens.length ? `${hmm(Math.min(...sunLens))}–${hmm(Math.max(...sunLens))}` : '—', ok: sunLens.length > 0 && sunLens.every(m => m >= 480 && m <= 540), note: '' },
+    { key: 'sunlen', rule: 'Sunday duties between 8h and 9h', value: sunLens.length ? `${hmm(Math.min(...sunLens))}–${hmm(Math.max(...sunLens))}` : '—', ok: sunLens.length > 0 && sunLens.every(m => m >= 480 && m <= 540), note: 'every Sunday duty, start to finish' },
     { key: 'times', rule: 'No more shift times than today', value: `${P.feel.distinctTimes}`, ok: P.feel.distinctTimes <= T.feel.distinctTimes, note: `today ${T.feel.distinctTimes}` },
   ];
   return { rows, met: rows.filter(r => r.ok).length, of: rows.length, pairDays: ALL.filter(pairsOk) };

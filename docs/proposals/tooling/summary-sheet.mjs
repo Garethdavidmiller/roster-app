@@ -46,6 +46,9 @@ td.n{text-align:left} td.n span{color:#5B6778;font-size:8.5pt;margin-left:6px} t
 tr.today td{background:#FFF4C2;border-bottom:2px solid #F5C800}
 td.good{color:#1E7B4B;font-weight:700} td.bad{color:#B3261E;font-weight:700} td.n em.hl{display:block;font-style:normal;color:#B3261E;font-size:8pt;font-weight:600}
 .foot{margin-top:10px;color:#5B6778;font-size:9pt;line-height:1.45}
+/* POLISH (1 Oct 2026): an "up to" note is a caveat, so it is never coloured as the good figure above it */
+td.good .wv { color: #5B6778; font-weight: 400; }
+.lead, .foot { text-wrap: pretty; }
 </style></head><body>
 <h1>December 2026 link proposals — at a glance</h1>
 <p class="lead">All ${rows.length} proposals against today’s link, sorted by December rules met, then avoidable fatigue warnings; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota by the Marylebone Roster app. Staffing levels, a 24-person link and Sunday cover confirmed verbally (29 Sep 2026).</p>

@@ -199,6 +199,17 @@ figure was recounted and was right; what changed was wording, one missing worst 
   average"; "more weekends" → "more full weekends off" (notes add the four more Saturdays a year); four weeks' leave "15
   days at best"; a cover week "at most 4 days of leave"; Sunday 23:25 is "agreed practice (settled 28 Sep 2026)", not
   "will remain so"; "confirmed" → "confirmed verbally (29 Sep 2026)"; today's link "four in the fixed rota (up to five)".
+**A screenshot polish pass (1 Oct 2026, owner).** Every page of every sheet, the summary, the rules sheet and every
+slide was rendered and looked at; no figure changed. Sheets (`tooling/plain.mjs`, `render.mjs`): page 1's four "Can it
+work?" tiles had two accents (a gold side bar under the status bar) and now have one; every top-barred card is square on
+its barred side, so the bar no longer bends into the corners; no paragraph ends on a lone word (`text-wrap: pretty`); a
+"·" separator never starts a line; clock ranges are written 06:20–14:25 on every page (page 4 used a hyphen); page 2's
+day keys ("weekday · Sat · Sun") sit on a line of their own under the question instead of wrapping a word off it; page
+6's rules table and limit cards are set larger to use the third of the page they left empty, and its two blank "what
+the rule asks" cells are filled; page 1 shares any spare room as a little extra space between its sections. Summary: an
+"up to" note under a good figure is grey, not green. Rules sheet: the basics flow down two columns instead of floating
+in uneven gaps. Decks: five taglines that left one word on a second line now fit on one, the leave-table label no
+longer wraps, and the two half-empty slides ("Why the link has to change", "The honest trade-offs") use the slide.
 The Links compare test that used Short Closer as its
 real-design fixture now uses *Weekday Lates*, which has the same shape (tiring patterns present in both at different figures).
 

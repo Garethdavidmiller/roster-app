@@ -131,6 +131,12 @@ ul.list { margin: 3px 0 4px; padding-left: 17px; font-size: 9.8px; line-height: 
 ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 1.42; } ol.open li { margin: 3px 0; }
 .foot { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 8.5px; color: var(--text-light); border-top: 1px solid var(--border-light); padding-top: 4px; }
 .foot b { color: var(--primary-blue); }
+/* POLISH (1 Oct 2026): the basics flow down two columns rather than sitting in a grid whose rows took the height of
+   the longer left-hand item, which left the right-hand ones floating in uneven gaps; a top bar is square on its own
+   side, as on the sheets; no paragraph ends on a lone word */
+.basics { display: block; column-count: 2; column-gap: 18px; } .basics > div { break-inside: avoid; margin: 0 0 4px; }
+.tier { border-radius: 0 0 var(--radius-sm) var(--radius-sm); }
+* { text-wrap: pretty; } h1, h2 { text-wrap: balance; }
 </style></head><body>
 
 <section class="page">

@@ -713,6 +713,27 @@ ${meta.page9 ?? `<section class="page">
   writeFileSync(out.replace(/\.pdf$/, '.html'), html);
   const b = await chromium.launch(); const pg = await b.newPage();
   await pg.goto('file://' + out.replace(/\.pdf$/, '.html')); await pg.evaluate(() => document.fonts.ready);
+  // PAGE 1 BREATHES (polish pass, 1 Oct 2026). A sheet with short staff lists left a fifth of its first page empty
+  // above the footer while every other page is full. The spare room is measured in the PRINTED layout (A4 less the
+  // @page margins, print media) and shared out as extra space above the page's three sections — never more than 14px
+  // each, so a nearly-full page is untouched and an emptier one gains a little air between its parts. A short page
+  // keeps some room at the bottom: fewer concerns is itself the information, and stretching it reads as padding.
+  // Only spacing moves; no text, size or figure.
+  if (FRESH && !process.env.TECH) {
+    await pg.setViewportSize({ width: 711, height: 1032 }); await pg.emulateMedia({ media: 'print' });
+    await pg.evaluate(() => document.fonts.ready);
+    await pg.evaluate(() => {
+      const sec = document.querySelector('section.page.cover.plain'); if (!sec) return;
+      const foot = sec.querySelector(':scope > .foot'), kids = [...sec.children].filter(e => e !== foot);
+      const spare = () => foot.getBoundingClientRect().top - Math.max(...kids.map(e => e.getBoundingClientRect().bottom)) - 16;
+      if (spare() < 24) return;
+      // the staff lists keep their size: larger type wrapped items mid-thought, which reads worse than air
+      const blocks = [...sec.querySelectorAll(':scope > .pbottom, :scope > h2.psec')], left = spare();
+      if (left < 24 || !blocks.length) return;
+      const each = Math.min(14, left / blocks.length);
+      for (const b of blocks) b.style.marginTop = `${parseFloat(getComputedStyle(b).marginTop) + each}px`;
+    });
+  }
   await pg.pdf({ path: out, format: 'A4', printBackground: true, preferCSSPageSize: true });
   await b.close();
 }

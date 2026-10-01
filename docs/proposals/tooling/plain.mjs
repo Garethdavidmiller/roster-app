@@ -345,7 +345,8 @@ function front({ T, P, meta, pages, coverHead }) {
   const broken = key => rules.some(r => r.key === key && !r.ok && !r.waived);
   const byRule = (key, cls) => broken(key) ? 'no' : cls;
   const isWaived = key => rules.some(r => r.key === key && r.waived);
-  const row = (label, t, p, cls, words) => `<tr><td>${label}</td><td class="num">${t}</td><td class="num ${cls}">${mark(cls)}<b>${p}</b></td><td class="muted">${words}</td></tr>`;
+  const lab = l => { const i = l.indexOf(' — weekday'); return i < 0 ? l : `${l.slice(0, i)}<span class="psub">${l.slice(i + 3)}</span>`; };
+  const row = (label, t, p, cls, words) => `<tr><td>${lab(label)}</td><td class="num">${t}</td><td class="num ${cls}">${mark(cls)}<b>${p}</b></td><td class="muted">${words}</td></tr>`;
   const grp = title => `<tr class="pgrp"><td colspan="4">${title}</td></tr>`;
   const sumD = o => Object.values(o).reduce((a, b) => a + b, 0);
   const ruleOf = key => rules.find(r => ({ open: /at the open/i, at22: /22:00/, close: /to the close/i })[key].test(r.rule));
@@ -362,7 +363,7 @@ function front({ T, P, meta, pages, coverHead }) {
   const rows2 = [
     grp('Staffing'),
     row('People on the link', tp.L, pp.L, '', `${pp.L - tp.L} more people, one per line`),
-    row('On duty each day — weekday · Saturday · Sunday', headTrio(T.daily), headTrio(P.daily), byRule('sunday', cmp(sumD(P.daily) > sumD(T.daily), sumD(P.daily) === sumD(T.daily))), `the December levels ask for 10 on a Sunday — ${ruleMetKey('sunday')}`),
+    row('On duty each day — weekday · Sat · Sun', headTrio(T.daily), headTrio(P.daily), byRule('sunday', cmp(sumD(P.daily) > sumD(T.daily), sumD(P.daily) === sumD(T.daily))), `the December levels ask for 10 on a Sunday — ${ruleMetKey('sunday')}`),
     row('On at the open — weekday · Sat · Sun', headTrio(T.heads.open), headTrio(P.heads.open), byRule('open', headCls('open')), `at least 4 every day — ${ruleMet('open')}`),
     row('Still on duty at 22:00 — weekday · Sat · Sun', headTrio(T.heads.at22), headTrio(P.heads.at22), byRule('at22', headCls('at22')), `at least 5 every day — ${ruleMet('at22')}`),
     row('Through to the close — weekday · Sat · Sun', headTrio(T.heads.close), headTrio(P.heads.close), byRule('close', headCls('close')), `at least 3 every day — ${ruleMet('close')}`),
@@ -627,6 +628,22 @@ h2.pmh { font-size: 12.5px; margin: 12px 0 5px; }
 .pcard h4 { margin: 0 0 2px; font-size: 10.6px; color: var(--primary-blue); } .pcard p { margin: 0; font-size: 9.6px; line-height: 1.42; }
 p.pimport { font-size: 9px; margin-top: 8px; }
 @media print { .pm, .mk, .tag, .rpill { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+/* POLISH PASS (1 Oct 2026, owner: "aesthetic polish, using screenshots"). Nothing here moves a figure or a word.
+   ONE ACCENT PER CARD, as the rule above says: page 1's "Can it work?" tiles were the one set it missed — a gold side
+   bar from the technical edition's .tile under a status bar on top, two accents meeting at a rounded corner. And a
+   top bar is SQUARE on its own side: an inset bar on a card rounded at the top bends down into both corners, which at
+   print size reads as a bracket, not a bar. */
+.cover.plain .head4 .tile { border: 0 !important; background: var(--surface-sunken); box-shadow: inset 0 3px 0 var(--bar, var(--border-mid)); padding: 8px 10px 7px; }
+.cover.plain .head4 .tile, .cover.plain .head5 .tile, .cover.plain .pfeel .tile, .hl, .fc, .p4n, .tbox { border-radius: 0 0 8px 8px !important; }
+/* line breaks: no paragraph ends on a lone word, and no heading leaves one behind */
+p, li, td, dd, .s, .l, .q, .sub, .hl-s, .fc-l, .pcard p, .plead, .pbottom { text-wrap: pretty; }
+h1, h2, h3, h4 { text-wrap: balance; } .mast .sub { text-wrap: pretty; }
+/* page 6 used two-thirds of its page: the rules table and the limit cards take the room, at a size read without effort */
+table.t.rules { font-size: 10.8px; } table.t.rules td { padding: 5.5px 8px; line-height: 1.4; } table.t.rules th { padding: 5px 8px; }
+.hl { padding: 10px 13px 11px; } .hl-l { font-size: 9.8px; } .hl-s { font-size: 9.2px; line-height: 1.42; }
+/* page 2: the day key under a question is a second line of its own, never a word or two wrapped off the first */
+table.pcmp td { padding-top: 1.9px; padding-bottom: 1.9px; }
+table.pcmp td .psub { display: block; font-size: 8.6px; color: var(--text-mid); line-height: 1.2; margin-top: 1px; }
 `;
 
 /** Page 5, people on duty hour by hour (owner, 29 Sep 2026: "the table wording is a little confusing"). The tables and
@@ -905,6 +922,9 @@ export function plainEdition(html, ctx) {
   // ONE WAY OF WRITING A LENGTH OF TIME (owner, 30 Sep 2026). Page 2 wrote "13h35" and page 6 "13h 35m" for the same
   // figure, and "13h35" also reads as a clock time. Every duration on every page is "13h 35m"; clock times keep their
   // colon (13:35), so the two can no longer be confused. Text only — never inside a tag or the stylesheet.
-  out = out.replace(/(<style[\s\S]*?<\/style>)|>([^<]+)</g, (m, st, txt) => st ?? `>${txt.replace(/\b(\d{1,3})h(\d{2})\b(?!m)/g, '$1h&nbsp;$2m')}<`);
+  out = out.replace(/(<style[\s\S]*?<\/style>)|>([^<]+)</g, (m, st, txt) => st ?? `>${txt.replace(/\b(\d{1,3})h(\d{2})\b(?!m)/g, '$1h&nbsp;$2m')
+    // POLISH (1 Oct 2026): a separator dot stays at the END of a line, never the start of the next; and a clock range is
+    // written one way on every page — page 4 wrote 06:20-14:25 where pages 2 and 5 wrote 06:20–14:25
+    .replace(/ · /g, '&nbsp;· ').replace(/\b(\d\d:\d\d)-(\d\d:\d\d)\b/g, '$1–$2')}<`);
   return out;
 }
