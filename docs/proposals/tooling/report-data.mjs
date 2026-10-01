@@ -320,6 +320,18 @@ export function currentRules(P, T, model = 'plan') {
 
 // The office model is TODAY'S for the live 20-line link and the PLAN'S for every 24-line proposal; nothing in this
 // folder is 20 lines except today's link, and a caller can say otherwise.
+// THE FIXED DUTIES (owner, 1 Oct 2026: "you were highlighting worst case on cover-week placement for days in a row — now
+// you are just doing worst possible with cover week. Isn't that misleading?"). A cover week is four duties the roster
+// clerk places later, so every run and fatigue figure has two honest answers: on the duties the rota FIXES (the cover
+// weeks left out — the basis every sheet now leads with, for the proposal and today's link alike), and at the WORST place
+// a cover week's four duties could fall (stated beside it as "up to"). The fatigue checks' own figures are the worst case;
+// this is the same checks run with each cover day read as a day off. Hard limits are still tested at the worst case —
+// a limit must hold wherever the clerk puts the four.
+function fixedView(p, lines) {
+  const q = {}; for (const k of Object.keys(p)) { q[k] = {}; for (const d of DAYS) q[k][d] = p[k][d] === 'SPARE' ? 'RD' : p[k][d]; }
+  const fatigue = assessFatigue(q, lines);
+  return { fatigue, present: fatigue.present, run: runDesignChecks(q, lines).longestStretch };
+}
 export function assess(p, lines, officeModel = lines === 20 ? 'today' : 'plan') {
   const keys = Array.from({ length: lines }, (_, i) => String(i+1));
   const checks = runDesignChecks(p, lines), hours = weeklyHours(p, lines), totals = lineTotals(p, lines);
@@ -343,7 +355,7 @@ export function assess(p, lines, officeModel = lines === 20 ? 'today' : 'plan') 
   // like. Until 25 Sep 2026 today's figure was taken by padding the 20-line link to 24 by repeating lines
   // 1–4 (five cover weeks, and four working weeks counted twice): 44.7, where the link itself scores
   // 51.1. That flattered today by six points and read three proposals as worse than it when they are better.
-  return { checks, hours, totals, fatigue, hard, adj, hourly, tableRows, daily, asRostered, feel: feel(p, lines), rest: tightestRest(p, lines), fits: fitsOf(p, lines), wkFit: weekdayFit(p, lines), heads: headcounts(p, lines), office: officeSplit(p, lines, hourly, officeModel) };
+  return { checks, hours, totals, fatigue, hard, adj, hourly, tableRows, daily, asRostered, fixed: fixedView(p, lines), feel: feel(p, lines), rest: tightestRest(p, lines), fits: fitsOf(p, lines), wkFit: weekdayFit(p, lines), heads: headcounts(p, lines), office: officeSplit(p, lines, hourly, officeModel) };
 }
 
 /** Every SHIPPED rotation in docs/proposals, assessed — so a sheet can say where it stands in the folder
@@ -362,7 +374,7 @@ export function folderStats(dir = new URL('..', import.meta.url)) {
       const j = JSON.parse(readFileSync(new URL(f, dir), 'utf8')); const p = j.patterns ?? j; const lines = Object.keys(p).length;
       const A = assess(p, lines);
       out.push({ file: f, name: m[1].replace(/-/g, ' ').replace(/(\d+) (\d+)/g, '$1-$2'), code: m[2], wk: weekdayFit(p, lines), sat: A.fits.sat, sun: A.fits.sun, floor: { wk: A.office.wkFit, sat: A.office.fits.sat, sun: A.office.fits.sun },
-        present: A.fatigue.present, weekends: A.checks.weekendsOff, run: A.checks.longestStretch, rest: A.rest?.minutes ?? null,
+        present: A.fatigue.present, weekends: A.checks.weekendsOff, run: A.checks.longestStretch, fixedPresent: A.fixed.present, fixedRun: A.fixed.run, rest: A.rest?.minutes ?? null,
         oneTurn: A.feel.oneTurn, workingLines: A.feel.workingLines, distinct: A.feel.distinctTimes,
         newTimes: A.tableRows.filter(r => !todays.has(r.time)).length, turnarounds: A.checks.turnarounds.length, rules: sheetRules({ patterns: p, ...A }, TA) });
     } catch { /* a JSON that is not a rotation is not the folder's business */ }

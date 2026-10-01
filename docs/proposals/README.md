@@ -144,6 +144,23 @@ assumed. It moved Polished Clean's figures and nothing else's: two on the floor 
 2 · 2 · 2, was 3 · 0 · 2 — Saturday's 0 came from the assumed posts), so it meets **4 of the 9** soft rules plus the waived
 one; the floor follows the trains 35.9 · 52.9 · 69.6 (was 38.7 · 51.4 · 74.1); the office handover is 60 minutes at its
 shortest (Saturday). Its sheet says so on pages 1, 2, 5, 6 and 8 (the `namedOffice…` keys in `polished-clean.meta.json`).
+
+**One basis for runs and fatigue warnings (1 Oct 2026, owner: "you were highlighting worst case on cover-week placement for
+days in a row — now you are just doing worst possible with cover week. Isn't that misleading?").** It was: page 1's tile
+said "N avoidable warnings **in the fixed duties**" while N was the worst place a cover week's four duties could fall,
+and the decks set the proposals' fixed-rota figures against today's worst case. Every sheet now LEADS with the duties the
+rota fixes — the cover weeks left out, for the proposal and today's link alike (`fixedView` in `tooling/report-data.mjs`)
+— and states the worst placement beside it as "up to": page 1 (the hard-limit and fatigue tiles, the staff bullets),
+page 2 (the two rows, now "…, fixed duties"), page 3's summary line, page 6's run card, page 7 (the head card and every row
+of the table, worst case on the line beneath) and the summary's two columns. Hard limits are still TESTED at the worst
+case: a limit must hold wherever the clerk puts the four. On the fixed duties today's link has **4** avoidable warnings
+(up to 5) and **7** days in a row (up to 9); the proposals, fixed (worst): All Clear 0 (0) and 6 (9) · Familiar Nine 0 (0)
+and 6 (6) · Full Overhaul 0 (0) and 7 (8) · Right Away 0 (0) and 6 (6) · Clean Sweep 2 (3) and 6 (9) · Fifteen Turns 6 (7)
+and 7 (9) · Weekday Lates 4 (5) and 7 (9) · Anchored Lines 1 (1) and 7 (7) · Evening Peak 1 (1) and 6 (6) · Polished Clean
+2 (4) and 6 (9). The four presentations were corrected to match — today's link 4 (up to 5) warnings and 7 (up to 9) days
+in a row, where they had said 5 and 9 against the proposals' fixed-rota 0 and 6 — by editing the PowerPoint files
+directly (the pptxgenjs build scripts live outside this repository) and re-exporting the PDFs. The index table below keeps
+its worst-case figures, as labelled.
 The Links compare test that used Short Closer as its
 real-design fixture now uses *Weekday Lates*, which has the same shape (tiring patterns present in both at different figures).
 
@@ -212,7 +229,7 @@ this file, and every sheet is scored against the nine soft December 2026 rules (
 rules are designed to but never shown on a sheet. Figures in the older sections use the definitions of their day: fits moved to duty minutes on 24 Sep
 and to the floor on 28 Sep.
 
-| Proposal | Code · fingerprint | What it is | Fatigue findings | Longest run | Weekends off |
+| Proposal | Code · fingerprint | What it is | Fatigue findings (worst cover-week placement) | Longest run (worst) | Weekends off |
 |---|---|---|---|---|---|
 | **Right Away** | `FR-24-F34s · 745e98b0` (was `FR-24-F34o · be01f0db`) | **The owner's final rules of 28 Sep 2026**: the ticket office rostered as fixed pairs of identical turns and **not counted as floor cover**, every weekday closer 15:45, the headcounts as minimums, at least two on the floor at every moment, 15-minute handovers (20 in the office), Sunday duties 8h–9h, no more shift times than today — each day enumerated to a proof for the fit of the **floor** as it was measured when it was built; on the sheets' current measure (the office's second person helping at the quiet ends, and the exact edges of each hour) its floor fit is 26.5 weekday, 14.6 Saturday, 26.4 Sunday — 21.7 / 10.5 / 25.9 with everyone counted (the Sunday figures since the 30 Sep 2026 Sunday retime above), the folder's best weekday, 17 turns in the week against today's 18, the rotation fatigue-first and its week order then improved (28 Sep 2026: 14 of 20 weeks on one shift time, heaviest week 41h50) | **0** | 6 | 6 in 24 |
 | **Familiar Nine** | `F9-24-K31s · 598a1294` (was `F9-24-K31 · c450951c`) | **Right Away's rules with two more aims (28 Sep 2026)**: no duty over nine hours, and the shift times people already work wherever they cost little fit — 8 of its 16 times are worked today (9 of 15 before the Sunday retime; Right Away 5 of 17), the longest duty 9h00 (9h30), the weekday table proven; Right Away's week structure carried over and polished until no figure was worse than Right Away's (14 of 20 weeks on one shift time, shortest rest 14h20), for a looser weekday and Saturday fit: 27.7 · 15.0 · 26.4 against 26.5 · 14.6 · 26.4 — the Sunday retime gave both the same Sunday | **0** | 6 | 6 in 24 |

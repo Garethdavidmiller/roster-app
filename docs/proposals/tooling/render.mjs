@@ -169,9 +169,16 @@ export async function renderPdf(D, out) {
   const naBoth = r => PLAIN && r.status === 'n/a' && tOf(r)?.status === 'n/a';
   const naGroups = [...new Set(P.fatigue.results.filter(naBoth).map(r => r.family))].map(f => `${f.toLowerCase()} (${P.fatigue.results.filter(r => naBoth(r) && r.family === f).map(r => r.code).join(', ')})`);
   const naNote = naGroups.length ? `<tr class="ff-na-note"><td colspan="4">Also on the list, and applying to neither link: ${esc(naGroups.join(' · '))}.</td></tr>` : '';
-  const rowsFF = P.fatigue.results.filter(r => !naBoth(r)).map(r => { const t = tOf(r);
+  // PLAIN: each mark and figure is for the FIXED duties (fixedView, report-data.mjs) and the worst cover-week placement,
+  // where it differs, is the line beneath — "up to". The technical edition keeps the worst case and FF11's block reading.
+  const fixedOf = (a, r) => a.fixed?.fatigue.results.find(x => x.code === r.code && x.title === r.title);
+  const rowsFF = P.fatigue.results.filter(r => !naBoth(r)).map(r0 => { const t0 = tOf(r0);
+    const r = PLAIN ? (fixedOf(P, r0) ?? r0) : r0, t = PLAIN && t0 ? (fixedOf(T, t0) ?? t0) : t0;
     const val = x => x ? (x.status === 'n/a' ? (FRESH ? '' : '–') : FRESH && /55 hours/i.test(x.title) && typeof x.value === 'number' ? x.value.toFixed(1) : (x.value ?? '')) : '';
-    const second = (a, code, have) => { const v = have ? asRos(a, code) : null; return v === null ? ''
+    const second = (a, code, have) => { if (PLAIN) { const w = a === P ? r0 : t0, f = a === P ? r : t;
+        return !have || !w || !f || (w.status === f.status && String(val(w)) === String(val(f))) ? ''
+          : `<span class="ff-alt ff-${w.status}">${icon(w.status)} up to ${esc(val(w))} if a cover week falls badly</span>`; }
+      const v = have ? asRos(a, code) : null; return v === null ? ''
       : `<span class="ff-alt ff-${rosStatus(v)}">${icon(rosStatus(v))} ${v} as rostered</span>`; };
     return `<tr class="ff-${r.status}"><td class="ff-code">${r.code}</td><td class="ff-title">${esc(r.title)}${r.confirm?' <span class="muted">(definition to confirm)</span>':''}<span class="ff-fam chip">${esc(r.family)}</span></td>
       <td class="ff-st ff-${t?.status}">${icon(t?.status)} ${esc(val(t))}${second(T, r.code, !!t)}</td><td class="ff-st ff-${r.status}">${icon(r.status)} ${esc(val(r))}${second(P, r.code, true)}</td></tr>`; }).join('');

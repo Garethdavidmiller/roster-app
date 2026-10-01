@@ -104,7 +104,13 @@ function front({ T, P, meta, pages, coverHead }) {
   const breaks = [rests ? `${rests} ${rests === 1 ? 'gap' : 'gaps'} of under 12 hours between shifts` : '',
     run > 13 ? `a run of ${run} days in a row (the limit is 13)` : '',
     monSat !== 42000 ? `${Math.abs(monSat - 42000).toLocaleString('en-GB')} minutes a week ${monSat > 42000 ? 'over' : 'under'} the contract across the link` : ''].filter(Boolean);
-  const present = P.fatigue.results.filter(r => r.status === 'present');
+  // ONE BASIS (owner, 1 Oct 2026): runs and fatigue warnings are compared on the FIXED duties — the cover weeks left out,
+  // for the proposal and today's link alike (fixedView in report-data.mjs) — and the worst place a cover week's four
+  // duties could fall is stated beside them as "up to". Hard limits are still tested at that worst case.
+  const runF = P.fixed.run, runFT = T.fixed.run, runW = run, runWT = T.checks.longestStretch;
+  const ffW = P.fatigue.present, ffWT = T.fatigue.present;
+  const worstDiffers = ffW !== P.fixed.present || ffWT !== T.fixed.present;
+  const present = P.fixed.fatigue.results.filter(r => r.status === 'present');
   const presentPlain = [...new Set(present.map(r => plainFatigue(r.title)))];
   const [tw, ts, tsu] = [T.office.wkFit, T.office.fits.sat, T.office.fits.sun], [pw, ps, psu] = [P.office.wkFit, P.office.fits.sat, P.office.fits.sun];
   const closerDays = [['weekday', pw, tw], ['Saturday', ps, ts], ['Sunday', psu, tsu]].filter(([, p, t]) => p != null && t != null && p < t).map(([d]) => d);
@@ -126,8 +132,8 @@ function front({ T, P, meta, pages, coverHead }) {
   add(weekMoved && pWeekShare > tWeekShare, good, 10, `A full weekend off ${everyN(pWeekShare)} weeks (today ${everyN(tWeekShare)})`);
   add(weekMoved && pWeekShare < tWeekShare, bad, 10, `Fewer full weekends off: ${everyN(pWeekShare)} weeks (today ${everyN(tWeekShare)})`);
   for (const t of meta.thinMoments ?? []) { const m = /(\w+day) (\d\d:\d\d–\d\d:\d\d): only (one person|\d+ people)/.exec(t.replace(/<[^>]+>/g, '')); if (m) add(true, bad, 5, `Only ${m[3]} on duty in the whole station, ${m[1]} ${m[2]}`); }
-  add(run < T.checks.longestStretch, good, 20, `Never more than ${run} days in a row (today ${T.checks.longestStretch})`);
-  add(run > T.checks.longestStretch, bad, 20, `Up to ${run} days in a row (today ${T.checks.longestStretch})`);
+  add(runF < runFT, good, 20, `Never more than ${runF} days in a row in the fixed duties (today ${runFT})`);
+  add(runF > runFT, bad, 20, `Up to ${runF} days in a row in the fixed duties (today ${runFT})`);
   const dayDiff = Math.round(pp.daysYear) - Math.round(tp.daysYear);
   add(dayDiff <= -1, good, 25, `About ${-dayDiff} fewer contracted ${dayDiff === -1 ? 'day' : 'days'} at work a year`);
   add(dayDiff >= 1, bad, 25, `About ${dayDiff} more contracted ${dayDiff === 1 ? 'day' : 'days'} at work a year`);
@@ -173,13 +179,13 @@ function front({ T, P, meta, pages, coverHead }) {
     const fewer = Object.keys(DN).filter(d => P.heads[key]?.[d] < T.heads[key]?.[d]);
     add(fewer.length > 0, bad, 15, `Fewer on duty ${what} on ${andList(fewer.map(d => `${DN[d]} (${P.heads[key][d]}, today ${T.heads[key][d]})`))}`);
   }
-  const ffP = P.fatigue.present, ffT = T.fatigue.present;
+  const ffP = P.fixed.present, ffT = T.fixed.present;
   // the 55-hour row counts a cover week as no hours; where working its four duties would cross 55, page 1 says so
   // rather than calling the count clear (audit, 30 Sep 2026 — page 7 said it, page 1 did not)
   const h55c = meta.h55Cover;
   add(ffP < ffT, good, 50, `${ffP ? `Fewer fatigue warnings — ${ffP} (today ${ffT})` : `No avoidable fatigue warnings in the fixed duties (today ${ffT})`}${h55c ? `; four 8-hour cover duties could reach ${h55c.hi.toFixed(1)} hours in 7 days, over the 55 the guidance names (page 7)` : ''}`);
   add(ffP > ffT, bad, 50, `More fatigue warnings — ${ffP} (today ${ffT})`);
-  const tFF = r => T.fatigue.results.find(x => x.code === r.code && x.title === r.title);
+  const tFF = r => T.fixed.fatigue.results.find(x => x.code === r.code && x.title === r.title);
   const newFFPlain = [...new Set(present.filter(r => tFF(r)?.status !== 'present').map(r => plainFatigue(r.title)))];
   add(newFFPlain.length > 0, bad, 51, `${newFFPlain.length === 1 ? 'A fatigue warning' : `${newFFPlain.length === 2 ? 'Two fatigue warnings' : `${newFFPlain.length} fatigue warnings`}`} today’s link does not have: ${andList(newFFPlain)}`);
   // a pattern in both links that is BIGGER here — "fewer tiring patterns" must not hide it
@@ -261,10 +267,10 @@ function front({ T, P, meta, pages, coverHead }) {
       `today’s link meets ${meta.decToday} · each rule on page 6`),
     tile(breaks.length ? 'bad' : 'good', 'Can it be run within the hard limits?', breaks.length ? 'No' : 'Yes',
       breaks.length ? 'not as it stands' : 'inside every hard limit',
-      `shortest gap ${hm(restMin)} (limit 12h) · most days in a row ${run} (limit 13) · ${monSat === 42000 ? '35-hour contract exact' : `${Math.abs(monSat - 42000).toLocaleString('en-GB')} min a week ${monSat > 42000 ? 'over' : 'under'} the contract, across the link`}`),
+      `shortest gap ${hm(restMin)} (limit 12h) · most days in a row ${runF}${runW !== runF ? `, up to ${runW} if a cover week falls badly` : ''} (limit 13) · ${monSat === 42000 ? '35-hour contract exact' : `${Math.abs(monSat - 42000).toLocaleString('en-GB')} min a week ${monSat > 42000 ? 'over' : 'under'} the contract, across the link`}`),
     tile(present.length ? 'warn' : 'good', 'Any avoidable fatigue warnings?', `${present.length}`,
       present.length ? `avoidable ${present.length === 1 ? 'warning' : 'warnings'} in the fixed duties` : 'none in the fixed duties',
-      `${present.length && presentPlain.length <= 2 ? `${esc(andList(presentPlain))} · ` : ''}today’s link has ${T.fatigue.present}${h55c ? ` · a worked cover week could add a 55-hour week` : ''} · guidance, not a pass or fail · page 7`),
+      `${present.length && presentPlain.length <= 2 ? `${esc(andList(presentPlain))} · ` : ''}today’s link has ${T.fixed.present}${worstDiffers ? ` · up to ${ffW} (today ${ffWT})${h55c ? ' and a 55-hour week' : ''} if a cover week falls badly` : h55c ? ` · a worked cover week could add a 55-hour week` : ''} · guidance, not a pass or fail · page 7`),
     tile(trainsV[2], 'Does staffing follow the trains better?', trainsV[0], trainsV[1],
       `weekdays ${n1f(pw)} (today ${n1f(tw)}) · Sat ${n1f(ps)} (${n1f(ts)}) · Sun ${n1f(psu)} (${n1f(tsu)}) · on weekdays ${offWords(pw, tw) ?? 'lower is closer'} · page 5`),
   ].join('');
@@ -310,7 +316,7 @@ function front({ T, P, meta, pages, coverHead }) {
   <div class="tiles head4">${work}</div>
   ${failBox && waivedBox ? failBox.replace(/<\/div>$/, `<p class="pbw">${waivedBox.replace(/^<div class="pbox pbox-info pwaived">|<\/div>$/g, '')}</p></div>`) : failBox + waivedBox}
   <h2 class="psec">What it would mean for staff</h2>
-  <div class="pcols${badBox.items.length >= 10 ? ' pcols--dense' : ''}">
+  <div class="pcols${badBox.items.length >= 10 || (waivedBox && badBox.items.length >= 9) ? ' pcols--dense' : ''}">
     ${boxHtml('pbox-good', 'Likely positives for staff', goodBox, 'Nothing else notably better than today.')}
     ${boxHtml('pbox-warn', 'What colleagues may be concerned about', badBox, 'Nothing else notably worse than today.')}
   </div>
@@ -354,7 +360,7 @@ function front({ T, P, meta, pages, coverHead }) {
     // a design whose author named its office (NAMED_OFFICE in report-data.mjs) says its own Sunday late in its meta
     row('Ticket office late shift on a Sunday — people', 1, meta.namedOfficeSunLates ?? 2, '', meta.namedOfficeSunWords ?? `the December plan: both in the office 15:00–18:00, then one on the floor; today one 14:30–23:25 closer keeps it until 22:30${(meta.pairDays ?? []).includes('sun') ? '' : ' — this rota does not mark them, so two are assumed from its duties'}`),
     grp('Working pattern'),
-    row('Most days worked in a row', T.checks.longestStretch, run, run > 13 ? 'no' : cmp(run < T.checks.longestStretch, run === T.checks.longestStretch), 'Chiltern’s limit is 13 (written source to confirm)'),
+    row('Most days in a row, fixed duties', runFT, runF, run > 13 ? 'no' : cmp(runF < runFT, runF === runFT), `${runW !== runF || runWT !== runFT ? `up to ${runW} (today ${runWT}) if a cover week falls badly; ` : ''}Chiltern’s limit is 13${runW !== runF || runWT !== runFT ? '' : ' (written source to confirm)'}`),
     row('Shortest gap between two shifts', hm(T.rest?.minutes), hm(restMin), rests ? 'no' : cmp(restMin > T.rest?.minutes, restMin === T.rest?.minutes), 'the limit is 12 hours'),
     row('Full weekends off', `${T.checks.weekendsOff} in ${tp.L}`, `${P.checks.weekendsOff} in ${pp.L}`, cmp(pWeekShare > tWeekShare, everyN(pWeekShare) === everyN(tWeekShare)), `${everyN(pWeekShare)} weeks, against ${everyN(tWeekShare)} today`),
     row('Days at work a year, not counting Sundays', Math.round(tp.daysYear), Math.round(pp.daysYear), '', 'Sundays are overtime; a cover week counts as 4 days'),
@@ -375,7 +381,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('Saturdays worked', Math.round(tp.sat), Math.round(pp.sat), '', 'a rostered Saturday is paid at time and a quarter; cover weeks not counted'),
     row('Sunday overtime to share', Math.round(tp.sun), Math.round(pp.sun), '', 'Sundays are overtime, as today'),
     grp('Fatigue and the rules'),
-    row('Avoidable fatigue warnings (ORR and rail-industry guidance)', T.fatigue.present, P.fatigue.present, cmp(P.fatigue.present < T.fatigue.present, P.fatigue.present === T.fatigue.present), 'guidance, not a pass or fail; early starts and a weekly rotation come with every link — page 7'),
+    row('Avoidable fatigue warnings, fixed duties', T.fixed.present, P.fixed.present, cmp(P.fixed.present < T.fixed.present, P.fixed.present === T.fixed.present), `${worstDiffers ? `up to ${ffW} (today ${ffWT}) if a cover week falls badly; guidance, not a pass or fail` : 'guidance, not a pass or fail; early starts and a weekly rotation come with every link'} — page 7`),
     row('December staffing rules met', `${meta.decToday} of ${meta.decOf}`, `${meta.decMet} of ${meta.decOf}`, failed.length ? 'no' : cmp(meta.decMet > meta.decToday, meta.decMet === meta.decToday), `staffing levels confirmed 29 Sep 2026${waived.length ? `; ${nWord(waived.length)} more waived for this design` : ''} — page 6`),
   ].join('');
   const page2 = `<section class="page plain">
@@ -694,7 +700,7 @@ function rotaPage(s, { P }) {
   const avgWeek = /cov-foot-label">(?:On duty|Cover)<\/td>[\s\S]*?<td class="tot-cell tot-avg">([^<]+)<\/td>/.exec(s)?.[1];
   if (!avgWeek) throw new Error('rotaPage: the average-week total not found');
   const bits = [`<b>${P.feel.workingLines}</b> working weeks`, `<b>${P.feel.spareLines.length}</b> cover weeks`,
-    `<b>${avgWeek}</b> a week on average`, `at most <b>${P.checks.longestStretch}</b> days in a row`, `<b>${P.feel.oneTurn}</b> weeks on one shift time`];
+    `<b>${avgWeek}</b> a week on average`, `at most <b>${P.fixed.run}</b> days in a row${P.checks.longestStretch !== P.fixed.run ? ` (${P.checks.longestStretch} if a cover week falls badly)` : ''}`, `<b>${P.feel.oneTurn}</b> weeks on one shift time`];
   // two words the page itself does not use leave its word list — each is explained where it is used (pages 5 and 6)
   s = must(s, /<div><b>Handover<\/b> — [^<]*<\/div>/, '', 'the Handover gloss');
   // the glossary spoke to a colleague ("You move down a line"); the sheet is read by managers first
@@ -787,7 +793,7 @@ function rulesPage(s, { T, P, meta }) {
   const run = P.checks.longestStretch, rest = P.rest?.minutes, monSat = meta.monSat ?? 42000;
   const card = ([, state, title, sub]) => {
     const ok = state === 'good';
-    const [k, v, lim] = /13 days/.test(title) ? ['Most days in a row', `${run}`, `longest possible · limit 13 · today ${T.checks.longestStretch}`]
+    const [k, v, lim] = /13 days/.test(title) ? ['Most days in a row', `${run}`, `longest possible · limit 13 · today ${T.checks.longestStretch}${run !== P.fixed.run || T.checks.longestStretch !== T.fixed.run ? ` · fixed duties ${P.fixed.run} (today ${T.fixed.run})` : ''}`]
       : /12 hours/.test(title) ? ['Shortest rest between shifts', hm2(rest), `anywhere in the link · limit 12h · today ${hm2(T.rest?.minutes)}`]
       : ['The 35-hour contract', hm2(Math.round(monSat / 20)), 'a week, Monday to Saturday, on average · must be exact'];
     return `<div class="hl hl-${ok ? 'ok' : 'no'}"><div class="hl-k">${k}</div><div class="hl-v">${v}</div><div class="hl-l"><span class="mk mk-${ok ? 'ok' : 'no'}">${ok ? '✓' : '✕'}</span>${ok ? 'met' : 'not met'} · ${lim}</div><div class="hl-s">${sub}</div></div>`;
@@ -806,9 +812,10 @@ function rulesPage(s, { T, P, meta }) {
  *  marks can never look as though they disagree. */
 function fatiguePage(s, { T, P }) {
   s = retitle(s, 'Fatigue checks', 'Fatigue checks', 'From the Office of Rail and Road’s good-practice guidance, <i>Fatigue Factors</i>, page 3 (December 2021): 21 roster patterns that tend to tire people, with 4 checks from the rail industry’s fatigue guidance (MRSF). <b>⚠</b> present — worth a look, not a breach · <b>✓</b> clear · <b>●</b> standing — comes with the station’s hours or any weekly link.');
-  const pn = P.fatigue.present, tn = T.fatigue.present, st = P.fatigue.standing;
+  // the fixed duties lead, as on pages 1 and 2; the worst cover-week placement is stated beside them (fixedView, report-data.mjs)
+  const pn = P.fixed.present, tn = T.fixed.present, st = P.fatigue.standing, pw = P.fatigue.present, tw = T.fatigue.present;
   const cards = `<div class="fcards">
-    <div class="fc fc-${pn ? 'warn' : 'ok'}"><div class="fc-k">Avoidable fatigue warnings</div><div class="fc-v">${pn}</div><div class="fc-l">in the fixed duties; cover-week duties are not known yet · today’s link has ${tn} · each is a question to discuss, not a breach</div></div>
+    <div class="fc fc-${pn ? 'warn' : 'ok'}"><div class="fc-k">Avoidable fatigue warnings</div><div class="fc-v">${pn}</div><div class="fc-l">in the fixed duties · today’s link has ${tn}${pw !== pn || tw !== tn ? ` · up to ${pw} (today ${tw}) if a cover week falls badly` : ''} · each is a question to discuss, not a breach</div></div>
     <div class="fc fc-info"><div class="fc-k">Standing — come with every weekly link</div><div class="fc-v">${st}</div><div class="fc-l">early starts at a 06:20 station, and a rotation that moves everyone one line a week · recorded, not counted</div></div>
   </div>`;
   s = must(s, MAST_END, `$1\n  ${cards}`, 'the fatigue page head');
