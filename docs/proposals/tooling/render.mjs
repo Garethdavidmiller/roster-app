@@ -176,11 +176,14 @@ export async function renderPdf(D, out) {
     const r = PLAIN ? (fixedOf(P, r0) ?? r0) : r0, t = PLAIN && t0 ? (fixedOf(T, t0) ?? t0) : t0;
     const val = x => x ? (x.status === 'n/a' ? (FRESH ? '' : '–') : FRESH && /55 hours/i.test(x.title) && typeof x.value === 'number' ? x.value.toFixed(1) : (x.value ?? '')) : '';
     const second = (a, code, have) => { if (PLAIN) { const w = a === P ? r0 : t0, f = a === P ? r : t;
+        // the 55-hour row counts a cover week as no hours, so its own worst case cannot show the week four 8-hour
+        // duties would make; h55Cover (fresh.mjs) is that figure (accuracy audit, 1 Oct 2026)
+        if (a === P && /55 hours/i.test(r0.title) && meta.h55Cover) return `<span class="ff-alt ff-present">${icon('present')} up to ${meta.h55Cover.hi.toFixed(1)} if a cover week is worked as four 8-hour duties</span>`;
         return !have || !w || !f || (w.status === f.status && String(val(w)) === String(val(f))) ? ''
           : `<span class="ff-alt ff-${w.status}">${icon(w.status)} up to ${esc(val(w))} if a cover week falls badly</span>`; }
       const v = have ? asRos(a, code) : null; return v === null ? ''
       : `<span class="ff-alt ff-${rosStatus(v)}">${icon(rosStatus(v))} ${v} as rostered</span>`; };
-    return `<tr class="ff-${r.status}"><td class="ff-code">${r.code}</td><td class="ff-title">${esc(r.title)}${r.confirm?' <span class="muted">(definition to confirm)</span>':''}<span class="ff-fam chip">${esc(r.family)}</span></td>
+    return `<tr class="ff-${r.status}"><td class="ff-code">${r.code}</td><td class="ff-title">${esc(r.title)}${r.confirm?' <span class="muted">(definition to confirm)</span>':''}${PLAIN && r.code === 'FF13' && r.status === 'present' && P.checks.turnarounds.length ? ' <span class="muted">— also breaks the 12-hour hard limit, page 6</span>' : ''}<span class="ff-fam chip">${esc(r.family)}</span></td>
       <td class="ff-st ff-${t?.status}">${icon(t?.status)} ${esc(val(t))}${second(T, r.code, !!t)}</td><td class="ff-st ff-${r.status}">${icon(r.status)} ${esc(val(r))}${second(P, r.code, true)}</td></tr>`; }).join('');
   // Factors present under the block reading — the same count, less FF11 when only the ceiling fires.
   const presentRos = a => a.fatigue.present - ((asRos(a, 'FF11') !== null
