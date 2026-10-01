@@ -27,6 +27,10 @@ const fingerprint = p => createHash('sha256')
 // 26 LINES (1 Oct 2026): none yet. Each 26-line design is one entry, in the shape the 24-line list used
 // (../../links-24/tooling/regenerate.mjs): { file, name, code, fp, strap }, the code carrying -26- (e.g. AB-26-EXT).
 export const SUPPLIED = [
+    // Second Nature (1 Oct 2026): the first 26-line design, built the Familiar Nine way — a duty table chosen from the
+    // final-table.mjs sweep (results/second-nature-*.json), Silva Lining's week structure grown to 26 lines, then searched
+    // and polished. README.md → "Second Nature" has every step and command.
+    { file: 'second-nature.json',          name: 'Second Nature',  code: 'SN-26-F2',   fp: 'a52d0f20', strap: 'No duty over nine hours, seven full weekends off, and only the late finishes the closing rule needs' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

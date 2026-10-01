@@ -5,7 +5,7 @@
 // Right Away's own figures are the reference: anything worse is a penalty, and a result counts only when every
 // penalty is zero ("feasible"). Among feasible results the score rewards weekends off, one-turn weeks, an even week.
 //   REST_CAP=1 node rota-polish.mjs <start.json> <out.json> <seed> <iters> <reference.json>
-// REST_CAP=1 also holds the shortest rest to the reference's.
+// REST_CAP=1 also holds the shortest rest to the reference's. ISO_W=<points> rewards fewer single rest days (below).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { runDesignChecks, DAYS } from '../../../links-design.js';
 import { assessFatigue } from '../../../links-fatigue.js';
@@ -29,7 +29,7 @@ function measure(q) {
     ff: f.results.map(r => [r.code + r.title, Number(r.value)]), one: fe.oneTurn, iso: fe.isolatedRest, block: a.longestBlock, step: a.gentleMean,
     heavy: Math.max(...wk), light: Math.min(...wk), badDays: days.filter(n => n < 4 || n > 5).length, rest: tightestRest(q, Object.keys(q).length)?.minutes ?? 9999 };
 }
-const R = measure(rp); const refFF = new Map(R.ff);
+const R = measure(rp); const refFF = new Map(R.ff); const ISO_W = Number(process.env.ISO_W ?? 0);
 function score(q) {
   const m = measure(q);
   if (m.turn || m.run > 6) return null;
@@ -38,7 +38,9 @@ function score(q) {
     + (process.env.REST_CAP ? Math.max(0, R.rest - m.rest) * 100 : 0)
     + Math.max(0, R.wkends - m.wkends) * 4000 + Math.max(0, R.one - m.one) * 2000;
   for (const [k, v] of m.ff) { if (SKIP.has(k.slice(0, 4)) || !Number.isFinite(v)) continue; const r = refFF.get(k); if (Number.isFinite(r) && v > r + 1e-9) pen += (v - r) * 2e4; }
-  const gain = 1000 * m.wkends + 300 * m.one - 100 * Math.max(0, m.heavy - 42) - 60 * Math.max(0, 28 - m.light) - m.step / 10;
+  // ISO_W=<points> also rewards FEWER single rest days than the reference, not only none more (26 lines, 1 Oct 2026: the
+  // 26-line searches reach every rule and no fatigue factor, and single rest days are what then separates them).
+  const gain = 1000 * m.wkends + 300 * m.one - ISO_W * m.iso - 100 * Math.max(0, m.heavy - 42) - 60 * Math.max(0, 28 - m.light) - m.step / 10;
   return { ...m, pen, s: gain - pen };
 }
 let cur = score(p); if (!cur) throw new Error('start fails the hard floor (a rest under 12h or a run over 6)');

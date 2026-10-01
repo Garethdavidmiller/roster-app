@@ -22,11 +22,13 @@ import { materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs
  *  waived for that design (WAIVERS, below). */
 // 26 LINES (1 Oct 2026): no 26-line design yet. A design's one-line description and how it was made go here, by code,
 // exactly as the 24-line sheets' did (../../links-24/tooling/fresh.mjs keeps theirs).
-export const STRAPS = {};
+export const STRAPS = {
+  'SN-26-F2': ['No duty over nine hours, seven full weekends off, and only the late finishes the closing rule needs', 'search'],
+};
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
-export const FAMILY = {};
-export const FIRST = {};
+export const FAMILY = { SN: 'Silva Lining' };
+export const FIRST = { 'SN-26-F2': '1 Oct 2026' };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
  *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a
