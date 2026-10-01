@@ -91,7 +91,7 @@ Each row of `New Marylebone Totals` is:
 
 | Col | Header | Source |
 |---|---|---|
-| A | Role | typed — `CEA` · `BLCEA` · `CES` · `DISP`. **`BLCEA` is the LINE, not the CONTRACT** [measured, 14 Sep 2026]: a `BLCEA` row can carry an allowance of **32**, and the app has that member as a plain CEA with `bilingualContract: false` — which agrees. Read as a contract it predicts 34 (CLAUDE.md's bilingual entitlement) and reports a false disagreement against a workbook that is right. A plain CEA is routinely placed on a bilingual line until a CEA one frees up, so this column cannot answer the entitlement question; `bilingualContract` in the app can. **Corroborated across ALL SEVEN `BLCEA` rows, 14 Sep 2026** — five carry an allowance of 32 and two carry 34, and that split matches `bilingualContract` in the app exactly, 7/7. So the workbook and the app agree on who holds the contract; it is the ROLE COLUMN that does not answer the question. |
+| A | Role | typed — `CEA` · `BLCEA` · `CES` · `DISP`. **`BLCEA` is the LINE, not the CONTRACT** [measured, 14 Sep 2026]: a `BLCEA` row can carry an allowance of **32**, and the app has that member as a plain CEA with `bilingualContract: false` — which agrees. Read as a contract it predicts 34 (CLAUDE.md's bilingual entitlement) and reports a false disagreement against a workbook that is right. A plain CEA is routinely placed on a bilingual line until a CEA one frees up, so this column cannot answer the entitlement question; `bilingualContract` in the app can. **Corroborated across ALL SEVEN `BLCEA` rows, 14 Sep 2026** — five carry an allowance of 32 and two carry 34, and that split matches `bilingualContract` in the app exactly, 7/7. So the workbook and the app agree on who holds the contract; it is the ROLE COLUMN that does not answer the question. **And it does not always agree with the app on the LINE either** [measured, 1 Oct 2026]: one `BLCEA` row belongs to a member the app has on the MAIN rotation (`rosterType: 'main'`). Either the column is stale or the app is; only the owner can say, so ask rather than pick (§10, question 12). |
 | B | Name | typed — `Surname . I` (see §7) |
 | C | c/f previous year | typed |
 | D | AL allowance | typed |
@@ -340,6 +340,11 @@ import openpyxl
 wb  = openpyxl.load_workbook(path, data_only=True)   # values
 wbf = openpyxl.load_workbook(path)                   # formulas — needed for the COUNTIF ranges
 ```
+
+**On `New Marylebone Calendar`, column A is the WEEKDAY NAME and column B is the DATE** [measured,
+1 Oct 2026]; row 1 is the block headers and the dates start on row 2 (1 Jan 2026). Reading column A
+for the date gives you "Thursday". **A fresh container may not have `openpyxl`** — `pip install
+openpyxl` first; it is not a project dependency and should not become one.
 
 Threaded comments (the part `openpyxl` hides):
 
@@ -741,6 +746,11 @@ them change what a figure MEANS, so an unanswered one is not a tidiness problem.
    really are at 33 of 32; genuine rest days mean the clerks deducted two days that cost nothing and
    they are at 31, with a day in hand rather than an overdraw. **Worth asking of the other −1 rows
    too** — the same mechanism could explain any of them.
+
+12. **A `BLCEA` row for a member the app has on the main rotation** (§3, 1 Oct 2026). Is that
+   member on a bilingual line now, making the app's `rosterType` stale, or is the workbook's role
+   column out of date? It changes no leave figure — both say 32 — but it is the line the app
+   computes every shift from.
 
 ---
 
