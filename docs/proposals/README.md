@@ -133,6 +133,17 @@ of a week*'s "working weeks by days worked" figure did not wrap and ran into the
 (never inside one), the columns are rebalanced and the table sits a little tighter, so every sheet's page 4 clears its
 footer. No figure changed on any sheet. Polished Clean's page-1 waiver line also says which days its office pairs are
 rostered (Thu and Fri), rather than repeating page 6's day-group value.
+
+**Polished Clean's own ticket office (1 Oct 2026, owner, from its author).** The design's author confirmed which duties
+run the office: Monday to Friday earlies at 06:20 and 07:00 (her "7:30" is the 07:00–15:30 — her Word table, checked cell
+for cell against `PC-24-EXT · 12424ed2`, has no 07:30 start) with a 13:30 and a 14:00 taking over; Saturday two
+06:20–14:30s, then 13:30 and 14:00; Sunday 07:15 and 08:30, then one late from 14:20, as today. `NAMED_OFFICE` in
+`tooling/report-data.mjs` holds it, keyed by the fingerprint so it can never reach another grid, and the floor, the match
+figures, the two-on-the-floor rule and the office handover are now measured on those duties instead of the plan's posts
+assumed. It moved Polished Clean's figures and nothing else's: two on the floor at every moment is now met (fewest
+2 · 2 · 2, was 3 · 0 · 2 — Saturday's 0 came from the assumed posts), so it meets **4 of the 9** soft rules plus the waived
+one; the floor follows the trains 35.9 · 52.9 · 69.6 (was 38.7 · 51.4 · 74.1); the office handover is 60 minutes at its
+shortest (Saturday). Its sheet says so on pages 1, 2, 5, 6 and 8 (the `namedOffice…` keys in `polished-clean.meta.json`).
 The Links compare test that used Short Closer as its
 real-design fixture now uses *Weekday Lates*, which has the same shape (tiring patterns present in both at different figures).
 
