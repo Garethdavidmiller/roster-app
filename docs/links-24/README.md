@@ -2152,3 +2152,26 @@ The changed cells give it a new fingerprint, so it is reissued as **SL-24-Hs** (
 re-search), and its `NAMED_OFFICE` key followed. On the standing league it scores **85.8 and moves to third**, past
 Full Overhaul (85.3), behind Familiar Nine (94.2) and Right Away (89.7).
 
+## An external review, and the two changes it led to (1 Oct 2026)
+
+A reviewer read the ten-sheet pack (before Silva Lining) and recounted the import files. The figures they checked —
+contracted hours, full weekends off, longest duties, shortest fixed-duty rest, late finishes — all agreed. They would lead
+with Familiar Nine and offer Right Away as the alternative, which is also the standing league's first and second. They
+asked for no change to how the pack looks. Two of their points changed the words, in `tooling/plain.mjs` and the decks:
+
+- **"A full weekend off one in 4 weeks" is an average, not a rhythm.** Familiar Nine's six weekends fall 3, 1, 7, 5, 1 and
+  7 weeks apart; today's four, 3, 4, 6 and 7. Every sheet now gives the COUNT ("6 full weekends off in 24 weeks, today 4
+  in 20") and the longest wait between two of them (`weekendGap`, counted the way `checkLinkConstraints` counts the
+  weekends): "never more than 7 weeks apart, as today" where it is no longer than today's, "though up to 10 weeks apart
+  (today 7)" where it is longer — a cost is never phrased as reassurance. Page 2 says "uneven: never more than N weeks
+  apart (today M)". The decks' "one week in four" became "6 in 24" (slides) and the notes explain the uneven spacing.
+- **More late finishes is the main trade-off, and the rate undersold it.** "About one extra every 2 or 3 weeks" became
+  "about 59 a year each (today 39)" on page 1 and in the decks; the rate stays on page 2.
+
+Three things followed from fitting the longer words: the *In short* sentence keeps each item's headline and drops the
+weekend gap (it ran into the next item); page 1's late-finish item lost its rate (it pushed Polished Clean's concern list
+into the footer); and page 2's weekend note is one line (two pushed "The workings" into the footer on every sheet). All
+eleven sheets were re-rendered — no fingerprint moved — and every page 1 and page 2 was checked against the footer. Two
+of the reviewer's claims were slightly overstated and changed nothing: Fifteen Turns breaks ONE hard limit, and the fit
+score is set against the December train service weighted by train length — not passengers, but not staff shape alone.
+

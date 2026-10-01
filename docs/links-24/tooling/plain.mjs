@@ -29,6 +29,14 @@ const endAbs = s => { const a = startMinutes(s), b = endMinutes(s); return b > a
 // "every 2 or 3 weeks" rather than a spurious "every 3" when the true interval is 2.7
 const weeksWords = x => { const f = Math.floor(x), frac = x - f; return frac >= 0.25 && frac <= 0.75 ? `${f} or ${f + 1}` : `${Math.max(1, Math.round(x))}`; };
 const everyN = share => share <= 0 ? 'never' : `one in ${Math.round(1 / share)}`;
+// THE LONGEST WAIT FOR A FULL WEEKEND OFF (external review, 1 Oct 2026). "One in 4 weeks" read as a regular rhythm; it is
+// an average, and the weekends fall unevenly — Familiar Nine's six are 3, 1, 7, 5, 1 and 7 weeks apart. So a sheet now
+// gives the COUNT ("6 in 24") and the longest gap between two of them. Counted the way checkLinkConstraints counts the
+// weekends (Saturday of one line and Sunday of the next both off, a cover week's days never off), so the two cannot
+// disagree; null when there is no weekend off at all.
+const weekendGap = p => { const L = Object.keys(p).length, off = s => !timed(s) && s !== 'SPARE';
+  const at = []; for (let k = 1; k <= L; k++) if (off(p[String(k)].sat) && off(p[String(k % L + 1)].sun)) at.push(k);
+  return at.length ? Math.max(...at.map((k, i) => i < at.length - 1 ? at[i + 1] - k : at[0] + L - k)) : null; };
 
 /** The per-person figures a colleague asks about, from the rota itself — the same arithmetic as the one-page summary
  *  and the Familiar Nine presentations. Averages over EVERY line, cover weeks included (they add no fixed duty);
@@ -134,8 +142,14 @@ function front({ T, P, meta, pages, coverHead }) {
   const good = [], bad = [];
   const add = (cond, list, pri, text) => { if (cond) list.push([pri, text]); };
   const weekMoved = everyN(pWeekShare) !== everyN(tWeekShare);   // 5 in 24 against 4 in 20 is one in 5 both ways: no change to offer
-  add(weekMoved && pWeekShare > tWeekShare, good, 10, `A full weekend off ${everyN(pWeekShare)} weeks (today ${everyN(tWeekShare)})`);
-  add(weekMoved && pWeekShare < tWeekShare, bad, 10, `Fewer full weekends off: ${everyN(pWeekShare)} weeks (today ${everyN(tWeekShare)})`);
+  const pGap = weekendGap(P.patterns), tGap = weekendGap(T.patterns);
+  // a gap no longer than today's is said as a limit ("never more than 7 weeks apart, as today"); a longer one is said
+  // as the cost it is ("though up to 10 weeks apart"), never dressed as reassurance inside a positive
+  const gapLonger = pGap != null && tGap != null && pGap > tGap;
+  const gapWords = lead => pGap == null ? '' : gapLonger ? `, ${lead}up to ${pGap} weeks apart (today ${tGap})`
+    : `, never more than ${pGap} weeks apart${pGap === tGap ? ', as today' : tGap == null ? '' : ` (today ${tGap})`}`;
+  add(weekMoved && pWeekShare > tWeekShare, good, 10, `${P.checks.weekendsOff} full weekends off in ${pp.L} weeks (today ${T.checks.weekendsOff} in ${tp.L})${gapWords('though ')}`);
+  add(weekMoved && pWeekShare < tWeekShare, bad, 10, `Fewer full weekends off: ${P.checks.weekendsOff} in ${pp.L} weeks (today ${T.checks.weekendsOff} in ${tp.L})${gapWords('')}`);
   for (const t of meta.thinMoments ?? []) { const m = /(\w+day) (\d\d:\d\d–\d\d:\d\d): only (one person|\d+ people)/.exec(t.replace(/<[^>]+>/g, '')); if (m) add(true, bad, 5, `Only ${m[3]} on duty in the whole station, ${m[1]} ${m[2]}`); }
   add(runF < runFT, good, 20, `Never more than ${runF} days in a row in the fixed duties (today ${runFT})`);
   add(runF > runFT, bad, 20, `Up to ${runF} days in a row in the fixed duties (today ${runFT})`);
@@ -146,8 +160,12 @@ function front({ T, P, meta, pages, coverHead }) {
   // difference of 2.6 into 3 and "about one every 20 weeks" into "every 17". The printed figures stay rounded, and
   // the phrase says "about".
   const lateDiff = pp.late23 - tp.late23, openDiff = pp.open0620 - tp.open0620;
-  add(lateDiff >= 2, bad, 30, `More late finishes — about one extra every ${weeksWords(52 / lateDiff)} weeks each`);
-  add(lateDiff <= -2, good, 30, `Fewer late finishes — about one fewer every ${weeksWords(52 / -lateDiff)} weeks each`);
+  // THE YEARLY FIGURES (external review, 1 Oct 2026): "about one extra every 2 or 3 weeks" undersold what both
+  // leading proposals do to evenings — 39 finishes at 23:00 or later a year becoming 59.
+  // (the rate, "one extra every 2 or 3 weeks", is page 2's note: on page 1 it took a second line on every sheet and
+  // pushed Polished Clean's longest concern list into the footer)
+  add(lateDiff >= 2, bad, 30, `More late finishes — about ${Math.round(pp.late23)} a year each (today ${Math.round(tp.late23)})`);
+  add(lateDiff <= -2, good, 30, `Fewer late finishes — about ${Math.round(pp.late23)} a year each (today ${Math.round(tp.late23)})`);
   // the 06:20 open was a page-1 tile until the staff tiles left page 1 (owner, 30 Sep 2026); it is a bullet now
   add(openDiff >= 2, bad, 42, `More 06:20 starts — about one extra every ${weeksWords(52 / openDiff)} weeks each`);
   add(openDiff <= -2, good, 42, `Fewer 06:20 starts — about one fewer every ${weeksWords(52 / -openDiff)} weeks each`);
@@ -258,7 +276,10 @@ function front({ T, P, meta, pages, coverHead }) {
   // shift …"), so inside the bottom line its detail goes in brackets: "3 (today 1)" becomes "(3, today 1)"
   const inline = t => { const i = t.indexOf(' — '); if (i < 0) return t; const h = t.slice(0, i), d = t.slice(i + 3), m = d.match(/^(.*?) \((today [^()]*)\)$/);
     return m ? `${h} (${m[1]}, ${m[2]})` : /\(/.test(d) ? `${h}, ${d}` : `${h} (${d})`; };
-  const plus = goodAll.slice(0, 2).map(x => esc(lc(inline(x)))), minus = badAll.slice(0, 2).map(x => esc(lc(inline(x))));
+  // the bottom line keeps each item's headline figure and drops the weekend gap: in a
+  // sentence of four items the gloss ran into the next one ("…as today and never more than 6 days…"); both stay in the lists
+  const brief = t => t.replace(/, (?:though |never more than |up to )[^,]*? weeks apart(?:, as today| \(today \d+\))?/, '');
+  const plus = goodAll.slice(0, 2).map(x => esc(lc(inline(brief(x))))), minus = badAll.slice(0, 2).map(x => esc(lc(inline(brief(x)))));
   const bottom = [lead,
     plus.length ? `For staff, the biggest ${plus.length === 1 ? 'gain is' : 'gains are'} ${andList(plus)}.` : 'Nothing is notably better for staff than today.',
     minus.length ? `The main ${minus.length === 1 ? 'trade-off is' : 'trade-offs are'} ${andList(minus)}.` : 'Nothing is notably worse than today.'].join(' ');
@@ -301,7 +322,7 @@ function front({ T, P, meta, pages, coverHead }) {
   const ab = x => `<span class="ab">about</span> ${x}`;
   const often = d => Math.abs(d) < 1 ? 'about the same' : `about one ${d > 0 ? 'extra' : 'fewer'} every ${weeksWords(52 / Math.abs(d))} weeks`;
   const feel = [
-    feelTile(`${P.checks.weekendsOff} in ${pp.L}`, 'full weekends off', `${everyN(pWeekShare)} weeks — today ${everyN(tWeekShare)} (${T.checks.weekendsOff} in ${tp.L})`),
+    feelTile(`${P.checks.weekendsOff} in ${pp.L}`, 'full weekends off', `today ${T.checks.weekendsOff} in ${tp.L} · never more than ${pGap ?? '—'} weeks apart (today ${tGap ?? '—'})`),
     feelTile(ab(Math.round(pp.late23)), 'finishes at 23:00 or later, each a year', `today about ${Math.round(tp.late23)} · ${often(lateDiff)}`),
     feelTile(ab(Math.round(pp.open0620)), 'starts at 06:20, the open, each a year', `today about ${Math.round(tp.open0620)} · ${often(openDiff)}`),
     feelTile(newTimes ? `${newTimes} new` : 'None new', `shift ${newTimes === 1 ? 'time' : 'times'} to learn`, `${distinct} shift times in all, ${shared} worked today · ${newTimes ? 'the new ones are listed on page 4' : 'page 4'}`),
@@ -374,7 +395,7 @@ function front({ T, P, meta, pages, coverHead }) {
     grp('Working pattern'),
     row('Most days in a row, fixed duties', runFT, runF, run > 13 ? 'no' : cmp(runF < runFT, runF === runFT), `${runW !== runF || runWT !== runFT ? `up to ${runW} (today ${runWT}) if a cover week falls badly; ` : ''}Chiltern’s limit is 13${runW !== runF || runWT !== runFT ? '' : ' (written source to confirm)'}`),
     row('Shortest gap between two shifts', hm(T.rest?.minutes), hm(restMin), rests ? 'no' : cmp(restMin > T.rest?.minutes, restMin === T.rest?.minutes), 'in the fixed duties; the limit is 12 hours'),
-    row('Full weekends off', `${T.checks.weekendsOff} in ${tp.L}`, `${P.checks.weekendsOff} in ${pp.L}`, cmp(pWeekShare > tWeekShare, everyN(pWeekShare) === everyN(tWeekShare)), `${everyN(pWeekShare)} weeks, against ${everyN(tWeekShare)} today`),
+    row('Full weekends off', `${T.checks.weekendsOff} in ${tp.L}`, `${P.checks.weekendsOff} in ${pp.L}`, cmp(pWeekShare > tWeekShare, everyN(pWeekShare) === everyN(tWeekShare)), pGap == null ? 'none in the rotation' : `uneven: never more than ${pGap} weeks apart (today ${tGap ?? '—'})`),
     row('Days at work a year, not counting Sundays', Math.round(tp.daysYear), Math.round(pp.daysYear), '', 'Sundays are overtime; a cover week counts as 4 days'),
     row('Weeks on one shift time', ofW(T), ofW(P), '', 'all earlies or all lates, one clock time Monday to Friday'),
     row('Weeks mixing earlies and lates', `${T.feel.hybrid} of ${T.feel.workingLines}`, `${P.feel.hybrid} of ${P.feel.workingLines}`, '', 'a week with both early and late shifts in it'),
