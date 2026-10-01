@@ -1,4 +1,8 @@
-# Link proposals — December 2026
+# Link proposals — December 2026, 24 lines (kept for reference)
+
+> **FROZEN, 1 Oct 2026.** The link was confirmed that day as **26 lines, not 24**. This folder (it was `docs/proposals/`)
+> is kept exactly as it stood, for reference and in case the 24-line link returns. **New work goes in `../links-26/`.**
+> The Silva Lining design series explored that day is in `silva-lining/`.
 
 > **Where things stand (1 Oct 2026) — read this first.** Everything below this box is a dated record, oldest decisions
 > first; where an older section disagrees with this box, this box is current.
@@ -1996,7 +2000,7 @@ Node scripts, driven from this directory, importing the app's modules by relativ
 is needed for the search; rendering needs the root `npm ci` (Playwright's Chromium).
 
 ```
-cd docs/proposals/tooling
+cd docs/links-24/tooling
 node table.mjs                       # every December table in today's times that pays 42,000 min exactly (81)
 node fit.mjs                         # candidate day tables against the Dec 2026 demand curve
 MODE=feel  node anneal.mjs B 60000 4 7     # Same Turns family: table B, 60k steps x 4 restarts, seed 7 → best-B-7.json

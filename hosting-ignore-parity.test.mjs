@@ -56,7 +56,7 @@ const hostingIgnore = JSON.parse(readFileSync(new URL('./firebase.json', import.
  *
  * `docs` joined on 9 Sep 2026 (external review). The estate's documentation was already 404 on
  * Hosting, but only because of the blanket `**\/*.md` rule — which says nothing about the 25
- * non-markdown files `docs/proposals/` had acquired: the December proposal `.json` designs, their
+ * non-markdown files `docs/proposals/` (now `docs/links-24/`) had acquired: the December proposal `.json` designs, their
  * paste-ready `.txt` imports, and `tooling/*.mjs` with its `results/*.json`. Those were eligible to
  * be served from the staff domain.
  *

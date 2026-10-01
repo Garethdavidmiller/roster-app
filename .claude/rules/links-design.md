@@ -507,7 +507,7 @@ of its 25 rows — a figure read at source in Aug 2026, after this file said 24 
   largest, and how many boundaries exceed 2h. **Live main roster: 4h 0m typical / 8h 46m worst /
   9 of 20 over** — quote that as the baseline; the December default (`links-default-targets.js`, every
   objective on) measures typically 4h 16m, largest 8h 37m, 8 of 24 over
-  (`docs/proposals/tooling/default-baseline.mjs`).
+  (`docs/links-24/tooling/default-baseline.mjs`).
   Two things not to "tidy": the status stays **`standing`** whenever the step is measurable rather
   than turning `present` above some figure — the ORR gives no FF18 threshold, and inventing one is
   the pass/fail rendering this panel forbids — and it derives to **`n/a`** for a design with no timed
@@ -1023,7 +1023,7 @@ would hide the trade. Measured on a generated design: gentle-only takes week-to-
 > gone** (corrected v19.65). It was measured at v19.58, before `variety` existed, and it contradicted
 > the box above, which measured the shipped default at **95 min / 8 weekends** on the roster seed
 > *(28 Sep 2026: the December default now measures typically 4h 16m, largest 8h 37m, 8 of 24 over
-> 2h — `docs/proposals/tooling/default-baseline.mjs`)*.
+> 2h — `docs/links-24/tooling/default-baseline.mjs`)*.
 > Both were presented as "all switches on", so this file said two different things about the one
 > configuration a designer actually gets — and named four switches when there were five (six since
 > v20.02 added the run cap — `OBJECTIVES` in `links-adjacency.js`).

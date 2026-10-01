@@ -103,7 +103,7 @@ builds toward it, and so that nobody is surprised later that the custom work was
 ### December 2026 Links proposals
 **Status:** Committed · **Owner:** Gareth + Nathan/management · **Plan:** `LINKS_DEC2026_PLAN.md`
 
-The tool is built, and **9 proposal sheets are drawn** (`docs/proposals/`), all scored against the
+The tool is built, and **9 proposal sheets are drawn** (`docs/links-24/`), all scored against the
 nine soft December 2026 rules (`December-2026-Rules.pdf`); **none is frozen**.
 What remains is a **meeting schedule**, not code: the four design decisions are settled (the Sunday
 finish stays at 23:25 and FF18 reads as cadence, 28 Sep 2026; the December staffing levels, a
@@ -508,7 +508,7 @@ a member (deep dive) and may never hide the first (that the thing exists). "Reco
 names what is happening; the six switches are depth.
 
 **The trigger is the owner.** It is a visible change to the card a designer uses most, the December
-2026 proposals are being settled against its checks right now (drawn by `docs/proposals/tooling`
+2026 proposals are being settled against its checks right now (drawn by `docs/links-24/tooling`
 running the Links modules under Node, or supplied as grids and imported — not in this card), and two of this app's collapse decisions have been
 reverted after shipping (the admin task navigator, the drawer's notification row). It wants a
 decision, not a sweep. If it goes ahead, `links-tips.js`'s "The default table" section and the

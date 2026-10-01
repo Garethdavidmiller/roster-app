@@ -5,7 +5,7 @@
 // figure, then the proposal's — and checks both figures against the same counts the sheets print (report-data.mjs,
 // plain.mjs). It changes nothing.
 //
-//   node docs/proposals/tooling/deck-check.mjs        → exit 1 if any checked figure disagrees
+//   node docs/links-24/tooling/deck-check.mjs        → exit 1 if any checked figure disagrees
 //
 // A label it does not know is listed as UNCHECKED, never passed silently: a new row on a slide needs a line in ROWS
 // below before this script can vouch for it. Run it after any change to a rota or to a deck, before the decks go out.

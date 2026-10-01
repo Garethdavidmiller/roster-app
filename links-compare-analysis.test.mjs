@@ -1,7 +1,7 @@
 // links-compare-analysis.test.mjs — what the difference between two Links designs MEANS (v24.25).
 // Pure: no DOM, no install. The render is pinned in links-compare.test.mjs; this pins the arithmetic.
 //
-// The fixtures are REAL designs — proposal sheets from docs/proposals, or withdrawn ones kept unchanged in
+// The fixtures are REAL designs — proposal sheets from docs/links-24, or withdrawn ones kept unchanged in
 // test-fixtures/links-designs/ — so a comparison asserted here is one a designer would actually make.
 // Organised by what a wrong answer costs: a comparison that paired the wrong rows, read a design
 // against the other's hours, or hid a factor both carry would mislead the room it is taken into.
@@ -13,7 +13,7 @@ import { assessFatigue } from './links-fatigue.js';
 import { assessHardLimits } from './links-limits.js';
 import { calcHourlyCoverage, ROTATING_LINES } from './links-design.js';
 
-const sheet = (/** @type {string} */ f) => JSON.parse(readFileSync(new URL(`./docs/proposals/${f}`, import.meta.url), 'utf8'));
+const sheet = (/** @type {string} */ f) => JSON.parse(readFileSync(new URL(`./docs/links-24/${f}`, import.meta.url), 'utf8'));
 // Pinned Turns and Round Times were withdrawn from the proposal folder (owner, 30 Sep 2026); their grids are kept,
 // unchanged, as fixtures, because the figures asserted here are theirs.
 const fixture = (/** @type {string} */ f) => JSON.parse(readFileSync(new URL(`./test-fixtures/links-designs/${f}`, import.meta.url), 'utf8'));

@@ -543,7 +543,7 @@ test('scroll sync: the column being scrolled is never yanked back by its partner
 // fixtures under test-fixtures/links-designs/, unchanged, because the figures asserted below are theirs.
 const FIXTURE = { 'Pinned-Turns-PT-24-P34.json': 'pinned-turns-PT-24-P34.json', 'Round-Times-P2-24-N13.json': 'round-times-P2-24-N13.json' };
 const proposal = (/** @type {string} */ f) =>
-    JSON.parse(readFileSync(new URL(FIXTURE[f] ? `./test-fixtures/links-designs/${FIXTURE[f]}` : `./docs/proposals/${f}`, import.meta.url), 'utf8')).patterns;
+    JSON.parse(readFileSync(new URL(FIXTURE[f] ? `./test-fixtures/links-designs/${FIXTURE[f]}` : `./docs/links-24/${f}`, import.meta.url), 'utf8')).patterns;
 
 /** Compare two real proposals, and return the analysis HTML. */
 function analysisOf(/** @type {any} */ pa, /** @type {any} */ pb, /** @type {any} */ extraB = {}) {
