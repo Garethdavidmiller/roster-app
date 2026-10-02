@@ -17,19 +17,19 @@ proposals = re.findall(r"name: '([^']+)',\s*code: '([^']+)',\s*fp: '([0-9a-f]{8}
 if not proposals: raise SystemExit('pack: no proposals in regenerate.mjs SUPPLIED')
 
 files = [  # (source, path in the pack)
-    (f'{ROOT}/Proposals-Summary.pdf', '1 Summary/Proposals at a glance.pdf'),
-    (f'{ROOT}/December-2026-Rules.pdf', '2 Rules/December-2026-Rules.pdf'),
+    (f'{ROOT}/links-26-summary.pdf', '1 Summary/links-26-summary.pdf'),
+    (f'{ROOT}/links-26-rules.pdf', '2 Rules/links-26-rules.pdf'),
 ]
 for name, code, fp in proposals:
     base = f"{name.replace(' ', '-')}-{code}"
     for who in ('colleagues', 'managers'):
         for ext in ('pptx', 'pdf'):
             src = f"{ROOT}/presentations/{name.replace(' ', '-')}-for-{who}.{ext}"
-            if os.path.exists(src): files.append((src, f'3 Presentations/{name} - for {who}.{ext}'))
-    files += [(f'{ROOT}/{base}-{fp}.pdf', f'4 Proposal sheets/{base}-{fp}.pdf'),
-              (f'{ROOT}/{base}-import.txt', f'5 Import files for the Links page/{base}-import.txt')]
-files += [(f'{ROOT}/RULES.md', '6 Technical notes/The 26-line rules (technical).md'),
-          (f'{ROOT}/README.md', '6 Technical notes/Proposals README (technical).md')]
+            if os.path.exists(src): files.append((src, f'3 Presentations/{os.path.basename(src)}'))
+    files += [(f'{ROOT}/proposals/{base}-{fp}.pdf', f'4 Proposal sheets/{base}-{fp}.pdf'),
+              (f'{ROOT}/proposals/{base}-import.txt', f'5 Import files for the Links page/{base}-import.txt')]
+files += [(f'{ROOT}/RULES.md', '6 Technical notes/RULES.md'),
+          (f'{ROOT}/README.md', '6 Technical notes/README.md')]
 missing = [s for s, _ in files if not os.path.exists(s)]
 if missing: raise SystemExit(f'pack: missing {missing}')
 

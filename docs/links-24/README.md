@@ -5,6 +5,30 @@
 > One sheet was added that day, before the freeze took hold: **Silva Lining** (`SL-24-Hs`), chosen from the eight-design
 > series recorded in `silva-lining/`.
 
+## What is in this folder
+
+The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, owner: "consistent naming"):
+
+| | What it is |
+|---|---|
+| `links-NN-proposals.zip` | everything for sharing, in one download |
+| `links-NN-rules.pdf` | the rules every proposal is judged against |
+| `links-NN-summary.pdf` | every proposal against today's link, on one page |
+| `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
+| `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf` |
+| `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs |
+| `silva-lining/` | the record of the eight-design series Silva Lining was chosen from |
+| `README.md` | this record |
+
+`NN` is the link's length in weeks. A proposal keeps its own name, because the code and fingerprint in it identify the
+exact rota on a printout. Inside the zip, the files carry the same names as here.
+
+**Moved on 2 Oct 2026.** Until then, the proposals sat loose in this folder, beside `December-2026-Rules.pdf`,
+`Proposals-Summary.pdf` and `December-2026-Link-Proposals.zip`. Those three are now `links-24-rules.pdf`,
+`links-24-summary.pdf` and `links-24-proposals.zip`; the summary was re-rendered so that its footer names the rules
+sheet by its new name. The sections below are dated records and keep the names of their day. The tooling was updated
+to the new paths, and `regenerate.mjs --check` and `deck-check.mjs` give the same results as before the move.
+
 > **Where things stand (1 Oct 2026) — read this first.** Everything below this box is a dated record, oldest decisions
 > first; where an older section disagrees with this box, this box is current.
 > - **11 proposals**, each an eight-page sheet compared **only with today's link**; the one-page summary is the only place
@@ -277,11 +301,11 @@ Right Away now ships as a grid (`tooling/right-away.json`); `final.mjs` still re
 project's history, kept as the record: where one describes a ten-page sheet, 23 designs or a page 9 comparison, it
 is describing an earlier edition.
 
-**Everything in one download:** `links-24-proposals.zip` (1 Oct 2026; named `December-2026-Link-Proposals.zip` until 2 Oct 2026, renamed to match this folder when the 26-line pack, `../links-26/links-26-proposals.zip`, was added; its contents are unchanged except the top folder, now `links-24-proposals/`) — the one-page summary, the
+**Everything in one download:** `links-24-proposals.zip` (1 Oct 2026; named `December-2026-Link-Proposals.zip` until 2 Oct 2026, renamed to match this folder when the 26-line pack, `../links-26/links-26-proposals.zip`, was added. Its files carry this folder's names since then: top folder `links-24-proposals/`, `links-24-summary.pdf`, `links-24-rules.pdf`, `Familiar-Nine-for-colleagues.pptx` and so on, `README.md` and `LINKS_DEC2026_PLAN.md`. Their contents are unchanged, except the summary, whose footer now names the rules sheet by its new name) — the one-page summary, the
 rules, both presentations, all 11 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
 re-render of the sheets does not update it, so rebuild it after one.
 
-**The one-page summary:** `Proposals-Summary.pdf` (*Proposals at a glance.pdf* in the zip) — every proposal against today's link on one A4 page, rendered by
+**The one-page summary:** `links-24-summary.pdf` (named `Proposals-Summary.pdf` until 2 Oct 2026) — every proposal against today's link on one A4 page, rendered by
 `tooling/summary-sheet.mjs` from `folderStats` and the same JSON rotations (the script's header comment states each column's formula).
 
 **The presentations:** `presentations/` — for *Familiar Nine* and *Right Away* (added 30 Sep 2026, built on the Familiar
@@ -299,7 +323,7 @@ reach them. Two of their inputs are not on any sheet, so they are recorded here:
 - *Saturday pay.* A rostered Saturday is paid at time and a quarter (1.25×), the Marylebone Roster pay calculator's
   own rule (`.claude/rules/paycalc.md`); it is a pay rule, not something the rota shows.
 
-**The rules on their own:** `December-2026-Rules.pdf` — the hard limits, the nine soft December 2026 rules the sheets score, and the three flexible rules as their own tier, the
+**The rules on their own:** `links-24-rules.pdf` (named `December-2026-Rules.pdf` until 2 Oct 2026) — the hard limits, the nine soft December 2026 rules the sheets score, and the three flexible rules as their own tier, the
 fatigue factors and the open questions, on two pages, from the same code the sheets are judged by.
 
 **Reading this file.** Sections dated before 28 Sep 2026 describe the sheets and rules of their day — page

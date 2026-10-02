@@ -3,7 +3,7 @@ const TL = new URL('../../tooling/', import.meta.url).pathname;
 const { assess, dutyMinutes, sheetRules, today, h55Worst } = await import(TL+'report-data.mjs');
 const { personal } = await import(TL+'plain.mjs');
 import fs from 'fs';
-const base=JSON.parse(fs.readFileSync(TL+'../Polished-Clean-PC-24-EXT.json','utf8')); const P0=base.patterns??base;
+const base=JSON.parse(fs.readFileSync(TL+'../proposals/Polished-Clean-PC-24-EXT.json','utf8')); const P0=base.patterns??base;
 const clone=p=>JSON.parse(JSON.stringify(p)); const L=Object.keys(P0).sort((a,b)=>a-b); const WK=['mon','tue','wed','thu','fri'], MS=[...WK,'sat'], D=['sun',...MS];
 const timed=s=>/^\d\d:\d\d-\d\d:\d\d$/.test(s); const T=today(), TA=assess(T.patterns,20);
 let seed=+(process.argv[2]??1); const rnd=()=>{ seed=(seed*1103515245+12345)&0x7fffffff; return seed/0x7fffffff; }; const pick=a=>a[Math.floor(rnd()*a.length)];

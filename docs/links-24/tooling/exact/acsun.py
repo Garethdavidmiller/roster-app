@@ -11,7 +11,7 @@ import importlib.util
 spec=importlib.util.spec_from_file_location('tb_model', 'tiebreak_model.py'); tb=importlib.util.module_from_spec(spec); spec.loader.exec_module(tb)
 CAND,OUT,T=sys.argv[5],sys.argv[6],float(sys.argv[7])
 TIER=os.environ.get('TIER','A')
-AC=load(PROP+'All-Clear-AC-24-M41.json')
+AC=load(PROP+'proposals/All-Clear-AC-24-M41.json')
 DOMS=['07:15-15:30','07:15-15:45','08:00-16:30','08:30-16:30','10:00-18:30','11:00-19:30','12:00-20:00','13:00-21:00','13:00-21:30','13:30-22:00','13:30-22:30','14:00-22:00','14:00-22:30','14:30-23:25','15:00-23:00','15:25-23:25']
 m,x,z,changes,factors,WORK,J,F8,H,RUN,ONE,WK,SZ,TT=tb.model()
 LINES=[str(k) for k in range(1,25)]; POS=[(k,d) for k in LINES for d in DAYS]; N=len(POS)

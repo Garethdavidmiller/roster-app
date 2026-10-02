@@ -393,7 +393,7 @@ export function assess(p, lines, officeModel = lines === 20 ? 'today' : 'plan') 
  *  claim. Read at render time from `<Name>-<CODE>.json`; the sheet being rendered is in the set, which is
  *  what "best in the folder is this one" means. Cached per process. */
 let _folder = null;
-export function folderStats(dir = new URL('..', import.meta.url)) {
+export function folderStats(dir = new URL('../proposals/', import.meta.url)) {
   if (_folder) return _folder;
   const T0 = today(); const TA = { patterns: T0.patterns, ...assess(T0.patterns, T0.lines) }; const todays = new Set(TA.tableRows.map(r => r.time));
   const out = [];

@@ -29,7 +29,7 @@ if (process.argv[1].endsWith('leave.mjs')) {
   const load = f => { const j = JSON.parse(readFileSync(f, 'utf8')); return j.patterns ?? j; };
   if (process.argv.includes('--check')) {
     const want = [['today', today().patterns, { best: 30, avg: 23.4, worst: 19, fourWeeks: 14 }],
-      ['Familiar Nine', load(new URL('../../links-24/Familiar-Nine-F9-24-K31s.json', import.meta.url)), { best: 28, avg: 23.6, worst: 20, fourWeeks: 15 }]];
+      ['Familiar Nine', load(new URL('../../links-24/proposals/Familiar-Nine-F9-24-K31s.json', import.meta.url)), { best: 28, avg: 23.6, worst: 20, fourWeeks: 15 }]];
     let bad = 0; for (const [name, p, w] of want) { const g = leave(p); const ok = JSON.stringify(g) === JSON.stringify(w); if (!ok) bad++;
       console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}: ${JSON.stringify(g)}${ok ? '' : ` — the decks say ${JSON.stringify(w)}`}`); }
     process.exit(bad ? 1 : 0);

@@ -7,7 +7,7 @@ sys.path.insert(0,'.')
 from common import *
 from model import build, extract
 from ortools.sat.python import cp_model
-P=load(PROP+'Weekday-Lates-WL-24-EXT.json'); UW=sorted(set(U)|times_of(P), key=lambda s:(st(s),en(s)))
+P=load(PROP+'proposals/Weekday-Lates-WL-24-EXT.json'); UW=sorted(set(U)|times_of(P), key=lambda s:(st(s),en(s)))
 F=int(sys.argv[1]); B=int(sys.argv[2]); T=float(sys.argv[3]); D={1,7,12,17}
 adj=lambda a,b: (a-b)%24 in (1,23)
 for out in sorted(D):

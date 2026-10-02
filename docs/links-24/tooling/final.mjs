@@ -271,7 +271,7 @@ const otherTableFit = cands.filter(c => c.variant !== win.variant).map(c => c.fi
 // 17:00–22:00 weighted 1.25x for events — so B2's page 7 printed Eight Forty's Saturday as 16.4 while
 // Eight Forty's own sheet, on the shared unweighted measure, printed 16.2.
 const efFits = (() => { if (PROPOSAL !== 'B2') return null;
-  const f = ['results/best-RE-21.json', 'best-RE-21.json', '../Eight-Forty-EF-24-E21.json'].find(existsSync); if (!f) return null;
+  const f = ['results/best-RE-21.json', 'best-RE-21.json', '../proposals/Eight-Forty-EF-24-E21.json'].find(existsSync); if (!f) return null;
   const p = JSON.parse(readFileSync(f, 'utf8')).patterns; const A = assess(p, 24); return { weekday: A.wkFit, sat: A.fits.sat, sun: A.fits.sun }; })();
 // Where this Saturday stands in the folder, COMPUTED at the printed precision (25 Sep 2026). The sentence was
 // typed — "Saturday is the best table in the folder" — and By the Book's Saturday is level with it at 8.1

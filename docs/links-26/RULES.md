@@ -1,7 +1,7 @@
 # The rules — December 2026 link, 26 lines
 
 **Set by the owner on 1 Oct 2026.** This is the one list every 26-line design is judged against. It is the 24-line
-rule set (`../links-24/December-2026-Rules.pdf`, built by `../links-24/tooling/rules-sheet.mjs`) with **four
+rule set (`../links-24/links-24-rules.pdf`, built by `../links-24/tooling/rules-sheet.mjs`) with **four
 changes**, each marked **▲ CHANGED**. The owner reviewed every other rule and kept it as it was.
 
 The staffing levels were confirmed **verbally** (29 Sep 2026), as was the 24-person link, which then turned out to
@@ -109,7 +109,7 @@ The tooling in `tooling/` applies all of this (set up 1 Oct 2026; see `README.md
 - **The cover rule** checks five cover weeks with gaps differing by one at most (`coverSpread`), for every design.
   Today's link, with four, does not meet it.
 - **The days ceiling** is added to the hard-limit checks in `assess()` (`tooling/report-data.mjs`). Page 1 counts it,
-  page 6's contract card states it, and the rules sheet (`December-2026-Rules.pdf`) lists it as the fourth hard limit.
+  page 6's contract card states it, and the rules sheet (`links-26-rules.pdf`) lists it as the fourth hard limit.
 - **No 24-line waiver or named office** is carried over.
 
 The Links page itself (`ROTATING_LINES` in `links-design.js`) moves to 26 later, as its own app release (owner, 1 Oct

@@ -5,7 +5,7 @@ sys.path.insert(0,os.path.dirname(os.path.abspath(__file__)))
 from common import *
 from evaluator import judge
 random.seed(int(sys.argv[1]) if len(sys.argv)>1 else 1)
-bases=[load(f) for f in sorted(glob.glob(PROP+'*-24-*.json'))]
+bases=[load(f) for f in sorted(glob.glob(PROP+'proposals/*-24-*.json'))]
 grids=[]
 for b in bases:
     grids.append(b)
