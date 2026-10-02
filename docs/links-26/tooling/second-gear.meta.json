@@ -1,0 +1,8 @@
+{
+ "date": "2 October 2026",
+ "identity": {
+  "table": "H1 — a variation of Second Nature's table with different weekday and Saturday times (results/second-gear-table.json)",
+  "seed": "105 (anneal.mjs), then 1 (space-polish)",
+  "lineage": "From the restart the owner asked for on 2 Oct 2026 (every rule, plus weekends off as spread as the cover weeks allow, which is five weeks apart). The weeks were searched from random starts with the weekend gap capped at five (anneal.mjs), then polished with Second Nature and Second Wind's figures as floors (space-polish.mjs). One of the two rotas in that search to meet every floor, four single rest days included. Its heaviest week is 41h 30m and its shortest rest 14h 35m; the table costs two more late finishes a year (44) and one more new shift time."
+ }
+}

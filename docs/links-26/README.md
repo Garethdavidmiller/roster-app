@@ -334,6 +334,56 @@ FATIGUE_SOFT=1 REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=15 ISO_MAX=4 MIXED_MA
   LEAVE_WORST_MIN=20 node space-polish.mjs results/second-sight-start.json /tmp/ss.json 1 300000   # → /tmp/ss.closest.json
 ```
 
+## Second Look and Second Gear — the same restart, on two variations of the duty table (2 Oct 2026)
+
+The restart did not stop at Second Nature's table. Five variations of it were built (`assemble-table.mjs`, the same
+pins and nine-hour cap) and searched the same way: G1, G2 and G3 keep the 42 late finishes a year, H1 and H2 cost 44.
+Every search reached the weekend gap of five. Two rotas, and only two, then met **every** floor, four single rest days
+included, and both were put forward (owner, 2 Oct 2026: "create sheets for both please with new names too"):
+
+- **Second Look** (`SL-26-G3` · `7095fdda`), table G3: Second Nature's with the Saturday 08:00-16:30 pair moved to
+  07:15-15:45. It keeps the 42 late finishes and has 14 shift times, one fewer.
+- **Second Gear** (`SG-26-H1` · `8d61e5c3`), table H1: different weekday and Saturday times. It has the lightest weeks
+  and the longest rest, and never more than five days in a row on the fixed duties, for two more late finishes a year
+  and one more new shift time.
+
+| | Second Wind | Second Sight | **Second Look** | **Second Gear** | Today |
+|---|---|---|---|---|---|
+| Longest gap between full weekends | 5 | 5 | **5** | **5** | 7 |
+| Single rest days | 4 | 5 | **4** | **4** | 4 |
+| Weeks mixing earlies and lates | 4 | 0 | **1** | **2** | 7 of 16 |
+| Heaviest Monday–Saturday week | 42h 30m | 42h 00m | **43h 40m** | **41h 30m** | 43h 50m |
+| Start-time change, week to week | 2h 01m | 1h 55m | **1h 30m** | **1h 25m** | 4h 00m |
+| Weeks on one shift time | 16 of 21 | 16 of 21 | **15 of 21** | **16 of 21** | 7 of 16 |
+| Shortest rest | 14h 20m | 14h 20m | **14h 20m** | **14h 35m** | 12h 30m |
+| Leave: best · average · worst (14 days) | 27 · 23.4 · 20 | 28 · 23.4 · 20 | **27 · 23.4 · 20** | **28 · 23.4 · 20** | 30 · 23.4 · 19 |
+| Late finishes a year | 42 | 42 | **42** | **44** | 39 |
+| Shift times (new) | 15 (6) | 15 (6) | **14 (6)** | **15 (7)** | 18 |
+| Saturday fit to the trains (lower is better) | 12.7 | 12.7 | **15.2** | **14.5** | 65.9 |
+
+The rest of the restart, for the record: G1's best kept a shorter rest (14h 05m), five single rest days and a worse
+leave figure; G2's kept six single rest days; H2's kept a fatigue factor; and the rotas that reached four single rest days on Second Nature's own table all kept
+a fatigue factor (FF19, start times moving more than two hours inside a run of days).
+
+**How to rebuild them** (from `tooling/`). The tables and the anneal runs are committed (`results/second-look-table.json`,
+`results/second-gear-table.json`, `results/second-look-start.json`, `results/second-gear-start.json`). The runs came from:
+
+```
+MODE=rules GAP_CAP=5 GAP_CAP_W=60000 GAP_W=1500 ISO_X=6000 MIX_X=5000 STEP_X=30 DAYS_X=30000 HEAVY_W=20000 HEAVY_CAP=43.67 \
+  TABLE=results/second-look-table.json node anneal.mjs G3 100000 3 113
+MODE=rules GAP_CAP=5 GAP_CAP_W=60000 GAP_W=1500 ISO_X=6000 MIX_X=5000 STEP_X=30 DAYS_X=30000 HEAVY_W=20000 HEAVY_CAP=43.67 \
+  TABLE=results/second-gear-table.json node anneal.mjs H1 100000 3 105
+```
+
+and the polish, with Second Sight's floors, keeps each grid exactly. Second Look's was run in the second polish round,
+which pushed harder on single rest days (`ISO_W=1e5`, 400,000 steps):
+
+```
+F="FATIGUE_SOFT=1 REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=15 ISO_MAX=4 MIXED_MAX=3 HEAVY_MAX=43.67 STEP_MAX=121 LEAVE_WORST_MIN=20"
+env $F ISO_W=1e5 node space-polish.mjs results/second-look-start.json second-look.json 1 400000
+env $F node space-polish.mjs results/second-gear-start.json second-gear.json 1 300000
+```
+
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
 "7 in 26" against "4 in 20" made the reader divide. The sheets now say it per person per year, as late finishes and 06:20
 starts already were:

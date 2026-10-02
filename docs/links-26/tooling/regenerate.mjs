@@ -38,6 +38,12 @@ export const SUPPLIED = [
     // from the start (the restart the owner asked for, "the way we started Familiar Nine"), then polished with every
     // Second Nature / Second Wind figure as a floor. No week mixes earlies and lates. README.md → "Second Sight".
     { file: 'second-sight.json',           name: 'Second Sight',   code: 'SS-26-F1',   fp: '3c6aac4d', strap: 'No duty over nine hours, weekends never more than five weeks apart, and no week mixing earlies and lates' },
+    // Second Look and Second Gear (2 Oct 2026): from the same restart as Second Sight, on two variations of Second Nature's
+    // duty table, and the only rotas in it that met every floor. Second Look (table G3: the Saturday 08:00-16:30 pair moved
+    // to 07:15-15:45) keeps the 42 late finishes; Second Gear (table H1) has the lightest weeks and costs two more a year.
+    // README.md → "Second Look and Second Gear".
+    { file: 'second-look.json',            name: 'Second Look',    code: 'SL-26-G3',   fp: '7095fdda', strap: 'Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates' },
+    { file: 'second-gear.json',            name: 'Second Gear',    code: 'SG-26-H1',   fp: '8d61e5c3', strap: 'Weekends never more than five weeks apart, no week over 41h 30m, and the gentlest week-to-week change' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
