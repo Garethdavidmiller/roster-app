@@ -48,6 +48,12 @@ export const SUPPLIED = [
     // rules". One duty fewer a week (88): 14 on a Friday, the quietest day (owner), and 15 the other weekdays, so every rule
     // and flexible rule still holds. Its own family: a different ceiling and table. README.md → "Quiet Friday".
     { file: 'quiet-friday.json',           name: 'Quiet Friday',   code: 'QF-26-C1',   fp: 'daf8f3c9', strap: 'Built to 217 days a year: 14 on a Friday, and weekends never more than five weeks apart' },
+    // Second Edition (2 Oct 2026): the owner asked for a roster stronger than any so far, at 219 days. Same duty table as
+    // Second Nature; the weeks were built from a rest-day SKELETON (skeleton.mjs) that carries every rule a finished rota
+    // must meet, then the times were searched. Weekends at most five apart, four single rest days, no mixed week, 18 of 21
+    // weeks on one shift time, heaviest week 42h 00m, step 1h 01m — better than or equal to every design on every line.
+    // README.md → "Second Edition".
+    { file: 'second-edition.json',         name: 'Second Edition', code: 'SE-26-F1',   fp: 'dea6417f', strap: 'Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

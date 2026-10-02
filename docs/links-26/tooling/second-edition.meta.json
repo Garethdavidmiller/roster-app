@@ -1,0 +1,8 @@
+{
+ "date": "2 October 2026",
+ "identity": {
+  "table": "F — Second Nature's duty table, unchanged (results/second-nature-table.json)",
+  "seed": "27 (skeleton.mjs), 1 (skeleton-start.mjs), then 1 · 2 · 1 · 2 (space-polish, four passes)",
+  "lineage": "The owner asked for a roster stronger than any so far, back at 219 days. The rota search could not reach four single rest days, no mixed week and no fatigue factor at once, so the rest-day layout was searched on its own first (skeleton.mjs): every rule a finished rota must meet, shift times set aside, which showed four single rest days to be the floor with the weekends five apart and found a layout meeting all of them. Second Nature's duties were laid onto it with the 07:00 and 08:00 duties where the early-start rules need them (skeleton-start.mjs), and four polish passes searched the times: first with fatigue as a cost, then with it refused outright, the heaviest week brought to 42h 00m and the leave figures held. Better than or equal to every earlier design on every line the sheets compare."
+ }
+}

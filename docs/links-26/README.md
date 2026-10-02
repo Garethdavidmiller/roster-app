@@ -194,26 +194,29 @@ is the best of the four.
 
 **The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"):
 `presentations/Second-Nature-for-colleagues` (15 slides) and `-for-managers` (10), as PowerPoint and PDF, and the same
-pair for Second Wind (`Second-Wind-for-…`) and Second Sight (`Second-Sight-for-…`). They are the
+pair for Second Wind (`Second-Wind-for-…`), Second Sight (`Second-Sight-for-…`) and Second Edition (`Second-Edition-for-…`). They are the
 Familiar Nine decks, the template Right Away's were made from too, with every word and figure that was Familiar Nine's
 replaced and the design untouched. Unlike the 24-line decks, they are BUILT here: `tooling/second-nature-decks.py`
 makes Second Nature's from the Familiar Nine files, and `tooling/second-wind-decks.py` makes Second Wind's from those,
 changing only what differs between the two rotas (weekend spacing, rest-day breaks, one-turn weeks, the best leave
 stretch, the weekly hours); `tooling/second-sight-decks.py` makes Second Sight's the same way, adding that no week mixes
-earlies and lates and saying plainly that it has one more single rest day than today (5, against 4). Both refuse if a slide no longer holds the text they expect, and both compare only with
+earlies and lates and saying plainly that it has one more single rest day than today (5, against 4); `tooling/second-edition-decks.py`
+makes Second Edition's, whose leave figures are Second Nature's exactly, so only the weekend, one-turn and rest-break
+lines change. Both refuse if a slide no longer holds the text they expect, and both compare only with
 today's link.
 - **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts.
   `tooling/leave.mjs` gives the four leave figures (Second Nature: 14 days' leave buys 28 days off at best, 23.4
   on average, 20 at worst, and four full weeks off takes 15; Second Wind: 27 at best, otherwise the same). It is the 24-line decks' leave method as code, and `--check` shows it
   reproduces their published figures for today and Familiar Nine exactly.
-- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. All 153 table rows across the six decks agree with
+- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. All 204 table rows across the eight decks agree with
   the sheets and the leave model, and none is left unchecked.
 
 Rebuild after any change to the rota:
 
 ```
 python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/second-wind-decks.py \
-  && python3 docs/links-26/tooling/second-sight-decks.py && node docs/links-26/tooling/deck-check.mjs
+  && python3 docs/links-26/tooling/second-sight-decks.py && python3 docs/links-26/tooling/second-edition-decks.py \
+  && node docs/links-26/tooling/deck-check.mjs
 ```
 
 Then export the PDFs (LibreOffice). Two things the decks say that the sheet does not show directly:
@@ -448,6 +451,73 @@ DAYS_CEILING=217 MODE=rules GAP_CAP=5 GAP_CAP_W=60000 GAP_W=1500 ISO_X=4000 MIX_
 F="DAYS_CEILING=217 FATIGUE_SOFT=1 REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=15 ISO_MAX=4 MIXED_MAX=3 HEAVY_MAX=43.67 STEP_MAX=121 LEAVE_WORST_MIN=20"
 env $F node space-polish.mjs results/quiet-friday-start.json /tmp/qf1.json 1 300000          # keeps nothing → /tmp/qf1.closest.json
 env $F ISO_W=1e5 node space-polish.mjs /tmp/qf1.closest.json quiet-friday.json 2 400000
+```
+
+## Second Edition — stronger than any of them, from a rest-day skeleton (2 Oct 2026)
+
+The owner asked for "a stronger roster than any we have done so far", back at 219 days. The table sweep settled first
+that Second Nature's duty table cannot be bettered (harder on familiarity costs fit, harder on fit costs new times, the
+other split costs both), so the gain had to come from the ORDER of the weeks — and sixteen more random-start searches
+with every cost raised found nothing that had, at once, the weekends five apart, four single rest days, no mixed week and
+no fatigue factor. Every near-miss failed on the same two factors: **FF8b** (a block of two or more 06:20 starts must be
+followed by two rest days, and a 07:00 after the block does not help) and **FF19** (an early Saturday into a late Sunday
+with no rest between is a jump of eight hours).
+
+**So the rest-day layout was searched on its own** (`tooling/skeleton.mjs`, its header has the full rule list): every
+working line a week of worked and rest cells and one family, shift times set aside, under every rule a finished rota
+must meet — the weekends, the runs with a cover week placed badly, a rest day at every change of family, FF8b, the
+SUPPLY of 07:00 and 08:00 duties that an early run needs to keep its 06:20 blocks legal (two a weekday, two a Saturday),
+the Sunday 09:00, and `leave.mjs`'s figures. Two findings:
+
+| Rules kept | Fewest single rest days |
+|---|---|
+| all | **4** |
+| mixed weeks allowed freely | 4 — so the families are not the cause |
+| weekends any distance apart | 1–3 (Familiar Nine's 2 came from here) |
+| a cover week's four duties not counted in the run | 1 — the cause |
+| the cover-week worst case allowed to reach 7 · 8 days | 3 · 1 |
+
+The 4 comes from two rules meeting: weekends never more than five apart push each full weekend up against a cover week,
+and "never more than 6 days in a row even with the cover week's duties placed as badly as they can be" then leaves a
+lone rest day beside it. Second Wind, Second Look and Second Gear were already at that floor. (If the clerk's worst case
+were allowed to reach 7 days — today's link is 7, up to 9 — a rota could have 3; that trade is the owner's and was not
+taken.)
+
+**Then the times.** `tooling/skeleton-start.mjs` lays the duty table onto the skeleton with the 07:00 and 08:00 duties
+where the supply rule needs them, and `space-polish.mjs` searches the times in four passes: first with fatigue as a cost
+(`FATIGUE_SOFT=1`, now with a slope — it used to count factors present, so three FF19 jumps cost the same as one and no
+run could climb down), then with fatigue refused outright, the heaviest week brought to 42h 00m, and the leave figures
+held (`LEAVE_BEST_MIN`, `LEAVE_FOUR_MAX`, new). `LOCK_REST=1` (new) can hold the rest days still; the passes that won
+did not need it.
+
+**Second Edition** (`SE-26-F1` · `dea6417f`), Second Nature family, `proposals/Second-Edition-SE-26-F1-dea6417f.pdf`, grid
+`tooling/second-edition.json`. Better than or equal to every earlier design on every line the sheets compare:
+
+| | Second Nature | Second Wind | Second Sight | **Second Edition** | Today |
+|---|---|---|---|---|---|
+| Longest gap between full weekends | 10 | 5 | 5 | **5** | 7 |
+| Single rest days | 4 | 4 | 5 | **4** | 4 |
+| Weeks mixing earlies and lates | 2 | 4 | 0 | **0** | 7 of 16 |
+| Weeks on one shift time | 15 of 21 | 16 | 16 | **18 of 21** | 7 of 16 |
+| Rest-day breaks of two days or more | 21 of 25 | 22 of 26 | 21 of 26 | **22 of 26** | 13 of 17 |
+| Heaviest Monday–Saturday week | 43h 40m | 42h 30m | 42h 00m | **42h 00m** | 43h 50m |
+| Start-time change, week to week | 1h 28m | 2h 01m | 1h 55m | **1h 01m** | 4h 00m |
+| Leave: best · average · worst · four weeks | 28 · 23.4 · 20 · 15 | 27 · 23.4 · 20 · 15 | 28 · 23.4 · 20 · 15 | **28 · 23.4 · 20 · 15** | 30 · 23.4 · 19 · 14 |
+
+  Unchanged, the table's: 9/9 rules, 3/3 flexible, no fatigue warning, 6 days in a row, 14h 20m, 42 late finishes,
+  15 shift times (6 new), 218.6 days.
+
+**How to rebuild it** (from `tooling/`; `results/skeleton-27.json` is the skeleton, and the first command remakes it
+exactly):
+
+```
+MIXED_MAX=0 CHG_W=0.5 node skeleton.mjs 27 2000000 5          # → skel8-27-g5-c6-m0.json = results/skeleton-27.json
+node skeleton-start.mjs results/skeleton-27.json /tmp/se0.json 1
+F="REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=16 ISO_MAX=4 MIXED_MAX=0 STEP_MAX=121 LEAVE_WORST_MIN=20 ISO_W=1e5 MIX_W=4e4"
+env $F FATIGUE_SOFT=1 HEAVY_MAX=42.5 node space-polish.mjs /tmp/se0.json /tmp/se1.json 1 400000   # keeps nothing → /tmp/se1.closest.json
+env $F FATIGUE_SOFT=1 HEAVY_MAX=42.5 node space-polish.mjs /tmp/se1.closest.json /tmp/se2.json 2 500000
+env $F HEAVY_MAX=42 node space-polish.mjs /tmp/se2.json /tmp/se3.json 1 500000
+env $F HEAVY_MAX=42 LEAVE_BEST_MIN=28 LEAVE_FOUR_MAX=15 node space-polish.mjs /tmp/se3.json second-edition.json 2 500000
 ```
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
