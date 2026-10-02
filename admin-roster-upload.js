@@ -12,9 +12,10 @@
 import { teamMembers, MONTH_ABB, getShiftBadge, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { parseOtherValue, buildOverrideWrite, nextReplacedType } from './override-utils.js';
+import { replacedTypeForSwap } from './al-swapped-days.js';
 import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
-import { computeCellStates, guardCopy, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown } from './roster-review-states.js';
+import { computeCellStates, guardedRowHtml, guardedWriteValue, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown } from './roster-review-states.js';
 // RE-EXPORTED, not re-implemented: the first three moved to roster-cell-rules.js (v22.17/v22.18),
 // computeCellStates to roster-review-states.js (v23.52), and several call sites (and their tests)
 // name this module. The alternative was a rename sweep across three test files for no behavioural
@@ -88,7 +89,7 @@ export function manualShiftDisplay(s) {
  * refresh → retry once), matching every other Admin write path. The batch is rebuilt on each
  * attempt because a `WriteBatch` cannot be reused after a failed commit. Exported for tests.
  *
- * @param {Array<{memberName: string, date: string, value: string|null, baseShift: string, replaceId?: string, deleteOnly?: boolean, replacedFrom?: {type?: string, replacedType?: string|null}|null}>} toWrite
+ * @param {Array<{memberName: string, date: string, value: string|null, baseShift: string, replaceId?: string, deleteOnly?: boolean, swapped?: boolean, replacedFrom?: {type?: string, replacedType?: string|null}|null}>} toWrite
  * @param {string} currentUser  Logged-in member name, written to `changedBy`.
  * @returns {Promise<number>}  How many rows were REFUSED as zero-length and not written, so the
  *   receipt counts only what landed (v24.38). Rejects (after one retry) if the write is denied.
@@ -104,7 +105,7 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
         try {
         await withSlowSaveNotice(writeWithClaimRetry(async () => {
             const batch = writeBatch(db);
-            for (const { memberName, date, value, baseShift, replaceId, deleteOnly, replacedFrom } of chunk) {
+            for (const { memberName, date, value, baseShift, replaceId, deleteOnly, replacedFrom, swapped } of chunk) {
                 if (deleteOnly) {
                     // REMOVE_IMPORT — delete the stale import doc and write nothing.
                     if (replaceId) batch.delete(doc(db, COLLECTIONS.overrides, replaceId));
@@ -145,7 +146,7 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
                 // member was contracted to work it, and leave booked there afterwards went free.
                 batch.set(ref, buildOverrideWrite(
                     { memberName, date, type, value: savedValue, note: '', source: 'roster_import', changedBy: currentUser,
-                      replacedType: nextReplacedType(replacedFrom, type) },
+                      replacedType: swapped ? replacedTypeForSwap(replacedFrom, type) : nextReplacedType(replacedFrom, type) },
                     serverTimestamp()));
             }
             await batch.commit();
@@ -447,6 +448,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // parsed value. Untouched rows keep chosen === null and are still never written.
                 toWrite.push({ memberName, date, value: state.options[state.chosen].display, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: state.manualId ? { type: state.manualType, replacedType: state.manualReplacedType } : null });
             }
+            // A rest day answered "swapped" (v24.42): the roster's value, as a swapped-in working day.
+            const swappedValue = guardedWriteValue(state); if (swappedValue) toWrite.push({ memberName, date, value: swappedValue, baseShift: state.baseShift, swapped: true });
             if (state.state === 'CONFLICT' && state.chosen === 'pdf') {
                 // Admin chose PDF over the existing manual entry — replace it, don't leave both
                 // docs for the same date. Write the row's DISPLAYED (normalised) value: a raw
@@ -586,6 +589,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             for (const st of cellStates.values()) {
                 if      (st.state === 'DIFF')          { if (st.chosen !== false) updates++; }
                 else if (st.state === 'REMOVE_IMPORT') { if (st.chosen !== false) clears++; }
+                else if (st.state === 'GUARDED')       { if (guardedWriteValue(st)) updates++; }
                 else if (st.state === 'CONFLICT')      { conflictsTotal++; if (st.chosen === 'pdf') { conflictsSwitched++; updates++; } }
                 else if (st.state === 'UNREADABLE')    {
                     // A resolved one is an update, not an outstanding "couldn't read" — otherwise the
@@ -779,8 +783,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         </div>
                         <div class="roster-chg-vals">
                             <span class="roster-from-val">${shiftDisplay(s.baseShift)}</span>
-                            <span class="roster-arrow">→</span>
-                            <span class="roster-to-val">${shiftDisplay(s.displayShift ?? s.parsedShift, date)}</span>
+                            <span class="roster-to-val"><span class="roster-arrow" aria-hidden="true">→</span>${shiftDisplay(s.displayShift ?? s.parsedShift, date)}</span>
                         </div>
                         <span class="roster-act act-update">Update</span>`;
                 } else if (s.state === 'REMOVE_IMPORT') {
@@ -797,29 +800,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         </div>
                         <div class="roster-chg-vals">
                             <span class="roster-from-val">${manualShiftDisplay(s)}</span>
-                            <span class="roster-arrow">→</span>
-                            <span class="roster-to-val">${shiftDisplay(s.baseShift, date)}</span>
+                            <span class="roster-to-val"><span class="roster-arrow" aria-hidden="true">→</span>${shiftDisplay(s.baseShift, date)}</span>
                             <span class="roster-remove-note">no longer on the roster</span>
                         </div>
                         <span class="roster-act act-clear">Clear old</span>`;
                 } else if (s.state === 'GUARDED') {
-                    // THE PDF SAID SOMETHING THIS APP WILL NOT RECORD ON THAT DAY (v23.97).
-                    // No tick, because there is nothing to approve: the day keeps exactly what the
-                    // base roster has, which is what the overpay guard has always done. What is new
-                    // is that the admin is TOLD — so a day the member really did swap onto can be
-                    // recorded by hand, instead of disappearing between the PDF and the calendar.
+                    // Said / did / why, plus the rest-day swap question (v24.42) — roster-review-states.js.
                     row.classList.add('roster-change-guarded');
-                    row.innerHTML = `
-                        <span class="roster-guard-icon" aria-hidden="true">i</span>
-                        <div class="roster-chg-day">
-                            <span class="roster-day-abbr">${dayName}</span>
-                            <span class="roster-day-date">${dateStr}</span>
-                        </div>
-                        <div class="roster-chg-vals">
-                            <span class="roster-from-val">${shiftDisplay(s.parsedShift, date)}</span>
-                            <span class="roster-guard-note">${guardCopy(s.guarded)}</span>
-                        </div>
-                        <span class="roster-act act-none">Not recorded</span>`;
+                    row.innerHTML = guardedRowHtml({ key, s, dayName, dateStr, badgeHtml: shiftDisplay(s.parsedShift, date), esc });
                 } else if (s.state === 'UNREADABLE' && s.options) {
                     // The two reads disagreed and we know BOTH readings — offer them rather than a
                     // dead end (owner, Jul 2026: "there is no way to choose the correct option from
@@ -1054,6 +1042,16 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             if (choiceBtn) {
                 const s = cellStates.get(choiceBtn.dataset.key ?? '');
                 if (!s) return;
+
+                // The rest-day swap question (v24.42): redrawn whole, focus back on the pressed button.
+                if (choiceBtn.dataset.swap !== undefined) {
+                    s.chosen = choiceBtn.dataset.swap === 'yes' ? 'swapped' : 'free';
+                    const rowEl = /** @type {any} */ (choiceBtn.closest('.roster-change-row')), d = parseISODate((choiceBtn.dataset.key ?? '').split('|')[1]);
+                    rowEl.innerHTML = guardedRowHtml({ key: choiceBtn.dataset.key ?? '', s, dayName: DAY_NAMES[d.getDay()], dateStr: `${d.getDate()} ${MONTH_ABB[d.getMonth()]}`, badgeHtml: shiftDisplay(s.parsedShift, formatISO(d)), esc });
+                    rowEl.querySelector(`[data-swap="${choiceBtn.dataset.swap}"]`)?.focus();
+                    refreshOutcome();
+                    return;
+                }
 
                 // UNREADABLE rows use the same control with `data-opt` (an index, or 'skip') rather
                 // than `data-pick` — a picked reading, or back to writing nothing.

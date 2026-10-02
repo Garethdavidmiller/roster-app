@@ -308,12 +308,69 @@ export function computeCellStates(parsedResult, existingOverrides) {
  * @param {'sunday'|'rest-day'|null} guard
  * @returns {string}
  */
-export function guardCopy(guard) {
+export function guardCopy(guard, asks = false) {
+    // The row's own tag already says "Not recorded", so this is the REASON alone (v24.41) — it used
+    // to end "— not recorded" too, and the row said it twice.
     if (guard === 'sunday') {
-        return 'Sundays are not contracted — not recorded';
+        return 'Sundays aren\u2019t contracted, so nothing is recorded on them.';
     }
-    // 'rest-day' (and any future guard, which should add its own line rather than inherit this one)
-    return 'rest day on the roster — not recorded';
+    // 'rest-day' (and any future guard, which should add its own line rather than inherit this one).
+    // v24.41 sent the admin to Change a Shift, which was wrong: there, an absence on a base rest day
+    // is HIDDEN unless the day is first recorded as a swapped-in shift, so it took two saves in order
+    // and a bare Absent vanished. The row now asks the question itself (v24.42, owner).
+    return asks
+        ? 'A rest day on the base roster. Was it a swapped working day? Only then is it recorded.'
+        : 'A rest day on the base roster, so nothing is recorded.';
+}
+
+/**
+ * Does this GUARDED row ask "was this a swapped working day?" (v24.42, owner).
+ *
+ * The rest-day guard turns leave or an absence on a BASE rest day into nothing, so nobody is paid an
+ * absence, or charged leave, for a day they were never due at work. That is right for a real rest
+ * day and wrong for a SWAPPED week, where the published roster moved the member's working day onto
+ * it — which only the person reading the roster knows. So it is ASKED, exactly as booking leave on a
+ * rest day is (v23.75), and never defaulted: unanswered, or answered "rest day", writes nothing.
+ * Never on a Sunday (an absence can never be recorded there) and never on a read the circuit
+ * breaker has refused (nothing on it may be written).
+ * @param {any} s a cell state
+ * @returns {boolean}
+ */
+export function swapQuestionApplies(s) {
+    return !!s && s.state === 'GUARDED' && s.guarded === 'rest-day' && !s.rosterBlocked
+        && (s.parsedShift === 'SICK' || s.parsedShift === 'AL');
+}
+
+/**
+ * The value a GUARDED row writes — the roster's own absence or leave, and only when answered
+ * "swapped" — or null. The save marks it as covering a swapped-in working day (`replacedType`).
+ * @param {any} s a cell state
+ * @returns {string|null}
+ */
+export function guardedWriteValue(s) {
+    return swapQuestionApplies(s) && s.chosen === 'swapped' ? s.parsedShift : null;
+}
+
+/**
+ * The inner HTML of a GUARDED review row (v24.41 layout; v24.42 question). Pure, so the markup the
+ * admin answers is tested beside the rule it asks about.
+ * @param {{ key: string, s: any, dayName: string, dateStr: string, badgeHtml: string,
+ *           esc: (v: string) => string }} a
+ * @returns {string}
+ */
+export function guardedRowHtml({ key, s, dayName, dateStr, badgeHtml, esc }) {
+    const asks = swapQuestionApplies(s);
+    const recording = guardedWriteValue(s) !== null;
+    const btn = (/** @type {string} */ v, /** @type {boolean} */ on, /** @type {string} */ label) =>
+        `<button type="button" class="roster-choice-btn${on ? ' is-chosen' : ''}" data-key="${esc(key)}" data-swap="${v}" aria-pressed="${on}">${label}</button>`;
+    return `
+        <div class="roster-chg-day"><span class="roster-day-abbr">${dayName}</span><span class="roster-day-date">${dateStr}</span></div>
+        <div class="roster-guard-said"><span class="roster-guard-lab">Roster</span><span class="roster-guard-val${recording ? ' is-recorded' : ''}">${badgeHtml}</span></div>
+        <span class="roster-act ${recording ? 'act-update' : 'act-none'}">${recording ? 'Will record' : 'Not recorded'}</span>
+        <p class="roster-guard-note">${guardCopy(s.guarded, asks)}</p>
+        ${asks ? `<div class="roster-pick roster-guard-pick" role="group" aria-label="Was this a swapped working day?">
+            ${btn('yes', s.chosen === 'swapped', 'Swapped \u2014 record it')}${btn('no', s.chosen === 'free', 'Rest day \u2014 leave it')}
+        </div>` : ''}`;
 }
 
 

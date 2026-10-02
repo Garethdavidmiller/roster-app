@@ -331,7 +331,10 @@ body.auth-ready .container { display: grid; }
 /* ── IN-PLACE ENTRY FOR AN UNREADABLE CELL (v22.17) ──────────────────────────────────────────── */
 /* `.roster-change-row` is a flex ROW, so anything appended to it becomes a column. The stacked
    modifier turns the row into a column and the head keeps the day/value pairing horizontal. */
-.roster-change-row--stacked { flex-direction: column; align-items: stretch; gap: 8px; }
+/* Two classes, not one: `.roster-change-row` is declared LATER at the same weight, and its
+   `align-items: center` won — the head shrank to its content and floated mid-card on a wide screen
+   (seen in a 1280px capture, v24.43; invisible at 390px, where the content fills the row). */
+.roster-change-row.roster-change-row--stacked { flex-direction: column; align-items: stretch; gap: 8px; }
 /* The row's own controls stretch, like the grid cells every other row's choices sit in — an
    "Enter the shift" button floating narrow and centred was the one control on this page that did
    not share an edge with anything (v22.17 polish). */
@@ -577,6 +580,7 @@ body.auth-ready .container { display: grid; }
 .roster-chg-vals {
     display: flex; align-items: center; gap: 6px;
     flex: 1; flex-wrap: wrap; font-size: var(--type-small);
+    min-width: 0;   /* or the values push the action tag off the row on a narrow card (v24.43) */
 }
 /* ── THE DIMS THAT WERE UNREADABLE, AND WHY OPACITY IS NEVER THE LEVER HERE (v24.00) ────────────
    Four rules on this card used to fade their content with `opacity` — this one, `.cv-dim`,
@@ -605,9 +609,12 @@ body.auth-ready .container { display: grid; }
    each of the four was put back with `scripts/mutate.mjs` and each turned it red. */
 .roster-from-val { font-size: var(--type-badge); color: var(--text-mid); }
 .roster-from-val .shift-badge { font-size: var(--type-micro); padding: 1px 5px; }
-.roster-arrow { color: var(--text-light); font-size: var(--type-badge); }
-.roster-to-val { font-size: var(--type-small); }
-.review-shift-time { font-size: var(--type-badge); font-weight: 600; color: var(--text-mid); margin-left: 4px; }
+/* The arrow belongs to the NEW value (v24.43): when a narrow row wraps, "→ Rest" starts the second
+   line instead of the arrow dangling at the end of the first, pointing at nothing. */
+.roster-arrow { color: var(--text-light); font-size: var(--type-badge); margin-right: 6px; }
+.roster-to-val { font-size: var(--type-small); display: inline-flex; flex-wrap: wrap; align-items: center; row-gap: 2px; }
+/* nowrap: a time is one value — "22:00-" / "06:00" across two lines read as two (v24.43). */
+.review-shift-time { font-size: var(--type-badge); font-weight: 600; color: var(--text-mid); margin-left: 4px; white-space: nowrap; }
 /* Tick control — "this row will save". Ticked = green box; tap to skip (empties it + dims the row). */
 .roster-tick {
     flex: 0 0 auto; width: 24px; height: 24px; padding: 0;
@@ -734,11 +741,15 @@ body.auth-ready .container { display: grid; }
 .roster-blocked .roster-change-row { background: var(--surface-sunken); }
 
 /* The tag was amber-on-amber against the row's own tint, so it read as a slightly different patch
-   of background rather than as a tag. White ground separates it without adding a colour. */
+   of background rather than as a tag. White ground separates it without adding a colour. The
+   conflict row's "Your choice" had the same fault exactly — its tag and its card are both
+   `--al-confirm-bg` — so it shares the cure (v24.43). */
+.roster-change-conflict .act-choice,
 .roster-change-unreadable .act-read {
     background: white;
     border: 1px solid color-mix(in oklch, var(--warning-amber) 35%, white);
 }
+.roster-change-conflict .act-choice { border-color: color-mix(in oklch, var(--conflict-strong) 35%, white); }
 .review-shift-unreadable { font-size: var(--type-small); font-weight: 600; color: var(--warning-amber); }
 /* GUARDED — the PDF carried a value the app's rules will not record on that day (v23.97).
    NOT amber. The unreadable row is amber because something went wrong and the admin has to act;
@@ -749,14 +760,27 @@ body.auth-ready .container { display: grid; }
 .roster-change-row.roster-change-guarded {
     background: var(--surface-sunken);
     border-left: 4px solid var(--border-light);
+    /* Two lines (v24.41): day · what the roster said · the tag, then the reason across the full
+       width under them. A grid rather than the list's flex row, because the reason must WRAP below
+       instead of being squeezed into the middle column beside a badge. */
+    display: grid; grid-template-columns: auto 1fr auto; column-gap: 12px; row-gap: 6px;
 }
-.roster-guard-icon {
-    /* Occupies the tick's column so the day/values line up with every other row in the list. */
-    width: 28px; flex: none; text-align: center;
-    font-size: var(--type-small); font-weight: 700; font-style: italic;
+.roster-guard-said { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.roster-guard-lab {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
     color: var(--text-light);
 }
-.roster-guard-note { font-size: var(--type-badge); color: var(--text-light); font-style: italic; }
+/* GREYED, not struck: it is what the roster SAID, which stays true; it is just not what will be
+   recorded. The badge keeps its shape and emoji so the day's kind is still recognisable. */
+.roster-guard-val .shift-badge { filter: grayscale(1); }
+/* …until the admin answers "swapped" (v24.42): then it IS what will be recorded, so it gets its
+   colour back, and the tag beside it turns to the green every other row uses for an outcome. */
+.roster-guard-val.is-recorded .shift-badge { filter: none; }
+.roster-guard-pick { grid-column: 1 / -1; }
+.roster-guard-note {
+    grid-column: 1 / -1; margin: 0;
+    font-size: var(--type-small); line-height: 1.4; color: var(--text-mid);
+}
 /* No tick, so no action: a flat label rather than the tappable-looking pills the other rows use. */
 .roster-change-guarded .act-none {
     font-size: var(--type-badge); color: var(--text-light); white-space: nowrap;

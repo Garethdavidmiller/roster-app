@@ -7251,7 +7251,9 @@ test('operations: a rest day the roster marked as leave is shown, and writes not
 
     const row = page.locator('.roster-change-row.roster-change-guarded');
     await expect(row).toHaveCount(1);
-    await expect(row).toContainText('rest day on the roster');
+    await expect(row).toContainText('A rest day on the base roster');
+    await expect(row, 'asked in place, not sent to another page (v24.42)').not.toContainText('Change a Shift');
+    await expect(row, 'said once, by the tag — not again in the reason (v24.41)').not.toContainText(/not recorded.*not recorded/is);
     await expect(row).toContainText('Not recorded');
     await expect(row).toContainText('5 Aug');
 
@@ -7264,6 +7266,41 @@ test('operations: a rest day the roster marked as leave is shown, and writes not
     const pending = await page.locator('.roster-change-row').count()
                   - await page.locator('.roster-change-row.roster-change-guarded').count();
     expect(Number(badge)).toBe(pending);
+});
+
+// ── …AND THE ADMIN CAN SAY IT WAS A SWAPPED WORKING DAY, IN PLACE (v24.42, owner) ─────────────
+//
+// "Why can't I enter the correct shift there?" v24.41 sent the admin to Change a Shift, where a bare
+// absence on a base rest day is hidden. The row now asks. Driven to the WRITE, because the counter
+// and the collector are separate passes and a Save label promising a change that is not written is
+// the bug worth catching — and the write must carry `replacedType`, or the Calendar hides it.
+test('operations: a rest-day absence answered "swapped" is written as a swapped-in day', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, {
+        ...ROSTER_REVIEW_PARSE,
+        choices: {},
+        parsed: [{ memberName: 'G. Miller', shifts: { ...ROSTER_REVIEW_PARSE.parsed[0].shifts, '2026-08-05': 'SICK' } }],
+    });
+    const saveBtn = page.locator('#rosterApplyBtn');
+    const row = page.locator('.roster-change-row.roster-change-guarded');
+    await expect(row).toContainText('Was it a swapped working day?');
+    const before = Number((await saveBtn.innerText()).match(/\d+/)?.[0]);
+
+    await row.locator('[data-swap="yes"]').click();
+    await expect(row.locator('.roster-act')).toHaveText('Will record');
+    await expect(row.locator('[data-swap="yes"]'), 'focus stays on the answer after the redraw').toBeFocused();
+    await expect(saveBtn).toHaveText(new RegExp(`Save ${before + 1} changes`));
+
+    // A mis-tap is recoverable: "rest day" takes it back out.
+    await row.locator('[data-swap="no"]').click();
+    await expect(row.locator('.roster-act')).toHaveText('Not recorded');
+    await expect(saveBtn).toHaveText(new RegExp(`Save ${before} change`));
+
+    await row.locator('[data-swap="yes"]').click();
+    await saveBtn.click();
+    await expect.poll(() => page.evaluate(() => (window.__E2E?.batchWrites || []).length)).toBe(before + 1);
+    const writes = await page.evaluate(() => (window.__E2E?.batchWrites || []).filter(w => w.date === '2026-08-05'));
+    expect(writes.map(w => [w.type, w.value, w.replacedType])).toEqual([['sick', 'SICK', 'shift']]);
 });
 
 // ── ANSWERING AN UNREADABLE CELL IN PLACE (v22.17) ────────────────────────────────────────────
