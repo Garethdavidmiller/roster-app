@@ -309,11 +309,13 @@ export function computeCellStates(parsedResult, existingOverrides) {
  * @returns {string}
  */
 export function guardCopy(guard) {
+    // The row's own tag already says "Not recorded", so this is the REASON alone (v24.41) — it used
+    // to end "— not recorded" too, and the row said it twice.
     if (guard === 'sunday') {
-        return 'Sundays are not contracted — not recorded';
+        return 'Sundays aren\u2019t contracted, so nothing is recorded on them.';
     }
     // 'rest-day' (and any future guard, which should add its own line rather than inherit this one)
-    return 'rest day on the roster — not recorded';
+    return 'A rest day on the base roster. If the week was swapped, record it in Change a Shift.';
 }
 
 

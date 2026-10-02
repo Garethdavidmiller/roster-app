@@ -749,14 +749,23 @@ body.auth-ready .container { display: grid; }
 .roster-change-row.roster-change-guarded {
     background: var(--surface-sunken);
     border-left: 4px solid var(--border-light);
+    /* Two lines (v24.41): day · what the roster said · the tag, then the reason across the full
+       width under them. A grid rather than the list's flex row, because the reason must WRAP below
+       instead of being squeezed into the middle column beside a badge. */
+    display: grid; grid-template-columns: auto 1fr auto; column-gap: 12px; row-gap: 6px;
 }
-.roster-guard-icon {
-    /* Occupies the tick's column so the day/values line up with every other row in the list. */
-    width: 28px; flex: none; text-align: center;
-    font-size: var(--type-small); font-weight: 700; font-style: italic;
+.roster-guard-said { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.roster-guard-lab {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
     color: var(--text-light);
 }
-.roster-guard-note { font-size: var(--type-badge); color: var(--text-light); font-style: italic; }
+/* GREYED, not struck: it is what the roster SAID, which stays true; it is just not what will be
+   recorded. The badge keeps its shape and emoji so the day's kind is still recognisable. */
+.roster-guard-val .shift-badge { filter: grayscale(1); }
+.roster-guard-note {
+    grid-column: 1 / -1; margin: 0;
+    font-size: var(--type-small); line-height: 1.4; color: var(--text-mid);
+}
 /* No tick, so no action: a flat label rather than the tappable-looking pills the other rows use. */
 .roster-change-guarded .act-none {
     font-size: var(--type-badge); color: var(--text-light); white-space: nowrap;

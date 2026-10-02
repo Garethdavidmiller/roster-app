@@ -809,17 +809,16 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     // is that the admin is TOLD — so a day the member really did swap onto can be
                     // recorded by hand, instead of disappearing between the PDF and the calendar.
                     row.classList.add('roster-change-guarded');
+                    // Two lines (v24.41, owner): what the roster said (greyed), what the app did, then
+                    // the reason at full width — not a headline badge with the reason squeezed beside it.
                     row.innerHTML = `
-                        <span class="roster-guard-icon" aria-hidden="true">i</span>
                         <div class="roster-chg-day">
                             <span class="roster-day-abbr">${dayName}</span>
                             <span class="roster-day-date">${dateStr}</span>
                         </div>
-                        <div class="roster-chg-vals">
-                            <span class="roster-from-val">${shiftDisplay(s.parsedShift, date)}</span>
-                            <span class="roster-guard-note">${guardCopy(s.guarded)}</span>
-                        </div>
-                        <span class="roster-act act-none">Not recorded</span>`;
+                        <div class="roster-guard-said"><span class="roster-guard-lab">Roster</span><span class="roster-guard-val">${shiftDisplay(s.parsedShift, date)}</span></div>
+                        <span class="roster-act act-none">Not recorded</span>
+                        <p class="roster-guard-note">${guardCopy(s.guarded)}</p>`;
                 } else if (s.state === 'UNREADABLE' && s.options) {
                     // The two reads disagreed and we know BOTH readings — offer them rather than a
                     // dead end (owner, Jul 2026: "there is no way to choose the correct option from

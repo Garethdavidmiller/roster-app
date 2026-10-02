@@ -7251,7 +7251,8 @@ test('operations: a rest day the roster marked as leave is shown, and writes not
 
     const row = page.locator('.roster-change-row.roster-change-guarded');
     await expect(row).toHaveCount(1);
-    await expect(row).toContainText('rest day on the roster');
+    await expect(row).toContainText('A rest day on the base roster');
+    await expect(row, 'said once, by the tag — not again in the reason (v24.41)').not.toContainText(/not recorded.*not recorded/is);
     await expect(row).toContainText('Not recorded');
     await expect(row).toContainText('5 Aug');
 
