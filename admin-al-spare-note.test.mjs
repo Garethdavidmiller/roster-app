@@ -6,7 +6,8 @@
 // costs exactly one day of annual leave.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spareShiftNote } from './admin-al-spare-note.js';
+import { spareShiftNote, countSpareDays } from './admin-al-spare-note.js';
+import { teamMembers, getBaseShift, isSunday } from './roster-data.js';
 
 test('no Spare days → no line at all', () => {
     for (const n of [0, -1, NaN, undefined, null]) {
@@ -57,4 +58,42 @@ test('it is third person — a manager books on somebody else\'s behalf from thi
     for (const [count, total] of [[1, 1], [1, 5], [2, 4]]) {
         assert.doesNotMatch(spareShiftNote(count, total), /\byou\b|\byou're\b|\byour\b/i);
     }
+});
+
+// ── countSpareDays — a day is Spare only while it is STILL Spare (v24.44, owner-reported) ──────
+// The owner's Spare week was turned into real shifts by a roster upload; booking one of those days
+// off still said "This is a Spare day — the shift not yet assigned". The count read the base roster.
+
+/** A CEA/CES member and a non-Sunday date whose BASE shift is Spare. */
+function findSpare() {
+    for (const m of teamMembers) {
+        if (m.hidden || m.managerOnly || (m.role !== 'CEA' && m.role !== 'CES')) continue;
+        for (let i = 0; i < 400; i++) {
+            const d = new Date(2026, 0, 1 + i);
+            const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            if (!isSunday(iso) && getBaseShift(m, d) === 'SPARE') return { m, iso };
+        }
+    }
+    return null;
+}
+
+test('a base Spare day with nothing over it counts', () => {
+    const f = findSpare();
+    assert.ok(f, 'fixture: no member has a non-Sunday Spare day in 2026');
+    assert.equal(countSpareDays(f.m, [f.iso], new Map()), 1);
+    assert.equal(countSpareDays(f.m, [f.iso], null), 1);
+});
+
+test('a Spare day a roster upload has since ASSIGNED does not count', () => {
+    const f = /** @type {any} */ (findSpare());
+    const assigned = new Map([[f.iso, { type: 'shift', value: '06:00-14:00', source: 'roster_import' }]]);
+    assert.equal(countSpareDays(f.m, [f.iso], assigned), 0,
+        'the shift has been assigned, so the note would describe a day that no longer exists');
+});
+
+test('a saved Spare override counts even over a working base', () => {
+    const f = /** @type {any} */ (findSpare());
+    const spare = new Map([[f.iso, { type: 'spare_shift', value: 'SPARE' }]]);
+    assert.equal(countSpareDays(f.m, [f.iso], spare), 1);
+    assert.equal(countSpareDays(null, [f.iso], spare), 0, 'no member, no count');
 });
