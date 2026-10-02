@@ -1,0 +1,8 @@
+{
+ "date": "1 October 2026",
+ "identity": {
+  "table": "F — the 26-line rules, no duty over 9h, three late finishers a day, today’s shift times preferred (results/second-nature-table.json)",
+  "seed": "2 (rota-polish)",
+  "lineage": "Built the way Familiar Nine was, for 26 lines. The duty table (F) was chosen from the day tables final-table.mjs found across four weekday/Saturday splits, both ticket-office settings and three Sunday options, scored on the sheet’s own measures; on weekdays only the three closers finish after 22:30, the fewest late finishes the closing rule allows. Silva Lining’s week structure was grown to 26 lines (one Monday-to-Friday week and a fifth cover week added) and the table laid onto it (grow-from-24.mjs), then the weeks were searched (anneal-from.mjs) and polished with no figure allowed to get worse (rota-polish.mjs). Compare with “Familiar Nine” (F9-24-K31s, 24 lines)."
+ }
+}

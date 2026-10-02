@@ -102,16 +102,15 @@ cannot get any shorter on average.
 - **Waivers are per design,** by owner decision. None is carried into 26 lines yet.
 - **Still open:** where the 13-day limit is written down; and how FF19 treats a rest day.
 
-## Where the code has to follow
+## Where the code follows
 
-None of this is in the tooling yet. When the 24-line tooling is copied into `tooling/` here (see `README.md`):
-
-- the line count becomes **26**;
-- the cover lines move from `{1, 7, 13, 19}` to **five**;
-- the even-spread check (F2) needs no new measure: the app's own `spareExcess` (`links-adjacency.js`) is already zero
-  exactly when the cover weeks are "as even as the rotation allows". What is written for four is the count in
-  `currentRules` (`spareLines.length === 4`, `../links-24/tooling/report-data.mjs`) and its "every 6 lines" note;
-- the days-a-year check becomes "219 or fewer".
+The tooling in `tooling/` applies all of this (set up 1 Oct 2026; see `README.md`):
+- **`tooling/link.mjs`** states the line count, the cover weeks, the contract, the ceiling and the headcounts once.
+- **The cover rule** checks five cover weeks with gaps differing by one at most (`coverSpread`), for every design.
+  Today's link, with four, does not meet it.
+- **The days ceiling** is added to the hard-limit checks in `assess()` (`tooling/report-data.mjs`). Page 1 counts it,
+  page 6's contract card states it, and the rules sheet (`December-2026-Rules.pdf`) lists it as the fourth hard limit.
+- **No 24-line waiver or named office** is carried over.
 
 The Links page itself (`ROTATING_LINES` in `links-design.js`) moves to 26 later, as its own app release (owner, 1 Oct
 2026).
