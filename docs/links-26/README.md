@@ -197,6 +197,21 @@ Then export the PDFs (LibreOffice). Two things the decks say that the sheet does
 - **Late finishes:** 42 a year is the minimum, because only the three closers the rules require finish after 23:00.
 - **Weekends off:** they can be up to ten weeks apart (today seven); the managers' deck lists it as a worry.
 
+**Everything in one download:** `links-26-proposals.zip`, laid out as the 24-line pack
+(`../links-24/links-24-proposals.zip`) was:
+1. a *Read me first* note;
+2. the one-page summary;
+3. the rules;
+4. the presentations;
+5. every proposal sheet;
+6. the import files;
+7. the technical notes (`RULES.md` and this README).
+
+`tooling/pack.py` builds it from this folder, every design in `regenerate.mjs`'s `SUPPLIED` list included, and stops
+if a file is missing. The 24-line pack was zipped by hand, so it went stale after a re-render; this one is rebuilt by
+running `python3 docs/links-26/tooling/pack.py` after any re-render. Its *Read me first* says the import files are
+refused by the Links page until that page moves to 26 lines.
+
 **Still 24 in the app.** `ROTATING_LINES = 24` in `links-design.js` is the Links page's own line count. It moves to 26 as
 its own app release (owner, 1 Oct 2026). Until then the tooling passes 26 to every app function explicitly, and the
 Links page itself still lays out 24 lines.

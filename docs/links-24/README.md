@@ -277,7 +277,7 @@ Right Away now ships as a grid (`tooling/right-away.json`); `final.mjs` still re
 project's history, kept as the record: where one describes a ten-page sheet, 23 designs or a page 9 comparison, it
 is describing an earlier edition.
 
-**Everything in one download:** `December-2026-Link-Proposals.zip` (1 Oct 2026) — the one-page summary, the
+**Everything in one download:** `links-24-proposals.zip` (1 Oct 2026; named `December-2026-Link-Proposals.zip` until 2 Oct 2026, renamed to match this folder when the 26-line pack, `../links-26/links-26-proposals.zip`, was added; its contents are unchanged except the top folder, now `links-24-proposals/`) — the one-page summary, the
 rules, both presentations, all 11 sheets and their import files, with a *Read me first* note. It is a SNAPSHOT: a
 re-render of the sheets does not update it, so rebuild it after one.
 
