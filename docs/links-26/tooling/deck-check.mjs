@@ -22,7 +22,8 @@ import { leave } from './leave.mjs';
 
 const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url).pathname;   // DECK_DIR: check a copy
 const DECKS = [['Second-Nature-for-colleagues.pptx', 'Second Nature'], ['Second-Nature-for-managers.pptx', 'Second Nature'],
-  ['Second-Wind-for-colleagues.pptx', 'Second Wind'], ['Second-Wind-for-managers.pptx', 'Second Wind']];
+  ['Second-Wind-for-colleagues.pptx', 'Second Wind'], ['Second-Wind-for-managers.pptx', 'Second Wind'],
+  ['Second-Sight-for-colleagues.pptx', 'Second Sight'], ['Second-Sight-for-managers.pptx', 'Second Sight']];
 
 const hm = m => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}m`;
 const span = s => String(s).replace(/(\d+)h(\d\d)(?!m)/g, '$1h $2m');                 // plain.mjs's "8h40" → the decks' "8h 40m"
