@@ -40,8 +40,9 @@ export function weekendGaps(q) {
   const at = []; for (let k = 1; k <= L; k++) if (off(q[String(k)].sat) && off(q[String(k % L + 1)].sun)) at.push(k);
   return at.map((k, i) => i < at.length - 1 ? at[i + 1] - k : at[0] + L - k);
 }
+const RUN_MAX = Number(process.env.RUN_MAX ?? 6);   // see the note beside LOCK_REST
 function measure(q) {
-  const c = runDesignChecks(q, L); if (c.turnarounds.length || c.longestStretch > 6) return null;
+  const c = runDesignChecks(q, L); if (c.turnarounds.length || c.longestStretch > RUN_MAX) return null;
   // FATIGUE_SOFT=1: a fatigue factor present is a cost while searching and a floor on what is kept (never kept), so a
   // start that carries one can be polished out of it; off by default, so every earlier chain rebuilds exactly
   const f = assessFatigue(q, L); if (f.present && process.env.FATIGUE_SOFT !== '1') return null;
@@ -67,6 +68,13 @@ const GAP_W = env('GAP_W', 1e5), ISO_W = env('ISO_W', 2e4);
 // floor — until then a mixed week cost nothing until it crossed the floor, so a run could not be asked to PREFER an
 // all-early or all-late week. Off by default (0), so every earlier chain rebuilds exactly.
 const MIX_W = env('MIX_W', 0);
+// LOCK_REST=1 (2 Oct 2026, the skeleton build): the rest days stay where the start put them — a same-day swap moves only
+// two timed duties, and whole lines are never swapped — so the weekends, their spacing, the single rest days and the
+// runs are the START's by construction and only the TIMES are searched (one-turn weeks, the step, rest, fatigue, the
+// heaviest week). Off by default, so every earlier chain rebuilds exactly.
+const LOCK_REST = process.env.LOCK_REST === '1';
+// RUN_MAX (default 6, declared above measure): the longest run accepted, a cover week's duties placed as badly as they
+// can be — 7 lets the owner weigh 'up to 7 if a cover week falls badly' (today: up to 9) against fewer single rest days
 const keeps = m => !m.present && m.rest >= F.restMin && m.one >= F.oneMin && m.wkends >= F.wkendsMin && m.heavy <= F.heavyMax + 1e-9
   && m.step <= F.stepMax && m.iso <= F.isoMax && m.maxGap <= F.gapMax && m.badDays <= F.badMax && m.mixed <= F.mixedMax && m.leaveWorst >= F.leaveMin;
 const misses = m => [['fatigue', m.present > 0], ['rest', m.rest < F.restMin], ['one-turn', m.one < F.oneMin], ['weekends', m.wkends < F.wkendsMin],
@@ -88,8 +96,8 @@ let cur = measure(p), cs = score(cur), best = keeps(cur) ? { m: cur, s: cs, p: s
 const ITERS = Number(ITERS_);
 for (let i = 0; i < ITERS; i++) {
   const T = 3e4 * Math.pow(10 / 3e4, i / ITERS); let undo;
-  if (rnd() < 0.75) { const d = DAYS[Math.floor(rnd() * 7)], a = WORK[Math.floor(rnd() * WORK.length)], b = WORK[Math.floor(rnd() * WORK.length)];
-    if (a === b || p[a][d] === p[b][d]) continue; [p[a][d], p[b][d]] = [p[b][d], p[a][d]]; undo = () => { [p[a][d], p[b][d]] = [p[b][d], p[a][d]]; }; }
+  if (LOCK_REST || rnd() < 0.75) { const d = DAYS[Math.floor(rnd() * 7)], a = WORK[Math.floor(rnd() * WORK.length)], b = WORK[Math.floor(rnd() * WORK.length)];
+    if (a === b || p[a][d] === p[b][d] || (LOCK_REST && !(timed(p[a][d]) && timed(p[b][d])))) continue; [p[a][d], p[b][d]] = [p[b][d], p[a][d]]; undo = () => { [p[a][d], p[b][d]] = [p[b][d], p[a][d]]; }; }
   else { const a = WORK[Math.floor(rnd() * WORK.length)], b = WORK[Math.floor(rnd() * WORK.length)]; if (a === b) continue;
     [p[a], p[b]] = [p[b], p[a]]; undo = () => { [p[a], p[b]] = [p[b], p[a]]; }; }
   const m = measure(p), s = score(m);
