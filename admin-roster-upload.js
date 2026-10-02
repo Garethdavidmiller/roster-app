@@ -783,8 +783,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         </div>
                         <div class="roster-chg-vals">
                             <span class="roster-from-val">${shiftDisplay(s.baseShift)}</span>
-                            <span class="roster-arrow">→</span>
-                            <span class="roster-to-val">${shiftDisplay(s.displayShift ?? s.parsedShift, date)}</span>
+                            <span class="roster-to-val"><span class="roster-arrow" aria-hidden="true">→</span>${shiftDisplay(s.displayShift ?? s.parsedShift, date)}</span>
                         </div>
                         <span class="roster-act act-update">Update</span>`;
                 } else if (s.state === 'REMOVE_IMPORT') {
@@ -801,8 +800,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         </div>
                         <div class="roster-chg-vals">
                             <span class="roster-from-val">${manualShiftDisplay(s)}</span>
-                            <span class="roster-arrow">→</span>
-                            <span class="roster-to-val">${shiftDisplay(s.baseShift, date)}</span>
+                            <span class="roster-to-val"><span class="roster-arrow" aria-hidden="true">→</span>${shiftDisplay(s.baseShift, date)}</span>
                             <span class="roster-remove-note">no longer on the roster</span>
                         </div>
                         <span class="roster-act act-clear">Clear old</span>`;
