@@ -23,6 +23,14 @@ The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, o
 `NN` is the link's length in weeks. A proposal keeps its own name, because the code and fingerprint in it identify the
 exact rota on a printout. Inside the zip, the files carry the same names as here.
 
+**Full weekends off per year, 2 Oct 2026 (owner).** A longer link's larger count is not more weekends in a year, so every
+sheet now also gives full weekends off per person per year: "About 13 full weekends off a year (today 10), 6 in 24 weeks"
+on page 1, a "Full weekends off" row (13 against 10, 25% of weeks against 20%) under *Each person's year* on page 2, and
+"about 13 a year · 7 weeks apart at most" in the summary. The rotation count stays, as "Full weekends off, in the
+rotation". All 11 sheets were re-rendered for it. Their text changed only there, checked word by word against the
+previous render; the fingerprints and `deck-check.mjs` are unchanged. The pack's sheets and summary were refreshed to
+match. This is the one change made to this folder since it was frozen.
+
 **Moved on 2 Oct 2026.** Until then, the proposals sat loose in this folder, beside `December-2026-Rules.pdf`,
 `Proposals-Summary.pdf` and `December-2026-Link-Proposals.zip`. Those three are now `links-24-rules.pdf`,
 `links-24-summary.pdf` and `links-24-proposals.zip`; the summary was re-rendered so that its footer names the rules
