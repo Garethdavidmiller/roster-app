@@ -44,6 +44,10 @@ export const SUPPLIED = [
     // README.md → "Second Look and Second Gear".
     { file: 'second-look.json',            name: 'Second Look',    code: 'SL-26-G3',   fp: '7095fdda', strap: 'Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates' },
     { file: 'second-gear.json',            name: 'Second Gear',    code: 'SG-26-H1',   fp: '8d61e5c3', strap: 'Weekends never more than five weeks apart, no week over 41h 30m, and the gentlest week-to-week change' },
+    // Quiet Friday (2 Oct 2026): the owner's what-if, "217 was the maximum working days per year … keep the rest of the
+    // rules". One duty fewer a week (88): 14 on a Friday, the quietest day (owner), and 15 the other weekdays, so every rule
+    // and flexible rule still holds. Its own family: a different ceiling and table. README.md → "Quiet Friday".
+    { file: 'quiet-friday.json',           name: 'Quiet Friday',   code: 'QF-26-C1',   fp: 'daf8f3c9', strap: 'Built to 217 days a year: 14 on a Friday, and weekends never more than five weeks apart' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

@@ -384,6 +384,70 @@ env $F ISO_W=1e5 node space-polish.mjs results/second-look-start.json second-loo
 env $F node space-polish.mjs results/second-gear-start.json second-gear.json 1 300000
 ```
 
+## Quiet Friday — what if the ceiling were 217 days? (2 Oct 2026)
+
+The owner asked: "What if we said 217 was the maximum working days per year. Keep the rest of the rules. What is
+possible? Try every possibility." With five cover weeks, 217 allows **88 Monday-to-Saturday duties**, one fewer than the
+219-day designs' 89 (RULES.md's own table: 88 duties is 216.6 days). Taking that one duty out can be done four ways,
+and the 9-hour cap on duties (a design choice, not a rule: the rules limit only Sunday duties) decides most of them.
+The fixed ticket-office and closing duties leave little room to lengthen the rest.
+
+| | Weekday · Saturday | Days | Rules | What the search found |
+|---|---|---|---|---|
+| A | 15 · 13 | 216.6 | breaks flexible F1 (14 on a Saturday) | 13 on a Saturday leaves 8 Saturdays off, so 8 full weekends; tables fit (Saturday 26.8–27.6), but every rota kept a fatigue factor (early runs, or start times moving over two hours) |
+| B | 14 · 14 | 214.6 | all kept | only with weekday duties to 9h 30m, and then every weekday fits at 48.1 (Second Nature: 29.3) |
+| B2 | 14 · 16 | 216.6 | all kept | 9-hour cap kept, but 16 Saturday duties leave 5 full weekends |
+| **C** | **15 Mon–Thu, 14 Fri** · 14 | **216.6** | **all kept** | **Quiet Friday** |
+
+**C, with Friday the short day** (owner: "Friday is the quietest day"; today's link already rosters 11–12 by day). The
+Friday table was searched from the times the week already works plus at most two new ones, because the rule of no more
+shift times than today (18) counts the whole week: `final-table.mjs` gained `POOL_ONLY=`, and `anneal.mjs` a per-day
+column so one weekday can take its own counts. Friday's best adds one new time, 13:30–22:30 (fit 40.0, 17 times in the
+week). Of 15 rota searches on options A and C, one rota met every floor of the restart.
+
+**Quiet Friday** (`QF-26-C1` · `daf8f3c9`), its own family, `proposals/Quiet-Friday-QF-26-C1-daf8f3c9.pdf`, grid
+`tooling/quiet-friday.json`. At 216.6 days it is inside today's 219 ceiling too, so it sits with the others and is
+judged by the same rules; its strap says it was built to 217.
+
+| | Second Wind | **Quiet Friday** | Today |
+|---|---|---|---|
+| Contracted days a year | 218.6 | **216.6** | 219.0 |
+| On duty: Mon–Thu · Fri · Sat · Sun | 15 · 15 · 14 · 10 | **15 · 14 · 14 · 10** | 11–12 · 12 · 10 · 8 |
+| Longest gap between full weekends (7 in 26) | 5 | **5** | 7 (4 in 20) |
+| Single rest days | 4 | **4** | 4 |
+| Weeks mixing earlies and lates | 4 | **3** | 7 of 16 |
+| Heaviest Monday–Saturday week | 42h 30m | **41h 30m** | 43h 50m |
+| Start-time change, week to week | 2h 01m | **1h 36m** | 4h 00m |
+| Shortest rest | 14h 20m | **14h 20m** | 12h 30m |
+| Late finishes a year | 42 | **46** | 39 |
+| Shift times (new) | 15 (6) | **17 (10)** | 18 |
+| Leave: best · average · worst (14 days) · four weeks off | 27 · 23.4 · 20 · 15 | **27 · 23.6 · 20 · 16** | 30 · 23.4 · 19 · 14 |
+| Fit to the trains: weekday · Saturday · Sunday | 29.1 · 12.7 · 29.0 | **30.1 · 15.5 · 29.0** | 52.0 · 65.9 · 71.7 |
+
+The costs of 217 are the four extra late finishes (the Saturday that makes the minutes work has two 14:30–23:30 duties),
+the new times and a slightly weaker Saturday.
+
+**How to rebuild it** (from `tooling/`). The day tables, the assembled table and the anneal run are committed
+(`results/quiet-friday-{friday,sat,table,start}.json`; the weekday and Sunday are Second Nature's). The days came from:
+
+```
+X="HI=540 TODAY=1 NEWPEN=2 AT22_STRICT=1"
+env $X CLS=sat N=14 TOTAL=7200 MAX_TURNS=6 OUT=sat.json node final-table.mjs
+env $X CLS=weekday N=14 TOTAL=7140 MAX_TURNS=8 CLOSERS_MAX=3 MID_END_MAX=1350 \
+  POOL_ONLY=<the week's 16 times>,13:30-22:30 OUT=friday.json node final-table.mjs
+```
+
+The table is `assemble-table.mjs` on Second Nature's weekday, that Saturday and Second Nature's Sunday, with the Friday
+written as its own `fri` column. Then:
+
+```
+DAYS_CEILING=217 MODE=rules GAP_CAP=5 GAP_CAP_W=60000 GAP_W=1500 ISO_X=4000 MIX_X=3000 STEP_X=20 DAYS_X=30000 \
+  HEAVY_W=20000 HEAVY_CAP=43.67 TABLE=results/quiet-friday-table.json node anneal.mjs C1f 100000 3 5
+F="DAYS_CEILING=217 FATIGUE_SOFT=1 REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=15 ISO_MAX=4 MIXED_MAX=3 HEAVY_MAX=43.67 STEP_MAX=121 LEAVE_WORST_MIN=20"
+env $F node space-polish.mjs results/quiet-friday-start.json /tmp/qf1.json 1 300000          # keeps nothing → /tmp/qf1.closest.json
+env $F ISO_W=1e5 node space-polish.mjs /tmp/qf1.closest.json quiet-friday.json 2 400000
+```
+
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
 "7 in 26" against "4 in 20" made the reader divide. The sheets now say it per person per year, as late finishes and 06:20
 starts already were:
