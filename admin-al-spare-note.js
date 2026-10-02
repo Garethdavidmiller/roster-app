@@ -1,4 +1,6 @@
 // @ts-check
+import { getBaseShift, isSunday, parseISODate } from './roster-data.js';
+import { resolveEffectiveShift } from './override-utils.js';
 // admin-al-spare-note.js — the one sentence the AL booking preview says about Spare days.
 //
 // ── WHY A MODULE FOR ONE SENTENCE ──────────────────────────────────────────────────────────────
@@ -29,6 +31,15 @@
 // closes the entitlement question rather than opening it. It carries 📋 — the Spare badge the app
 // already uses — and not ⚠, because there is nothing here to be careful about.
 //
+// ── A SPARE DAY IS ONE THAT IS *STILL* SPARE (v24.44, owner-reported) ─────────────────────────
+//
+// The count read the BASE roster alone, so a Spare week the weekly roster upload had since turned
+// into real shifts went on being called Spare: the owner booked one of those days off and was told
+// "This is a Spare day — on standby, with the shift not yet assigned", about a day whose shift had
+// been assigned. The day's kind is whatever the Calendar shows for it — the override first, the
+// base only when there is none — so this asks `resolveEffectiveShift`, the one resolver the Calendar
+// and Team Week View use, rather than writing a fourth copy of that ladder.
+//
 // It is also written in the THIRD PERSON. A manager books leave on somebody else's behalf from this
 // same card, so "you're on standby" would be addressed to the wrong person half the time.
 
@@ -52,4 +63,20 @@ export function spareShiftNote(spareCount, totalDays) {
         return `📋 ${subject} — ${MEANING}. It still uses 1 day of annual leave.`;
     }
     return `📋 ${spareCount} of these days are Spare days — ${MEANING}. Each still uses 1 day of annual leave.`;
+}
+
+/**
+ * How many of `dates` are a working day that is STILL Spare — the base roster says Spare and no
+ * override has since replaced it (a roster upload, a Change a Shift). A saved Spare override counts
+ * too. Sundays never count: annual leave is not recorded on one.
+ *
+ * @param {any} memberObj
+ * @param {string[]} dates ISO `YYYY-MM-DD`
+ * @param {Map<string, any>|null} ovByDate the member's overrides keyed by date
+ * @returns {number}
+ */
+export function countSpareDays(memberObj, dates, ovByDate) {
+    if (!memberObj) return 0;
+    return dates.filter(d => !isSunday(d)
+        && resolveEffectiveShift(ovByDate?.get(d) ?? null, getBaseShift(memberObj, parseISODate(d)), false).shift === 'SPARE').length;
 }

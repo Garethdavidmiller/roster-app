@@ -6,12 +6,12 @@
 // Imports data and Firebase directly; receives admin-app.js-owned DOM handles and shared
 // functions via initALSection(deps) to avoid circular imports.
 
-import { getBaseShift, escapeHtml, parseISODate } from './roster-data.js';
-import { getAllOverrides, isWorkingDate, buildMemberDateMap } from './admin-overrides.js';
+import { escapeHtml } from './roster-data.js';
+import { getAllOverrides, buildMemberDateMap } from './admin-overrides.js';
 import { createRangeBookingSection } from './admin-range-booking.js';
 import { swapDecisionDates } from './al-swapped-days.js';
 import { projectAlBooking, projectAlOverage } from './admin-al-projection.js';
-import { spareShiftNote } from './admin-al-spare-note.js';
+import { spareShiftNote, countSpareDays } from './admin-al-spare-note.js';
 
 const esc = escapeHtml;
 
@@ -102,14 +102,8 @@ export function initALSection({
      *   rangeStr: string, workDays: number, restCount: number, projection?: any }} ctx
      */
     function renderReady({ member, dates, memberObj, memberOvByDate, rangeStr, workDays, restCount, projection = null }) {
-        // A worked day whose base is an unconfirmed Spare shift is flagged (it will be booked as AL).
-        let spareCount = 0;
-        if (memberObj) {
-            dates.forEach(dateStr => {
-                if (isWorkingDate(memberObj, dateStr, /** @type {Map<string, any>} */ (memberOvByDate)) &&
-                    getBaseShift(memberObj, parseISODate(dateStr)) === 'SPARE') spareCount++;
-            });
-        }
+        // A day that is STILL Spare — not one a roster upload has since assigned (admin-al-spare-note.js).
+        const spareCount = countSpareDays(memberObj, dates, memberOvByDate);
         const c = projection?.counts;
         let label, restNote = '';
         if (!c) {                                    // no projection (no member resolved): old shape

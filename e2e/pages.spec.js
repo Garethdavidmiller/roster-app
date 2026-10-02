@@ -8368,6 +8368,53 @@ test('admin: the AL preview names a Spare day and says it costs one day of leave
         .not.toMatch(/hours|more than 1 AL day/i);
 });
 
+// OWNER-REPORTED (v24.44): a Spare week that a roster upload had turned into real shifts was still
+// called Spare when one of those days was booked off — "the shift not yet assigned", about a day
+// whose shift had been. The note read the BASE roster; it must read what the Calendar shows.
+test('admin: a Spare day a roster upload has since assigned is not called Spare', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    // Same search as the test above, and for the same reasons (never a Sunday, never a fixed date).
+    const pick = await page.evaluate(async () => {
+        const rd = await import('./roster-data.js');
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        for (const m of rd.teamMembers) {
+            if (m.hidden || m.managerOnly || (m.role !== 'CEA' && m.role !== 'CES')) continue;
+            for (let i = 1; i <= 200; i++) {
+                const d = new Date(today); d.setDate(d.getDate() + i);
+                const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                if (rd.isSunday(iso) || rd.getBaseShift(m, d) !== 'SPARE') continue;
+                return { name: m.name, iso, monthsAhead: (d.getFullYear() - today.getFullYear()) * 12 + (d.getMonth() - today.getMonth()) };
+            }
+        }
+        return null;
+    });
+    expect(pick, 'no CEA/CES member has a non-Sunday Spare day in the next 200 days').not.toBeNull();
+    const p = /** @type {any} */ (pick);
+    // The roster upload's write: a real shift over the Spare day. Seeded, then the page reloaded so
+    // the AL card reads it.
+    await page.addInitScript(({ name, iso }) => {
+        /** @type {any} */ (window).__E2E = /** @type {any} */ (window).__E2E || {};
+        /** @type {any} */ (window).__E2E.docs = [{ id: 'ri1', memberName: name, date: iso,
+            value: '06:00-14:00', type: 'shift', source: 'roster_import' }];
+    }, { name: p.name, iso: p.iso });
+    await page.reload();
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+
+    await page.locator('#fieldMember').selectOption(p.name);
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alRangePicker')).toBeVisible();
+    for (let i = 0; i < p.monthsAhead; i++) { await page.locator('#alRpNext').click(); await page.waitForTimeout(60); }
+    const cell = page.locator(`#alRpGrid .rp-day[data-iso="${p.iso}"]`);
+    await cell.click();
+    await cell.click();
+
+    const preview = page.locator('#alPreview');
+    await expect(preview).toContainText('1 day of Annual Leave');
+    await expect(preview).not.toContainText('Spare');
+});
+
 test('admin: the AL and Absence cards carry no member dropdown of their own', async ({ page }) => {
     // OWNER-REPORTED, 14 Sep 2026. `#alMember` and `#sickMember` are `hidden` value holders — the
     // member is chosen ONCE in the top bar — but v23.33 put both in the `initSelectSheets` list, and
