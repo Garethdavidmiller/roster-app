@@ -286,7 +286,18 @@ REST_MIN=860 WKENDS_MIN=7 ONE_MIN=16 HEAVY_MAX=42.5 STEP_MAX=128 ISO_MAX=4 GAP_M
   node space-polish.mjs /tmp/r7.closest.json second-wind.json 1 300000
 ```
 
-**Everything in one download:** `links-26-proposals.zip`, laid out as the 24-line pack
+**Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
+"7 in 26" against "4 in 20" made the reader divide. The sheets now say it per person per year, as late finishes and 06:20
+starts already were:
+- **page 1:** "About 14 full weekends off a year (today 10), 7 in 26 weeks, …";
+- **page 2:** a "Full weekends off" row in *Each person's year, on average*, with the share of weeks (27%, today 20%);
+  the rotation figure stays, relabelled "Full weekends off, in the rotation";
+- **the summary:** under the count.
+
+The weighted league scores weekends as a share of weeks for the same reason. The 24-line sheets were left as they
+stood.
+
+ `links-26-proposals.zip`, laid out as the 24-line pack
 (`../links-24/links-24-proposals.zip`) was:
 1. a *Read me first* note;
 2. the one-page summary;
