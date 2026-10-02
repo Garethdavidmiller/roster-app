@@ -3,11 +3,13 @@
 // every move (same-day swaps, whole-line swaps). The app's own modules judge every candidate;
 // the "feel" terms are the only thing added, and they are what "like today's roster" means in numbers.
 import { writeFileSync, readFileSync } from 'node:fs';
-import { runDesignChecks, startMinutes, DAYS } from '../../../links-design.js';
+import { runDesignChecks, startMinutes, DAYS, dutyMinutes } from '../../../links-design.js';
 import { assessFatigue } from '../../../links-fatigue.js';
 import { scoreOrder } from '../../../links-adjacency.js';
 import { LINES, COVER_LINES } from './link.mjs';
 const MODE = process.env.MODE ?? 'feel';   // 'feel' = like today's roster · 'rules' = fatigue-first, no feel terms
+const GAP_W = Number(process.env.GAP_W ?? 0), ISO_X = Number(process.env.ISO_X ?? 0);
+const DAYS_X = Number(process.env.DAYS_X ?? 0), HEAVY_W = Number(process.env.HEAVY_W ?? 0), HEAVY_CAP = Number(process.env.HEAVY_CAP ?? 99);   // weekend spacing; extra weight on single rest days (both off by default)
 
 const VARIANT = process.argv[2] ?? 'B';
 const STEPS = Number(process.argv[3] ?? 60000), RESTARTS = Number(process.argv[4] ?? 4), SEED0 = Number(process.argv[5] ?? 7);
@@ -88,6 +90,18 @@ export function evaluate(p) {
     weekends: -c.weekendsOff * 900, longWeekends: -a.longWeekends * 300, fourDay: -a.fourDayBreaks * 150,
     gentle: a.gentleMean * (R ? 10 : 6) + a.gentleOver * (R ? 400 : 250), blocks: Math.max(0, a.longestBlock - 3) * 2000,
   };
+  // WEEKEND SPACING (2 Oct 2026, the Second Nature review): GAP_W per week of the longest wait between two full weekends
+  // (the sheet's measure, plain.mjs), plus a small push towards even gaps; ISO_X adds weight to single rest days. Both
+  // are off by default, so every earlier run reproduces exactly.
+  if (GAP_W) { const at = []; for (let k = 1; k <= LINES; k++) { const sa = p[String(k)].sat, su = p[String(k % LINES + 1)].sun; if (sa === 'RD' && su === 'RD') at.push(k); }
+    const g = at.map((k, i) => i < at.length - 1 ? at[i + 1] - k : at[0] + LINES - k);
+    terms.weekendGap = g.length ? GAP_W * Math.max(...g) + GAP_W / 20 * g.reduce((s, x) => s + x * x, 0) / LINES : GAP_W * LINES; }
+  if (ISO_X) terms.isolatedRest += iso * ISO_X;
+  // DAYS_X: extra weight on weeks of fewer than 4 or more than 5 days (a six-day week is what the spacing search reached
+  // for first); HEAVY_CAP / HEAVY_W: a cost per hour any working week's Monday-to-Saturday duty is over HEAVY_CAP.
+  if (DAYS_X) terms.daysOff45 += daysPen * DAYS_X;
+  if (HEAVY_W) { const over = WORK.reduce((s, ln) => s + Math.max(0, ['mon','tue','wed','thu','fri','sat'].reduce((h, d) => h + (/^\d/.test(p[ln][d]) ? dutyMinutes(p[ln][d]) : 0), 0) / 60 - HEAVY_CAP), 0);
+    terms.heavy = over * HEAVY_W; }
   const cost = Object.values(terms).reduce((s, x) => s + x, 0);
   return { cost, terms, facts: { turnarounds: c.turnarounds.length, longest: c.longestStretch, weekends: c.weekendsOff, present: f.present, ff11: v('FF11'), ff15: v('FF15'), ff8b: v('FF8b'), ff19: v('FF19'), h55, e8, ff17, gentleMean: a.gentleMean, gentleOver: a.gentleOver, gentleWorst: a.gentleWorst, longestBlock: a.longestBlock, longWeekends: a.longWeekends, famWeeks: fam, extraTimes: times, iso, daysPen, varMis } };
 }

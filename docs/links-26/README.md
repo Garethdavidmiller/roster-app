@@ -214,6 +214,66 @@ Then export the PDFs (LibreOffice). Two things the decks say that the sheet does
 - **Late finishes:** 42 a year is the minimum, because only the three closers the rules require finish after 23:00.
 - **Weekends off:** they can be up to ten weeks apart (today seven); the managers' deck lists it as a worry.
 
+## The review, and a revision with the weekends spread (2 Oct 2026)
+
+An external review rated Second Nature "remarkably strong ... about 9.2/10 as a first draft", and asked for one more pass
+before calling it finished. Its priorities, in order:
+1. keep every rule, no fatigue warning, 6 days in a row at most, the 14h 20m rest, the 42 late finishes, the shift times;
+2. spread the full weekends, which can be ten weeks apart;
+3. fewer single rest days (4; Familiar Nine has 2);
+4. a lighter heaviest week (43h 40m);
+5. the cover weeks kept at 1, 6, 11, 16 and 21.
+
+Every figure it quoted checks out against the rotas.
+
+**What was found.** Only the ORDER was searched. Every move swaps duties between weeks or swaps whole weeks, so each
+day's duties, and with them priorities 1 and 5, cannot change.
+
+- **The weekends.** 14 Saturday duties on 21 working weeks leave exactly 7 Saturdays off, so seven is also the most. A
+  full weekend cannot start in a cover week or the week before one, which leaves 16 of the 26 weeks that can. The
+  closest seven of those can be is **five weeks apart**, the best possible.
+- **The revision reaches it.** `results/second-nature-spaced.json` · `4bec8d8e`. Against Second Nature:
+
+| | Second Nature (shipped) | **Revision** | Familiar Nine (24) | Today |
+|---|---|---|---|---|
+| Longest gap between full weekends | 10 weeks | **5** (the best possible) | 7 | 7 |
+| Single rest days | 4 (1 beside a cover week) | 4 (none beside one) | 2 | 4 |
+| Heaviest Mon–Sat week | 43h 40m | **42h 30m** | 41h 45m | 43h 50m |
+| Worst rolling 7 days | 52.2h | 51.5h | 51.3h | 60.8h |
+| Weeks on one turn | 15 of 21 | **16 of 21** | 14 of 20 | 7 of 16 |
+| Weeks mixing earlies and lates | **2 of 21** | 4 of 21 | 3 of 20 | 7 of 16 |
+| Start-time change, week to week | **1h 28m** | 2h 01m | 1h 44m | 4h 00m |
+| Leave: best · average · worst (14 days) | 28 · 23.4 · 20 | 27 · 23.4 · 20 | 28 · 23.6 · 20 | 30 · 23.4 · 19 |
+
+  Unchanged: 9/9 rules, no fatigue warnings, 6 days in a row, 14h 20m, 42 late finishes, 15 shift times, 218.6 days.
+
+- **Single rest days stayed at 4.** No rota with the weekends spread got below it. The only rotas found with 3 had a
+  shorter rest or a fatigue factor; one with 2 mixed weeks and the weekends spread had 6 single rest days.
+- **The cost is stability.** Mixed weeks went from 2 to 4, and the week-to-week move from 1h 28m to 2h 01m. Both are
+  still far better than today and close to Familiar Nine. **Whether to adopt it is the owner's call**: it is not
+  shipped, and Second Nature (`SN-26-F2`) is unchanged.
+
+**How it was found** (from `tooling/`):
+- `anneal.mjs` gained terms that are off by default, so every earlier run reproduces: `GAP_W` (the weekend gap),
+  `ISO_X` (single rest days), `DAYS_X` (3- and 6-day weeks) and `HEAVY_W`/`HEAVY_CAP` (hours over a cap).
+- `space-polish.mjs` reorders a rota towards the review's priorities. Each floor is a cost while searching and a floor
+  on what is kept, so nothing it writes is worse than its floors on any of them. When it keeps nothing, it names the
+  floors its closest rota missed and saves that rota beside its output.
+- `candidates.mjs` now prints the weekend gap.
+
+The search:
+- **Random-start search:** 8 runs. Best was seed 29 (`GAP_W=4000 ISO_X=4000 DAYS_X=30000 HEAVY_W=20000 HEAVY_CAP=43.67`).
+- **Polishing:** gave `results/second-nature-spaced-start.json`. That was made by an earlier version of `space-polish.mjs`,
+  so it is committed rather than rebuilt.
+- **The two last steps** rebuild the revision exactly:
+
+```
+REST_MIN=860 WKENDS_MIN=7 ONE_MIN=15 HEAVY_MAX=43.67 STEP_MAX=130 ISO_MAX=4 GAP_MAX=6 MIXED_MAX=2 LEAVE_WORST_MIN=20 \
+  node space-polish.mjs results/second-nature-spaced-start.json /tmp/r7.json 7 400000          # keeps nothing; writes /tmp/r7.closest.json
+REST_MIN=860 WKENDS_MIN=7 ONE_MIN=16 HEAVY_MAX=42.5 STEP_MAX=128 ISO_MAX=4 GAP_MAX=5 MIXED_MAX=4 LEAVE_WORST_MIN=20 \
+  node space-polish.mjs /tmp/r7.closest.json results/second-nature-spaced.json 1 300000
+```
+
 **Everything in one download:** `links-26-proposals.zip`, laid out as the 24-line pack
 (`../links-24/links-24-proposals.zip`) was:
 1. a *Read me first* note;
