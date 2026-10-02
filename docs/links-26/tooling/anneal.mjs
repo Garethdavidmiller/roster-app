@@ -9,6 +9,7 @@ import { scoreOrder } from '../../../links-adjacency.js';
 import { LINES, COVER_LINES } from './link.mjs';
 const MODE = process.env.MODE ?? 'feel';   // 'feel' = like today's roster · 'rules' = fatigue-first, no feel terms
 const GAP_W = Number(process.env.GAP_W ?? 0), ISO_X = Number(process.env.ISO_X ?? 0);
+const GAP_CAP = Number(process.env.GAP_CAP ?? 0), GAP_CAP_W = Number(process.env.GAP_CAP_W ?? 60000), MIX_X = Number(process.env.MIX_X ?? 0), STEP_X = Number(process.env.STEP_X ?? 0);
 const DAYS_X = Number(process.env.DAYS_X ?? 0), HEAVY_W = Number(process.env.HEAVY_W ?? 0), HEAVY_CAP = Number(process.env.HEAVY_CAP ?? 99);   // weekend spacing; extra weight on single rest days (both off by default)
 
 const VARIANT = process.argv[2] ?? 'B';
@@ -97,6 +98,15 @@ export function evaluate(p) {
     const g = at.map((k, i) => i < at.length - 1 ? at[i + 1] - k : at[0] + LINES - k);
     terms.weekendGap = g.length ? GAP_W * Math.max(...g) + GAP_W / 20 * g.reduce((s, x) => s + x * x, 0) / LINES : GAP_W * LINES; }
   if (ISO_X) terms.isolatedRest += iso * ISO_X;
+  // WEEKENDS AS A RULE (2 Oct 2026, owner: "weekends off either four weeks apart or as spaced out as possible"): GAP_CAP
+  // is the longest wait allowed between two full weekends (5 is the closest seven can be with these cover weeks), and
+  // every week over it costs GAP_CAP_W. MIX_X and STEP_X add weight to weeks mixing earlies and lates and to the
+  // week-to-week move in start time, the two things a spread found by reordering alone gave up. All off by default.
+  if (GAP_CAP) { const at = []; for (let k = 1; k <= LINES; k++) { if (p[String(k)].sat === 'RD' && p[String(k % LINES + 1)].sun === 'RD') at.push(k); }
+    const g = at.length ? Math.max(...at.map((k, i) => i < at.length - 1 ? at[i + 1] - k : at[0] + LINES - k)) : LINES;
+    terms.weekendCap = Math.max(0, g - GAP_CAP) * GAP_CAP_W; }
+  if (MIX_X) terms.famWeeks += fam * MIX_X;
+  if (STEP_X) terms.gentle += a.gentleMean * STEP_X;
   // DAYS_X: extra weight on weeks of fewer than 4 or more than 5 days (a six-day week is what the spacing search reached
   // for first); HEAVY_CAP / HEAVY_W: a cost per hour any working week's Monday-to-Saturday duty is over HEAVY_CAP.
   if (DAYS_X) terms.daysOff45 += daysPen * DAYS_X;
