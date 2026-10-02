@@ -52,7 +52,7 @@ Start with these:
                    December 2026 rules scored on every sheet, and three flexible
                    rules aimed for when designing (14 on a Saturday, five cover
                    weeks as evenly spaced as 26 weeks allow, 15:45 weekday closers).
-  3 Presentations  {' and '.join(with_decks) or 'None yet'} - one for colleagues and one for managers.
+  3 Presentations  {' and '.join(with_decks) or 'None yet'} - one for colleagues and one for managers{' each' if len(with_decks) > 1 else ''}.
                    PowerPoint and PDF copies of each. The PowerPoints use the
                    Inter font; if the PC showing them does not have Inter,
                    present the PDF instead.

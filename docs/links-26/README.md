@@ -193,28 +193,34 @@ It was chosen for the balance. Four more weeks on one turn are worth one more si
 is the best of the four.
 
 **The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"):
-`presentations/Second-Nature-for-colleagues` (15 slides) and `-for-managers` (10), as PowerPoint and PDF. They are the
+`presentations/Second-Nature-for-colleagues` (15 slides) and `-for-managers` (10), as PowerPoint and PDF, and the same
+pair for Second Wind (`Second-Wind-for-…`). They are the
 Familiar Nine decks, the template Right Away's were made from too, with every word and figure that was Familiar Nine's
 replaced and the design untouched. Unlike the 24-line decks, they are BUILT here: `tooling/second-nature-decks.py`
-makes both from the Familiar Nine files, and refuses if a slide no longer holds the text it expects.
+makes Second Nature's from the Familiar Nine files, and `tooling/second-wind-decks.py` makes Second Wind's from those,
+changing only what differs between the two rotas (weekend spacing, rest-day breaks, one-turn weeks, the best leave
+stretch, the weekly hours). Both refuse if a slide no longer holds the text they expect, and both compare only with
+today's link.
 - **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts.
-  `tooling/leave.mjs` gives the four leave figures (14 days' leave buys 28 days off at best, 23.4 on average, 20 at
-  worst; four full weeks off takes 15). It is the 24-line decks' leave method as code, and `--check` shows it
+  `tooling/leave.mjs` gives the four leave figures (Second Nature: 14 days' leave buys 28 days off at best, 23.4
+  on average, 20 at worst, and four full weeks off takes 15; Second Wind: 27 at best, otherwise the same). It is the 24-line decks' leave method as code, and `--check` shows it
   reproduces their published figures for today and Familiar Nine exactly.
-- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. All 51 table rows agree with the sheet and
-  the leave model, and none is left unchecked.
+- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. All 102 table rows across the four decks agree with
+  the sheets and the leave model, and none is left unchecked.
 
 Rebuild after any change to the rota:
 
 ```
-python3 docs/links-26/tooling/second-nature-decks.py && node docs/links-26/tooling/deck-check.mjs
+python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/second-wind-decks.py \
+  && node docs/links-26/tooling/deck-check.mjs
 ```
 
 Then export the PDFs (LibreOffice). Two things the decks say that the sheet does not show directly:
 - **Late finishes:** 42 a year is the minimum, because only the three closers the rules require finish after 23:00.
-- **Weekends off:** they can be up to ten weeks apart (today seven); the managers' deck lists it as a worry.
+- **Weekends off:** Second Nature's can be up to ten weeks apart (today seven), and its managers' deck lists that as a
+  worry; Second Wind's are never more than five apart, which its decks give as a strength.
 
-## The review, and a revision with the weekends spread (2 Oct 2026)
+## Second Wind — Second Nature with the weekends spread (2 Oct 2026)
 
 An external review rated Second Nature "remarkably strong ... about 9.2/10 as a first draft", and asked for one more pass
 before calling it finished. Its priorities, in order:
@@ -232,9 +238,11 @@ day's duties, and with them priorities 1 and 5, cannot change.
 - **The weekends.** 14 Saturday duties on 21 working weeks leave exactly 7 Saturdays off, so seven is also the most. A
   full weekend cannot start in a cover week or the week before one, which leaves 16 of the 26 weeks that can. The
   closest seven of those can be is **five weeks apart**, the best possible.
-- **The revision reaches it.** `results/second-nature-spaced.json` · `4bec8d8e`. Against Second Nature:
+- **The revision reaches it, and ships as Second Wind** (owner, 2 Oct 2026: "give it a different name and add it alongside
+Second Nature ... the same family"). `proposals/Second-Wind-SW-26-F1-4bec8d8e.pdf`, grid `tooling/second-wind.json`.
+  Against Second Nature:
 
-| | Second Nature (shipped) | **Revision** | Familiar Nine (24) | Today |
+| | Second Nature | **Second Wind** | Familiar Nine (24) | Today |
 |---|---|---|---|---|
 | Longest gap between full weekends | 10 weeks | **5** (the best possible) | 7 | 7 |
 | Single rest days | 4 (1 beside a cover week) | 4 (none beside one) | 2 | 4 |
@@ -250,8 +258,12 @@ day's duties, and with them priorities 1 and 5, cannot change.
 - **Single rest days stayed at 4.** No rota with the weekends spread got below it. The only rotas found with 3 had a
   shorter rest or a fatigue factor; one with 2 mixed weeks and the weekends spread had 6 single rest days.
 - **The cost is stability.** Mixed weeks went from 2 to 4, and the week-to-week move from 1h 28m to 2h 01m. Both are
-  still far better than today and close to Familiar Nine. **Whether to adopt it is the owner's call**: it is not
-  shipped, and Second Nature (`SN-26-F2`) is unchanged.
+  still far better than today and close to Familiar Nine. So both are put forward, and Second Nature is unchanged.
+- **Same family.** Both are in the Second Nature family (`FAMILY` in `tooling/fresh.mjs`); Second Nature's was listed
+  as Silva Lining until then, the design its weeks were grown from. The family is header metadata the plain sheets do
+  not print, so no sheet changed.
+- **The summary shows the difference.** Its "Full weekends off" column now gives the longest wait as well, "at most N
+  weeks apart". Without it, the two designs read identically on the summary.
 
 **How it was found** (from `tooling/`):
 - `anneal.mjs` gained terms that are off by default, so every earlier run reproduces: `GAP_W` (the weekend gap),
@@ -263,15 +275,15 @@ day's duties, and with them priorities 1 and 5, cannot change.
 
 The search:
 - **Random-start search:** 8 runs. Best was seed 29 (`GAP_W=4000 ISO_X=4000 DAYS_X=30000 HEAVY_W=20000 HEAVY_CAP=43.67`).
-- **Polishing:** gave `results/second-nature-spaced-start.json`. That was made by an earlier version of `space-polish.mjs`,
+- **Polishing:** gave `results/second-wind-start.json`. That was made by an earlier version of `space-polish.mjs`,
   so it is committed rather than rebuilt.
-- **The two last steps** rebuild the revision exactly:
+- **The two last steps** rebuild Second Wind exactly:
 
 ```
 REST_MIN=860 WKENDS_MIN=7 ONE_MIN=15 HEAVY_MAX=43.67 STEP_MAX=130 ISO_MAX=4 GAP_MAX=6 MIXED_MAX=2 LEAVE_WORST_MIN=20 \
-  node space-polish.mjs results/second-nature-spaced-start.json /tmp/r7.json 7 400000          # keeps nothing; writes /tmp/r7.closest.json
+  node space-polish.mjs results/second-wind-start.json /tmp/r7.json 7 400000          # keeps nothing; writes /tmp/r7.closest.json
 REST_MIN=860 WKENDS_MIN=7 ONE_MIN=16 HEAVY_MAX=42.5 STEP_MAX=128 ISO_MAX=4 GAP_MAX=5 MIXED_MAX=4 LEAVE_WORST_MIN=20 \
-  node space-polish.mjs /tmp/r7.closest.json results/second-nature-spaced.json 1 300000
+  node space-polish.mjs /tmp/r7.closest.json second-wind.json 1 300000
 ```
 
 **Everything in one download:** `links-26-proposals.zip`, laid out as the 24-line pack

@@ -31,6 +31,9 @@ export const SUPPLIED = [
     // final-table.mjs sweep (results/second-nature-*.json), Silva Lining's week structure grown to 26 lines, then searched
     // and polished. README.md → "Second Nature" has every step and command.
     { file: 'second-nature.json',          name: 'Second Nature',  code: 'SN-26-F2',   fp: 'a52d0f20', strap: 'No duty over nine hours, seven full weekends off, and only the late finishes the closing rule needs' },
+    // Second Wind (2 Oct 2026): Second Nature with its weeks reordered so the full weekends are never more than five weeks
+    // apart, after an external review (README.md → "The review"). Same duty table, so same rules, times and late finishes.
+    { file: 'second-wind.json',            name: 'Second Wind',    code: 'SW-26-F1',   fp: '4bec8d8e', strap: 'No duty over nine hours, and seven full weekends off never more than five weeks apart' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

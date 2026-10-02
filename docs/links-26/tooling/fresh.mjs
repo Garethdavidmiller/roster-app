@@ -24,11 +24,14 @@ import { materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs
 // exactly as the 24-line sheets' did (../../links-24/tooling/fresh.mjs keeps theirs).
 export const STRAPS = {
   'SN-26-F2': ['No duty over nine hours, seven full weekends off, and only the late finishes the closing rule needs', 'search'],
+  'SW-26-F1': ['No duty over nine hours, and seven full weekends off never more than five weeks apart', 'search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
-export const FAMILY = { SN: 'Silva Lining' };
-export const FIRST = { 'SN-26-F2': '1 Oct 2026' };
+// Second Nature's weeks were grown from Silva Lining's (README.md); the 26-line family is named after Second Nature,
+// as the 24-line Right Away family was after the design its members came from.
+export const FAMILY = { SN: 'Second Nature', SW: 'Second Nature' };
+export const FIRST = { 'SN-26-F2': '1 Oct 2026', 'SW-26-F1': '2 Oct 2026' };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
  *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a
