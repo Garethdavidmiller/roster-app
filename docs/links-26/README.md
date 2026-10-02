@@ -6,6 +6,23 @@
 The 24-line work is not wasted. The rules, the duty tables, the tooling and the designs all carry over. What has to
 change is the arithmetic that depends on the number of lines.
 
+## What is in this folder
+
+The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, owner: "consistent naming"):
+
+| | What it is |
+|---|---|
+| `links-NN-proposals.zip` | everything for sharing, in one download |
+| `links-NN-rules.pdf` | the rules every proposal is judged against |
+| `links-NN-summary.pdf` | every proposal against today's link, on one page |
+| `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
+| `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf` |
+| `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs |
+| `README.md` | this record |
+
+`NN` is the link's length in weeks. A proposal keeps its own name, because the code and fingerprint in it identify the
+exact rota on a printout. Inside the zip, the files carry the same names as here.
+
 ## The rules — settled 1 Oct 2026
 
 **`RULES.md` is the rule set for 26 lines.** It is the 24-line set with the owner's changes marked in it: 26 lines;
@@ -57,7 +74,7 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 | | `candidates.mjs` | prints each candidate rota's sheet figures on one line, to choose between them |
 | check | `check.mjs` | the self-check: settings agree, the test rota recounts independently, and each 26-line rule fails when its condition is broken (`node tooling/check.mjs`) |
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
-| | `rules-sheet.mjs`, `summary-sheet.mjs` | the rules reference (`../December-2026-Rules.pdf`) and the one-page summary |
+| | `rules-sheet.mjs`, `summary-sheet.mjs` | the rules reference (`../links-26-rules.pdf`) and the one-page summary (`../links-26-summary.pdf`) |
 
 **Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
 - **No 24-line default leaks through.** The app functions that default to 24 lines (`runDesignChecks`, `assessFatigue`,
@@ -84,7 +101,7 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
   it on 26 lines, and its eight-page sheet rendered with every figure and word at 26 lines. Page 3's word list is set
   tighter, by measurement, when the extra rows push it towards the footer.
 
-**What the test rota shows** (`tooling/results/test-rota-RT26-7.json`, from `tooling/results/test-table.json`). It is
+**What the test rota shows** (`tooling/results/test-rota.json`, from `tooling/results/test-table.json`). It is
 a pipeline check, not a proposal: nobody has looked at it as a rota. But it meets **all 9 December rules and all 3
 flexible rules**, with these figures:
 - no fatigue warnings, at most 6 days in a row, shortest rest 14h 05m;
@@ -115,7 +132,7 @@ Saturday at 6,900; the exhaustive search (the default) did, in 92 seconds.
 
 ## Second Nature — the first 26-line design (1 Oct 2026)
 
-**`Second-Nature-SN-26-F2-a52d0f20.pdf`** (grid `Second-Nature-SN-26-F2.json`). The owner asked for a roster built
+**`proposals/Second-Nature-SN-26-F2-a52d0f20.pdf`** (grid `proposals/Second-Nature-SN-26-F2.json`). The owner asked for a roster built
 "the same way as Familiar Nine" and for every possibility to be tried; the name is Claude's, chosen for a link built
 around the shift times people already work. It meets **all 9 December rules and all 3 flexible rules**, every hard
 limit, and has **no avoidable fatigue warnings**, even with a cover week placed as badly as it can be. Against today's link:
@@ -196,6 +213,21 @@ python3 docs/links-26/tooling/second-nature-decks.py && node docs/links-26/tooli
 Then export the PDFs (LibreOffice). Two things the decks say that the sheet does not show directly:
 - **Late finishes:** 42 a year is the minimum, because only the three closers the rules require finish after 23:00.
 - **Weekends off:** they can be up to ten weeks apart (today seven); the managers' deck lists it as a worry.
+
+**Everything in one download:** `links-26-proposals.zip`, laid out as the 24-line pack
+(`../links-24/links-24-proposals.zip`) was:
+1. a *Read me first* note;
+2. the one-page summary;
+3. the rules;
+4. the presentations;
+5. every proposal sheet;
+6. the import files;
+7. the technical notes (`RULES.md` and this README).
+
+`tooling/pack.py` builds it from this folder, every design in `regenerate.mjs`'s `SUPPLIED` list included, and stops
+if a file is missing. The 24-line pack was zipped by hand, so it went stale after a re-render; this one is rebuilt by
+running `python3 docs/links-26/tooling/pack.py` after any re-render. Its *Read me first* says the import files are
+refused by the Links page until that page moves to 26 lines.
 
 **Still 24 in the app.** `ROTATING_LINES = 24` in `links-design.js` is the Links page's own line count. It moves to 26 as
 its own app release (owner, 1 Oct 2026). Until then the tooling passes 26 to every app function explicitly, and the

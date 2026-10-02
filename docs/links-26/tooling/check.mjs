@@ -32,7 +32,7 @@ const evenDefault = coverSpread(Object.fromEntries(Array.from({ length: LINES },
 ok(COVER_LINES.length === COVER_WEEKS && evenDefault.even, `default cover lines ${COVER_LINES.join(', ')}: gaps ${evenDefault.gaps.join(', ')}`);
 
 // ── 2 · the test rota, recounted here ─────────────────────────────────────────────────────────
-const p = JSON.parse(readFileSync(new URL('./results/test-rota-RT26-7.json', import.meta.url), 'utf8')).patterns;
+const p = JSON.parse(readFileSync(new URL('./results/test-rota.json', import.meta.url), 'utf8')).patterns;
 const keys = Array.from({ length: LINES }, (_, i) => String(i + 1));
 const mm = t => +t.slice(0, 2) * 60 + +t.slice(3, 5);
 const span = t => { const [a, b] = t.split('-').map(mm); return [a, b > a ? b : b + 1440]; };

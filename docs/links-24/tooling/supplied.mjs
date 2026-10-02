@@ -52,7 +52,7 @@ const alt = (name, a, chosen = false, p = null) => ({ name, run: a.checks.longes
   fit: p ? weekdayFit(p) : '—', floor: p ? weekdayFloorFit(p) : '—', score: '—', chosen });
 
 const alternatives = [alt(`${CODE} · ${fingerprint(patterns)} — <b>${NAME}</b> (this proposal)`, P, true, patterns)];
-for (const [f, label] of [['../Same-Turns-ST-24-B7.json', 'Same Turns'], ['../By-the-Book-BB-24-D7.json', 'By the Book']]) {
+for (const [f, label] of [['../proposals/Same-Turns-ST-24-B7.json', 'Same Turns'], ['../proposals/By-the-Book-BB-24-D7.json', 'By the Book']]) {
   if (!existsSync(f)) continue;
   const j = JSON.parse(readFileSync(f, 'utf8')); const pp = j.patterns ?? j;
   alternatives.push(alt(`${label} · ${fingerprint(pp)} — the searched proposal`, assess(pp, 24), false, pp));

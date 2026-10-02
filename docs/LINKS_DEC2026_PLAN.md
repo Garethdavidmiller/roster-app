@@ -794,7 +794,7 @@ and each edition has been checked by an independent recount.
 | Fifteen Turns | Fifteen Turns, and All Clear — Fifteen Turns with the fewest cells changed that meet every rule with no fatigue finding: 41, proven the minimum |
 | Weekday Lates | Weekday Lates, Evening Peak and Anchored Lines; Polished Clean; Clean Sweep (by way of Polished Clean) and Full Overhaul (by way of Running Repair) |
 
-The sheets never compare one proposal with another; `Proposals-Summary.pdf` (*Proposals at a glance.pdf* in the zip) sets all nine beside each other.
+The sheets never compare one proposal with another; the one-page summary (`links-24/links-24-summary.pdf`, named `Proposals-Summary.pdf` until 2 Oct 2026) sets them all beside each other.
 **The first two, as drawn on 8 Sep**, bracketed the choice as it looked then: *Same Turns* kept 15 turns people
 work today; *By the Book* met every rule then in force and none of its turns was familiar. Both are withdrawn, and
 both inherited today's Sunday window (open question 3).

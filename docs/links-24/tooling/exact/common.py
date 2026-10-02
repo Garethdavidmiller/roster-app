@@ -9,7 +9,7 @@ def en(s):
 def dur(s): return en(s)-st(s)
 def load(f):
     j=json.load(open(f)); return j.get('patterns',j)
-FT=load(PROP+'Fifteen-Turns-FT-24-EXT.json')
+FT=load(PROP+'proposals/Fifteen-Turns-FT-24-EXT.json')
 GM=load(PROP+'tooling/fifteen-turns-repaired.json')   # Gates Mended (sheet withdrawn 29 Sep 2026; its times stay in the pool)
 TODAY=['06:20-13:35','06:20-13:45','06:20-14:00','06:20-14:20','06:20-14:50','07:15-15:45','08:00-16:30','08:30-16:30','11:00-19:30','12:00-20:00','13:00-21:00','13:30-21:00','13:30-22:00','14:00-22:30','14:30-22:00','14:30-23:25','14:45-23:55','15:15-23:55']
 def times_of(p): return {p[k][d] for k in p for d in DAYS if p[k][d] not in ('RD','SPARE')}

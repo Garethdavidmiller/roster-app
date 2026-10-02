@@ -101,7 +101,7 @@ const stats = folderStats();
 let bad = 0, ok = 0; const unchecked = new Set();
 for (const [file, name] of DECKS) {
   const f = stats.find(s => s.name === name); if (!f) throw new Error(`deck-check: no proposal called ${name}`);
-  const j = JSON.parse(readFileSync(new URL(`../${f.file}`, import.meta.url), 'utf8')), p = j.patterns ?? j;
+  const j = JSON.parse(readFileSync(new URL(`../proposals/${f.file}`, import.meta.url), 'utf8')), p = j.patterns ?? j;
   const PF = figures(p, LINES, TA);
   if (process.argv.includes('--print')) { console.log(JSON.stringify({ today: TF, [name]: PF }, null, 1)); process.exit(0); }
   const slides = execFileSync('unzip', ['-Z1', DIR + file], { encoding: 'utf8' }).split('\n').filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n));

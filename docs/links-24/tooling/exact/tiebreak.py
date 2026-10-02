@@ -23,7 +23,7 @@ _uni=set(U)|times_of(BASE)
 # compete with the best sheets, whose Saturday times are not in the Fifteen Turns pool)
 if os.environ.get('WIDE'):
     import glob
-    for f in glob.glob(PROP+'*.json'): _uni|=times_of(load(f))
+    for f in glob.glob(PROP+'proposals/*.json'): _uni|=times_of(load(f))
 UNI=sorted(_uni, key=lambda s:(st(s),en(s)))
 # SATMIN=12 TMAX=18 — the Saturday headcount and the most distinct shift times (Weekday Lates' repair, 29 Sep 2026)
 SATMIN=int(os.environ.get('SATMIN','14')); TMAX=int(os.environ.get('TMAX','18'))

@@ -5,7 +5,7 @@ import { evalDay, meanFit } from './dayfast.mjs';
 const M = await import('../report-data.mjs');
 const T0 = M.today(); const TA = { patterns: T0.patterns, ...M.assess(T0.patterns, 20) };
 const spec = JSON.parse(readFileSync(process.env.SPEC ?? 'wl-spec.json', 'utf8'));
-const j = JSON.parse(readFileSync(new URL('../../Weekday-Lates-WL-24-EXT.json', import.meta.url),'utf8')); const base = j.patterns ?? j;
+const j = JSON.parse(readFileSync(new URL('../../proposals/Weekday-Lates-WL-24-EXT.json', import.meta.url),'utf8')); const base = j.patterns ?? j;
 const work = Object.keys(base).filter(k => base[k].mon !== 'SPARE');
 const WD = ['mon','tue','wed','thu','fri'];
 let bad = 0, ok = 0;

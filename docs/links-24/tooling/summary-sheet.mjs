@@ -8,12 +8,12 @@
 //   average shift  Monday to Saturday timed duties (today 8h14, Familiar Nine 8h20)
 //   finishes 23:00+ and Saturdays a year — per person, averaged over the whole link; cover weeks add none
 //
-//   node docs/links-24/tooling/summary-sheet.mjs   → docs/links-24/Proposals-Summary.pdf
+//   node docs/links-24/tooling/summary-sheet.mjs   → docs/links-24/links-24-summary.pdf
 import { folderStats, today, assess, sheetRules as currentRules, dutyMinutes, startMinutes, endMinutes } from './report-data.mjs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
 import fs from 'node:fs';
 import { waivedRows, WAIVERS, waiveShort } from './fresh.mjs';
-const DIR = new URL('../', import.meta.url);
+const DIR = new URL('../proposals/', import.meta.url);
 const DAYS=['sun','mon','tue','wed','thu','fri','sat'];
 const timed = s => /^\d\d:\d\d-\d\d:\d\d$/.test(s);
 function extra(p){ const L=Object.keys(p).length; let cover=0,dx=0,mins=0,minsAll=0,nAll=0,late=0,sat=0;
@@ -56,8 +56,8 @@ td.good .wv { color: #5B6778; font-weight: 400; }
 ${tr(todayRow,'today')}
 ${rows.map(r=>tr(r)).join('\n')}
 </tbody></table>
-<p class="foot">* Monday to Saturday, with a cover week counted as 4 days (Sundays are overtime and left out). † Each person, on average across the whole link, Sundays included; cover-week duties are not known yet and are left out. “Shift times” counts different start–finish times; “new” means nobody works that time today. § On the duties the rota fixes, the cover weeks left out for the proposal and today alike; “up to” is the worst place a cover week’s four duties could fall. Avoidable fatigue warnings come from the ORR’s good-practice list plus rail-industry checks, leaving out the two that come with every weekly link — reported, never pass or fail.${rows.some(r => r.waived) ? ` ‡ A rule the owner set aside for that proposal (${rows.filter(r => r.waived).map(r => `${r.name}: the ${WAIVERS[r.code].keys.map(waiveShort).join(' and ')}, ${WAIVERS[r.code].date.replace(/ (\w{3})\w+ /, ' $1 ')}`).join('; ')}).` : ''} Full detail for each proposal is in its own eight-page sheet; the rules themselves are in December-2026-Rules.pdf.</p>
+<p class="foot">* Monday to Saturday, with a cover week counted as 4 days (Sundays are overtime and left out). † Each person, on average across the whole link, Sundays included; cover-week duties are not known yet and are left out. “Shift times” counts different start–finish times; “new” means nobody works that time today. § On the duties the rota fixes, the cover weeks left out for the proposal and today alike; “up to” is the worst place a cover week’s four duties could fall. Avoidable fatigue warnings come from the ORR’s good-practice list plus rail-industry checks, leaving out the two that come with every weekly link — reported, never pass or fail.${rows.some(r => r.waived) ? ` ‡ A rule the owner set aside for that proposal (${rows.filter(r => r.waived).map(r => `${r.name}: the ${WAIVERS[r.code].keys.map(waiveShort).join(' and ')}, ${WAIVERS[r.code].date.replace(/ (\w{3})\w+ /, ' $1 ')}`).join('; ')}).` : ''} Full detail for each proposal is in its own eight-page sheet; the rules themselves are in <span style="white-space:nowrap">links-24-rules.pdf</span>.</p>
 </body></html>`;
 const b = await chromium.launch(); const pg = await b.newPage(); await pg.setContent(html, { waitUntil: 'load' });
-await pg.pdf({ path: new URL('Proposals-Summary.pdf', DIR).pathname, format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
-await b.close(); console.log(`wrote Proposals-Summary.pdf — ${rows.length} proposals, today meets ${todayRow.met} of ${todayRow.of}`);
+await pg.pdf({ path: new URL('../links-24-summary.pdf', DIR).pathname, format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
+await b.close(); console.log(`wrote links-24-summary.pdf — ${rows.length} proposals, today meets ${todayRow.met} of ${todayRow.of}`);

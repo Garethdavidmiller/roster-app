@@ -5,7 +5,7 @@
 // other proposals") in full, the gold and grey best/worst ticks on page 2's scales, the "of the others" notes on
 // page 1's tiles, and the family row that names a sibling design — renumbering the last page to 9 of 9.
 // Everything else is the sheet exactly as rendered: the owner preferred this layout, so nothing here restyles it.
-// The one-page Proposals-Summary.pdf is the owner's own comparison of all the drafts and is not touched.
+// The one-page links-24-summary.pdf is the owner's own comparison of all the drafts and is not touched.
 
 /** Removes every comparison with other proposals from a rendered sheet. Throws if an expected anchor is missing,
  *  so a change to render.mjs cannot silently leave a comparison behind. */

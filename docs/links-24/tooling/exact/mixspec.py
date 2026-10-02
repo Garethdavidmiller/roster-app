@@ -1,6 +1,6 @@
 # Writes wl-spec.json for mixsa.mjs: Weekday Lates' Sunday–Saturday columns (working lines only) and each day's allowed
 # shift times — the exact model's pool with WIDE=1 (every time any sheet uses), a weekday closer only at 15:45 or 16:25.
-#   BASE=../../Weekday-Lates-WL-24-EXT.json WIDE=1 SPARES=1,7,12,17 python3 mixspec.py
+#   BASE=../../proposals/Weekday-Lates-WL-24-EXT.json WIDE=1 SPARES=1,7,12,17 python3 mixspec.py
 import os, sys, json
 sys.argv=['x','0','0','/dev/null','1']
 import importlib.util

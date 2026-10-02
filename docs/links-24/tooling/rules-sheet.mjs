@@ -11,7 +11,7 @@
 // columns went, because a manager reading this is not shown the drafts. The folder is still read, but only to
 // decide which fatigue factors apply to any rotation here; the drafts side by side are the one-page summary.
 //
-//   node docs/links-24/tooling/rules-sheet.mjs      → docs/links-24/December-2026-Rules.pdf
+//   node docs/links-24/tooling/rules-sheet.mjs      → docs/links-24/links-24-rules.pdf
 // A full `regenerate.mjs` run renders it too, after every sheet.
 import { writeFileSync, readFileSync } from 'node:fs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
@@ -19,7 +19,7 @@ import { today, assess, sheetRules as currentRules, flexibleRules, folderStats, 
 import { assessFatigue } from '../../../links-fatigue.js';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
-const OUT = new URL('../December-2026-Rules.pdf', import.meta.url).pathname;
+const OUT = new URL('../links-24-rules.pdf', import.meta.url).pathname;
 const RENDERED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const hm = m => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
@@ -34,7 +34,7 @@ const F = folderStats(), N = F.length;
 // Hard limits across the folder, measured the way page 7 measures them.
 const restOk = F.filter(f => f.turnarounds === 0).length;
 const runOk = F.filter(f => f.run <= MAX_CONSECUTIVE_WORKED_DAYS).length;
-const contractOk = F.filter(f => { const j = JSON.parse(readFileSync(new URL(`../${f.file}`, import.meta.url), 'utf8')); const h = assess(j.patterns ?? j, 24).hours;
+const contractOk = F.filter(f => { const j = JSON.parse(readFileSync(new URL(`../proposals/${f.file}`, import.meta.url), 'utf8')); const h = assess(j.patterns ?? j, 24).hours;
   return Math.round(h.exSundayHours * 60 + h.coverLines * (h.target ?? 35) * 60 - h.lines * (h.target ?? 35) * 60) === 0; }).length;
 const todayRest = TA.rest?.minutes ?? null;
 
@@ -43,7 +43,7 @@ const todayRest = TA.rest?.minutes ?? null;
 const key = r => `${r.code}|${r.title}`;
 const FZ = assessFatigue(T0.patterns, 20).results;
 const presentIn = {}, applies = new Set(FZ.filter(r => r.status !== 'n/a').map(key));
-for (const f of F) { const j = JSON.parse(readFileSync(new URL(`../${f.file}`, import.meta.url), 'utf8'));
+for (const f of F) { const j = JSON.parse(readFileSync(new URL(`../proposals/${f.file}`, import.meta.url), 'utf8'));
   for (const r of assessFatigue(j.patterns ?? j, 24).results) { if (r.status !== 'n/a') applies.add(key(r)); if (r.status === 'present') presentIn[key(r)] = (presentIn[key(r)] ?? 0) + 1; } }
 // A factor that applies to no rotation here — today's or any proposal — is listed apart, with the reason.
 const live = FZ.filter(r => applies.has(key(r))), na = FZ.filter(r => !applies.has(key(r)));

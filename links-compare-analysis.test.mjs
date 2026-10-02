@@ -13,7 +13,7 @@ import { assessFatigue } from './links-fatigue.js';
 import { assessHardLimits } from './links-limits.js';
 import { calcHourlyCoverage, ROTATING_LINES } from './links-design.js';
 
-const sheet = (/** @type {string} */ f) => JSON.parse(readFileSync(new URL(`./docs/links-24/${f}`, import.meta.url), 'utf8'));
+const sheet = (/** @type {string} */ f) => JSON.parse(readFileSync(new URL(`./docs/links-24/proposals/${f}`, import.meta.url), 'utf8'));
 // Pinned Turns and Round Times were withdrawn from the proposal folder (owner, 30 Sep 2026); their grids are kept,
 // unchanged, as fixtures, because the figures asserted here are theirs.
 const fixture = (/** @type {string} */ f) => JSON.parse(readFileSync(new URL(`./test-fixtures/links-designs/${f}`, import.meta.url), 'utf8'));

@@ -8,10 +8,10 @@ sys.path.insert(0,'.')
 from common import *
 from model import build, extract
 from ortools.sat.python import cp_model
-P=load(PROP+'Weekday-Lates-WL-24-EXT.json')
+P=load(PROP+'proposals/Weekday-Lates-WL-24-EXT.json')
 UW=set(U)|times_of(P)
 if len(sys.argv)>5 and sys.argv[5]=='wide':   # every shift time used by any sheet in the folder
-    for f in glob.glob(PROP+'*.json'): UW|=times_of(load(f))
+    for f in glob.glob(PROP+'proposals/*.json'): UW|=times_of(load(f))
 UW=sorted(UW, key=lambda s:(st(s),en(s)))
 CL=('15:45-23:55','16:25-23:55')
 T=float(sys.argv[1]); cases=sys.argv[2].split(',')

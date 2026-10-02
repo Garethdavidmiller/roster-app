@@ -4,7 +4,7 @@ const TL = new URL('../../tooling/', import.meta.url).pathname;
 const { assess, dutyMinutes, sheetRules, today, h55Worst } = await import(TL+'report-data.mjs');
 const { personal } = await import(TL+'plain.mjs');
 const { flexibleRules } = await import(TL+'report-data.mjs');
-const base=JSON.parse(fs.readFileSync(TL+'../Polished-Clean-PC-24-EXT.json','utf8')); const P0=base.patterns??base;
+const base=JSON.parse(fs.readFileSync(TL+'../proposals/Polished-Clean-PC-24-EXT.json','utf8')); const P0=base.patterns??base;
 const D=['mon','tue','wed','thu','fri','sat','sun']; const t=s=>/^\d\d:\d\d-\d\d:\d\d$/.test(s);
 const T=today(), TA=assess(T.patterns,20);
 export function report(name,p){

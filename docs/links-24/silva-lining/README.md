@@ -1,8 +1,8 @@
 # Silva Lining — a 24-line design series (1 Oct 2026)
 
 **The record behind one proposal sheet.** Eight designs were explored in one session on 1 Oct 2026. The owner chose
-**H** on the standing weighted league, and it became the proposal sheet **Silva Lining** (`../Silva-Lining-SL-24-Hs-15475b65.pdf`,
-grid `../Silva-Lining-SL-24-Hs.json`; three Sunday closers since moved to 15:25, see `../README.md`). **The other seven were deleted** (owner), and so was this folder's copy of H, so
+**H** on the standing weighted league, and it became the proposal sheet **Silva Lining** (`../proposals/Silva-Lining-SL-24-Hs-15475b65.pdf`,
+grid `../proposals/Silva-Lining-SL-24-Hs.json`; three Sunday closers since moved to 15:25, see `../README.md`). **The other seven were deleted** (owner), and so was this folder's copy of H, so
 that its grid has one home. Every grid is in git history: the eight were last together at commit `4c8aedd` (PR #1567),
 as `docs/links-24/silva-lining/silva-lining-<letter>.json`. This page keeps their figures, so the choice can be
 followed without them.
@@ -12,7 +12,7 @@ answers a different question.
 
 ## Where it started
 
-**Polished Clean** (`../Polished-Clean-PC-24-EXT.json`), with three changes the owner asked for:
+**Polished Clean** (`../proposals/Polished-Clean-PC-24-EXT.json`), with three changes the owner asked for:
 - two of its three weekday closers start at **15:45** (one 16:25 kept);
 - the two short weekday earlies are merged into one time, **06:20–13:45**;
 - **14 on duty every day Monday to Saturday** (15 on Tuesday), with **217–219 contracted days a year** to match
