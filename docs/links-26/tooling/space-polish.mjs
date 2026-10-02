@@ -42,13 +42,15 @@ export function weekendGaps(q) {
 }
 function measure(q) {
   const c = runDesignChecks(q, L); if (c.turnarounds.length || c.longestStretch > 6) return null;
-  const f = assessFatigue(q, L); if (f.present) return null;
+  // FATIGUE_SOFT=1: a fatigue factor present is a cost while searching and a floor on what is kept (never kept), so a
+  // start that carries one can be polished out of it; off by default, so every earlier chain rebuilds exactly
+  const f = assessFatigue(q, L); if (f.present && process.env.FATIGUE_SOFT !== '1') return null;
   const rest = tightestRest(q, L)?.minutes ?? 9999;
   const fe = feel(q, L), a = scoreOrder(q, KEYS, { maxRunTarget: 6 });
   const wk = WORK.map(k => ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].reduce((s, d) => s + (timed(q[k][d]) ? dutyMinutes(q[k][d]) : 0), 0) / 60);
   const badDays = WORK.filter(k => { const n = DAYS.filter(d => q[k][d] !== 'RD').length; return n < 4 || n > 5; }).length;
   const gaps = weekendGaps(q);
-  return { rest, wkends: c.weekendsOff, gaps, maxGap: gaps.length ? Math.max(...gaps) : 99, spread: gaps.reduce((s, g) => s + g * g, 0),
+  return { present: f.present, rest, wkends: c.weekendsOff, gaps, maxGap: gaps.length ? Math.max(...gaps) : 99, spread: gaps.reduce((s, g) => s + g * g, 0),
     iso: fe.isolatedRest, one: fe.oneTurn, mixed: fe.hybrid, leaveWorst: leave(q).worst, heavy: Math.max(...wk), light: Math.min(...wk), badDays, step: a.gentleMean, block: a.longestBlock };
 }
 const S0 = measure(p);
@@ -61,15 +63,15 @@ const F = { restMin: env('REST_MIN', S0.rest), oneMin: env('ONE_MIN', S0.one), w
   heavyMax: env('HEAVY_MAX', S0.heavy), badMax: env('BAD_MAX', 0), mixedMax: env('MIXED_MAX', S0.mixed), leaveMin: env('LEAVE_WORST_MIN', S0.leaveWorst),   // badMax: weeks of 3 or 6 days (Second Nature has none)
   stepMax: env('STEP_MAX', S0.step), isoMax: env('ISO_MAX', S0.iso), gapMax: env('GAP_MAX', S0.maxGap) };
 const GAP_W = env('GAP_W', 1e5), ISO_W = env('ISO_W', 2e4);
-const keeps = m => m.rest >= F.restMin && m.one >= F.oneMin && m.wkends >= F.wkendsMin && m.heavy <= F.heavyMax + 1e-9
+const keeps = m => !m.present && m.rest >= F.restMin && m.one >= F.oneMin && m.wkends >= F.wkendsMin && m.heavy <= F.heavyMax + 1e-9
   && m.step <= F.stepMax && m.iso <= F.isoMax && m.maxGap <= F.gapMax && m.badDays <= F.badMax && m.mixed <= F.mixedMax && m.leaveWorst >= F.leaveMin;
-const misses = m => [['rest', m.rest < F.restMin], ['one-turn', m.one < F.oneMin], ['weekends', m.wkends < F.wkendsMin],
+const misses = m => [['fatigue', m.present > 0], ['rest', m.rest < F.restMin], ['one-turn', m.one < F.oneMin], ['weekends', m.wkends < F.wkendsMin],
   ['heaviest', m.heavy > F.heavyMax + 1e-9], ['step', m.step > F.stepMax], ['single rest days', m.iso > F.isoMax],
   ['gap', m.maxGap > F.gapMax], ['3/6-day weeks', m.badDays > F.badMax], ['mixed weeks', m.mixed > F.mixedMax], ['leave worst', m.leaveWorst < F.leaveMin]].filter(([, x]) => x).map(([k]) => k);
 let closest = null;   // the rota missing the fewest floors, so a run that keeps nothing still says what stood in its way
 const score = m => {
   if (!m || m.block > S0.block) return null;
-  const short = 5e3 * Math.max(0, F.restMin - m.rest) + 2e5 * Math.max(0, F.oneMin - m.one) + 1e6 * Math.max(0, F.wkendsMin - m.wkends)
+  const short = 3e5 * m.present + 5e3 * Math.max(0, F.restMin - m.rest) + 2e5 * Math.max(0, F.oneMin - m.one) + 1e6 * Math.max(0, F.wkendsMin - m.wkends)
     + 2e5 * Math.max(0, m.heavy - F.heavyMax) + 2e3 * Math.max(0, m.step - F.stepMax) + 2e5 * Math.max(0, m.iso - F.isoMax)
     + 2e5 * Math.max(0, m.maxGap - F.gapMax) + 3e5 * Math.max(0, m.badDays - F.badMax)
     + 1e5 * Math.max(0, m.mixed - F.mixedMax) + 1e5 * Math.max(0, F.leaveMin - m.leaveWorst);
