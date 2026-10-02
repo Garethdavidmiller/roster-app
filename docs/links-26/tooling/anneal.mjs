@@ -27,7 +27,12 @@ const SLOTS = TABLE ? JSON.parse(readFileSync(TABLE, 'utf8')).slots : null;
 const rowsOf = k => SLOTS.filter(r => r[k] > 0).map(r => [r.time, r[k]]);
 const expand = t => t.flatMap(([s, n]) => Array(n).fill(s));
 const dayDuties = () => { if (!SLOTS) throw new Error('anneal: TABLE=<table.json> is required');
-  const wk = expand(rowsOf('weekday')); return { sun: expand(rowsOf('sun')), mon: wk, tue: wk, wed: wk, thu: wk, fri: wk, sat: expand(rowsOf('sat')) }; };
+  const wk = expand(rowsOf('weekday'));
+  // ONE WEEKDAY OF ITS OWN (2 Oct 2026, the owner's 217-day what-if, option C: 15 on four weekdays and 14 on one). A row
+  // may give a count for a named weekday ('mon'…'fri') as well, and that day then takes its own counts instead of the
+  // weekday's. No earlier table has such a column, so every earlier run reproduces exactly.
+  const own = d => SLOTS.some(r => d in r) ? expand(rowsOf(d)) : wk;
+  return { sun: expand(rowsOf('sun')), mon: own('mon'), tue: own('tue'), wed: own('wed'), thu: own('thu'), fri: own('fri'), sat: expand(rowsOf('sat')) }; };
 
 // Families — what "the same turn" means across the weekend variants.
 // Two families, as today's roster works them: the EARLY wave (06:20 to 08:30 starts — line 6 works
