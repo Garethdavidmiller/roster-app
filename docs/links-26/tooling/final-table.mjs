@@ -118,6 +118,10 @@ for (let s = OPEN; s < CLOSE; s++) { if (s !== OPEN && !onGrid(s)) continue; for
 for (const e of extraOpenerEnds) addTurn(OPEN, e);
 for (const t of TODAY_TIMES) { const [a, b] = t.split('-').map(mm); addTurn(a, b); }
 for (const [t] of FIXED) { const [a, b] = t.split('-').map(mm); addTurn(a, b); }
+// POOL_ONLY=<time,time,…> (2 Oct 2026, the owner's 217-day what-if): only these shift times, so one weekday can be built
+// from the times the rest of the week already works (the rule of no more shift times than today counts the week, not
+// the day). Off by default, so every earlier table is built the same way.
+if (process.env.POOL_ONLY) { const keep = new Set(process.env.POOL_ONLY.split(',')); for (let i = POOL.length - 1; i >= 0; i--) if (!keep.has(POOL[i].t)) POOL.splice(i, 1); }
 POOL.forEach((p, i) => { p.id = i; p.cov = new Float64Array(24); p.slots = []; for (let m = p.s; m < p.e; m += 5) { p.cov[Math.floor(m / 60)] += 1 / 12; p.slots.push(m / 5); } });
 const SLOT0 = OPEN / 5, SLOT1 = CLOSE / 5;
 const byT = Object.fromEntries(POOL.map(p => [p.t, p]));
