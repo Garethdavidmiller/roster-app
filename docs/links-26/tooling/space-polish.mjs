@@ -15,7 +15,7 @@
 // only a rota that meets every floor is ever written. A run that keeps nothing says which floors its closest rota missed.
 //   REST_MIN (minutes) · ONE_MIN · WKENDS_MIN · HEAVY_MAX (hours) · STEP_MAX (minutes) · ISO_MAX · GAP_MAX · BAD_MAX (0)
 //   MIXED_MAX (weeks with earlies and lates) · LEAVE_WORST_MIN (leave.mjs: days off from 14 days' leave, worst place)
-//   GAP_W, ISO_W: how hard to push the weekend gap and the single rest days down, beyond their floors.
+//   GAP_W, ISO_W, MIX_W: how hard to push the weekend gap, the single rest days and the mixed weeks down, beyond their floors.
 // The weekend gap is the sheet's own measure (plain.mjs: weeks from one full weekend to the next, round the wheel).
 // With cover weeks at 1, 6, 11, 16 and 21 only 16 weeks can START a full weekend, and the closest seven of those can be
 // is five weeks apart at most — so 5 is the floor this can reach, not a target it falls short of.
@@ -63,6 +63,10 @@ const F = { restMin: env('REST_MIN', S0.rest), oneMin: env('ONE_MIN', S0.one), w
   heavyMax: env('HEAVY_MAX', S0.heavy), badMax: env('BAD_MAX', 0), mixedMax: env('MIXED_MAX', S0.mixed), leaveMin: env('LEAVE_WORST_MIN', S0.leaveWorst),   // badMax: weeks of 3 or 6 days (Second Nature has none)
   stepMax: env('STEP_MAX', S0.step), isoMax: env('ISO_MAX', S0.iso), gapMax: env('GAP_MAX', S0.maxGap) };
 const GAP_W = env('GAP_W', 1e5), ISO_W = env('ISO_W', 2e4);
+// MIX_W (2 Oct 2026, the "stronger than any" search): a cost per week mixing earlies and lates, beyond the MIXED_MAX
+// floor — until then a mixed week cost nothing until it crossed the floor, so a run could not be asked to PREFER an
+// all-early or all-late week. Off by default (0), so every earlier chain rebuilds exactly.
+const MIX_W = env('MIX_W', 0);
 const keeps = m => !m.present && m.rest >= F.restMin && m.one >= F.oneMin && m.wkends >= F.wkendsMin && m.heavy <= F.heavyMax + 1e-9
   && m.step <= F.stepMax && m.iso <= F.isoMax && m.maxGap <= F.gapMax && m.badDays <= F.badMax && m.mixed <= F.mixedMax && m.leaveWorst >= F.leaveMin;
 const misses = m => [['fatigue', m.present > 0], ['rest', m.rest < F.restMin], ['one-turn', m.one < F.oneMin], ['weekends', m.wkends < F.wkendsMin],
@@ -77,7 +81,7 @@ const score = m => {
     + 1e5 * Math.max(0, m.mixed - F.mixedMax) + 1e5 * Math.max(0, F.leaveMin - m.leaveWorst);
   return short
     + GAP_W * m.maxGap + 2e3 * m.spread                       // 6: spread the weekends
-    + ISO_W * m.iso                                           // 7: single rest days
+    + ISO_W * m.iso + MIX_W * m.mixed                         // 7: single rest days (and mixed weeks, when asked)
     + 1e3 * m.heavy - 2e3 * m.wkends - 500 * m.one + 50 * m.step;   // 8: the heaviest week, and more of what is good
 };
 let cur = measure(p), cs = score(cur), best = keeps(cur) ? { m: cur, s: cs, p: structuredClone(p) } : null;
