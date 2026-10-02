@@ -1,0 +1,8 @@
+{
+ "date": "2 October 2026",
+ "identity": {
+  "table": "F — Second Nature's duty table, unchanged (results/second-nature-table.json)",
+  "seed": "111 (anneal.mjs, variant A6000), then 1 (space-polish)",
+  "lineage": "A fresh search over the same duty table, started the way Familiar Nine was (owner, 2 Oct 2026): every rule, plus weekends off as close to four weeks apart as the cover weeks allow, which is five. The weeks were searched from random starts with the weekend gap capped at five and single rest days, mixed weeks, the week-to-week move, six-day weeks and the heaviest week costed (anneal.mjs), then polished with Second Nature and Second Wind's figures as floors (space-polish.mjs). It met every floor except single rest days, where it reached 5 against their 4, and was put forward as its own design (owner). No week mixes earlies and lates; the heaviest week is 42h 00m."
+ }
+}

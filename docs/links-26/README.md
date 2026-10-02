@@ -286,6 +286,54 @@ REST_MIN=860 WKENDS_MIN=7 ONE_MIN=16 HEAVY_MAX=42.5 STEP_MAX=128 ISO_MAX=4 GAP_M
   node space-polish.mjs /tmp/r7.closest.json second-wind.json 1 300000
 ```
 
+## Second Sight — a fresh search with the weekends spread from the start (2 Oct 2026)
+
+The owner asked to start the search again "from a different angle", the way Familiar Nine was started: every rule, plus
+one flexible aim, that full weekends off are four weeks apart or as spread out as possible. With 14 on a Saturday there
+are seven full weekends, and the closest seven can be is five weeks apart (above), so that is the target. Eight
+weekends, never more than four apart, would need 13 on a Saturday; the owner kept 14.
+
+- **Same duty table.** Table F, Second Nature's, so the rules, shift times, late finishes and staffing are the same as
+  Second Nature's and Second Wind's. Only the order of the weeks is new.
+- **The search.** 16 random-start runs of `anneal.mjs` with the gap capped at five from the outset (`GAP_CAP=5`), and
+  single rest days, mixed weeks, the week-to-week move, six-day weeks and the heaviest week costed. Every run reached the
+  gap of five.
+- **The polish.** Each start was polished with Second Nature and Second Wind's own figures as floors: shortest rest
+  14h 20m, seven weekends at most five weeks apart, at least 15 one-turn weeks, at most 4 single rest days, at most 3
+  mixed weeks, the heaviest week at most 43h 40m, 20 days off from 14 days' leave at worst, and no fatigue warning. The
+  best of them, seed 111, met every floor but one: it has 5 single rest days, not 4.
+- **Put forward as its own design** (owner, 2 Oct 2026: "turn start 111 into its own proposal sheet with its own name,
+  but continue the search"). `proposals/Second-Sight-SS-26-F1-3c6aac4d.pdf`, grid `tooling/second-sight.json`, in the
+  Second Nature family. No presentations yet.
+
+| | Second Nature | Second Wind | **Second Sight** | Today |
+|---|---|---|---|---|
+| Longest gap between full weekends | 10 weeks | 5 | **5** | 7 |
+| Weeks mixing earlies and lates | 2 | 4 | **0** | 7 of 16 |
+| Single rest days | 4 | 4 | **5** | 4 |
+| Heaviest Monday–Saturday week | 43h 40m | 42h 30m | **42h 00m** | 43h 50m |
+| Start-time change, week to week | 1h 28m | 2h 01m | **1h 55m** | 4h 00m |
+| Weeks on one shift time | 15 of 21 | 16 of 21 | **16 of 21** | 7 of 16 |
+| Shortest rest | 14h 20m | 14h 20m | **14h 20m** | 12h 30m |
+| Leave: best · average · worst (14 days) | 28 · 23.4 · 20 | 27 · 23.4 · 20 | **28 · 23.4 · 20** | 30 · 23.4 · 19 |
+| Avoidable fatigue warnings, fixed duties | 0 | 0 | **0** | 4 |
+
+**How to rebuild it** (from `tooling/`). The anneal run is committed as `results/second-sight-start.json`, as Second
+Wind's start is. It came from:
+
+```
+MODE=rules GAP_CAP=5 GAP_CAP_W=60000 GAP_W=1500 ISO_X=6000 MIX_X=5000 STEP_X=30 DAYS_X=30000 HEAVY_W=20000 HEAVY_CAP=43.67 \
+  TABLE=results/second-nature-table.json node anneal.mjs A6000 100000 3 111
+```
+
+The polish keeps nothing, because single rest days stay at 5, and writes the closest rota beside its output. That
+closest rota is Second Sight:
+
+```
+FATIGUE_SOFT=1 REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=15 ISO_MAX=4 MIXED_MAX=3 HEAVY_MAX=43.67 STEP_MAX=121 \
+  LEAVE_WORST_MIN=20 node space-polish.mjs results/second-sight-start.json /tmp/ss.json 1 300000   # → /tmp/ss.closest.json
+```
+
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
 "7 in 26" against "4 in 20" made the reader divide. The sheets now say it per person per year, as late finishes and 06:20
 starts already were:
@@ -297,7 +345,7 @@ starts already were:
 The weighted league scores weekends as a share of weeks for the same reason. The 24-line sheets were left as they
 stood.
 
- `links-26-proposals.zip`, laid out as the 24-line pack
+**Everything in one download:** `links-26-proposals.zip`, laid out as the 24-line pack
 (`../links-24/links-24-proposals.zip`) was:
 1. a *Read me first* note;
 2. the one-page summary;

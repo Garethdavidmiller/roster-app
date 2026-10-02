@@ -34,6 +34,10 @@ export const SUPPLIED = [
     // Second Wind (2 Oct 2026): Second Nature with its weeks reordered so the full weekends are never more than five weeks
     // apart, after an external review (README.md → "The review"). Same duty table, so same rules, times and late finishes.
     { file: 'second-wind.json',            name: 'Second Wind',    code: 'SW-26-F1',   fp: '4bec8d8e', strap: 'No duty over nine hours, and seven full weekends off never more than five weeks apart' },
+    // Second Sight (2 Oct 2026): the same duty table again, its weeks searched afresh with the weekend gap capped at five
+    // from the start (the restart the owner asked for, "the way we started Familiar Nine"), then polished with every
+    // Second Nature / Second Wind figure as a floor. No week mixes earlies and lates. README.md → "Second Sight".
+    { file: 'second-sight.json',           name: 'Second Sight',   code: 'SS-26-F1',   fp: '3c6aac4d', strap: 'No duty over nine hours, weekends never more than five weeks apart, and no week mixing earlies and lates' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
