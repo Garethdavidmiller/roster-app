@@ -23,3 +23,6 @@ best-so-far.json
 # A driver's run SUMMARY is the same class: wl4-run.mjs rewrites this on every run, and the
 # figures that matter end up in the proposal's own meta beside its PDF.
 wl4-results.json
+
+# Python bytecode from second-wind-decks.py importing second-nature-decks.py
+__pycache__/

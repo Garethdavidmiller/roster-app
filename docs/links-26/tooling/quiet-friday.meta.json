@@ -1,0 +1,8 @@
+{
+ "date": "2 October 2026",
+ "identity": {
+  "table": "C1f — Second Nature's weekday Monday to Thursday; Friday 14 on duty from the week's own times plus 13:30-22:30 (results/quiet-friday-friday.json); Saturday 14 at 7,200 minutes (results/quiet-friday-sat.json); Second Nature's Sunday. Assembled as results/quiet-friday-table.json",
+  "seed": "5 (anneal.mjs), then 1 and 2 (space-polish)",
+  "lineage": "The owner's what-if of 2 Oct 2026: 217 contracted days a year at most, every other rule kept. That allows 88 Monday-to-Saturday duties, one fewer than the 219-day designs, and the owner chose to take it from Friday, the quietest day. The weeks were searched from random starts with the weekend gap capped at five (anneal.mjs), then polished twice with the restart's floors (space-polish.mjs); the second pass, pressing on single rest days, met every floor. 216.6 days a year, so it is also inside today's 219 ceiling."
+ }
+}

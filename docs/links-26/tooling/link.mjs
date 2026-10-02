@@ -9,7 +9,9 @@ export const LINES = 26;
 export const COVER_WEEKS = 5;
 export const WORKING_LINES = LINES - COVER_WEEKS;                 // 21
 export const CONTRACT_MINUTES = WORKING_LINES * 35 * 60;           // 44,100 Monday-to-Saturday minutes a week
-export const DAYS_CEILING = 219;                                   // contracted days a year, today's figure (RULES.md)
+// contracted days a year, today's figure (RULES.md). DAYS_CEILING=<n> in the environment judges against another ceiling,
+// for the owner's what-if of 2 Oct 2026 ("what if we said 217 was the maximum"); unset, every sheet is judged at 219.
+export const DAYS_CEILING = Number(process.env.DAYS_CEILING ?? 219);
 /** A default placement for a new design: as even as 26 allows (gaps 5, 5, 5, 5, 6). */
 export const COVER_LINES = [1, 6, 11, 16, 21];
 /** The headcounts the duty tables are built to: fourteen on a Saturday (F1), ten on a Sunday (S4), and the weekday

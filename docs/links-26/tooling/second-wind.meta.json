@@ -1,0 +1,8 @@
+{
+ "date": "2 October 2026",
+ "identity": {
+  "table": "F — Second Nature's duty table, unchanged (results/second-nature-table.json)",
+  "seed": "1 (space-polish)",
+  "lineage": "Second Nature with its weeks put in a different order, after an external review asked for its seven full weekends to be spread out (they could be ten weeks apart). Every day's duties are Second Nature's, so the rules, the shift times, the late finishes and the cover weeks are unchanged. The weeks were searched from random starts with the weekend gap, single rest days, week shape and the heaviest week costed (anneal.mjs), then polished with every review priority held as a floor (space-polish.mjs). Weekends are now never more than five weeks apart, the closest the cover weeks allow; the cost is four weeks mixing earlies and lates instead of two."
+ }
+}

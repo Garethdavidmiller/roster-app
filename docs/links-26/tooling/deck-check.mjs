@@ -21,7 +21,9 @@ import { LINES } from './link.mjs';
 import { leave } from './leave.mjs';
 
 const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url).pathname;   // DECK_DIR: check a copy
-const DECKS = [['Second-Nature-for-colleagues.pptx', 'Second Nature'], ['Second-Nature-for-managers.pptx', 'Second Nature']];
+const DECKS = [['Second-Nature-for-colleagues.pptx', 'Second Nature'], ['Second-Nature-for-managers.pptx', 'Second Nature'],
+  ['Second-Wind-for-colleagues.pptx', 'Second Wind'], ['Second-Wind-for-managers.pptx', 'Second Wind'],
+  ['Second-Sight-for-colleagues.pptx', 'Second Sight'], ['Second-Sight-for-managers.pptx', 'Second Sight']];
 
 const hm = m => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}m`;
 const span = s => String(s).replace(/(\d+)h(\d\d)(?!m)/g, '$1h $2m');                 // plain.mjs's "8h40" → the decks' "8h 40m"
@@ -99,11 +101,16 @@ function slideItems(xml) {
 const T0 = today(), TA = assess(T0.patterns, 20), TF = figures(T0.patterns, 20, null);
 const stats = folderStats();
 let bad = 0, ok = 0; const unchecked = new Set();
+if (process.argv.includes('--print')) {   // every figure a deck row can quote, for today and each design the decks cover
+  const out = { today: TF };
+  for (const name of new Set(DECKS.map(([, n]) => n))) { const f = stats.find(s => s.name === name);
+    const j = JSON.parse(readFileSync(new URL(`../proposals/${f.file}`, import.meta.url), 'utf8')); out[name] = figures(j.patterns ?? j, LINES, TA); }
+  console.log(JSON.stringify(out, null, 1)); process.exit(0);
+}
 for (const [file, name] of DECKS) {
   const f = stats.find(s => s.name === name); if (!f) throw new Error(`deck-check: no proposal called ${name}`);
   const j = JSON.parse(readFileSync(new URL(`../proposals/${f.file}`, import.meta.url), 'utf8')), p = j.patterns ?? j;
   const PF = figures(p, LINES, TA);
-  if (process.argv.includes('--print')) { console.log(JSON.stringify({ today: TF, [name]: PF }, null, 1)); process.exit(0); }
   const slides = execFileSync('unzip', ['-Z1', DIR + file], { encoding: 'utf8' }).split('\n').filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n));
   for (const s of slides) {
     const it = slideItems(execFileSync('unzip', ['-p', DIR + file, s], { encoding: 'utf8' })), n = s.match(/\d+/)[0];

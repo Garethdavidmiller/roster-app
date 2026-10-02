@@ -193,26 +193,273 @@ It was chosen for the balance. Four more weeks on one turn are worth one more si
 is the best of the four.
 
 **The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"):
-`presentations/Second-Nature-for-colleagues` (15 slides) and `-for-managers` (10), as PowerPoint and PDF. They are the
+`presentations/Second-Nature-for-colleagues` (15 slides) and `-for-managers` (10), as PowerPoint and PDF, and the same
+pair for Second Wind (`Second-Wind-for-…`) and Second Sight (`Second-Sight-for-…`). They are the
 Familiar Nine decks, the template Right Away's were made from too, with every word and figure that was Familiar Nine's
 replaced and the design untouched. Unlike the 24-line decks, they are BUILT here: `tooling/second-nature-decks.py`
-makes both from the Familiar Nine files, and refuses if a slide no longer holds the text it expects.
+makes Second Nature's from the Familiar Nine files, and `tooling/second-wind-decks.py` makes Second Wind's from those,
+changing only what differs between the two rotas (weekend spacing, rest-day breaks, one-turn weeks, the best leave
+stretch, the weekly hours); `tooling/second-sight-decks.py` makes Second Sight's the same way, adding that no week mixes
+earlies and lates and saying plainly that it has one more single rest day than today (5, against 4). Both refuse if a slide no longer holds the text they expect, and both compare only with
+today's link.
 - **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts.
-  `tooling/leave.mjs` gives the four leave figures (14 days' leave buys 28 days off at best, 23.4 on average, 20 at
-  worst; four full weeks off takes 15). It is the 24-line decks' leave method as code, and `--check` shows it
+  `tooling/leave.mjs` gives the four leave figures (Second Nature: 14 days' leave buys 28 days off at best, 23.4
+  on average, 20 at worst, and four full weeks off takes 15; Second Wind: 27 at best, otherwise the same). It is the 24-line decks' leave method as code, and `--check` shows it
   reproduces their published figures for today and Familiar Nine exactly.
-- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. All 51 table rows agree with the sheet and
-  the leave model, and none is left unchecked.
+- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. All 153 table rows across the six decks agree with
+  the sheets and the leave model, and none is left unchecked.
 
 Rebuild after any change to the rota:
 
 ```
-python3 docs/links-26/tooling/second-nature-decks.py && node docs/links-26/tooling/deck-check.mjs
+python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/second-wind-decks.py \
+  && python3 docs/links-26/tooling/second-sight-decks.py && node docs/links-26/tooling/deck-check.mjs
 ```
 
 Then export the PDFs (LibreOffice). Two things the decks say that the sheet does not show directly:
 - **Late finishes:** 42 a year is the minimum, because only the three closers the rules require finish after 23:00.
-- **Weekends off:** they can be up to ten weeks apart (today seven); the managers' deck lists it as a worry.
+- **Weekends off:** Second Nature's can be up to ten weeks apart (today seven), and its managers' deck lists that as a
+  worry; Second Wind's are never more than five apart, which its decks give as a strength.
+
+## Second Wind — Second Nature with the weekends spread (2 Oct 2026)
+
+An external review rated Second Nature "remarkably strong ... about 9.2/10 as a first draft", and asked for one more pass
+before calling it finished. Its priorities, in order:
+1. keep every rule, no fatigue warning, 6 days in a row at most, the 14h 20m rest, the 42 late finishes, the shift times;
+2. spread the full weekends, which can be ten weeks apart;
+3. fewer single rest days (4; Familiar Nine has 2);
+4. a lighter heaviest week (43h 40m);
+5. the cover weeks kept at 1, 6, 11, 16 and 21.
+
+Every figure it quoted checks out against the rotas.
+
+**What was found.** Only the ORDER was searched. Every move swaps duties between weeks or swaps whole weeks, so each
+day's duties, and with them priorities 1 and 5, cannot change.
+
+- **The weekends.** 14 Saturday duties on 21 working weeks leave exactly 7 Saturdays off, so seven is also the most. A
+  full weekend cannot start in a cover week or the week before one, which leaves 16 of the 26 weeks that can. The
+  closest seven of those can be is **five weeks apart**, the best possible.
+- **The revision reaches it, and ships as Second Wind** (owner, 2 Oct 2026: "give it a different name and add it alongside
+Second Nature ... the same family"). `proposals/Second-Wind-SW-26-F1-4bec8d8e.pdf`, grid `tooling/second-wind.json`.
+  Against Second Nature:
+
+| | Second Nature | **Second Wind** | Familiar Nine (24) | Today |
+|---|---|---|---|---|
+| Longest gap between full weekends | 10 weeks | **5** (the best possible) | 7 | 7 |
+| Single rest days | 4 (1 beside a cover week) | 4 (none beside one) | 2 | 4 |
+| Heaviest Mon–Sat week | 43h 40m | **42h 30m** | 41h 45m | 43h 50m |
+| Worst rolling 7 days | 52.2h | 51.5h | 51.3h | 60.8h |
+| Weeks on one turn | 15 of 21 | **16 of 21** | 14 of 20 | 7 of 16 |
+| Weeks mixing earlies and lates | **2 of 21** | 4 of 21 | 3 of 20 | 7 of 16 |
+| Start-time change, week to week | **1h 28m** | 2h 01m | 1h 44m | 4h 00m |
+| Leave: best · average · worst (14 days) | 28 · 23.4 · 20 | 27 · 23.4 · 20 | 28 · 23.6 · 20 | 30 · 23.4 · 19 |
+
+  Unchanged: 9/9 rules, no fatigue warnings, 6 days in a row, 14h 20m, 42 late finishes, 15 shift times, 218.6 days.
+
+- **Single rest days stayed at 4.** No rota with the weekends spread got below it. The only rotas found with 3 had a
+  shorter rest or a fatigue factor; one with 2 mixed weeks and the weekends spread had 6 single rest days.
+- **The cost is stability.** Mixed weeks went from 2 to 4, and the week-to-week move from 1h 28m to 2h 01m. Both are
+  still far better than today and close to Familiar Nine. So both are put forward, and Second Nature is unchanged.
+- **Same family.** Both are in the Second Nature family (`FAMILY` in `tooling/fresh.mjs`); Second Nature's was listed
+  as Silva Lining until then, the design its weeks were grown from. The family is header metadata the plain sheets do
+  not print, so no sheet changed.
+- **The summary shows the difference.** Its "Full weekends off" column now gives the longest wait as well, "at most N
+  weeks apart". Without it, the two designs read identically on the summary.
+
+**How it was found** (from `tooling/`):
+- `anneal.mjs` gained terms that are off by default, so every earlier run reproduces: `GAP_W` (the weekend gap),
+  `ISO_X` (single rest days), `DAYS_X` (3- and 6-day weeks) and `HEAVY_W`/`HEAVY_CAP` (hours over a cap).
+- `space-polish.mjs` reorders a rota towards the review's priorities. Each floor is a cost while searching and a floor
+  on what is kept, so nothing it writes is worse than its floors on any of them. When it keeps nothing, it names the
+  floors its closest rota missed and saves that rota beside its output.
+- `candidates.mjs` now prints the weekend gap.
+
+The search:
+- **Random-start search:** 8 runs. Best was seed 29 (`GAP_W=4000 ISO_X=4000 DAYS_X=30000 HEAVY_W=20000 HEAVY_CAP=43.67`).
+- **Polishing:** gave `results/second-wind-start.json`. That was made by an earlier version of `space-polish.mjs`,
+  so it is committed rather than rebuilt.
+- **The two last steps** rebuild Second Wind exactly:
+
+```
+REST_MIN=860 WKENDS_MIN=7 ONE_MIN=15 HEAVY_MAX=43.67 STEP_MAX=130 ISO_MAX=4 GAP_MAX=6 MIXED_MAX=2 LEAVE_WORST_MIN=20 \
+  node space-polish.mjs results/second-wind-start.json /tmp/r7.json 7 400000          # keeps nothing; writes /tmp/r7.closest.json
+REST_MIN=860 WKENDS_MIN=7 ONE_MIN=16 HEAVY_MAX=42.5 STEP_MAX=128 ISO_MAX=4 GAP_MAX=5 MIXED_MAX=4 LEAVE_WORST_MIN=20 \
+  node space-polish.mjs /tmp/r7.closest.json second-wind.json 1 300000
+```
+
+## Second Sight — a fresh search with the weekends spread from the start (2 Oct 2026)
+
+The owner asked to start the search again "from a different angle", the way Familiar Nine was started: every rule, plus
+one flexible aim, that full weekends off are four weeks apart or as spread out as possible. With 14 on a Saturday there
+are seven full weekends, and the closest seven can be is five weeks apart (above), so that is the target. Eight
+weekends, never more than four apart, would need 13 on a Saturday; the owner kept 14.
+
+- **Same duty table.** Table F, Second Nature's, so the rules, shift times, late finishes and staffing are the same as
+  Second Nature's and Second Wind's. Only the order of the weeks is new.
+- **The search.** 16 random-start runs of `anneal.mjs` with the gap capped at five from the outset (`GAP_CAP=5`), and
+  single rest days, mixed weeks, the week-to-week move, six-day weeks and the heaviest week costed. Every run reached the
+  gap of five.
+- **The polish.** Each start was polished with Second Nature and Second Wind's own figures as floors: shortest rest
+  14h 20m, seven weekends at most five weeks apart, at least 15 one-turn weeks, at most 4 single rest days, at most 3
+  mixed weeks, the heaviest week at most 43h 40m, 20 days off from 14 days' leave at worst, and no fatigue warning. The
+  best of them, seed 111, met every floor but one: it has 5 single rest days, not 4.
+- **Put forward as its own design** (owner, 2 Oct 2026: "turn start 111 into its own proposal sheet with its own name,
+  but continue the search"). `proposals/Second-Sight-SS-26-F1-3c6aac4d.pdf`, grid `tooling/second-sight.json`, in the
+  Second Nature family. Its presentations followed the same day (owner, on the recommendation that it is the strongest
+  of the six): `presentations/Second-Sight-for-colleagues` and `-for-managers`.
+
+| | Second Nature | Second Wind | **Second Sight** | Today |
+|---|---|---|---|---|
+| Longest gap between full weekends | 10 weeks | 5 | **5** | 7 |
+| Weeks mixing earlies and lates | 2 | 4 | **0** | 7 of 16 |
+| Single rest days | 4 | 4 | **5** | 4 |
+| Heaviest Monday–Saturday week | 43h 40m | 42h 30m | **42h 00m** | 43h 50m |
+| Start-time change, week to week | 1h 28m | 2h 01m | **1h 55m** | 4h 00m |
+| Weeks on one shift time | 15 of 21 | 16 of 21 | **16 of 21** | 7 of 16 |
+| Shortest rest | 14h 20m | 14h 20m | **14h 20m** | 12h 30m |
+| Leave: best · average · worst (14 days) | 28 · 23.4 · 20 | 27 · 23.4 · 20 | **28 · 23.4 · 20** | 30 · 23.4 · 19 |
+| Avoidable fatigue warnings, fixed duties | 0 | 0 | **0** | 4 |
+
+**How to rebuild it** (from `tooling/`). The anneal run is committed as `results/second-sight-start.json`, as Second
+Wind's start is. It came from:
+
+```
+MODE=rules GAP_CAP=5 GAP_CAP_W=60000 GAP_W=1500 ISO_X=6000 MIX_X=5000 STEP_X=30 DAYS_X=30000 HEAVY_W=20000 HEAVY_CAP=43.67 \
+  TABLE=results/second-nature-table.json node anneal.mjs A6000 100000 3 111
+```
+
+The polish keeps nothing, because single rest days stay at 5, and writes the closest rota beside its output. That
+closest rota is Second Sight:
+
+```
+FATIGUE_SOFT=1 REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=15 ISO_MAX=4 MIXED_MAX=3 HEAVY_MAX=43.67 STEP_MAX=121 \
+  LEAVE_WORST_MIN=20 node space-polish.mjs results/second-sight-start.json /tmp/ss.json 1 300000   # → /tmp/ss.closest.json
+```
+
+## Second Look and Second Gear — the same restart, on two variations of the duty table (2 Oct 2026)
+
+The restart did not stop at Second Nature's table. Five variations of it were built (`assemble-table.mjs`, the same
+pins and nine-hour cap) and searched the same way: G1, G2 and G3 keep the 42 late finishes a year, H1 and H2 cost 44.
+Every search reached the weekend gap of five. Two rotas, and only two, then met **every** floor, four single rest days
+included, and both were put forward (owner, 2 Oct 2026: "create sheets for both please with new names too"):
+
+- **Second Look** (`SL-26-G3` · `7095fdda`), table G3: Second Nature's with the Saturday 08:00-16:30 pair moved to
+  07:15-15:45. It keeps the 42 late finishes and has 14 shift times, one fewer.
+- **Second Gear** (`SG-26-H1` · `8d61e5c3`), table H1: different weekday and Saturday times. It has the lightest weeks
+  and the longest rest, and never more than five days in a row on the fixed duties, for two more late finishes a year
+  and one more new shift time.
+
+| | Second Wind | Second Sight | **Second Look** | **Second Gear** | Today |
+|---|---|---|---|---|---|
+| Longest gap between full weekends | 5 | 5 | **5** | **5** | 7 |
+| Single rest days | 4 | 5 | **4** | **4** | 4 |
+| Weeks mixing earlies and lates | 4 | 0 | **1** | **2** | 7 of 16 |
+| Heaviest Monday–Saturday week | 42h 30m | 42h 00m | **43h 40m** | **41h 30m** | 43h 50m |
+| Start-time change, week to week | 2h 01m | 1h 55m | **1h 30m** | **1h 25m** | 4h 00m |
+| Weeks on one shift time | 16 of 21 | 16 of 21 | **15 of 21** | **16 of 21** | 7 of 16 |
+| Shortest rest | 14h 20m | 14h 20m | **14h 20m** | **14h 35m** | 12h 30m |
+| Leave: best · average · worst (14 days) | 27 · 23.4 · 20 | 28 · 23.4 · 20 | **27 · 23.4 · 20** | **28 · 23.4 · 20** | 30 · 23.4 · 19 |
+| Late finishes a year | 42 | 42 | **42** | **44** | 39 |
+| Shift times (new) | 15 (6) | 15 (6) | **14 (6)** | **15 (7)** | 18 |
+| Saturday fit to the trains (lower is better) | 12.7 | 12.7 | **15.2** | **14.5** | 65.9 |
+
+The rest of the restart, for the record: G1's best kept a shorter rest (14h 05m), five single rest days and a worse
+leave figure; G2's kept six single rest days; H2's kept a fatigue factor; and the rotas that reached four single rest days on Second Nature's own table all kept
+a fatigue factor (FF19, start times moving more than two hours inside a run of days).
+
+**How to rebuild them** (from `tooling/`). The tables and the anneal runs are committed (`results/second-look-table.json`,
+`results/second-gear-table.json`, `results/second-look-start.json`, `results/second-gear-start.json`). The runs came from:
+
+```
+MODE=rules GAP_CAP=5 GAP_CAP_W=60000 GAP_W=1500 ISO_X=6000 MIX_X=5000 STEP_X=30 DAYS_X=30000 HEAVY_W=20000 HEAVY_CAP=43.67 \
+  TABLE=results/second-look-table.json node anneal.mjs G3 100000 3 113
+MODE=rules GAP_CAP=5 GAP_CAP_W=60000 GAP_W=1500 ISO_X=6000 MIX_X=5000 STEP_X=30 DAYS_X=30000 HEAVY_W=20000 HEAVY_CAP=43.67 \
+  TABLE=results/second-gear-table.json node anneal.mjs H1 100000 3 105
+```
+
+and the polish, with Second Sight's floors, keeps each grid exactly. Second Look's was run in the second polish round,
+which pushed harder on single rest days (`ISO_W=1e5`, 400,000 steps):
+
+```
+F="FATIGUE_SOFT=1 REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=15 ISO_MAX=4 MIXED_MAX=3 HEAVY_MAX=43.67 STEP_MAX=121 LEAVE_WORST_MIN=20"
+env $F ISO_W=1e5 node space-polish.mjs results/second-look-start.json second-look.json 1 400000
+env $F node space-polish.mjs results/second-gear-start.json second-gear.json 1 300000
+```
+
+## Quiet Friday — what if the ceiling were 217 days? (2 Oct 2026)
+
+The owner asked: "What if we said 217 was the maximum working days per year. Keep the rest of the rules. What is
+possible? Try every possibility." With five cover weeks, 217 allows **88 Monday-to-Saturday duties**, one fewer than the
+219-day designs' 89 (RULES.md's own table: 88 duties is 216.6 days). Taking that one duty out can be done four ways,
+and the 9-hour cap on duties (a design choice, not a rule: the rules limit only Sunday duties) decides most of them.
+The fixed ticket-office and closing duties leave little room to lengthen the rest.
+
+| | Weekday · Saturday | Days | Rules | What the search found |
+|---|---|---|---|---|
+| A | 15 · 13 | 216.6 | breaks flexible F1 (14 on a Saturday) | 13 on a Saturday leaves 8 Saturdays off, so 8 full weekends; tables fit (Saturday 26.8–27.6), but every rota kept a fatigue factor (early runs, or start times moving over two hours) |
+| B | 14 · 14 | 214.6 | all kept | only with weekday duties to 9h 30m, and then every weekday fits at 48.1 (Second Nature: 29.3) |
+| B2 | 14 · 16 | 216.6 | all kept | 9-hour cap kept, but 16 Saturday duties leave 5 full weekends |
+| **C** | **15 Mon–Thu, 14 Fri** · 14 | **216.6** | **all kept** | **Quiet Friday** |
+
+**C, with Friday the short day** (owner: "Friday is the quietest day"; today's link already rosters 11–12 by day). The
+Friday table was searched from the times the week already works plus at most two new ones, because the rule of no more
+shift times than today (18) counts the whole week: `final-table.mjs` gained `POOL_ONLY=`, and `anneal.mjs` a per-day
+column so one weekday can take its own counts. Friday's best adds one new time, 13:30–22:30 (fit 40.0, 17 times in the
+week). Of 15 rota searches on options A and C, one rota met every floor of the restart.
+
+**Quiet Friday** (`QF-26-C1` · `daf8f3c9`), its own family, `proposals/Quiet-Friday-QF-26-C1-daf8f3c9.pdf`, grid
+`tooling/quiet-friday.json`. At 216.6 days it is inside today's 219 ceiling too, so it sits with the others and is
+judged by the same rules; its strap says it was built to 217.
+
+| | Second Wind | **Quiet Friday** | Today |
+|---|---|---|---|
+| Contracted days a year | 218.6 | **216.6** | 219.0 |
+| On duty: Mon–Thu · Fri · Sat · Sun | 15 · 15 · 14 · 10 | **15 · 14 · 14 · 10** | 11–12 · 12 · 10 · 8 |
+| Longest gap between full weekends (7 in 26) | 5 | **5** | 7 (4 in 20) |
+| Single rest days | 4 | **4** | 4 |
+| Weeks mixing earlies and lates | 4 | **3** | 7 of 16 |
+| Heaviest Monday–Saturday week | 42h 30m | **41h 30m** | 43h 50m |
+| Start-time change, week to week | 2h 01m | **1h 36m** | 4h 00m |
+| Shortest rest | 14h 20m | **14h 20m** | 12h 30m |
+| Late finishes a year | 42 | **46** | 39 |
+| Shift times (new) | 15 (6) | **17 (10)** | 18 |
+| Leave: best · average · worst (14 days) · four weeks off | 27 · 23.4 · 20 · 15 | **27 · 23.6 · 20 · 16** | 30 · 23.4 · 19 · 14 |
+| Fit to the trains: weekday · Saturday · Sunday | 29.1 · 12.7 · 29.0 | **30.1 · 15.5 · 29.0** | 52.0 · 65.9 · 71.7 |
+
+The costs of 217 are the four extra late finishes (the Saturday that makes the minutes work has two 14:30–23:30 duties),
+the new times and a slightly weaker Saturday.
+
+**How to rebuild it** (from `tooling/`). The day tables, the assembled table and the anneal run are committed
+(`results/quiet-friday-{friday,sat,table,start}.json`; the weekday and Sunday are Second Nature's). The days came from:
+
+```
+X="HI=540 TODAY=1 NEWPEN=2 AT22_STRICT=1"
+env $X CLS=sat N=14 TOTAL=7200 MAX_TURNS=6 OUT=sat.json node final-table.mjs
+env $X CLS=weekday N=14 TOTAL=7140 MAX_TURNS=8 CLOSERS_MAX=3 MID_END_MAX=1350 \
+  POOL_ONLY=<the week's 16 times>,13:30-22:30 OUT=friday.json node final-table.mjs
+```
+
+The table is `assemble-table.mjs` on Second Nature's weekday, that Saturday and Second Nature's Sunday, with the Friday
+written as its own `fri` column. Then:
+
+```
+DAYS_CEILING=217 MODE=rules GAP_CAP=5 GAP_CAP_W=60000 GAP_W=1500 ISO_X=4000 MIX_X=3000 STEP_X=20 DAYS_X=30000 \
+  HEAVY_W=20000 HEAVY_CAP=43.67 TABLE=results/quiet-friday-table.json node anneal.mjs C1f 100000 3 5
+F="DAYS_CEILING=217 FATIGUE_SOFT=1 REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=15 ISO_MAX=4 MIXED_MAX=3 HEAVY_MAX=43.67 STEP_MAX=121 LEAVE_WORST_MIN=20"
+env $F node space-polish.mjs results/quiet-friday-start.json /tmp/qf1.json 1 300000          # keeps nothing → /tmp/qf1.closest.json
+env $F ISO_W=1e5 node space-polish.mjs /tmp/qf1.closest.json quiet-friday.json 2 400000
+```
+
+**Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
+"7 in 26" against "4 in 20" made the reader divide. The sheets now say it per person per year, as late finishes and 06:20
+starts already were:
+- **page 1:** "About 14 full weekends off a year (today 10), 7 in 26 weeks, …";
+- **page 2:** a "Full weekends off" row in *Each person's year, on average*, with the share of weeks (27%, today 20%);
+  the rotation figure stays, relabelled "Full weekends off, in the rotation";
+- **the summary:** under the count.
+
+The weighted league scores weekends as a share of weeks for the same reason. The 24-line sheets were left as they
+stood.
 
 **Everything in one download:** `links-26-proposals.zip`, laid out as the 24-line pack
 (`../links-24/links-24-proposals.zip`) was:

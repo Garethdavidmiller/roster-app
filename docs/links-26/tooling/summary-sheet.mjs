@@ -23,19 +23,24 @@ function extra(p){ const L=Object.keys(p).length; let cover=0,dx=0,mins=0,minsAl
       if(d!=='sun'){dx++;mins+=m;} if(endMinutes(s)>=1380||endMinutes(s)<startMinutes(s)) late++; if(d==='sat') sat++; } }
   const dpw=(dx+4*cover)/L; return { L, cover, dpw, dpy: dpw*365/7, avg: mins/dx, avgAll: minsAll/nAll, late: late*52/L, sat: sat*52/L }; }
 const T=today();
+// the longest wait between two full weekends, in weeks (plain.mjs's measure): the one thing that told Second Nature and
+// Second Wind apart, and a seven-in-26 that can be ten weeks apart is not the same offer as one never five apart
+const gapOf = p => { const L=Object.keys(p).length, off = s => !timed(s) && s !== 'SPARE', at = [];
+  for (let k = 1; k <= L; k++) if (off(p[String(k)].sat) && off(p[String(k % L + 1)].sun)) at.push(k);
+  return at.length ? Math.max(...at.map((k, i) => i < at.length - 1 ? at[i + 1] - k : at[0] + L - k)) : null; };
 
 const hm = m => `${Math.floor(m/60)}h ${String(Math.round(m%60)).padStart(2,'0')}m`;  // the sheets' own format, "13h 35m"
 const TA = assess(T.patterns, 20);
 const rows = folderStats().map(f => { const j=JSON.parse(fs.readFileSync(new URL(f.file, DIR),'utf8')); const p=j.patterns??j; const x=extra(p);
   return { name:f.name, code:f.code, met:f.rules.met, of:f.rules.of, waived:waivedRows(f.code, f.rules.rows).length, present:f.fixedPresent, presentW:f.worstPresent, hard:f.turnarounds>0 || f.run>13 || monSatMinutes(p)!==CONTRACT_MINUTES || daysAYear(p)>DAYS_CEILING+1e-9,   // every hard limit, the contract and the days ceiling (RULES.md) included
-    turns:f.turnarounds, run:f.fixedRun, runW:f.run, wkd:`${f.weekends} in ${x.L}`, rest:f.rest, times:`${f.distinct} (${f.newTimes} new)`, ...x }; });
+    turns:f.turnarounds, run:f.fixedRun, runW:f.run, wkd:`${f.weekends} in ${x.L}`, gap:gapOf(p), wkYear:f.weekends*52/x.L, rest:f.rest, times:`${f.distinct} (${f.newTimes} new)`, ...x }; });
 // a proposal that breaks a HARD limit cannot be run as it stands, so it sorts last whatever it scores (accuracy audit,
 // 1 Oct 2026 — it sat mid-table on its rules count)
 rows.sort((a,b)=> a.hard-b.hard || b.met-a.met || a.present-b.present || a.name.localeCompare(b.name));
-const todayRow = { name:'Today’s link', code:'20 weeks', met:null, of:null, present:TA.fixed.present, presentW:TA.fatigue.present, run:TA.fixed.run, runW:TA.checks.longestStretch, wkd:`${TA.checks.weekendsOff} in 20`, rest:TA.rest?.minutes, times:`${TA.feel.distinctTimes}`, ...extra(T.patterns) };
+const todayRow = { name:'Today’s link', code:'20 weeks', met:null, of:null, present:TA.fixed.present, presentW:TA.fatigue.present, run:TA.fixed.run, runW:TA.checks.longestStretch, wkd:`${TA.checks.weekendsOff} in 20`, gap:gapOf(T.patterns), wkYear:TA.checks.weekendsOff*52/20, rest:TA.rest?.minutes, times:`${TA.feel.distinctTimes}`, ...extra(T.patterns) };
 // today's rules met, the rules sheet's own figure
 { const R0 = currentRules({ patterns:T.patterns, ...TA }, TA, 'today'); todayRow.met = R0.met; todayRow.of = R0.of; }
-const tr = (r, cls='') => `<tr class="${cls}"><td class="n"><b>${r.name}</b><span>${r.code}</span>${r.hard ? '<em class="hl">✕ cannot be run as it stands</em>' : ''}</td><td class="${r.met===r.of?'good':''}">${r.met} of ${r.of}${r.waived ? `<span class="wv">${r.waived} waived‡</span>` : ''}</td><td class="${r.present===0?'good':''}">${r.present}${r.presentW !== r.present ? `<span class="wv">up to ${r.presentW}§</span>` : ''}</td><td>${r.run}${r.runW !== r.run ? `<span class="wv">up to ${r.runW}§</span>` : ''}</td><td>${r.wkd}</td><td class="${r.turns ? 'bad' : ''}">${r.rest==null?'—':`${r.turns ? '✕ ' : ''}${hm(r.rest)}`}${r.turns ? '<span class="wv">under the 12-hour limit</span>' : ''}</td><td>${r.times}</td><td>${r.dpw.toFixed(2)}</td><td${r.L === LINES && r.dpy > DAYS_CEILING + 1e-9 ? ' class="bad"' : ''}>${r.dpy.toFixed(1)}</td><td>${hm(r.avg)}</td><td>${Math.round(r.late)}</td><td>${Math.round(r.sat)}</td></tr>`;
+const tr = (r, cls='') => `<tr class="${cls}"><td class="n"><b>${r.name}</b><span>${r.code}</span>${r.hard ? '<em class="hl">✕ cannot be run as it stands</em>' : ''}</td><td class="${r.met===r.of?'good':''}">${r.met} of ${r.of}${r.waived ? `<span class="wv">${r.waived} waived‡</span>` : ''}</td><td class="${r.present===0?'good':''}">${r.present}${r.presentW !== r.present ? `<span class="wv">up to ${r.presentW}§</span>` : ''}</td><td>${r.run}${r.runW !== r.run ? `<span class="wv">up to ${r.runW}§</span>` : ''}</td><td>${r.wkd}<span class="wv">about ${Math.round(r.wkYear)} a year${r.gap ? ` · ${r.gap} weeks apart at most` : ''}</span></td><td class="${r.turns ? 'bad' : ''}">${r.rest==null?'—':`${r.turns ? '✕ ' : ''}${hm(r.rest)}`}${r.turns ? '<span class="wv">under the 12-hour limit</span>' : ''}</td><td>${r.times}</td><td>${r.dpw.toFixed(2)}</td><td${r.L === LINES && r.dpy > DAYS_CEILING + 1e-9 ? ' class="bad"' : ''}>${r.dpy.toFixed(1)}</td><td>${hm(r.avg)}</td><td>${Math.round(r.late)}</td><td>${Math.round(r.sat)}</td></tr>`;
 const html = `<!doctype html><html><head><meta charset="utf-8"><title>December 2026 link proposals — summary</title><style>
 @page{size:A4 landscape;margin:8mm 10mm}
 body{font-family:Inter,Arial,sans-serif;color:#1B2533;margin:0;font-size:9pt}
@@ -43,7 +48,7 @@ h1{color:#001E3C;font-size:20pt;margin:0 0 4px} .lead{color:#5B6778;margin:0 0 1
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
 th{background:#001E3C;color:#fff;font-weight:600;font-size:9pt;padding:6px 5px;text-align:center;vertical-align:bottom}
 th:first-child{text-align:left}
-td{white-space:nowrap;border-bottom:1px solid #DDE3EA;padding:6px 5px;text-align:center;font-size:10pt}
+td{white-space:nowrap;border-bottom:1px solid #DDE3EA;padding:4px 5px;text-align:center;font-size:10pt}
 td.n{text-align:left} td.n span{color:#5B6778;font-size:8.5pt;margin-left:6px} td .wv{display:block;color:#5B6778;font-size:8pt}
 tr.today td{background:#FFF4C2;border-bottom:2px solid #F5C800}
 td.good{color:#1E7B4B;font-weight:700} td.bad{color:#B3261E;font-weight:700} td.n em.hl{display:block;font-style:normal;color:#B3261E;font-size:8pt;font-weight:600}

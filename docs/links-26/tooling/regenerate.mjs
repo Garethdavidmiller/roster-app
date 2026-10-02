@@ -31,6 +31,23 @@ export const SUPPLIED = [
     // final-table.mjs sweep (results/second-nature-*.json), Silva Lining's week structure grown to 26 lines, then searched
     // and polished. README.md → "Second Nature" has every step and command.
     { file: 'second-nature.json',          name: 'Second Nature',  code: 'SN-26-F2',   fp: 'a52d0f20', strap: 'No duty over nine hours, seven full weekends off, and only the late finishes the closing rule needs' },
+    // Second Wind (2 Oct 2026): Second Nature with its weeks reordered so the full weekends are never more than five weeks
+    // apart, after an external review (README.md → "The review"). Same duty table, so same rules, times and late finishes.
+    { file: 'second-wind.json',            name: 'Second Wind',    code: 'SW-26-F1',   fp: '4bec8d8e', strap: 'No duty over nine hours, and seven full weekends off never more than five weeks apart' },
+    // Second Sight (2 Oct 2026): the same duty table again, its weeks searched afresh with the weekend gap capped at five
+    // from the start (the restart the owner asked for, "the way we started Familiar Nine"), then polished with every
+    // Second Nature / Second Wind figure as a floor. No week mixes earlies and lates. README.md → "Second Sight".
+    { file: 'second-sight.json',           name: 'Second Sight',   code: 'SS-26-F1',   fp: '3c6aac4d', strap: 'No duty over nine hours, weekends never more than five weeks apart, and no week mixing earlies and lates' },
+    // Second Look and Second Gear (2 Oct 2026): from the same restart as Second Sight, on two variations of Second Nature's
+    // duty table, and the only rotas in it that met every floor. Second Look (table G3: the Saturday 08:00-16:30 pair moved
+    // to 07:15-15:45) keeps the 42 late finishes; Second Gear (table H1) has the lightest weeks and costs two more a year.
+    // README.md → "Second Look and Second Gear".
+    { file: 'second-look.json',            name: 'Second Look',    code: 'SL-26-G3',   fp: '7095fdda', strap: 'Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates' },
+    { file: 'second-gear.json',            name: 'Second Gear',    code: 'SG-26-H1',   fp: '8d61e5c3', strap: 'Weekends never more than five weeks apart, no week over 41h 30m, and the gentlest week-to-week change' },
+    // Quiet Friday (2 Oct 2026): the owner's what-if, "217 was the maximum working days per year … keep the rest of the
+    // rules". One duty fewer a week (88): 14 on a Friday, the quietest day (owner), and 15 the other weekdays, so every rule
+    // and flexible rule still holds. Its own family: a different ceiling and table. README.md → "Quiet Friday".
+    { file: 'quiet-friday.json',           name: 'Quiet Friday',   code: 'QF-26-C1',   fp: 'daf8f3c9', strap: 'Built to 217 days a year: 14 on a Friday, and weekends never more than five weeks apart' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
