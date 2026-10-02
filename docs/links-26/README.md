@@ -175,6 +175,28 @@ node regenerate.mjs                     # the sheet; --check confirms the finger
 It was chosen for the balance. Four more weeks on one turn are worth one more single rest day, and the shortest rest
 is the best of the four.
 
+**The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"):
+`presentations/Second-Nature-for-colleagues` (15 slides) and `-for-managers` (10), as PowerPoint and PDF. They are the
+Familiar Nine decks, the template Right Away's were made from too, with every word and figure that was Familiar Nine's
+replaced and the design untouched. Unlike the 24-line decks, they are BUILT here: `tooling/second-nature-decks.py`
+makes both from the Familiar Nine files, and refuses if a slide no longer holds the text it expects.
+- **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts.
+  `tooling/leave.mjs` gives the four leave figures (14 days' leave buys 28 days off at best, 23.4 on average, 20 at
+  worst; four full weeks off takes 15). It is the 24-line decks' leave method as code, and `--check` shows it
+  reproduces their published figures for today and Familiar Nine exactly.
+- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. All 51 table rows agree with the sheet and
+  the leave model, and none is left unchecked.
+
+Rebuild after any change to the rota:
+
+```
+python3 docs/links-26/tooling/second-nature-decks.py && node docs/links-26/tooling/deck-check.mjs
+```
+
+Then export the PDFs (LibreOffice). Two things the decks say that the sheet does not show directly:
+- **Late finishes:** 42 a year is the minimum, because only the three closers the rules require finish after 23:00.
+- **Weekends off:** they can be up to ten weeks apart (today seven); the managers' deck lists it as a worry.
+
 **Still 24 in the app.** `ROTATING_LINES = 24` in `links-design.js` is the Links page's own line count. It moves to 26 as
 its own app release (owner, 1 Oct 2026). Until then the tooling passes 26 to every app function explicitly, and the
 Links page itself still lays out 24 lines.
