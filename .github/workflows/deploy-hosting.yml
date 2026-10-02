@@ -76,7 +76,13 @@ jobs:
     # explicit input and widen this condition to name it. Do not simply delete the check.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # 40, not 20 (2 Oct 2026). The gate grew under a fixed budget until the budget won: v24.43
+    # released at 20m11s, and v24.44 was CANCELLED at exactly 20m00s — smoke alone took 17m14s,
+    # so the clock ran out inside the CSP proof, before the deploy step, and production stayed on
+    # the previous version with every test green. Nothing failed; the hourly currency check was
+    # the only thing that noticed. A timeout here is a stuck-job guard, not a performance budget,
+    # so it is set at about twice today's run to leave room for the suite to keep growing.
+    timeout-minutes: 40
     permissions:
       contents: read
       id-token: write   # required for GitHub OIDC → Workload Identity Federation (A2)
