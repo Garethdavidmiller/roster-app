@@ -46,12 +46,15 @@ function measure(q) {
   // FATIGUE_SOFT=1: a fatigue factor present is a cost while searching and a floor on what is kept (never kept), so a
   // start that carries one can be polished out of it; off by default, so every earlier chain rebuilds exactly
   const f = assessFatigue(q, L); if (f.present && process.env.FATIGUE_SOFT !== '1') return null;
+  // the SIZE of what is present, for the soft mode: `present` counts factors, so three FF19 jumps cost the same as one
+  // and a run could never climb down to none — summing each present factor's value gives it a slope (2 Oct 2026)
+  const fatSum = f.results.filter(r => r.status === 'present').reduce((a, r) => a + (Number(r.value) || 1), 0);
   const rest = tightestRest(q, L)?.minutes ?? 9999;
   const fe = feel(q, L), a = scoreOrder(q, KEYS, { maxRunTarget: 6 });
   const wk = WORK.map(k => ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].reduce((s, d) => s + (timed(q[k][d]) ? dutyMinutes(q[k][d]) : 0), 0) / 60);
   const badDays = WORK.filter(k => { const n = DAYS.filter(d => q[k][d] !== 'RD').length; return n < 4 || n > 5; }).length;
   const gaps = weekendGaps(q);
-  return { present: f.present, rest, wkends: c.weekendsOff, gaps, maxGap: gaps.length ? Math.max(...gaps) : 99, spread: gaps.reduce((s, g) => s + g * g, 0),
+  return { present: f.present, fatSum, rest, wkends: c.weekendsOff, gaps, maxGap: gaps.length ? Math.max(...gaps) : 99, spread: gaps.reduce((s, g) => s + g * g, 0),
     iso: fe.isolatedRest, one: fe.oneTurn, mixed: fe.hybrid, leaveWorst: leave(q).worst, heavy: Math.max(...wk), light: Math.min(...wk), badDays, step: a.gentleMean, block: a.longestBlock };
 }
 const S0 = measure(p);
@@ -83,7 +86,7 @@ const misses = m => [['fatigue', m.present > 0], ['rest', m.rest < F.restMin], [
 let closest = null;   // the rota missing the fewest floors, so a run that keeps nothing still says what stood in its way
 const score = m => {
   if (!m || m.block > S0.block) return null;
-  const short = 3e5 * m.present + 5e3 * Math.max(0, F.restMin - m.rest) + 2e5 * Math.max(0, F.oneMin - m.one) + 1e6 * Math.max(0, F.wkendsMin - m.wkends)
+  const short = 3e5 * m.present + 2e4 * m.fatSum + 5e3 * Math.max(0, F.restMin - m.rest) + 2e5 * Math.max(0, F.oneMin - m.one) + 1e6 * Math.max(0, F.wkendsMin - m.wkends)
     + 2e5 * Math.max(0, m.heavy - F.heavyMax) + 2e3 * Math.max(0, m.step - F.stepMax) + 2e5 * Math.max(0, m.iso - F.isoMax)
     + 2e5 * Math.max(0, m.maxGap - F.gapMax) + 3e5 * Math.max(0, m.badDays - F.badMax)
     + 1e5 * Math.max(0, m.mixed - F.mixedMax) + 1e5 * Math.max(0, F.leaveMin - m.leaveWorst);
