@@ -199,6 +199,16 @@ describe('_saveOverrideBatches — stale-claim retry parity', () => {
         assert.equal(_batchOps[0].filter(o => o.op === 'delete').length, 1);
     });
 
+    test('a rest day answered "swapped" (v24.42) is recorded as covering a swapped-in working day', async () => {
+        // Without replacedType the absence is HIDDEN on a rest-day base (isOverrideDisplaySuppressed)
+        // and the leave is charged nothing — the swap answer would be written and then ignored.
+        await _saveOverrideBatches(
+            [{ memberName: 'G. Miller', date: MON, value: 'SICK', baseShift: 'RD', replaceId: null, replacedFrom: null, swapped: true },
+             { memberName: 'G. Miller', date: MON, value: 'AL',   baseShift: 'RD', replaceId: null, replacedFrom: null, swapped: true }], 'G. Miller');
+        const sets = _batchOps[0].filter(o => o.op === 'set');
+        assert.deepEqual(sets.map(o => [o.data.type, o.data.replacedType]), [['sick', 'shift'], ['annual_leave', 'shift']]);
+    });
+
     test('replacing nothing writes NO replacedType key — the rules refuse a null', async () => {
         await _saveOverrideBatches(
             [{ memberName: 'G. Miller', date: MON, value: '06:30-14:30', baseShift: 'RD',
@@ -381,6 +391,44 @@ describe('computeCellStates — review state machine', () => {
             assert.equal(c.state, 'GUARDED');
             assert.equal(c.guarded, 'sunday');
             assert.equal(c.chosen, null);
+        });
+
+        // ── …and the rest-day ones ASK whether the day was swapped (v24.42, owner) ──
+        test('the swap question: rest-day absence and leave only — never Sunday, never a blocked read', async () => {
+            const { swapQuestionApplies } = await import('./roster-review-states.js');
+            assert.ok(restMember);
+            assert.equal(swapQuestionApplies(onRestDay('SICK')), true);
+            assert.equal(swapQuestionApplies(onRestDay('AL')), true);
+            assert.equal(swapQuestionApplies({ ...onRestDay('AL'), guarded: 'sunday' }), false);
+            assert.equal(swapQuestionApplies({ ...onRestDay('AL'), rosterBlocked: true }), false);
+            assert.equal(swapQuestionApplies(run(base)), false, 'a MATCH row asks nothing');
+            assert.equal(swapQuestionApplies(undefined), false);
+        });
+
+        test('the swap answer: only "swapped" writes, and it writes the ROSTER\'s value', async () => {
+            const { guardedWriteValue } = await import('./roster-review-states.js');
+            for (const v of ['SICK', 'AL']) {
+                const c = onRestDay(v);
+                assert.equal(guardedWriteValue(c), null, 'unanswered writes nothing — asked, never defaulted');
+                assert.equal(guardedWriteValue({ ...c, chosen: 'free' }), null, '"rest day" writes nothing');
+                assert.equal(guardedWriteValue({ ...c, chosen: 'swapped' }), v);
+                assert.equal(guardedWriteValue({ ...c, chosen: 'swapped', guarded: 'sunday' }), null);
+            }
+        });
+
+        test('the row offers both answers, and says "Will record" only once answered swapped', async () => {
+            const { guardedRowHtml } = await import('./roster-review-states.js');
+            const c = onRestDay('SICK');
+            const html = (/** @type {any} */ s) => guardedRowHtml({ key: 'k', s, dayName: 'Mon', dateStr: '15 Jun', badgeHtml: 'B', esc: String });
+            const open = html(c);
+            assert.match(open, /data-swap="yes"/);
+            assert.match(open, /data-swap="no"/);
+            assert.match(open, /Not recorded/);
+            assert.doesNotMatch(open, /Change a Shift/, 'the row answers in place now');
+            const done = html({ ...c, chosen: 'swapped' });
+            assert.match(done, /Will record/);
+            assert.match(done, /data-swap="yes" aria-pressed="true"/);
+            assert.doesNotMatch(html({ ...c, guarded: 'sunday' }), /data-swap/, 'a Sunday asks nothing');
         });
 
         test('a value the guards leave ALONE is still MATCH — this does not fire on agreement', () => {

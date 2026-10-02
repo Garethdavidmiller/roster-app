@@ -762,6 +762,10 @@ body.auth-ready .container { display: grid; }
 /* GREYED, not struck: it is what the roster SAID, which stays true; it is just not what will be
    recorded. The badge keeps its shape and emoji so the day's kind is still recognisable. */
 .roster-guard-val .shift-badge { filter: grayscale(1); }
+/* …until the admin answers "swapped" (v24.42): then it IS what will be recorded, so it gets its
+   colour back, and the tag beside it turns to the green every other row uses for an outcome. */
+.roster-guard-val.is-recorded .shift-badge { filter: none; }
+.roster-guard-pick { grid-column: 1 / -1; }
 .roster-guard-note {
     grid-column: 1 / -1; margin: 0;
     font-size: var(--type-small); line-height: 1.4; color: var(--text-mid);
