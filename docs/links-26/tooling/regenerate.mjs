@@ -44,10 +44,6 @@ export const SUPPLIED = [
     // README.md → "Second Look and Second Gear".
     { file: 'second-look.json',            name: 'Second Look',    code: 'SL-26-G3',   fp: '7095fdda', strap: 'Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates' },
     { file: 'second-gear.json',            name: 'Second Gear',    code: 'SG-26-H1',   fp: '8d61e5c3', strap: 'Weekends never more than five weeks apart, no week over 41h 30m, and the gentlest week-to-week change' },
-    // Quiet Friday (2 Oct 2026): the owner's what-if, "217 was the maximum working days per year … keep the rest of the
-    // rules". One duty fewer a week (88): 14 on a Friday, the quietest day (owner), and 15 the other weekdays, so every rule
-    // and flexible rule still holds. Its own family: a different ceiling and table. README.md → "Quiet Friday".
-    { file: 'quiet-friday.json',           name: 'Quiet Friday',   code: 'QF-26-C1',   fp: 'daf8f3c9', strap: 'Built to 217 days a year: 14 on a Friday, and weekends never more than five weeks apart' },
     // Second Edition (2 Oct 2026): the owner asked for a roster stronger than any so far, at 219 days. Same duty table as
     // Second Nature; the weeks were built from a rest-day SKELETON (skeleton.mjs) that carries every rule a finished rota
     // must meet, then the times were searched. Weekends at most five apart, four single rest days, no mixed week, 18 of 21
@@ -69,6 +65,9 @@ export const SUPPLIED = [
 // The Pinned Turns family (PT-24-P34 · dae6292e, P2-24-N13 · 33a78cbe) was withdrawn the same way on 30 Sep 2026 (owner):
 // its entries were { PT: results/best-RP-*.json, OTHER_MODE results/best-P-13.json } and { P2: results/best-RN-*.json,
 // OTHER_MODE results/best-N-7.json }. Both grids are kept unchanged in test-fixtures/links-designs/ for the Links compare tests.
+// Quiet Friday (QF-26-C1 · daf8f3c9), the 217-day what-if, was WITHDRAWN on 3 Oct 2026 (owner: "we can remove Quiet
+// Friday from the proposals"). Its grid stays in tooling/quiet-friday.json and its tables and start in results/; to
+// rebuild it, restore its SUPPLIED entry and its strap, family and date in fresh.mjs from git history.
 export const SEARCHED = [];   // the 26-line link ships every design as a grid (SUPPLIED): searched rotas are built first and then supplied
 
 const expand = g => { const [dir, pat] = [g.slice(0, g.lastIndexOf('/')), g.slice(g.lastIndexOf('/') + 1)];

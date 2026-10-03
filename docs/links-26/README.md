@@ -389,7 +389,7 @@ env $F ISO_W=1e5 node space-polish.mjs results/second-look-start.json second-loo
 env $F node space-polish.mjs results/second-gear-start.json second-gear.json 1 300000
 ```
 
-## Quiet Friday — what if the ceiling were 217 days? (2 Oct 2026)
+## Quiet Friday — what if the ceiling were 217 days? (2 Oct 2026; withdrawn 3 Oct 2026)
 
 The owner asked: "What if we said 217 was the maximum working days per year. Keep the rest of the rules. What is
 possible? Try every possibility." With five cover weeks, 217 allows **88 Monday-to-Saturday duties**, one fewer than the
@@ -410,7 +410,11 @@ shift times than today (18) counts the whole week: `final-table.mjs` gained `POO
 column so one weekday can take its own counts. Friday's best adds one new time, 13:30–22:30 (fit 40.0, 17 times in the
 week). Of 15 rota searches on options A and C, one rota met every floor of the restart.
 
-**Quiet Friday** (`QF-26-C1` · `daf8f3c9`), its own family, `proposals/Quiet-Friday-QF-26-C1-daf8f3c9.pdf`, grid
+**Withdrawn on 3 Oct 2026** (owner: "we can remove Quiet Friday from the proposals"): its sheet, grid and import file
+have left `proposals/`, the summary and the pack. The grid, its tables and its start stay in `tooling/` and `results/`, and
+the section below is kept as the record of what 217 days costs.
+
+**Quiet Friday** (`QF-26-C1` · `daf8f3c9`), its own family, formerly `proposals/Quiet-Friday-QF-26-C1-daf8f3c9.pdf`, grid
 `tooling/quiet-friday.json`. At 216.6 days it is inside today's 219 ceiling too, so it sits with the others and is
 judged by the same rules; its strap says it was built to 217.
 
