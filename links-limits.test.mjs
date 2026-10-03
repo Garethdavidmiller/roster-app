@@ -12,7 +12,8 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { assessHardLimits, MAX_CONSECUTIVE_WORKED_DAYS, POLICY_SOURCE_CONFIRMED } from './links-limits.js';
+import { assessHardLimits, MAX_CONSECUTIVE_WORKED_DAYS, POLICY_SOURCE_CONFIRMED, contractedDaysPerYear } from './links-limits.js';
+import { ROTATING_LINES } from './links-design.js';
 import { assessFatigue } from './links-fatigue.js';
 import { weeklyRoster, bilingualRoster } from './roster-cycle-data.js';
 
@@ -378,5 +379,56 @@ describe('every hard limit carries checkable evidence, whatever it is', () => {
             assert.match(before, /legacy|historic|former|withdrawn/i,
                 `${c.id}: "${m[0]}" presents the limit as currently industry-wide: ${text}`);
         }
+    });
+});
+
+// ── THE CONTRACTED-DAYS CEILING (v24.47) ────────────────────────────────────────────────────────
+// The 26-line rules' fourth hard limit. Built on a real shortlisted design (Second Edition's
+// shape, rebuilt here from its day totals) so the figure is the one the owner's sheets print.
+describe('the contracted-days ceiling — 219 a year, at the link\'s own length', () => {
+    /** A 26-line design: 5 all-SPARE cover lines, `duties` Mon–Sat timed duties spread EVENLY over
+     *  the other 21 (every line drawn, or the ceiling is rightly not assessed at all). */
+    const linkOf = (/** @type {number} */ duties) => {
+        /** @type {Record<string, any>} */ const p = {};
+        const cover = new Set([1, 6, 11, 16, 21]);
+        const working = [];
+        for (let pos = 1; pos <= ROTATING_LINES; pos++) {
+            if (cover.has(pos)) p[String(pos)] = Object.fromEntries(DAYS.map(d => [d, 'SPARE']));
+            else { p[String(pos)] = Object.fromEntries(DAYS.map(d => [d, 'RD'])); working.push(pos); }
+        }
+        const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        for (let i = 0; i < duties; i++) {
+            const pos = working[i % working.length], n = Math.floor(i / working.length);
+            p[String(pos)][days[n]] = '07:00-15:00';
+        }
+        return p;
+    };
+    const ceiling = (/** @type {any} */ p) => assessHardLimits(p).checks.find(c => c.id === 'contracted-days');
+
+    test('89 duties is 218.6 — the shortlist\'s figure, within', () => {
+        assert.equal(contractedDaysPerYear(linkOf(89), ROTATING_LINES).toFixed(1), '218.6');
+        assert.equal(ceiling(linkOf(89))?.status, 'ok');
+    });
+
+    test('one duty more is 220.6 — a breach, reported as a measurement, never a verdict', () => {
+        const c = ceiling(linkOf(90));
+        assert.equal(c?.status, 'breach');
+        assert.equal(c?.value, 220.6);
+        assert.doesNotMatch(String(c?.detail), /cannot be run|must not be run/i);
+    });
+
+    test('its basis meets the same evidence rules as the run limit', () => {
+        const c = /** @type {any} */ (ceiling(linkOf(89)));
+        assert.match(c.basis, /chiltern|company|policy|agreement/i, 'whose limit');
+        assert.match(c.basis, /\b20\d{2}\b/, 'something dated');
+        assert.match(c.basis, /outstanding|not confirmed/i, 'the citation is disclosed as outstanding');
+        assert.doesNotMatch(c.basis, /\bowner\b|\bTBC\b/i);
+        assert.match(c.title, /219/);
+    });
+
+    test('not assessed until every line is drawn, and not at another length', () => {
+        const part = linkOf(89); part['2'] = Object.fromEntries(DAYS.map(d => [d, 'RD']));
+        assert.equal(ceiling(part), undefined, 'a half-built design could only rise');
+        assert.equal(assessHardLimits(design(wk(W, W, W, W, W, R, R)), 1).checks.some(c => c.id === 'contracted-days'), false);
     });
 });

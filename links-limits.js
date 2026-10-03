@@ -113,7 +113,7 @@
  *    visible on it, not a thing they have to expand a disclosure to discover.
  */
 
-import { ROTATING_LINES, worstCaseWorkedRun } from './links-design.js';
+import { ROTATING_LINES, worstCaseWorkedRun, DAYS, SPARE_WORKED_DAYS } from './links-design.js';
 import { toSequence } from './links-fatigue.js';
 
 /**
@@ -153,7 +153,41 @@ const BASIS = POLICY_SOURCE_CONFIRMED ? CONFIRMED_BASIS : UNCONFIRMED_BASIS;
  */
 export const LIMIT_CLAIM = POLICY_SOURCE_CONFIRMED
     ? 'Chiltern roster policy — must be met'
-    : 'Configured Chiltern limit — policy source outstanding';
+    : 'Configured Chiltern limits — policy source outstanding';
+
+/**
+ * THE CONTRACTED-DAYS CEILING (v24.47) — the 26-line rules' fourth hard limit (`docs/links-26/
+ * RULES.md`, set by the owner 1 Oct 2026): a design must give **219 contracted days a year or
+ * fewer**, today's roster's own figure. The contract fixes the minutes; this fixes how many duties
+ * they are split into, so a design cannot pay the week by adding short turns. Unlike the run limit
+ * its source is the owner's written rules for this link (`docs/links-26/RULES.md`), not a company
+ * policy document — so, like the run limit, its row reports the measurement and never the verdict.
+ *
+ *     days a year = (Mon–Sat duties + SPARE_WORKED_DAYS × cover weeks) ÷ lines × 365 ÷ 7
+ *
+ * Sunday is overtime and never counts; a cover week counts four days, as everywhere else here.
+ */
+export const CONTRACTED_DAYS_CEILING = 219;
+
+/** Where the ceiling comes from — the link's own written rules, not yet a company policy document. */
+const CEILING_BASIS = `Chiltern December 2026 link rules (${ROTATING_LINES} lines, Oct 2026) — company policy source outstanding`;
+
+/**
+ * Contracted days a year for a design: Monday-to-Saturday timed duties plus four days per cover
+ * week (a line SPARE all week), over the rotation, scaled to a year.
+ * @param {Record<string, Record<string, any>>} patterns
+ * @param {number} lines
+ * @returns {number}
+ */
+export function contractedDaysPerYear(patterns, lines) {
+    let duties = 0, cover = 0;
+    for (let pos = 1; pos <= lines; pos++) {
+        const row = patterns?.[String(pos)] || {};
+        if (DAYS.every(d => row[d] === 'SPARE')) { cover++; continue; }
+        for (const d of DAYS) if (d !== 'sun' && typeof row[d] === 'string' && /^\d/.test(row[d])) duties++;
+    }
+    return (duties + SPARE_WORKED_DAYS * cover) / lines * 365 / 7;
+}
 
 /**
  * @typedef {object} HardLimitCheck
@@ -243,6 +277,29 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
                 ? ` A spare week is 4 duties of 7 and the roster clerk places them, so this is the worst case the link allows.`
                 : ''),
     });
+
+    // The ceiling is assessed only here, once every line is designed: an undrawn line has no duties
+    // yet, so the figure could only RISE, and a "within the ceiling" on a half-built design would be
+    // the same unearned pass rule 2 forbids for the run limit. And only at the link's OWN length —
+    // it is a rule of the December link, and a shorter test rotation has no such rule to break.
+    if (lines === ROTATING_LINES) {
+        const days = Math.round(contractedDaysPerYear(patterns, lines) * 10) / 10;
+        const over = days > CONTRACTED_DAYS_CEILING;
+        checks.push({
+            id: 'contracted-days',
+            title: `More than ${CONTRACTED_DAYS_CEILING} contracted days a year`,
+            status: over ? 'breach' : 'ok',
+            value: days,
+            limit: CONTRACTED_DAYS_CEILING,
+            basis: CEILING_BASIS,
+            // Same evidence discipline as the run limit: the rule is the owner's for this link and
+            // has no company policy document behind it yet, so the row states the measurement and
+            // what to check, never "cannot be run".
+            detail: over
+                ? `This design gives ${days} contracted days a year, above the ${CONTRACTED_DAYS_CEILING} set for the December link, which is today's roster's own figure. Confirm the rule before treating that as a decision.`
+                : `${days} contracted days a year, within the ${CONTRACTED_DAYS_CEILING} set for the December link, which is today's roster's own figure. Monday to Saturday count; a cover week counts four days; Sunday is overtime.`,
+        });
+    }
 
     return { checks, breaches: checks.filter(c => c.status === 'breach').length, assessable: true };
 }

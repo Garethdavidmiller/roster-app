@@ -459,3 +459,65 @@ describe('lastSaveTime — the display reading of a save time', () => {
         assert.equal(lastSaveTime({ updatedAt: { _methodName: 'serverTimestamp' }, savedAt: new Date(7_000) })?.getTime(), 7_000);
     });
 });
+
+// ── THE BUILT-IN SHORTLIST (v24.47) ─────────────────────────────────────────────────────────────
+// A proposal is opened as an UNSAVED working copy (no activeId), so these pin that the masthead does
+// not then describe it as "Untitled design · Not saved" — and that its own group, not a designer's,
+// is where it is listed.
+describe('render — a built-in proposal', () => {
+    const PROPS = [{ id: 'proposal:SE-26-F1', name: 'Second Edition — Dec 2026', ref: 'SE-26-F1 · dea6417f' },
+                   { id: 'proposal:EK-26-H1', name: 'Even Keel — Dec 2026', ref: 'EK-26-H1 · 8e9a1bcf' }];
+    const open = (/** @type {boolean} */ dirty) => {
+        const { els, h } = harness();
+        h.render({ designs: DESIGNS, activeId: null, design: { name: PROPS[0].name }, dirty, currentUser: ME, now: NOW,
+                   proposals: PROPS, proposalId: PROPS[0].id });
+        return els;
+    };
+
+    test('untouched: its own name, "Shortlisted proposal", a read-only status, Save a copy… enabled', () => {
+        const els = open(false);
+        assert.equal(els.faceName.textContent, PROPS[0].name);
+        assert.equal(els.eyebrow.textContent, 'Shortlisted proposal');
+        assert.equal(els.status.className, 'dm-status dm-status--proposal');
+        assert.equal(els.statusLong.textContent, 'Read-only');
+        assert.equal(els.whoName.textContent, 'Shortlisted');
+        assert.equal(els.whoRole.textContent, 'SE-26-F1 · dea6417f', 'the ref that matches the printed sheet');
+        assert.equal(els.avatar.textContent, '★', 'a mark, not the initials of a person who does not exist');
+        assert.ok(!els.masthead.classList.contains('is-unnamed'), 'a proposal has a name');
+        assert.ok(els.masthead.classList.contains('is-proposal'));
+        for (const b of els.saveButtons) { assert.equal(b.textContent, 'Save a copy…'); assert.equal(b.disabled, false); }
+        assert.equal(els.renameButtons[0].disabled, true, 'a proposal cannot be renamed');
+        assert.equal(els.deleteButton.disabled, true, 'or deleted');
+        assert.match(els.sheetSub.textContent, /saving makes your own copy/);
+    });
+
+    test('edited: still the copy of THAT proposal, now with unsaved changes', () => {
+        const els = open(true);
+        assert.equal(els.eyebrow.textContent, 'Copy of a proposal');
+        assert.equal(els.status.className, 'dm-status dm-status--dirty');
+        for (const b of els.saveButtons) assert.equal(b.textContent, 'Save a copy…');
+    });
+
+    test('listed FIRST, in their own group, the open one ticked — and no inert "Untitled" row', () => {
+        const els = open(false);
+        const groups = els.pickList.children;
+        assert.equal(groups[0].attrs['aria-label'], 'Shortlisted proposals');
+        assert.deepEqual(groups.map((/** @type {any} */ g) => g.attrs['aria-label']),
+            ['Shortlisted proposals', 'Last saved by you', 'Last saved by S. Silva']);
+        const rows = allRows(els.pickList);
+        assert.equal(rows[0].dataset.id, PROPS[0].id);
+        assert.equal(rowMeta(rows[0]), 'SE-26-F1 · dea6417f · read-only');
+        assert.deepEqual(tickedRows(els.pickList).map((/** @type {any} */ r) => r.dataset.id), [PROPS[0].id]);
+        assert.ok(!rows.some((/** @type {any} */ r) => rowName(r) === 'Untitled design'));
+        assert.equal(els.pickerSub.textContent, '2 shortlisted · 2 saved designs', 'both counts, neither folded into the other');
+    });
+
+    test('a saved design open: the proposals are listed, none of them ticked', () => {
+        const { els, h } = harness();
+        h.render({ designs: DESIGNS, activeId: 'a', design: { name: 'Option A' }, dirty: false, currentUser: ME, now: NOW,
+                   proposals: PROPS, proposalId: null });
+        assert.equal(els.pickList.children[0].attrs['aria-label'], 'Shortlisted proposals');
+        assert.deepEqual(tickedRows(els.pickList).map((/** @type {any} */ r) => r.dataset.id), ['a']);
+        assert.equal(els.eyebrow.textContent, 'Editing');
+    });
+});

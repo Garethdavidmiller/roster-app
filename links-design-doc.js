@@ -36,7 +36,7 @@
  */
 
 import { formatDayMonth, formatDayMonthYear, formatClock } from './date-format.js';
-import { normalisePatterns } from './links-design.js';
+import { normalisePatterns, ROTATING_LINES } from './links-design.js';
 import { normaliseWindow } from './links-window.js';
 
 /**
@@ -61,6 +61,50 @@ export const LEGACY_DOC_ID = 'combined-28';
 /** A design in the Recently-deleted bin.
  * @typedef {{id: string, name: string, patterns: Record<string, any>, window: any,
  *            deletedAt: any, deletedBy: string}} BinEntry */
+
+/**
+ * THE 26-LINE RELEASE (v24.47). Designs last saved before this were drawn for the 24-line link;
+ * the owner's decision (3 Oct 2026) is that they go to Recently deleted, where they can still be
+ * restored. The START of the release day, UTC, and deliberately not its end: a design begun on the
+ * new page that day and painted only on lines 1–24 so far would otherwise be binned on its next
+ * open. The cost runs the safe way — a 24-line design saved that day by a not-yet-updated page stays
+ * in the list, where a designer can delete it.
+ */
+export const LINK_26_FROM = Date.UTC(2026, 9, 3);
+
+/** How long the link was before the release — history, not a setting (exported for the copy that names it). */
+export const PREVIOUS_LINK_LENGTH = 24;
+
+/**
+ * Was this live design drawn for the 24-line link? ALL THREE must hold, and each guards the others:
+ *
+ *   · last saved BEFORE the release — so a design anybody has saved since, including one RESTORED
+ *     from the bin (a restore stamps `updatedAt`), is never moved again: restoring is a decision,
+ *     and binning it on the next page open would undo it silently, forever;
+ *   · nothing on the lines past 24 — so a 26-line design saved on the release day (a generated
+ *     one fills every line) is never mistaken for an old one by the clock alone;
+ *   · something ON the first 24 — so a BLANK design, which says nothing about its link, is left alone.
+ *
+ * A timestamp that has not resolved yet (`null`, the writer's own pending save) is NOT old: when in
+ * doubt, leave the design where it is — the safe direction for a move nobody pressed.
+ *
+ * @param {{ patterns?: Record<string, any>, updatedAt?: any }} entry
+ * @param {number} [lines=ROTATING_LINES]
+ */
+export function isPre26Design(entry, lines = ROTATING_LINES) {
+    const ms = entry?.updatedAt?.toMillis?.();
+    if (typeof ms !== 'number' || !Number.isFinite(ms) || ms >= LINK_26_FROM) return false;
+    const drawn = (/** @type {number} */ pos) => {
+        const row = entry?.patterns?.[String(pos)];
+        return !!row && Object.values(row).some(v => v && v !== 'RD');
+    };
+    for (let pos = PREVIOUS_LINK_LENGTH + 1; pos <= lines; pos++) if (drawn(pos)) return false;
+    // …and something WAS drawn on the old lines. A blank design (New blank design, or one nobody has
+    // painted yet) says nothing about which link it was for — and binning one created on the release
+    // day would take a designer's new design away on their next page open.
+    for (let pos = 1; pos <= PREVIOUS_LINK_LENGTH; pos++) if (drawn(pos)) return true;
+    return false;
+}
 
 /**
  * Deep-copy a patterns map — one fresh row object per line.

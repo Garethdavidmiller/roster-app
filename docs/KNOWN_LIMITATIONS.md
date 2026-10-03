@@ -1426,7 +1426,7 @@ never contingent on the beta label, and dropping it does not make any of them go
   requires class A or B for exactly that phrase and this limit is class **C** — the owner's account
   of practice — so the app was breaking its own rule in the loudest place it has.
   **The number, the separation and the red are unchanged; only the CLAIM was demoted.** The heading
-  reads "Configured Chiltern limit — policy source outstanding", and the row reports the measurement
+  reads "Configured Chiltern limits — policy source outstanding", and the row reports the measurement
   plus what to go and check instead of the verdict. `POLICY_SOURCE_CONFIRMED` in `links-limits.js`
   is the single home of that judgement — the heading, the row's `basis` and its prose are all
   derived from it, and tests in both files fail in BOTH directions, so **the day the citation

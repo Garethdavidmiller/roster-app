@@ -93,7 +93,8 @@ the whole of v20. A number written beside the list it describes is a second copy
 | `links-target-sets.js` | named, shared SNAPSHOTS of the generator targets, and who may overwrite one (invariant 9) |
 | `links-target-sets-store.js` | the Firestore half of those saved sets — reading the collection, and the one guarded write |
 | `links-generator-targets.js` | the numbers the generator runs against, where they came from, and what may replace them |
-| `links-default-targets.js` | the table the generator STARTS from — designed against the Dec 2026 service, not measured from today's roster |
+| `links-default-targets.js` | the table the generator STARTS from — since v24.47 the duty table of the shortlisted Second Edition, not measured from today's roster |
+| `links-proposals.js` | the three SHORTLISTED 26-line designs, built in as read-only proposals (v24.47) — a proposal id never reaches Firestore |
 | `links-tips.js` | `CARD_TIPS` for the page's `?` panels (pure data) |
 
 > **Three of those rows were missing until v21.63**, and two of them own numbered invariants in the
@@ -1296,7 +1297,7 @@ Two more from the same pass, both in-use surfaces:
 Every line rotates and **every one must carry a real worked pattern** — in the rotation everyone
 passes through every line, so a "vacancy" is a missing *person*, not a missing *pattern*.
 
-**`ROTATING_LINES` in `links-design.js` is the ONE declaration of the length, and it is now 24.**
+**`ROTATING_LINES` in `links-design.js` is the ONE declaration of the length, and it is now 26** (v24.47; 24 from v20.01).
 
 It was 28 = the main 20-week cycle + the bilingual 8, because the design modelled both as one
 rotation. The December 2026 plan changed (owner, Aug 2026): the new link **does not include the
@@ -1324,13 +1325,34 @@ number can change once it can change twice, and the second time is what finds ou
 really centralised. Static markup that cannot interpolate uses a `.js-rotating-lines` span stamped at
 init; the guard fails on a literal even when the literal is right today.
 
-**Designs saved against the OLD length are left exactly as they are.** A 28-line design still in
-Firestore renders its first 24 rows, is analysed over 24, and — because `workingCopy` deep-copies the
-whole patterns object — saves all 28 back. Trimming on load would destroy six lines of somebody's
-work on a page visit (the v19.84 stale-hard-delete class); trimming on save would do it at the moment
-they least expect it. So the fact is put on screen instead: `#linksOverLengthNotice` names the two
-lengths, says the surplus rows are neither shown nor counted but are still stored, and suggests
-building the new link fresh. Deleting the old designs is the owner's call to make deliberately.
+**26 lines and five cover weeks (v24.47, owner, 1 Oct 2026).** The rules every 26-line design is
+judged against are `docs/links-26/RULES.md`. Three things came with the length:
+
+- **The 219-day ceiling is a second hard limit** — `CONTRACTED_DAYS_CEILING` / `contractedDaysPerYear`
+  in `links-limits.js`: `(Mon–Sat duties + 4 × cover weeks) ÷ lines × 365 ÷ 7`. Assessed only once
+  every line is drawn and only at `ROTATING_LINES`, with the same evidence discipline as the run limit
+  (measurement, never "cannot be run", while no company policy document backs it).
+- **The shortlist is built in** (`links-proposals.js`; owner decision 3 Oct 2026: read-only proposals,
+  not saved documents). Second Edition, Even Keel and Short Run open from their own group at the top
+  of the picker as an UNSAVED working copy — `activeDesignId` null, `activeProposalId` set — so save,
+  rename and delete all treat one as new; the first save asks for a name ("Second Edition — copy")
+  and creates a design. Compare offers them; a workspace with nothing saved keeps its empty state, which
+  offers "Open a shortlisted proposal" (nothing is opened for you);
+  Generate while one is open builds a NEW unsaved design rather than overwriting it.
+- **Designs drawn for 24 lines go to Recently deleted** (owner decision, 3 Oct 2026 — this replaces
+  the v19.98 rule of leaving an old-length design live). `isPre26Design` in `links-design-doc.js`
+  needs ALL THREE: last saved before `LINK_26_FROM` (the START of 3 Oct 2026 UTC — the end would
+  bin a design begun on the new page that day and painted only on lines 1–24), so anything saved or
+  RESTORED since is never moved again; nothing on lines 25+; and something drawn on lines 1–24, so
+  a blank design is left alone. `_splitDocs` shows them in the bin at once, and the empty state and
+  the status line say so AT ONCE (on release day the list is usually empty, and the save row that
+  carries status is hidden with it). `_binPre26` then moves each one through
+  `store.binIfStill` — a TRANSACTION that re-asks the rule (a design it skips is shown live again), so a design a colleague restored or
+  redrew since the list was read is left alone, and which fails offline instead of queueing a write
+  that lands days later. A CACHED read moves nothing and shows nothing as moved. A restore or purge of a design
+  whose move is still in flight waits for it (`pendingBins`), or it would meet a not-yet-deleted
+  design and report that "someone else" restored it. Designs LONGER than the rotation still keep
+  `#linksOverLengthNotice` and are left as they are.
 
 **C. Reen is NOT a special case:** the link is designed as a full rotation so it still works if she
 ever leaves; her adjusted fixed shifts are applied as overrides on the base roster. The old

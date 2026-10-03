@@ -69,6 +69,7 @@
     <link rel="modulepreload" href="./links-design-doc.js">
     <link rel="modulepreload" href="./links-design-naming.js">
     <link rel="modulepreload" href="./links-design-header.js">
+    <link rel="modulepreload" href="./links-proposals.js">
     <link rel="modulepreload" href="./links-design.js">
     <link rel="modulepreload" href="./links-generator-targets.js">
     <link rel="modulepreload" href="./links-fatigue.js">
@@ -286,8 +287,8 @@
             <div>
                 <!-- The line count is STAMPED FROM `ROTATING_LINES` at init (v19.98). The static
                      value is only what renders before the module runs; the rotation length has
-                     changed twice (28 → 22 → 24) and left prose behind in fifteen places the first time. -->
-                <h2><span aria-hidden="true">🗓️</span> Link design — <span class="js-rotating-lines">24</span> lines</h2>
+                     changed three times (28 → 22 → 24 → 26) and left prose behind in fifteen places the first time. -->
+                <h2><span aria-hidden="true">🗓️</span> Link design — <span class="js-rotating-lines">26</span> lines</h2>
                 <!-- Swapped in the empty state (v19.66): this text tells you to tap a shift cell and
                      use the Paint bar, and in the empty state there is no grid and no Paint bar on
                      screen — a card header describing controls that are not there. `linksGridHint`
@@ -346,9 +347,10 @@
                 <div id="linksEmptyState" class="links-empty-state">
                     <span class="links-empty-icon" aria-hidden="true">🔗</span>
                     <p class="links-empty-title">No designs yet</p>
-                    <p class="links-empty-msg" id="linksEmptyMsg">Build a rotating pattern from staffing targets with the Auto-generate card below, or start from an empty <span class="links-nowrap"><span class="js-rotating-lines">24</span>-line</span> grid.</p>
+                    <p class="links-empty-msg" id="linksEmptyMsg">Build a rotating pattern from staffing targets with the Auto-generate card below, open one of the shortlisted proposals, or start from an empty <span class="links-nowrap"><span class="js-rotating-lines">26</span>-line</span> grid.</p>
                     <div class="links-empty-actions">
                         <button type="button" class="btn-save" id="linksEmptyGenerate">Go to Auto-generate</button>
+                        <button type="button" class="btn-text-link" id="linksEmptyProposals">Open a shortlisted proposal</button>
                         <button type="button" class="btn-text-link" id="linksEmptyNew">Start with a blank grid</button>
                     </div>
                 </div>
@@ -525,7 +527,7 @@
                                      1, 7, 12 and 17 are SPARE on all seven days. -->
                                 <tr class="gen-spare-row">
                                     <td class="gen-td-label">Spare weeks<span class="gen-td-note">whole lines; 4 days worked Mon–Sat</span></td>
-                                    <td colspan="3" class="gen-td-spare"><input type="number" id="genSpareLines" class="gen-input" min="0" max="23" value="0" aria-label="How many whole lines are spare weeks"><span class="gen-td-note">of <span class="js-rotating-lines">24</span> lines</span></td>
+                                    <td colspan="3" class="gen-td-spare"><input type="number" id="genSpareLines" class="gen-input" min="0" max="25" value="0" aria-label="How many whole lines are spare weeks"><span class="gen-td-note">of <span class="js-rotating-lines">26</span> lines</span></td>
                                     <td></td>
                                 </tr>
                                 <tr class="gen-total-row">
@@ -569,7 +571,7 @@
                              tell from it whether the button loaded the demand-designed table or
                              something else. A label on a reset has to say what arrives.
                              The roster seed MEASURES what is worked today, which is the right
-                             comparison to reach for and cannot pay a 24-line rotation, so it will
+                             comparison to reach for and cannot pay a 26-line rotation, so it will
                              be refused with the gap named. Neither label says "reset targets"
                              without saying to WHAT: with two of them, that word alone is the one
                              thing a designer cannot act on. -->
@@ -649,7 +651,7 @@
                              phrase elsewhere on the card. The comment lives OUT here, not between the
                              input and the span: `e2e/pages.spec.js`'s clause test measures the tail by
                              `input.nextSibling`, and a comment node there is not what renders. -->
-                        <label class="gen-obj"><input type="checkbox" id="objLongWeekends" checked><span class="gen-obj-text"><span class="gen-obj-title">Long weekends</span><span class="gen-obj-num">at least <span class="gen-obj-numctl"><input type="number" id="objLongTarget" class="gen-input gen-input-inline" min="0" max="24" value="4"><span>of <span class="js-rotating-lines">24</span></span></span></span><span class="gen-obj-hint">Three or four days off across the week boundary</span></span></label>
+                        <label class="gen-obj"><input type="checkbox" id="objLongWeekends" checked><span class="gen-obj-text"><span class="gen-obj-title">Long weekends</span><span class="gen-obj-num">at least <span class="gen-obj-numctl"><input type="number" id="objLongTarget" class="gen-input gen-input-inline" min="0" max="26" value="4"><span>of <span class="js-rotating-lines">26</span></span></span></span><span class="gen-obj-hint">Three or four days off across the week boundary</span></span></label>
                         <label class="gen-obj"><input type="checkbox" id="objTurnarounds" checked><span class="gen-obj-text"><span class="gen-obj-title">Rest across the week boundary</span><span class="gen-obj-hint">Saturday's finish into Sunday's start — the one turnaround a single line cannot show</span></span></label>
                     </fieldset>
                     <div id="genError" class="gen-error" aria-live="polite"></div>
@@ -661,7 +663,7 @@
                         the one thing that could see it: every behavioural assertion on this button
                         matches by role and name, and `getByRole('button', {name: /Generate/})` is
                         happy either way.
-                     --><span>Build the <span class="js-rotating-lines">24</span>-line link</span></button>
+                     --><span>Build the <span class="js-rotating-lines">26</span>-line link</span></button>
                     <!-- The generate feedback, WHERE THE PRESSING HAPPENS (v20.54). The canonical
                          status lives in the grid card's sticky save row, a full card above — from
                          this button it is off-screen at every realistic viewport, so the whole
@@ -669,7 +671,7 @@
                          by the same handler; aria-hidden because the save-row copy carries the
                          aria-live and one announcement is enough. -->
                     <p id="genStatus" class="gen-status" aria-hidden="true" hidden></p>
-                    <p class="gen-note">Each day's total can't exceed <span class="js-rotating-lines">24</span> — the remaining lines become rest days.</p>
+                    <p class="gen-note">Each day's total can't exceed <span class="js-rotating-lines">26</span> — the remaining lines become rest days.</p>
                 </div>
             </div>
         </div>
