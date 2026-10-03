@@ -32,12 +32,10 @@
  * two identical early and late pairs; fifteen shift times (the cap is eighteen); fourteen on a
  * Saturday; every weekday closer starting 15:45. `links-default-targets.test.mjs` pins each one.
  *
- * ── THE 24-LINE TABLE IS KEPT, AS DATA ONLY ────────────────────────────────────────────────────
- *
- * Every device remembers its generator table, and a memory equal to a PREVIOUS default is an
- * auto-stored one nobody tuned (v21.05). Dropping the 24-line table from the code would leave every
- * device that remembered it offered four cover weeks on a 26-line link forever. So it stays, frozen,
- * and `isSupersededMemory` recognises it — it is never offered as a default again.
+ * The 24-line table is GONE, not kept for reference (owner, 3 Oct 2026: "we can delete any 24 line
+ * specific code"). A device that remembered it keeps that memory — it is no longer recognised as an
+ * old default — and the generator refuses it with the hours gap named; one tap on "Use the
+ * recommended Dec 2026 staffing" replaces it.
  *
  * ── WHAT THIS IS NOT ───────────────────────────────────────────────────────────────────────────
  *
@@ -103,21 +101,6 @@ const TABLE = Object.freeze([
     Object.freeze({ time: '15:45-23:55', weekday: 3, sat: 0, sun: 0 }),
 ]);
 
-/**
- * The 24-line default (v21.13–v24.46), kept ONLY so a device that remembered it is recognised and
- * moved onto the table above — see the header. Never offered.
- */
-const PREVIOUS_DEFAULTS = Object.freeze([{
-    spareLines: 4,
-    slots: [
-        ['06:20-13:30', 1, 1, 0], ['06:20-14:45', 1, 1, 0], ['06:20-15:30', 1, 1, 0], ['06:20-15:45', 1, 1, 0],
-        ['07:15-16:30', 1, 0, 1], ['07:15-16:45', 2, 2, 1], ['14:15-22:00', 2, 2, 0], ['15:15-22:45', 2, 1, 0],
-        ['15:45-23:55', 1, 1, 0], ['16:00-23:55', 1, 1, 0], ['16:15-23:55', 1, 1, 0], ['08:30-18:00', 0, 1, 1],
-        ['16:40-23:55', 0, 1, 0], ['07:15-14:15', 0, 0, 1], ['07:15-15:30', 0, 0, 1], ['14:15-22:25', 0, 0, 2],
-        ['15:15-23:25', 0, 0, 1], ['15:45-23:25', 0, 0, 1], ['16:20-23:25', 0, 0, 1],
-    ].map(([time, weekday, sat, sun]) => ({ time: String(time), weekday: Number(weekday), sat: Number(sat), sun: Number(sun) })),
-}]);
-
 /** Every distinct shift time this table proposes, in the order it lists them. */
 export const DEFAULT_SHIFT_TIMES = Object.freeze(TABLE.map(s => s.time));
 
@@ -157,8 +140,7 @@ export function sameTargetTable(a, b) {
  * @param {{ slots: Array<{time: string, weekday: number, sat: number, sun: number}>, spareLines: number }} rosterSeed
  */
 export function isSupersededMemory(remembered, rosterSeed) {
-    return sameTargetTable(remembered, rosterSeed) || sameTargetTable(remembered, buildDefaultTargets())
-        || PREVIOUS_DEFAULTS.some(t => sameTargetTable(remembered, t));
+    return sameTargetTable(remembered, rosterSeed) || sameTargetTable(remembered, buildDefaultTargets());
 }
 
 /**

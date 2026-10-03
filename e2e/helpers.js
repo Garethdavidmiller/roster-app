@@ -3,6 +3,7 @@
 // calendar.spec.js, auth.spec.js, paycalc.spec.js, pages.spec.js, responsive.spec.js.
 
 import { expect } from '@playwright/test';
+import { ROTATING_LINES } from '../links-design.js';
 
 // Collect uncaught JS exceptions on a page. Firebase network/auth errors are
 // filtered out — they're expected when running against localhost with no valid
@@ -409,17 +410,20 @@ export function seedViewerAccess(page) {
  * needs no adjustment: over the contract is allowed (see `links-contract.test.mjs`).
  */
 export function seedContractTargets(page, { spareLines = 5, designIds = ['unsaved', 'd1', 'd2'] } = {}) {
-    return page.addInitScript(([spare, ids]) => {
+    return page.addInitScript(([spare, ids, lines]) => {
         const slots = [
             { time: '06:20-14:20', weekday: 6, sat: 4, sun: 0 },
             { time: '11:00-19:30', weekday: 3, sat: 3, sun: 0 },
             { time: '15:25-23:25', weekday: 6, sat: 0, sun: 0 },
         ];
-        const extraLines = (24 - spare) - 19;
+        // The three rows pay 19 working lines exactly; each 07:00-14:00 weekday adds one more.
+        // `lines` is ROTATING_LINES, passed in (an init script cannot import), so the table keeps
+        // paying the contract whatever the link's length — it was a literal 24 until v24.47.
+        const extraLines = (lines - spare) - 19;
         if (extraLines > 0) slots.push({ time: '07:00-14:00', weekday: extraLines, sat: 0, sun: 0 });
         const targets = JSON.stringify({ slots, spareLines: spare });
         for (const id of ids) localStorage.setItem('myb_links_gen_' + id, targets);
-    }, [spareLines, designIds]);
+    }, [spareLines, designIds, ROTATING_LINES]);
 }
 
 /**

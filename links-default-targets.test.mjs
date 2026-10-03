@@ -179,21 +179,6 @@ describe('superseding a stale memory — the v21.05 report', () => {
         assert.equal(isSupersededMemory(buildDefaultTargets(), buildRosterTargets()), true);
     });
 
-    test('so is the 24-line default (v24.47) — a device that remembered it moves onto 26 lines', () => {
-        // Four cover weeks on a 26-line link would be refused as over-hours on arrival. Rows given in
-        // a different order from the module's copy, to prove this is the content rule and not order.
-        const old = { spareLines: 4, slots: [
-            ['16:20-23:25', 0, 0, 1], ['15:45-23:25', 0, 0, 1], ['15:15-23:25', 0, 0, 1], ['14:15-22:25', 0, 0, 2],
-            ['07:15-15:30', 0, 0, 1], ['07:15-14:15', 0, 0, 1], ['16:40-23:55', 0, 1, 0], ['08:30-18:00', 0, 1, 1],
-            ['16:15-23:55', 1, 1, 0], ['16:00-23:55', 1, 1, 0], ['15:45-23:55', 1, 1, 0], ['15:15-22:45', 2, 1, 0],
-            ['14:15-22:00', 2, 2, 0], ['07:15-16:45', 2, 2, 1], ['07:15-16:30', 1, 0, 1], ['06:20-15:45', 1, 1, 0],
-            ['06:20-15:30', 1, 1, 0], ['06:20-14:45', 1, 1, 0], ['06:20-13:30', 1, 1, 0],
-        ].map(([time, weekday, sat, sun]) => ({ time: String(time), weekday: Number(weekday), sat: Number(sat), sun: Number(sun) })) };
-        assert.equal(isSupersededMemory(old, buildRosterTargets()), true);
-        old.slots[0].sun = 2;   // a touched copy of it is somebody's work, and is kept
-        assert.equal(isSupersededMemory(old, buildRosterTargets()), false);
-    });
-
     test('ONE touched count keeps the memory — an edited table is somebody\'s work', () => {
         const edited = buildRosterTargets();
         edited.slots[0].weekday += 1;
