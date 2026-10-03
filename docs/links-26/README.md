@@ -618,13 +618,14 @@ own chain (two soft polishes, then hard). **Only the second skeleton, with Secon
 way (the finished rota differs from the skeleton in 22 cells and six lines' families) while the run, single-rest-day and
 weekend floors held. Two further polishes, with everything else held, took it to
 17 at 42h 00m and to 18 at 42h 30m; four seeds asked for 18 at 42h 00m found none, so the 42h 30m is what ships — the 42h
-cap was a floor carried over from Second Edition, not a rule (the hard limit is 43h 40m).
+cap was a floor carried over from Second Edition, not a rule: no rule sets a weekly maximum, only the 35-hour average, and
+the searches' own ceiling of 43h 40m is Second Nature's heaviest week, not a limit.
 
 **What "proved" means here, and where it stops.** The three-single-rest-day answer is a real proof: the solver's rules are
 a RELAXATION of the full set (times are not in it), so anything it cannot do, no rota can. The run-five answer is proved the
 other way, by the rota existing. The solver's family rules are slightly stricter than the sheets' (it forbids a single rest
 day after ANY early, where FF8b is about blocks of 06:20s) and it does not carry the 07:00 supply or the leave figures, so a
-"4" from the family-rule rows says a layout exists on paper, not that it will take the times — four of the six did not.
+"4" from the family-rule rows says a layout exists on paper, not that it will take the times — five of the six did not.
 
 **How to rebuild it** (from `tooling/`; the solver needs `pip install pulp`):
 
