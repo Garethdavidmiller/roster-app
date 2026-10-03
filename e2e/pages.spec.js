@@ -4994,7 +4994,8 @@ test('links: the shortlisted proposals open read-only, and saving one makes a na
     await expect(designOptions(page)).toHaveCount(0);
     await proposalOptions(page).filter({ hasText: 'Second Edition' }).click();
 
-    await expect(activeDesignName(page)).toContainText('Second Edition — Dec 2026 (SE-26-F1');
+    await expect(activeDesignName(page)).toHaveText('Second Edition — Dec 2026');
+    await expect(page.locator('#designWhoRole')).toHaveText('SE-26-F1 · dea6417f');   // the printed sheet's ref
     await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');

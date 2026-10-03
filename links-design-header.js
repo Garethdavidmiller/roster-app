@@ -84,7 +84,7 @@ import { formatDayMonth, formatDayMonthYear } from './date-format.js';
 import { nameConflict } from './links-design-naming.js';
 
 /**
- * @typedef {{ id: string, name: string, updatedAt?: any, savedAt?: any, updatedBy?: string }} DesignEntry
+ * @typedef {{ id: string, name: string, updatedAt?: any, savedAt?: any, updatedBy?: string, ref?: string }} DesignEntry
  * @typedef {{ label: string, own: boolean, designs: DesignEntry[] }} DesignGroup
  */
 
@@ -200,7 +200,7 @@ export function statusCopy({ saved, dirty, saving = false, updatedAt = null, now
     // A built-in proposal, untouched (v24.47): it is not "not saved" — there is nothing of yours to
     // lose. Once edited it is an unsaved working copy, and says so like any other.
     if (proposal) return dirty ? { tone: 'dirty', long: 'Unsaved changes — save a copy to keep them', short: 'Unsaved' }
-                               : { tone: 'proposal', long: 'Shortlisted proposal · read-only', short: 'Proposal' };
+                               : { tone: 'proposal', long: 'Read-only', short: 'Read-only' };
     if (!saved)  return { tone: 'new', long: 'Not saved yet', short: 'Not saved' };
     if (dirty)   return { tone: 'dirty', long: 'Unsaved changes', short: 'Unsaved' };
     const when = toDate(updatedAt);
@@ -402,7 +402,8 @@ export function createDesignHeader(els, handlers, extra = {}) {
                     wrap.appendChild(h);
                     for (const d of proposals) {
                         wrap.appendChild(pickRow({ id: d.id, name: d.name,
-                            meta: isProposal && d.id === proposalId && dirty ? 'Open · edited, not saved' : 'Built in · read-only',
+                            meta: isProposal && d.id === proposalId && dirty ? 'Open · edited, not saved'
+                                : d.ref ? `${d.ref} · read-only` : 'Built in · read-only',
                             current: isProposal && d.id === proposalId }));
                     }
                     els.pickList.appendChild(wrap);
@@ -436,7 +437,9 @@ export function createDesignHeader(els, handlers, extra = {}) {
                 }
             }
         }
-        if (els.pickerSub) els.pickerSub.textContent = designs.length === 1 ? '1 saved design' : `${designs.length} saved designs`;
+        // With the shortlist above them, "0 saved designs" over three rows you can open reads as wrong.
+        if (els.pickerSub) els.pickerSub.textContent = (proposals.length ? `${proposals.length} shortlisted · ` : '')
+            + (designs.length === 1 ? '1 saved design' : `${designs.length} saved designs`);
         if (els.pickerButton) els.pickerButton.disabled = designs.length === 0 && !open && !proposals.length;
 
         // ── the face ──
@@ -452,12 +455,16 @@ export function createDesignHeader(els, handlers, extra = {}) {
         els.masthead?.classList.toggle('is-empty', !open);
 
         // ── who + status ──
-        const who = isProposal ? { name: 'Shortlist', role: 'Built-in proposal' }
+        // A proposal has no author to draw initials for — "S" for "Shortlist" read as a person. It
+        // gets a mark instead, and its ref (code · fingerprint) is the line under it: the one detail
+        // that matches the grid on screen to the printed sheet.
+        const who = isProposal
+            ? { name: 'Shortlisted', role: proposals.find(d => d.id === proposalId)?.ref || 'Built-in proposal' }
             : whoCopy({ saved, updatedBy: entry?.updatedBy, currentUser });
         for (const a of [els.avatar, els.sheetAvatar]) {
             if (!a) continue;
-            a.textContent = avatarInitials(who.name);
-            a.style.background = avatarHue(who.name);
+            a.textContent = isProposal ? '★' : avatarInitials(who.name);
+            a.style.background = isProposal ? 'var(--primary-blue)' : avatarHue(who.name);
         }
         if (els.whoName) els.whoName.textContent = who.name;
         if (els.whoRole) els.whoRole.textContent = who.role;

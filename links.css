@@ -1487,6 +1487,10 @@ body.auth-ready .container { display: grid; }
 .dm-status--dirty  { color: var(--warning-amber); } .dm-status--dirty::before  { background: var(--warning-amber); }
 .dm-status--new    { color: var(--gold-text); }     .dm-status--new::before    { background: var(--accent-gold-dark); }
 .dm-status--proposal { color: var(--primary-blue); } .dm-status--proposal::before { background: var(--primary-blue); }
+/* An untouched proposal on a phone: the row is the ★ mark, "Shortlisted" and the Save a copy… button,
+   which between them already say read-only — and "Read-only" itself truncated to "R…" beside them.
+   Back from 760px, where it has room; an EDITED copy is tone `dirty` and shows "Unsaved" at every width. */
+.dm-status--proposal { display: none; }
 .dm-status--saving::before { animation: dm-pulse 1s infinite; }
 @keyframes dm-pulse { 50% { opacity: 0.3; } }
 .dm-status-long, .dm-status-short { overflow: hidden; text-overflow: ellipsis; }
@@ -1528,7 +1532,7 @@ body.auth-ready .container { display: grid; }
     .dm-status--saved { background: var(--success-green-bg); }
     .dm-status--dirty { background: color-mix(in oklch, var(--warning-amber) 12%, white); }
     .dm-status--new   { background: color-mix(in oklch, var(--accent-gold) 22%, white); }
-    .dm-status--proposal { background: color-mix(in oklch, var(--primary-blue) 9%, white); }
+    .dm-status--proposal { display: inline-flex; background: color-mix(in oklch, var(--primary-blue) 9%, white); }
     .dm-status-long { display: inline; } .dm-status-short { display: none; }
     .dm-actions { gap: 8px; }
     .design-masthead .btn-save.dm-save { min-width: 128px; padding: 0 20px; min-height: 44px; font-size: var(--type-button); }

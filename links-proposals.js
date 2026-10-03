@@ -6,8 +6,11 @@
  *
  * The three designs the owner shortlisted for the December 2026 link on 3 Oct 2026 — Second
  * Edition, Even Keel and Short Run — copied cell for cell from `docs/links-26/proposals/<Name>.json`.
- * Each name is the one printed on its eight-page sheet, code and fingerprint included, so a grid on
- * screen can be matched to the paper in somebody's hand.
+ * The printed sheet names each one "<name> (<ref>)" — `ref` is the design code and the fingerprint
+ * of its grid. They are held apart here because the name is a TITLE, and a title carrying a hash
+ * truncated to "Even Keel — Dec 2026 (EK-..." on a phone; the ref is shown beside it instead (the
+ * picker row, the masthead's who line, the printout), so a grid on screen can still be matched to
+ * the paper in somebody's hand.
  *
  * ── WHY BUILT IN, AND NOT SAVED DESIGNS ────────────────────────────────────────────────────────
  *
@@ -30,7 +33,7 @@
  * of each `.json`), keep the printed name, and the test will say whether the copy is faithful.
  */
 
-/** @typedef {{ id: string, code: string, name: string, patterns: Record<string, Record<string, string>> }} Proposal */
+/** @typedef {{ id: string, code: string, name: string, ref: string, patterns: Record<string, Record<string, string>> }} Proposal */
 
 const DAYS = /** @type {const} */ (['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']);
 
@@ -48,7 +51,7 @@ export const PROPOSAL_PREFIX = 'proposal:';
 export const PROPOSALS = Object.freeze([
     Object.freeze({
         id: PROPOSAL_PREFIX + 'SE-26-F1', code: 'SE-26-F1',
-        name: "Second Edition — Dec 2026 (SE-26-F1 · dea6417f)",
+        name: "Second Edition — Dec 2026", ref: "SE-26-F1 · dea6417f",
         patterns: grid([
             ["SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE"],
             ["07:15-15:45", "06:20-14:50", "RD", "RD", "06:20-14:50", "06:20-14:50", "06:20-14:50"],
@@ -80,7 +83,7 @@ export const PROPOSALS = Object.freeze([
     }),
     Object.freeze({
         id: PROPOSAL_PREFIX + 'EK-26-H1', code: 'EK-26-H1',
-        name: "Even Keel — Dec 2026 (EK-26-H1 · 8e9a1bcf)",
+        name: "Even Keel — Dec 2026", ref: "EK-26-H1 · 8e9a1bcf",
         patterns: grid([
             ["SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE"],
             ["15:15-23:25", "RD", "11:00-19:30", "11:00-19:30", "11:00-19:30", "11:00-19:30", "RD"],
@@ -112,7 +115,7 @@ export const PROPOSALS = Object.freeze([
     }),
     Object.freeze({
         id: PROPOSAL_PREFIX + 'SR-26-F1', code: 'SR-26-F1',
-        name: "Short Run — Dec 2026 (SR-26-F1 · 618348d6)",
+        name: "Short Run — Dec 2026", ref: "SR-26-F1 · 618348d6",
         patterns: grid([
             ["SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE"],
             ["09:00-18:00", "RD", "06:20-14:20", "06:20-14:20", "06:20-14:20", "06:20-14:20", "RD"],
@@ -155,8 +158,8 @@ export function proposalById(id) {
 }
 
 /**
- * The name the first save of a proposal's working copy suggests: the design's own name without the
- * sheet's code-and-fingerprint tail, plus "— copy", numbered if taken. A copy is a new design, and
+ * The name the first save of a proposal's working copy suggests: the design's own name, without the
+ * date and never the ref, plus "— copy", numbered if taken. A copy is a new design, and
  * carrying the fingerprint over would label an edited grid with the fingerprint of one it no longer
  * matches.
  * @param {Readonly<Proposal>} proposal

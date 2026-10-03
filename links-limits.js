@@ -153,7 +153,7 @@ const BASIS = POLICY_SOURCE_CONFIRMED ? CONFIRMED_BASIS : UNCONFIRMED_BASIS;
  */
 export const LIMIT_CLAIM = POLICY_SOURCE_CONFIRMED
     ? 'Chiltern roster policy — must be met'
-    : 'Configured Chiltern limit — policy source outstanding';
+    : 'Configured Chiltern limits — policy source outstanding';
 
 /**
  * THE CONTRACTED-DAYS CEILING (v24.47) — the 26-line rules' fourth hard limit (`docs/links-26/
@@ -296,8 +296,8 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
             // has no company policy document behind it yet, so the row states the measurement and
             // what to check, never "cannot be run".
             detail: over
-                ? `This design gives ${days} contracted days a year, above the ${CONTRACTED_DAYS_CEILING} set for the December link — today's roster's own figure. Confirm the rule before treating that as a decision.`
-                : `${days} contracted days a year, within the ${CONTRACTED_DAYS_CEILING} set for the December link — today's roster's own figure. Monday to Saturday count; a cover week counts four days; Sunday is overtime.`,
+                ? `This design gives ${days} contracted days a year, above the ${CONTRACTED_DAYS_CEILING} set for the December link, which is today's roster's own figure. Confirm the rule before treating that as a decision.`
+                : `${days} contracted days a year, within the ${CONTRACTED_DAYS_CEILING} set for the December link, which is today's roster's own figure. Monday to Saturday count; a cover week counts four days; Sunday is overtime.`,
         });
     }
 

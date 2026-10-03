@@ -48,7 +48,7 @@ describe('the shortlist as the owner chose it (3 Oct 2026)', () => {
                 const file = new URL(`./docs/links-26/proposals/${SOURCES[/** @type {'SE-26-F1'} */ (p.code)]}.json`, import.meta.url);
                 if (!existsSync(file)) { t.skip('source grid not in this checkout yet'); return; }
                 const src = JSON.parse(readFileSync(file, 'utf8'));
-                assert.equal(src.name, p.name, 'the printed name');
+                assert.equal(src.name, `${p.name} (${p.ref})`, 'the printed name — title and ref, as on the sheet');
                 assert.deepEqual(normalisePatterns(src.patterns), p.patterns, 'the grid');
             });
         });

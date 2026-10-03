@@ -291,7 +291,7 @@ export function init() {
     /** The built-in proposal whose unsaved working copy is open (links-proposals.js), or null. A
      *  proposal is opened with NO activeDesignId, so no write path can ever address it. */
     /** @type {string|null} */ let activeProposalId = null;
-    const PROPOSAL_ENTRIES = PROPOSALS.map(p => ({ id: p.id, name: p.name, patterns: p.patterns, window: null, updatedAt: null, updatedBy: '' }));
+    const PROPOSAL_ENTRIES = PROPOSALS.map(p => ({ id: p.id, name: p.name, ref: p.ref, patterns: p.patterns, window: null, updatedAt: null, updatedBy: '' }));
     /** Deleted designs, newest first — the "Recently deleted" bin (v19.41). Held in memory with
      *  their patterns so a restore is a field-clearing merge, never a re-upload of a stale copy.
      *  @type {Array<{id:string, name:string, patterns:Object, window?:*, deletedAt:*, deletedBy:string}>} */
@@ -1412,7 +1412,7 @@ export function init() {
             if (emptyTitle) emptyTitle.textContent = loadFailed ? 'Couldn’t load your designs' : 'No designs yet';
             if (emptyMsg) emptyMsg.innerHTML = loadFailed
                 ? `Check your connection and refresh the page. Nothing has been lost — saved designs are on the server.`
-                : `Build a rotating pattern from staffing targets with the Auto-generate card below, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`;
+                : `Build a rotating pattern from staffing targets with the Auto-generate card below, open one of the shortlisted proposals, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`;
             if (emptyActs) /** @type {HTMLElement} */ (emptyActs).style.display = loadFailed ? 'none' : '';
             _setGridHint(false);
             _renderOverLengthNotice();   // `design` is null here, so this hides it
@@ -2036,7 +2036,7 @@ export function init() {
         // manager. Say so on the paper rather than refusing to print: printing a work in progress is
         // a perfectly reasonable thing to want (v19.62).
         const unsaved = dirty ? ' · includes unsaved changes' : '';
-        const saved = activeProposalId ? `Shortlisted proposal, built into the app${unsaved}` : entry?.updatedBy
+        const saved = activeProposalId ? `Shortlisted proposal ${proposalById(activeProposalId)?.ref ?? ''}, built into the app${unsaved}` : entry?.updatedBy
             ? `Last saved by ${entry.updatedBy}${when ? ` · ${formatDayMonthYear(when)}` : ''}${unsaved}`
             : `Not saved yet${unsaved}`;
         // The TIME matters more here than anywhere: a design is edited and reprinted repeatedly
