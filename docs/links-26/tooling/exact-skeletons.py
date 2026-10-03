@@ -1,7 +1,7 @@
 """exact-floor.py's model (structural + family rules, fixed run ≤ RUN, GAP 5; needs `pip install pulp`) turned into a generator: each solve must hit
 SINGLES single rest days, ties broken by fewest family changes round the wheel, and after each solution a no-good cut
 forces the next layout to differ in at least DIFF cells. Writes skeleton JSON that skeleton-start.mjs accepts.
-  python3 exact-skeletons.py RUN SINGLES COUNT DIFF outdir   (Short Run: 5 4 6 10 — its skeleton was the second, results/skeleton-run5.json)"""
+  [FOUR=14] python3 exact-skeletons.py RUN SINGLES COUNT DIFF outdir   (Short Run: 5 4 6 10 — its skeleton was the second, results/skeleton-run5.json)"""
 import sys, json, pulp
 RUN, SINGLES, COUNT, DIFF, OUTDIR = int(sys.argv[1]), int(sys.argv[2]), int(sys.argv[3]), int(sys.argv[4]), sys.argv[5]
 GAP = 5
@@ -47,6 +47,14 @@ for i, v in s.items():
     if pk in WORK and pd != 'sun': m += v + y[(pk, pd)] <= 1
 m += pulp.lpSum(y[((L if c == 1 else c - 1), 'sat')] for c in COVER if (L if c == 1 else c - 1) in WORK) <= 2
 m += pulp.lpSum(s.values()) <= SINGLES
+FOUR = int(__import__('os').environ.get('FOUR', '0'))   # FOUR=14: four full weeks off (28 days from a Sunday) for at most 14 days' leave,
+if FOUR:                                                   # somewhere in the wheel (the 14-day-leave search, 3 Oct 2026)
+    b = {}
+    for k in range(1, L + 1):
+        wks = [(k + t - 1) % L + 1 for t in range(4)]
+        c = pulp.lpSum((on[(j, d)] if j in WORK else 0) for j in wks for d in DAYS if d != 'sun') + 4 * sum(1 for j in wks if j in COVER)
+        b[k] = pulp.LpVariable(f'b_{k}', cat='Binary'); m += c <= FOUR + 24 * (1 - b[k])
+    m += pulp.lpSum(b.values()) >= 1
 m += pulp.lpSum(s.values()) + 0.01 * pulp.lpSum(zs)   # the floor objective solves in minutes; minimising family changes alone timed out
 for t in range(1, COUNT + 1):
     m.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=1500))
