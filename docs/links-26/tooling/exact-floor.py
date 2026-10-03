@@ -2,7 +2,7 @@
 which is the easier problem: a layout that cannot reach N single rest days under these cannot reach it with the family and
 fatigue rules added. Column counts are the table's (15 on a weekday, 14 Saturday, 10 Sunday), rows 4 or 5 duties, 7 full
 weekends never more than GAP apart, no run over 6 with a cover week's four duties placed as badly as they can be (so no
-more than 2 worked days into or out of a cover week), and the fixed run capped at FIXED_RUN.  python3 exact-floor.py [GAP] [FIXED_RUN] [fam]   (`fam` adds the family rules: pure weeks, early counts, a rest day at every change, FF8b singles, the cover-week Saturday)
+more than 2 worked days into or out of a cover week), and the fixed run capped at FIXED_RUN.  [FOUR=14] [LIMIT=600] python3 exact-floor.py [GAP] [FIXED_RUN] [fam]   (`fam` adds the family rules: pure weeks, early counts, a rest day at every change, FF8b singles, the cover-week Saturday)
 """
 import sys, pulp
 GAP = int(sys.argv[1]) if len(sys.argv) > 1 else 5; FIXED_RUN = int(sys.argv[2]) if len(sys.argv) > 2 else 6
@@ -52,6 +52,17 @@ if FAM:
         pk, pd = seq[(i - 1) % n]
         if pk in WORK and pd != 'sun': m += v + y[(pk, pd)] <= 1
     m += pulp.lpSum(y[((L if c == 1 else c - 1), 'sat')] for c in COVER if (L if c == 1 else c - 1) in WORK) <= 2   # two 08:00s a Saturday
+FOUR = int(__import__('os').environ.get('FOUR', '0'))   # FOUR=14: somewhere in the wheel, four full weeks off (28 days from a Sunday) for at most 14 days' leave
+if FOUR:
+    b = {}
+    for k in range(1, L + 1):
+        wks = [(k + t - 1) % L + 1 for t in range(4)]
+        c = pulp.lpSum((on[(j, d)] if j in WORK else 0) for j in wks for d in DAYS if d != 'sun') + 4 * sum(1 for j in wks if j in COVER)
+        b[k] = pulp.LpVariable(f'b_{k}', cat='Binary'); m += c <= FOUR + 24 * (1 - b[k])
+    m += pulp.lpSum(b.values()) >= 1
 m += pulp.lpSum(s.values())
-m.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=600))
-print(f'GAP {GAP} · fixed run ≤{FIXED_RUN}{" · pure weeks + family rules" if FAM else ""}: {pulp.LpStatus[m.status]} — minimum single rest days = {int(round(pulp.value(m.objective)))}')
+LIMIT = int(__import__('os').environ.get('LIMIT', '600')); t0 = __import__('time').time()
+m.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=LIMIT)); took = __import__('time').time() - t0
+# CBC can report "Optimal" for the best layout it had when the clock ran out: say which it was
+proof = 'proven' if took < LIMIT - 5 else f'the fewest found in {LIMIT}s — NOT proven'
+print(f'{"FOUR WEEKS ≤ " + str(FOUR) + " days · " if FOUR else ""}GAP {GAP} · fixed run ≤{FIXED_RUN}{" · pure weeks + family rules" if FAM else ""}: {pulp.LpStatus[m.status]} — minimum single rest days = {int(round(pulp.value(m.objective)))} ({proof})')

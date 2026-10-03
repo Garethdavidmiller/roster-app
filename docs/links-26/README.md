@@ -79,6 +79,7 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
 | | `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` | the rules reference (`../links-26-rules.pdf`), the one-page summary (`../links-26-summary.pdf`) and the two-page shortlist sheet (`../links-26-shortlist.pdf`) |
 | 4 · decks and pack | `second-nature-decks.py` → `second-edition-decks.py`, `even-keel-decks.py`, `short-run-decks.py`; `deck-check.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped; the checker that reads every deck row back against the sheets; the zip |
+| league | `league.mjs` | the weighted league on every factor the sheets compare (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`) — the owner's weights, a judgement not a measurement |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
 
 **Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
@@ -660,31 +661,36 @@ then asked for the search ("run the 14 day leave search"). It was, and it ships 
 **What the exact solver said first.** `exact-floor.py`'s layout model with one constraint added — somewhere in the wheel,
 28 days from a Sunday must cost at most 14 days' leave — and the single rest days minimised:
 
-| Layout rules, four weeks off for 14 days | Single rest days, at least |
+| Layout rules, four weeks off for 14 days | Single rest days, fewest found |
 |---|---|
 | structural rules only, run ≤ 6 | 4 |
 | + the family rules, run ≤ 6 | 5 |
-| + the family rules, run ≤ 5 | 6 |
+| + the family rules, run ≤ 5 | 5 |
 
-(A first solve of the middle row reported 7 while calling itself optimal; a tighter run limit cannot lower a floor, so
-it was re-run with a longer limit and gave 5. Treat a time-limited "Optimal" from CBC with the same caution.) So the 14
-is not forced out by the link's shape; its price is one more single rest day than the four every shortlisted design has.
+**These are the fewest the solver found, not proven floors.** With the leave constraint added, none of these solves finished
+inside its time limit, and CBC reports "Optimal" for the best layout it holds when the clock runs out — a first solve of the
+middle row said 7, a re-run with a longer limit said 5, and the last row read 6 until an independent re-solve found 5 (the
+scripts now print whether a result was proven or timed out). What IS established: the structural row agrees with the
+proven floor of 4 without the leave constraint, and a layout with five single rest days exists, because Long Break is one.
+So the 14 is not forced out by the link's shape; its price, as far as the solver can see, is one more single rest day than
+the four every shortlisted design has. Rebuild a row with `FOUR=14 [LIMIT=1800] python3 exact-floor.py 5 6 [fam]`.
 
 **How it was built.** `FOUR=14 python3 exact-skeletons.py 6 5 4 10` — the generator with the four-weeks constraint, at
 most five single rest days, no run over six. It wrote one skeleton before its second solve ran out of time
 (`results/skeleton-leave14.json`). Laid with Second Edition's table and sent through the soft → soft → hard chain with
 `LEAVE_FOUR_MAX=14` held as a floor throughout, it came through with every check clear; laid with Even Keel's table it
 failed at the start, as on every exact skeleton so far. Three further polishes with everything held — asking for 17
-one-turn weeks, for 18, and for a step under 1h 30m — kept nothing, and the closest of them (step 1h 44m against the
-chain's 1h 46m) is the rota shipped.
+one-turn weeks, for 18, and for a step under 1h 30m — kept nothing; the closest rota from the first of them, every floor
+held but the 17th one-turn week and the step two minutes gentler than the chain's, is the rota shipped (the rebuild
+block's last line).
 
 **Long Break against Second Edition** (same duty table, so the same fit, times, late finishes, closers, headcounts and
 218.6 days): 9/9 rules, 3/3 flexible, every hard limit, no fatigue factor fixed or in the worst case, rest 14h 20m,
 7 full weekends never more than five apart (gaps 5 1 5 5 5 1 4), no run over six, no mixed week, heaviest week 42h 00m,
 lightest 24h 30m. **The gains:** four full weeks off for **14** days' leave (Second Edition 15, today 14), and the best
-14-day stretch **29** days off (28; today 30); the worst stays 20 and the average 23.5. **The costs:** **five** single
+14-day stretch **29** days off (28; today 30); the worst stays 20 and the average is 23.5 (23.4). **The costs:** **five** single
 rest days (four), **16 of 21** weeks on one shift time (18), and a week-to-week step of **1h 44m** (1h 01m). In the
-all-factor league it sits fourth, under Second Edition, Short Run and Even Keel and above Fine Tune — the leave gain is
+weighted league (`node tooling/league.mjs`) it sits fourth, under Second Edition, Short Run and Even Keel and above Fine Tune — the leave gain is
 worth three points there and the one-turn, step and single-rest-day costs take back four.
 
 **How to rebuild it** (from `tooling/`; the solver needs `pip install pulp`):

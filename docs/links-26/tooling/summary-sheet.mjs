@@ -58,7 +58,7 @@ td.good .wv { color: #5B6778; font-weight: 400; }
 .lead, .foot { text-wrap: pretty; }
 </style></head><body>
 <h1>December 2026 link proposals — at a glance</h1>
-<p class="lead">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link, sorted by December rules met, then avoidable fatigue warnings; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota by the Marylebone Roster app. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</p>
+<p class="lead">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link, sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota by the Marylebone Roster app. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</p>
 <table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Avoidable fatigue warnings§</th><th>Most days in a row§</th><th>Full weekends off</th><th>Shortest fixed-duty rest</th><th>Shift times</th><th>Days a week*</th><th>Days a year*</th><th>Average fixed shift, Mon–Sat</th><th>Finishes 23:00+ a year†</th><th>Saturdays a year†</th></tr></thead><tbody>
 ${tr(todayRow,'today')}
 ${rows.map(r=>tr(r)).join('\n')}

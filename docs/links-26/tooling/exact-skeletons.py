@@ -57,8 +57,8 @@ if FOUR:                                                   # somewhere in the wh
     m += pulp.lpSum(b.values()) >= 1
 m += pulp.lpSum(s.values()) + 0.01 * pulp.lpSum(zs)   # the floor objective solves in minutes; minimising family changes alone timed out
 for t in range(1, COUNT + 1):
-    m.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=1500))
-    st = pulp.LpStatus[m.status]
+    t0 = __import__('time').time(); m.solve(pulp.PULP_CBC_CMD(msg=0, timeLimit=1500)); took = __import__('time').time() - t0
+    st = pulp.LpStatus[m.status] + ('' if took < 1495 else ' (time limit — a layout found, not proven fewest)')
     if st != 'Optimal': print(f'solution {t}: {st} — stopping'); break
     singles = sum(int(round(v.value())) for v in s.values())
     if singles > SINGLES: print(f'solution {t}: {singles} single rest days — stopping'); break

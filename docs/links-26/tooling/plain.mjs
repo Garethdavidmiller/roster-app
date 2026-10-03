@@ -815,7 +815,7 @@ function shiftPage(s, { T, P }) {
     const shape = `<h2 class="p4shape-h">The shape of a week</h2>
   <table class="t p4shape"><thead><tr><th>Measure</th><th>Today</th><th>Proposed</th><th>In plain words</th></tr></thead><tbody>
     <tr><td>Rest breaks of two days or more</td><td>${T.feel.pairedRest} of ${T.feel.restIslands}</td><td><b>${P.feel.pairedRest} of ${P.feel.restIslands}</b></td><td class="muted">of all the breaks between duties</td></tr>
-    <tr><td>Single rest days</td><td>${iso(T)}</td><td><b>${iso(P)}</b></td><td class="muted">one beside a cover week depends on where its four duties fall</td></tr>
+    <tr><td>Single rest days</td><td>${iso(T)}</td><td><b>${iso(P)}</b></td><td class="muted">${P.feel.isolatedBesideCover ? 'one beside a cover week depends on where its four duties fall' : 'a rest day with a worked day either side'}</td></tr>
     <tr><td>Working weeks by days worked, Sunday in</td><td class="p4wrap">${dist(T)}</td><td class="p4wrap"><b>${dist(P)}</b></td><td class="muted">cover weeks left out</td></tr>
     <tr><td>Working weeks with a Sunday</td><td>${T.hours.sundayDuties} of ${T.feel.workingLines}</td><td><b>${P.hours.sundayDuties} of ${P.feel.workingLines}</b></td><td class="muted">the number on duty each Sunday — all overtime</td></tr>
   </tbody></table>`;
