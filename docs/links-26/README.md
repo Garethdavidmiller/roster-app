@@ -71,6 +71,7 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 | | `grow-from-24.mjs` | the same idea across line counts: grows a 24-line rota's weeks to 26 (one week added where the table needs it, a fifth cover week) and lays the table on, trying every insertion point and offset |
 | | `anneal-from.mjs` | `anneal.mjs`'s search, started from a given rota rather than at random, so a carried structure is improved, not thrown away |
 | | `rota-polish.mjs`, `order-polish.mjs` | reorder only (same-day and whole-line swaps), never worse than a reference; `ISO_W=` in `rota-polish.mjs` also rewards fewer single rest days |
+| | `exact-floor.py`, `exact-skeletons.py` | the exact solver (`pip install pulp`): the proven floor on single rest days for a rest-day layout, and the same model as a generator of skeletons for `skeleton-start.mjs` (Short Run came from it) |
 | | `candidates.mjs` | prints each candidate rota's sheet figures on one line, to choose between them |
 | check | `check.mjs` | the self-check: settings agree, the test rota recounts independently, and each 26-line rule fails when its condition is broken (`node tooling/check.mjs`) |
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
@@ -558,6 +559,81 @@ candidates and the same caveat: the app's own checker had not been run. It was, 
   in a row; their verifier checks only the fixed duties, and every proposal here is held to none in the worst case
   too), and **5 single rest days, not 4** (their count leaves out a lone rest day beside a cover week; the sheets count
   it). Its strengths — no mixed week, a week-to-week step of 40 minutes — are real and are on record here.
+
+## Short Run — Second Edition with no run over five days (3 Oct 2026)
+
+The last targeted search, from an outside suggestion: take the four improvements still being asked of the two strongest
+proposals, search for each with the app's own checking code, keep only candidates that pass everything, and say for each
+whether it was **proved impossible under these constraints** or **not found within the search time**. One of the four
+was found, and ships as **Short Run** (`SR-26-F1` · `618348d6`, Second Nature family,
+`proposals/Short-Run-SR-26-F1-618348d6.pdf`, grid `tooling/short-run.json`).
+
+| Asked for | Answer | How |
+|---|---|---|
+| Second Edition with no run over **five** days | **Found — Short Run** | an exact-solver skeleton laid with Second Edition's duties and polished through every check |
+| Even Keel with no mixed week | **Not found** | its table laid on Second Edition's skeleton kept two FF19 start-time jumps through four soft polishes (two of them 600,000 moves); laid on the six exact skeletons it failed at the start every time |
+| a 19th one-turn week (either table) | **Not found** | six polishes of 500,000 moves, three on each table, every one stopping at 18 — each "closest" rota was the shipped one |
+| three single rest days | **Proved impossible** | the exact solver's floor is four, with every rule that bears on the layout and with shift times set aside, so no choice of times can get under it |
+
+**Short Run against Second Edition.** The same duty table, so the same fit (29.1 · 12.7 · 29.0), the same fifteen times
+(nine worked today) and the same 42 late finishes. The same 9/9 rules, 3/3 flexible, every hard limit, no fatigue factor
+fixed or in the worst case, rest 14h 20m, 7 full weekends never more than five apart (gaps 1 5 5 1 5 5 4), four single
+rest days, no mixed week, 18 of 21 weeks on one shift time, leave 28 · 20 · 15, 218.6 days. **The one gain: no run over
+five days** (Second Edition's longest is six; the worst case with a cover week placed badly is six for both). **The
+costs:** the heaviest week is 42h 30m (Second Edition 42h 00m), the lightest 24h 30m (25h 30m), the week-to-week step
+1h 13m (1h 01m). On the sheets' own comparison lines it equals Second Edition everywhere and beats it on the run, which
+is why it was given a name rather than folded into Second Edition's notes.
+
+**How it was found — the exact solver.** `skeleton.mjs` is an annealer: sixteen seeds asked for a pure-week skeleton with
+no run over five days all ended with five or more single rest days, which looked like a floor and was not one.
+`tooling/exact-floor.py` states the same rest-day layout as an integer programme (pulp + CBC) and SOLVES it: rows of 4
+or 5 duties, the day counts, 7 full weekends never more than GAP apart, no run over the limit with a cover week's four
+duties placed as badly as they can be, and single rest days counted exactly as the sheets count them. Its floors, each
+proved optimal rather than searched:
+
+| Layout rules | Single rest days, at least |
+|---|---|
+| weekends at most 5 apart, run ≤ 6 | **4** |
+| weekends at most 5 apart, run ≤ **5** | **4** |
+| weekends at most 6 apart, run ≤ 6 | 3 |
+| weekends any distance apart | 1 |
+| + the family rules (pure weeks, early counts, a rest day at every change, no single rest day after an early), run ≤ 6 | 4 |
+| + the family rules, run ≤ 5 | 4 |
+
+The first four agree with the annealer's own floor table under "Second Edition" above, which is the check on the model.
+The last row is what the annealer had missed: a pure-week layout with no run over five and four single rest days exists.
+`tooling/exact-skeletons.py` is the same model turned into a generator — each solve must hit four, ties go to the fewest
+family changes, and a no-good cut makes the next layout differ in at least ten cells. It wrote six skeletons; each was
+laid with Second Edition's table and with Even Keel's (`skeleton-start.mjs`, `TABLE=`) and sent through Second Edition's
+own chain (two soft polishes, then hard). **Only the second skeleton, with Second Edition's table, came through**
+(`results/skeleton-run5.json`): 16 one-turn weeks at 41h 00m. Two further polishes, with everything else held, took it to
+17 at 42h 00m and to 18 at 42h 30m; four seeds asked for 18 at 42h 00m found none, so the 42h 30m is what ships — the 42h
+cap was a floor carried over from Second Edition, not a rule (the hard limit is 43h 40m).
+
+**What "proved" means here, and where it stops.** The three-single-rest-day answer is a real proof: the solver's rules are
+a RELAXATION of the full set (times are not in it), so anything it cannot do, no rota can. The run-five answer is proved the
+other way, by the rota existing. The solver's family rules are slightly stricter than the sheets' (it forbids a single rest
+day after ANY early, where FF8b is about blocks of 06:20s) and it does not carry the 07:00 supply or the leave figures, so a
+"4" from the family-rule rows says a layout exists on paper, not that it will take the times — four of the six did not.
+
+**How to rebuild it** (from `tooling/`; the solver needs `pip install pulp`):
+
+```
+python3 exact-skeletons.py 5 4 6 10 /tmp/sk          # six skeletons; /tmp/sk/skel-2.json = results/skeleton-run5.json
+node skeleton-start.mjs results/skeleton-run5.json /tmp/sr0.json 1
+F="REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=16 ISO_MAX=4 MIXED_MAX=0 STEP_MAX=121 LEAVE_WORST_MIN=20 ISO_W=1e5 MIX_W=4e4 FIXED_RUN_MAX=5"
+env $F FATIGUE_SOFT=1 HEAVY_MAX=42.5 node space-polish.mjs /tmp/sr0.json /tmp/sr1.json 1 400000   # keeps nothing → /tmp/sr1.closest.json
+env $F FATIGUE_SOFT=1 HEAVY_MAX=42.5 node space-polish.mjs /tmp/sr1.closest.json /tmp/sr2.json 2 500000
+env $F HEAVY_MAX=42 node space-polish.mjs /tmp/sr2.json /tmp/sr3.json 1 500000                   # 16 one-turn weeks, 41h 00m
+G="REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ISO_MAX=4 MIXED_MAX=0 STEP_MAX=121 LEAVE_WORST_MIN=20 LEAVE_BEST_MIN=28 LEAVE_FOUR_MAX=15 HEAVY_MAX=42 FIXED_RUN_MAX=5 ISO_W=1e5 MIX_W=4e4"
+env $G ONE_MIN=17 node space-polish.mjs /tmp/sr3.json /tmp/sr4.json 1 500000                      # 17, 42h 00m
+env $G ONE_MIN=18 node space-polish.mjs /tmp/sr3.json /tmp/sr5.json 2 500000                      # keeps nothing → /tmp/sr5.closest.json = short-run.json
+```
+
+The exact solver is not deterministic across CBC versions, so the first command may write the six in another order or
+find different ones; `results/skeleton-run5.json` is the one that worked, and the chain from it is deterministic.
+
+## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
 "7 in 26" against "4 in 20" made the reader divide. The sheets now say it per person per year, as late finishes and 06:20
