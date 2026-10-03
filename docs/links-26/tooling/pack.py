@@ -84,9 +84,9 @@ The detail:
                       The code and eight-character fingerprint in each file name
                       identify the exact rota, so a printout can never be mixed
                       up with a variant.
-  5 Import files      Each proposal as text for the Links page (Import). The Links
-                      page still lays out 24 lines, so it will refuse these until
-                      it moves to 26 - that is planned as its own app release.
+  5 Import files      Each proposal as text for the Links page (Import), which lays
+                      out 26 lines since app version 24.47 (3 October 2026) and
+                      re-runs every check in this pack on whatever is pasted in.
   6 Technical notes   The 26-line rules with what changed from 24, and how the
                       proposals were built and checked. Written for the technical
                       record, not for reading out.

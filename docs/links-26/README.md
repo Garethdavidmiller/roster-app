@@ -745,9 +745,10 @@ stood.
 
 `tooling/pack.py` builds it from this folder, every design in `regenerate.mjs`'s `SUPPLIED` list included, and stops
 if a file is missing. The 24-line pack was zipped by hand, so it went stale after a re-render; this one is rebuilt by
-running `python3 docs/links-26/tooling/pack.py` after any re-render. Its *Read me first* says the import files are
-refused by the Links page until that page moves to 26 lines.
+running `python3 docs/links-26/tooling/pack.py` after any re-render.
 
-**Still 24 in the app.** `ROTATING_LINES = 24` in `links-design.js` is the Links page's own line count. It moves to 26 as
-its own app release (owner, 1 Oct 2026). Until then the tooling passes 26 to every app function explicitly, and the
-Links page itself still lays out 24 lines.
+**26 in the app since v24.47 (3 Oct 2026).** `ROTATING_LINES = 26` in `links-design.js`: the Links page lays out 26
+lines, so the import files in the pack paste straight in and the page re-runs every check on them. The tooling still
+passes 26 to every app function explicitly — harmless now, and it keeps the sheets' line count stated in one place
+(`tooling/link.mjs`) rather than inherited. Until that release the page was on 24 lines and refused the files; the
+read-me said so, and now says the opposite.
