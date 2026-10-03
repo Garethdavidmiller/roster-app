@@ -83,22 +83,25 @@ export const TARGET_DAYS_PER_WEEK = 89 / 21;
  *
  * @type {ReadonlyArray<Readonly<{time: string, weekday: number, sat: number, sun: number}>>}
  */
+// Listed in the three blocks the generator card draws (v21.13): the rows that staff a weekday,
+// then Saturday's own, then Sunday's — each block in time order. A table sorted by time alone
+// interleaves the three and the card's block rules land on almost every row.
 const TABLE = Object.freeze([
-    Object.freeze({ time: '06:20-14:00', weekday: 0, sat: 3, sun: 0 }),
     Object.freeze({ time: '06:20-14:20', weekday: 2, sat: 0, sun: 0 }),
     Object.freeze({ time: '06:20-14:50', weekday: 3, sat: 2, sun: 0 }),
     Object.freeze({ time: '07:00-16:00', weekday: 2, sat: 0, sun: 0 }),
-    Object.freeze({ time: '07:15-15:45', weekday: 0, sat: 0, sun: 4 }),
-    Object.freeze({ time: '08:00-16:30', weekday: 0, sat: 2, sun: 0 }),
-    Object.freeze({ time: '09:00-18:00', weekday: 0, sat: 0, sun: 1 }),
     Object.freeze({ time: '12:00-20:00', weekday: 1, sat: 0, sun: 0 }),
     Object.freeze({ time: '14:00-22:30', weekday: 2, sat: 2, sun: 0 }),
-    Object.freeze({ time: '14:30-22:00', weekday: 0, sat: 2, sun: 0 }),
-    Object.freeze({ time: '14:30-22:30', weekday: 0, sat: 0, sun: 2 }),
     Object.freeze({ time: '15:00-22:30', weekday: 2, sat: 0, sun: 0 }),
-    Object.freeze({ time: '15:15-23:25', weekday: 0, sat: 0, sun: 3 }),
-    Object.freeze({ time: '15:15-23:55', weekday: 0, sat: 3, sun: 0 }),
     Object.freeze({ time: '15:45-23:55', weekday: 3, sat: 0, sun: 0 }),
+    Object.freeze({ time: '06:20-14:00', weekday: 0, sat: 3, sun: 0 }),
+    Object.freeze({ time: '08:00-16:30', weekday: 0, sat: 2, sun: 0 }),
+    Object.freeze({ time: '14:30-22:00', weekday: 0, sat: 2, sun: 0 }),
+    Object.freeze({ time: '15:15-23:55', weekday: 0, sat: 3, sun: 0 }),
+    Object.freeze({ time: '07:15-15:45', weekday: 0, sat: 0, sun: 4 }),
+    Object.freeze({ time: '09:00-18:00', weekday: 0, sat: 0, sun: 1 }),
+    Object.freeze({ time: '14:30-22:30', weekday: 0, sat: 0, sun: 2 }),
+    Object.freeze({ time: '15:15-23:25', weekday: 0, sat: 0, sun: 3 }),
 ]);
 
 /** Every distinct shift time this table proposes, in the order it lists them. */

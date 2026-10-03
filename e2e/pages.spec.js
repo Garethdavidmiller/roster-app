@@ -4414,7 +4414,9 @@ test('links: after a save with no server stamp, the masthead and the save row sh
         w.__E2E.docs = [{
             id: 'd1', name: 'Option A', updatedBy: 'S. Silva', revision: 1,
             updatedAt: Date.parse('2026-06-24T16:40:00Z'),   // an old save — a different DAY
-            patterns: { '1': { sun: 'RD', mon: '06:20-14:20', tue: '14:00-22:00', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } },
+            // Line 26 is drawn: a pre-October design drawn only on lines 1–24 is binned on load.
+            patterns: { '1': { sun: 'RD', mon: '06:20-14:20', tue: '14:00-22:00', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' },
+                        '26': { sun: 'RD', mon: 'RD', tue: 'RD', wed: '06:20-14:20', thu: 'RD', fri: 'RD', sat: 'RD' } },
         }];
     });
     await page.goto('/links.html');
@@ -4663,7 +4665,7 @@ test('links sets: the picker lists every designer\'s sets, and Save follows whos
 
 test('links sets: Load copies a colleague\'s set into the working table', async ({ page }) => {
     await openLinksWithTargetSets(page);
-    await expect(page.locator('#genSpareLines')).toHaveValue('4');        // the shipped default
+    await expect(page.locator('#genSpareLines')).toHaveValue('5');        // the shipped default — five cover weeks on 26 lines
     await page.locator('#genSetSelect').selectOption('ts-silva');
     await page.locator('#genSetLoadBtn').click();
     await expect(page.locator('#genSpareLines')).toHaveValue('9');        // Silva's figure arrived
@@ -4692,7 +4694,7 @@ test('links sets: Save as new writes a set owned as the signed-in designer', asy
     expect(written.createdBy).toBe('M. Robson');    // ownership pinned to the writer — rules enforce it too
     expect(written.updatedBy).toBe('M. Robson');
     expect(Array.isArray(written.slots)).toBe(true);
-    expect(written.spareLines).toBe(4);             // the untouched default table is what was saved
+    expect(written.spareLines).toBe(5);             // the untouched default table is what was saved
 });
 
 test('links sets: the admin is told the set is somebody else\'s, not that it is theirs', async ({ page }) => {
@@ -4928,14 +4930,14 @@ test('links: the roster seed samples the whole MAIN cycle and nothing else', asy
     // all three states so the two buttons are provably wired to two different tables; checking the
     // seed alone would pass just as happily if the default button were wired to the seed as well,
     // which is the mistake two buttons invite. The distinguishing signal is the ROW COUNT, not the
-    // spare-week box: since v21.01 the default runs four cover weeks — the same figure the roster
-    // measures — so the one number that used to tell the tables apart no longer can, while the row
+    // spare-week box: the default's cover weeks have matched the roster's before (four, v21.01) and
+    // may again, so the one number cannot be relied on to tell the tables apart, while the row
     // counts cannot converge (the designed table carries Saturday and Sunday shapes of its own).
     await page.setViewportSize({ width: 390, height: 1000 });
     await seedSession(page, 'G. Miller');
     await openLinks(page);
     await page.locator('#generatorToggleHeader').click();
-    await expect(page.locator('#genSpareLines')).toHaveValue('4');
+    await expect(page.locator('#genSpareLines')).toHaveValue('5');   // the 26-line default: five cover weeks
     const defaultRows = await page.locator('#genSlotRows tr').count();   // the designed default
     await page.locator('#genSeedBtn').click();
     await expect(page.locator('#genSpareLines')).toHaveValue('4');       // today's roster measures 4 too
