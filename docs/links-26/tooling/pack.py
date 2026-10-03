@@ -86,7 +86,9 @@ The detail:
                       up with a variant.
   5 Import files      Each proposal as text for the Links page (Import), which lays
                       out 26 lines since app version 24.47 (3 October 2026) and
-                      re-runs every check in this pack on whatever is pasted in.
+                      re-runs every check in this pack on whatever is pasted in. The
+                      three shortlisted designs are already in the app's Links
+                      designer as examples, for reference.
   6 Technical notes   The 26-line rules with what changed from 24, and how the
                       proposals were built and checked. Written for the technical
                       record, not for reading out.

@@ -38,6 +38,8 @@ export const STRAPS = {
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
 // Second Nature's weeks were grown from Silva Lining's (README.md); the 26-line family is named after Second Nature,
 // as the 24-line Right Away family was after the design its members came from.
+/** The three designs taken forward (owner, 3 Oct 2026): marked on the summary and compared on the shortlist sheet. */
+export const SHORTLIST = ['Second Edition', 'Short Run', 'Even Keel'];
 export const FAMILY = { SN: 'Second Nature', SW: 'Second Nature', SS: 'Second Nature', SL: 'Second Nature', SG: 'Second Nature', SE: 'Second Nature', FT: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature' };
 export const FIRST = { 'SN-26-F2': '1 Oct 2026', 'SW-26-F1': '2 Oct 2026', 'SS-26-F1': '2 Oct 2026', 'SL-26-G3': '2 Oct 2026', 'SG-26-H1': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'FT-26-H1': '3 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026' };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —

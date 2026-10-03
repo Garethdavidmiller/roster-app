@@ -11,10 +11,10 @@ import { assess, today, folderStats, sheetRules, flexibleRules } from './report-
 import { personal } from './plain.mjs';
 import { leave } from './leave.mjs';
 import { scoreOrder } from '../../../links-adjacency.js';
+import { SHORTLIST } from './fresh.mjs';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
 const OUT = new URL('../links-26-shortlist.pdf', import.meta.url).pathname;
-const SHORTLIST = ['Second Edition', 'Short Run', 'Even Keel'];
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'], MS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const timed = s => /^\d\d:\d\d-\d\d:\d\d$/.test(s), m = s => +s.slice(0, 2) * 60 + +s.slice(3, 5), mins = s => (m(s.slice(6)) - m(s) + 1440) % 1440;
 const hm = x => `${Math.floor(x / 60)}h ${String(Math.round(x % 60)).padStart(2, '0')}m`;
@@ -48,7 +48,7 @@ const ROWS = [
   ['Heaviest week', F => F.heavy, -1, hm],
   ['Lightest week', F => F.light, 1, hm],
   ['Shortest rest between shifts', F => F.A.rest.minutes, 1, hm],
-  ['Weeks on one turn, Monday to Friday', F => F.A.feel.oneTurn, 1, (v, F) => `${v} of ${F.A.feel.workingLines}`],
+  ['Weeks on one turn (one shift time Mon–Fri, no early–late switch)', F => F.A.feel.oneTurn, 1, (v, F) => `${v} of ${F.A.feel.workingLines}`],
   ['Weeks mixing earlies and lates', F => F.A.feel.hybrid, -1, v => `${v}`],
   ['Week-to-week change of start time', F => F.step, -1, hm],
   ['Finishing at 23:00 or later, each a year', F => Math.round(F.pp.late23), -1, v => `${v}`],

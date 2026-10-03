@@ -14,7 +14,7 @@ The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, o
 |---|---|
 | `links-NN-proposals.zip` | everything for sharing, in one download |
 | `links-NN-rules.pdf` | the rules every proposal is judged against |
-| `links-NN-summary.pdf` | every proposal against today's link, on one page |
+| `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted three marked ★ |
 | `links-26-shortlist.pdf` | the three shortlisted designs against each other and today, with a recommendation, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
 | `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf` |
@@ -78,7 +78,7 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 | check | `check.mjs` | the self-check: settings agree, the test rota recounts independently, and each 26-line rule fails when its condition is broken (`node tooling/check.mjs`) |
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
 | | `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` | the rules reference (`../links-26-rules.pdf`), the one-page summary (`../links-26-summary.pdf`) and the two-page shortlist sheet (`../links-26-shortlist.pdf`) |
-| 4 · decks and pack | `second-nature-decks.py` → `second-edition-decks.py`, `even-keel-decks.py`, `short-run-decks.py`; `deck-check.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped; the checker that reads every deck row back against the sheets; the zip |
+| 4 · decks and pack | `second-nature-decks.py` → `second-edition-decks.py`, `even-keel-decks.py`, `short-run-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the zip |
 | league | `league.mjs` | the weighted league on every factor the sheets compare (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`) — the owner's weights, a judgement not a measurement |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
 
@@ -212,8 +212,12 @@ are Second Nature's exactly); `tooling/even-keel-decks.py` makes Even Keel's, wh
 Second Gear's table (the shift-time list, 44 late finishes with four to the close on a Saturday, the run, the rest and
 the fit chart); and `tooling/short-run-decks.py` makes Short Run's by applying Second Edition's edits and then its own
 — the run (5 on the fixed rota, up to 6 when a cover week falls badly, said both ways), the weekly hours and the pitch
-lines. Every builder refuses if a slide no longer holds the text it expects, and every deck compares only with today's
-link.
+lines. **Then `tooling/deck-polish.py` runs over the six shipped decks** (3 Oct 2026, the reader's critique): the
+four-weeks-off leave cost said early and on the trade-offs slide, full weekends off per year first, days a year as 218.6
+against 219.0, the one-turn row and the fit slide saying what they count, slide 10 turned into a picture of the 26 weeks
+(`tooling/rota-strip.mjs`, from the grid), and the manager "Why" slide split into what every link here gives, what this
+one adds and what it costs. Every builder and the polish refuse if a slide no longer holds the text they expect, and
+every deck compares only with today's link.
 - **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts.
   `tooling/leave.mjs` gives the four leave figures (all three shortlisted designs: 14 days' leave buys 28 days off at
   best, 23.4 on average, 20 at worst, and four full weeks off takes 15; today 30 · 23.4 · 19 · 14). It is the 24-line
@@ -227,7 +231,7 @@ Rebuild after any change to the rota:
 ```
 python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/second-edition-decks.py \
   && python3 docs/links-26/tooling/even-keel-decks.py && python3 docs/links-26/tooling/short-run-decks.py \
-  && node docs/links-26/tooling/deck-check.mjs
+  && python3 docs/links-26/tooling/deck-polish.py && node docs/links-26/tooling/deck-check.mjs
 ```
 
 Then export the PDFs (LibreOffice). Two things the decks say that the sheet does not show directly:
@@ -748,7 +752,9 @@ if a file is missing. The 24-line pack was zipped by hand, so it went stale afte
 running `python3 docs/links-26/tooling/pack.py` after any re-render.
 
 **26 in the app since v24.47 (3 Oct 2026).** `ROTATING_LINES = 26` in `links-design.js`: the Links page lays out 26
-lines, so the import files in the pack paste straight in and the page re-runs every check on them. The tooling still
+lines, so the import files in the pack paste straight in and the page re-runs every check on them; the three shortlisted
+designs are built into that page as examples, copied cell for cell from `proposals/` (`links-proposals.js` says so, and
+says to re-copy if one changes). The tooling still
 passes 26 to every app function explicitly — harmless now, and it keeps the sheets' line count stated in one place
 (`tooling/link.mjs`) rather than inherited. Until that release the page was on 24 lines and refused the files; the
 read-me said so, and now says the opposite.

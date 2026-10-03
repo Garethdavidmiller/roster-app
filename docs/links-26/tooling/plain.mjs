@@ -403,7 +403,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('Most days in a row, fixed duties', runFT, runF, run > 13 ? 'no' : cmp(runF < runFT, runF === runFT), `${runW !== runF || runWT !== runFT ? `up to ${runW} (today ${runWT}) if a cover week falls badly; ` : ''}Chiltern’s limit is 13${runW !== runF || runWT !== runFT ? '' : ' (written source to confirm)'}`),
     row('Shortest gap between two shifts', hm(T.rest?.minutes), hm(restMin), rests ? 'no' : cmp(restMin > T.rest?.minutes, restMin === T.rest?.minutes), 'in the fixed duties; the limit is 12 hours'),
     row('Full weekends off, in the rotation', `${T.checks.weekendsOff} in ${tp.L}`, `${P.checks.weekendsOff} in ${pp.L}`, cmp(pWeekShare > tWeekShare, everyN(pWeekShare) === everyN(tWeekShare)), pGap == null ? 'none in the rotation' : `uneven: never more than ${pGap} weeks apart (today ${tGap ?? '—'})`),
-    row('Days at work a year, not counting Sundays', Math.round(tp.daysYear), Math.round(pp.daysYear), '', 'Sundays are overtime; a cover week counts as 4 days'),
+    row('Days at work a year, not counting Sundays', tp.daysYear.toFixed(1), pp.daysYear.toFixed(1), '', 'Sundays are overtime; a cover week counts as 4 days'),
     row('Weeks on one shift time', ofW(T), ofW(P), '', 'all earlies or all lates, one clock time Monday to Friday'),
     row('Weeks mixing earlies and lates', `${T.feel.hybrid} of ${T.feel.workingLines}`, `${P.feel.hybrid} of ${P.feel.workingLines}`, '', 'a week with both early and late shifts in it'),
     row('Single rest days', iso(T), iso(P), '', 'a rest day on its own — not a two-day break'),
