@@ -646,6 +646,58 @@ env $G ONE_MIN=18 node space-polish.mjs /tmp/sr3.json /tmp/sr5.json 2 500000    
 The exact solver is not deterministic across CBC versions, so the first command may write the six in another order or
 find different ones; `results/skeleton-run5.json` is the one that worked, and the chain from it is deterministic.
 
+## Long Break — four weeks off for 14 days' leave, as today (3 Oct 2026)
+
+Every 26-line design before this one needed **15** days' leave for four full weeks off, where today's link needs 14 — the
+one line on the leave slide where every proposal was worse than today. The owner asked whether 14 was possible at all,
+then asked for the search ("run the 14 day leave search"). It was, and it ships as **Long Break** (`LB-26-F1` ·
+`c193b37e`, Second Nature family, `proposals/Long-Break-LB-26-F1-c193b37e.pdf`, grid `tooling/long-break.json`).
+
+**What the exact solver said first.** `exact-floor.py`'s layout model with one constraint added — somewhere in the wheel,
+28 days from a Sunday must cost at most 14 days' leave — and the single rest days minimised:
+
+| Layout rules, four weeks off for 14 days | Single rest days, at least |
+|---|---|
+| structural rules only, run ≤ 6 | 4 |
+| + the family rules, run ≤ 6 | 5 |
+| + the family rules, run ≤ 5 | 6 |
+
+(A first solve of the middle row reported 7 while calling itself optimal; a tighter run limit cannot lower a floor, so
+it was re-run with a longer limit and gave 5. Treat a time-limited "Optimal" from CBC with the same caution.) So the 14
+is not forced out by the link's shape; its price is one more single rest day than the four every shortlisted design has.
+
+**How it was built.** `FOUR=14 python3 exact-skeletons.py 6 5 4 10` — the generator with the four-weeks constraint, at
+most five single rest days, no run over six. It wrote one skeleton before its second solve ran out of time
+(`results/skeleton-leave14.json`). Laid with Second Edition's table and sent through the soft → soft → hard chain with
+`LEAVE_FOUR_MAX=14` held as a floor throughout, it came through with every check clear; laid with Even Keel's table it
+failed at the start, as on every exact skeleton so far. Three further polishes with everything held — asking for 17
+one-turn weeks, for 18, and for a step under 1h 30m — kept nothing, and the closest of them (step 1h 44m against the
+chain's 1h 46m) is the rota shipped.
+
+**Long Break against Second Edition** (same duty table, so the same fit, times, late finishes, closers, headcounts and
+218.6 days): 9/9 rules, 3/3 flexible, every hard limit, no fatigue factor fixed or in the worst case, rest 14h 20m,
+7 full weekends never more than five apart (gaps 5 1 5 5 5 1 4), no run over six, no mixed week, heaviest week 42h 00m,
+lightest 24h 30m. **The gains:** four full weeks off for **14** days' leave (Second Edition 15, today 14), and the best
+14-day stretch **29** days off (28; today 30); the worst stays 20 and the average 23.5. **The costs:** **five** single
+rest days (four), **16 of 21** weeks on one shift time (18), and a week-to-week step of **1h 44m** (1h 01m). In the
+all-factor league it sits fourth, under Second Edition, Short Run and Even Keel and above Fine Tune — the leave gain is
+worth three points there and the one-turn, step and single-rest-day costs take back four.
+
+**How to rebuild it** (from `tooling/`; the solver needs `pip install pulp`):
+
+```
+FOUR=14 python3 exact-skeletons.py 6 5 4 10 /tmp/lb          # /tmp/lb/skel-1.json = results/skeleton-leave14.json
+node skeleton-start.mjs results/skeleton-leave14.json /tmp/lb0.json 1
+F="REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=16 ISO_MAX=5 MIXED_MAX=0 STEP_MAX=121 LEAVE_WORST_MIN=20 LEAVE_FOUR_MAX=14 ISO_W=1e5 MIX_W=4e4"
+env $F FATIGUE_SOFT=1 HEAVY_MAX=42.5 node space-polish.mjs /tmp/lb0.json /tmp/lb1.json 1 400000
+env $F FATIGUE_SOFT=1 HEAVY_MAX=42.5 node space-polish.mjs /tmp/lb1.json /tmp/lb2.json 2 500000
+env $F HEAVY_MAX=42 node space-polish.mjs /tmp/lb2.json /tmp/lb3.json 1 500000                  # every check clear, step 1h 46m
+env $F HEAVY_MAX=42 LEAVE_BEST_MIN=29 ONE_MIN=17 node space-polish.mjs /tmp/lb3.json /tmp/lb4.json 1 500000   # keeps nothing → /tmp/lb4.closest.json = long-break.json
+```
+
+The same caveat as Short Run's: the generator is not deterministic across CBC versions, and the polish moves rest days
+after the lay, so the skeleton is where the search started.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
