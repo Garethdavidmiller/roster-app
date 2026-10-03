@@ -4,10 +4,11 @@
 // left over at the START of a run (a 07:00 at the end of a 06:20 block makes the block illegal), the five 12:00-20:00
 // duties on one late line working Monday to Friday with Sunday off (FF19), and the Sunday 09:00 on an early line with
 // Monday off. The rest is dealt by seed; space-polish.mjs does the rest.
-//   node skeleton-start.mjs <skeleton.json> <start.json> [seed]
+//   [TABLE=results/<x>-table.json] node skeleton-start.mjs <skeleton.json> <start.json> [seed]
 import { readFileSync, writeFileSync } from 'node:fs';
 const [SK, OUT, SEED_] = process.argv.slice(2);
-const T = JSON.parse(readFileSync(new URL('./results/second-nature-table.json', import.meta.url), 'utf8')).slots;
+// TABLE=<table.json> lays another duty table onto the skeleton (3 Oct 2026, for Second Gear's); Second Nature's by default
+const T = JSON.parse(readFileSync(process.env.TABLE ?? new URL('./results/second-nature-table.json', import.meta.url), 'utf8')).slots;
 const { on, fam } = JSON.parse(readFileSync(SK, 'utf8'));
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'], L = 26, COVER = new Set([1, 6, 11, 16, 21]);
 const WORK = Object.keys(on).map(Number).sort((a, b) => a - b);
