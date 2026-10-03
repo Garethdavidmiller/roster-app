@@ -1415,7 +1415,7 @@ export function init() {
             if (emptyTitle) emptyTitle.textContent = loadFailed ? 'Couldn’t load your designs' : binnedOnLoad && deletedDesigns.length ? `Your ${PREVIOUS_LINK_LENGTH}-line designs are in Recently deleted` : 'No designs yet';
             if (emptyMsg) emptyMsg.innerHTML = loadFailed
                 ? `Check your connection and refresh the page. Nothing has been lost — saved designs are on the server.`
-                : binnedOnLoad && deletedDesigns.length ? `The link is ${TOTAL_POS} lines from December, so ${binnedOnLoad === 1 ? 'the design' : `the ${binnedOnLoad} designs`} drawn for ${PREVIOUS_LINK_LENGTH} moved there — restore from <strong>Recently deleted</strong> if you still need one. Or open one of the shortlisted proposals, auto-generate, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`
+                : binnedOnLoad && deletedDesigns.length ? `The link is ${TOTAL_POS} lines from December, so ${binnedOnLoad === 1 ? 'the design' : `the ${binnedOnLoad} designs`} drawn for ${PREVIOUS_LINK_LENGTH} moved there. Restore one from <strong>Recently deleted</strong>, in the <span aria-hidden="true">···</span><span class="sr-only">More</span> menu above, if you still need it.`
                 : `Build a rotating pattern from staffing targets with the Auto-generate card below, open one of the shortlisted proposals, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`;
             if (emptyActs) /** @type {HTMLElement} */ (emptyActs).style.display = loadFailed ? 'none' : '';
             _setGridHint(false);

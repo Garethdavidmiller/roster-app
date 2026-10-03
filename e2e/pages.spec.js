@@ -5076,7 +5076,7 @@ test('links: when EVERY design was a 24-line one, the empty page says where they
     });
     await page.goto('/links.html');
     await expect(page.locator('#linksEmptyState .links-empty-title')).toHaveText('Your 24-line designs are in Recently deleted');
-    await expect(page.locator('#linksEmptyMsg')).toContainText('the 2 designs drawn for 24 moved there');
+    await expect(page.locator('#linksEmptyMsg')).toContainText('the 2 designs drawn for 24 moved there. Restore one from Recently deleted');
 });
 
 test('links: the rotation length the in-page fixtures assume', () => {
