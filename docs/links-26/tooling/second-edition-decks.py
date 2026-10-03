@@ -24,6 +24,13 @@ def rename(d):
             p = os.path.join(root, f); x = open(p, encoding='utf-8').read()
             y = x.replace('Second Nature', NAME).replace('SN-26-F2', CODE)
             if y != x: open(p, 'w', encoding='utf-8').write(y)
+    xp = f'{d}/ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx'   # the manager deck's chart workbook: its series is still headed "Second Nature"
+    if os.path.exists(xp):
+        import openpyxl; wb = openpyxl.load_workbook(xp); ws = wb.active; hit = False
+        for row in ws.iter_rows():
+            for cell in row:
+                if cell.value in ('Second Nature', 'Second Edition'): cell.value = NAME; hit = True
+        if hit: wb.save(xp)
 
 def build(src, out, edit):
     d = tempfile.mkdtemp(); zipfile.ZipFile(src).extractall(d)

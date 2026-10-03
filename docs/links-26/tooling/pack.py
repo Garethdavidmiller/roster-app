@@ -39,10 +39,19 @@ with_decks = [n for n, _, _ in proposals if os.path.exists(f"{ROOT}/presentation
 readme = f"""DECEMBER 2026 LINK PROPOSALS - 26 LINES
 Marylebone CEA link, December 2026 timetable - the 26-week link (from 1 October 2026)
 
-A WORK IN PROGRESS, not a decision pack: the proposals, the figures and the wording
-are still moving, and the staffing levels behind the rules were confirmed verbally.
-The link was 24 weeks until 1 October 2026; that work is kept in its own pack,
-links-24-proposals.zip, for reference.
+TEN candidate links, THREE shortlisted (Second Edition, Short Run, Even Keel), ONE
+recommended (Short Run). Asked of managers: which of the three goes to colleagues.
+Asked of colleagues: look at page 3 of the chosen sheet and say what worries you.
+  Ten minutes:    1 Summary/links-26-shortlist.pdf
+  Twenty minutes: add 3 Presentations/Short-Run-for-managers.pdf
+  The rest is the evidence behind them.
+
+Still moving: the staffing levels and Sunday cover behind the rules were confirmed
+verbally, not in writing; the written source of the 13-day limit is to be confirmed;
+and the reading of one fatigue factor (FF19, marked "definition to confirm" on the
+rules page) is open. The figures are computed from the rotas and will not move unless a
+rule does. The link was 24 weeks until 1 October 2026; that work is kept in its own
+pack, links-24-proposals.zip, for reference.
 
 Proposals in this pack: {names}.
 

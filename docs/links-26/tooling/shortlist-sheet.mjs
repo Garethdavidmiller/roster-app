@@ -50,11 +50,10 @@ const ROWS = [
   ['Shortest rest between shifts', F => F.A.rest.minutes, 1, hm],
   ['Weeks on one turn, Monday to Friday', F => F.A.feel.oneTurn, 1, (v, F) => `${v} of ${F.A.feel.workingLines}`],
   ['Weeks mixing earlies and lates', F => F.A.feel.hybrid, -1, v => `${v}`],
-  ['Single rest days in the rotation', F => F.A.feel.isolatedRest, -1, v => `${v}`],
   ['Week-to-week change of start time', F => F.step, -1, hm],
   ['Finishing at 23:00 or later, each a year', F => Math.round(F.pp.late23), -1, v => `${v}`],
   ['Shift times to learn that are new', F => F.newT, -1, (v, F) => `${v} of ${F.times}`],
-  ['Fit to the trains (lower is closer)', F => F.fit[0] + F.fit[1] + F.fit[2], -1, (v, F) => F.fit.map(x => x.toFixed(1)).join(' · ')],
+  ['Fit to the trains, weekday · Sat · Sun (0 = staff track the trains exactly)', F => 0, -1, (v, F) => F.fit.map(x => x.toFixed(1)).join(' · ')],
 ];
 const best = (get, dir) => { const vals = D.map(d => get(d.F)); const b = dir > 0 ? Math.max(...vals) : Math.min(...vals); return vals.map(v => v === b); };
 const rowsHtml = ROWS.map(([label, get, dir, fmt]) => { const bb = best(get, dir); const allSame = bb.every(Boolean);
@@ -118,14 +117,14 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.8px; line-height:
   <div class="sub">Second Edition, Short Run and Even Keel against each other and against today’s link — the figures, then a recommendation</div></div></div>
 
   <h2>What all three share</h2>
-  <p class="lead">Ten designs were built and checked. These three have no all-round better alternative in the pack; the one design that beats them on anything, Long Break, pays for it elsewhere and is on page 2. On everything below the three are the same, and on each line better than or level with today.</p>
+  <p class="lead">Ten designs were built and checked. These three have no all-round better alternative in the pack; the one design that beats them on anything, Long Break, pays for it elsewhere and is on page 2. On everything below the three are the same, and on each line better than or level with today — with one exception, leave, which is under the costs on page 2.</p>
   <div class="shared">
     <div>All <b>${SE.F.met} of 9</b> December staffing rules, and all ${SE.F.flex} flexible ones (today ${TF.met} of 9, ${TF.flex} flexible)</div>
     <div><b>No fatigue warning</b>, fixed rota or with a cover week placed badly (today ${TF.A.fixed.present}, up to ${TF.A.fatigue.present})</div>
     <div><b>${SE.F.A.checks.weekendsOff} full weekends off in 26</b>, never more than ${SE.F.maxGap} weeks apart (today ${TF.A.checks.weekendsOff} in 20, up to ${TF.maxGap} apart)</div>
     <div>The same <b>35-hour</b> week and <b>${SE.F.pp.daysYear.toFixed(1)} days</b> a year, under the ceiling of 219 (today ${TF.pp.daysYear.toFixed(1)})</div>
     <div>Every closing shift <b>30 to 45 minutes shorter</b>; no shift over ${hm(SE.F.pp.longest)} (today ${hm(TF.pp.longest)})</div>
-    <div>The same leave: 14 days buys <b>${SE.F.lv.best}</b> days off at best, <b>${SE.F.lv.worst}</b> at worst; four full weeks off costs <b>${SE.F.lv.fourWeeks}</b> days (today ${TF.lv.best} · ${TF.lv.worst} · ${TF.lv.fourWeeks})</div>
+    <div><b>${SE.F.A.feel.isolatedRest} single rest days</b> in the rotation, as today; rest days otherwise in pairs or longer (${SE.F.A.feel.pairedRest} of ${SE.F.A.feel.restIslands} breaks, today ${TF.A.feel.pairedRest} of ${TF.A.feel.restIslands})</div>
   </div>
 
   <h2>Where they differ</h2>
@@ -139,7 +138,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.8px; line-height:
     <div class="card"><b class="k">Even Keel</b><span class="code">${EK.code} · ${EK.fp}</span><b>The lightest weeks and the longest rests.</b> A different duty table: no week over ${hm(EK.F.heavy)}, shortest rest ${hm(EK.F.A.rest.minutes)}, no run over ${EK.F.fixedRun}. It pays with ${Math.round(EK.F.pp.late23)} late finishes a year (the others ${Math.round(SE.F.pp.late23)}), ${EK.F.newT} new times and ${EK.F.A.feel.hybrid} mixed week.</div>
   </div>
   <h2>How they were made, and how they were checked</h2>
-  <p>Second Edition came from a search over the rest-day layout first and the shift times second, under every rule a finished rota must meet. Short Run is the same duty table on a layout an exact solver proved to exist (no run over five days with still only four single rest days — the annealing search had missed it in sixteen attempts). Even Keel is an outside reviewer’s reordering of Second Gear, verified here by the app’s own checks before it shipped. Every figure here, on the sheets and in the presentations is computed from the rota by the same code; four independent audits of about 2,400 claims found no wrong number.</p>
+  <p>Second Edition came from a search over the rest-day layout first and the shift times second, under every rule a finished rota must meet. Short Run is the same duty table on a layout an exact solver proved to exist (no run over five days with still only four single rest days — the annealing search had missed it in sixteen attempts). Even Keel is an outside reviewer’s reordering of Second Gear, verified here by the app’s own checks before it shipped. Every figure here, on the sheets and in the presentations is computed from the rota by the same code, and four independent audits recomputed them from the grids and found no wrong number; the wording around them has been corrected where those audits faulted it.</p>
   <div class="foot"><span>Page 1 of 2 — What they share, where they differ, each one’s edge</span><span><b>The shortlist</b> · Marylebone Roster — Links designer · every figure computed from the rotas</span></div>
 </section>
 
@@ -151,23 +150,23 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.8px; line-height:
   <table class="t"><thead><tr><th>Measure</th><th class="num">Today</th>${D.map(d => `<th class="num">${esc(d.name)}</th>`).join('')}</tr></thead><tbody>${todayHtml}</tbody></table>
   <p class="muted">Per-year figures are the rotation’s count scaled to 52 weeks; days a year is Monday to Saturday, a cover week counting four. Sundays stay overtime.</p>
 
-  <h2>Why these three and not the other six</h2>
+  <h2>Why these three and not the other seven</h2>
   <p>Ten designs are in the pack. Six of the others are beaten line for line by one of these three — the same table with more mixed weeks, a rougher step, a heavier week or a fifth single rest day — so presenting them would add a choice without adding an option. The seventh, Long Break, alone brings four weeks off back to 14 days’ leave, for a fifth single rest day, two fewer one-turn weeks and a 1h 44m step; it stays in the pack as the leave-first option.</p>
   <h2>The honest costs, shared by all three</h2>
   <ul class="list">
     <li><b>Late finishes.</b> ${Math.round(SE.F.pp.late23)} a year each at 23:00 or later (today ${Math.round(TF.pp.late23)}), ${Math.round(EK.F.pp.late23)} on Even Keel. It is the December staffing: three to the close every day where today’s weekdays have two, so no link meeting the rules can have fewer than ${Math.round(SE.F.pp.late23)}.</li>
     <li><b>Leave.</b> The best 14-day stretch is ${SE.F.lv.best} days off, not today’s ${TF.lv.best}; four full weeks off takes ${SE.F.lv.fourWeeks} days’ leave, not ${TF.lv.fourWeeks}. The worst stretch is a day better. Say this early: it is the one line where every proposal is worse than today on something people plan a year around.</li>
     <li><b>Saturdays.</b> About ${Math.round(SE.F.pp.sat) - Math.round(TF.pp.sat)} more a year each (${Math.round(SE.F.pp.sat)}, today ${Math.round(TF.pp.sat)}) — the price of ${SE.F.A.checks.weekendsOff} full weekends spaced ${SE.F.maxGap} apart instead of ${TF.A.checks.weekendsOff} spaced up to ${TF.maxGap}.</li>
-    <li><b>New times.</b> ${SE.F.newT} of ${SE.F.times} shift times are new on Second Edition and Short Run (${SE.F.shared} are worked today), ${EK.F.newT} of ${EK.F.times} on Even Keel. Two of the new ones are today’s closers starting later, so shorter.</li>
+    <li><b>New times.</b> ${SE.F.newT} of ${SE.F.times} shift times are new on Second Edition and Short Run (${SE.F.shared} are worked today), ${EK.F.newT} of ${EK.F.times} on Even Keel. Four of the new ones are today’s lates starting later — two of them the closers — so shorter.</li>
   </ul>
 
   <h2>Recommendation</h2>
-  <div class="callout pick"><b>Short Run.</b> It is Second Edition with the last six-day stretch taken out — ${SE.F.fixedRun} days in a row on Second Edition’s fixed rota, never more than ${SR.F.fixedRun} on Short Run’s — and what it gives up is a half hour on one week (${hm(SR.F.heavy)} against ${hm(SE.F.heavy)}, both under today’s ${hm(TF.heavy)}) and ${hm(SR.F.step - SE.F.step)} on the week-to-week step. A sixth day in a row is something a colleague feels and remembers; thirty minutes once in 26 weeks is not. That is the right direction for a staff proposal.</div>
-  <p class="lead" style="margin-top:8px"><b>But the choice is closer than any league table makes it look.</b> Scored on eighteen factors the three sit within about a point of each other, and which is first depends on whether the run is measured on the fixed rota or on a cover week placed badly. So choose by the edge that matters here:</p>
+  <div class="callout pick"><b>Short Run.</b> On the fixed rota — the worst case with a cover week placed badly is six days for all three — it is Second Edition with the last six-day stretch taken out — ${SE.F.fixedRun} days in a row on Second Edition’s fixed rota, never more than ${SR.F.fixedRun} on Short Run’s — and what it gives up is a half hour on one week (${hm(SR.F.heavy)} against ${hm(SE.F.heavy)}, both under today’s ${hm(TF.heavy)}) and ${hm(SR.F.step - SE.F.step)} on the week-to-week step. A sixth day in a row is something a colleague feels and remembers; thirty minutes once in 26 weeks is not. That is the right direction for a staff proposal.</div>
+  <p class="lead" style="margin-top:8px"><b>But the choice is closer than the table above makes it look.</b> Weight every line and the three finish within about a point of a hundred, and which is first turns on whether the run is measured on the fixed rota or on a cover week placed badly. So choose by the edge that matters here:</p>
   <ul class="list">
     <li><b>Choose Short Run</b> if days in a row is what colleagues raise first.</li>
-    <li><b>Choose Even Keel</b> if the heaviest week and the shortest rest matter more than two late finishes a year and a seventh new time — it is the only one on a different duty table, so it is a genuine alternative rather than a variant.</li>
-    <li><b>Choose Second Edition</b> if a week at ${hm(SR.F.heavy)} is refused outright, or if steady shift times week to week carry the day; it is Short Run’s fallback, already on the shelf.</li>
+    <li><b>Choose Even Keel</b> if the heaviest week and the shortest rest matter more than two late finishes a year and a seventh new time; those two late finishes buy a fourth person to the Saturday close, which a manager may count as a gain. It is the only one on a different duty table, so it is a genuine alternative rather than a variant.</li>
+    <li><b>Choose Second Edition</b> if steady shift times week to week carry the day: the gentlest week-to-week change of the three, at the price of the six-day stretch. It is Short Run’s fallback, already on the shelf.</li>
   </ul>
   <p class="muted">The caveat all three carry: the run and fatigue figures are for the duties the rota fixes. A cover week’s four duties are placed later by the roster clerk, and placed badly they can make six days in a row on any of them — the sheets print both figures.</p>
   <div class="foot"><span>Page 2 of 2 — Against today, the shared costs, the recommendation</span><span><b>The shortlist</b> · ${D.map(d => `${esc(d.name)} ${d.code}`).join(' · ')} · 3 Oct 2026</span></div>

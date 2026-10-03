@@ -129,7 +129,7 @@ def colleagues(d):
                             (10, '14:30–22:30 — the ticket-office late')])
     s.text(11, 'Fewer shift times than today (16, not 18) — and most new ones are a small nudge.', 'Fewer shift times than today (15, not 18) — and nothing new on a Saturday.')
     s.save()
-    notes(d, 8, 'Familiar Nine was built', f'Second Nature was built the way {F9} was: keeping the times people already work wherever that cost little. Nine of its fifteen are worked today, and it uses fewer different times overall than today’s eighteen. Three of the six new ones are today’s shifts starting later — the weekday closer, the Sunday closer and the Sunday ticket-office late — so they are shorter, not longer. The Sunday opener stays today’s 07:15–15:45.')
+    notes(d, 8, 'Familiar Nine was built', f'Second Nature was built keeping the times people already work wherever that cost little. Nine of its fifteen are worked today, and it uses fewer different times overall than today’s eighteen. Four of the six new ones are today’s shifts starting later — the weekday closer, the Sunday closer, and the ticket-office late on weekdays and on Sundays — so they are shorter, not longer. The Sunday opener stays today’s 07:15–15:45.')
 
     s = S(9)
     s.text(7, '6 in 24', '7 in 26', GREEN); s.text(15, '22 of 24', '21 of 25', GREEN); s.text(23, '14 of 20', '15 of 21', GREEN)
@@ -156,7 +156,7 @@ def colleagues(d):
 
     s = S(13)
     s.text(3, 'Eight new shift times to learn', 'Six new shift times to learn')
-    s.text(4, 'Most are within 10–30 minutes of a time we already work.', 'Three are today’s lates starting later, so shorter.')
+    s.text(4, 'Most are within 10–30 minutes of a time we already work.', 'Four are today’s lates starting later, so shorter.')
     s.text(6, 'Shifts 6 minutes longer on average', 'Shifts about 2 minutes longer on average')
     s.text(7, 'That is what buys two fewer contracted days.', 'It keeps days at work to 219 a year or fewer.')
     s.text(10, 'Average and worst: about the same as today.', 'Average as today, and the worst a day better.')

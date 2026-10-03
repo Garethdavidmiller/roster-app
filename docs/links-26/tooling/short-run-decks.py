@@ -35,6 +35,13 @@ def rename(d):
             p = os.path.join(root, f); x = open(p, encoding='utf-8').read()
             y = x.replace('Second Nature', NAME).replace('Second Edition', NAME).replace('SN-26-F2', CODE).replace('SE-26-F1', CODE)
             if y != x: open(p, 'w', encoding='utf-8').write(y)
+    xp = f'{d}/ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx'   # the manager deck's chart workbook: its series is still headed "Second Nature"
+    if os.path.exists(xp):
+        import openpyxl; wb = openpyxl.load_workbook(xp); ws = wb.active; hit = False
+        for row in ws.iter_rows():
+            for cell in row:
+                if cell.value in ('Second Nature', 'Second Edition'): cell.value = NAME; hit = True
+        if hit: wb.save(xp)
 
 def build(src, out, edits):
     d = tempfile.mkdtemp(); zipfile.ZipFile(src).extractall(d)
@@ -52,14 +59,14 @@ def colleagues(d):
     s = S(2)
     put(s, '6', '5'); put(s, 'today 7, up to 9', 'up to 6 · today 7')   # the tile's sub-line, as Even Keel's deck states it
     put(s, 'Same hours, shorter closers, weekends off never more than five weeks apart, and the same shift time most weeks.',
-           'Same hours, shorter closers, weekends off never more than five weeks apart, and never more than five days in a row.')
+           'Same hours, shorter closers, weekends off never more than five weeks apart, and never more than five days in a row on the fixed rota.')
     s.save()
     notes(d, 2, 'This is the whole pitch', 'This is the whole pitch on one slide. Same 35-hour week as now. Never more than five days in a row on the fixed rota — six at most when a cover week falls badly, where today it is seven and can reach nine. Seven full weekends off in every 26 weeks, against four in 20 today, and never more than five weeks apart — though each person works about two more Saturdays a year. Every week is all earlies or all lates, and 18 of the 21 working weeks keep one shift time Monday to Friday. Nine of the fifteen shift times are ones people already work. And every closing shift is shorter: the weekday and Saturday closers by 30 minutes, the Sunday closer by 45.')
 
     s = S(9)
     put(s, '6', '5 (up to 6)', GREEN)
     put(s, 'Seven weekends off in 26, at most five weeks apart, and one shift time in 18 of 21 weeks.',
-           'Seven weekends off in 26, at most five weeks apart, and never more than five days in a row.')
+           'Seven weekends off in 26, at most five weeks apart, and never more than five days in a row on the fixed rota.')
     s.save()
     notes(d, 9, 'A full weekend is', 'A full weekend is Saturday and the following Sunday both off. Today that is 4 weekends in a 20-week cycle; Short Run gives 7 in 26, and they are never more than five weeks apart, against seven today. Five is as close as they can be: a full weekend cannot start in a cover week or the week before one, so only 16 of the 26 weeks can begin one. Nobody works more than five days in a row on the fixed rota — today it is seven — and six is the most a badly placed cover week can make it. Every working week is all earlies or all lates — today seven weeks in 16 mix the two — and 18 of the 21 keep the same shift time Monday to Friday. Rest days mostly come in pairs: 22 of the 26 rest-day breaks are two days or more, against 13 of 17 today, and single rest days stay at four, as today. There are no six-day weeks (today there is one).')
 
@@ -76,14 +83,14 @@ def managers(d):
     s = S(6); put(s, '6', '5 (up to 6)', GREEN); s.save()
 
     s = S(7)
-    put(s, 'One shift time in 18 of 21 weeks, and the fewest late finishes the rules allow', 'Never more than five days in a row, and the fewest late finishes the rules allow')
+    put(s, 'One shift time in 18 of 21 weeks, and the fewest late finishes the rules allow', 'No run over five days on the fixed rota, and the fewest late finishes the rules allow')
     put(s, 'Never more than 6 days in a row — today 7', 'Never more than 5 days in a row on the fixed rota — today 7')
     s.save()
     notes(d, 7, 'This is the case in one slide', 'This is the case in one slide. It meets every December staffing rule and keeps the shift times people already work wherever that cost little — nine of its fifteen are worked today, and none on a Saturday is new. Nobody works more than five days in a row on the fixed rota, where today it is seven; a cover week placed badly can make it six, never more. Every working week is all earlies or all lates, and 18 of the 21 keep one shift time Monday to Friday, where today it is seven weeks in 16. Its seven full weekends off in 26 weeks are never more than five weeks apart, which is as close as the five cover weeks allow; today it is four in 20, up to seven weeks apart. The honest cost is late finishes, and it is the smallest one possible: the December staffing needs three to the close every day, and only those three finish after 23:00, so finishes at 23:00 or later go from about 39 to 42 a year each. Its heaviest week is 42h 30m, against today’s 43h 50m. Every closing shift is 30 to 45 minutes shorter. Six shift times are new.')
 
     s = S(8)
     s.runs(5, ['7 weekends off, at most 5 weeks apart', 'One shift time in 18 of 21 weeks (today 7 of 16)', 'Every closing shift 30–45 minutes shorter', '9 of the 15 shift times already worked', 'Shortest rest 14h 20m (today 12h 30m)'],
-              ['7 weekends off, at most 5 weeks apart', 'Never more than 5 days in a row (today 7)', 'One shift time in 18 of 21 weeks (today 7 of 16)', 'Every closing shift 30–45 minutes shorter', '9 of the 15 shift times already worked'])
+              ['7 weekends off, at most 5 weeks apart', 'Never more than 5 days in a row on the fixed rota (today 7)', 'One shift time in 18 of 21 weeks (today 7 of 16)', 'Every closing shift 30–45 minutes shorter', '9 of the 15 shift times already worked'])
     s.save()
     notes(d, 8, 'Days at work stay', 'Days at work stay at 219 a year (218.6 exactly; Monday to Saturday; Sunday is overtime), under the ceiling agreed on 1 October 2026. Late finishes average about three more a year each, all of them from the December staffing — three to the close every day, where today’s weekdays have two — so no link meeting the same rules on 26 weeks could have fewer. Full weekends off are seven in 26 and never more than five weeks apart; nobody works more than five days in a row on the fixed rota; no week mixes earlies and lates, and 18 of the 21 working weeks keep one shift time. Weekly hours run from 24h 30m to 42h 30m (today 25h 10m to 43h 50m); only the average is the contract. The average shift is about two minutes longer.')
 

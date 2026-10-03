@@ -66,7 +66,7 @@ def colleagues(d):
     s.paras(9, 'Weekdays', [(0, 'Weekdays'), (1, '14:45–22:30 — a new late, ending with the ticket office'), (2, '15:45–23:55 — the closer, 30 minutes later than 15:15'),
                             (4, 'Saturday'), (5, '06:20–15:00 — a new early, 8h 40m'), (5, '07:45–16:45 — a new early, 9 hours'),
                             (6, 'Sunday'), (7, '15:15–23:25 — the closer, 45 minutes later than 14:30'), (8, '09:00–18:00 — a new early, 9 hours'), (9, '14:30–22:30 — the ticket-office late')])
-    s.text(11, 'Fewer shift times than today (15, not 18) — and nothing new on a Saturday.', 'Fewer shift times than today (15, not 18) — and three of the new ones are today’s shifts starting later.')
+    s.text(11, 'Fewer shift times than today (15, not 18) — and nothing new on a Saturday.', 'Fewer shift times than today (15, not 18) — and four of the new ones are today’s shifts starting later.')
     s.save()
     notes(d, 8, 'Second Nature was built', 'Even Keel uses fifteen shift times, fewer than today’s eighteen, and eight of them are worked today. Three of the seven new ones are today’s shifts starting later — the weekday closer, the Sunday closer and the Sunday ticket-office late — so they are shorter, not longer. The other new ones are a weekday late finishing with the ticket office, two Saturday earlies and a Sunday 09:00 start. The Sunday opener stays today’s 07:15–15:45.')
 
@@ -120,7 +120,7 @@ def managers(d):
 
     s = S(8)
     s.runs(5, ['Weekends off: 7 in 26 (today 4 in 20)', 'At most 6 days in a row (today 7)', 'Every closing shift 30–45 minutes shorter', '9 of the 15 shift times already worked', 'Shortest rest 14h 20m (today 12h 30m)'],
-              ['7 weekends off, at most 5 weeks apart', 'One shift time in 18 of 21 weeks (today 7 of 16)', 'At most 5 days in a row (today 7)', 'No week over 41h 30m Monday to Saturday', 'Shortest rest 14h 35m (today 12h 30m)'])
+              ['7 weekends off, at most 5 weeks apart', 'One shift time in 18 of 21 weeks (today 7 of 16)', 'At most 5 days in a row on the fixed rota (today 7)', 'No week over 41h 30m Monday to Saturday', 'Shortest rest 14h 35m (today 12h 30m)'])
     s.runs(9, ['Late finishes: 42 a year (today 39)', '6 new shift times to learn', 'Weekends off up to 10 weeks apart', 'Best 14-day leave stretch 28 days, not 30', 'Four weeks off takes 15 days’ leave at best, not 14'],
               ['Late finishes: 44 a year (today 39)', '7 new shift times to learn, 2 on a Saturday', 'Average shift about 2 minutes longer', 'Best 14-day leave stretch 28 days, not 30', 'Four weeks off takes 15 days’ leave at best, not 14'])
     s.save()
