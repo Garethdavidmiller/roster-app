@@ -16,7 +16,7 @@ import { shiftBadgeParts } from './roster-data.js';
 import { getCurrentMember } from './calendar-member.js';
 import { getDisplayYear } from './calendar-state.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
-import { getALEntitlement, formatISO, paydayForCutoff } from './roster-data.js';
+import { getALEntitlement, formatISO, paydayForCutoff, CONFIG } from './roster-data.js';
 import { consumesEntitlement } from './al-entitlement.js';
 import { shouldReplaceOverride } from './override-utils.js';
 import { lsGet, lsSet } from './ls.js';
@@ -42,12 +42,33 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   const breakdownEl = document.getElementById('alLbBreakdown');
   const alErrorEl   = document.getElementById('alLbError');
 
+  const prevYearBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('alLbPrevYear'));
+  const nextYearBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('alLbNextYear'));
+  const viewLink    = /** @type {HTMLAnchorElement|null} */ (document.getElementById('alLbViewLink'));
+
+  // THE PANEL'S OWN YEAR (v24.46, owner: "as we are nearing the end of the year I would like to be
+  // able to tap right and see 2027's"). It OPENS on the year the calendar is showing, as it always
+  // did, and ‹ › move it from there without moving the calendar — the panel is a question about
+  // leave, and paging the month grid a whole year to ask it would lose the reader's place. Bounded
+  // by the same CONFIG years the calendar itself can reach.
+  let alYear = getDisplayYear();
+
   const alLb = createLightbox({
     overlay:  /** @type {any} */ (lb),
     content:  /** @type {HTMLElement} */ (document.getElementById('alLightboxContent')),
     closeBtn: /** @type {HTMLElement} */ (document.getElementById('alLightboxClose')),
-    onOpen:   () => loadALStats(),
+    onOpen:   () => { alYear = getDisplayYear(); loadALStats(); },
   });
+
+  /** @param {number} step */
+  function stepALYear(step) {
+    const next = alYear + step;
+    if (next < CONFIG.MIN_YEAR || next > CONFIG.MAX_YEAR) return;
+    alYear = next;
+    loadALStats();
+  }
+  prevYearBtn?.addEventListener('click', () => stepALYear(-1));
+  nextYearBtn?.addEventListener('click', () => stepALYear(1));
 
   // Last-known-good stats memo, per member+year (v18.23 — "AL stats quite slow to load"). A
   // one-shot getDocs is SERVER-first in the Firestore SDK (the persistent cache is only its
@@ -80,10 +101,21 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   async function loadALStats() {
     const myGen   = ++_alLoadGen;
     const member  = getCurrentMember();
-    const year    = getDisplayYear();
+    const year    = alYear;
     const yearStr = String(year);
 
     yearEl.textContent = yearStr;
+    if (prevYearBtn) prevYearBtn.disabled = year <= CONFIG.MIN_YEAR;
+    if (nextYearBtn) nextYearBtn.disabled = year >= CONFIG.MAX_YEAR;
+    // "View recorded leave" opens Admin's list ON THIS YEAR. Admin's list is the signed-in member's
+    // own, so — like the day panel's "Leave dates" — it is offered only when the panel is showing
+    // that member (`personalActionsAllowed`); on a colleague's calendar it would change subject.
+    if (viewLink) {
+      viewLink.href = `admin.html?alYear=${yearStr}#alBookedBox`;
+      viewLink.hidden = !personalActionsAllowed({
+        accessType: getAccessType(), sessionName: getSession()?.name, shownMember: member?.name,
+      });
+    }
     if (alErrorEl) alErrorEl.hidden = true;
 
     if (!member) {

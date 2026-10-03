@@ -2880,7 +2880,22 @@
 
         .al-lb-icon   { font-size: 44px; margin-bottom: 4px; }
         .al-lb-title  { color: white; font-size: var(--type-large); font-weight: 700; letter-spacing: -0.3px; }
-        .al-lb-year   { color: rgba(255,255,255,0.6); font-size: var(--type-label); font-weight: 500; margin-bottom: 8px; }
+        .al-lb-year   { color: rgba(255,255,255,0.6); font-size: var(--type-label); font-weight: 500; min-width: 4.5ch; }
+        /* The year flips with ‹ › (v24.46). 44px targets, the same quiet white-on-navy as the close
+           button, and a disabled end reads as absent rather than as a button that does nothing. */
+        .al-lb-yearnav { display: flex; align-items: center; justify-content: center; gap: 4px; margin-bottom: 2px; }
+        .al-lb-yearbtn {
+            width: 44px; height: 44px; padding: 0; border: none; border-radius: 50%;
+            background: none; color: rgba(255,255,255,0.7); font: inherit; font-size: var(--type-large);
+            line-height: 1; cursor: pointer; transition: color var(--dur-med), background var(--dur-med);
+        }
+        .al-lb-yearbtn:disabled { visibility: hidden; }
+        .al-lb-yearbtn:focus-visible { outline: var(--focus-outline); outline-offset: -2px; }
+        @media (hover: hover) and (pointer: fine) {
+            .al-lb-yearbtn:hover:not(:disabled) { color: white; background: rgba(255,255,255,0.1); }
+        }
+        /* Two routes into Admin side by side, wrapping to two lines on a narrow screen. */
+        .al-lb-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 14px; }
 
         .al-lb-stats {
             display: flex;
@@ -2930,7 +2945,6 @@
             white-space: nowrap;
         }
         .al-lb-link {
-            margin-top: 14px;
             color: rgba(255,255,255,0.9);
             font-size: var(--type-label);
             font-weight: 600;

@@ -1361,6 +1361,10 @@ export function init() {
         onRendered:   boxId => _landing.settle(boxId),
     });
 
+    // The Calendar's leave panel links here for one year (`?alYear=2027#alBookedBox`, v24.46).
+    const _linkedAlYear = new URLSearchParams(location.search).get('alYear');
+    if (_linkedAlYear && /^\d{4}$/.test(_linkedAlYear)) _bookedPeriods.pin('alBookedBox', _linkedAlYear);
+
     /** @param {Parameters<ReturnType<typeof createBookedPeriods>['render']>[0]} cfg */
     function _renderBookedPeriods(cfg) { _bookedPeriods.render(cfg); }
 

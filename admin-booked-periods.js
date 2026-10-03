@@ -348,5 +348,11 @@ export function createBookedPeriods(deps) {
         deps.onRendered?.(boxId);
     }
 
-    return { render, resetPinned };
+    /** Choose a box's year as if its chip had been tapped — the Calendar's "View recorded leave"
+     *  link names one (v24.46). Safe with any value: `pickBookedYear` ignores a pinned year the
+     *  member has no bookings in, so a link can never open an empty list.
+     *  @param {string} boxId @param {string} year */
+    function pin(boxId, year) { pinned[boxId] = year; }
+
+    return { render, resetPinned, pin };
 }

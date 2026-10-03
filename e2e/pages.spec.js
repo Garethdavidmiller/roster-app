@@ -2819,6 +2819,27 @@ test('admin: a year chosen for one member is not carried over to the next', asyn
     await expect(page.locator('#alBookedBody .al-period-dates').first()).toContainText('Apr');
 });
 
+// The Calendar's leave panel links to ONE year (v24.46): `?alYear=2028` must open the list on 2028
+// even though the banner (and so the list's own default) is on 2026.
+test('admin: a link naming a year opens the recorded-leave list on that year', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await seedTwoMembersTwoYears(page);
+    await page.goto('/admin.html?alYear=2028#alBookedBox');
+    await expect(page.locator('#alBookedBox')).toBeVisible();
+    await expect(page.locator('#alBookedBody .al-year-chip.is-active')).toHaveText('2028');
+    await expect(page.locator('#alBookedBody .al-period-dates').first()).toContainText('Jun');
+});
+
+test('admin: a linked year with no leave in it falls back, never to an empty list', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await seedTwoMembersTwoYears(page);
+    await page.goto('/admin.html?alYear=2027#alBookedBox');
+    await expect(page.locator('#alBookedBox')).toBeVisible();
+    await expect(page.locator('#alBookedBody .al-year-chip.is-active')).toHaveText('2026');
+});
+
 test('admin: scrolling the date picker into another year moves the list with the banner', async ({ page }) => {
     // The banner follows the picker's displayed year (v22.82); the list is meant to follow the
     // banner (pickBookedYear's `preferred` rung). Until v23.15 only the banner was re-run.
