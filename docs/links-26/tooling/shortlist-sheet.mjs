@@ -118,7 +118,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.8px; line-height:
   <div class="sub">Second Edition, Short Run and Even Keel against each other and against today’s link — the figures, then a recommendation</div></div></div>
 
   <h2>What all three share</h2>
-  <p class="lead">Nine designs were built and checked; these three are the ones nothing else beats line for line. On everything below they are the same, and on each line better than or level with today.</p>
+  <p class="lead">Ten designs were built and checked. These three have no all-round better alternative in the pack; the one design that beats them on anything, Long Break, pays for it elsewhere and is on page 2. On everything below the three are the same, and on each line better than or level with today.</p>
   <div class="shared">
     <div>All <b>${SE.F.met} of 9</b> December staffing rules, and all ${SE.F.flex} flexible ones (today ${TF.met} of 9, ${TF.flex} flexible)</div>
     <div><b>No fatigue warning</b>, fixed rota or with a cover week placed badly (today ${TF.A.fixed.present}, up to ${TF.A.fatigue.present})</div>

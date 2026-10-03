@@ -47,7 +47,9 @@ links-24-proposals.zip, for reference.
 Proposals in this pack: {names}.
 
 Start with these:
-  1 Summary        One page: every proposal against today's link.
+  1 Summary        One page: every proposal against today's link; and the two-page
+                   shortlist sheet - the three recommended designs against each
+                   other and today, with a recommendation. Start there.
   2 Rules          The three tiers of rule, two pages: the hard limits (three, and the
                    ceiling of 219 contracted days a year, which is hard too), the nine
                    December 2026 rules scored on every sheet, and three flexible
