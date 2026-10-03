@@ -12,7 +12,9 @@ from xml.sax.saxutils import escape
 import openpyxl
 
 SRC = 'docs/links-24/presentations'
-OUT = 'docs/links-26/presentations'
+# Second Nature's decks are the TEMPLATE every shipped deck is built from, and are no longer shipped themselves (owner,
+# 3 Oct 2026: only the shortlist's presentations are kept). They are built into a gitignored folder and read from there.
+OUT = 'docs/links-26/tooling/deck-template'
 NAME, CODE = 'Second Nature', 'SN-26-F2'
 NAVY, GREEN, AMBER = '001E3C', '1E7B4B', 'A15C00'
 # A deliberate mention of Familiar Nine (Second Nature is compared with it) is written with a no-break space, so the
@@ -225,6 +227,7 @@ def managers(d):
     s.save()
 
 if __name__ == '__main__':
+    os.makedirs(OUT, exist_ok=True)
     build(f'{SRC}/Familiar-Nine-for-colleagues.pptx', f'{OUT}/Second-Nature-for-colleagues.pptx', colleagues)
     build(f'{SRC}/Familiar-Nine-for-managers.pptx', f'{OUT}/Second-Nature-for-managers.pptx', managers)
     print('wrote', OUT)

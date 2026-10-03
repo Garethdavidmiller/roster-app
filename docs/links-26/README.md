@@ -193,33 +193,34 @@ node regenerate.mjs                     # the sheet; --check confirms the finger
 It was chosen for the balance. Four more weeks on one turn are worth one more single rest day, and the shortest rest
 is the best of the four.
 
-**The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"):
-`presentations/Second-Nature-for-colleagues` (15 slides) and `-for-managers` (10), as PowerPoint and PDF, and the same
-pair for Second Wind (`Second-Wind-for-…`), Second Sight (`Second-Sight-for-…`), Second Edition (`Second-Edition-for-…`), Even Keel (`Even-Keel-for-…`) and Short Run (`Short-Run-for-…`). They are the
-Familiar Nine decks, the template Right Away's were made from too, with every word and figure that was Familiar Nine's
-replaced and the design untouched. Unlike the 24-line decks, they are BUILT here: `tooling/second-nature-decks.py`
-makes Second Nature's from the Familiar Nine files, and `tooling/second-wind-decks.py` makes Second Wind's from those,
-changing only what differs between the two rotas (weekend spacing, rest-day breaks, one-turn weeks, the best leave
-stretch, the weekly hours); `tooling/second-sight-decks.py` makes Second Sight's the same way, adding that no week mixes
-earlies and lates and saying plainly that it has one more single rest day than today (5, against 4); `tooling/second-edition-decks.py`
-makes Second Edition's, whose leave figures are Second Nature's exactly, so only the weekend, one-turn and rest-break
-lines change; `tooling/even-keel-decks.py` makes Even Keel's, which change more because it sits on Second Gear's table
-(the shift-time list, 44 late finishes with four to the close on a Saturday, the run, the rest and the fit chart);
-`tooling/short-run-decks.py` makes Short Run's by applying Second Edition's edits and then its own — the run (5 on the
-fixed rota, up to 6 when a cover week falls badly, said both ways), the weekly hours and the pitch lines. Every
-builder refuses if a slide no longer holds the text it expects, and every deck compares only with today's link.
+**The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"; **cut to
+the shortlist 3 Oct 2026**, owner: "only keep the shortlist's presentations, delete the rest"): `presentations/` holds a
+colleague deck (15 slides) and a manager deck (10), as PowerPoint and PDF, for **Second Edition, Even Keel and Short
+Run** only. They are the Familiar Nine decks, the template Right Away's were made from too, with every word and figure
+that was Familiar Nine's replaced and the design untouched. Unlike the 24-line decks, they are BUILT here, in two steps:
+`tooling/second-nature-decks.py` makes Second Nature's decks from the Familiar Nine files into `tooling/deck-template/`
+(gitignored — Second Nature's decks are the template every shipped deck is built from, and since 3 Oct are not shipped
+themselves; Second Wind's and Second Sight's decks and their builders were deleted the same day); then
+`tooling/second-edition-decks.py` makes Second Edition's from that template, changing only what differs (the weekend
+spacing, no week mixing earlies and lates, the rest-day breaks, the one-turn weeks, the weekly hours — its leave figures
+are Second Nature's exactly); `tooling/even-keel-decks.py` makes Even Keel's, which change more because it sits on
+Second Gear's table (the shift-time list, 44 late finishes with four to the close on a Saturday, the run, the rest and
+the fit chart); and `tooling/short-run-decks.py` makes Short Run's by applying Second Edition's edits and then its own
+— the run (5 on the fixed rota, up to 6 when a cover week falls badly, said both ways), the weekly hours and the pitch
+lines. Every builder refuses if a slide no longer holds the text it expects, and every deck compares only with today's
+link.
 - **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts.
-  `tooling/leave.mjs` gives the four leave figures (Second Nature: 14 days' leave buys 28 days off at best, 23.4
-  on average, 20 at worst, and four full weeks off takes 15; Second Wind: 27 at best, otherwise the same). It is the 24-line decks' leave method as code, and `--check` shows it
-  reproduces their published figures for today and Familiar Nine exactly.
-- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. All 306 table rows across the twelve decks agree with
-  the sheets and the leave model, and none is left unchecked.
+  `tooling/leave.mjs` gives the four leave figures (all three shortlisted designs: 14 days' leave buys 28 days off at
+  best, 23.4 on average, 20 at worst, and four full weeks off takes 15; today 30 · 23.4 · 19 · 14). It is the 24-line
+  decks' leave method as code, and `--check` shows it reproduces their published figures for today and Familiar Nine
+  exactly.
+- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. Every table row across the six decks agrees
+  with the sheets and the leave model, and none is left unchecked (it prints the count).
 
 Rebuild after any change to the rota:
 
 ```
-python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/second-wind-decks.py \
-  && python3 docs/links-26/tooling/second-sight-decks.py && python3 docs/links-26/tooling/second-edition-decks.py \
+python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/second-edition-decks.py \
   && python3 docs/links-26/tooling/even-keel-decks.py && python3 docs/links-26/tooling/short-run-decks.py \
   && node docs/links-26/tooling/deck-check.mjs
 ```
@@ -314,8 +315,9 @@ weekends, never more than four apart, would need 13 on a Saturday; the owner kep
   best of them, seed 111, met every floor but one: it has 5 single rest days, not 4.
 - **Put forward as its own design** (owner, 2 Oct 2026: "turn start 111 into its own proposal sheet with its own name,
   but continue the search"). `proposals/Second-Sight-SS-26-F1-3c6aac4d.pdf`, grid `tooling/second-sight.json`, in the
-  Second Nature family. Its presentations followed the same day (owner, on the recommendation that it is the strongest
-  of the six): `presentations/Second-Sight-for-colleagues` and `-for-managers`.
+  Second Nature family. Its presentations followed the same day (owner, on the recommendation that it was then the
+  strongest of the six) and were deleted on 3 Oct 2026 with Second Nature's and Second Wind's, when the owner kept only
+  the shortlist's (Second Edition, Even Keel, Short Run).
 
 | | Second Nature | Second Wind | **Second Sight** | Today |
 |---|---|---|---|---|

@@ -14,6 +14,7 @@ snd = importlib.util.module_from_spec(spec); spec.loader.exec_module(snd)
 Slide, notes, GREEN, AMBER = snd.Slide, snd.notes, snd.GREEN, snd.AMBER
 
 OUT = 'docs/links-26/presentations'
+TEMPLATE = 'docs/links-26/tooling/deck-template'   # Second Nature's decks, built by second-nature-decks.py, not shipped
 NAME, CODE = 'Second Edition', 'SE-26-F1'
 
 def rename(d):
@@ -67,6 +68,6 @@ def managers(d):
     notes(d, 8, 'Days at work stay', 'Days at work stay at 219 a year (218.6 exactly; Monday to Saturday; Sunday is overtime), under the ceiling agreed on 1 October 2026. Late finishes average about three more a year each, all of them from the December staffing — three to the close every day, where today’s weekdays have two — so no link meeting the same rules on 26 weeks could have fewer. Full weekends off are seven in 26 and never more than five weeks apart; no week mixes earlies and lates, and 18 of the 21 working weeks keep one shift time. The average shift is about two minutes longer.')
 
 if __name__ == '__main__':
-    build(f'{OUT}/Second-Nature-for-colleagues.pptx', f'{OUT}/Second-Edition-for-colleagues.pptx', colleagues)
-    build(f'{OUT}/Second-Nature-for-managers.pptx', f'{OUT}/Second-Edition-for-managers.pptx', managers)
+    build(f'{TEMPLATE}/Second-Nature-for-colleagues.pptx', f'{OUT}/Second-Edition-for-colleagues.pptx', colleagues)
+    build(f'{TEMPLATE}/Second-Nature-for-managers.pptx', f'{OUT}/Second-Edition-for-managers.pptx', managers)
     print('wrote', OUT)

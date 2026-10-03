@@ -21,10 +21,8 @@ import { LINES } from './link.mjs';
 import { leave } from './leave.mjs';
 
 const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url).pathname;   // DECK_DIR: check a copy
-const DECKS = [['Second-Nature-for-colleagues.pptx', 'Second Nature'], ['Second-Nature-for-managers.pptx', 'Second Nature'],
-  ['Second-Wind-for-colleagues.pptx', 'Second Wind'], ['Second-Wind-for-managers.pptx', 'Second Wind'],
-  ['Second-Sight-for-colleagues.pptx', 'Second Sight'], ['Second-Sight-for-managers.pptx', 'Second Sight'],
-  ['Second-Edition-for-colleagues.pptx', 'Second Edition'], ['Second-Edition-for-managers.pptx', 'Second Edition'],
+// Only the shortlist's decks are shipped (owner, 3 Oct 2026): Second Nature's, Second Wind's and Second Sight's were deleted.
+const DECKS = [['Second-Edition-for-colleagues.pptx', 'Second Edition'], ['Second-Edition-for-managers.pptx', 'Second Edition'],
   ['Even-Keel-for-colleagues.pptx', 'Even Keel'], ['Even-Keel-for-managers.pptx', 'Even Keel'],
   ['Short-Run-for-colleagues.pptx', 'Short Run'], ['Short-Run-for-managers.pptx', 'Short Run']];
 

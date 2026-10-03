@@ -18,6 +18,7 @@ snd, sed = load('second-nature-decks'), load('second-edition-decks')
 Slide, notes, GREEN, AMBER, runs_of, spans, escape = snd.Slide, snd.notes, snd.GREEN, snd.AMBER, snd.runs_of, snd.spans, snd.escape
 
 OUT = 'docs/links-26/presentations'
+TEMPLATE = 'docs/links-26/tooling/deck-template'   # Second Nature's decks, built by second-nature-decks.py, not shipped
 NAME, CODE = 'Short Run', 'SR-26-F1'
 
 def shape(s, old):
@@ -87,6 +88,6 @@ def managers(d):
     notes(d, 8, 'Days at work stay', 'Days at work stay at 219 a year (218.6 exactly; Monday to Saturday; Sunday is overtime), under the ceiling agreed on 1 October 2026. Late finishes average about three more a year each, all of them from the December staffing — three to the close every day, where today’s weekdays have two — so no link meeting the same rules on 26 weeks could have fewer. Full weekends off are seven in 26 and never more than five weeks apart; nobody works more than five days in a row on the fixed rota; no week mixes earlies and lates, and 18 of the 21 working weeks keep one shift time. Weekly hours run from 24h 30m to 42h 30m (today 25h 10m to 43h 50m); only the average is the contract. The average shift is about two minutes longer.')
 
 if __name__ == '__main__':
-    build(f'{OUT}/Second-Nature-for-colleagues.pptx', f'{OUT}/Short-Run-for-colleagues.pptx', [sed.colleagues, colleagues])
-    build(f'{OUT}/Second-Nature-for-managers.pptx', f'{OUT}/Short-Run-for-managers.pptx', [sed.managers, managers])
+    build(f'{TEMPLATE}/Second-Nature-for-colleagues.pptx', f'{OUT}/Short-Run-for-colleagues.pptx', [sed.colleagues, colleagues])
+    build(f'{TEMPLATE}/Second-Nature-for-managers.pptx', f'{OUT}/Short-Run-for-managers.pptx', [sed.managers, managers])
     print('wrote', OUT)
