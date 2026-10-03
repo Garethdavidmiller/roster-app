@@ -91,9 +91,9 @@ The detail:
                       proposals were built and checked. Written for the technical
                       record, not for reading out.
 
-Every figure in the summary, the rules sheet and the proposal sheets was worked
+Every figure in the summary, the shortlist sheet, the rules sheet and the proposal sheets was worked
 out from the rotas by the Marylebone Roster app; none was typed in by hand. The
-presentations are built from the Familiar Nine decks by a script, and every figure
+presentations are built from the Familiar Nine decks by scripts (through a Second Nature template that is not shipped), and every figure
 in their tables is checked against those counts by another
 (docs/links-26/tooling/deck-check.mjs in the repository).
 """
