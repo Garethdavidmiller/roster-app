@@ -54,6 +54,10 @@ export const SUPPLIED = [
     // weeks on one shift time, heaviest week 42h 00m, step 1h 01m — better than or equal to every design on every line.
     // README.md → "Second Edition".
     { file: 'second-edition.json',         name: 'Second Edition', code: 'SE-26-F1',   fp: 'dea6417f', strap: 'Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time' },
+    // Fine Tune (3 Oct 2026): Second Gear with its weeks reordered by an outside reviewer (their candidate SGR-26-C1, with
+    // its own search and recount in external/second-gear-refined/). The same duties every day, so the same table figures;
+    // one mixed week instead of two and a smaller week-to-week step. Checked here by the app's own code before shipping.
+    { file: 'fine-tune.json',              name: 'Fine Tune',      code: 'FT-26-H1',   fp: '9a7393d3', strap: 'Second Gear fine-tuned: no week over 41h 30m, one mixed week, and a gentler week-to-week change' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

@@ -520,6 +520,23 @@ env $F HEAVY_MAX=42 node space-polish.mjs /tmp/se2.json /tmp/se3.json 1 500000
 env $F HEAVY_MAX=42 LEAVE_BEST_MIN=28 LEAVE_FOUR_MAX=15 node space-polish.mjs /tmp/se3.json second-edition.json 2 500000
 ```
 
+## Fine Tune — Second Gear refined by an outside reviewer (3 Oct 2026)
+
+An outside reviewer supplied a reordering of Second Gear's weeks (their candidate `SGR-26-C1`), with their search
+source, an independent recount and its result; all four are kept, unchanged, in `tooling/external/second-gear-refined/`.
+Their review asked for the app's own checker to be run before it was treated as a proposal. It was:
+
+- their "original" grid is byte-for-byte Second Gear, and the candidate has exactly the same duties on every day, so
+  the staffing rules, shift times, late finishes, cover weeks and days a year are Second Gear's by construction;
+- the sheet's checks: 9/9 rules, 3/3 flexible, every hard limit, no fatigue factor fixed or with a cover week placed
+  badly, longest run 5 (6 with a cover week), shortest rest 14h 35m, weekends at most five weeks apart;
+- every figure they reported agrees with the app's own count, the leave figures included (28 · 23.4 · 20 · 15).
+
+Put forward as **Fine Tune** (`FT-26-H1` · `9a7393d3`, owner: "give it its own name"), Second Nature family,
+`proposals/Fine-Tune-FT-26-H1-9a7393d3.pdf`, grid `tooling/fine-tune.json`. Against Second Gear it has one mixed week
+instead of two and a week-to-week step of 1h 09m instead of 1h 25m, and nothing worse. The grid is the source, as for
+the other supplied designs: their search is time-budgeted, so a re-run need not reproduce it.
+
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
 "7 in 26" against "4 in 20" made the reader divide. The sheets now say it per person per year, as late finishes and 06:20
 starts already were:
