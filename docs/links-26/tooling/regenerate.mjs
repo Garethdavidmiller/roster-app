@@ -54,6 +54,10 @@ export const SUPPLIED = [
     // its own search and recount in external/second-gear-refined/). The same duties every day, so the same table figures;
     // one mixed week instead of two and a smaller week-to-week step. Checked here by the app's own code before shipping.
     { file: 'fine-tune.json',              name: 'Fine Tune',      code: 'FT-26-H1',   fp: '9a7393d3', strap: 'Second Gear fine-tuned: no week over 41h 30m, one mixed week, and a gentler week-to-week change' },
+    // Even Keel (3 Oct 2026): a second reordering of Second Gear by the same outside reviewer (their SGR-26-C2, with its
+    // recount in external/roster-search-results-2/). Same duties every day; 18 of 21 weeks on one shift time. Checked
+    // here by the app's own code. Their other candidate, Five-Day Flow, was NOT shipped: README.md → "Even Keel".
+    { file: 'even-keel.json',              name: 'Even Keel',      code: 'EK-26-H1',   fp: '8e9a1bcf', strap: 'Second Gear rebalanced: 18 of 21 weeks on one shift time, and no week over 41h 30m' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

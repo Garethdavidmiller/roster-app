@@ -1,0 +1,14 @@
+26-PERSON ROSTER SEARCH RESULTS
+
+Start with Roster-comparison-and-sheets.pdf.
+
+Five-Day Flow FDF-26-C1: primary option if avoiding mixed early/late weeks is the priority.
+Second Gear Refined SGR-26-C2: alternative with 18 one-turn weeks and lower peak hours.
+
+Both are review candidates. Independently reconstructed checks pass; the original roster app checker was not supplied and has not been run. Actual SP cover times must still satisfy rest and fatigue limits. No global optimum is claimed.
+
+The two import files are tab-separated, Sunday to Saturday, with 26 numbered lines. RD means rest day. SP means a four-duty cover week counted as 35 contracted hours.
+
+Checks contains baseline imports, full metrics, a standard-library Python verifier and the conditional weekend bound. From this folder run:
+python3 Checks/verify.py Checks/Second-Sight-SS-26-F1-import.txt Five-Day-Flow-FDF-26-C1-import.txt
+python3 Checks/verify.py Checks/Second-Gear-SG-26-H1-import.txt Second-Gear-Refined-SGR-26-C2-import.txt

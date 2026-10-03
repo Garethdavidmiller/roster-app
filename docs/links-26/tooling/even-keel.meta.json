@@ -1,0 +1,8 @@
+{
+ "date": "3 October 2026",
+ "identity": {
+  "table": "H1 — Second Gear's duty table, unchanged (results/second-gear-table.json)",
+  "seed": "supplied — an outside reviewer's candidate SGR-26-C2 (external/roster-search-results-2/)",
+  "lineage": "A second reordering of Second Gear's weeks by the outside reviewer who supplied Fine Tune (their SGR-26-C1). The duties on every day are Second Gear's exactly, so the staffing rules, shift times, late finishes and cover weeks are unchanged; 18 of 21 weeks keep one shift time Monday to Friday, against Fine Tune's 16, for a slightly larger week-to-week change (1h 16m, against 1h 09m). Checked by the app's own code on 3 Oct 2026 before shipping. The grid is the source."
+ }
+}

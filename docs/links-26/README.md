@@ -541,6 +541,23 @@ Put forward as **Fine Tune** (`FT-26-H1` · `9a7393d3`, owner: "give it its own 
 instead of two and a week-to-week step of 1h 09m instead of 1h 25m, and nothing worse. The grid is the source, as for
 the other supplied designs: their search is time-budgeted, so a re-run need not reproduce it.
 
+## Even Keel — a second Second Gear refinement; Five-Day Flow not shipped (3 Oct 2026)
+
+The reviewer behind Fine Tune sent a second pack (`tooling/external/roster-search-results-2/`, kept unchanged) with two
+candidates and the same caveat: the app's own checker had not been run. It was, and gave two different answers.
+
+- **Second Gear Refinement 2 (`SGR-26-C2`) passes everything** and was unused, so it ships as **Even Keel**
+  (`EK-26-H1` · `8e9a1bcf`, Second Nature family). Their Second Gear grid is ours byte for byte, and the candidate has
+  exactly its duties every day: 9/9 rules, 3/3 flexible, every hard limit, no fatigue factor fixed or with a cover week
+  placed badly, rest 14h 35m, weekends at most five apart. Against Fine Tune it has **18 of 21 weeks on one shift
+  time** (Fine Tune 16) for a slightly larger week-to-week step (1h 16m, against 1h 09m); one mixed week each, and the
+  same leave (28 · 23.4 · 20 · 15).
+- **Five-Day Flow (`FDF-26-C1`, a reordering of Second Sight) was not shipped.** Two things its own verifier did not
+  see: a **fatigue factor in the worst case** (FF15 — with a cover week's four duties placed badly, five early shifts
+  in a row; their verifier checks only the fixed duties, and every proposal here is held to none in the worst case
+  too), and **5 single rest days, not 4** (their count leaves out a lone rest day beside a cover week; the sheets count
+  it). Its strengths — no mixed week, a week-to-week step of 40 minutes — are real and are on record here.
+
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
 "7 in 26" against "4 in 20" made the reader divide. The sheets now say it per person per year, as late finishes and 06:20
 starts already were:
