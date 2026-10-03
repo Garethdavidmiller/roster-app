@@ -14,10 +14,12 @@ The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, o
 |---|---|
 | `links-NN-proposals.zip` | everything for sharing, in one download |
 | `links-NN-rules.pdf` | the rules every proposal is judged against |
-| `links-NN-summary.pdf` | every proposal against today's link, on one page |
+| `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted three marked ★ |
+| `links-26-shortlist.pdf` | the three shortlisted designs against each other and today, with a recommendation, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
 | `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf` |
 | `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs |
+| `RULES.md` | the rules in prose, with their sources and the open questions (26 lines only) |
 | `README.md` | this record |
 
 `NN` is the link's length in weeks. A proposal keeps its own name, because the code and fingerprint in it identify the
@@ -36,7 +38,7 @@ ceiling allows **at most 89 Monday-to-Saturday duties, averaging at least about 
 
 ## What carries over unchanged
 
-- **The rules, in their three tiers,** with the changes above: the 3 hard limits, the 9 December staffing rules
+- **The rules, in their three tiers,** with the changes above: the 3 hard limits (plus the 219-day ceiling, which is hard too), the 9 December staffing rules
   and the 3 flexible rules. See `RULES.md`.
 - **The shift-time sets** of the strongest 24-line designs, as starting points:
   - **Familiar Nine** (`../links-24/Familiar-Nine-F9-24-K31s.json`): every rule met, 14 of 20 weeks on one turn.
@@ -71,10 +73,14 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 | | `grow-from-24.mjs` | the same idea across line counts: grows a 24-line rota's weeks to 26 (one week added where the table needs it, a fifth cover week) and lays the table on, trying every insertion point and offset |
 | | `anneal-from.mjs` | `anneal.mjs`'s search, started from a given rota rather than at random, so a carried structure is improved, not thrown away |
 | | `rota-polish.mjs`, `order-polish.mjs` | reorder only (same-day and whole-line swaps), never worse than a reference; `ISO_W=` in `rota-polish.mjs` also rewards fewer single rest days |
+| | `exact-floor.py`, `exact-skeletons.py` | the exact solver (`pip install pulp`): the proven floor on single rest days for a rest-day layout, and the same model as a generator of skeletons for `skeleton-start.mjs` (Short Run came from it) |
 | | `candidates.mjs` | prints each candidate rota's sheet figures on one line, to choose between them |
 | check | `check.mjs` | the self-check: settings agree, the test rota recounts independently, and each 26-line rule fails when its condition is broken (`node tooling/check.mjs`) |
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
-| | `rules-sheet.mjs`, `summary-sheet.mjs` | the rules reference (`../links-26-rules.pdf`) and the one-page summary (`../links-26-summary.pdf`) |
+| | `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` | the rules reference (`../links-26-rules.pdf`), the one-page summary (`../links-26-summary.pdf`) and the two-page shortlist sheet (`../links-26-shortlist.pdf`) |
+| 4 · decks and pack | `second-nature-decks.py` → `second-edition-decks.py`, `even-keel-decks.py`, `short-run-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the zip |
+| league | `league.mjs` | the weighted league on every factor the sheets compare (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`) — the owner's weights, a judgement not a measurement |
+| rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
 
 **Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
 - **No 24-line default leaks through.** The app functions that default to 24 lines (`runDesignChecks`, `assessFatigue`,
@@ -159,7 +165,7 @@ limit, and has **no avoidable fatigue warnings**, even with a cover week placed 
    Two findings decided the table:
    - **The Sunday.** Paying 15 minutes for today's own Sunday opener, 07:15–15:45, instead of a new 07:15–15:30 scores
      better on the league: one more familiar time outweighs a slightly worse Sunday fit (26.4 to 29.0).
-   - **Late finishes.** The best weekday tables all had five people finishing after 23:00. Allowing only the three closers
+   - **Late finishes.** The best weekday tables all had four people finishing after 23:00. Allowing only the three closers
      to finish after 22:30 (`CLOSERS_MAX=3 MID_END_MAX=1350`) cut late finishes from 52 a year to 42, for a fit 0.3
      worse.
 
@@ -192,34 +198,49 @@ node regenerate.mjs                     # the sheet; --check confirms the finger
 It was chosen for the balance. Four more weeks on one turn are worth one more single rest day, and the shortest rest
 is the best of the four.
 
-**The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"):
-`presentations/Second-Nature-for-colleagues` (15 slides) and `-for-managers` (10), as PowerPoint and PDF, and the same
-pair for Second Wind (`Second-Wind-for-…`) and Second Sight (`Second-Sight-for-…`). They are the
-Familiar Nine decks, the template Right Away's were made from too, with every word and figure that was Familiar Nine's
-replaced and the design untouched. Unlike the 24-line decks, they are BUILT here: `tooling/second-nature-decks.py`
-makes Second Nature's from the Familiar Nine files, and `tooling/second-wind-decks.py` makes Second Wind's from those,
-changing only what differs between the two rotas (weekend spacing, rest-day breaks, one-turn weeks, the best leave
-stretch, the weekly hours); `tooling/second-sight-decks.py` makes Second Sight's the same way, adding that no week mixes
-earlies and lates and saying plainly that it has one more single rest day than today (5, against 4). Both refuse if a slide no longer holds the text they expect, and both compare only with
-today's link.
+**The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"; **cut to
+the shortlist 3 Oct 2026**, owner: "only keep the shortlist's presentations, delete the rest"): `presentations/` holds a
+colleague deck (15 slides) and a manager deck (10), as PowerPoint and PDF, for **Second Edition, Even Keel and Short
+Run** only. They are the Familiar Nine decks, the template Right Away's were made from too, with every word and figure
+that was Familiar Nine's replaced and the design untouched. Unlike the 24-line decks, they are BUILT here, in two steps:
+`tooling/second-nature-decks.py` makes Second Nature's decks from the Familiar Nine files into `tooling/deck-template/`
+(gitignored — Second Nature's decks are the template every shipped deck is built from, and since 3 Oct are not shipped
+themselves; Second Wind's and Second Sight's decks and their builders were deleted the same day); then
+`tooling/second-edition-decks.py` makes Second Edition's from that template, changing only what differs (the weekend
+spacing, no week mixing earlies and lates, the rest-day breaks, the one-turn weeks, the weekly hours — its leave figures
+are Second Nature's exactly); `tooling/even-keel-decks.py` makes Even Keel's, which change more because it sits on
+Second Gear's table (the shift-time list, 44 late finishes with four to the close on a Saturday, the run, the rest and
+the fit chart); and `tooling/short-run-decks.py` makes Short Run's by applying Second Edition's edits and then its own
+— the run (5 on the fixed rota, up to 6 when a cover week falls badly, said both ways), the weekly hours and the pitch
+lines. **Then `tooling/deck-polish.py` runs over the six shipped decks** (3 Oct 2026, the reader's critique): the
+four-weeks-off leave cost said early and on the trade-offs slide, full weekends off per year first, days a year as 218.6
+against 219.0, the one-turn row and the fit slide saying what they count, slide 10 turned into a picture of the 26 weeks
+(`tooling/rota-strip.mjs`, from the grid), and the manager "Why" slide split into what every link here gives, what this
+one adds and what it costs. A second pass the same day (owner: "are they missing anything?") made the late-finish slide
+say the rise after 22:00 as well as after 23:00, the shift-length slide name the early turns that get longer, the
+"Will I work more?" slide give the weekly range, and the manager deck carry the Sunday overtime hours and the two open
+points. Every builder and the polish refuse if a slide no longer holds the text they expect, and every deck compares
+only with today's link.
 - **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts.
-  `tooling/leave.mjs` gives the four leave figures (Second Nature: 14 days' leave buys 28 days off at best, 23.4
-  on average, 20 at worst, and four full weeks off takes 15; Second Wind: 27 at best, otherwise the same). It is the 24-line decks' leave method as code, and `--check` shows it
-  reproduces their published figures for today and Familiar Nine exactly.
-- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. All 153 table rows across the six decks agree with
-  the sheets and the leave model, and none is left unchecked.
+  `tooling/leave.mjs` gives the four leave figures (all three shortlisted designs: 14 days' leave buys 28 days off at
+  best, 23.4 on average, 20 at worst, and four full weeks off takes 15; today 30 · 23.4 · 19 · 14). It is the 24-line
+  decks' leave method as code, and `--check` shows it reproduces their published figures for today and Familiar Nine
+  exactly.
+- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. Every table row across the six decks agrees
+  with the sheets and the leave model, and none is left unchecked (it prints the count).
 
 Rebuild after any change to the rota:
 
 ```
-python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/second-wind-decks.py \
-  && python3 docs/links-26/tooling/second-sight-decks.py && node docs/links-26/tooling/deck-check.mjs
+python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/second-edition-decks.py \
+  && python3 docs/links-26/tooling/even-keel-decks.py && python3 docs/links-26/tooling/short-run-decks.py \
+  && python3 docs/links-26/tooling/deck-polish.py && node docs/links-26/tooling/deck-check.mjs
 ```
 
 Then export the PDFs (LibreOffice). Two things the decks say that the sheet does not show directly:
 - **Late finishes:** 42 a year is the minimum, because only the three closers the rules require finish after 23:00.
-- **Weekends off:** Second Nature's can be up to ten weeks apart (today seven), and its managers' deck lists that as a
-  worry; Second Wind's are never more than five apart, which its decks give as a strength.
+- **Weekends off:** every shipped deck's design has them never more than five weeks apart, and says so; today's are
+  up to seven apart.
 
 ## Second Wind — Second Nature with the weekends spread (2 Oct 2026)
 
@@ -299,14 +320,16 @@ weekends, never more than four apart, would need 13 on a Saturday; the owner kep
 - **The search.** 16 random-start runs of `anneal.mjs` with the gap capped at five from the outset (`GAP_CAP=5`), and
   single rest days, mixed weeks, the week-to-week move, six-day weeks and the heaviest week costed. Every run reached the
   gap of five.
-- **The polish.** Each start was polished with Second Nature and Second Wind's own figures as floors: shortest rest
+- **The polish.** Each start was polished with floors taken from Second Nature and Second Wind's figures, plus a chosen cap
+  of three mixed weeks (Second Nature has two, Second Wind four): shortest rest
   14h 20m, seven weekends at most five weeks apart, at least 15 one-turn weeks, at most 4 single rest days, at most 3
   mixed weeks, the heaviest week at most 43h 40m, 20 days off from 14 days' leave at worst, and no fatigue warning. The
   best of them, seed 111, met every floor but one: it has 5 single rest days, not 4.
 - **Put forward as its own design** (owner, 2 Oct 2026: "turn start 111 into its own proposal sheet with its own name,
   but continue the search"). `proposals/Second-Sight-SS-26-F1-3c6aac4d.pdf`, grid `tooling/second-sight.json`, in the
-  Second Nature family. Its presentations followed the same day (owner, on the recommendation that it is the strongest
-  of the six): `presentations/Second-Sight-for-colleagues` and `-for-managers`.
+  Second Nature family. Its presentations followed the same day (owner, on the recommendation that it was then the
+  strongest of the six) and were deleted on 3 Oct 2026 with Second Nature's and Second Wind's, when the owner kept only
+  the shortlist's (Second Edition, Even Keel, Short Run).
 
 | | Second Nature | Second Wind | **Second Sight** | Today |
 |---|---|---|---|---|
@@ -386,7 +409,7 @@ env $F ISO_W=1e5 node space-polish.mjs results/second-look-start.json second-loo
 env $F node space-polish.mjs results/second-gear-start.json second-gear.json 1 300000
 ```
 
-## Quiet Friday — what if the ceiling were 217 days? (2 Oct 2026)
+## Quiet Friday — what if the ceiling were 217 days? (2 Oct 2026; withdrawn 3 Oct 2026)
 
 The owner asked: "What if we said 217 was the maximum working days per year. Keep the rest of the rules. What is
 possible? Try every possibility." With five cover weeks, 217 allows **88 Monday-to-Saturday duties**, one fewer than the
@@ -407,7 +430,11 @@ shift times than today (18) counts the whole week: `final-table.mjs` gained `POO
 column so one weekday can take its own counts. Friday's best adds one new time, 13:30–22:30 (fit 40.0, 17 times in the
 week). Of 15 rota searches on options A and C, one rota met every floor of the restart.
 
-**Quiet Friday** (`QF-26-C1` · `daf8f3c9`), its own family, `proposals/Quiet-Friday-QF-26-C1-daf8f3c9.pdf`, grid
+**Withdrawn on 3 Oct 2026** (owner: "we can remove Quiet Friday from the proposals"): its sheet, grid and import file
+have left `proposals/`, the summary and the pack. The grid, its tables and its start stay in `tooling/` and `results/`, and
+the section below is kept as the record of what 217 days costs.
+
+**Quiet Friday** (`QF-26-C1` · `daf8f3c9`), its own family, formerly `proposals/Quiet-Friday-QF-26-C1-daf8f3c9.pdf`, grid
 `tooling/quiet-friday.json`. At 216.6 days it is inside today's 219 ceiling too, so it sits with the others and is
 judged by the same rules; its strap says it was built to 217.
 
@@ -450,6 +477,258 @@ env $F node space-polish.mjs results/quiet-friday-start.json /tmp/qf1.json 1 300
 env $F ISO_W=1e5 node space-polish.mjs /tmp/qf1.closest.json quiet-friday.json 2 400000
 ```
 
+## Second Edition — stronger than any of them, from a rest-day skeleton (2 Oct 2026)
+
+The owner asked for "a stronger roster than any we have done so far", back at 219 days. The table sweep settled first
+that Second Nature's duty table cannot be bettered (harder on familiarity costs fit, harder on fit costs new times, the
+other split costs both), so the gain had to come from the ORDER of the weeks — and sixteen more random-start searches
+with every cost raised found nothing that had, at once, the weekends five apart, four single rest days, no mixed week and
+no fatigue factor. Every near-miss failed on the same two factors: **FF8b** (a block of two or more 06:20 starts must be
+followed by two rest days, and a 07:00 after the block does not help) and **FF19** (an early Saturday into a late Sunday
+with no rest between is a jump of eight hours).
+
+**So the rest-day layout was searched on its own** (`tooling/skeleton.mjs`, its header has the full rule list): every
+working line a week of worked and rest cells and one family, shift times set aside, under every rule a finished rota
+must meet — the weekends, the runs with a cover week placed badly, a rest day at every change of family, FF8b, the
+SUPPLY of 07:00 and 08:00 duties that an early run needs to keep its 06:20 blocks legal (two a weekday, two a Saturday),
+the Sunday 09:00, and `leave.mjs`'s figures. Two findings:
+
+| Rules kept | Fewest single rest days |
+|---|---|
+| all | **4** |
+| mixed weeks allowed freely | 4 — so the families are not the cause |
+| weekends any distance apart | 1–3 (Familiar Nine's 2 came from here) |
+| a cover week's four duties not counted in the run | 1 — the cause |
+| the cover-week worst case allowed to reach 7 · 8 days | 3 · 1 |
+
+The 4 comes from two rules meeting: weekends never more than five apart push each full weekend up against a cover week,
+and "never more than 6 days in a row even with the cover week's duties placed as badly as they can be" then leaves a
+lone rest day beside it. Second Wind, Second Look and Second Gear were already at that floor. (If the clerk's worst case
+were allowed to reach 7 days — today's link is 7, up to 9 — a rota could have 3; that trade is the owner's and was not
+taken.)
+
+**Then the times.** `tooling/skeleton-start.mjs` lays the duty table onto the skeleton with the 07:00 and 08:00 duties
+where the supply rule needs them, and `space-polish.mjs` searches the times in four passes: first with fatigue as a cost
+(`FATIGUE_SOFT=1`, now with a slope — it used to count factors present, so three FF19 jumps cost the same as one and no
+run could climb down), then with fatigue refused outright, the heaviest week brought to 42h 00m, and the leave figures
+held (`LEAVE_BEST_MIN`, `LEAVE_FOUR_MAX`, new). `LOCK_REST=1` (new) can hold the rest days still; the passes that won
+did not need it. Without it the polish may move rest days and families, and it did: the finished rota differs from
+`skeleton-27.json` in 18 worked/rest cells and six lines' families, so the skeleton is where the search started, not a
+description of the result; the weekend, single-rest-day and run floors were held throughout.
+
+**Second Edition** (`SE-26-F1` · `dea6417f`), Second Nature family, `proposals/Second-Edition-SE-26-F1-dea6417f.pdf`, grid
+`tooling/second-edition.json`. Better than or equal to every earlier design on every line the sheets compare:
+
+| | Second Nature | Second Wind | Second Sight | **Second Edition** | Today |
+|---|---|---|---|---|---|
+| Longest gap between full weekends | 10 | 5 | 5 | **5** | 7 |
+| Single rest days | 4 | 4 | 5 | **4** | 4 |
+| Weeks mixing earlies and lates | 2 | 4 | 0 | **0** | 7 of 16 |
+| Weeks on one shift time | 15 of 21 | 16 | 16 | **18 of 21** | 7 of 16 |
+| Rest-day breaks of two days or more | 21 of 25 | 22 of 26 | 21 of 26 | **22 of 26** | 13 of 17 |
+| Heaviest Monday–Saturday week | 43h 40m | 42h 30m | 42h 00m | **42h 00m** | 43h 50m |
+| Start-time change, week to week | 1h 28m | 2h 01m | 1h 55m | **1h 01m** | 4h 00m |
+| Leave: best · average · worst · four weeks | 28 · 23.4 · 20 · 15 | 27 · 23.4 · 20 · 15 | 28 · 23.4 · 20 · 15 | **28 · 23.4 · 20 · 15** | 30 · 23.4 · 19 · 14 |
+
+  Unchanged, the table's: 9/9 rules, 3/3 flexible, no fatigue warning, 6 days in a row, 14h 20m, 42 late finishes,
+  15 shift times (6 new), 218.6 days.
+
+**How to rebuild it** (from `tooling/`; `results/skeleton-27.json` is the skeleton, and the first command remakes it
+exactly):
+
+```
+MIXED_MAX=0 CHG_W=0.5 node skeleton.mjs 27 2000000 5          # → skel8-27-g5-c6-m0.json = results/skeleton-27.json
+node skeleton-start.mjs results/skeleton-27.json /tmp/se0.json 1
+F="REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=16 ISO_MAX=4 MIXED_MAX=0 STEP_MAX=121 LEAVE_WORST_MIN=20 ISO_W=1e5 MIX_W=4e4"
+env $F FATIGUE_SOFT=1 HEAVY_MAX=42.5 node space-polish.mjs /tmp/se0.json /tmp/se1.json 1 400000   # keeps nothing → /tmp/se1.closest.json
+env $F FATIGUE_SOFT=1 HEAVY_MAX=42.5 node space-polish.mjs /tmp/se1.closest.json /tmp/se2.json 2 500000
+env $F HEAVY_MAX=42 node space-polish.mjs /tmp/se2.json /tmp/se3.json 1 500000
+env $F HEAVY_MAX=42 LEAVE_BEST_MIN=28 LEAVE_FOUR_MAX=15 node space-polish.mjs /tmp/se3.json second-edition.json 2 500000
+```
+
+## Fine Tune — Second Gear refined by an outside reviewer (3 Oct 2026)
+
+An outside reviewer supplied a reordering of Second Gear's weeks (their candidate `SGR-26-C1`), with their search
+source, an independent recount and its result; all four are kept, unchanged, in `tooling/external/second-gear-refined/`.
+Their review asked for the app's own checker to be run before it was treated as a proposal. It was:
+
+- their "original" grid is byte-for-byte Second Gear, and the candidate has exactly the same duties on every day, so
+  the staffing rules, shift times, late finishes, cover weeks and days a year are Second Gear's by construction;
+- the sheet's checks: 9/9 rules, 3/3 flexible, every hard limit, no fatigue factor fixed or with a cover week placed
+  badly, longest run 5 (6 with a cover week), shortest rest 14h 35m, weekends at most five weeks apart;
+- every figure they reported agrees with the app's own count, the leave figures included (28 · 23.4 · 20 · 15).
+
+Put forward as **Fine Tune** (`FT-26-H1` · `9a7393d3`, owner: "give it its own name"), Second Nature family,
+`proposals/Fine-Tune-FT-26-H1-9a7393d3.pdf`, grid `tooling/fine-tune.json`. Against Second Gear it has one mixed week
+instead of two and a week-to-week step of 1h 09m instead of 1h 25m, and nothing worse. The grid is the source, as for
+the other supplied designs: their search is time-budgeted, so a re-run need not reproduce it.
+
+## Even Keel — a second Second Gear refinement; Five-Day Flow not shipped (3 Oct 2026)
+
+The reviewer behind Fine Tune sent a second pack (`tooling/external/roster-search-results-2/`, kept unchanged) with two
+candidates and the same caveat: the app's own checker had not been run. It was, and gave two different answers.
+
+- **Second Gear Refinement 2 (`SGR-26-C2`) passes everything** and was unused, so it ships as **Even Keel**
+  (`EK-26-H1` · `8e9a1bcf`, Second Nature family). Their Second Gear grid is ours byte for byte, and the candidate has
+  exactly its duties every day: 9/9 rules, 3/3 flexible, every hard limit, no fatigue factor fixed or with a cover week
+  placed badly, rest 14h 35m, weekends at most five apart. Against Fine Tune it has **18 of 21 weeks on one shift
+  time** (Fine Tune 16) for a slightly larger week-to-week step (1h 16m, against 1h 09m); one mixed week each, and the
+  same leave (28 · 23.4 · 20 · 15).
+- **Five-Day Flow (`FDF-26-C1`, a reordering of Second Sight) was not shipped.** Two things its own verifier did not
+  see: a **fatigue factor in the worst case** (FF15 — with a cover week's four duties placed badly, five early shifts
+  in a row; their verifier checks only the fixed duties, and every proposal here is held to none in the worst case
+  too), and **5 single rest days, not 4** (their count leaves out a lone rest day beside a cover week; the sheets count
+  it). Its strengths — no mixed week, a week-to-week step of 40 minutes — are real and are on record here.
+
+## Short Run — Second Edition with no run over five days (3 Oct 2026)
+
+The last targeted search, from an outside suggestion: take the four improvements still being asked of the two strongest
+proposals, search for each with the app's own checking code, keep only candidates that pass everything, and say for each
+whether it was **proved impossible under these constraints** or **not found within the search time**. One of the four
+was found, and ships as **Short Run** (`SR-26-F1` · `618348d6`, Second Nature family,
+`proposals/Short-Run-SR-26-F1-618348d6.pdf`, grid `tooling/short-run.json`).
+
+| Asked for | Answer | How |
+|---|---|---|
+| Second Edition with no run over **five** days | **Found — Short Run** | an exact-solver skeleton laid with Second Edition's duties and polished through every check |
+| Even Keel with no mixed week | **Not found** | its table laid on Second Edition's skeleton kept two FF19 start-time jumps through four soft polishes (two of them 600,000 moves); laid on the six exact skeletons it failed at the start every time |
+| a 19th one-turn week (either table) | **Not found** | six polishes of 500,000 moves, three on each table, every one stopping at 18 — each "closest" rota was the shipped one |
+| three single rest days | **Proved impossible** | the exact solver's floor is four, with every rule that bears on the layout and with shift times set aside, so no choice of times can get under it |
+
+**Short Run against Second Edition.** The same duty table, so the same fit (29.1 · 12.7 · 29.0), the same fifteen times
+(nine worked today) and the same 42 late finishes. The same 9/9 rules, 3/3 flexible, every hard limit, no fatigue factor
+fixed or in the worst case, rest 14h 20m, 7 full weekends never more than five apart (gaps 1 5 5 1 5 5 4), four single
+rest days, no mixed week, 18 of 21 weeks on one shift time, leave 28 · 20 · 15, 218.6 days. **The one gain: no run over
+five days** (Second Edition's longest is six; the worst case with a cover week placed badly is six for both). **The
+costs:** the heaviest week is 42h 30m (Second Edition 42h 00m), the lightest 24h 30m (25h 30m), the week-to-week step
+1h 13m (1h 01m). On the sheets' own comparison lines it equals Second Edition everywhere and beats it on the run, which
+is why it was given a name rather than folded into Second Edition's notes. Its presentations
+(`presentations/Short-Run-for-colleagues` and `-for-managers`, built by `tooling/short-run-decks.py`) lead with the run and
+say both figures for it, five on the fixed rota and up to six with a cover week placed badly, where Second Edition's say six.
+
+**How it was found — the exact solver.** `skeleton.mjs` is an annealer: sixteen seeds asked for a pure-week skeleton with
+no run over five days all ended with five or more single rest days, which looked like a floor and was not one.
+`tooling/exact-floor.py` states the same rest-day layout as an integer programme (pulp + CBC) and SOLVES it: rows of 4
+or 5 duties, the day counts, 7 full weekends never more than GAP apart, no run over the limit with a cover week's four
+duties placed as badly as they can be, and single rest days counted exactly as the sheets count them. Its floors, each
+proved optimal rather than searched:
+
+| Layout rules | Single rest days, at least |
+|---|---|
+| weekends at most 5 apart, run ≤ 6 | **4** |
+| weekends at most 5 apart, run ≤ **5** | **4** |
+| weekends at most 6 apart, run ≤ 6 | 3 |
+| weekends any distance apart | 1 |
+| + the family rules (pure weeks, early counts, a rest day at every change, no single rest day after an early), run ≤ 6 | 4 |
+| + the family rules, run ≤ 5 | 4 |
+
+The first four agree with the annealer's own floor table under "Second Edition" above, which is the check on the model.
+The last row is what the annealer had missed: a pure-week layout with no run over five and four single rest days exists.
+`tooling/exact-skeletons.py` is the same model turned into a generator — each solve must hit four, ties go to the fewest
+family changes, and a no-good cut makes the next layout differ in at least ten cells. It wrote six skeletons; each was
+laid with Second Edition's table and with Even Keel's (`skeleton-start.mjs`, `TABLE=`) and sent through Second Edition's
+own chain (two soft polishes, then hard). **Only the second skeleton, with Second Edition's table, came through**
+(`results/skeleton-run5.json`): 16 one-turn weeks at 41h 00m. As with Second Edition, the polish moved rest days on the
+way (the finished rota differs from the skeleton in 22 cells and six lines' families) while the run, single-rest-day and
+weekend floors held. Two further polishes, with everything else held, took it to
+17 at 42h 00m and to 18 at 42h 30m; four seeds asked for 18 at 42h 00m found none, so the 42h 30m is what ships — the 42h
+cap was a floor carried over from Second Edition, not a rule: no rule sets a weekly maximum, only the 35-hour average, and
+the searches' own ceiling of 43h 40m is Second Nature's heaviest week, not a limit.
+
+**What "proved" means here, and where it stops.** The three-single-rest-day answer is a real proof: the solver's rules are
+a RELAXATION of the full set (times are not in it), so anything it cannot do, no rota can. The run-five answer is proved the
+other way, by the rota existing. The solver's family rules are slightly stricter than the sheets' (it forbids a single rest
+day after ANY early, where FF8b is about blocks of 06:20s) and it does not carry the 07:00 supply or the leave figures, so a
+"4" from the family-rule rows says a layout exists on paper, not that it will take the times — five of the six did not.
+
+**How to rebuild it** (from `tooling/`; the solver needs `pip install pulp`):
+
+```
+python3 exact-skeletons.py 5 4 6 10 /tmp/sk          # six skeletons; /tmp/sk/skel-2.json = results/skeleton-run5.json
+node skeleton-start.mjs results/skeleton-run5.json /tmp/sr0.json 1
+F="REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=16 ISO_MAX=4 MIXED_MAX=0 STEP_MAX=121 LEAVE_WORST_MIN=20 ISO_W=1e5 MIX_W=4e4 FIXED_RUN_MAX=5"
+env $F FATIGUE_SOFT=1 HEAVY_MAX=42.5 node space-polish.mjs /tmp/sr0.json /tmp/sr1.json 1 400000   # keeps nothing → /tmp/sr1.closest.json
+env $F FATIGUE_SOFT=1 HEAVY_MAX=42.5 node space-polish.mjs /tmp/sr1.closest.json /tmp/sr2.json 2 500000
+env $F HEAVY_MAX=42 node space-polish.mjs /tmp/sr2.json /tmp/sr3.json 1 500000                   # 16 one-turn weeks, 41h 00m
+G="REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ISO_MAX=4 MIXED_MAX=0 STEP_MAX=121 LEAVE_WORST_MIN=20 LEAVE_BEST_MIN=28 LEAVE_FOUR_MAX=15 HEAVY_MAX=42 FIXED_RUN_MAX=5 ISO_W=1e5 MIX_W=4e4"
+env $G ONE_MIN=17 node space-polish.mjs /tmp/sr3.json /tmp/sr4.json 1 500000                      # 17, 42h 00m
+env $G ONE_MIN=18 node space-polish.mjs /tmp/sr3.json /tmp/sr5.json 2 500000                      # keeps nothing → /tmp/sr5.closest.json = short-run.json
+```
+
+The exact solver is not deterministic across CBC versions, so the first command may write the six in another order or
+find different ones; `results/skeleton-run5.json` is the one that worked, and the chain from it is deterministic.
+
+## Long Break — four weeks off for 14 days' leave, as today (3 Oct 2026)
+
+Every 26-line design before this one needed **15** days' leave for four full weeks off, where today's link needs 14 — the
+one line on the leave slide where every proposal was worse than today. The owner asked whether 14 was possible at all,
+then asked for the search ("run the 14 day leave search"). It was, and it ships as **Long Break** (`LB-26-F1` ·
+`c193b37e`, Second Nature family, `proposals/Long-Break-LB-26-F1-c193b37e.pdf`, grid `tooling/long-break.json`).
+
+**What the exact solver said first.** `exact-floor.py`'s layout model with one constraint added — somewhere in the wheel,
+28 days from a Sunday must cost at most 14 days' leave — and the single rest days minimised:
+
+| Layout rules, four weeks off for 14 days | Single rest days, fewest found |
+|---|---|
+| structural rules only, run ≤ 6 | 4 |
+| + the family rules, run ≤ 6 | 5 |
+| + the family rules, run ≤ 5 | 5 |
+
+**These are the fewest the solver found, not proven floors.** With the leave constraint added, none of these solves finished
+inside its time limit, and CBC reports "Optimal" for the best layout it holds when the clock runs out — a first solve of the
+middle row said 7, a re-run with a longer limit said 5, and the last row read 6 until an independent re-solve found 5 (the
+scripts now print whether a result was proven or timed out). What IS established: the structural row agrees with the
+proven floor of 4 without the leave constraint, and a layout with five single rest days exists, because Long Break is one.
+So the 14 is not forced out by the link's shape; its price, as far as the solver can see, is one more single rest day than
+the four every shortlisted design has. Rebuild a row with `FOUR=14 [LIMIT=1800] python3 exact-floor.py 5 6 [fam]`.
+
+**How it was built.** `FOUR=14 python3 exact-skeletons.py 6 5 4 10` — the generator with the four-weeks constraint, at
+most five single rest days, no run over six. It wrote one skeleton before its second solve ran out of time
+(`results/skeleton-leave14.json`). Laid with Second Edition's table and sent through the soft → soft → hard chain with
+`LEAVE_FOUR_MAX=14` held as a floor throughout, it came through with every check clear; laid with Even Keel's table it
+failed at the start, as on every exact skeleton so far. Three further polishes with everything held — asking for 17
+one-turn weeks, for 18, and for a step under 1h 30m — kept nothing; the closest rota from the first of them, every floor
+held but the 17th one-turn week and the step two minutes gentler than the chain's, is the rota shipped (the rebuild
+block's last line).
+
+**Long Break against Second Edition** (same duty table, so the same fit, times, late finishes, closers, headcounts and
+218.6 days): 9/9 rules, 3/3 flexible, every hard limit, no fatigue factor fixed or in the worst case, rest 14h 20m,
+7 full weekends never more than five apart (gaps 5 1 5 5 5 1 4), no run over six, no mixed week, heaviest week 42h 00m,
+lightest 24h 30m. **The gains:** four full weeks off for **14** days' leave (Second Edition 15, today 14), and the best
+14-day stretch **29** days off (28; today 30); the worst stays 20 and the average is 23.5 (23.4). **The costs:** **five** single
+rest days (four), **16 of 21** weeks on one shift time (18), and a week-to-week step of **1h 44m** (1h 01m). In the
+weighted league (`node tooling/league.mjs`) it sits fourth, under Second Edition, Short Run and Even Keel and above Fine Tune — the leave gain is
+worth three points there and the one-turn, step and single-rest-day costs take back four.
+
+**How to rebuild it** (from `tooling/`; the solver needs `pip install pulp`):
+
+```
+FOUR=14 python3 exact-skeletons.py 6 5 4 10 /tmp/lb          # /tmp/lb/skel-1.json = results/skeleton-leave14.json
+node skeleton-start.mjs results/skeleton-leave14.json /tmp/lb0.json 1
+F="REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ONE_MIN=16 ISO_MAX=5 MIXED_MAX=0 STEP_MAX=121 LEAVE_WORST_MIN=20 LEAVE_FOUR_MAX=14 ISO_W=1e5 MIX_W=4e4"
+env $F FATIGUE_SOFT=1 HEAVY_MAX=42.5 node space-polish.mjs /tmp/lb0.json /tmp/lb1.json 1 400000
+env $F FATIGUE_SOFT=1 HEAVY_MAX=42.5 node space-polish.mjs /tmp/lb1.json /tmp/lb2.json 2 500000
+env $F HEAVY_MAX=42 node space-polish.mjs /tmp/lb2.json /tmp/lb3.json 1 500000                  # every check clear, step 1h 46m
+env $F HEAVY_MAX=42 LEAVE_BEST_MIN=29 ONE_MIN=17 node space-polish.mjs /tmp/lb3.json /tmp/lb4.json 1 500000   # keeps nothing → /tmp/lb4.closest.json = long-break.json
+```
+
+The same caveat as Short Run's: the generator is not deterministic across CBC versions, and the polish moves rest days
+after the lay, so the skeleton is where the search started.
+
+## The shortlist sheet (3 Oct 2026)
+
+Owner: "a two page analysis sheet comparing the three — snappy but evidence led, choose one if you like one, compare
+to the existing roster too." `links-26-shortlist.pdf`, built by `tooling/shortlist-sheet.mjs`: what Second Edition,
+Short Run and Even Keel share, where they differ (the best of the three on each line marked), each one's edge, the
+same three against today's link, the costs all three carry against today, and a recommendation — Short Run, with the
+reasons and with the two conditions under which the other two are the better choice. **Every figure is computed by the
+same functions the proposal sheets use** (`assess`, `personal`, `leave`, `scoreOrder`); the prose is the judgement
+this README records under each design. Rebuild with `node tooling/shortlist-sheet.mjs` after any change to the three
+grids, and read it again — a sentence that names a figure ("a half hour on one week") is computed too, but one that
+names a reason is not.
+
+## Notes for the whole set
+
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
 "7 in 26" against "4 in 20" made the reader divide. The sheets now say it per person per year, as late finishes and 06:20
 starts already were:
@@ -464,7 +743,7 @@ stood.
 **Everything in one download:** `links-26-proposals.zip`, laid out as the 24-line pack
 (`../links-24/links-24-proposals.zip`) was:
 1. a *Read me first* note;
-2. the one-page summary;
+2. the one-page summary, and the two-page shortlist sheet;
 3. the rules;
 4. the presentations;
 5. every proposal sheet;
@@ -473,9 +752,12 @@ stood.
 
 `tooling/pack.py` builds it from this folder, every design in `regenerate.mjs`'s `SUPPLIED` list included, and stops
 if a file is missing. The 24-line pack was zipped by hand, so it went stale after a re-render; this one is rebuilt by
-running `python3 docs/links-26/tooling/pack.py` after any re-render. Its *Read me first* says the import files are
-refused by the Links page until that page moves to 26 lines.
+running `python3 docs/links-26/tooling/pack.py` after any re-render.
 
-**Still 24 in the app.** `ROTATING_LINES = 24` in `links-design.js` is the Links page's own line count. It moves to 26 as
-its own app release (owner, 1 Oct 2026). Until then the tooling passes 26 to every app function explicitly, and the
-Links page itself still lays out 24 lines.
+**26 in the app since v24.47 (3 Oct 2026).** `ROTATING_LINES = 26` in `links-design.js`: the Links page lays out 26
+lines, so the import files in the pack paste straight in and the page re-runs every check on them; the three shortlisted
+designs are built into that page as examples, copied cell for cell from `proposals/` (`links-proposals.js` says so, and
+says to re-copy if one changes). The tooling still
+passes 26 to every app function explicitly — harmless now, and it keeps the sheets' line count stated in one place
+(`tooling/link.mjs`) rather than inherited. Until that release the page was on 24 lines and refused the files; the
+read-me said so, and now says the opposite.

@@ -146,9 +146,9 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <div class="meta">Prepared ${RENDERED} · the rules and every figure below are read from the same code that writes the proposal sheets, not typed</div></div></div>
 
   <div class="tiers">
-    <div class="tier"><b class="k">Hard limits</b>A design must meet these or it cannot be run. Four of them.</div>
+    <div class="tier"><b class="k">Hard limits</b>A design must meet these or it cannot be run. Three, and the ceiling of 219 contracted days a year, which is hard too.</div>
     <div class="tier"><b class="k">Soft rules</b>The December 2026 staffing rules. ${['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven'][RT.of]} of them, each met or not, and scored on every proposal sheet.</div>
-    <div class="tier"><b class="k">Flexible rules</b>Three more aimed for when designing, and met by some proposals, not all. Not scored on the proposal sheets; a presentation may mention them. Page 2.</div>
+    <div class="tier"><b class="k">Flexible rules</b>Three more aimed for when designing. Not scored on the proposal sheets; a presentation may mention them. Page 2.</div>
     <div class="tier"><b class="k">Fatigue factors</b>Patterns that tend to tire people. Advisory only: “present” means worth a look, never a breach.</div>
   </div>
 
@@ -183,7 +183,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <div class="sub">The rules designs aim for but are not scored on, the advisory list, what is for staff to say rather than the rules, and the questions not yet settled</div></div></div>
 
   <h2>Flexible rules <span class="tag soft">aimed for, not scored</span></h2>
-  <p class="lead">Aimed for when designing, and checked by the searches and solvers — though several proposals were built without one or more. They are <b>not scored on the proposal sheets</b>: a proposal that misses one can still be put forward, and a presentation may say which it meets.</p>
+  <p class="lead">Aimed for when designing, and checked by the searches and solvers. They are <b>not scored on the proposal sheets</b>: a proposal that misses one can still be put forward, and a presentation may say which it meets.</p>
   <table class="t dec"><thead><tr><th>Rule</th><th>What it asks, exactly</th><th>Today’s link</th></tr></thead><tbody>${flexRows}</tbody></table>
 
   <h2>Fatigue factors <span class="tag adv">advisory</span></h2>

@@ -1,0 +1,8 @@
+{
+ "date": "3 October 2026",
+ "identity": {
+  "table": "H1 — Second Gear's duty table, unchanged (results/second-gear-table.json)",
+  "seed": "supplied — an outside reviewer's candidate SGR-26-C1 (external/second-gear-refined/)",
+  "lineage": "Second Gear with its weeks reordered by an outside reviewer, using their own search (search.cpp, a time-budgeted heuristic, so a re-run may not reproduce it) and an independent recount (verify.py, verification.json). The duties on every day are Second Gear's exactly, so the staffing rules, shift times, late finishes and cover weeks are unchanged; one mixed week instead of two, and a smaller week-to-week change in start times. The reviewer asked for the app's own checker to be run before it was treated as a proposal; it was (3 Oct 2026), and agrees with every figure they reported. The grid itself is the source, as for the other supplied designs."
+ }
+}

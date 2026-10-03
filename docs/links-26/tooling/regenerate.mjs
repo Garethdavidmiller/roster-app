@@ -24,7 +24,7 @@ const fingerprint = p => createHash('sha256')
     .digest('hex').slice(0, 8);
 
 /** The supplied designs: a grid, a name, a strap line and a code. */
-// 26 LINES (1 Oct 2026): none yet. Each 26-line design is one entry, in the shape the 24-line list used
+// 26 LINES (1 Oct 2026; nine by 3 Oct). Each 26-line design is one entry, in the shape the 24-line list used
 // (../../links-24/tooling/regenerate.mjs): { file, name, code, fp, strap }, the code carrying -26- (e.g. AB-26-EXT).
 export const SUPPLIED = [
     // Second Nature (1 Oct 2026): the first 26-line design, built the Familiar Nine way — a duty table chosen from the
@@ -43,11 +43,32 @@ export const SUPPLIED = [
     // to 07:15-15:45) keeps the 42 late finishes; Second Gear (table H1) has the lightest weeks and costs two more a year.
     // README.md → "Second Look and Second Gear".
     { file: 'second-look.json',            name: 'Second Look',    code: 'SL-26-G3',   fp: '7095fdda', strap: 'Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates' },
-    { file: 'second-gear.json',            name: 'Second Gear',    code: 'SG-26-H1',   fp: '8d61e5c3', strap: 'Weekends never more than five weeks apart, no week over 41h 30m, and the gentlest week-to-week change' },
-    // Quiet Friday (2 Oct 2026): the owner's what-if, "217 was the maximum working days per year … keep the rest of the
-    // rules". One duty fewer a week (88): 14 on a Friday, the quietest day (owner), and 15 the other weekdays, so every rule
-    // and flexible rule still holds. Its own family: a different ceiling and table. README.md → "Quiet Friday".
-    { file: 'quiet-friday.json',           name: 'Quiet Friday',   code: 'QF-26-C1',   fp: 'daf8f3c9', strap: 'Built to 217 days a year: 14 on a Friday, and weekends never more than five weeks apart' },
+    { file: 'second-gear.json',            name: 'Second Gear',    code: 'SG-26-H1',   fp: '8d61e5c3', strap: 'Weekends never more than five weeks apart, no week over 41h 30m, and a week-to-week change of 1h 25m' },
+    // Second Edition (2 Oct 2026): the owner asked for a roster stronger than any so far, at 219 days. Same duty table as
+    // Second Nature; the weeks were built from a rest-day SKELETON (skeleton.mjs) that carries every rule a finished rota
+    // must meet, then the times were searched. Weekends at most five apart, four single rest days, no mixed week, 18 of 21
+    // weeks on one shift time, heaviest week 42h 00m, step 1h 01m — better than or equal to every design on every line.
+    // README.md → "Second Edition".
+    { file: 'second-edition.json',         name: 'Second Edition', code: 'SE-26-F1',   fp: 'dea6417f', strap: 'Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time' },
+    // Fine Tune (3 Oct 2026): Second Gear with its weeks reordered by an outside reviewer (their candidate SGR-26-C1, with
+    // its own search and recount in external/second-gear-refined/). The same duties every day, so the same table figures;
+    // one mixed week instead of two and a smaller week-to-week step. Checked here by the app's own code before shipping.
+    { file: 'fine-tune.json',              name: 'Fine Tune',      code: 'FT-26-H1',   fp: '9a7393d3', strap: 'Second Gear fine-tuned: no week over 41h 30m, one mixed week, and a gentler week-to-week change' },
+    // Even Keel (3 Oct 2026): a second reordering of Second Gear by the same outside reviewer (their SGR-26-C2, with its
+    // recount in external/roster-search-results-2/). Same duties every day; 18 of 21 weeks on one shift time. Checked
+    // here by the app's own code. Their other candidate, Five-Day Flow, was NOT shipped: README.md → "Even Keel".
+    { file: 'even-keel.json',              name: 'Even Keel',      code: 'EK-26-H1',   fp: '8e9a1bcf', strap: 'Second Gear rebalanced: 18 of 21 weeks on one shift time, and no week over 41h 30m' },
+    // Short Run (3 Oct 2026): the final targeted search's one find. Second Edition's duty table on a rest-day skeleton
+    // the EXACT solver produced (exact-skeletons.py: no run over FIVE days, no mixed week, four single rest days — a
+    // layout the annealing skeleton search never reached in 16 seeds), then the same soft → hard polish chain. Equal to
+    // Second Edition on every line the sheets compare, with the longest run down from six days to five; the heaviest
+    // week is 42h 30m against Second Edition's 42h 00m. README.md → "Short Run".
+    { file: 'short-run.json',              name: 'Short Run',      code: 'SR-26-F1',   fp: '618348d6', strap: 'Second Edition with no run over five days: weekends never more than five weeks apart, 18 of 21 weeks on one shift time' },
+    // Long Break (3 Oct 2026): the 14-day-leave search. Second Edition's duty table on an exact-solver skeleton
+    // (exact-skeletons.py with FOUR=14) in which four full weeks off cost 14 days' leave, as today, where every other
+    // 26-line design needs 15; its best leave stretch is 29 days. The price: five single rest days (not four), 16 of 21
+    // weeks on one shift time (not 18) and a week-to-week step of 1h 44m. README.md → "Long Break".
+    { file: 'long-break.json',             name: 'Long Break',     code: 'LB-26-F1',   fp: 'c193b37e', strap: 'Four weeks off for 14 days’ leave, as today, with weekends never more than five weeks apart and no mixed week' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
@@ -59,6 +80,9 @@ export const SUPPLIED = [
 // The Pinned Turns family (PT-24-P34 · dae6292e, P2-24-N13 · 33a78cbe) was withdrawn the same way on 30 Sep 2026 (owner):
 // its entries were { PT: results/best-RP-*.json, OTHER_MODE results/best-P-13.json } and { P2: results/best-RN-*.json,
 // OTHER_MODE results/best-N-7.json }. Both grids are kept unchanged in test-fixtures/links-designs/ for the Links compare tests.
+// Quiet Friday (QF-26-C1 · daf8f3c9), the 217-day what-if, was WITHDRAWN on 3 Oct 2026 (owner: "we can remove Quiet
+// Friday from the proposals"). Its grid stays in tooling/quiet-friday.json and its tables and start in results/; to
+// rebuild it, restore its SUPPLIED entry and its strap, family and date in fresh.mjs from git history.
 export const SEARCHED = [];   // the 26-line link ships every design as a grid (SUPPLIED): searched rotas are built first and then supplied
 
 const expand = g => { const [dir, pat] = [g.slice(0, g.lastIndexOf('/')), g.slice(g.lastIndexOf('/') + 1)];

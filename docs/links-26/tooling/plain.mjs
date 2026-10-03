@@ -403,7 +403,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('Most days in a row, fixed duties', runFT, runF, run > 13 ? 'no' : cmp(runF < runFT, runF === runFT), `${runW !== runF || runWT !== runFT ? `up to ${runW} (today ${runWT}) if a cover week falls badly; ` : ''}Chiltern’s limit is 13${runW !== runF || runWT !== runFT ? '' : ' (written source to confirm)'}`),
     row('Shortest gap between two shifts', hm(T.rest?.minutes), hm(restMin), rests ? 'no' : cmp(restMin > T.rest?.minutes, restMin === T.rest?.minutes), 'in the fixed duties; the limit is 12 hours'),
     row('Full weekends off, in the rotation', `${T.checks.weekendsOff} in ${tp.L}`, `${P.checks.weekendsOff} in ${pp.L}`, cmp(pWeekShare > tWeekShare, everyN(pWeekShare) === everyN(tWeekShare)), pGap == null ? 'none in the rotation' : `uneven: never more than ${pGap} weeks apart (today ${tGap ?? '—'})`),
-    row('Days at work a year, not counting Sundays', Math.round(tp.daysYear), Math.round(pp.daysYear), '', 'Sundays are overtime; a cover week counts as 4 days'),
+    row('Days at work a year, not counting Sundays', tp.daysYear.toFixed(1), pp.daysYear.toFixed(1), '', 'Sundays are overtime; a cover week counts as 4 days'),
     row('Weeks on one shift time', ofW(T), ofW(P), '', 'all earlies or all lates, one clock time Monday to Friday'),
     row('Weeks mixing earlies and lates', `${T.feel.hybrid} of ${T.feel.workingLines}`, `${P.feel.hybrid} of ${P.feel.workingLines}`, '', 'a week with both early and late shifts in it'),
     row('Single rest days', iso(T), iso(P), '', 'a rest day on its own — not a two-day break'),
@@ -464,7 +464,7 @@ function methodPage({ meta, pages }) {
   <div class="tboxes">${boxes}</div>
   <h2 class="pmh">What each figure is based on</h2>
   <div class="pcards">${items.map(([h, t]) => `<div class="pcard"><h4>${h}</h4><p>${t}</p></div>`).join('')}</div>
-  <p class="muted pimport">The rota is supplied beside this PDF as <span class="tt">${esc(meta.identity.name.replace(/ /g, '-'))}-${esc(meta.identity.code)}-import.txt</span>, ready to paste into the Links page (Import), which re-runs every check here. The code <b>${esc(meta.identity.fingerprint)}</b> in every footer is worked out from the 168 days of the rota and nothing else, so a printout always matches the design it came from.</p>
+  <p class="muted pimport">The rota is supplied beside this PDF as <span class="tt">${esc(meta.identity.name.replace(/ /g, '-'))}-${esc(meta.identity.code)}-import.txt</span>, ready to paste into the Links page (Import), which re-runs every check here. The code <b>${esc(meta.identity.fingerprint)}</b> in every footer is worked out from the ${LINES * 7} days of the rota and nothing else, so a printout always matches the design it came from.</p>
   <div class="foot"><span>Page ${pages} of ${pages} — Can I trust these numbers?</span><span class="foot-id"><b>${name}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>`;
 }
@@ -591,6 +591,21 @@ table.ff .ff-plain { display: block; font-weight: 700; } table.ff .ff-orr { disp
    never cut it (screenshot check, 30 Sep 2026) */
 .cover.plain .pcols--dense .pbox ul { font-size: 9.8px; line-height: 1.3; }
 .cover.plain h2.psec { font-size: 12.5px; margin: 11px 0 5px; color: var(--primary-blue); letter-spacing: .01em; }
+/* PAGE 1 BREATHES (3 Oct 2026, aesthetic pass from screenshots): the cover ended a third of the way up the page on every
+   26-line sheet, so the blocks a reader meets first were the smallest type on the sheet. Scaled up ~12% and spaced; the
+   dense variant (.pcols--dense) keeps its own size so a long concerns list still fits. */
+.cover.plain .pbottom { font-size: 13.4px; line-height: 1.52; margin-top: 14px; padding: 11px 16px; }
+.cover.plain .pcaveat { font-size: 11.4px; line-height: 1.5; margin-top: 10px; }
+.cover.plain .ptakes { font-size: 11.4px; line-height: 1.5; margin-top: 8px; }
+.cover.plain h2.psec { font-size: 14px; margin: 16px 0 7px !important; }
+.cover.plain .tiles.head4 .ptile { padding: 12px 14px 13px; }
+.cover.plain .tiles.head4 .ptile b { font-size: 26px; }
+.cover.plain .tiles.head4 .ptile p, .cover.plain .tiles.head4 .ptile .q, .cover.plain .tiles.head4 .ptile small, .cover.plain .tiles.head4 .ptile span { font-size: 10.6px; line-height: 1.42; }
+.cover.plain .pcols { margin-top: 12px; gap: 14px; }
+.cover.plain .pcols .pbox { padding: 12px 16px 13px; }
+.cover.plain .pcols .pbox h3, .cover.plain .pcols .pbox .pbox-h { font-size: 12px; }
+.cover.plain .pcols .pbox ul { font-size: 11.3px; line-height: 1.5; }
+.cover.plain .pcols--dense .pbox ul { font-size: 10.2px; line-height: 1.36; }
 .cover.plain .tiles.head4, .cover.plain .tiles.pfeel.four { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .cover.plain .head4 .tile .q { min-height: 26px; } .cover.plain .head4 .tile b { font-size: 22px; }
 .cover.plain .pfeel .tile .ab { font-size: 11px; font-weight: 600; color: var(--text-mid); }
@@ -815,7 +830,7 @@ function shiftPage(s, { T, P }) {
     const shape = `<h2 class="p4shape-h">The shape of a week</h2>
   <table class="t p4shape"><thead><tr><th>Measure</th><th>Today</th><th>Proposed</th><th>In plain words</th></tr></thead><tbody>
     <tr><td>Rest breaks of two days or more</td><td>${T.feel.pairedRest} of ${T.feel.restIslands}</td><td><b>${P.feel.pairedRest} of ${P.feel.restIslands}</b></td><td class="muted">of all the breaks between duties</td></tr>
-    <tr><td>Single rest days</td><td>${iso(T)}</td><td><b>${iso(P)}</b></td><td class="muted">one beside a cover week depends on where its four duties fall</td></tr>
+    <tr><td>Single rest days</td><td>${iso(T)}</td><td><b>${iso(P)}</b></td><td class="muted">${P.feel.isolatedBesideCover ? 'one beside a cover week depends on where its four duties fall' : 'a rest day with a worked day either side'}</td></tr>
     <tr><td>Working weeks by days worked, Sunday in</td><td class="p4wrap">${dist(T)}</td><td class="p4wrap"><b>${dist(P)}</b></td><td class="muted">cover weeks left out</td></tr>
     <tr><td>Working weeks with a Sunday</td><td>${T.hours.sundayDuties} of ${T.feel.workingLines}</td><td><b>${P.hours.sundayDuties} of ${P.feel.workingLines}</b></td><td class="muted">the number on duty each Sunday — all overtime</td></tr>
   </tbody></table>`;

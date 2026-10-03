@@ -1,0 +1,12 @@
+SECOND GEAR: REFINEMENT 1
+Independent candidate SGR-26-C1, 2 October 2026.
+
+Read Second-Gear-Refined-review.pdf first.
+The import file preserves Second Gear daily duty coverage exactly.
+Both grids, an independent verifier and its full result are included.
+The original app checker was not available and must still be run before promotion.
+
+REPRODUCE THE RECOUNT
+python3 verify.py Second-Gear-original-import.txt Second-Gear-Refined-SGR-26-C1-import.txt
+
+The search source is an intermediate heuristic. It uses relative output path roster-search/candidate.txt; compile with g++ -O3 -std=c++17 search.cpp -o search, create roster-search, then run ./search Second-Gear-original-import.txt 120. The time budget means the final result may vary.

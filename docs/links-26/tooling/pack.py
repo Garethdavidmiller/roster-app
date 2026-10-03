@@ -18,6 +18,7 @@ if not proposals: raise SystemExit('pack: no proposals in regenerate.mjs SUPPLIE
 
 files = [  # (source, path in the pack)
     (f'{ROOT}/links-26-summary.pdf', '1 Summary/links-26-summary.pdf'),
+    (f'{ROOT}/links-26-shortlist.pdf', '1 Summary/links-26-shortlist.pdf'),
     (f'{ROOT}/links-26-rules.pdf', '2 Rules/links-26-rules.pdf'),
 ]
 for name, code, fp in proposals:
@@ -38,21 +39,33 @@ with_decks = [n for n, _, _ in proposals if os.path.exists(f"{ROOT}/presentation
 readme = f"""DECEMBER 2026 LINK PROPOSALS - 26 LINES
 Marylebone CEA link, December 2026 timetable - the 26-week link (from 1 October 2026)
 
-A WORK IN PROGRESS, not a decision pack: the proposals, the figures and the wording
-are still moving, and the staffing levels behind the rules were confirmed verbally.
-The link was 24 weeks until 1 October 2026; that work is kept in its own pack,
-links-24-proposals.zip, for reference.
+TEN candidate links, THREE shortlisted (Second Edition, Short Run, Even Keel), ONE
+recommended (Short Run). Asked of managers: which of the three goes to colleagues.
+Asked of colleagues: look at page 3 of the chosen sheet and say what worries you.
+  Ten minutes:    1 Summary/links-26-shortlist.pdf
+  Twenty minutes: add 3 Presentations/Short-Run-for-managers.pdf
+  The rest is the evidence behind them.
+
+Still moving: the staffing levels and Sunday cover behind the rules were confirmed
+verbally, not in writing; the written source of the 13-day limit is to be confirmed;
+and the reading of one fatigue factor (FF19, marked "definition to confirm" on the
+rules page) is open. The figures are computed from the rotas and will not move unless a
+rule does. The link was 24 weeks until 1 October 2026; that work is kept in its own
+pack, links-24-proposals.zip, for reference.
 
 Proposals in this pack: {names}.
 
 Start with these:
-  1 Summary        One page: every proposal against today's link.
-  2 Rules          The three tiers of rule, two pages: the hard limits (now four,
-                   with the ceiling of 219 contracted days a year), the nine
+  1 Summary        One page: every proposal against today's link; and the two-page
+                   shortlist sheet - the three recommended designs against each
+                   other and today, with a recommendation. Start there.
+  2 Rules          The three tiers of rule, two pages: the hard limits (three, and the
+                   ceiling of 219 contracted days a year, which is hard too), the nine
                    December 2026 rules scored on every sheet, and three flexible
                    rules aimed for when designing (14 on a Saturday, five cover
                    weeks as evenly spaced as 26 weeks allow, 15:45 weekday closers).
-  3 Presentations  {' and '.join(with_decks) or 'None yet'} - one for colleagues and one for managers{' each' if len(with_decks) > 1 else ''}.
+  3 Presentations  {(', '.join(with_decks[:-1]) + ' and ' + with_decks[-1]) if len(with_decks) > 1 else (with_decks[0] if with_decks else 'None yet')}:
+                   one for colleagues and one for managers{' each' if len(with_decks) > 1 else ''}.
                    PowerPoint and PDF copies of each. The PowerPoints use the
                    Inter font; if the PC showing them does not have Inter,
                    present the PDF instead.
@@ -71,16 +84,18 @@ The detail:
                       The code and eight-character fingerprint in each file name
                       identify the exact rota, so a printout can never be mixed
                       up with a variant.
-  5 Import files      Each proposal as text for the Links page (Import). The Links
-                      page still lays out 24 lines, so it will refuse these until
-                      it moves to 26 - that is planned as its own app release.
+  5 Import files      Each proposal as text for the Links page (Import), which lays
+                      out 26 lines since app version 24.47 (3 October 2026) and
+                      re-runs every check in this pack on whatever is pasted in. The
+                      three shortlisted designs are already in the app's Links
+                      designer as examples, for reference.
   6 Technical notes   The 26-line rules with what changed from 24, and how the
                       proposals were built and checked. Written for the technical
                       record, not for reading out.
 
-Every figure in the summary, the rules sheet and the proposal sheets was worked
+Every figure in the summary, the shortlist sheet, the rules sheet and the proposal sheets was worked
 out from the rotas by the Marylebone Roster app; none was typed in by hand. The
-presentations are built from the Familiar Nine decks by a script, and every figure
+presentations are built from the Familiar Nine decks by scripts (through a Second Nature template that is not shipped), and every figure
 in their tables is checked against those counts by another
 (docs/links-26/tooling/deck-check.mjs in the repository).
 """

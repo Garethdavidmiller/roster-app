@@ -13,7 +13,8 @@ import { LINES, COVER_WEEKS, DAYS_CEILING, CONTRACT_MINUTES, daysAYear, monSatMi
 import { folderStats, today, assess, sheetRules as currentRules, dutyMinutes, startMinutes, endMinutes } from './report-data.mjs';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
 import fs from 'node:fs';
-import { waivedRows, WAIVERS, waiveShort } from './fresh.mjs';
+import { waivedRows, WAIVERS, waiveShort, SHORTLIST } from './fresh.mjs';
+import { scoreOrder } from '../../../links-adjacency.js';
 const DIR = new URL('../proposals/', import.meta.url);
 const DAYS=['sun','mon','tue','wed','thu','fri','sat'];
 const timed = s => /^\d\d:\d\d-\d\d:\d\d$/.test(s);
@@ -21,7 +22,11 @@ function extra(p){ const L=Object.keys(p).length; let cover=0,dx=0,mins=0,minsAl
   for (const r of Object.values(p)){ if (DAYS.every(d=>r[d]==='SPARE')){cover++;continue;}
     for (const d of DAYS){ const s=r[d]; if(!timed(s)) continue; const m=dutyMinutes(s); minsAll+=m;nAll++;
       if(d!=='sun'){dx++;mins+=m;} if(endMinutes(s)>=1380||endMinutes(s)<startMinutes(s)) late++; if(d==='sat') sat++; } }
-  const dpw=(dx+4*cover)/L; return { L, cover, dpw, dpy: dpw*365/7, avg: mins/dx, avgAll: minsAll/nAll, late: late*52/L, sat: sat*52/L }; }
+  const dpw=(dx+4*cover)/L;
+  // the columns that separate the proposals (3 Oct 2026, reader's critique: four columns were identical on every row)
+  const A = assess(p, L), wk = Object.values(p).filter(r => r.mon !== 'SPARE').map(r => ['mon','tue','wed','thu','fri','sat'].reduce((s, d) => s + (timed(r[d]) ? dutyMinutes(r[d]) : 0), 0));
+  const step = scoreOrder(p, Object.keys(p), { maxRunTarget: 6 }).gentleMean;
+  return { L, cover, dpw, dpy: dpw*365/7, avg: mins/dx, avgAll: minsAll/nAll, late: late*52/L, sat: sat*52/L, heavy: Math.max(...wk), oneTurn: A.feel.oneTurn, working: A.feel.workingLines, mixed: A.feel.hybrid, step }; }
 const T=today();
 // the longest wait between two full weekends, in weeks (plain.mjs's measure): the one thing that told Second Nature and
 // Second Wind apart, and a seven-in-26 that can be ten weeks apart is not the same offer as one never five apart
@@ -40,7 +45,7 @@ rows.sort((a,b)=> a.hard-b.hard || b.met-a.met || a.present-b.present || a.name.
 const todayRow = { name:'Today’s link', code:'20 weeks', met:null, of:null, present:TA.fixed.present, presentW:TA.fatigue.present, run:TA.fixed.run, runW:TA.checks.longestStretch, wkd:`${TA.checks.weekendsOff} in 20`, gap:gapOf(T.patterns), wkYear:TA.checks.weekendsOff*52/20, rest:TA.rest?.minutes, times:`${TA.feel.distinctTimes}`, ...extra(T.patterns) };
 // today's rules met, the rules sheet's own figure
 { const R0 = currentRules({ patterns:T.patterns, ...TA }, TA, 'today'); todayRow.met = R0.met; todayRow.of = R0.of; }
-const tr = (r, cls='') => `<tr class="${cls}"><td class="n"><b>${r.name}</b><span>${r.code}</span>${r.hard ? '<em class="hl">✕ cannot be run as it stands</em>' : ''}</td><td class="${r.met===r.of?'good':''}">${r.met} of ${r.of}${r.waived ? `<span class="wv">${r.waived} waived‡</span>` : ''}</td><td class="${r.present===0?'good':''}">${r.present}${r.presentW !== r.present ? `<span class="wv">up to ${r.presentW}§</span>` : ''}</td><td>${r.run}${r.runW !== r.run ? `<span class="wv">up to ${r.runW}§</span>` : ''}</td><td>${r.wkd}<span class="wv">about ${Math.round(r.wkYear)} a year${r.gap ? ` · ${r.gap} weeks apart at most` : ''}</span></td><td class="${r.turns ? 'bad' : ''}">${r.rest==null?'—':`${r.turns ? '✕ ' : ''}${hm(r.rest)}`}${r.turns ? '<span class="wv">under the 12-hour limit</span>' : ''}</td><td>${r.times}</td><td>${r.dpw.toFixed(2)}</td><td${r.L === LINES && r.dpy > DAYS_CEILING + 1e-9 ? ' class="bad"' : ''}>${r.dpy.toFixed(1)}</td><td>${hm(r.avg)}</td><td>${Math.round(r.late)}</td><td>${Math.round(r.sat)}</td></tr>`;
+const tr = (r, cls='') => `<tr class="${cls}"><td class="n">${SHORTLIST.includes(r.name) ? '<em class="sl">★ shortlisted</em>' : ''}<b>${r.name}</b><span>${r.code}</span>${r.hard ? '<em class="hl">✕ cannot be run as it stands</em>' : ''}</td><td class="${r.met===r.of?'good':''}">${r.met} of ${r.of}${r.waived ? `<span class="wv">${r.waived} waived‡</span>` : ''}</td><td class="${r.present===0?'good':''}">${r.present}${r.presentW !== r.present ? `<span class="wv">up to ${r.presentW}§</span>` : ''}</td><td>${r.run}${r.runW !== r.run ? `<span class="wv">up to ${r.runW}§</span>` : ''}</td><td>${r.wkd}<span class="wv">about ${Math.round(r.wkYear)} a year${r.gap ? ` · ${r.gap} weeks apart at most` : ''}</span></td><td class="${r.turns ? 'bad' : ''}">${r.rest==null?'—':`${r.turns ? '✕ ' : ''}${hm(r.rest)}`}${r.turns ? '<span class="wv">under the 12-hour limit</span>' : ''}</td><td>${r.times}</td><td${r.L === LINES && r.dpy > DAYS_CEILING + 1e-9 ? ' class="bad"' : ''}>${r.dpy.toFixed(1)}</td><td>${hm(r.heavy)}</td><td>${r.oneTurn} of ${r.working}</td><td>${r.mixed}</td><td>${hm(r.step)}</td><td>${Math.round(r.late)}</td></tr>`;
 const html = `<!doctype html><html><head><meta charset="utf-8"><title>December 2026 link proposals — summary</title><style>
 @page{size:A4 landscape;margin:8mm 10mm}
 body{font-family:Inter,Arial,sans-serif;color:#1B2533;margin:0;font-size:9pt}
@@ -51,6 +56,7 @@ th:first-child{text-align:left}
 td{white-space:nowrap;border-bottom:1px solid #DDE3EA;padding:4px 5px;text-align:center;font-size:10pt}
 td.n{text-align:left} td.n span{color:#5B6778;font-size:8.5pt;margin-left:6px} td .wv{display:block;color:#5B6778;font-size:8pt}
 tr.today td{background:#FFF4C2;border-bottom:2px solid #F5C800}
+td.n em.sl{display:block;font-style:normal;color:#1E7B4B;font-size:8pt;font-weight:700;letter-spacing:.2px}
 td.good{color:#1E7B4B;font-weight:700} td.bad{color:#B3261E;font-weight:700} td.n em.hl{display:block;font-style:normal;color:#B3261E;font-size:8pt;font-weight:600}
 .foot{margin-top:10px;color:#5B6778;font-size:9pt;line-height:1.45}
 /* POLISH (1 Oct 2026): an "up to" note is a caveat, so it is never coloured as the good figure above it */
@@ -58,12 +64,12 @@ td.good .wv { color: #5B6778; font-weight: 400; }
 .lead, .foot { text-wrap: pretty; }
 </style></head><body>
 <h1>December 2026 link proposals — at a glance</h1>
-<p class="lead">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link, sorted by December rules met, then avoidable fatigue warnings; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota by the Marylebone Roster app. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</p>
-<table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Avoidable fatigue warnings§</th><th>Most days in a row§</th><th>Full weekends off</th><th>Shortest fixed-duty rest</th><th>Shift times</th><th>Days a week*</th><th>Days a year*</th><th>Average fixed shift, Mon–Sat</th><th>Finishes 23:00+ a year†</th><th>Saturdays a year†</th></tr></thead><tbody>
+<p class="lead">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the three shortlisted ones marked ★ — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota by the Marylebone Roster app. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</p>
+<table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Avoidable fatigue warnings§</th><th>Most days in a row§</th><th>Full weekends off</th><th>Shortest fixed-duty rest</th><th>Shift times</th><th>Days a year*</th><th>Heaviest week, Mon–Sat</th><th>Weeks on one turn‖</th><th>Weeks mixing earlies and lates</th><th>Week-to-week change of start</th><th>Finishes 23:00+ a year†</th></tr></thead><tbody>
 ${tr(todayRow,'today')}
 ${rows.map(r=>tr(r)).join('\n')}
 </tbody></table>
-<p class="foot">* Monday to Saturday, with a cover week counted as 4 days (Sundays are overtime and left out). † Each person, on average across the whole link, Sundays included; cover-week duties are not known yet and are left out. “Shift times” counts different start–finish times; “new” means nobody works that time today. § On the duties the rota fixes, the cover weeks left out for the proposal and today alike; “up to” is the worst place a cover week’s four duties could fall. Avoidable fatigue warnings come from the ORR’s good-practice list plus rail-industry checks, leaving out the two that come with every weekly link — reported, never pass or fail.${rows.some(r => r.waived) ? ` ‡ A rule the owner set aside for that proposal (${rows.filter(r => r.waived).map(r => `${r.name}: the ${WAIVERS[r.code].keys.map(waiveShort).join(' and ')}, ${WAIVERS[r.code].date.replace(/ (\w{3})\w+ /, ' $1 ')}`).join('; ')}).` : ''} Full detail for each proposal is in its own eight-page sheet; the rules themselves are in <span style="white-space:nowrap">links-26-rules.pdf</span>.</p>
+<p class="foot">* Monday to Saturday, with a cover week counted as 4 days (Sundays are overtime and left out). † Each person, on average across the whole link, Sundays included; cover-week duties are not known yet and are left out. “Shift times” counts different start–finish times; “new” means nobody works that time today. ‖ One shift time Monday to Friday and no switch between earlies and lates in the week. The week-to-week change is the average move of the start time from one week to the next. § On the duties the rota fixes, the cover weeks left out for the proposal and today alike; “up to” is the worst place a cover week’s four duties could fall. Avoidable fatigue warnings come from the ORR’s good-practice list plus rail-industry checks, leaving out the two that come with every weekly link — reported, never pass or fail.${rows.some(r => r.waived) ? ` ‡ A rule the owner set aside for that proposal (${rows.filter(r => r.waived).map(r => `${r.name}: the ${WAIVERS[r.code].keys.map(waiveShort).join(' and ')}, ${WAIVERS[r.code].date.replace(/ (\w{3})\w+ /, ' $1 ')}`).join('; ')}).` : ''} Full detail for each proposal is in its own eight-page sheet; the rules themselves are in <span style="white-space:nowrap">links-26-rules.pdf</span>.</p>
 </body></html>`;
 const b = await chromium.launch(); const pg = await b.newPage(); await pg.setContent(html, { waitUntil: 'load' });
 await pg.pdf({ path: new URL('../links-26-summary.pdf', DIR).pathname, format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });

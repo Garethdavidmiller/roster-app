@@ -15,15 +15,16 @@
 // below before this script can vouch for it. Run it after any change to a rota or to a deck, before the decks go out.
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { assess, folderStats, today, sheetRules, h55Worst, endMinutes } from './report-data.mjs';
+import { assess, folderStats, today, sheetRules, h55Worst, endMinutes, startMinutes } from './report-data.mjs';
 import { personal } from './plain.mjs';
 import { LINES } from './link.mjs';
 import { leave } from './leave.mjs';
 
 const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url).pathname;   // DECK_DIR: check a copy
-const DECKS = [['Second-Nature-for-colleagues.pptx', 'Second Nature'], ['Second-Nature-for-managers.pptx', 'Second Nature'],
-  ['Second-Wind-for-colleagues.pptx', 'Second Wind'], ['Second-Wind-for-managers.pptx', 'Second Wind'],
-  ['Second-Sight-for-colleagues.pptx', 'Second Sight'], ['Second-Sight-for-managers.pptx', 'Second Sight']];
+// Only the shortlist's decks are shipped (owner, 3 Oct 2026): Second Nature's, Second Wind's and Second Sight's were deleted.
+const DECKS = [['Second-Edition-for-colleagues.pptx', 'Second Edition'], ['Second-Edition-for-managers.pptx', 'Second Edition'],
+  ['Even-Keel-for-colleagues.pptx', 'Even Keel'], ['Even-Keel-for-managers.pptx', 'Even Keel'],
+  ['Short-Run-for-colleagues.pptx', 'Short Run'], ['Short-Run-for-managers.pptx', 'Short Run']];
 
 const hm = m => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}m`;
 const span = s => String(s).replace(/(\d+)h(\d\d)(?!m)/g, '$1h $2m');                 // plain.mjs's "8h40" → the decks' "8h 40m"
@@ -42,18 +43,22 @@ function figures(patterns, lines, T) {
   let fin22 = 0, dx = 0;
   for (const r of Object.values(patterns)) for (const d of DAYS) { const s = r[d]; if (!timed(s)) continue; if (endMinutes(s) >= 22 * 60) fin22++; if (d !== 'sun') dx++; }
   const cover = pp.cover, L = pp.L, dpw = (dx + 4 * cover) / L;
+  const wkMins = Object.values(patterns).filter(r => r.mon !== 'SPARE').map(r => DAYS.slice(0, 6).reduce((s, d) => s + (timed(r[d]) ? (endMinutes(r[d]) - startMinutes(r[d]) + 1440) % 1440 : 0), 0));
   const up = (fixed, worst) => `${fixed}${worst !== fixed ? ` (up to ${worst})` : ''}`;
   const todaysTimes = new Set((T ? T.tableRows : A.tableRows).map(r => r.time));
   const shared = A.tableRows.filter(r => todaysTimes.has(r.time)).length;
   return {
-    people: `${L}`, hours: '35h', daysWeek: `${+dpw.toFixed(2)}`, daysYear: `${Math.round(pp.daysYear)}`,
+    people: `${L}`, hours: '35h', daysWeek: dpw.toFixed(2), daysYear: pp.daysYear.toFixed(1),   // one decimal: 218.6 against 219.0 (3 Oct 2026 — the rounded 219 | 219 read as "no change")
     sat: `${Math.round(pp.sat)}`, sun: `${Math.round(pp.sun)}`, late23: `${Math.round(pp.late23)}`,
     late22: `${Math.round(fin22 * 52 / L)}`, open0620: `${Math.round(pp.open0620)}`,
     rest: hm(A.rest.minutes), longest: hm(pp.longest), avgLongest: `${hm(pp.avgShift)} · ${hm(pp.longest)}`,
     closers: ['wk', 'sat', 'sun'].map(k => span(pp.closerSpan[k])).join(' · '),
     closerWk: span(pp.closerSpan.wk), closerSat: span(pp.closerSpan.sat), closerSun: span(pp.closerSpan.sun), avg: hm(pp.avgShift),
     weekends: `${A.checks.weekendsOff} in ${L} (one in ${WORD[Math.round(L / A.checks.weekendsOff)] ?? Math.round(L / A.checks.weekendsOff)})`,
-    weekendsShort: `${A.checks.weekendsOff} in ${L}`,
+    weekendsShort: `${A.checks.weekendsOff} in ${L}`, weekendsYear: `${Math.round(A.checks.weekendsOff * 52 / L)}`,   // per year, the owner's 2 Oct ruling for the sheets, now the decks too
+    heavy: hm(Math.max(...wkMins)), light: hm(Math.min(...wkMins)), fitWk: A.office.wkFit.toFixed(1),
+    longestEarly: hm(Math.max(...Object.values(patterns).flatMap(r => DAYS.map(d => r[d]).filter(s => timed(s) && startMinutes(s) < 11 * 60).map(s => (endMinutes(s) - startMinutes(s) + 1440) % 1440)))),
+    sunHours: hm(Object.values(patterns).reduce((s, r) => s + (timed(r.sun) ? (endMinutes(r.sun) - startMinutes(r.sun) + 1440) % 1440 : 0), 0)),
     run: up(A.fixed.run, A.checks.longestStretch), ff: up(A.fixed.present, worstFF),
     times: T ? `${A.feel.distinctTimes} (${shared} you know)` : `${A.feel.distinctTimes}`,
     daily: trio(A.daily), dailyWk: wk(A.daily), dailyWeekend: `${A.daily.sat} / ${A.daily.sun}`,
@@ -74,14 +79,14 @@ const ROWS = {
   'Finishing at 22:00 or later — each, a year': 'late22', 'Starting at 06:20 — each, a year': 'open0620',
   'Shortest gap between two shifts': 'rest', 'Shortest rest between shifts (limit 12h)': 'rest', 'Longest shift': 'longest',
   'Average shift · longest shift': 'avgLongest', 'Closing shift: weekday · Saturday · Sunday': 'closers',
-  'Full weekends off': ['weekends', 'weekendsShort'], 'Most days worked in a row': 'run', 'Most days in a row (limit 13)': 'run',
+  'Full weekends off': ['weekends', 'weekendsShort'], 'Full weekends off, about a year': 'weekendsYear', 'Most days worked in a row': 'run', 'Most days in a row (limit 13)': 'run', 'Most days in a row (limit 13, source to confirm)': 'run',
   'Avoidable fatigue warnings in the fixed rota': 'ff', 'Avoidable fatigue warnings, fixed rota': 'ff',
   'Different shift times': 'times', 'On duty weekday · Saturday · Sunday': 'daily', 'On duty during the day': 'daily',
   'On duty on a weekday': 'dailyWk', 'On duty on a Saturday / Sunday': 'dailyWeekend',
   'At the open (06:20, Sunday 07:15)': 'open', 'Still on after 22:00': 'at22', 'Through to the close': 'close',
   'Fewest rostered on the floor': ['floor', 'floorMin'], 'Cover weeks (for leave and sickness)': 'cover',
   'People needed each Sunday (overtime)': 'sundayPeople', 'Rest-day breaks of two days or more': 'breaks',
-  'Weeks on one turn, Monday to Friday': 'oneTurn', 'Longest shift anywhere': 'longest', 'Average shift': 'avg',
+  'Weeks on one turn, Monday to Friday': 'oneTurn', 'Weeks on one turn, no early–late switch': 'oneTurn', 'Longest shift anywhere': 'longest', 'Average shift': 'avg',
   'Days off in a row — best place to book': 'leaveBest', 'Days off in a row — on average': 'leaveAvg',
   'Days off in a row — worst place': 'leaveWorst', 'Leave for four full weeks off, at best': 'leaveFour',
 };
