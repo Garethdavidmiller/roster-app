@@ -2819,6 +2819,27 @@ test('admin: a year chosen for one member is not carried over to the next', asyn
     await expect(page.locator('#alBookedBody .al-period-dates').first()).toContainText('Apr');
 });
 
+// The Calendar's leave panel links to ONE year (v24.46): `?alYear=2028` must open the list on 2028
+// even though the banner (and so the list's own default) is on 2026.
+test('admin: a link naming a year opens the recorded-leave list on that year', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await seedTwoMembersTwoYears(page);
+    await page.goto('/admin.html?alYear=2028#alBookedBox');
+    await expect(page.locator('#alBookedBox')).toBeVisible();
+    await expect(page.locator('#alBookedBody .al-year-chip.is-active')).toHaveText('2028');
+    await expect(page.locator('#alBookedBody .al-period-dates').first()).toContainText('Jun');
+});
+
+test('admin: a linked year with no leave in it falls back, never to an empty list', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await seedTwoMembersTwoYears(page);
+    await page.goto('/admin.html?alYear=2027#alBookedBox');
+    await expect(page.locator('#alBookedBox')).toBeVisible();
+    await expect(page.locator('#alBookedBody .al-year-chip.is-active')).toHaveText('2026');
+});
+
 test('admin: scrolling the date picker into another year moves the list with the banner', async ({ page }) => {
     // The banner follows the picker's displayed year (v22.82); the list is meant to follow the
     // banner (pickBookedYear's `preferred` rung). Until v23.15 only the banner was re-run.
@@ -7781,9 +7802,10 @@ test('operations: App speed reports the fast-path opens, as a SHARE of all opens
     // The SUBSET relation in words. The block immediately above is a SPLIT, so a reader arriving in
     // order has just been taught the other arithmetic and would subtract this one.
     await expect(speed).toContainText('also counted in');
-    // And the sentence that says how to READ it — a row no faster than "Shifts shown" is the result
-    // that falsifies, so the card has to state the comparison rather than leave it to be noticed.
-    await expect(speed).toContainText('no faster than that one');
+    // The fast path was RETIRED at v24.29, so the note must speak of it in the past tense and say
+    // why the row exists at all — it used to describe the feature as live, a month after it went.
+    await expect(speed).toContainText('That was retired in September 2026');
+    await expect(speed).not.toContainText('is now shown their saved roster');
 
     // This page's fast-path opens, not paycalc's 90 — which would read as 15%.
     const total = await speed.evaluate(() => {

@@ -393,7 +393,7 @@ async function initPageSpeedCard() {
         heading.className = 'usage-section-label speed-dim-label';
         heading.textContent = 'How far the start gets';
         frag.appendChild(heading);
-        frag.appendChild(noteLine('Compare neighbouring rows: a big jump is where the time went. Each step is timed from the page opening, so they normally run in order — but a returning member is now shown their saved roster before the Calendar finishes checking who they are, so "Shifts shown" beating "Unlocked" is that working, not a fault. Same bands as the rest of the card.'));
+        frag.appendChild(noteLine('Compare neighbouring rows: a big jump is where the time went. Each step is timed from the page opening, so they run in order: shifts are shown only once the sign-in check has finished, so "Shifts shown" can never beat "Recognised". Same bands as the rest of the card.'));
 
         const list = document.createElement('div');
         list.className = 'speed-rows';
@@ -467,6 +467,11 @@ async function initPageSpeedCard() {
 
     /** OPENS THAT DID NOT WAIT FOR THE IDENTITY CHECK (v23.69) — the reading v22.97 shipped without.
      *
+     *  HISTORIC SINCE v24.29: the fast path was retired (DECISIONS.md → "The provisional paint"), so
+     *  nothing writes `readyProvisional` any more and the note says so in the past tense. The block
+     *  stays only while devices on older versions still report it; once a month reads empty here it
+     *  renders nothing, and the block and `summariseProvisionalOpens` can be deleted.
+     *
      *  The fast path shows a returning member their own saved roster while the server is still
      *  confirming who they are. `LATENCY.md` predicted that would pull "Shifts shown" off
      *  "Recognised" for cache-served starts; September 2026 showed no movement at all, and the card
@@ -495,7 +500,7 @@ async function initPageSpeedCard() {
             ? ` That is ${Math.round((rows[0].total / readyTotal) * 100)}% of them.`
             : '';
         frag.appendChild(noteLine(
-            `A returning member is shown their own saved roster while the server confirms who they are. These opens are also counted in “Shifts shown” above, not separately.${share} If this row is no faster than that one, showing the roster early is not buying anything.`));
+            `Older versions could show a returning member their own saved roster while the server confirmed who they were. That was retired in September 2026 (v24.29) because it almost never got the chance to, so this row only counts devices still on an older version and will empty out. These opens are also counted in “Shifts shown” above, not separately.${share}`));
 
         const list = document.createElement('div');
         list.className = 'speed-rows';

@@ -204,7 +204,12 @@
         <button id="alLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
             <div class="al-lb-icon">🏖️</div>
             <div class="al-lb-title">Annual Leave</div>
-            <div class="al-lb-year" id="alLbYear"></div>
+            <!-- The year is a control (v24.46, owner): late in the year the question is next year's leave. -->
+            <div class="al-lb-yearnav">
+                <button type="button" class="al-lb-yearbtn" id="alLbPrevYear" aria-label="Previous year">‹</button>
+                <div class="al-lb-year" id="alLbYear" aria-live="polite"></div>
+                <button type="button" class="al-lb-yearbtn" id="alLbNextYear" aria-label="Next year">›</button>
+            </div>
             <div class="al-lb-stats">
                 <div class="al-lb-stat" role="group" aria-labelledby="alLbLblTaken">
                     <span class="al-lb-val" id="alLbTaken">—</span>
@@ -224,8 +229,12 @@
                     <span class="al-lb-breakdown" id="alLbBreakdown" hidden></span>
                 </div>
             </div>
-            <a href="admin.html#book-annual-leave" class="al-lb-link">→ Record leave in Admin</a>
             <p id="alLbError" class="al-lb-error" hidden>Couldn't load — check your connection</p>
+            <!-- Short labels so the pair shares a row at 320px — the day panel's "Leave dates" names the same list. -->
+            <div class="al-lb-actions">
+                <a href="admin.html#book-annual-leave" class="al-lb-link">Record leave</a>
+                <a href="admin.html#alBookedBox" class="al-lb-link" id="alLbViewLink" hidden>Leave dates</a>
+            </div>
         </div>
     </div>
 

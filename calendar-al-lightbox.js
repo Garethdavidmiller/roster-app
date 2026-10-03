@@ -16,7 +16,7 @@ import { shiftBadgeParts } from './roster-data.js';
 import { getCurrentMember } from './calendar-member.js';
 import { getDisplayYear } from './calendar-state.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
-import { getALEntitlement, formatISO, paydayForCutoff } from './roster-data.js';
+import { getALEntitlement, formatISO, paydayForCutoff, CONFIG } from './roster-data.js';
 import { consumesEntitlement } from './al-entitlement.js';
 import { shouldReplaceOverride } from './override-utils.js';
 import { lsGet, lsSet } from './ls.js';
@@ -42,12 +42,33 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   const breakdownEl = document.getElementById('alLbBreakdown');
   const alErrorEl   = document.getElementById('alLbError');
 
+  const prevYearBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('alLbPrevYear'));
+  const nextYearBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('alLbNextYear'));
+  const viewLink    = /** @type {HTMLAnchorElement|null} */ (document.getElementById('alLbViewLink'));
+
+  // THE PANEL'S OWN YEAR (v24.46, owner: "as we are nearing the end of the year I would like to be
+  // able to tap right and see 2027's"). It OPENS on the year the calendar is showing, as it always
+  // did, and ‹ › move it from there without moving the calendar — the panel is a question about
+  // leave, and paging the month grid a whole year to ask it would lose the reader's place. Bounded
+  // by the same CONFIG years the calendar itself can reach.
+  let alYear = getDisplayYear();
+
   const alLb = createLightbox({
     overlay:  /** @type {any} */ (lb),
     content:  /** @type {HTMLElement} */ (document.getElementById('alLightboxContent')),
     closeBtn: /** @type {HTMLElement} */ (document.getElementById('alLightboxClose')),
-    onOpen:   () => loadALStats(),
+    onOpen:   () => { alYear = getDisplayYear(); loadALStats(); },
   });
+
+  /** @param {number} step */
+  function stepALYear(step) {
+    const next = alYear + step;
+    if (next < CONFIG.MIN_YEAR || next > CONFIG.MAX_YEAR) return;
+    alYear = next;
+    loadALStats();
+  }
+  prevYearBtn?.addEventListener('click', () => stepALYear(-1));
+  nextYearBtn?.addEventListener('click', () => stepALYear(1));
 
   // Last-known-good stats memo, per member+year (v18.23 — "AL stats quite slow to load"). A
   // one-shot getDocs is SERVER-first in the Firestore SDK (the persistent cache is only its
@@ -59,14 +80,33 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   /** @param {string} name @param {string|number} year */
   const _alMemoKey = (name, year) => `myb_al_stats_${name}|${year}`;
 
+  const statsEl  = document.querySelector('.al-lb-stats');
+  const remLblEl = document.getElementById('alLbLblRemaining');
+
+  /** Every not-a-figure state — '…' while loading, '—' with nothing to show. Muted (v24.46 polish):
+   *  in the figures' teal they read as four real values.
+   *  @param {string} ch */
+  function paintPlaceholder(ch) {
+    takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = ch;
+    remEl.className = 'al-lb-val';
+    if (remLblEl) remLblEl.textContent = 'Remaining';
+    statsEl?.classList.add('is-pending');
+    if (breakdownEl) breakdownEl.hidden = true;
+  }
+
   /** Paint the four figures + breakdown. One renderer for the memo and fresh paths so they
    *  can never drift. @param {{ taken:number, booked:number, entitlement:number, breakdown:string|null }} s */
   function renderALStats(s) {
     const remaining = s.entitlement - s.taken - s.booked;
+    statsEl?.classList.remove('is-pending');
     entEl.textContent    = String(s.entitlement);
     takenEl.textContent  = String(s.taken);
     bookedEl.textContent = String(s.booked);
-    remEl.textContent    = String(remaining);
+    // OVER, NOT MINUS (v24.46 polish). "-16 REMAINING" read as an error code; past the entitlement
+    // the cell says how far over, in the same red, and its label says so — the group is labelled by
+    // that label, so a screen reader hears "Over, 16" too.
+    remEl.textContent    = String(Math.abs(remaining));
+    if (remLblEl) remLblEl.textContent = remaining < 0 ? 'Over' : 'Remaining';
     remEl.className      = 'al-lb-val' + (remaining <= 0 ? ' empty' : remaining <= 5 ? ' low' : '');
     if (breakdownEl) {
       breakdownEl.textContent = s.breakdown ?? '';
@@ -80,18 +120,24 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   async function loadALStats() {
     const myGen   = ++_alLoadGen;
     const member  = getCurrentMember();
-    const year    = getDisplayYear();
+    const year    = alYear;
     const yearStr = String(year);
 
     yearEl.textContent = yearStr;
+    if (prevYearBtn) prevYearBtn.disabled = year <= CONFIG.MIN_YEAR;
+    if (nextYearBtn) nextYearBtn.disabled = year >= CONFIG.MAX_YEAR;
+    // "View recorded leave" opens Admin's list ON THIS YEAR. Admin's list is the signed-in member's
+    // own, so — like the day panel's "Leave dates" — it is offered only when the panel is showing
+    // that member (`personalActionsAllowed`); on a colleague's calendar it would change subject.
+    if (viewLink) {
+      viewLink.href = `admin.html?alYear=${yearStr}#alBookedBox`;
+      viewLink.hidden = !personalActionsAllowed({
+        accessType: getAccessType(), sessionName: getSession()?.name, shownMember: member?.name,
+      });
+    }
     if (alErrorEl) alErrorEl.hidden = true;
 
-    if (!member) {
-      takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
-      remEl.className = 'al-lb-val';
-      if (breakdownEl) breakdownEl.hidden = true;
-      return;
-    }
+    if (!member) { paintPlaceholder('—'); return; }
 
     // Instant paint from the last successful load (if any) while the refresh runs; else the
     // '…' placeholders as before. A malformed memo falls through to placeholders.
@@ -102,12 +148,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     if (memoShown) {
       renderALStats(memo);
     } else {
-      takenEl.textContent  = '…';
-      bookedEl.textContent = '…';
-      remEl.textContent    = '…';
-      remEl.className      = 'al-lb-val';   // reset a prior load's low/empty colour so the '…' placeholder isn't stale-tinted red/amber (v16.22)
-      entEl.textContent    = '…';
-      if (breakdownEl) breakdownEl.hidden = true;
+      paintPlaceholder('…');   // also resets a prior load's low/empty colour (v16.22)
     }
 
     const todayStr = formatISO(new Date());
@@ -162,12 +203,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       // selector), but `renderALStats` would otherwise do `null - taken - booked` and paint a
       // NEGATIVE remaining as confidently as a real one — null coerces to 0, so the arithmetic
       // that looks like it would fail loudly instead succeeds quietly.
-      if (entitlement === null) {
-        takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
-        remEl.className = 'al-lb-val';
-        if (breakdownEl) breakdownEl.hidden = true;
-        return;
-      }
+      if (entitlement === null) { paintPlaceholder('—'); return; }
       // HIDE THE BREAKDOWN FOR A PRO-RATED JOINING YEAR — still right, for a reason that INVERTED
       // at v22.50 and this comment did not (found 6 Sep 2026, doc sweep). It used to say
       // `getALEntitlement` returns `proRatedAL[year]` BEFORE the Dispatcher branch, so entitlement
@@ -192,9 +228,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       // the original visible error state.
       if (memoShown) { console.warn('[AL lightbox] Refresh failed — keeping last-good stats:', e); return; }
       console.error('[AL lightbox] Failed:', e);
-      takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
-      remEl.className = 'al-lb-val';
-      if (breakdownEl) breakdownEl.hidden = true;
+      paintPlaceholder('—');
       if (alErrorEl) alErrorEl.hidden = false;
     } finally {
       // Stop the 15s timeout once the race has settled (success / error / timeout) — on the fast

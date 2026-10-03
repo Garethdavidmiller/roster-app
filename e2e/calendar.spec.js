@@ -2544,3 +2544,51 @@ test('huddle: the Open button works immediately, while the short-lived link is s
     await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__opened), { timeout: 3000 })
         .toEqual([STORED]);
 });
+
+// ── THE LEAVE PANEL'S YEAR AND ITS SECOND ROUTE (v24.46, owner) ─────────────────────────────────
+// "As we are nearing the end of the year I would like to be able to tap right and see 2027's", and a
+// second button to the recorded-leave list. The figures are asserted, not just the label: a year
+// control that relabels the panel while still counting the old year is the failure worth catching.
+test('calendar: the leave panel steps to next year and links to that year\'s recorded leave', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [
+            { id: 'a1', memberName: 'G. Miller', date: '2026-03-04', type: 'annual_leave', value: 'AL', note: '' },
+            // A whole working week, so at least one day costs entitlement whatever the roster
+            // makes of any single date. Counted below as "not zero", which a relabel cannot fake.
+            ...['2027-03-01', '2027-03-02', '2027-03-03', '2027-03-04', '2027-03-05'].map((date, i) =>
+                ({ id: 'b' + i, memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '' })),
+        ];
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.locator('#alBtn').click();
+
+    const year = page.locator('#alLbYear');
+    const view = page.locator('#alLbViewLink');
+    await expect(year).toHaveText('2026');
+    await expect(view).toBeVisible();
+    await expect(view).toHaveText('Leave dates');
+    await expect(view).toHaveAttribute('href', 'admin.html?alYear=2026#alBookedBox');
+
+    await page.locator('#alLbNextYear').click();
+    await expect(year).toHaveText('2027');
+    await expect(page.locator('#alLbTaken'), 'nothing in 2027 has been taken yet').toHaveText('0');
+    await expect(page.locator('#alLbBooked'), 'the figures are 2027\'s, not a relabelled 2026').not.toHaveText(/^(0|…)$/);
+    await expect(view).toHaveAttribute('href', 'admin.html?alYear=2027#alBookedBox');
+
+    await page.locator('#alLbPrevYear').click();
+    await expect(year).toHaveText('2026');
+    await expect(page.locator('#alLbBooked')).toHaveText('0');
+    await expect(page.locator('#alLbTaken')).toHaveText('1');
+
+    // Reopening starts from the year the calendar shows again, not wherever the panel was left.
+    await page.locator('#alLbNextYear').click();
+    await expect(year).toHaveText('2027');
+    await page.locator('#alLightboxClose').click();
+    await expect(page.locator('#alLightbox')).not.toHaveClass(/open/);
+    await page.locator('#alBtn').click();
+    await expect(year).toHaveText('2026');
+});
