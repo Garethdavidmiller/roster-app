@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { PILL_TYPES, TYPES } from './admin-shift-types.js';
+import { manualOverrideId } from './override-id.js';
 import { isSunday, TIME_RE } from './roster-data.js';
 import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
          OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, composeOtherValue, resolveOtherPay,
@@ -119,6 +120,20 @@ describe('tsToMillis', () => {
 });
 
 // ── shouldReplaceOverride ─────────────────────────────────────────────────────
+
+describe('manualOverrideId — one document per member and date (v24.48)', () => {
+    it('is fixed: the same member and date always name the same document', () => {
+        assert.equal(manualOverrideId('G. Miller', '2026-06-16'), 'm_2026-06-16_G.%20Miller');
+        assert.equal(manualOverrideId('G. Miller', '2026-06-16'), manualOverrideId('G. Miller', '2026-06-16'));
+    });
+    it('never meets another member or another date on one id, and never holds a slash', () => {
+        const names = ['G. Miller', 'G Miller', 'G.Miller', "M. O'Brien", 'A/B', 'A%2FB', 'Ä. Ölund'];
+        const ids = names.map(n => manualOverrideId(n, '2026-06-16'));
+        assert.equal(new Set(ids).size, names.length);
+        for (const id of ids) assert.ok(!id.includes('/'), id);
+        assert.notEqual(manualOverrideId('G. Miller', '2026-06-16'), manualOverrideId('G. Miller', '2026-06-17'));
+    });
+});
 
 describe('shouldReplaceOverride', () => {
     it('returns true when there is no existing entry', () => {

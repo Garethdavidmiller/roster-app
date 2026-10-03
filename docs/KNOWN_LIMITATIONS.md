@@ -107,6 +107,25 @@ deterministic and still fails both attempts, so the job stays red for exactly th
 catch, while a one-off race is reported "flaky" instead of failing the run. If `webkit` goes red
 NOW, take it seriously: the flake excuse has been spent.
 
+## Two editors on one day: one record now, but the second is not WARNED (v24.48)
+
+An external review (Oct 2026) reproduced two Admin defects, both fixed in v24.48:
+
+- **A read from the offline cache was treated as complete.** `admin-override-store.js` now refuses
+  one (`refuseCachedRead`): it is a failed load, with Retry, an "offline" message, and an automatic
+  retry when the connection returns — never "this member has no saved changes".
+- **Two editors saving one day left two records.** Every manual record now has one fixed id per
+  member and date (`manualOverrideId`), so the second save lands on the first one's document.
+
+**What remains, deliberately:** the second editor is not told the day changed underneath them —
+**last save wins**, exactly as when two people save one after the other. Warning them would need
+every Admin save to run as a TRANSACTION that re-reads each day first; that would also make an
+offline save FAIL rather than queue, and it rewrites the write path most of the e2e suite observes.
+A decision, not an oversight — revisit if a lost edit is ever reported.
+
+**Duplicates already in Firestore** from before v24.48 are cleared only when that day is next saved
+or deleted from Admin. None has been counted; nothing in the app reports them.
+
 ## Security
 
 > **Forward plan.** The security work in this section is sequenced, with per-phase risk and

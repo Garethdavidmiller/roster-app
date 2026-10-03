@@ -841,7 +841,9 @@ export function init() {
         // same question while the load fetched everybody. Now it is not: the cache can be loaded and
         // hold nothing about the member on screen, and the checks below (rest gap, AL entitlement)
         // would then be built from an absence they cannot distinguish from an empty week.
-        if (!hasOverrideAuthorityFor(fieldMember?.value)) return showError("Still loading this member's saved changes — try again in a moment.");
+        if (!hasOverrideAuthorityFor(fieldMember?.value)) return showError(navigator.onLine === false
+            ? "You're offline, so this member's saved changes can't be checked — reconnect, then save."
+            : "Still loading this member's saved changes — try again in a moment.");
 
         // Validate shift duration and rest-gap rules
         const ruleErrors = validateShiftRules(toSave, memberName, toDelete);

@@ -21,6 +21,13 @@ the client. When this document and the rules disagree, **the rules are right and
 
 **overrides**
 ```
+(doc id)     MANUAL records: `m_<date>_<encodeURIComponent(memberName)>` — ONE document per member
+             and date (v24.48, `manualOverrideId` in override-utils.js). Two editors saving the same
+             day land on the same document (last save wins) instead of leaving two records; a save
+             also deletes any older manual record for that day, so pre-v24.48 duplicates clear as
+             days are re-saved. ROSTER IMPORTS keep random ids on purpose — an import and a manual
+             record for one day coexist by design, the manual one winning (shouldReplaceOverride).
+             Records written before v24.48 keep their random ids until next saved.
 date         "YYYY-MM-DD"
 memberName   Must match teamMembers[n].name exactly — one char mismatch = silent failure
 type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "sick" | "other"

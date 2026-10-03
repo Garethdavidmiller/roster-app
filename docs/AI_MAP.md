@@ -1550,6 +1550,12 @@ The override cache, the reads that fill it, and the states they put on screen (v
 - `OVERRIDES_QUERY_CAP` — the bound on the All-staff whole-collection read (fetched `+ 1` so a truncation is detected, never silent)
 - `whenOverridesReady()` / `whenLoadSettled()` — the first is a ONE-SHOT latch answering only for the boot load; the second settles behind whatever load is running NOW, and both write paths (`executeSave`, `recordRangeOverrides`) await it after committing so a read that started earlier cannot land on top of the cache mutation and drop the day just saved from the list (wired v21.41 — it had been exported and called from nowhere, and this line claimed otherwise)
 - `isOverrideCacheLoaded()` / `hasOverrideAuthorityFor(member)` (the write question) / `coversAllStaff()` (the list's question — true for a CAPPED read too) / `loadFailedFor(member)` / `isTruncated()`
+- **A read served from the OFFLINE CACHE is a failed load** (v24.48, external review — `refuseCachedRead`). With `persistentLocalCache`, `getDocs` on a dead signal resolves from this device's cache, possibly EMPTY, and granting coverage from it let a save proceed believing the member had no bookings. It takes the failure path every surface already handles (failed week grid, Retry, save refusal) with an "offline" wording, and Retry fires itself on the `online` event
+- `idsReplacedBy(memberName, date, winnerId)` / `withManualDuplicates(ids)` (v24.48) — what a MANUAL write of a day replaces (the winner and every manual record of the day, never the fixed id it lands on) and a delete widened by each manual day's duplicates, so a pre-v24.48 duplicate cannot resurface
+
+### `override-id.js`
+The ONE document id a manual override is written to (v24.48, external review). Pure.
+- `manualOverrideId(memberName, date)` → `'m_<date>_<encodeURIComponent(name)>'`. Two editors saving one day used to leave TWO records (each deleted the same loaded id, which Firestore accepts, and minted its own); a fixed id makes the second save land on the first one's document — last save wins, one record. Imports keep random ids, because an import and a manual record coexist by design. Used by `admin-overrides.js` (both write paths) and `admin-override-store.js`. Tested by `override-utils.test.mjs` and, as wired, `admin-overrides.test.mjs` → "two editors saving the same day"
 
 ### `admin-override-coverage.js`
 What the Admin override cache actually knows (v21.38). Pure — no DOM, no Firebase, no imports.
