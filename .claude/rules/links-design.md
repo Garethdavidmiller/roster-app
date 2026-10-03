@@ -1341,12 +1341,18 @@ judged against are `docs/links-26/RULES.md`. Three things came with the length:
   Generate while one is open builds a NEW unsaved design rather than overwriting it.
 - **Designs drawn for 24 lines go to Recently deleted** (owner decision, 3 Oct 2026 — this replaces
   the v19.98 rule of leaving an old-length design live). `isPre26Design` in `links-design-doc.js`
-  needs ALL THREE: last saved before `LINK_26_FROM` (end of 3 Oct 2026 UTC), so anything saved or
-  RESTORED since is never moved again; nothing on lines 25+, so a 26-line design saved on the release
-  day is not caught by the clock; and something drawn on lines 1–24, so a blank design is left alone. `_splitDocs` shows them in the bin at once and `_binPre26` soft-deletes
-  them in the background — never awaited in front of the page, because an offline write resolves
-  only on reconnect. Designs LONGER than the rotation still keep `#linksOverLengthNotice` and are
-  left as they are.
+  needs ALL THREE: last saved before `LINK_26_FROM` (the START of 3 Oct 2026 UTC — the end would
+  bin a design begun on the new page that day and painted only on lines 1–24), so anything saved or
+  RESTORED since is never moved again; nothing on lines 25+; and something drawn on lines 1–24, so
+  a blank design is left alone. `_splitDocs` shows them in the bin at once, and the empty state and
+  the status line say so AT ONCE (on release day the list is usually empty, and the save row that
+  carries status is hidden with it). `_binPre26` then moves each one through
+  `store.binIfStill` — a TRANSACTION that re-asks the rule, so a design a colleague restored or
+  redrew since the list was read is left alone, and which fails offline instead of queueing a write
+  that lands days later. Nothing is moved from a CACHED read at all. A restore or purge of a design
+  whose move is still in flight waits for it (`pendingBins`), or it would meet a not-yet-deleted
+  design and report that "someone else" restored it. Designs LONGER than the rotation still keep
+  `#linksOverLengthNotice` and are left as they are.
 
 **C. Reen is NOT a special case:** the link is designed as a full rotation so it still works if she
 ever leaves; her adjusted fixed shifts are applied as overrides on the base roster. The old

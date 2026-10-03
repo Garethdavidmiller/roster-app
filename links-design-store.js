@@ -372,6 +372,29 @@ export function createDesignStore(deps) {
         },
 
         /**
+         * The AUTOMATIC move to the bin (v24.47 — designs drawn for the old link length). Unlike
+         * `softDelete`, nobody pressed anything: the decision was made from a list read earlier,
+         * possibly from the offline cache, and a colleague may have restored or redrawn the design
+         * since. So the rule is asked again INSIDE the transaction (this module's rule 1), and a
+         * design that no longer matches it is left alone. A transaction also never QUEUES offline —
+         * it fails, and the next open asks again — where a plain merge would sit in the write queue
+         * and land days later over whatever the design had become.
+         * @param {string} id @param {string} by @param {(data: any) => boolean} stillMatches
+         * @returns {Promise<'moved'|'skipped'>}
+         */
+        async binIfStill(id, by, stillMatches) {
+            let moved = false;
+            await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                moved = false;
+                const snap = await tx.get(refFor(id));
+                if (!snap.exists() || isDeleted(snap.data()) || !stillMatches(snap.data())) return;
+                tx.set(refFor(id), { deletedAt: serverTimestamp(), deletedBy: by }, { merge: true });
+                moved = true;
+            }));
+            return moved ? 'moved' : 'skipped';
+        },
+
+        /**
          * Restore from the bin, clearing the two fields with `deleteField()` on a merge — a full
          * replace would push our load-time copy over whatever the design carried when it was
          * deleted. Re-arms the baseline, which matters MORE here than for a new design: this is an

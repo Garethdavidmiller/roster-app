@@ -2524,7 +2524,7 @@ this one, between them.
 
 ### `links-design-store.js`
 The design collection's persistence lifecycle and its concurrency protocol (v21.87).
-- `createDesignStore(deps)` → `{ loadAll, create, save, rename, softDelete, restore, purge }`
+- `createDesignStore(deps)` → `{ loadAll, create, save, rename, softDelete, binIfStill, restore, purge }` — `binIfStill(id, by, stillMatches)` (v24.47) is the AUTOMATIC bin move: a transaction that re-asks the rule and fails offline rather than queueing
   (`purgeIfExpired` went with automatic bin expiry — `links-deletion.js`). Every Firebase handle is injected.
 - `isOfflineFailure(err, isOnlineCheck?)` — the predicate that decides whether the one unserialised
   path may be taken at all.

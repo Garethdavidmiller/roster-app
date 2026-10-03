@@ -291,6 +291,7 @@ export function init() {
     /** The built-in proposal whose unsaved working copy is open (links-proposals.js), or null. A
      *  proposal is opened with NO activeDesignId, so no write path can ever address it. */
     /** @type {string|null} */ let activeProposalId = null;
+    let binnedOnLoad = 0; /** @type {Map<string, Promise<any>>} */ const pendingBins = new Map();
     const PROPOSAL_ENTRIES = PROPOSALS.map(p => ({ id: p.id, name: p.name, ref: p.ref, patterns: p.patterns, window: null, updatedAt: null, updatedBy: '' }));
     /** Deleted designs, newest first — the "Recently deleted" bin (v19.41). Held in memory with
      *  their patterns so a restore is a field-clearing merge, never a re-upload of a stale copy.
@@ -310,7 +311,7 @@ export function init() {
      * reason for measuring each separately, and it still applies to any future pairing.
      *
      * **The bilingual row is gone, and the summary says why rather than leaving a hole.** A design
-     * is now the main roster WIDENED (20 → 24 lines) and excludes the bilingual roster entirely, so a
+     * is now the main roster WIDENED (20 → 26 lines) and excludes the bilingual roster entirely, so a
      * bilingual figure would be a comparison against a rotation the proposal does not replace. The
      * summary names the comparator — the main 20-line cycle, which the design replaces — and reads
      * the length from `ROTATING_LINES` rather than restating it,
@@ -606,7 +607,7 @@ export function init() {
         const cmpMode = compare.isCompareMode();
         const cmpId   = compare.getCompareId();
         if (compareBtn) {
-            compareBtn.disabled = designs.length + PROPOSAL_ENTRIES.length < 2;
+            compareBtn.disabled = !design || designs.length + PROPOSAL_ENTRIES.length < 2;
             compareBtn.classList.toggle('compare-active', cmpMode);
             compareBtn.setAttribute('aria-pressed', cmpMode ? 'true' : 'false');
             const lbl = document.getElementById('compareBtnLabel');
@@ -956,7 +957,7 @@ export function init() {
             // its compare chip filtered out) until the user manually toggles compare off. Deleting
             // the ACTIVE design while comparing also used to leave a <2-design self-compare soft-lock.
             const cmpId = compare.getCompareId();
-            if (id === cmpId || designs.length < 2 || (newActive && newActive.id === cmpId)) {
+            if (id === cmpId || designs.length + PROPOSAL_ENTRIES.length < 2 || (newActive && newActive.id === cmpId) || !newActive) {
                 compare.resetCompare();
             }
             if (newActive) _activateDesign(newActive);
@@ -996,6 +997,7 @@ export function init() {
             return;
         }
         try {
+            await pendingBins.get(id);
             const res = await store.restore(id, currentUser);
             // TWO OUTCOMES A COLLEAGUE ALREADY SETTLED — neither changed by retrying, and both
             // once read "check your connection", blaming the network for somebody's deliberate
@@ -1046,6 +1048,7 @@ export function init() {
             // The re-read-inside-the-transaction rule is the store's (v21.87). It matters most
             // here: this is the only hard delete left in the workspace, and the row that was
             // pressed may be stale — A opens the bin, B restores, A presses Remove for good.
+            await pendingBins.get(id);
             const outcome = await store.purge(id);
             if (outcome === 'restored-elsewhere') {
                 // Say what happened rather than "couldn't remove": someone put it back on purpose,
@@ -1409,9 +1412,10 @@ export function init() {
             const emptyMsg   = document.getElementById('linksEmptyMsg');
             const emptyTitle = document.querySelector('#linksEmptyState .links-empty-title');
             const emptyActs  = document.querySelector('#linksEmptyState .links-empty-actions');
-            if (emptyTitle) emptyTitle.textContent = loadFailed ? 'Couldn’t load your designs' : 'No designs yet';
+            if (emptyTitle) emptyTitle.textContent = loadFailed ? 'Couldn’t load your designs' : binnedOnLoad && deletedDesigns.length ? `Your ${PREVIOUS_LINK_LENGTH}-line designs are in Recently deleted` : 'No designs yet';
             if (emptyMsg) emptyMsg.innerHTML = loadFailed
                 ? `Check your connection and refresh the page. Nothing has been lost — saved designs are on the server.`
+                : binnedOnLoad && deletedDesigns.length ? `The link is ${TOTAL_POS} lines from December, so ${binnedOnLoad === 1 ? 'the design' : `the ${binnedOnLoad} designs`} drawn for ${PREVIOUS_LINK_LENGTH} moved there — restore from <strong>Recently deleted</strong> if you still need one. Or open one of the shortlisted proposals, auto-generate, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`
                 : `Build a rotating pattern from staffing targets with the Auto-generate card below, open one of the shortlisted proposals, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`;
             if (emptyActs) /** @type {HTMLElement} */ (emptyActs).style.display = loadFailed ? 'none' : '';
             _setGridHint(false);
@@ -1811,8 +1815,10 @@ export function init() {
             // was blank or full of hand-tuned work — and Apply overwrites every line either way.
             const _hasWork = !!design && Object.values(/** @type {Record<string, any>} */ (design.patterns || {}))
                 .some(p => DAYS.some(d => { const v = p?.[d]; return v && v !== 'RD' && v !== 'OFF'; }));
-            const _genMsg = _hasWork
-                ? `This replaces all ${TOTAL_POS} lines of “${design?.name || 'this design'}” with the generated pattern. Any edits you have made will be lost.`
+            // A proposal is not replaced — Apply opens a NEW design beside it — so it gets its own words.
+            const _lose = activeProposalId ? dirty : _hasWork;
+            const _genMsg = activeProposalId ? `A new design opens with the generated pattern. “${design?.name}” stays in the shortlist${dirty ? ' — your unsaved changes to it will be lost' : ''}.`
+                : _hasWork ? `This replaces all ${TOTAL_POS} lines of “${design?.name || 'this design'}” with the generated pattern. Any edits you have made will be lost.`
                 : `Apply the generated pattern to all ${TOTAL_POS} lines?`;
             // Captured BEFORE the confirm opens: the dialog's lockBodyScroll puts the body in
             // position:fixed, so a measurement taken after the await reads locked coordinates.
@@ -1821,8 +1827,8 @@ export function init() {
             if (!await confirmDialog({
                 title: 'Apply pattern',
                 message: _genMsg,
-                confirmLabel: _hasWork ? `Replace all ${TOTAL_POS} lines` : 'Apply',
-                danger: _hasWork,
+                confirmLabel: _hasWork && !activeProposalId ? `Replace all ${TOTAL_POS} lines` : 'Apply',
+                danger: _lose,
             })) return;
 
             // Tune the ORDER of the lines to whichever objectives are switched on. This is free with
@@ -1862,7 +1868,7 @@ export function init() {
             if (!design || activeProposalId) {
                 // No active design yet (or a proposal open — it is not yours to overwrite) — an unsaved in-memory design
                 design = { id: null, name: '', patterns: _final, window: design?.window };   // named on its FIRST SAVE (links-design-header.js rule 3)
-                activeDesignId = null; activeProposalId = null;
+                activeDesignId = null; activeProposalId = null; lsSet(ACTIVE_KEY, '');
             } else {
                 design = { ...design, patterns: _final };
             }
@@ -1876,41 +1882,22 @@ export function init() {
             renderDesignChecks();
             compare.renderCompare();
             updateSaveBtn();
-            // HOLD THE BUTTON STILL THROUGH THE REFLOW (v20.54). On the FIRST generate the grid
-            // card above this one grows from a ~160px empty state to a full 24-row grid, so ~1,500px
-            // of content is inserted ABOVE the scroll position — the viewport kept its scrollY and
-            // ended up stranded in the middle of an unexplained grid, the button just pressed and
-            // any feedback both off-screen (measured at 1280×900 and 390×844). Re-anchoring the
-            // scroll keeps the presser exactly where they were, which is also what keeps the
-            // press-again explore loop pressable.
+            // HOLD THE BUTTON STILL THROUGH THE REFLOW (v20.54). On the FIRST generate the grid card
+            // above grows from a ~160px empty state to the full grid, ~1,500px inserted ABOVE the scroll
+            // position, stranding the presser mid-grid with the button and its feedback off-screen.
+            // Re-anchoring keeps them where they pressed, which also keeps the explore loop pressable.
             //
-            // TIMING IS THE WHOLE TRICK. The confirm dialog's close resolves the promise
-            // immediately, but its unlockBodyScroll — which ends `window.scrollTo(0, saved)` —
-            // runs on transitionend (or the 500ms fallback), i.e. AFTER this handler, and clobbers
-            // any adjustment made before it (the first attempt fired scrollBy here directly and
-            // measured a 936px strand anyway). Worse, a scrollBy in the first frame AFTER the lock
-            // class comes off still no-ops — the identical call a few frames later works — so the
-            // loop VERIFIES rather than trusts: measure, shift, and keep going until the shift has
-            // actually taken (≤1px residual) or the frame budget runs out. Self-terminating the
-            // moment the button is where it was pressed, so it cannot fight a user who scrolls
-            // later; bounded so a stuck overlay lock cannot loop it forever.
+            // TIMING IS THE WHOLE TRICK. The dialog's unlockBodyScroll ends in `window.scrollTo(0,
+            // saved)` on transitionend (or the 500ms fallback) — AFTER this handler — and clobbers any
+            // earlier adjustment; a scrollBy in the first frame after the lock lifts also no-ops. So
+            // the loop VERIFIES rather than trusts: measure, shift, repeat until ≤1px residual, bounded
+            // so a stuck lock cannot loop it forever and self-terminating so it never fights the user.
             //
-            // TWO BUDGETS, NOT ONE (v21.83). The loop used a single 120-frame budget and SPENT it
-            // while waiting for the dialog's unlock — so on a machine slow enough for the unlock to
-            // take longer than 120 frames, the budget ran out before the loop had done any work at
-            // all, and it gave up silently leaving the presser stranded ~1,100px down the page. It
-            // failed exactly that way on a loaded CI runner (measured: 1112px, after the whole
-            // 10-second assertion window), and a budget Android is the same machine — which is the
-            // device this app is written for. Waiting and working now have separate bounds, and
-            // both are measured in TIME rather than frames, because what has to be bounded is how
-            // long a stuck overlay can hold this open, and a frame is not a fixed amount of that.
-            //
-            // NOT DIRECTLY GUARDED, and worth saying so. The e2e above passes on the shipped shape
-            // as well, because on an idle machine the unlock takes ~30 frames and nothing is ever
-            // starved. A simulation was tried — holding the lock class on past the old budget — and
-            // dropped: adding it mid-flight moves the scroll by itself, so the test measured the
-            // harness. The honest position is that this is reasoned from a real CI failure and
-            // covered only in its normal path.
+            // TWO BUDGETS, IN TIME (v21.83). One 120-frame budget was spent WAITING for the unlock on a
+            // loaded CI runner (stranded 1112px) — and a budget Android is the same machine. Waiting
+            // and working now have separate bounds. NOT DIRECTLY GUARDED: on an idle machine the unlock
+            // takes ~30 frames, so the e2e passes either way; a simulation was tried and measured the
+            // harness instead. Reasoned from a real CI failure, covered only in its normal path.
             if (_btnEl && _btnViewTop !== undefined) {
                 const _waitUntil = performance.now() + 3000;   // the unlock is not ours to hurry
                 const _workUntil = performance.now() + 5000;   // ...and then this much to converge
@@ -2389,13 +2376,20 @@ export function init() {
         renderDesignPicker(); renderBinList(); compare.renderCompare();
     }
 
-    /** Bin the old-length designs in the BACKGROUND (an offline write resolves only on reconnect).
-     *  Idempotent; a failure retries on the next open, when the rule still matches. @param {string[]} ids */
-    async function _binPre26(ids) {
+    /** Bin the old-length designs in the background, each re-checked in a transaction (store.binIfStill)
+     *  — never from a cached read, never queued offline. A restore or purge of one waits for its move
+     *  (`pendingBins`), or it would meet a design not yet deleted and blame a colleague. Said AT ONCE:
+     *  the empty state names them too, since on release day the list is often empty. @param {string[]} ids @param {boolean} fromCache */
+    function _binPre26(ids, fromCache) {
+        binnedOnLoad = ids.length;
         if (!ids.length) return;
-        let moved = 0;
-        for (const id of ids) { try { await store.softDelete(id, currentUser); moved++; } catch (err) { console.error('[Links] Binning an old-length design failed:', err); } }
-        if (moved) _designActionStatus(`${moved} design${moved === 1 ? '' : 's'} drawn for the ${PREVIOUS_LINK_LENGTH}-line link moved to Recently deleted — restore from there if you still need ${moved === 1 ? 'it' : 'them'}.`, 'ok');
+        _designActionStatus(`${ids.length} design${ids.length === 1 ? '' : 's'} drawn for the ${PREVIOUS_LINK_LENGTH}-line link ${ids.length === 1 ? 'is' : 'are'} in Recently deleted — restore from there if you still need ${ids.length === 1 ? 'it' : 'them'}.`, 'ok');
+        if (fromCache) return;
+        for (const id of ids) {
+            pendingBins.set(id, store.binIfStill(id, currentUser, isPre26Design)
+                .catch((/** @type {any} */ err) => console.error('[Links] Binning an old-length design failed:', err))
+                .finally(() => pendingBins.delete(id)));
+        }
     }
 
     async function loadDesigns() {
@@ -2405,7 +2399,7 @@ export function init() {
             await sessionReady;
             const snap = await getDocs(DESIGNS_COL);
             const { named, binned, legacyData, toBin } = _splitDocs(snap.docs.map((/** @type {any} */ d) => ({ id: d.id, data: d.data() })));
-            _binPre26(toBin);
+            _binPre26(toBin, !!snap.metadata?.fromCache);
 
             // One-time migration: convert combined-28 to a named design
             if (named.length === 0 && legacyData) {

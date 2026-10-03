@@ -408,8 +408,8 @@ describe('isPre26Design — which saved designs were drawn for the 24-line link'
         }
     });
 
-    test('the release line is the end of 3 Oct 2026, UTC, and the old length is 24', () => {
-        assert.equal(new Date(LINK_26_FROM).toISOString(), '2026-10-04T00:00:00.000Z');
+    test('the release line is the START of 3 Oct 2026, UTC, and the old length is 24', () => {
+        assert.equal(new Date(LINK_26_FROM).toISOString(), '2026-10-03T00:00:00.000Z');
         assert.equal(PREVIOUS_LINK_LENGTH, 24);
     });
 });

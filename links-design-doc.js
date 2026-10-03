@@ -65,10 +65,12 @@ export const LEGACY_DOC_ID = 'combined-28';
 /**
  * THE 26-LINE RELEASE (v24.47). Designs last saved before this were drawn for the 24-line link;
  * the owner's decision (3 Oct 2026) is that they go to Recently deleted, where they can still be
- * restored. End of the release day, UTC — a design saved during the day it shipped is covered by the
- * CONTENT half of the rule below, not by the clock.
+ * restored. The START of the release day, UTC, and deliberately not its end: a design begun on the
+ * new page that day and painted only on lines 1–24 so far would otherwise be binned on its next
+ * open. The cost runs the safe way — a 24-line design saved that day by a not-yet-updated page stays
+ * in the list, where a designer can delete it.
  */
-export const LINK_26_FROM = Date.UTC(2026, 9, 4);
+export const LINK_26_FROM = Date.UTC(2026, 9, 3);
 
 /** How long the link was before the release — history, not a setting (exported for the copy that names it). */
 export const PREVIOUS_LINK_LENGTH = 24;

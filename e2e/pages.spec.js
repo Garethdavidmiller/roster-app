@@ -5051,14 +5051,32 @@ test('links: designs drawn for 24 lines move to Recently deleted, and nothing el
     await expect(designOptions(page)).toHaveCount(2);
     await expect(designOptions(page).filter({ hasText: 'Old 24' })).toHaveCount(0);
     await page.keyboard.press('Escape');
+    await expect(page.locator('#linksSaveStatus')).toContainText('1 design drawn for the 24-line link is in Recently deleted');
 
     await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
         .filter((/** @type {any} */ w) => w.data && 'deletedAt' in w.data).map((/** @type {any} */ w) => [w.path, w.merge]))).toEqual([['linkDesigns/old24', true]]);
-    await expect(page.locator('#linksSaveStatus')).toContainText('1 design drawn for the 24-line link moved to Recently deleted');
     const deletes = await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
     expect(deletes, 'a soft delete — restorable — never a hard one').toEqual([]);
     await openDesignSheet(page);
     await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(1\)/);
+});
+
+test('links: when EVERY design was a 24-line one, the empty page says where they went', async ({ page }) => {
+    // Release day: nearly every saved design is a 24-line one, so the list is empty — and the save
+    // row that carries the status line is hidden with it. "No designs yet" alone reads as lost work.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const p = /** @type {any} */ ({});
+        for (let i = 1; i <= 24; i++) p[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'a', name: 'Option A', patterns: p, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' },
+                        { id: 'b', name: 'Option B', patterns: p, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' }];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksEmptyState .links-empty-title')).toHaveText('Your 24-line designs are in Recently deleted');
+    await expect(page.locator('#linksEmptyMsg')).toContainText('the 2 designs drawn for 24 moved there');
 });
 
 test('links: the rotation length the in-page fixtures assume', () => {

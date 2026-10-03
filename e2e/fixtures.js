@@ -124,9 +124,11 @@ export const runTransaction = (_db, fn) => {
         data: () => (row ? Object.fromEntries(Object.entries(row).map(([k, v]) => [k, ts(v)])) : {}),
       });
     },
-    set: (/** @type {any} */ ref, /** @type {any} */ data) => {
+    // merge is RECORDED, not assumed (v24.47): a transactional merge reported as a replace makes a
+    // test of "the bin move never overwrites patterns" unable to tell the two apart.
+    set: (/** @type {any} */ ref, /** @type {any} */ data, /** @type {any} */ opts) => {
       e2e.setWrites = e2e.setWrites || [];
-      e2e.setWrites.push({ path: (ref && ref.path) || '', data, merge: false });
+      e2e.setWrites.push({ path: (ref && ref.path) || '', data, merge: !!(opts && opts.merge) });
     },
     delete: (/** @type {any} */ ref) => {
       e2e.deletedPaths = e2e.deletedPaths || [];

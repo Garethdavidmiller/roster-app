@@ -52,7 +52,7 @@ export function initLinksCompare(deps) {
     /**
      * Show only the lines where the two designs differ (v22.77, external review).
      *
-     * The rotation is 24 lines and a real proposal changes three or four of them, so the reader's
+     * The rotation is 26 lines and a real proposal changes three or four of them, so the reader's
      * job was to find those four among 168 cells of agreement. It is a VIEW, never a filter on the
      * comparison itself: every figure in the strip above is still computed over the whole design,
      * and the cover row still totals every line — which is why the strip says so while this is on.

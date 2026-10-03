@@ -424,6 +424,28 @@ describe('creating and restoring ARM the baseline', () => {
         assert.equal(writes[0].kind, 'merge');
         assert.equal(writes[0].payload.patterns, undefined, 'our patterns are not written over theirs');
     });
+
+    // The AUTOMATIC bin move (v24.47) decides from a list read earlier, so it must ask again at commit.
+    test('binIfStill moves a design that still matches, as a merge', async () => {
+        const { api, writes } = makeDb({ initial: { name: 'A', patterns: { 1: 'old' } } });
+        assert.equal(await createDesignStore(api).binIfStill(ID, ME, () => true), 'moved');
+        assert.equal(writes.length, 1);
+        assert.equal(writes[0].payload.deletedBy, ME);
+        assert.equal(writes[0].payload.patterns, undefined);
+    });
+    test('binIfStill leaves alone a design that no longer matches — restored or redrawn since', async () => {
+        const { api, writes } = makeDb({ initial: { name: 'A', patterns: { 1: 'redrawn' } } });
+        assert.equal(await createDesignStore(api).binIfStill(ID, ME, () => false), 'skipped');
+        assert.deepEqual(writes, []);
+    });
+    test('binIfStill does not re-delete a design already in the bin, or recreate a gone one', async () => {
+        const binned = makeDb({ initial: { name: 'A', deletedAt: ts(500), deletedBy: 'S. Silva' } });
+        assert.equal(await createDesignStore(binned.api).binIfStill(ID, ME, () => true), 'skipped');
+        assert.deepEqual(binned.writes, [], 'the bin keeps who really deleted it');
+        const gone = makeDb({ initial: null });
+        assert.equal(await createDesignStore(gone.api).binIfStill(ID, ME, () => true), 'skipped');
+        assert.deepEqual(gone.writes, []);
+    });
 });
 
 describe('what counts as offline', () => {
