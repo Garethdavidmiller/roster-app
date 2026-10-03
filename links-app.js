@@ -2349,8 +2349,9 @@ export function init() {
 
     /** A collection read → live designs, the bin, and the legacy singleton. One rule for both readers.
      *  A binned design keeps its patterns so a restore is a field-clearing merge (v19.41); every
-     *  doc → object mapping is links-design-doc.js (v19.94). @param {Array<{id: string, data: any}>} docs */
-    function _splitDocs(docs) {
+     *  doc → object mapping is links-design-doc.js (v19.94). `binOld` is false for a CACHED read, which may not claim a move it cannot make.
+     *  @param {Array<{id: string, data: any}>} docs @param {boolean} [binOld] */
+    function _splitDocs(docs, binOld = true) {
         /** @type {any[]} */ const named = [], binned = [], toBin = [];
         let legacyData = null;
         for (const { id, data } of docs) {
@@ -2358,7 +2359,7 @@ export function init() {
             if (hasName && isDeleted(data)) binned.push(binEntryFromDoc(id, data));
             // A design drawn for the old link length goes to the bin (owner, 3 Oct 2026; rule: isPre26Design).
             // Shown there AT ONCE; the soft-delete write follows in the background (_binPre26).
-            else if (hasName && isPre26Design(data)) { binned.push(binEntryFrom(designFromDoc(id, data), currentUser)); toBin.push(id); }
+            else if (hasName && binOld && isPre26Design(data)) { binned.push(binEntryFrom(designFromDoc(id, data), currentUser)); toBin.push(id); }
             else if (hasName) named.push(designFromDoc(id, data));
             else if (id === LEGACY_DOC_ID && data.patterns) legacyData = data;
         }
@@ -2379,14 +2380,14 @@ export function init() {
     /** Bin the old-length designs in the background, each re-checked in a transaction (store.binIfStill)
      *  — never from a cached read, never queued offline. A restore or purge of one waits for its move
      *  (`pendingBins`), or it would meet a design not yet deleted and blame a colleague. Said AT ONCE:
-     *  the empty state names them too, since on release day the list is often empty. @param {string[]} ids @param {boolean} fromCache */
-    function _binPre26(ids, fromCache) {
+     *  the empty state names them too, since on release day the list is often empty. @param {string[]} ids */
+    function _binPre26(ids) {
         binnedOnLoad = ids.length;
         if (!ids.length) return;
         _designActionStatus(`${ids.length} design${ids.length === 1 ? '' : 's'} drawn for the ${PREVIOUS_LINK_LENGTH}-line link ${ids.length === 1 ? 'is' : 'are'} in Recently deleted — restore from there if you still need ${ids.length === 1 ? 'it' : 'them'}.`, 'ok');
-        if (fromCache) return;
         for (const id of ids) {
             pendingBins.set(id, store.binIfStill(id, currentUser, isPre26Design)
+                .then((/** @type {string} */ r) => { if (r === 'skipped') _refreshLists(); })   // restored or redrawn since: show it live
                 .catch((/** @type {any} */ err) => console.error('[Links] Binning an old-length design failed:', err))
                 .finally(() => pendingBins.delete(id)));
         }
@@ -2398,8 +2399,8 @@ export function init() {
         try {
             await sessionReady;
             const snap = await getDocs(DESIGNS_COL);
-            const { named, binned, legacyData, toBin } = _splitDocs(snap.docs.map((/** @type {any} */ d) => ({ id: d.id, data: d.data() })));
-            _binPre26(toBin, !!snap.metadata?.fromCache);
+            const { named, binned, legacyData, toBin } = _splitDocs(snap.docs.map((/** @type {any} */ d) => ({ id: d.id, data: d.data() })), !snap.metadata?.fromCache);
+            _binPre26(toBin);
 
             // One-time migration: convert combined-28 to a named design
             if (named.length === 0 && legacyData) {

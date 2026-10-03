@@ -1347,9 +1347,9 @@ judged against are `docs/links-26/RULES.md`. Three things came with the length:
   a blank design is left alone. `_splitDocs` shows them in the bin at once, and the empty state and
   the status line say so AT ONCE (on release day the list is usually empty, and the save row that
   carries status is hidden with it). `_binPre26` then moves each one through
-  `store.binIfStill` — a TRANSACTION that re-asks the rule, so a design a colleague restored or
+  `store.binIfStill` — a TRANSACTION that re-asks the rule (a design it skips is shown live again), so a design a colleague restored or
   redrew since the list was read is left alone, and which fails offline instead of queueing a write
-  that lands days later. Nothing is moved from a CACHED read at all. A restore or purge of a design
+  that lands days later. A CACHED read moves nothing and shows nothing as moved. A restore or purge of a design
   whose move is still in flight waits for it (`pendingBins`), or it would meet a not-yet-deleted
   design and report that "someone else" restored it. Designs LONGER than the rotation still keep
   `#linksOverLengthNotice` and are left as they are.
