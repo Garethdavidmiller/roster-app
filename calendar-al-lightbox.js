@@ -80,14 +80,33 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   /** @param {string} name @param {string|number} year */
   const _alMemoKey = (name, year) => `myb_al_stats_${name}|${year}`;
 
+  const statsEl  = document.querySelector('.al-lb-stats');
+  const remLblEl = document.getElementById('alLbLblRemaining');
+
+  /** Every not-a-figure state — '…' while loading, '—' with nothing to show. Muted (v24.46 polish):
+   *  in the figures' teal they read as four real values.
+   *  @param {string} ch */
+  function paintPlaceholder(ch) {
+    takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = ch;
+    remEl.className = 'al-lb-val';
+    if (remLblEl) remLblEl.textContent = 'Remaining';
+    statsEl?.classList.add('is-pending');
+    if (breakdownEl) breakdownEl.hidden = true;
+  }
+
   /** Paint the four figures + breakdown. One renderer for the memo and fresh paths so they
    *  can never drift. @param {{ taken:number, booked:number, entitlement:number, breakdown:string|null }} s */
   function renderALStats(s) {
     const remaining = s.entitlement - s.taken - s.booked;
+    statsEl?.classList.remove('is-pending');
     entEl.textContent    = String(s.entitlement);
     takenEl.textContent  = String(s.taken);
     bookedEl.textContent = String(s.booked);
-    remEl.textContent    = String(remaining);
+    // OVER, NOT MINUS (v24.46 polish). "-16 REMAINING" read as an error code; past the entitlement
+    // the cell says how far over, in the same red, and its label says so — the group is labelled by
+    // that label, so a screen reader hears "Over, 16" too.
+    remEl.textContent    = String(Math.abs(remaining));
+    if (remLblEl) remLblEl.textContent = remaining < 0 ? 'Over' : 'Remaining';
     remEl.className      = 'al-lb-val' + (remaining <= 0 ? ' empty' : remaining <= 5 ? ' low' : '');
     if (breakdownEl) {
       breakdownEl.textContent = s.breakdown ?? '';
@@ -118,12 +137,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     }
     if (alErrorEl) alErrorEl.hidden = true;
 
-    if (!member) {
-      takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
-      remEl.className = 'al-lb-val';
-      if (breakdownEl) breakdownEl.hidden = true;
-      return;
-    }
+    if (!member) { paintPlaceholder('—'); return; }
 
     // Instant paint from the last successful load (if any) while the refresh runs; else the
     // '…' placeholders as before. A malformed memo falls through to placeholders.
@@ -134,12 +148,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     if (memoShown) {
       renderALStats(memo);
     } else {
-      takenEl.textContent  = '…';
-      bookedEl.textContent = '…';
-      remEl.textContent    = '…';
-      remEl.className      = 'al-lb-val';   // reset a prior load's low/empty colour so the '…' placeholder isn't stale-tinted red/amber (v16.22)
-      entEl.textContent    = '…';
-      if (breakdownEl) breakdownEl.hidden = true;
+      paintPlaceholder('…');   // also resets a prior load's low/empty colour (v16.22)
     }
 
     const todayStr = formatISO(new Date());
@@ -194,12 +203,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       // selector), but `renderALStats` would otherwise do `null - taken - booked` and paint a
       // NEGATIVE remaining as confidently as a real one — null coerces to 0, so the arithmetic
       // that looks like it would fail loudly instead succeeds quietly.
-      if (entitlement === null) {
-        takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
-        remEl.className = 'al-lb-val';
-        if (breakdownEl) breakdownEl.hidden = true;
-        return;
-      }
+      if (entitlement === null) { paintPlaceholder('—'); return; }
       // HIDE THE BREAKDOWN FOR A PRO-RATED JOINING YEAR — still right, for a reason that INVERTED
       // at v22.50 and this comment did not (found 6 Sep 2026, doc sweep). It used to say
       // `getALEntitlement` returns `proRatedAL[year]` BEFORE the Dispatcher branch, so entitlement
@@ -224,9 +228,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       // the original visible error state.
       if (memoShown) { console.warn('[AL lightbox] Refresh failed — keeping last-good stats:', e); return; }
       console.error('[AL lightbox] Failed:', e);
-      takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
-      remEl.className = 'al-lb-val';
-      if (breakdownEl) breakdownEl.hidden = true;
+      paintPlaceholder('—');
       if (alErrorEl) alErrorEl.hidden = false;
     } finally {
       // Stop the 15s timeout once the race has settled (success / error / timeout) — on the fast

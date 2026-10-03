@@ -2894,8 +2894,10 @@
         @media (hover: hover) and (pointer: fine) {
             .al-lb-yearbtn:hover:not(:disabled) { color: white; background: rgba(255,255,255,0.1); }
         }
-        /* Two routes into Admin side by side, wrapping to two lines on a narrow screen. */
-        .al-lb-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 14px; }
+        /* Two routes into Admin, one row of equal halves. Alone (on a colleague's calendar the second
+           is hidden) the first keeps half the width rather than stretching across the card. */
+        .al-lb-actions { display: flex; justify-content: center; gap: 8px; width: 100%; margin-top: 14px; }
+        .al-lb-actions > .al-lb-link { flex: 1 1 0; max-width: calc(50% - 4px); text-align: center; white-space: nowrap; }
 
         .al-lb-stats {
             display: flex;
@@ -2924,25 +2926,41 @@
         .al-lb-stat + .al-lb-stat {
             border-left: 1px solid rgba(255,255,255,0.12);
         }
+        /* ONE COLOURED FIGURE (v24.46 polish). All four were teal, so the answer — what is left — had
+           no more weight than the three inputs to it, and its amber/red warning competed with three
+           teal neighbours. Now the inputs are white and only Remaining carries the balance colour. */
         .al-lb-val {
             font-size: 36px;
             font-weight: 800;
             line-height: 1;
-            color: var(--al-lb-ok);
+            color: rgba(255,255,255,0.92);
+            font-variant-numeric: tabular-nums;
         }
-        .al-lb-val.low   { color: var(--al-lb-low); }
-        .al-lb-val.empty { color: var(--al-lb-empty); }
+        #alLbRemaining   { color: var(--al-lb-ok); }
+        #alLbRemaining.low   { color: var(--al-lb-low); }
+        #alLbRemaining.empty { color: var(--al-lb-empty); }
+        /* '…' while loading and '—' when there is nothing: muted, so they cannot pass for figures. */
+        .al-lb-stats.is-pending .al-lb-val,
+        .al-lb-stats.is-pending #alLbRemaining { color: rgba(255,255,255,0.35); }   /* the id rule above outranks a class */
+        /* 320px: four min-content cells at 10px labels overran the card by the width of "ENTITLEMENT"
+           (measured on a Dispatcher's breakdown). Tighter cell padding and no tracking buys it back. */
+        @media (max-width: 359px) {
+            .al-lb-stat { padding-inline: 3px; }
+            .al-lb-lbl  { letter-spacing: 0; }
+            #alLightboxContent { padding-inline: 14px; }
+        }
         .al-lb-lbl {
-            font-size: 9px;
+            font-size: var(--type-micro);
             font-weight: 600;
             color: rgba(255,255,255,0.6);
             text-transform: uppercase;
             letter-spacing: 0.3px;
         }
+        /* Wraps (v24.46 polish): nowrap clipped "22 base + 5 BH lieu" at the card edge at 320px. */
         .al-lb-breakdown {
-            font-size: 9px;
-            color: rgba(255,255,255,0.45);
-            white-space: nowrap;
+            font-size: var(--type-micro);
+            line-height: 1.25;
+            color: rgba(255,255,255,0.6);
         }
         .al-lb-link {
             color: rgba(255,255,255,0.9);

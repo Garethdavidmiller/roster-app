@@ -2570,7 +2570,7 @@ test('calendar: the leave panel steps to next year and links to that year\'s rec
     const view = page.locator('#alLbViewLink');
     await expect(year).toHaveText('2026');
     await expect(view).toBeVisible();
-    await expect(view).toHaveText('View recorded leave');
+    await expect(view).toHaveText('Leave dates');
     await expect(view).toHaveAttribute('href', 'admin.html?alYear=2026#alBookedBox');
 
     await page.locator('#alLbNextYear').click();
