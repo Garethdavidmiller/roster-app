@@ -20,14 +20,14 @@ import { materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs
  *  computer search for fewer fatigue factors. `exact`: a hand-drawn design changed in the fewest cells that meet every
  *  rule, the minimum proven by an exact solver (tooling/exact/). `exact-waived`: the same, with rules the owner
  *  waived for that design (WAIVERS, below). */
-// 26 LINES (1 Oct 2026): no 26-line design yet. A design's one-line description and how it was made go here, by code,
+// 26 LINES (1 Oct 2026; nine designs by 3 Oct): a design's one-line description and how it was made go here, by code,
 // exactly as the 24-line sheets' did (../../links-24/tooling/fresh.mjs keeps theirs).
 export const STRAPS = {
   'SN-26-F2': ['No duty over nine hours, seven full weekends off, and only the late finishes the closing rule needs', 'search'],
   'SW-26-F1': ['No duty over nine hours, and seven full weekends off never more than five weeks apart', 'search'],
   'SS-26-F1': ['No duty over nine hours, weekends never more than five weeks apart, and no week mixing earlies and lates', 'search'],
   'SL-26-G3': ['Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates', 'search'],
-  'SG-26-H1': ['Weekends never more than five weeks apart, no week over 41h 30m, and the gentlest week-to-week change', 'search'],
+  'SG-26-H1': ['Weekends never more than five weeks apart, no week over 41h 30m, and a week-to-week change of 1h 25m', 'search'],
   'SE-26-F1': ['Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time', 'search'],
   'FT-26-H1': ['Second Gear fine-tuned: no week over 41h 30m, one mixed week, and a gentler week-to-week change', 'search'],
   'EK-26-H1': ['Second Gear rebalanced: 18 of 21 weeks on one shift time, and no week over 41h 30m', 'search'],

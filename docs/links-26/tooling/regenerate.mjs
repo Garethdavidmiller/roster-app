@@ -24,7 +24,7 @@ const fingerprint = p => createHash('sha256')
     .digest('hex').slice(0, 8);
 
 /** The supplied designs: a grid, a name, a strap line and a code. */
-// 26 LINES (1 Oct 2026): none yet. Each 26-line design is one entry, in the shape the 24-line list used
+// 26 LINES (1 Oct 2026; nine by 3 Oct). Each 26-line design is one entry, in the shape the 24-line list used
 // (../../links-24/tooling/regenerate.mjs): { file, name, code, fp, strap }, the code carrying -26- (e.g. AB-26-EXT).
 export const SUPPLIED = [
     // Second Nature (1 Oct 2026): the first 26-line design, built the Familiar Nine way — a duty table chosen from the
@@ -43,7 +43,7 @@ export const SUPPLIED = [
     // to 07:15-15:45) keeps the 42 late finishes; Second Gear (table H1) has the lightest weeks and costs two more a year.
     // README.md → "Second Look and Second Gear".
     { file: 'second-look.json',            name: 'Second Look',    code: 'SL-26-G3',   fp: '7095fdda', strap: 'Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates' },
-    { file: 'second-gear.json',            name: 'Second Gear',    code: 'SG-26-H1',   fp: '8d61e5c3', strap: 'Weekends never more than five weeks apart, no week over 41h 30m, and the gentlest week-to-week change' },
+    { file: 'second-gear.json',            name: 'Second Gear',    code: 'SG-26-H1',   fp: '8d61e5c3', strap: 'Weekends never more than five weeks apart, no week over 41h 30m, and a week-to-week change of 1h 25m' },
     // Second Edition (2 Oct 2026): the owner asked for a roster stronger than any so far, at 219 days. Same duty table as
     // Second Nature; the weeks were built from a rest-day SKELETON (skeleton.mjs) that carries every rule a finished rota
     // must meet, then the times were searched. Weekends at most five apart, four single rest days, no mixed week, 18 of 21

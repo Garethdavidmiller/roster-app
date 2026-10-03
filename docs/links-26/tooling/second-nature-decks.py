@@ -94,7 +94,7 @@ def colleagues(d):
     s.text(11, '4.17', '4.19', NAVY); s.text(15, '217', '219', NAVY)
     s.text(17, 'No. Exactly the same 35-hour week — and about 2 fewer contracted days a year.', 'No. Exactly the same 35-hour week — and no more contracted days than today.')
     s.save()
-    notes(d, 4, 'Monday to Saturday', 'Monday to Saturday, counting a cover week as four days worked, the same way the clerks do. Sundays are overtime by agreement, so they are not in these figures — today or in Second Nature. Exactly, Second Nature works out at 218.6 days a year: just under today’s 219, which is also the most the 26-week link is allowed (agreed 1 October 2026). The average shift is two minutes longer, which is on slide 6.')
+    notes(d, 4, 'Monday to Saturday', 'Monday to Saturday, counting a cover week as four days worked, the same way the clerks do. Sundays are overtime by agreement, so they are not in these figures — today or in Second Nature. Exactly, Second Nature works out at 218.6 days a year: just under today’s 219, which is also the most the 26-week link is allowed (agreed 1 October 2026). The average shift is about two minutes longer, which is on slide 6.')
 
     s = S(5)
     s.text(11, '30', '28'); s.text(15, '22', '20')
@@ -103,7 +103,7 @@ def colleagues(d):
     notes(d, 5, 'Basic pay follows', 'Basic pay follows the 35-hour week, which does not change; overtime and premium duties vary person to person. The Saturday and Sunday counts are the link’s fixed duties and leave out anything later given in a cover week. Saturdays in the contract are paid at time and a quarter, and on average a person is rostered about 28 a year instead of 26. Sundays stay overtime: 10 a week shared among 26 people instead of 8 among 20, so about the same each (20 a year, against 21). These are averages across the whole link — your own depends on which line you start on — and they are not a payslip; the Pay Calculator in the app does that.')
 
     s = S(6)
-    s.text(1, 'Every closing shift gets shorter — the average goes up six minutes', 'Every closing shift gets shorter — the average goes up two minutes')
+    s.text(1, 'Every closing shift gets shorter — the average goes up six minutes', 'Every closing shift gets shorter — the average goes up about two minutes')
     s.text(23, '8h 20m', '8h 16m', AMBER)
     s.save()
     notes(d, 6, 'Lead with the closers', 'Lead with the closers: they are the shifts people dislike most, and every one of them is shorter. Weekday 15:45 to 23:55 instead of 15:15 (8h 10m, not 8h 40m); Saturday 15:15 instead of 14:45 (8h 40m, not 9h 10m); Sunday 15:15 to 23:25 instead of 14:30 (8h 10m, not 8h 55m). Be upfront about the two minutes on the average: the 26-week link may have no more than 219 contracted days a year, so the same 35 hours go into slightly fewer, slightly longer shifts. Nothing runs over 9 hours.')
@@ -133,7 +133,7 @@ def colleagues(d):
     s.text(7, '6 in 24', '7 in 26', GREEN); s.text(15, '22 of 24', '21 of 25', GREEN); s.text(23, '14 of 20', '15 of 21', GREEN)
     s.text(25, 'Six weekends off in 24 weeks, never more than six days on, and more rest.', 'Seven weekends off in 26 weeks, never more than six days on, and more rest.')
     s.save()
-    notes(d, 9, 'A full weekend is', 'A full weekend is Saturday and the following Sunday both off. Today that is 4 weekends in a 20-week cycle; Second Nature gives 7 in 26. They fall unevenly, not every fourth week, and can be up to ten weeks apart, against seven today — worth saying, because somebody will start on the long gap. Most weeks now keep the same shift time Monday to Friday — 15 of the 21 working weeks — and all earlies or all lates, so you are not bouncing between earlies and lates inside a week. Rest days mostly come in pairs — 21 of the 25 rest-day breaks are two days or more, against 13 of 17 today — and there are no six-day weeks (today there is one).')
+    notes(d, 9, 'A full weekend is', 'A full weekend is Saturday and the following Sunday both off. Today that is 4 weekends in a 20-week cycle; Second Nature gives 7 in 26. They fall unevenly, not every fourth week, and can be up to ten weeks apart, against seven today — worth saying, because somebody will start on the long gap. Most weeks now keep the same shift time Monday to Friday — 15 of the 21 working weeks — and all but two are all earlies or all lates, where today seven weeks in 16 mix the two. Rest days mostly come in pairs — 21 of the 25 rest-day breaks are two days or more, against 13 of 17 today — and there are no six-day weeks (today there is one).')
 
     s = S(10)
     s.text(1, 'The balance you have now stays the same', 'The balance you have now stays much the same')
@@ -155,7 +155,7 @@ def colleagues(d):
     s = S(13)
     s.text(3, 'Eight new shift times to learn', 'Six new shift times to learn')
     s.text(4, 'Most are within 10–30 minutes of a time we already work.', 'Three are today’s lates starting later, so shorter.')
-    s.text(6, 'Shifts 6 minutes longer on average', 'Shifts 2 minutes longer on average')
+    s.text(6, 'Shifts 6 minutes longer on average', 'Shifts about 2 minutes longer on average')
     s.text(7, 'That is what buys two fewer contracted days.', 'It keeps days at work to 219 a year or fewer.')
     s.text(10, 'Average and worst: about the same as today.', 'Average as today, and the worst a day better.')
     s.text(12, 'Four cover weeks remain', 'Five cover weeks')
@@ -216,7 +216,7 @@ def managers(d):
     s.runs(9, ['Late finishes: 59 a year (today 39)', '8 new shift times to learn', 'Average shift 6 minutes longer', 'Best 14-day leave stretch 28 days, not 30', 'Four weeks off takes 15 days’ leave at best, not 14'],
               ['Late finishes: 42 a year (today 39)', '6 new shift times to learn', 'Weekends off up to 10 weeks apart', 'Best 14-day leave stretch 28 days, not 30', 'Four weeks off takes 15 days’ leave at best, not 14'])
     s.save()
-    notes(d, 8, 'Days at work fall', 'Days at work stay at 219 a year (218.6 exactly; Monday to Saturday; Sunday is overtime), under the ceiling agreed on 1 October 2026. Late finishes average about three more a year each, all of them from the December staffing — three to the close every day, where today’s weekdays have two — so no link meeting the same rules on 26 weeks could have fewer. Full weekends off fall unevenly: seven in 26, but up to ten weeks apart. The average shift is two minutes longer.')
+    notes(d, 8, 'Days at work fall', 'Days at work stay at 219 a year (218.6 exactly; Monday to Saturday; Sunday is overtime), under the ceiling agreed on 1 October 2026. Late finishes average about three more a year each, all of them from the December staffing — three to the close every day, where today’s weekdays have two — so no link meeting the same rules on 26 weeks could have fewer. Full weekends off fall unevenly: seven in 26, but up to ten weeks apart. The average shift is about two minutes longer.')
 
     s = S(9)
     s.text(1, 'Three things confirmed verbally (29 Sep 2026), two decisions left', 'Three things confirmed verbally (29 Sep and 1 Oct 2026), two decisions left')

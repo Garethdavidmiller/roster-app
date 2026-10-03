@@ -160,7 +160,7 @@ limit, and has **no avoidable fatigue warnings**, even with a cover week placed 
    Two findings decided the table:
    - **The Sunday.** Paying 15 minutes for today's own Sunday opener, 07:15–15:45, instead of a new 07:15–15:30 scores
      better on the league: one more familiar time outweighs a slightly worse Sunday fit (26.4 to 29.0).
-   - **Late finishes.** The best weekday tables all had five people finishing after 23:00. Allowing only the three closers
+   - **Late finishes.** The best weekday tables all had four people finishing after 23:00. Allowing only the three closers
      to finish after 22:30 (`CLOSERS_MAX=3 MID_END_MAX=1350`) cut late finishes from 52 a year to 42, for a fit 0.3
      worse.
 
@@ -307,7 +307,8 @@ weekends, never more than four apart, would need 13 on a Saturday; the owner kep
 - **The search.** 16 random-start runs of `anneal.mjs` with the gap capped at five from the outset (`GAP_CAP=5`), and
   single rest days, mixed weeks, the week-to-week move, six-day weeks and the heaviest week costed. Every run reached the
   gap of five.
-- **The polish.** Each start was polished with Second Nature and Second Wind's own figures as floors: shortest rest
+- **The polish.** Each start was polished with floors taken from Second Nature and Second Wind's figures, plus a chosen cap
+  of three mixed weeks (Second Nature has two, Second Wind four): shortest rest
   14h 20m, seven weekends at most five weeks apart, at least 15 one-turn weeks, at most 4 single rest days, at most 3
   mixed weeks, the heaviest week at most 43h 40m, 20 days off from 14 days' leave at worst, and no fatigue warning. The
   best of them, seed 111, met every floor but one: it has 5 single rest days, not 4.
@@ -497,7 +498,9 @@ where the supply rule needs them, and `space-polish.mjs` searches the times in f
 (`FATIGUE_SOFT=1`, now with a slope — it used to count factors present, so three FF19 jumps cost the same as one and no
 run could climb down), then with fatigue refused outright, the heaviest week brought to 42h 00m, and the leave figures
 held (`LEAVE_BEST_MIN`, `LEAVE_FOUR_MAX`, new). `LOCK_REST=1` (new) can hold the rest days still; the passes that won
-did not need it.
+did not need it. Without it the polish may move rest days and families, and it did: the finished rota differs from
+`skeleton-27.json` in 18 worked/rest cells and six lines' families, so the skeleton is where the search started, not a
+description of the result; the weekend, single-rest-day and run floors were held throughout.
 
 **Second Edition** (`SE-26-F1` · `dea6417f`), Second Nature family, `proposals/Second-Edition-SE-26-F1-dea6417f.pdf`, grid
 `tooling/second-edition.json`. Better than or equal to every earlier design on every line the sheets compare:
@@ -611,7 +614,9 @@ The last row is what the annealer had missed: a pure-week layout with no run ove
 family changes, and a no-good cut makes the next layout differ in at least ten cells. It wrote six skeletons; each was
 laid with Second Edition's table and with Even Keel's (`skeleton-start.mjs`, `TABLE=`) and sent through Second Edition's
 own chain (two soft polishes, then hard). **Only the second skeleton, with Second Edition's table, came through**
-(`results/skeleton-run5.json`): 16 one-turn weeks at 41h 00m. Two further polishes, with everything else held, took it to
+(`results/skeleton-run5.json`): 16 one-turn weeks at 41h 00m. As with Second Edition, the polish moved rest days on the
+way (the finished rota differs from the skeleton in 22 cells and six lines' families) while the run, single-rest-day and
+weekend floors held. Two further polishes, with everything else held, took it to
 17 at 42h 00m and to 18 at 42h 30m; four seeds asked for 18 at 42h 00m found none, so the 42h 30m is what ships — the 42h
 cap was a floor carried over from Second Edition, not a rule (the hard limit is 43h 40m).
 

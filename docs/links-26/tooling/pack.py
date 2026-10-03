@@ -47,8 +47,8 @@ Proposals in this pack: {names}.
 
 Start with these:
   1 Summary        One page: every proposal against today's link.
-  2 Rules          The three tiers of rule, two pages: the hard limits (now four,
-                   with the ceiling of 219 contracted days a year), the nine
+  2 Rules          The three tiers of rule, two pages: the hard limits (three, and the
+                   ceiling of 219 contracted days a year, which is hard too), the nine
                    December 2026 rules scored on every sheet, and three flexible
                    rules aimed for when designing (14 on a Saturday, five cover
                    weeks as evenly spaced as 26 weeks allow, 15:45 weekday closers).
