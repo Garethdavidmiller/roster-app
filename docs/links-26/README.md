@@ -19,6 +19,7 @@ The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, o
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
 | `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf` |
 | `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs |
+| `RULES.md` | the rules in prose, with their sources and the open questions (26 lines only) |
 | `README.md` | this record |
 
 `NN` is the link's length in weeks. A proposal keeps its own name, because the code and fingerprint in it identify the
@@ -37,7 +38,7 @@ ceiling allows **at most 89 Monday-to-Saturday duties, averaging at least about 
 
 ## What carries over unchanged
 
-- **The rules, in their three tiers,** with the changes above: the 3 hard limits, the 9 December staffing rules
+- **The rules, in their three tiers,** with the changes above: the 3 hard limits (plus the 219-day ceiling, which is hard too), the 9 December staffing rules
   and the 3 flexible rules. See `RULES.md`.
 - **The shift-time sets** of the strongest 24-line designs, as starting points:
   - **Familiar Nine** (`../links-24/Familiar-Nine-F9-24-K31s.json`): every rule met, 14 of 20 weeks on one turn.
@@ -76,7 +77,9 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 | | `candidates.mjs` | prints each candidate rota's sheet figures on one line, to choose between them |
 | check | `check.mjs` | the self-check: settings agree, the test rota recounts independently, and each 26-line rule fails when its condition is broken (`node tooling/check.mjs`) |
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
-| | `rules-sheet.mjs`, `summary-sheet.mjs` | the rules reference (`../links-26-rules.pdf`) and the one-page summary (`../links-26-summary.pdf`) |
+| | `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` | the rules reference (`../links-26-rules.pdf`), the one-page summary (`../links-26-summary.pdf`) and the two-page shortlist sheet (`../links-26-shortlist.pdf`) |
+| 4 · decks and pack | `second-nature-decks.py` → `second-edition-decks.py`, `even-keel-decks.py`, `short-run-decks.py`; `deck-check.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped; the checker that reads every deck row back against the sheets; the zip |
+| rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
 
 **Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
 - **No 24-line default leaks through.** The app functions that default to 24 lines (`runDesignChecks`, `assessFatigue`,
@@ -228,8 +231,8 @@ python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/to
 
 Then export the PDFs (LibreOffice). Two things the decks say that the sheet does not show directly:
 - **Late finishes:** 42 a year is the minimum, because only the three closers the rules require finish after 23:00.
-- **Weekends off:** Second Nature's can be up to ten weeks apart (today seven), and its managers' deck lists that as a
-  worry; Second Wind's are never more than five apart, which its decks give as a strength.
+- **Weekends off:** every shipped deck's design has them never more than five weeks apart, and says so; today's are
+  up to seven apart.
 
 ## Second Wind — Second Nature with the weekends spread (2 Oct 2026)
 

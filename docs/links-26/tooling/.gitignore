@@ -24,7 +24,7 @@ best-so-far.json
 # figures that matter end up in the proposal's own meta beside its PDF.
 wl4-results.json
 
-# Python bytecode from second-wind-decks.py importing second-nature-decks.py
+# Python bytecode from the deck builders importing second-nature-decks.py
 __pycache__/
 
 # Second Nature's decks are the TEMPLATE the shipped decks are built from, not shipped (README.md → presentations).
