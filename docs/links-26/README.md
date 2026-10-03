@@ -15,6 +15,7 @@ The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, o
 | `links-NN-proposals.zip` | everything for sharing, in one download |
 | `links-NN-rules.pdf` | the rules every proposal is judged against |
 | `links-NN-summary.pdf` | every proposal against today's link, on one page |
+| `links-26-shortlist.pdf` | the three shortlisted designs against each other and today, with a recommendation, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
 | `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf` |
 | `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs |
@@ -698,6 +699,18 @@ env $F HEAVY_MAX=42 LEAVE_BEST_MIN=29 ONE_MIN=17 node space-polish.mjs /tmp/lb3.
 The same caveat as Short Run's: the generator is not deterministic across CBC versions, and the polish moves rest days
 after the lay, so the skeleton is where the search started.
 
+## The shortlist sheet (3 Oct 2026)
+
+Owner: "a two page analysis sheet comparing the three — snappy but evidence led, choose one if you like one, compare
+to the existing roster too." `links-26-shortlist.pdf`, built by `tooling/shortlist-sheet.mjs`: what Second Edition,
+Short Run and Even Keel share, where they differ (the best of the three on each line marked), each one's edge, the
+same three against today's link, the costs all three carry against today, and a recommendation — Short Run, with the
+reasons and with the two conditions under which the other two are the better choice. **Every figure is computed by the
+same functions the proposal sheets use** (`assess`, `personal`, `leave`, `scoreOrder`); the prose is the judgement
+this README records under each design. Rebuild with `node tooling/shortlist-sheet.mjs` after any change to the three
+grids, and read it again — a sentence that names a figure ("a half hour on one week") is computed too, but one that
+names a reason is not.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
@@ -714,7 +727,7 @@ stood.
 **Everything in one download:** `links-26-proposals.zip`, laid out as the 24-line pack
 (`../links-24/links-24-proposals.zip`) was:
 1. a *Read me first* note;
-2. the one-page summary;
+2. the one-page summary, and the two-page shortlist sheet;
 3. the rules;
 4. the presentations;
 5. every proposal sheet;
