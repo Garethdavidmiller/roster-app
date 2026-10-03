@@ -57,6 +57,8 @@ function figures(patterns, lines, T) {
     weekends: `${A.checks.weekendsOff} in ${L} (one in ${WORD[Math.round(L / A.checks.weekendsOff)] ?? Math.round(L / A.checks.weekendsOff)})`,
     weekendsShort: `${A.checks.weekendsOff} in ${L}`, weekendsYear: `${Math.round(A.checks.weekendsOff * 52 / L)}`,   // per year, the owner's 2 Oct ruling for the sheets, now the decks too
     heavy: hm(Math.max(...wkMins)), light: hm(Math.min(...wkMins)), fitWk: A.office.wkFit.toFixed(1),
+    longestEarly: hm(Math.max(...Object.values(patterns).flatMap(r => DAYS.map(d => r[d]).filter(s => timed(s) && startMinutes(s) < 11 * 60).map(s => (endMinutes(s) - startMinutes(s) + 1440) % 1440)))),
+    sunHours: hm(Object.values(patterns).reduce((s, r) => s + (timed(r.sun) ? (endMinutes(r.sun) - startMinutes(r.sun) + 1440) % 1440 : 0), 0)),
     run: up(A.fixed.run, A.checks.longestStretch), ff: up(A.fixed.present, worstFF),
     times: T ? `${A.feel.distinctTimes} (${shared} you know)` : `${A.feel.distinctTimes}`,
     daily: trio(A.daily), dailyWk: wk(A.daily), dailyWeekend: `${A.daily.sat} / ${A.daily.sun}`,

@@ -216,8 +216,11 @@ lines. **Then `tooling/deck-polish.py` runs over the six shipped decks** (3 Oct 
 four-weeks-off leave cost said early and on the trade-offs slide, full weekends off per year first, days a year as 218.6
 against 219.0, the one-turn row and the fit slide saying what they count, slide 10 turned into a picture of the 26 weeks
 (`tooling/rota-strip.mjs`, from the grid), and the manager "Why" slide split into what every link here gives, what this
-one adds and what it costs. Every builder and the polish refuse if a slide no longer holds the text they expect, and
-every deck compares only with today's link.
+one adds and what it costs. A second pass the same day (owner: "are they missing anything?") made the late-finish slide
+say the rise after 22:00 as well as after 23:00, the shift-length slide name the early turns that get longer, the
+"Will I work more?" slide give the weekly range, and the manager deck carry the Sunday overtime hours and the two open
+points. Every builder and the polish refuse if a slide no longer holds the text they expect, and every deck compares
+only with today's link.
 - **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts.
   `tooling/leave.mjs` gives the four leave figures (all three shortlisted designs: 14 days' leave buys 28 days off at
   best, 23.4 on average, 20 at worst, and four full weeks off takes 15; today 30 · 23.4 · 19 · 14). It is the 24-line
