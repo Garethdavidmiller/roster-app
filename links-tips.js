@@ -108,11 +108,9 @@ export const CARD_TIPS = {
             // links-default-targets.js's header; when that table changes, change this.
             { heading: 'The default table', items: [
                 { icon: '🚆', html: 'A new design starts from a table built against the <strong>December 2026 train service</strong>, not from today\'s roster. <strong>↺ Copy staffing from today\'s roster</strong> swaps in what the current roster actually provides; <strong>↺ Use the recommended Dec 2026 staffing</strong> returns to it.' },
-                { icon: '🌅', html: 'Four turns on at the open every day, three through to the close — four on a Saturday.' },
-                { icon: '🌙', html: 'Five still on at 22:00; fourteen working a Saturday, leaning late for events; ten on a Sunday.' },
-                { icon: '⚖️', html: 'Mon–Sat averaging <strong>exactly</strong> the contracted week.' },
-                { icon: '⏳', html: '<strong>Late turns are deliberately shorter than early ones</strong>, bar the one short early.' },
-                { icon: '🕒', html: 'Every start and finish is a round time, on the quarter hour wherever the station\'s own opening and closing hours allow. Monday to Saturday run mostly the same turns — Saturday\'s morning body starts later, and one of its lates is spent on a fourth closer.' },
+                { icon: '📋', html: `Since the link became <strong>${ROTATING_LINES} lines</strong>, it is the duty table of <strong>Second Edition</strong>, one of the shortlisted proposals: 15 on each weekday, 14 on a Saturday, 10 on a Sunday, with <strong>five cover weeks</strong>.` },
+                { icon: '🌅', html: 'At least four on at the open and three through to the close, every day; at least five still on at 22:00.' },
+                { icon: '⚖️', html: 'Mon–Sat pays <strong>exactly</strong> the contracted week, at 218.6 contracted days a year — under the 219 ceiling.' },
                 { icon: '💬', html: 'It is a <strong>starting point to argue with</strong>, not a proposal: change anything you like, and read the checks below before anyone takes a printout into a room.' },
             ]},
             { heading: 'How to use it', items: [

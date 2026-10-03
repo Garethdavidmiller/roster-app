@@ -103,7 +103,7 @@ export const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
  * really centralised. Do not re-introduce a literal — `links-rotation-parity.test.mjs` fails on one,
  * including a literal that happens to be right today.
  */
-export const ROTATING_LINES = 24;
+export const ROTATING_LINES = 26;
 
 /** Minimum rest between two timed shifts on consecutive days, in minutes. */
 export const MIN_REST_MINUTES = 12 * 60;

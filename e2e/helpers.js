@@ -665,7 +665,11 @@ export const isTouchProject = (info) => TOUCH_PROJECTS.includes(info.project.nam
  * open), so a COUNT needs no click — same as the <select>'s options before it. A CLICK does.
  * @param {import('@playwright/test').Page} page
  */
-export function designOptions(page) { return page.locator('#designPickList .picker-opt[data-id]'); }
+// SAVED designs only — the built-in proposals (v24.47) sit in their own group and are counted by
+// `proposalOptions`, so every existing count of a seeded collection still means what it says.
+export function designOptions(page) { return page.locator('#designPickList .picker-group:not(.picker-group--proposals) .picker-opt[data-id]'); }
+/** The built-in shortlist's rows in the picker. @param {import('@playwright/test').Page} page */
+export function proposalOptions(page) { return page.locator('#designPickList .picker-group--proposals .picker-opt[data-id]'); }
 /** @param {import('@playwright/test').Page} page */
 export function activeDesignName(page) { return page.locator('#designFaceName'); }
 /** @param {import('@playwright/test').Page} page */

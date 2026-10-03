@@ -170,9 +170,11 @@ export function groupDesigns(designs, currentUser) {
 
 /**
  * The Save button's label. Three states, one place.
- * @param {{ saved: boolean, dirty: boolean }} s  `saved` = the design has a Firestore document.
+ * @param {{ saved: boolean, dirty: boolean, proposal?: boolean }} s  `saved` = the design has a Firestore
+ *   document; `proposal` = the open design is a built-in proposal's working copy (links-proposals.js).
  */
-export function saveButtonLabel({ saved, dirty }) {
+export function saveButtonLabel({ saved, dirty, proposal = false }) {
+    if (proposal) return 'Save a copy…';
     if (!saved) return 'Save as…';
     return dirty ? 'Save' : 'Saved';
 }
@@ -190,11 +192,15 @@ function sameDay(when, now) {
  * The status pill's words and tone. `long` is the desktop sentence, `short` the phone one — the
  * phone row has room for a dot and two words beside the badge and two buttons.
  *
- * @param {{ saved: boolean, dirty: boolean, saving?: boolean, updatedAt?: any, now?: Date }} s
- * @returns {{ tone: 'saved'|'dirty'|'new'|'saving', long: string, short: string }}
+ * @param {{ saved: boolean, dirty: boolean, saving?: boolean, updatedAt?: any, now?: Date, proposal?: boolean }} s
+ * @returns {{ tone: 'saved'|'dirty'|'new'|'saving'|'proposal', long: string, short: string }}
  */
-export function statusCopy({ saved, dirty, saving = false, updatedAt = null, now = new Date() }) {
+export function statusCopy({ saved, dirty, saving = false, updatedAt = null, now = new Date(), proposal = false }) {
     if (saving) return { tone: 'saving', long: 'Saving…', short: 'Saving…' };
+    // A built-in proposal, untouched (v24.47): it is not "not saved" — there is nothing of yours to
+    // lose. Once edited it is an unsaved working copy, and says so like any other.
+    if (proposal) return dirty ? { tone: 'dirty', long: 'Unsaved changes — save a copy to keep them', short: 'Unsaved' }
+                               : { tone: 'proposal', long: 'Shortlisted proposal · read-only', short: 'Proposal' };
     if (!saved)  return { tone: 'new', long: 'Not saved yet', short: 'Not saved' };
     if (dirty)   return { tone: 'dirty', long: 'Unsaved changes', short: 'Unsaved' };
     const when = toDate(updatedAt);
@@ -270,6 +276,8 @@ export function proposeNewDesignName(currentUser, existing = [], now = new Date(
  * @property {boolean} [canDelete]  false while the bin rule forbids deleting the last design
  * @property {string} currentUser
  * @property {Date} [now]
+ * @property {DesignEntry[]} [proposals]  built-in proposals (links-proposals.js), listed in their own group
+ * @property {string|null} [proposalId]   the proposal whose working copy is open, while it has not been saved
  */
 
 /**
@@ -360,22 +368,44 @@ export function createDesignHeader(els, handlers, extra = {}) {
 
     /** @param {HeaderState} state */
     function render(state) {
-        const { designs, activeId, design, dirty, currentUser, saving = false, canDelete = true, now = new Date() } = state;
+        const { designs, activeId, design, dirty, currentUser, saving = false, canDelete = true, now = new Date(),
+                proposals = [], proposalId = null } = state;
         const saved = !!activeId;
         const open  = !!design;
+        const isProposal = !saved && open && !!proposalId;
         const entry = saved ? designs.find(d => d.id === activeId) : null;
         const groups = groupDesigns(designs, currentUser);
 
         // ── the picker list (rebuilt only on a content change — rule 4) ──
         if (els.pickList) {
-            const sig = JSON.stringify([saved, activeId, open, groups.map(g => [g.label, g.designs.map(d => [d.id, d.name, lastSaveTime(d)?.getTime() ?? 0])])]);
+            const sig = JSON.stringify([saved, activeId, open, proposalId, proposals.map(d => d.id), groups.map(g => [g.label, g.designs.map(d => [d.id, d.name, lastSaveTime(d)?.getTime() ?? 0])])]);
             if (sig !== pickSignature) {
                 pickSignature = sig;
                 els.pickList.textContent = '';
                 // The open-but-unsaved design has no id to select BY, so its row states where you
                 // are and is inert — leaving it out would show the picker with nothing current.
-                if (!saved && open) {
+                if (!saved && open && !isProposal) {
                     els.pickList.appendChild(pickRow({ name: 'Untitled design', meta: 'Not saved yet', current: true }));
+                }
+                // THE SHORTLIST FIRST (v24.47): the three designs everything is measured against,
+                // built in and read-only. A group of their own, so they cannot be mistaken for
+                // somebody's saved work — "Last saved by" would be a claim about nobody.
+                if (proposals.length) {
+                    const wrap = document.createElement('div');
+                    wrap.className = 'picker-group picker-group--proposals';
+                    wrap.setAttribute('role', 'group');
+                    wrap.setAttribute('aria-label', 'Shortlisted proposals');
+                    const h = document.createElement('div');
+                    h.className = 'picker-group-label';
+                    h.setAttribute('aria-hidden', 'true');
+                    h.textContent = 'Shortlisted proposals';
+                    wrap.appendChild(h);
+                    for (const d of proposals) {
+                        wrap.appendChild(pickRow({ id: d.id, name: d.name,
+                            meta: isProposal && d.id === proposalId && dirty ? 'Open · edited, not saved' : 'Built in · read-only',
+                            current: isProposal && d.id === proposalId }));
+                    }
+                    els.pickList.appendChild(wrap);
                 }
                 for (const g of groups) {
                     const wrap = document.createElement('div');
@@ -407,21 +437,23 @@ export function createDesignHeader(els, handlers, extra = {}) {
             }
         }
         if (els.pickerSub) els.pickerSub.textContent = designs.length === 1 ? '1 saved design' : `${designs.length} saved designs`;
-        if (els.pickerButton) els.pickerButton.disabled = designs.length === 0 && !open;
+        if (els.pickerButton) els.pickerButton.disabled = designs.length === 0 && !open && !proposals.length;
 
         // ── the face ──
         const name = open ? (design?.name || '').trim() || 'Untitled design' : 'No design open';
         if (els.faceName) els.faceName.textContent = name;
-        if (els.eyebrow)  els.eyebrow.textContent = !open ? 'Designs' : saved ? 'Editing' : 'New design';
+        if (els.eyebrow)  els.eyebrow.textContent = !open ? 'Designs' : saved ? 'Editing' : isProposal ? (dirty ? 'Copy of a proposal' : 'Shortlisted proposal') : 'New design';
         if (els.count)    els.count.textContent = `${designs.length} saved`;
         // The face's spans are aria-hidden — they are a styled title, not a label — so the button
         // needs a name that says WHICH design is open. The <select> announced that for free.
         els.pickerButton?.setAttribute('aria-label', `Design: ${name}. Choose a different design`);
-        els.masthead?.classList.toggle('is-unnamed', open && !saved);
+        els.masthead?.classList.toggle('is-unnamed', open && !saved && !isProposal);
+        els.masthead?.classList.toggle('is-proposal', isProposal);
         els.masthead?.classList.toggle('is-empty', !open);
 
         // ── who + status ──
-        const who = whoCopy({ saved, updatedBy: entry?.updatedBy, currentUser });
+        const who = isProposal ? { name: 'Shortlist', role: 'Built-in proposal' }
+            : whoCopy({ saved, updatedBy: entry?.updatedBy, currentUser });
         for (const a of [els.avatar, els.sheetAvatar]) {
             if (!a) continue;
             a.textContent = avatarInitials(who.name);
@@ -429,7 +461,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
         }
         if (els.whoName) els.whoName.textContent = who.name;
         if (els.whoRole) els.whoRole.textContent = who.role;
-        const st = statusCopy({ saved, dirty, saving, updatedAt: lastSaveTime(entry), now });
+        const st = statusCopy({ saved, dirty, saving, updatedAt: lastSaveTime(entry), now, proposal: isProposal });
         if (els.status) {
             els.status.className = `dm-status dm-status--${st.tone}`;
             els.status.hidden = !open;
@@ -444,12 +476,13 @@ export function createDesignHeader(els, handlers, extra = {}) {
             // "Saving…") describe the working copy and read as nonsense after "Saved by".
             const lastSave = statusCopy({ saved, dirty: false, saving: false, updatedAt: lastSaveTime(entry), now });
             els.sheetSub.textContent = !open ? 'Start a new design, import one, or restore one from Recently deleted.'
+                : isProposal ? 'A shortlisted proposal, built in. Change anything — saving makes your own copy.'
                 : !saved ? 'Not saved yet. Save it to give it a name.'
                 : `Saved by ${who.name} ${lastSave.long.replace(/^Saved\s*/, '')}`.trim();
         }
 
         // ── the buttons ──
-        const label = saveButtonLabel({ saved, dirty });
+        const label = saveButtonLabel({ saved, dirty, proposal: isProposal });
         for (const b of els.saveButtons || []) {
             if (!b) continue;
             if (!saving) { b.textContent = label; b.disabled = !open || !(dirty || !saved); }

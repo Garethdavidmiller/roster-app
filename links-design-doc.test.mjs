@@ -31,6 +31,7 @@ import assert from 'node:assert/strict';
 import {
     LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc,
     docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel, recordSave,
+    isPre26Design, LINK_26_FROM, PREVIOUS_LINK_LENGTH,
 } from './links-design-doc.js';
 import { DEFAULT_WINDOW } from './links-window.js';
 
@@ -361,5 +362,54 @@ describe('recordSave — the list entry takes what was WRITTEN', () => {
         const entry = /** @type {any} */ ({ patterns: { 1: 'keep' } });
         recordSave(entry, null, 'X', null, 1);
         assert.deepEqual(entry, { patterns: { 1: 'keep' } });
+    });
+});
+
+// ── THE 24-LINE DESIGNS GO TO THE BIN (v24.47, owner) ───────────────────────────────────────────
+// A move nobody pressed, applied on page open — so the rule must be narrow, and each half is pinned
+// with the case the OTHER half would get wrong on its own.
+describe('isPre26Design — which saved designs were drawn for the 24-line link', () => {
+    const ts = (/** @type {number} */ ms) => ({ toMillis: () => ms });
+    const BEFORE = LINK_26_FROM - 86_400_000, AFTER = LINK_26_FROM + 1;
+    const lines = (/** @type {number} */ n, /** @type {string} */ v = '06:20-14:20') => Object.fromEntries(
+        Array.from({ length: n }, (_, i) => [String(i + 1), { sun: 'RD', mon: v, tue: v, wed: v, thu: v, fri: 'RD', sat: 'RD' }]));
+
+    test('a 24-line design last saved before the release is binned', () => {
+        assert.equal(isPre26Design({ patterns: lines(24), updatedAt: ts(BEFORE) }), true);
+    });
+
+    test('…but not once anybody has saved it since — including a RESTORE, which stamps updatedAt', () => {
+        assert.equal(isPre26Design({ patterns: lines(24), updatedAt: ts(AFTER) }), false,
+            'binning a restored design on the next open would undo the restore silently, for ever');
+    });
+
+    test('a design with work on line 25 or 26 is never binned, whatever the clock says', () => {
+        assert.equal(isPre26Design({ patterns: lines(26), updatedAt: ts(BEFORE) }), false);
+        const spare = lines(24); spare['26'] = { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' };
+        assert.equal(isPre26Design({ patterns: spare, updatedAt: ts(BEFORE) }), false, 'a cover week is work too');
+    });
+
+    test('rest days on lines 25–26 are no evidence of a 26-line design', () => {
+        const p = lines(24); p['25'] = { sun: 'RD', mon: 'RD', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        assert.equal(isPre26Design({ patterns: p, updatedAt: ts(BEFORE) }), true);
+    });
+
+    test('a BLANK design is never binned — it says nothing about which link it was for', () => {
+        // The bug this guards: New blank design on the release day, reopened before midnight UTC,
+        // would have vanished into the bin on the designer's next page open.
+        assert.equal(isPre26Design({ patterns: {}, updatedAt: ts(BEFORE) }), false);
+        const allRest = lines(26, 'RD');
+        assert.equal(isPre26Design({ patterns: allRest, updatedAt: ts(BEFORE) }), false);
+    });
+
+    test('an unresolved or missing timestamp is NOT old — when in doubt, leave it alone', () => {
+        for (const updatedAt of [null, undefined, {}, ts(NaN)]) {
+            assert.equal(isPre26Design({ patterns: lines(24), updatedAt }), false, String(updatedAt));
+        }
+    });
+
+    test('the release line is the end of 3 Oct 2026, UTC, and the old length is 24', () => {
+        assert.equal(new Date(LINK_26_FROM).toISOString(), '2026-10-04T00:00:00.000Z');
+        assert.equal(PREVIOUS_LINK_LENGTH, 24);
     });
 });

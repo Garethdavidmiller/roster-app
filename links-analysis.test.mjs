@@ -616,7 +616,11 @@ test('the summary never says "no fatigue factors" while standing factors exist',
 describe('the design-checks triage block', () => {
     test('a clean design gets no tick and no approval — it says what was checked', () => {
         resetDom();
-        initLinksAnalysis({ getDesign: () => ({ patterns: fullPatterns() }) }).renderDesignChecks();
+        // Four days a week, not fullPatterns' five: five on every line is 260 contracted days a year,
+        // a breach of the 219 ceiling (v24.47), so that fixture is no longer a clean design.
+        const clean = fullPatterns();
+        for (const k of Object.keys(clean)) clean[k].fri = 'RD';
+        initLinksAnalysis({ getDesign: () => ({ patterns: clean }) }).renderDesignChecks();
         const html = els.checksContent.innerHTML;
         const block = html.slice(0, html.indexOf('check-rows') + 4000).split('check-section-head')[0];
         assert.doesNotMatch(block, /check-tick|✓/,

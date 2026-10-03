@@ -520,7 +520,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
             localStorage.setItem('myb_links_welcome_seen', '1');
             const mk = (/** @type {string} */ s, /** @type {number} */ diffLines) => {
                 const p = /** @type {any} */ ({});
-                for (let i = 1; i <= 24; i++) {
+                for (let i = 1; i <= 26; i++) {
                     p[String(i)] = { sun: 'RD', mon: i <= diffLines ? s : '06:20-14:20',
                         tue: '06:20-14:20', wed: '06:20-14:20', thu: '06:20-14:20',
                         fri: '06:20-14:20', sat: i % 3 === 0 ? 'SPARE' : 'RD' };

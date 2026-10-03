@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -1015,9 +1015,9 @@ async function openLinksWithDesign(page) {
     await page.addInitScript(() => {
         localStorage.setItem('myb_links_welcome_seen', '1');
         const patterns = /** @type {any} */ ({});
-        // ROTATING_LINES (22). Written out rather than imported: this runs inside the PAGE, where a
+        // ROTATING_LINES (26). Written out rather than imported: this runs inside the PAGE, where a
         // module import is not available. It is checked against the constant below.
-        for (let i = 1; i <= 24; i++) {
+        for (let i = 1; i <= 26; i++) {
             patterns[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20',
                 wed: '06:20-14:20', thu: '14:00-22:00', fri: 'RD', sat: 'RD' };
         }
@@ -4972,6 +4972,92 @@ test('links: Generate works on a card nobody has touched', async ({ page }) => {
     await expect(page.locator('#linksSummary')).toContainText('35h');
 });
 
+// ── THE SHORTLIST, BUILT IN (v24.47; owner decision 3 Oct 2026) ─────────────────────────────────
+// The unit tests pin the data and the masthead's words. What only the page can prove: the picker
+// REACHES them, opening one is read-only in the ways that matter (no rename, no delete, a Save that
+// makes a copy), and the copy that save writes is the proposal's own 26-line grid under a new name.
+test('links: the shortlisted proposals open read-only, and saving one makes a named copy', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.goto('/links.html');
+    // Nothing saved opens NOTHING — the empty state offers the shortlist rather than choosing.
+    await expect(page.locator('#linksEmptyProposals')).toBeVisible();
+    await page.locator('#linksEmptyProposals').click();
+    await expect(page.locator('#designPickerLb.visible')).toBeVisible();
+    await expect(proposalOptions(page)).toHaveCount(3);
+    await expect(designOptions(page)).toHaveCount(0);
+    await proposalOptions(page).filter({ hasText: 'Second Edition' }).click();
+
+    await expect(activeDesignName(page)).toContainText('Second Edition — Dec 2026 (SE-26-F1');
+    await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
+    await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
+    await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');
+    await openDesignSheet(page);
+    await expect(page.locator('#designRenameMenuBtn')).toBeDisabled();
+    await expect(page.locator('#designDeleteBtn')).toBeDisabled();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#designMoreLb.visible')).toHaveCount(0);
+
+    await page.locator('#linksSaveBtnTop').click();
+    const input = page.locator('.dialog-overlay .dialog-input');
+    await expect(input).toHaveValue('Second Edition — copy');
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#designEyebrow')).toHaveText('Editing');
+    await expect(activeDesignName(page)).toHaveText('Second Edition — copy');
+
+    const writes = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites || []);
+    const copy = writes.find((/** @type {any} */ w) => w.data?.name === 'Second Edition — copy');
+    expect(copy, 'the first save CREATES a design').toBeTruthy();
+    expect(Object.keys(copy.data.patterns)).toHaveLength(ROTATING_LINES);
+    expect(copy.data.patterns['1'].mon, 'the proposal\'s own grid — line 1 is a cover week').toBe('SPARE');
+    expect(writes.some((/** @type {any} */ w) => String(w.path).includes('proposal')), 'a proposal id never reaches Firestore').toBe(false);
+    // And the shortlist itself is untouched, still offered, still read-only.
+    await openDesignPicker(page);
+    await expect(proposalOptions(page)).toHaveCount(3);
+    await expect(designOptions(page)).toHaveCount(1);
+});
+
+// ── THE 24-LINE DESIGNS GO TO THE BIN (v24.47, owner) ───────────────────────────────────────────
+// The rule is unit-tested (isPre26Design). What only the page can show: the designs move to the bin
+// on open, the move is a SOFT delete written for real, a 26-line design and a blank one are left
+// alone, and the designer is told — a move nobody pressed must never be silent.
+test('links: designs drawn for 24 lines move to Recently deleted, and nothing else does', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const grid = (/** @type {number} */ n) => {
+            const p = /** @type {any} */ ({});
+            for (let i = 1; i <= n; i++) p[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+            return p;
+        };
+        const OLD = 1_750_000_000_000;   // Jun 2025 — saved when the link was 24 lines
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [
+            { id: 'old24', name: 'Old 24', patterns: grid(24), updatedAt: OLD, updatedBy: 'S. Silva' },
+            { id: 'new26', name: 'New 26', patterns: grid(26), updatedAt: OLD, updatedBy: 'S. Silva' },
+            { id: 'blank', name: 'Blank', patterns: {}, updatedAt: OLD, updatedBy: 'S. Silva' },
+        ];
+    });
+    await page.goto('/links.html');
+    await openDesignPicker(page);
+    await expect(designOptions(page)).toHaveCount(2);
+    await expect(designOptions(page).filter({ hasText: 'Old 24' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+
+    await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
+        .filter((/** @type {any} */ w) => w.data && 'deletedAt' in w.data).map((/** @type {any} */ w) => [w.path, w.merge]))).toEqual([['linkDesigns/old24', true]]);
+    await expect(page.locator('#linksSaveStatus')).toContainText('1 design drawn for the 24-line link moved to Recently deleted');
+    const deletes = await page.evaluate(() => /** @type {any} */ (window).__E2E.deletedPaths || []);
+    expect(deletes, 'a soft delete — restorable — never a hard one').toEqual([]);
+    await openDesignSheet(page);
+    await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(1\)/);
+});
+
 test('links: the rotation length the in-page fixtures assume', () => {
     // The fixtures above build their patterns inside `addInitScript`, where a module import is not
     // available, so they loop to a literal. Tie it to the constant here or the whole Links e2e set
@@ -4979,7 +5065,7 @@ test('links: the rotation length the in-page fixtures assume', () => {
     // rotation exercises the legacy-design path (surplus rows, the over-length notice) while every
     // assertion still passes, and a fixture SHORTER leaves undesigned rows that the "every line
     // filled" checks would then be wrong about.
-    expect(ROTATING_LINES).toBe(24);
+    expect(ROTATING_LINES).toBe(26);
 });
 
 test('links: a design saved against a LONGER rotation says so', async ({ page }) => {
@@ -5257,7 +5343,7 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
     // working state, or "no page has a small target" means "no page I could see".
     await page.addInitScript(() => {
         const p = /** @type {Record<string, any>} */ ({});
-        for (let i = 1; i <= 24; i++) {
+        for (let i = 1; i <= 26; i++) {
             p[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: '06:20-14:20',
                 thu: '14:00-22:00', fri: 'RD', sat: 'RD' };
         }
@@ -5556,7 +5642,7 @@ test('links: the grid day-headers stick from 768px up, where the table already f
         localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         /** @type {any} */ const pat = {};
-        for (let i = 1; i <= 24; i++) {
+        for (let i = 1; i <= 26; i++) {
             pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: '06:20-14:20',
                 thu: '06:20-14:20', fri: '06:20-14:20', sat: 'RD' };
         }
@@ -5748,7 +5834,7 @@ test('links: editing a grid cell uses the app sheet, and cancelling changes noth
         localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         /** @type {any} */ const pat = {};
-        for (let i = 1; i <= 24; i++) {
+        for (let i = 1; i <= 26; i++) {
             pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: 'RD',
                 thu: '15:15-23:55', fri: '15:15-23:55', sat: 'RD' };
         }
@@ -5798,7 +5884,7 @@ test('links: the print button prints, and a work-in-progress sheet says so', asy
         localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         /** @type {any} */ const pat = {};
-        for (let i = 1; i <= 24; i++) {
+        for (let i = 1; i <= 26; i++) {
             pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: 'RD',
                 thu: '15:15-23:55', fri: '15:15-23:55', sat: 'RD' };
         }
@@ -5940,7 +6026,7 @@ test('links: Remove for good spares a design another designer has restored', asy
         localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         /** @type {any} */ const pat = {};
-        for (let i = 1; i <= 24; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        for (let i = 1; i <= 26; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
         const base = { patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva' };
         // What THIS device loaded when the bin was opened.
         w.__E2E.docs = [
@@ -5978,7 +6064,7 @@ test('links: Escape closes the confirm on top, not the bin underneath it', async
         localStorage.setItem('myb_links_welcome_seen', '1');
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         /** @type {any} */ const pat = {};
-        for (let i = 1; i <= 24; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        for (let i = 1; i <= 26; i++) pat[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
         w.__E2E.docs = [
             { id: 'live', name: 'Option A', patterns: pat, updatedAt: 1750000000000, updatedBy: 'S. Silva' },
             // Deleted RECENTLY — a 30-day-old deletion is purged on load and the bin button never appears.
@@ -6013,7 +6099,7 @@ test('links: Escape closes the confirm on top, not the bin underneath it', async
 const WINDOW_DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 function morningOnlyPatterns() {
     /** @type {any} */ const p = {};
-    for (let i = 1; i <= 24; i++) {
+    for (let i = 1; i <= 26; i++) {
         p[String(i)] = {};
         WINDOW_DAYS.forEach(d => { p[String(i)][d] = d === 'sun' ? 'RD' : '06:20-14:20'; });
     }
