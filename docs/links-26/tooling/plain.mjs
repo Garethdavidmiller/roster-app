@@ -464,7 +464,7 @@ function methodPage({ meta, pages }) {
   <div class="tboxes">${boxes}</div>
   <h2 class="pmh">What each figure is based on</h2>
   <div class="pcards">${items.map(([h, t]) => `<div class="pcard"><h4>${h}</h4><p>${t}</p></div>`).join('')}</div>
-  <p class="muted pimport">The rota is supplied beside this PDF as <span class="tt">${esc(meta.identity.name.replace(/ /g, '-'))}-${esc(meta.identity.code)}-import.txt</span>, ready to paste into the Links page (Import), which re-runs every check here. The code <b>${esc(meta.identity.fingerprint)}</b> in every footer is worked out from the 168 days of the rota and nothing else, so a printout always matches the design it came from.</p>
+  <p class="muted pimport">The rota is supplied beside this PDF as <span class="tt">${esc(meta.identity.name.replace(/ /g, '-'))}-${esc(meta.identity.code)}-import.txt</span>, ready to paste into the Links page (Import), which re-runs every check here. The code <b>${esc(meta.identity.fingerprint)}</b> in every footer is worked out from the ${LINES * 7} days of the rota and nothing else, so a printout always matches the design it came from.</p>
   <div class="foot"><span>Page ${pages} of ${pages} — Can I trust these numbers?</span><span class="foot-id"><b>${name}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>`;
 }
