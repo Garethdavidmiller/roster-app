@@ -194,7 +194,7 @@ is the best of the four.
 
 **The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"):
 `presentations/Second-Nature-for-colleagues` (15 slides) and `-for-managers` (10), as PowerPoint and PDF, and the same
-pair for Second Wind (`Second-Wind-for-…`), Second Sight (`Second-Sight-for-…`) and Second Edition (`Second-Edition-for-…`). They are the
+pair for Second Wind (`Second-Wind-for-…`), Second Sight (`Second-Sight-for-…`), Second Edition (`Second-Edition-for-…`) and Even Keel (`Even-Keel-for-…`). They are the
 Familiar Nine decks, the template Right Away's were made from too, with every word and figure that was Familiar Nine's
 replaced and the design untouched. Unlike the 24-line decks, they are BUILT here: `tooling/second-nature-decks.py`
 makes Second Nature's from the Familiar Nine files, and `tooling/second-wind-decks.py` makes Second Wind's from those,
@@ -202,13 +202,14 @@ changing only what differs between the two rotas (weekend spacing, rest-day brea
 stretch, the weekly hours); `tooling/second-sight-decks.py` makes Second Sight's the same way, adding that no week mixes
 earlies and lates and saying plainly that it has one more single rest day than today (5, against 4); `tooling/second-edition-decks.py`
 makes Second Edition's, whose leave figures are Second Nature's exactly, so only the weekend, one-turn and rest-break
-lines change. Both refuse if a slide no longer holds the text they expect, and both compare only with
-today's link.
+lines change; `tooling/even-keel-decks.py` makes Even Keel's, which change more because it sits on Second Gear's table
+(the shift-time list, 44 late finishes with four to the close on a Saturday, the run, the rest and the fit chart). Every
+builder refuses if a slide no longer holds the text it expects, and every deck compares only with today's link.
 - **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts.
   `tooling/leave.mjs` gives the four leave figures (Second Nature: 14 days' leave buys 28 days off at best, 23.4
   on average, 20 at worst, and four full weeks off takes 15; Second Wind: 27 at best, otherwise the same). It is the 24-line decks' leave method as code, and `--check` shows it
   reproduces their published figures for today and Familiar Nine exactly.
-- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. All 204 table rows across the eight decks agree with
+- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. All 255 table rows across the ten decks agree with
   the sheets and the leave model, and none is left unchecked.
 
 Rebuild after any change to the rota:
@@ -216,7 +217,7 @@ Rebuild after any change to the rota:
 ```
 python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/second-wind-decks.py \
   && python3 docs/links-26/tooling/second-sight-decks.py && python3 docs/links-26/tooling/second-edition-decks.py \
-  && node docs/links-26/tooling/deck-check.mjs
+  && python3 docs/links-26/tooling/even-keel-decks.py && node docs/links-26/tooling/deck-check.mjs
 ```
 
 Then export the PDFs (LibreOffice). Two things the decks say that the sheet does not show directly:
