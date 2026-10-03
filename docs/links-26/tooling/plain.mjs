@@ -591,6 +591,21 @@ table.ff .ff-plain { display: block; font-weight: 700; } table.ff .ff-orr { disp
    never cut it (screenshot check, 30 Sep 2026) */
 .cover.plain .pcols--dense .pbox ul { font-size: 9.8px; line-height: 1.3; }
 .cover.plain h2.psec { font-size: 12.5px; margin: 11px 0 5px; color: var(--primary-blue); letter-spacing: .01em; }
+/* PAGE 1 BREATHES (3 Oct 2026, aesthetic pass from screenshots): the cover ended a third of the way up the page on every
+   26-line sheet, so the blocks a reader meets first were the smallest type on the sheet. Scaled up ~12% and spaced; the
+   dense variant (.pcols--dense) keeps its own size so a long concerns list still fits. */
+.cover.plain .pbottom { font-size: 13.4px; line-height: 1.52; margin-top: 14px; padding: 11px 16px; }
+.cover.plain .pcaveat { font-size: 11.4px; line-height: 1.5; margin-top: 10px; }
+.cover.plain .ptakes { font-size: 11.4px; line-height: 1.5; margin-top: 8px; }
+.cover.plain h2.psec { font-size: 14px; margin: 16px 0 7px !important; }
+.cover.plain .tiles.head4 .ptile { padding: 12px 14px 13px; }
+.cover.plain .tiles.head4 .ptile b { font-size: 26px; }
+.cover.plain .tiles.head4 .ptile p, .cover.plain .tiles.head4 .ptile .q, .cover.plain .tiles.head4 .ptile small, .cover.plain .tiles.head4 .ptile span { font-size: 10.6px; line-height: 1.42; }
+.cover.plain .pcols { margin-top: 12px; gap: 14px; }
+.cover.plain .pcols .pbox { padding: 12px 16px 13px; }
+.cover.plain .pcols .pbox h3, .cover.plain .pcols .pbox .pbox-h { font-size: 12px; }
+.cover.plain .pcols .pbox ul { font-size: 11.3px; line-height: 1.5; }
+.cover.plain .pcols--dense .pbox ul { font-size: 10.2px; line-height: 1.36; }
 .cover.plain .tiles.head4, .cover.plain .tiles.pfeel.four { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .cover.plain .head4 .tile .q { min-height: 26px; } .cover.plain .head4 .tile b { font-size: 22px; }
 .cover.plain .pfeel .tile .ab { font-size: 11px; font-weight: 600; color: var(--text-mid); }

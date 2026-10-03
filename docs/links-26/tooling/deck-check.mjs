@@ -79,7 +79,7 @@ const ROWS = {
   'Finishing at 22:00 or later — each, a year': 'late22', 'Starting at 06:20 — each, a year': 'open0620',
   'Shortest gap between two shifts': 'rest', 'Shortest rest between shifts (limit 12h)': 'rest', 'Longest shift': 'longest',
   'Average shift · longest shift': 'avgLongest', 'Closing shift: weekday · Saturday · Sunday': 'closers',
-  'Full weekends off': ['weekends', 'weekendsShort'], 'Full weekends off, about a year': 'weekendsYear', 'Most days worked in a row': 'run', 'Most days in a row (limit 13)': 'run',
+  'Full weekends off': ['weekends', 'weekendsShort'], 'Full weekends off, about a year': 'weekendsYear', 'Most days worked in a row': 'run', 'Most days in a row (limit 13)': 'run', 'Most days in a row (limit 13, source to confirm)': 'run',
   'Avoidable fatigue warnings in the fixed rota': 'ff', 'Avoidable fatigue warnings, fixed rota': 'ff',
   'Different shift times': 'times', 'On duty weekday · Saturday · Sunday': 'daily', 'On duty during the day': 'daily',
   'On duty on a weekday': 'dailyWk', 'On duty on a Saturday / Sunday': 'dailyWeekend',

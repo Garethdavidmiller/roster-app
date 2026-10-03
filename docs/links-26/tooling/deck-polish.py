@@ -38,6 +38,10 @@ def replace_in_run(path, old_sub, new_sub):
     x = open(path, encoding='utf-8').read(); hits = [m for m in re.finditer(r'<a:t>([^<]*)</a:t>', x) if escape(old_sub) in m.group(1)]
     assert len(hits) == 1, f'{path}: {old_sub!r} in {len(hits)} runs'; m = hits[0]
     open(path, 'w', encoding='utf-8').write(x[:m.start(1)] + m.group(1).replace(escape(old_sub), escape(new_sub)) + x[m.end(1):])
+def drop_shape(s, text):
+    """Remove the one shape whose only run is `text` (the ~7pt footnotes beside the footer, unreadable when projected: their
+    sentence goes to the speaker notes instead)."""
+    a, b = spans(s.x)[shape_of(s, text)]; s.x = s.x[:a] + s.x[b:]
 def notes_edit(d, n, old, new):
     p = f'{d}/ppt/notesSlides/notesSlide{n}.xml'; x = open(p, encoding='utf-8').read()
     assert escape(old) in x, f'{p}: {old[:50]!r} not in notes'; open(p, 'w', encoding='utf-8').write(x.replace(escape(old), escape(new), 1))
@@ -128,6 +132,9 @@ def colleagues(d, name, grid, F):
         replace_run(f'{d}/ppt/slides/slide7.xml', 'Five more late finishes a year — four to the close on a Saturday — and every closer is shorter.', lead + 'five more a year after 23:00, four to the Saturday close.')
     else:
         replace_run(f'{d}/ppt/slides/slide7.xml', 'Three more late finishes a year — the fewest the rules allow — and every closer is shorter.', lead + 'the three more after 23:00 are the fewest the rules allow.')
+    for n in (5, 7):
+        s = S(n); drop_shape(s, 'Yearly figures are averages from the fixed rota; cover-week duties are not included.'); s.save()
+        notes_append(d, n, 'The yearly figures are averages from the fixed rota; a cover week’s duties are not known yet and are left out.')
     s = S(9)
     put(s, 'Full weekends off', 'Full weekends off, about a year'); put(s, '4 in 20', T['weekendsYear']); put(s, '7 in 26', F['weekendsYear'], GREEN)
     put(s, 'Weeks on one turn, Monday to Friday', 'Weeks on one turn, no early–late switch')
@@ -150,7 +157,12 @@ def colleagues(d, name, grid, F):
 
 def managers(d, name, grid, F):
     S = lambda n: Slide(f'{d}/ppt/slides/slide{n}.xml')
+    s = S(2); put(s, 'contract rostered exactly, on average', 'contracted hours a week'); put(s, 'Monday to Saturday', 'rostered exactly, Mon–Sat average'); s.save()
+    s = S(6); drop_shape(s, 'Early starts and a weekly rotation come with every link, so are not counted. The written source of the 13-day limit is still to be confirmed.'); s.save()
+    notes_append(d, 6, 'Early starts and a weekly rotation come with every link, so they are not counted. The written source of the 13-day limit is still to be confirmed.')
     s = S(4)
+    drop_shape(s, 'A measure of the day’s shape only — not a staffing requirement or a passenger forecast.')
+    notes_append(d, 4, 'The score is a measure of the day’s shape only — not a staffing requirement or a passenger forecast.')
     put(s, 'Much closer to the December pattern on weekdays, Saturday and Sunday.', 'Much closer to the December pattern every day. The score: hour by hour, how far staffing sits from the trains; 0 would track them exactly.')
     s.save()
     s = S(7)
