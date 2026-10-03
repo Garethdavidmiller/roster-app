@@ -488,6 +488,56 @@ and what would reopen it (the first option, with its shared-device privacy cost 
 Recommendation from the review: **retire it** unless the owner wants the first option built — the
 current machinery carries the risk of both and the benefit of neither. **Taken, 26 Sep 2026.**
 
+## THE SEPTEMBER MONTH-END READ — 3 October 2026. Nothing reopens; one thing to watch
+
+The card's "Last month" view for the whole of September (owner screenshots), at **3,448 Calendar
+opens**, against the closing read above (2,161 on 19 Sep). **It re-confirms every verdict, so this
+file stays closed.**
+
+| Reading | 19 Sep | Sep month-end | Verdict |
+|---|---|---|---|
+| Usable within 1s · over 3s (all pages) | 34% · 22% | **32% · 23%** (4,130) | unchanged |
+| Getting ready, over ½s | 0% | **1%** (3,520) | the app's own work is still not the cost |
+| Recognised, over 1s | 60% | **63%** (3,369) | the wall is still the `accounts:lookup` round trip |
+| Recognised by connection, over 1s: 4G · 3G · not reported | 73% · 88% · 47% | **78% · 90% · 51%**, while Getting ready is **0%** in every group | still the network signature |
+| Ladder, over 1s: Unlocked · Roster found · Shifts shown · Confirmed | 64 · 75 · 77 · 96 | **66 · 78 · 78 · 97** | `Shifts shown` still tracks `Recognised` |
+| Saved copy vs the server | 2,178 · 28 | **3,515 · 35** (99.0%) | Phase 2 stays closed |
+| Worker busy vs Shifts shown, over 1s | 76% vs 77% | **78% vs 78%** | the service worker is not the cost |
+| Opens after a release | 14% | **14%** (498), 67% over 1s | unchanged |
+| Opens that did not wait for the sign-in check | 1 | **1** | the fast path, retired 26 Sep; the row now counts only devices on older versions |
+
+**The card was describing the retired fast path as live, and was corrected (3 Oct 2026).** The ladder's
+note said a returning member "is now shown their saved roster before the Calendar finishes checking who
+they are", and the fast-path block explained how to judge a feature that no longer existed. Both now say
+what is true since v24.29: shifts wait for the sign-in check, and the fast-path row is historic and will
+empty out. When a month reads empty there, delete the block and `summariseProvisionalOpens`.
+
+### One thing to watch: the newest versions read slower — probably the release pace, not a regression
+
+**By app version** (whole load, over 1s), weighting each row by its opens:
+
+- **v24.29 to v24.40** (after the fast path was retired): about **31%**, on roughly 294 opens.
+- **v24.17 to v24.28**: about **19%**, on roughly 780 opens.
+
+**This is not treated as a regression**, for two reasons, and the second is the stronger:
+
+- **The samples are small.** 26 to 116 opens per row, and the series has jumped this far before
+  (v23.74–v23.77 read 44%, v23.12 read 43%).
+- **The release pace confounds it.** About fifteen versions shipped in the last week of September,
+  each live for a day or two. The first open after an update is a reload, and those run at **67%**
+  over 1s. A version that is live for one day has far more than the 14% average of reload opens, so a
+  fast release pace inflates every short-lived version's figure.
+
+The retirement itself cannot explain it either way: the path served one open in eight hundred.
+
+**The check, and what it would mean.** In the October read, compare versions that stayed live for a
+week or more against the ~19% band:
+- **Back near 20%:** it was the release pace. Record that here and close the item.
+- **Still about 30% on a long-lived version:** something in v24.29+ costs time before `Usable`.
+  Look first at the sign-in path changes of that window: the anonymous fallback's removal (v24.34)
+  and the identity-loss watcher (v24.37–v24.38). That would be a NEW question with its own file, not
+  a reopening of this one.
+
 ## Phase 2 — CLOSED on its own decision rule (5 Sep 2026)
 
 **The rule below fires, and it fires clearly.** Of the starts that could be attributed, **454 came

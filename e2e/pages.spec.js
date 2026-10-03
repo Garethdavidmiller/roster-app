@@ -7781,9 +7781,10 @@ test('operations: App speed reports the fast-path opens, as a SHARE of all opens
     // The SUBSET relation in words. The block immediately above is a SPLIT, so a reader arriving in
     // order has just been taught the other arithmetic and would subtract this one.
     await expect(speed).toContainText('also counted in');
-    // And the sentence that says how to READ it — a row no faster than "Shifts shown" is the result
-    // that falsifies, so the card has to state the comparison rather than leave it to be noticed.
-    await expect(speed).toContainText('no faster than that one');
+    // The fast path was RETIRED at v24.29, so the note must speak of it in the past tense and say
+    // why the row exists at all — it used to describe the feature as live, a month after it went.
+    await expect(speed).toContainText('That was retired in September 2026');
+    await expect(speed).not.toContainText('is now shown their saved roster');
 
     // This page's fast-path opens, not paycalc's 90 — which would read as 15%.
     const total = await speed.evaluate(() => {
