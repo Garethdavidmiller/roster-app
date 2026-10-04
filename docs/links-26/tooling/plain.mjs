@@ -416,7 +416,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('Weeks mixing earlies and lates', `${T.feel.hybrid} of ${T.feel.workingLines}`, `${P.feel.hybrid} of ${P.feel.workingLines}`, '', 'a week with both early and late shifts in it'),
     row('Single rest days', iso(T), iso(P), '', 'a rest day on its own — not a two-day break'),
     row('Six-day weeks', six(T), six(P), '', 'weeks with six days at work, Sundays counted'),
-    row('Leave for four full weeks off', `${lvT.fourWeeks} days`, `${lvP.fourWeeks} days`, cmp(lvP.fourWeeks < lvT.fourWeeks, lvP.fourWeeks === lvT.fourWeeks), 'the least leave for four complete Sunday-to-Saturday weeks; rest days and Sundays cost none'),
+    row('Leave for four full weeks off', `${lvT.fourWeeks} days`, `${lvP.fourWeeks} days`, cmp(lvP.fourWeeks < lvT.fourWeeks, lvP.fourWeeks === lvT.fourWeeks), 'the least leave for four complete weeks, Sunday to Saturday; rest days and Sundays cost none'),
     grp('Shifts'),
     row('Average shift · longest shift', `${hm(tp.avgShift)} · ${hm(tp.longest)}`, `${hm(pp.avgShift)} · ${hm(pp.longest)}`, '', 'the average is Monday to Saturday; the longest is on any day'),
     row('Early shifts, shortest to longest', tp.earlySpan, pp.earlySpan, '', 'an early starts before 11:00 · any day of the week'),
