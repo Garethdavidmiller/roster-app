@@ -17,7 +17,7 @@ const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
 const OUT = new URL('../links-26-shortlist.pdf', import.meta.url).pathname;
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'], MS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const timed = s => /^\d\d:\d\d-\d\d:\d\d$/.test(s), m = s => +s.slice(0, 2) * 60 + +s.slice(3, 5), mins = s => (m(s.slice(6)) - m(s) + 1440) % 1440;
-const hm = x => `${Math.floor(x / 60)}h ${String(Math.round(x % 60)).padStart(2, '0')}m`;
+const hm = x => `${Math.floor(x / 60)}h\u00a0${String(Math.round(x % 60)).padStart(2, '0')}m`;   // no-break space: a figure never splits across a line
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
 function figures(p, L, TA) {
@@ -48,16 +48,16 @@ const ROWS = [
   ['Heaviest week', F => F.heavy, -1, hm],
   ['Lightest week', F => F.light, 1, hm],
   ['Shortest rest between shifts', F => F.A.rest.minutes, 1, hm],
-  ['Weeks on one turn (one shift time Mon–Fri, no early–late switch)', F => F.A.feel.oneTurn, 1, (v, F) => `${v} of ${F.A.feel.workingLines}`],
+  ['Weeks on one turn (one shift time Mon–Fri, no mixing)', F => F.A.feel.oneTurn, 1, (v, F) => `${v} of ${F.A.feel.workingLines}`],
   ['Weeks mixing earlies and lates', F => F.A.feel.hybrid, -1, v => `${v}`],
   ['Week-to-week change of start time', F => F.step, -1, hm],
   ['Finishing at 23:00 or later, each a year', F => Math.round(F.pp.late23), -1, v => `${v}`],
   ['Shift times to learn that are new', F => F.newT, -1, (v, F) => `${v} of ${F.times}`],
-  ['Fit to the trains, weekday · Sat · Sun (0 = staff track the trains exactly)', F => 0, -1, (v, F) => F.fit.map(x => x.toFixed(1)).join(' · ')],
+  ['Fit to the trains — weekday · Sat · Sun (0 = exact)', F => F.fit[0] + F.fit[1] + F.fit[2], -1, (v, F) => F.fit.map(x => x.toFixed(1)).join('\u00a0·\u00a0'), 'fit'],
 ];
 const best = (get, dir) => { const vals = D.map(d => get(d.F)); const b = dir > 0 ? Math.max(...vals) : Math.min(...vals); return vals.map(v => v === b); };
-const rowsHtml = ROWS.map(([label, get, dir, fmt]) => { const bb = best(get, dir); const allSame = bb.every(Boolean);
-  return `<tr><td>${esc(label)}</td><td class="num today">${esc(fmt(get(TF), TF))}</td>${D.map((d, i) => `<td class="num${bb[i] && !allSame ? ' best' : ''}">${esc(fmt(get(d.F), d.F))}</td>`).join('')}</tr>`; }).join('');
+const rowsHtml = ROWS.map(([label, get, dir, fmt, cls = '']) => { const bb = best(get, dir); const allSame = bb.every(Boolean);
+  return `<tr><td>${esc(label)}</td><td class="num today ${cls}">${esc(fmt(get(TF), TF))}</td>${D.map((d, i) => `<td class="num ${cls}${bb[i] && !allSame ? ' best' : ''}">${esc(fmt(get(d.F), d.F))}</td>`).join('')}</tr>`; }).join('');
 
 // against today: the rows a colleague feels, the three designs sharing one column where they agree
 const same = get => { const v = D.map(d => get(d.F)); return v.every(x => x === v[0]) ? v[0] : null; };
@@ -76,14 +76,14 @@ const TODAY_ROWS = [
   ['Leave for four full weeks off', F => `${F.lv.fourWeeks} days`],
 ];
 const todayHtml = TODAY_ROWS.map(([label, get]) => { const s = same(get);
-  return `<tr><td>${esc(label)}</td><td class="num today">${esc(get(TF))}</td>${s !== null ? `<td class="num all" colspan="3">${esc(s)}</td>` : D.map(d => `<td class="num">${esc(get(d.F))}</td>`).join('')}</tr>`; }).join('');
+  return `<tr><td>${esc(label)}</td><td class="num today">${esc(get(TF))}</td>${s !== null ? D.map(() => `<td class="num all">${esc(s)}</td>`).join('') : D.map(d => `<td class="num">${esc(get(d.F))}</td>`).join('')}</tr>`; }).join('');
 
 const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>The shortlist — December 2026 link</title>
 <link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/links.css">
 <style>
 @page { size: A4; margin: 11mm 11mm 13mm; }
 html, body { background: white !important; color: var(--text-dark); padding: 0 !important; margin: 0; font-family: var(--font-sans); font-size: 11.1px; line-height: 1.38; }
-.page { page-break-after: always; position: relative; min-height: 268mm; padding-bottom: 14px; } .page:last-child { page-break-after: auto; }
+.page { page-break-after: always; position: relative; height: 273mm; box-sizing: border-box; padding-bottom: 14px; }   /* the printable height: the footer sits at the same place on every page */ .page:last-child { page-break-after: auto; }
 .mast { background: var(--primary-blue); color: white; padding: 12px 20px 11px; border-bottom: 4px solid var(--accent-gold); border-radius: var(--radius); display: flex; gap: 16px; align-items: center; }
 .mast img { width: 44px; height: 44px; border-radius: 10px; }
 .mast .eyebrow { color: var(--accent-gold); font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
@@ -97,11 +97,11 @@ table.t th { background: var(--surface-sunken); color: var(--text-mid); font-siz
 table.t th.num, table.t td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 table.t td.today { color: var(--text-light); }
 table.t td.best { font-weight: 800; color: color-mix(in srgb, var(--success-green) 80%, black); }
-table.t td.all { text-align: center; color: var(--text-mid); }
+table.t td.all { color: var(--text-mid); }
+table.t td.fit { font-size: 9.3px; letter-spacing: -.1px; }
 table.t tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-sunken) 55%, white); }
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 8px 0 2px; }
 .card { background: var(--surface-sunken); border-radius: 0 0 var(--radius-sm) var(--radius-sm); padding: 8px 12px 9px; font-size: 10.5px; line-height: 1.4; border-top: 3px solid var(--primary-blue); }
-.card:nth-child(2) { border-top-color: var(--accent-gold); } .card:nth-child(3) { border-top-color: var(--success-green); }
 .card b.k { display: block; font-size: 12.5px; font-weight: 800; color: var(--primary-blue); margin-bottom: 2px; }
 .card .code { font-size: 9px; color: var(--text-light); margin-bottom: 4px; display: block; }
 .t.guide { margin-top: 4px; } .t.guide td:last-child { white-space: nowrap; }
@@ -143,15 +143,15 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.8px; line-height:
     <tr><td>Five-day runs on the fixed rota, and no week mixing earlies and lates</td><td><b>Short Run</b></td></tr>
     <tr><td>The lightest heaviest week, and the most rest between shifts</td><td><b>Even Keel</b></td></tr>
     <tr><td>The steadiest start times from week to week</td><td><b>Second Edition</b></td></tr>
-    <tr><td>Four weeks off for 14 days’ leave, as today</td><td><b>Long Break</b> — in the pack, outside the shortlist</td></tr>
+    <tr><td>Four weeks off for 14 days’ leave, as today</td><td><b>Long Break</b><br><span class="muted" style="font-size:9.2px">in the pack, outside the shortlist</span></td></tr>
   </tbody></table>
   <p class="muted">Every figure here, on the sheets and in the presentations is computed from the rotas by the same code, and has been recomputed independently from the grids. How each design was found is in the technical notes in the pack.</p>
-  <div class="foot"><span>Page 1 of 2 — What they share, where they differ, each one’s edge, which to choose</span><span><b>The shortlist</b> · Marylebone Roster — Links designer · every figure computed from the rotas</span></div>
+  <div class="foot"><span>Page 1 of 2 — What they share, where they differ, each one’s edge, which to choose</span><span><b>The shortlist</b> · ${D.map(d => `${esc(d.name)} ${d.code}`).join(' · ')} · 4 Oct 2026</span></div>
 </section>
 
 <section class="page">
   <div class="mast"><div><div class="eyebrow">The shortlist · continued</div><h1>Against today, and a recommendation</h1>
-  <div class="sub">Where the three agree they share a column — which on most of what a colleague feels, they do</div></div></div>
+  <div class="sub">On most of what a colleague feels the three are the same — a figure in grey is shared by all three</div></div></div>
 
   <h2>Against today’s link</h2>
   <table class="t"><thead><tr><th>Measure</th><th class="num">Today</th>${D.map(d => `<th class="num">${esc(d.name)}</th>`).join('')}</tr></thead><tbody>${todayHtml}</tbody></table>
@@ -178,7 +178,9 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.8px; line-height:
   <div class="foot"><span>Page 2 of 2 — Against today, the shared costs, the recommendation</span><span><b>The shortlist</b> · ${D.map(d => `${esc(d.name)} ${d.code}`).join(' · ')} · 4 Oct 2026</span></div>
 </section>
 </body></html>`;
-const htmlOut = new URL('links-26-shortlist.html', import.meta.url).pathname; writeFileSync(htmlOut, html);   // beside the tooling, gitignored
+// a label never ends on a lone word: the last space of a plain-text cell becomes a no-break space
+const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace(/ (\S+)$/, '\u00a0$1')}</td>`);
+const htmlOut = new URL('links-26-shortlist.html', import.meta.url).pathname; const htmlTidy = tidy(html); writeFileSync(htmlOut, htmlTidy);   // beside the tooling, gitignored
 const b = await chromium.launch(); const pg = await b.newPage();
 await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
 await pg.pdf({ path: OUT, format: 'A4', printBackground: true, preferCSSPageSize: true });

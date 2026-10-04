@@ -95,7 +95,7 @@ const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><tit
 <style>
 @page { size: A4; margin: 11mm 11mm 13mm; }
 html, body { background: white !important; color: var(--text-dark); padding: 0 !important; margin: 0; font-family: var(--font-sans); font-size: 10.5px; line-height: 1.36; }
-.page { page-break-after: always; position: relative; min-height: 270mm; }
+.page { page-break-after: always; position: relative; height: 273mm; box-sizing: border-box; }   /* the printable height: the footer sits at the same place on both pages */
 .page:last-child { page-break-after: auto; }
 .mast { background: var(--primary-blue); color: white; padding: 12px 20px 11px; border-bottom: 4px solid var(--accent-gold); border-radius: var(--radius); display: flex; gap: 16px; align-items: center; }
 .mast img { width: 44px; height: 44px; border-radius: 10px; }
@@ -105,12 +105,12 @@ html, body { background: white !important; color: var(--text-dark); padding: 0 !
 .mast .meta { color: rgba(255,255,255,.55); font-size: 9.5px; margin-top: 4px; }
 h2 { font-size: 13.5px; color: var(--primary-blue); margin: 9px 0 3px; font-weight: 800; }
 h2 .tag { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; padding: 1px 7px; border-radius: 8px; margin-left: 8px; vertical-align: 2px; }
-.tag.hard { background: var(--primary-blue); color: white; } .tag.soft { background: var(--accent-gold); color: var(--primary-blue); } .tag.adv { background: var(--surface-sunken); color: var(--text-mid); }
+.tag.hard { background: var(--primary-blue); color: white; } .tag.soft { background: var(--accent-gold); color: var(--primary-blue); } .tag.flex { background: color-mix(in srgb, var(--primary-blue) 40%, white); color: var(--primary-blue); } .tag.adv { background: var(--surface-sunken); color: var(--text-mid); }
 p { margin: 3px 0 6px; } .muted { color: var(--text-mid); }
 .lead { font-size: 10.5px; }
 .tiers { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 8px 0 2px; }
 .tier { background: var(--surface-sunken); border-radius: var(--radius-sm); padding: 6px 10px; font-size: 9.4px; line-height: 1.35; border-top: 3px solid var(--primary-blue); }
-.tier:nth-child(2) { border-top-color: var(--accent-gold); } .tier:nth-child(3) { border-top-color: color-mix(in srgb, var(--accent-gold) 45%, white); } .tier:nth-child(4) { border-top-color: var(--border-mid); }
+.tier:nth-child(2) { border-top-color: var(--accent-gold); } .tier:nth-child(3) { border-top-color: color-mix(in srgb, var(--primary-blue) 40%, white); } .tier:nth-child(4) { border-top-color: var(--border-mid); }
 .tier b.k { display: block; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .3px; color: var(--primary-blue); margin-bottom: 3px; }
 .basics { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; font-size: 9.4px; line-height: 1.36; }
 .basics b { color: var(--text-dark); }
@@ -179,10 +179,10 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 </section>
 
 <section class="page">
-  <div class="mast"><div><div class="eyebrow">The rules · continued</div><h1>Flexible rules, fatigue factors, preferences and what is still open</h1>
+  <div class="mast"><div><div class="eyebrow">The rules · continued</div><h1>Flexible rules, fatigue factors and open questions</h1>
   <div class="sub">The rules designs aim for but are not scored on, the advisory list, what is for staff to say rather than the rules, and the questions not yet settled</div></div></div>
 
-  <h2>Flexible rules <span class="tag soft">aimed for, not scored</span></h2>
+  <h2>Flexible rules <span class="tag flex">aimed for, not scored</span></h2>
   <p class="lead">Aimed for when designing, and checked by the searches and solvers. They are <b>not scored on the proposal sheets</b>: a proposal that misses one can still be put forward, and a presentation may say which it meets.</p>
   <table class="t dec"><thead><tr><th>Rule</th><th>What it asks, exactly</th><th>Today’s link</th></tr></thead><tbody>${flexRows}</tbody></table>
 
@@ -217,7 +217,9 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 </body></html>`;
 
 const htmlOut = new URL('December-2026-Rules.html', import.meta.url).pathname;
-writeFileSync(htmlOut, html);
+// a label never ends on a lone word: the last space of a plain-text cell becomes a no-break space
+const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace(/ (\S+)$/, '\u00a0$1')}</td>`);
+writeFileSync(htmlOut, tidy(html));
 const b = await chromium.launch(); const pg = await b.newPage();
 await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
 await pg.pdf({ path: OUT, format: 'A4', printBackground: true, preferCSSPageSize: true });
