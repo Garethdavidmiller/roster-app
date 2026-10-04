@@ -29,9 +29,9 @@ export const STRAPS = {
   'SL-26-G3': ['Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates', 'search'],
   'SG-26-H1': ['Weekends never more than five weeks apart, no week over 41h 30m, and a week-to-week change of 1h 25m', 'search'],
   'SE-26-F1': ['Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time', 'search'],
-  'FT-26-H1': ['Second Gear fine-tuned: no week over 41h 30m, one mixed week, and a gentler week-to-week change', 'search'],
-  'EK-26-H1': ['Second Gear rebalanced: 18 of 21 weeks on one shift time, and no week over 41h 30m', 'search'],
-  'SR-26-F1': ['Second Edition with no run over five days: weekends never more than five weeks apart, 18 of 21 weeks on one shift time', 'search'],
+  'FT-26-H1': ['No week over 41h 30m, one week mixing earlies and lates, and a week-to-week change of 1h 09m', 'search'],
+  'EK-26-H1': ['18 of 21 weeks on one shift time, no week over 41h 30m, and the longest rest between shifts, 14h 35m', 'search'],
+  'SR-26-F1': ['No run over five days on the fixed rota, weekends never more than five weeks apart, and 18 of 21 weeks on one shift time', 'search'],
   'LB-26-F1': ['Four weeks off for 14 days’ leave, as today, with weekends never more than five weeks apart and no mixed week', 'search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
