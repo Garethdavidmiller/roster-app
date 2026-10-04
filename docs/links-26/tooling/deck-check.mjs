@@ -19,6 +19,7 @@ import { assess, folderStats, today, sheetRules, h55Worst, endMinutes, startMinu
 import { personal } from './plain.mjs';
 import { LINES } from './link.mjs';
 import { leave } from './leave.mjs';
+import { scoreOrder } from '../../../links-adjacency.js';
 
 const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url).pathname;   // DECK_DIR: check a copy
 // Only the shortlist's decks are shipped (owner, 3 Oct 2026): Second Nature's, Second Wind's and Second Sight's were deleted.
@@ -68,6 +69,8 @@ function figures(patterns, lines, T) {
     breaks: `${A.feel.pairedRest} of ${A.feel.restIslands}`, oneTurn: `${A.feel.oneTurn} of ${A.feel.workingLines}`,
     // 26 lines: the leave figures, from leave.mjs (the 24-line decks' model, reproduced and checked there)
     ...(lv => ({ leaveBest: `${lv.best}`, leaveAvg: lv.avg.toFixed(1), leaveWorst: `${lv.worst}`, leaveFour: `${lv.fourWeeks}` }))(leave(patterns)),
+    // the week-to-week step: the average change in a week's mean start time (plain.mjs's definition; the shortlist's figure)
+    step: hm(scoreOrder(patterns, Object.keys(patterns), { maxRunTarget: 6 }).gentleMean),
   };
 }
 

@@ -168,9 +168,10 @@ def managers(d, name, grid, F):
     s = S(7)
     ticks = [i for i, (a, b) in enumerate(spans(s.x)) if runs_of(s.x[a:b]) == ['✓']]; assert len(ticks) == 6, ticks
     times = re.match(r'(\d+) \((\d+) you know\)', F['times']); n_times, n_known = int(times.group(1)), int(times.group(2)); n_new = n_times - n_known
-    adds = {'Second Edition': f'This one adds: one shift time Mon–Fri in {F["oneTurn"]} weeks (today {T["oneTurn"]})',
+    # Second Edition's line said one shift time in 18 of 21 weeks — true of all three (outside review, 4 Oct 2026); its own edge is the step
+    adds = {'Second Edition': f'This one adds: the steadiest starts of the three — {F["step"]} week to week (today {T["step"].replace(" 00m", "")})',
             'Short Run': f'This one adds: never more than {F["run"].split(" ")[0]} days in a row on the fixed rota (today {T["run"].split(" ")[0]})',
-            'Even Keel': f'This one adds: no week over {F["heavy"]}, and the longest rest between shifts, {F["rest"]}'}[name]
+            'Even Keel': f'This one adds: no week over {F["heavy"]}, and at least {F["rest"]} between shifts'}[name]
     costs = {'Second Edition': f'Costs: {F["run"]} days in a row on the fixed rota (today {T["run"].split(" ")[0]}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}',
              'Short Run': f'Costs: one {F["heavy"]} week (today up to {T["heavy"]}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}',
              'Even Keel': f'Costs: {F["late23"]} late finishes a year (today {T["late23"]}), a mixed week, four weeks off {F["leaveFour"]} days not {T["leaveFour"]}'}[name]
@@ -187,6 +188,8 @@ def managers(d, name, grid, F):
     set_shape(s, bars[0], f'Late finishes: {F["late23"]} a year each (today {T["late23"]}){" — the rules’ minimum" if minimum else " — two above the rules’ minimum, buying a fourth person to the Saturday close"}. The colleague deck shows every cost openly.')
     set_shape(s, 1, 'What all three shortlisted links give, what this one adds, and what it costs')
     s.save()
+    if name == 'Second Edition':
+        notes_append(d, 7, f'The week-to-week figure is the average, round the rotation, of how far a week’s mean start time moves from the week before — Sundays included, cover weeks left out: {F["step"]} here, against {T["step"]} on today’s link.')
     s = S(5)
     put(s, '4 — 1 week in 5', '4 in 20 (1 in 5)'); put(s, '5 — 1 week in 5', '5 in 26 (1 in 5.2)')
     put(s, 'Six more people, 35 hours a week on average — Sundays still rely on overtime.', f'Six more people, 35 hours a week on average; Sunday overtime {F["sunHours"]} a week across the link (today {T["sunHours"]}).')

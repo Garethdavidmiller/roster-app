@@ -57,7 +57,7 @@ export const SUPPLIED = [
     // Even Keel (3 Oct 2026): a second reordering of Second Gear by the same outside reviewer (their SGR-26-C2, with its
     // recount in external/roster-search-results-2/). Same duties every day; 18 of 21 weeks on one shift time. Checked
     // here by the app's own code. Their other candidate, Five-Day Flow, was NOT shipped: README.md → "Even Keel".
-    { file: 'even-keel.json',              name: 'Even Keel',      code: 'EK-26-H1',   fp: '8e9a1bcf', strap: '18 of 21 weeks on one shift time, no week over 41h 30m, and the longest rest between shifts, 14h 35m' },
+    { file: 'even-keel.json',              name: 'Even Keel',      code: 'EK-26-H1',   fp: '8e9a1bcf', strap: '18 of 21 weeks on one shift time, no week over 41h 30m, and never less than 14h 35m between shifts' },
     // Short Run (3 Oct 2026): the final targeted search's one find. Second Edition's duty table on a rest-day skeleton
     // the EXACT solver produced (exact-skeletons.py: no run over FIVE days, no mixed week, four single rest days — a
     // layout the annealing skeleton search never reached in 16 seeds), then the same soft → hard polish chain. Equal to
