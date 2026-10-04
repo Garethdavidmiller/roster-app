@@ -771,6 +771,27 @@ describe('withdrawal means the same thing to the member as to the reviewer (v21.
             'and nothing was written');
     });
 
+    // THE RACE (v24.48, external audit F3): withdrawn AFTER the handler's first check and before its
+    // transaction. The early read cannot see it, so the transaction must — or the member is told their
+    // answer was saved for a week they have been stood down from.
+    test('a withdrawal landing between the first check and the write still refuses the write', async () => {
+        freeze(M.initialDeadlineAt - 86400000);
+        const { db, eps } = build(seededWindow());
+        const PART = `overtimeWindows/${WEEK}/participants/G. Miller`;
+        assert.ok(db._store.has(PART), 'premise: the member is a participant, not withdrawn');
+        const inner = db.runTransaction;
+        db.runTransaction = (/** @type {any} */ fn) => {
+            db._store.set(PART, { ...db._store.get(PART), withdrawn: true, withdrawnBy: 'H. Croft' });
+            return inner(fn);
+        };
+        const r = await call(eps.submitOvertimeAvailability,
+            req({ weekEnding: WEEK, days: noDays(), ifRevision: 0, clientMutationId: 'mid-race-1' }, 'tok_member'));
+        unfreeze();
+        assert.equal(r.code, 403);
+        assert.equal(r.body.error, 'withdrawn');
+        assert.equal(db._store.has(`overtimeWindows/${WEEK}/submissions/G. Miller`), false, 'and nothing was written');
+    });
+
     test('"Ask again" gives the week straight back', async () => {
         // Withdrawal is a flag, so restoring is the whole remedy — nothing to undelete.
         freeze(M.initialDeadlineAt - 86400000);

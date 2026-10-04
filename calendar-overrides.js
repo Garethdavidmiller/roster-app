@@ -16,6 +16,9 @@ import { getBaseShift, formatISO, isSunday } from './roster-data.js';
 import { reconcileRangeIntoCache, collectOverrideRecords, isBeforeMemberStart, isOtherValue, resolveEffectiveShift } from './override-utils.js';
 import { noteKnowledge, forget as forgetKnowledge } from './calendar-data-state.js';
 
+/** The error a month read answered by the OFFLINE CACHE is turned into (v24.48). */
+export const SERVED_FROM_CACHE = 'served-from-cache';
+
 // Cache keyed "memberName|YYYY-MM-DD".
 export const rosterOverridesCache = new Map();
 
@@ -202,6 +205,7 @@ export function _monthSlices(startStr, endStr) {
  * @param {string} endStr   - 'YYYY-MM-DD' inclusive end
  */
 export async function fetchOverridesForRange(startStr, endStr) {
+    // (Throws `SERVED_FROM_CACHE` when the server did not answer — see the branch below.)
     // THROWS, where the cache read below returns false. The difference is deliberate: this is the
     // AUTHORITATIVE read, so a caller that reaches it without access has a real ordering bug, and
     // the sync chip's error path is the visible, retryable place for that to surface. Silently
@@ -216,6 +220,23 @@ export async function fetchOverridesForRange(startStr, endStr) {
         where('date', '<=', endStr)
     );
     const snapshot = await getDocs(q);
+    // ANSWERED BY THE CACHE, NOT THE SERVER (v24.48, external audit F1). With `persistentLocalCache`,
+    // `getDocs` on a dead signal resolves from this device's cache — a possibly-stale SUBSET, possibly
+    // empty — and reconciling that authoritatively EVICTED leave the device already held and marked the
+    // month current, so a base shift went up beneath no warning. It is merged the way phase 1 merges
+    // (additively, never claiming the month), and then THROWN, so the month is released for a retry
+    // and recorded as `cached` — the labelled last-known grid — or `error` if it held nothing.
+    if (snapshot.metadata?.fromCache) {
+        const held = collectOverrideRecords(snapshot);
+        let painted = false;
+        for (const { key, from, to } of _monthSlices(startStr, endStr)) {
+            if (_monthOwner.has(key)) continue;
+            reconcileRangeIntoCache(rosterOverridesCache, held.filter(r => r.date >= from && r.date <= to), from, to, { authoritative: false });
+            painted = painted || held.some(r => r.date >= from && r.date <= to);
+        }
+        if (painted) shiftTypesMonthCache.clear();
+        throw Object.assign(new Error('Override read was served from the offline cache'), { code: SERVED_FROM_CACHE, painted });
+    }
     if (snapshot.size >= 1900) console.warn('[Firestore] Override query returned', snapshot.size, 'docs — approaching practical limit. Consider archiving old overrides.');
     // Collect the validated snapshot rows (shared collector — see override-utils.collectOverrideRecords),
     // then RECONCILE authoritatively (v16.96): the range query is the single source of truth for
@@ -349,7 +370,9 @@ export async function ensureOverridesCached(year, month, renderFn) {
     } catch (err) {
         settle();
         fetchedMonths.delete(key);  // Allow retry on next navigation
-        noteKnowledge(key, 'error');   // actionable — earns a Retry, where `unknown` earns a wait
+        // A cache-served read that held this month's records is the labelled last-known grid, not a
+        // failure (v24.48); anything else is `error` — actionable, earning a Retry where `unknown` waits.
+        noteKnowledge(key, /** @type {any} */ (err)?.code === SERVED_FROM_CACHE && /** @type {any} */ (err).painted ? 'cached' : 'error');
         // ACCESS GONE, not a network blip (v20.15). This path had no recovery at all: the month
         // simply rendered from the base roster with a line in the console, which is the one outcome
         // the whole feature exists to prevent — somebody shown a shift they are not working, with

@@ -105,7 +105,7 @@ function build(subs, statusFor = () => undefined) {
     return { mod, sent, deleted, queries };
 }
 
-const sub = (id, owner, endpoint = `https://push.example/${id}`) => ({ id, owner, endpoint });
+const sub = (id, owner, endpoint = `https://fcm.googleapis.com/fcm/send/${id}`) => ({ id, owner, endpoint });
 const PAYLOAD = { title: 'x', body: 'y', tag: 'reset-request', url: 'https://myb-roster.web.app/' };
 
 beforeEach(() => { for (const p of [firePath, webpushPath, pushPath]) delete require.cache[p]; });
@@ -133,7 +133,7 @@ describe('sendTargetedPush fails CLOSED — an addressed notice never widens', (
         ]);
         assert.equal(await mod.sendTargetedPush(PAYLOAD, ['uid_admin'], '[t]'), 2);
         assert.deepEqual(sent.map((s) => s.endpoint).sort(),
-            ['https://push.example/admin1', 'https://push.example/admin2']);
+            ['https://fcm.googleapis.com/fcm/send/admin1', 'https://fcm.googleapis.com/fcm/send/admin2']);
     });
 });
 
@@ -246,6 +246,22 @@ test('fanOutPush reaches EVERY subscription, owner stamp or not', async () => {
     const { mod, sent } = build([sub('a', 'uid_a'), sub('b', undefined), sub('c', 'uid_c')]);
     await mod.fanOutPush(PAYLOAD, '[f]');
     assert.equal(sent.length, 3);
+});
+
+// ── ONLY TO A PUSH SERVICE (v24.48, external audit F4) ──────────────────────────────────────────────
+// A stored endpoint is whatever a browser — or anybody signed in — wrote. Sending to it unchecked made
+// the Function POST to a destination of somebody else's choosing. Both senders refuse, and neither
+// DELETES the record: an unrecognised host might be a real provider this list has not met.
+test('both senders skip an endpoint that is not a push service, and keep the record', async () => {
+    const hostile = [sub('a', 'uid_admin'), sub('x', 'uid_admin', 'https://127.0.0.1:8443/audit-only'),
+        sub('y', 'uid_admin', 'https://fcm.googleapis.com.evil.example/z')];
+    const t = build(hostile);
+    const n = await t.mod.sendTargetedPush(PAYLOAD, ['uid_admin'], '[t]');
+    assert.equal(n, 1, 'only the real one counts as accepted');
+    assert.deepEqual(t.sent.map(s => s.endpoint), ['https://fcm.googleapis.com/fcm/send/a']);
+    const f = build(hostile);
+    await f.mod.fanOutPush(PAYLOAD, '[f]');
+    assert.deepEqual(f.sent.map(s => s.endpoint), ['https://fcm.googleapis.com/fcm/send/a']);
 });
 
 // ── A PUSH SERVICE THAT NEVER ANSWERS MUST NOT HOLD THE HANDLER (Sep 2026 review) ─────────────────

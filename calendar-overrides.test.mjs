@@ -14,6 +14,8 @@ let _mockDocs = [];
 let _getBaseShiftFn = () => 'RD';
 // When true, getDocs rejects — lets the failure-path tests simulate a Firestore fetch error.
 let _getDocsThrows = false;
+// When true, getDocs answers as Firestore does on a dead signal: from the CACHE (`metadata.fromCache`).
+let _getDocsFromCacheFlag = false;
 // Phase-1 (local cache) mock state — see getDocsFromCache below.
 let _mockCacheDocs = [];
 let _cacheThrows   = false;
@@ -65,7 +67,7 @@ mock.module('./firebase-client.js', {
             if (_getDocsThrows) throw new Error('simulated Firestore fetch failure');
             const docs = _mockDocs;   // captured at ISSUE — a later test mutation must not reach it
             if (_deferGetDocs) await new Promise(r => _releases.push(r));
-            return { size: docs.length, forEach: cb => docs.forEach(cb) };
+            return { size: docs.length, forEach: cb => docs.forEach(cb), metadata: { fromCache: _getDocsFromCacheFlag } };
         },
         // Phase 1 of the two-phase load (AUTH_PLAN.md → E1). Defaults to an EMPTY cache so every
         // existing test keeps exercising the server path unchanged; the cache tests set _mockCacheDocs.
@@ -555,6 +557,36 @@ describe('a GRANT is a fresh start (v20.41)', () => {
         setOverrideAccess(false);
         await ensureOverridesCached(2032, 4, () => { renders++; });
         assert.equal(renders, 1, 'a shut gate reads nothing at all, claims or no claims');
+    });
+});
+
+// ── A month read the SERVER did not answer (v24.48, external audit F1) ─────────────────────────────
+// Offline, `getDocs` resolves from this device's cache — a subset, possibly empty — and reconciling it
+// authoritatively evicted leave the device already held and marked the month current: a base shift on
+// screen with nothing saying it might be wrong.
+describe('ensureOverridesCached — a read answered by the offline cache', () => {
+    beforeEach(() => { rosterOverridesCache.clear(); _mockDocs = []; _getDocsThrows = false; _getDocsFromCacheFlag = true; });
+    afterEach(() => { _getDocsFromCacheFlag = false; });
+
+    test('an EMPTY cache answer keeps the leave already held, and the month is not current', async () => {
+        const { knowledgeOf } = await import('./calendar-data-state.js');
+        rosterOverridesCache.set('A. Smith|2097-03-10', { value: 'AL', type: 'annual_leave', note: '', source: 'manual', createdAt: { seconds: 5 } });
+        await ensureOverridesCached(2097, 2, () => {});
+        assert.equal(rosterOverridesCache.get('A. Smith|2097-03-10')?.value, 'AL', 'absence from a cached subset is not a delete');
+        assert.notEqual(knowledgeOf(monthKey(2097, 2)), 'authoritative');
+    });
+
+    test('a cache answer HOLDING records paints them as the labelled last-known grid, and asks again next time', async () => {
+        const { knowledgeOf } = await import('./calendar-data-state.js');
+        _mockDocs = [makeDoc('c9', { memberName: 'B. Jones', date: '2096-04-02', value: 'AL', type: 'annual_leave', source: 'manual', note: '' })];
+        await ensureOverridesCached(2096, 3, () => {});
+        assert.equal(rosterOverridesCache.get('B. Jones|2096-04-02')?.value, 'AL');
+        assert.equal(knowledgeOf(monthKey(2096, 3)), 'cached');
+        // Released: the next visit reaches the server, which here answers properly.
+        _getDocsFromCacheFlag = false; _mockDocs = [];
+        await ensureOverridesCached(2096, 3, () => {});
+        assert.equal(knowledgeOf(monthKey(2096, 3)), 'authoritative');
+        assert.equal(rosterOverridesCache.has('B. Jones|2096-04-02'), false, 'the SERVER may evict');
     });
 });
 

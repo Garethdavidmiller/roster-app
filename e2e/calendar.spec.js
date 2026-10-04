@@ -500,16 +500,21 @@ test('calendar: a legend that wraps at 1024px wraps into EVEN lines', async ({ p
         if (row) row.style.display = '';
     });
     const lines = await page.evaluate(() => {
-        /** @type {Record<number, { n: number, left: number, right: number }>} */
-        const byTop = {};
+        // A LINE IS A BAND, NOT A PIXEL ROW (v24.48, external audit T1). Grouping by the rounded
+        // `top` split one visual line into two when a taller key (Pay cut-off) sat half a pixel
+        // above its neighbours — 824 against 824.5 — and the test then reported three lines. Items
+        // whose vertical centres are within a few pixels share a line.
+        /** @type {Array<{ mid: number, n: number, left: number, right: number }>} */
+        const bands = [];
         for (const el of document.querySelectorAll('.legend-item')) {
             const r = el.getBoundingClientRect();
             if (!r.width) continue;
-            const k = Math.round(r.top);
-            const l = byTop[k] || (byTop[k] = { n: 0, left: r.left, right: r.right });
+            const mid = r.top + r.height / 2;
+            let l = bands.find(b => Math.abs(b.mid - mid) < 6);
+            if (!l) bands.push(l = { mid, n: 0, left: r.left, right: r.right });
             l.n++; l.left = Math.min(l.left, r.left); l.right = Math.max(l.right, r.right);
         }
-        return Object.values(byTop).map(l => ({ n: l.n, width: Math.round(l.right - l.left) }));
+        return bands.map(l => ({ n: l.n, width: Math.round(l.right - l.left) }));
     });
     expect(lines.length, 'this many keys must still need two lines at 1024px, or the test proves nothing').toBe(2);
     const [a, b] = lines.map(l => l.width);

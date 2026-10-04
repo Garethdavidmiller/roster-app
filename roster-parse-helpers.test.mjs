@@ -34,6 +34,7 @@ const {
     NOTIFICATION_FEATURES,
     buildPushPayload,
     shouldDeleteSubscription,
+    isAllowedPushEndpoint,
     parseSetupActionFlags,
     resolveRosterAuthConfig,
     claimsForTier,
@@ -1229,6 +1230,27 @@ describe('buildPushPayload', () => {
             assert.ok(title.length <= 40, `${key} title "${title}" exceeds the 40-char budget (${title.length})`);
             assert.ok(typeof f.tag === 'string' && f.tag.length > 0, `${key} must have a stable tag`);
         }
+    });
+});
+
+// ── isAllowedPushEndpoint (v24.48, external audit F4) ────────────────────────────────────────────
+describe('isAllowedPushEndpoint — the server sends only to a real push service', () => {
+    test('every browser family the staff use is allowed', () => {
+        for (const ep of [
+            'https://fcm.googleapis.com/fcm/send/abc:def',
+            'https://updates.push.services.mozilla.com/wpush/v2/gAAA',
+            'https://web.push.apple.com/QGuQ',
+            'https://wns2-db5p.notify.windows.com/w/?token=BQYA',
+            'https://android.googleapis.com/gcm/send/abc',
+        ]) assert.equal(isAllowedPushEndpoint(ep), true, ep);
+    });
+    test('a lookalike host, a loopback or private address, a plain-http URL, credentials or a port are refused', () => {
+        for (const ep of [
+            'https://fcm.googleapis.com.evil.example/x', 'https://evilfcm.googleapis.com/x', 'https://googleapis.com/x',
+            'https://127.0.0.1:8443/audit-only', 'https://localhost/x', 'https://10.0.0.5/x', 'https://169.254.169.254/latest',
+            'http://fcm.googleapis.com/fcm/send/x', 'https://user:pw@fcm.googleapis.com/x', 'https://fcm.googleapis.com:8443/x',
+            '', 'not a url', null, undefined, 42, 'https://fcm.googleapis.com/' + 'a'.repeat(3000),
+        ]) assert.equal(isAllowedPushEndpoint(ep), false, String(ep));
     });
 });
 
