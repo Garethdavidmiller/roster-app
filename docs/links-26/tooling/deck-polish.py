@@ -125,7 +125,7 @@ def colleagues(d, name, grid, F):
     s.save()
     replace_in_run(f'{d}/ppt/slides/slide6.xml', 'Every closing shift is 30 to 45 minutes shorter, and nothing runs over 9 hours.', f'Every closing shift is 30 to 45 minutes shorter; the longest early turn goes from {T["longestEarly"]} to {F["longestEarly"]}, and nothing runs over 9 hours.')
     s = S(7)
-    put(s, f'A little — about {F["late23"]} a year each, against {T["late23"]} today', f'{int(F["late23"]) - int(T["late23"])} more a year after 23:00 ({F["late23"]}, today {T["late23"]}); {int(F["late22"]) - int(T["late22"])} more after 22:00 ({F["late22"]}, today {T["late22"]})')
+    put(s, f'A little — about {F["late23"]} a year each, against {T["late23"]} today', f'{int(F["late23"]) - int(T["late23"])} more a year after 23:00 ({F["late23"]}, today {T["late23"]}); {int(F["late22"]) - int(T["late22"])} more at 22:00 or later ({F["late22"]}, today {T["late22"]})')
     s.save()
     lead = 'More people stay on after 22:00 under the December staffing; '
     if name == 'Even Keel':
@@ -144,7 +144,7 @@ def colleagues(d, name, grid, F):
     s = S(11)
     put(s, 'About the same. A cover week still counts as at most 4 days of leave, as now.', f'Best stretch {F["leaveBest"]} days, not {T["leaveBest"]}; four full weeks off costs {F["leaveFour"]} days’ leave, not {T["leaveFour"]}. Average the same, worst a day better.')
     s.save()
-    notes_edit(d, 11, 'The exact averages depend on where you count a booking as starting, so quote them as “about the same”.', 'Say the four-weeks figure plainly: it is the one place every proposal in the pack is worse than today, and people plan a year around it. The averages depend on where you count a booking as starting, so quote those as “about the same”.')
+    notes_edit(d, 11, 'The exact averages depend on where you count a booking as starting, so quote them as “about the same”.', 'Say the four-weeks figure plainly: all three shortlisted links are worse than today here (Long Break, the leave-first design in the pack, keeps the 14), and people plan a year around it. The averages depend on where you count a booking as starting, so quote those as “about the same”.')
     s = S(13)
     put(s, 'Best leave stretch: 28 days, not 30', f'Four weeks off: {F["leaveFour"]} days’ leave, not {T["leaveFour"]}')
     put(s, 'Average as today, and the worst a day better.', f'Best 14-day stretch {F["leaveBest"]} days, not {T["leaveBest"]}; average as today, worst a day better.')
@@ -174,20 +174,21 @@ def managers(d, name, grid, F):
     costs = {'Second Edition': f'Costs: {F["run"]} days in a row on the fixed rota (today {T["run"].split(" ")[0]}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}',
              'Short Run': f'Costs: one {F["heavy"]} week (today up to {T["heavy"]}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}',
              'Even Keel': f'Costs: {F["late23"]} late finishes a year (today {T["late23"]}), a mixed week, four weeks off {F["leaveFour"]} days not {T["leaveFour"]}'}[name]
-    labels = ['Every link here: all 9 December rules and the 3 flexible ones; no fatigue warning',
-              f'Every link here: about {F["weekendsYear"]} full weekends off a year (today {T["weekendsYear"]}), at most 5 apart',
-              'Every link here: no shift over 9 hours, and every closing shift shorter',
+    labels = ['All three shortlisted: all 9 December rules and the 3 flexible ones; no fatigue warning',
+              f'All three shortlisted: about {F["weekendsYear"]} full weekends off a year (today {T["weekendsYear"]}), at most 5 apart',
+              'All three shortlisted: no shift over 9 hours, and every closing shift shorter',
               adds,
-              f'{n_known} of {n_times} shift times worked today; {n_new} new, four of them today’s lates starting later',
+              f'{n_known} of {n_times} shift times worked today; {n_new} new, several shorter versions of today’s lates',
               costs]
     for i, (t, lab) in enumerate(zip(ticks, labels)): set_shape(s, t + 1, lab)
     set_shape(s, ticks[-1], '–')
     bars = [i for i, (a, b) in enumerate(spans(s.x)) if runs_of(s.x[a:b]) and runs_of(s.x[a:b])[0].startswith('The trade-off')]; assert len(bars) == 1
     minimum = int(F['late23']) == 42
     set_shape(s, bars[0], f'Late finishes: {F["late23"]} a year each (today {T["late23"]}){" — the rules’ minimum" if minimum else " — two above the rules’ minimum, buying a fourth person to the Saturday close"}. The colleague deck shows every cost openly.')
-    set_shape(s, 1, 'What every link in this pack gives, what this one adds, and what it costs')
+    set_shape(s, 1, 'What all three shortlisted links give, what this one adds, and what it costs')
     s.save()
     s = S(5)
+    put(s, '4 — 1 week in 5', '4 in 20 (1 in 5)'); put(s, '5 — 1 week in 5', '5 in 26 (1 in 5.2)')
     put(s, 'Six more people, 35 hours a week on average — Sundays still rely on overtime.', f'Six more people, 35 hours a week on average; Sunday overtime {F["sunHours"]} a week across the link (today {T["sunHours"]}).')
     s.save()
     s = S(9)

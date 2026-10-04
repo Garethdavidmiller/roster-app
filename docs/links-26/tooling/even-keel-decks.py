@@ -66,9 +66,9 @@ def colleagues(d):
     s.paras(9, 'Weekdays', [(0, 'Weekdays'), (1, '14:45–22:30 — a new late, ending with the ticket office'), (2, '15:45–23:55 — the closer, 30 minutes later than 15:15'),
                             (4, 'Saturday'), (5, '06:20–15:00 — a new early, 8h 40m'), (5, '07:45–16:45 — a new early, 9 hours'),
                             (6, 'Sunday'), (7, '15:15–23:25 — the closer, 45 minutes later than 14:30'), (8, '09:00–18:00 — a new early, 9 hours'), (9, '14:30–22:30 — the ticket-office late')])
-    s.text(11, 'Fewer shift times than today (15, not 18) — and nothing new on a Saturday.', 'Fewer shift times than today (15, not 18) — and four of the new ones are today’s shifts starting later.')
+    s.text(11, 'Fewer shift times than today (15, not 18) — and nothing new on a Saturday.', 'Fewer shift times than today (15, not 18) — and several of the new ones are shorter versions of today’s lates.')
     s.save()
-    notes(d, 8, 'Second Nature was built', 'Even Keel uses fifteen shift times, fewer than today’s eighteen, and eight of them are worked today. Three of the seven new ones are today’s shifts starting later — the weekday closer, the Sunday closer and the Sunday ticket-office late — so they are shorter, not longer. The other new ones are a weekday late finishing with the ticket office, two Saturday earlies and a Sunday 09:00 start. The Sunday opener stays today’s 07:15–15:45.')
+    notes(d, 8, 'Second Nature was built', 'Even Keel uses fifteen shift times, fewer than today’s eighteen, and eight of them are worked today. Several of the new times are shorter versions of today’s lates: the weekday and Sunday closers start later, and the Sunday office late finishes earlier. The full list is on the slide. The other new ones are a weekday late finishing with the ticket office, two Saturday earlies and a Sunday 09:00 start. The Sunday opener stays today’s 07:15–15:45.')
 
     s = S(9)
     s.text(11, '6', '5 (up to 6)', GREEN)
