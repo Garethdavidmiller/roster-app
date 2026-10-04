@@ -1284,14 +1284,16 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
             if (OT.isWithdrawn(participant.data())) return res.status(403).json({ error: 'withdrawn' });
 
             const normalised = OT.normaliseDays(body.days, OT.weekDates(milestones.weekStart));
-            if (!normalised.ok) {
-                return res.status(400).json({ error: normalised.error, date: normalised.date || null });
-            }
+            if (!normalised.ok) return res.status(400).json({ error: normalised.error, date: normalised.date || null });
 
             const headRef = windowRef.collection('submissions').doc(who.name);
             let outcome;
             try {
                 outcome = await db().runTransaction(async (tx) => {
+                    // Participation asked AGAIN, in the transaction (v24.48, audit F3): a withdrawal
+                    // landing after the early check is seen here, or forces a retry that sees it.
+                    const partNow = await tx.get(participantRef);
+                    if (!partNow.exists || OT.isWithdrawn(partNow.data())) return { refused: partNow.exists ? 'withdrawn' : 'not-a-participant' };
                     const headSnap = await tx.get(headRef);
                     const head = headSnap.exists
                         ? { currentRevision: headSnap.data().currentRevision, days: headSnap.data().days }
@@ -1358,6 +1360,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                 return res.status(500).json({ error: 'write-failed' });
             }
 
+            if (outcome.refused) return res.status(403).json({ error: outcome.refused });   // see the transaction
             if (outcome.conflict) {
                 return res.status(409).json({
                     error: 'revision-conflict',
@@ -1368,8 +1371,7 @@ function buildOvertimeEndpoints({ ADMIN_FUNCTION_ORIGINS, rosterMembers, purgeAr
                     serverNow:       nowMs,
                 });
             }
-            // Stamp the participant's uid on first contact. It is the recovery route if a member is
-            // ever renamed, since the documents are name-keyed — see OVERTIME_AVAILABILITY.md.
+            // Stamp the uid on first contact: the recovery route if a member is renamed (OVERTIME_AVAILABILITY.md).
             if (!participant.data().uid) {
                 await participantRef.update({ uid: who.uid }).catch(() => { /* best effort */ });
             }

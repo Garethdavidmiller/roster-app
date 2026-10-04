@@ -5302,9 +5302,6 @@ const KNOWN_SMALL = {
     '/admin.html': {
         'input.day-cb[]': '22x22 — the per-day tick in the week grid; its 44px cell is not a target (no label). App-drawn since v23.50, same size',
     },
-    '/paycalc.html': {
-        'button#disclaimerToggle.disclaimer-toggle[More ▼]': '46x16 — may be a genuine inline-in-a-sentence exemption',
-    },
     '/operations.html': {
         'button.auth-gap-retry[Retry]': '34x18 — the retry on a failed account-status read',
     },
@@ -5485,9 +5482,12 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
                 if (coveredBySticky(el)) return;
                 const w = reach(el, -1, 0) + reach(el, 1, 0) + 1;
                 const h = reach(el, 0, -1) + reach(el, 0, 1) + 1;
-                if (w < 24 || h < 24) {
-                    out.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className ? '.' + String(el.className).split(' ')[0] : ''}[${(el.textContent||'').trim().slice(0,12)}] = ${w}x${h}`);
-                }
+                // EVERY reading, not only the small ones (v24.48, external audit T2). The sweep below
+                // keeps each control's BEST reading across scroll positions, and that only works if
+                // a good reading reaches it: filtering here meant a control measured 1x1 once (a
+                // transient overlap) and 53x53 later could never recover. The threshold is applied
+                // to the best reading, below.
+                out.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className ? '.' + String(el.className).split(' ')[0] : ''}[${(el.textContent||'').trim().slice(0,12)}] = ${w}x${h}`);
             });
             return [...new Set(out)];
         });

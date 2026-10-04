@@ -34,6 +34,7 @@
  */
 
 import { db, collection, query, where, orderBy, limit, getDocs, COLLECTIONS } from './firebase-client.js';
+import { manualOverrideId } from './override-id.js';
 import { emptyCoverage, withMember, withAll, hasAuthorityFor, coversEveryone, replaceMemberSlice, mergeCappedRead } from './admin-override-coverage.js';
 
 /** @type {any[]} The cache itself. */
@@ -177,6 +178,35 @@ export function setAllOverrides(arr) {
     _resolveOverridesReady();
 }
 
+/** Is this cached row a MANUAL record of this member's date? @param {any} o @param {string} m @param {string} d */
+const _isManualOn = (o, m, d) => o.memberName === m && o.date === d && (o.source || '') !== 'roster_import';
+
+/**
+ * The documents a MANUAL write of this member's date replaces (v24.48): whatever won the day — an
+ * import, say — and every manual record of it, a pre-v24.48 duplicate included; never the fixed id
+ * the write itself lands on (`manualOverrideId`), which it overwrites rather than deletes.
+ * @param {string} memberName @param {string} date @param {string|null|undefined} winnerId @returns {string[]}
+ */
+export function idsReplacedBy(memberName, date, winnerId) {
+    const ids = new Set([winnerId, ..._allOverrides.filter(o => _isManualOn(o, memberName, date)).map(o => o.id)]);
+    ids.delete(manualOverrideId(memberName, date));
+    return [...ids].filter(Boolean);
+}
+
+/**
+ * Ids being DELETED, widened by each manual day's duplicates — or the older copy would resurface the
+ * moment the newer one went (v24.48). An import is deleted alone: it is not a duplicate of anything.
+ * @param {Iterable<string>} ids @returns {Set<string>}
+ */
+export function withManualDuplicates(ids) {
+    const out = new Set(ids);
+    for (const id of [...out]) {
+        const r = _allOverrides.find(o => o.id === id);
+        if (r && (r.source || '') !== 'roster_import') _allOverrides.filter(o => _isManualOn(o, r.memberName, r.date)).forEach(o => out.add(o.id));
+    }
+    return out;
+}
+
 /**
  * Drop deleted rows from the cache WITHOUT widening what the cache claims to know.
  *
@@ -246,6 +276,27 @@ export async function loadOverrides(opts = {}) {
     return run;
 }
 
+/** The error code a read served from the OFFLINE CACHE is turned into. */
+const CACHED_READ = 'served-from-cache';
+
+/**
+ * A read the SERVER did not answer is not a load (v24.48, external review).
+ *
+ * Firestore runs here with `persistentLocalCache`, so on a dead signal `getDocs` does not fail — it
+ * resolves from this device's cache, which holds only what this device happened to read before, and
+ * can be EMPTY. Granting coverage from that told Admin "this member has no saved changes" and let a
+ * save go ahead on it: a booking it cannot see is a booking it does not delete, and a leave balance
+ * worked out from a partial list is too generous by exactly the days it is missing.
+ *
+ * So it is a FAILED load, through the failure path every surface already handles — the week grid's
+ * failed state, Retry, and the save refusal — and not cached rows shown as though complete. Nothing
+ * in Admin can tell a whole cache from a partial one, which is the whole problem.
+ * @param {any} snap
+ */
+function refuseCachedRead(snap) {
+    if (snap?.metadata?.fromCache) throw Object.assign(new Error('Overrides read was served from the offline cache'), { code: CACHED_READ });
+}
+
 /** @param {{ everyone: boolean, member: string }} opts @returns {Promise<void>} */
 async function _loadOverridesInner(opts) {
     const member = opts.member ?? '';
@@ -267,6 +318,7 @@ async function _loadOverridesInner(opts) {
             // "exactly CAP" — the +1 row only returns in the former case (mirrors getClientErrors' limit+1
             // truncation probe, so the banner never false-alarms at exactly CAP).
             const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(OVERRIDES_QUERY_CAP + 1)));
+            refuseCachedRead(snap);
             /** @type {any[]} */ const rows = [];
             snap.forEach(/** @param {any} d */ d => rows.push({ id: d.id, ...d.data() }));
             // More than CAP means the OLDEST overrides beyond it aren't shown — surface that rather than
@@ -285,6 +337,7 @@ async function _loadOverridesInner(opts) {
             // ONE MEMBER, EVERY DATE. No cap and no truncation flag: a single member cannot approach
             // the collection cap, so the partial-list banner would be claiming something untrue.
             const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), where('memberName', '==', member)));
+            refuseCachedRead(snap);
             /** @type {any[]} */ const fresh = [];
             snap.forEach(/** @param {any} d */ d => fresh.push({ id: d.id, ...d.data() }));
             // A replace, not a merge — the read is authoritative for this member, so a document it
@@ -317,11 +370,16 @@ async function _loadOverridesInner(opts) {
             // A reload re-runs sign-in, the SW handshake and every other card on the page to recover
             // from something that is usually one dropped request — and it discards any staged edits
             // in the week grid, which is a worse outcome than the error it is recovering from.
-            tableBody.innerHTML = '<div class="override-state">Couldn\'t load saved changes.<br><span class="reload-link" id="retryLoadLink" role="button" tabindex="0">↻ Retry</span></div>';
+            const offline = /** @type {any} */ (err)?.code === CACHED_READ;
+            tableBody.innerHTML = `<div class="override-state">${offline
+                ? 'You\'re offline — saved changes can\'t be checked until you reconnect.'
+                : 'Couldn\'t load saved changes.'}<br><span class="reload-link" id="retryLoadLink" role="button" tabindex="0">↻ Retry</span></div>`;
             const retry = document.getElementById('retryLoadLink');
             // No captured opts: after a member switch the stale ones would re-fetch the member the
             // admin has already left. Re-resolve from the page at the moment Retry is pressed.
             const again = () => { loadOverrides(everyone ? { everyone: true } : {}); };
+            // Back online, it tries again by itself — the offline case is the one with a known cure.
+            if (offline) window.addEventListener('online', again, { once: true });
             retry?.addEventListener('click', again);
             retry?.addEventListener('keydown', /** @param {KeyboardEvent} e */ e => {
                 if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); again(); }

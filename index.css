@@ -432,6 +432,11 @@
             color: var(--primary-blue);
             border-color: var(--accent-gold);
             font-weight: 700;
+            /* A FLOOR THAT DOES NOT DEPEND ON THE FONT (v24.48, external audit F5). Its only content
+               is 📍, so its width is the emoji glyph plus padding — 35px with the emoji font this
+               app is measured in, 28px with another, under the 30px floor for coarse pointers once
+               the ≤380px block trims its padding. 35px is what the comment there already promised. */
+            min-inline-size: 35px;
             align-self: stretch;
             display: flex;
             align-items: center;

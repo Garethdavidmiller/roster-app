@@ -29,7 +29,7 @@
  */
 
 const { getFirestore } = require('firebase-admin/firestore');
-const { shouldDeleteSubscription } = require('./roster-parse-helpers');
+const { shouldDeleteSubscription, isAllowedPushEndpoint } = require('./roster-parse-helpers');
 
 // Module-level flag so setVapidDetails() is only called once per warm instance.
 // Secrets are not available at module init, so we defer to first call.
@@ -140,6 +140,8 @@ async function sendTargetedPush(payload, ownerUids, logTag) {
     let accepted = 0;
     await Promise.allSettled(docs.map(async docSnap => {
         const { endpoint, keys } = docSnap.data();
+        // Only to a real push service (v24.48) — see isAllowedPushEndpoint. Skipped, not deleted.
+        if (!isAllowedPushEndpoint(endpoint)) { console.warn(`${logTag} Skipped ${docSnap.id}: not a push-service endpoint`); return; }
         try {
             await getWebPush().sendNotification({ endpoint, keys }, payloadStr, SEND_OPTIONS);
             accepted += 1;
@@ -166,6 +168,7 @@ async function fanOutPush(payload, logTag) {
     const payloadStr = JSON.stringify(payload);
     const sends = snapshot.docs.map(async docSnap => {
         const { endpoint, keys } = docSnap.data();
+        if (!isAllowedPushEndpoint(endpoint)) { console.warn(`${logTag} Skipped ${docSnap.id}: not a push-service endpoint`); return; }
         try {
             await getWebPush().sendNotification({ endpoint, keys }, payloadStr, SEND_OPTIONS);
         } catch (err) {

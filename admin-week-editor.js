@@ -493,7 +493,9 @@ export function renderWeekGrid() {
         // lives HERE as well as in Saved Changes, because this is the card they are looking at.
         if (weekGrid) {
             if (loadFailedFor(memberName)) {
-                weekGrid.innerHTML = '<div class="week-empty" role="alert">Couldn\'t load this member\'s saved changes.'
+                weekGrid.innerHTML = '<div class="week-empty" role="alert">' + (navigator.onLine === false
+                    ? 'You\'re offline — this member\'s saved changes can\'t be checked until you reconnect.'
+                    : 'Couldn\'t load this member\'s saved changes.')
                     + '<br><span class="reload-link" id="retryWeekLink" role="button" tabindex="0">↻ Retry</span></div>';
                 const r = document.getElementById('retryWeekLink');
                 const again = () => { loadOverrides({ member: memberName }); };

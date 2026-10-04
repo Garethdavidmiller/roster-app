@@ -106,6 +106,18 @@ total (`2 waiting`) and the body names whoever just asked — so the newest noti
 accurate summary of the whole queue. Wording is built by the pure `buildResetRequestNotice`
 (`functions/roster-parse-helpers.js`, tested in `roster-parse-helpers.test.mjs`), never inline.
 
+## Only to a push service (v24.48)
+
+A subscription's `endpoint` is written by a browser, and the rules can check only its type and
+length — so before v24.48 any signed-in account could store a URL of its choosing, and every later
+fan-out made the Cloud Function POST to it (an outbound request to somebody else's destination).
+Both senders now pass every endpoint through `isAllowedPushEndpoint` (`functions/roster-parse-helpers.js`)
+first: HTTPS, default port, no credentials, and a host in `PUSH_SERVICE_HOSTS` (Google, Mozilla, Apple,
+Microsoft). A refused endpoint is **skipped and logged, never deleted** — an unknown host may be a real
+provider the list has not met, and **a new browser's push service must be added to that list**, or its
+users silently stop receiving notifications. The guard is at the SEND, so it also covers records
+stored before it existed.
+
 ## Voice & tone
 
 - **Calm and factual.** A roster tool earns trust by being quiet and reliable, not by

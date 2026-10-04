@@ -1185,6 +1185,44 @@ function shouldDeleteSubscription(statusCode) {
     return statusCode === 410 || statusCode === 404;
 }
 
+/**
+ * The push services a browser actually hands out endpoints on (v24.48, external audit F4).
+ * Google's covers Chrome, Edge on Android and Samsung Internet; Apple's covers Safari and iOS
+ * installs; Microsoft's is desktop Edge; Mozilla's is Firefox. Matched as the WHOLE host or a
+ * dot-bounded suffix, so `fcm.googleapis.com.evil.example` and `evilfcm.googleapis.com` both fail.
+ */
+const PUSH_SERVICE_HOSTS = Object.freeze([
+    'fcm.googleapis.com', 'android.googleapis.com',
+    'push.services.mozilla.com',
+    'push.apple.com',
+    'notify.windows.com',
+]);
+
+/**
+ * May the server send to this stored endpoint? (v24.48, external audit F4.)
+ *
+ * The endpoint is written by a BROWSER into `pushSubscriptions`, and the rules can check only its
+ * type and length — so a signed-in account could store any URL, and every later fan-out would make
+ * the Cloud Function POST to it: an outbound request to a destination of somebody else's choosing
+ * (SSRF), on the server's network, as often as a Huddle arrives. The guard belongs here, at the SEND,
+ * because that is where the request is made and because it also covers records stored before it.
+ *
+ * HTTPS on the default port, no credentials in the URL, and a host that is one of the push services
+ * above. A refused endpoint is SKIPPED, never deleted: an unknown host may be a provider this list
+ * has not met yet, and losing a real subscription silently is worse than logging it.
+ * @param {unknown} endpoint
+ * @returns {boolean}
+ */
+function isAllowedPushEndpoint(endpoint) {
+    if (typeof endpoint !== 'string' || endpoint.length > 2048) return false;
+    let u;
+    try { u = new URL(endpoint); } catch { return false; }
+    if (u.protocol !== 'https:' || u.username || u.password) return false;
+    if (u.port && u.port !== '443') return false;
+    const host = u.hostname.toLowerCase();
+    return PUSH_SERVICE_HOSTS.some(h => host === h || host.endsWith('.' + h));
+}
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 
@@ -1306,6 +1344,8 @@ function buildResetRequestNotice(member, pending) {
 
 module.exports = {
     shouldDeleteSubscription,
+    isAllowedPushEndpoint,
+    PUSH_SERVICE_HOSTS,
     normaliseShift,
     fileSignatureMatches,
     buildWeekDates,

@@ -30,6 +30,10 @@ let _failNextCommits = 0;
 // Saved-Changes load — Finding #2). Mirrors _failNextCommits.
 let _failNextGetDocs = 0;
 
+// How many of the NEXT getDocs() calls answer from the OFFLINE CACHE (`metadata.fromCache`) — empty,
+// which is what Firestore hands back on a dead signal for a query this device never ran (v24.48).
+let _cachedNextGetDocs = 0;
+
 // Lets a test HOLD a getDocs in flight (a load that has started and not yet resolved) and choose the
 // rows it eventually returns. That is the only way to exercise the ordering between a save and a
 // load, which is a property of WHEN each one writes the cache, not of what either computes.
@@ -38,6 +42,12 @@ let _getDocsGate = null;
 
 /** Every payload handed to `batch.set()`, in order — what production would actually write. */
 const _batchWrites = [];
+
+// A minimal SERVER: committed batches apply their sets and deletes here, by document id (v24.48).
+// The concurrency defect was a property of the COLLECTION — two documents for one member and date —
+// and a mock that only recorded payloads could not see it, because both payloads were correct.
+/** @type {Map<string, any>} */
+const _server = new Map();
 
 // Every id the mock `doc()` has handed out, newest last. A save's batch takes the most recent, so a
 // test can resolve a late read with the SAME document the write created — which is the whole point:
@@ -84,19 +94,24 @@ mock.module('./firebase-client.js', {
         getDocs:         async () => {
             if (_failNextGetDocs > 0) { _failNextGetDocs--; throw new Error('Firestore unreachable'); }
             if (_getDocsGate) { const g = _getDocsGate; _getDocsGate = null; return g.promise; }
+            if (_cachedNextGetDocs > 0) { _cachedNextGetDocs--; return { size: 0, forEach: () => {}, metadata: { fromCache: true } }; }
             return { forEach: () => {} };
         },
         deleteDoc:       async () => {},
-        doc:             (() => { let n = 0; return () => { const id = 'mock-doc-' + (++n); _issuedDocIds.push(id); return { id }; }; })(),
+        // An EXPLICIT id (doc(db, col, id)) is honoured — that is how a manual write names its document
+        // since v24.48; only an auto-id call mints a fresh one.
+        doc:             (() => { let n = 0; return (/** @type {any[]} */ ...a) => { const id = a.length >= 3 ? String(a[2]) : 'mock-doc-' + (++n); _issuedDocIds.push(id); return { id }; }; })(),
         serverTimestamp: () => null,
         writeBatch:      () => {
             let committed = false;
+            /** @type {any[]} */ const ops = [];
             return {
                 // RECORDED, not discarded (v21.83). `set: () => {}` threw away the only evidence of
                 // what a save actually writes, so every assertion here could only reach the summary
                 // the function RETURNS — and a field dropped from the payload was invisible. That is
                 // how `replacedType` came to be stamped by code nothing checked.
-                set: (_ref, data) => { _batchWrites.push(data); }, delete: () => {},
+                set: (ref, data) => { _batchWrites.push(data); ops.push(['set', ref?.id, data]); },
+                delete: (ref) => { ops.push(['delete', ref?.id]); },
                 commit: async () => {
                     if (committed) throw new Error('WriteBatch reused after commit()');
                     committed = true;
@@ -106,6 +121,7 @@ mock.module('./firebase-client.js', {
                         e.code = 'permission-denied';
                         throw e;
                     }
+                    for (const [kind, id, data] of ops) { if (kind === 'set') _server.set(id, data); else _server.delete(id); }
                 },
             };
         },
@@ -169,6 +185,24 @@ describe('cache-load-failure guard (Finding #2)', () => {
             recordRangeOverrides({ type: 'annual_leave', value: 'AL', memberName: 'G. Miller', dates: ['2026-06-15'], changedBy: 'G. Miller' }),
             /cache\/load-failed/,
             'a range booking must not write against a never-loaded cache',
+        );
+        auth.currentUser = null;
+    });
+
+    // A READ THE SERVER DID NOT ANSWER IS NOT A LOAD (v24.48, external review). Offline, `getDocs`
+    // resolves from this device's cache — empty for a member it never read — and granting authority
+    // from that let a save go ahead believing the member had no bookings.
+    test('a read served from the OFFLINE CACHE grants nothing, and is reported as a failed load', async () => {
+        const { hasOverrideAuthorityFor } = await import('./admin-overrides.js');
+        const { loadFailedFor } = await import('./admin-override-store.js');
+        _cachedNextGetDocs = 1;
+        await loadOverrides({ member: 'G. Miller' });
+        assert.equal(hasOverrideAuthorityFor('G. Miller'), false, 'no authority to write from a cached read');
+        assert.equal(loadFailedFor('G. Miller'), true, 'the week grid shows its failed state and Retry, not an empty week');
+        auth.currentUser = /** @type {any} */ ({ uid: 'admin' });
+        await assert.rejects(
+            recordRangeOverrides({ type: 'annual_leave', value: 'AL', memberName: 'G. Miller', dates: ['2026-06-15'], changedBy: 'G. Miller' }),
+            /cache\/load-failed/,
         );
         auth.currentUser = null;
     });
@@ -772,6 +806,59 @@ describe('executeSave — the replaced document is the one deleted', () => {
         const day = getAllOverrides().filter(o => o.memberName === 'G. Miller' && o.date === '2026-06-16');
         assert.equal(day.length, 1, 'the range document was replaced, not left beside the new one');
         assert.equal(day[0].value, '07:00-15:00');
+    });
+});
+
+// ── Two editors, one day (v24.48, external review) ───────────────────────────────────────────────
+// Each loaded the same record and saved over it. Firestore accepts deleting a document that is already
+// gone, so with a random id per write BOTH saves committed and the day held two records — the display
+// hid one, every count counted both, and deleting the newer brought the older back. With one fixed id
+// per member and date the second save lands on the first's document: last save wins, one record.
+describe('two editors saving the same day', () => {
+    const MEMBER = 'G. Miller', DAY = '2026-06-16';
+    const LOADED = () => [{ id: 'legacy-1', memberName: MEMBER, date: DAY, type: 'shift', value: '06:20-14:20',
+        source: 'manual', createdAt: new Date(1) }];
+    const docsForDay = () => [..._server.entries()].filter(([, d]) => d.memberName === MEMBER && d.date === DAY);
+    beforeEach(() => {
+        _server.clear(); _server.set('legacy-1', LOADED()[0]);
+        _failNextCommits = 0;
+        mockAuth.currentUser = { uid: 'mgr', getIdToken: async () => {} };
+    });
+
+    test('the week editor: both saves land on ONE document, and the later one is what it says', async () => {
+        setAllOverrides(LOADED());   // editor A
+        await executeSave([{ memberName: MEMBER, date: DAY, type: 'shift', value: '07:00-15:00', note: '' }]);
+        setAllOverrides(LOADED());   // editor B, who loaded before A saved
+        await executeSave([{ memberName: MEMBER, date: DAY, type: 'rdw', value: '14:00-22:00', note: '' }]);
+        const day = docsForDay();
+        assert.equal(day.length, 1, `one record for the day, not ${day.length}`);
+        assert.equal(day[0][0], 'm_2026-06-16_G.%20Miller');
+        assert.equal(day[0][1].value, '14:00-22:00');
+    });
+
+    test('the range writer: annual leave booked twice over one week leaves one record per day', async () => {
+        setAllOverrides(LOADED());
+        await recordRangeOverrides({ type: 'annual_leave', value: 'AL', memberName: MEMBER, changedBy: 'S. Silva', dates: [DAY] });
+        setAllOverrides(LOADED());
+        await recordRangeOverrides({ type: 'annual_leave', value: 'AL', memberName: MEMBER, changedBy: 'M. Robson', dates: [DAY] });
+        assert.equal(docsForDay().length, 1);
+    });
+
+    test('re-saving a day clears a duplicate a concurrent save left before the fix', async () => {
+        const dupe = { id: 'legacy-2', memberName: MEMBER, date: DAY, type: 'annual_leave', value: 'AL', source: 'manual', createdAt: new Date(0) };
+        _server.set('legacy-2', dupe);
+        setAllOverrides([...LOADED(), dupe]);
+        await executeSave([{ memberName: MEMBER, date: DAY, type: 'shift', value: '07:00-15:00', note: '' }]);
+        assert.deepEqual(docsForDay().map(([id]) => id), ['m_2026-06-16_G.%20Miller'], 'the older copy cannot resurface later');
+    });
+
+    test('an import for the day is still replaced by a manual save, as before', async () => {
+        _server.clear();
+        const imp = { id: 'import-1', memberName: MEMBER, date: DAY, type: 'shift', value: '06:20-14:20', source: 'roster_import', createdAt: new Date(1) };
+        _server.set('import-1', imp);
+        setAllOverrides([imp]);
+        await executeSave([{ memberName: MEMBER, date: DAY, type: 'rdw', value: '14:00-22:00', note: '' }]);
+        assert.deepEqual(docsForDay().map(([id]) => id), ['m_2026-06-16_G.%20Miller']);
     });
 });
 

@@ -13,7 +13,8 @@
 
 import { teamMembers, getBaseShift, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { isRestShift, shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord, nextReplacedType } from './override-utils.js';
-import { db, collection, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
+import { manualOverrideId } from './override-id.js';
+import { db, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { saveFailureMessage } from './claim-retry.js';
 // The cache, what it knows, and the reads that fill it — see admin-override-store.js. Re-exported
 // below so admin-app.js and the tests keep one import site for the whole Change-a-Shift surface.
@@ -25,7 +26,7 @@ export { TYPES, PILL_TYPES, renderTable, resetTableMemberFilter,
          renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits, setSaveInFlight, isSaveInFlight };
 import { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache, mutateCache,
          whenOverridesReady, whenLoadSettled, isOverrideCacheLoaded, hasOverrideAuthorityFor,
-         loadOverrides, ensureMemberLoaded } from './admin-override-store.js';
+         loadOverrides, ensureMemberLoaded, idsReplacedBy, withManualDuplicates } from './admin-override-store.js';
 export { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache,
          whenOverridesReady, whenLoadSettled, isOverrideCacheLoaded, hasOverrideAuthorityFor,
          loadOverrides, ensureMemberLoaded };
@@ -179,10 +180,9 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
         return;
     }
 
-    // Disable the button BEFORE awaiting sessionReady (v16.23). While sessionReady is still
-    // pending (early after a slow-auth page load), a double-tap could pass the collector twice —
-    // each run deletes existingId idempotently but MINTS ITS OWN new doc → duplicate overrides
-    // for the same member/date. The finally below re-enables on every exit path.
+    // Disable the button BEFORE awaiting sessionReady (v16.23): a double-tap during a slow sign-in
+    // passed the collector twice and wrote duplicates. Fixed ids (v24.48) now make a second run land on
+    // the same documents, so this is a guard against a wasted write. The finally re-enables it.
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; } setSaveInFlight(true);
 
     await sessionReady;
@@ -196,7 +196,8 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     const writeMembers = [...new Set([memberName, ...toSave.map(e => e.memberName)].filter(Boolean))];
     if (writeMembers.some(m => !hasOverrideAuthorityFor(m))) await whenLoadSettled().catch(() => {});   // still LOADING ≠ failed (v24.38)
     if (writeMembers.some(m => !hasOverrideAuthorityFor(m))) {
-        _showError("Couldn't load your saved changes — reload the page before making changes.");
+        _showError(globalThis.navigator?.onLine === false ? "You're offline, so this member's saved changes can't be checked — reconnect, then save."
+            : "Couldn't load your saved changes — reload the page before making changes.");
         if (saveBtn) { saveBtn.textContent = 'Save changes'; }
         setSaveInFlight(false);
         return;
@@ -212,6 +213,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
     // RE-READ, not trusted (re-review R-A5): a range booking made while this row sat staged can
     // have replaced its document, and deleting the stale id would leave the new one as a duplicate.
     toSave = toSave.map(e => ({ ...e, existingId: buildMemberDateMap(e.memberName).get(e.date)?.id ?? null }));
+    const deleteIds = withManualDuplicates(toDelete);   // or a deleted day's older duplicate resurfaces (v24.48)
     try {
         // Build + commit as a re-runnable thunk so writeWithClaimRetry can retry once on a
         // stale-claim `permission-denied` (a just-provisioned manager on a pre-`manager`-claim token).
@@ -219,12 +221,14 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
         // the thunk RETURNS newDocs so the retry's fresh doc IDs are the ones we cache below.
         // withSlowSaveNotice: on a weak signal the commit waits for the server with no limit, and
         // the button alone reads as a freeze. It explains the wait and changes nothing else (slow-save.js).
-        const newDocs = await withSlowSaveNotice(writeWithClaimRetry(async () => {
+        const { docs: newDocs, dropped } = await withSlowSaveNotice(writeWithClaimRetry(async () => {
             const batch = writeBatch(db);
             /** @type {any[]} */
             const docs = [];
+            /** @type {Set<string>} */
+            const dropped = new Set(deleteIds);
 
-            toDelete.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
+            deleteIds.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
 
             // By ID, because that is all a staged row carries. Built once rather than per entry —
             // a full-week save is seven lookups over the whole cache otherwise.
@@ -239,18 +243,23 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
                 const replacedType = entry.swapped
                     ? replacedTypeForSwap(_under, entry.type)
                     : nextReplacedType(_under, entry.type);
-                if (entry.existingId) batch.delete(doc(db, COLLECTIONS.overrides, entry.existingId));
+                // ONE id per member and date (v24.48, override-id.js): a colleague saving this day at the
+                // same moment lands on the SAME document, not beside it.
+                const fixedId = manualOverrideId(entry.memberName, entry.date);
+                for (const id of idsReplacedBy(entry.memberName, entry.date, entry.existingId)) {
+                    if (!dropped.has(id)) { batch.delete(doc(db, COLLECTIONS.overrides, id)); dropped.add(id); }
+                }
                 // `swapped` is stripped HERE, with `existingId`: both are instructions to this
                 // function, and the rest of `entry` is spread straight into the document. A stray
                 // key reaches `hasOnly()` in firestore.rules and permission-denies the whole save.
                 const { existingId: _, swapped: _swapped, ...data } = entry;
-                const newRef = doc(collection(db, COLLECTIONS.overrides));
+                const newRef = doc(db, COLLECTIONS.overrides, fixedId);
                 const fields = { ...data, source: 'manual', changedBy: _currentUser, replacedType };
                 batch.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
                 docs.push(buildOverrideCacheRecord(newRef.id, fields, new Date()));
             });
             await batch.commit();
-            return docs;
+            return { docs, dropped };
         }));
 
         // A RECEIPT, NOT A COUNT (v21.38). "2 added, 1 removed" cannot answer the question a manager
@@ -279,28 +288,17 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
         const sameView = fieldMember?.value === memberName && fieldDate?.value === savedDate;
         if (sameView) resetStagedRows();   // the row lifecycle belongs to the week editor (v21.38)
 
-        // AND ANY LOAD ALREADY RUNNING HAS TO LAND FIRST (v21.41). `whenOverridesReady()` above is a
-        // one-shot latch — it answers for the BOOT load and, once resolved, for ever after says
-        // nothing about the loads that follow: a member switch, the All-staff toggle, a Retry. Any of
-        // those can be in flight when a save commits, and when it resolves it assigns the cache
-        // wholesale from a snapshot taken BEFORE the write, so the day just saved disappears from
-        // Saved Changes while sitting correctly in Firestore — the admin's own receipt and the list
-        // disagreeing, which reads as data loss. `whenLoadSettled()` was written for this at v21.38
-        // and called from nowhere (AI_MAP said otherwise). The `catch` is not incidental: a FAILED
-        // load must not fail a save that has already committed.
+        // AND ANY LOAD ALREADY RUNNING HAS TO LAND FIRST (v21.41). `whenOverridesReady()` answers only
+        // for the BOOT load; a member switch, All staff or a Retry can be in flight at commit, and it
+        // would assign the cache from a pre-write snapshot — the saved day vanishing from Saved Changes
+        // while correct in Firestore, which reads as data loss. A FAILED load must not fail a committed save.
         await whenLoadSettled().catch(() => {});
-        // …AND THE MERGE IS BY ID, BECAUSE WAITING MADE THE LATE SNAPSHOT POSSIBLE (v21.42, external
-        // review). Waiting is what allows the load to have gone to the server AFTER the batch landed,
-        // so its rows can ALREADY contain what was just written. Appending `newDocs` on top then put
-        // the same Firestore id in the cache twice — the inverse of the bug above, introduced by the
-        // fix for it, which is the risk any "wait for the other thing" carries.
-        //
-        // Firestore is untouched and the effective shift survives (two identical rows resolve to one
-        // answer). What breaks is everything that COUNTS rows — the Saved Changes list, AL taken and
-        // booked, the entitlement a manager books against. A leave balance reading a day light is
-        // precisely the kind of wrong this app exists not to be.
+        // …AND THE MERGE IS BY ID (v21.42, external review): waiting lets that load reach the server
+        // AFTER the batch, so its rows can already hold what was just written, and appending `newDocs`
+        // put one id in the cache twice. Firestore is untouched, but everything that COUNTS rows — Saved
+        // Changes, AL taken and booked, the entitlement a manager books against — read a day wrong.
         const newIds     = new Set(newDocs.map(d => d.id));
-        const removedIds = new Set([...toDelete, ...toSave.filter(e => e.existingId).map(e => e.existingId)]);
+        const removedIds = new Set([...dropped].filter(id => !newIds.has(id)));
         mutateCache(rows => {
             // `newIds` before `newDocs`: whatever the read brought back for these documents is the
             // same document, so the write's own record replaces it rather than joining it.
@@ -508,8 +506,11 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
                     const replacedType = swapped.has(op.date)
                         ? replacedTypeForSwap(existing, op.type)
                         : nextReplacedType(existing, op.type);
-                    if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); delIds.add(existing.id); }
-                    const newRef = doc(collection(db, COLLECTIONS.overrides));
+                    const fixedId = manualOverrideId(memberName, op.date);   // one per member and date (v24.48)
+                    for (const id of idsReplacedBy(memberName, op.date, existing?.id)) {
+                        if (!delIds.has(id)) { batch.delete(doc(db, COLLECTIONS.overrides, id)); delIds.add(id); }
+                    }
+                    const newRef = doc(db, COLLECTIONS.overrides, fixedId);
                     const fields = { memberName, date: op.date, type: op.type, value: op.value, note: '', source: 'manual', changedBy, replacedType };
                     batch.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
                     docs.push(buildOverrideCacheRecord(newRef.id, fields, stamp));
