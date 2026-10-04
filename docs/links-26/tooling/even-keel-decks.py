@@ -60,7 +60,7 @@ def colleagues(d):
     s = S(8)
     s.text(1, '15 shift times in all — 9 of them you already work', '15 shift times in all — 8 of them you already work')
     s.text(4, 'You work these today (9)', 'You work these today (8)')
-    s.paras(5, '06:20–14:00 · 06:20–14:20', [(0, '06:20–14:00 · 06:20–14:20'), (1, '06:20–14:50 · 07:15–15:45'), (2, '11:00–19:30 · 14:00–22:30'), (3, '14:30–22:00 · 15:15–23:55')])
+    s.paras(5, '06:20–14:00', [(0, t) for t in ('06:20–14:00', '06:20–14:20', '06:20–14:50', '07:15–15:45', '11:00–19:30', '14:00–22:30', '14:30–22:00', '15:15–23:55')])
     s.text(8, 'New times (6)', 'New times (7)')
     # paragraphs 0, 4 and 6 are the day headings, the rest bullets: two weekday lates, two Saturday earlies, three Sunday times
     s.paras(9, 'Weekdays', [(0, 'Weekdays'), (1, '14:45–22:30 — a new late, ending with the ticket office'), (2, '15:45–23:55 — the closer, 30 minutes later than 15:15'),
@@ -120,9 +120,9 @@ def managers(d):
 
     s = S(8)
     s.runs(5, ['Weekends off: 7 in 26 (today 4 in 20)', 'At most 6 days in a row (today 7)', 'Every closing shift 30–45 minutes shorter', '9 of the 15 shift times already worked', 'Shortest rest 14h 20m (today 12h 30m)'],
-              ['7 weekends off, at most 5 weeks apart', 'One shift time in 18 of 21 weeks (today 7 of 16)', 'At most 5 days in a row on the fixed rota (today 7)', 'No week over 41h 30m Monday to Saturday', 'Shortest rest 14h 35m (today 12h 30m)'])
-    s.runs(9, ['Late finishes: 42 a year (today 39)', '6 new shift times to learn', 'Weekends off up to 10 weeks apart', 'Best 14-day leave stretch 28 days, not 30', 'Four weeks off takes 15 days’ leave at best, not 14'],
-              ['Late finishes: 44 a year (today 39)', '7 new shift times to learn, 2 on a Saturday', 'Average shift about 2 minutes longer', 'Best 14-day leave stretch 28 days, not 30', 'Four weeks off takes 15 days’ leave at best, not 14'])
+              ['7 weekends off, at most 5 weeks apart', 'One turn in 18 of 21 weeks (today 7 of 16)', 'At most 5 days in a row, fixed rota (today 7)', 'No week over 41h 30m Monday to Saturday', 'Shortest rest 14h 35m (today 12h 30m)'])   # each one line wide: the longer forms left "16)" and "(today 7)" alone on a second
+    s.runs(9, ['Late finishes: 42 a year (today 39)', '6 new shift times to learn', 'Weekends off up to 10 weeks apart', 'Best 14-day leave stretch 28 days, not 30', 'Four weeks off needs 15 days’ leave, not 14'],
+              ['Late finishes: 44 a year (today 39)', '7 new shift times to learn, 2 on a Saturday', 'Average shift about 2 minutes longer', 'Best 14-day leave stretch 28 days, not 30', 'Four weeks off needs 15 days’ leave, not 14'])
     s.save()
     notes(d, 8, 'Days at work stay', 'Days at work stay at 219 a year (218.6 exactly; Monday to Saturday; Sunday is overtime), under the ceiling agreed on 1 October 2026. Late finishes average about five more a year each: three from the December staffing — three to the close every day, where today’s weekdays have two — and two from a Saturday with four to the close. Full weekends off are seven in 26 and never more than five weeks apart; 18 of the 21 working weeks keep one shift time. The average shift is about two minutes longer.')
 

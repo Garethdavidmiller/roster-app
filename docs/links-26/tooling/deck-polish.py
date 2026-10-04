@@ -10,7 +10,7 @@
 # Every figure comes from `deck-check.mjs --print` (the sheets' own counts) or is computed from the grid here; shapes are
 # found by their text, so a template change fails loudly. From the repository root, after the builders:
 #   python3 docs/links-26/tooling/deck-polish.py && node docs/links-26/tooling/deck-check.mjs
-import importlib.util, json, os, re, shutil, subprocess, tempfile, zipfile
+import importlib.util, json, os, re, shutil, struct, subprocess, tempfile, zipfile
 
 TOOL = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(TOOL, '..', 'presentations')
 spec = importlib.util.spec_from_file_location('snd', os.path.join(TOOL, 'second-nature-decks.py')); snd = importlib.util.module_from_spec(spec); spec.loader.exec_module(snd)
@@ -26,6 +26,13 @@ def shape_of(s, text):
     return hits[0]
 def put(s, old, new, color=None): s.text(shape_of(s, old), old, new, color)
 def set_shape(s, i, new, color=None): s.text(i, runs_of(s.x[slice(*spans(s.x)[i])])[0].replace('&amp;', '&'), new, color)
+def tile(s, i, olds, new):
+    """A short-version tile's caption or sub-caption, by index (the designs' sub-captions differ): shape i must hold one of
+    `olds`. A newline in `new` is a deliberate break — every caption is two lines with no lone last word, every
+    sub-caption one, so the number, caption and sub-caption bands line up across the row."""
+    cur = runs_of(s.x[slice(*spans(s.x)[i])]); old = next((o for o in olds if [escape(o)] == cur), None)
+    if old is None: raise SystemExit(f'{s.path} shape {i}: {cur} is none of {olds}')
+    s.text(i, old, new)
 def replace_run(path, old, new, after=None):
     """Replace one <a:t> run in a slide's XML (a table cell or a list item), optionally the first one after another run."""
     x = open(path, encoding='utf-8').read(); start = 0
@@ -78,6 +85,8 @@ def strip_slide(d, name, grid, F):
     png = os.path.join(tempfile.gettempdir(), f'strip-{name.replace(" ", "-")}.png')
     subprocess.check_call(['node', os.path.join(TOOL, 'rota-strip.mjs'), os.path.join(TOOL, grid), png], stdout=subprocess.DEVNULL)
     media = f'{d}/ppt/media/rota-strip.png'; shutil.copy(png, media)
+    w, h = struct.unpack('>II', open(png, 'rb').read(24)[16:24]); cy = round(8229600 * h / w)   # the PNG's own aspect, never stretched
+    assert cy <= 4069080 - 1371600, f'strip too tall for the slide: {w}×{h}'
     rels = f'{d}/ppt/slides/_rels/slide10.xml.rels'; r = open(rels, encoding='utf-8').read()
     assert 'rota-strip.png' not in r
     r = r.replace('</Relationships>', '<Relationship Id="rIdStrip" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/rota-strip.png"/></Relationships>')
@@ -98,14 +107,14 @@ def strip_slide(d, name, grid, F):
     famword = {'E': 'earlies', 'L': 'lates'}[f]
     pic = ('<p:pic><p:nvPicPr><p:cNvPr id="990" name="Rota strip" descr="The 26 weeks of the link"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>'
            '<p:blipFill><a:blip r:embed="rIdStrip"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>'
-           '<p:spPr><a:xfrm><a:off x="457200" y="1371600"/><a:ext cx="8229600" cy="2651760"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>')
+           f'<p:spPr><a:xfrm><a:off x="457200" y="1371600"/><a:ext cx="8229600" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>')
     # the picture goes before the takeaway box, which is the first remaining shape below y = 4,000,000
     anchor = re.search(r'<p:sp>(?:(?!</p:sp>).)*?<a:off x="457200" y="4160520"/>', body, re.S); assert anchor, 'takeaway box not found'
     body = body[:anchor.start()] + pic + body[anchor.start():]
     open(p, 'w', encoding='utf-8').write(body)
     s = Slide(p)
     put(s, 'Earlies, lates and Sundays', 'Your 26 weeks at a glance')
-    put(s, 'The balance you have now stays much the same', f'Each week is all earlies or all lates{" but one" if facts["mixed"] == 1 else ""}; the green bars are the full weekends off — where you start is decided later')
+    put(s, 'The balance you have now stays much the same', 'The green bars are the full weekends off; where you start is decided later')
     put(s, 'Much the same balance. Sundays stay overtime and still finish at 23:25.', f'{F["weekendsYear"]} full weekends off a year, never more than five weeks apart; the longest run of one kind is {n} weeks of {famword}{", and every switch from one kind to the other crosses a cover week" if facts["switches_across_cover"] else ""}.')
     s.save()
     snd.notes(d, 10, 'Earlies here means', f'Read the strip left to right; week 27 is week 1 again. A cover week has no fixed shifts of its own — its four duties are placed later to cover leave and sickness, which is why it is drawn empty. Earlies here means a start before 11:00. A weekday has 7 earlies and 8 lates; a Saturday 7 and 7; a Sunday 5 and 5. Sundays stay overtime, {F["sun"]} a year each (today {T["sun"]}), and still finish at 23:25. Who starts on which week is decided after the link is chosen.')
@@ -113,7 +122,12 @@ def strip_slide(d, name, grid, F):
 def colleagues(d, name, grid, F):
     S = lambda n: Slide(f'{d}/ppt/slides/slide{n}.xml')
     s = S(2)
-    put(s, '7 in 26', F['weekendsYear']); put(s, 'full weekends off', 'full weekends off a year'); put(s, 'at most 5 weeks apart', f'today {T["weekendsYear"]} · 7 in 26 · at most 5 apart')
+    put(s, '7 in 26', F['weekendsYear'])
+    tile(s, 4, ['the same contracted week'], 'the contracted\nweek, as now'); tile(s, 5, ['no extra contracted hours'], 'no extra hours')
+    tile(s, 8, ['most days in a row'], 'most days\nin a row')                        # its sub-caption is one line already, in every design
+    tile(s, 12, ['full weekends off'], 'full weekends\noff a year'); tile(s, 13, ['at most 5 weeks apart'], f'today {T["weekendsYear"]} · {F["weekendsShort"]}')
+    tile(s, 16, ['shift times you already work'], 'shift times you\nalready work')
+    tile(s, 20, ['shorter on every closing shift'], 'off every\nclosing shift'); tile(s, 21, ['45 min on a Sunday'], 'Sundays: 45 min')
     s.save()
     notes_append(d, 2, f'Say the leave cost here too, before anyone asks: four full weeks off takes {F["leaveFour"]} days’ leave rather than {T["leaveFour"]}, and the best 14-day stretch is {F["leaveBest"]} days off rather than {T["leaveBest"]}; the average is the same and the worst a day better. A cover week is one of the five weeks in 26 with no fixed shifts: its four duties are placed later to cover leave and sickness; the fixed rota is the other 21 weeks, whose shifts are set.')
     s = S(4)
@@ -157,7 +171,12 @@ def colleagues(d, name, grid, F):
 
 def managers(d, name, grid, F):
     S = lambda n: Slide(f'{d}/ppt/slides/slide{n}.xml')
-    s = S(2); put(s, 'contract rostered exactly, on average', 'contracted hours a week'); put(s, 'Monday to Saturday', 'rostered exactly, Mon–Sat average'); s.save()
+    s = S(2)
+    tile(s, 4, ['December rules met'], 'December\nrules met')
+    tile(s, 8, ['contract rostered exactly, on average'], 'contracted hours\na week'); tile(s, 9, ['Monday to Saturday'], 'Mon–Sat average')
+    tile(s, 12, ['avoidable fatigue warnings'], 'avoidable\nfatigue warnings'); tile(s, 13, ['in the fixed rota · today 4'], 'fixed rota · today 4')
+    tile(s, 16, ['people on the link'], 'people\non the link')
+    s.save()
     s = S(6); drop_shape(s, 'Early starts and a weekly rotation come with every link, so are not counted. The written source of the 13-day limit is still to be confirmed.'); s.save()
     notes_append(d, 6, 'Early starts and a weekly rotation come with every link, so they are not counted. The written source of the 13-day limit is still to be confirmed.')
     s = S(4)
@@ -169,13 +188,13 @@ def managers(d, name, grid, F):
     ticks = [i for i, (a, b) in enumerate(spans(s.x)) if runs_of(s.x[a:b]) == ['✓']]; assert len(ticks) == 6, ticks
     times = re.match(r'(\d+) \((\d+) you know\)', F['times']); n_times, n_known = int(times.group(1)), int(times.group(2)); n_new = n_times - n_known
     # Second Edition's line said one shift time in 18 of 21 weeks — true of all three (outside review, 4 Oct 2026); its own edge is the step
-    adds = {'Second Edition': f'This one adds: the steadiest starts of the three — {F["step"]} week to week (today {T["step"].replace(" 00m", "")})',
+    adds = {'Second Edition': f'This one adds: the steadiest starts of the three, {F["step"]} week to week (today {T["step"].replace(" 00m", "")})',
             'Short Run': f'This one adds: never more than {F["run"].split(" ")[0]} days in a row on the fixed rota (today {T["run"].split(" ")[0]})',
             'Even Keel': f'This one adds: no week over {F["heavy"]}, and at least {F["rest"]} between shifts'}[name]
     costs = {'Second Edition': f'Costs: {F["run"]} days in a row on the fixed rota (today {T["run"].split(" ")[0]}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}',
              'Short Run': f'Costs: one {F["heavy"]} week (today up to {T["heavy"]}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}',
-             'Even Keel': f'Costs: {F["late23"]} late finishes a year (today {T["late23"]}), a mixed week, four weeks off {F["leaveFour"]} days not {T["leaveFour"]}'}[name]
-    labels = ['All three shortlisted: all 9 December rules and the 3 flexible ones; no fatigue warning',
+             'Even Keel': f'Costs: {F["late23"]} late finishes (today {T["late23"]}), a mixed week, four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}'}[name]
+    labels = ['All three shortlisted: all 9 December rules, all 3 flexible ones, no fatigue warning',
               f'All three shortlisted: about {F["weekendsYear"]} full weekends off a year (today {T["weekendsYear"]}), at most 5 apart',
               'All three shortlisted: no shift over 9 hours, and every closing shift shorter',
               adds,
@@ -198,7 +217,7 @@ def managers(d, name, grid, F):
     put(s, 'Three things confirmed verbally (29 Sep and 1 Oct 2026), two decisions left', 'Three things confirmed verbally, two decisions left, two points still open')
     put(s, 'Who begins on which week of the link.', 'Who begins on which week. Open: the 13-day limit’s written source; the FF19 reading.')
     s.save()
-    replace_run(f'{d}/ppt/slides/slide8.xml', '7 weekends off, at most 5 weeks apart', f'{F["weekendsYear"]} full weekends off a year (today {T["weekendsYear"]}), at most 5 apart')
+    replace_run(f'{d}/ppt/slides/slide8.xml', '7 weekends off, at most 5 weeks apart', f'{F["weekendsYear"]} full weekends off a year (today {T["weekendsYear"]})')
 
 def polish(path, name, grid, who):
     d = tempfile.mkdtemp(); zipfile.ZipFile(path).extractall(d)

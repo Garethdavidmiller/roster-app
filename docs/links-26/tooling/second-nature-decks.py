@@ -32,12 +32,57 @@ class Slide:
     def _shape(self, i): a, b = spans(self.x)[i]; return a, b, self.x[a:b]
     def _put(self, i, sp): a, b, _ = self._shape(i); self.x = self.x[:a] + sp + self.x[b:]
     def text(self, i, old, new, color=None):
-        """Replace a one-run shape's text, checking it held `old`; optionally recolour it."""
+        """Replace a one-run shape's text, checking it held `old`; optionally recolour it. A newline in `new` is a
+        DELIBERATE line break (<a:br/>): the tile captions use it so a two-word line never becomes a lone last word."""
         a, b, sp = self._shape(i); r = runs_of(sp)
         if [escape(old)] != r: raise SystemExit(f'{self.path} shape {i}: expected {old!r}, found {r}')
         sp = AT.sub(lambda m: f'<a:t>{escape(new)}</a:t>', sp, count=1)
         if color: sp = re.sub(r'srgbClr val="[0-9A-F]{6}"', f'srgbClr val="{color}"', sp)
+        if '\n' in new:
+            m = re.search(r'<a:r>(<a:rPr\b[^>]*/>|<a:rPr\b.*?</a:rPr>)<a:t>([^<]*)</a:t></a:r>', sp, re.S)
+            if not m: raise SystemExit(f'{self.path} shape {i}: no run to break')
+            sp = sp[:m.start()] + '<a:br/>'.join(f'<a:r>{m.group(1)}<a:t>{p}</a:t></a:r>' for p in m.group(2).split('\n')) + sp[m.end():]
         self._put(i, sp)
+    def box(self, i):
+        """A shape's (x, y, cx, cy) in EMU."""
+        a, b, sp = self._shape(i); m = re.search(r'<a:off x="(\d+)" y="(\d+)"/><a:ext cx="(\d+)" cy="(\d+)"/>', sp)
+        if not m: raise SystemExit(f'{self.path} shape {i}: no position')
+        return tuple(int(v) for v in m.groups())
+    def geo(self, i, **kw):
+        """Move or resize shape i — only the x / y / cx / cy given change."""
+        a, b, sp = self._shape(i); m = re.search(r'<a:off x="(\d+)" y="(\d+)"/><a:ext cx="(\d+)" cy="(\d+)"/>', sp)
+        if not m: raise SystemExit(f'{self.path} shape {i}: no position')
+        v = dict(zip(('x', 'y', 'cx', 'cy'), m.groups())); v.update({k: str(int(n)) for k, n in kw.items()})
+        self._put(i, sp[:m.start()] + f'<a:off x="{v["x"]}" y="{v["y"]}"/><a:ext cx="{v["cx"]}" cy="{v["cy"]}"/>' + sp[m.end():])
+    def sub(self, i, old, new, count=None):
+        """Replace a literal inside shape i's XML (a font size, a paragraph spacing), refusing when it is absent — or,
+        with `count`, when it does not occur exactly that many times."""
+        a, b, sp = self._shape(i); n = sp.count(old)
+        if n == 0 or (count is not None and n != count): raise SystemExit(f'{self.path} shape {i}: {old!r} occurs {n} times')
+        self._put(i, sp.replace(old, new))
+    def shift_items(self, lo, hi, first_y, old_pitch, new_pitch):
+        """Re-space a column of repeated items (icon, heading, sub-line — shapes AND pictures): every element whose top is
+        in [lo, hi) belongs to item k = (y − first_y) // old_pitch and moves by k × (new_pitch − old_pitch)."""
+        def mv(m):
+            y = int(m.group(2))
+            if not lo <= y < hi: return m.group(0)
+            k = (y - first_y) // old_pitch; return f'<a:off x="{m.group(1)}" y="{y + k * (new_pitch - old_pitch)}"/>'
+        self.x = re.sub(r'<a:off x="(\d+)" y="(\d+)"/>', mv, self.x)
+    def add_banner(self, text):
+        """A closing banner of the deck's own style (the navy bar at y = 4,160,520), inserted before the footer so the
+        slide ends the way every other content slide does. `text` is a plain sentence — the figures stay in the rows."""
+        ids = [int(v) for v in re.findall(r'<p:cNvPr id="(\d+)"', self.x)]; i, j = max(ids) + 1, max(ids) + 2
+        bar = (f'<p:sp><p:nvSpPr><p:cNvPr id="{i}" name="Banner"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="457200" y="4160520"/>'
+               '<a:ext cx="8229600" cy="548640"/></a:xfrm><a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 16667"/></a:avLst></a:prstGeom>'
+               f'<a:solidFill><a:srgbClr val="{NAVY}"/></a:solidFill><a:ln w="12700"><a:solidFill><a:srgbClr val="{NAVY}"/></a:solidFill><a:prstDash val="solid"/></a:ln></p:spPr></p:sp>'
+               f'<p:sp><p:nvSpPr><p:cNvPr id="{j}" name="Banner text"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="640080" y="4160520"/>'
+               '<a:ext cx="7863840" cy="548640"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr><p:txBody>'
+               '<a:bodyPr wrap="square" lIns="0" tIns="0" rIns="0" bIns="0" rtlCol="0" anchor="ctr"/><a:lstStyle/><a:p><a:pPr indent="0" marL="0"><a:buNone/></a:pPr>'
+               '<a:r><a:rPr lang="en-US" sz="1400" b="1" dirty="0"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:latin typeface="Inter" pitchFamily="34" charset="0"/>'
+               f'<a:ea typeface="Inter" pitchFamily="34" charset="-122"/><a:cs typeface="Inter" pitchFamily="34" charset="-120"/></a:rPr><a:t>{escape(text)}</a:t></a:r></a:p></p:txBody></p:sp>')
+        foot = [(a, b) for a, b in spans(self.x) if '<a:off x="457200" y="4800600"/>' in self.x[a:b]]
+        if len(foot) != 1 or '<a:off x="457200" y="4160520"/>' in self.x: raise SystemExit(f'{self.path}: no footer, or a banner already')
+        a = foot[0][0]; self.x = self.x[:a] + bar + self.x[a:]
     def runs(self, i, old, new):
         """Replace every run of a shape in order (a table or a list with the same number of items)."""
         a, b, sp = self._shape(i); r = runs_of(sp)
@@ -59,17 +104,87 @@ def notes(d, n, old_start, new):
     x = x.replace(f'<a:t>{rs[-1]}</a:t>', f'<a:t>{escape(new)}</a:t>', 1); open(p, 'w', encoding='utf-8').write(x)
 
 def rename_everywhere(d):
-    """Last: the name and code wherever they remain (footers, headers, notes, document title)."""
+    """Last: the name and code wherever they remain (footers, headers, notes, document title). The managers' footer also
+    takes the colleague deck's wording ("December 2026 link proposal"), so the two decks' footers read the same way."""
     for root, _, files in os.walk(d):
         for f in files:
             if not f.endswith('.xml'): continue
             p = os.path.join(root, f); x = open(p, encoding='utf-8').read()
-            y = x.replace('Familiar Nine', NAME).replace('F9-24-K31s', CODE)
+            y = x.replace('Familiar Nine', NAME).replace('F9-24-K31s', CODE).replace('December 2026 CEA link · for managers', 'December 2026 link proposal · for managers')
             if y != x: open(p, 'w', encoding='utf-8').write(y)
+
+# ── layout (4 Oct 2026, from a visual review of all 75 slides) ────────────────────────────────────────────
+# Geometry the six shipped decks inherit from this template, so one change here reaches all of them; wording that
+# depends on a design's own figures (tile captions, the Why lines) is deck-polish.py's.
+ROW_Y0, ROW_CY, ROW_PITCH = 1801368, 365760, 438912                                   # one row: 0.40in tall, 0.08in apart
+LABEL_X, LABEL_CX, TODAY_X, DESIGN_X, VALUE_CX = 640080, 4023360, 4663440, 6675120, 2011680
+BANNER_Y = 4160520
+
+def unify_rows(s):
+    """Every table slide draws the SAME row — one height, one spacing, one set of columns — so nothing jitters when paging
+    from a 3-row slide to a 5-row one. Five rows end 0.26in above the banner; three leave air above it, by design. Rows
+    are found by their geometry (a full-width background, then its label, Today and design shapes), never by text."""
+    headers = rows = pending = 0
+    for i in range(len(spans(s.x))):
+        x, y, cx, cy = s.box(i)
+        if (y, cy) == (1417320, 320040):                                   # the Today / design column headings
+            s.geo(i, x=TODAY_X if headers == 0 else DESIGN_X, cx=VALUE_CX); headers += 1
+        elif (x, cx) == (457200, 8229600) and 1_700_000 < y < BANNER_Y:   # a row's background
+            s.geo(i, y=ROW_Y0 + rows * ROW_PITCH, cy=ROW_CY); rows += 1; pending = 3
+        elif pending:
+            col = ((LABEL_X, LABEL_CX), (TODAY_X, VALUE_CX), (DESIGN_X, VALUE_CX))[3 - pending]
+            s.geo(i, x=col[0], cx=col[1], y=ROW_Y0 + (rows - 1) * ROW_PITCH, cy=ROW_CY); pending -= 1
+    if headers != 2 or not 3 <= rows <= 5 or pending: raise SystemExit(f'{s.path}: {headers} headings, {rows} rows, {pending} cells unplaced')
+
+def widen_tile_text(s, inset):
+    """The short-version tiles: the caption and sub-caption boxes take the tile's width less `inset` each side (they had
+    0.1in more), so a deliberate two-word line fits without shrinking the type."""
+    tiles = [i for i in range(len(spans(s.x))) if s.box(i)[1] == 1463040]
+    if len(tiles) not in (4, 5): raise SystemExit(f'{s.path}: {len(tiles)} tiles')
+    for i in tiles:
+        x, _, cx, _ = s.box(i)
+        for j in (i + 2, i + 3): s.geo(j, x=x + inset, cx=cx - 2 * inset)
+
+def relayout_tiles(s):
+    """The trade-offs slide: three rows of two tiles end 0.19in above a banner instead of running on towards the footer.
+    A tile is 0.90in tall (was 1.07in) with 0.08in between; its title sits 0.08in down and its two-line body 0.38in."""
+    OLD_Y, OLD_PITCH, NEW_CY, NEW_PITCH = 1371600, 1085000, 822960, 896112
+    OFFS = {0: (0, NEW_CY), 158452: (73152, 274320), 469348: (347472, 347472)}   # old offset in the tile → (new offset, new height)
+    for i in range(len(spans(s.x))):
+        y = s.box(i)[1]
+        if not OLD_Y <= y < OLD_Y + 3 * OLD_PITCH: continue
+        k, off = divmod(y - OLD_Y, OLD_PITCH)
+        if off not in OFFS: raise SystemExit(f'{s.path} shape {i}: unexpected tile offset {off}')
+        s.geo(i, y=OLD_Y + k * NEW_PITCH + OFFS[off][0], cy=OFFS[off][1])
+
+def restyle_table(s):
+    """The At-a-glance table (a real <a:tbl>, the one on the slides): no vertical rules and a hairline between rows, so it
+    reads like the row component above, and the label column indented to the rows' own left edge. The type stays 12pt:
+    eleven rows in the space above the banner, and the closers row ("8h 10m · 8h 40m · 8h 10m") wraps at anything larger."""
+    x, n = s.x, [0]
+    for side in 'LR':
+        x, c = re.subn(rf'<a:ln{side} w="9525".*?</a:ln{side}>', f'<a:ln{side}><a:noFill/></a:ln{side}>', x, flags=re.S); n[0] += c
+    x, c = re.subn(r'<a:ln([TB]) w="9525"', r'<a:ln\1 w="6350"', x); n[0] += c
+    cells = re.findall(r'<a:tc>.*?</a:tc>', x, re.S)
+    if len(cells) % 3 or n[0] < 4 * len(cells): raise SystemExit(f'{s.path}: {len(cells)} cells, {n[0]} borders restyled')
+    for i, c in enumerate(cells):
+        if i % 3 == 0:
+            if 'marL="91440"' not in c: raise SystemExit(f'{s.path}: label cell {i} has no left margin to widen')
+            x = x.replace(c, c.replace('marL="91440"', f'marL="{LABEL_X - 457200}"'), 1)
+    s.x = x
+
+def bullet_font(d):
+    """Every • bullet names its font: with none given, the renderer falls back to a symbol face and draws a small raised
+    dot. Inter's own bullet sits centred on the x-height."""
+    for n in os.listdir(f'{d}/ppt/slides'):
+        if not n.endswith('.xml'): continue
+        p = f'{d}/ppt/slides/{n}'; x = open(p, encoding='utf-8').read()
+        y = x.replace('<a:buSzPct val="100000"/><a:buChar', '<a:buSzPct val="100000"/><a:buFont typeface="Inter" pitchFamily="34" charset="0"/><a:buChar')
+        if y != x: open(p, 'w', encoding='utf-8').write(y)
 
 def build(src, out, edit):
     d = tempfile.mkdtemp(); zipfile.ZipFile(src).extractall(d)
-    edit(d); rename_everywhere(d)
+    edit(d); bullet_font(d); rename_everywhere(d)
     left = [f for r, _, fs in os.walk(d) for f in fs if f.endswith('.xml') and re.search(r'Familiar Nine|F9-24|24 weeks', open(os.path.join(r, f), encoding='utf-8').read())]
     if left: raise SystemExit(f'{out}: Familiar Nine text left in {left}')
     os.makedirs(os.path.dirname(out), exist_ok=True)
@@ -120,8 +235,9 @@ def colleagues(d):
     s = S(8)
     s.text(1, '16 shift times in all — 8 of them you already work', '15 shift times in all — 9 of them you already work')
     s.text(4, 'You work these today (8)', 'You work these today (9)')
-    s.paras(5, '06:20–13:35 · 06:20–14:20', [(0, '06:20–14:00 · 06:20–14:20'), (1, '06:20–14:50 · 07:15–15:45'), (2, '08:00–16:30 · 12:00–20:00'),
-                                             (3, '14:00–22:30 · 14:30–22:00'), (3, '15:15–23:55')])
+    # the list is set at the right card's size (it was two points larger), and one time per line fills the card to match
+    s.sub(5, 'sz="1200"', 'sz="1050"')
+    s.paras(5, '06:20–13:35 · 06:20–14:20', [(0, t) for t in ('06:20–14:00', '06:20–14:20', '06:20–14:50', '07:15–15:45', '08:00–16:30', '12:00–20:00', '14:00–22:30', '14:30–22:00', '15:15–23:55')])
     s.text(8, 'New times (8)', 'New times (6)')
     s.paras(9, 'Weekdays', [(0, 'Weekdays'), (1, '07:00–16:00 — a new early, 9 hours'), (2, '15:00–22:30 — a new late, ending with the ticket office'),
                             (2, '15:45–23:55 — the closer, 30 minutes later than 15:15'), (3, 'Saturday'), (4, 'nothing new — every Saturday time is worked today'),
@@ -156,9 +272,10 @@ def colleagues(d):
 
     s = S(13)
     s.text(3, 'Eight new shift times to learn', 'Six new shift times to learn')
-    s.text(4, 'Most are within 10–30 minutes of a time we already work.', 'Several are shorter versions of today’s lates.')
+    # every tile body runs to two lines (these two ran to one, beside four that did not), so the six tiles read as one set
+    s.text(4, 'Most are within 10–30 minutes of a time we already work.', 'Several of them are shorter versions of the lates you already work today.')
     s.text(6, 'Shifts 6 minutes longer on average', 'Shifts about 2 minutes longer on average')
-    s.text(7, 'That is what buys two fewer contracted days.', 'It keeps days at work to 219 a year or fewer.')
+    s.text(7, 'That is what buys two fewer contracted days.', 'That is what keeps days at work to 219 a year or fewer on the same 35 hours.')
     s.text(10, 'Average and worst: about the same as today.', 'Average as today, and the worst a day better.')
     s.text(12, 'Four cover weeks remain', 'Five cover weeks')
     s.text(13, 'Evenly spaced — every sixth week (1, 7, 13, 19).', 'Spaced evenly: weeks 1, 6, 11, 16 and 21.')
@@ -170,7 +287,17 @@ def colleagues(d):
     s.runs(2, ['Today', 'Familiar Nine', 'Contracted hours a week', '35h', '35h', 'Contracted days at work a year', '219', '217', 'Average shift · longest shift', '8h 14m · 9h 10m', '8h 20m · 9h 00m', 'Closing shift: weekday · Saturday · Sunday', '8h 40m · 9h 10m · 8h 55m', '8h 10m · 8h 40m · 8h 10m', 'Full weekends off', '4 in 20', '6 in 24', 'Most days worked in a row', '7 (up to 9)', '6', 'Shortest gap between two shifts', '12h 30m', '14h 20m', 'Different shift times', '18', '16 (8 you know)', 'On duty weekday · Saturday · Sunday', '11–12 · 10 · 8', '14 · 14 · 10', 'Avoidable fatigue warnings in the fixed rota', '4 (up to 5)', '0'],
                ['Today', NAME, 'Contracted hours a week', '35h', '35h', 'Contracted days at work a year', '219', '219', 'Average shift · longest shift', '8h 14m · 9h 10m', '8h 16m · 9h 00m', 'Closing shift: weekday · Saturday · Sunday', '8h 40m · 9h 10m · 8h 55m', '8h 10m · 8h 40m · 8h 10m', 'Full weekends off', '4 in 20', '7 in 26', 'Most days worked in a row', '7 (up to 9)', '6', 'Shortest gap between two shifts', '12h 30m', '14h 20m', 'Different shift times', '18', '15 (9 you know)', 'On duty weekday · Saturday · Sunday', '11–12 · 10 · 8', '15 · 14 · 10', 'Avoidable fatigue warnings in the fixed rota', '4 (up to 5)', '0'])
     s.text(4, 'Same hours, fewer contracted days, shorter closers, more full weekends off.', 'Same hours and days, shorter closers, more full weekends off.')
+    restyle_table(s)
     s.save()
+
+    # ── layout (4 Oct 2026): geometry only; the text edits above address shapes by index, so this runs after them ──
+    for n in (4, 5, 6, 7, 9, 11, 12): s = S(n); unify_rows(s); s.save()
+    s = S(2); widen_tile_text(s, 54864); s.save()
+    # slides 3 and 13 ended 0.3in above the footer with no banner; their items close up and a banner (a plain sentence
+    # from the speaker notes, no figure) ends them the way every other content slide ends
+    s = S(3); s.shift_items(1_300_000, 4_600_000, 1335024, 862368, 713232)
+    s.add_banner('The change is coming whatever we do — the question is which version we want.'); s.save()
+    s = S(13); relayout_tiles(s); s.add_banner('None of these is hidden: each one is on the full proposal sheet too.'); s.save()
 
 # ── the managers' deck ────────────────────────────────────────────────────────────────────────────────────
 def managers(d):
@@ -216,7 +343,7 @@ def managers(d):
     s.runs(5, ['Weekends off: 6 in 24 (today 4 in 20)', 'At most 6 days in a row (today 7)', 'Every closing shift 30–45 minutes shorter', '8 of the 16 shift times already worked', 'Shortest rest 14h 20m (today 12h 30m)'],
               ['Weekends off: 7 in 26 (today 4 in 20)', 'At most 6 days in a row (today 7)', 'Every closing shift 30–45 minutes shorter', '9 of the 15 shift times already worked', 'Shortest rest 14h 20m (today 12h 30m)'])
     s.runs(9, ['Late finishes: 59 a year (today 39)', '8 new shift times to learn', 'Average shift 6 minutes longer', 'Best 14-day leave stretch 28 days, not 30', 'Four weeks off takes 15 days’ leave at best, not 14'],
-              ['Late finishes: 42 a year (today 39)', '6 new shift times to learn', 'Weekends off up to 10 weeks apart', 'Best 14-day leave stretch 28 days, not 30', 'Four weeks off takes 15 days’ leave at best, not 14'])
+              ['Late finishes: 42 a year (today 39)', '6 new shift times to learn', 'Weekends off up to 10 weeks apart', 'Best 14-day leave stretch 28 days, not 30', 'Four weeks off needs 15 days’ leave, not 14'])   # one line: "…takes 15 days’ leave at best, not 14" left "not 14" alone on a second
     s.save()
     notes(d, 8, 'Days at work fall', 'Days at work stay at 219 a year (218.6 exactly; Monday to Saturday; Sunday is overtime), under the ceiling agreed on 1 October 2026. Late finishes average about three more a year each, all of them from the December staffing — three to the close every day, where today’s weekdays have two — so no link meeting the same rules on 26 weeks could have fewer. Full weekends off fall unevenly: seven in 26, but up to ten weeks apart. The average shift is about two minutes longer.')
 
@@ -225,6 +352,20 @@ def managers(d):
     s.text(8, '24 people on the link — confirmed', '26 people on the link — confirmed')
     s.text(9, 'Four more than today.', 'Six more than today, with five cover weeks.')
     s.save()
+
+    # ── layout (4 Oct 2026): geometry only, after the text edits above (they address shapes by index) ──
+    for n in (3, 5, 6): s = S(n); unify_rows(s); s.save()
+    s = S(2); widen_tile_text(s, 68580); s.save()
+    # the Why slide's six tick lines stopped 0.58in above the banner: 0.5in apart (was 0.44in) they stop 0.28in above it
+    s = S(7); s.shift_items(1_300_000, 3_700_000, 1307592, 402336, 457200); s.save()
+    # the two "notice" cards: each list takes the card's width less the same inset on both sides, and its five one-line
+    # bullets sit 10pt apart (was 6pt), so neither card is a third empty
+    s = S(8)
+    for i in (5, 9): s.geo(i, cx=3657600); s.sub(i, '<a:spcPts val="600"/>', '<a:spcPts val="1000"/>', count=5)
+    s.save()
+    # Where it stands: five items close up from 0.7in to 0.6in apart and a banner (a plain sentence) ends the slide
+    s = S(9); s.shift_items(1_280_000, 4_500_000, 1289304, 640080, 548640)
+    s.add_banner('Colleagues’ views come first; the link is chosen after them, then who starts where.'); s.save()
 
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
