@@ -420,7 +420,7 @@ The fixed ticket-office and closing duties leave little room to lengthen the res
 | | Weekday · Saturday | Days | Rules | What the search found |
 |---|---|---|---|---|
 | A | 15 · 13 | 216.6 | breaks flexible F1 (14 on a Saturday) | 13 on a Saturday leaves 8 Saturdays off, so 8 full weekends; tables fit (Saturday 26.8–27.6), but every rota kept a fatigue factor (early runs, or start times moving over two hours) |
-| B | 14 · 14 | 214.6 | all kept | only with weekday duties to 9h 30m, and then every weekday fits at 48.1 (Second Nature: 29.3) |
+| B | 14 · 14 | 214.6 | all kept | only with weekday duties to 9h 30m, and then every weekday fits at 48.1 (Second Nature's weekday as that search measured it: 29.3; its shipped sheet, on the current measure, says 29.1) |
 | B2 | 14 · 16 | 216.6 | all kept | 9-hour cap kept, but 16 Saturday duties leave 5 full weekends |
 | **C** | **15 Mon–Thu, 14 Fri** · 14 | **216.6** | **all kept** | **Quiet Friday** |
 
@@ -517,7 +517,7 @@ did not need it. Without it the polish may move rest days and families, and it d
 description of the result; the weekend, single-rest-day and run floors were held throughout.
 
 **Second Edition** (`SE-26-F1` · `dea6417f`), Second Nature family, `proposals/Second-Edition-SE-26-F1-dea6417f.pdf`, grid
-`tooling/second-edition.json`. Better than or equal to every earlier design on every line the sheets compare:
+`tooling/second-edition.json`. Better than or equal to Second Nature, Second Wind and Second Sight on every line of the table below (Second Gear's five-day run, 14h 35m rest and 41h 30m week, and Second Look's fourteen times, are not in it):
 
 | | Second Nature | Second Wind | Second Sight | **Second Edition** | Today |
 |---|---|---|---|---|---|
@@ -601,8 +601,9 @@ fixed or in the worst case, rest 14h 20m, 7 full weekends never more than five a
 rest days, no mixed week, 18 of 21 weeks on one shift time, leave 28 · 20 · 15, 218.6 days. **The one gain: no run over
 five days** (Second Edition's longest is six; the worst case with a cover week placed badly is six for both). **The
 costs:** the heaviest week is 42h 30m (Second Edition 42h 00m), the lightest 24h 30m (25h 30m), the week-to-week step
-1h 13m (1h 01m). On the sheets' own comparison lines it equals Second Edition everywhere and beats it on the run, which
-is why it was given a name rather than folded into Second Edition's notes. Its presentations
+1h 13m (1h 01m). It keeps Second Edition's duty table and most of its figures, takes the fixed run from six days to five, and pays with
+the heaviest and lightest weeks and the step above — enough of a difference to be given a name rather than folded into
+Second Edition's notes. Its presentations
 (`presentations/Short-Run-for-colleagues` and `-for-managers`, built by `tooling/short-run-decks.py`) lead with the run and
 say both figures for it, five on the fixed rota and up to six with a cover week placed badly, where Second Edition's say six.
 

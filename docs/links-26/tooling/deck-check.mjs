@@ -64,7 +64,7 @@ function figures(patterns, lines, T) {
     daily: trio(A.daily), dailyWk: wk(A.daily), dailyWeekend: `${A.daily.sat} / ${A.daily.sun}`,
     open: trio(A.heads.open), at22: trio(A.heads.at22), close: trio(A.heads.close),
     floor: fl.join(' · '), floorMin: `${Math.min(...fl)}`,
-    cover: `${cover} — 1 week in ${Math.round(L / cover)}`, sundayPeople: `${A.daily.sun}`,
+    cover: `${cover} in ${L} (1 in ${+(L / cover).toFixed(1)})`, sundayPeople: `${A.daily.sun}`,
     breaks: `${A.feel.pairedRest} of ${A.feel.restIslands}`, oneTurn: `${A.feel.oneTurn} of ${A.feel.workingLines}`,
     // 26 lines: the leave figures, from leave.mjs (the 24-line decks' model, reproduced and checked there)
     ...(lv => ({ leaveBest: `${lv.best}`, leaveAvg: lv.avg.toFixed(1), leaveWorst: `${lv.worst}`, leaveFour: `${lv.fourWeeks}` }))(leave(patterns)),
