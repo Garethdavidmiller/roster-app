@@ -129,7 +129,7 @@ def colleagues(d, name, grid, F):
     tile(s, 16, ['shift times you already work'], 'shift times you\nalready work')
     tile(s, 20, ['shorter on every closing shift'], 'off every\nclosing shift'); tile(s, 21, ['45 min on a Sunday'], 'Sundays: 45 min')
     s.save()
-    notes_append(d, 2, f'Say the leave cost here too, before anyone asks: four full weeks off takes {F["leaveFour"]} days’ leave rather than {T["leaveFour"]}, and the best 14-day stretch is {F["leaveBest"]} days off rather than {T["leaveBest"]}; the average is the same and the worst a day better. A cover week is one of the five weeks in 26 with no fixed shifts: its four duties are placed later to cover leave and sickness; the fixed rota is the other 21 weeks, whose shifts are set.')
+    notes_append(d, 2, f'Say the leave cost here too, before anyone asks: four full weeks off, Sunday to Saturday, takes {F["leaveFour"]} days’ leave rather than {T["leaveFour"]}, and the best 14-day stretch is {F["leaveBest"]} days off rather than {T["leaveBest"]}; the average is the same and the worst a day better. A cover week is one of the five weeks in 26 with no fixed shifts: its four duties are placed later to cover leave and sickness; the fixed rota is the other 21 weeks, whose shifts are set.')
     s = S(4)
     a, b = shape_of(s, '4.2'), shape_of(s, '4.19'); assert a < b, 'today left of proposal'
     put(s, '4.2', T['daysWeek'])
@@ -156,7 +156,7 @@ def colleagues(d, name, grid, F):
     replace_in_run(f'{d}/ppt/slides/slide9.xml', 'Seven weekends off in 26,', f'{F["weekendsYear"]} full weekends off a year,')
     strip_slide(d, name, grid, F)
     s = S(11)
-    put(s, 'About the same. A cover week still counts as at most 4 days of leave, as now.', f'Best stretch {F["leaveBest"]} days, not {T["leaveBest"]}; four full weeks off costs {F["leaveFour"]} days’ leave, not {T["leaveFour"]}. Average the same, worst a day better.')
+    put(s, 'About the same. A cover week still counts as at most 4 days of leave, as now.', f'Best stretch {F["leaveBest"]} days, not {T["leaveBest"]}; four full weeks off, Sunday to Saturday, costs {F["leaveFour"]} days’ leave, not {T["leaveFour"]}. Average the same, worst a day better.')
     s.save()
     notes_edit(d, 11, 'The exact averages depend on where you count a booking as starting, so quote them as “about the same”.', 'Say the four-weeks figure plainly: all three shortlisted links are worse than today here (Long Break, the leave-first design in the pack, keeps the 14), and people plan a year around it. The averages depend on where you count a booking as starting, so quote those as “about the same”.')
     s = S(13)

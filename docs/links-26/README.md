@@ -731,8 +731,8 @@ grids, and read it again — a sentence that names a figure ("a half hour on one
 names a reason is not.
 
 **A second outside review of the pack (4 Oct 2026), six points, all taken:** the leave cost joins page 1 of every
-proposal sheet (a concern, "Four full weeks off needs 15 days' leave (today 14)", and two rows in the Working pattern
-table — until then no proposal sheet carried the leave figures at all; they were in the decks and the shortlist only);
+proposal sheet (a concern, "Four full weeks off, Sunday to Saturday, needs 15 days' leave (today 14)", and a row in the
+Working pattern table — a second row, what 14 days buys at best and worst, was dropped for room — until then no proposal sheet carried the leave figures at all; they were in the decks and the shortlist only);
 Second Edition's manager Why slide names its own edge, the 1h 01m week-to-week step, where it had named the 18-of-21
 one-turn weeks all three share, with the step's definition in the notes; the shortlist's opening no longer calls Long
 Break "the one design that buys something new"; its recommendation says what it weights rather than what a colleague

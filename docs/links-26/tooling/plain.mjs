@@ -112,7 +112,8 @@ function front({ T, P, meta, pages, coverHead }) {
   const failed = missed.filter(r => !r.waived);
   const monSat = meta.monSat ?? CONTRACT_MINUTES;
   const rests = P.checks.turnarounds.length, run = P.checks.longestStretch, restMin = P.rest?.minutes;
-  // what 14 days' leave buys (leave.mjs) — the one thing every 26-line design is worse at than today, so it is a
+  // what 14 days' leave buys (leave.mjs; "four full weeks" is four COMPLETE Sunday-to-Saturday weeks — any 28 days in a
+  // row can cost less, and does: 14 on every shortlisted design, outside review 4 Oct 2026) — the one thing every 26-line design is worse at than today, so it is a
   // page-1 concern, not only a page-2 row (outside review, 4 Oct 2026: "someone reading only that page misses a
   // significant trade-off")
   const lvP = leave(P.patterns), lvT = leave(T.patterns);
@@ -205,8 +206,8 @@ function front({ T, P, meta, pages, coverHead }) {
   // the shape of the week (page 4): single rest days, six-day weeks, weeks on one shift time
   const iso = X => X.feel?.isolatedRest, six = X => X.feel?.daysHist?.['6'] ?? 0, one = X => X.feel?.oneTurn / X.feel?.workingLines;
   add(iso(P) != null && iso(P) > iso(T) + 2, bad, 22, `More single rest days, which are not a two-day break — ${iso(P)} (today ${iso(T)})`);
-  add(lvP.fourWeeks > lvT.fourWeeks, bad, 23, `Four full weeks off needs ${lvP.fourWeeks} days’ leave (today ${lvT.fourWeeks})`);
-  add(lvP.fourWeeks < lvT.fourWeeks, good, 23, `Four full weeks off for ${lvP.fourWeeks} days’ leave (today ${lvT.fourWeeks})`);
+  add(lvP.fourWeeks > lvT.fourWeeks, bad, 23, `Four full weeks off, Sunday to Saturday, needs ${lvP.fourWeeks} days’ leave (today ${lvT.fourWeeks})`);
+  add(lvP.fourWeeks < lvT.fourWeeks, good, 23, `Four full weeks off, Sunday to Saturday, for ${lvP.fourWeeks} days’ leave (today ${lvT.fourWeeks})`);
   add(iso(P) != null && iso(P) < iso(T) - 2, good, 22, `Fewer single rest days — ${iso(P)} (today ${iso(T)})`);
   add(six(P) > six(T), bad, 21, `More six-day weeks — ${six(P)} (today ${six(T)})`);
   add(one(P) < one(T) - 0.1, bad, 62, `Fewer weeks on one shift time — ${P.feel.oneTurn} of ${P.feel.workingLines} (today ${T.feel.oneTurn} of ${T.feel.workingLines})`);
@@ -415,7 +416,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('Weeks mixing earlies and lates', `${T.feel.hybrid} of ${T.feel.workingLines}`, `${P.feel.hybrid} of ${P.feel.workingLines}`, '', 'a week with both early and late shifts in it'),
     row('Single rest days', iso(T), iso(P), '', 'a rest day on its own — not a two-day break'),
     row('Six-day weeks', six(T), six(P), '', 'weeks with six days at work, Sundays counted'),
-    row('Leave for four full weeks off', `${lvT.fourWeeks} days`, `${lvP.fourWeeks} days`, cmp(lvP.fourWeeks < lvT.fourWeeks, lvP.fourWeeks === lvT.fourWeeks), 'the least leave that makes 28 days off in a row; rest days and Sundays cost none'),
+    row('Leave for four full weeks off', `${lvT.fourWeeks} days`, `${lvP.fourWeeks} days`, cmp(lvP.fourWeeks < lvT.fourWeeks, lvP.fourWeeks === lvT.fourWeeks), 'the least leave for four complete Sunday-to-Saturday weeks; rest days and Sundays cost none'),
     grp('Shifts'),
     row('Average shift · longest shift', `${hm(tp.avgShift)} · ${hm(tp.longest)}`, `${hm(pp.avgShift)} · ${hm(pp.longest)}`, '', 'the average is Monday to Saturday; the longest is on any day'),
     row('Early shifts, shortest to longest', tp.earlySpan, pp.earlySpan, '', 'an early starts before 11:00 · any day of the week'),
