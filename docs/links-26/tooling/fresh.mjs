@@ -30,7 +30,7 @@ export const STRAPS = {
   'SG-26-H1': ['Weekends never more than five weeks apart, no week over 41h 30m, and a week-to-week change of 1h 25m', 'search'],
   'SE-26-F1': ['Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time', 'search'],
   'FT-26-H1': ['No week over 41h 30m, one week mixing earlies and lates, and a week-to-week change of 1h 09m', 'search'],
-  'EK-26-H1': ['18 of 21 weeks on one shift time, no week over 41h 30m, and the longest rest between shifts, 14h 35m', 'search'],
+  'EK-26-H1': ['18 of 21 weeks on one shift time, no week over 41h 30m, and never less than 14h 35m between shifts', 'search'],
   'SR-26-F1': ['No run over five days on the fixed rota, weekends never more than five weeks apart, and 18 of 21 weeks on one shift time', 'search'],
   'LB-26-F1': ['Four weeks off for 14 days’ leave, as today, with weekends never more than five weeks apart and no mixed week', 'search'],
 };

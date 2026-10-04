@@ -20,6 +20,7 @@
 import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES, DAYS_CEILING, daysAYear } from './link.mjs';
 import { dutyMinutes, startMinutes, endMinutes } from './report-data.mjs';
 import { WAIVERS } from './fresh.mjs';
+import { leave } from './leave.mjs';
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -111,6 +112,10 @@ function front({ T, P, meta, pages, coverHead }) {
   const failed = missed.filter(r => !r.waived);
   const monSat = meta.monSat ?? CONTRACT_MINUTES;
   const rests = P.checks.turnarounds.length, run = P.checks.longestStretch, restMin = P.rest?.minutes;
+  // what 14 days' leave buys (leave.mjs) — the one thing every 26-line design is worse at than today, so it is a
+  // page-1 concern, not only a page-2 row (outside review, 4 Oct 2026: "someone reading only that page misses a
+  // significant trade-off")
+  const lvP = leave(P.patterns), lvT = leave(T.patterns);
   const breaks = [rests ? `${rests} ${rests === 1 ? 'gap' : 'gaps'} of under 12 hours between shifts` : '',
     run > 13 ? `a run of ${run} days in a row (the limit is 13)` : '',
     monSat !== CONTRACT_MINUTES ? `${Math.abs(monSat - CONTRACT_MINUTES).toLocaleString('en-GB')} minutes a week ${monSat > CONTRACT_MINUTES ? 'over' : 'under'} the contract across the link` : '',
@@ -200,6 +205,8 @@ function front({ T, P, meta, pages, coverHead }) {
   // the shape of the week (page 4): single rest days, six-day weeks, weeks on one shift time
   const iso = X => X.feel?.isolatedRest, six = X => X.feel?.daysHist?.['6'] ?? 0, one = X => X.feel?.oneTurn / X.feel?.workingLines;
   add(iso(P) != null && iso(P) > iso(T) + 2, bad, 22, `More single rest days, which are not a two-day break — ${iso(P)} (today ${iso(T)})`);
+  add(lvP.fourWeeks > lvT.fourWeeks, bad, 23, `Four full weeks off needs ${lvP.fourWeeks} days’ leave (today ${lvT.fourWeeks})`);
+  add(lvP.fourWeeks < lvT.fourWeeks, good, 23, `Four full weeks off for ${lvP.fourWeeks} days’ leave (today ${lvT.fourWeeks})`);
   add(iso(P) != null && iso(P) < iso(T) - 2, good, 22, `Fewer single rest days — ${iso(P)} (today ${iso(T)})`);
   add(six(P) > six(T), bad, 21, `More six-day weeks — ${six(P)} (today ${six(T)})`);
   add(one(P) < one(T) - 0.1, bad, 62, `Fewer weeks on one shift time — ${P.feel.oneTurn} of ${P.feel.workingLines} (today ${T.feel.oneTurn} of ${T.feel.workingLines})`);
@@ -408,6 +415,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('Weeks mixing earlies and lates', `${T.feel.hybrid} of ${T.feel.workingLines}`, `${P.feel.hybrid} of ${P.feel.workingLines}`, '', 'a week with both early and late shifts in it'),
     row('Single rest days', iso(T), iso(P), '', 'a rest day on its own — not a two-day break'),
     row('Six-day weeks', six(T), six(P), '', 'weeks with six days at work, Sundays counted'),
+    row('Leave for four full weeks off', `${lvT.fourWeeks} days`, `${lvP.fourWeeks} days`, cmp(lvP.fourWeeks < lvT.fourWeeks, lvP.fourWeeks === lvT.fourWeeks), 'the least leave that makes 28 days off in a row; rest days and Sundays cost none'),
     grp('Shifts'),
     row('Average shift · longest shift', `${hm(tp.avgShift)} · ${hm(tp.longest)}`, `${hm(pp.avgShift)} · ${hm(pp.longest)}`, '', 'the average is Monday to Saturday; the longest is on any day'),
     row('Early shifts, shortest to longest', tp.earlySpan, pp.earlySpan, '', 'an early starts before 11:00 · any day of the week'),
@@ -563,7 +571,7 @@ table.t th { border-bottom: 0 !important; } table.t thead tr:last-child th { box
 /* the fatigue table: a factor's name is read in one colour; the verdict columns carry the colour */
 td.ff-title { color: var(--text-dark, #1a1a2e) !important; }
 ul.p8list { margin: 8px 0 0 16px; padding: 0; font-size: 9.2px; line-height: 1.45; color: var(--text-dark, #1a1a2e); } ul.p8list li { margin: 3px 0; } tr.ff-na-note td { font-size: 9px; color: var(--text-mid); padding-top: 5px; border-bottom: 0; }
-table.pcmp { font-size: 9.8px; margin-top: 8px; } table.pcmp td { padding: 2.2px 6px; line-height: 1.28; } table.pcmp td.num, table.pcmp th.num { text-align: center; } table.pcmp { table-layout: fixed; width: 100%; } table.pcmp th:nth-child(1) { width: 29%; } table.pcmp th:nth-child(2) { width: 16%; } table.pcmp th:nth-child(3) { width: 19%; } table.pcmp th:nth-child(4) { width: 36%; }
+table.pcmp { font-size: 9.8px; margin-top: 5px; } table.pcmp td { padding: 2.2px 6px; line-height: 1.28; } table.pcmp td.num, table.pcmp th.num { text-align: center; } table.pcmp { table-layout: fixed; width: 100%; } table.pcmp th:nth-child(1) { width: 29%; } table.pcmp th:nth-child(2) { width: 16%; } table.pcmp th:nth-child(3) { width: 19%; } table.pcmp th:nth-child(4) { width: 36%; }
 table.pcontents td { font-size: 10px; padding: 1.8px 6px; } table.pcontents td.num { width: 24px; font-weight: 800; color: var(--primary-blue); }
 dl.pmethod { margin: 10px 0; } dl.pmethod dt { font-weight: 800; color: var(--primary-blue); font-size: 11.5px; margin-top: 7px; } dl.pmethod dd { margin: 2px 0 0; font-size: 10.2px; line-height: 1.42; max-width: 175mm; }
 
@@ -615,7 +623,7 @@ table.ff .ff-plain { display: block; font-weight: 700; } table.ff .ff-orr { disp
 .cover.plain .pbox-bad ul, .cover.plain .pbox-info ul { font-size: 9.6px; } .cover.plain .pbox-bad ul { column-count: 2; column-gap: 22px; } .cover.plain .pbox-bad li { break-inside: avoid; }
 p.pmore { margin: 5px 0 0; font-size: 9.2px; color: var(--text-mid); font-style: italic; }
 /* page 2 — groups and marks */
-table.pcmp tr.pgrp td { background: none !important; font-weight: 800; font-size: 9.2px; letter-spacing: .07em; text-transform: uppercase; color: var(--primary-blue); padding: 8px 6px 2px; border-bottom: 1.5px solid color-mix(in srgb, var(--primary-blue) 35%, white); }
+table.pcmp tr.pgrp td { background: none !important; font-weight: 800; font-size: 9.2px; letter-spacing: .07em; text-transform: uppercase; color: var(--primary-blue); padding: 4px 6px 2px; border-bottom: 1.5px solid color-mix(in srgb, var(--primary-blue) 35%, white); }
 table.pcmp tr.pgrp:first-child td { padding-top: 3px; }
 .pm { display: inline-block; font-weight: 800; margin-right: 4px; font-size: 9px; } .pm-no { color: var(--danger-red, #b3261e); } table.pcmp td.no { background-color: color-mix(in srgb, var(--danger-red, #b3261e) 10%, white) !important; } .pm-up { color: var(--success-green); } .pm-down { color: color-mix(in srgb, var(--warning-amber) 75%, black); }
 p.pnext { font-size: 9.4px; color: var(--text-mid); margin: 10px 0 0; } p.pnext b { color: var(--primary-blue); }

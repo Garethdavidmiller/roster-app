@@ -369,7 +369,7 @@ included, and both were put forward (owner, 2 Oct 2026: "create sheets for both 
 - **Second Look** (`SL-26-G3` · `7095fdda`), table G3: Second Nature's with the Saturday 08:00-16:30 pair moved to
   07:15-15:45. It keeps the 42 late finishes and has 14 shift times, one fewer.
 - **Second Gear** (`SG-26-H1` · `8d61e5c3`), table H1: different weekday and Saturday times. It has the lightest weeks
-  and the longest rest, and never more than five days in a row on the fixed duties, for two more late finishes a year
+  and the longest minimum rest between shifts, and never more than five days in a row on the fixed duties, for two more late finishes a year
   and one more new shift time.
 
 | | Second Wind | Second Sight | **Second Look** | **Second Gear** | Today |
@@ -722,11 +722,24 @@ Owner: "a two page analysis sheet comparing the three — snappy but evidence le
 to the existing roster too." `links-26-shortlist.pdf`, built by `tooling/shortlist-sheet.mjs`: what Second Edition,
 Short Run and Even Keel share, where they differ (the best of the three on each line marked), each one's edge, the
 same three against today's link, the costs all three carry against today, and a recommendation — Short Run, with the
-reasons and with the two conditions under which the other two are the better choice. **Every figure is computed by the
+reasons and with the two conditions under which the other two are the better choice; since 4 Oct 2026 page 1 ends with a
+four-row choice guide (priority → design, Long Break included as the leave-first option outside the shortlist) in place of
+the account of how the designs were found, which is this README's job. **Every figure is computed by the
 same functions the proposal sheets use** (`assess`, `personal`, `leave`, `scoreOrder`); the prose is the judgement
 this README records under each design. Rebuild with `node tooling/shortlist-sheet.mjs` after any change to the three
 grids, and read it again — a sentence that names a figure ("a half hour on one week") is computed too, but one that
 names a reason is not.
+
+**A second outside review of the pack (4 Oct 2026), six points, all taken:** the leave cost joins page 1 of every
+proposal sheet (a concern, "Four full weeks off needs 15 days' leave (today 14)", and two rows in the Working pattern
+table — until then no proposal sheet carried the leave figures at all; they were in the decks and the shortlist only);
+Second Edition's manager Why slide names its own edge, the 1h 01m week-to-week step, where it had named the 18-of-21
+one-turn weeks all three share, with the step's definition in the notes; the shortlist's opening no longer calls Long
+Break "the one design that buys something new"; its recommendation says what it weights rather than what a colleague
+should feel ("thirty minutes once in 26 weeks is not" and "Short Run's fallback" are gone); Even Keel's strap says
+"never less than 14h 35m between shifts" — 14h 35m is its SHORTEST gap, and "the longest rest" both misread as a maximum
+and ranked it against designs a sheet reader never sees; and the search-process paragraph left the shortlist for the
+choice guide above.
 
 ## Notes for the whole set
 
