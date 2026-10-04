@@ -741,6 +741,22 @@ should feel ("thirty minutes once in 26 weeks is not" and "Short Run's fallback"
 and ranked it against designs a sheet reader never sees; and the search-process paragraph left the shortlist for the
 choice guide above.
 
+**A screenshot polish of everything in the pack (4 Oct 2026, owner: "aesthetic polish everything in the links 26
+zip file using screenshots").** Four visual reviews read every page and slide (the three shortlisted sheets, the other
+seven, the 75 slides, and the shortlist, summary, rules and read-me) and the fixes went into the generators, never
+into a file by hand. The one finding that mattered beyond looks: **every proposal sheet was being printed 2–3 % too
+small, and by different amounts**, because Chromium shrinks the whole document to fit when any element is wider
+than the printable 711 px — the page-3 grid (`min-width: 62px` a day cell), the page-3 stat strip on four designs,
+and page 5's table were each over. At the true width pages 2, 3, 4 and 8 were over-full and have been re-fitted;
+the footer now sits at the identical height on all ten (`pdftotext -bbox`, pages 1 and 6). **After any sheet
+change, compare the footer position of two sheets** — a shrink is invisible on one sheet alone. The rest, in brief:
+every table slide of the decks is one component (one row height and pitch, one set of columns, the banner in one
+place), the week strip draws a run of weekends as one bar and carries a weekend across the row break with an arrow
+tip, the shortlist's page-2 table repeats a shared figure under each design instead of a merged cell in the gutter,
+the shortlist and rules pages are a fixed height so their footers do not float, the summary gained the family's
+running footer, the read-me is wrapped by code to 78 columns, and no table cell or list item ends on a lone word
+(the tidy pass in `plain.mjs`, `shortlist-sheet.mjs` and `rules-sheet.mjs`).
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so

@@ -173,6 +173,9 @@ export async function renderPdf(D, out) {
   // PLAIN: each mark and figure is for the FIXED duties (fixedView, report-data.mjs) and the worst cover-week placement,
   // where it differs, is the line beneath — "up to". The technical edition keeps the worst case and FF11's block reading.
   const fixedOf = (a, r) => a.fixed?.fatigue.results.find(x => x.code === r.code && x.title === r.title);
+  // FF18's value ("20-line rotation · typically 4h 00m a week") is the one that does not fit a nowrap cell: it breaks at its own
+  // pause, so the two bold cells no longer abut and the first no longer overruns its column header (4 Oct 2026)
+  const brk = s => s.replace(' · typically ', ' ·<br>typically ');
   const rowsFF = P.fatigue.results.filter(r => !naBoth(r)).map(r0 => { const t0 = tOf(r0);
     const r = PLAIN ? (fixedOf(P, r0) ?? r0) : r0, t = PLAIN && t0 ? (fixedOf(T, t0) ?? t0) : t0;
     const val = x => x ? (x.status === 'n/a' ? (FRESH ? '' : '–') : FRESH && /55 hours/i.test(x.title) && typeof x.value === 'number' ? x.value.toFixed(1) : (x.value ?? '')) : '';
@@ -185,7 +188,7 @@ export async function renderPdf(D, out) {
       const v = have ? asRos(a, code) : null; return v === null ? ''
       : `<span class="ff-alt ff-${rosStatus(v)}">${icon(rosStatus(v))} ${v} as rostered</span>`; };
     return `<tr class="ff-${r.status}"><td class="ff-code">${r.code}</td><td class="ff-title">${esc(r.title)}${r.confirm?' <span class="muted">(definition to confirm)</span>':''}${PLAIN && r.code === 'FF13' && r.status === 'present' && P.checks.turnarounds.length ? ' <span class="muted">— also breaks the 12-hour hard limit, page 6</span>' : ''}<span class="ff-fam chip">${esc(r.family)}</span></td>
-      <td class="ff-st ff-${t?.status}">${icon(t?.status)} ${esc(val(t))}${second(T, r.code, !!t)}</td><td class="ff-st ff-${r.status}">${icon(r.status)} ${esc(val(r))}${second(P, r.code, true)}</td></tr>`; }).join('');
+      <td class="ff-st ff-${t?.status}">${icon(t?.status)} ${brk(esc(val(t)))}${second(T, r.code, !!t)}</td><td class="ff-st ff-${r.status}">${icon(r.status)} ${brk(esc(val(r)))}${second(P, r.code, true)}</td></tr>`; }).join('');
   // Factors present under the block reading — the same count, less FF11 when only the ceiling fires.
   const presentRos = a => a.fatigue.present - ((asRos(a, 'FF11') !== null
     && (ff(a, 'FF11')?.status === 'present') && rosStatus(asRos(a, 'FF11')) === 'clear') ? 1 : 0);
@@ -413,9 +416,10 @@ export async function renderPdf(D, out) {
   let html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>Proposed CEA Link — December 2026</title>
 <link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/links.css">
 <style>
-@page { size: A4; margin: 11mm 11mm 13mm; }
+@page { size: A4; margin: 11mm; }   /* even all round: the bottom was 13mm and the footer rule sat 26mm up on a page whose content starts 11mm down */
 html, body { background: white !important; color: var(--text-dark); padding: 0 !important; margin: 0; font-family: var(--font-sans); font-size: 10.5px; line-height: 1.4; }
-.page { page-break-after: always; position: relative; min-height: 270mm; }
+/* 273mm of a 275mm printable height: 2mm of slack keeps a rounding error from spilling a ninth page, and no more (it was 270mm, the rest of the room empty above the footer) */
+.page { page-break-after: always; position: relative; min-height: 273mm; }
 .page:last-child { page-break-after: auto; }
 .mast { background: var(--primary-blue); color: white; padding: 18px 22px 16px; border-bottom: 4px solid var(--accent-gold); border-radius: var(--radius); display: flex; gap: 16px; align-items: center; }
 .mast img { width: 44px; height: 44px; border-radius: 10px; }
@@ -453,9 +457,13 @@ table.t td.num, table.t th.num { text-align: right; font-variant-numeric: tabula
 .tt { font-variant-numeric: tabular-nums; white-space: nowrap; }
 td.up { background: color-mix(in srgb, var(--success-green) 10%, white); } td.down { background: color-mix(in srgb, var(--warning-amber) 14%, white); }
 .delta { color: var(--text-mid); font-size: 9px; margin-left: 4px; } tr.gone td { color: var(--text-light); text-decoration: line-through; }
-.print-grid { min-width: 0; width: 100%; } .print-grid .shift-cell { height: 20px; }
+/* NOTHING WIDER THAN THE PAGE (4 Oct 2026). Chromium prints a document that overflows the page width shrunk to fit — the whole
+   document, by the overflow — so the app's 62px day cells (links.css) made a 727px grid on a 711px page and every sheet printed at
+   97.8%, while a 732px line on four sheets printed those at 97.1%: two sizes of type in one folder. 56px holds two five-character
+   times with room; the column's share of the table's width is unchanged because the table is still 100% wide. */
+.print-grid { min-width: 0; width: 100%; } .print-grid .shift-cell { height: 20px; min-width: 56px; }
 .print-grid .shift-cell-btn { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 8.5px; font-weight: 700; line-height: 1.15; border: 0; padding: 0 2px; }
-.print-grid .pos-num { font-size: 9px; font-weight: 700; color: var(--text-mid); width: 26px; }
+.print-grid .pos-num { font-size: 9px; font-weight: 700; color: var(--text-mid); width: 26px; } .print-grid .cov-foot-label { white-space: nowrap; }   /* "On duty" was the one label in the column that wrapped */
 .print-grid thead th { position: static; padding: 4px 3px; font-size: 9px; } .print-grid th.col-total { width: 56px; min-width: 56px; }
 .print-grid td.tot-cell { font-size: 9px; padding: 0 3px; } .cov-foot { font-weight: 800; color: var(--text-dark); } .cov-sub { display: block; font-weight: 500; font-size: 8px; color: var(--shift-spare-text); }
 .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; } .legend > span { white-space: nowrap; } .legend .muted { white-space: normal; flex-basis: 100%; }
@@ -487,7 +495,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
 .evid td:first-child { width: 34%; } .evid td:last-child { width: 22%; white-space: nowrap; } .evid td { font-size: 9.5px; } ul.cannot { margin: 2px 0 4px; padding-left: 16px; font-size: 9.6px; line-height: 1.38; } ul.cannot li { margin: 1px 0; } .frame h2 { margin-top: 11px; } .frame p { margin: 3px 0 6px; }
 .method-cols { column-count: 2; column-gap: 18px; } .method-cols p { margin-top: 0; } .paste { margin-top: 10px; } .paste p { margin: 0; }
 .print-grid th.col-turns { width: 40px; min-width: 40px; } .print-grid td.tot-one { font-weight: 800; color: var(--primary-blue); }
-.print-grid tr.min-row td { font-size: 8px; color: var(--text-mid); border-top: 1px solid var(--border-light); padding-top: 1px; } .print-grid tr.min-row .tot-avg { font-weight: 700; color: var(--text-dark); }
+.print-grid tr.min-row td { font-size: 8px; color: var(--text-dark); border-top: 1px solid var(--border-light); padding-top: 1px; }   /* text-mid on the sunken band was the faintest figure on the sheet */ .print-grid tr.min-row .tot-avg { font-weight: 700; color: var(--text-dark); }
 .print-grid td.cell-changed .shift-cell-btn { box-shadow: inset 0 0 0 2px var(--primary-blue); } .legend i.i-changed { background: white; box-shadow: inset 0 0 0 2px var(--primary-blue); }
 .tiles.head5 { grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 6px 0 8px; } .head5 .tile { padding: 7px 9px; } .head5 .tile .q { display: block; font-size: 8.2px; font-weight: 800; text-transform: uppercase; letter-spacing: .35px; color: var(--text-mid); line-height: 1.2; min-height: 20px; } .head5 .tile b { font-size: 19px; margin-top: 1px; } .head5 .tile .l { font-size: 9.2px; } .head5 .tile .s { font-size: 8.3px; line-height: 1.3; }
 .readhint { font-size: 9.5px; color: var(--text-mid); margin: 8px 0 0; line-height: 1.4; } .readhint b { color: var(--text-dark); }
@@ -557,7 +565,7 @@ ${readHtml}${frameHtml}
 <section class="page">
   <div class="mast"><div><div class="eyebrow">The rotation</div><h1>The ${LINES}-line link</h1><div class="sub">Sunday to Saturday per line; everyone moves down one line each week and line ${LINES} goes back to line 1. Hours and days at the right, cover beneath.</div></div></div>
   <div style="margin-top:10px">${gridHtml(P.patterns, LINES, P.totals, P.daily, { spare: COVER_WEEKS, avgEx: hmFromHours(P.hours.exSunday), avgAll: hmFromHours(P.hours.all), avgDays: P.totals.daysAverage.toFixed(2), changed: meta.changed ? new Set(meta.changed.cells) : null })}</div>
-  <div class="legend"><span><i style="background:color-mix(in srgb, var(--shift-early-fill) 16%, white)"></i>Early turns</span><span><i style="background:color-mix(in srgb, var(--shift-late-fill) 16%, white)"></i>Late turns</span><span><i class="lg-cover" style="background:color-mix(in srgb, var(--accent-gold) 22%, white)"></i>Cover (spare) week — four duties of seven, any turn</span><span><i style="background:var(--surface-sunken);border:1px solid var(--border-mid)"></i>Rest day</span>${meta.changed ? `<span><i class="i-changed"></i>Changed against <em>${esc(meta.changed.parent.name)}</em> (${esc(meta.changed.parent.code)}) — ${meta.changed.cells.length} cell${meta.changed.cells.length === 1 ? '' : 's'} on ${meta.changed.lines} line${meta.changed.lines === 1 ? '' : 's'}</span>` : ''}<span class="muted">Mon–Sat hours average ${hmFromHours(P.hours.exSunday)} over ${LINES} lines, a cover week counted as a contracted week · days worked average over the ${WORKING_LINES} working lines · Turns: distinct clock times Monday to Friday, <b>bold</b> where the week is one turn (one clock time Mon–Fri and one early-or-late family across every worked day — the page 1 figure) · Minutes: duty minutes per day, and Mon–Sat is the contract (${WORKING_LINES} × 35h = ${CONTRACT_MINUTES.toLocaleString('en-GB')})</span></div>
+  <div class="legend"><span><i style="background:color-mix(in srgb, var(--shift-early-fill) 16%, white)"></i>Early turns</span><span><i style="background:color-mix(in srgb, var(--shift-late-fill) 16%, white)"></i>Late turns</span><span><i class="lg-cover" style="background:color-mix(in srgb, var(--accent-gold) 22%, white)"></i>Cover (spare) week — four duties of seven, any turn</span><span><i style="background:var(--surface-sunken);border:1px solid var(--border-mid)"></i>Rest day</span>${meta.changed ? `<span><i class="i-changed"></i>Changed against <em>${esc(meta.changed.parent.name)}</em> (${esc(meta.changed.parent.code)}) — ${meta.changed.cells.length} cell${meta.changed.cells.length === 1 ? '' : 's'} on ${meta.changed.lines} line${meta.changed.lines === 1 ? '' : 's'}</span>` : ''}<span class="muted">Mon–Sat hours average ${hmFromHours(P.hours.exSunday)} over ${LINES} lines, a cover week counted as a contracted week · days worked average over the ${WORKING_LINES} working lines · All week: grey = no Sunday duty · Turns: distinct clock times Monday to Friday, <b>bold</b> where the week is one turn (one clock time Mon–Fri and one early-or-late family across every worked day — the page 1 figure) · Minutes: duty minutes per day, and Mon–Sat is the contract (${WORKING_LINES} × 35h = ${CONTRACT_MINUTES.toLocaleString('en-GB')})</span></div>
   <h2 style="margin-top:14px">The words on this page</h2>
   <div class="gloss">
     <div><b>Link</b> — the whole rota: ${LINES} weeks laid out as ${LINES} lines. Everyone works line 1, then line 2, and so on round the wheel; the link needs ${LINES} people.</div>
@@ -753,7 +761,7 @@ ${meta.page9 ?? `<section class="page">
       // Measured, in two steps, only as far as needed: first the word list is set tighter, then the grid's rows.
       for (const sec of document.querySelectorAll('section.page')) {
         const foot = sec.querySelector(':scope > .foot'); if (!foot || !sec.querySelector('.gloss')) continue;
-        const over = () => Math.max(...[...sec.children].filter(e => e !== foot).map(e => e.getBoundingClientRect().bottom)) - (foot.getBoundingClientRect().top - 6);
+        const over = () => Math.max(...[...sec.children].filter(e => e !== foot).map(e => e.getBoundingClientRect().bottom)) - (foot.getBoundingClientRect().top - 16);
         for (const step of ['rota-tight', 'rota-tighter']) { if (over() <= 0) break; sec.classList.add(step); }
       }
       // PAGE 6 TAKES ITS ROOM. The rules page left its bottom sixth empty on every sheet; what is spare (less a margin)
@@ -761,7 +769,7 @@ ${meta.page9 ?? `<section class="page">
       for (const sec of document.querySelectorAll('section.page')) {
         const foot = sec.querySelector(':scope > .foot'), rows = [...sec.querySelectorAll('table.t.rules tbody tr')]; if (!foot || !rows.length) continue;
         const bottom = Math.max(...[...sec.children].filter(e => e !== foot).map(e => e.getBoundingClientRect().bottom));
-        const extra = Math.min(4, (foot.getBoundingClientRect().top - bottom - 28) / rows.length); if (extra < 1) continue;
+        const extra = Math.min(3, (foot.getBoundingClientRect().top - bottom - 28) / rows.length); if (extra < 1) continue;
         for (const tr of rows) for (const td of tr.children) { const cs = getComputedStyle(td);
           td.style.paddingTop = `${parseFloat(cs.paddingTop) + extra / 2}px`; td.style.paddingBottom = `${parseFloat(cs.paddingBottom) + extra / 2}px`; }
       }
