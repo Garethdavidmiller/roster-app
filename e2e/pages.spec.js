@@ -5302,9 +5302,6 @@ const KNOWN_SMALL = {
     '/admin.html': {
         'input.day-cb[]': '22x22 — the per-day tick in the week grid; its 44px cell is not a target (no label). App-drawn since v23.50, same size',
     },
-    '/paycalc.html': {
-        'button#disclaimerToggle.disclaimer-toggle[More ▼]': '46x16 — may be a genuine inline-in-a-sentence exemption',
-    },
     '/operations.html': {
         'button.auth-gap-retry[Retry]': '34x18 — the retry on a failed account-status read',
     },
