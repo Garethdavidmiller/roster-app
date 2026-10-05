@@ -2239,7 +2239,10 @@ test('admin: a save that is waiting for the server says so, and the notice clear
 
     const notice = page.locator('#slowSaveNotice');
     await expect(notice).toBeVisible({ timeout: 5000 });
-    await expect(notice).toContainText('Waiting for signal');
+    // ONLINE, so the signal is not named (v24.54): an iPhone with full bars was told "Waiting for
+    // signal" on every save. The offline wording is the next test.
+    await expect(notice).toContainText('Still sending');
+    await expect(notice).not.toContainText(/signal/i);
     await expect(notice).toContainText('held on this device');
     await expect(notice, 'a held write can still be refused — it must never be called saved').not.toContainText(/saved/i);
     await expect(notice).toHaveAttribute('role', 'status');
@@ -2255,6 +2258,43 @@ test('admin: a save that is waiting for the server says so, and the notice clear
     await expect(notice).toBeHidden({ timeout: 5000 });
     await expect(page.locator('#formFeedback')).toContainText('changes saved for', { timeout: 10000 });
     await expect(page.locator('#stagedDiscardBtn'), 'the sticky bar must come back once the save lands').toBeEnabled();
+    // …and it LEFT A RECORD (v24.54): a save slower than the threshold while the browser said it was
+    // online is written to the admin's Error Log, so a phone whose every save is slow says so.
+    await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
+        .filter((/** @type {any} */ w) => /^Slow save \(diagnostic\)/.test(w.data?.message ?? ''))
+        .map((/** @type {any} */ w) => w.data.message)), { timeout: 5000 })
+        .toEqual([expect.stringMatching(/took \d+\.\ds to confirm a save while the phone said it was online/)]);
+});
+
+test('admin: a slow save says "Waiting for signal" only when the browser reports being offline (v24.54)', async ({ page, context }) => {
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true, slowSaveMs: 300 };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2027-01-11';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Jan 2027');
+    await page.locator('#bulkSelMonFri').click();
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await page.locator('#bulkApplyBtn').click();
+    await context.setOffline(true);
+    await page.locator('#saveBtn').click();
+    const notice = page.locator('#slowSaveNotice');
+    await expect(notice).toBeVisible({ timeout: 5000 });
+    await expect(notice).toContainText('Waiting for signal');
+    await context.setOffline(false);
+    // A save that was slow because the phone was OFFLINE is the expected case — it is not recorded.
+    await page.evaluate(() => /** @type {any} */ (window).__E2E.releaseCommits());
+    await expect(notice).toBeHidden({ timeout: 5000 });
+    await expect(page.locator('#formFeedback')).toContainText('changes saved for', { timeout: 10000 });
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
+        .filter((/** @type {any} */ w) => /^Slow save/.test(w.data?.message ?? '')).length),
+        'an offline-when-slow save must not be logged as a diagnostic').toBe(0);
 });
 
 // ── A SAVE WHOSE ACCOUNT IS REVOKED ENDS, AND SAYS WHERE TO SIGN IN (v24.36 / v24.37) ─────────────
