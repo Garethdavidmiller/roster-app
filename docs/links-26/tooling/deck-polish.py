@@ -115,9 +115,11 @@ def strip_slide(d, name, grid, F):
     s = Slide(p)
     put(s, 'Earlies, lates and Sundays', 'Your 26 weeks at a glance')
     put(s, 'The balance you have now stays much the same', 'The green bars are the full weekends off; where you start is decided later')
-    put(s, 'Much the same balance. Sundays stay overtime and still finish at 23:25.', f'{F["weekendsYear"]} full weekends off a year, never more than five weeks apart; the longest run of one kind is {n} weeks of {famword}{", and every switch from one kind to the other crosses a cover week" if facts["switches_across_cover"] else ""}.')
+    put(s, 'Much the same balance. Sundays stay overtime and still finish at 23:25.', f'{F["weekendsYear"]} full weekends off a year, at most five weeks apart; blocks of earlies or lates up to {F["block"]} weeks, {F["blockUpTo"]} if the cover weeks go the same way{", and every switch from one kind to the other crosses a cover week" if facts["switches_across_cover"] else ""}.')
     s.save()
+    notes_after_10 = f'A block is weeks in a row all on earlies or all on lates. On the fixed rota the longest is {F["block"]} weeks (today {T["block"]}); because a cover week’s duties are placed later, a block can run to {F["blockUpTo"]} if the cover weeks beside it are given the same kind (today {T["blockUpTo"]}). Fewer switches between earlies and lates, but someone who prefers one kind waits longer for it to come round.'
     snd.notes(d, 10, 'Earlies here means', f'Read the strip left to right; week 27 is week 1 again. A cover week has no fixed shifts of its own — its four duties are placed later to cover leave and sickness, which is why it is drawn empty. Earlies here means a start before 11:00. A weekday has 7 earlies and 8 lates; a Saturday 7 and 7; a Sunday 5 and 5. Sundays stay overtime, {F["sun"]} a year each (today {T["sun"]}), and still finish at 23:25. Who starts on which week is decided after the link is chosen.')
+    notes_append(d, 10, notes_after_10)
 
 def colleagues(d, name, grid, F):
     S = lambda n: Slide(f'{d}/ppt/slides/slide{n}.xml')

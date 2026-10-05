@@ -12,6 +12,7 @@ import { personal } from './plain.mjs';
 import { leave } from './leave.mjs';
 import { scoreOrder } from '../../../links-adjacency.js';
 import { SHORTLIST } from './fresh.mjs';
+import { kindBlocks, blockText } from './blocks.mjs';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
 const OUT = new URL('../links-26-shortlist.pdf', import.meta.url).pathname;
@@ -32,7 +33,7 @@ function figures(p, L, TA) {
     heavy: Math.max(...wk), light: Math.min(...wk), maxGap: Math.max(...gaps), gaps,
     step: scoreOrder(p, keys, { maxRunTarget: 6 }).gentleMean, times: A.feel.distinctTimes, shared,
     newT: A.feel.distinctTimes - shared, fixedRun: A.fixed.run, worstRun: A.checks.longestStretch,
-    fit: [A.office.wkFit, A.office.fits.sat, A.office.fits.sun] };
+    fit: [A.office.wkFit, A.office.fits.sat, A.office.fits.sun], block: kindBlocks(p) };
 }
 const T0 = today(), TA = assess(T0.patterns, 20), TF = figures(T0.patterns, 20, null);
 const stats = folderStats();
@@ -50,6 +51,8 @@ const ROWS = [
   ['Shortest rest between shifts', F => F.A.rest.minutes, 1, hm],
   ['Weeks on one turn (one shift time Mon–Fri, no mixing)', F => F.A.feel.oneTurn, 1, (v, F) => `${v} of ${F.A.feel.workingLines}`],
   ['Weeks mixing earlies and lates', F => F.A.feel.hybrid, -1, v => `${v}`],
+  // ranked on the worst case: the fixed-rota block is the same on all three, the cover weeks are what separate them
+  ['Longest block of earlies or lates (up to: with cover weeks)', F => F.block.worst, -1, (v, F) => blockText(F.block)],
   ['Week-to-week change of start time', F => F.step, -1, hm],
   ['Finishing at 23:00 or later, each a year', F => Math.round(F.pp.late23), -1, v => `${v}`],
   ['Shift times to learn that are new', F => F.newT, -1, (v, F) => `${v} of ${F.times}`],
@@ -136,17 +139,17 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.8px; line-height:
   <div class="cards">
     <div class="card"><b class="k">Second Edition</b><span class="code">${SE.code} · ${SE.fp}</span><b>The steadiest.</b> One shift time Monday to Friday in ${SE.F.A.feel.oneTurn} of ${SE.F.A.feel.workingLines} weeks and the gentlest week-to-week change of the three, ${hm(SE.F.step)}. Its cost is the one the other two have shed: ${SE.F.fixedRun} days in a row on the fixed rota.</div>
     <div class="card"><b class="k">Short Run</b><span class="code">${SR.code} · ${SR.fp}</span><b>The shortest stretches.</b> Second Edition’s duty table on a different layout of rest days — the same times, the same ${SR.F.A.feel.oneTurn} weeks on one turn — with no run over ${SR.F.fixedRun} days on the fixed rota. The price is one week at ${hm(SR.F.heavy)} (Second Edition ${hm(SE.F.heavy)}) and a slightly rougher step.</div>
-    <div class="card"><b class="k">Even Keel</b><span class="code">${EK.code} · ${EK.fp}</span><b>The lightest heaviest week, and the most rest between shifts.</b> A different duty table: no week over ${hm(EK.F.heavy)}, never less than ${hm(EK.F.A.rest.minutes)} between shifts (the others ${hm(SE.F.A.rest.minutes)}), no run over ${EK.F.fixedRun}. It pays with ${Math.round(EK.F.pp.late23)} late finishes a year (the others ${Math.round(SE.F.pp.late23)}), ${EK.F.newT} new times and ${EK.F.A.feel.hybrid} mixed week.</div>
+    <div class="card"><b class="k">Even Keel</b><span class="code">${EK.code} · ${EK.fp}</span><b>The lightest heaviest week, and the most rest between shifts.</b> A different duty table: no week over ${hm(EK.F.heavy)}, never less than ${hm(EK.F.A.rest.minutes)} between shifts (the others ${hm(SE.F.A.rest.minutes)}). It pays with ${Math.round(EK.F.pp.late23)} late finishes a year (the others ${Math.round(SE.F.pp.late23)}), ${EK.F.newT} new times, ${EK.F.A.feel.hybrid} mixed week, and a block of ${EK.F.block.worstKind === 'L' ? 'lates' : 'earlies'} up to ${EK.F.block.worst} weeks with its cover weeks.</div>
   </div>
   <h2>Which one, by what matters most</h2>
   <table class="t guide"><thead><tr><th>If the main priority is</th><th>Choose</th></tr></thead><tbody>
     <tr><td>Five-day runs on the fixed rota, and no week mixing earlies and lates</td><td><b>Short Run</b></td></tr>
     <tr><td>The lightest heaviest week, and the most rest between shifts</td><td><b>Even Keel</b></td></tr>
     <tr><td>The steadiest start times from week to week</td><td><b>Second Edition</b></td></tr>
-    <tr><td>Four weeks off for 14 days’ leave, as today</td><td><b>Long Break</b><br><span class="muted" style="font-size:9.2px">in the pack, outside the shortlist</span></td></tr>
+    <tr><td>Four weeks off for 14 days’ leave, as today</td><td><b>Long Break</b> <span class="muted">· outside the shortlist</span></td></tr>
   </tbody></table>
-  <p class="muted">Every figure here, on the sheets and in the presentations is computed from the rotas by the same code, and has been recomputed independently from the grids. How each design was found is in the technical notes in the pack.</p>
-  <div class="foot"><span>Page 1 of 2 — What they share, where they differ, each one’s edge, which to choose</span><span><b>The shortlist</b> · ${D.map(d => `${esc(d.name)} ${d.code}`).join(' · ')} · 4 Oct 2026</span></div>
+  <p class="muted">Every figure is computed from the rotas and checked independently; how each design was found is in the technical notes.</p>
+  <div class="foot"><span>Page 1 of 2 — What they share, where they differ, each one’s edge, which to choose</span><span><b>The shortlist</b> · ${D.map(d => `${esc(d.name)} ${d.code}`).join(' · ')} · 5 Oct 2026</span></div>
 </section>
 
 <section class="page">
@@ -175,7 +178,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.8px; line-height:
     <li><b>Choose Even Keel</b> if the heaviest week and the shortest rest matter more than two late finishes a year and a seventh new time; the two late finishes buy a fourth person to the Saturday close. It is the only one on a different duty table — a genuine alternative, not a variant.</li>
     <li><b>Choose Second Edition</b> if steady shift times week to week carry the day: the gentlest change of the three and a lighter heaviest week than Short Run, at the price of the six-day stretch.</li>
   </ul>
-  <div class="foot"><span>Page 2 of 2 — Against today, the shared costs, the recommendation</span><span><b>The shortlist</b> · ${D.map(d => `${esc(d.name)} ${d.code}`).join(' · ')} · 4 Oct 2026</span></div>
+  <div class="foot"><span>Page 2 of 2 — Against today, the shared costs, the recommendation</span><span><b>The shortlist</b> · ${D.map(d => `${esc(d.name)} ${d.code}`).join(' · ')} · 5 Oct 2026</span></div>
 </section>
 </body></html>`;
 // a label never ends on a lone word: the last space of a plain-text cell becomes a no-break space
@@ -183,5 +186,15 @@ const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace
 const htmlOut = new URL('links-26-shortlist.html', import.meta.url).pathname; const htmlTidy = tidy(html); writeFileSync(htmlOut, htmlTidy);   // beside the tooling, gitignored
 const b = await chromium.launch(); const pg = await b.newPage();
 await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
+// THE PAGE IS A FIXED HEIGHT, so content that does not fit is HIDDEN, not pushed onto another page — a row added on
+// 5 Oct 2026 silently hid the choice guide's last row and the closing paragraph. Refuse to print a page that overflows.
+// Measured at the PRINT width (A4 less the 11 mm side margins, 711 px) under print media: at screen width the text
+// wraps less and an over-full page looks fine, which is how the first version of this guard passed a broken page.
+{ await pg.emulateMedia({ media: 'print' }); await pg.setViewportSize({ width: 711, height: 1100 });
+  const over = await pg.evaluate(() => [...document.querySelectorAll('.page')].map((p, i) => { const foot = p.querySelector('.foot');
+    const lim = foot ? foot.getBoundingClientRect().top : p.getBoundingClientRect().bottom;
+    const low = Math.max(...[...p.children].filter(c => c !== foot).map(c => c.getBoundingClientRect().bottom));
+    return [i + 1, Math.round(Math.max(low - lim, p.scrollHeight - p.clientHeight))]; }).filter(([, d]) => d > 1));
+  if (over.length) throw new Error(`content runs into the footer or off the page (page, px): ${JSON.stringify(over)}`); }
 await pg.pdf({ path: OUT, format: 'A4', printBackground: true, preferCSSPageSize: true });
 await b.close(); console.log('wrote', OUT);
