@@ -395,3 +395,35 @@ describe('4 · the screen says something untrue', () => {
         assert.equal(_reads.length, 2);
     });
 });
+
+// ── 5 · a delete takes the copies it hides, and nothing it does not ────────────────────────────────
+// The REAL `withManualDuplicates` — admin-saved-changes.test.mjs mocks this module, so until v24.53
+// nothing exercised it through a seeded cache. The defect it pins: deleting the STALE copy of a day
+// with two manual records also deleted the one on screen, under a receipt that called it "older".
+describe('5 · withManualDuplicates widens a delete only to what it outranks', () => {
+    const at = (/** @type {number} */ ms) => ({ toMillis: () => ms });
+    const manual = (/** @type {string} */ id, /** @type {number} */ ms) => ({ ...row(id, 'G. Miller', '2026-06-16'), createdAt: at(ms) });
+    const seed = async (/** @type {any[]} */ rows) => { const { store } = await freshStore(); store.setAllOverrides(rows); return store; };
+
+    test('deleting the copy ON SCREEN takes the older one with it, or the older one resurfaces', async () => {
+        const store = await seed([manual('old', 1000), manual('new', 2000)]);
+        assert.deepEqual([...store.withManualDuplicates(['new'])].sort(), ['new', 'old']);
+    });
+
+    test('deleting the STALE copy leaves the one on screen alone', async () => {
+        const store = await seed([manual('old', 1000), manual('new', 2000)]);
+        assert.deepEqual([...store.withManualDuplicates(['old'])], ['old'],
+            'the newer record is what the day shows — deleting the leftover must not take it');
+    });
+
+    test('never another member, another date, or a roster import', async () => {
+        const store = await seed([
+            manual('mine', 2000),
+            { ...row('other-member', 'S. Silva', '2026-06-16'), createdAt: at(1000) },
+            { ...row('other-date', 'G. Miller', '2026-06-17'), createdAt: at(1000) },
+            { ...row('import', 'G. Miller', '2026-06-16'), source: 'roster_import', createdAt: at(1000) },
+        ]);
+        assert.deepEqual([...store.withManualDuplicates(['mine'])], ['mine']);
+        assert.deepEqual([...store.withManualDuplicates(['import'])], ['import'], 'an import is deleted alone');
+    });
+});
