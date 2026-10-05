@@ -493,7 +493,7 @@ export function renderWeekGrid() {
         // lives HERE as well as in Saved Changes, because this is the card they are looking at.
         if (weekGrid) {
             if (loadFailedFor(memberName)) {
-                weekGrid.innerHTML = '<div class="week-empty" role="alert">' + (navigator.onLine === false
+                weekGrid.innerHTML = '<div class="week-empty" role="alert">' + (globalThis.navigator?.onLine === false
                     ? 'You\'re offline — this member\'s saved changes can\'t be checked until you reconnect.'
                     : 'Couldn\'t load this member\'s saved changes.')
                     + '<br><span class="reload-link" id="retryWeekLink" role="button" tabindex="0">↻ Retry</span></div>';
