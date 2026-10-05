@@ -91,8 +91,10 @@ export function warnOnUnload(isDirty) {
 export function askBeforeSignOut(isDirty) {
     return async () => {
         if (writesInFlight() > 0) {
+            // Both facts when both are true (v24.57, review) — one question must not hide the other.
+            const alsoDirty = isDirty() ? ' You also have unsaved changes.' : '';
             return confirmDialog({
-                message: 'A change is still being sent. If you sign out now it may not be saved. Sign out anyway?',
+                message: `A change may still be on its way to the server — if you sign out now it may not be saved.${alsoDirty} Sign out anyway?`,
                 confirmLabel: 'Sign out', danger: true,
             });
         }

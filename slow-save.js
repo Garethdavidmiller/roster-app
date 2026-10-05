@@ -82,7 +82,7 @@ export function slowSaveText(batched) {
 }
 
 /**
- * The event a SLOW save announces twice: `{ phase: 'slow' }` the moment it passes SLOW_SAVE_MS
+ * The event a SLOW save announces twice, both carrying the save's `id`: `{ phase: 'slow' }` the moment it passes SLOW_SAVE_MS
  * (v24.55), and `{ phase: 'done', ms, onlineWhenSlow, batched, ok }` when it settles (v24.54). A
  * diagnostic, not a feature — error-reporter.js listens and records the case that cannot be explained
  * by signal (the browser said online), because an iPhone whose every save took longer than
@@ -136,6 +136,8 @@ function _noticeEl() {
 
 /** Writes handed to withSlowSaveNotice and not yet settled, slow or not. */
 let _inFlight = 0;
+/** A number per save, so a listener can pair the two announcements of one save. */
+let _saveSeq = 0;
 
 /**
  * How many app writes are waiting on the server right now. A page that reloads itself (a service
@@ -200,6 +202,7 @@ export function withSlowSaveNotice(promise, { batched = false } = {}) {
     const seam = /** @type {any} */ (globalThis).__E2E?.slowSaveMs;
     const ms = typeof seam === 'number' && seam > 0 ? seam : SLOW_SAVE_MS;
     const started = Date.now();
+    const id = ++_saveSeq;   // pairs this save's 'slow' with its 'done' when two overlap (v24.57)
     let onlineWhenSlow = true;
     /** @type {boolean} */ let ok = true;
     promise.then(() => { ok = true; }, () => { ok = false; });
@@ -210,13 +213,13 @@ export function withSlowSaveNotice(promise, { batched = false } = {}) {
             _show(batched);
             // The moment it BECOMES slow (v24.55), so a listener can measure what is slow while it
             // still is — error-reporter.js times a sign-in token here, to tell auth from transport.
-            try { globalThis.dispatchEvent?.(new CustomEvent(SLOW_SAVE_EVENT, { detail: { phase: 'slow', batched } })); } catch { /* diagnostic only */ }
+            try { globalThis.dispatchEvent?.(new CustomEvent(SLOW_SAVE_EVENT, { detail: { phase: 'slow', id, batched } })); } catch { /* diagnostic only */ }
         },
         onDone: () => {
             _hide(batched);
             try {
                 globalThis.dispatchEvent?.(new CustomEvent(SLOW_SAVE_EVENT, {
-                    detail: { phase: 'done', ms: Date.now() - started, onlineWhenSlow, batched, ok },
+                    detail: { phase: 'done', id, ms: Date.now() - started, onlineWhenSlow, batched, ok },
                 }));
             } catch { /* a diagnostic must never disturb the save it describes */ }
         },

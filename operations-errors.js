@@ -12,6 +12,7 @@ import { withClaimRetry, getClientErrors, resolveClientError } from './firebase-
 import { _cardLoadError, _relativeTime } from './operations-reports.js';
 
 import { setStatus } from './status-text.js';
+import { isDiagnosticEntry } from './client-errors.js';
 /**
  * @param {{onAttention?: (count: number, extra: {truncated: boolean}) => void}} [opts]
  *   `onAttention` feeds the Needs-attention strip — called at the SAME moments the header count
@@ -71,9 +72,11 @@ async function initErrorLog(opts = {}) {
         // _syncResolveAllBtn below), so it never goes stale.
         const _countChip = document.getElementById('errorLogCountChip');
         const _setCountChip = () => {
-            if (_countChip) _countChip.textContent = unresolvedShown.length
-                ? (truncated ? '100+' : String(unresolvedShown.length)) : '';
-            onAttention?.(unresolvedShown.length, { truncated });
+            // Diagnostics are listed and resolvable, but never COUNTED as errors (v24.57).
+            const n = unresolvedShown.filter(e => !isDiagnosticEntry(e)).length;
+            if (_countChip) _countChip.textContent = n
+                ? (truncated ? '100+' : String(n)) : '';
+            onAttention?.(n, { truncated });
         };
         _setCountChip();
         /** Keep the resolve-all button's count in step as individual resolves prune the

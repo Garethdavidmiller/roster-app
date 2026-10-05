@@ -114,7 +114,10 @@ describe('signing out', () => {
         inFlight = 1;
         confirmAnswer = false;
         assert.equal(await ps.askBeforeSignOut(() => false)(), false, 'a Cancel keeps the session so the save can land');
-        assert.match(lastConfirm, /still being sent/);
+        assert.match(lastConfirm, /still be on its way/);
+        assert.doesNotMatch(lastConfirm, /unsaved/);
+        await ps.askBeforeSignOut(() => true)();
+        assert.match(lastConfirm, /unsaved changes/, 'with both, the one question names both');
     });
 
     test('the browser\'s "Leave site?" asks only while there is unsaved work', () => {

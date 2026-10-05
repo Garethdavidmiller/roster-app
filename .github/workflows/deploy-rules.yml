@@ -47,10 +47,16 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
+      # THE GATES RUN ON 22 — the Node the branch tests use (Oct 2026). They ran on 20 here, and a
+      # test that passed on every PR failed only in this workflow: Node 22 has a `navigator` global
+      # and 20 does not, and because this workflow fires only when the rules change, the mismatch
+      # sat unseen from v24.48 until the v24.56 rules deploy failed twice on it. Only firebase-tools
+      # needs 20 (its WIF auth), so the job steps back just before it, exactly as deploy-hosting.yml
+      # and deploy-functions.yml do.
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
           # Cache npm's download store (keyed on the lockfile, so a dependency change still
           # invalidates it). This caches ~/.npm, NOT node_modules — `npm ci` still unpacks and
           # links every package, so it removes fetch time and not install time. Measured 4 Sep
@@ -84,6 +90,14 @@ jobs:
       # (cached in ~/.cache/firebase/emulators between runs).
       - name: Run Firestore and Storage rules tests
         run: npm run test:rules
+
+      # ── BACK TO NODE 20 FOR THE DEPLOY TOOL ─────────────────────────────────────────────────
+      # Everything from here on is firebase-tools, pinned to 20 for its WIF auth (see
+      # deploy-functions.yml, where the failure is recorded).
+      - name: Switch back to the deploy-tool Node version
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '20'
 
       # Authenticate to Google Cloud via Workload Identity Federation — no long-lived key.
       # GitHub's per-run OIDC token is exchanged for short-lived credentials for the

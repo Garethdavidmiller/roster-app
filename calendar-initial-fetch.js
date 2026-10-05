@@ -290,6 +290,10 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // force a needless re-query. Using syncResolved here would have wrongly bailed on the ordinary
       // offline path (original failed → retry failed) and stranded the chip on "Retrying…" (v16.19).
       if (_retryGen !== _fetchGen || _dataLoaded) return;
+      // Issued under an EARLIER grant (v24.57, review): it says nothing about the current one, and
+      // must not release the new grant's month claims, mark its months failed, or leave a retry chip
+      // on a calendar that is working. The grant's own reads own those months now.
+      if (_grant !== accessGeneration()) { setChipState(null); if (syncChip) { syncChip.remove(); syncChip = null; } return; }
       // Mirror the initial fetch's failure path: release the re-claimed months so a later
       // render/navigation can re-fetch them — otherwise a failed retry re-strands all three
       // for the session (the chip is a recovery path only while the calendar header exists).
@@ -297,7 +301,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // Access gone, not network. Hand it to the access layer and take the chip away: leaving a
       // "tap to retry" beside the unlock card would offer two competing recoveries, only one of
       // which can work.
-      if (onAccessLost && isAccessFailure(err) && _grant === accessGeneration()) {
+      if (onAccessLost && isAccessFailure(err)) {
         setChipState(null);
         if (syncChip) { syncChip.remove(); syncChip = null; }
         onAccessLost();
@@ -388,6 +392,8 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // in-flight — if so, the UI is already in a good state; don't clobber it.
       if (_origGen !== _fetchGen) return;
       syncResolved = true;
+      // From an earlier grant — stand down entirely, as the retry path above does (v24.57).
+      if (_grant !== accessGeneration()) { setChipState(null); if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; } return; }
       // NOT "base roster will be used" any more (v20.40) — a device with no cache now withholds the
       // grid instead. `noteKnowledge` is monotonic, so on a device phase 1 DID paint this is a no-op
       // and the cached grid stays up behind the retry chip, which is the right answer there.
@@ -399,7 +405,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // is absent in team-view and first-run, leaving those states with NO recovery path at all.
       _initialMonthKeys.forEach(clearFetchedMonth);
       // Access gone, not network — see the retry path above for why these must not share a state.
-      if (onAccessLost && isAccessFailure(err) && _grant === accessGeneration()) {
+      if (onAccessLost && isAccessFailure(err)) {
         setChipState(null);
         if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }
         onAccessLost();

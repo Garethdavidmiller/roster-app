@@ -624,6 +624,8 @@ describe('resetMemberPassword does the whole job when it does proceed', () => {
         assert.equal(write.patch.displayName, MEMBER);
         assert.deepEqual(write.patch.providersToUnlink, ['google.com'], 'the outsider\'s other way in goes');
         assert.ok(authOps.some((o) => o.op === 'revokeRefreshTokens'), 'and their sessions end even with revoke:false');
+        assert.equal(out.body.takenBack, true, 'reported, so Operations can say Set up accounts is next');
+        assert.equal(out.body.notified, false, 'and the outsider\'s devices are not sent the reset notice');
     });
 
     test('revoke:false leaves working sessions alone', async () => {

@@ -110,6 +110,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
         if (!open && _viewing) {
             _openSeq++;
             showMessage(lockedText(DOCS[_viewing]), 'doc-viewer-empty');
+            _pendingKey = _viewing;   // …and the PIN it asks for finishes the open, as for a locked tap
             _viewing = null;
             return;
         }

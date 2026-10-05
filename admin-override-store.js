@@ -203,11 +203,15 @@ export function idsReplacedBy(memberName, date, winnerId) {
  * @param {Iterable<string>} ids @returns {Set<string>}
  */
 export function withManualDuplicates(ids) {
+    /** `r` beats `o` STRICTLY. On an exact tie `shouldReplaceOverride` says yes both ways, and a
+     *  delete of either copy took both (v24.57, review) — so a tie goes to the larger id, one way. */
+    const _outranks = (/** @type {any} */ r, /** @type {any} */ o) =>
+        shouldReplaceOverride(o, r) && (!shouldReplaceOverride(r, o) || String(r.id) > String(o.id));
     const out = new Set(ids);
     for (const id of [...out]) {
         const r = _allOverrides.find(o => o.id === id);
         if (!r || (r.source || '') === 'roster_import') continue;
-        _allOverrides.filter(o => o.id !== r.id && _isManualOn(o, r.memberName, r.date) && shouldReplaceOverride(o, r))
+        _allOverrides.filter(o => o.id !== r.id && _isManualOn(o, r.memberName, r.date) && _outranks(r, o))
             .forEach(o => out.add(o.id));
     }
     return out;

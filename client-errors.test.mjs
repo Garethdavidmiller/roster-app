@@ -11,6 +11,7 @@ import {
     expiredResolvedIds,
     orderClientErrors,
     capUnresolvedErrors,
+    isDiagnosticEntry,
 } from './client-errors.js';
 
 const NOW = 1_700_000_000_000;
@@ -104,5 +105,14 @@ describe('capUnresolvedErrors (over-fetch → shown + truncated)', () => {
         const { shown, truncated } = capUnresolvedErrors([], 100);
         assert.deepEqual(shown, []);
         assert.equal(truncated, false);
+    });
+});
+
+describe('isDiagnosticEntry — a slow-save diagnostic is listed, not COUNTED as an error (v24.57)', () => {
+    test('the diagnostic prefix is recognised; ordinary errors are not', () => {
+        assert.equal(isDiagnosticEntry({ message: 'Slow save (diagnostic): the save took 9.2s to be confirmed' }), true);
+        assert.equal(isDiagnosticEntry({ message: 'TypeError: x is undefined' }), false);
+        assert.equal(isDiagnosticEntry({ message: 'note: Slow save (diagnostic) quoted mid-message' }), false);
+        assert.equal(isDiagnosticEntry({}), false);
     });
 });

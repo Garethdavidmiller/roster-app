@@ -163,6 +163,22 @@ export function orderClientErrors(unresolved, resolved, now, { retentionMs = CLI
     return [...u, ...r];
 }
 
+/** The prefix every slow-save DIAGNOSTIC entry starts with (error-reporter.js, v24.55). */
+export const DIAGNOSTIC_PREFIX = 'Slow save (diagnostic)';
+
+/**
+ * Whether an Error Log entry is a DIAGNOSTIC rather than an error (v24.57, review). They share the
+ * collection because the rules allow a client one write-only log, but they are not problems: an
+ * iPhone saving all shift left three per page load, and counted as "unresolved errors" they buried
+ * real ones under the count chip, the Needs-attention strip and the 100-row cap. They stay listed
+ * and resolvable; they are not COUNTED.
+ * @param {{ message?: string }} e
+ * @returns {boolean}
+ */
+export function isDiagnosticEntry(e) {
+    return typeof e?.message === 'string' && e.message.startsWith(DIAGNOSTIC_PREFIX);
+}
+
 /**
  * Split the over-fetched unresolved rows into the shown set + a truncation flag (extracted from
  * getClientErrors, v18.28, so the no-silent-caps logic is unit-tested). getClientErrors deliberately

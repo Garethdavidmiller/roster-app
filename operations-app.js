@@ -572,8 +572,11 @@ export function init() {
             // running (the migration nudge): nobody is stranded, so there is nothing to act on.
             // `notified` is what HAPPENED, so a member with no push subscription lands here — which
             // is the point, since that is exactly who needs telling another way.
-            const _uninformed   = !!(result && result.notified === false && result.revoked === true);
-            if (_revokeFailed || _notStamped || _uninformed) {
+            // v24.57: an account registered from OUTSIDE the app was taken back rather than reset.
+            // It holds no claim yet, so the member cannot use it until Set up accounts runs.
+            const _takenBack    = result && result.takenBack === true;
+            const _uninformed   = !_takenBack && !!(result && result.notified === false && result.revoked === true);
+            if (_revokeFailed || _notStamped || _uninformed || _takenBack) {
                 console.warn('[Operations] resetMemberPassword partial for', name,
                              { revoked: result?.revoked, stamped: result?.stamped, notified: result?.notified });
                 const parts = [`${name}'s password WAS reset to their surname.`];
@@ -586,6 +589,9 @@ export function init() {
                 if (_notStamped) {
                     parts.push('The account-status stamp couldn\'t be saved, so the table below may still show "Own password".');
                 }
+                if (_takenBack) {
+                    parts.push(`This account had been registered outside the app, so it was taken back: anyone signed in on it was signed out. Run Set up accounts next — until then ${name} cannot use the app on it. Then let them know their password is their surname.`);
+                }
                 if (_uninformed) {
                     parts.push(`${name} has no notifications on this app, so they have NOT been told. Let them know their password is now their surname and they are signed out.`);
                 }
@@ -594,6 +600,7 @@ export function init() {
                     // Precedence, most actionable first: a live session somewhere is a security
                     // state, a missing stamp is a wrong table, and an untold member is an errand.
                     title: _revokeFailed ? 'Password reset — other devices not signed out'
+                         : _takenBack    ? 'Account taken back — run Set up accounts'
                          : _notStamped   ? 'Password reset — status not updated'
                          :                 'Password reset — tell them yourself',
                     message: parts.join('\n\n'),

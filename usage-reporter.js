@@ -14,7 +14,7 @@
  *
  * Call once per page from the coordinator, at the same point initErrorReporter() is
  * called (after the Firebase Auth session is being established) so the writes satisfy
- * the `request.auth != null` rule.
+ * the analytics rule, which needs a member, the admin or the PIN viewer (`isKnownIdentity`, v24.56).
  *
  * ── ONE IDENTITY ARGUMENT, AND ANONYMOUS VISITS COUNT (v19.95) ─────────────────────
  *

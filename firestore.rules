@@ -28,7 +28,7 @@ rules_version = '2';
 //                                              viewer can post an error and never read one.
 //   analytics           WRITE only             deliberate: usage from shared PCs is real usage. The
 //                                              writes are counters, carry no identity, and read is
-//                                              admin-only. Same posture anonymous sessions had.
+//                                              admin-only. (Anonymous sessions lost it at v24.56.)
 //   pushSubscriptions   nothing (TIGHTENED)    every office PC shares one uid, so a subscription
 //                                              written under it is owned by fifty people — see the block
 //   viewerAttempts      nothing (NEW)          the throttle store; server-only in both directions
@@ -39,7 +39,10 @@ rules_version = '2';
 // in that block and the reasons are in it: a participant-based member-read rule (no production
 // client would exercise it) and a retention filter (rules are not filters, and it could only ever
 // constrain the reviewer, who is entitled to the data).
-// Last swept v22.15 (Sep 2026): linkDesigns create/update accepts the optional `revision` int
+// Last swept v24.56 (Oct 2026, auth review): an `m_` override id must name the record it holds;
+// clientErrors / pushSubscriptions / analytics writes need `isKnownIdentity()` (no anonymous
+// token); a legacy owner-less push record can be claimed only for its own endpoint.
+// Prior sweep v22.15 (Sep 2026): linkDesigns create/update accepts the optional `revision` int
 // (>= 1) — the co-editing concurrency identity. BACKEND-FIRST by design: no client writes it in
 // this push. Prior sweep v21.04 (Aug 2026): NEW `linkTargetSets` collection (saved generator target sets) —
 // designer create with createdBy pinned to the writer's own name claim; update/delete only by the
@@ -182,6 +185,12 @@ service cloud.firestore {
     // unlock function mints. The server repairs a linked account on the next unlock too
     // (`unlockCalendarViewer`); this is the half that holds meanwhile. Every GRANT on the viewer
     // reads this; the pushSubscriptions DENIALS keep the bare claim, which is the stricter reading.
+    function isCalendarViewer() {
+      return request.auth != null
+        && request.auth.token.get('calendarViewer', false) == true
+        && request.auth.token.get('firebase', {}).get('sign_in_provider', '') == 'custom';
+    }
+
     // ── A REAL IDENTITY, for the write-only telemetry and device collections (v24.56) ─────────
     // These three used to ask only `request.auth != null`, which is true of an ANONYMOUS token —
     // and the anonymous provider is still enabled on the project, so anybody holding the public web
@@ -189,12 +198,6 @@ service cloud.firestore {
     // a member, the admin, or (where the Calendar writes) the PIN viewer costs no real client a write.
     function isKnownIdentity() {
       return isMember() || request.auth.token.get('admin', false) == true || isCalendarViewer();
-    }
-
-    function isCalendarViewer() {
-      return request.auth != null
-        && request.auth.token.get('calendarViewer', false) == true
-        && request.auth.token.get('firebase', {}).get('sign_in_provider', '') == 'custom';
     }
 
 
@@ -310,19 +313,6 @@ service cloud.firestore {
         // manual/AL/sick paths — validate its type when present without requiring it.
         request.resource.data.createdAt is timestamp &&
         (!request.resource.data.keys().hasAny(['changedBy']) || (request.resource.data.changedBy is string && request.resource.data.changedBy.size() <= 100)) &&
-        // ── replacedType — OPTIONAL, and the only surviving record of a swapped day ─────────
-        //
-        // A write is delete-then-set, so recording annual leave DESTROYS the override that said
-        // what the day was. On a swapped-in day (a `shift` sitting on a base rest day) that
-        // deleted doc was the only evidence the member was contracted to work it, and without it
-        // the entitlement check falls back to the base roster, sees a rest day and charges
-        // nothing — the leave is free. So the write carries forward what it replaced.
-        //
-        // Constrained to the same type vocabulary as `type` itself: it names an override that
-        // existed, so anything outside that set is meaningless. Absent on most docs (nothing was
-        // replaced) and on every doc written before v21.55, which is why it is validated only
-        // when present — the readers treat its absence as "ask the base roster", i.e. exactly the
-        // behaviour every existing document already has.
         // ── A FIXED manual id must NAME the record it holds (v24.56) ─────────────────────────
         //
         // Since v24.48 a manual save lands on `m_<date>_<encoded name>` (override-id.js), so the
@@ -337,6 +327,19 @@ service cloud.firestore {
         // have no encoder, and override-utils.test.mjs fails on a name where the two would differ.
         (!docId.matches('m_.*') ||
           docId == 'm_' + request.resource.data.date + '_' + request.resource.data.memberName.replace(' ', '%20')) &&
+        // ── replacedType — OPTIONAL, and the only surviving record of a swapped day ─────────
+        //
+        // A write is delete-then-set, so recording annual leave DESTROYS the override that said
+        // what the day was. On a swapped-in day (a `shift` sitting on a base rest day) that
+        // deleted doc was the only evidence the member was contracted to work it, and without it
+        // the entitlement check falls back to the base roster, sees a rest day and charges
+        // nothing — the leave is free. So the write carries forward what it replaced.
+        //
+        // Constrained to the same type vocabulary as `type` itself: it names an override that
+        // existed, so anything outside that set is meaningless. Absent on most docs (nothing was
+        // replaced) and on every doc written before v21.55, which is why it is validated only
+        // when present — the readers treat its absence as "ask the base roster", i.e. exactly the
+        // behaviour every existing document already has.
         (!request.resource.data.keys().hasAny(['replacedType']) || (
           request.resource.data.replacedType in [
             'spare_shift', 'shift', 'rdw',
@@ -667,13 +670,14 @@ service cloud.firestore {
     }
 
     match /clientErrors/{docId} {
-      // Written by error-reporter.js on authenticated pages (request.auth != null).
+      // Written by error-reporter.js once a member, the admin or the PIN viewer is signed in
+      // (`isKnownIdentity`, v24.56 — an anonymous token was enough until then).
       // Read, update (resolve), and delete restricted to admins.
       // Every string field is type- and size-checked so a modified client cannot
       // submit oversized values in any of them (caps mirror the client-side caps
       // in error-reporter.js). memberName is NOT bound to a token claim on purpose:
-      // a degraded/anonymous session has no name claim, and we still want its
-      // uncaught errors captured rather than silently rejected.
+      // the PIN viewer has no name claim, and we still want its uncaught errors
+      // captured rather than silently rejected.
       allow create: if
         request.auth != null && isKnownIdentity() &&
         request.resource.data.keys().hasOnly([
