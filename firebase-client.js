@@ -13,15 +13,15 @@
  */
 
 // @ts-ignore
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-app.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 // @ts-ignore
-import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDocsFromCache, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-firestore.js';
+import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDocsFromCache, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, runTransaction, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 // firebase-storage (~30 kB) is dynamically imported via `_getStorageSdk()` (handed to the shared
 // upload engine in documents-client.js, which is where the huddle/circular/newsletter sequence
 // lives since v21.90) — only
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithCustomToken, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithCustomToken, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { orderClientErrors, expiredResolvedIds, capUnresolvedErrors } from './client-errors.js';
 import { runWithClaimRetry, abandonOnSignOut, runGatedWrite } from './claim-retry.js';
 import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys, originKey, summariseOrigins, staleOriginKeys } from './usage-stats.js';
@@ -393,7 +393,7 @@ let _storagePromise = null;
 function _getStorageSdk() {
     if (!_storagePromise) {
         // @ts-ignore
-        _storagePromise = import('https://www.gstatic.com/firebasejs/12.16.0/firebase-storage.js')
+        _storagePromise = import('https://www.gstatic.com/firebasejs/12.19.0/firebase-storage.js')
             .then(({ getStorage, ref, uploadBytes, getDownloadURL, deleteObject }) =>
                 ({ storage: getStorage(app), ref, uploadBytes, getDownloadURL, deleteObject }))
             // Reset on rejection (v16.23): a rejected promise is truthy, so without this ONE

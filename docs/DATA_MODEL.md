@@ -405,6 +405,6 @@ OPENS has to fire before the await, never after it (the v18.94 bug).
 
 **A consequence worth expecting in support questions:** a member who has never signed in anywhere now has to unlock each browser session, where before the Calendar simply opened. Signing in once (a 60-day session) removes the PIN entirely, which since v23.19 is what the Calendar's own front door offers first — the `sign-in-2026` notice that used to make the same ask was retired at v23.23 as a result.
 
-Firebase SDK: currently v12.16.0. Check version before any new Firebase work. **An SDK bump must also update `FIREBASE_SDK_VERSION` in `service-worker.js`** (the SDK offline cache is keyed on it) — `sw-asset-check.test.mjs` fails the build if they diverge.
+Firebase SDK: currently v12.19.0. Check version before any new Firebase work. **An SDK bump must also update `FIREBASE_SDK_VERSION` in `service-worker.js`** (the SDK offline cache is keyed on it) — `sw-asset-check.test.mjs` fails the build if they diverge.
 
 ---
