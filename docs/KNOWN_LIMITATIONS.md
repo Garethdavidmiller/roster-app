@@ -131,6 +131,23 @@ for that member and day; an import is never treated as a duplicate. On the cappe
 very old day may not be loaded, so selecting the member first is the complete route. None has been
 counted; nothing in the app reports them.
 
+## Signing out after "Sign out anyway?" is unproven on Safari (v24.52)
+
+Admin, Overtime and Links now ask "Sign out anyway?" when there is unsaved work, then sign out by
+reloading or leaving the page. **That last step could not be run under WebKit here.** In
+Playwright's WebKit build, any navigation (a reload, a `replace`, even to another page) crashes the
+page process once two things have happened: the page has a same-URL history entry (the drawer
+leaves one when it closes for a sign-out), and a dialog has pushed and popped another. The crash
+reproduces on the v24.51 code with no sign-out involved at all (push a state, open and cancel a
+`confirmDialog`, reload), so it is not caused by v24.52. Links has followed this exact path since
+the question was added there, with no report from staff.
+
+So `e2e/pages.spec.js` runs the CANCEL half everywhere and skips the CONFIRM half under WebKit,
+saying why. **What closes this:** one sign-out with unsaved work on a real iPhone (Admin: tap a day
+type, open the drawer, Sign out, Sign out). If the page crashes or hangs there, the fix is to pop
+the drawer's leftover history entry before the dialog opens, rather than any change to
+`page-session.js`.
+
 ## Development-tool advisories that only a downgrade would clear (v24.50)
 
 An external review (5 Oct 2026) counted 32 `npm audit` entries in the ROOT tree — 1 critical, 17

@@ -732,3 +732,59 @@ test('a legacy redirect page is a redirect, and points somewhere real', () => {
             `${page} links a stylesheet — a redirect stub styles itself inline or not at all`);
     }
 });
+
+// ── SIGNING OUT, AND LOSING THE SESSION (page-session.js, v24.52) ──────────────────────────────────
+//
+// Each coordinator used to assemble these for itself, and three of the differences were defects:
+// Admin and Overtime signed out BEFORE asking about unsaved work, only the Pay Calculator guarded
+// Back against the back/forward cache, and Overtime never noticed a session revoked mid-visit. The
+// routines are now one module; these tests hold every page to it, so the next page cannot be the
+// one that hand-rolls a slightly different copy. What the routines DO is page-session.test.mjs.
+
+/** A coordinator's code with comments stripped, so prose about the old way is not mistaken for it. */
+const codeOf = (/** @type {string} */ f) => read(`./${f}`).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+test('every page reloads when Back restores it for a different member', () => {
+    const missing = APP_PAGE_ENTRIES.filter(p => !/\breloadIfRestoredForSomeoneElse\(\)/.test(codeOf(p.coordinator)));
+    assert.deepEqual(missing.map(p => p.coordinator), [],
+        'coordinators that never install page-session.js\'s back/forward-cache guard');
+});
+
+test('every page signs out through signOutAndLeave — never a hand-rolled clear-and-navigate', () => {
+    for (const p of APP_PAGE_ENTRIES) {
+        const code = codeOf(p.coordinator);
+        assert.match(code, /onSignOut:[^\n]*signOutAndLeave\(/, `${p.coordinator}: onSignOut must call signOutAndLeave`);
+        // Clear-then-navigate is the shape that came back as a hand-rolled sign-out. (Admin's
+        // `?logout` escape hatch clears without navigating, and is not a sign-out.)
+        assert.doesNotMatch(code, /clearSession\(\);?\s*(window\.)?location\.(href|reload|replace|assign)/,
+            `${p.coordinator} clears the session and leaves by hand — use signOutAndLeave`);
+    }
+});
+
+test('a page with unsaved work warns through warnOnUnload AND asks before a sign-out releases anything', () => {
+    // The two go together: the browser's "Leave site?" covers closing the tab, and askBeforeSignOut
+    // covers the drawer — which signs out BEFORE the page unloads, so the first alone came too late.
+    for (const p of APP_PAGE_ENTRIES) {
+        const code = codeOf(p.coordinator);
+        assert.doesNotMatch(code, /addEventListener\(\s*'beforeunload'/,
+            `${p.coordinator} registers its own beforeunload — use warnOnUnload, which stands down after an answered sign-out`);
+        if (/\bwarnOnUnload\(/.test(code)) {
+            assert.match(code, /beforeSignOut:[^\n]*askBeforeSignOut\(/,
+                `${p.coordinator} tracks unsaved work but signs out without asking about it`);
+        }
+    }
+});
+
+test('every page with a named sign-in follows it with guardNamedSession', () => {
+    // The Calendar (the staff PIN) and the Pay Calculator (a SOFT policy that never asks for a login)
+    // are the two deliberate exceptions — their own headers say why. Everybody else re-asks for a
+    // sign-in when their own session cannot be confirmed AND when it goes later.
+    const EXEMPT = new Set(['calendar-app.js', 'paycalc-app.js']);
+    for (const p of APP_PAGE_ENTRIES) {
+        const code = codeOf(p.coordinator);
+        assert.doesNotMatch(code, /\bwatchIdentityLoss\(/, `${p.coordinator} watches for session loss itself — use guardNamedSession`);
+        if (EXEMPT.has(p.coordinator)) continue;
+        assert.match(code, new RegExp(`guardNamedSession\\(\\{\\s*page:\\s*'${p.id}'`),
+            `${p.coordinator} never runs guardNamedSession for its own page`);
+    }
+});

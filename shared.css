@@ -450,6 +450,10 @@
 
     /* Stacking order (v17.72). The overlay layer was hand-picked magic numbers; the login overlay
        and the paycalc one-time notices both sat at 9000 (a tie resolved only by source order). */
+    --z-drawer:   7800;   /* the nav drawer — above every fixed bottom bar (Admin's staged changes 7400,
+                             the save toast and slow-save notice 7500, the AL confirm bar 7600), which
+                             at 300 covered its footer and with it Sign out (v24.52); below every
+                             lightbox, dialog and sheet, which the drawer itself opens */
     --z-lightbox: 8000;   /* .lb-overlay base (About / Tips / dialogs / pickers) */
     --z-notice:   8500;   /* one-time notice lightboxes — above the lightbox base, below login */
     --z-login:    9000;   /* login overlay — must sit above content and notices */
@@ -2194,7 +2198,7 @@ button.lightbox-bug-link {
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.45);
-    z-index: 300;
+    z-index: var(--z-drawer);
     opacity: 0;
     visibility: hidden;
     transition: opacity 0.25s var(--ease-standard), visibility 0.25s;
@@ -2231,7 +2235,7 @@ button.lightbox-bug-link {
     width: min(260px, 72vw);
     background: var(--nav-surface);
     color: var(--nav-text);
-    z-index: 301;
+    z-index: calc(var(--z-drawer) + 1);
     transform: translateX(-100%);
     /* visibility:hidden removes the off-screen drawer's links/buttons from the
        keyboard tab order while closed (aria-hidden alone does not). Transitioned

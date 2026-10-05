@@ -16,12 +16,12 @@
 
 import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate, TIME_RE } from './roster-data.js';
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
-import { db, auth, doc, writeBatch, writeWithClaimRetry, onAuthStateChanged, COLLECTIONS } from './firebase-client.js';
-import { unconfirmedWriteLine, watchIdentityLoss } from './claim-retry.js';
+import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
+import { unconfirmedWriteLine } from './claim-retry.js';
+import { guardNamedSession, askBeforeSignOut, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
-import { getAuthSnapshot } from './auth-state.js';
 import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, whenOverridesReady, isOverrideCacheLoaded, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
@@ -30,7 +30,7 @@ import { openDatePicker } from './date-picker.js';
 
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { SELECTED_MEMBER, VIEWED_MONTH, VIEWED_YEAR } from './storage-keys.js';
-import { initNavPanel, resetNavPanel } from './nav-panel.js';
+import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initPasswordForce } from './password-force.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -78,6 +78,7 @@ function openCollapsibleCard(body, chevron) {
  * calls the nested initAuthorised(), NOT init(), so module wiring happens once.
  */
 export function init() {
+    reloadIfRestoredForSomeoneElse();
     /** Where an `admin.html#…` arrival scrolls to, and the one-shot state behind its second scroll.
      *  Inside init() deliberately: at module scope it would be a bare `window` reference in the one
      *  coordinator whose stated property is that importing it runs nothing. */
@@ -414,9 +415,7 @@ export function init() {
     }
 
     // Warn browser/OS before closing or navigating away
-    window.addEventListener('beforeunload', e => {
-        if (hasUnsavedChanges()) { e.preventDefault(); e.returnValue = ''; }
-    });
+    warnOnUnload(hasUnsavedChanges);
 
     // Pending navigation callback — set by confirmNavigate() when unsaved changes
     // exist. Executed if the user taps "Discard and continue" in the banner.
@@ -1538,19 +1537,13 @@ export function init() {
         // the named session resolves, the store (fed by the Phase-2 bridge inside ensureNamedSession)
         // reflects the terminal Firebase identity, so `requirePage(getAuthSnapshot(), 'admin')` returns
         // 'login' exactly when the member's OWN named session could not be confirmed.
-        _adminAuth.then(() => {
-            // B1: this optimistic 'allow' init turned out to be an unconfirmable session → clear it and
-            // re-show the login overlay. The re-login RELOADS on success (reloadOnSuccess), because this
-            // optimistic pass already resolved the one-shot sessionReady — re-initialising in place cannot
-            // re-resolve it and would strand feature modules on a stale auth barrier. resetNavPanel() clears
-            // the stale identity the optimistic pass wired into the drawer so it isn't briefly visible
-            // behind the overlay before the reload (initNavPanel self-guards against re-wiring otherwise).
-            const _relogin = () => { clearSession(); resetNavPanel(); showAdminLogin({ reloadOnSuccess: true }); };
-            if (requirePage(getAuthSnapshot(), 'admin').decision === 'login') return _relogin();
-            // …and if the account goes LATER (a revoked session — claim-retry.js), offer the sign-in
-            // then, not only on the next load: a save's "sign in again" had nowhere to be done (v24.37).
-            watchIdentityLoss({ uid: auth.currentUser?.uid, watch: cb => onAuthStateChanged(auth, cb), stillLost: () => !auth.currentUser && getSession()?.name === currentUser, onLost: _relogin });
-        });
+        // B1: an optimistic 'allow' init that turns out to be an unconfirmable session is cleared and
+        // re-shown Admin's login — and so is one whose account goes LATER (claim-retry.js, v24.37). The
+        // re-login RELOADS on success (reloadOnSuccess): this pass already resolved the one-shot
+        // sessionReady, and re-initialising in place cannot re-resolve it. page-session.js clears the
+        // session and the drawer's stale identity before the login is shown.
+        guardNamedSession({ page: 'admin', pageLabel: 'Admin', member: currentUser, established: _adminAuth,
+            signIn: () => showAdminLogin({ reloadOnSuccess: true }) });
         // All dropdowns are now populated — apply permissions then load data
         document.body.classList.add('auth-ready');
         // The page's content is on screen from this line: `.container` is `display:none` until
@@ -1666,7 +1659,9 @@ export function init() {
             isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
             canOpenOvertime: canOpenOvertime(currentUser),
             onLogoClick: () => openAboutLightbox?.(),
-            onSignOut:   () => { clearSession(); window.location.reload(); },
+            // Unsaved week-grid edits are asked about BEFORE anything is released (page-session.js).
+            beforeSignOut: askBeforeSignOut(hasUnsavedChanges),
+            onSignOut:   () => signOutAndLeave(),
         });
         // Calendar pill: write the current fieldDate month/year to localStorage before navigating so
         // index.html opens on the same month the user was editing. (Replaces the removed v10.63 header

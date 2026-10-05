@@ -17,7 +17,7 @@ import { CONFIG, MONTH_NAMES, computeEaster } from './roster-data.js';
 import { formatClock, printedStamp } from './date-format.js';
 import { authReady, authBootstrap } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { getSession, clearSession, ensureNamedSession, refreshClaimsIfStale } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
+import { getSession, ensureNamedSession, refreshClaimsIfStale } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
 import { initPasswordForce } from './password-force.js';
 import { PW_FORCE_PENDING_PREFIX, TEAM_VIEW } from './storage-keys.js';
 import { canOpenOvertime } from './auth-policy.js';       // nav-drawer pill gating only — never a boundary
@@ -50,6 +50,7 @@ import { applyTextScale } from './text-scale.js';
 import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.js';
 
 import { setStatus } from './status-text.js';
+import { signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
 // ── THE CALENDAR ACCESS BOOTSTRAP (v20.12) ──────────────────────────────────────────────────────
 //
 // This replaced an unconditional `signInAnonymously` fallback. That existed because `overrides` was
@@ -1101,6 +1102,9 @@ calendarAuthReady.finally(() => {
 });
 
 const _calendarSession = getSession();
+// Back after a sign-out elsewhere must not put a member's roster on screen for whoever picks the
+// device up next (page-session.js, v24.52 — every protected page installs the same guard).
+reloadIfRestoredForSomeoneElse();
 initNavPanel({
     // The nav panel's `authReady` gates the Circular/Newsletter open counters — Firestore writes —
     // so it needs the AUTH promise, not the access one (v20.22).
@@ -1116,10 +1120,7 @@ initNavPanel({
     isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(_calendarSession?.name),
     canOpenOvertime: canOpenOvertime(_calendarSession?.name),
     onLogoClick: () => openAboutLightbox?.(),
-    onSignOut:   _calendarSession ? () => {
-        clearSession();
-        window.location.reload();
-    } : null,
+    onSignOut:   _calendarSession ? () => signOutAndLeave() : null,
     // "Lock Calendar" — viewer mode only, and the nav drawer is the right home for it: it is a
     // leaving-the-desk action, not a Calendar control, and putting it in the header would give every
     // member a button they can never use. `isViewerMode()` is read at DRAWER-OPEN time (the thunk),

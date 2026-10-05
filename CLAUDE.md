@@ -217,7 +217,7 @@ regression somewhere the author was not looking.
 | `resolveEffectiveShift` (`override-utils.js`) | Calendar · Team Week View · Overtime roster context | `override-utils.test.mjs` · `e2e/overtime.spec.js` |
 | the day-detail panel (`calendar-al-lightbox.js` + its `index.css` block) | the ONLY place a member reads what a day is on touch — and its two shipped defects (a frozen 85% scale, a date under the close button) were both invisible to behaviour | `e2e/calendar.spec.js` (the `day detail:` block) · `lightbox-transform-parity.test.mjs` · `day-detail-explains.test.mjs` |
 | `getBaseShift` / `resolveMemberRoster` (`roster-data.js`) | every shift the app displays, on every page, plus roster PDF import | `roster-data.test.mjs` · `admin-roster-upload.test.mjs` |
-| `session.js` · `login-overlay.js` · `auth-policy.js` | all six protected pages at once | `e2e/auth.spec.js` (it drives each page) |
+| `session.js` · `login-overlay.js` · `auth-policy.js` · `page-session.js` | all six protected pages at once — `page-session.js` is every page's sign-out, unsaved-work question, Back-after-sign-out guard and session-loss sign-in | `e2e/auth.spec.js` (it drives each page) · `page-session.test.mjs` · `page-contract-parity.test.mjs` |
 | `claim-retry.js` / `withClaimRetry` (`firebase-client.js`) | every write, and what it reports when its outcome is unknown | `claim-retry.test.mjs` · `e2e/pages.spec.js` |
 | a COLLECTION's fields | `docs/DATA_MODEL.md` + `firestore.rules` + the client writer, together | `npm run test:rules` · `firestore-contract-parity.test.mjs` |
 | `firestore.rules` | client and server together — the client copies of ownership rules only drive BUTTONS | `npm run test:rules` **and** `firestore-contract-parity.test.mjs` |

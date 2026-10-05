@@ -39,10 +39,10 @@
 import { CONFIG, escapeHtml as esc } from './roster-data.js';   // esc: every innerHTML value goes through it
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
+import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, isOvertimeReviewer, canOpenOvertime } from './auth-policy.js';
-import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
+import { guardNamedSession, askBeforeSignOut, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -67,6 +67,7 @@ const DETAIL_REFRESH_DEBOUNCE_MS = 60_000;
 
 /** Coordinator body, invoked by overtime-boot.js. Exported so a test can import without running. */
 export function init() {
+    reloadIfRestoredForSomeoneElse();
     // Tear down a lingering privileged Firebase identity whose local session has expired, so a
     // direct deep-link cannot keep an old credential live. Fire-and-forget, login-safe.
     reconcileExpiredIdentity().catch(() => {});
@@ -124,16 +125,12 @@ export function init() {
             isAdmin: !!currentUser && CONFIG.ADMIN_NAMES.includes(currentUser),
             isLinksDesigner: !!currentUser && CONFIG.LINKS_DESIGNERS.includes(currentUser),
             canOpenOvertime: canOpenOvertime(currentUser),
-            onSignOut: currentUser ? handleSignOut : null,
+            // An unsaved availability form is asked about BEFORE anything is released (page-session.js).
+            beforeSignOut: currentUser ? askBeforeSignOut(() => !!currentForm?.isDirty()) : null,
+            onSignOut: currentUser ? () => signOutAndLeave() : null,
             onLogoClick: () => openAboutLightbox?.(),
             usageIdentity: currentUser,
         });
-    }
-
-    function handleSignOut() {
-        clearSession();
-        resetNavPanel();
-        location.reload();
     }
 
     // ── Access gate ─────────────────────────────────────────────────────────────────────────────
@@ -230,14 +227,10 @@ export function init() {
         // no error, no timeout, just "Loading…" — which is exactly what it did until this line.
         const setAuth = currentUser ? ensureNamedSession(currentUser) : false;
         resolveSession(setAuth);
-        // Every named page's follow-up: an unconfirmed OWN session is asked to sign in again.
-        Promise.resolve(setAuth).then(() => {
-            if (requirePage(getAuthSnapshot(), 'overtime').decision === 'login') {
-                clearSession();
-                resetNavPanel();
-                initLoginOverlay({ pageLabel: 'Overtime', onSuccess: () => window.location.reload() });
-            }
-        });
+        // Every named page's follow-up (page-session.js): an unconfirmed OWN session is asked to sign
+        // in again — and, since v24.52, so is one revoked LATER. This page alone never watched for
+        // that, so a revoked member was left on a form whose every send would fail.
+        if (currentUser) guardNamedSession({ page: 'overtime', pageLabel: 'Overtime', member: currentUser, established: setAuth });
 
         // ── THE `ready` MILESTONE IS LATE ON THIS PAGE, AND THAT IS THE POINT ───────────────────
         //
@@ -286,9 +279,7 @@ export function init() {
         // of somebody's availability outliving them on a shared station PC is worse than the loss
         // this prevents. A mobile OS killing the PWA outright remains uncatchable, and persisting
         // drafts to catch it is the same bad trade.
-        window.addEventListener('beforeunload', (e) => {
-            if (currentForm?.isDirty()) { e.preventDefault(); e.returnValue = ''; }
-        });
+        warnOnUnload(() => !!currentForm?.isDirty());
 
         // ── The reviewer's week must not go quietly stale (v21.48, external review) ─────────────
         //

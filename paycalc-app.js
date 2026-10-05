@@ -23,10 +23,11 @@ import {
 } from './paycalc-calc.js';
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel, lsKeys, requestPersistentStorage } from './ls.js';
-import { getSession, clearSession, ensureNamedSession, reconcileExpiredIdentity } from './session.js';
+import { getSession, ensureNamedSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
+import { signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import {
   CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, payslipPeriodNum,
   hasBoxingDay, hasBankHoliday,
@@ -101,7 +102,7 @@ function _showUnsupportedRole(member) {
         isAdmin:         ROSTER_CONFIG.ADMIN_NAMES.includes(member?.name ?? ''),
         isLinksDesigner: ROSTER_CONFIG.LINKS_DESIGNERS.includes(member?.name ?? ''),
         canOpenOvertime: canOpenOvertime(member?.name ?? ''),
-        onSignOut: () => { clearSession(); window.location.replace('./'); },
+        onSignOut: () => signOutAndLeave({ to: './' }),
     });
     registerServiceWorker();
     markPageReady();
@@ -109,6 +110,12 @@ function _showUnsupportedRole(member) {
 }
 
 export function init() {
+    // BACK/FORWARD CACHE ON A SHARED DEVICE (72-hour review): a page restored from the bfcache does
+    // not re-run init(), so after a sign-out (or a different member signing in on another tab) the
+    // Back button could show the previous member's pay page, figures and all. This page had the only
+    // such guard until v24.52; it is now page-session.js's, every protected page installs it, and
+    // it runs FIRST so no early return below (sign-in, unsupported role) can skip it.
+    reloadIfRestoredForSomeoneElse();
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
     // Runs BEFORE the session-guard early-return below (the expired-session path is exactly where a
@@ -164,14 +171,6 @@ export function init() {
       return;
     }
 
-    // BACK/FORWARD CACHE ON A SHARED DEVICE (72-hour review): a page restored from the bfcache does
-    // not re-run init(), so after a sign-out (or a different member signing in on another tab) the
-    // Back button could show the previous member's pay page, figures and all. Re-check the identity
-    // on restore and reload if it is not the one this page was built for.
-    const _nameAtInit = getSession()?.name;
-    window.addEventListener('pageshow', (e) => {
-      if (e.persisted && getSession()?.name !== _nameAtInit) window.location.reload();
-    });
 
     // Period helpers, grade helpers, settings, roster hint, HPP, back-pay all imported above.
     // SK, periodKey, hppEstKey, hppActualKey imported from paycalc-migrations.js
@@ -1864,12 +1863,9 @@ export function init() {
         isLinksDesigner: ROSTER_CONFIG.LINKS_DESIGNERS.includes(_paycalcMember?.name ?? ''),
         canOpenOvertime: canOpenOvertime(_paycalcMember?.name ?? ''),
         onLogoClick: () => openAboutLightbox?.(),
-        onSignOut:   _paycalcMember ? () => {
-            clearSession(); // clears localStorage AND signs out Firebase Auth
-            // replace, not href: the pay page leaves the history, so Back cannot restore it (and
-            // its figures) from the bfcache for whoever picks the shared device up next.
-            window.location.replace('./');
-        } : null,
+        // signOutAndLeave replaces, not navigates: the pay page leaves the history, so Back cannot
+        // restore it (and its figures) from the bfcache for whoever picks the shared device up next.
+        onSignOut:   _paycalcMember ? () => signOutAndLeave({ to: './' }) : null,
     });
 
     // (Lightbox print button is wired by about-lightbox.js — the standalone IIFE
