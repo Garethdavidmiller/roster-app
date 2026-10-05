@@ -2263,7 +2263,7 @@ test('admin: a save that is waiting for the server says so, and the notice clear
     await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || [])
         .filter((/** @type {any} */ w) => /^Slow save \(diagnostic\)/.test(w.data?.message ?? ''))
         .map((/** @type {any} */ w) => w.data.message)), { timeout: 5000 })
-        .toEqual([expect.stringMatching(/took \d+\.\ds to confirm a save while the phone said it was online · sign-in token \d+\.\ds · /)]);
+        .toEqual([expect.stringMatching(/took \d+\.\ds to be confirmed — a save while the phone said it was online · sign-in token \d+\.\ds · /)]);
 });
 
 test('admin: a slow save says "Waiting for signal" only when the browser reports being offline (v24.54)', async ({ page, context }) => {
