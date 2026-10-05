@@ -41,6 +41,11 @@ export const rosterOverridesCache = new Map();
 // avoid, and would add a Firebase-importing dependency to a module the tests load in Node. The
 // coordinator PUSHES the fact in. Default false, so anything that forgets to push it reads nothing.
 let _accessGranted = false;
+// Which grant a read was issued under (v24.56, auth review). A read refused under an EARLIER grant —
+// the PIN rotated, the viewer re-unlocked, and a slow read from the old token lands afterwards —
+// says nothing about the current one, and used to re-lock it: "access has expired" straight after a
+// correct PIN. Advanced on every grant; a refusal is believed only from a read of the current one.
+let _accessGen = 0;
 
 /**
  * Open the override reads. Called by the Calendar coordinator once — and only once — access is
@@ -62,8 +67,11 @@ export function setOverrideAccess(granted) {
     // at the same moment, that is a permanent wait state. `_failureRepainted` goes with it for the
     // same reason: a failure that happened under the old session is not news the new one has heard.
     // Harmless at boot — the first grant runs before the initial fetch claims anything.
-    if (_accessGranted) { fetchedMonths.clear(); _failureRepainted.clear(); _monthOwner.clear(); }
+    if (_accessGranted) { _accessGen++; fetchedMonths.clear(); _failureRepainted.clear(); _monthOwner.clear(); }
 }
+
+/** @returns {number} the current grant, for a reader that must ignore a refusal from an older one. */
+export function accessGeneration() { return _accessGen; }
 
 /** @returns {boolean} whether override reads are currently permitted. */
 export function hasOverrideAccess() { return _accessGranted; }
@@ -346,6 +354,7 @@ export async function ensureOverridesCached(year, month, renderFn) {
     // it returns BEFORE claiming the month, or a navigation made while locked would mark the month
     // fetched and the real read after unlocking would be skipped for the rest of the session.
     if (!_accessGranted) return;
+    const gen = _accessGen;
     const key = monthKey(year, month);
     if (fetchedMonths.has(key)) {
         // In flight: join it. Settled (or pre-claimed by the initial fetch, which repaints itself):
@@ -369,6 +378,7 @@ export async function ensureOverridesCached(year, month, renderFn) {
         noteKnowledge(key, 'authoritative');
     } catch (err) {
         settle();
+        if (gen !== _accessGen) return;   // issued under an earlier grant — it neither claims nor locks this one
         fetchedMonths.delete(key);  // Allow retry on next navigation
         // A cache-served read that held this month's records is the labelled last-known grid, not a
         // failure (v24.48); anything else is `error` — actionable, earning a Retry where `unknown` waits.

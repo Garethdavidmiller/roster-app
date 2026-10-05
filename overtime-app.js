@@ -156,7 +156,11 @@ export function init() {
             pageLabel: 'Overtime',
             onSuccess: () => {
                 currentSession = getSession();
-                currentUser = currentSession?.name ?? null;
+                // No session saved (iOS private mode can refuse the write): reload into a fresh
+                // sign-in, as the other pages do, rather than tell a real participant the page is
+                // not open to them (v24.56).
+                if (!currentSession) { window.location.reload(); return; }
+                currentUser = currentSession.name ?? null;
                 dismissLoginOverlay();
                 resetNavPanel();
                 wireNavPanel();

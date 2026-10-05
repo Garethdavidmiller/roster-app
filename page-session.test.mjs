@@ -26,6 +26,7 @@ mock.module('./firebase-client.js', { namedExports: {
     onAuthStateChanged: () => () => {},
 } });
 mock.module('./session.js', { namedExports: {
+    AUTH_KEY: 'myb_admin_session',
     getSession: () => session,
     clearSession: () => { log.push('clearSession'); session = null; },
 } });
@@ -33,7 +34,10 @@ mock.module('./auth-policy.js', { namedExports: { requirePage: (/** @type {any} 
 mock.module('./auth-state.js', { namedExports: { getAuthSnapshot: () => ({}) } });
 mock.module('./claim-retry.js', { namedExports: { watchIdentityLoss: (/** @type {any} */ a) => { log.push('watch'); watchArgs = a; return () => {}; } } });
 mock.module('./nav-panel.js', { namedExports: { resetNavPanel: () => log.push('resetNavPanel') } });
-mock.module('./overlay.js', { namedExports: { confirmDialog: async () => { log.push('confirm'); return confirmAnswer; } } });
+let lastConfirm = '';
+let inFlight = 0;
+mock.module('./overlay.js', { namedExports: { confirmDialog: async (/** @type {any} */ o) => { log.push('confirm'); lastConfirm = o.message; return confirmAnswer; } } });
+mock.module('./slow-save.js', { namedExports: { writesInFlight: () => inFlight } });
 mock.module('./login-overlay.js', { namedExports: { initLoginOverlay: (/** @type {any} */ o) => log.push(`login:${o.pageLabel}`) } });
 
 /** A window that records listeners and navigation. @type {Record<string, Function[]>} */
@@ -49,7 +53,7 @@ const ps = await import('./page-session.js');
 /** Let the on-demand import of the sign-in land (a dynamic import takes more than one tick). */
 const settle = () => new Promise(r => setTimeout(r, 50));
 
-beforeEach(() => { log = []; session = { name: 'A. Member' }; decision = 'allow'; currentUser = { uid: 'u1' }; confirmAnswer = true; watchArgs = null; });
+beforeEach(() => { inFlight = 0; lastConfirm = ''; log = []; session = { name: 'A. Member' }; decision = 'allow'; currentUser = { uid: 'u1' }; confirmAnswer = true; watchArgs = null; });
 
 describe('guardNamedSession', () => {
     test('an unconfirmed own session: clear, tear down the drawer, THEN the sign-in — and no watch', async () => {
@@ -104,6 +108,13 @@ describe('signing out', () => {
         confirmAnswer = true;
         assert.equal(await ps.askBeforeSignOut(() => true)(), true);
         assert.deepEqual(log, ['confirm', 'confirm'], 'asking clears nothing — the drawer releases only after a yes');
+    });
+
+    test('a save still on its way is asked about, even with nothing unsaved on screen (v24.56)', async () => {
+        inFlight = 1;
+        confirmAnswer = false;
+        assert.equal(await ps.askBeforeSignOut(() => false)(), false, 'a Cancel keeps the session so the save can land');
+        assert.match(lastConfirm, /still being sent/);
     });
 
     test('the browser\'s "Leave site?" asks only while there is unsaved work', () => {
@@ -178,5 +189,30 @@ describe('back/forward cache', () => {
         session = null;                      // signed out on another page or tab
         fire('pageshow', { persisted: true });
         assert.deepEqual(log, ['reload']);
+    });
+
+    test('another TAB signing out, or in as somebody else, reloads this one — a renewal does not', () => {
+        listeners = {}; log = [];
+        const stored = (/** @type {string|null} */ n) => n === null ? null : JSON.stringify({ name: n, ver: 3, expiry: 1 });
+        const change = (/** @type {string|null} */ from, /** @type {string|null} */ to, key = 'myb_admin_session') => {
+            session = to === null ? null : { name: to };
+            fire('storage', { key, oldValue: stored(from), newValue: stored(to) });
+        };
+        // The guard installed above (module state) already listens; a fresh copy proves it alone.
+        return import('./page-session.js?storage').then((fresh) => {
+            fresh.reloadIfRestoredForSomeoneElse();
+            change('A. Member', 'A. Member');
+            assert.deepEqual(log, [], 'the same member re-saving the session is not a change');
+            change('A. Member', 'A. Member', 'myb_something_else');
+            assert.deepEqual(log, [], 'an unrelated key is ignored');
+            change('A. Member', null);
+            assert.deepEqual(log, ['reload'], 'signed out in another tab: this tab must not keep their data');
+            log = [];
+            change('A. Member', 'B. Member');
+            assert.deepEqual(log, ['reload'], 'a colleague signed in elsewhere: this tab would write on their token');
+            log = [];
+            change(null, 'B. Member');
+            assert.deepEqual(log, ['reload'], 'a signed-out (or PIN) tab follows a sign-in elsewhere');
+        });
     });
 });

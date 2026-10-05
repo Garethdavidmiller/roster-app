@@ -420,8 +420,9 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         const _gen = ++_subGen;
         if (_unsubHuddle) { _unsubHuddle(); _unsubHuddle = null; }
         // REFUSED AT SOURCE while the gate is shut (v23.17): no query is issued, cached or live. The
-        // `onChange(true)` below is what starts it when access arrives. Checked BEFORE the await so
-        // a lock that lands during the wait is caught by the generation guard as before.
+        // `onChange(true)` below is what starts it when access arrives. A lock that lands DURING the
+        // wait is caught by the generation guard, because the lock branch below advances it (v24.56 —
+        // until then nothing did, and a slow `authReady` attached the listener to a locked page).
         if (!docAccess.has()) { _huddleState = 'locked'; return; }
         // Attach only once a session exists (AUTH_PLAN.md → E1). Attaching too early is worse than
         // attaching late: an onSnapshot that hits permission-denied is TERMINATED, not retried, and
@@ -435,6 +436,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         if (_gen !== _subGen) return;
         _unsubHuddle = subscribeToLatestHuddle(
             /** @param {any} huddle @param {boolean} [fromCache] */ (huddle, fromCache) => {
+                if (!docAccess.has()) return;   // a snapshot that outlived a lock delivers nothing
                 const prevUrl = _huddleData?.storageUrl;
                 if (!huddle) {
                     // ONLY THE SERVER CAN SAY "NONE" (48-hour review). An empty answer from the local
@@ -477,6 +479,7 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
     // is no longer entitled to.
     docAccess.onChange((open) => {
         if (open) { _startHuddleSubscriptionSafe(); return; }
+        ++_subGen;   // a subscription still awaiting authReady must not attach after this
         if (_unsubHuddle) { _unsubHuddle(); _unsubHuddle = null; }
         _huddleData = null; _sanitisedHtml = null; _sanitisedUrl = null;
         _huddleState = 'locked';

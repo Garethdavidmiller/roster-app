@@ -159,6 +159,8 @@ export const AUTH_READY_TIMEOUT_MS = 20000;
 let _authGen = 0;
 /** The generation an explicit clearSession() took — see the late-landing check in ensureFirebaseSession. */
 let _clearedGen = -1;
+/** The member the CURRENT generation is signing in — see the same check. @type {string|null} */
+let _genName = null;
 
 /**
  * The Firebase identity `ensureFirebaseSession` last established on a write page.
@@ -321,6 +323,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // (e.g. tests) takes a fresh one. A superseded attempt drops its terminal writes via `commit`/
     // `recordError` so a late completion can't clobber a newer attempt's identity/diagnostics.
     const gen = _gen ?? ++_authGen;
+    if (_gen == null) _genName = name;
     const fresh = () => gen === _authGen;
     /** Publish the winning identity, then return `result` — only if this attempt is still current.
      *  @param {'named'|'none'} identity @param {boolean} result @returns {boolean} */
@@ -347,7 +350,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
         new Promise(r => { _readyTimer = setTimeout(() => r(false), AUTH_READY_TIMEOUT_MS); }),
     ]);
     clearTimeout(_readyTimer);
-    if (!_ready) { recordError('auth/timeout'); return commit('none', false); }
+    if (!_ready) { recordError('auth/timeout'); _authStartStalled = true; return commit('none', false); }
     // A member is signing in, so the shared Calendar viewer (if this browser holds one) must go
     // FIRST — see the function's own comment for why the order is the security property, not a
     // tidiness one. This is the single choke point for the viewer→member transition: every member
@@ -442,7 +445,14 @@ export async function ensureFirebaseSession(name, _gen, password) {
             // still land, leaving Firebase signed in with no app session behind it on a shared
             // device. Undo it only when a clearSession() is the LAST thing that happened: a newer
             // sign-in attempt superseding this one owns the account and must be left alone.
-            if (!fresh() && _authGen === _clearedGen) {
+            // The same holds when the attempt that superseded this one is for a DIFFERENT member
+            // (v24.56, auth review): landing late, this sign-in replaced theirs on the shared `auth`,
+            // so their page would show them and write with this account's token. Signing it out
+            // hands their page the identity-loss sign-in instead. Unless their sign-in has already
+            // landed on top of this one — then the account is theirs, and is left alone.
+            const supersededByOther = _genName !== name
+                && !(auth.currentUser?.email && auth.currentUser.email.toLowerCase() !== email.toLowerCase());
+            if (!fresh() && (_authGen === _clearedGen || supersededByOther)) {
                 await firebaseSignOut(auth).catch(() => {});
                 return false;
             }
@@ -492,6 +502,18 @@ const _TRANSIENT_AUTH_CODES = new Set([
 /** @param {string|undefined} code @returns {boolean} */
 export function isTransientAuthError(code) { return !!code && _TRANSIENT_AUTH_CODES.has(code); }
 
+/** Set when Firebase Auth's own START-UP outran AUTH_READY_TIMEOUT_MS. Every retry would wait on
+ *  that same unsettled start-up again, so `ensureNamedSession` does not retry it (v24.56, auth
+ *  review): two retries turned the 20s bound into ~61s before the page offered its sign-in. */
+let _authStartStalled = false;
+
+/** Transient, AND worth retrying a moment later. A rate limit is not (another request only adds to
+ *  it — the station NAT shares one address), and neither is a stalled start-up (above). */
+function _worthRetrying() {
+    const code = getFirebaseAuthError();
+    return isTransientAuthError(code) && code !== 'auth/too-many-requests' && !_authStartStalled;
+}
+
 /**
  * Ensure the member's OWN named Firebase session for a write page (B1.2).
  *
@@ -509,11 +531,13 @@ export function isTransientAuthError(code) { return !!code && _TRANSIENT_AUTH_CO
  */
 export async function ensureNamedSession(name, { retries = 2, delayMs = 300, password } = {}) {
     const gen = ++_authGen;   // generation guard — a superseded attempt must not publish a stale terminal state
+    _genName = name;
     _feedAuth({ type: 'RESOLVE_START', member: name });   // store: resolving (observing only — Phase 2)
+    _authStartStalled = false;
     let ok = await ensureFirebaseSession(name, gen, password);
     let attempt = 0;
     // `gen === _authGen` stops a superseded attempt from continuing to retry (and dispatching stale events).
-    while (!ok && attempt < retries && gen === _authGen && isTransientAuthError(getFirebaseAuthError())) {
+    while (!ok && attempt < retries && gen === _authGen && _worthRetrying()) {
         _feedAuth({ type: 'TRANSIENT', error: getFirebaseAuthError() ?? null });   // store: degraded
         attempt++;
         await new Promise(r => setTimeout(r, delayMs * attempt));

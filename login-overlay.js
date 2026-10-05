@@ -36,7 +36,7 @@
  */
 
 import { CONFIG, getMembersForGrade } from './roster-data.js';
-import { saveSession, clearSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
+import { saveSession, clearSession, getSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
 import { lsGet, lsSet } from './ls.js';
 import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { lockBodyScroll, unlockBodyScroll, trapFocus, createLightbox } from './overlay.js';
@@ -86,12 +86,14 @@ function withTimeout(promise, ms) {
  * @param {() => void} deps.clearSession
  * @param {() => (string|null|undefined)} deps.getAuthError
  * @param {(code: any) => boolean} deps.isTransient
+ * @param {() => boolean} [deps.keepsLocalSession]  true when this device already holds a session for
+ *   the SAME member — a failed attempt then leaves it alone (v24.56; see the failure branch)
  * @param {number} [deps.timeoutMs]
  * @returns {Promise<{ ok: boolean, error?: string, kind?: 'timeout'|'ratelimit'|'transient'|'credential'|'storage' }>}
  *   ok=true ⇒ local session saved; caller runs onSuccess. On failure, `kind` names the cause
  *   ('credential' = wrong password → the caller's lockout counts it; others must not).
  */
-export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, timeoutMs = 8000 }) {
+export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, keepsLocalSession = () => false, timeoutMs = 8000 }) {
     let named = false, authResolved = true;
     try {
         named = await withTimeout(ensureNamedSession(), timeoutMs);
@@ -99,7 +101,13 @@ export async function runNamedSignIn({ ensureNamedSession, saveSession, clearSes
         authResolved = false;   // timed out (or threw) → treat as not signed in
     }
     if (!authResolved || !named) {
-        clearSession();         // never leave a stale/legacy session behind a failed sign-in
+        // Never leave a stale/legacy session behind a failed sign-in — UNLESS it is this member's
+        // own (v24.56, auth review). A returning member on the Calendar's come-back card holds a
+        // live 60-day session whose Firebase identity has gone; one mistyped password or a
+        // timeout on weak signal wiped it, and with it the silent re-sign-in that would have
+        // worked once back online. A failure tells us nothing about whether THEIR session is
+        // still theirs. Somebody else's session on this device still goes.
+        if (!keepsLocalSession()) clearSession();
         // `kind` lets the caller act on the CAUSE (only a genuine wrong-password drives the client
         // lockout; a network/rate-limit failure must not). Messages follow PASSWORD_DESIGN.md §3.5 +
         // the house wording rule (an account matter → "the admin").
@@ -562,6 +570,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
                 clearSession,
                 getAuthError:       getFirebaseAuthError,
                 isTransient:        isTransientAuthError,
+                keepsLocalSession:  () => getSession()?.name === name,
             });
             if (!_result.ok) {
                 clearStatusProgress();

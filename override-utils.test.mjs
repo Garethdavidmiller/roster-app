@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { PILL_TYPES, TYPES } from './admin-shift-types.js';
 import { manualOverrideId } from './override-id.js';
-import { isSunday, TIME_RE } from './roster-data.js';
+import { isSunday, TIME_RE, teamMembers } from './roster-data.js';
 import { tsToMillis, shouldReplaceOverride, reconcileRangeIntoCache, isBeforeMemberStart, isRestShift, computePeriodDeleteIds,
          OTHER_FLAVOURS, OTHER_RDW_DEFAULT_MINS, isOtherValue, parseOtherValue, composeOtherValue, resolveOtherPay,
          isOverrideDisplaySuppressed, mergeBookedPeriods, resolveEffectiveShift, toOverrideRecord,
@@ -132,6 +132,14 @@ describe('manualOverrideId — one document per member and date (v24.48)', () =>
         assert.equal(new Set(ids).size, names.length);
         for (const id of ids) assert.ok(!id.includes('/'), id);
         assert.notEqual(manualOverrideId('G. Miller', '2026-06-16'), manualOverrideId('G. Miller', '2026-06-17'));
+    });
+    it('every roster name encodes exactly as firestore.rules re-derives it (spaces → %20, nothing else)', () => {
+        // Rules have no encodeURIComponent, so the overrides rule rebuilds the id with
+        // replace(' ', '%20'). A name with an accent or other encoded character would have every
+        // manual save of it refused — add such a name and this fails before the rules do.
+        for (const { name } of teamMembers) {
+            assert.equal(manualOverrideId(name, '2026-06-16'), `m_2026-06-16_${name.replace(/ /g, '%20')}`, name);
+        }
     });
 });
 

@@ -810,6 +810,13 @@ describe('ensureNamedSession', () => {
         assert.equal(_signInCalls, 3, 'initial attempt + 2 retries');
     });
 
+    test('a RATE LIMIT is not retried — another request only adds to it (v24.56)', async () => {
+        _signInBehavior = 'auth/too-many-requests';
+        const ok = await ensureNamedSession('G. Miller', { delayMs: 0, retries: 2 });
+        assert.equal(ok, false);
+        assert.equal(_signInCalls, 1, 'one attempt: the station shares one address, and retries spend its budget');
+    });
+
     test('a TRANSIENT failure that CLEARS on retry → true (recovery path)', async () => {
         _signInBehavior = /** @param {number} call */ (call) => (call === 1 ? 'auth/network-request-failed' : 'ok');
         const ok = await ensureNamedSession('G. Miller', { delayMs: 0, retries: 2 });
@@ -1141,6 +1148,34 @@ describe('auth generation guard', () => {
         releaseGate();                                                    // …and the request lands anyway
         assert.equal(await login, false, 'still reported as not signed in');
         assert.equal(_signOutCalled, true, 'and Firebase is not left signed in behind a cleared session');
+    });
+
+    test('a sign-in for one member that lands after ANOTHER member\'s attempt is signed back out (v24.56)', async () => {
+        // Shared device: X's silent re-auth hangs; Y signs in and wins; X's request lands late and
+        // would replace Y's account under Y's page.
+        /** @type {() => void} */ let releaseGate = () => {};
+        _signInGate = new Promise(r => { releaseGate = r; });
+        const late = ensureFirebaseSession('G. Miller');
+        await signInEntered(1);
+        _signInGate = null;
+        assert.equal(await ensureNamedSession('S. Boyle', { delayMs: 0 }), true);
+        _signOutCalled = false;
+        releaseGate();
+        assert.equal(await late, false);
+        assert.equal(_signOutCalled, true, 'the late account must not stand under the other member\'s page');
+    });
+
+    test('the same member\'s late sign-in is left alone — it is the account the winner wants', async () => {
+        /** @type {() => void} */ let releaseGate = () => {};
+        _signInGate = new Promise(r => { releaseGate = r; });
+        const late = ensureFirebaseSession('G. Miller');
+        await signInEntered(1);
+        _signInGate = null;
+        assert.equal(await ensureNamedSession('G. Miller', { delayMs: 0 }), true);
+        _signOutCalled = false;
+        releaseGate();
+        await late;
+        assert.equal(_signOutCalled, false);
     });
 
     test('the latest (current) attempt still writes identity normally', async () => {

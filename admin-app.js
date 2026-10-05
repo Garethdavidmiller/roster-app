@@ -259,7 +259,8 @@ export function init() {
             },
         };
 
-        initTipsLightbox(CARD_TIPS, { getIsAdmin: () => currentIsAdmin });
+        // Managers pick members and see All staff exactly as the admin does, so they get the same tips (v24.56).
+        initTipsLightbox(CARD_TIPS, { getIsAdmin: () => currentIsAdmin || currentIsManager });
     })();
 
     // ============================================

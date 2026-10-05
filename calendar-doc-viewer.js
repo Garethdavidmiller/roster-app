@@ -96,12 +96,23 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
         // Invalidate whatever is in flight. The existing `seq !== _openSeq` guards on BOTH the
         // success and failure paths then suppress every late DOM write and focus move. A held
         // locked tap is NOT dropped here — see `_pendingKey`.
-        onClose: () => { _openSeq++; },
+        onClose: () => { _openSeq++; _viewing = null; },
     });
+    /** The document on screen, read under access — so a lock can take it down. @type {string|null} */
+    let _viewing = null;
 
     // THE GRANT FINISHES A TAP THE LOCK HELD BACK (v23.17) — whoever entered the PIN is entitled to
     // the document, and it is the one they came for. A later tap on another document replaces it.
     docAccess.onChange((open) => {
+        // A LOCK WHILE A DOCUMENT IS OPEN OR LOADING (v24.56, auth review) — as the Huddle viewer
+        // does: invalidate the read in flight, so it cannot render an "Open" button for a reader no
+        // longer entitled to it, and say what unlocks it instead of leaving the document up.
+        if (!open && _viewing) {
+            _openSeq++;
+            showMessage(lockedText(DOCS[_viewing]), 'doc-viewer-empty');
+            _viewing = null;
+            return;
+        }
         if (!open || !_pendingKey) return;
         const key = _pendingKey; _pendingKey = null;
         openDoc(key);
@@ -132,6 +143,7 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
             return;
         }
         _pendingKey = null;   // an unlocked open supersedes anything a lock held back
+        _viewing = key;
         showMessage('Loading…', 'doc-viewer-loading');
         lb.open();
         try {
