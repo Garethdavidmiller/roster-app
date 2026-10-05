@@ -82,7 +82,8 @@ export function slowSaveText(batched) {
 }
 
 /**
- * The event a finished SLOW save announces (v24.54): `{ ms, onlineWhenSlow, batched, ok }`. A
+ * The event a SLOW save announces twice: `{ phase: 'slow' }` the moment it passes SLOW_SAVE_MS
+ * (v24.55), and `{ phase: 'done', ms, onlineWhenSlow, batched, ok }` when it settles (v24.54). A
  * diagnostic, not a feature — error-reporter.js listens and records the case that cannot be explained
  * by signal (the browser said online), because an iPhone whose every save took longer than
  * SLOW_SAVE_MS left nothing behind to say WHICH part was slow. An event rather than an import, because
@@ -204,12 +205,18 @@ export function withSlowSaveNotice(promise, { batched = false } = {}) {
     promise.then(() => { ok = true; }, () => { ok = false; });
     return watchSlowCommit(promise, {
         ms,
-        onSlow: () => { onlineWhenSlow = !_offline(); _show(batched); },
+        onSlow: () => {
+            onlineWhenSlow = !_offline();
+            _show(batched);
+            // The moment it BECOMES slow (v24.55), so a listener can measure what is slow while it
+            // still is — error-reporter.js times a sign-in token here, to tell auth from transport.
+            try { globalThis.dispatchEvent?.(new CustomEvent(SLOW_SAVE_EVENT, { detail: { phase: 'slow', batched } })); } catch { /* diagnostic only */ }
+        },
         onDone: () => {
             _hide(batched);
             try {
                 globalThis.dispatchEvent?.(new CustomEvent(SLOW_SAVE_EVENT, {
-                    detail: { ms: Date.now() - started, onlineWhenSlow, batched, ok },
+                    detail: { phase: 'done', ms: Date.now() - started, onlineWhenSlow, batched, ok },
                 }));
             } catch { /* a diagnostic must never disturb the save it describes */ }
         },

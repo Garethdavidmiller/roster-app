@@ -25,7 +25,7 @@ const writes = [];
 /** @type {string|null} */
 let authBlob = null;
 
-mock.module('./firebase-client.js', { namedExports: { logClientError: (/** @type {any} */ rec) => { writes.push(rec); } } });
+mock.module('./firebase-client.js', { namedExports: { logClientError: (/** @type {any} */ rec) => { writes.push(rec); }, auth: null } });
 mock.module('./ls.js', { namedExports: { lsGet: () => authBlob } });
 mock.module('./session.js', { namedExports: { AUTH_KEY: 'test_auth_key' } });
 mock.module('./roster-data.js', { namedExports: { APP_VERSION: '99.99' } });

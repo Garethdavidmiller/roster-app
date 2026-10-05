@@ -39,7 +39,7 @@
  */
 
 import { APP_VERSION } from './roster-data.js';
-import { logClientError } from './firebase-client.js';
+import { logClientError, auth } from './firebase-client.js';
 import { lsGet } from './ls.js';
 import { AUTH_KEY } from './session.js';
 import { shouldReport, APP_SCRIPT_ORIGINS } from './client-errors.js';
@@ -101,11 +101,41 @@ function _report(err, src = '') {
 export function initErrorReporter() {
     window.addEventListener('error', e => _report(e.error ?? e.message, e.filename ?? ''));
     window.addEventListener('unhandledrejection', e => _report(e.reason, location.pathname));
-    window.addEventListener(SLOW_SAVE_EVENT, e => _reportSlowSave(/** @type {CustomEvent} */ (e).detail));
+    window.addEventListener(SLOW_SAVE_EVENT, e => {
+        const d = /** @type {CustomEvent} */ (e).detail;
+        if (d?.phase === 'slow') _timeToken(); else _reportSlowSave(d);
+    });
 }
 
 /** Slow saves recorded this page session — a ceiling, so a genuinely bad signal cannot flood the log. */
 let _slowSavesLogged = 0;
+
+/**
+ * How long a sign-in TOKEN took to arrive, measured from the moment the save became slow (v24.55).
+ * Firestore cannot send a request without one, so a slow save has two broad causes and this is what
+ * tells them apart: a token that took seconds means AUTH is the bottleneck; a token in milliseconds
+ * with the save still waiting means the CONNECTION to the server is. `null` = not measured yet.
+ * @type {{ ms: number|null, state: string }}
+ */
+let _token = { ms: null, state: 'not measured' };
+
+/** Start timing a token for the save that has just become slow. */
+function _timeToken() {
+    const user = auth?.currentUser;
+    if (!user) { _token = { ms: null, state: 'no signed-in user' }; return; }
+    const t0 = Date.now();
+    _token = { ms: null, state: 'still waiting' };
+    user.getIdToken().then(
+        () => { _token = { ms: Date.now() - t0, state: 'ok' }; },
+        () => { _token = { ms: Date.now() - t0, state: 'failed' }; });
+}
+
+/** The token half of the diagnostic line. */
+function _tokenText() {
+    return _token.state === 'ok' ? `sign-in token ${(/** @type {number} */ (_token.ms) / 1000).toFixed(1)}s`
+         : _token.state === 'failed' ? `sign-in token FAILED after ${(/** @type {number} */ (_token.ms) / 1000).toFixed(1)}s`
+         : `sign-in token ${_token.state}`;
+}
 
 /**
  * Record a save the SERVER took longer than SLOW_SAVE_MS to confirm while the browser said it was
@@ -120,6 +150,6 @@ function _reportSlowSave(d) {
         if (!d || !d.onlineWhenSlow || _slowSavesLogged >= 3) return;
         _slowSavesLogged++;
         const installed = !!(window.matchMedia?.('(display-mode: standalone)')?.matches || /** @type {any} */ (navigator).standalone);
-        _report(`Slow save (diagnostic): the server took ${((d.ms ?? 0) / 1000).toFixed(1)}s to ${d.ok === false ? 'refuse' : 'confirm'} a ${d.batched ? 'batched ' : ''}save while the phone said it was online · installed app: ${installed ? 'yes' : 'no'}`, location.pathname);
+        _report(`Slow save (diagnostic): the server took ${((d.ms ?? 0) / 1000).toFixed(1)}s to ${d.ok === false ? 'refuse' : 'confirm'} a ${d.batched ? 'batched ' : ''}save while the phone said it was online · ${_tokenText()} · installed app: ${installed ? 'yes' : 'no'}`, location.pathname);
     } catch { /* never surface a secondary error from the reporter */ }
 }
