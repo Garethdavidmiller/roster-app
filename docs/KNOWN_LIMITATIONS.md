@@ -154,6 +154,22 @@ time and, since v24.55, a **sign-in token** time measured while the save was slo
 
 Read the entries from iPhones before choosing a fix.
 
+## Anybody can hold the staff PIN shut — an owner decision, not yet taken (auth review, v24.56)
+
+`unlockCalendarViewer` has two throttles: 30 failed attempts per source per 15 minutes, and an
+all-sources ceiling of 200 per 15 minutes under a fixed key (`functions/calendar-viewer-auth.js`).
+The ceiling is what stops a distributed guess at a four-digit PIN, and it is also the weakness: a
+stranger sending wrong PINs from enough addresses keeps it reached, and while it is reached **every
+member of staff is refused the PIN**, correct or not. Nothing leaks; the Calendar is simply closed to
+anyone not signed in by name. Raising or removing the ceiling makes guessing cheaper, so it is a
+trade-off for the owner rather than a fix. The two cheap mitigations, if it is ever seen in the logs:
+rotate the PIN to a longer one (the limit then protects far more), or let a correct PIN through the
+ceiling while still counting it.
+
+**Also pending, owner action:** anonymous sign-in is still ENABLED on the Firebase project. Since
+v24.56 the rules refuse an anonymous token everywhere it used to be accepted, so this no longer
+grants anything; switching it off (Console → Authentication → Sign-in method) removes it at source.
+
 ## Development-tool advisories that only a downgrade would clear (v24.50)
 
 An external review (5 Oct 2026) counted 32 `npm audit` entries in the ROOT tree — 1 critical, 17

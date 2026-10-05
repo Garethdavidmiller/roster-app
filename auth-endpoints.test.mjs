@@ -225,7 +225,9 @@ function build({
             // Any other roster member resolves — these endpoints only ever ask about names they
             // have already checked against the server-owned list.
             const known = /@myb-roster\.local$/.test(email);
-            return known ? { uid: `uid_${email.split('@')[0]}`, email } : notFound();
+            // A roster account this server has stamped — the ordinary case. An account it NEVER
+            // stamped is set up per test through `existingUsers`.
+            return known ? { uid: `uid_${email.split('@')[0]}`, email, customClaims: { stamped: true } } : notFound();
         },
         createUser: async ({ email, password, displayName }) => {
             authOps.push({ op: 'createUser', email, password, displayName });
@@ -612,6 +614,18 @@ describe('resetMemberPassword does the whole job when it does proceed', () => {
         assert.equal(out.body.stamped, true);
     });
 
+    test('an account this server never stamped is TAKEN BACK — named, other sign-ins unlinked, signed out (v24.56)', async () => {
+        const outsider = { uid: uidFor(MEMBER), email: emailFor(MEMBER), displayName: 'anything', disabled: false,
+            providerData: [{ providerId: 'password' }, { providerId: 'google.com' }] };
+        const { eps, authOps } = build({ existingUsers: [outsider] });
+        const out = await call(eps.resetMemberPassword, asAdmin({ member: MEMBER, revoke: false }));
+        assert.equal(out.code, 200);
+        const write = authOps.find((o) => o.op === 'updateUser');
+        assert.equal(write.patch.displayName, MEMBER);
+        assert.deepEqual(write.patch.providersToUnlink, ['google.com'], 'the outsider\'s other way in goes');
+        assert.ok(authOps.some((o) => o.op === 'revokeRefreshTokens'), 'and their sessions end even with revoke:false');
+    });
+
     test('revoke:false leaves working sessions alone', async () => {
         // The migration-nudge path. Signing everyone out to prompt a password change would be a
         // bigger interruption than the thing being prompted.
@@ -768,6 +782,7 @@ describe('setupRosterAuth stamps `member`, and takes back an account it never st
         assert.equal(reset.patch.password, 'springer', 'the password the member would have been given');
         assert.equal(reset.patch.displayName, MEMBER, 'and the roster\'s display name, not the outsider\'s');
         assert.ok(i('revokeRefreshTokens') > i('updateUser'), 'every session on it is revoked after the reset');
+        assert.equal(reset.patch.providersToUnlink, undefined, 'nothing to unlink on a password-only account');
         assert.ok(i('setCustomUserClaims') > i('revokeRefreshTokens'), 'and only THEN are the claims stamped');
         assert.equal(claimFor(authOps, MEMBER).member, MEMBER);
     });

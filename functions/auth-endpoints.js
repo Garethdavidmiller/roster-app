@@ -44,6 +44,18 @@ const {
 } = require('./roster-parse-helpers');
 const { setupWebPush, sendTargetedPush } = require('./push');
 const { mustReclaim } = require('./member-identity');
+
+/**
+ * The `updateUser` field that removes every sign-in method but the password from an account being
+ * TAKEN BACK (v24.56, auth review). Resetting the password of an account an outsider registered
+ * left any other method they had linked to it working. Empty when there is nothing to remove.
+ * @param {{ providerData?: Array<{ providerId: string }> }} user
+ * @returns {{ providersToUnlink?: string[] }}
+ */
+function unlinkOtherProviders(user) {
+    const others = (user.providerData || []).map((p) => p.providerId).filter((id) => id && id !== 'password');
+    return others.length ? { providersToUnlink: others } : {};
+}
 const { isViewerAccount } = require('./calendar-viewer-auth');
 const rosterMembers = require('./roster-members.json');
 
@@ -210,7 +222,7 @@ const setupRosterAuth = onRequest(
                             // member would have been given, the display name the roster's, and every
                             // session on it is revoked. Reported by name, so the admin can tell the
                             // member what their password now is.
-                            await getAuth().updateUser(uid, { password, displayName: name, disabled: false });
+                            await getAuth().updateUser(uid, { password, displayName: name, disabled: false, ...unlinkOtherProviders(existing) });
                             await getAuth().revokeRefreshTokens(uid);
                             reclaimed.push(name);
                             console.warn(`[setupRosterAuth] Reclaimed an account with no server claims: ${email}`);
@@ -389,7 +401,14 @@ const resetMemberPassword = onRequest(
             if (isViewerAccount(user)) {
                 return res.status(409).json({ error: `${email} is linked to the shared Calendar PIN account — run this again after the next PIN unlock` });
             }
-            await getAuth().updateUser(user.uid, { password });
+            // AN ACCOUNT THIS SERVER NEVER STAMPED is TAKEN BACK, not just re-passworded (v24.56, auth
+            // review) — the same as setupRosterAuth does, for the same reason: it was registered from
+            // outside, so its display name and any other sign-in method are the outsider's, and its
+            // sessions must end whatever the admin chose for `revoke`.
+            const takeBack = mustReclaim(user);
+            await getAuth().updateUser(user.uid, takeBack
+                ? { password, displayName: member, disabled: false, ...unlinkOtherProviders(user) }
+                : { password });
             // ── PAST THIS LINE THE CREDENTIAL HAS CHANGED, AND NOTHING MAY SAY OTHERWISE ─────────
             // (v21.86, external audit.) Revocation used to be a bare `await` inside the outer try,
             // so a failure there took the whole call to the generic 500 — skipping the resetAt
@@ -401,7 +420,7 @@ const resetMemberPassword = onRequest(
             // encodes is the one the stamp already followed and revocation did not: once the
             // password mutation succeeds, this endpoint reports what happened, never "nothing did".
             let revoked = false;
-            if (revoke) {
+            if (revoke || takeBack) {
                 try {
                     await getAuth().revokeRefreshTokens(user.uid);
                     revoked = true;

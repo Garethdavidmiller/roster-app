@@ -810,6 +810,13 @@ describe('ensureNamedSession', () => {
         assert.equal(_signInCalls, 3, 'initial attempt + 2 retries');
     });
 
+    test('a RATE LIMIT is not retried — another request only adds to it (v24.56)', async () => {
+        _signInBehavior = 'auth/too-many-requests';
+        const ok = await ensureNamedSession('G. Miller', { delayMs: 0, retries: 2 });
+        assert.equal(ok, false);
+        assert.equal(_signInCalls, 1, 'one attempt: the station shares one address, and retries spend its budget');
+    });
+
     test('a TRANSIENT failure that CLEARS on retry → true (recovery path)', async () => {
         _signInBehavior = /** @param {number} call */ (call) => (call === 1 ? 'auth/network-request-failed' : 'ok');
         const ok = await ensureNamedSession('G. Miller', { delayMs: 0, retries: 2 });

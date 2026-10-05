@@ -1105,6 +1105,10 @@ const _calendarSession = getSession();
 // Back after a sign-out elsewhere must not put a member's roster on screen for whoever picks the
 // device up next (page-session.js, v24.52 — every protected page installs the same guard).
 reloadIfRestoredForSomeoneElse();
+// …and the PIN viewer has no local session for that guard to compare, so a protected page that
+// signed the viewer out (by design) let Back restore the roster it had shown (v24.56, auth review).
+// A restored viewer page asks again instead; while the viewer is still current that is one quiet reload.
+window.addEventListener('pageshow', (e) => { if (e.persisted && getAccessType() === 'viewer') window.location.reload(); });
 initNavPanel({
     // The nav panel's `authReady` gates the Circular/Newsletter open counters — Firestore writes —
     // so it needs the AUTH promise, not the access one (v20.22).

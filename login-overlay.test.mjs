@@ -24,7 +24,7 @@ import { mock } from 'node:test';
 
 // These only need to exist so login-overlay.js imports cleanly; runNamedSignIn never touches them.
 mock.module('./session.js', { namedExports: {
-    getSurname: () => '', saveSession: () => {}, clearSession: () => {},
+    getSurname: () => '', saveSession: () => {}, clearSession: () => {}, getSession: () => null,
     ensureNamedSession: async () => true, isTransientAuthError: () => false, getFirebaseAuthError: () => null,
     primeAuth: () => {},
 } });
@@ -107,6 +107,23 @@ describe('runNamedSignIn — local session committed ONLY after auth resolves', 
         assert.equal(r.kind, 'timeout');
         assert.match(/** @type {string} */ (r.error), /complete sign-in — check your connection/);
         assert.equal(calls.save, 0, 'must NOT write a local session on timeout (no half-signed-in state)');
+        assert.equal(calls.clear, 1);
+    });
+
+    test('a failure for the member whose session this device holds leaves that session alone (v24.56)', async () => {
+        // The Calendar's come-back card: their 60-day session is live, their Firebase identity has
+        // gone. A typo, or a timeout on weak signal, must not sign them out of the device.
+        for (const over of [{ ensureNamedSession: async () => false }, { ensureNamedSession: () => new Promise(() => {}), timeoutMs: 30 }]) {
+            const { deps, calls } = makeDeps({ ...over, keepsLocalSession: () => true });
+            const r = await runNamedSignIn(deps);
+            assert.equal(r.ok, false);
+            assert.equal(calls.clear, 0, 'their own session survives a failed attempt');
+        }
+    });
+
+    test('but a stored session for somebody ELSE is still cleared on a failed sign-in', async () => {
+        const { deps, calls } = makeDeps({ ensureNamedSession: async () => false, keepsLocalSession: () => false });
+        await runNamedSignIn(deps);
         assert.equal(calls.clear, 1);
     });
 

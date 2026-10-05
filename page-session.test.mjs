@@ -34,7 +34,10 @@ mock.module('./auth-policy.js', { namedExports: { requirePage: (/** @type {any} 
 mock.module('./auth-state.js', { namedExports: { getAuthSnapshot: () => ({}) } });
 mock.module('./claim-retry.js', { namedExports: { watchIdentityLoss: (/** @type {any} */ a) => { log.push('watch'); watchArgs = a; return () => {}; } } });
 mock.module('./nav-panel.js', { namedExports: { resetNavPanel: () => log.push('resetNavPanel') } });
-mock.module('./overlay.js', { namedExports: { confirmDialog: async () => { log.push('confirm'); return confirmAnswer; } } });
+let lastConfirm = '';
+let inFlight = 0;
+mock.module('./overlay.js', { namedExports: { confirmDialog: async (/** @type {any} */ o) => { log.push('confirm'); lastConfirm = o.message; return confirmAnswer; } } });
+mock.module('./slow-save.js', { namedExports: { writesInFlight: () => inFlight } });
 mock.module('./login-overlay.js', { namedExports: { initLoginOverlay: (/** @type {any} */ o) => log.push(`login:${o.pageLabel}`) } });
 
 /** A window that records listeners and navigation. @type {Record<string, Function[]>} */
@@ -50,7 +53,7 @@ const ps = await import('./page-session.js');
 /** Let the on-demand import of the sign-in land (a dynamic import takes more than one tick). */
 const settle = () => new Promise(r => setTimeout(r, 50));
 
-beforeEach(() => { log = []; session = { name: 'A. Member' }; decision = 'allow'; currentUser = { uid: 'u1' }; confirmAnswer = true; watchArgs = null; });
+beforeEach(() => { inFlight = 0; lastConfirm = ''; log = []; session = { name: 'A. Member' }; decision = 'allow'; currentUser = { uid: 'u1' }; confirmAnswer = true; watchArgs = null; });
 
 describe('guardNamedSession', () => {
     test('an unconfirmed own session: clear, tear down the drawer, THEN the sign-in — and no watch', async () => {
@@ -105,6 +108,13 @@ describe('signing out', () => {
         confirmAnswer = true;
         assert.equal(await ps.askBeforeSignOut(() => true)(), true);
         assert.deepEqual(log, ['confirm', 'confirm'], 'asking clears nothing — the drawer releases only after a yes');
+    });
+
+    test('a save still on its way is asked about, even with nothing unsaved on screen (v24.56)', async () => {
+        inFlight = 1;
+        confirmAnswer = false;
+        assert.equal(await ps.askBeforeSignOut(() => false)(), false, 'a Cancel keeps the session so the save can land');
+        assert.match(lastConfirm, /still being sent/);
     });
 
     test('the browser\'s "Leave site?" asks only while there is unsaved work', () => {
