@@ -1559,7 +1559,7 @@ The ONE document id a manual override is written to (v24.48, external review). P
 
 ### `admin-override-coverage.js`
 What the Admin override cache actually knows (v21.38). Pure — no DOM, no Firebase, no imports.
-- `emptyCoverage()` / `withMember(cov, member)` / `withAll(cov, { complete })` / `clearedCoverage()` — the record, never mutated in place. A CAPPED read (`complete: false`) sets `all: false` as well as `allPartial`: it replaced the cache, so an earlier complete read no longer describes it (re-review R-A6)
+- `emptyCoverage()` / `withMember(cov, member)` / `withAll(cov, { complete })` — the record (`clearedCoverage()`, a wrapper nothing called, was removed v24.51), never mutated in place. A CAPPED read (`complete: false`) sets `all: false` as well as `allPartial`: it replaced the cache, so an earlier complete read no longer describes it (re-review R-A6)
 - `hasAuthorityFor(cov, member)` — the question every write gate asks. Full coverage is checked FIRST, so `all` genuinely means all
 - `coversEveryone(cov)` — the All-staff view's separate question. Having read fifty members one at a time is NOT having read the collection
 - `replaceMemberSlice(docs, member, fresh)` — a replace, not a merge: the read is authoritative for that member, so a document it omits has been deleted
@@ -2527,6 +2527,12 @@ and with nothing else on the page:
 **What it does not own.** Session, identity, tabs, nav, the member's form, the page's chrome. It
 renders through `overtime-manager.js` and reads through `overtime-data.js`; the missing layer was
 this one, between them.
+
+### `links-design-library.js`
+The Links workspace's design LIBRARY — the import panel and the Recently deleted bin (v24.51, split out of `links-app.js` on an external technical-debt review: managing the COLLECTION apart from editing the open design).
+- `createDesignLibrary(ctx)` → `{ openImport, renderBinList, binList, setBin, addToBin, upsertBin, trackBinMove }`. Wires both panels on creation; call once, after the design store exists. `ctx` is deliberately small — `store`, `currentUser`, `getDesigns`, `addDesign`, `activate`, `isDirty`, `hasOpenDesign`, `renderPicker`, `refreshLists`, `actionStatus`, `getHeader` — because a split that passed the editor's state across would only move the coupling.
+- **Owns the bin list** (the coordinator reads it through `binList()`) and the automatic moves in flight (`trackBinMove`, v24.48 — restore and purge wait for a pending move of the same design).
+- **Rename, duplicate and delete stayed in `links-app.js`**: each changes the OPEN design's concurrency baseline or unsaved state.
 
 ### `links-design-store.js`
 The design collection's persistence lifecycle and its concurrency protocol (v21.87).

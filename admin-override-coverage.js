@@ -120,14 +120,6 @@ export function withAll(cov, { complete = true } = {}) {
 }
 
 /**
- * Forget everything. Used when a read FAILS in a way that leaves the cache unusable, and on sign-out.
- * @returns {Coverage}
- */
-export function clearedCoverage() {
-    return emptyCoverage();
-}
-
-/**
  * May a decision about this member be built from the cache?
  *
  * The question every write gate asks. Note it is false for an empty/absent member name: a decision

@@ -258,8 +258,13 @@ test('the file list itself is non-empty — guard the guard', () => {
     // Every assertion above passes vacuously if the directory read returns nothing.
     assert.ok(modules.length > 60, `expected >60 modules, saw ${modules.length}`);
     assert.ok(tests.length > 60, `expected >60 test files, saw ${tests.length}`);
-    assert.ok(CLAUDE.length > 50_000 && AI_MAP.length > 50_000 && FILE_INDEX.length > 50_000,
-        'a routing doc came back suspiciously short');
+    // STRUCTURE, not size (v24.51, external review). This was `length > 50_000` for each document,
+    // which catches an empty read and would equally fail a document somebody had successfully
+    // SHORTENED — the one change these files most need. What a vacuous pass actually requires is a
+    // read that returned the wrong thing, so ask for the shape each one must have.
+    assert.match(CLAUDE, /^## Project identity/m, 'CLAUDE.md came back without its identity section');
+    assert.ok((AI_MAP.match(/^### `/gm) || []).length > 60, 'AI_MAP.md came back with almost no module entries');
+    assert.ok((FILE_INDEX.match(/^├── /gm) || []).length > 60, 'FILE_INDEX.md came back with almost no file rows');
 });
 
 // ── CONTRACT 1d: AI_MAP gives every module its OWN ENTRY, not merely a mention ─────────────────
