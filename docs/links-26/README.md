@@ -80,6 +80,7 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 | | `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` | the rules reference (`../links-26-rules.pdf`), the one-page summary (`../links-26-summary.pdf`) and the two-page shortlist sheet (`../links-26-shortlist.pdf`) |
 | 4 · decks and pack | `second-nature-decks.py` → `second-edition-decks.py`, `even-keel-decks.py`, `short-run-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the zip |
 | league | `league.mjs` | the weighted league on every factor the sheets compare (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`) — the owner's weights, a judgement not a measurement |
+| blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
 
 **Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
@@ -756,6 +757,20 @@ tip, the shortlist's page-2 table repeats a shared figure under each design inst
 the shortlist and rules pages are a fixed height so their footers do not float, the summary gained the family's
 running footer, the read-me is wrapped by code to 78 columns, and no table cell or list item ends on a lone word
 (the tidy pass in `plain.mjs`, `shortlist-sheet.mjs` and `rules-sheet.mjs`).
+
+**The longest block of earlies or lates (5 Oct 2026, owner).** Every week of a 26-line design is all earlies, all
+lates or a cover week, where today's link mixes the two inside 7 of its 16 working weeks. The flip side of fewer switches
+is that a colleague who prefers one kind waits longer for it to come round. The figure is a RANGE, because a cover
+week's four duties are placed later: on the fixed rota every design's longest block is 4 or 5 weeks (today 2), but if
+the cover weeks beside a block are given the same kind it runs to 6 or 7 on most designs and to **12 on Even Keel,
+Fine Tune and Second Gear**, whose two blocks of lates sit either side of one cover week (Long Break 9; today 3).
+`tooling/blocks.mjs` computes it once, and it now appears as a page-2 row and a page-1 concern on every sheet, a row in
+the shortlist's comparison, a line under "Weeks on one turn" in the summary, and in the decks' week-strip banner and
+notes. Until this, the decks quoted only the fixed-rota figure ("the longest run of one kind is 5 weeks of lates"),
+which broke the pack's own "5 (up to 6)" convention for days in a row. **The shortlist and rules sheets now refuse to
+print a page whose content runs into its footer** — their pages are a fixed height, so an over-full page was HIDDEN, not
+pushed onto a third page, and this change first hid the shortlist's last choice-guide row and closing line. The guard
+measures at the print width under print media; measured at screen width it passed the broken page.
 
 ## Notes for the whole set
 

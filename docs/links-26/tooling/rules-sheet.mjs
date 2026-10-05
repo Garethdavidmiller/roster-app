@@ -222,6 +222,16 @@ const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace
 writeFileSync(htmlOut, tidy(html));
 const b = await chromium.launch(); const pg = await b.newPage();
 await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
+// THE PAGE IS A FIXED HEIGHT, so content that does not fit is HIDDEN, not pushed onto another page — a row added on
+// 5 Oct 2026 silently hid the choice guide's last row and the closing paragraph. Refuse to print a page that overflows.
+// Measured at the PRINT width (A4 less the 11 mm side margins, 711 px) under print media: at screen width the text
+// wraps less and an over-full page looks fine, which is how the first version of this guard passed a broken page.
+{ await pg.emulateMedia({ media: 'print' }); await pg.setViewportSize({ width: 711, height: 1100 });
+  const over = await pg.evaluate(() => [...document.querySelectorAll('.page')].map((p, i) => { const foot = p.querySelector('.foot');
+    const lim = foot ? foot.getBoundingClientRect().top : p.getBoundingClientRect().bottom;
+    const low = Math.max(...[...p.children].filter(c => c !== foot).map(c => c.getBoundingClientRect().bottom));
+    return [i + 1, Math.round(Math.max(low - lim, p.scrollHeight - p.clientHeight))]; }).filter(([, d]) => d > 1));
+  if (over.length) throw new Error(`content runs into the footer or off the page (page, px): ${JSON.stringify(over)}`); }
 await pg.pdf({ path: OUT, format: 'A4', printBackground: true, preferCSSPageSize: true });
 await b.close();
 console.log('wrote', OUT);

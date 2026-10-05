@@ -19,6 +19,7 @@ import { assess, folderStats, today, sheetRules, h55Worst, endMinutes, startMinu
 import { personal } from './plain.mjs';
 import { LINES } from './link.mjs';
 import { leave } from './leave.mjs';
+import { kindBlocks } from './blocks.mjs';
 import { scoreOrder } from '../../../links-adjacency.js';
 
 const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url).pathname;   // DECK_DIR: check a copy
@@ -67,6 +68,7 @@ function figures(patterns, lines, T) {
     floor: fl.join(' · '), floorMin: `${Math.min(...fl)}`,
     cover: `${cover} in ${L} (1 in ${+(L / cover).toFixed(1)})`, sundayPeople: `${A.daily.sun}`,
     breaks: `${A.feel.pairedRest} of ${A.feel.restIslands}`, oneTurn: `${A.feel.oneTurn} of ${A.feel.workingLines}`,
+    ...(b => ({ block: `${b.fixed}`, blockUpTo: `${b.worst}` }))(kindBlocks(patterns)),
     // 26 lines: the leave figures, from leave.mjs (the 24-line decks' model, reproduced and checked there)
     ...(lv => ({ leaveBest: `${lv.best}`, leaveAvg: lv.avg.toFixed(1), leaveWorst: `${lv.worst}`, leaveFour: `${lv.fourWeeks}` }))(leave(patterns)),
     // the week-to-week step: the average change in a week's mean start time (plain.mjs's definition; the shortlist's figure)

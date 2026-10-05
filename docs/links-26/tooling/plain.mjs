@@ -21,6 +21,7 @@ import { LINES, COVER_WEEKS, WORKING_LINES, CONTRACT_MINUTES, DAYS_CEILING, days
 import { dutyMinutes, startMinutes, endMinutes } from './report-data.mjs';
 import { WAIVERS } from './fresh.mjs';
 import { leave } from './leave.mjs';
+import { kindBlocks, blockText } from './blocks.mjs';
 
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -117,6 +118,8 @@ function front({ T, P, meta, pages, coverHead }) {
   // page-1 concern, not only a page-2 row (outside review, 4 Oct 2026: "someone reading only that page misses a
   // significant trade-off")
   const lvP = leave(P.patterns), lvT = leave(T.patterns);
+  // the longest block of earlies or lates (blocks.mjs): a range, because a cover week's duties are placed later
+  const bkP = kindBlocks(P.patterns), bkT = kindBlocks(T.patterns);
   const breaks = [rests ? `${rests} ${rests === 1 ? 'gap' : 'gaps'} of under 12 hours between shifts` : '',
     run > 13 ? `a run of ${run} days in a row (the limit is 13)` : '',
     monSat !== CONTRACT_MINUTES ? `${Math.abs(monSat - CONTRACT_MINUTES).toLocaleString('en-GB')} minutes a week ${monSat > CONTRACT_MINUTES ? 'over' : 'under'} the contract across the link` : '',
@@ -210,6 +213,8 @@ function front({ T, P, meta, pages, coverHead }) {
   add(lvP.fourWeeks < lvT.fourWeeks, good, 23, `Four full weeks off, Sunday to Saturday, for ${lvP.fourWeeks} days’ leave (today ${lvT.fourWeeks})`);
   add(iso(P) != null && iso(P) < iso(T) - 2, good, 22, `Fewer single rest days — ${iso(P)} (today ${iso(T)})`);
   add(six(P) > six(T), bad, 21, `More six-day weeks — ${six(P)} (today ${six(T)})`);
+  // the flip side of a week on one shift time: a colleague who prefers one kind waits longer for it to come round
+  add(bkP.fixed > bkT.fixed + 1, bad, 63, `Earlies and lates in longer blocks — up to ${bkP.fixed} weeks of one kind${bkP.worst > bkP.fixed ? `, ${bkP.worst} if the cover weeks beside it go the same way` : ''} (today ${bkT.fixed})`);
   add(one(P) < one(T) - 0.1, bad, 62, `Fewer weeks on one shift time — ${P.feel.oneTurn} of ${P.feel.workingLines} (today ${T.feel.oneTurn} of ${T.feel.workingLines})`);
   add(one(P) > one(T) + 0.1, good, 62, `More weeks on one shift time — ${P.feel.oneTurn} of ${P.feel.workingLines} (today ${T.feel.oneTurn} of ${T.feel.workingLines})`);
   // on duty at the open, 22:00 and the close: a day with fewer than today is named, even when other days gain
@@ -414,6 +419,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('Days at work a year, not counting Sundays', tp.daysYear.toFixed(1), pp.daysYear.toFixed(1), '', 'Sundays are overtime; a cover week counts as 4 days'),
     row('Weeks on one shift time', ofW(T), ofW(P), '', 'all earlies or all lates, one clock time Monday to Friday'),
     row('Weeks mixing earlies and lates', `${T.feel.hybrid} of ${T.feel.workingLines}`, `${P.feel.hybrid} of ${P.feel.workingLines}`, '', 'a week with both early and late shifts in it'),
+    row('Longest block of earlies or lates', blockText(bkT), blockText(bkP), '', 'weeks in a row on one kind; “up to” with the cover weeks'),
     row('Single rest days', iso(T), iso(P), '', 'a rest day on its own — not a two-day break'),
     row('Six-day weeks', six(T), six(P), '', 'weeks with six days at work, Sundays counted'),
     row('Leave for four full weeks off', `${lvT.fourWeeks} days`, `${lvP.fourWeeks} days`, cmp(lvP.fourWeeks < lvT.fourWeeks, lvP.fourWeeks === lvT.fourWeeks), 'the least leave for four complete weeks, Sunday to Saturday; rest days and Sundays cost none'),
