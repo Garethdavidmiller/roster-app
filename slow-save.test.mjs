@@ -2,7 +2,7 @@
 // Pure: timers are injected, so nothing here waits eight real seconds.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { watchSlowCommit, withSlowSaveNotice, writesInFlight, SLOW_SAVE_MS, SLOW_SAVE_TEXT, SLOW_SAVE_TEXT_BATCHED } from './slow-save.js';
+import { watchSlowCommit, withSlowSaveNotice, writesInFlight, SLOW_SAVE_MS, SLOW_SAVE_TEXT, SLOW_SAVE_TEXT_BATCHED, SLOW_SAVE_TEXT_ONLINE, SLOW_SAVE_TEXT_BATCHED_ONLINE, slowSaveText, SLOW_SAVE_EVENT } from './slow-save.js';
 
 /** A controllable clock: fire() runs every pending timer, as if its time had come. */
 function fakeTimers() {
@@ -70,9 +70,65 @@ test('the threshold and the wording', () => {
 test('a BATCHED save never tells the reader they can leave (v24.23)', () => {
     // Only the batch in flight is held on the device; a batch not yet started exists nowhere, so
     // leaving strands it. v24.21 said "You can leave this page" to the roster upload too.
-    assert.doesNotMatch(SLOW_SAVE_TEXT_BATCHED, /can leave/i);
-    assert.match(SLOW_SAVE_TEXT_BATCHED, /Keep this page open/);
-    assert.doesNotMatch(SLOW_SAVE_TEXT_BATCHED, /\bsaved\b/i);
+    for (const line of [SLOW_SAVE_TEXT_BATCHED, SLOW_SAVE_TEXT_BATCHED_ONLINE]) {
+        assert.doesNotMatch(line, /can leave/i);
+        assert.match(line, /Keep this page open/);
+        assert.doesNotMatch(line, /\bsaved\b/i);
+    }
+});
+
+test('"Waiting for signal" only when the browser says it is OFFLINE (v24.54)', () => {
+    // An iPhone with full bars was told "Waiting for signal" on every save: the notice is a timer and
+    // cannot know why the server is slow, so it may name the signal only when it is known to be gone.
+    const had = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    const setOnline = (/** @type {boolean} */ v) => Object.defineProperty(globalThis, 'navigator', { value: { onLine: v }, configurable: true });
+    try {
+        setOnline(true);
+        assert.equal(slowSaveText(false), SLOW_SAVE_TEXT_ONLINE);
+        assert.equal(slowSaveText(true), SLOW_SAVE_TEXT_BATCHED_ONLINE);
+        assert.doesNotMatch(SLOW_SAVE_TEXT_ONLINE, /signal/i, 'online: the signal is not the known cause');
+        assert.doesNotMatch(SLOW_SAVE_TEXT_ONLINE, /\bsaved\b|!/i);
+        assert.match(SLOW_SAVE_TEXT_ONLINE, /held on this device/);
+        setOnline(false);
+        assert.equal(slowSaveText(false), SLOW_SAVE_TEXT);
+        assert.equal(slowSaveText(true), SLOW_SAVE_TEXT_BATCHED);
+        assert.match(SLOW_SAVE_TEXT, /Waiting for signal/);
+    } finally {
+        if (had) Object.defineProperty(globalThis, 'navigator', had); else delete /** @type {any} */ (globalThis).navigator;
+    }
+});
+
+test('a finished SLOW save announces how long it took; a quick one announces nothing (v24.54)', async () => {
+    /** @type {any[]} */ const seen = [];
+    // Node's global is not an EventTarget the way a page's `window` is; lend it one for this test.
+    const g = /** @type {any} */ (globalThis);
+    const et = new EventTarget();
+    g.addEventListener = et.addEventListener.bind(et);
+    g.removeEventListener = et.removeEventListener.bind(et);
+    g.dispatchEvent = et.dispatchEvent.bind(et);
+    const listener = (/** @type {any} */ e) => seen.push(e.detail);
+    globalThis.addEventListener(SLOW_SAVE_EVENT, listener);
+    const prevDoc = globalThis.document, prevE2E = globalThis.__E2E;
+    globalThis.document = /** @type {any} */ ({ getElementById: () => null, createElement: () => ({ setAttribute() {} }), body: { appendChild() {} } });
+    globalThis.__E2E = { slowSaveMs: 5 };
+    try {
+        await withSlowSaveNotice(Promise.resolve('quick'));
+        await tick();
+        assert.deepEqual(seen, [], 'a save inside the threshold is not a diagnostic');
+        const slow = deferred();
+        const p = withSlowSaveNotice(slow.p, { batched: true });
+        await new Promise(r => setTimeout(r, 30));
+        slow.reject(new Error('refused')); await p.catch(() => {}); await tick();
+        assert.equal(seen.length, 1);
+        assert.ok(seen[0].ms >= 5, 'it reports the time it actually took');
+        assert.equal(seen[0].batched, true);
+        assert.equal(seen[0].ok, false, 'and whether the server confirmed or refused it');
+        assert.equal(typeof seen[0].onlineWhenSlow, 'boolean');
+    } finally {
+        globalThis.removeEventListener(SLOW_SAVE_EVENT, listener);
+        delete g.addEventListener; delete g.removeEventListener; delete g.dispatchEvent;
+        globalThis.document = prevDoc; globalThis.__E2E = prevE2E;
+    }
 });
 
 test('the notice: batched wording wins while any batched write waits, and it clears on the last', async () => {
@@ -92,10 +148,10 @@ test('the notice: batched wording wins while any batched write waits, and it cle
         const pb = withSlowSaveNotice(b.p, { batched: true });
         await new Promise(r => setTimeout(r, 30));
         assert.equal(el.hidden, false);
-        assert.equal(el.textContent, SLOW_SAVE_TEXT_BATCHED, 'a batched write is waiting — stay-here wording');
+        assert.equal(el.textContent, slowSaveText(true), 'a batched write is waiting — stay-here wording');
         b.resolve(); await pb; await tick();
         assert.equal(el.hidden, false, 'the plain write still waits');
-        assert.equal(el.textContent, SLOW_SAVE_TEXT, 'no batched write left — the ordinary wording returns');
+        assert.equal(el.textContent, slowSaveText(false), 'no batched write left — the ordinary wording returns');
         a.resolve(); await pa; await tick();
         assert.equal(el.hidden, true, 'the last write landed — the notice goes');
     } finally {

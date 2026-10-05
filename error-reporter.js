@@ -43,6 +43,7 @@ import { logClientError } from './firebase-client.js';
 import { lsGet } from './ls.js';
 import { AUTH_KEY } from './session.js';
 import { shouldReport, APP_SCRIPT_ORIGINS } from './client-errors.js';
+import { SLOW_SAVE_EVENT } from './slow-save.js';
 
 // Deduplicate within the current page session — one Firestore write per distinct message.
 const _seen = new Set();
@@ -100,4 +101,25 @@ function _report(err, src = '') {
 export function initErrorReporter() {
     window.addEventListener('error', e => _report(e.error ?? e.message, e.filename ?? ''));
     window.addEventListener('unhandledrejection', e => _report(e.reason, location.pathname));
+    window.addEventListener(SLOW_SAVE_EVENT, e => _reportSlowSave(/** @type {CustomEvent} */ (e).detail));
+}
+
+/** Slow saves recorded this page session — a ceiling, so a genuinely bad signal cannot flood the log. */
+let _slowSavesLogged = 0;
+
+/**
+ * Record a save the SERVER took longer than SLOW_SAVE_MS to confirm while the browser said it was
+ * ONLINE (v24.54). Not an error: a DIAGNOSTIC, written to the one log the admin can already read.
+ * It exists because an installed iPhone app took longer than that on every week-grid save with full
+ * signal, and nothing recorded which part was slow or on what. An offline-when-slow save is the
+ * expected case and is not recorded. Same fields as any error, so the rules need nothing new.
+ * @param {{ ms?: number, onlineWhenSlow?: boolean, batched?: boolean, ok?: boolean }} d
+ */
+function _reportSlowSave(d) {
+    try {
+        if (!d || !d.onlineWhenSlow || _slowSavesLogged >= 3) return;
+        _slowSavesLogged++;
+        const installed = !!(window.matchMedia?.('(display-mode: standalone)')?.matches || /** @type {any} */ (navigator).standalone);
+        _report(`Slow save (diagnostic): the server took ${((d.ms ?? 0) / 1000).toFixed(1)}s to ${d.ok === false ? 'refuse' : 'confirm'} a ${d.batched ? 'batched ' : ''}save while the phone said it was online · installed app: ${installed ? 'yes' : 'no'}`, location.pathname);
+    } catch { /* never surface a secondary error from the reporter */ }
 }

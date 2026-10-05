@@ -59,6 +59,38 @@ export const SLOW_SAVE_TEXT_BATCHED =
     'Waiting for signal — this save is still sending in parts. Keep this page open until it finishes.';
 
 /**
+ * The same two lines for a phone that says it IS online (v24.54). The notice is a TIMER: it knows only
+ * that the server has not answered within SLOW_SAVE_MS, never why. Saying "Waiting for signal" on a
+ * phone with full bars was reported from an iPhone whose every save took longer than that — the claim
+ * was false, and it sent the reader looking at their signal instead of reporting a fault. So the
+ * signal is named only when the browser itself reports being offline (`navigator.onLine === false`),
+ * which is the one case where it is known. Neither line says "saved" (see the header).
+ */
+export const SLOW_SAVE_TEXT_ONLINE =
+    'Still sending — the server has not confirmed this change yet. It is held on this device and will send automatically.';
+/** The online twin of SLOW_SAVE_TEXT_BATCHED. */
+export const SLOW_SAVE_TEXT_BATCHED_ONLINE =
+    'Still sending — this save is going in parts. Keep this page open until it finishes.';
+
+/** Is the browser reporting itself offline? Only `false` counts; an unknown is not a known outage. */
+const _offline = () => typeof navigator !== 'undefined' && navigator.onLine === false;
+
+/** The line for the notice right now. @param {boolean} batched */
+export function slowSaveText(batched) {
+    if (_offline()) return batched ? SLOW_SAVE_TEXT_BATCHED : SLOW_SAVE_TEXT;
+    return batched ? SLOW_SAVE_TEXT_BATCHED_ONLINE : SLOW_SAVE_TEXT_ONLINE;
+}
+
+/**
+ * The event a finished SLOW save announces (v24.54): `{ ms, onlineWhenSlow, batched, ok }`. A
+ * diagnostic, not a feature — error-reporter.js listens and records the case that cannot be explained
+ * by signal (the browser said online), because an iPhone whose every save took longer than
+ * SLOW_SAVE_MS left nothing behind to say WHICH part was slow. An event rather than an import, because
+ * this module must stay free of Firebase so its rules can be unit-tested.
+ */
+export const SLOW_SAVE_EVENT = 'myb-slow-save';
+
+/**
  * Watch a write promise and report when it is slow. Returns the SAME promise, so a caller's
  * `await` sees exactly the result or error it would have seen without the watcher.
  * `onSlow` fires at most once, only if the promise is still unsettled after `ms`. `onDone` fires
@@ -130,7 +162,7 @@ function _show(batched) {
     if (batched) _batchedWaiting++;
     const el = _noticeEl();
     if (!el) return;
-    el.textContent = _batchedWaiting ? SLOW_SAVE_TEXT_BATCHED : SLOW_SAVE_TEXT;
+    el.textContent = slowSaveText(_batchedWaiting > 0);
     el.hidden = false;
 }
 
@@ -144,7 +176,7 @@ function _hide(batched) {
     if (batched) _batchedWaiting = Math.max(0, _batchedWaiting - 1);
     const el = _noticeEl();
     if (!el) return;
-    if (_waiting) { el.textContent = _batchedWaiting ? SLOW_SAVE_TEXT_BATCHED : SLOW_SAVE_TEXT; return; }
+    if (_waiting) { el.textContent = slowSaveText(_batchedWaiting > 0); return; }
     el.hidden = true; el.textContent = '';
 }
 
@@ -166,5 +198,20 @@ export function withSlowSaveNotice(promise, { batched = false } = {}) {
     // production sets __E2E, so production always waits SLOW_SAVE_MS.
     const seam = /** @type {any} */ (globalThis).__E2E?.slowSaveMs;
     const ms = typeof seam === 'number' && seam > 0 ? seam : SLOW_SAVE_MS;
-    return watchSlowCommit(promise, { ms, onSlow: () => _show(batched), onDone: () => _hide(batched) });
+    const started = Date.now();
+    let onlineWhenSlow = true;
+    /** @type {boolean} */ let ok = true;
+    promise.then(() => { ok = true; }, () => { ok = false; });
+    return watchSlowCommit(promise, {
+        ms,
+        onSlow: () => { onlineWhenSlow = !_offline(); _show(batched); },
+        onDone: () => {
+            _hide(batched);
+            try {
+                globalThis.dispatchEvent?.(new CustomEvent(SLOW_SAVE_EVENT, {
+                    detail: { ms: Date.now() - started, onlineWhenSlow, batched, ok },
+                }));
+            } catch { /* a diagnostic must never disturb the save it describes */ }
+        },
+    });
 }

@@ -131,6 +131,30 @@ for that member and day; an import is never treated as a duplicate. On the cappe
 very old day may not be loaded, so selecting the member first is the complete route. None has been
 counted; nothing in the app reports them.
 
+## Admin saves are slow on an installed iPhone app, cause not yet found (v24.54)
+
+Reported 5 Oct 2026 for an iPhone 18 Pro on iOS 27, using the installed app: EVERY week-grid save
+sat on "Saving…" past the 8-second notice, with full signal, and the change then arrived. What is
+known:
+- The time is spent waiting for Firestore's SERVER to confirm the commit. Nothing before the
+  write is waiting: the gate, the session and the override load are all bounded.
+- The service worker is not involved. It handles only same-origin GET requests, and Firestore's
+  traffic is neither.
+- The notice used to say "Waiting for signal", which was false here. Since v24.54 it names the
+  signal only when the browser reports being offline.
+
+**What is in place to find it:** each save slower than the threshold while the browser said it was
+online is recorded in Operations → Error Log as "Slow save (diagnostic)", with the time it took
+and whether it was the installed app. The questions that entry, and one test on the same phone in
+Safari, will settle are:
+- Is it every iPhone on iOS 27, or this one?
+- Is it the installed app only?
+- How long does the confirmation take?
+
+The leading candidate is Firestore's connection on that browser (its streaming transport); the
+documented setting for that is forcing long-polling. It has deliberately NOT been changed blind,
+because it applies to every device.
+
 ## Development-tool advisories that only a downgrade would clear (v24.50)
 
 An external review (5 Oct 2026) counted 32 `npm audit` entries in the ROOT tree — 1 critical, 17
