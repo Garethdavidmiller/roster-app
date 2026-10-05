@@ -69,9 +69,11 @@ export const APP_PAGES = Object.freeze([
     app('overtime.html', 'overtime'),
 ]);
 
-/** The printable guides — no shared.css, no drawer, no auth, no analytics id. @type {ReadonlyArray<GuidePage>} */
+/** The printable guides — no shared.css, no drawer, no auth, no analytics id. In the drawer's order,
+ *  which the guide search index is built in (scripts/guide-index-lib.mjs reads this list).
+ *  @type {ReadonlyArray<GuidePage>} */
 export const GUIDE_PAGES = Object.freeze(
-    ['staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip-guide.html', 'rangers-guide.html']
+    ['staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'rangers-guide.html', 'fip-guide.html']
         .map(file => /** @type {GuidePage} */ ({ file, kind: 'guide', url: `/${file}` })));
 
 /**

@@ -153,9 +153,47 @@ test('every app page is visited by the deployed-CSP proof', () => {
     // it serves the app from the Firebase Hosting emulator so the real firebase.json header is
     // enforced by Chromium. Its hand list missed `overtime.html` for six releases; since v24.52 it
     // reads scripts/app-pages.mjs, and this asserts it still does.
-    const { imports, handList } = readsThePageList(read('./e2e/csp.spec.js'), 'APP_PAGES');
-    assert.ok(imports, 'e2e/csp.spec.js no longer takes its pages from scripts/app-pages.mjs (APP_PAGES)');
-    assert.deepEqual(handList, [], 'e2e/csp.spec.js names pages itself again — read them from the list');
+    // It visits the GUIDES too, and dropping them would leave the import of APP_PAGES standing.
+    const suite = read('./e2e/csp.spec.js');
+    for (const helper of ['APP_PAGES', 'GUIDE_PAGES']) {
+        const { imports } = readsThePageList(suite, helper);
+        assert.ok(imports, `e2e/csp.spec.js no longer takes its pages from scripts/app-pages.mjs (${helper})`);
+    }
+    assert.deepEqual(readsThePageList(suite, 'APP_PAGES').handList, [], 'e2e/csp.spec.js names pages itself again — read them from the list');
+});
+
+test('csp-hygiene holds every app page\'s network calls to the CSP', () => {
+    // Its hand list never had overtime.html, so that page's origins were never checked (found v24.52).
+    const { imports, handList } = readsThePageList(read('./csp-hygiene.test.mjs'), 'APP_PAGES');
+    assert.ok(imports, 'csp-hygiene no longer takes its pages from scripts/app-pages.mjs (APP_PAGES)');
+    assert.deepEqual(handList, [], 'csp-hygiene names pages itself again — read them from the list');
+});
+
+test('no test or script writes out a whole family of pages again', () => {
+    // The page list exists so no TEST keeps its own copy. A copy is recognisable: a single array or
+    // Set literal naming EVERY guide, or every app page. A deliberate subset (four pages that share
+    // one property) is not a copy and is not flagged. Found at v24.52 by this rule's absence: after
+    // six suites moved over, four more — and the guide search generator — still spelled the five
+    // guides out, and the generator's list was a second source of truth of its own.
+    const families = { guides: GUIDE_PAGES.map(p => p.file), 'app pages': APP_PAGE_ENTRIES.map(p => p.file) };
+    const root = new URL('.', import.meta.url);
+    const files = [
+        // Tests and tooling only: the app's OWN lists (service worker, nav, policy) are hand-written by
+        // design — no build step — and are checked against the page list by the tests above.
+        ...readdirSync(root).filter(f => f.endsWith('.test.mjs')),
+        ...readdirSync(new URL('./e2e/', root)).filter(f => f.endsWith('.js')).map(f => `e2e/${f}`),
+        ...readdirSync(new URL('./scripts/', root)).filter(f => /\.m?js$/.test(f) && f !== 'app-pages.mjs').map(f => `scripts/${f}`),
+    ];
+    const offenders = [];
+    for (const f of files) {
+        const code = read(`./${f}`).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        for (const lit of code.match(/\[[^[\]]*\]/g) || []) {
+            for (const [name, members] of Object.entries(families)) {
+                if (members.every(m => lit.includes(`'${m}'`) || lit.includes(`'/${m}'`))) offenders.push(`${f}: ${name}`);
+            }
+        }
+    }
+    assert.deepEqual(offenders, [], 'a full page family written out by hand — import it from scripts/app-pages.mjs');
 });
 
 test('every app page has at least one visual-regression baseline', () => {

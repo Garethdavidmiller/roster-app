@@ -59,10 +59,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { GUIDE_PAGES } from './scripts/app-pages.mjs';
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 
-const GUIDES = new Set(['staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip-guide.html', 'rangers-guide.html']);
+// The guides come from scripts/app-pages.mjs (v24.52); every other page is still read from disk.
+const GUIDES = new Set(GUIDE_PAGES.map(p => p.file));
 const APP_PAGES = readdirSync(new URL('.', import.meta.url))
     .filter(f => f.endsWith('.html') && !GUIDES.has(f)).sort();
 

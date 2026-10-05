@@ -25,8 +25,8 @@
 import { test, expect } from '@playwright/test';
 import { APP_PAGES, GUIDE_PAGES } from '../scripts/app-pages.mjs';
 
-// Every served page (calendar at '/', the five sub-pages, the four guides). Firebase Hosting 301s
-// '/index.html' -> '/', so the calendar is requested as '/'.
+// Every app page and guide (scripts/app-pages.mjs). Firebase Hosting 301s '/index.html' -> '/', so
+// the calendar is requested as '/' — its `url` in that list.
 /**
  * Blocked URIs that are EXPECTED and must not fail the run. Keep this list minimal and specific —
  * each entry is a promise that the app does not need that request.

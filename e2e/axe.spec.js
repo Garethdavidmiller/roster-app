@@ -14,6 +14,7 @@
 import { test, expect } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
 import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin, openPinCard, clearNoticeFlags, sheetAction, openRosterReview, ROSTER_REVIEW_DATES } from './helpers.js';
+import { GUIDE_PAGES } from '../scripts/app-pages.mjs';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -679,7 +680,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     }
 
     // Static guide pages — no auth, no async state.
-    for (const guide of ['staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip-guide.html', 'rangers-guide.html']) {
+    for (const guide of GUIDE_PAGES.map(p => p.file)) {   // scripts/app-pages.mjs (v24.52)
         test(`guide (${guide})`, async ({ page }) => {
             await page.goto(`/${guide}`);
             await expect(page.locator('h1').first()).toBeVisible();

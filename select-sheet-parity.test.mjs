@@ -53,7 +53,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { pageStylesheets } from './scripts/app-pages.mjs';
+import { pageStylesheets, GUIDE_PAGES, REDIRECT_PAGES } from './scripts/app-pages.mjs';
 
 const ROOT = new URL('.', import.meta.url);
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, ROOT), 'utf8');
@@ -68,10 +68,10 @@ const strip = (/** @type {string} */ s) => s
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/^[ \t]*\/\/.*$/gm, '');
 
-const GUIDES = new Set([
-    'staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip-guide.html', 'rangers-guide.html',
-]);
-const LEGACY_REDIRECTS = new Set(['guide.html', 'fip.html']);
+// The guide and redirect families come from scripts/app-pages.mjs (v24.52); the app pages are still
+// enumerated from disk, so a page that exists is checked whether or not anybody listed it.
+const GUIDES = new Set(GUIDE_PAGES.map(p => p.file));
+const LEGACY_REDIRECTS = new Set(REDIRECT_PAGES.map(p => p.file));
 
 const APP_PAGES = readdirSync(ROOT)
     .filter(f => f.endsWith('.html') && !GUIDES.has(f) && !LEGACY_REDIRECTS.has(f))
