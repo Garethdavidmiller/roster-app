@@ -418,9 +418,18 @@ describe('getSession', () => {
         assert.equal(s.expiry, written.expiry, 'and must never move the absolute expiry');
     });
 
-    test('a session expiring in 1 ms is valid until it has elapsed', () => {
-        writeSession({ expiry: Date.now() + 1 });
-        assert.ok(getSession() !== null);
+    test('a session expiring in 1 ms is valid until it has elapsed', (t) => {
+        // The clock is FROZEN, and that is the point of the test rather than a convenience: on a
+        // real clock, "valid until 1 ms from now" is only true if the read lands inside the same
+        // millisecond, so a busy CI runner failed it (the v24.52 pull-request run, 5 Oct 2026).
+        // Frozen, it asks the question it means — is expiry exclusive of the moment before it? —
+        // and then steps the clock past it to prove the boundary is real.
+        const now = Date.now();
+        t.mock.method(Date, 'now', () => now);
+        writeSession({ expiry: now + 1 });
+        assert.ok(getSession() !== null, 'one millisecond before expiry, the session is valid');
+        t.mock.method(Date, 'now', () => now + 2);
+        assert.equal(getSession(), null, 'once it has elapsed, it is not');
     });
 });
 
