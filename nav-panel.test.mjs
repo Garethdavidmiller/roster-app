@@ -260,4 +260,23 @@ describe('sign-out releases the device push record only once the page commits', 
         await btn.on.click();
         assert.deepEqual(signOutLog, ['release', 'signout']);
     });
+    test('a second tap while the first is in flight does nothing — and a Cancel re-arms it (v24.53)', async () => {
+        /** @type {(v: boolean) => void} */ let answer = () => {};
+        let asked = 0;
+        const btn = mountDrawer({
+            beforeSignOut: () => { asked += 1; return new Promise(res => { answer = res; }); },
+            onSignOut: () => signOutLog.push('signout'),
+        });
+        const first = btn.on.click();
+        await btn.on.click();                       // the double tap, during the close fade
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(asked, 1, 'one "Sign out anyway?", not two stacked');
+        answer(false); await first;
+        assert.deepEqual(signOutLog, [], 'cancelled');
+        const again = btn.on.click();
+        await new Promise(r => setTimeout(r, 0));
+        assert.equal(asked, 2, 'after a Cancel the button works again');
+        answer(true); await again;
+        assert.deepEqual(signOutLog, ['release', 'signout'], 'and signs out exactly once');
+    });
 });

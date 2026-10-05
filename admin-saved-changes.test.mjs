@@ -186,12 +186,15 @@ mock.module('./admin-override-store.js', {
         coversAllStaff: () => _coversAll,
         OVERRIDES_QUERY_CAP: 400,
         loadOverrides: async (/** @type {any} */ opts) => { _loads.push(opts); },
-        // The store's own rule, over the mocked rows: every MANUAL record of a deleted manual day.
+        // The store's own rule, over the mocked rows: the MANUAL records of the day that the deleted one
+        // OUTRANKS (v24.53). The real function is tested against a seeded cache in
+        // admin-override-store.test.mjs, block 5; this copy only lets the receipt be checked here.
         withManualDuplicates: (/** @type {string[]} */ ids) => {
+            const ms = (/** @type {any} */ o) => o.createdAt ?? 0;
             const out = new Set(ids);
             for (const id of ids) {
                 const r = _rows.find(o => o.id === id);
-                if (r && (r.source || '') !== 'roster_import') _rows.filter(o => o.memberName === r.memberName && o.date === r.date && (o.source || '') !== 'roster_import').forEach(o => out.add(o.id));
+                if (r && (r.source || '') !== 'roster_import') _rows.filter(o => o.id !== r.id && o.memberName === r.memberName && o.date === r.date && (o.source || '') !== 'roster_import' && ms(r) >= ms(o)).forEach(o => out.add(o.id));
             }
             return out;
         },
@@ -488,8 +491,8 @@ describe('5. claiming a completeness the cache does not have', () => {
 // already took both; these two controls did not.
 describe('6. deleting a day takes its older duplicate with it, from both Saved Changes controls', () => {
     const DUPES = () => [
-        { id: 'old-al', memberName: 'G. Miller', date: '2026-06-16', type: 'annual_leave', value: 'AL', source: 'manual' },
-        { id: 'new-rd', memberName: 'G. Miller', date: '2026-06-16', type: 'correction', value: 'RD', source: 'manual' },
+        { id: 'old-al', memberName: 'G. Miller', date: '2026-06-16', type: 'annual_leave', value: 'AL', source: 'manual', createdAt: 1000 },
+        { id: 'new-rd', memberName: 'G. Miller', date: '2026-06-16', type: 'correction', value: 'RD', source: 'manual', createdAt: 2000 },
         { id: 'import', memberName: 'G. Miller', date: '2026-06-16', type: 'shift', value: '06:20-14:20', source: 'roster_import' },
     ];
 
@@ -501,6 +504,16 @@ describe('6. deleting a day takes its older duplicate with it, from both Saved C
         for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // deletes
         assert.deepEqual([..._deleted].sort(), ['new-rd', 'old-al']);
         assert.match(el('listFeedback').textContent, /1 older copy of the same day/);
+    });
+
+    test('the row ✕ on the STALE copy deletes only that copy, and claims no older one (v24.53)', async () => {
+        _rows = DUPES();
+        const btn = makeEl('row-delete'); btn.dataset.id = 'old-al';
+        const target = { closest: (/** @type {string} */ sel) => sel === '.btn-delete' ? btn : null };
+        for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // arms
+        for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // deletes
+        assert.deepEqual([..._deleted], ['old-al'], 'the newer record is what the day shows — it stays');
+        assert.doesNotMatch(el('listFeedback').textContent, /older cop/);
     });
 
     test('Delete selected does the same for every picked row', async () => {

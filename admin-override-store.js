@@ -35,6 +35,7 @@
 
 import { db, collection, query, where, orderBy, limit, getDocs, COLLECTIONS } from './firebase-client.js';
 import { manualOverrideId } from './override-id.js';
+import { shouldReplaceOverride } from './override-utils.js';
 import { emptyCoverage, withMember, withAll, hasAuthorityFor, coversEveryone, replaceMemberSlice, mergeCappedRead } from './admin-override-coverage.js';
 
 /** @type {any[]} The cache itself. */
@@ -194,15 +195,20 @@ export function idsReplacedBy(memberName, date, winnerId) {
 }
 
 /**
- * Ids being DELETED, widened by each manual day's duplicates — or the older copy would resurface the
- * moment the newer one went (v24.48). An import is deleted alone: it is not a duplicate of anything.
+ * Ids being DELETED, widened by the manual duplicates each one OUTRANKS — the copies that would
+ * resurface the moment it went (v24.48). Only those: until v24.53 this took every manual record of
+ * the day, so deleting the stale copy also deleted the one on screen, under a receipt that called it
+ * "older". Precedence is `shouldReplaceOverride`, the same rule that decides what the day shows. An
+ * import is deleted alone: it is not a duplicate of anything.
  * @param {Iterable<string>} ids @returns {Set<string>}
  */
 export function withManualDuplicates(ids) {
     const out = new Set(ids);
     for (const id of [...out]) {
         const r = _allOverrides.find(o => o.id === id);
-        if (r && (r.source || '') !== 'roster_import') _allOverrides.filter(o => _isManualOn(o, r.memberName, r.date)).forEach(o => out.add(o.id));
+        if (!r || (r.source || '') === 'roster_import') continue;
+        _allOverrides.filter(o => o.id !== r.id && _isManualOn(o, r.memberName, r.date) && shouldReplaceOverride(o, r))
+            .forEach(o => out.add(o.id));
     }
     return out;
 }

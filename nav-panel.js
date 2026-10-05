@@ -695,11 +695,15 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
 
     // Sign-out footer button
     const signOutBtn = document.getElementById('navSignOutBtn');
+    let signingOut = false;   // a second tap during the close fade stacked two "Sign out anyway?" (v24.53)
     signOutBtn?.addEventListener('click', async () => {
-        closePanelForNavigation();
-        // A page may still CANCEL here (Links, over unsaved work) — so ask FIRST: releasing before a
-        // cancelled sign-out left a signed-in device with no push record until its next page load.
-        if (beforeSignOut && await beforeSignOut() === false) return;
+        if (signingOut) return;
+        signingOut = true;
+        // POP the drawer's history entry and let it land first (v24.53) — left under the dialog it was a ghost entry.
+        closePanel();
+        await new Promise((resolve) => whenHistorySettled(() => resolve(undefined)));
+        // Ask FIRST: releasing before a cancelled sign-out left the device with no push record.
+        if (beforeSignOut && await beforeSignOut() === false) { signingOut = false; return; }
         // Release this device's push record WHILE still signed in (the rules let only its owner
         // delete it), so the targeted notices addressed to this member stop reaching a device they
         // have left. Time-boxed and best-effort: it never blocks or fails the sign-out.

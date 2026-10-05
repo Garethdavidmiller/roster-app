@@ -1597,17 +1597,16 @@ test('admin: signing out with unsaved edits asks first, and a Cancel keeps the s
         'a declined sign-out must leave the session').not.toBeNull();
     expect(await page.evaluate(() => localStorage.getItem('myb_push_resave_at')),
         'a declined sign-out must not have released the push record').toBe('12345');
+    // …and no ghost: the drawer's history entry was popped, not abandoned, so the member's next
+    // Android Back is not swallowed by an entry that no longer has anything to close (v24.53).
+    expect(await page.evaluate(() => history.state?.mybNavPanel ?? null),
+        'a cancelled sign-out must not leave the drawer\'s history entry behind').toBeNull();
 });
 
-test('admin: answering "Sign out" to the unsaved-edits question signs out', async ({ page, browserName }) => {
-    // NOT RUN UNDER WEBKIT, and the reason was measured rather than assumed (v24.52). In Playwright's
-    // WebKit build, ANY navigation — a reload, a replace, even to another page — CRASHES the page
-    // process once the page has a same-URL history entry (the drawer leaves one when it closes for a
-    // sign-out) and a dialog has pushed and popped another. It reproduces on main's code with no
-    // sign-out involved: push a state, open and cancel a confirmDialog, reload. So it is a property of
-    // that engine build and this history sequence, not of this release; the Cancel test above, which
-    // never navigates, runs everywhere. Whether a real iPhone does the same could not be checked here.
-    test.skip(browserName === 'webkit', 'the WebKit build crashes the page on this navigation — see the comment');
+test('admin: answering "Sign out" to the unsaved-edits question signs out', async ({ page }) => {
+    // Runs under WebKit too since v24.53. Until then it was skipped there: Playwright's WebKit build
+    // crashed the page on any navigation once the drawer had left its history entry behind and a
+    // dialog had pushed and popped another. The drawer now pops its own entry before asking.
     const dialog = await adminWithUnsavedEditAtSignOut(page);
     await dialog.locator('.dialog-btn-confirm').click();
     await expect(page.locator('#loginOverlay')).toBeVisible();
