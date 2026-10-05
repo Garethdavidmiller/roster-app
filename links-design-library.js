@@ -373,7 +373,14 @@ export function createDesignLibrary(ctx) {
         addToBin: (entry) => { bin.unshift(entry); },
         /** Put this entry at the top, replacing any older copy of it. @param {any} entry */
         upsertBin: (entry) => { bin = [entry, ...bin.filter(x => x.id !== entry.id)]; },
-        /** Register an automatic move still in flight; a restore or purge of it waits. @param {string} id @param {Promise<any>} p */
-        trackBinMove: (id, p) => { _pending.set(id, p.finally(() => _pending.delete(id))); },
+        /** Register an automatic move still in flight; a restore or purge of it waits.
+         *  The stored promise NEVER rejects — a restore awaits it inside its own try, and a failed
+         *  move must not read as a failed restore — and only THIS move may clear its entry, so an
+         *  older one settling late cannot stop a restore waiting for a newer one.
+         *  @param {string} id @param {Promise<any>} p */
+        trackBinMove: (id, p) => {
+            const stored = p.catch(() => {}).finally(() => { if (_pending.get(id) === stored) _pending.delete(id); });
+            _pending.set(id, stored);
+        },
     };
 }

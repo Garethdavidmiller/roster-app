@@ -61,8 +61,8 @@ or in the module header beside the code.
 ## The module set
 
 The workspace is one coordinator over the pure/extracted modules below. Everything except `links-app.js`
-is testable without a browser, which is deliberate — the coordinator is where the Firestore and DOM
-state lives, and the rules that have historically produced bugs have been pulled out of it.
+is testable without a browser, which is deliberate — the coordinator is where most of the Firestore and DOM
+state lives (the design library — import and the bin — holds its own since v24.51), and the rules that have historically produced bugs have been pulled out of it.
 
 **The table is the count.** This sentence read "twelve" while the table under it listed thirteen:
 `links-design-doc.js` was added at v19.94 and the prose was never swept, so the two disagreed for
@@ -71,7 +71,7 @@ the whole of v20. A number written beside the list it describes is a second copy
 
 | Module | Owns |
 |--------|------|
-| `links-app.js` | coordinator: grid, paint, dialogs, dirty state; Firestore only via the two store modules (+ `links-boot.js`, the CSP bootstrap) |
+| `links-app.js` | coordinator: grid, paint, dialogs, dirty state; Firestore only via the two store modules — the library reaches it through the same design store (+ `links-boot.js`, the CSP bootstrap) |
 | `links-design-store.js` | a design's PERSISTENCE lifecycle and the concurrency protocol — every design read and write (`createDesignStore`) |
 | `links-design-library.js` | the import panel and the Recently deleted bin, and the bin list itself (`createDesignLibrary`, v24.51). Rename, duplicate and delete stay in `links-app.js` — they change the open design's baseline |
 | `links-design-header.js` | the design MASTHEAD — which design, whose, saved? — the Save buttons' label and the ··· More sheet (v23.30) |

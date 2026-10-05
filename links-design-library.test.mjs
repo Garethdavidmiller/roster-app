@@ -124,6 +124,15 @@ describe('the bin is the library\'s, and the coordinator reaches it through the 
         assert.deepEqual(calls.restore, ['old']);
     });
 
+    test('a move that FAILED does not fail the restore that was waiting for it', async () => {
+        const { lib, calls } = setup();
+        lib.setBin([BINNED('old', 'Old 24')]);
+        lib.trackBinMove('old', Promise.reject(new Error('offline')));
+        await clickBin('.bin-restore', 'old');
+        assert.deepEqual(calls.restore, ['old']);
+        assert.match(el('designBinStatus').textContent, /restored/);
+    });
+
     test('the duplicate-name rule holds on the way back from the bin', async () => {
         const { lib, calls, designs } = setup();
         designs.push({ id: 'live', name: 'Alpha' });
