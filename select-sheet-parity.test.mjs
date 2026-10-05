@@ -53,6 +53,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { pageStylesheets } from './scripts/app-pages.mjs';
 
 const ROOT = new URL('.', import.meta.url);
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, ROOT), 'utf8');
@@ -337,11 +338,7 @@ test('a page whose enhanced selects carry no class of their own names .fieldpick
     // a page has to have extended those rules to `.fieldpick`, or its trigger renders as the shared
     // default rather than as that page's field. A select WITH a class is fine: the class travels.
     const { ids } = findEnhanced();
-    const PAGE_CSS = {
-        'index.html': 'index.css', 'admin.html': 'admin.css', 'paycalc.html': 'paycalc.css',
-        'operations.html': 'operations.css', 'settings.html': 'settings.css',
-        'links.html': 'links.css', 'overtime.html': 'overtime.css',
-    };
+    const PAGE_CSS = pageStylesheets();   // scripts/app-pages.mjs (v24.52)
     const missing = /** @type {string[]} */ ([]);
     for (const [page, css] of Object.entries(PAGE_CSS)) {
         const markup = strip(read(page));

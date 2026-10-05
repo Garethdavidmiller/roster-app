@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { APP_PAGES } from './scripts/app-pages.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 
@@ -33,8 +34,9 @@ const DYNAMIC_HOSTS = ['firebasestorage.googleapis.com',
     'apis.google.com'];
 
 /** The runtime source files whose network calls the CSP must permit. */
-const APP_SOURCES = ['firebase-client.js', 'service-worker.js', 'huddle.js', 'notif.js', 'index.html',
-    'paycalc.html', 'admin.html', 'operations.html', 'settings.html', 'links.html']
+// Every app page from scripts/app-pages.mjs (v24.52). The hand-kept copy listed six of the seven and
+// never overtime.html, so that page's own network origins were never held to the CSP.
+const APP_SOURCES = ['firebase-client.js', 'service-worker.js', 'huddle.js', 'notif.js', ...APP_PAGES.map(p => p.file)]
     .map(f => readFileSync(join(ROOT, f), 'utf8')).join('\n');
 
 /** Extract the CSP header value from firebase.json. */

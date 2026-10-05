@@ -223,7 +223,7 @@ regression somewhere the author was not looking.
 | `firestore.rules` | client and server together — the client copies of ownership rules only drive BUTTONS | `npm run test:rules` **and** `firestore-contract-parity.test.mjs` |
 | `firebase.json` CSP header | every page's `<meta>` CSP, because the Pages mirror serves no headers | `csp-meta-parity.test.mjs` · `npm run test:csp` |
 | any `overlay.js` lifecycle | every lightbox in the app, including the one-time notices | `overlay.test.mjs` · `overlay-history.test.mjs` |
-| adding a PAGE | ~8 hand-maintained lists (CSP meta, nav pill, policy, SW, analytics id, boot shim…) | `page-contract-parity.test.mjs` — it checks the checkers |
+| adding a PAGE | ONE entry in `scripts/app-pages.mjs` (v24.52) — the test suites read their pages from it — plus the app's own lists (SW, auth policy, nav pill, rules analytics id, report names, guide back-arrow), which stay hand-written because there is no build step | `page-contract-parity.test.mjs` — it names each app-side list the page has not joined, and checks the page list against the files on disk |
 | adding a MODULE or changing its exports | `docs/FILE_INDEX.md` + `docs/AI_MAP.md`, same commit | `githooks/pre-commit` · `doc-parity.test.mjs` |
 | `CONFIG.LINKS_DESIGNERS` / `CONFIG.OVERTIME_BETA` | the SERVER's copy — run `npm run generate:roster-members` in the same commit | `sw-asset-check.test.mjs` |
 | a Firebase SDK bump (`firebase-client.js`) | `FIREBASE_SDK_VERSION` in `service-worker.js` | `sw-asset-check.test.mjs` |

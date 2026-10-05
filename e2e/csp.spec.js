@@ -23,6 +23,7 @@
 // via `testIgnore`); it needs the hosting emulator, which `npm run test:csp` wires up.
 
 import { test, expect } from '@playwright/test';
+import { APP_PAGES, GUIDE_PAGES } from '../scripts/app-pages.mjs';
 
 // Every served page (calendar at '/', the five sub-pages, the four guides). Firebase Hosting 301s
 // '/index.html' -> '/', so the calendar is requested as '/'.
@@ -63,16 +64,12 @@ const isIgnorable = (/** @type {{ blocked: string, directive: string }} */ v) =>
 };
 
 /**
- * Every served page. HAND-MAINTAINED, and therefore checked by page-contract-parity.test.mjs —
- * `overtime.html` shipped without being added here, so the one run that applies the REAL
- * firebase.json header never visited the app's newest page. A list like this going quietly out of
- * date is indistinguishable from a clean pass.
+ * Every app page and guide, from scripts/app-pages.mjs (v24.52). This list was HAND-MAINTAINED, and
+ * `overtime.html` shipped without being added — so the one run that applies the REAL firebase.json
+ * header never visited the app's newest page. The redirect stubs are left out as before: they load
+ * nothing a policy could refuse.
  */
-const PAGES = [
-    '/', '/admin.html', '/paycalc.html', '/operations.html', '/settings.html', '/links.html',
-    '/overtime.html',
-    '/staff-guide.html', '/paycalc-guide.html', '/railcard-guide.html', '/fip-guide.html', '/rangers-guide.html',
-];
+const PAGES = [...APP_PAGES, ...GUIDE_PAGES].map(p => p.url);
 
 for (const path of PAGES) {
     test(`CSP: ${path} is served with the policy and the browser refuses nothing`, async ({ page }) => {
