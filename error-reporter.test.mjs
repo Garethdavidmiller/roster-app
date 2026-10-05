@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import { shouldReport } from './client-errors.js';
 
 const HOST = 'myb-roster.web.app';
-const SDK  = 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
+const SDK  = 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 const OWN  = 'https://myb-roster.web.app/calendar-app.js';
 
 /** @param {string} msg @param {string} [src] */

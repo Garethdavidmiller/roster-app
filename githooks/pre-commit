@@ -251,7 +251,7 @@ const fnVer = fnPkg && fnPkg.dependencies && fnPkg.dependencies['firebase-admin'
     : null;
 // Only warn; SDK versions in browser client vs Admin SDK aren't directly comparable.
 // This check catches forgotten bumps within the browser SDK (firebase vs @firebase/app).
-// The SDK is imported by URL (`…/firebasejs/12.16.0/firebase-app.js`), never as `firebase@x.y.z` —
+// The SDK is imported by URL (`…/firebasejs/12.19.0/firebase-app.js`), never as `firebase@x.y.z` —
 // this matched that npm spelling until Sep 2026 and so could never fire.
 const importMatch = clientSrc.match(/firebasejs\/(\d+\.\d+\.\d+)\//g);
 if (importMatch && importMatch.length > 1) {

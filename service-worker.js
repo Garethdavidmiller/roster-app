@@ -106,7 +106,7 @@ async function matchNewestManagedCache(request, opts) {
 // refetches the SDK — swept only when the pinned SDK version changes. Bumping the SDK
 // in firebase-client.js requires bumping THIS constant too; sw-asset-check.test.mjs
 // enforces the pair stays in sync.
-const FIREBASE_SDK_VERSION = '12.16.0';
+const FIREBASE_SDK_VERSION = '12.19.0';
 const SDK_CACHE_NAME = `myb-roster-sdk-v${FIREBASE_SDK_VERSION}`;
 const SDK_URL_PREFIX = `https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/`;
 const SDK_ASSETS = ['firebase-app.js', 'firebase-auth.js', 'firebase-firestore.js', 'firebase-storage.js']
