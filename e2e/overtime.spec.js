@@ -1548,6 +1548,26 @@ test.describe('freshness and exit guards (v21.48, external review)', () => {
         expect(await armed(), 'unsent answers must arm the warning').toBe(true);
     });
 
+    test('signing out with unsent answers asks first, and a Cancel keeps the session', async ({ page }) => {
+        // Overtime signed out BEFORE asking (v24.52, page-session.js) — on a phone the answers
+        // went without a word, because the leave-page warning above is suppressed there.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        await page.locator('.ot-day').first().getByRole('radio', { name: 'Not available' }).click();
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navSignOutBtn').click();
+        const dialog = page.locator('.dialog-overlay').last();
+        await expect(dialog).toContainText('Sign out anyway?');
+        await dialog.locator('.dialog-btn-cancel').click();
+        await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+        expect(await page.evaluate(() => localStorage.getItem('myb_admin_session')),
+            'a declined sign-out must leave the session').not.toBeNull();
+        await expect(page.locator('.ot-day').first().getByRole('radio', { name: 'Not available' }),
+            'and the answer is still on the form').toBeChecked();
+    });
+
     test('for a pure reviewer, `ready` means the workspace — not a loading line', async ({ page }) => {
         // The horizon auto-opens the week being planned, and until v21.48 it did so un-awaited: the
         // `ready` mark landed while the detail reads were still in flight, so the App Speed card

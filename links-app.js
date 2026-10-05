@@ -11,12 +11,11 @@
 
 import { CONFIG, weeklyRoster, escapeHtml } from './roster-data.js';
 import { printedStamp, formatClock, formatDayMonthYear } from './date-format.js';
-import { db, auth, onAuthStateChanged, doc, getDoc, setDoc, addDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
-import { initNavPanel, resetNavPanel, archiveNotice } from './nav-panel.js';
+import { db, doc, getDoc, setDoc, addDoc, deleteField, collection, getDocs, serverTimestamp, runTransaction, COLLECTIONS, writeWithClaimRetry } from './firebase-client.js';
+import { initNavPanel, archiveNotice } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
+import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
-import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoticeIfClear } from './overlay.js';
 import { openOptionSheet, readGroups } from './select-sheet.js';
 import { MAX_DESIGN_NAME, checkName, proposeCopyName } from './links-design-naming.js';
@@ -57,7 +56,8 @@ import { initLinksCompare } from './links-compare.js';
 import { baselineFromEntry } from './links-concurrency.js';
 import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
-import { unconfirmedWriteLine, watchIdentityLoss } from './claim-retry.js';
+import { unconfirmedWriteLine } from './claim-retry.js';
+import { guardNamedSession, askBeforeSignOut, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import {
     isDeleted, canSoftDelete, sortByDeleted,
 } from './links-deletion.js';
@@ -81,6 +81,7 @@ import {
 let _isDirty = () => false;
 
 export function init() {
+    reloadIfRestoredForSomeoneElse();
     // Register the SW before the access gate — a signed-out visit early-returns below and would
     // otherwise never register/update the SW for that load (v16.23; matches operations/settings).
     registerServiceWorker({
@@ -144,17 +145,9 @@ export function init() {
     // session could not be confirmed.
     const _linksAuth = ensureNamedSession(currentUser);
     resolveSession(_linksAuth);
-    _linksAuth.then(() => {
-        if (requirePage(getAuthSnapshot(), 'links').decision === 'login') {
-            clearSession();
-            // resetNavPanel() before the overlay (v16.69, mirrors settings' v16.25 fix) — the
-            // drawer is wired with the now-cleared member's identity on a shared device.
-            resetNavPanel();
-            initLoginOverlay({ pageLabel: 'Links', onSuccess: () => window.location.reload() });
-            return;
-        }
-        watchIdentityLoss({ uid: auth.currentUser?.uid, watch: cb => onAuthStateChanged(auth, cb), stillLost: () => !auth.currentUser && getSession()?.name === currentUser, onLost: () => { clearSession(); resetNavPanel(); initLoginOverlay({ pageLabel: 'Links', onSuccess: () => window.location.reload() }); } });
-    });
+    // An own session that cannot be confirmed signs in again now; one revoked LATER does too
+    // (page-session.js — the same follow-up every named page runs).
+    guardNamedSession({ page: 'links', pageLabel: 'Links', member: currentUser, established: _linksAuth });
 
     // ============================================
     // PAGE INIT
@@ -180,12 +173,8 @@ export function init() {
         canOpenOvertime: canOpenOvertime(currentUser),
         onLogoClick:     () => openAboutLightbox?.(),
         // Asked BEFORE the drawer releases this device's push record, so a cancel leaves it intact.
-        beforeSignOut: async () => !dirty || await confirmDialog({ message: 'You have unsaved changes. Sign out anyway?', confirmLabel: 'Sign out', danger: true }),
-        onSignOut: () => {
-            dirty = false;   // answered — so `beforeunload` does not ask a second time
-            clearSession();
-            window.location.href = './';
-        },
+        beforeSignOut: askBeforeSignOut(() => dirty),
+        onSignOut:     () => signOutAndLeave({ to: './' }),
     });
 
     // ============================================
@@ -2205,9 +2194,7 @@ export function init() {
     // ============================================
     // UNSAVED CHANGES GUARD
     // ============================================
-    window.addEventListener('beforeunload', e => {
-        if (dirty) { e.preventDefault(); e.returnValue = ''; }
-    });
+    warnOnUnload(() => dirty);
 
     document.addEventListener('click', e => {
         if (!dirty) return;

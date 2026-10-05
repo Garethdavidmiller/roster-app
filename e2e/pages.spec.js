@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
+import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -1570,6 +1570,36 @@ test('links: cancelling "Sign out anyway?" keeps the session AND this device\'s 
     await expect(page).toHaveURL(/links\.html/);
     expect(await page.evaluate(() => localStorage.getItem('myb_push_resave_at')),
         'a sign-out the member declined must not have released the push record').toBe('12345');
+});
+
+// Admin signed out BEFORE asking about unsaved week-grid edits (v24.52, page-session.js): the drawer
+// released the session and the push record, and only the reload that followed met `beforeunload` —
+// which a phone suppresses, so the edits went without a word. It now asks first, like Links.
+test('admin: signing out with unsaved edits asks first — Cancel keeps everything, Sign out clears the session', async ({ page }) => {
+    await page.addInitScript(() => { /** @type {any} */ (window).__E2E = { authUser: true, docs: [] }; });
+    await seedSessionOnce(page, 'G. Miller');   // once: the sign-out's reload must not re-seed it
+    await page.goto('/admin.html');
+    await page.evaluate(() => localStorage.setItem('myb_push_resave_at', '12345'));
+    const pill = page.locator('.day-row .type-pill-btn[data-type="annual_leave"]:not([disabled])').first();
+    await clickInView(pill);
+
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navSignOutBtn').click();
+    const dialog = page.locator('.dialog-overlay').last();
+    await expect(dialog).toContainText('Sign out anyway?');
+    await dialog.locator('.dialog-btn-cancel').click();
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('myb_admin_session')),
+        'a declined sign-out must leave the session').not.toBeNull();
+    expect(await page.evaluate(() => localStorage.getItem('myb_push_resave_at')),
+        'a declined sign-out must not have released the push record').toBe('12345');
+
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navSignOutBtn').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('myb_admin_session')),
+        'an answered sign-out clears the session').toBeNull();
 });
 
 test('links: deleting a design writes a SOFT delete and leaves the document in place', async ({ page }) => {

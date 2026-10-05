@@ -9,19 +9,19 @@
 
 import { CONFIG, isValidEmail, isChilternWorkEmail, workEmailLocalPart, workEmailFrom } from './roster-data.js';
 import { formatDayMonthYear } from './date-format.js';
-import { auth, onAuthStateChanged, getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, setOwnPassword } from './firebase-client.js';
+import { getStaffContact, saveStaffContact, deleteStaffContact, getPasswordStatus, reauthenticateWithPassword, setOwnPassword } from './firebase-client.js';
 import { isPasswordMigrated, isCredentialRejection, validateNewPassword } from './auth-identity.js';
-import { initNavPanel, resetNavPanel } from './nav-panel.js';
+import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { isIOS } from './notif.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
+import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
-import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
 import { summarise, shouldOpen } from './settings-status.js';
 import { setStatus } from './status-text.js';
-import { unconfirmedWriteLine, watchIdentityLoss } from './claim-retry.js';
+import { unconfirmedWriteLine } from './claim-retry.js';
+import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import { withSlowSaveNotice } from './slow-save.js';
 import { inventoryOf } from './paycalc-inventory.js';
 import { selectBackupKeys } from './paycalc-transfer.js';
@@ -43,6 +43,7 @@ import { recordPageLatency, markPageReady } from './perf-reporter.js';
  * same order, one indent level in.
  */
 export function init() {
+    reloadIfRestoredForSomeoneElse();
     // Listen for the browser's install offer NOW, before the sign-in wait (Sep 2026 review):
     // Chromium fires `beforeinstallprompt` once, early, and the Device card is wired only after
     // sign-in — so the event had come and gone before anything listened, and the row never showed.
@@ -144,7 +145,7 @@ export function init() {
             isLinksDesigner: currentUser ? CONFIG.LINKS_DESIGNERS.includes(currentUser) : false,
             canOpenOvertime: canOpenOvertime(currentUser),
             onLogoClick: () => openAboutLightbox?.(),
-            onSignOut:   currentUser ? () => { clearSession(); window.location.href = './'; } : null,
+            onSignOut:   currentUser ? () => signOutAndLeave({ to: './' }) : null,
         });
     }
 
@@ -203,15 +204,9 @@ export function init() {
         // Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
         // `requirePage(getAuthSnapshot(), 'settings')` returns 'login' exactly when this member's OWN named
         // session could not be confirmed.
-        _setAuth.then(() => {
-            // resetNavPanel() before the overlay (v16.25, mirrors admin-app's stale-session path):
-            // clearSession() drops the identity, but the nav drawer was already wired to the OLD
-            // member — on a shared/stale device that stale identity stayed behind the overlay until
-            // reload. Reset tears it down; the fresh login → reload re-wires it.
-            const _relogin = () => { clearSession(); resetNavPanel(); initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => window.location.reload() }); };
-            if (requirePage(getAuthSnapshot(), 'settings').decision === 'login') return _relogin();
-            watchIdentityLoss({ uid: auth.currentUser?.uid, watch: cb => onAuthStateChanged(auth, cb), stillLost: () => !auth.currentUser && getSession()?.name === currentUser, onLost: _relogin });   // a revoked session, later (claim-retry.js)
-        });
+        // An own session that cannot be confirmed signs in again now; one revoked LATER does too
+        // (page-session.js — the same follow-up every named page runs).
+        guardNamedSession({ page: 'settings', pageLabel: 'Settings', member: currentUser, established: _setAuth });
         initApp();
         wireNavPanel();   // deduped by initNavPanel's navPanelInit guard if the nav was already wired above
     }

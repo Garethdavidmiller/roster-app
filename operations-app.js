@@ -10,7 +10,7 @@
  */
 
 import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
-import { auth, onAuthStateChanged, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
+import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
 import { _cardLoadError, _relativeTime } from './operations-reports.js';
 import { initErrorLog } from './operations-errors.js';
@@ -29,12 +29,11 @@ import { initAuthSetup } from './admin-auth.js';
 import { initDatePickers } from './date-picker.js';
 import { initSelectSheets, enhanceSelect } from './select-sheet.js';
 import { isFetchTimeout } from './fetch-timeout.js';
-import { initNavPanel, resetNavPanel } from './nav-panel.js';
+import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
-import { watchIdentityLoss } from './claim-retry.js';
+import { getSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
+import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
-import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, confirmDialog, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -51,6 +50,7 @@ import { registerServiceWorker } from './sw-register.js';
  * Body unchanged otherwise — same statements, same order, one indent level in.
  */
 export function init() {
+    reloadIfRestoredForSomeoneElse();
     // Register the service worker UNCONDITIONALLY, before the access gate — a signed-out (or
     // non-admin) visit returns early below and would otherwise never register/update the SW for
     // that page load. Matches settings-app.js (module-scope registration). (v16.21)
@@ -122,19 +122,9 @@ export function init() {
     // the Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
     // `requirePage(getAuthSnapshot(), 'operations')` returns 'login' exactly when the member's OWN
     // named session could not be confirmed.
-    _opsAuth.then(() => {
-        if (requirePage(getAuthSnapshot(), 'operations').decision === 'login') {
-            clearSession();
-            // resetNavPanel() before the overlay (v16.69, mirrors settings' v16.25 fix): the drawer
-            // was wired with the now-cleared member's identity — a stale name/avatar/admin pill must
-            // not stay reachable behind the login on a shared device.
-            resetNavPanel();
-            initLoginOverlay({ pageLabel: 'Operations', onSuccess: () => window.location.reload() });
-            return;
-        }
-        // A session revoked LATER gets the same sign-in, not a dead page (claim-retry.js, v24.38).
-        watchIdentityLoss({ uid: auth.currentUser?.uid, watch: cb => onAuthStateChanged(auth, cb), stillLost: () => !auth.currentUser && getSession()?.name === currentUser, onLost: () => { clearSession(); resetNavPanel(); initLoginOverlay({ pageLabel: 'Operations', onSuccess: () => window.location.reload() }); } });
-    });
+    // An own session that cannot be confirmed signs in again now; one revoked LATER does too
+    // (page-session.js — the same follow-up every named page runs).
+    guardNamedSession({ page: 'operations', pageLabel: 'Operations', member: currentUser, established: _opsAuth });
 
     // The Operations read cards (Work Email, Error Log, Usage, App Speed) read admin-gated collections.
     // Immediately after "Set up accounts" the freshly-minted token doesn't yet carry the `admin` claim
@@ -166,7 +156,7 @@ export function init() {
         isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
         canOpenOvertime: canOpenOvertime(currentUser),
         onLogoClick: () => openAboutLightbox?.(),
-        onSignOut:   () => { clearSession(); window.location.href = './'; },
+        onSignOut:   () => signOutAndLeave({ to: './' }),
     });
 
     initHuddleUpload({ currentIsAdmin: true, currentUser });
