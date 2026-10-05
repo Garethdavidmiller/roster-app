@@ -696,7 +696,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // Sign-out footer button
     const signOutBtn = document.getElementById('navSignOutBtn');
     signOutBtn?.addEventListener('click', async () => {
-        closePanelForNavigation();
+        // POP the drawer's history entry and let it land before asking anything (v24.53). Left
+        // behind under the dialog's own push/pop, it became a ghost that swallowed the next Android
+        // Back after a Cancel, and in Playwright's WebKit build it crashed any navigation that followed.
+        closePanel();
+        await new Promise((resolve) => whenHistorySettled(() => resolve(undefined)));
         // A page may still CANCEL here (Links, over unsaved work) — so ask FIRST: releasing before a
         // cancelled sign-out left a signed-in device with no push record until its next page load.
         if (beforeSignOut && await beforeSignOut() === false) return;
