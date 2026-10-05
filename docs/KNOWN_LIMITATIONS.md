@@ -131,49 +131,28 @@ for that member and day; an import is never treated as a duplicate. On the cappe
 very old day may not be loaded, so selecting the member first is the complete route. None has been
 counted; nothing in the app reports them.
 
-## Admin saves are slow on iPhones — long-polling applied, effect to confirm (v24.54, v24.55)
+## Admin saves are slow on iPhones — cause still being measured (v24.54, v24.55)
 
-Reported 5 Oct 2026 for an iPhone 18 Pro on iOS 27, using the installed app: EVERY week-grid save
-sat on "Saving…" past the 8-second notice, with full signal, and the change then arrived. What is
-known:
-- The time is spent waiting for Firestore's SERVER to confirm the commit. Nothing before the
-  write is waiting: the gate, the session and the override load are all bounded.
-- The service worker is not involved. It handles only same-origin GET requests, and Firestore's
-  traffic is neither.
-- The notice used to say "Waiting for signal", which was false here. Since v24.54 it names the
-  signal only when the browser reports being offline.
+Reported 5 Oct 2026, then said to be on every iPhone: each Admin week-grid save sat on "Saving…"
+past the 8-second notice with full signal, and the change then arrived. What is known:
+- The time is spent waiting for Firestore's server to confirm the commit. Nothing the app does
+  before the write is waiting: the gate, the session wait and the override load are all bounded.
+- The service worker is not involved. It handles only same-origin GET requests.
+- The Firebase SDK (unchanged since 9 Sep), the CSP and the rules have not changed in the window.
+- The notice used to say "Waiting for signal", which was false. Since v24.54 it names the signal
+  only when the browser reports being offline.
 
-**What is in place to find it:** each save slower than the threshold while the browser said it was
-online is recorded in Operations → Error Log as "Slow save (diagnostic)", with the time it took
-and whether it was the installed app. The questions that entry, and one test on the same phone in
-Safari, will settle are:
-- Is it every iPhone on iOS 27, or this one?
-- Is it the installed app only?
-- How long does the confirmation take?
+**Long-polling on iPhones was prepared and NOT shipped** (5 Oct). App Speed's own data for October
+contradicted the premise: on opening the Calendar, the "Not reported" connection class (mostly
+iPhones) was no slower than 4G-like Android at the sign-in step, and faster over the whole load. A
+transport change made for every iPhone, on a hypothesis the data argued against, was withdrawn.
 
-**v24.55, on new information:** the owner then reported it on EVERY iPhone, for a few days, while
-Android and desktop were fine. Nothing in the app's save path differs by platform:
-- the Firebase SDK has been unchanged since 9 Sep;
-- the CSP is unchanged;
-- the database rules treat create and update alike.
-So Firestore's streaming connection on Safari's engine became the cause worth acting on.
-`firestore-transport.js` forces long-polling on iPhones and iPads only. Android, desktop and desktop
-Safari are unchanged.
+**What will settle it:** every "Slow save (diagnostic)" entry in the Error Log carries the save's
+time and, since v24.55, a **sign-in token** time measured while the save was slow:
+- if the token took seconds, auth is the bottleneck;
+- if the token arrived in milliseconds and the save still waited, it is the connection to Firestore.
 
-**The other candidate is AUTH, and v24.55 can tell them apart.** Firestore cannot send anything without
-a sign-in token. On iPhones, Safari's tracking protection can clear the stored sign-in, after which
-the app signs the member back in silently. So a slow token would also slow every load and save.
-- **Saves:** each "Slow save (diagnostic)" entry now carries a **sign-in token** time, measured
-  while the save was slow. If the token took seconds, auth is the bottleneck. If the token arrived
-  in milliseconds and the save still waited, the connection is.
-- **The Calendar:** App Speed already times each stage: sign-in restored (`authBoot`), access
-  granted (`access`), roster from cache (`rosterCached`) and live roster (`rosterLive`). Read the
-  "unknown" connection class, which is mostly iPhones. Time spent before `access` is auth; time
-  between `access` and `rosterLive` is data.
-
-**What closes this:** iPhones on v24.55 stop producing "Slow save (diagnostic)" entries. If they
-keep appearing, long-polling was not the cause, and it should be REVERTED, not kept. A change made
-on a hypothesis is only worth keeping if the evidence that motivated it goes away.
+Read the entries from iPhones before choosing a fix.
 
 ## Development-tool advisories that only a downgrade would clear (v24.50)
 

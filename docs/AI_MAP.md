@@ -2281,13 +2281,6 @@ Pure stale-claim self-heal runner — no DOM, no Firebase. Imported by `firebase
 - `watchIdentityLoss({ uid, watch, stillLost, onLost, settleMs? })` (v24.37; narrowed v24.38) — call `onLost` once when NOBODY is signed in, it has lasted `settleMs` (3s), and `stillLost()` still says so (no account, and the local session still names this page's member). A different account arriving is never a loss: Firebase shares one account across a browser's tabs, and v24.37 read a colleague signing in elsewhere (out, then in as them) as this page's loss and signed the colleague out. Wired on Admin, Settings, Operations, Links and Overtime through `page-session.js`'s `guardNamedSession` (v24.52)
 - Tested by `claim-retry.test.mjs` (no mocks, runs in `test:hygiene`)
 
-### `firestore-transport.js`
-Firestore's transport per device (v24.55). Pure, no imports. Every iPhone's Admin saves waited past the slow-save notice for the server's acknowledgement while Android and desktop did not; Firebase's documented remedy is long-polling instead of the streaming connection.
-- `isAppleMobile(nav)` — iPhone, iPod or iPad, including iPadOS reporting as a Mac with touch. Desktop Safari is deliberately excluded
-- `firestoreTransportSettings(nav?)` — `{ experimentalForceLongPolling: true }` on Apple mobile, `{}` (the SDK default) elsewhere; spread into `initializeFirestore` in `firebase-client.js`
-- Whether it worked is read from the Error Log's "Slow save (diagnostic)" entries (v24.54): they should stop for iPhones. If they do not, revert it
-- Tested by `firestore-transport.test.mjs` (rule both directions, plus the wiring in firebase-client.js)
-
 ### `page-session.js`
 The sign-out and session-loss routines every protected page shares (v24.52, technical-debt review item 3). The per-page copies differed in three defects: Admin and Overtime signed out before asking about unsaved work, only the Pay Calculator guarded Back against the back/forward cache, and Overtime never noticed a session revoked mid-visit. Imports `session.js`, `auth-policy.js`, `auth-state.js`, `claim-retry.js`, `nav-panel.js`, `overlay.js`, `firebase-client.js`; `login-overlay.js` on demand.
 - `warnOnUnload(isDirty)` — the browser's "Leave site?" while there is unsaved work; stands down once a sign-out has been answered
