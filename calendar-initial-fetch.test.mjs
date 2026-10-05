@@ -31,6 +31,7 @@ mock.module('./calendar-overrides.js', {
         monthKey:                    (y, m) => `${y}-${String(m + 1).padStart(2, '0')}`,
         fetchOverridesForRange:      (...args) => _fetchImpl(...args),
         fetchOverridesForRangeFromCache: (...args) => _cacheFetchImpl(...args),
+        accessGeneration:            () => 0,
     },
 });
 

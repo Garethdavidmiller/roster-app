@@ -182,6 +182,15 @@ service cloud.firestore {
     // unlock function mints. The server repairs a linked account on the next unlock too
     // (`unlockCalendarViewer`); this is the half that holds meanwhile. Every GRANT on the viewer
     // reads this; the pushSubscriptions DENIALS keep the bare claim, which is the stricter reading.
+    // ── A REAL IDENTITY, for the write-only telemetry and device collections (v24.56) ─────────
+    // These three used to ask only `request.auth != null`, which is true of an ANONYMOUS token —
+    // and the anonymous provider is still enabled on the project, so anybody holding the public web
+    // API key can mint one. Nothing in the app has signed in anonymously since v24.34, so asking for
+    // a member, the admin, or (where the Calendar writes) the PIN viewer costs no real client a write.
+    function isKnownIdentity() {
+      return isMember() || request.auth.token.get('admin', false) == true || isCalendarViewer();
+    }
+
     function isCalendarViewer() {
       return request.auth != null
         && request.auth.token.get('calendarViewer', false) == true
@@ -189,7 +198,7 @@ service cloud.firestore {
     }
 
 
-    match /overrides/{document=**} {
+    match /overrides/{docId} {
       // ── READ REQUIRES A REAL IDENTITY (v20.12 — was `allow read;`, fully public) ──────────────
       //
       // Override data is annual leave, absence and shift changes for fifty named colleagues, and
@@ -314,6 +323,20 @@ service cloud.firestore {
         // replaced) and on every doc written before v21.55, which is why it is validated only
         // when present — the readers treat its absence as "ask the base roster", i.e. exactly the
         // behaviour every existing document already has.
+        // ── A FIXED manual id must NAME the record it holds (v24.56) ─────────────────────────
+        //
+        // Since v24.48 a manual save lands on `m_<date>_<encoded name>` (override-id.js), so the
+        // id is the one document for that member and date. Nothing checked that the id agreed with
+        // the body, so any member could CREATE `m_<date>_<a colleague>` carrying their OWN name —
+        // allowed, because it is their record — and the colleague's own later save of that day
+        // became an UPDATE of a document they do not own, which the isolation clause below refuses.
+        // One write locked a colleague out of their own day, and the same gap let a record sit
+        // under an id naming a different date. Random ids (imports, and every save before v24.48)
+        // never start with `m_` — Firestore's auto-ids are alphanumeric — so they are untouched.
+        // `replace(' ', '%20')` IS encodeURIComponent for every name the roster can hold; Rules
+        // have no encoder, and override-utils.test.mjs fails on a name where the two would differ.
+        (!docId.matches('m_.*') ||
+          docId == 'm_' + request.resource.data.date + '_' + request.resource.data.memberName.replace(' ', '%20')) &&
         (!request.resource.data.keys().hasAny(['replacedType']) || (
           request.resource.data.replacedType in [
             'spare_shift', 'shift', 'rdw',
@@ -652,7 +675,7 @@ service cloud.firestore {
       // a degraded/anonymous session has no name claim, and we still want its
       // uncaught errors captured rather than silently rejected.
       allow create: if
-        request.auth != null &&
+        request.auth != null && isKnownIdentity() &&
         request.resource.data.keys().hasOnly([
           'memberName', 'page', 'message', 'stack',
           'appVersion', 'userAgent', 'timestamp', 'resolved'
@@ -777,7 +800,7 @@ service cloud.firestore {
       // push endpoints and encryption keys.
       allow read: if false;
       allow create, update: if
-        request.auth != null &&
+        request.auth != null && isKnownIdentity() &&
         // NOT the shared Calendar viewer (v20.12). Every office PC that unlocks with the staff PIN
         // signs in as the SAME uid, so a subscription written under it would be `owner`ed by an
         // identity fifty people share — any of them could then delete any other's, and the
@@ -819,7 +842,12 @@ service cloud.firestore {
         // re-stamping its own uid as owner — the same "overwrite by re-labelling" gap that was closed
         // for overrides. `resource` is null on create (nothing to protect); a legacy owner-less doc
         // stays updatable so VAPID-rotation cleanup can't be locked out.
-        (resource == null || !('owner' in resource.data) || resource.data.owner == request.auth.uid);
+        (resource == null || resource.data.get('owner', null) == request.auth.uid ||
+          // An owner-less record (written before v17.76) may be CLAIMED, but only as the same
+          // device: anybody could otherwise repoint a colleague's record at another endpoint and
+          // silently end their notifications (v24.56, auth review). The id is the endpoint's hash,
+          // so the browser that owns the endpoint re-saves exactly this.
+          (!('owner' in resource.data) && request.resource.data.endpoint == resource.data.endpoint));
       // Delete YOUR OWN subscription (owner == your uid), OR a legacy doc that carries no owner
       // (older clients wrote none) — keeping those deletable so VAPID-rotation cleanup can't be
       // locked out. Orphans left by a uid change are swept server-side by fanOutPush's 410/404
@@ -903,7 +931,7 @@ service cloud.firestore {
       // still-present key remains App-Check territory; this closes the destructive wipe. (`resource` is
       // null on create — no prior keys to preserve.)
       allow create, update: if
-        request.auth != null &&
+        request.auth != null && isKnownIdentity() &&
         (
           // Page popularity: analytics/pv_YYYY-MM = { month: 'YYYY-MM', counts: { <pageId>: int } }
           (docId.matches('pv_[0-9]{4}-(0[1-9]|1[0-2])') &&

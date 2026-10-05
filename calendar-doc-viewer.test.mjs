@@ -134,6 +134,23 @@ describe('doc viewer — THE DOCUMENT GATE (v23.17): a locked tap reads nothing,
     });
 });
 
+describe('doc viewer — a LOCK while a document is loading takes it down (v24.56)', () => {
+    test('the read in flight renders nothing, and the viewer says what unlocks it', async () => {
+        /** @type {(v: any) => void} */ let land = () => {};
+        _circularImpl = () => new Promise(r => { land = r; });
+        let open = true;
+        const subs = [];
+        global.window.location.hash = '#circular';
+        initDocViewer({ authReady: Promise.resolve(), docAccess: { has: () => open, onChange: fn => { subs.push(fn); return () => {}; } } });
+        await flush();
+        open = false; subs.forEach(fn => fn(false));   // access lost mid-read
+        land({ storageUrl: 'https://firebasestorage.googleapis.com/x', date: '2026-10-01', fileType: 'pdf' });
+        await flush();
+        assert.doesNotMatch(bodyText(), /Open/, 'a read from before the lock must not offer the document');
+        assert.match(bodyText(), /Enter the staff PIN, or sign in, to read the Weekly Retail Circular/);
+    });
+});
+
 describe('doc viewer — a COLD deep link waits for the access decision before calling itself locked', () => {
     // The viewer is wired before the Calendar decides access, so a notification tap that cold-opens
     // the page finds the gate shut simply because nothing has been decided yet — and told a

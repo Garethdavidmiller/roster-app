@@ -35,7 +35,8 @@
  * `reloadIfRestoredForSomeoneElse()` — when the browser restores this page from the back/forward cache
  * and the signed-in member is no longer the one the page was built for, reload it. `replace` only
  * keeps THIS page out of the history; every page the member visited earlier is still there, so the
- * guard has to be on all of them.
+ * guard has to be on all of them. Since v24.56 it also reloads a page left OPEN in another tab when
+ * the session there changes to a different member, or to nobody.
  *
  * `guardNamedSession({ page, member, established, signIn })` — the follow-up every named page runs
  * once its Firebase session settles: an own session that cannot be confirmed is asked to sign in
@@ -55,7 +56,7 @@
  */
 
 import { auth, onAuthStateChanged } from './firebase-client.js';
-import { getSession, clearSession } from './session.js';
+import { getSession, clearSession, AUTH_KEY } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { watchIdentityLoss } from './claim-retry.js';
@@ -126,6 +127,23 @@ export function reloadIfRestoredForSomeoneElse() {
         const now = getSession()?.name ?? null;
         if (e.persisted && (now !== builtFor || now !== leftAs)) window.location.reload();
     });
+    // ANOTHER TAB, WHILE THIS ONE IS OPEN (v24.56, auth review). The restore above covers Back; a
+    // tab left open did nothing at all — sign out in one tab of a shared PC and Operations stayed
+    // fully rendered in the next, and a colleague signing in elsewhere left this tab showing the
+    // first member while every save went out on the colleague's token. `watchIdentityLoss` cannot
+    // see either: it acts only when NOBODY is signed in and the session still names this member,
+    // and a sign-out elsewhere clears the session first. The browser fires `storage` in every OTHER
+    // tab of the origin, with the value before and after, so the two names compare directly — a
+    // renewal for the same member changes nothing and reloads nothing.
+    window.addEventListener('storage', (e) => {
+        if (e.key !== AUTH_KEY) return;
+        if (sessionName(e.oldValue) !== (getSession()?.name ?? null)) window.location.reload();
+    });
+}
+
+/** The member a stored session value names, or null. @param {string|null|undefined} raw */
+function sessionName(raw) {
+    try { return (raw && JSON.parse(raw)?.name) || null; } catch { return null; }
 }
 
 /**

@@ -60,6 +60,8 @@ function adminDb()                     { return testEnv.authenticatedContext('ui
 function memberClaims(name, extra = {}) {
     return { name, member: name, email: nameToEmail(name), firebase: { sign_in_provider: 'password' }, ...extra };
 }
+/** A real member — the identity the telemetry and device collections ask for since v24.56. */
+function memberDb(uid = 'uid_staff') { return namedDb('S. Boyle', uid); }
 function namedDb(name, uid = 'uid_n')  { return testEnv.authenticatedContext(uid, memberClaims(name)).firestore(); }
 /** Authenticated manager (manager + name claims) — writes overrides on behalf of any member (B2). */
 function managerDb(name, uid = 'uid_mgr') { return testEnv.authenticatedContext(uid, memberClaims(name, { manager: true })).firestore(); }
@@ -453,6 +455,29 @@ describe('overrides — per-member isolation (STRICT, B3)', () => {
         await setDoc(doc(namedDb('G. Miller'), 'overrides', id), OWN('G. Miller'));
         await assertSucceeds(setDoc(doc(managerDb('S. Stewart'), 'overrides', id),
             { ...OWN('G. Miller'), note: 'mgr edit' }));
+    });
+
+    // A FIXED manual id must name the record it holds (v24.56). Before it, a member could create a
+    // colleague's `m_` id under their OWN name, and the colleague's own save of that day became a
+    // denied update — one write locked them out of their own day.
+    const mId = (name, date) => `m_${date}_${encodeURIComponent(name)}`;
+    test('a member CANNOT squat a colleague\'s fixed id with their own name', async () => {
+        const id = mId('G. Miller', VALID_OVERRIDE().date);
+        await assertFails(setDoc(doc(namedDb('S. Boyle'), 'overrides', id), OWN('S. Boyle')));
+        await assertSucceeds(setDoc(doc(namedDb('G. Miller'), 'overrides', id), OWN('G. Miller')));
+    });
+    test('a fixed id whose date is not the record\'s date is refused', async () => {
+        await assertFails(setDoc(doc(namedDb('S. Boyle'), 'overrides', mId('S. Boyle', '2026-01-02')),
+            { ...OWN('S. Boyle'), date: '2026-01-03' }));
+    });
+    test('a member, a manager and the admin CAN write the fixed id that names the record', async () => {
+        const d = VALID_OVERRIDE().date;
+        await assertSucceeds(setDoc(doc(namedDb('S. Boyle'), 'overrides', mId('S. Boyle', d)), OWN('S. Boyle')));
+        await assertSucceeds(setDoc(doc(managerDb('S. Stewart'), 'overrides', mId('G. Miller', d)), OWN('G. Miller')));
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', mId('S. Silva', d)), OWN('S. Silva')));
+    });
+    test('even the admin cannot file a record under a fixed id naming somebody else', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', mId('G. Miller', VALID_OVERRIDE().date)), OWN('S. Silva')));
     });
 
     // deletes mirror the same three-tier check against the EXISTING doc's memberName
@@ -1002,18 +1027,18 @@ describe('clientErrors', () => {
     });
 
     test('auth can create a valid error report', async () => {
-        await assertSucceeds(addDoc(collection(staffDb(), 'clientErrors'), VALID_ERROR()));
+        await assertSucceeds(addDoc(collection(memberDb(), 'clientErrors'), VALID_ERROR()));
     });
 
     test('auth cannot create with resolved=true', async () => {
         await assertFails(
-            addDoc(collection(staffDb(), 'clientErrors'), { ...VALID_ERROR(), resolved: true })
+            addDoc(collection(memberDb(), 'clientErrors'), { ...VALID_ERROR(), resolved: true })
         );
     });
 
     test('auth cannot create with message over 300 chars', async () => {
         await assertFails(
-            addDoc(collection(staffDb(), 'clientErrors'), {
+            addDoc(collection(memberDb(), 'clientErrors'), {
                 ...VALID_ERROR(), message: 'x'.repeat(301),
             })
         );
@@ -1021,7 +1046,7 @@ describe('clientErrors', () => {
 
     test('auth cannot create with stack over 800 chars', async () => {
         await assertFails(
-            addDoc(collection(staffDb(), 'clientErrors'), {
+            addDoc(collection(memberDb(), 'clientErrors'), {
                 ...VALID_ERROR(), stack: 's'.repeat(801),
             })
         );
@@ -1029,7 +1054,7 @@ describe('clientErrors', () => {
 
     test('auth cannot create with userAgent over 150 chars', async () => {
         await assertFails(
-            addDoc(collection(staffDb(), 'clientErrors'), {
+            addDoc(collection(memberDb(), 'clientErrors'), {
                 ...VALID_ERROR(), userAgent: 'u'.repeat(151),
             })
         );
@@ -1037,7 +1062,7 @@ describe('clientErrors', () => {
 
     test('auth cannot create with extra field (hasOnly violation)', async () => {
         await assertFails(
-            addDoc(collection(staffDb(), 'clientErrors'), {
+            addDoc(collection(memberDb(), 'clientErrors'), {
                 ...VALID_ERROR(), extra: 'field',
             })
         );
@@ -1045,14 +1070,14 @@ describe('clientErrors', () => {
 
     test('auth cannot create with timestamp as string', async () => {
         await assertFails(
-            addDoc(collection(staffDb(), 'clientErrors'), {
+            addDoc(collection(memberDb(), 'clientErrors'), {
                 ...VALID_ERROR(), timestamp: '2026-06-25',
             })
         );
     });
 
     test('auth (non-admin) cannot read clientErrors', async () => {
-        await assertFails(getDocs(collection(staffDb(), 'clientErrors')));
+        await assertFails(getDocs(collection(memberDb(), 'clientErrors')));
     });
 
     test('admin can read clientErrors', async () => {
@@ -1060,16 +1085,16 @@ describe('clientErrors', () => {
     });
 
     test('admin can update (resolve) an error', async () => {
-        const ref = await addDoc(collection(staffDb(), 'clientErrors'), VALID_ERROR());
+        const ref = await addDoc(collection(memberDb(), 'clientErrors'), VALID_ERROR());
         await assertSucceeds(
             updateDoc(doc(adminDb(), 'clientErrors', ref.id), { resolved: true, resolvedAt: serverTimestamp() })
         );
     });
 
     test('auth (non-admin) cannot update', async () => {
-        const ref = await addDoc(collection(staffDb(), 'clientErrors'), VALID_ERROR());
+        const ref = await addDoc(collection(memberDb(), 'clientErrors'), VALID_ERROR());
         await assertFails(
-            updateDoc(doc(staffDb(), 'clientErrors', ref.id), { resolved: true })
+            updateDoc(doc(memberDb(), 'clientErrors', ref.id), { resolved: true })
         );
     });
 });
@@ -1380,11 +1405,8 @@ describe('newsletters', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('pushSubscriptions', () => {
-    test('authenticated user (incl. anonymous session) can create a valid subscription', async () => {
-        // An anonymous Firebase Auth session (signInAnonymously) is represented here by
-        // staffDb() — a user with a UID but no custom claims, matching the anonymous-auth
-        // context that index.html establishes before subscribing.
-        await assertSucceeds(setDoc(doc(staffDb(), 'pushSubscriptions', uid()), VALID_SUB()));
+    test('a signed-in member can create a valid subscription', async () => {
+        await assertSucceeds(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), VALID_SUB()));
     });
 
     test('unauthenticated cannot create subscription', async () => {
@@ -1428,57 +1450,57 @@ describe('pushSubscriptions', () => {
     });
 
     test('auth cannot read (client read disabled — Cloud Function uses Admin SDK)', async () => {
-        await assertFails(getDocs(collection(staffDb(), 'pushSubscriptions')));
+        await assertFails(getDocs(collection(memberDb(), 'pushSubscriptions')));
     });
 
     test('unauthenticated cannot delete', async () => {
         const id = uid();
-        await setDoc(doc(staffDb(), 'pushSubscriptions', id), VALID_SUB());
+        await setDoc(doc(memberDb(), 'pushSubscriptions', id), VALID_SUB());
         await assertFails(deleteDoc(doc(anonDb(), 'pushSubscriptions', id)));
     });
 
     test('auth can delete', async () => {
         const id = uid();
-        await setDoc(doc(staffDb(), 'pushSubscriptions', id), VALID_SUB());
-        await assertSucceeds(deleteDoc(doc(staffDb(), 'pushSubscriptions', id)));
+        await setDoc(doc(memberDb(), 'pushSubscriptions', id), VALID_SUB());
+        await assertSucceeds(deleteDoc(doc(memberDb(), 'pushSubscriptions', id)));
     });
 
     // ── Per-owner ownership (A5, F-SEC-5) ───────────────────────────────────────────
     test('can create with owner === own uid', async () => {
         await assertSucceeds(
-            setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', uid()), { ...VALID_SUB(), owner: 'uid_owner' })
+            setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', uid()), { ...VALID_SUB(), owner: 'uid_owner' })
         );
     });
 
     test('cannot create claiming a FOREIGN owner uid', async () => {
         await assertFails(
-            setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', uid()), { ...VALID_SUB(), owner: 'someone_else' })
+            setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', uid()), { ...VALID_SUB(), owner: 'someone_else' })
         );
     });
 
     test('owner can delete their OWN (owner-stamped) subscription', async () => {
         const id = uid();
-        await setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
-        await assertSucceeds(deleteDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id)));
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await assertSucceeds(deleteDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id)));
     });
 
     test('a DIFFERENT authed identity cannot delete an owner-stamped subscription', async () => {
         const id = uid();
-        await setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
-        await assertFails(deleteDoc(doc(staffDb('uid_intruder'), 'pushSubscriptions', id)));
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await assertFails(deleteDoc(doc(memberDb('uid_intruder'), 'pushSubscriptions', id)));
     });
 
     test('legacy (no-owner) subscription stays deletable by any authed user (backward-compat escape)', async () => {
         const id = uid();
-        await setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id), VALID_SUB()); // no owner field
-        await assertSucceeds(deleteDoc(doc(staffDb('uid_other'), 'pushSubscriptions', id)));
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), VALID_SUB()); // no owner field
+        await assertSucceeds(deleteDoc(doc(memberDb('uid_other'), 'pushSubscriptions', id)));
     });
 
     test('owner can UPDATE their own owner-stamped subscription', async () => {
         const id = uid();
-        await setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
         await assertSucceeds(
-            setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' })
+            setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' })
         );
     });
 
@@ -1487,18 +1509,33 @@ describe('pushSubscriptions', () => {
         // the incoming value — otherwise a session that knew the doc id could hijack another user's
         // subscription by stamping its own uid as owner.
         const id = uid();
-        await setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
         await assertFails(
-            setDoc(doc(staffDb('uid_intruder'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_intruder' })
+            setDoc(doc(memberDb('uid_intruder'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_intruder' })
         );
     });
 
-    test('a legacy (no-owner) subscription can still be UPDATED by any authed user (re-subscribe hardening path)', async () => {
+    test('a legacy (no-owner) subscription can still be CLAIMED by the same device (re-subscribe hardening path)', async () => {
         const id = uid();
-        await setDoc(doc(staffDb('uid_owner'), 'pushSubscriptions', id), VALID_SUB()); // no owner field
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), VALID_SUB()); // no owner field
         await assertSucceeds(
-            setDoc(doc(staffDb('uid_other'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_other' })
+            setDoc(doc(memberDb('uid_other'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_other' })
         );
+    });
+    test('a legacy (no-owner) subscription CANNOT be repointed at another endpoint (v24.56)', async () => {
+        // Anybody could otherwise rewrite a colleague's record to a URL of their own, and the
+        // colleague's notifications would stop with nothing to say why.
+        const id = uid();
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), VALID_SUB());
+        await assertFails(setDoc(doc(memberDb('uid_other'), 'pushSubscriptions', id),
+            { ...VALID_SUB(), endpoint: 'https://fcm.googleapis.com/fcm/send/somebody-else', owner: 'uid_other' }));
+    });
+    test('an ANONYMOUS session cannot write a subscription, an error report or a counter (v24.56)', async () => {
+        // The anonymous provider is still enabled on the project, so anybody with the public API
+        // key can mint one of these. `staffDb` is exactly that: a uid and no claims.
+        await assertFails(setDoc(doc(staffDb(), 'pushSubscriptions', uid()), VALID_SUB()));
+        await assertFails(setDoc(doc(staffDb(), 'clientErrors', uid()), VALID_ERROR()));
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origins'), { daily: {} }));
     });
 });
 
@@ -1516,7 +1553,7 @@ describe('analytics', () => {
     });
 
     test('staff (non-admin) cannot read', async () => {
-        await assertFails(getDoc(doc(staffDb(), 'analytics', 'pv_2026-06')));
+        await assertFails(getDoc(doc(memberDb(), 'analytics', 'pv_2026-06')));
     });
 
     test('anon cannot read', async () => {
@@ -1524,12 +1561,12 @@ describe('analytics', () => {
     });
 
     test('auth can write a page-view counter doc', async () => {
-        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'pv_2026-06'), VALID_PV()));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-06'), VALID_PV()));
     });
 
     test('auth can write the seven document/guide OPEN counters (v18.20; all four guides v19.95)', async () => {
         // Huddle/Circular/Newsletter opens + all four guide opens share the pv_ counts map.
-        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'pv_2026-07'), {
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-07'), {
             month: '2026-07',
             counts: { huddle: 1, circular: 2, newsletter: 3,
                       'guide-staff': 4, 'guide-paycalc': 5, 'guide-railcard': 6, 'guide-fip': 7 },
@@ -1540,19 +1577,19 @@ describe('analytics', () => {
         // This used 'guide-staff' until v19.95, when that became a real id — a teeth test whose
         // example is promoted to legal quietly stops having teeth, and would have gone green here
         // for the wrong reason. The key below is deliberately not on any roadmap.
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-08'), {
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-08'), {
             month: '2026-08', counts: { 'guide-nonexistent': 1 },
         }));
     });
 
     test('an open counter must be an int', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-09'), {
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-09'), {
             month: '2026-09', counts: { huddle: 'lots' },
         }));
     });
 
     test('auth can write an active-accounts doc', async () => {
-        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'activeAccounts'), VALID_ACTIVE()));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'activeAccounts'), VALID_ACTIVE()));
     });
 
     test('auth can write an active-accounts doc with only one bucket present', async () => {
@@ -1561,57 +1598,57 @@ describe('analytics', () => {
         // that DROPS `daily`; admin may). The point of this test is the shape (one optional bucket is
         // valid), so seed clean, then the non-admin months-only write preserves keys → allowed.
         await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 1 } }));
-        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 1 } }));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 1 } }));
     });
 
     test('auth can write a perf-latency doc (Project 0)', async () => {
-        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'perf_2026-06'), VALID_PERF()));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'perf_2026-06'), VALID_PERF()));
     });
 
     // ── B4: anti-wipe guard — a non-admin overwrite may not REMOVE existing keys (destructive wipe),
     //    but incrementing (adding/preserving keys) stays open, and admin may prune. (unique doc ids
     //    below because this suite has no clearFirestore between tests.)
     test('B4: a non-admin increment that preserves keys is allowed (update)', async () => {
-        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'pv_2026-01'), { month: '2026-01', counts: { calendar: 1 } }));
-        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'pv_2026-01'), { month: '2026-01', counts: { calendar: 2, admin: 1 } }));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-01'), { month: '2026-01', counts: { calendar: 1 } }));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-01'), { month: '2026-01', counts: { calendar: 2, admin: 1 } }));
     });
     test('B4: a non-admin CANNOT wipe pv counts (removes existing keys)', async () => {
-        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'pv_2026-02'), { month: '2026-02', counts: { calendar: 5, admin: 2 } }));
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-02'), { month: '2026-02', counts: {} }));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-02'), { month: '2026-02', counts: { calendar: 5, admin: 2 } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-02'), { month: '2026-02', counts: {} }));
     });
     test('B4: a non-admin CANNOT wipe perf samples (removes existing keys)', async () => {
-        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'perf_2026-02'), { month: '2026-02', samples: { 'k1': 1 } }));
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'perf_2026-02'), { month: '2026-02', samples: {} }));
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'perf_2026-02'), { month: '2026-02', samples: { 'k1': 1 } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'perf_2026-02'), { month: '2026-02', samples: {} }));
     });
     test('B4: a non-admin CANNOT wipe activeAccounts, but admin CAN prune a daily key', async () => {
         // Seed a known state via admin (admin may set/remove any valid shape).
         await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 3 }, daily: { '2026-06-25': 2, '2026-05-01': 1 } }));
         // A non-admin overwrite dropping keys is a WIPE → blocked.
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'activeAccounts'), { months: {}, daily: {} }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'activeAccounts'), { months: {}, daily: {} }));
         // The admin prune removes the stale daily bucket → allowed.
         await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 3 }, daily: { '2026-06-25': 2 } }));
     });
 
     // ── Per-address migration counters (v19.23, analytics/origins) ─────────────────────────────
     test('auth can write the origins doc', async () => {
-        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'origins'),
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'origins'),
             { daily: { '2026-06-25|web': 3, '2026-06-25|web|pwa': 2 } }));
     });
 
     test('auth cannot add a field beyond daily to the origins doc', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origins'),
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'origins'),
             { daily: { '2026-06-25|web': 1 }, memberName: 'G. Miller' }));
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origins'),
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'origins'),
             { daily: { '2026-06-25|web': 1 }, months: { '2026-06': 1 } }));
     });
 
     test('auth cannot write a non-map daily on the origins doc', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origins'), { daily: 'all of them' }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'origins'), { daily: 'all of them' }));
     });
 
     test('the origins doc is admin-read only', async () => {
         await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'origins'), { daily: { '2026-06-25|web': 1 } }));
-        await assertFails(getDoc(doc(staffDb(), 'analytics', 'origins')));
+        await assertFails(getDoc(doc(memberDb(), 'analytics', 'origins')));
         await assertSucceeds(getDoc(doc(adminDb(), 'analytics', 'origins')));
     });
 
@@ -1620,27 +1657,27 @@ describe('analytics', () => {
         // the migration, and a wipe would be indistinguishable from "nobody has moved".
         await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'origins'),
             { daily: { '2026-06-25|web': 4, '2026-05-01|pages': 1 } }));
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origins'), { daily: {} }));
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origins'), { daily: { '2026-06-25|web': 4 } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'origins'), { daily: {} }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'origins'), { daily: { '2026-06-25|web': 4 } }));
         await assertSucceeds(setDoc(doc(adminDb(), 'analytics', 'origins'), { daily: { '2026-06-25|web': 4 } }));
     });
 
     test('an unknown analytics doc id is still refused', async () => {
         // The clause is pinned to the exact id — `origins` must not have opened a general escape.
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origin'), { daily: {} }));
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'origins_2026-06'), { daily: {} }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'origin'), { daily: {} }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'origins_2026-06'), { daily: {} }));
     });
 
     test('auth cannot write a perf doc with an extra field', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'perf_2026-06'), { ...VALID_PERF(), memberName: 'G. Miller' }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'perf_2026-06'), { ...VALID_PERF(), memberName: 'G. Miller' }));
     });
 
     test('auth cannot write a perf doc whose month != the doc id', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'perf_2026-06'), { month: '2026-07', samples: {} }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'perf_2026-06'), { month: '2026-07', samples: {} }));
     });
 
     test('auth cannot write a perf doc whose id is not perf_YYYY-MM', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'perf_2026-6'), { month: '2026-6', samples: {} }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'perf_2026-6'), { month: '2026-6', samples: {} }));
     });
 
     test('anon (no Firebase session) cannot write a perf doc', async () => {
@@ -1654,41 +1691,41 @@ describe('analytics', () => {
     });
 
     test('auth cannot write a page-view doc with an extra field', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-06'), { ...VALID_PV(), memberName: 'G. Miller' }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-06'), { ...VALID_PV(), memberName: 'G. Miller' }));
     });
 
     test('auth cannot write a page-view doc with non-string month', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-06'), { month: 6, counts: { calendar: 1 } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-06'), { month: 6, counts: { calendar: 1 } }));
     });
 
     test('auth cannot write a doc with unrecognised shape', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'whatever'), { foo: 'bar' }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'whatever'), { foo: 'bar' }));
     });
 
     test('auth cannot write a page-view doc whose id is not pv_YYYY-MM', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-6'), { month: '2026-6', counts: { calendar: 1 } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-6'), { month: '2026-6', counts: { calendar: 1 } }));
     });
 
     test('auth cannot write a page-view doc whose month != the doc id', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-06'), { month: '2026-07', counts: { calendar: 1 } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-06'), { month: '2026-07', counts: { calendar: 1 } }));
     });
 
     test('auth cannot write a page-view doc with an unknown counts key', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-06'), { month: '2026-06', counts: { hacker: 1 } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-06'), { month: '2026-06', counts: { hacker: 1 } }));
     });
 
     test('auth cannot write a page-view doc with a non-int count value', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-06'), { month: '2026-06', counts: { calendar: 'evil' } }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-06'), { month: '2026-06', counts: { calendar: 'evil' } }));
     });
 
     test('auth cannot write an active-accounts shape under any other doc id', async () => {
-        await assertFails(setDoc(doc(staffDb(), 'analytics', 'aa_2026'), VALID_ACTIVE()));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'aa_2026'), VALID_ACTIVE()));
     });
 
     test('client cannot delete an analytics doc', async () => {
         const ref = doc(adminDb(), 'analytics', 'pv_2026-06');
         await setDoc(ref, VALID_PV());
-        await assertFails(deleteDoc(doc(staffDb(), 'analytics', 'pv_2026-06')));
+        await assertFails(deleteDoc(doc(memberDb(), 'analytics', 'pv_2026-06')));
         await assertFails(deleteDoc(doc(adminDb(), 'analytics', 'pv_2026-06')));
     });
 
@@ -1697,21 +1734,21 @@ describe('analytics', () => {
     // validated against the real client contract, not an invented stand-in.
     test('real increment() page-view write (merge create) is allowed', async () => {
         await assertSucceeds(setDoc(
-            doc(staffDb(), 'analytics', 'pv_2026-06'),
+            doc(memberDb(), 'analytics', 'pv_2026-06'),
             { month: '2026-06', counts: { calendar: increment(1) } },
             { merge: true },
         ));
     });
 
     test('real increment() page-view write (merge update onto existing) is allowed', async () => {
-        const ref = doc(staffDb(), 'analytics', 'pv_2026-06');
+        const ref = doc(memberDb(), 'analytics', 'pv_2026-06');
         await setDoc(ref, { month: '2026-06', counts: { calendar: increment(1) } }, { merge: true });
         await assertSucceeds(setDoc(ref, { month: '2026-06', counts: { paycalc: increment(1) } }, { merge: true }));
     });
 
     test('real increment() active-account write (both buckets) is allowed', async () => {
         await assertSucceeds(setDoc(
-            doc(staffDb(), 'analytics', 'activeAccounts'),
+            doc(memberDb(), 'analytics', 'activeAccounts'),
             { months: { '2026-06': increment(1) }, daily: { '2026-06-25': increment(1) } },
             { merge: true },
         ));
@@ -1719,7 +1756,7 @@ describe('analytics', () => {
 
     test('real increment() active-account write (month bucket only) is allowed', async () => {
         await assertSucceeds(setDoc(
-            doc(staffDb(), 'analytics', 'activeAccounts'),
+            doc(memberDb(), 'analytics', 'activeAccounts'),
             { months: { '2026-06': increment(1) } },
             { merge: true },
         ));
@@ -1833,11 +1870,10 @@ describe('calendar viewer — read-only, and only the Calendar', () => {
         await assertFails(deleteDoc(doc(viewerDb(), 'pushSubscriptions', id)));
     });
 
-    test('an ordinary authenticated session can still write a push subscription', async () => {
-        // The tightening is `calendarViewer != true`, NOT a `name` requirement — so a stale cached
-        // client still running the old anonymous bootstrap keeps renewing through the mixed-version
-        // window. If this ever fails, that window has been closed by accident.
-        await assertSucceeds(setDoc(doc(staffDb(), 'pushSubscriptions', uid()), VALID_SUB()));
+    test('a signed-in member can still write a push subscription', async () => {
+        // The anonymous bootstrap this once allowed for was retired at v24.34, and since v24.56 an
+        // anonymous token is refused here outright (see pushSubscriptions above).
+        await assertSucceeds(setDoc(doc(memberDb(), 'pushSubscriptions', uid()), VALID_SUB()));
     });
 
     test('it CANNOT upload or alter a Huddle, Circular or Newsletter', async () => {

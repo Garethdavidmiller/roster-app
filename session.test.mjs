@@ -1143,6 +1143,34 @@ describe('auth generation guard', () => {
         assert.equal(_signOutCalled, true, 'and Firebase is not left signed in behind a cleared session');
     });
 
+    test('a sign-in for one member that lands after ANOTHER member\'s attempt is signed back out (v24.56)', async () => {
+        // Shared device: X's silent re-auth hangs; Y signs in and wins; X's request lands late and
+        // would replace Y's account under Y's page.
+        /** @type {() => void} */ let releaseGate = () => {};
+        _signInGate = new Promise(r => { releaseGate = r; });
+        const late = ensureFirebaseSession('G. Miller');
+        await signInEntered(1);
+        _signInGate = null;
+        assert.equal(await ensureNamedSession('S. Boyle', { delayMs: 0 }), true);
+        _signOutCalled = false;
+        releaseGate();
+        assert.equal(await late, false);
+        assert.equal(_signOutCalled, true, 'the late account must not stand under the other member\'s page');
+    });
+
+    test('the same member\'s late sign-in is left alone — it is the account the winner wants', async () => {
+        /** @type {() => void} */ let releaseGate = () => {};
+        _signInGate = new Promise(r => { releaseGate = r; });
+        const late = ensureFirebaseSession('G. Miller');
+        await signInEntered(1);
+        _signInGate = null;
+        assert.equal(await ensureNamedSession('G. Miller', { delayMs: 0 }), true);
+        _signOutCalled = false;
+        releaseGate();
+        await late;
+        assert.equal(_signOutCalled, false);
+    });
+
     test('the latest (current) attempt still writes identity normally', async () => {
         // Sanity: with no superseding attempt, the guard is a pure no-op — identity is published.
         const ok = await ensureFirebaseSession('G. Miller');

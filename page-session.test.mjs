@@ -26,6 +26,7 @@ mock.module('./firebase-client.js', { namedExports: {
     onAuthStateChanged: () => () => {},
 } });
 mock.module('./session.js', { namedExports: {
+    AUTH_KEY: 'myb_admin_session',
     getSession: () => session,
     clearSession: () => { log.push('clearSession'); session = null; },
 } });
@@ -178,5 +179,30 @@ describe('back/forward cache', () => {
         session = null;                      // signed out on another page or tab
         fire('pageshow', { persisted: true });
         assert.deepEqual(log, ['reload']);
+    });
+
+    test('another TAB signing out, or in as somebody else, reloads this one — a renewal does not', () => {
+        listeners = {}; log = [];
+        const stored = (/** @type {string|null} */ n) => n === null ? null : JSON.stringify({ name: n, ver: 3, expiry: 1 });
+        const change = (/** @type {string|null} */ from, /** @type {string|null} */ to, key = 'myb_admin_session') => {
+            session = to === null ? null : { name: to };
+            fire('storage', { key, oldValue: stored(from), newValue: stored(to) });
+        };
+        // The guard installed above (module state) already listens; a fresh copy proves it alone.
+        return import('./page-session.js?storage').then((fresh) => {
+            fresh.reloadIfRestoredForSomeoneElse();
+            change('A. Member', 'A. Member');
+            assert.deepEqual(log, [], 'the same member re-saving the session is not a change');
+            change('A. Member', 'A. Member', 'myb_something_else');
+            assert.deepEqual(log, [], 'an unrelated key is ignored');
+            change('A. Member', null);
+            assert.deepEqual(log, ['reload'], 'signed out in another tab: this tab must not keep their data');
+            log = [];
+            change('A. Member', 'B. Member');
+            assert.deepEqual(log, ['reload'], 'a colleague signed in elsewhere: this tab would write on their token');
+            log = [];
+            change(null, 'B. Member');
+            assert.deepEqual(log, ['reload'], 'a signed-out (or PIN) tab follows a sign-in elsewhere');
+        });
     });
 });

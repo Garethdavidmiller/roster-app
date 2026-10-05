@@ -159,6 +159,8 @@ export const AUTH_READY_TIMEOUT_MS = 20000;
 let _authGen = 0;
 /** The generation an explicit clearSession() took — see the late-landing check in ensureFirebaseSession. */
 let _clearedGen = -1;
+/** The member the CURRENT generation is signing in — see the same check. @type {string|null} */
+let _genName = null;
 
 /**
  * The Firebase identity `ensureFirebaseSession` last established on a write page.
@@ -321,6 +323,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
     // (e.g. tests) takes a fresh one. A superseded attempt drops its terminal writes via `commit`/
     // `recordError` so a late completion can't clobber a newer attempt's identity/diagnostics.
     const gen = _gen ?? ++_authGen;
+    if (_gen == null) _genName = name;
     const fresh = () => gen === _authGen;
     /** Publish the winning identity, then return `result` — only if this attempt is still current.
      *  @param {'named'|'none'} identity @param {boolean} result @returns {boolean} */
@@ -442,7 +445,14 @@ export async function ensureFirebaseSession(name, _gen, password) {
             // still land, leaving Firebase signed in with no app session behind it on a shared
             // device. Undo it only when a clearSession() is the LAST thing that happened: a newer
             // sign-in attempt superseding this one owns the account and must be left alone.
-            if (!fresh() && _authGen === _clearedGen) {
+            // The same holds when the attempt that superseded this one is for a DIFFERENT member
+            // (v24.56, auth review): landing late, this sign-in replaced theirs on the shared `auth`,
+            // so their page would show them and write with this account's token. Signing it out
+            // hands their page the identity-loss sign-in instead. Unless their sign-in has already
+            // landed on top of this one — then the account is theirs, and is left alone.
+            const supersededByOther = _genName !== name
+                && !(auth.currentUser?.email && auth.currentUser.email.toLowerCase() !== email.toLowerCase());
+            if (!fresh() && (_authGen === _clearedGen || supersededByOther)) {
                 await firebaseSignOut(auth).catch(() => {});
                 return false;
             }
@@ -509,6 +519,7 @@ export function isTransientAuthError(code) { return !!code && _TRANSIENT_AUTH_CO
  */
 export async function ensureNamedSession(name, { retries = 2, delayMs = 300, password } = {}) {
     const gen = ++_authGen;   // generation guard — a superseded attempt must not publish a stale terminal state
+    _genName = name;
     _feedAuth({ type: 'RESOLVE_START', member: name });   // store: resolving (observing only — Phase 2)
     let ok = await ensureFirebaseSession(name, gen, password);
     let attempt = 0;

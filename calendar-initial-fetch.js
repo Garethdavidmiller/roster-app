@@ -8,7 +8,7 @@
  * Edit here for: sync chip appearance, retry behaviour, initial fetch range.
  */
 
-import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache } from './calendar-overrides.js';
+import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache, accessGeneration } from './calendar-overrides.js';
 import { isAccessFailure } from './claim-retry.js';
 import { noteKnowledge } from './calendar-data-state.js';
 import { formatISO } from './roster-data.js';
@@ -115,6 +115,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
   // would re-show the error chip even though the data loaded successfully).
   let _fetchGen = 0;
   const _origGen = ++_fetchGen;
+  const _grant = accessGeneration();   // a refusal from an earlier grant must not re-lock a newer one (v24.56)
 
   // Show "↻ Updating your shifts…" chip after 800 ms if Firestore hasn't responded yet.
   const loadingTimer = setTimeout(() => {
@@ -240,6 +241,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
   async function doRetry() {
     if (!syncChip) return;
     const _retryGen = ++_fetchGen; // supersede any older pending request
+    const _grant = accessGeneration();
     // Through setChipState, NOT a direct write: _chipState must stay the single source, or a
     // re-render landing mid-retry would repaint the error state still recorded underneath and tell
     // the user the sync had failed while it was in fact still running (v19.11).
@@ -295,7 +297,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // Access gone, not network. Hand it to the access layer and take the chip away: leaving a
       // "tap to retry" beside the unlock card would offer two competing recoveries, only one of
       // which can work.
-      if (onAccessLost && isAccessFailure(err)) {
+      if (onAccessLost && isAccessFailure(err) && _grant === accessGeneration()) {
         setChipState(null);
         if (syncChip) { syncChip.remove(); syncChip = null; }
         onAccessLost();
@@ -397,7 +399,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // is absent in team-view and first-run, leaving those states with NO recovery path at all.
       _initialMonthKeys.forEach(clearFetchedMonth);
       // Access gone, not network — see the retry path above for why these must not share a state.
-      if (onAccessLost && isAccessFailure(err)) {
+      if (onAccessLost && isAccessFailure(err) && _grant === accessGeneration()) {
         setChipState(null);
         if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }
         onAccessLost();

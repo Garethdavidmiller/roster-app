@@ -40,7 +40,7 @@ mock.module('./firebase-client.js', {
         collection: () => ({}),
         query: (...a) => ({ a }),
         where: (/** @type {any} */ f, /** @type {any} */ op, /** @type {any} */ v) => { wheres.push([f, op, v]); return {}; },
-        getDocs: async () => { calls.server++; if (calls.serverError) throw calls.serverError; return _snap([]); },
+        getDocs: async () => { calls.server++; const wait = calls.serverWait, err = calls.serverError; if (wait) await wait; if (err) throw err; return _snap([]); },
         getDocsFromCache: async () => { calls.cache++; return _snap(cacheDocs); },
         COLLECTIONS: { overrides: 'overrides' },
     },
@@ -237,6 +237,28 @@ describe('ACCESS LOST MID-SESSION — month navigation is the likely path, not t
         assert.equal(hasOverrideAccess(), true, 'a network blip closed the access gate');
         setOverrideAccessLostHandler(null);
         calls.serverError = null;
+    });
+
+    test('a refusal from an EARLIER grant does not re-lock the grant that replaced it (v24.56)', async () => {
+        // The PIN rotates, a read issued under the old token is still in flight, the viewer
+        // re-enters the PIN — and then the old read's refusal arrives. It said "access has
+        // expired" straight after a correct PIN, and dropped the new grant's claim on the month.
+        setOverrideAccess(true);
+        let lost = 0;
+        setOverrideAccessLostHandler(() => { lost++; });
+        /** @type {() => void} */ let land = () => {};
+        /** @type {any} */ (calls).serverWait = new Promise(r => { land = () => r(undefined); });
+        calls.serverError = Object.assign(new Error('denied'), { code: 'permission-denied' });
+        const stale = ensureOverridesCached(2026, 7, () => {});
+        /** @type {any} */ (calls).serverWait = null;
+        calls.serverError = null;
+        setOverrideAccess(false);
+        setOverrideAccess(true);              // the re-unlock
+        land();
+        await stale;
+        assert.equal(lost, 0, 'an old grant\'s refusal re-locked the new one');
+        assert.equal(hasOverrideAccess(), true);
+        setOverrideAccessLostHandler(null);
     });
 
     test('the local sentinel counts as an access failure too', async () => {

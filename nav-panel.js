@@ -702,13 +702,14 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // POP the drawer's history entry and let it land first (v24.53) — left under the dialog it was a ghost entry.
         closePanel();
         await new Promise((resolve) => whenHistorySettled(() => resolve(undefined)));
-        // Ask FIRST: releasing before a cancelled sign-out left the device with no push record.
-        if (beforeSignOut && await beforeSignOut() === false) { signingOut = false; return; }
-        // Release this device's push record WHILE still signed in (the rules let only its owner
-        // delete it), so the targeted notices addressed to this member stop reaching a device they
-        // have left. Time-boxed and best-effort: it never blocks or fails the sign-out.
-        await releaseDevicePush();
-        onSignOut?.();
+        try {   // a throw re-arms the button rather than leaving it dead until a reload (v24.56)
+            // Ask FIRST: releasing before a cancelled sign-out left the device with no push record.
+            if (beforeSignOut && await beforeSignOut() === false) { signingOut = false; return; }
+            // Release this device's push record WHILE still signed in (only its owner may delete it), so
+            // targeted notices stop reaching a device they have left. Best-effort; never blocks sign-out.
+            await releaseDevicePush();
+            onSignOut?.();
+        } catch (err) { signingOut = false; console.error('[nav-panel] sign-out failed:', err); }
     });
 
     // Brand (logo + title + version) opens the page's About lightbox.
