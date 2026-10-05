@@ -17,7 +17,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-    emptyCoverage, withMember, withAll, clearedCoverage,
+    emptyCoverage, withMember, withAll,
     hasAuthorityFor, coversEveryone, replaceMemberSlice, mergeCappedRead,
 } from './admin-override-coverage.js';
 
@@ -54,8 +54,8 @@ describe('saying yes when it does not know', () => {
         assert.equal(hasAuthorityFor(cov, undefined), false);
     });
 
-    test('clearing forgets everything, including full coverage', () => {
-        const cov = clearedCoverage();
+    test('an empty record forgets everything, including full coverage', () => {
+        const cov = emptyCoverage();
         assert.equal(hasAuthorityFor(cov, 'G. Miller'), false);
         assert.equal(coversEveryone(cov), false);
     });

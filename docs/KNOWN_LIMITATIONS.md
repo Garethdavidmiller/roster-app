@@ -765,7 +765,12 @@ was height-only; all three now share `--dur-slower`.
 **Two more from the v18.84 sweep — real code paths, deliberately NOT changed** (the fix costs more
 risk than the defect):
 
-- **A retry can run a second authoritative reconciler over a month another fetch already owns.**
+- ~~**A retry can run a second authoritative reconciler over a month another fetch already owns.**~~
+  **CLOSED at v20.44** — kept below as the record; an external review (Oct 2026) found this entry
+  still reading as open. Every authoritative read now takes a sequence number when ISSUED and may
+  reconcile only the months no newer read has written (`_monthOwner` in `calendar-overrides.js`;
+  `CALENDAR_DATA.md` invariant 5), so the late, staler F1 below can no longer evict what F2 loaded.
+  `calendar-overrides.test.mjs` drives exactly that interleaving.
   `doRetry` (`calendar-initial-fetch.js`) re-claims all three initial months and reconciles the whole
   range. Reachable only as: initial fetch fails → its catch releases the months → a render/swipe
   calls `ensureOverridesCached` for one of them (claiming it, fetch F1) → the user taps the retry
@@ -1193,8 +1198,14 @@ the JSON in the same commit. (The `/new-starter` skill already includes this ste
 
 ### `firebase-tools` → `gaxios` dev-only advisory — no clean forward fix (F-DEP-1, reviewed v17.74)
 
-`npm audit` at the root reports a set of advisories that are **all dev-only** and all reachable
-through **`firebase-tools`** (root `devDependency`, currently `^15.22.2`). The original and still the
+> **Superseded as a count by "Development-tool advisories that only a downgrade would clear"**
+> (v24.50, near the top of this file), which records what `npm audit fix` and the grpc-js override
+> cleared and what is left. Since that pass the remaining entries ARE all under `firebase-tools`;
+> before it, a second path ran through `@firebase/rules-unit-testing` (its Firestore's grpc-js pin),
+> which this section never named. The reasoning below about `gaxios` is still current.
+
+`npm audit` at the root reports a set of advisories that are **all dev-only**, reachable through
+**`firebase-tools`** (root `devDependency`, now `^15.32.1`). The original and still the
 awkward one is a transitive `gaxios` in the **6.4.0 – 6.7.1** range.
 
 **Do not trust a count written down here — run it.** This paragraph said "5 moderate, all one root

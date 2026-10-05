@@ -1559,7 +1559,7 @@ The ONE document id a manual override is written to (v24.48, external review). P
 
 ### `admin-override-coverage.js`
 What the Admin override cache actually knows (v21.38). Pure — no DOM, no Firebase, no imports.
-- `emptyCoverage()` / `withMember(cov, member)` / `withAll(cov, { complete })` / `clearedCoverage()` — the record, never mutated in place. A CAPPED read (`complete: false`) sets `all: false` as well as `allPartial`: it replaced the cache, so an earlier complete read no longer describes it (re-review R-A6)
+- `emptyCoverage()` / `withMember(cov, member)` / `withAll(cov, { complete })` — the record (`clearedCoverage()`, a wrapper nothing called, was removed v24.51), never mutated in place. A CAPPED read (`complete: false`) sets `all: false` as well as `allPartial`: it replaced the cache, so an earlier complete read no longer describes it (re-review R-A6)
 - `hasAuthorityFor(cov, member)` — the question every write gate asks. Full coverage is checked FIRST, so `all` genuinely means all
 - `coversEveryone(cov)` — the All-staff view's separate question. Having read fifty members one at a time is NOT having read the collection
 - `replaceMemberSlice(docs, member, fresh)` — a replace, not a merge: the read is authoritative for that member, so a document it omits has been deleted
