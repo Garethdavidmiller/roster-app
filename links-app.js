@@ -46,7 +46,7 @@ import {
 } from './links-design.js';
 import { initLinksAnalysis } from './links-analysis.js';
 import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPayload, workingCopy, binEntryFrom, restoredEntryFrom, lastSavedLabel, recordSave, isPre26Design, PREVIOUS_LINK_LENGTH } from './links-design-doc.js';
-import { parseDesignImport, summariseImport } from './links-import.js';
+import { createDesignLibrary } from './links-design-library.js';
 import { DEFAULT_SHIFT_TIMES } from './links-default-targets.js';
 import { PROPOSALS, isProposalId, proposalById, proposalCopyName } from './links-proposals.js';
 import { createTargetPanel } from './links-generator-targets.js';
@@ -59,7 +59,7 @@ import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine, watchIdentityLoss } from './claim-retry.js';
 import {
-    isDeleted, deletedLabel, canSoftDelete, sortByDeleted,
+    isDeleted, canSoftDelete, sortByDeleted,
 } from './links-deletion.js';
 
 
@@ -291,12 +291,13 @@ export function init() {
     /** The built-in proposal whose unsaved working copy is open (links-proposals.js), or null. A
      *  proposal is opened with NO activeDesignId, so no write path can ever address it. */
     /** @type {string|null} */ let activeProposalId = null;
-    let binnedOnLoad = 0; /** @type {Map<string, Promise<any>>} */ const pendingBins = new Map();
+    let binnedOnLoad = 0;
     const PROPOSAL_ENTRIES = PROPOSALS.map(p => ({ id: p.id, name: p.name, ref: p.ref, patterns: p.patterns, window: null, updatedAt: null, updatedBy: '' }));
-    /** Deleted designs, newest first — the "Recently deleted" bin (v19.41). Held in memory with
-     *  their patterns so a restore is a field-clearing merge, never a re-upload of a stale copy.
-     *  @type {Array<{id:string, name:string, patterns:Object, window?:*, deletedAt:*, deletedBy:string}>} */
-    let deletedDesigns  = [];
+    /** The import panel and the Recently deleted bin (links-design-library.js), built once the store
+     *  exists. Null until then, so anything that renders before it reads an empty bin. @type {any} */
+    let library = null;
+    /** The bin, newest first — owned by the library. */
+    const _bin = () => library ? library.binList() : [];
 
     // Read-only analysis panels (Coverage heat map + Design quality checks) — extracted to
     // links-analysis.js (v17.70). They read only the live active design, via this getter.
@@ -555,7 +556,7 @@ export function init() {
             picker: { overlay: $('designPickerLb'), content: $('designPickerContent'), closeBtn: $('designPickerClose'), create: createLightbox },
             sheetActions: [
                 [$('dupDesignBtn'), duplicateDesign], [$('designRenameMenuBtn'), onRename], [$('compareBtn'), compare.toggleCompareMode],
-                [$('newDesignBtn'), createDesign], [$('importDesignBtn'), openImport], [$('designDeleteBtn'), () => { if (activeDesignId) deleteDesign(activeDesignId); }],
+                [$('newDesignBtn'), createDesign], [$('importDesignBtn'), () => library?.openImport()], [$('designDeleteBtn'), () => { if (activeDesignId) deleteDesign(activeDesignId); }],
             ],
         });
         $('compareChips')?.addEventListener('click', e => {
@@ -586,9 +587,9 @@ export function init() {
         // Recently-deleted row: present only when the bin has something in it.
         const binBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('designBinBtn'));
         if (binBtn) {
-            binBtn.style.display = deletedDesigns.length > 0 ? '' : 'none';
+            binBtn.style.display = _bin().length > 0 ? '' : 'none';
             const label = binBtn.querySelector('span:last-child');
-            if (label) label.textContent = `Recently deleted (${deletedDesigns.length})`;
+            if (label) label.textContent = `Recently deleted (${_bin().length})`;
         }
 
         header?.render(_headerState());
@@ -671,125 +672,7 @@ export function init() {
         }
     }
 
-    // ── Import a pasted design ──────────────────────────────────────────────────────────────────
-    //
-    // The RULES are all in `links-import.js`; everything here is the panel. Two things about the
-    // shape of this flow are deliberate:
-    //
-    //  1. CHECK BEFORE SAVE, always, even when the paste is perfect. A design is 168 cells the
-    //     reader has never seen as a grid, and it came from somebody else — so "it parsed" is not
-    //     the same as "this is what I meant to import". The check states what would be written and
-    //     any assumption made on the way, and only then does Save appear.
-    //  2. It saves as a NEW design and never touches the open one. An import that could overwrite
-    //     the design in front of you is one mis-tap from destroying work, and the workspace already
-    //     has a bin full of reasons to be careful about that.
-
-    /** The parse result the check produced, or null. Cleared whenever the text changes. */
-    /** @type {any} */
-    let _importParsed = null;
-    /** The import lightbox handle, assigned by `initDesignImport` below. @type {any} */
-    let _importLb = null;
-
-    /** @param {string} id */
-    function _importEl(id) { return /** @type {any} */ (document.getElementById(id)); }
-
-    /** Write the status line in one of its three voices. */
-    /** @param {string} msg @param {string|null} tone */
-    function _importStatus(msg, tone) {
-        const el = _importEl('linksImportStatus');
-        if (!el) return;
-        el.textContent = msg;
-        el.className = 'li-status' + (tone ? ` li-status--${tone}` : '');
-    }
-
-    /** Back to "nothing checked yet" — called on open and on every edit of the PASTE. */
-    function _importReset() {
-        _importParsed = null;
-        const save = _importEl('linksImportSave');
-        const check = _importEl('linksImportCheck');
-        if (save) save.hidden = true;
-        if (check) check.hidden = false;
-        _importStatus('', null);
-    }
-
-    async function openImport() {
-        // An import ends in `_activateDesign`, so it replaces the working copy like the other paths
-        // that ask first — and asks here, before any typing, as `createDesign` does.
-        if (dirty && !await confirmDialog({ message: 'You have unsaved changes in the current design. Import a new one anyway? Your changes will be lost.', confirmLabel: 'Import' })) return;
-        const text = _importEl('linksImportText');
-        const name = _importEl('linksImportName');
-        if (!text) return;
-        text.value = '';
-        if (name) name.value = '';
-        _importReset();
-        _importLb?.open();
-    }
-
-    /** Parse what is in the box and report it. Never writes anything. */
-    function checkImport() {
-        const text = _importEl('linksImportText');
-        const r = parseDesignImport(text?.value ?? '', { lines: ROTATING_LINES });
-        if (!r.ok) {
-            _importParsed = null;
-            // Belt and braces: any edit to either field already ran `_importReset`, so the button
-            // is normally hidden before this line runs. Kept so the refusal branch does not depend
-            // on a listener wired two hundred lines away — and noted here because a mutation
-            // removing it survives the e2e for exactly that reason.
-            const save = _importEl('linksImportSave');
-            if (save) save.hidden = true;
-            _importStatus(r.error, 'bad');
-            return;
-        }
-        _importParsed = r;
-        // A pasted name only fills the field when the reader has not typed one — their own name for
-        // a colleague's proposal is the more considered of the two.
-        const nameEl = _importEl('linksImportName');
-        if (nameEl && !nameEl.value.trim() && r.name) nameEl.value = r.name;
-
-        const s = summariseImport(r.patterns, ROTATING_LINES);
-        const lines = [`${s.filled} of ${s.lines} lines · ${s.worked} duties · ${s.spare} spare days · ${s.rest} rest days.`];
-        // Warnings BEFORE the save, never after it — a decision reported once the write has
-        // happened is a notification rather than a choice.
-        for (const w of r.warnings) lines.push(`• ${w}`);
-        _importStatus(lines.join('\n'), r.warnings.length ? 'warn' : 'ok');
-
-        const save = _importEl('linksImportSave');
-        const check = _importEl('linksImportCheck');
-        if (save) save.hidden = false;
-        if (check) check.hidden = true;
-    }
-
-    /** Write the checked design as a new one. */
-    async function saveImport() {
-        if (!_importParsed) return;
-        const name = (_importEl('linksImportName')?.value ?? '').trim();
-        if (!name) { _importStatus('Give the design a name first.', 'bad'); return; }
-        const nameCheck = checkName(name, { existing: designs, noun: 'design' });
-        if (!nameCheck.ok) { _importStatus(nameCheck.message || 'That name cannot be used.', 'bad'); return; }
-        const btn = _importEl('linksImportSave');
-        if (btn) btn.disabled = true;
-        _importStatus('Saving…', null);
-        try {
-            const patterns = _importParsed.patterns;
-            // An imported design starts on the app default window, like a new one — the paste
-            // describes duties, and a window it never mentioned must not be inferred from them.
-            // Through the store, so the baseline is armed identically however a design is born.
-            const { id: importedId, updatedAt: ts, baseline: impBase } = await store.create(
-                docPayload({ name, patterns, window: null },
-                           { updatedBy: currentUser, updatedAt: serverTimestamp() }));
-            const d = restoredEntryFrom({ id: importedId, name, patterns, window: null }, { updatedAt: ts, updatedBy: currentUser, revision: impBase.loadedRevision });
-            designs.push(d);
-            _sortDesigns();
-            _importLb?.close();
-            _activateDesign(d);
-            _designActionStatus(`Imported “${name}”. Check it against the sheet it came from.`, 'ok');   // a success, not an error (it rendered RED until v23.30)
-        } catch (err) {
-            console.error('[Links] Import failed:', err);
-            _importStatus(unconfirmedWriteLine(err, 'this design', 'the design list') ?? 'Couldn’t save the design — check your connection and try again.', 'bad');
-        } finally {
-            if (btn) btn.disabled = false;
-        }
-    }
+    // IMPORT and the RECENTLY DELETED bin are links-design-library.js (v24.51) — wired below, after the store.
 
     /** Duplicate the current design as a new named design.
      * Copies the LIVE in-memory patterns, so unsaved edits are included —
@@ -949,7 +832,7 @@ export function init() {
             // deletedAt is null until the server resolves it — deliberately kept as null rather
             // than stamped with a client clock, so the row reads "Deleted by X" until the real
             // time is known instead of showing a countdown built from an invented figure.
-            deletedDesigns.unshift(binEntryFrom(d, currentUser));
+            library.addToBin(binEntryFrom(d, currentUser));
             const newActive = (id === activeDesignId) ? designs[0] : null;
             // Exit compare mode if the compare target was deleted, the delete drops below the 2
             // designs compare needs, OR the newly-promoted active design IS the current compare
@@ -969,183 +852,6 @@ export function init() {
             _designActionStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t delete the design — check your connection and try again.');
         }
     }
-
-    // ============================================
-    // RECENTLY DELETED (soft delete, v19.41)
-    // ============================================
-
-    /** Bin-panel feedback line. @param {string} msg @param {'ok'|'err'} [kind] */
-    function _binStatus(msg, kind = 'err') {
-        const el = document.getElementById('designBinStatus');
-        if (el) { el.textContent = msg; el.className = 'bin-status ' + kind; }
-    }
-
-    /**
-     * Restore a deleted design.
-     *
-     * Clears the two fields with `deleteField()` on a MERGE write rather than re-writing the whole
-     * document: the patterns held here were read when the page loaded, and a full replace would
-     * push that copy over anything the design carried at the moment it was deleted.
-     * @param {any} id
-     */
-    async function restoreDesign(id) {
-        const d = deletedDesigns.find(x => x.id === id);
-        if (!d) return;
-        // The duplicate-name rule every other way in already holds — the bin was the way round it.
-        if (checkName(d.name, { existing: designs, noun: 'design' }).reason === 'duplicate') {
-            _binStatus(`There is already a design called “${d.name}”. Rename that one first, then restore this — two with the same name cannot be told apart in the list.`);
-            return;
-        }
-        try {
-            await pendingBins.get(id);
-            const res = await store.restore(id, currentUser);
-            // TWO OUTCOMES A COLLEAGUE ALREADY SETTLED — neither changed by retrying, and both
-            // once read "check your connection", blaming the network for somebody's deliberate
-            // act. One handler: the reaction is identical and only the sentence differs. The store
-            // reports the state; the wording is the workspace's.
-            const settledElsewhere = {
-                gone: `“${d.name}” was already removed for good by someone else, so there was nothing to restore.`,
-                'already-restored': `“${d.name}” had already been restored by someone else — it is back in the list.`,
-            }[res.status];
-            if (settledElsewhere) {
-                await _refreshLists();
-                _binStatus(settledElsewhere);
-                return;
-            }
-            const { updatedAt: restoredTs, revision: restoredRev } = res;
-            deletedDesigns = deletedDesigns.filter(x => x.id !== id);
-            // The store armed the baseline from the server. A restored design is an OLD document a
-            // co-editor may still hold, so entering it with no baseline is worse than for a new
-            // one: the next save would skip the "someone else saved" confirm entirely. A null
-            // stamp reads as an UNKNOWN baseline (guard on), never "nothing to compare".
-            const restored = restoredEntryFrom(d, { updatedAt: restoredTs, updatedBy: currentUser, revision: restoredRev });
-            designs.push(restored);
-            _sortDesigns();
-            // Restoring into an EMPTY workspace OPENS the design — the masthead names the open one.
-            if (!design) _activateDesign(restored); else renderDesignPicker();
-            renderBinList();
-            _binStatus(`“${d.name}” restored.`, 'ok');
-        } catch (err) {
-            console.error('[Links] Restore failed:', err);
-            _binStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t restore that design — check your connection and try again.');
-        }
-    }
-
-    /**
-     * Remove a deleted design for good (the only hard delete left in the workspace).
-     * @param {any} id
-     */
-    async function purgeDesign(id) {
-        const d = deletedDesigns.find(x => x.id === id);
-        if (!d) return;
-        if (!await confirmDialog({
-            title: 'Remove for good',
-            message: `Permanently remove "${d.name}"?\n\nThis one can't be undone.`,
-            confirmLabel: 'Remove for good',
-            danger: true,
-        })) return;
-        try {
-            // The re-read-inside-the-transaction rule is the store's (v21.87). It matters most
-            // here: this is the only hard delete left in the workspace, and the row that was
-            // pressed may be stale — A opens the bin, B restores, A presses Remove for good.
-            await pendingBins.get(id);
-            const outcome = await store.purge(id);
-            if (outcome === 'restored-elsewhere') {
-                // Say what happened rather than "couldn't remove": someone put it back on purpose,
-                // and the right next step is to look at it again, not to retry.
-                await _refreshLists();
-                _binStatus(`“${d.name}” was restored by someone else, so it was not removed.`);
-                return;
-            }
-            deletedDesigns = deletedDesigns.filter(x => x.id !== id);
-            renderDesignPicker();
-            renderBinList();
-            _binStatus(`“${d.name}” removed.`, 'ok');
-        } catch (err) {
-            console.error('[Links] Permanent delete failed:', err);
-            _binStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t remove that design — check your connection and try again.');
-        }
-    }
-
-    /** Rebuild the Recently-deleted list. */
-    function renderBinList() {
-        const list = document.getElementById('designBinList');
-        if (!list) return;
-        if (deletedDesigns.length === 0) {
-            list.innerHTML = '<p class="bin-empty">Nothing here. Deleted designs appear in this list.</p>';
-            return;
-        }
-        const now = Date.now();
-        list.innerHTML = deletedDesigns.map(d => {
-            const id = escapeHtml(d.id);
-            return `<div class="bin-row">` +
-                `<div class="bin-row-main">` +
-                    `<span class="bin-row-name">${escapeHtml(d.name)}</span>` +
-                    `<span class="bin-row-meta">${escapeHtml(deletedLabel(d, now))}</span>` +
-                `</div>` +
-                // The app's canonical dialog button pair — same recipe, same 44px touch target and
-                // press feedback as every confirm dialog (v19.43). These were a third, page-local
-                // recipe: ~26px tall pills with no press animation.
-                `<div class="bin-row-actions">` +
-                    `<button class="bin-restore dialog-btn dialog-btn-confirm" data-id="${id}" type="button">Restore</button>` +
-                    `<button class="bin-purge dialog-btn dialog-btn-cancel" data-id="${id}" type="button" ` +
-                        `aria-label="Remove ${escapeHtml(d.name)} for good">Remove for good</button>` +
-                `</div></div>`;
-        }).join('');
-    }
-
-    /** Wire the bin button + panel — called once on page load. */
-    function initDesignBin() {
-        const overlay = document.getElementById('designBinLightbox');
-        const content = document.getElementById('designBinContent');
-        const closeBtn = document.getElementById('designBinClose');
-        if (!overlay || !content || !closeBtn) return;
-        const lb = createLightbox({
-            overlay,
-            content:  /** @type {HTMLElement} */ (content),
-            closeBtn: /** @type {HTMLElement} */ (closeBtn),
-            onOpen() { _binStatus('', 'ok'); renderBinList(); },
-        });
-        document.getElementById('designBinBtn')?.addEventListener('click', () => header ? header.viaSheet(() => lb.open()) : lb.open());   // via the ··· sheet
-        document.getElementById('designBinList')?.addEventListener('click', e => {
-            const t = /** @type {Element} */ (e.target);
-            const restore = /** @type {HTMLElement|null} */ (t.closest('.bin-restore'));
-            const purge   = /** @type {HTMLElement|null} */ (t.closest('.bin-purge'));
-            if (restore)    restoreDesign(restore.dataset.id);
-            else if (purge) purgeDesign(purge.dataset.id);
-        });
-    }
-    initDesignBin();
-
-    /** Wire the import panel — called once on page load, like the bin. */
-    function initDesignImport() {
-        const overlay = document.getElementById('linksImportLb');
-        const content = document.getElementById('linksImportContent');
-        const closeBtn = document.getElementById('linksImportClose');
-        if (!overlay || !content || !closeBtn) return;
-        _importLb = createLightbox({
-            overlay,
-            content:  /** @type {HTMLElement} */ (content),
-            closeBtn: /** @type {HTMLElement} */ (closeBtn),
-            initialFocus: () => document.getElementById('linksImportText'),
-        });
-        document.getElementById('linksImportCheck')?.addEventListener('click', checkImport);
-        document.getElementById('linksImportSave')?.addEventListener('click', saveImport);
-        document.getElementById('linksImportCancel')?.addEventListener('click', () => _importLb?.close());
-        // EDITING THE PASTE invalidates the check. Without this, editing the text after a
-        // successful check would leave Save armed against the PREVIOUS parse — the reader would be
-        // shown one design and save another, which is the one outcome this two-step exists to stop.
-        //
-        // THE NAME DOES NOT, and used to (v22.62, external review P2). Nothing about the parse
-        // depends on it: `_importParsed` is a function of the TEXT alone, and `saveImport` reads
-        // the name fresh from the field and validates it there. Worse, resetting on it fired on the
-        // commonest path — `checkImport` pre-fills the name from the paste, so a reader who then
-        // makes it their own name for a colleague's proposal watched Save disappear and had to
-        // press Check again. The old test filled the name BEFORE checking, which is why nothing saw
-        // it.
-        document.getElementById('linksImportText')?.addEventListener('input', _importReset);
-    }
-    initDesignImport();
 
     /**
      * Switch the active design. Warns if dirty.
@@ -1412,10 +1118,10 @@ export function init() {
             const emptyMsg   = document.getElementById('linksEmptyMsg');
             const emptyTitle = document.querySelector('#linksEmptyState .links-empty-title');
             const emptyActs  = document.querySelector('#linksEmptyState .links-empty-actions');
-            if (emptyTitle) emptyTitle.textContent = loadFailed ? 'Couldn’t load your designs' : binnedOnLoad && deletedDesigns.length ? `Your ${PREVIOUS_LINK_LENGTH}-line designs are in Recently deleted` : 'No designs yet';
+            if (emptyTitle) emptyTitle.textContent = loadFailed ? 'Couldn’t load your designs' : binnedOnLoad && _bin().length ? `Your ${PREVIOUS_LINK_LENGTH}-line designs are in Recently deleted` : 'No designs yet';
             if (emptyMsg) emptyMsg.innerHTML = loadFailed
                 ? `Check your connection and refresh the page. Nothing has been lost — saved designs are on the server.`
-                : binnedOnLoad && deletedDesigns.length ? `The link is ${TOTAL_POS} lines from December, so ${binnedOnLoad === 1 ? 'the design' : `the ${binnedOnLoad} designs`} drawn for ${PREVIOUS_LINK_LENGTH} moved there. Restore one from <strong>Recently deleted</strong>, in the <span aria-hidden="true">···</span><span class="sr-only">More</span> menu above, if you still need it.`
+                : binnedOnLoad && _bin().length ? `The link is ${TOTAL_POS} lines from December, so ${binnedOnLoad === 1 ? 'the design' : `the ${binnedOnLoad} designs`} drawn for ${PREVIOUS_LINK_LENGTH} moved there. Restore one from <strong>Recently deleted</strong>, in the <span aria-hidden="true">···</span><span class="sr-only">More</span> menu above, if you still need it.`
                 : `Build a rotating pattern from staffing targets with the Auto-generate card below, open one of the shortlisted proposals, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`;
             if (emptyActs) /** @type {HTMLElement} */ (emptyActs).style.display = loadFailed ? 'none' : '';
             _setGridHint(false);
@@ -2236,7 +1942,7 @@ export function init() {
                 designs = designs.filter(x => x.id !== savingId);
                 // Once (48-hour review): "Not now" leaves the design open, so each further Save
                 // lands here again, and every one of them added another copy to Recently deleted.
-                if (data) deletedDesigns = [binEntryFromDoc(savingId, data), ...deletedDesigns.filter(x => x.id !== savingId)];
+                if (data) library.upsertBin(binEntryFromDoc(savingId, data));
                 renderDesignPicker();
             };
             const deletedElsewhere = async (/** @type {any} */ data) => {
@@ -2346,6 +2052,18 @@ export function init() {
         serverTimestamp, deleteField, designsCol: DESIGNS_COL,
         withClaimRetry: writeWithClaimRetry,
     });
+    library = createDesignLibrary({
+        store, currentUser,
+        getDesigns: () => designs,
+        addDesign: (d) => { designs.push(d); _sortDesigns(); },
+        activate: _activateDesign,
+        isDirty: () => dirty,
+        hasOpenDesign: () => !!design,
+        renderPicker: renderDesignPicker,
+        refreshLists: _refreshLists,
+        actionStatus: _designActionStatus,
+        getHeader: () => header,
+    });
 
     /** A collection read → live designs, the bin, and the legacy singleton. One rule for both readers.
      *  A binned design keeps its patterns so a restore is a field-clearing merge (v19.41); every
@@ -2372,24 +2090,23 @@ export function init() {
     async function _refreshLists() {
         try {
             const { named, binned } = _splitDocs(await store.loadAll());
-            designs = named; _sortDesigns(); deletedDesigns = sortByDeleted(binned);
+            designs = named; _sortDesigns(); library.setBin(sortByDeleted(binned));
         } catch (err) { console.error('[Links] List refresh failed:', err); }
-        renderDesignPicker(); renderBinList(); compare.renderCompare();
+        renderDesignPicker(); library.renderBinList(); compare.renderCompare();
     }
 
     /** Bin the old-length designs in the background, each re-checked in a transaction (store.binIfStill)
      *  — never from a cached read, never queued offline. A restore or purge of one waits for its move
-     *  (`pendingBins`), or it would meet a design not yet deleted and blame a colleague. Said AT ONCE:
+     *  (the library's `trackBinMove`), or it would meet a design not yet deleted and blame a colleague. Said AT ONCE:
      *  the empty state names them too, since on release day the list is often empty. @param {string[]} ids */
     function _binPre26(ids) {
         binnedOnLoad = ids.length;
         if (!ids.length) return;
         _designActionStatus(`${ids.length} design${ids.length === 1 ? '' : 's'} drawn for the ${PREVIOUS_LINK_LENGTH}-line link ${ids.length === 1 ? 'is' : 'are'} in Recently deleted — restore from there if you still need ${ids.length === 1 ? 'it' : 'them'}.`, 'ok');
         for (const id of ids) {
-            pendingBins.set(id, store.binIfStill(id, currentUser, isPre26Design)
+            library.trackBinMove(id, store.binIfStill(id, currentUser, isPre26Design)
                 .then((/** @type {string} */ r) => { if (r === 'skipped') _refreshLists(); })   // restored or redrawn since: show it live
-                .catch((/** @type {any} */ err) => console.error('[Links] Binning an old-length design failed:', err))
-                .finally(() => pendingBins.delete(id)));
+                .catch((/** @type {any} */ err) => console.error('[Links] Binning an old-length design failed:', err)));
         }
     }
 
@@ -2418,7 +2135,7 @@ export function init() {
             named.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
             designs = named;
             // Bin: newest deletion first (pure, tested rule — incl. the unresolved-timestamp case).
-            deletedDesigns = sortByDeleted(binned);
+            library.setBin(sortByDeleted(binned));
             // THE BIN IS PERMANENT (owner, 19 Sep 2026): nothing here deletes anything automatically.
             // Removal is a deliberate "Remove for good". The argument: links-deletion.js's header.
 

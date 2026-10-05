@@ -2528,6 +2528,12 @@ and with nothing else on the page:
 renders through `overtime-manager.js` and reads through `overtime-data.js`; the missing layer was
 this one, between them.
 
+### `links-design-library.js`
+The Links workspace's design LIBRARY — the import panel and the Recently deleted bin (v24.51, split out of `links-app.js` on an external technical-debt review: managing the COLLECTION apart from editing the open design).
+- `createDesignLibrary(ctx)` → `{ openImport, renderBinList, binList, setBin, addToBin, upsertBin, trackBinMove }`. Wires both panels on creation; call once, after the design store exists. `ctx` is deliberately small — `store`, `currentUser`, `getDesigns`, `addDesign`, `activate`, `isDirty`, `hasOpenDesign`, `renderPicker`, `refreshLists`, `actionStatus`, `getHeader` — because a split that passed the editor's state across would only move the coupling.
+- **Owns the bin list** (the coordinator reads it through `binList()`) and the automatic moves in flight (`trackBinMove`, v24.48 — restore and purge wait for a pending move of the same design).
+- **Rename, duplicate and delete stayed in `links-app.js`**: each changes the OPEN design's concurrency baseline or unsaved state.
+
 ### `links-design-store.js`
 The design collection's persistence lifecycle and its concurrency protocol (v21.87).
 - `createDesignStore(deps)` → `{ loadAll, create, save, rename, softDelete, binIfStill, restore, purge }` — `binIfStill(id, by, stillMatches)` (v24.47) is the AUTOMATIC bin move: a transaction that re-asks the rule and fails offline rather than queueing
