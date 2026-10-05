@@ -146,6 +146,8 @@ global.document = /** @type {any} */ (fakeDocument);
 
 /** @type {() => Promise<void>} */
 let _commit = async () => {};
+/** Document ids every committed batch deleted, in order. @type {string[]} */
+let _deleted = [];
 
 /** v24.38: the delete paths refuse up front when nobody is signed in. */
 const _mockAuth = { currentUser: /** @type {any} */ ({ uid: 'admin' }) };
@@ -154,9 +156,13 @@ mock.module('./firebase-client.js', {
     namedExports: {
         db: {},
         auth: _mockAuth,
-        doc: () => ({}),
-        deleteDoc: async () => {},
-        writeBatch: () => ({ delete() {}, commit: () => _commit() }),
+        // The id is RECORDED (v24.48): which documents a delete removed is the subject of block 6.
+        doc: (/** @type {any} */ _db, /** @type {any} */ _col, /** @type {string} */ id) => ({ id }),
+        writeBatch: () => {
+            /** @type {string[]} */ const pending = [];
+            return { delete(/** @type {any} */ ref) { pending.push(ref.id); },
+                commit: async () => { await _commit(); _deleted.push(...pending); } };
+        },
         writeWithClaimRetry: (/** @type {Function} */ fn) => fn(),
         COLLECTIONS: { overrides: 'overrides' },
     },
@@ -180,6 +186,15 @@ mock.module('./admin-override-store.js', {
         coversAllStaff: () => _coversAll,
         OVERRIDES_QUERY_CAP: 400,
         loadOverrides: async (/** @type {any} */ opts) => { _loads.push(opts); },
+        // The store's own rule, over the mocked rows: every MANUAL record of a deleted manual day.
+        withManualDuplicates: (/** @type {string[]} */ ids) => {
+            const out = new Set(ids);
+            for (const id of ids) {
+                const r = _rows.find(o => o.id === id);
+                if (r && (r.source || '') !== 'roster_import') _rows.filter(o => o.memberName === r.memberName && o.date === r.date && (o.source || '') !== 'roster_import').forEach(o => out.add(o.id));
+            }
+            return out;
+        },
     },
 });
 
@@ -244,7 +259,7 @@ async function bulkDelete(/** @type {string[]} */ ids) {
     await fire('bulkDeleteBtn', 'click');   // deletes
 }
 
-beforeEach(() => { _commit = async () => {}; _mockAuth.currentUser = { uid: 'admin' }; setup(); });
+beforeEach(() => { _commit = async () => {}; _deleted = []; _mockAuth.currentUser = { uid: 'admin' }; setup(); });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -462,5 +477,36 @@ describe('5. claiming a completeness the cache does not have', () => {
 
         assert.equal(el('listCount').textContent, '5 saved changes (all staff)');
         assert.equal(el('showAllOverridesBtn').textContent, 'This member only');
+    });
+});
+
+
+// ── 6. A pre-v24.48 DUPLICATE goes with the row that was deleted (external review, Oct 2026) ──────
+// Two manual records for one member and date — left by two editors saving at once before fixed ids.
+// Deleting only the newer from Saved Changes let the older resurface as the day's value (here, annual
+// leave reappearing under a rest-day correction somebody had just removed). The week editor's delete
+// already took both; these two controls did not.
+describe('6. deleting a day takes its older duplicate with it, from both Saved Changes controls', () => {
+    const DUPES = () => [
+        { id: 'old-al', memberName: 'G. Miller', date: '2026-06-16', type: 'annual_leave', value: 'AL', source: 'manual' },
+        { id: 'new-rd', memberName: 'G. Miller', date: '2026-06-16', type: 'correction', value: 'RD', source: 'manual' },
+        { id: 'import', memberName: 'G. Miller', date: '2026-06-16', type: 'shift', value: '06:20-14:20', source: 'roster_import' },
+    ];
+
+    test('the row ✕ deletes the older copy too, keeps the import, and says so', async () => {
+        _rows = DUPES();
+        const btn = makeEl('row-delete'); btn.dataset.id = 'new-rd';
+        const target = { closest: (/** @type {string} */ sel) => sel === '.btn-delete' ? btn : null };
+        for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // arms
+        for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // deletes
+        assert.deepEqual([..._deleted].sort(), ['new-rd', 'old-al']);
+        assert.match(el('listFeedback').textContent, /1 older copy of the same day/);
+    });
+
+    test('Delete selected does the same for every picked row', async () => {
+        _rows = DUPES();
+        await bulkDelete(['new-rd']);
+        assert.deepEqual([..._deleted].sort(), ['new-rd', 'old-al'], 'the import is not a duplicate and stays');
+        assert.match(el('listFeedback').textContent, /Deleted 1 saved change, and 1 older copy/);
     });
 });
