@@ -831,6 +831,94 @@ test('a returning member sees NO roster while the identity is confirmed — then
     await expect(page.locator('#teamMemberSelect')).toBeEnabled();
 });
 
+// ── THE MEMBER'S OWN STORED ROSTER, WHILE THE IDENTITY IS CONFIRMED (v24.59) ──────────────────────
+//
+// The app-owned copy DECISIONS.md named as the only shape that can beat the sign-in round trip
+// (calendar-snapshot.js). Pinned on a rendered page because every rule that matters is about what is
+// ON SCREEN, and for whom: shown at once and labelled, for the signed-in member only, never to the PIN,
+// replaced by the live grid on the grant, and written by a settled live read.
+const SNAPSHOT_KEY = 'myb_cal_snapshot';
+// THE REAL MONTH, NOT A PINNED CLOCK: `authRestoreDelayMs` waits on Date.now() advancing, so a fixed
+// clock never lets the identity restore. A weekday is chosen because leave is never shown on a Sunday.
+const _now = new Date();
+const SNAP_MONTH = `${_now.getFullYear()}-${String(_now.getMonth() + 1).padStart(2, '0')}`;
+const SNAP_DAY = [2, 3, 4, 5, 6, 7, 8].find(d => new Date(_now.getFullYear(), _now.getMonth(), d).getDay() !== 0) ?? 2;
+const SNAP_DATE = `${SNAP_MONTH}-${String(SNAP_DAY).padStart(2, '0')}`;
+/** @param {import('@playwright/test').Page} page @param {string} member @param {Record<string, any>} days */
+const seedSnapshot = (page, member, days) => page.addInitScript(([key, m, d, mk]) => {
+    if (sessionStorage.getItem('__e2e_snapshot_seeded')) return;   // once: a reload must see what the app wrote
+    sessionStorage.setItem('__e2e_snapshot_seeded', '1');
+    localStorage.setItem(key, JSON.stringify({ v: 1, member: m, months: { [mk]: { savedAt: Date.now(), days: d } } }));
+}, [SNAPSHOT_KEY, member, days, SNAP_MONTH]);
+const readSnapshotKey = (/** @type {import('@playwright/test').Page} */ page) =>
+    page.evaluate((k) => JSON.parse(localStorage.getItem(k) || 'null'), SNAPSHOT_KEY);
+
+test('the member\'s own stored roster shows AT ONCE, labelled, while the identity is confirmed — then the live grid', async ({ page }) => {
+    test.setTimeout(60_000);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await seedSnapshot(page, 'G. Miller', { [SNAP_DATE]: { type: 'annual_leave', value: 'AL' } });
+    await page.addInitScript(() => {
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true, authRestoreDelayMs: 5000 });
+    });
+    await page.goto('/index.html');
+
+    // Inside the restore: the COPY, not the workspace — and it says what it is.
+    const snap = page.locator('#calendarSnapshot');
+    await expect(snap).toBeVisible({ timeout: 2000 });
+    await expect(snap.locator('.calendar-snapshot-note')).toHaveText('Checking for changes…');
+    await expect(snap.locator('.calendar-day:not(.other-month)').nth(SNAP_DAY - 1)).toContainText('AL');
+    await expect(page.locator('#calendarDisplay')).toBeHidden();
+
+    // The grant replaces it with the live Calendar.
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    await expect(snap).toHaveCount(0);
+    await expect(page.locator('#teamMemberSelect')).toBeEnabled();
+});
+
+test('a stored copy for SOMEBODY ELSE is never shown, and is deleted', async ({ page }) => {
+    test.setTimeout(60_000);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await seedSnapshot(page, 'S. Boyle', { [SNAP_DATE]: { type: 'annual_leave', value: 'AL' } });
+    await page.addInitScript(() => {
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true, authRestoreDelayMs: 3000 });
+    });
+    await page.goto('/index.html');
+    await page.waitForTimeout(1000);
+    await expect(page.locator('#calendarSnapshot')).toHaveCount(0);
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    expect((await readSnapshotKey(page))?.member ?? null, 'S. Boyle\'s copy must be gone').not.toBe('S. Boyle');
+});
+
+test('a settled live read WRITES the copy — the member\'s own rows only', async ({ page }) => {
+    test.setTimeout(60_000);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await page.addInitScript((date) => {
+        const w = /** @type {any} */ (window); w.__E2E = Object.assign(w.__E2E || {}, { authUser: true });
+        w.__E2E.docs = [
+            { id: 'a', memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '', source: 'manual' },
+            { id: 'b', memberName: 'S. Boyle',  date, type: 'annual_leave', value: 'AL', note: '', source: 'manual' },
+        ];
+    }, SNAP_DATE);
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay .calendar-day').first()).toBeVisible({ timeout: 20_000 });
+    await expect.poll(async () => (await readSnapshotKey(page))?.months?.[SNAP_MONTH]?.days ?? null, { timeout: 10_000 })
+        .toEqual({ [SNAP_DATE]: { type: 'annual_leave', value: 'AL', source: 'manual' } });
+    expect((await readSnapshotKey(page)).member).toBe('G. Miller');
+});
+
+test('the staff PIN never sees a member\'s copy — and unlocking with it deletes one', async ({ page }) => {
+    test.setTimeout(60_000);
+    await seedSnapshot(page, 'G. Miller', { [SNAP_DATE]: { type: 'annual_leave', value: 'AL' } });
+    await seedViewerAccess(page);
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#calendarSnapshot')).toHaveCount(0);
+    expect(await readSnapshotKey(page)).toBeNull();
+});
+
 // THE SET-PASSWORD STEP RUNS ON THE ONE GRANT. It hangs off the one-shot `onGranted`, which now
 // fires once, with `named` already readable — under the provisional paint that hook was spent while
 // access was still `none`, and after a Calendar sign-in the step never ran. Only a page shows the

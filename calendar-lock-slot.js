@@ -92,6 +92,9 @@ export function armSkeleton(ms) {
  * single line until access is granted, and this has to appear before that is known.
  */
 export function showBootSkeleton() {
+    // The member's own stored roster is a better answer to "working" than an empty shape, and it is
+    // already up when it exists (v24.59) — the skeleton never replaces it.
+    if (lockCardId() === 'calendarSnapshot') return;
     // Month bar, day-name row, then 42 cells — six weeks, the calendar's own worst case, so the
     // block does not resize when the real grid replaces it. The measurements in the CSS are the
     // REAL grid's, taken from a rendered calendar rather than guessed, so the swap is a fill-in

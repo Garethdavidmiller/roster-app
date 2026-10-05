@@ -939,6 +939,19 @@ describe('clearSession', () => {
         clearSession();
         assert.equal(_signOutCalled, true);
     });
+
+    test('deletes the Calendar\'s copy of the member\'s own roster (v24.59) — every sign-out ends here', () => {
+        store.set('myb_cal_snapshot', '{}');
+        clearSession();
+        assert.equal(store.has('myb_cal_snapshot'), false, 'a shared device must not keep it past the session');
+    });
+
+    test('and so does a session that has EXPIRED on read', () => {
+        store.set(AUTH_KEY, JSON.stringify({ name: 'G. Miller', ver: 99, expiry: 1 }));
+        store.set('myb_cal_snapshot', '{}');
+        assert.equal(getSession(), null);
+        assert.equal(store.has('myb_cal_snapshot'), false);
+    });
 });
 
 // ── refreshClaimsIfStale (B3 claim-refresh sweep) ──────────────────────────────

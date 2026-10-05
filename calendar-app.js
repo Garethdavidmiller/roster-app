@@ -13,13 +13,13 @@
  */
 
 import { enhanceSelect } from './select-sheet.js';
-import { CONFIG, MONTH_NAMES, computeEaster } from './roster-data.js';
+import { CONFIG, MONTH_NAMES, computeEaster, teamMembers } from './roster-data.js';
 import { formatClock, printedStamp } from './date-format.js';
 import { authReady, authBootstrap } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { getSession, ensureNamedSession, refreshClaimsIfStale } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
 import { initPasswordForce } from './password-force.js';
-import { PW_FORCE_PENDING_PREFIX, TEAM_VIEW } from './storage-keys.js';
+import { PW_FORCE_PENDING_PREFIX, TEAM_VIEW, SELECTED_MEMBER } from './storage-keys.js';
 import { canOpenOvertime } from './auth-policy.js';       // nav-drawer pill gating only — never a boundary
 import { initTeamView } from './calendar-team-view.js';
 import { initNavPanel } from './nav-panel.js';
@@ -38,8 +38,10 @@ import { createLegend } from './calendar-legend.js';
 import { initCalendarAccess, calendarAccessReady, calendarAuthReady, getAccessType, isViewerMode, lockCalendar, handleAccessLost } from './calendar-access.js';
 import { personalActionsAllowed } from './calendar-access-core.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
-import { buildCalendarContainer } from './calendar-renderer.js';
-import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth, watchLocalDate } from './calendar-state.js';
+import { buildCalendarContainer, setSnapshotSource } from './calendar-renderer.js';
+import { snapshotMonth, saveSnapshotMonths, clearSnapshot, MONTHS_BEFORE, MONTHS_AFTER } from './calendar-snapshot.js';
+import { mountLockCard } from './calendar-lock-slot.js';
+import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth, watchLocalDate, addMonths } from './calendar-state.js';
 import { initSwipeHandler, isSwipeCooldown, isSwipeGestureActive } from './calendar-swipe.js';
 import { initCalendarLightboxes } from './calendar-al-lightbox.js';
 import { initInitialFetch } from './calendar-initial-fetch.js';
@@ -431,6 +433,7 @@ function renderCalendar() {
         }
 
         updateNavButtonState();
+        _saveOwnSnapshot();
 
         // Ensure Firestore overrides are cached for the displayed month.
         // No-op if already fetched; fires a background fetch and re-render if not
@@ -722,7 +725,7 @@ try {
             // the sync chip's retry, which an expired session can never satisfy (v20.12). The gate
             // is CLOSED first: re-locking the UI while override reads stayed permitted would leave
             // the local-cache path open behind the card.
-            onAccessLost: () => { setOverrideAccess(false); setDocumentAccess(false); handleAccessLost(); },
+            onAccessLost: () => { clearSnapshot(); setOverrideAccess(false); setDocumentAccess(false); handleAccessLost(); },
         });
         _dismissSyncError = _initialFetch.dismissSyncError;
 
@@ -1182,7 +1185,55 @@ function _onFirstGrant() {
     _resolvePasswordForce(_runPasswordForce());
 }
 
+// ── THE MEMBER'S OWN ROSTER, SHOWN WHILE THE SIGN-IN CHECK RUNS (v24.59, calendar-snapshot.js) ──
+// Offered only on the member's OWN calendar, signed in by name, outside Team View — the copy is
+// theirs and nobody else's. Before the grant it is painted into the lock slot (the place the
+// skeleton would stand) with no handlers, so nothing on it can act; after the grant the renderer asks
+// the source registered below (`setSnapshotSource`) for any month still loading. Neither path touches `rosterOverridesCache` or the
+// knowledge states, so the copy can never be mistaken for what the server said.
+const _ownView = (/** @type {string} */ name) => !!name && getSession()?.name === name
+    && (lsGet(SELECTED_MEMBER) ?? name) === name && lsGet(TEAM_VIEW) !== '1';
+setSnapshotSource((name, year, month) =>
+    getAccessType() === 'named' && _ownView(name) && !teamView.isTeamViewMode() ? snapshotMonth(name, year, month) : null);
+
+/** Paint the stored copy in the lock slot before the access decision. @returns {boolean} painted */
+function _paintSnapshotBeforeGrant() {
+    try {
+        const name = getSession()?.name;
+        if (!name || !_ownView(name)) return false;
+        const member = teamMembers.find(m => m.name === name && !m.hidden && !m.managerOnly);
+        if (!member) { clearSnapshot(); return false; }   // a leaver, or a login-only account
+        const days = snapshotMonth(name, getDisplayYear(), getDisplayMonth());
+        if (!days) return false;
+        const card = mountLockCard({ id: 'calendarSnapshot', className: 'cal-snapshot' });
+        card?.appendChild(buildCalendarContainer(getDisplayMonth(), getDisplayYear(), { member, snapshot: days }));
+        return !!card;
+    } catch (e) { console.warn('[Calendar] own-roster copy not painted', e); return false; }
+}
+
+/** Keep the months the live read has settled for the member's own calendar. */
+function _saveOwnSnapshot() {
+    try {
+        const name = getSession()?.name;
+        if (getAccessType() !== 'named' || !_ownView(name ?? '') || teamView.isTeamViewMode()
+            || /** @type {any} */ (getCurrentMember())?.name !== name) return;
+        const now = new Date();
+        /** @type {Record<string, any[]>} */ const months = {};
+        for (let d = -MONTHS_BEFORE; d <= MONTHS_AFTER; d++) {
+            const { month, year } = addMonths(now.getMonth(), now.getFullYear(), d);
+            const key = monthKey(year, month);
+            if (knowledgeOf(key) !== 'authoritative') continue;   // only what the SERVER settled
+            const prefix = `${name}|${key}-`;
+            // The cache keys a record by `name|date` and stores neither inside it — put them back.
+            months[key] = [...rosterOverridesCache].filter(([k]) => k.startsWith(prefix))
+                .map(([k, r]) => ({ ...r, memberName: name, date: k.slice(k.indexOf('|') + 1) }));
+        }
+        saveSnapshotMonths(/** @type {string} */ (name), months);
+    } catch (e) { console.warn('[Calendar] own-roster copy not saved', e); }
+}
+
 initCalendarAccess({
+    paintBeforeDecision: _paintSnapshotBeforeGrant,
     // EVERY grant, not just the first (v20.41). Both of these are things the access-lost path turns
     // OFF, so both have to come back on when access returns — which is precisely what re-entering
     // the PIN after a rotation is. Left in the one-shot below, a re-unlocked Calendar came back with
@@ -1193,10 +1244,12 @@ initCalendarAccess({
         // first render's `ensureOverridesCached` run against a closed gate, silently claim nothing,
         // and leave the month unfetched for the session.
         setOverrideAccess(true);
+        // The own-roster copy belongs to a NAMED grant; the PIN viewer must not inherit one (v24.59).
+        if (getAccessType() !== 'named') clearSnapshot();
         // Month navigation and Team View reach Firestore through `ensureOverridesCached`, not
         // through the initial fetch — so they need the same access-lost recovery, and they are the
         // likelier path once a session has been open for a while (v20.15).
-        setOverrideAccessLostHandler(() => { setDocumentAccess(false); handleAccessLost(); });
+        setOverrideAccessLostHandler(() => { clearSnapshot(); setDocumentAccess(false); handleAccessLost(); });
         // THE DOCUMENTS OPEN ON THE GRANT (v23.17): this is where the Huddle subscription starts
         // and a Circular tap held back by the lock is finished.
         setDocumentAccess(true);
@@ -1229,7 +1282,11 @@ initCalendarAccess({
             console.error('[Calendar] the workspace failed to start', err);
         });
     },
-}).then(_accessDecided, _accessDecided);
+}).then((t) => {
+    // Not a member's own grant — a PIN unlock, or no access at all: the copy is not shown again (v24.59).
+    if (t !== 'named') clearSnapshot();
+    _accessDecided(t);
+}, _accessDecided);
 
 // The page's one-time notices (al-booking-2026, and whatever /new-notice adds next). `sign-in-2026`
 // was retired at v23.23 — see calendar-notices.js for why it went by decision, not by expiry.

@@ -22,6 +22,7 @@ import { auth, authReady, currentUserAfterBoot, nameToEmail, normaliseSurname, s
 import { isViewerUser } from './calendar-access-core.js';
 import { surnamePassword, credentialCandidatesFor, isCredentialRejection } from './auth-identity.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
+import { CALENDAR_SNAPSHOT } from './storage-keys.js';
 import { CONFIG } from './roster-data.js';
 
 /** Auth error codes that mean the credential was DEFINITIVELY rejected — a wrong password, or no
@@ -633,8 +634,9 @@ export function getSession() {
         // disables it. `saveSession` always writes a good value; this is about storage that has
         // been corrupted, truncated or hand-edited, and an unreadable session is treated as an
         // expired one rather than an eternal one.
-        if (!Number.isFinite(s.expiry) || Date.now() > s.expiry) { lsDel(AUTH_KEY); return null; }
-        if ((s.ver || 1) < SESSION_VER) { lsDel(AUTH_KEY); return null; }
+        // The Calendar's own-roster copy goes with the session it belongs to (v24.59).
+        if (!Number.isFinite(s.expiry) || Date.now() > s.expiry) { lsDel(AUTH_KEY); lsDel(CALENDAR_SNAPSHOT); return null; }
+        if ((s.ver || 1) < SESSION_VER) { lsDel(AUTH_KEY); lsDel(CALENDAR_SNAPSHOT); return null; }
         // `expiry` is absolute and set once at sign-in, so nothing here extends it. A session that
         // has run its 60 days ends on the next read wherever the member is — no separate clock, and
         // no write. Sessions written before v20.41 still carry a `lastActivity` field; it is simply
@@ -675,6 +677,9 @@ export function clearSession() {
     // e.g. the login-overlay 8s-timeout path that calls clearSession while an attempt runs on).
     _clearedGen = ++_authGen;
     lsDel(AUTH_KEY);
+    // EVERY sign-out ends here, so this is where the Calendar's copy of the member's own roster is
+    // deleted (v24.59, calendar-snapshot.js). A shared device must not keep it past the session.
+    lsDel(CALENDAR_SNAPSHOT);
     firebaseSignOut(auth).catch((/** @type {any} */ err) => console.warn('[Auth] signOut failed:', err));
     _feedAuth({ type: 'SIGN_OUT' });   // store: signedOut (observing only — Phase 2)
 }

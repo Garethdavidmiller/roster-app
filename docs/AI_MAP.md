@@ -271,6 +271,14 @@ The three cards that can stand where the Calendar goes. (v23.54.) Split out of `
 
 The ONE place on the Calendar page where a card can stand in for the grid (v23.19). `mountLockCard({ id, className, html, labelledBy })` (replaces whatever is up; falls back to `<body>` because a front door with no card is worse than a misplaced one) · `unmountLockCard()` (the only teardown; also disarms the skeleton timer) · `lockCardId()` · `armSkeleton(ms)` · `showBootSkeleton()` (moved here from calendar-access.js unchanged). Owns no decision and no card contents. Exercised through calendar-access.test.mjs's fake DOM and e2e/calendar-pin.spec.js.
 
+### `calendar-snapshot.js`
+
+The member's OWN roster, kept on this device so the Calendar shows it the moment it opens, while the sign-in check still runs (v24.59, owner decision Oct 2026 — reopening DECISIONS.md → "The provisional paint" in the one shape it named). Storage only, synchronous, Node-testable (`calendar-snapshot.test.mjs`).
+- `saveSnapshotMonths(memberName, { 'YYYY-MM': records[] }, now?)` — keeps the months the live read SETTLED, the member's own rows only, trimmed to `type`/`value`/`source`/`changedBy`; a different member's write replaces the copy; unchanged months are not rewritten (re-stamped after a day); nothing left in the window deletes it.
+- `readSnapshot(memberName, now?)` / `snapshotMonth(memberName, year, month, now?)` — every refusal deletes rather than ignores: another member, no name, an unreadable or old-shape copy, everything older than `MAX_AGE_MS` (14 days). Months outside `MONTHS_BEFORE`/`MONTHS_AFTER` around today are never shown.
+- `clearSnapshot()` · `inWindow(key, now)` · `SNAPSHOT_VERSION` · `MAX_AGE_MS` · `MONTHS_BEFORE` · `MONTHS_AFTER`.
+- **Never a source of truth.** Painted labelled ("Checking for changes…"), never written into `rosterOverridesCache`, never `noteKnowledge` — so nothing that decides access or counts leave can see it. Painted before the grant into the lock slot (`calendar-access.js` `paintBeforeDecision`, `calendar-app.js`), and after it only for a month still `loading` on the member's own calendar (`setSnapshotSource` in `calendar-renderer.js`). Deleted by `clearSession()`/expiry (session.js), a PIN or failed grant, and access loss.
+
 ### `calendar-access-core.js`
 
 The **pure** half — no DOM, no Firebase, no storage, so it loads in Node. Same split, and the same reason, as `auth-state-core.js` vs `auth-state.js`. Tested by `calendar-access-core.test.mjs`.
@@ -545,6 +553,7 @@ Team member selection for `index.html` — extracted from `calendar-app.js` at v
 - `validateTeamMembers()` — checks team member object shape; returns error string array
 
 ### `calendar-renderer.js`
+- `setSnapshotSource(fn)` (v24.59) — where a still-loading month's own-roster copy comes from (`calendar-snapshot.js`); `buildCalendarContainer` also takes `opts.member` and `opts.snapshot` for the pre-grant paint. A month drawn from the copy is `stale`, carries `data-override-state="snapshot"` and a `.calendar-snapshot-note`, and never touches `rosterOverridesCache`.
 - `dayMarkers({isToday,isBH,isXmas,isEaster,isPay,isCutoff})` (v22.70) — what is true of a DATE, as icon + name, in one authority. The icons are the calendar cell's own `::before`/`::after` markers (⭐ 💷 ✂️ 🐣 🎄), not a second vocabulary invented for the panel: the day panel is where a member goes to ask what the star on a cell means, and until v22.70 it answered in a comma-joined gold sentence with no star in it. The hover tooltip's sentence is now `markers.map(m => m.label).join(', ')`, so the two renderings cannot name different days. Boxing Day is deliberately absent, matching the cell, which is left plain so 26 December still reads as an overtime opportunity. `Today` carries a glyph of its own because it is the only marker with no cell icon, and one chip without one would read as a chip that failed to load.
 - `splitShiftLine(text)` (v22.70) — separates a trailing `HH:MM-HH:MM` from a rendered shift line, so the day panel can hold the value together across a wrap. At 320px the panel has ~240px of content width and a browser will break at the hyphen INSIDE `07:00-16:00`, leaving "Early shift 07:00-" above "16:00" — not a worse line break but a number that stops reading as a number. Measured at 320×700. Pure, so the one regex that knows what a time looks like stays out of the view module.
 - `changeProvenance(source, changedBy)` (v22.69) — who changed a day, in one short line, or `''`. The two answers are not the same shape: a ROSTER UPLOAD is the weekly roster arriving and its `changedBy` is whoever ran the import, so naming them would say they chose the shift — that case reads "From the weekly roster". A manual change names the person, because they are the one to ask. A row that cannot say produces nothing: an absent line is honest, and this one names a colleague.
@@ -2423,6 +2432,7 @@ Single source for the CROSS-FILE storage key names (v16.81) — a shared key mus
   this file exists for — a drifted spelling is silent AND self-concealing, since `readyUpdate` then
   never records and the App Speed block simply does not render, which reads as "no release has ever
   reloaded anybody": the finding itself, asserted on nothing.
+- `CALENDAR_SNAPSHOT` (`myb_cal_snapshot`, v24.59) — the member's own stored roster (`calendar-snapshot.js`). Deleted by `session.js` on every sign-out and expiry, which is why it is shared: a misspelt delete would leave a member's shifts on a shared device.
 - `TEAM_VIEW` (`myb_team_view`, v23.46) — whether the Calendar is in Team Week View. WRITTEN by
   `calendar-team-view.js` on every toggle; read at boot by `calendar-app.js` (which surface to build).
   `calendar-access.js` read it too until the provisional paint was retired (26 Sep 2026). Three
