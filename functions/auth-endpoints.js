@@ -467,7 +467,9 @@ const resetMemberPassword = onRequest(
             // subscriptions ACCEPTED the message, and a member with no subscription is a legitimate
             // 0 rather than an error. It is the admin's cue to tell them another way.
             let notified = false;
-            try {
+            // NOT for a taken-back account (v24.57, review): the subscriptions it owns are the
+            // OUTSIDER's devices, and the member never had any on it.
+            if (!takeBack) try {
                 setupWebPush(VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY);
                 const accepted = await sendTargetedPush(
                     buildPushPayload({
@@ -491,7 +493,10 @@ const resetMemberPassword = onRequest(
             // field saw the REQUEST echoed back, which is the same value on the failure path.
             return res.json({
                 ok: true, member, revoked, stamped, notified,
-                ...(revoke && !revoked ? { revokeFailed: true } : {}),
+                ...((revoke || takeBack) && !revoked ? { revokeFailed: true } : {}),
+                // The account still carries NO claim, so the member cannot use the app on it until
+                // Set up accounts stamps one — Operations says so (v24.57).
+                ...(takeBack ? { takenBack: true } : {}),
             });
         } catch (e) {
             if (e && e.code === 'auth/user-not-found') {

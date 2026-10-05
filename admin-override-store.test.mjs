@@ -416,6 +416,14 @@ describe('5 · withManualDuplicates widens a delete only to what it outranks', (
             'the newer record is what the day shows — deleting the leftover must not take it');
     });
 
+    test('an exact TIE is broken one way, so deleting one copy never takes both (v24.57)', async () => {
+        const store = await seed([manual('a', 1000), manual('b', 1000)]);
+        const fromA = [...store.withManualDuplicates(['a'])].sort();
+        const fromB = [...store.withManualDuplicates(['b'])].sort();
+        assert.ok(!(fromA.length === 2 && fromB.length === 2), 'one of the two must be deletable alone');
+        assert.equal(fromA.length + fromB.length, 3, 'and the other still takes its leftover with it');
+    });
+
     test('never another member, another date, or a roster import', async () => {
         const store = await seed([
             manual('mine', 2000),

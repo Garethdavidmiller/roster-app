@@ -8,7 +8,7 @@
  * visible in the Operations page Error Log card without needing DevTools access.
  *
  * Call initErrorReporter() once per page after the Firebase Auth session is
- * established — the Firestore write requires request.auth != null.
+ * established — the Firestore write requires a member, the admin or the PIN viewer (v24.56).
  *
  * ── THE THREE CANONICAL CALL SITES (v13.78) ─────────────────────────────────────────────────
  *
@@ -42,7 +42,7 @@ import { APP_VERSION } from './roster-data.js';
 import { logClientError, auth } from './firebase-client.js';
 import { lsGet } from './ls.js';
 import { AUTH_KEY } from './session.js';
-import { shouldReport, APP_SCRIPT_ORIGINS } from './client-errors.js';
+import { shouldReport, APP_SCRIPT_ORIGINS, DIAGNOSTIC_PREFIX } from './client-errors.js';
 import { SLOW_SAVE_EVENT } from './slow-save.js';
 
 // Deduplicate within the current page session — one Firestore write per distinct message.
@@ -103,7 +103,7 @@ export function initErrorReporter() {
     window.addEventListener('unhandledrejection', e => _report(e.reason, location.pathname));
     window.addEventListener(SLOW_SAVE_EVENT, e => {
         const d = /** @type {CustomEvent} */ (e).detail;
-        if (d?.phase === 'slow') _timeToken(); else _reportSlowSave(d);
+        if (d?.phase === 'slow') _timeToken(d.id); else _reportSlowSave(d);
     });
 }
 
@@ -114,27 +114,32 @@ let _slowSavesLogged = 0;
  * How long a sign-in TOKEN took to arrive, measured from the moment the save became slow (v24.55).
  * Firestore cannot send a request without one, so a slow save has two broad causes and this is what
  * tells them apart: a token that took seconds means AUTH is the bottleneck; a token in milliseconds
- * with the save still waiting means the CONNECTION to the server is. `null` = not measured yet.
- * @type {{ ms: number|null, state: string }}
+ * with the save still waiting means the CONNECTION to the server is — with one caveat (v24.57,
+ * review): timing starts at the slow moment, so a token refresh that stalled the save and then
+ * FINISHED inside those first seconds reads as milliseconds here. "Milliseconds" means auth is not
+ * what is still holding the save; it cannot rule out auth having held it earlier.
+ * Kept PER SAVE (by the event's `id`), so two slow saves at once cannot borrow each other's timing.
+ * @type {Map<number, { ms: number|null, state: string }>}
  */
-let _token = { ms: null, state: 'not measured' };
+const _tokens = new Map();
 
-/** Start timing a token for the save that has just become slow. */
-function _timeToken() {
+/** Start timing a token for the save that has just become slow. @param {number} id */
+function _timeToken(id) {
     const user = auth?.currentUser;
-    if (!user) { _token = { ms: null, state: 'no signed-in user' }; return; }
+    if (!user) { _tokens.set(id, { ms: null, state: 'no signed-in user' }); return; }
     const t0 = Date.now();
-    _token = { ms: null, state: 'still waiting' };
+    _tokens.set(id, { ms: null, state: 'still waiting' });
     user.getIdToken().then(
-        () => { _token = { ms: Date.now() - t0, state: 'ok' }; },
-        () => { _token = { ms: Date.now() - t0, state: 'failed' }; });
+        () => { if (_tokens.has(id)) _tokens.set(id, { ms: Date.now() - t0, state: 'ok' }); },
+        () => { if (_tokens.has(id)) _tokens.set(id, { ms: Date.now() - t0, state: 'failed' }); });
 }
 
-/** The token half of the diagnostic line. */
-function _tokenText() {
-    return _token.state === 'ok' ? `sign-in token ${(/** @type {number} */ (_token.ms) / 1000).toFixed(1)}s`
-         : _token.state === 'failed' ? `sign-in token FAILED after ${(/** @type {number} */ (_token.ms) / 1000).toFixed(1)}s`
-         : `sign-in token ${_token.state}`;
+/** The token half of the diagnostic line, for one save. @param {number|undefined} id */
+function _tokenText(id) {
+    const t = (id !== undefined && _tokens.get(id)) || { ms: null, state: 'not measured' };
+    return t.state === 'ok' ? `sign-in token ${(/** @type {number} */ (t.ms) / 1000).toFixed(1)}s`
+         : t.state === 'failed' ? `sign-in token FAILED after ${(/** @type {number} */ (t.ms) / 1000).toFixed(1)}s`
+         : `sign-in token ${t.state}`;
 }
 
 /**
@@ -143,13 +148,16 @@ function _tokenText() {
  * It exists because an installed iPhone app took longer than that on every week-grid save with full
  * signal, and nothing recorded which part was slow or on what. An offline-when-slow save is the
  * expected case and is not recorded. Same fields as any error, so the rules need nothing new.
- * @param {{ ms?: number, onlineWhenSlow?: boolean, batched?: boolean, ok?: boolean }} d
+ * @param {{ id?: number, ms?: number, onlineWhenSlow?: boolean, batched?: boolean, ok?: boolean }} d
  */
 function _reportSlowSave(d) {
     try {
+        const token = _tokenText(d?.id);
+        if (d?.id !== undefined) _tokens.delete(d.id);
         if (!d || !d.onlineWhenSlow || _slowSavesLogged >= 3) return;
         _slowSavesLogged++;
         const installed = !!(window.matchMedia?.('(display-mode: standalone)')?.matches || /** @type {any} */ (navigator).standalone);
-        _report(`Slow save (diagnostic): the server took ${((d.ms ?? 0) / 1000).toFixed(1)}s to ${d.ok === false ? 'refuse' : 'confirm'} a ${d.batched ? 'batched ' : ''}save while the phone said it was online · ${_tokenText()} · installed app: ${installed ? 'yes' : 'no'}`, location.pathname);
+        // "fail", not "refuse" (v24.57): a save can also end on the device — abandoned by a sign-out.
+        _report(`${DIAGNOSTIC_PREFIX}: the save took ${((d.ms ?? 0) / 1000).toFixed(1)}s to ${d.ok === false ? 'fail' : 'be confirmed'} — a ${d.batched ? 'batched ' : ''}save while the phone said it was online · ${token} · installed app: ${installed ? 'yes' : 'no'}`, location.pathname);
     } catch { /* never surface a secondary error from the reporter */ }
 }

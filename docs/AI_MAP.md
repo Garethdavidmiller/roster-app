@@ -2268,6 +2268,7 @@ The pure RULES of the client error log — no DOM, no Firebase. Two consumers: `
 - `expiredResolvedIds(resolved, now, [retentionMs])` — IDs of resolved records that should be pruned
 - `orderClientErrors(unresolved, resolved, now, [opts])` — ordered list for the Error Log card: all unresolved first (newest-first), then up to `resolvedLimit` (default 30) recent resolved records. Unresolved records are always prioritised — within expected operational volume (< 100 unresolved at once) resolved backlogs cannot displace them.
 - `capUnresolvedErrors(fetchedUnresolved, cap)` → `{ shown, truncated }` (v18.28) — the over-fetch→display split extracted from `getClientErrors`: fetch `cap + 1`, show the first `cap`, `truncated` only when the extra row came back (no-silent-caps)
+- `isDiagnosticEntry(e)` / `DIAGNOSTIC_PREFIX` — whether an Error Log entry is a slow-save DIAGNOSTIC (v24.57): listed and resolvable, never counted as an unresolved error.
 - Tested by `client-errors.test.mjs` + `error-reporter.test.mjs` (no mocks, both run in `test:hygiene`)
 
 ### `claim-retry.js`

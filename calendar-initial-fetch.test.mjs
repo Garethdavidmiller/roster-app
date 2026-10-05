@@ -16,6 +16,7 @@ import assert from 'node:assert/strict';
 // ── Mock-controllable state ───────────────────────────────────────────────────
 
 let _fetchImpl        = () => Promise.resolve();
+let _grantGen         = 0;   // the current Calendar grant, as calendar-overrides.js would report it
 let _progressHistory  = [];   // calls to setInitialFetchInProgress
 let _addMonthsHistory = [];   // calls to addFetchedMonths
 let _clearMonthsHistory = []; // calls to clearFetchedMonth
@@ -31,7 +32,7 @@ mock.module('./calendar-overrides.js', {
         monthKey:                    (y, m) => `${y}-${String(m + 1).padStart(2, '0')}`,
         fetchOverridesForRange:      (...args) => _fetchImpl(...args),
         fetchOverridesForRangeFromCache: (...args) => _cacheFetchImpl(...args),
-        accessGeneration:            () => 0,
+        accessGeneration:            () => _grantGen,
     },
 });
 
@@ -145,6 +146,7 @@ beforeEach(() => {
     _clearMonthsHistory  = [];
     _fakeFetchInProgress = false;
     _fetchImpl           = () => Promise.resolve();
+    _grantGen            = 0;
     _cacheFetchImpl      = () => Promise.resolve(false);
     setupDOM();
 });
@@ -270,6 +272,21 @@ describe('failure path', () => {
         assert.ok(chip, 'error chip should be created');
         assert.ok(chip._classes.has('sync-chip-error'));
         assert.equal(chip.disabled, false);
+    });
+
+    test('a failure from an EARLIER grant stands down — no chip, no released months, no lock (v24.57)', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        /** @type {(e: any) => void} */ let fail = () => {};
+        _fetchImpl = () => new Promise((_, rej) => { fail = rej; });
+        let lost = 0;
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, onAccessLost: () => { lost++; } });
+        await flushAsync();
+        _grantGen = 1;                       // the PIN was re-entered meanwhile
+        fail(Object.assign(new Error('denied'), { code: 'permission-denied' }));
+        await flushAsync();
+        assert.equal(lost, 0, 'an old grant\'s refusal must not re-lock the new one');
+        assert.deepEqual(_clearMonthsHistory, [], 'the new grant\'s month claims are left alone');
+        assert.equal(getSyncChip(), null, 'and no retry chip sits on a calendar that is working');
     });
 
     test('error chip text is the retry prompt', async (t) => {

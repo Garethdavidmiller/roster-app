@@ -350,7 +350,7 @@ export async function ensureFirebaseSession(name, _gen, password) {
         new Promise(r => { _readyTimer = setTimeout(() => r(false), AUTH_READY_TIMEOUT_MS); }),
     ]);
     clearTimeout(_readyTimer);
-    if (!_ready) { recordError('auth/timeout'); _authStartStalled = true; return commit('none', false); }
+    if (!_ready) { recordError('auth/timeout'); if (fresh()) _authStartStalled = true; return commit('none', false); }
     // A member is signing in, so the shared Calendar viewer (if this browser holds one) must go
     // FIRST — see the function's own comment for why the order is the security property, not a
     // tidiness one. This is the single choke point for the viewer→member transition: every member

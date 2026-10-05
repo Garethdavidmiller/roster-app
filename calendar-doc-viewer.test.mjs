@@ -148,6 +148,11 @@ describe('doc viewer — a LOCK while a document is loading takes it down (v24.5
         await flush();
         assert.doesNotMatch(bodyText(), /Open/, 'a read from before the lock must not offer the document');
         assert.match(bodyText(), /Enter the staff PIN, or sign in, to read the Weekly Retail Circular/);
+        let fetched = 0;
+        _circularImpl = () => { fetched++; return Promise.resolve(null); };
+        open = true; subs.forEach(fn => fn(true));   // the PIN it asked for goes in
+        await flush();
+        assert.equal(fetched, 1, 'the document re-opens — the message asked for the PIN, so the PIN must work');
     });
 });
 

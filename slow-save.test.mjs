@@ -126,6 +126,8 @@ test('a finished SLOW save announces how long it took; a quick one announces not
         assert.equal(done.batched, true);
         assert.equal(done.ok, false, 'and whether the server confirmed or refused it');
         assert.equal(typeof done.onlineWhenSlow, 'boolean');
+        assert.equal(seen[0].id, done.id, 'both announcements carry the SAME save id, so overlapping saves pair up');
+        assert.equal(typeof done.id, 'number');
     } finally {
         globalThis.removeEventListener(SLOW_SAVE_EVENT, listener);
         delete g.addEventListener; delete g.removeEventListener; delete g.dispatchEvent;

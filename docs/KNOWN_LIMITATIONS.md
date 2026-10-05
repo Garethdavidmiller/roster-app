@@ -150,7 +150,11 @@ transport change made for every iPhone, on a hypothesis the data argued against,
 **What will settle it:** every "Slow save (diagnostic)" entry in the Error Log carries the save's
 time and, since v24.55, a **sign-in token** time measured while the save was slow:
 - if the token took seconds, auth is the bottleneck;
-- if the token arrived in milliseconds and the save still waited, it is the connection to Firestore.
+- if the token arrived in milliseconds and the save still waited, it is the connection to Firestore —
+  with one caveat (v24.57): timing starts at the 8-second mark, so a token refresh that held the save
+  and then finished before it reads as milliseconds too. Milliseconds rules out auth as what is STILL
+  holding the save, not as what held it earlier. These entries are listed in the Error Log but are not
+  counted as unresolved errors (v24.57).
 
 Read the entries from iPhones before choosing a fix.
 
