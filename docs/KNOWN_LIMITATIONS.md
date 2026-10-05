@@ -131,7 +131,7 @@ for that member and day; an import is never treated as a duplicate. On the cappe
 very old day may not be loaded, so selecting the member first is the complete route. None has been
 counted; nothing in the app reports them.
 
-## Admin saves are slow on an installed iPhone app, cause not yet found (v24.54)
+## Admin saves are slow on iPhones — long-polling applied, effect to confirm (v24.54, v24.55)
 
 Reported 5 Oct 2026 for an iPhone 18 Pro on iOS 27, using the installed app: EVERY week-grid save
 sat on "Saving…" past the 8-second notice, with full signal, and the change then arrived. What is
@@ -151,9 +151,18 @@ Safari, will settle are:
 - Is it the installed app only?
 - How long does the confirmation take?
 
-The leading candidate is Firestore's connection on that browser (its streaming transport); the
-documented setting for that is forcing long-polling. It has deliberately NOT been changed blind,
-because it applies to every device.
+**v24.55, on new information:** the owner then reported it on EVERY iPhone, for a few days, while
+Android and desktop were fine. Nothing in the app's save path differs by platform:
+- the Firebase SDK has been unchanged since 9 Sep;
+- the CSP is unchanged;
+- the database rules treat create and update alike.
+So Firestore's streaming connection on Safari's engine became the cause worth acting on.
+`firestore-transport.js` forces long-polling on iPhones and iPads only. Android, desktop and desktop
+Safari are unchanged.
+
+**What closes this:** iPhones on v24.55 stop producing "Slow save (diagnostic)" entries. If they
+keep appearing, long-polling was not the cause, and it should be REVERTED, not kept. A change made
+on a hypothesis is only worth keeping if the evidence that motivated it goes away.
 
 ## Development-tool advisories that only a downgrade would clear (v24.50)
 

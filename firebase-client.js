@@ -22,6 +22,7 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithCustomToken, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/12.16.0/firebase-auth.js';
+import { firestoreTransportSettings } from './firestore-transport.js';
 import { orderClientErrors, expiredResolvedIds, capUnresolvedErrors } from './client-errors.js';
 import { runWithClaimRetry, abandonOnSignOut, runGatedWrite } from './claim-retry.js';
 import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys, originKey, summariseOrigins, staleOriginKeys } from './usage-stats.js';
@@ -58,7 +59,7 @@ const app = initializeApp(firebaseConfig);
 /** @type {any} */
 let db;
 try {
-    db = initializeFirestore(app, { localCache: persistentLocalCache() });
+    db = initializeFirestore(app, { localCache: persistentLocalCache(), ...firestoreTransportSettings() });   // iPhone: firestore-transport.js
 } catch (err) {
     console.warn('[Firebase] Persistent cache unavailable; using memory cache:', err);
     // getFirestore() returns the existing instance if initializeFirestore already
