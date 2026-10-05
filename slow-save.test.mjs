@@ -119,11 +119,13 @@ test('a finished SLOW save announces how long it took; a quick one announces not
         const p = withSlowSaveNotice(slow.p, { batched: true });
         await new Promise(r => setTimeout(r, 30));
         slow.reject(new Error('refused')); await p.catch(() => {}); await tick();
-        assert.equal(seen.length, 1);
-        assert.ok(seen[0].ms >= 5, 'it reports the time it actually took');
-        assert.equal(seen[0].batched, true);
-        assert.equal(seen[0].ok, false, 'and whether the server confirmed or refused it');
-        assert.equal(typeof seen[0].onlineWhenSlow, 'boolean');
+        assert.deepEqual(seen.map(d => d.phase), ['slow', 'done'],
+            'once as it BECOMES slow (so the token can be timed while it is), once when it settles');
+        const done = seen[1];
+        assert.ok(done.ms >= 5, 'it reports the time it actually took');
+        assert.equal(done.batched, true);
+        assert.equal(done.ok, false, 'and whether the server confirmed or refused it');
+        assert.equal(typeof done.onlineWhenSlow, 'boolean');
     } finally {
         globalThis.removeEventListener(SLOW_SAVE_EVENT, listener);
         delete g.addEventListener; delete g.removeEventListener; delete g.dispatchEvent;

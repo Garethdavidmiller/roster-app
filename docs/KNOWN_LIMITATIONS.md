@@ -160,6 +160,17 @@ So Firestore's streaming connection on Safari's engine became the cause worth ac
 `firestore-transport.js` forces long-polling on iPhones and iPads only. Android, desktop and desktop
 Safari are unchanged.
 
+**The other candidate is AUTH, and v24.55 can tell them apart.** Firestore cannot send anything without
+a sign-in token. On iPhones, Safari's tracking protection can clear the stored sign-in, after which
+the app signs the member back in silently. So a slow token would also slow every load and save.
+- **Saves:** each "Slow save (diagnostic)" entry now carries a **sign-in token** time, measured
+  while the save was slow. If the token took seconds, auth is the bottleneck. If the token arrived
+  in milliseconds and the save still waited, the connection is.
+- **The Calendar:** App Speed already times each stage: sign-in restored (`authBoot`), access
+  granted (`access`), roster from cache (`rosterCached`) and live roster (`rosterLive`). Read the
+  "unknown" connection class, which is mostly iPhones. Time spent before `access` is auth; time
+  between `access` and `rosterLive` is data.
+
 **What closes this:** iPhones on v24.55 stop producing "Slow save (diagnostic)" entries. If they
 keep appearing, long-polling was not the cause, and it should be REVERTED, not kept. A change made
 on a hypothesis is only worth keeping if the evidence that motivated it goes away.
