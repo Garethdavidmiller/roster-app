@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: September 2026 — v24.40 · Updated every 0.10 version*
+*Last updated: October 2026 — v24.50 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -124,7 +124,32 @@ offline save FAIL rather than queue, and it rewrites the write path most of the 
 A decision, not an oversight — revisit if a lost edit is ever reported.
 
 **Duplicates already in Firestore** from before v24.48 are cleared only when that day is next saved
-or deleted from Admin. None has been counted; nothing in the app reports them.
+or deleted from Admin — the week editor, a leave/absence range, or either Saved Changes delete (the
+row ✕ and Delete selected joined at v24.49, after an external review found they removed only the
+picked row and let the older copy resurface). Each path clears the MANUAL copies Admin has loaded
+for that member and day; an import is never treated as a duplicate. On the capped All-staff list a
+very old day may not be loaded, so selecting the member first is the complete route. None has been
+counted; nothing in the app reports them.
+
+## Development-tool advisories that only a downgrade would clear (v24.50)
+
+An external review (5 Oct 2026) counted 32 `npm audit` entries in the ROOT tree — 1 critical, 17
+high, 14 moderate. That tree is development tooling only (the Firebase CLI, the rules-test harness,
+Playwright, ESLint); nothing in it is served to staff, and the Cloud Functions' production tree
+(`functions/`, `npm audit --omit=dev`) reads zero. Two steps took it to **11 (7 high, 4 moderate)**:
+
+- `npm audit fix` without `--force` — every update inside its declared range, including `tar`
+  7.5.17 → 7.5.22 (GHSA-23hp-3jrh-7fpw, the one the review named) and the critical entry.
+- An `overrides` entry in `package.json` raising `@grpc/grpc-js` under `@firebase/firestore` to
+  `^1.14.5`. Firestore 4.17 pins `~1.9.0`, so this runs it on a version it does not declare —
+  accepted because the only code that uses it is the rules-emulator suite, and that suite passes
+  375/375 on it. **If `npm run test:rules` ever fails to CONNECT after a dependency change, remove
+  that override first.** Drop it once Firestore's own range moves past 1.9.
+
+**All 11 remaining sit under `firebase-tools`** (basic-ftp, braces/chokidar, uuid/gaxios,
+@opentelemetry/core). `npm audit fix --force` would answer them by DOWNGRADING the CLI from 15.x to
+14.x — the wrong direction, and the review said so too. They clear when the CLI updates its own
+dependencies; re-run `npm audit` after each CLI bump.
 
 ## Security
 
@@ -1227,7 +1252,8 @@ never contingent on the beta label, and dropping it does not make any of them go
   `links-target-sets-store.js`'s transaction, which already refuses to land on a version nobody
   agreed to.
 
-- **The rotation is 24 lines with 4 spare weeks, on evidence class C (v19.98, corrected v20.01/02).**
+- **SUPERSEDED at v24.47: the rotation is now 26 lines with 5 cover weeks** (owner, 1 Oct 2026; rules in `docs/links-26/RULES.md`). The entry below is the history of the 24-line period, kept for its evidence-class reasoning.
+- **The rotation was 24 lines with 4 spare weeks, on evidence class C (v19.98, corrected v20.01/02).**
   The December 2026 link is the CEA/main roster widened from 20 and excludes the bilingual roster
   entirely — not its lines, not its shift times, not its work. All of it is **owner-relayed**
   (Aug 2026), with **no document behind it**; the length was given as 22 at v19.98 and corrected to

@@ -24,13 +24,16 @@
  */
 
 import { escapeHtml } from './roster-data.js';
-import { db, auth, doc, deleteDoc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
+import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { TYPES, rowValueText } from './admin-shift-types.js';
-import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides } from './admin-override-store.js';
+import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides, withManualDuplicates } from './admin-override-store.js';
 
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
 import { withSlowSaveNotice } from './slow-save.js';
+
+/** The receipt's account of a duplicate cleared alongside (v24.48): said, never silent. @param {number} n */
+const _olderCopies = (n) => n > 0 ? `, and ${n} older cop${n === 1 ? 'y' : 'ies'} of the same day` : '';
 // ── INJECTED ──────────────────────────────────────────────────────────────────
 let _currentIsAdmin   = false;
 let _currentIsManager = false;
@@ -275,14 +278,22 @@ async function _handleDelete(e) {
     // Signed out: say so, not "check your connection" — the write would be refused anyway (v24.38).
     if (!auth.currentUser) { _disarmConfirmButton(btn, '✕'); if (listFeedback) { setStatus(listFeedback, "⚠ You've been signed out — please sign in again."); listFeedback.className = 'list-feedback error'; } return; }
     const deleted = getAllOverrides().find(o => o.id === btn.dataset.id);
+    // The row AND any older manual copy of the same day (v24.48 duplicates — external review, Oct
+    // 2026): deleting only the newer one let the older resurface as the day's value, which the week
+    // editor's delete already prevented. One batch, so the day is never left half-cleared.
+    const ids = [...withManualDuplicates([btn.dataset.id ?? ''])];
     btn.disabled = true;
     btn.textContent = '…';
     try {
         // Wrap in writeWithClaimRetry so a just-provisioned manager on a pre-`manager`-claim token
         // self-heals (force-refresh + retry once) instead of a hard permission-denied — parity with
         // the executeSave / recordRangeOverrides / bulk-delete write paths.
-        await withSlowSaveNotice(writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.overrides, btn.dataset.id ?? ''))));
-        removeFromCache([btn.dataset.id ?? '']);
+        await withSlowSaveNotice(writeWithClaimRetry(async () => {
+            const batch = writeBatch(db);
+            ids.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
+            await batch.commit();
+        }));
+        removeFromCache(ids);
         renderTable();
         _onAfterSave();
         // Don't rebuild the week grid over unsaved staged edits — deleting a Saved-Changes row is
@@ -291,7 +302,7 @@ async function _handleDelete(e) {
         if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
         if (deleted && listFeedback) {
             const typeMeta = TYPES[deleted.type];
-            setStatus(listFeedback, `✓ Deleted: ${deleted.memberName} — ${formatDisplay(deleted.date)} (${typeMeta ? typeMeta.label : deleted.type})`);
+            setStatus(listFeedback, `✓ Deleted: ${deleted.memberName} — ${formatDisplay(deleted.date)} (${typeMeta ? typeMeta.label : deleted.type})${_olderCopies(ids.length - 1)}`);
             listFeedback.className = 'list-feedback success';
             setTimeout(() => { listFeedback.className = 'list-feedback'; }, 6000);
         }
@@ -343,11 +354,12 @@ function _initOverridesTable() {
         bulkDeleteBtn.addEventListener('click', async () => {
             const checkedRows = /** @type {HTMLElement[]} */ ([...(document.getElementById('overrideTableBody')?.querySelectorAll('.row-select:checked') ?? [])]);
             if (!checkedRows.length) return;
-            const ids = checkedRows.map(cb => /** @type {HTMLElement} */ (cb).dataset.id ?? '');
+            const picked = checkedRows.map(cb => /** @type {HTMLElement} */ (cb).dataset.id ?? '');
+            const ids = [...withManualDuplicates(picked)];   // and their older copies — see the single delete
 
             // Two-tap confirmation — matches single-delete pattern
             if (!bulkDeleteBtn.classList.contains('confirming')) {
-                _armConfirmButton(bulkDeleteBtn, `⚠ Delete ${ids.length}?`, 'Delete selected');
+                _armConfirmButton(bulkDeleteBtn, `⚠ Delete ${picked.length}?`, 'Delete selected');
                 return;
             }
             _disarmConfirmButton(bulkDeleteBtn, 'Delete selected');   // name and class back before "Deleting…"
@@ -357,7 +369,7 @@ function _initOverridesTable() {
             }
 
             bulkDeleteBtn.disabled = true;
-            bulkDeleteBtn.textContent = `Deleting ${ids.length}…`;
+            bulkDeleteBtn.textContent = `Deleting ${picked.length}…`;
             try {
                 // Re-runnable thunk (fresh batch each attempt) so a stale-claim manager's bulk delete
                 // self-heals once via writeWithClaimRetry rather than erroring.
@@ -372,7 +384,7 @@ function _initOverridesTable() {
                 // Preserve unsaved staged week-grid edits across a bulk delete (v16.82) — see _handleDelete.
                 if (fieldMember?.value && fieldDate?.value && !_hasStagedEdits()) renderWeekGrid();
                 if (listFeedback) {
-                    setStatus(listFeedback, `✓ Deleted ${ids.length} saved change${ids.length !== 1 ? 's' : ''}`);
+                    setStatus(listFeedback, `✓ Deleted ${picked.length} saved change${picked.length !== 1 ? 's' : ''}${_olderCopies(ids.length - picked.length)}`);
                     listFeedback.className = 'list-feedback success';
                     setTimeout(() => { listFeedback.className = 'list-feedback'; }, 6000);
                 }

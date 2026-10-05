@@ -38,5 +38,10 @@
     "http-server": "^14.1.1",
     "pdfjs-dist": "4.10.38",
     "typescript": "^6.0.3"
+  },
+  "overrides": {
+    "@firebase/firestore": {
+      "@grpc/grpc-js": "^1.14.5"
+    }
   }
 }

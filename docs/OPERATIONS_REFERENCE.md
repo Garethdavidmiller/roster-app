@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: September 2026 — v24.40 · Updated every 0.10 version*
+*Last updated: October 2026 — v24.50 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -535,6 +535,19 @@ The `@myb-roster.local` domain is synthetic — not real email addresses. Fireba
 Migration history (v7.61 → v7.94) is in `ROADMAP_HISTORY.md` → Completed phases.
 
 ---
+
+## When "Deploy Firebase Functions" fails at "Audit production dependencies"
+
+The Functions deploy refuses to ship while `npm audit --omit=dev` in `functions/` reports a high or
+critical advisory (`scripts/audit-functions-deps.sh`). It fails on a day nothing in the app changed,
+because advisories are PUBLISHED against packages already installed — that is what happened to
+v24.48 (4 Oct 2026: busboy, grpc-js, brace-expansion, all transitive under the Firebase SDKs).
+Nothing is deployed, so the live functions stay on the previous release; hosting deploys separately
+and is unaffected.
+
+The fix: in `functions/`, `npm audit fix --omit=dev` (never `--force`, which can downgrade a major),
+check the lockfile diff is patch/minor releases only, run `npm run test:functions`, bump the version
+(CI counts `functions/package-lock.json` as served) and merge. The deploy re-runs on the merge.
 
 ## Removing a staff member
 
