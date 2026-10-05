@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { GUIDE_PAGES as GUIDE_PAGE_ENTRIES, REDIRECT_PAGES } from './scripts/app-pages.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 
@@ -689,12 +690,10 @@ for (const [page, entry, preloadsEntry] of PRELOAD_PAGES) {
 /** Every served APP page (the guides load no modules and no SDK). Read from the filesystem
  *  rather than listed, so a page added later joins these checks by existing — the same reason
  *  page-contract-parity.test.mjs enumerates rather than lists. */
-const GUIDE_PAGES = new Set([
-    'staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip-guide.html', 'rangers-guide.html',
-]);
+const GUIDE_PAGES = new Set(GUIDE_PAGE_ENTRIES.map(p => p.file));   // scripts/app-pages.mjs (v24.52)
 /** Served pages that are only a redirect to a renamed one — no scripts, so no SDK to preload.
  *  Why they exist, and the contract they DO owe: page-contract-parity.test.mjs → LEGACY_REDIRECTS. */
-const LEGACY_REDIRECTS = new Set(['guide.html', 'fip.html']);
+const LEGACY_REDIRECTS = new Set(REDIRECT_PAGES.map(p => p.file));
 const APP_PAGES = readdirSync(ROOT)
     .filter(f => f.endsWith('.html') && !GUIDE_PAGES.has(f) && !LEGACY_REDIRECTS.has(f))
     .sort();

@@ -33,38 +33,70 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 
-/**
- * The five printable GUIDES are a different family — no shared.css, no nav drawer, no auth, no
- * analytics id — so they are excluded here and covered by their own rules. Everything else that is
- * a served HTML page at the repo root is an APP page and owes the full contract.
- */
-const GUIDES = new Set([
-    'staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'fip-guide.html', 'rangers-guide.html',
-]);
+// THE PAGE LIST IS scripts/app-pages.mjs (v24.52, external technical-debt review). The three families —
+// app pages, the printable guides, the redirect stubs — are declared there, once, and the suites that
+// used to keep their own copy now read it. Two things stay HERE: the check that the list matches the
+// files on disk (it must not read the list it is checking), and every check of an APP-side list
+// (service worker, auth policy, nav, rules, reports, guide back-arrow), which cannot read the list
+// because the app has no build step.
+import { APP_PAGES as APP_PAGE_ENTRIES, GUIDE_PAGES, REDIRECT_PAGES, servedFiles, cardPageFiles, appPage } from './scripts/app-pages.mjs';
 
-/**
- * A THIRD family (v22.48): a served page that is nothing but a redirect to a renamed one. It has no
- * script, no stylesheet, no nav and no identity, so it owes none of the app contract — but it is a
- * served page, so it owes the two rules that are about being fetchable at all, and a contract of its
- * own further down.
- *
- * These exist because `firebase.json` speaks for ONE of the app's two origins. Its 301s cover the
- * canonical URL; the GitHub Pages mirror serves no redirect rules and no headers, and it is where
- * most staff still open the app — so a renamed page's old URL simply 404s there. The redirect is
- * therefore written into the HTML, the same reason the CSP is mirrored into a `<meta>` on every page.
- *
- * The set is written down rather than derived: "a page with no scripts" would also describe a page
- * whose module tag somebody deleted by accident, which is precisely the failure the app contract
- * exists to catch. Being a redirect has to be a DECISION, not an inference.
- */
-const LEGACY_REDIRECTS = new Set(['guide.html', 'fip.html']);
-
-const APP_PAGES = readdirSync(new URL('.', import.meta.url))
-    .filter(f => f.endsWith('.html') && !GUIDES.has(f) && !LEGACY_REDIRECTS.has(f))
-    .sort();
+const GUIDES = new Set(GUIDE_PAGES.map(p => p.file));
+const LEGACY_REDIRECTS = new Set(REDIRECT_PAGES.map(p => p.file));
+const APP_PAGES = APP_PAGE_ENTRIES.map(p => p.file).sort();
 
 /** index.html is the calendar: a grid, not a stack of cards, and its own special case throughout. */
-const CARD_PAGES = APP_PAGES.filter(f => f !== 'index.html');
+const CARD_PAGES = cardPageFiles().sort();
+/** The id a page goes by in the app's own lists. @param {string} file */
+const pageIdOf = (file) => /** @type {any} */ (appPage(file)).id;
+
+/**
+ * Does this suite take its pages from scripts/app-pages.mjs — and keep NO copy of its own? (v24.52)
+ *
+ * Both halves matter. Importing the list proves it is read; the absence of any page filename in the
+ * suite's own CODE proves nobody has re-added a hand list beside it, which is how one of these went
+ * quietly stale before. Comments are stripped first, because several of these suites explain their
+ * history by naming pages in prose.
+ * @param {string} suite the suite's source @param {string} helper the export it must use
+ */
+function readsThePageList(suite, helper) {
+    const code = suite.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const imports = new RegExp(`import\\s*\\{[^}]*\\b${helper}\\b[^}]*\\}\\s*from\\s*'(\\.|\\.\\.)/scripts/app-pages\\.mjs'`).test(code);
+    // …and USES it, beyond the import line. An import left behind while the list beside it is
+    // replaced by `['/']` keeps both halves above true and visits one page (caught by mutation).
+    const uses = (code.match(new RegExp(`\\b${helper}\\b`, 'g')) || []).length >= 2;
+    const handList = servedFiles().filter(f => code.includes(`'${f}'`) || code.includes(`'/${f}'`));
+    return { imports: imports && uses, handList };
+}
+
+test('the page list matches the HTML files on disk — in BOTH directions', () => {
+    // The one check that must NOT read scripts/app-pages.mjs. Every other suite now takes its pages
+    // from that list, so a page left off it would vanish from all of them at once; this is the
+    // independent count that catches it, from the one source that cannot fall behind.
+    const onDisk = readdirSync(new URL('.', import.meta.url)).filter(f => f.endsWith('.html')).sort();
+    const declared = servedFiles().slice().sort();
+    assert.deepEqual(onDisk.filter(f => !declared.includes(f)), [],
+        'served pages scripts/app-pages.mjs does not declare — add each as an app page, a guide or a redirect');
+    assert.deepEqual(declared.filter(f => !onDisk.includes(f)), [],
+        'pages scripts/app-pages.mjs declares that do not exist — a rename or a deletion left the entry behind');
+    assert.equal(new Set(declared).size, declared.length, 'a page is declared twice');
+});
+
+test('each app page\'s declared stylesheet, coordinator and boot shim are real and in use', () => {
+    // The list's own facts, verified against the files — or every derived suite inherits a wrong one.
+    for (const p of APP_PAGE_ENTRIES) {
+        const html = read(`./${p.file}`);
+        assert.ok(existsSync(new URL(p.css, import.meta.url)), `${p.file}: ${p.css} does not exist`);
+        assert.ok(existsSync(new URL(p.coordinator, import.meta.url)), `${p.file}: ${p.coordinator} does not exist`);
+        if (p.boot) {
+            assert.ok(html.includes(`src="./${p.boot}"`), `${p.file} does not load its declared boot shim ${p.boot}`);
+            assert.ok(read(`./${p.boot}`).includes(p.coordinator), `${p.boot} does not start ${p.coordinator}`);
+        } else {
+            assert.ok(html.includes(`src="./${p.coordinator}"`), `${p.file} loads no boot shim, so it must load ${p.coordinator} directly`);
+        }
+        assert.equal(p.cards, p.file !== 'index.html', `${p.file}: only the calendar is not built from cards`);
+    }
+});
 
 test('the page list itself is not empty or accidentally filtered to nothing', () => {
     // Guard the guard: every assertion below is "X contains Y", all of which pass vacuously over an
@@ -76,31 +108,24 @@ test('the page list itself is not empty or accidentally filtered to nothing', ()
 
 test('every SERVED page is checked by csp-meta-parity', () => {
     // The meta CSP is the ONLY policy the GitHub Pages mirror gets — it cannot serve headers — so a
-    // page missing from this list has no CSP there at all, and nothing would say so.
-    //
-    // EVERY SERVED PAGE, not APP_PAGES. This ran over APP_PAGES until 9 Sep 2026 and therefore inherited
-    // the guide and redirect-stub exclusions — which are right for the app contract (no nav, no auth,
-    // no analytics id) and wrong for this one, because the sentence above is about being FETCHABLE
-    // and a guide is fetched from the mirror exactly like the calendar. The cost was real if latent:
-    // `rangers-guide.html` shipped at v20.05 and was never added to that list, and neither stub ever
-    // was. All three happened to carry the correct meta, so the gap was invisible from both ends —
-    // the pages looked fine and the suite looked complete.
-    const suite = read('./csp-meta-parity.test.mjs');
-    const served = [...APP_PAGES, ...GUIDES, ...LEGACY_REDIRECTS].sort();
-    const missing = served.filter(p => !suite.includes(`'${p}'`));
-    assert.deepEqual(missing, [], 'pages absent from csp-meta-parity\'s SERVED_HTML list');
+    // page missing from that suite's list has no CSP there at all. EVERY SERVED PAGE, guides and
+    // redirect stubs included: `rangers-guide.html` shipped at v20.05 and was never added to the old
+    // hand list. Since v24.52 the suite reads `servedFiles()`, so this asserts it still does.
+    const { imports, handList } = readsThePageList(read('./csp-meta-parity.test.mjs'), 'servedFiles');
+    assert.ok(imports, 'csp-meta-parity no longer takes its pages from scripts/app-pages.mjs (servedFiles)');
+    assert.deepEqual(handList, [], 'csp-meta-parity names pages itself again — read them from the list');
 });
 
 test('every card-bearing page is checked by card-header-parity', () => {
-    const suite = read('./card-header-parity.test.mjs');
-    const missing = CARD_PAGES.filter(p => !suite.includes(`'${p}'`));
-    assert.deepEqual(missing, [], 'pages absent from card-header-parity\'s PAGES list');
+    const { imports, handList } = readsThePageList(read('./card-header-parity.test.mjs'), 'cardPageFiles');
+    assert.ok(imports, 'card-header-parity no longer takes its pages from scripts/app-pages.mjs (cardPageFiles)');
+    assert.deepEqual(handList, [], 'card-header-parity names pages itself again — read them from the list');
 });
 
 test('every app page is checked by page-css-parity, against its own stylesheet', () => {
-    const suite = read('./page-css-parity.test.mjs');
-    const missing = APP_PAGES.filter(p => !suite.includes(`'${p}':`));
-    assert.deepEqual(missing, [], 'pages absent from page-css-parity\'s PAGES map');
+    const { imports, handList } = readsThePageList(read('./page-css-parity.test.mjs'), 'pageStylesheets');
+    assert.ok(imports, 'page-css-parity no longer takes its pages from scripts/app-pages.mjs (pageStylesheets)');
+    assert.deepEqual(handList, [], 'page-css-parity names pages itself again — read them from the list');
 });
 
 test('every page with a Tips panel is checked by tips-content', () => {
@@ -124,16 +149,51 @@ test('every app page is scanned by the accessibility gate', () => {
 });
 
 test('every app page is visited by the deployed-CSP proof', () => {
-    // `csp-meta-parity` (checked above) is STATIC — it compares two files. This one is the RUNTIME
-    // counterpart: e2e/csp.spec.js serves the app from the Firebase Hosting emulator so the real
-    // firebase.json header is applied and enforced by Chromium. Its page list is hand-written, and
-    // `overtime.html` was missing from it for six releases — so the one run that proves the real
-    // policy lets the app work had never opened the app's newest page.
+    // `csp-meta-parity` is STATIC — it compares two files. e2e/csp.spec.js is the RUNTIME counterpart:
+    // it serves the app from the Firebase Hosting emulator so the real firebase.json header is
+    // enforced by Chromium. Its hand list missed `overtime.html` for six releases; since v24.52 it
+    // reads scripts/app-pages.mjs, and this asserts it still does.
+    // It visits the GUIDES too, and dropping them would leave the import of APP_PAGES standing.
     const suite = read('./e2e/csp.spec.js');
-    const missing = APP_PAGES.filter(p => (p === 'index.html'
-        ? !/'\/'/.test(suite)              // the calendar is visited at the app root
-        : !suite.includes(`'/${p}'`)));
-    assert.deepEqual(missing, [], 'pages absent from e2e/csp.spec.js\'s PAGES list');
+    for (const helper of ['APP_PAGES', 'GUIDE_PAGES']) {
+        const { imports } = readsThePageList(suite, helper);
+        assert.ok(imports, `e2e/csp.spec.js no longer takes its pages from scripts/app-pages.mjs (${helper})`);
+    }
+    assert.deepEqual(readsThePageList(suite, 'APP_PAGES').handList, [], 'e2e/csp.spec.js names pages itself again — read them from the list');
+});
+
+test('csp-hygiene holds every app page\'s network calls to the CSP', () => {
+    // Its hand list never had overtime.html, so that page's origins were never checked (found v24.52).
+    const { imports, handList } = readsThePageList(read('./csp-hygiene.test.mjs'), 'APP_PAGES');
+    assert.ok(imports, 'csp-hygiene no longer takes its pages from scripts/app-pages.mjs (APP_PAGES)');
+    assert.deepEqual(handList, [], 'csp-hygiene names pages itself again — read them from the list');
+});
+
+test('no test or script writes out a whole family of pages again', () => {
+    // The page list exists so no TEST keeps its own copy. A copy is recognisable: a single array or
+    // Set literal naming EVERY guide, or every app page. A deliberate subset (four pages that share
+    // one property) is not a copy and is not flagged. Found at v24.52 by this rule's absence: after
+    // six suites moved over, four more — and the guide search generator — still spelled the five
+    // guides out, and the generator's list was a second source of truth of its own.
+    const families = { guides: GUIDE_PAGES.map(p => p.file), 'app pages': APP_PAGE_ENTRIES.map(p => p.file) };
+    const root = new URL('.', import.meta.url);
+    const files = [
+        // Tests and tooling only: the app's OWN lists (service worker, nav, policy) are hand-written by
+        // design — no build step — and are checked against the page list by the tests above.
+        ...readdirSync(root).filter(f => f.endsWith('.test.mjs')),
+        ...readdirSync(new URL('./e2e/', root)).filter(f => f.endsWith('.js')).map(f => `e2e/${f}`),
+        ...readdirSync(new URL('./scripts/', root)).filter(f => /\.m?js$/.test(f) && f !== 'app-pages.mjs').map(f => `scripts/${f}`),
+    ];
+    const offenders = [];
+    for (const f of files) {
+        const code = read(`./${f}`).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+        for (const lit of code.match(/\[[^[\]]*\]/g) || []) {
+            for (const [name, members] of Object.entries(families)) {
+                if (members.every(m => lit.includes(`'${m}'`) || lit.includes(`'/${m}'`))) offenders.push(`${f}: ${name}`);
+            }
+        }
+    }
+    assert.deepEqual(offenders, [], 'a full page family written out by hand — import it from scripts/app-pages.mjs');
 });
 
 test('every app page has at least one visual-regression baseline', () => {
@@ -209,7 +269,7 @@ test('every app page has an auth-policy entry, so none falls back to the fail-cl
     // `requirePage` fails closed on an unknown page name — safe, but it means a missing entry looks
     // like "admin required" rather than like a mistake, and the page is simply unreachable.
     const policy = read('./auth-policy.js');
-    const pageIds = APP_PAGES.map(p => (p === 'index.html' ? 'calendar' : p.replace(/\.html$/, '')));
+    const pageIds = APP_PAGES.map(pageIdOf);
     const missing = pageIds.filter(id => !new RegExp(`^\\s{4}${id}:\\s*\\{`, 'm').test(policy));
     assert.deepEqual(missing, [], 'page ids with no PAGE_POLICIES entry');
 });
@@ -221,7 +281,7 @@ test('every coordinator that signs a member in also runs the forced set-password
     // next — or, on the Calendar (which had no login until v23.19), to nobody: the member signs in
     // on the app's front door and is never asked to choose a password. Found at v23.19 by review,
     // when the front door became the place most members sign in.
-    const coordinators = APP_PAGES.map(p => (p === 'index.html' ? 'calendar-app.js' : p.replace(/\.html$/, '-app.js')));
+    const coordinators = APP_PAGE_ENTRIES.map(p => p.coordinator);
     const signsIn = coordinators.filter(f => existsSync(new URL(f, import.meta.url)) && /initLoginOverlay\(/.test(read(f)));
     assert.ok(signsIn.length >= 6, `expected every protected page's coordinator to mount the sign-in; found ${signsIn.length}`);
     const missing = signsIn.filter(f => !/initPasswordForce\(/.test(read(f)));
@@ -260,18 +320,10 @@ const WIRED_AFTER_AUTH = ['initErrorReporter', 'recordUsage', 'recordPageLatency
  * indirection is checked rather than trusted by the test below, which is the whole reason this
  * entry may name a local closure at all.
  */
-const COORDINATOR_AUTH_BARRIER = {
-    'index.html':      'calendarAuthReady',
-    'admin.html':      'sessionReady',
-    'settings.html':   'sessionReady',
-    'operations.html': 'sessionReady',
-    'links.html':      'sessionReady',
-    'overtime.html':   'sessionReady',
-    'paycalc.html':    'afterAuth',
-};
+/** Declared per page in scripts/app-pages.mjs (`authBarrier`) since v24.52. @type {Record<string, string>} */
+const COORDINATOR_AUTH_BARRIER = Object.fromEntries(APP_PAGE_ENTRIES.map(p => [p.file, p.authBarrier]));
 
-const coordinatorFor = (/** @type {string} */ page) =>
-    page === 'index.html' ? 'calendar-app.js' : page.replace(/\.html$/, '-app.js');
+const coordinatorFor = (/** @type {string} */ page) => /** @type {any} */ (appPage(page)).coordinator;
 
 /** Blank out comments and strings, preserving every byte offset, so a call named in prose or in a
  *  message string is never mistaken for a call site. */
@@ -393,7 +445,7 @@ test('every app page has a nav pill, so the drawer is a complete map', () => {
     // The drawer renders the CURRENT page as an inert pill rather than omitting it, which is what
     // keeps the row the same shape everywhere. A page with no entry breaks that on its own surface.
     const nav = read('./nav-panel.js');
-    const pageIds = APP_PAGES.map(p => (p === 'index.html' ? 'calendar' : p.replace(/\.html$/, '')));
+    const pageIds = APP_PAGES.map(pageIdOf);
     const missing = pageIds.filter(id => !nav.includes(`id: '${id}'`));
     assert.deepEqual(missing, [], 'page ids with no NAV_PAGES entry');
 });
@@ -455,7 +507,7 @@ test('every app page records its own usage under an id the rules allow', () => {
     const allow = rules.match(/counts\.keys\(\)\.hasOnly\(\[([\s\S]*?)\]\)/);
     assert.ok(allow, 'analytics counts allowlist not found');
     for (const page of APP_PAGES) {
-        const id = page === 'index.html' ? 'calendar' : page.replace(/\.html$/, '');
+        const id = pageIdOf(page);
         assert.ok(allow[1].includes(`'${id}'`), `analytics id '${id}' is not allowed by firestore.rules`);
     }
 });
@@ -475,7 +527,7 @@ test('every app page has a name and an emoji on the Operations reporting cards',
     const meta = src.match(/const PAGE_META = \{([\s\S]*?)\n\};/);
     assert.ok(meta, 'PAGE_META not found in operations-reports.js');
     for (const page of APP_PAGES) {
-        const id = page === 'index.html' ? 'calendar' : page.replace(/\.html$/, '');
+        const id = pageIdOf(page);
         const row = new RegExp(`\\b${id}\\s*:\\s*\\{([^}]*)\\}`).exec(meta[1]);
         assert.ok(row, `'${id}' has no PAGE_META entry — both Operations cards would print the raw id`);
         // An entry with an empty label is the same defect wearing a key, and an empty emoji leaves

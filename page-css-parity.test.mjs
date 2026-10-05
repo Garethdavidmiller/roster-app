@@ -33,17 +33,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { pageStylesheets } from './scripts/app-pages.mjs';
 
-/** The six app pages and the page-specific stylesheet each one loads. `shared.css` is universal. */
-const PAGES = {
-    'index.html':      'index.css',
-    'admin.html':      'admin.css',
-    'paycalc.html':    'paycalc.css',
-    'operations.html': 'operations.css',
-    'settings.html':   'settings.css',
-    'links.html':      'links.css',
-    'overtime.html':   'overtime.css',
-};
+/** Every app page and the page-specific stylesheet it loads — scripts/app-pages.mjs (v24.52). `shared.css` is universal. */
+const PAGES = pageStylesheets();
 
 const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 

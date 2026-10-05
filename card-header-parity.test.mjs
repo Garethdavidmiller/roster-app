@@ -17,9 +17,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { cardPageFiles } from './scripts/app-pages.mjs';
 
-/** The app pages that carry `.card-header` cards. index.html has none (the calendar is a grid). */
-const PAGES = ['admin.html', 'paycalc.html', 'operations.html', 'settings.html', 'links.html', 'overtime.html'];
+/** The app pages that carry `.card-header` cards — scripts/app-pages.mjs (v24.52). index.html has none (the calendar is a grid). */
+const PAGES = cardPageFiles();
 
 // Comments are stripped BEFORE matching: a long explanatory comment between the `.card-header` and
 // its title would otherwise push the heading past the search window and silently skip that card —

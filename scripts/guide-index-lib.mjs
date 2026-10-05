@@ -33,6 +33,7 @@
  */
 
 import { tokeniseText } from '../guide-search.js';
+import { GUIDE_PAGES as GUIDE_PAGE_ENTRIES } from './app-pages.mjs';
 
 /** Marker classes that make a provisional claim visible — MUST mirror guide-sources.test.mjs. */
 export const PROVISIONAL_MARKERS = {
@@ -180,8 +181,8 @@ export function extractGuideUnits(html, page) {
     return units;
 }
 
-/** The five guides, in the drawer's own order. */
-export const GUIDE_PAGES = ['staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html', 'rangers-guide.html', 'fip-guide.html'];
+/** The guides, in the drawer's own order — from scripts/app-pages.mjs, the one page list (v24.52). */
+export const GUIDE_PAGES = GUIDE_PAGE_ENTRIES.map(p => p.file);
 
 /**
  * @param {(name: string) => string} readPage

@@ -20,6 +20,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { servedFiles } from './scripts/app-pages.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 
@@ -40,9 +41,9 @@ const META_INCOMPATIBLE = new Set(['frame-ancestors', 'report-uri', 'report-to',
 //
 // The redirect stubs are here for the same reason. They carry a meta CSP already; checking it costs
 // nothing and catches the drift nobody would otherwise see.
-const SERVED_HTML = ['index.html', 'admin.html', 'paycalc.html', 'operations.html', 'settings.html',
-    'links.html', 'overtime.html', 'staff-guide.html', 'paycalc-guide.html', 'railcard-guide.html',
-    'fip-guide.html', 'rangers-guide.html', 'guide.html', 'fip.html'];
+//
+// The list is scripts/app-pages.mjs (v24.52) — every served page, all three kinds.
+const SERVED_HTML = servedFiles();
 
 /** Parse a CSP string into a Map(directive → sorted-value-string), order-independent. */
 function parseCsp(csp) {
