@@ -103,19 +103,28 @@ export function signOutAndLeave({ to = null } = {}) {
 let _restoreGuarded = false;
 
 /**
- * Reload this page if the browser restores it from the back/forward cache for a different member
- * than the one it was showing when it was left — including nobody, after a sign-out.
+ * Reload this page if the browser restores it from the back/forward cache for anybody but the
+ * member it shows — including nobody, after a sign-out.
  *
- * The comparison is against the identity at `pagehide`, not at load: a page that signs somebody in
- * IN PLACE was built for nobody and is showing that member by the time it is left.
+ * TWO identities are compared, and a restore is let through only when it matches BOTH:
+ *   - who the page was BUILT for (when this ran), which is what its data belongs to. A member who
+ *     signs in as somebody else in ANOTHER TAB changes the session while this page still shows the
+ *     first member; comparing only at `pagehide` would then record the newcomer and wave the first
+ *     member's page back in for them. That is the case the Pay Calculator's original guard caught.
+ *   - who was signed in when it was LEFT. An in-place sign-in moves a page from nobody to a member
+ *     without a load; the built-for identity alone would miss a later change there.
+ * Matching both costs an unneeded reload in one harmless case (a page signed into in place and
+ * restored for the same member). The other direction would show one member's data to another.
  */
 export function reloadIfRestoredForSomeoneElse() {
     if (_restoreGuarded) return;
     _restoreGuarded = true;
-    let leftAs = getSession()?.name ?? null;
+    const builtFor = getSession()?.name ?? null;
+    let leftAs = builtFor;
     window.addEventListener('pagehide', () => { leftAs = getSession()?.name ?? null; });
     window.addEventListener('pageshow', (e) => {
-        if (e.persisted && (getSession()?.name ?? null) !== leftAs) window.location.reload();
+        const now = getSession()?.name ?? null;
+        if (e.persisted && (now !== builtFor || now !== leftAs)) window.location.reload();
     });
 }
 

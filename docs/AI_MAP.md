@@ -2284,7 +2284,7 @@ The sign-out and session-loss routines every protected page shares (v24.52, tech
 - `warnOnUnload(isDirty)` — the browser's "Leave site?" while there is unsaved work; stands down once a sign-out has been answered
 - `askBeforeSignOut(isDirty)` — returns the drawer's `beforeSignOut`: with unsaved work, "Sign out anyway?"; runs before anything is released, so a Cancel changes nothing
 - `signOutAndLeave({ to? })` — `clearSession()` then `location.replace(to)`, or a reload when `to` is null (the page shows its own sign-in)
-- `reloadIfRestoredForSomeoneElse()` — on a back/forward-cache restore, reload if the signed-in member differs from the one the page showed at `pagehide`. Idempotent
+- `reloadIfRestoredForSomeoneElse()` — on a back/forward-cache restore, reload unless the signed-in member matches BOTH who the page was built for and who was signed in at `pagehide` (another tab's sign-in, and an in-place sign-in, each defeat one of the two alone). Idempotent; first line of every coordinator's start-up
 - `guardNamedSession({ page, pageLabel, member, established, signIn? })` — once `established` settles: `requirePage` says login → clear, `resetNavPanel`, sign in; otherwise `watchIdentityLoss` runs the same on a later loss. Used by Admin (its own `signIn`), Operations, Settings, Links and Overtime — not the Calendar (PIN) or the Pay Calculator (soft policy)
 - Tested by `page-session.test.mjs`; wiring by `page-contract-parity.test.mjs`
 

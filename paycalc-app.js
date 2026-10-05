@@ -110,6 +110,12 @@ function _showUnsupportedRole(member) {
 }
 
 export function init() {
+    // BACK/FORWARD CACHE ON A SHARED DEVICE (72-hour review): a page restored from the bfcache does
+    // not re-run init(), so after a sign-out (or a different member signing in on another tab) the
+    // Back button could show the previous member's pay page, figures and all. This page had the only
+    // such guard until v24.52; it is now page-session.js's, every protected page installs it, and
+    // it runs FIRST so no early return below (sign-in, unsupported role) can skip it.
+    reloadIfRestoredForSomeoneElse();
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
     // Runs BEFORE the session-guard early-return below (the expired-session path is exactly where a
@@ -165,11 +171,6 @@ export function init() {
       return;
     }
 
-    // BACK/FORWARD CACHE ON A SHARED DEVICE (72-hour review): a page restored from the bfcache does
-    // not re-run init(), so after a sign-out (or a different member signing in on another tab) the
-    // Back button could show the previous member's pay page, figures and all. This page had the only
-    // such guard until v24.52; it is now page-session.js's, and every protected page installs it.
-    reloadIfRestoredForSomeoneElse();
 
     // Period helpers, grade helpers, settings, roster hint, HPP, back-pay all imported above.
     // SK, periodKey, hppEstKey, hppActualKey imported from paycalc-migrations.js

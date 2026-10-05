@@ -152,11 +152,31 @@ describe('back/forward cache', () => {
         assert.deepEqual(log, ['reload'], 'signed out since: the page must not come back with their data');
     });
 
-    test('the comparison is against who the page showed when it was LEFT, not when it loaded', () => {
+    test('another member signing in on ANOTHER TAB does not get this page back — the Pay Calculator case', () => {
+        // The page was built for A (the guard was installed above with A signed in, then A signed
+        // out and the restore reloaded). Re-arm the scenario: B signs in elsewhere while this page
+        // still shows A, the page is left, and B presses Back. Comparing only at pagehide would
+        // record B and let A's page through.
         log = [];
-        session = { name: 'B. Member' };   // signed in in place after the load above
+        session = { name: 'B. Member' };
         fire('pagehide');
         fire('pageshow', { persisted: true });
-        assert.deepEqual(log, [], 'left as B, restored as B — an in-place sign-in is not a stranger');
+        assert.deepEqual(log, ['reload'], 'the page was built for A; B must not be shown it');
+    });
+
+    test('a page signed into IN PLACE, then signed out elsewhere, does not come back with that member\'s data', async () => {
+        // Built for nobody (the sign-in screen), then the member signs in without a reload — so the
+        // built-for identity is null and so is the session after the sign-out. Only the identity at
+        // pagehide sees that the page was SHOWING somebody. A fresh copy of the module, because the
+        // guard installs once per page and this scenario starts from a signed-out load.
+        const fresh = await import('./page-session.js?in-place');
+        listeners = {}; log = [];
+        session = null;
+        fresh.reloadIfRestoredForSomeoneElse();
+        session = { name: 'A. Member' };     // the in-place sign-in
+        fire('pagehide');
+        session = null;                      // signed out on another page or tab
+        fire('pageshow', { persisted: true });
+        assert.deepEqual(log, ['reload']);
     });
 });
