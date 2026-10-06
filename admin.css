@@ -138,9 +138,25 @@
         @media (max-width: 1023px) {
             body:not(.member-locked) .member-context-bar {
                 position: sticky;
-                top: 0;
+                /* BELOW THE STATUS BAR, NOT UNDER IT (v24.61, iOS audit). A sticky `top: 0` pins to the
+                   scrollport, not to the body's inset padding, so in a home-screen install whose page
+                   runs up under the status bar (viewport-fit=cover on an install that still has
+                   black-translucent) the bar pinned beneath the clock and Dynamic Island once a manager
+                   scrolled — the member's name and the picker trigger in the status-bar touch zone. The
+                   inset is 0 everywhere else, so nothing moves on Android, desktop or a Safari tab. */
+                top: env(safe-area-inset-top, 0px);
                 z-index: 30; /* above cards (0-1); the fixed bottom bars live at 7400+ */
                 box-shadow: 0 3px 10px -3px rgba(0, 0, 0, 0.4);
+            }
+            /* …and nothing scrolls past in the gap above it: a navy cover the height of that inset,
+               invisible at rest (it sits inside the body's own navy padding) and the only thing in the
+               status-bar band while the bar is pinned. */
+            body:not(.member-locked) .member-context-bar::before {
+                content: '';
+                position: absolute;
+                left: 0; right: 0; bottom: 100%;
+                height: env(safe-area-inset-top, 0px);
+                background: var(--primary-blue);
             }
         }
 
@@ -1218,7 +1234,9 @@
             background: var(--al-confirm-bg);
             border-top: 2px solid var(--al-confirm-accent);
             border-radius: 14px 14px 0 0;
-            padding: 16px 18px max(16px, env(safe-area-inset-bottom));
+            /* all four insets: iOS ignores the manifest's portrait lock, and in landscape the Dynamic
+               Island takes the left or right edge (v24.61) */
+            padding: 16px max(18px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
             font-size: var(--type-label);
             color: var(--primary-blue);
             box-shadow: 0 -4px 24px rgba(0,0,0,0.12);

@@ -51,6 +51,7 @@ import { PROPOSALS, isProposalId, proposalById, proposalCopyName } from './links
 import { createTargetPanel } from './links-generator-targets.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
+import { formatClockInput } from './clock-input.js';
 import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
 import { baselineFromEntry } from './links-concurrency.js';
@@ -355,6 +356,14 @@ export function init() {
         const status = document.getElementById('winStatus');
         const moved  = /** @type {HTMLElement|null} */ (document.getElementById('winMoved'));
         const reset  = document.getElementById('winReset');
+        // The boxes are a numeric keypad on a phone, and that keypad has no colon (v24.61, iOS audit):
+        // "0730" typed there was reverted as not a time. Shape it as it is typed, as the admin week
+        // grid does; `commit` below still canonicalises and validates what is finally there.
+        for (const row of /** @type {const} */ (['monSat', 'sun'])) {
+            for (const el of [els[row].start, els[row].end]) {
+                el?.addEventListener('input', () => { el.value = formatClockInput(el.value); });
+            }
+        }
 
         function paint() {
             if (!box) return;

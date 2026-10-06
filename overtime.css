@@ -445,6 +445,8 @@ body {
     flex-wrap: wrap;
     padding: var(--space-3) var(--space-4);
     padding-bottom: calc(var(--space-3) + env(safe-area-inset-bottom));
+    padding-left: max(var(--space-4), env(safe-area-inset-left));    /* landscape: the Dynamic Island takes one edge (v24.61) */
+    padding-right: max(var(--space-4), env(safe-area-inset-right));
     background: var(--al-confirm-bg);
     border-top: 3px solid var(--al-confirm-accent);
     box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.16);

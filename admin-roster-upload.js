@@ -12,6 +12,7 @@
 import { teamMembers, MONTH_ABB, getShiftBadge, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { parseOtherValue, buildOverrideWrite, nextReplacedType } from './override-utils.js';
+import { formatClockInput } from './clock-input.js';
 import { replacedTypeForSwap } from './al-swapped-days.js';
 import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
@@ -1110,6 +1111,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             if (!el.classList?.contains('roster-entry-time')) return;
             const s = cellStates.get(el.dataset.key ?? '');
             if (!s) return;
+            el.value = formatClockInput(el.value);   // a phone keypad has no colon (v24.61): "0730" → "07:30" as typed
             s.draft = { ...s.draft, [el.dataset.part === 'to' ? 'to' : 'from']: el.value };
             commitEntry(s);
             // PATCH THE ROW, do not re-render it. A full render on every keystroke would destroy the

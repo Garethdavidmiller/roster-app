@@ -1516,6 +1516,10 @@
     background: var(--primary-blue); color: white;
     padding: 10px 20px;
     padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    /* and the side insets: iOS ignores the manifest's portrait lock, and in landscape the Dynamic
+       Island takes the left or right edge, where the payday label or the £ figure sat (v24.61) */
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
     z-index: 200;
     box-shadow: 0 -2px 8px rgba(0,0,0,0.25);
     cursor: pointer; touch-action: manipulation;

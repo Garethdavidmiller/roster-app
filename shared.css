@@ -993,8 +993,11 @@ body.lb-open #stickyTotal { display: none !important; }
        namespace: 616px of 640, i.e. one more tax year from putting Cancel and Replace off the
        bottom of the screen with no way to scroll to them. A modal that cannot be dismissed is
        the worst failure available to a modal, so the cap is structural rather than a limit on
-       what a caller may say. */
+       what a caller may say. The `dvh` twin (v24.61, iOS audit): on iOS `vh` is the LARGE viewport,
+       the one with the browser bar minimised, so in landscape on a Pro the 86vh cap could still clip
+       the buttons until the bar hid — every other dialog in this file already carries the pair. */
     max-height: 86vh;
+    max-height: 86dvh;
 }
 .dialog-title {
     font-size: var(--type-large);
@@ -3629,8 +3632,9 @@ body.auth-ready .boot-placeholder { display: none; }
    nowrap — it is a sentence a member must read to the end, and at 375px that is three lines. */
 #slowSaveNotice {
     position: fixed;
-    left: 16px;
-    right: 16px;
+    /* the side insets too — in landscape the Dynamic Island takes one edge (v24.61) */
+    left: max(16px, env(safe-area-inset-left));
+    right: max(16px, env(safe-area-inset-right));
     bottom: calc(max(24px, env(safe-area-inset-bottom)) + 52px);
     max-width: 480px;
     margin: 0 auto;
