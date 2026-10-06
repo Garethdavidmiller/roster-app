@@ -71,7 +71,7 @@ export function initWeekEditor(deps) {
     //
     // `initOverrides` can be called twice on the in-place login path — an optimistic 'allow' init,
     // then again after B1 clears an unconfirmable session — and both of these attach DELEGATED
-    // listeners, `_initTimeInputs` two of them at `document` level. A second attach double-fires
+    // listeners, `initTimeInputs` (admin-time-inputs.js) two of them at `document` level. A second attach double-fires
     // every click, which on the two-tap Delete means one tap both arms AND executes.
     //
     // The guard used to live in `admin-overrides.js`, around wiring that moved out in the v21.38

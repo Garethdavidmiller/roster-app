@@ -287,8 +287,9 @@ export async function disableNotifications() {
  * naming a locked-out colleague, "the admin reset your password" — go to every device that uid owns.
  * On a shared device that owner outlived the sign-out, so whoever picked it up next got them.
  *
- * The BROWSER subscription is kept, so the device keeps its notification setting: the re-save
- * throttle is cleared, and the next page load re-saves the record as whoever is signed in then.
+ * When the delete is CONFIRMED the browser subscription is kept, so the device keeps its
+ * notification setting: the re-save throttle is cleared, and the next page load re-saves the record
+ * as whoever is signed in then. Only a confirmed delete earns that — see the last paragraph.
  *
  * UNLESS THE RECORD CANNOT BE DELETED (48-hour review). The rule lets only its owner delete it, and
  * the Calendar's member card is shown precisely when a local session has OUTLIVED its Firebase
@@ -300,7 +301,12 @@ export async function disableNotifications() {
  * device being handed over.
  * Best-effort and TIME-BOXED — a sign-out must never wait on a service worker or a network that is
  * not answering. A delete still unconfirmed at the time box is treated as a refused one: the browser
- * subscription is dropped, because walking away left the record reachable (Oct 2026 review).
+ * subscription is dropped, because walking away left the record reachable (Oct 2026 review). THE
+ * COST, stated rather than discovered: on a slow or offline connection a delete that DID land can be
+ * acknowledged too late, so a member signing out of their OWN phone on poor signal comes back to
+ * notifications off — the bell reads "off-lapsed" and they switch them on again. Accepted: a member
+ * re-enabling their own bell is recoverable and visible; a departed member's personal notices on a
+ * shared device are neither.
  * @param {number} [timeoutMs]
  * @returns {Promise<void>}
  */

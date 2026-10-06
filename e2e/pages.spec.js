@@ -3930,6 +3930,23 @@ for (const [code, line, staysOff] of [
     });
 }
 
+test('operations reset requests: a Clear that fails AFTER the list was redrawn reports on the row now shown', async ({ page }) => {
+    // The list re-renders on a notification tap (#reset-requests) or a queued reload. The failure
+    // used to be appended to the row that had been replaced — off the page, so nobody saw it.
+    await page.addInitScript(() => {
+        window.__E2E = {
+            failDeleteCode: 'auth/signed-out-during-request', deleteDelayMs: 800,
+            docs: [{ id: 'A. Hared', requestedAt: Date.now() - 60_000, count: 1, provisioned: true }],
+        };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.locator('.btn-rr-clear[data-member="A. Hared"]').click();
+    await page.evaluate(() => { location.hash = '#reset-requests'; });   // the redraw, mid-delete
+    await expect(page.locator('.rr-row .rr-error')).toHaveText(/signed out before this clear was confirmed/);
+    await expect(page.locator('.btn-rr-clear[data-member="A. Hared"]'), 'an unknown outcome keeps Clear off on the live row too').toBeDisabled();
+});
+
 // ── The Needs-attention strip must not survive its own card (v23.36) ────────────────────────────
 // `operations-attention.js`'s whole design is that the strip CANNOT disagree with the card it
 // points at: it runs no reads, and every count arrives from the card that owns the data. The Error
