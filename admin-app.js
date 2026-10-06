@@ -40,7 +40,7 @@ import { alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfT
 import { planAlWeekSave } from './admin-al-week-save.js';
 import { createBookedPeriods } from './admin-booked-periods.js';
 import { alFigureYear } from './admin-al-year.js';
-import { registerServiceWorker } from './sw-register.js';
+import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter.js';
@@ -1635,17 +1635,10 @@ export function init() {
     // ============================================
     // If the admin has unsaved changes, wait until they navigate away before reloading.
     registerServiceWorker({
-        beforeReload() {
-            // A write still waiting on the server counts as unsaved (review A13): a range booking
-            // commits in chunks, and reloading between them strands the rest.
-            if (!hasUnsavedChanges() && !writesInFlight()) { window.location.reload(); return; }
-            const onHidden = () => {
-                if (document.visibilityState !== 'hidden' || writesInFlight()) return;
-                document.removeEventListener('visibilitychange', onHidden);
-                window.location.reload();
-            };
-            document.addEventListener('visibilitychange', onHidden);
-        },
+        // A write still waiting on the server counts as unsaved (review A13): a range booking
+        // commits in chunks, and reloading between them strands the rest. The shared helper
+        // (v24.61) re-asks at the moment of reloading, as this page's own code always did.
+        beforeReload: () => reloadWhenNotBusy(() => hasUnsavedChanges() || writesInFlight() > 0),
     });
     sessionReady.then(() => { initErrorReporter(); recordUsage('admin', currentUser); recordPageLatency('admin', currentUser); });
 

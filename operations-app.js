@@ -37,7 +37,7 @@ import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { initCardCollapse, confirmDialog, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
-import { registerServiceWorker } from './sw-register.js';
+import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 
 
 
@@ -61,16 +61,14 @@ export function init() {
     // A roster PARSE in flight (the form is locked, #rosterType disabled) and a document UPLOAD in
     // flight (doc-upload.js marks its button `data-uploading`) are in-flight work too: a reload
     // mid-way loses the parse's answer, or leaves an upload unconfirmed (Sep 2026 review).
+    // Asked again at the moment of reloading (v24.61): the `{ once: true }` listener this replaced
+    // reloaded on the FIRST hide whether or not the review, parse or upload had finished — and if it
+    // had not, the one chance was spent and the page never reloaded for that release at all.
     registerServiceWorker({
-        beforeReload() {
-            const busy = document.getElementById('rosterReviewSection')?.classList.contains('visible')
-                || /** @type {HTMLSelectElement|null} */ (document.getElementById('rosterType'))?.disabled
-                || !!document.querySelector('[data-uploading]');
-            if (!busy) { window.location.reload(); return; }
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'hidden') window.location.reload();
-            }, { once: true });
-        },
+        beforeReload: () => reloadWhenNotBusy(() =>
+            !!document.getElementById('rosterReviewSection')?.classList.contains('visible')
+            || !!/** @type {HTMLSelectElement|null} */ (document.getElementById('rosterType'))?.disabled
+            || !!document.querySelector('[data-uploading]')),
     });
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).

@@ -104,6 +104,27 @@ export function reloadWhileHidden(reload = () => window.location.reload()) {
     });
 }
 
+/**
+ * Reload once nothing is in flight — now if the page is idle, otherwise the next time it is hidden
+ * AND idle (v24.61, iOS audit B2). The shape Admin had hand-rolled and Operations had got slightly
+ * wrong (`{ once: true }`: hidden-while-busy spent the one listener, and the page never reloaded);
+ * Settings and Overtime had no guard at all, so a release landing while a password change's two
+ * writes were half done reloaded between them. `isBusy` is asked again at the moment of reloading,
+ * never only when the update arrived.
+ * @param {() => boolean} isBusy  unsaved work on screen, or a write still on its way
+ * @param {() => void} [reload]
+ */
+export function reloadWhenNotBusy(isBusy, reload = () => window.location.reload()) {
+    if (!isBusy()) { markUpdateReload(); reload(); return; }
+    const onHidden = () => {
+        if (document.visibilityState !== 'hidden' || isBusy()) return;
+        document.removeEventListener('visibilitychange', onHidden);
+        markUpdateReload();
+        reload();
+    };
+    document.addEventListener('visibilitychange', onHidden);
+}
+
 /** Note that the reload about to happen was caused by an update. Best-effort; never throws. */
 function markUpdateReload() {
     try { sessionStorage.setItem(SW_RELOAD_KEY, String(Date.now())); } catch { /* sessionStorage unavailable */ }

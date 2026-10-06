@@ -45,7 +45,7 @@ import { initCardCollapse, confirmDialog } from './overlay.js';
 import { guardNamedSession, askBeforeSignOut, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
-import { registerServiceWorker } from './sw-register.js';
+import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
@@ -215,7 +215,8 @@ export function init() {
         initCardCollapse('otMineToggleHeader',    'otMineBody',    'otMineChevron');
         initCardCollapse('otHorizonToggleHeader', 'otHorizonBody', 'otHorizonChevron');
         initCardCollapse('otWeekToggleHeader',    'otWeekBody',    'otWeekChevron');
-        registerServiceWorker();
+        // A release must not take a half-answered form, or a submit on its way, with it (v24.61).
+        registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(() => !!currentForm?.isDirty() || !!currentForm?.isSubmitting()) });
 
         canReview = isOvertimeReviewer(currentUser);
         wireTabs();

@@ -43,6 +43,9 @@
  * again at once, and one that goes LATER gets the same sign-in rather than a dead page. Both paths
  * clear the session and tear down the drawer first, because the drawer was wired with the old
  * member's name and pills, and on a shared device that must not stay reachable behind the sign-in.
+ * A session that could not be DECIDED — Firebase's start-up stalled, so the policy says `pending` —
+ * is the one case that clears nothing (v24.61): the sign-in is shown over a kept session, and a
+ * late-landing identity reloads the page into itself.
  *
  * ── WHAT IT DELIBERATELY DOES NOT OWN ──────────────────────────────────────────────────────────
  *
@@ -56,6 +59,7 @@
  */
 
 import { auth, onAuthStateChanged } from './firebase-client.js';
+import { nameToEmail } from './auth-identity.js';
 import { getSession, clearSession, AUTH_KEY } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
@@ -178,8 +182,24 @@ export function guardNamedSession({ page, pageLabel, member, established, signIn
         .then(({ initLoginOverlay }) => initLoginOverlay({ pageLabel, onSuccess: () => window.location.reload() }))
         .catch((err) => { console.error('[page-session] sign-in could not load:', err); window.location.reload(); }));
     const relogin = () => { clearSession(); resetNavPanel(); showSignIn(); };
+    // NOTHING IS KNOWN YET, SO NOTHING IS TAKEN AWAY (v24.61, iOS audit B1). `pending` here means
+    // Firebase's start-up stalled past its bound (`terminalAuthEvent`, session.js): the member has not
+    // been refused, the network has not answered. Keep the local session and the drawer, show the
+    // sign-in — which can also sign them in, if they would rather not wait — and if the identity
+    // this page belongs to lands late, reload into it rather than leave a page whose writes would fail.
+    const holdForLateIdentity = () => {
+        showSignIn();
+        const email = nameToEmail(member);
+        const stop = onAuthStateChanged(auth, (/** @type {any} */ user) => {
+            if (!user || user.isAnonymous || user.email !== email) return;
+            stop();
+            window.location.reload();
+        });
+    };
     return Promise.resolve(established).then(() => {
-        if (requirePage(getAuthSnapshot(), page).decision === 'login') { relogin(); return; }
+        const { decision } = requirePage(getAuthSnapshot(), page);
+        if (decision === 'login')   { relogin(); return; }
+        if (decision === 'pending') { holdForLateIdentity(); return; }
         watchIdentityLoss({
             uid: auth.currentUser?.uid,
             watch: (cb) => onAuthStateChanged(auth, cb),
