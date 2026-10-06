@@ -200,8 +200,9 @@ The iOS 27 / iPhone 18 Pro audit (6 Oct 2026) found the test matrix a generation
 the two WebKit lanes ran as an iPhone 13 (390×844), and every iPhone Pro since the 15 — the 16 Pro,
 the 17 Pro and the 18 Pro, which to a web page is the same device as the 17 Pro — is 402×874 at the
 same density. Both lanes now run at that geometry (`IPHONE_PRO_VIEWPORT` in `playwright.webkit.mjs`,
-shared by `playwright.visual-webkit.mjs`); the six WebKit baselines were regenerated and the full
-WebKit smoke suite re-run at the new width before this shipped.
+shared by `playwright.visual-webkit.mjs`, and by the four visual tests that grow the viewport for a
+tall surface — a 24-hour review found those still at 390 after the first pass); the six WebKit
+baselines were regenerated and the full WebKit smoke suite re-run at the new width before this shipped.
 
 **Not done, deliberately: the Playwright upgrade.** The repo pins `@playwright/test` 1.56.1, whose
 newest iPhone descriptor is the 15 Pro; 1.63.0 carries 17 Pro descriptors and a newer WebKit build

@@ -129,7 +129,7 @@ before deleting anything, because the number alone has now been wrong once.
 | Cross-file localStorage key constants (SELECTED_MEMBER + legacy alias, VIEWED_MONTH/YEAR) | `storage-keys.js` |
 | Push notifications, Huddle ingest, auth setup | `functions/index.js` |
 | Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.js` + `railcard-guide.css` |
-| Print button for staff-guide.html, paycalc-guide.html and fip-guide.html | `guide-print.js` |
+| Print button for all five guides, and the FIP per-country print buttons | `guide-print.js` |
 | Guide back-arrow retarget (`?from=` → the page you came from, all 5 guides) | `guide-back.js` |
 | Shared guide chrome — header, back/PDF buttons, print banner (all 5 guides) | `guide-shell.css` |
 | Page-specific styles for staff-guide.html | `staff-guide.css` |
@@ -2402,9 +2402,9 @@ Interactive behaviour for `fip-guide.html` (v16.59 — CSP compliance; plain `de
 - **It prints what is on screen** (v23.27): the prepare no longer un-hides cards the finder filtered out. Opening a collapsed card is a rendering repair; un-hiding a filtered one overrides the reader's own choice, and cost a traveller who searched one country a 25-page guide. `describePrintScope(shown)` keeps the ⤓ button's `aria-label`/`title` saying which it will do — the VISIBLE label stays "⤓ PDF" because it is the shared `.btn-print` in a fixed header, and no page count is written into the string.
 
 ### `guide-print.js`
-Shared print button handler for `staff-guide.html`, `paycalc-guide.html` and `fip-guide.html` (extracted v10.84 — CSP compliance).
-- Wires `click → window.print()` on `.btn-print` in whichever guide page loads it
-- No modules; plain script with `defer`
+The ⤓ PDF button on every guide, and the FIP guide's per-country print buttons (extracted v10.84 — CSP compliance; an ES MODULE since v24.61, loaded by all five guides as `<script type="module">`, so the Railcard and Rangers guides dropped their private copies).
+- ONE delegated `click` listener on the document (bubble phase) for `.btn-print, .btn-print-country`, routed through `printOrExplain` (`print-guard.js`): prints, or — in a home-screen app on iOS 27, where `window.print()` is a no-op — inserts an inline `#printUnavailable` notice under the header with an "Open in Safari" button. The FIP guide's own prepare handlers (bound on the buttons) run first; this never prepares anything.
+- Imports `print-guard.js`; nothing else.
 
 ### `guide-back.js`
 Shared back-arrow retarget for all five guide pages (v18.84) — a classic `defer` script, **no exports**.

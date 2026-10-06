@@ -47,8 +47,10 @@
 
 import { test, expect } from './fixtures.js';
 import { prep, settle } from './visual-harness.js';
+import { IPHONE_PRO_VIEWPORT } from '../playwright.webkit.mjs';
 
-// The viewport (402×874 — the iPhone 15 Pro to 18 Pro, since v24.61; the iPhone 13's 390×844 before) is what the config supplies. Where a surface is
+// The viewport (402×874 — the iPhone 15 Pro to 18 Pro, since v24.61; the iPhone 13's 390×844 before) is what the config supplies,
+// and the four tests that grow it for a tall surface keep the SAME width (a 24-hour review found them still at 390). Where a surface is
 // taller than the screen the test grows the viewport rather than using `fullPage`, for the reason
 // `visual.spec.js` records: a fullPage shot resizes to scrollHeight at capture time, and a
 // sub-pixel-unstable height rounds differently between runs and shifts the whole frame.
@@ -77,7 +79,7 @@ test('calendar day panel — the surface a member reads a day from', async ({ pa
 });
 
 test('team week view — the seven-column roster', async ({ page }) => {
-    await prep(page, { width: 390, height: 1400 });
+    await prep(page, { width: IPHONE_PRO_VIEWPORT.width, height: 1400 });
     await page.goto('/');
     await settle(page, '.calendar-day');
     await page.locator('#teamViewBtn').click();
@@ -97,7 +99,7 @@ test('nav drawer — the way every page is reached', async ({ page }) => {
 });
 
 test('paycalc — the take-home figure and its sticky bar', async ({ page }) => {
-    await prep(page, { width: 390, height: 1600 });
+    await prep(page, { width: IPHONE_PRO_VIEWPORT.width, height: 1600 });
     await page.goto('/paycalc.html');
     await settle(page, '#netDisplay');
     await page.evaluate(() => new Promise(r => setTimeout(r, 400)));
@@ -108,7 +110,7 @@ test('paycalc — the take-home figure and its sticky bar', async ({ page }) => 
 });
 
 test('admin — the week grid a manager edits', async ({ page }) => {
-    await prep(page, { width: 390, height: 1800 });
+    await prep(page, { width: IPHONE_PRO_VIEWPORT.width, height: 1800 });
     await page.goto('/admin.html');
     await settle(page, '.week-grid-header, .day-row');
     await page.evaluate(() => new Promise(r => setTimeout(r, 400)));
@@ -121,7 +123,7 @@ test('admin — the week grid a manager edits', async ({ page }) => {
 });
 
 test('a guide — the shared shell, one representative of five', async ({ page }) => {
-    await prep(page, { width: 390, height: 1400 });
+    await prep(page, { width: IPHONE_PRO_VIEWPORT.width, height: 1400 });
     await page.goto('/railcard-guide.html');
     await settle(page, 'h1');
     await page.evaluate(() => document.fonts.ready);

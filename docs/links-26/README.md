@@ -762,7 +762,7 @@ running footer, the read-me is wrapped by code to 78 columns, and no table cell 
 lates or a cover week, where today's link mixes the two inside 7 of its 16 working weeks. The flip side of fewer switches
 is that a colleague who prefers one kind waits longer for it to come round. The figure is a RANGE, because a cover
 week's four duties are placed later: on the fixed rota every design's longest block is 4 or 5 weeks (today 2), but if
-the cover weeks beside a block are given the same kind it runs to 6 or 7 on most designs and to **12 on Even Keel,
+the cover weeks beside a block are given the same kind it runs to 6 to 9 on most designs (8 on Quiet Friday) and to **12 on Even Keel,
 Fine Tune and Second Gear**, whose two blocks of lates sit either side of one cover week (Long Break 9; today 3).
 `tooling/blocks.mjs` computes it once, and it now appears as a page-2 row and a page-1 concern on every sheet, a row in
 the shortlist's comparison, a line under "Weeks on one turn" in the summary, and in the decks' week-strip banner and

@@ -63,6 +63,24 @@ test('service worker precaches the app and serves it offline', async ({ page, co
     expect(fallback?.status(), 'offline uncached navigation should hit the SW fallback').toBe(200);
 });
 
+// ── NOTHING CACHED, AND OFFLINE: the synthesised page, with a way back (v24.61, iOS audit B3) ──
+// The document branch races the network against the cache only when a cached fallback EXISTS; with
+// every cache gone (a first install, iOS eviction) it waits for the network, and only the network's
+// failure produces the synthesised page. Step 6 above resolves through the precached index.html, so
+// it never reached this path; this test empties Cache Storage first.
+test('with every cache gone, an offline navigation gets the synthesised page and its Try again', async ({ page, context }) => {
+    await page.goto('/index.html', { waitUntil: 'load' });
+    await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 20_000 });
+    await page.evaluate(async () => { for (const k of await caches.keys()) await caches.delete(k); });
+    await context.setOffline(true);
+    const nav = await page.goto('/paycalc.html?payday=2026-10-30', { waitUntil: 'commit' });
+    expect(nav?.status(), 'a synthesised 200, never the browser error page').toBe(200);
+    const html = await page.content();
+    expect(html).toContain('Pay Calculator is not available offline');
+    expect(html).toContain('Try again');
+    await context.setOffline(false);
+});
+
 // ── The revalidation count, answered by a REAL worker (v22.94) ──────────────────────────────────
 //
 // `perf-reporter.js` asks the service worker how many background revalidations it has started, and

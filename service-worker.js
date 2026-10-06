@@ -700,22 +700,19 @@ self.addEventListener("fetch", event => {
         // broken storage previously rejected the WHOLE fallback chain — skipping the synthesized
         // offline page exactly when it was designed to appear (the rejection then landed in the
         // untimed outer network backstop). The offline page must always be reachable.
-        const serveFallback = (logMsg) => {
-            console.log(`[SW ${APP_VERSION}] ${logMsg}`, path);
-            return findCachedFallback().then(r => r || offlinePage());
-        };
         /** The best cached copy for this navigation, or null when there is NONE (v24.61). */
         const findCachedFallback = () => openCache().then(c => c.match(event.request, { ignoreSearch: true })).catch(() => null)
             .then(r => r || matchNewestManagedCache(event.request, { ignoreSearch: true }))
             .then(r => r || (fallback ? openCache().then(c => c.match(fallback)).then(fr => fr || matchNewestManagedCache(fallback)).catch(() => null) : null))
             .then(r => r || null);
-        /** The synthesised last resort, with a "Try again" link to this request's own path (v24.61):
-         *  an installed app has no address bar. A plain link — a synthesised response has no CSP. */
+        /** The synthesised last resort, with a "Try again" that RELOADS (v24.61): an installed app has
+         *  no address bar, and a reload keeps the fragment a notification tap carried (#huddle), which
+         *  a link built from the request could not — the fragment never reaches a service worker. The
+         *  inline handler is allowed because a synthesised response carries no CSP. */
         const offlinePage = () => {
             if (!isDoc) return Response.error();
-            const retryHref = (url.pathname + url.search).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
             return new Response(
-                `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Offline — Marylebone Roster</title></head><body style="font-family:sans-serif;padding:20px"><h1>Offline</h1><p>${offlineMsg}</p><p><a href="${retryHref}">Try again</a></p></body></html>`,
+                `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Offline — Marylebone Roster</title></head><body style="font-family:sans-serif;padding:20px"><h1>Offline</h1><p>${offlineMsg}</p><p><button type="button" onclick="location.reload()" style="font:inherit;padding:8px 14px">Try again</button></p></body></html>`,
                 { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }, status: 200 }
             );
         };
@@ -730,7 +727,7 @@ self.addEventListener("fetch", event => {
             // HTML and JS from the SAME version cache also shrinks the mixed-version window
             // network-first had (fresh HTML + cached JS during a deploy transition).
             // EXACT-page match only — '/' (the scope root) additionally tries the warm-up's
-            // './index.html' key. Never map one page to another here: serveFallback's
+            // './index.html' key. Never map one page to another here: the fallback chain's
             // index-default is OFFLINE-fallback behaviour, not an instant-serve rule.
             // A broken Cache Storage (corrupt IndexedDB backing, iOS eviction mid-read) must
             // DEGRADE to the network path, never reject: a rejected respondWith on a navigation
@@ -749,7 +746,7 @@ self.addEventListener("fetch", event => {
                 // The preload promise RESOLVES undefined when preload is disabled/unsupported
                 // (→ fall back to our own fetch) but REJECTS when the preload network request
                 // itself errors — so it needs a reject handler too, or on a cache MISS a preload
-                // failure would reach serveFallback and show the offline page to an ONLINE user
+                // failure would reach the fallback chain and show the offline page to an ONLINE user
                 // whose own fetch would have worked. Two-arg .then (not trailing .catch) so a
                 // genuine offline fetch rejection still propagates instead of re-fetching.
                 ? event.preloadResponse.then(pre => pre || fetch(freshReq), () => fetch(freshReq))
@@ -766,7 +763,7 @@ self.addEventListener("fetch", event => {
                 if (response && response.status === 200 && (!ct || ct.includes('text/html'))) {
                     // Cache under the bare path (query stripped): every distinct
                     // paycalc.html?payday=… would otherwise pile up as its own ~40 KB entry
-                    // for the life of the version cache. serveFallback matches ignoreSearch.
+                    // for the life of the version cache. findCachedFallback matches ignoreSearch.
                     const clone = response.clone();
                     openCache()
                         .then(c => c.put(url.origin + url.pathname, unredirect(clone)))
@@ -813,7 +810,7 @@ self.addEventListener("fetch", event => {
             return finishNetworkDoc(response);
         })().catch(() => fetch(event.request).catch(() => Response.error())));
         // Ultimate backstop: if ANYTHING in the doc branch rejects (a broken Cache Storage
-        // reaching serveFallback's own un-caught openCache().then chain), degrade to a plain
+        // reaching the fallback chain's own openCache().then chain), degrade to a plain
         // network fetch, then a network-error response — never a rejected navigation (v16.19).
 
         /** What a network answer for a document becomes. Shared by the two cache-miss paths above. */
@@ -828,8 +825,12 @@ self.addEventListener("fetch", event => {
             if (response && response.type === 'opaqueredirect') return response;
             // Navigation request returned 4xx/5xx (e.g. staff site is down) — serve cached
             // app so a notification tap still loads the app rather than GitHub's 404 page.
+            // A 4xx/5xx for a navigation: the cached app if there is one (a notification tap still
+            // opens the app when the site is down) — otherwise the SERVER'S answer, not an "Offline"
+            // page about a device that is online (24-hour review of v24.61).
             if (event.request.destination === 'document' && response && !response.ok) {
-                return serveFallback(`Navigation got ${response.status} — falling back to cache:`);
+                console.log(`[SW ${APP_VERSION}] Navigation got ${response.status} — falling back to cache:`, path);
+                return findCachedFallback().then(r => r || response);
             }
             return response;
         }
