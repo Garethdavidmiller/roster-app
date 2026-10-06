@@ -788,3 +788,19 @@ test('every page with a named sign-in follows it with guardNamedSession', () => 
             `${p.coordinator} never runs guardNamedSession for its own page`);
     }
 });
+
+// ── THE CONTENT STARTS BELOW THE iOS STATUS BAR, ON EVERY PAGE (v24.60) ──────────────────────────
+// `black-translucent` let the navy run up under the status bar, which recent iOS (reported on the
+// iPhone 18 Pro, installed app, Oct 2026) answers with a soft blur along the top edge — and the header
+// logo and title sat inside it, so every page's brand drew blurred. `black` makes iOS draw its own
+// solid bar and start the page beneath it, clear of the blur. One value on every served page that sets
+// it, because a page left on the old value is the one a member reports next.
+test('every page asks iOS for a SOLID status bar, never black-translucent', () => {
+    const pages = readdirSync(new URL('.', import.meta.url)).filter(f => f.endsWith('.html'));
+    const set = pages.filter(f => /apple-mobile-web-app-status-bar-style/.test(read(f)));
+    assert.ok(set.length >= 7, `only ${set.length} pages set a status bar style — the app pages are expected to`);
+    for (const f of set) {
+        const m = read(f).match(/apple-mobile-web-app-status-bar-style"\s+content="([^"]+)"/);
+        assert.equal(m?.[1], 'black', `${f}: status bar style is "${m?.[1]}" — black-translucent puts the header under iOS's top-edge blur`);
+    }
+});

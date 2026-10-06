@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: October 2026 — v24.50 · Updated every 0.10 version*
+*Last updated: October 2026 — v24.60 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 

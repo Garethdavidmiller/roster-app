@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: October 2026 — v24.50 · Updated every 0.10 version*
+*Last updated: October 2026 — v24.60 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -267,7 +267,12 @@ opposite consequences. `readyProvisional` (v23.70) separated them, and **the ans
 That is row one of the pre-registered table, so the identity diagnosis stands and `VAL-AUTH-006` stays
 closed. The path was kept by owner decision the same day, then **RETIRED on 26 Sep 2026** once it
 was shown to be wrong as well as rare — its cache read queues behind the very lookup it was meant to
-overtake (`DECISIONS.md` → "The provisional paint").
+overtake (`DECISIONS.md` → "The provisional paint"). **Its replacement SHIPPED at v24.59 (5 Oct 2026,
+owner decision):** an app-owned copy of the member's own months in plain storage, painted labelled
+before the lookup answers — the one shape that entry said could beat it (`CALENDAR_DATA.md` 17,
+`calendar-snapshot.js`). **What to read next:** whether a returning member's open now SHOWS a roster
+well inside a second. The App Speed card's milestones were built around the grant, so it measures the
+copy only indirectly; a direct milestone is the next instrument if the field reports stay mixed.
 
 The whole entry as it stood when the decision was taken — the field confirmation, the offline
 measurement, the two couplings and all three candidate answers — is in `ROADMAP_HISTORY.md`, moved
@@ -327,7 +332,7 @@ reason this section exists — so the next review's re-raises cost a link rather
 
 | The decision | Where it lives |
 |---|---|
-| Did the cached-roster fast path actually work? | **ANSWERED 19 Sep 2026 — it RARELY FIRES**: one open in roughly 800 eligible, row one of the pre-registered table, so the identity diagnosis stands. Kept by owner decision the same day, then **RETIRED 26 Sep 2026** (it could not beat Auth start-up, and shipped two defects). `LATENCY.md` → THE CLOSING READ · `DECISIONS.md` → "The provisional paint" |
+| Did the cached-roster fast path actually work? | **ANSWERED 19 Sep 2026 — it RARELY FIRES**: one open in roughly 800 eligible, row one of the pre-registered table, so the identity diagnosis stands. Kept by owner decision the same day, then **RETIRED 26 Sep 2026** (it could not beat Auth start-up, and shipped two defects); replaced at v24.59 by the own-roster copy, which does not wait on Auth. `LATENCY.md` → THE CLOSING READ · `DECISIONS.md` → "The provisional paint" |
 | Is the service-worker revalidation storm costing staff anything? | **ANSWERED — no**, 12 Sep 2026. A full sweep (31+ files) was running on 78% of Calendar opens, and the card's own test is whether those boots are slower: **Worker busy 78% over a second against Shifts shown 78%.** Identical. The storm is real and costs the member nothing measurable. `LATENCY.md` → THE FULL-MONTH READ → item 4 |
 | Move staff off the Pages mirror onto `myb-roster.web.app` | **NEW — no home before this row.** `web.app` is already canonical and the notification target (v14.29); what is undecided is moving the staff who still open the mirror. KNOWN_LIMITATIONS measures the mirror's 21% byte penalty; nothing recorded the decision that measurement prices. It is the one change with two payoffs — fewer bytes on every cold load, and headers and redirects reaching the half of the staff that has neither. The cost is operational, not technical: telling colleagues and reinstalling from the canonical URL (see Address migration campaign) |
 | Pay Calculator progressive disclosure on phones | **ALREADY DECLINED**, 3 Sep 2026 — see DECISIONS.md → "Pay Calculator — "More pay tools" grouping on phones — DECLINED", which took the same proposal through four drafts and a measured prototype. The review restates the observation the prototype answered (the page is long on a phone) and brings no new evidence, so the recorded trigger stands: **a staff report about the tail of the page**, which does not exist. Do not add instrumentation to test it |
