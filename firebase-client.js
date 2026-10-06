@@ -828,7 +828,7 @@ export async function getResetRequests() {
  * @returns {Promise<void>}
  */
 export async function clearResetRequest(memberName) {
-    await withClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.resetRequests, memberName)));
+    await writeWithClaimRetry(() => deleteDoc(doc(db, COLLECTIONS.resetRequests, memberName)));
 }
 
 // ---- Client Error Reporting ----
