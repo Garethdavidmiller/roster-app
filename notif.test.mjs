@@ -156,6 +156,17 @@ describe('getNotifState', () => {
         assert.equal(await getNotifState(), 'on');
         assert.equal(_saveCalls, 1, 'throttled — no second re-save within ~24h');
     });
+    test('a subscription the push service ROTATED is re-saved at once, inside the throttle window (v24.61, iOS audit B4)', async () => {
+        setupEnv({ permission: 'granted', hasSub: true, endpoint: 'https://web.push.apple.com/renewed' });
+        _ls.set('myb_vapid_ver', 'BDycpNlvciF7');
+        _ls.set('myb_push_resave_at', String(Date.now()));                  // saved ten minutes ago…
+        _ls.set('myb_push_saved_endpoint', 'https://web.push.apple.com/old'); // …but for a different endpoint
+        assert.equal(await getNotifState(), 'on');
+        assert.equal(_saveCalls, 1, 'the server record named a dead endpoint — the throttle must not hold the fix');
+        assert.equal(_ls.get('myb_push_saved_endpoint'), 'https://web.push.apple.com/renewed', 'and the new endpoint is remembered');
+        assert.equal(await getNotifState(), 'on');
+        assert.equal(_saveCalls, 1, 'same endpoint, inside the window: throttled again');
+    });
     test('VAPID rotation: stale fingerprint unsubscribes the old sub and re-subscribes', async () => {
         const { sub } = setupEnv({ permission: 'granted', hasSub: true });
         _ls.set('myb_vapid_ver', 'STALE_FINGER'); // != current → rotation path

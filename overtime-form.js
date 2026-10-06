@@ -36,7 +36,7 @@
 import * as OTD from './overtime-data.js';
 import { confirmDialog } from './overlay.js';
 import { loadRosterContext, rosterBadge } from './overtime-roster.js';
-import { isClockTime } from './override-utils.js';
+import { isClockTime } from './clock-input.js';
 import { escapeHtml as esc } from './roster-data.js';   // the ONE escaper (was a local copy)
 import {
     weekLabel, weekSpan, shortDate, answerCopy, answerTone, deadlineLines, phaseChip, phaseTone,
@@ -168,7 +168,8 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      * changed is what the head should SAY; rebuilding the form to update a sentence threw away
      * everything the member had typed. See `wireDeadlineResync` in overtime-app.js.
      */
-    return { isDirty, setPhase };
+    // `isSubmitting` (v24.61): a release's reload must not land while the send is in flight.
+    return { isDirty, setPhase, isSubmitting: () => submitting };
 
     // ── Render ──────────────────────────────────────────────────────────────────────────────────
 

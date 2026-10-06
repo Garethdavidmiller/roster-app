@@ -55,8 +55,29 @@ function _feedAuth(event) {
  *  (the `ENFORCE_NAMED_SESSION` switch that could restore one was retired v24.34), so the store's
  *  `ANONYMOUS` and `FATAL` events have no producer here. */
 function _syncAuthTerminal(/** @type {string} */ name) {
-    if (getFirebaseIdentity() === 'named') _feedAuth({ type: 'NAMED', member: name });
-    else                                   _feedAuth({ type: 'NONE', error: getFirebaseAuthError() ?? null });
+    const ev = terminalAuthEvent({ named: getFirebaseIdentity() === 'named', stalled: _authStartStalled, error: getFirebaseAuthError() ?? null });
+    _feedAuth(ev.type === 'NAMED' ? { ...ev, member: name } : ev);
+}
+
+/**
+ * The store event a resolved sign-in ends on. Pure, so the one rule in it can be pinned:
+ *
+ * A STALLED START-UP IS NOT A SIGN-OUT (v24.61, iOS audit B1). When Firebase Auth's own start-up
+ * outruns `AUTH_READY_TIMEOUT_MS` — a hanging connection at the station, a captive portal, iOS
+ * waking the app on a dead radio — nothing is known about the member either way. Until v24.61 that
+ * fed `NONE`, the store read `signedOut`, the page policy said `login`, and `page-session.js`
+ * cleared the 60-day local session and queued a Firebase sign-out before showing the overlay: a
+ * slow network signed people out. `TRANSIENT` reads as `degraded` and the policy as `pending`, so
+ * the page keeps the session, shows its sign-in WITHOUT clearing, and reloads into the identity if
+ * it lands late — the Calendar's shape. A genuine refusal (wrong password, no account, a disabled
+ * login) is still `NONE`.
+ * @param {{ named: boolean, stalled: boolean, error: string|null }} r
+ * @returns {{ type: 'NAMED' } | { type: 'TRANSIENT', error: string } | { type: 'NONE', error: string|null }}
+ */
+export function terminalAuthEvent({ named, stalled, error }) {
+    if (named)   return { type: 'NAMED' };
+    if (stalled) return { type: 'TRANSIENT', error: error ?? 'auth/timeout' };
+    return { type: 'NONE', error };
 }
 
 export const AUTH_KEY    = 'myb_admin_session';

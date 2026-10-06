@@ -6251,6 +6251,22 @@ test('links window: an invalid finish is refused, never coerced', async ({ page 
     await expect(page.locator('#winStatus')).toContainText('after its start');
 });
 
+test('links window: a time typed without a colon is shaped into one, so a phone keypad can fill the box', async ({ page }) => {
+    // A numeric keypad has no colon (v24.61, iOS audit). Before this, "1420" typed on an iPhone was
+    // refused as not a time and the box reverted — the window could not be edited from a phone at all.
+    await openWindowDesign(page);
+    const before = await page.locator('.cov-heat-cell.heat-gap').count();
+    const end = page.locator('#winMonSatEnd');
+    await end.fill('');
+    await end.pressSequentially('1420');
+    await expect(end).toHaveValue('14:20');
+    // Focus LEAVES the box, as a thumb's does — no synthetic `change`. A programmatic value set
+    // resets WebKit's change baseline, so the commit has to run on blur too (24-hour review).
+    await page.keyboard.press('Tab');
+    await expect(end).toHaveValue('14:20');                            // accepted, not reverted
+    await expect.poll(() => page.locator('.cov-heat-cell.heat-gap').count()).toBeLessThan(before);
+});
+
 test('links window: compare states BOTH windows and flags that they differ', async ({ page }) => {
     // Compare diffs CELLS, so without this two designs built to different spans would read as like
     // for like — the per-design window becoming a way to make an unfair comparison look fair.
@@ -7549,6 +7565,26 @@ test('operations: an unreadable cell can be answered in the review, and the entr
     expect(written[0].value).toBe('06:00-14:00');
     expect(written[0].type).toBe('shift');
     expect(written[0].source).toBe('roster_import');
+});
+
+test('operations: entry times typed without a colon are shaped into real times and written', async ({ page }) => {
+    // The same keypad problem as the Links window: `manualCellValue` demands HH:MM, and a phone's
+    // numeric keypad cannot type the colon, so "0600" left the cell at "Enter both times" for ever.
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const row = page.locator('.roster-change-row', { hasText: 'XZ9 GARBLED' });
+    await row.locator('.roster-choice-btn--enter').click();
+    await row.locator('.roster-entry-pill', { hasText: 'Shift' }).click();
+    await row.locator('.roster-entry-time[data-part="from"]').pressSequentially('0600');
+    await expect(row.locator('.roster-entry-time[data-part="from"]')).toHaveValue('06:00');
+    await row.locator('.roster-entry-time[data-part="to"]').pressSequentially('1400');
+    await expect(row.locator('.roster-entry-time[data-part="to"]')).toHaveValue('14:00');
+    await expect(row.locator('.roster-entry-hint')).toContainText('will be saved');
+    await page.locator('#rosterApplyBtn').click();
+    await page.waitForTimeout(700);
+    const written = await page.evaluate(() =>
+        (/** @type {any} */ (window).__E2E?.batchWrites || []).filter(/** @param {any} w */ w => w.date === '2026-08-05'));
+    expect(written.map(/** @param {any} w */ w => w.value)).toEqual(['06:00-14:00']);
 });
 
 test('operations: an entered RDW is written as RDW, not as an ordinary shift', async ({ page }) => {

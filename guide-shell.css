@@ -132,6 +132,33 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
     outline-offset: 2px;
 }
 
+/* ── "Printing isn’t available here" (v24.61, iOS 27 audit A1) ────────────────────────────────
+   Shown by guide-print.js under the header when ⤓ PDF is tapped in a home-screen app on iOS 27,
+   where window.print() silently does nothing. An inline status line rather than a dialog because
+   the guides load no overlay machinery; the button is the one tap that fixes it. */
+.print-unavailable {
+    margin: 0;
+    padding: 12px max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
+    background: var(--info-bg);
+    color: var(--navy);
+    font-size: 14px;
+    line-height: 1.45;
+    border-bottom: 1px solid rgba(0, 30, 60, 0.12);
+}
+.print-unavailable-open {
+    font: inherit;
+    font-weight: 600;
+    color: var(--white);
+    background: var(--navy);
+    border: 0;
+    border-radius: 6px;
+    padding: 6px 12px;
+    margin-left: 6px;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.print-unavailable-open:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
 /* ── Footer back link (shared, polish round 2) ──────────────────────────────────────────────────
    The last thing on the railcard, rangers and FIP guides: "← Back to calendar", pointing at `./`
    like the header arrow (CLAUDE.md → "Guide pages back button → the app root"). It was three
@@ -254,7 +281,7 @@ html { color-scheme: only light; -webkit-text-size-adjust: 100%; text-size-adjus
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
-    .btn-back, .btn-pdf, .chip-bar, .guide-back-link { display: none !important; }
+    .btn-back, .btn-pdf, .chip-bar, .guide-back-link, .print-unavailable { display: none !important; }
 }
 
 /* Scrollbars in the app's idiom (v23.50) — the same thin, trackless bar shared.css gives the app

@@ -26,11 +26,12 @@ import { resolveUploadCommit } from './upload-commit.js';
 const PDF_BYTES  = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2D, 0x31]);
 const DOCX_BYTES = new Uint8Array([0x50, 0x4B, 0x03, 0x04, 0x14, 0x00]);
 
-/** A minimal stand-in for a browser File: only `slice(...).arrayBuffer()` and `name` are read. */
+/** A minimal stand-in for a browser File: `slice(...).arrayBuffer()`, `arrayBuffer()` and `name` are read. */
 function fakeFile(bytes, name = 'x.pdf', type = 'application/pdf') {
     return {
         name, type,
         slice: (a, b) => ({ arrayBuffer: async () => bytes.slice(a, b).buffer }),
+        arrayBuffer: async () => bytes.buffer,
     };
 }
 
@@ -43,6 +44,8 @@ function harness(opts = {}) {
     const objects = new Set(opts.objects || []);   // storage paths that exist
     const deleted = [];
     const uploaded = [];
+    /** what each upload was handed — a Blob copy, never the picked File (v24.61) */
+    const uploadedBodies = [];
     const log = [];
     let setDocCalls = 0;
 
@@ -117,7 +120,7 @@ function harness(opts = {}) {
     const storageSdk = {
         storage: {},
         ref: (_s, path) => ({ path }),
-        uploadBytes: async (r) => { objects.add(r.path); uploaded.push(r.path); },
+        uploadBytes: async (r, data) => { objects.add(r.path); uploaded.push(r.path); uploadedBodies.push(data); },
         getDownloadURL: async (r) => `https://example.invalid/${r.path}`,
         deleteObject: async (r) => { objects.delete(r.path); deleted.push(r.path); },
     };
@@ -145,7 +148,7 @@ function harness(opts = {}) {
         ...(opts.guardCommit ? { guardCommit: opts.guardCommit } : {}),
     });
 
-    return { client, store, objects, deleted, uploaded, log, setDocCalls: () => setDocCalls };
+    return { client, store, objects, deleted, uploaded, uploadedBodies, log, setDocCalls: () => setDocCalls };
 }
 
 describe('a live document must never point at a file that is not there', () => {
@@ -153,6 +156,10 @@ describe('a live document must never point at a file that is not there', () => {
     test('the happy path writes the file, then the document that names it', async () => {
         const h = harness();
         const url = await h.client.uploadHuddle('2026-09-01', fakeFile(PDF_BYTES), 'G. Miller');
+        assert.equal(h.uploadedBodies.length, 1);
+        assert.ok(h.uploadedBodies[0] instanceof Blob, 'Storage is handed an in-memory Blob, not the picked File (iOS 26.5–27 sends a File body empty — WebKit 319985)');
+        assert.deepEqual(new Uint8Array(await h.uploadedBodies[0].arrayBuffer()), PDF_BYTES, 'and it carries the file\'s bytes');
+        assert.equal(h.uploadedBodies[0].type, 'application/pdf');
         const live = h.store.get('huddles/2026-09-01');
         assert.equal(h.uploaded.length, 1, 'exactly one object uploaded');
         assert.ok(h.objects.has(live.storagePath), 'the document names a file that exists');

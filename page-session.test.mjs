@@ -20,10 +20,11 @@ let decision = 'allow';
 /** @type {{ uid: string }|null} */ let currentUser = { uid: 'u1' };
 let confirmAnswer = true;
 /** @type {any} */ let watchArgs = null;
+/** @type {any} */ let authCb = null;
 
 mock.module('./firebase-client.js', { namedExports: {
     auth: { get currentUser() { return currentUser; } },
-    onAuthStateChanged: () => () => {},
+    onAuthStateChanged: (/** @type {any} */ _a, /** @type {any} */ cb) => { log.push('authWatch'); authCb = cb; return () => log.push('authUnwatch'); },
 } });
 mock.module('./session.js', { namedExports: {
     AUTH_KEY: 'myb_admin_session',
@@ -40,6 +41,9 @@ mock.module('./overlay.js', { namedExports: { confirmDialog: async (/** @type {a
 mock.module('./slow-save.js', { namedExports: { writesInFlight: () => inFlight } });
 mock.module('./login-overlay.js', { namedExports: { initLoginOverlay: (/** @type {any} */ o) => log.push(`login:${o.pageLabel}`) } });
 
+/** sessionStorage for the late-identity reload cap. @type {Map<string,string>} */
+const ss = new Map();
+global.sessionStorage = /** @type {any} */ ({ getItem: (/** @type {string} */ k) => ss.get(k) ?? null, setItem: (/** @type {string} */ k, /** @type {string} */ v) => { ss.set(k, String(v)); } });
 /** A window that records listeners and navigation. @type {Record<string, Function[]>} */
 let listeners = {};
 global.window = /** @type {any} */ ({
@@ -53,7 +57,7 @@ const ps = await import('./page-session.js');
 /** Let the on-demand import of the sign-in land (a dynamic import takes more than one tick). */
 const settle = () => new Promise(r => setTimeout(r, 50));
 
-beforeEach(() => { inFlight = 0; lastConfirm = ''; log = []; session = { name: 'A. Member' }; decision = 'allow'; currentUser = { uid: 'u1' }; confirmAnswer = true; watchArgs = null; });
+beforeEach(() => { ss.clear(); authCb = null; inFlight = 0; lastConfirm = ''; log = []; session = { name: 'A. Member' }; decision = 'allow'; currentUser = { uid: 'u1' }; confirmAnswer = true; watchArgs = null; });
 
 describe('guardNamedSession', () => {
     test('an unconfirmed own session: clear, tear down the drawer, THEN the sign-in — and no watch', async () => {
@@ -76,6 +80,47 @@ describe('guardNamedSession', () => {
         watchArgs.onLost();
         await settle();
         assert.deepEqual(log, ['clearSession', 'resetNavPanel', 'login:Overtime']);
+    });
+
+    test('a session that could not be DECIDED (a stalled start-up) is kept: the sign-in shows over it, nothing is cleared', async () => {
+        decision = 'pending';
+        await ps.guardNamedSession({ page: 'settings', pageLabel: 'Settings', member: 'A. Member', established: Promise.resolve(false) });
+        await settle();
+        assert.deepEqual(log, ['requirePage:settings', 'authWatch', 'login:Settings'],
+            'no clearSession, no resetNavPanel — a slow network is not a sign-out');
+        assert.deepEqual(session, { name: 'A. Member' }, 'the 60-day session survives the stall');
+    });
+
+    test('…and when THIS member\'s identity lands late, the page reloads into it; anybody else\'s does not', async () => {
+        decision = 'pending';
+        await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: false });
+        await settle();
+        log = [];
+        authCb(null);
+        authCb({ isAnonymous: true, email: null });
+        authCb({ isAnonymous: false, email: 'someone.else@example.test' });
+        assert.deepEqual(log, [], 'nobody, the shared viewer and a colleague are all not this page\'s member');
+        const { nameToEmail } = await import('./auth-identity.js');
+        authCb({ isAnonymous: false, email: nameToEmail('A. Member') });
+        assert.deepEqual(log, ['authUnwatch', 'reload'], 'the identity the page belongs to: stop watching, reload into it');
+    });
+
+    test('…but only ONCE per two minutes: a second late landing leaves the sign-in up rather than looping (24-hour review)', async () => {
+        decision = 'pending';
+        const { nameToEmail } = await import('./auth-identity.js');
+        const me = { isAnonymous: false, email: nameToEmail('A. Member') };
+        await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: false });
+        await settle();
+        log = [];
+        authCb(me);
+        assert.deepEqual(log, ['authUnwatch', 'reload'], 'the first landing reloads');
+        // The same tab, loaded again seconds later into the same stall, with the same late landing.
+        await ps.guardNamedSession({ page: 'links', pageLabel: 'Links', member: 'A. Member', established: false });
+        await settle();
+        log = [];
+        authCb(me);
+        assert.deepEqual(log, ['authUnwatch'], 'no second reload inside the window — the overlay stays, and can sign them in');
+        assert.equal(ps.lateReloadAllowed(Date.now() + ps.LATE_RELOAD_GAP_MS + 1), true, 'and the cap lifts after the gap');
     });
 
     test('a page with its own sign-in (Admin) gets that, not the shared one', async () => {

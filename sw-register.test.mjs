@@ -20,7 +20,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { registerServiceWorker, reloadWhileHidden, lazyImport, _resetForTest } = await import('./sw-register.js');
+const { registerServiceWorker, reloadWhileHidden, reloadWhenNotBusy, lazyImport, _resetForTest } = await import('./sw-register.js');
 import { readFileSync } from 'node:fs';
 
 const _realSetInterval   = globalThis.setInterval;
@@ -72,6 +72,9 @@ function makeHarness({ controlled = false, waiting = false, hasRegistration = co
     globalThis.document = /** @type {any} */ ({
         addEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => {
             (docListeners[t] = docListeners[t] || []).push(fn);
+        },
+        removeEventListener: (/** @type {string} */ t, /** @type {Function} */ fn) => {
+            docListeners[t] = (docListeners[t] || []).filter(f => f !== fn);
         },
         hidden: false,
         visibilityState: 'visible',
@@ -455,6 +458,48 @@ describe('the update-reload marker', () => {
 // An update that claimed a FROZEN background page ran its controllerchange on resume while still
 // hidden, so `deferWhileVisible` let it through; the Calendar's 500ms timer then reloaded the page a
 // moment after the member was looking at it, and the viewer had already taken `#huddle` off the URL.
+describe('reloadWhenNotBusy — a release waits for the work, and asks again when it would reload (v24.61)', () => {
+    test('idle: it reloads at once', () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            reloadWhenNotBusy(() => false);
+            assert.equal(h.state.reloads, 1);
+        } finally { h.restore(); }
+    });
+
+    test('busy: it waits for a hide on which the work has FINISHED — a hide mid-write is not the one', () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            let busy = true;
+            reloadWhenNotBusy(() => busy);
+            assert.equal(h.state.reloads, 0, 'a save on its way is never reloaded under');
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 0, 'still busy when hidden: the Operations {once:true} defect would have reloaded here');
+            h.setVisibility('visible');
+            busy = false;
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'the next hide with the work done');
+            h.setVisibility('visible'); h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'and the listener is spent, not left behind');
+            assert.equal((h.docListeners['visibilitychange'] || []).length, 0);
+        } finally { h.restore(); }
+    });
+
+    test('two releases during one busy spell arm ONE reload, not two (24-hour review)', () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            _resetForTest();
+            let busy = true;
+            reloadWhenNotBusy(() => busy);
+            reloadWhenNotBusy(() => busy);
+            assert.equal((h.docListeners['visibilitychange'] || []).length, 1, 'one listener for both');
+            busy = false;
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'one reload serves both updates');
+        } finally { h.restore(); _resetForTest(); }
+    });
+});
+
 describe('reloadWhileHidden — decided when the reload happens, not when the update arrived', () => {
     test('hidden: it reloads at once', () => {
         const h = makeHarness({ hasRegistration: true, controlled: true });

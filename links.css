@@ -237,7 +237,13 @@ body.auth-ready .container { display: grid; }
    line 24 reaches its full height unobstructed at a different scroll position (measured), so nothing
    is permanently unreadable and no bottom padding is warranted. Adding one would open a visible gap
    above the bar at rest to fix a problem that resolves itself by scrolling. Do not "fix" this; do
-   not restore the guarantee either. */
+   not restore the guarantee either.
+
+   THE BOTTOM INSET IS NOT THAT PADDING (v24.61, iOS audit). On an iPhone the bar pinned at `bottom: 0`
+   sat behind Safari's floating tab bar and, installed, in the home-indicator gesture zone — the Save
+   button under glass. `env(safe-area-inset-bottom)` is the height of what obstructs it and is 0 on
+   every desktop, so the "visible gap at rest" the paragraph above warns of never opens where the
+   argument was made; it opens only where the bar was otherwise unreachable. */
 .links-save-row {
     position: sticky;
     bottom: 0;
@@ -247,7 +253,7 @@ body.auth-ready .container { display: grid; }
     align-items: center;
     flex-wrap: wrap;
     gap: 12px;
-    padding: 10px 0 2px;
+    padding: 10px 0 max(2px, env(safe-area-inset-bottom));
     background: var(--surface);
     box-shadow: 0 -8px 12px -8px rgb(0 0 0 / 0.12);
 }

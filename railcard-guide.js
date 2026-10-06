@@ -1,9 +1,7 @@
 // @ts-check
 // Railcard Guide — interactive behaviours
-// Print / Save as PDF button
-document.getElementById('savePdfBtn')?.addEventListener('click', function () {
-    window.print();
-});
+// The Print / Save as PDF button is wired by the shared guide-print.js (a module since v24.61 — it
+// is where the iOS home-screen print guard lives, so no guide may keep a private copy).
 
 // Chip-bar navigation: click a chip → smooth-scroll to the target section
 document.querySelector('.chip-bar')?.addEventListener('click', function (e) {

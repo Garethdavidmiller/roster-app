@@ -177,9 +177,17 @@ export function buildDocumentClient({
         const newStoragePath = versionedDocPath(collectionName, date, uploadId, fileType);
         const storageRef = ref(storage, newStoragePath);
 
+        // AN IN-MEMORY COPY, NEVER THE PICKED FILE (v24.61, iOS audit). On iOS 26.5 through 27 a File
+        // from a file picker, sent as a request body from a page a service worker controls, arrives
+        // with Content-Length: 0 (WebKit bug 319985, confirmed on iOS 27; fix not in any release) — and
+        // Storage uploads over XHR from exactly such a page. Reading the bytes first sidesteps it; the
+        // roster PDF was never exposed because it travels as base64 JSON. The signature check above has
+        // already proved the first bytes readable, so a read that fails here is a genuinely unreadable
+        // file and surfaces as the upload failing, as it should.
+        const body = new Blob([await file.arrayBuffer()], { type: mimeType });
         let storageUrl;
         try {
-            await uploadBytesWithClaimRetry(uploadBytes, storageRef, file, { contentType: mimeType });
+            await uploadBytesWithClaimRetry(uploadBytes, storageRef, body, { contentType: mimeType });
             storageUrl = await getDownloadURL(storageRef);  // permanent tokenised URL — never expires
             /** @type {Record<string, any>} */
             const firestoreDoc = {

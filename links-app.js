@@ -51,6 +51,8 @@ import { PROPOSALS, isProposalId, proposalById, proposalCopyName } from './links
 import { createTargetPanel } from './links-generator-targets.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
+import { formatClockInput } from './clock-input.js';
+import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
 import { baselineFromEntry } from './links-concurrency.js';
@@ -355,6 +357,19 @@ export function init() {
         const status = document.getElementById('winStatus');
         const moved  = /** @type {HTMLElement|null} */ (document.getElementById('winMoved'));
         const reset  = document.getElementById('winReset');
+        // The boxes are a numeric keypad on a phone, and that keypad has no colon (v24.61, iOS audit):
+        // "0730" typed there was reverted as not a time. Shape it as it is typed, as the admin week
+        // grid does; `commit` below still canonicalises and validates what is finally there.
+        // AND COMMIT ON BLUR AS WELL AS CHANGE (24-hour review of v24.61). Setting `.value` from the
+        // `input` handler resets WebKit's change-detection baseline — the week grid measured this
+        // (admin-week-editor.js) — so on an iPhone `change` could never fire when focus left, and the
+        // shaped time sat in the box without ever reaching the design. `commit` is idempotent.
+        for (const row of /** @type {const} */ (['monSat', 'sun'])) {
+            for (const el of [els[row].start, els[row].end]) {
+                el?.addEventListener('input', () => { el.value = formatClockInput(el.value); });
+                el?.addEventListener('blur', () => commit(row));
+            }
+        }
 
         function paint() {
             if (!box) return;
@@ -1747,8 +1762,10 @@ export function init() {
     // not safe on the engine half this station reads on. The preparation is still shared, not
     // duplicated: both routes call the one function, and it is idempotent.
     document.getElementById('linksPrintBtn')?.addEventListener('click', () => {
-        _preparePrint();
-        window.print();
+        // Guarded (v24.61): in a home-screen app on iOS 27 `window.print()` does nothing, so the tap
+        // explains and offers Safari. Prepare only when a print will follow — the preparation's
+        // restore waits on events a print that never happens would never send.
+        printOrExplain({ print: () => { _preparePrint(); window.print(); }, explain: () => explainNoPrint(confirmDialog) });
     });
 
     let _reopenAfterPrint = /** @type {HTMLDetailsElement[]} */ ([]);

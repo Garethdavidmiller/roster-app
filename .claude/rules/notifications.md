@@ -118,6 +118,17 @@ provider the list has not met, and **a new browser's push service must be added 
 users silently stop receiving notifications. The guard is at the SEND, so it also covers records
 stored before it existed.
 
+## When the push service rotates a subscription (v24.61)
+
+iOS retires a push endpoint on its own schedule and tells the SERVICE WORKER alone, through
+`pushsubscriptionchange`; the pages are not running. Before v24.61 nothing listened: the server kept
+the dead endpoint, the next send got a 410 and deleted it, and the device's bell read "off" at its
+next check with nobody having turned anything off. The worker now re-subscribes with the key the old
+subscription carried (it holds no copy of the VAPID key — `notif.js` and `functions/index.js` stay the
+two that must agree), and `notif.js` remembers the endpoint it last saved (`myb_push_saved_endpoint`)
+and re-saves the record at once when the live one differs, outside its 24-hour throttle. A browser
+that hands over neither a renewal nor the old key is left as before: the next check reads the lapse.
+
 ## Voice & tone
 
 - **Calm and factual.** A roster tool earns trust by being quiet and reliable, not by

@@ -1367,3 +1367,18 @@ describe('shedCalendarViewer — fail closed, or the shared viewer goes long-liv
         assert.deepEqual(_persistenceRestores, []);
     });
 });
+
+const { terminalAuthEvent } = await import('./session.js');
+describe('terminalAuthEvent — a stalled start-up is TRANSIENT, not a sign-out (v24.61, iOS audit B1)', () => {
+    test('a named identity is NAMED', () => {
+        assert.deepEqual(terminalAuthEvent({ named: true, stalled: false, error: null }), { type: 'NAMED' });
+    });
+    test('Firebase\'s start-up outrunning its bound is TRANSIENT → degraded → pending: the page keeps the session', () => {
+        assert.deepEqual(terminalAuthEvent({ named: false, stalled: true, error: 'auth/timeout' }), { type: 'TRANSIENT', error: 'auth/timeout' });
+        assert.deepEqual(terminalAuthEvent({ named: false, stalled: true, error: null }), { type: 'TRANSIENT', error: 'auth/timeout' }, 'a stall with no recorded code is still named as one');
+    });
+    test('a genuine refusal is NONE, with its code — that one does sign out', () => {
+        assert.deepEqual(terminalAuthEvent({ named: false, stalled: false, error: 'auth/invalid-credential' }), { type: 'NONE', error: 'auth/invalid-credential' });
+        assert.deepEqual(terminalAuthEvent({ named: false, stalled: false, error: null }), { type: 'NONE', error: null });
+    });
+});

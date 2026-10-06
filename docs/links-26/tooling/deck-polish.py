@@ -64,21 +64,16 @@ def grid_facts(grid):
     for k in range(1, L + 1):
         ts = [p[str(k)][d] for d in DAYS]
         kinds[k] = 'C' if all(t == 'SPARE' for t in ts) else (lambda f: f.pop() if len(f) == 1 else 'M')(set(fam(t) for t in ts if timed(t)))
-    # the longest run of weeks in one family, and whether every change of family happens across a cover week
-    best = (0, None); run = 0; prev = None
-    for k in list(range(1, L + 1)) * 2:
-        f = kinds[k]
-        if f in ('E', 'L') and f == prev: run += 1
-        else: run = 1 if f in ('E', 'L') else 0
-        prev = f if f in ('E', 'L') else (prev if f == 'C' else None)
-        if run > best[0]: best = (min(run, L), f)
+    # whether every change of family happens across a cover week. (The longest run of one family is
+    # NOT computed here any more: blocks.mjs owns that figure, read in through F["block"]/F["blockUpTo"],
+    # and a third definition that disagreed with both of its two was removed in the 24-hour review.)
     switches_across_cover = True; last = None
     for k in range(1, L + 1):
         f = kinds[k]
         if f == 'C': last = None; continue
         if last and f != last and f in ('E', 'L'): switches_across_cover = False
         if f in ('E', 'L'): last = f
-    return {'L': L, 'kinds': kinds, 'longest': best, 'switches_across_cover': switches_across_cover, 'mixed': sum(1 for v in kinds.values() if v == 'M')}
+    return {'L': L, 'kinds': kinds, 'switches_across_cover': switches_across_cover, 'mixed': sum(1 for v in kinds.values() if v == 'M')}
 
 def strip_slide(d, name, grid, F):
     """Slide 10: the 26 weeks as a strip (rota-strip.mjs), in place of the three prose cards."""
@@ -103,8 +98,7 @@ def strip_slide(d, name, grid, F):
     body = x
     for m, k in reversed(list(zip(sp, keep))):
         if not k: body = body[:m.start()] + body[m.end():]
-    facts = grid_facts(grid); L = facts['L']; n, f = facts['longest']
-    famword = {'E': 'earlies', 'L': 'lates'}[f]
+    facts = grid_facts(grid); L = facts['L']
     pic = ('<p:pic><p:nvPicPr><p:cNvPr id="990" name="Rota strip" descr="The 26 weeks of the link"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>'
            '<p:blipFill><a:blip r:embed="rIdStrip"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>'
            f'<p:spPr><a:xfrm><a:off x="457200" y="1371600"/><a:ext cx="8229600" cy="{cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>')
@@ -115,9 +109,12 @@ def strip_slide(d, name, grid, F):
     s = Slide(p)
     put(s, 'Earlies, lates and Sundays', 'Your 26 weeks at a glance')
     put(s, 'The balance you have now stays much the same', 'The green bars are the full weekends off; where you start is decided later')
-    put(s, 'Much the same balance. Sundays stay overtime and still finish at 23:25.', f'{F["weekendsYear"]} full weekends off a year, at most five weeks apart; blocks of earlies or lates up to {F["block"]} weeks, {F["blockUpTo"]} if the cover weeks go the same way{", and every switch from one kind to the other crosses a cover week" if facts["switches_across_cover"] else ""}.')
+    upto_banner = f', {F["blockUpTo"]} if the cover weeks go the same way' if int(F["blockUpTo"]) > int(F["block"]) else ''
+    put(s, 'Much the same balance. Sundays stay overtime and still finish at 23:25.', f'{F["weekendsYear"]} full weekends off a year, at most five weeks apart; blocks of earlies or lates up to {F["block"]} weeks{upto_banner}{", and every switch from one kind to the other crosses a cover week" if facts["switches_across_cover"] else ""}.')
     s.save()
-    notes_after_10 = f'A block is weeks in a row all on earlies or all on lates. On the fixed rota the longest is {F["block"]} weeks (today {T["block"]}); because a cover week’s duties are placed later, a block can run to {F["blockUpTo"]} if the cover weeks beside it are given the same kind (today {T["blockUpTo"]}). Fewer switches between earlies and lates, but someone who prefers one kind waits longer for it to come round.'
+    upto = (f'; because a cover week’s duties are placed later, a block can run to {F["blockUpTo"]} if the cover weeks beside it are given the same kind (today {T["blockUpTo"]})'
+            if int(F["blockUpTo"]) > int(F["block"]) else '; the cover weeks cannot lengthen it')
+    notes_after_10 = f'A block is weeks in a row all on earlies or all on lates. On the fixed rota the longest is {F["block"]} weeks (today {T["block"]}){upto}. Fewer switches between earlies and lates, but someone who prefers one kind waits longer for it to come round.'
     snd.notes(d, 10, 'Earlies here means', f'Read the strip left to right; week 27 is week 1 again. A cover week has no fixed shifts of its own — its four duties are placed later to cover leave and sickness, which is why it is drawn empty. Earlies here means a start before 11:00. A weekday has 7 earlies and 8 lates; a Saturday 7 and 7; a Sunday 5 and 5. Sundays stay overtime, {F["sun"]} a year each (today {T["sun"]}), and still finish at 23:25. Who starts on which week is decided after the link is chosen.')
     notes_append(d, 10, notes_after_10)
 

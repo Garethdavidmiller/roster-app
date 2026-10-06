@@ -429,7 +429,8 @@ countryCards.forEach(function (card) {
         card.classList.add(PRINT_COUNTRY_MARK);
         document.body.setAttribute('data-print-country', card.id);
         expandAllForPrint();
-        window.print();
+        // No `window.print()` here since v24.61: guide-print.js's delegated handler prints (or, in a
+        // home-screen app on iOS 27, explains why it cannot) once this handler has prepared the page.
     });
     body.appendChild(btn);
 });

@@ -22,14 +22,14 @@ import { summarise, shouldOpen } from './settings-status.js';
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
-import { withSlowSaveNotice } from './slow-save.js';
+import { withSlowSaveNotice, writesInFlight } from './slow-save.js';
 import { inventoryOf } from './paycalc-inventory.js';
 import { selectBackupKeys } from './paycalc-transfer.js';
 import { pcPrefix, setPaycalcNamespace } from './paycalc-migrations.js';
 import { lsKeys } from './ls.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
-import { registerServiceWorker } from './sw-register.js';
+import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce, withTimeout, settleOrTimeout } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
@@ -42,6 +42,10 @@ import { recordPageLatency, markPageReady } from './perf-reporter.js';
  * of the five write coordinators to get this seam, v17.09). Body unchanged — same statements,
  * same order, one indent level in.
  */
+/** True from a password save's first write until its outcome is known — the two writes (re-auth,
+ *  then the update) must never have a release's reload land between them (v24.61, iOS audit B2). */
+let _passwordSaving = false;
+
 export function init() {
     reloadIfRestoredForSomeoneElse();
     // Listen for the browser's install offer NOW, before the sign-in wait (Sep 2026 review):
@@ -174,7 +178,9 @@ export function init() {
     // overlay is up, and BOTH are a page the member can act on. Marking only the signed-in branch
     // would silently exclude every first visit, which is the slowest one there is.
     markPageReady();
-    registerServiceWorker();
+    // Hold a release's reload while a save is on its way (v24.61): the contact card's writes are
+    // counted by slow-save, the password card's two-step write by the flag above.
+    registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(() => writesInFlight() > 0 || _passwordSaving) });
     sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
     // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the login
     // critical path. Inside the sessionReady callback so `currentUser` is read LATE: on the in-place
@@ -677,6 +683,7 @@ export function init() {
             setFeedback('We couldn’t confirm whether your password was updated. Keep the password you just entered and try it first next time you sign in.', 'err');
             settled.then(late => {
                 _pwIndeterminate = false;
+                _passwordSaving = false;
                 saveBtn.disabled = false; saveBtn.textContent = 'Set password';
                 if (late.status === 'ok') onWriteConfirmed(late.value);   // it landed after all
                 else setFeedback('Your password wasn’t updated — try again.', 'err');
@@ -700,6 +707,7 @@ export function init() {
                 return;
             }
             saveBtn.disabled = true; saveBtn.textContent = 'Saving…';
+            _passwordSaving = true;
             // Track WHICH stage failed: a failure AFTER reauth succeeded is NOT "current password wrong"
             // (the old catch mapped every non-rate-limit/weak error to that, so a network blip during the
             // update told the member their correct password was incorrect → needless retries + admin reset).
@@ -744,7 +752,7 @@ export function init() {
             } finally {
                 // Not re-enabled while a write may still be in flight — onIndeterminate owns the
                 // button until the real outcome arrives, so a second save can't race the first.
-                if (!_pwIndeterminate) { saveBtn.disabled = false; saveBtn.textContent = 'Set password'; }
+                if (!_pwIndeterminate) { _passwordSaving = false; saveBtn.disabled = false; saveBtn.textContent = 'Set password'; }
             }
         });
     }

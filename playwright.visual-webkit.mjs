@@ -41,6 +41,7 @@
 
 import { defineConfig, devices } from '@playwright/test';
 import { devServer } from './e2e/dev-server.mjs';
+import { IPHONE_PRO_VIEWPORT } from './playwright.webkit.mjs';
 
 // Its own port, so a run here cannot adopt — or be adopted by — the Chromium visual lane's server.
 const DEV = devServer(4003);
@@ -76,6 +77,9 @@ export default defineConfig({
     use: {
         baseURL: DEV.baseURL,
         ...devices['iPhone 13'],
+        // The iPhone 15 Pro–18 Pro geometry (v24.61) — the reasoning is beside IPHONE_PRO_VIEWPORT in
+        // playwright.webkit.mjs, which this lane shares so the two cannot drift.
+        viewport: IPHONE_PRO_VIEWPORT,
         // See the header: 1× keeps the baselines small and the diff quiet without giving up the
         // engine or the viewport, which are the two things this lane exists for.
         deviceScaleFactor: 1,

@@ -43,6 +43,9 @@
  * again at once, and one that goes LATER gets the same sign-in rather than a dead page. Both paths
  * clear the session and tear down the drawer first, because the drawer was wired with the old
  * member's name and pills, and on a shared device that must not stay reachable behind the sign-in.
+ * A session that could not be DECIDED — Firebase's start-up stalled, so the policy says `pending` —
+ * is the one case that clears nothing (v24.61): the sign-in is shown over a kept session, and a
+ * late-landing identity reloads the page into itself.
  *
  * ── WHAT IT DELIBERATELY DOES NOT OWN ──────────────────────────────────────────────────────────
  *
@@ -56,6 +59,7 @@
  */
 
 import { auth, onAuthStateChanged } from './firebase-client.js';
+import { nameToEmail } from './auth-identity.js';
 import { getSession, clearSession, AUTH_KEY } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
@@ -157,6 +161,24 @@ export function reloadIfRestoredForSomeoneElse() {
     });
 }
 
+/** sessionStorage (one tab's journey): when this page's start-up stalled and the identity then landed
+ *  late, the last time it reloaded for that. Local to this module — one reader, one writer. */
+const LATE_IDENTITY_RELOAD = 'myb_late_identity_reload';
+/** Whether a late-identity reload may run now: not within two minutes of the last one. Stamps when it
+ *  says yes. sessionStorage (one tab's journey), read directly in a try/catch — iOS private mode throws.
+ *  @param {number} now @returns {boolean} */
+export function lateReloadAllowed(now) {
+    try {
+        const last = parseInt(sessionStorage.getItem(LATE_IDENTITY_RELOAD) || '0', 10) || 0;
+        if (now - last < LATE_RELOAD_GAP_MS) return false;
+        sessionStorage.setItem(LATE_IDENTITY_RELOAD, String(now));
+    } catch { /* no sessionStorage: allow the one reload rather than none */ }
+    return true;
+}
+/** Two minutes: longer than any start-up stall plus the SDK's own 30s lookup timeout, so a second
+ *  landing inside it can only be the same stall again. */
+export const LATE_RELOAD_GAP_MS = 120_000;
+
 /** The member a stored session value names, or null. @param {string|null|undefined} raw */
 function sessionName(raw) {
     try { return (raw && JSON.parse(raw)?.name) || null; } catch { return null; }
@@ -178,8 +200,29 @@ export function guardNamedSession({ page, pageLabel, member, established, signIn
         .then(({ initLoginOverlay }) => initLoginOverlay({ pageLabel, onSuccess: () => window.location.reload() }))
         .catch((err) => { console.error('[page-session] sign-in could not load:', err); window.location.reload(); }));
     const relogin = () => { clearSession(); resetNavPanel(); showSignIn(); };
+    // NOTHING IS KNOWN YET, SO NOTHING IS TAKEN AWAY (v24.61, iOS audit B1). `pending` here means
+    // Firebase's start-up stalled past its bound (`terminalAuthEvent`, session.js): the member has not
+    // been refused, the network has not answered. Keep the local session and the drawer, show the
+    // sign-in — which can also sign them in, if they would rather not wait — and if the identity
+    // this page belongs to lands late, reload into it rather than leave a page whose writes would fail.
+    // ONE automatic reload per two minutes (24-hour review). On a connection that accepts and never
+    // answers, the SDK gives up its own lookup after ~30s and emits the stored user anyway — so the
+    // identity "lands late" on EVERY load, and an uncapped reload was a loop with the sign-in
+    // flashing inside it. After the one reload the overlay stays, and it can still sign them in.
+    const holdForLateIdentity = () => {
+        showSignIn();
+        const email = nameToEmail(member);
+        const stop = onAuthStateChanged(auth, (/** @type {any} */ user) => {
+            if (!user || user.isAnonymous || user.email !== email) return;
+            stop();
+            if (!lateReloadAllowed(Date.now())) return;
+            window.location.reload();
+        });
+    };
     return Promise.resolve(established).then(() => {
-        if (requirePage(getAuthSnapshot(), page).decision === 'login') { relogin(); return; }
+        const { decision } = requirePage(getAuthSnapshot(), page);
+        if (decision === 'login')   { relogin(); return; }
+        if (decision === 'pending') { holdForLateIdentity(); return; }
         watchIdentityLoss({
             uid: auth.currentUser?.uid,
             watch: (cb) => onAuthStateChanged(auth, cb),

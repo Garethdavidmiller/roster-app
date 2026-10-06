@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '24.60';
+const APP_VERSION = '24.61';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -125,7 +125,7 @@ const NETWORK_FIRST_FILES = [
     'calendar-overrides.js', 'calendar-member.js', 'calendar-renderer.js',
     'calendar-access.js', 'calendar-lock-cards.js', 'calendar-access-core.js', 'calendar-data-state.js', 'calendar-legend.js',
     'calendar-al-lightbox.js', 'calendar-initial-fetch.js', 'calendar-keyboard.js', 'calendar-notices.js',
-    'calendar-team-view.js', 'override-utils.js', 'calendar-huddle-viewer.js', 'huddle-table-grid.js', 'settings-status.js', 'calendar-doc-viewer.js',
+    'calendar-team-view.js', 'override-utils.js', 'clock-input.js', 'print-guard.js', 'calendar-huddle-viewer.js', 'huddle-table-grid.js', 'settings-status.js', 'calendar-doc-viewer.js',
     'admin-app.js', 'admin-boot.js', 'huddle.js', 'doc-upload.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'nav-guide-search.js', 'guide-search.js', 'guide-index.js', 'install-prompt.js', 'calendar-notif-prompt.js', 'calendar-doc-access.js', 'calendar-lock-slot.js', 'calendar-snapshot.js', 'text-scale.js', 'notif.js',
     'admin-roster-upload.js', 'roster-alignment.js', 'roster-cell-rules.js', 'roster-review-states.js', 'admin-period-dates.js', 'roster-entry-control.js', 'admin-overrides.js', 'admin-override-store.js', 'admin-override-coverage.js', 'override-id.js', 'admin-shift-types.js', 'admin-week-editor.js', 'admin-saved-changes.js', 'admin-shift-rules.js', 'admin-save-receipt.js', 'slow-save.js', 'admin-rangepicker.js', 'admin-deep-link.js',
     'admin-al.js', 'admin-al-projection.js', 'admin-al-week-save.js', 'al-entitlement.js', 'admin-al-year.js', 'admin-al-spare-note.js', 'al-swapped-days.js', 'admin-booked-periods.js', 'admin-sick.js', 'admin-range-booking.js', 'admin-week-swipe.js', 'admin-week-row-state.js',
@@ -225,6 +225,8 @@ const CORE_ASSETS = [
     "./calendar-keyboard.js",
     "./calendar-team-view.js",
     "./override-utils.js",
+    "./clock-input.js",
+    "./print-guard.js",
     "./calendar-huddle-viewer.js",
     "./huddle-table-grid.js",
     "./settings-status.js",
@@ -671,45 +673,48 @@ self.addEventListener("fetch", event => {
         });
         // Shared fallback: serve cached app on network failure OR a broken-site response (4xx/5xx).
         // Only applies to document (navigation) requests — JS/CSS get Response.error() on failure.
-        const serveFallback = (logMsg) => {
-            console.log(`[SW ${APP_VERSION}] ${logMsg}`, path);
-            const isDoc = event.request.destination === 'document';
-            const PAGE_FALLBACKS = [
-                ['paycalc',    './paycalc.html',    'Pay Calculator is not available offline. Please reconnect and reload.'],
-                ['operations', './operations.html', 'Operations is not available offline. Please reconnect and reload.'],
-                ['settings',   './settings.html',   'Settings is not available offline. Please reconnect and reload.'],
-                ['links',      './links.html',       'Links is not available offline. Please reconnect and reload.'],
-                ['overtime',   './overtime.html',   'Overtime is not available offline. Please reconnect and reload.'],
-                ['admin',      './admin.html',       'Admin is not available offline. Please reconnect and reload.'],
-            ];
-            // Match the page by its exact path segment, not a substring — a substring
-            // test (path.includes('admin')) would mis-route a future '/admin-report.html'
-            // to the wrong fallback (the same class as the historical /admin-app.js MIME bug).
-            const match      = isDoc && PAGE_FALLBACKS.find(([seg]) => path.endsWith(`/${seg}.html`) || path.endsWith(`/${seg}`));
-            const fallback   = match ? match[1] : (isDoc ? './index.html' : null);
-            const offlineMsg = match ? match[2] : 'The roster is not available offline. Please reconnect and reload.';
-            // CURRENT-version cache first — the global caches.match() prefers the OLDEST
-            // cache (creation order), which during a warm-up window served the PREVIOUS
-            // version's HTML to a page whose JS then loaded fresh (a mixed-version page).
-            // The any-version lookup stays as the last resort so pure-offline still works
-            // mid-transition. iOS can evict the entire Cache Storage under storage
-            // pressure — synthesise a minimal offline page so the request still resolves.
-            // ignoreSearch: navigations are cached under the bare path (no ?query — see the
-            // network handler), so a deep link like paycalc.html?payday=… must match it.
-            // Every cache lookup below is .catch-guarded (v16.23): a rejecting openCache/match on
-            // broken storage previously rejected the WHOLE fallback chain — skipping the synthesized
-            // offline page exactly when it was designed to appear (the rejection then landed in the
-            // untimed outer network backstop). The offline page must always be reachable.
-            return openCache().then(c => c.match(event.request, { ignoreSearch: true })).catch(() => null)
-                .then(r => r || matchNewestManagedCache(event.request, { ignoreSearch: true }))
-                .then(r => r || (fallback ? openCache().then(c => c.match(fallback)).then(fr => fr || matchNewestManagedCache(fallback)).catch(() => null) : null))
-                .then(r => r || (isDoc
-                    ? new Response(
-                        `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Offline — Marylebone Roster</title></head><body><h1 style="font-family:sans-serif;padding:20px">Offline</h1><p style="font-family:sans-serif;padding:0 20px">${offlineMsg}</p></body></html>`,
-                        { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }, status: 200 }
-                      )
-                    : Response.error()
-                ));
+        const isDoc = event.request.destination === 'document';
+        const PAGE_FALLBACKS = [
+            ['paycalc',    './paycalc.html',    'Pay Calculator is not available offline. Please reconnect and reload.'],
+            ['operations', './operations.html', 'Operations is not available offline. Please reconnect and reload.'],
+            ['settings',   './settings.html',   'Settings is not available offline. Please reconnect and reload.'],
+            ['links',      './links.html',       'Links is not available offline. Please reconnect and reload.'],
+            ['overtime',   './overtime.html',   'Overtime is not available offline. Please reconnect and reload.'],
+            ['admin',      './admin.html',       'Admin is not available offline. Please reconnect and reload.'],
+        ];
+        // Match the page by its exact path segment, not a substring — a substring
+        // test (path.includes('admin')) would mis-route a future '/admin-report.html'
+        // to the wrong fallback (the same class as the historical /admin-app.js MIME bug).
+        const match      = isDoc && PAGE_FALLBACKS.find(([seg]) => path.endsWith(`/${seg}.html`) || path.endsWith(`/${seg}`));
+        const fallback   = match ? match[1] : (isDoc ? './index.html' : null);
+        const offlineMsg = match ? match[2] : 'The roster is not available offline. Please reconnect and reload.';
+        // CURRENT-version cache first — the global caches.match() prefers the OLDEST
+        // cache (creation order), which during a warm-up window served the PREVIOUS
+        // version's HTML to a page whose JS then loaded fresh (a mixed-version page).
+        // The any-version lookup stays as the last resort so pure-offline still works
+        // mid-transition. iOS can evict the entire Cache Storage under storage
+        // pressure — synthesise a minimal offline page so the request still resolves.
+        // ignoreSearch: navigations are cached under the bare path (no ?query — see the
+        // network handler), so a deep link like paycalc.html?payday=… must match it.
+        // Every cache lookup below is .catch-guarded (v16.23): a rejecting openCache/match on
+        // broken storage previously rejected the WHOLE fallback chain — skipping the synthesized
+        // offline page exactly when it was designed to appear (the rejection then landed in the
+        // untimed outer network backstop). The offline page must always be reachable.
+        /** The best cached copy for this navigation, or null when there is NONE (v24.61). */
+        const findCachedFallback = () => openCache().then(c => c.match(event.request, { ignoreSearch: true })).catch(() => null)
+            .then(r => r || matchNewestManagedCache(event.request, { ignoreSearch: true }))
+            .then(r => r || (fallback ? openCache().then(c => c.match(fallback)).then(fr => fr || matchNewestManagedCache(fallback)).catch(() => null) : null))
+            .then(r => r || null);
+        /** The synthesised last resort, with a "Try again" that RELOADS (v24.61): an installed app has
+         *  no address bar, and a reload keeps the fragment a notification tap carried (#huddle), which
+         *  a link built from the request could not — the fragment never reaches a service worker. The
+         *  inline handler is allowed because a synthesised response carries no CSP. */
+        const offlinePage = () => {
+            if (!isDoc) return Response.error();
+            return new Response(
+                `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Offline — Marylebone Roster</title></head><body style="font-family:sans-serif;padding:20px"><h1>Offline</h1><p>${offlineMsg}</p><p><button type="button" onclick="location.reload()" style="font:inherit;padding:8px 14px">Try again</button></p></body></html>`,
+                { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }, status: 200 }
+            );
         };
         event.respondWith((async () => {
             // ── STALE-WHILE-REVALIDATE for HTML (v16.10, owner-approved — replaces the
@@ -722,7 +727,7 @@ self.addEventListener("fetch", event => {
             // HTML and JS from the SAME version cache also shrinks the mixed-version window
             // network-first had (fresh HTML + cached JS during a deploy transition).
             // EXACT-page match only — '/' (the scope root) additionally tries the warm-up's
-            // './index.html' key. Never map one page to another here: serveFallback's
+            // './index.html' key. Never map one page to another here: the fallback chain's
             // index-default is OFFLINE-fallback behaviour, not an instant-serve rule.
             // A broken Cache Storage (corrupt IndexedDB backing, iOS eviction mid-read) must
             // DEGRADE to the network path, never reject: a rejected respondWith on a navigation
@@ -741,7 +746,7 @@ self.addEventListener("fetch", event => {
                 // The preload promise RESOLVES undefined when preload is disabled/unsupported
                 // (→ fall back to our own fetch) but REJECTS when the preload network request
                 // itself errors — so it needs a reject handler too, or on a cache MISS a preload
-                // failure would reach serveFallback and show the offline page to an ONLINE user
+                // failure would reach the fallback chain and show the offline page to an ONLINE user
                 // whose own fetch would have worked. Two-arg .then (not trailing .catch) so a
                 // genuine offline fetch rejection still propagates instead of re-fetching.
                 ? event.preloadResponse.then(pre => pre || fetch(freshReq), () => fetch(freshReq))
@@ -758,7 +763,7 @@ self.addEventListener("fetch", event => {
                 if (response && response.status === 200 && (!ct || ct.includes('text/html'))) {
                     // Cache under the bare path (query stripped): every distinct
                     // paycalc.html?payday=… would otherwise pile up as its own ~40 KB entry
-                    // for the life of the version cache. serveFallback matches ignoreSearch.
+                    // for the life of the version cache. findCachedFallback matches ignoreSearch.
                     const clone = response.clone();
                     openCache()
                         .then(c => c.put(url.origin + url.pathname, unredirect(clone)))
@@ -772,8 +777,18 @@ self.addEventListener("fetch", event => {
             try { event.waitUntil(networkPromise.catch(() => null)); } catch (_e) { /* settled */ }
 
             if (cachedDoc) return cachedDoc;
-            // Cache miss (first visit to this page, or evicted storage): network-first with
-            // the 2s cache-fallback race, exactly as before v16.10.
+            // Cache miss (first visit, or evicted storage): network-first with the 2s cache-fallback
+            // race, as before v16.10 — PROVIDED THERE IS SOMETHING TO FALL BACK TO (v24.61, iOS audit
+            // B3). With nothing cached the race served the synthesised "Offline" page to an ONLINE
+            // member on a slow connection and the abort killed the real fetch; now it waits for the
+            // network, and only the network's failure is offline.
+            const fallbackDoc = await findCachedFallback();
+            if (!fallbackDoc) {
+                let response;
+                try { response = await networkPromise; }
+                catch (_err) { return offlinePage(); }
+                return finishNetworkDoc(response);
+            }
 
             // The abort is GUARDED on networkSettled: firing it after the response resolved
             // would kill the body mid-stream (the old timeout-boundary race, where a response
@@ -786,11 +801,20 @@ self.addEventListener("fetch", event => {
             let response;
             try {
                 const winner = await Promise.race([networkPromise, timeout]);
-                if (winner === 'timeout') return serveFallback('Offline/timeout — serving from cache:');
+                if (winner === 'timeout') { console.log(`[SW ${APP_VERSION}] Offline/timeout — serving from cache:`, path); return fallbackDoc; }
                 response = winner;
             } catch (_err) {
-                return serveFallback('Offline/timeout — serving from cache:');
+                console.log(`[SW ${APP_VERSION}] Offline/timeout — serving from cache:`, path);
+                return fallbackDoc;
             }
+            return finishNetworkDoc(response);
+        })().catch(() => fetch(event.request).catch(() => Response.error())));
+        // Ultimate backstop: if ANYTHING in the doc branch rejects (a broken Cache Storage
+        // reaching the fallback chain's own openCache().then chain), degrade to a plain
+        // network fetch, then a network-error response — never a rejected navigation (v16.19).
+
+        /** What a network answer for a document becomes. Shared by the two cache-miss paths above. */
+        function finishNetworkDoc(response) {
             if (response && response.status === 200) return unredirect(response);
             // A redirect under redirect-mode 'manual' (navigation preload, or a manual-mode
             // fetch) surfaces as type 'opaqueredirect' — status 0, ok:false. Pass it straight
@@ -801,14 +825,15 @@ self.addEventListener("fetch", event => {
             if (response && response.type === 'opaqueredirect') return response;
             // Navigation request returned 4xx/5xx (e.g. staff site is down) — serve cached
             // app so a notification tap still loads the app rather than GitHub's 404 page.
+            // A 4xx/5xx for a navigation: the cached app if there is one (a notification tap still
+            // opens the app when the site is down) — otherwise the SERVER'S answer, not an "Offline"
+            // page about a device that is online (24-hour review of v24.61).
             if (event.request.destination === 'document' && response && !response.ok) {
-                return serveFallback(`Navigation got ${response.status} — falling back to cache:`);
+                console.log(`[SW ${APP_VERSION}] Navigation got ${response.status} — falling back to cache:`, path);
+                return findCachedFallback().then(r => r || response);
             }
             return response;
-        })().catch(() => fetch(event.request).catch(() => Response.error())));
-        // Ultimate backstop: if ANYTHING in the doc branch rejects (a broken Cache Storage
-        // reaching serveFallback's own un-caught openCache().then chain), degrade to a plain
-        // network fetch, then a network-error response — never a rejected navigation (v16.19).
+        }
     } else if (isManagedAsset) {
         // Stale-while-revalidate for JS/CSS: respond from cache immediately when present and
         // refresh the cache in the background; on a cold cache, wait for the network. The
@@ -1031,4 +1056,18 @@ self.addEventListener("notificationclick", event => {
             return clients.openWindow(targetUrl);
         })
     );
+});
+
+// THE SUBSCRIPTION ROTATED UNDER US (v24.61, iOS audit B4): re-subscribe with the key the OLD one
+// carried — this file holds no copy of the VAPID key — or take the ready-made `newSubscription`.
+// notif.js re-saves the server record at once when the live endpoint differs from the one it last
+// saved. Full account: .claude/rules/notifications.md → "When the push service rotates a subscription".
+self.addEventListener("pushsubscriptionchange", event => {
+    const oldSub = event.oldSubscription;
+    const key = oldSub && oldSub.options && oldSub.options.applicationServerKey;
+    const renewed = event.newSubscription
+        ? Promise.resolve(event.newSubscription)
+        : (key ? self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
+               : Promise.resolve(null));
+    event.waitUntil(renewed.catch(err => console.warn(`[SW ${APP_VERSION}] push re-subscribe failed:`, err && err.message)));
 });

@@ -198,6 +198,62 @@ test('the FIP print button prepares without beforeprint @print', async ({ page }
         'a second prepare must not destroy the restore snapshot').toBe(closedBefore);
 });
 
+// ── A HOME-SCREEN APP ON iOS 27 CANNOT PRINT, AND THE BUTTON SAYS SO (v24.61, audit A1) ─────────
+// `window.print()` is a no-op there (WebKit 325259), so a print control that just calls it is a
+// dead button. The guard keys on `navigator.standalone` (iOS-only, Home Screen launch only) and the
+// iOS major in the user agent; both are faked here, and `window.print` is instrumented rather than
+// stubbed so the assertion is that it was NOT reached.
+const IOS27_STANDALONE = () => {
+    Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
+    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148', configurable: true });
+    /** @type {any} */ (window).__prints = 0;
+    window.print = () => { /** @type {any} */ (window).__prints++; };
+    /** @type {any} */ (window).__opened = [];
+    window.open = (/** @type {any} */ url) => { /** @type {any} */ (window).__opened.push(String(url)); return null; };
+};
+test('a guide in a home-screen app on iOS 27 explains instead of printing, and offers Safari @print', async ({ page }) => {
+    await page.addInitScript(IOS27_STANDALONE);
+    await page.goto('/railcard-guide.html');
+    await page.locator('.btn-print').click();
+    const notice = page.locator('#printUnavailable');
+    await expect(notice).toContainText('Open this page in Safari');
+    expect(await page.evaluate(() => /** @type {any} */ (window).__prints), 'window.print must not be reached').toBe(0);
+    await notice.getByRole('button', { name: 'Open in Safari' }).click();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__opened), 'the one tap opens THIS page where printing works')
+        .toEqual([page.url()]);
+    // A second tap does not stack a second notice.
+    await page.locator('.btn-print').click();
+    await expect(page.locator('.print-unavailable')).toHaveCount(1);
+});
+test('the FIP per-country print is guarded the same way @print', async ({ page }) => {
+    await page.addInitScript(IOS27_STANDALONE);
+    await page.goto('/fip-guide.html');
+    await page.locator('#country-fr > summary').click();
+    await page.locator('#country-fr .btn-print-country').click();
+    await expect(page.locator('#printUnavailable')).toBeVisible();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__prints)).toBe(0);
+});
+test('the same iPhone in a Safari TAB still prints — the guard is about the shell, not the engine @print', async ({ page }) => {
+    await page.addInitScript(() => {
+        Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Mobile/15E148 Safari/604.1', configurable: true });
+        /** @type {any} */ (window).__prints = 0;
+        window.print = () => { /** @type {any} */ (window).__prints++; };
+    });
+    await page.goto('/railcard-guide.html');
+    await page.locator('.btn-print').click();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__prints)).toBe(1);
+    await expect(page.locator('#printUnavailable')).toHaveCount(0);
+});
+test('the Calendar\'s print key in a home-screen app on iOS 27 opens the explanation dialog @print', async ({ page }) => {
+    await page.addInitScript(IOS27_STANDALONE);
+    await seedSession(page);
+    await page.goto('/index.html');
+    await expect(page.locator('#teamViewBtn')).toBeAttached();
+    await page.keyboard.press('p');
+    await expect(page.getByRole('button', { name: 'Open in Safari' })).toBeVisible();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__prints)).toBe(0);
+});
+
 // ── THE PRINT BUTTON PRINTS WHAT IS ON SCREEN (v23.27) ──────────────────────────────────────────
 // The prepare used to un-hide every card the finder had filtered out, so a traveller looking at one
 // country got the whole guide — 25 pages, at a station, before a trip. Opening a collapsed card is

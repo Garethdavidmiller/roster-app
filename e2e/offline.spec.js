@@ -63,6 +63,16 @@ test('service worker precaches the app and serves it offline', async ({ page, co
     expect(fallback?.status(), 'offline uncached navigation should hit the SW fallback').toBe(200);
 });
 
+// ── WHAT THIS LANE CANNOT REACH: the no-fallback document path (v24.61, iOS audit B3) ──────────
+// With NOTHING cached the document branch waits for the network and synthesises its "Offline" page
+// only on the network's failure (service-worker.js, `findCachedFallback` / `offlinePage`). Two
+// attempts to pin that here were measured and withdrawn (24-hour review): `context.setOffline` cuts
+// the PAGE'S network, not the worker's — a worker-initiated fetch still reached the dev server with
+// every cache deleted — and while the network is up the worker's warm-up refills an emptied Cache
+// Storage within milliseconds of the next fetch event, so "nothing cached" cannot be held long
+// enough to navigate. The path is read in review and listed in KNOWN_LIMITATIONS; step 6 above
+// proves the cached-fallback path, which is the one every installed device actually takes.
+
 // ── The revalidation count, answered by a REAL worker (v22.94) ──────────────────────────────────
 //
 // `perf-reporter.js` asks the service worker how many background revalidations it has started, and
