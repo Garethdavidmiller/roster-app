@@ -283,6 +283,9 @@ export const deleteDoc = (ref) => {
   // is the whole claim of a soft delete.
   e2e.deletedPaths = e2e.deletedPaths || [];
   if (ref && ref.path) e2e.deletedPaths.push(String(ref.path));
+  // __E2E.failDeleteCode makes every delete REJECT with that code and leave the row (Oct 2026), so
+  // a caller's failure wording — a plain failure, and an outcome that is unknown — can be asserted.
+  if (e2e.failDeleteCode) return Promise.reject(Object.assign(new Error('e2e delete refused'), { code: e2e.failDeleteCode }));
   const id = ref && ref.path ? String(ref.path).split('/').pop() : null;
   if (id && Array.isArray(e2e.docs)) e2e.docs = e2e.docs.filter(r => r.id !== id);
   // Path-keyed collections too (v21.08), so a deleted SET actually leaves the picker on the

@@ -299,7 +299,8 @@ export async function disableNotifications() {
  * the next person on this device switches notifications on again — the right way round for a
  * device being handed over.
  * Best-effort and TIME-BOXED — a sign-out must never wait on a service worker or a network that is
- * not answering; an abandoned delete leaves exactly what was there before.
+ * not answering. A delete still unconfirmed at the time box is treated as a refused one: the browser
+ * subscription is dropped, because walking away left the record reachable (Oct 2026 review).
  * @param {number} [timeoutMs]
  * @returns {Promise<void>}
  */
@@ -308,19 +309,41 @@ export async function releaseDevicePush(timeoutMs = 1500) {
     lsDel(SUB_ENDPOINT_KEY);
     // Never granted → there is no subscription to release, and no service worker worth waiting on.
     if (!notifSupported() || Notification.permission !== 'granted') return;
+    /** The browser subscription, once found, and whether its server record is known to be gone. */
+    /** @type {PushSubscription|null} */
+    let sub = null;
+    let released = false;
     const work = (async () => {
         const reg = await swReady();
-        const sub = await reg.pushManager.getSubscription();
-        if (!sub) return;
+        sub = await reg.pushManager.getSubscription();
+        if (!sub) { released = true; return; }
         try {
             await deletePushSubscription(sub.endpoint);
+            released = true;
         } catch (e) {
             console.warn('[Notifications] Sign-out could not delete the record — dropping the subscription:', /** @type {any} */ (e)?.message);
             await sub.unsubscribe();
+            released = true;
         }
     })().catch(e => console.warn('[Notifications] Sign-out release failed (non-fatal):', /** @type {any} */ (e)?.message));
     /** @type {ReturnType<typeof setTimeout>|undefined} */
     let timer;
     await Promise.race([work, new Promise(r => { timer = setTimeout(r, timeoutMs); })]);
     clearTimeout(timer);
+    // THE TIME BOX EXPIRED WITH A SUBSCRIPTION IN HAND AND ITS RECORD NOT CONFIRMED GONE (external
+    // review, Oct 2026). Walking away here left the record owned by the person signing out AND the
+    // browser still subscribed — the one outcome this function exists to prevent: on a slow network
+    // the departing member's targeted notices kept arriving on a device they had left. A delete still
+    // in flight cannot be trusted to land either — the sign-out that follows takes away the identity
+    // the rule needs. So drop the browser subscription, exactly as a refused delete does; the next
+    // send 410s and the server deletes the record. Bounded too: unsubscribe is local, but a sign-out
+    // still must not wait on a browser that will not answer.
+    if (sub && !released) {
+        const dropping = /** @type {PushSubscription} */ (sub).unsubscribe()
+            .catch(e => console.warn('[Notifications] Sign-out could not drop the subscription:', /** @type {any} */ (e)?.message));
+        /** @type {ReturnType<typeof setTimeout>|undefined} */
+        let t2;
+        await Promise.race([dropping, new Promise(r => { t2 = setTimeout(r, 500); })]);
+        clearTimeout(t2);
+    }
 }

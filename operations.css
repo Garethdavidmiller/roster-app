@@ -1354,6 +1354,7 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     /* A missing account needs Set up accounts, not Reset — call that out rather than leaving the admin
        to discover it by trying. */
     .rr-remedy--setup { color: var(--orange-text); font-weight: 700; }
+    .rr-error { flex: 1 0 100%; font-size: var(--type-small); color: var(--error-text); }
     .btn-rr-clear {
         background: none;
         border: 1px solid var(--border-light);

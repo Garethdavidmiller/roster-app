@@ -12,6 +12,7 @@
 import { CONFIG, teamMembers, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
 import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getAllPasswordStatus, resetMemberPassword, getResetRequests, clearResetRequest, uploadCircular, uploadNewsletter, withClaimRetry } from './firebase-client.js';
 import { isPasswordMigrated } from './auth-identity.js';
+import { unconfirmedWriteLine } from './claim-retry.js';
 import { _cardLoadError, _relativeTime } from './operations-reports.js';
 import { initErrorLog } from './operations-errors.js';
 import { createAttentionStrip } from './operations-attention.js';
@@ -740,8 +741,19 @@ export function init() {
                 btn.addEventListener('click', async () => {
                     const name = /** @type {HTMLElement} */ (btn).dataset.member || '';
                     /** @type {HTMLButtonElement} */ (btn).disabled = true;
+                    const row = btn.closest('.rr-row');
+                    row?.querySelector('.rr-error')?.remove();
                     try { await clearResetRequest(name); initResetRequests(); }
-                    catch { /** @type {HTMLButtonElement} */ (btn).disabled = false; }
+                    catch (e) {
+                        // A gated write (Oct 2026 review): an outcome that is UNKNOWN is said so, and
+                        // the button stays off — a second Clear would only be refused by the gate.
+                        const unknown = unconfirmedWriteLine(e, 'this clear', 'this list');
+                        /** @type {HTMLButtonElement} */ (btn).disabled = !!unknown;
+                        const msg = document.createElement('span');
+                        msg.className = 'rr-error'; msg.setAttribute('role', 'alert');
+                        msg.textContent = unknown || 'Couldn’t clear — check your connection and try again.';
+                        row?.append(msg);
+                    }
                 });
             });
         } catch {

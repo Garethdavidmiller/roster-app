@@ -17,13 +17,14 @@ let _saveThrows = false;   // structural failure — savePushSubscription throws
 let _saveThrowsTransient = false;   // transient failure — an offline/Firestore blip (a DIFFERENT, non-structural error)
 let _deleteCalls = 0;
 let _deleteThrows = false;   // the rule refused the delete — no owner session on this device
+let _deleteHangs = false;    // the delete starts and never settles — a network that stopped answering
 let _lastDeletedEndpoint = null;
 const _ls = new Map();
 
 mock.module('./firebase-client.js', {
     namedExports: {
         savePushSubscription:   async () => { _saveCalls++; if (_saveThrows) throw new Error('push/subscription-missing-keys'); if (_saveThrowsTransient) throw new Error('unavailable'); },
-        deletePushSubscription: async (/** @type {string} */ endpoint) => { _deleteCalls++; _lastDeletedEndpoint = endpoint; if (_deleteThrows) throw new Error('push/no-owner-session'); },
+        deletePushSubscription: async (/** @type {string} */ endpoint) => { _deleteCalls++; _lastDeletedEndpoint = endpoint; if (_deleteThrows) throw new Error('push/no-owner-session'); if (_deleteHangs) await new Promise(() => {}); },
     },
 });
 mock.module('./ls.js', {
@@ -99,7 +100,7 @@ function setupEnv(cfg = {}) {
 }
 
 beforeEach(() => {
-    _saveCalls = 0; _saveThrows = false; _saveThrowsTransient = false; _deleteCalls = 0; _deleteThrows = false; _lastDeletedEndpoint = null; _ls.clear();
+    _saveCalls = 0; _saveThrows = false; _saveThrowsTransient = false; _deleteCalls = 0; _deleteThrows = false; _deleteHangs = false; _lastDeletedEndpoint = null; _ls.clear();
 });
 
 // notifSupported reads `'Notification' in window` / `'serviceWorker' in navigator` / `'PushManager' in window`.
@@ -337,6 +338,18 @@ describe('releaseDevicePush', () => {
         await releaseDevicePush();
         assert.equal(_deleteCalls, 1, 'the owner delete is still tried first');
         assert.equal(sub._unsubscribed, true, 'a record nobody here can delete must not stay reachable');
+    });
+    test('a delete that never settles is abandoned at the time box AND the browser subscription is dropped (Oct 2026 review)', async () => {
+        // The privacy race: the time box expired with the subscription in hand and the record not
+        // confirmed gone, and sign-out walked away from both — the departing member's targeted
+        // notices kept arriving on a device they had left. Unconfirmed is treated as refused.
+        const { sub } = setupEnv({ permission: 'granted', hasSub: true });
+        _deleteHangs = true;
+        const t0 = Date.now();
+        await releaseDevicePush(50);
+        assert.ok(Date.now() - t0 < 1000, 'sign-out waited on a delete that will never answer');
+        assert.equal(_deleteCalls, 1, 'the owner delete was started');
+        assert.equal(sub._unsubscribed, true, 'an unconfirmed delete must not leave the record reachable');
     });
     test('no subscription → nothing to delete, and it still resolves', async () => {
         setupEnv({ permission: 'granted', hasSub: false });

@@ -3865,6 +3865,42 @@ test('operations reset requests: clearing two rows quickly leaves neither behind
     await expect(page.locator('#resetRequestsCountChip')).toHaveText('');
 });
 
+// ── A Clear that fails SAYS so, and one whose outcome is unknown says THAT (Oct 2026 review) ──────
+// clearResetRequest is a gated write: a delete abandoned at sign-out may still land, and the gate
+// refuses the next write until reload. Before this the row silently re-enabled its button, so the
+// admin pressed Clear again and was refused with nothing on screen to say why.
+for (const [code, line, staysOff] of [
+    ['unavailable', /Couldn.t clear — check your connection/, false],
+    ['auth/signed-out-during-request', /signed out before this clear was confirmed/, true],
+]) {
+    test(`operations reset requests: a failed Clear (${code}) is reported in its row`, async ({ page }) => {
+        await page.addInitScript((c) => {
+            window.__E2E = {
+                failDeleteCode: c,
+                docs: [
+                    { id: 'A. Hared',     requestedAt: Date.now() - 60_000, count: 1, provisioned: true },
+                    { id: 'K. Jedlinski', requestedAt: Date.now() - 90_000, count: 1, provisioned: true },
+                ],
+            };
+        }, code);
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html');
+        const btn = page.locator('.btn-rr-clear[data-member="A. Hared"]');
+        await btn.click();
+        await expect(page.locator('.rr-row .rr-error')).toHaveText(line);
+        await expect(page.locator('.rr-row')).toHaveCount(2);
+        if (staysOff) await expect(btn).toBeDisabled();
+        else await expect(btn).toBeEnabled();
+        if (!staysOff) return;
+        // THE GATE: after an unknown outcome the next write is refused before it is sent — which
+        // is what proves the delete went through writeWithClaimRetry and not the ungated retry.
+        await page.evaluate(() => { window.__E2E.failDeleteCode = null; });
+        await page.locator('.btn-rr-clear[data-member="K. Jedlinski"]').click();
+        await expect(page.locator('.rr-row .rr-error').nth(1)).toHaveText(/earlier change on this page was not confirmed/);
+        await expect(page.locator('.rr-row')).toHaveCount(2);
+    });
+}
+
 // ── The Needs-attention strip must not survive its own card (v23.36) ────────────────────────────
 // `operations-attention.js`'s whole design is that the strip CANNOT disagree with the card it
 // points at: it runs no reads, and every count arrives from the card that owns the data. The Error
