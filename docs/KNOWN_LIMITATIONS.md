@@ -174,6 +174,18 @@ ceiling while still counting it.
 v24.56 the rules refuse an anonymous token everywhere it used to be accepted, so this no longer
 grants anything; switching it off (Console → Authentication → Sign-in method) removes it at source.
 
+## The iPhone status bar is SOLID now — and was changed without a device to test on (v24.60)
+
+Reported Oct 2026, installed app on the iPhone 18 Pro only: the header logo and title (and the drawer's)
+drew blurred. Recent iOS blurs the top edge of a full-screen app so the status bar stays readable, and
+`black-translucent` had the navy page running up under it, with the brand sitting inside that band.
+Every page now sets `apple-mobile-web-app-status-bar-style` to `black`: iOS draws a solid bar and the
+page starts below it (`page-contract-parity.test.mjs` holds every page to it). **Two things are
+unconfirmed**, because no iOS 27 device is available here: whether an EXISTING home-screen install
+picks the change up without being removed and re-added, and how the solid bar looks against the navy
+(it is expected to be black, a shade off the header). If the blur persists on a fresh install, the
+fallback is to keep `black-translucent` and push the header down instead — a guess at the band's depth.
+
 ## Development-tool advisories that only a downgrade would clear (v24.50)
 
 An external review (5 Oct 2026) counted 32 `npm audit` entries in the ROOT tree — 1 critical, 17
