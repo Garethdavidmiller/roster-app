@@ -2516,6 +2516,30 @@ for (const [held, signed, expected] of [
     });
 }
 
+// ── NO TAB CAME BACK: THE APP STAYS AROUND THE DOCUMENT (v24.61, iOS audit B5) ─────────────────────
+// In a home-screen app on iOS the drawer's blank `window.open` can return null. The old fallback
+// navigated THIS page to the storage url — a bare PDF with no header, no drawer and no way back but
+// the OS. Now the in-app viewer opens instead, whose Open button is a real tap on a real document.
+test('drawer Circular: when no tab comes back, the in-app viewer opens and this page never leaves for the storage origin', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true };
+        window.open = /** @type {any} */ (() => null);
+    });
+    await page.route('**/getDocumentUrl', route => route.fulfill({ contentType: 'application/json', body: signedFor('circulars/2026-09-25-a.pdf') }));
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(([stored, path]) => {
+        /** @type {any} */ (window).__E2E.docs = [{ id: '2026-09-25', date: '2026-09-25', storageUrl: stored, fileType: 'pdf', storagePath: path }];
+    }, [DOC_STORED, 'circulars/2026-09-25-a.pdf']);
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel .nav-panel-link--circular').click();
+    await expect(page.locator('#docViewer')).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator('#docViewerBody').getByRole('button', { name: /Open/ })).toBeVisible({ timeout: 10_000 });
+    expect(page.url(), 'the page is still the app').not.toContain('firebasestorage');
+    await expect(page.locator('#navPanel')).not.toHaveClass(/open/);
+});
+
 test('huddle: offline with nothing cached, a tap says it could not load — never "none uploaded"', async ({ page }) => {
     // 48-hour review: an empty answer from the local cache alone is what the SDK raises OFFLINE, and
     // the warm tap turned it into "No Daily Huddle has been uploaded yet" — a claim about the world

@@ -32,6 +32,7 @@ const VAPID_FINGERPRINT = VAPID_PUBLIC_KEY.slice(0, 12);
 const PROMPT_DISMISSED  = NOTIF_PROMPT_DONE;
 const SUB_RESAVE_KEY    = 'myb_push_resave_at';   // throttle for the periodic subscription re-save
 const SUB_RESAVE_MS     = 86400000;               // at most one keep-alive re-save per ~24h/device
+const SUB_ENDPOINT_KEY  = 'myb_push_saved_endpoint'; // the endpoint the server record was last saved for (v24.61)
 const USER_OFF_KEY      = 'myb_notif_user_off';   // device-level: the member pressed Disable here
 
 /** Did the member switch notifications off on this device (rather than lose them)? */
@@ -104,6 +105,7 @@ async function subscribe() {
         throw err;
     }
     lsSet(VAPID_VER_KEY, VAPID_FINGERPRINT);
+    lsSet(SUB_ENDPOINT_KEY, sub.endpoint);
     lsSet(PROMPT_DISMISSED, '1');
     lsDel(USER_OFF_KEY);   // on again — a later loss is a lapse, not the old choice
     return sub;
@@ -159,8 +161,12 @@ export async function getNotifState() {
             // offline-first page), so an unconditional write here was a redundant pushSubscriptions
             // write competing with the page's own Firestore traffic every launch. Once per ~24h
             // per device keeps the self-heal without the per-open write (v16.19).
+            // UNLESS THE ENDPOINT CHANGED (v24.61, iOS audit B4): the push service rotated the
+            // subscription and the service worker renewed it (`pushsubscriptionchange`), so the
+            // server record names a dead endpoint until this re-save — the throttle must not hold it.
             const lastSave = parseInt(lsGet(SUB_RESAVE_KEY) || '0', 10);
-            if (!Number.isFinite(lastSave) || Date.now() - lastSave > SUB_RESAVE_MS) {
+            const rotated  = lsGet(SUB_ENDPOINT_KEY) !== sub.endpoint;
+            if (rotated || !Number.isFinite(lastSave) || Date.now() - lastSave > SUB_RESAVE_MS) {
                 // GUARD the self-heal save (whole-codebase review, nav/notif finding #1): this write
                 // must NOT propagate to the outer catch, which returns 'off-lapsed'. A transient
                 // Firestore failure (offline/blip) on this ~daily best-effort re-save would otherwise
@@ -170,6 +176,7 @@ export async function getNotifState() {
                 try {
                     await savePushSubscription(sub);
                     lsSet(SUB_RESAVE_KEY, String(Date.now()));
+                    lsSet(SUB_ENDPOINT_KEY, sub.endpoint);
                 } catch (e) {
                     if (/** @type {any} */ (e)?.message === 'push/subscription-missing-keys') {
                         // STRUCTURAL failure: the browser handed back a keyless subscription (some Android
@@ -298,6 +305,7 @@ export async function disableNotifications() {
  */
 export async function releaseDevicePush(timeoutMs = 1500) {
     lsDel(SUB_RESAVE_KEY);
+    lsDel(SUB_ENDPOINT_KEY);
     // Never granted → there is no subscription to release, and no service worker worth waiting on.
     if (!notifSupported() || Notification.permission !== 'granted') return;
     const work = (async () => {

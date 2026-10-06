@@ -491,10 +491,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 // the pre-opened tab must be CLOSED, or the member is left on a blank one.
                 if (!open) { if (newTab) newTab.close(); return _docFailureFallback(triggerEl); }
                 const openUrl = open.url;
-                // The document genuinely opens on both branches below — count it (anonymous,
-                // admin-excluded; v18.20). Failure/no-doc paths never reach here.
-                recordOpen(docId, _usageId);
                 if (newTab) {
+                    // The document genuinely opens — count it (anonymous, admin-excluded; v18.20).
+                    // Only here since v24.61: the other branch hands over to the in-app viewer,
+                    // whose own Open button counts the open it makes.
+                    recordOpen(docId, _usageId);
                     // Doc opened in a SEPARATE tab — this page STAYS put, so close with a real
                     // history.back() to CONSUME the drawer's pushed entry. closePanelForNavigation()
                     // only clears the flag (no back()), leaving a dead same-URL entry that swallows
@@ -507,10 +508,23 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                     // _panelOpen guard on the failure path (_docFailureFallback).
                     if (_panelOpen) closePanel();
                 } else {
-                    // Popup was blocked — THIS tab navigates away, so the pushed entry goes with it;
-                    // closePanelForNavigation() (no back()) is correct here.
-                    location.href = openUrl;
-                    if (_panelOpen) closePanelForNavigation();
+                    // NO TAB CAME BACK — a popup blocker, or a home-screen app on iOS, where the
+                    // blank `window.open` returns null (v24.61, iOS audit B5). Until now THIS page
+                    // navigated to the storage url: in an installed app that left for a bare PDF
+                    // with no header, no drawer and no way back but the OS. Hand over to the
+                    // Calendar's in-app viewer instead (`calendar-doc-viewer.js`, the same route a
+                    // notification tap takes), whose "Open" button is a real tap on a real document
+                    // and keeps the app around it. On the Calendar that is a hash change under a
+                    // drawer that has to close FIRST, so the hash lands after its Back echo; on any
+                    // other page it is a navigation, and the drawer's entry goes with the page.
+                    const toViewer = () => { location.href = `./#${docId}`; };
+                    if (_panelOpen && /(^|\/)(index\.html)?$/.test(location.pathname)) {
+                        closePanel();
+                        whenHistorySettled(toViewer);
+                    } else {
+                        if (_panelOpen) closePanelForNavigation();
+                        toViewer();
+                    }
                 }
             } else {
                 if (newTab) newTab.close();
