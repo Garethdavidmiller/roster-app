@@ -170,6 +170,10 @@ const CAPS = {
     // file was AT its cap with zero headroom — which makes the next change to the Admin week grid
     // pay for an extraction before it can start, under a hard stop, where the cheapest cut wins.
     // `admin-week-row-state.js` took the cluster that needed no injected dependencies at all.
+    // HELD at 830 at v24.64, not lowered: the file stood at 829 (external review, Oct 2026: "no
+    // headroom"), the time boxes left for admin-time-inputs.js, and the ~40 lines that freed are
+    // the headroom the review asked for — lowering the cap to the new size would hand the next
+    // week-grid change the same zero it had. The ceiling still only falls.
     'admin-week-editor.js':    830,
     'admin-saved-changes.js':  460,
     // 1800 → 1700 at v21.89. The week-grid swipe left for admin-week-swipe.js — 1,783 down to
@@ -200,7 +204,11 @@ const CAPS = {
     // file. That sequence had been sitting between the auth bootstrap, the push writers, the
     // password timestamps, the analytics counters and the error log, in the one module that cannot
     // load in Node, so none of it could be tested. Injecting the Firebase handles fixed both.
-    'firebase-client.js':      1100,
+    // 1100 → 900 at v24.64 (external review, Oct 2026: "no headroom"). The error log and the usage/
+    // speed counters left for analytics-client.js — 1,099 measured lines down to ~855 — the one block
+    // here with no tie to authentication, and the same injected-handles shape documents-client.js
+    // took at v21.90, so it now runs in Node against a fake Firestore.
+    'firebase-client.js':       900,
     // 1300 → 1350 at v21.29, deliberately and after extracting first. The page-ready fix added the
     // surface-selection logic, the cache-first-paint race and their reasoning; the RULE it carried
     // ("is a roster on screen?") went to calendar-data-state.js as `showsRoster`, beside the four

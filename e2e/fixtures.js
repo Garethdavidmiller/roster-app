@@ -285,7 +285,11 @@ export const deleteDoc = (ref) => {
   if (ref && ref.path) e2e.deletedPaths.push(String(ref.path));
   // __E2E.failDeleteCode makes every delete REJECT with that code and leave the row (Oct 2026), so
   // a caller's failure wording — a plain failure, and an outcome that is unknown — can be asserted.
-  if (e2e.failDeleteCode) return Promise.reject(Object.assign(new Error('e2e delete refused'), { code: e2e.failDeleteCode }));
+  if (e2e.failDeleteCode) {
+    const err = Object.assign(new Error('e2e delete refused'), { code: e2e.failDeleteCode });
+    // __E2E.deleteDelayMs holds the refusal back, so a redraw can land while the delete is out.
+    return e2e.deleteDelayMs ? new Promise((_r, j) => setTimeout(() => j(err), e2e.deleteDelayMs)) : Promise.reject(err);
+  }
   const id = ref && ref.path ? String(ref.path).split('/').pop() : null;
   if (id && Array.isArray(e2e.docs)) e2e.docs = e2e.docs.filter(r => r.id !== id);
   // Path-keyed collections too (v21.08), so a deleted SET actually leaves the picker on the

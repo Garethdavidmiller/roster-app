@@ -2017,6 +2017,35 @@ test('admin: the AL banner counts leave that is already on record', async ({ pag
         .toBe(booked.entitlement - booked.taken - booked.booked);
 });
 
+// ── THE WEEK GRID'S TIME BOXES, TYPED (admin-time-inputs.js, v24.64) ──────────────────────────
+// Nothing drove these before: the formatting, the focus move and the blur check were wired in the
+// editor and no spec typed into them. The keypad an iPhone shows for `inputmode="numeric"` has no
+// colon, so if the formatter stops running a time cannot be entered from a phone at all.
+test('admin: a week-grid time box formats as typed, moves on, and flags an impossible time', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const row = page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="shift"]:not([disabled])') }).first();
+    await clickInView(row.locator('.type-pill-btn[data-type="shift"]'));
+    const start = row.locator('.day-start');
+    const end = row.locator('.day-end');
+    await start.fill('');
+    await start.pressSequentially('630');
+    await expect(start, 'three digits whose first pair is not an hour read as a dropped zero').toHaveValue('06:30');
+    await expect(end, 'a complete start moves on to the end').toBeFocused();
+    await end.fill('');   // prefilled with the rostered finish, and the box holds five characters
+    await end.pressSequentially('1975');   // NOT 25xx — "257" is read as a dropped zero, 02:57
+    await expect(end).toHaveValue('19:75');
+    await start.focus();   // leave the box — the HH:MM check runs on blur
+    await expect(end).toHaveClass(/\binput-error\b/);
+    await expect(end).toHaveAttribute('aria-invalid', 'true');
+    await end.fill('');
+    await end.pressSequentially('1400');
+    await expect(end).toHaveValue('14:00');
+    await expect(end, 'typing again clears the error').not.toHaveAttribute('aria-invalid', 'true');
+});
+
 // ── THE BANNER DESCRIBES THE YEAR THE READER IS LOOKING AT (v22.82) ──────────────────────────
 // Reported by the owner: scrolled the picker to February 2027 and the four figures still described
 // 2026 — 26 taken, 2 remaining — so next year's untouched 32 days read as all but spent.
@@ -3900,6 +3929,23 @@ for (const [code, line, staysOff] of [
         await expect(page.locator('.rr-row')).toHaveCount(2);
     });
 }
+
+test('operations reset requests: a Clear that fails AFTER the list was redrawn reports on the row now shown', async ({ page }) => {
+    // The list re-renders on a notification tap (#reset-requests) or a queued reload. The failure
+    // used to be appended to the row that had been replaced — off the page, so nobody saw it.
+    await page.addInitScript(() => {
+        window.__E2E = {
+            failDeleteCode: 'auth/signed-out-during-request', deleteDelayMs: 800,
+            docs: [{ id: 'A. Hared', requestedAt: Date.now() - 60_000, count: 1, provisioned: true }],
+        };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.locator('.btn-rr-clear[data-member="A. Hared"]').click();
+    await page.evaluate(() => { location.hash = '#reset-requests'; });   // the redraw, mid-delete
+    await expect(page.locator('.rr-row .rr-error')).toHaveText(/signed out before this clear was confirmed/);
+    await expect(page.locator('.btn-rr-clear[data-member="A. Hared"]'), 'an unknown outcome keeps Clear off on the live row too').toBeDisabled();
+});
 
 // ── The Needs-attention strip must not survive its own card (v23.36) ────────────────────────────
 // `operations-attention.js`'s whole design is that the strip CANNOT disagree with the card it

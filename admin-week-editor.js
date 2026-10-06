@@ -28,7 +28,7 @@
  */
 
 import { teamMembers, getBaseShift, getShiftBadge, getSpecialDayBadges, formatISO, isSunday,
-         DAY_NAMES, MONTH_ABB, escapeHtml, TIME_RE, parseISODate } from './roster-data.js';
+         DAY_NAMES, MONTH_ABB, escapeHtml, parseISODate } from './roster-data.js';
 import { swapDecisionDates } from './al-swapped-days.js';
 import { isRestShift, isForbiddenOnSunday, parseOtherValue, OTHER_FLAVOURS } from './override-utils.js';
 import { TYPES, PILL_TYPES } from './admin-shift-types.js';
@@ -38,6 +38,9 @@ import { hasOverrideAuthorityFor, loadFailedFor, loadOverrides } from './admin-o
 // this cluster was the seam and the bulk bar was not.
 import { _syncOtherRdwWarn, _syncOtherSpareMode, _activateRow, _syncOverwriteBadge, _deactivateRow, _syncAlSwap }
     from './admin-week-row-state.js';
+// The grid's time boxes — typed formatting and the HH:MM check — moved out at v24.64, for the same
+// reason as the line above, and now share clock-input.js's rule rather than restating it.
+import { initTimeInputs } from './admin-time-inputs.js';
 
 // ── INJECTED ──────────────────────────────────────────────────────────────────
 let _currentIsAdmin = false;
@@ -68,7 +71,7 @@ export function initWeekEditor(deps) {
     //
     // `initOverrides` can be called twice on the in-place login path — an optimistic 'allow' init,
     // then again after B1 clears an unconfirmable session — and both of these attach DELEGATED
-    // listeners, `_initTimeInputs` two of them at `document` level. A second attach double-fires
+    // listeners, `initTimeInputs` (admin-time-inputs.js) two of them at `document` level. A second attach double-fires
     // every click, which on the two-tap Delete means one tap both arms AND executes.
     //
     // The guard used to live in `admin-overrides.js`, around wiring that moved out in the v21.38
@@ -78,7 +81,7 @@ export function initWeekEditor(deps) {
     if (_wired) return;
     _wired = true;
     _initBulkBar();
-    _initTimeInputs();
+    initTimeInputs();
 }
 
 /** True when the week grid currently holds STAGED (unsaved) work — mirrors updateSaveBtn's
@@ -126,11 +129,6 @@ function getSundayOfWeek(dateStr) {
 
 /** The type currently armed on the bulk bar. */
 let _bulkActiveType = '';
-
-// Re-entry guard for the time-input formatter: assigning to `value` inside an `input` listener
-// triggers another `input` event on iOS Safari (but not on Android Chrome). Without this guard the
-// handler reformats its own output.
-let _formattingTime = false;
 
 /**
  * Updates the week nav label to show the Sun–Sat range containing dateStr,
@@ -404,7 +402,7 @@ export function buildWeekGridInto(container, dateStr) {
         }
 
         // 'input' is needed alongside 'change' because the auto-format handler in
-        // _initTimeInputs() programmatically sets element.value on each keystroke.
+        // initTimeInputs() (admin-time-inputs.js) programmatically sets element.value on each keystroke.
         // On Safari/WebKit this resets the browser's change-detection baseline, so
         // 'change' never fires when focus leaves (current value == last programmatic value).
         const onTimeEdit = () => { row.classList.remove('prefilled-existing'); _markChanged(); updateSaveBtn(); };
@@ -789,41 +787,5 @@ function _initBulkBar() {
         _updateBulkSelCount();
         // Tell the user when ticked Sundays were dropped, so "All 7 → 6 applied" isn't a surprise.
         if (sundaySkipped > 0) _showSuccess(`Set ${applied} day${applied !== 1 ? 's' : ''} — Sunday skipped (not a contracted day).`);
-    });
-}
-
-// ── TIME INPUTS ───────────────────────────────────────────────────────────────
-function _initTimeInputs() {
-    // Typing 4 digits auto-inserts the colon: "0730" → "07:30"
-    document.addEventListener('input', e => {
-        if (_formattingTime || !/** @type {Element} */ (e.target).classList.contains('time-input')) return;
-        const timeInput = /** @type {HTMLInputElement} */ (e.target);
-        timeInput.classList.remove('input-error');
-        timeInput.removeAttribute('aria-invalid');
-        let raw = timeInput.value.replace(/[^0-9]/g, '').slice(0, 4);
-        if (raw.length === 3 && parseInt(raw.slice(0, 2), 10) > 23) raw = '0' + raw; // without this, "630" → "63:0"
-        _formattingTime = true;
-        timeInput.value = raw.length >= 3 ? raw.slice(0, 2) + ':' + raw.slice(2) : raw;
-        _formattingTime = false;
-        if (raw.length === 4) {
-            if (timeInput.classList.contains('day-start')) {
-                /** @type {HTMLElement|null} */ (timeInput.closest('.day-row')?.querySelector('.day-end'))?.focus();
-            } else if (timeInput.id === 'bulkStart') {
-                /** @type {HTMLElement|null} */ (document.getElementById('bulkEnd'))?.focus();
-            }
-        }
-    });
-
-    document.addEventListener('focusout', e => {
-        if (!/** @type {Element} */ (e.target).classList.contains('time-input')) return;
-        const timeInput = /** @type {HTMLInputElement} */ (e.target);
-        const val = timeInput.value.trim();
-        if (!val) { timeInput.classList.remove('input-error'); timeInput.removeAttribute('aria-invalid'); return; }
-        const invalid = !TIME_RE.test(val);
-        timeInput.classList.toggle('input-error', invalid);
-        // Expose the failure to assistive tech, not just via the CSS class. The input
-        // already points at its error span through aria-describedby.
-        if (invalid) timeInput.setAttribute('aria-invalid', 'true');
-        else timeInput.removeAttribute('aria-invalid');
     });
 }

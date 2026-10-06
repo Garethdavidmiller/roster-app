@@ -752,7 +752,13 @@ export function init() {
                         const msg = document.createElement('span');
                         msg.className = 'rr-error'; msg.setAttribute('role', 'alert');
                         msg.textContent = unknown || 'Couldn’t clear — check your connection and try again.';
-                        row?.append(msg);
+                        // The list may have been redrawn while the delete was out (a queued reload, a
+                        // notification tap): report on the row that is on the page NOW, not the old one.
+                        const live = row?.isConnected ? row
+                            : [...content.querySelectorAll('.btn-rr-clear')].find(b => /** @type {HTMLElement} */ (b).dataset.member === name)?.closest('.rr-row');
+                        if (live && live !== row && unknown) /** @type {HTMLButtonElement|null} */ (live.querySelector('.btn-rr-clear'))?.setAttribute('disabled', '');
+                        live?.querySelector('.rr-error')?.remove();
+                        live?.append(msg);
                     }
                 });
             });
