@@ -213,21 +213,19 @@ const USAGE_FIXTURE = `
 
 /** Serve a firebase-client.js whose usage/sign-in reads return fixed data. Throws if either anchor
  *  is missing, so the fixture can never silently stop applying. @param {import('@playwright/test').Page} page */
-function stubUsageReads(page) {
-    return page.route('**/firebase-client.js', async route => {
+async function stubUsageReads(page) {
+    /** Patch one served module at one anchor, loudly. @param {string} file @param {string} anchor @param {string} inject */
+    const patch = (file, anchor, inject) => page.route(`**/${file}`, async route => {
         const res = await route.fetch();
         const src = await res.text();
-        const anchors = ['export async function getUsageStats() {', 'export async function getSignInStats() {'];
-        for (const a of anchors) {
-            if (!src.includes(a)) throw new Error(`visual: usage fixture anchor no longer matches — "${a}". `
-                + 'Update it, or this baseline silently degrades to the empty state.');
-        }
-        const body = src
-            .replace(anchors[0], anchors[0] + USAGE_FIXTURE)
-            .replace(anchors[1], anchors[1]
-                + ' return { last30: 28, last7: 19, last90: 33, total: 41, neverSignedIn: 5 };');
-        await route.fulfill({ response: res, body, contentType: 'text/javascript' });
+        if (!src.includes(anchor)) throw new Error(`visual: usage fixture anchor no longer matches — "${anchor}" in ${file}. `
+            + 'Update it, or this baseline silently degrades to the empty state.');
+        await route.fulfill({ response: res, body: src.replace(anchor, anchor + inject), contentType: 'text/javascript' });
     });
+    // The usage read moved to analytics-client.js at v24.64; the sign-in read stayed.
+    await patch('analytics-client.js', '    async function getUsageStats() {', USAGE_FIXTURE);
+    await patch('firebase-client.js', 'export async function getSignInStats() {',
+        ' return { last30: 28, last7: 19, last90: 33, total: 41, neverSignedIn: 5 };');
 }
 
 test('operations — Usage card, populated (desktop 1280)', async ({ page }) => {

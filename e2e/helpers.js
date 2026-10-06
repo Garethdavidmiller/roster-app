@@ -619,14 +619,15 @@ export function perfSamples() {
     return out;
 }
 
-/** Serve a firebase-client.js whose perf read returns the fixture. Loud on a missing anchor, for
- *  the same reason as the Usage stub: a silent no-op would baseline the EMPTY card.
- *  @param {import('@playwright/test').Page} page */
+/** Serve an analytics-client.js whose perf read returns the fixture (the read moved there from
+ *  firebase-client.js at v24.64 — and this anchor's loud failure is how that move was caught).
+ *  Loud on a missing anchor, for the same reason as the Usage stub: a silent no-op would baseline
+ *  the EMPTY card. @param {import('@playwright/test').Page} page */
 export function stubPerfReads(page) {
-    return page.route('**/firebase-client.js', async route => {
+    return page.route('**/analytics-client.js', async route => {
         const res = await route.fetch();
         const src = await res.text();
-        const anchor = 'export async function getPerfStats() {';
+        const anchor = '    async function getPerfStats() {';
         if (!src.includes(anchor)) throw new Error(`visual: perf fixture anchor no longer matches — "${anchor}". `
             + 'Update it, or this baseline silently degrades to the empty state.');
         const fixture = `
