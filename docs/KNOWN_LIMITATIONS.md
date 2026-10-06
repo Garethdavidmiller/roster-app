@@ -1006,6 +1006,19 @@ device's system font: v23.55 shortened it to "Marylebone Roster" (the long form
 carried an em dash an OEM font may not have, reported as "a strange font"), and an
 installed phone shows the new label only after a reinstall regenerates its WebAPK.
 
+### Printing from the installed app on iOS 27 does nothing — so the app says so (v24.61)
+In a home-screen web app on iOS 27, `window.print()` is a no-op: no print sheet, no error, no
+`beforeprint`. The same tap in a Safari tab prints. WebKit bug 325259 (25 Sep 2026) places the
+fault in Apple's web-app shell rather than the engine; it is not fixed in iOS 27.0.1 and no
+page-side workaround exists. Every print control in the app now goes through `print-guard.js`:
+on an installed iPhone or iPad running iOS 27 or later the tap explains and offers "Open in
+Safari" (one tap, the same page) instead of silently doing nothing. An iOS 26 install keeps its
+print, and so does every Android install. **When Apple ships the fix, raise `PRINT_BLOCKED_FROM_IOS`
+by one rather than removing the guard** — installs update on their own schedule, and the guard
+costs a working iPhone nothing but a dialog. **Unconfirmed on a device:** whether `window.open` from
+the home-screen app lands in Safari itself or in the in-app Safari sheet; both can print from the
+share menu.
+
 ### Service worker activates immediately (`skipWaiting`)
 `self.skipWaiting()` means a new SW takes over all open tabs at once.
 In the rare case this causes a mid-session race, a hard reload resolves it.

@@ -23,7 +23,8 @@ import { PW_FORCE_PENDING_PREFIX, TEAM_VIEW, SELECTED_MEMBER } from './storage-k
 import { canOpenOvertime } from './auth-policy.js';       // nav-drawer pill gating only — never a boundary
 import { initTeamView } from './calendar-team-view.js';
 import { initNavPanel } from './nav-panel.js';
-import { _pushOverlayState, _clearOverlayHistory, createLightbox } from './overlay.js';
+import { _pushOverlayState, _clearOverlayHistory, createLightbox, confirmDialog } from './overlay.js';
+import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initCalendarNotices } from './calendar-notices.js';
 import { registerServiceWorker, reloadWhileHidden } from './sw-register.js';
@@ -970,7 +971,7 @@ try {
             if (e.key === 't' || e.key === 'T') { const now = new Date(); setDisplayMonth(now.getMonth()); setDisplayYear(now.getFullYear()); renderCalendar(); pulseToday(); announceMonthChange(); }
             // Any open overlay (lightbox / huddle viewer / nav drawer) already returned above, so
             // print is unguarded here.
-            if (e.key === 'p' || e.key === 'P') window.print();
+            if (e.key === 'p' || e.key === 'P') printOrExplain({ explain: () => explainNoPrint(confirmDialog) });   // print-guard.js: a home-screen app on iOS 27 cannot print
         });
 
 } catch (error) {

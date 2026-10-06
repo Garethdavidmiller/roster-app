@@ -52,6 +52,7 @@ import { createTargetPanel } from './links-generator-targets.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
 import { formatClockInput } from './clock-input.js';
+import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
 import { baselineFromEntry } from './links-concurrency.js';
@@ -1756,8 +1757,10 @@ export function init() {
     // not safe on the engine half this station reads on. The preparation is still shared, not
     // duplicated: both routes call the one function, and it is idempotent.
     document.getElementById('linksPrintBtn')?.addEventListener('click', () => {
-        _preparePrint();
-        window.print();
+        // Guarded (v24.61): in a home-screen app on iOS 27 `window.print()` does nothing, so the tap
+        // explains and offers Safari. Prepare only when a print will follow — the preparation's
+        // restore waits on events a print that never happens would never send.
+        printOrExplain({ print: () => { _preparePrint(); window.print(); }, explain: () => explainNoPrint(confirmDialog) });
     });
 
     let _reopenAfterPrint = /** @type {HTMLDetailsElement[]} */ ([]);

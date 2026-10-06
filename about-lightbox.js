@@ -17,7 +17,8 @@
  */
 
 import { APP_VERSION, CONFIG } from './roster-data.js';
-import { createLightbox } from './overlay.js';
+import { createLightbox, confirmDialog } from './overlay.js';
+import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { setStatus } from './status-text.js';
 
 /**
@@ -31,7 +32,7 @@ import { setStatus } from './status-text.js';
  *                                        omit on pages without a session (no User line is added)
  * @param {Function} [opts.onOpen]      - Page-specific extra work on open (e.g. calendar's
  *                                        team-view content swap), run before the panel shows
- * @param {Function} [opts.printFn]     - Replaces window.print() for the optional
+ * @param {() => void} [opts.printFn] - Replaces window.print() for the optional
  *                                        #lightboxPrintBtn (e.g. calendar's landscape team print)
  * @returns {{ open: () => void, close: () => void }|null}
  */
@@ -90,10 +91,12 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
     // output, then print after the exit transition. The 500 ms delay matches the
     // dismissOverlay fallback that fires when transitionend doesn't (iOS backgrounded tab,
     // prefers-reduced-motion) — no need to wire a second transitionend listener here.
+    // Through the print guard (v24.61): in a home-screen app on iOS 27 `window.print()` does nothing,
+    // so the tap explains and offers Safari instead — on every page that has this button.
     const printBtn = document.getElementById('lightboxPrintBtn');
     if (printBtn) printBtn.addEventListener('click', () => {
         lb.close();
-        setTimeout(() => (printFn ?? (() => window.print()))(), 500);
+        setTimeout(() => printOrExplain({ print: printFn ?? (() => window.print()), explain: () => explainNoPrint(confirmDialog) }), 500);
     });
 
     return lb;
