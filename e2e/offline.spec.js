@@ -70,8 +70,9 @@ test('service worker precaches the app and serves it offline', async ({ page, co
 // the PAGE'S network, not the worker's — a worker-initiated fetch still reached the dev server with
 // every cache deleted — and while the network is up the worker's warm-up refills an emptied Cache
 // Storage within milliseconds of the next fetch event, so "nothing cached" cannot be held long
-// enough to navigate. The path is read in review and listed in KNOWN_LIMITATIONS; step 6 above
-// proves the cached-fallback path, which is the one every installed device actually takes.
+// enough to navigate. It is pinned instead by `sw-fetch-doc.test.mjs` (v24.64), which runs the real
+// worker script against stubbed caches and network; step 6 above proves the cached-fallback path in a
+// real browser, which is the one every installed device actually takes.
 
 // ── The revalidation count, answered by a REAL worker (v22.94) ──────────────────────────────────
 //

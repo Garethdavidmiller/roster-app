@@ -80,6 +80,7 @@ const UNNAMED_BY_DESIGN = {
     // it cites; the three that were NOT covered by anything (calendar-keyboard's arrow keys,
     // error-reporter's wiring, paycalc-sticky-total, calendar-notif-prompt) got suites instead.
     'about-lightbox.js':     'driven by e2e/pages.spec.js (opens #iconLightbox and its bug-report links) and scanned by e2e/axe.spec.js',
+    'admin-time-inputs.js':  'driven by e2e/pages.spec.js ("admin: a week-grid time box formats as typed, moves on, and flags an impossible time"); its typing rule is clock-input.js, unit-tested by clock-input.test.mjs',
     'admin-week-swipe.js':   'driven by e2e/pages.spec.js ("the week label follows the swipe", "the week arrows and the swipe move the same state")',
     'install-prompt.js':     'driven by e2e/calendar.spec.js (the five `install strip:` tests, via a real beforeinstallprompt)',
     'fip-guide.js':          'guide-page chrome; driven by e2e/pages.spec.js (the FIP GUIDE block: jump-to-open, malformed-hash safety)',

@@ -40,9 +40,8 @@ export function isClockTime(v) {
  * `inputmode="numeric"`, and on an iPhone that keypad has digits and nothing else — no colon — so
  * a box whose reader demands `HH:MM` could not be filled from a phone at all: the Links window
  * times reverted "0730" and the roster review's entry cells stayed "Not saved" on it. The admin
- * week grid had solved this on its own since v10 (its formatter lives in admin-week-editor.js and
- * also moves focus, which is why it is not simply reused); this is that rule as a pure function,
- * for every other clock box: keep the digits, at most four; a THREE-digit run whose first pair cannot
+ * week grid had solved this on its own since v10; this is that rule as a pure function, and since
+ * v24.64 the week grid uses it too (admin-time-inputs.js keeps only the focus move): keep the digits, at most four; a THREE-digit run whose first pair cannot
  * be an hour ("630") is read as a leading zero dropped ("06:30"), never "63:0"; a four-digit run that
  * is not a time ("2400", "6300") is left for `isClockTime` to refuse — reshaping it would produce a
  * valid time nobody typed; the colon goes in after the hour once there is one. Setting a box to the value it already holds is
@@ -52,8 +51,7 @@ export function isClockTime(v) {
  */
 export function formatClockInput(raw) {
     let d = String(raw ?? '').replace(/[^0-9]/g, '').slice(0, 4);
-    // The dropped-zero reading applies to THREE digits only, exactly as the week editor's rule
-    // (admin-week-editor.js): a four-digit run that is not a time — "2400", "6300" — is left as it is,
+    // The dropped-zero reading applies to THREE digits only: a four-digit run that is not a time — "2400", "6300" — is left as it is,
     // for `isClockTime` to refuse, never reshaped into a valid time nobody typed (24-hour review).
     if (d.length === 3 && parseInt(d.slice(0, 2), 10) > 23) d = '0' + d;
     return d.length >= 3 ? `${d.slice(0, 2)}:${d.slice(2)}` : d;
