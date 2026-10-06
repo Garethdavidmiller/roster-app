@@ -35,6 +35,11 @@ export const VIEWED_YEAR  = 'myb_roster_year';
  *  `=== '1'` is false, and a Team View member silently boots into the month grid instead. */
 export const TEAM_VIEW = 'myb_team_view';
 
+/** The member's OWN roster, kept so the Calendar opens instantly (v24.59). Written and read only
+ *  by calendar-snapshot.js; DELETED by session.js `clearSession()`, which is every sign-out — two
+ *  modules, one spelling, and a typo here would leave a member's shifts on a shared device. */
+export const CALENDAR_SNAPSHOT = 'myb_cal_snapshot';
+
 /** The one-off notification prompt has been answered on this device — set by EITHER button (Enable
  *  and ×, because both mean "do not ask again"), so calendar-notif-prompt.js writes it and notif.js
  *  reads it when deciding what the drawer bell may claim about this device. Two modules, and it was

@@ -502,16 +502,20 @@ export function handleAccessLost() {
 /**
  * Decide access and either start the Calendar or show the unlock panel.
  *
- * @param {{ onGranted: () => void, onEveryGrant?: (() => void)|null }} deps
+ * @param {{ onGranted: () => void, onEveryGrant?: (() => void)|null, paintBeforeDecision?: (() => boolean)|null }} deps
  *   onGranted runs ONCE, the first time access is granted. It is how `calendar-app.js` defers every
  *   piece of Calendar initialisation — the member dropdown, the render, the fetch, the swipe handler
  *   — so that none of it exists while locked. Running it twice would duplicate all of that.
  *   onEveryGrant runs on EVERY grant, including one that follows a re-lock. Anything that a re-lock
  *   TURNS OFF has to be turned back on here rather than in `onGranted`, or it stays off for the rest
  *   of the session — see the note in `grant`.
+ *   paintBeforeDecision (v24.59) puts the member's OWN stored roster in the lock slot while the
+ *   decision runs, and says whether it did. It is NOT a grant: no override read opens, `onGranted`
+ *   is not spent, and any card the decision puts up replaces it (the slot never stacks). Not called
+ *   on a `#staff-pin` open, which has asked for the PIN.
  * @returns {Promise<'named'|'viewer'|'none'>}
  */
-export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
+export async function initCalendarAccess({ onGranted, onEveryGrant = null, paintBeforeDecision = null }) {
     _onGranted = onGranted;
     _onEveryGrant = onEveryGrant;
     // Hide the workspace SYNCHRONOUSLY, before any await. The decision below is asynchronous, and
@@ -532,6 +536,11 @@ export async function initCalendarAccess({ onGranted, onEveryGrant = null }) {
     // Say something if the decision is slow (v20.80). Scheduled BEFORE the await, cleared by every
     // path out of it — `grant()` and both cards call `hideLockPanel()`, which owns the timer.
     armSkeleton(SKELETON_AFTER_MS);
+    // The member's own roster instead of a skeleton, when this device holds one (v24.59). Mounting it
+    // disarms the skeleton timer, and the skeleton will not replace it (calendar-lock-slot.js).
+    if (!pinFirst && paintBeforeDecision) {
+        try { paintBeforeDecision(); } catch (e) { console.warn('[CalendarAccess] early paint failed', e); }
+    }
 
     /** @type {'named'|'viewer'|'none'} */
     let type;

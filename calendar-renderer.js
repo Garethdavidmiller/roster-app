@@ -315,21 +315,36 @@ function buildGridPlaceholder(display, onRetry) {
     return panel;
 }
 
+/** @type {((memberName: string, year: number, month: number) => Map<string, any>|null) | null} */
+let _snapshotSource = null;
+
+/**
+ * Register where a month's stored own-roster copy comes from (v24.59). Set once by calendar-app.js,
+ * so every caller of `buildCalendarContainer` — the month render AND the swipe carousel's adjacent
+ * panels — gets the same answer without each having to ask.
+ * @param {((memberName: string, year: number, month: number) => Map<string, any>|null) | null} fn
+ */
+export function setSnapshotSource(fn) { _snapshotSource = fn; }
+
 /**
  * Builds and returns a fully populated calendar-container div.
  * Accepts explicit month/year so callers never need to mutate global display state.
  * @param {number} month - 0-indexed JS month
  * @param {number} year
- * @param {{ onDayDetail?: Function, onRetryMonth?: Function }} [opts]
+ * @param {{ onDayDetail?: Function, onRetryMonth?: Function, member?: any, snapshot?: Map<string, any>|null }} [opts]
  *   onDayDetail       — called when ANY day cell is activated, on every pointer type (v23.59)
  *   onRetryMonth      — called as (year, month) from the "Try again" button of the withheld-grid
  *                       panel. Omitted by callers that have no fetch to re-run (the swipe carousel's
  *                       off-screen panels), in which case no button is drawn — an inert control is
  *                       worse than none.
+ *   member            — draw this member rather than the selected one (the pre-grant paint, v24.59,
+ *                       which runs before the member selector exists)
+ *   snapshot          — the member's OWN stored copy of this month (calendar-snapshot.js). Omitted,
+ *                       the registered source is asked (`setSnapshotSource`).
  */
 export function buildCalendarContainer(month, year, opts = {}) {
     const { onDayDetail, onRetryMonth } = opts;
-    const member = /** @type {any} */ (getCurrentMember());
+    const member = /** @type {any} */ (opts.member ?? getCurrentMember());
     const firstDay = new Date(year, month, 1);
     const lastDay  = new Date(year, month + 1, 0);
     // Resolve the roster descriptor for the displayed month so the week-prefix
@@ -370,8 +385,26 @@ export function buildCalendarContainer(month, year, opts = {}) {
     // The HEADER is deliberately built first and kept in every state: it carries the month label and
     // it is the mount point for the sync chip (calendar-initial-fetch.js watches for it). Withholding
     // the header as well would take the retry away in exactly the states that need one.
-    const _display = decideDisplay(knowledgeOf(monthKey(year, month)));
-    calendarContainer.dataset.overrideState = _display;
+    let _display = decideDisplay(knowledgeOf(monthKey(year, month)));
+    // ── THE MEMBER'S OWN COPY STANDS IN FOR A MONTH STILL LOADING (v24.59) ─────────────────────
+    //
+    // Only `loading` — a month that failed keeps its failure panel, and a month with real data
+    // draws that. The copy is drawn as `stale` (no "As rostered" claims, see below) and LABELLED, and
+    // it is read here, never merged into `rosterOverridesCache`, so nothing else can mistake it for
+    // what the server said. Whether a copy may be offered at all — own calendar, signed in by name,
+    // not Team View — is the source's decision (calendar-app.js), not this view's.
+    const snapshot = _display === 'loading' && member
+        ? (opts.snapshot !== undefined ? opts.snapshot : _snapshotSource?.(member.name, year, month) ?? null)
+        : null;
+    if (snapshot) _display = 'stale';
+    calendarContainer.dataset.overrideState = snapshot ? 'snapshot' : _display;
+    if (snapshot) {
+        const note = document.createElement('p');
+        note.className = 'calendar-snapshot-note';
+        note.setAttribute('role', 'status');
+        note.textContent = 'Checking for changes…';
+        calendarContainer.appendChild(note);
+    }
     if (_display === 'loading' || _display === 'unavailable') {
         calendarContainer.appendChild(buildGridPlaceholder(_display,
             // Wrapped only when there IS one — an always-defined arrow would make the panel
@@ -444,7 +477,9 @@ export function buildCalendarContainer(month, year, opts = {}) {
         // rostered" branch below needs the same answer, and re-asking would be a second place for
         // the two to disagree.
         const preStart = isBeforeMemberStart(member, currentDate);
-        const override = !preStart ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
+        const override = preStart ? null
+            : snapshot ? snapshot.get(dateStr) ?? null
+            : rosterOverridesCache.get(`${member.name}|${dateStr}`);
         // WHAT THE ROSTER SAID BEFORE THE CHANGE (v22.64). Captured here because the next line
         // overwrites `shift` with the effective value, and the base is then unrecoverable — the
         // day-detail panel could show "Early shift 07:00-16:00" with no way to tell whether that

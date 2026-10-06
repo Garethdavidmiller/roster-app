@@ -257,6 +257,20 @@ shown that yet.
   the session that earned it, needing its own clearing on sign-out and leaver. Not a latency tweak —
   an access-and-privacy decision, the same as the one this retires.
 
+- **The own-roster copy — APPROVED, owner decision, 5 Oct 2026 (v24.59).** Reopened on the one shape
+  above. The access-and-privacy question was answered by the owner directly: *"The roster is not
+  private information. It is available to the whole business."* So a returning member's own months
+  are kept in plain storage (`calendar-snapshot.js`) and painted the moment the Calendar opens,
+  labelled "Checking for changes…", while the identity is confirmed; the live data replaces them as
+  each month settles. What keeps it from repeating either defect of the provisional paint: it is NOT
+  a grant (no override read opens and the one-shot `onGranted` is not spent before the decision), and
+  it never touches `rosterOverridesCache` or the knowledge states, so it cannot mark a month known
+  for anybody. The privacy costs the entry above named are each answered: own rows only; deleted on
+  every sign-out, on session expiry, on a PIN or failed grant, on access loss and for any other
+  member; never shown to the PIN or in Team View; 14 days at most, a few months around today.
+  **What would reopen it:** evidence that it was shown to somebody other than the member it belongs
+  to, or a reason a member's own shifts should no longer be on their own device.
+
 ---
 
 ## The dropdowns that stay native (8 Sep 2026, v23.33 — completed and enforced v23.38)

@@ -3461,9 +3461,29 @@
            one — a selector on the rendered result is right after every transition without the
            state machine having to know about the grid. `e2e/calendar.spec.js` pins both halves. */
         .calendar-container:has(> .calendar-pending:not(.calendar-pending--failed)) .sync-chip,
-        .calendar-container:has(> .calendar-pending .calendar-pending-retry) .sync-chip {
+        .calendar-container:has(> .calendar-pending .calendar-pending-retry) .sync-chip,
+        .calendar-container[data-override-state="snapshot"] .sync-chip {
             display: none;
         }
+
+        /* ---- The member's own stored copy, drawn while the month loads (v24.59) -----------------
+           calendar-snapshot.js. A grid drawn from the copy carries this line under the header; it is
+           the label that keeps the copy from being read as the live roster, so it is the chip's
+           shape (the same "working" grammar) and takes the chip's place rather than sitting beside
+           it — one message at a time, as above. */
+        .calendar-snapshot-note {
+            display: block;
+            width: fit-content;
+            margin: 0 auto 8px;
+            font-size: var(--type-micro);
+            font-weight: 600;
+            color: var(--blue-sky);
+            background: color-mix(in srgb, var(--blue-sky) 12%, transparent);
+            border: 1px solid color-mix(in srgb, var(--blue-sky) 30%, transparent);
+            border-radius: var(--radius-pill);
+            padding: 3px 9px;
+        }
+        @media print { .calendar-snapshot-note { display: none; } }
 
         /* ---- Skeleton shimmer — shown on calendar grid during initial Firestore fetch ---- */
         @keyframes shimmer {
@@ -3684,6 +3704,12 @@
         }
         /* Nothing here belongs on paper — and a printed page cannot finish loading. */
         @media print { .cal-boot { display: none !important; } }
+
+        /* The member's own stored roster, drawn in the lock slot while the sign-in check runs (v24.59,
+           calendar-snapshot.js). It stands where `#calendarDisplay` will, so it takes that element's
+           card edge; it is inert (no handlers) and is replaced by the live grid on the grant. */
+        .cal-snapshot { border-radius: var(--radius-lg); overflow: hidden; }
+        @media print { .cal-snapshot { display: none !important; } }
 
         /* ── THE DAILY HUDDLE IS NOT A PRINTABLE DOCUMENT (owner decision, 7 Sep 2026) ───────
            The viewer had no print rules at all, and the consequence was not an ugly sheet — it was
