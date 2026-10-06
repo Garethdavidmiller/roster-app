@@ -161,6 +161,24 @@ export function reloadIfRestoredForSomeoneElse() {
     });
 }
 
+/** sessionStorage (one tab's journey): when this page's start-up stalled and the identity then landed
+ *  late, the last time it reloaded for that. Local to this module — one reader, one writer. */
+const LATE_IDENTITY_RELOAD = 'myb_late_identity_reload';
+/** Whether a late-identity reload may run now: not within two minutes of the last one. Stamps when it
+ *  says yes. sessionStorage (one tab's journey), read directly in a try/catch — iOS private mode throws.
+ *  @param {number} now @returns {boolean} */
+export function lateReloadAllowed(now) {
+    try {
+        const last = parseInt(sessionStorage.getItem(LATE_IDENTITY_RELOAD) || '0', 10) || 0;
+        if (now - last < LATE_RELOAD_GAP_MS) return false;
+        sessionStorage.setItem(LATE_IDENTITY_RELOAD, String(now));
+    } catch { /* no sessionStorage: allow the one reload rather than none */ }
+    return true;
+}
+/** Two minutes: longer than any start-up stall plus the SDK's own 30s lookup timeout, so a second
+ *  landing inside it can only be the same stall again. */
+export const LATE_RELOAD_GAP_MS = 120_000;
+
 /** The member a stored session value names, or null. @param {string|null|undefined} raw */
 function sessionName(raw) {
     try { return (raw && JSON.parse(raw)?.name) || null; } catch { return null; }
@@ -187,12 +205,17 @@ export function guardNamedSession({ page, pageLabel, member, established, signIn
     // been refused, the network has not answered. Keep the local session and the drawer, show the
     // sign-in — which can also sign them in, if they would rather not wait — and if the identity
     // this page belongs to lands late, reload into it rather than leave a page whose writes would fail.
+    // ONE automatic reload per two minutes (24-hour review). On a connection that accepts and never
+    // answers, the SDK gives up its own lookup after ~30s and emits the stored user anyway — so the
+    // identity "lands late" on EVERY load, and an uncapped reload was a loop with the sign-in
+    // flashing inside it. After the one reload the overlay stays, and it can still sign them in.
     const holdForLateIdentity = () => {
         showSignIn();
         const email = nameToEmail(member);
         const stop = onAuthStateChanged(auth, (/** @type {any} */ user) => {
             if (!user || user.isAnonymous || user.email !== email) return;
             stop();
+            if (!lateReloadAllowed(Date.now())) return;
             window.location.reload();
         });
     };

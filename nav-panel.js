@@ -517,13 +517,14 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                     // and keeps the app around it. On the Calendar that is a hash change under a
                     // drawer that has to close FIRST, so the hash lands after its Back echo; on any
                     // other page it is a navigation, and the drawer's entry goes with the page.
-                    const toViewer = () => { location.href = `./#${docId}`; };
                     if (_panelOpen && /(^|\/)(index\.html)?$/.test(location.pathname)) {
                         closePanel();
-                        whenHistorySettled(toViewer);
+                        // The hash alone: `./#…` from an explicit /index.html resolves to `/#…`, a PATH
+                        // change and a full reload where a hash change was meant (24-hour review).
+                        whenHistorySettled(() => { location.hash = docId; });
                     } else {
                         if (_panelOpen) closePanelForNavigation();
-                        toViewer();
+                        location.href = `./#${docId}`;
                     }
                 }
             } else {

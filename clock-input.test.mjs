@@ -22,8 +22,16 @@ describe('formatClockInput — a numeric keypad has no colon, so the box supplie
     });
     it('"630" is 06:30, never 63:0 — the week editor\'s own three-digit rule, applied as it is typed', () => {
         assert.equal(formatClockInput('630'), '06:30');
-        assert.equal(formatClockInput('6300'), '06:30', 'the trailing zero somebody types anyway changes nothing');
         assert.equal(formatClockInput('123'), '12:3', 'a three-digit entry that could still be a valid hour is left to finish');
+    });
+    it('a four-digit run that is not a time is left for isClockTime to refuse — never reshaped into one (24-hour review)', () => {
+        // The first cut padded any run whose first pair exceeded 23, so a typed "2400" (a midnight
+        // finish, which the roster writes 00:00) became the VALID time 02:40 and saved.
+        assert.equal(formatClockInput('2400'), '24:00');
+        assert.equal(isClockTime(formatClockInput('2400')), false);
+        assert.equal(formatClockInput('6300'), '63:00');
+        assert.equal(isClockTime(formatClockInput('6300')), false);
+        assert.equal(formatClockInput('06300'), '06:30', 'the trailing zero somebody types after a shaped 630 changes nothing');
     });
     it('anything beyond four digits, and anything that is not a digit, is dropped', () => {
         assert.equal(formatClockInput('07:30:00'), '07:30');

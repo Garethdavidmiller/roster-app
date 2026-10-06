@@ -17,7 +17,7 @@
  */
 
 import { APP_VERSION, CONFIG } from './roster-data.js';
-import { createLightbox, confirmDialog } from './overlay.js';
+import { createLightbox, confirmDialog, whenHistorySettled } from './overlay.js';
 import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { setStatus } from './status-text.js';
 
@@ -96,7 +96,11 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
     const printBtn = document.getElementById('lightboxPrintBtn');
     if (printBtn) printBtn.addEventListener('click', () => {
         lb.close();
-        setTimeout(() => printOrExplain({ print: printFn ?? (() => window.print()), explain: () => explainNoPrint(confirmDialog) }), 500);
+        // `whenHistorySettled`: the close above pops the lightbox's history entry, and the dialog the
+        // explain path opens pushes its own — if the Back echo has not landed yet it would consume the
+        // dialog's entry and the next hardware Back would leave the page (24-hour review). The print
+        // path touches no history and is unaffected.
+        setTimeout(() => whenHistorySettled(() => printOrExplain({ print: printFn ?? (() => window.print()), explain: () => explainNoPrint(confirmDialog) })), 500);
     });
 
     return lb;

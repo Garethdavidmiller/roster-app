@@ -6260,7 +6260,9 @@ test('links window: a time typed without a colon is shaped into one, so a phone 
     await end.fill('');
     await end.pressSequentially('1420');
     await expect(end).toHaveValue('14:20');
-    await end.dispatchEvent('change');
+    // Focus LEAVES the box, as a thumb's does — no synthetic `change`. A programmatic value set
+    // resets WebKit's change baseline, so the commit has to run on blur too (24-hour review).
+    await page.keyboard.press('Tab');
     await expect(end).toHaveValue('14:20');                            // accepted, not reverted
     await expect.poll(() => page.locator('.cov-heat-cell.heat-gap').count()).toBeLessThan(before);
 });

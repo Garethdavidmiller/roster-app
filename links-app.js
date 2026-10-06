@@ -360,9 +360,14 @@ export function init() {
         // The boxes are a numeric keypad on a phone, and that keypad has no colon (v24.61, iOS audit):
         // "0730" typed there was reverted as not a time. Shape it as it is typed, as the admin week
         // grid does; `commit` below still canonicalises and validates what is finally there.
+        // AND COMMIT ON BLUR AS WELL AS CHANGE (24-hour review of v24.61). Setting `.value` from the
+        // `input` handler resets WebKit's change-detection baseline — the week grid measured this
+        // (admin-week-editor.js) — so on an iPhone `change` could never fire when focus left, and the
+        // shaped time sat in the box without ever reaching the design. `commit` is idempotent.
         for (const row of /** @type {const} */ (['monSat', 'sun'])) {
             for (const el of [els[row].start, els[row].end]) {
                 el?.addEventListener('input', () => { el.value = formatClockInput(el.value); });
+                el?.addEventListener('blur', () => commit(row));
             }
         }
 

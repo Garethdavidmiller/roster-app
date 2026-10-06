@@ -63,23 +63,15 @@ test('service worker precaches the app and serves it offline', async ({ page, co
     expect(fallback?.status(), 'offline uncached navigation should hit the SW fallback').toBe(200);
 });
 
-// ── NOTHING CACHED, AND OFFLINE: the synthesised page, with a way back (v24.61, iOS audit B3) ──
-// The document branch races the network against the cache only when a cached fallback EXISTS; with
-// every cache gone (a first install, iOS eviction) it waits for the network, and only the network's
-// failure produces the synthesised page. Step 6 above resolves through the precached index.html, so
-// it never reached this path; this test empties Cache Storage first.
-test('with every cache gone, an offline navigation gets the synthesised page and its Try again', async ({ page, context }) => {
-    await page.goto('/index.html', { waitUntil: 'load' });
-    await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 20_000 });
-    await page.evaluate(async () => { for (const k of await caches.keys()) await caches.delete(k); });
-    await context.setOffline(true);
-    const nav = await page.goto('/paycalc.html?payday=2026-10-30', { waitUntil: 'commit' });
-    expect(nav?.status(), 'a synthesised 200, never the browser error page').toBe(200);
-    const html = await page.content();
-    expect(html).toContain('Pay Calculator is not available offline');
-    expect(html).toContain('Try again');
-    await context.setOffline(false);
-});
+// ── WHAT THIS LANE CANNOT REACH: the no-fallback document path (v24.61, iOS audit B3) ──────────
+// With NOTHING cached the document branch waits for the network and synthesises its "Offline" page
+// only on the network's failure (service-worker.js, `findCachedFallback` / `offlinePage`). Two
+// attempts to pin that here were measured and withdrawn (24-hour review): `context.setOffline` cuts
+// the PAGE'S network, not the worker's — a worker-initiated fetch still reached the dev server with
+// every cache deleted — and while the network is up the worker's warm-up refills an emptied Cache
+// Storage within milliseconds of the next fetch event, so "nothing cached" cannot be held long
+// enough to navigate. The path is read in review and listed in KNOWN_LIMITATIONS; step 6 above
+// proves the cached-fallback path, which is the one every installed device actually takes.
 
 // ── The revalidation count, answered by a REAL worker (v22.94) ──────────────────────────────────
 //

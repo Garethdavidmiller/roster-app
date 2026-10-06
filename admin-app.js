@@ -1637,7 +1637,8 @@ export function init() {
     registerServiceWorker({
         // A write still waiting on the server counts as unsaved (review A13): a range booking
         // commits in chunks, and reloading between them strands the rest. The shared helper
-        // (v24.61) re-asks at the moment of reloading, as this page's own code always did.
+        // (v24.61) re-asks BOTH at the moment of reloading — the hand-rolled version re-asked only
+        // the writes, so staged week-grid edits could still be reloaded away on a hide.
         beforeReload: () => reloadWhenNotBusy(() => hasUnsavedChanges() || writesInFlight() > 0),
     });
     sessionReady.then(() => { initErrorReporter(); recordUsage('admin', currentUser); recordPageLatency('admin', currentUser); });

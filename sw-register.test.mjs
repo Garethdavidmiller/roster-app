@@ -484,6 +484,20 @@ describe('reloadWhenNotBusy — a release waits for the work, and asks again whe
             assert.equal((h.docListeners['visibilitychange'] || []).length, 0);
         } finally { h.restore(); }
     });
+
+    test('two releases during one busy spell arm ONE reload, not two (24-hour review)', () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            _resetForTest();
+            let busy = true;
+            reloadWhenNotBusy(() => busy);
+            reloadWhenNotBusy(() => busy);
+            assert.equal((h.docListeners['visibilitychange'] || []).length, 1, 'one listener for both');
+            busy = false;
+            h.setVisibility('hidden');
+            assert.equal(h.state.reloads, 1, 'one reload serves both updates');
+        } finally { h.restore(); _resetForTest(); }
+    });
 });
 
 describe('reloadWhileHidden — decided when the reload happens, not when the update arrived', () => {

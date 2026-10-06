@@ -1048,6 +1048,15 @@ costs a working iPhone nothing but a dialog. **Unconfirmed on a device:** whethe
 the home-screen app lands in Safari itself or in the in-app Safari sheet; both can print from the
 share menu.
 
+### The service worker's no-fallback document path has no automated test (v24.61)
+When NOTHING is cached (a first install, or iOS having evicted Cache Storage) a document request now
+waits for the network and synthesises the "Offline" page only when the network fails; a 4xx/5xx with
+nothing cached passes the server's answer through. Neither branch can be reached from the offline
+lane: Playwright's offline switch does not cut a service worker's own fetches, and while online the
+worker's warm-up refills an emptied cache within milliseconds (both measured, 6 Oct 2026). The
+cached-fallback path — the one every installed device takes — is tested; this one is read in review.
+A hermetic harness that drives the fetch handler with a stubbed `fetch` and `caches` would close it.
+
 ### Service worker activates immediately (`skipWaiting`)
 `self.skipWaiting()` means a new SW takes over all open tabs at once.
 In the rare case this causes a mid-session race, a hard reload resolves it.

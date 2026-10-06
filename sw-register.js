@@ -26,7 +26,7 @@ let _registered = false;
 let _controllerListenerAttached = false;
 
 /** TEST-ONLY: reset the once-per-page-life guards between test cases. */
-export function _resetForTest() { _registered = false; _controllerListenerAttached = false; _hiddenReloadArmed = false; _updateClaimed = false; }
+export function _resetForTest() { _registered = false; _controllerListenerAttached = false; _hiddenReloadArmed = false; _busyReloadArmed = false; _updateClaimed = false; }
 
 // A newer release has taken control of this page (a genuine update, not the first-install claim).
 // While its reload is held — `deferWhileVisible`, a declined confirm — the new worker serves the
@@ -116,14 +116,19 @@ export function reloadWhileHidden(reload = () => window.location.reload()) {
  */
 export function reloadWhenNotBusy(isBusy, reload = () => window.location.reload()) {
     if (!isBusy()) { markUpdateReload(); reload(); return; }
+    if (_busyReloadArmed) return;   // one armed reload serves every update that arrives while busy
+    _busyReloadArmed = true;
     const onHidden = () => {
         if (document.visibilityState !== 'hidden' || isBusy()) return;
         document.removeEventListener('visibilitychange', onHidden);
+        _busyReloadArmed = false;
         markUpdateReload();
         reload();
     };
     document.addEventListener('visibilitychange', onHidden);
 }
+/** Whether a busy-page reload is already waiting for an idle hide (same latch as `_hiddenReloadArmed`). */
+let _busyReloadArmed = false;
 
 /** Note that the reload about to happen was caused by an update. Best-effort; never throws. */
 function markUpdateReload() {
