@@ -569,12 +569,18 @@ async function initPageSpeedCard() {
             const WORDS = { '0': 'Nothing to recheck', '1-10': 'A few files', '11-30': 'Some files', '31+': 'A full sweep' };
             counts.rows.forEach(r => {
                 const row = document.createElement('div');
-                row.className = 'speed-row speed-row--why';
+                row.className = 'speed-row speed-row--why speed-row--count';
                 const thin = r.count < THIN_SAMPLE;
+                // A COUNT row (aesthetic pass, Oct 2026): the band range sat in the BAR track, which
+                // squeezed the words into the 27% label column ("Nothing to r…", "Some … (few)").
+                // The words now get the widest track, the range drops to a quiet second line under
+                // them, and a short single-colour share bar shows the proportion — deliberately
+                // NOT the quick/moment/slow bar, because this is a count, not a speed.
                 row.innerHTML =
-                    `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(WORDS[r.band] || r.band)}</span>`
-                        + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
-                    `<span class="speed-row-sub">${escapeHtml(r.band)}</span>` +
+                    `<span class="speed-count-label"><span class="speed-row-label"><span class="speed-row-name">${escapeHtml(WORDS[r.band] || r.band)}</span>`
+                        + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>`
+                        + `<span class="speed-count-band">${escapeHtml(r.band)}</span></span>` +
+                    `<span class="speed-share" role="img" aria-label="${r.pct}% of opens"><span class="speed-share-fill" style="width:${Math.max(0, Math.min(100, r.pct))}%"></span></span>` +
                     `<span class="speed-row-count">${r.pct}%</span>` +
                     `<span class="speed-row-sub">${r.count.toLocaleString('en-GB')}</span>`;
                 list.appendChild(row);

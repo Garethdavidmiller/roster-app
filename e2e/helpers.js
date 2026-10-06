@@ -610,6 +610,12 @@ export function perfSamples() {
     // fixture where both spread, or neither, would baseline a picture that reads as no finding.
     add('calendar', 'authBoot', '1-3s', 90, '3g');  add('calendar', 'authBoot', '3-8s', 70, '3g');
     add('calendar', 'appBoot',  'lt500ms', 140, '3g'); add('calendar', 'appBoot', '500ms-1s', 20, '3g');
+    // THE BACKGROUND WORKER BLOCK (Oct 2026). It had no seed, so no baseline ever drew it — and it
+    // shipped with its names truncated at 390px ("Nothing to r…"), found on a phone. A thin band is
+    // included on purpose: the "(few)" marker is what squeezed the label hardest.
+    add('calendar', 'swrCount', '0', 60); add('calendar', 'swrCount', '1-10', 31);
+    add('calendar', 'swrCount', '11-30', 3); add('calendar', 'swrCount', '31+', 287);
+    add('calendar', 'readyHeavySwr', 'lt500ms', 20); add('calendar', 'readyHeavySwr', '1-3s', 160); add('calendar', 'readyHeavySwr', '3-8s', 107);
     return out;
 }
 

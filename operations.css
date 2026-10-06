@@ -903,6 +903,14 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     /* Cap the usage/speed bar charts — a 1fr bar track stretched to ~400px produces long, thin,
        hard-to-compare pills. ~540px keeps them a scannable length in the wide column. */
     .usage-bars, .speed-rows { max-width: 540px; }
+    /* …and the App Speed card's OTHER wide pieces share that measure (aesthetic pass, Oct 2026).
+       The verdict boxes, the full-width bars under them and the legend ran to the card's edge while
+       every row below stopped at 540px, so the card had two right edges ~80px apart and the rows
+       read as unfinished. One measure, one edge. */
+    .speed-verdict, .speed-bar--overall, .speed-legend { max-width: 540px; }
+    /* The connection group's rows sit inside a 2px rule + 12px indent; their own cap comes off by
+       the same 14px so the group's figures end on the card's one edge too. */
+    .speed-dim-group .speed-rows { max-width: calc(540px - 14px); }
     /* Header spans both columns */
     .app-header { grid-column: 1 / -1; }
 
@@ -1754,6 +1762,31 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 }
 .speed-thin { color: var(--text-mid); font-weight: 400; }
 
+/* A COUNT row — the background worker's recheck bands (aesthetic pass, Oct 2026). Same four tracks
+   as `.speed-row--why`, so "share" and "opens" sit in the columns the rows around it use; only the
+   bar is different. A single quiet fill, never the green/amber/red split: this is how many files,
+   not how fast, and a speed-coloured bar would say otherwise. */
+.speed-row--count { grid-template-columns: minmax(0, 1fr) minmax(40px, 24%) minmax(5ch, auto) minmax(5ch, auto); }
+.speed-count-label { display: flex; flex-direction: column; min-width: 0; }
+.speed-count-band {
+    color: var(--text-light);
+    font-size: var(--type-micro);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+}
+.speed-count-band::after { content: ' files'; }
+.speed-share {
+    display: block;
+    height: var(--report-bar-h);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+}
+.speed-share-fill { display: block; height: 100%; background: var(--primary-blue); opacity: 0.55; }
+/* A note that FOLLOWS a table needs air above it; flush, it read as the last row's caption. */
+.speed-rows + .speed-note { margin-top: 12px; }
+
 /* A divider above a section that starts a NEW subject, mirroring `.usage-section-label--sub` on the
    Usage card. Without it the whole card is one continuous scroll: "Opening pages" and "Why some are
    slower" are separate questions and nothing marked where either began. */
@@ -1838,6 +1871,12 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     margin-top: 10px;
 }
 .speed-dim-group + .speed-dim-group { margin-top: 14px; }
+/* THE BARS STAY IN ONE COLUMN (aesthetic pass, Oct 2026). The label track is a PERCENTAGE of the
+   row, and inside this indent the row is 14px narrower and 14px further right — so every bar in the
+   group started ~10px right of the bars above and below it, and the bar column zig-zagged. Taking
+   the indent back off the label track (27% of the outer width ≈ 27% of the inner, less 10px) puts
+   the bars back on the same line as their siblings, at 390px and on the desktop card alike. */
+.speed-dim-group .speed-row--why { grid-template-columns: minmax(62px, calc(27% - 10px)) minmax(0, 1fr) minmax(5ch, auto) minmax(5ch, auto); }
 .speed-dim-group .speed-dim-label {
     margin-top: 0;
     text-transform: none;
