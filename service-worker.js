@@ -704,16 +704,13 @@ self.addEventListener("fetch", event => {
             console.log(`[SW ${APP_VERSION}] ${logMsg}`, path);
             return findCachedFallback().then(r => r || offlinePage());
         };
-        /** The best cached copy for this navigation, or null when there is NONE — split out of
-         *  serveFallback at v24.61 so the cache-miss path below can ask the question first. */
+        /** The best cached copy for this navigation, or null when there is NONE (v24.61). */
         const findCachedFallback = () => openCache().then(c => c.match(event.request, { ignoreSearch: true })).catch(() => null)
             .then(r => r || matchNewestManagedCache(event.request, { ignoreSearch: true }))
             .then(r => r || (fallback ? openCache().then(c => c.match(fallback)).then(fr => fr || matchNewestManagedCache(fallback)).catch(() => null) : null))
             .then(r => r || null);
-        /** The synthesised last resort — with a way back (v24.61, iOS audit B3): the page used to
-         *  say "reconnect and reload" and offer nothing to tap, and an installed app has no address
-         *  bar. The link is this request's own path, so a deep link retries itself. No script: a
-         *  synthesised response carries no CSP, and a plain link needs none. */
+        /** The synthesised last resort, with a "Try again" link to this request's own path (v24.61):
+         *  an installed app has no address bar. A plain link — a synthesised response has no CSP. */
         const offlinePage = () => {
             if (!isDoc) return Response.error();
             const retryHref = (url.pathname + url.search).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -783,13 +780,11 @@ self.addEventListener("fetch", event => {
             try { event.waitUntil(networkPromise.catch(() => null)); } catch (_e) { /* settled */ }
 
             if (cachedDoc) return cachedDoc;
-            // Cache miss (first visit to this page, or evicted storage): network-first with
-            // the 2s cache-fallback race, exactly as before v16.10 — PROVIDED THERE IS SOMETHING
-            // TO FALL BACK TO (v24.61, iOS audit B3). On a first install, or after iOS evicted the
-            // whole Cache Storage, there is not: the race then served the synthesised "Offline" page
-            // to an ONLINE member whose page was simply taking more than two seconds, and the abort
-            // killed the real fetch underneath it. With nothing cached the only honest answer is
-            // the network's, however long it takes; only its failure is offline.
+            // Cache miss (first visit, or evicted storage): network-first with the 2s cache-fallback
+            // race, as before v16.10 — PROVIDED THERE IS SOMETHING TO FALL BACK TO (v24.61, iOS audit
+            // B3). With nothing cached the race served the synthesised "Offline" page to an ONLINE
+            // member on a slow connection and the abort killed the real fetch; now it waits for the
+            // network, and only the network's failure is offline.
             const fallbackDoc = await findCachedFallback();
             if (!fallbackDoc) {
                 let response;
@@ -1062,16 +1057,10 @@ self.addEventListener("notificationclick", event => {
     );
 });
 
-// THE SUBSCRIPTION ROTATED UNDER US (v24.61, iOS audit B4). A push service may retire an endpoint —
-// iOS does, on its own schedule — and announces it here, once, to the service worker alone; the
-// pages are not running. Until v24.61 nothing listened: the server kept a dead endpoint, the next
-// send got a 410 and deleted it, and the device read "off" at its next bell check with nobody
-// having turned anything off. Re-subscribe with the key the OLD subscription carried (so this file
-// never holds a copy of the VAPID key — notif.js and functions/index.js are the two that must
-// agree); some browsers hand the renewal over ready-made in `newSubscription`. The SERVER record is
-// written by the page: notif.js remembers which endpoint it last saved and re-saves at once, outside
-// its 24-hour throttle, when the live one differs. A browser that hands over neither a renewal nor
-// the old key is left as before — the next bell check reads the lapse.
+// THE SUBSCRIPTION ROTATED UNDER US (v24.61, iOS audit B4): re-subscribe with the key the OLD one
+// carried — this file holds no copy of the VAPID key — or take the ready-made `newSubscription`.
+// notif.js re-saves the server record at once when the live endpoint differs from the one it last
+// saved. Full account: .claude/rules/notifications.md → "When the push service rotates a subscription".
 self.addEventListener("pushsubscriptionchange", event => {
     const oldSub = event.oldSubscription;
     const key = oldSub && oldSub.options && oldSub.options.applicationServerKey;

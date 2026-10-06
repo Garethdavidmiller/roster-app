@@ -281,7 +281,12 @@ const CAPS = {
     // and imported by page modules that never touch the drawer's DOM, and both are already tested;
     // they would move to a pure module and load in Node. Deliberately NOT done in a bug-fix pass on
     // the nav panel, where a rename touching seven pages is the regression the pass exists to avoid.
-    'nav-panel.js':            1300,
+    // 1300 → 1350 at v24.61 — a RAISE, said so. The iOS audit's B5 added fourteen lines of wiring to
+    // `_openLatestDoc` (no tab came back → the in-app viewer, not the storage origin) to a file that
+    // stood at EXACTLY its cap. Nothing in those lines is a rule a Node test could hold, and the
+    // extraction named above is the way DOWN — it is still the right one, and still not for a pass
+    // whose subject is somewhere else. Lower this again when the notices archive leaves.
+    'nav-panel.js':            1350,
     // 965 → 1020 at v23.40, and the word is RAISE rather than extract, which the note above says
     // should be justified. What consumed the headroom was v23.38's select-sheet sweep, filling the
     // file to EXACTLY 965; what needs the five lines now is not a feature but an accessibility fix
@@ -355,7 +360,13 @@ const CAPS = {
     // Headroom is deliberately 45 and not the usual 50–99: this is the highest-outage-risk file in
     // the repo, and its previous cap left five lines, which was a tighter statement than the
     // convention on purpose. Bring it back down the moment anything leaves this file.
-    'service-worker.js':       1050,
+    // 1050 → 1100 at v24.61 — a RAISE, said so. The iOS audit's B3 (a document cache-miss races the
+    // cache only when a cached fallback EXISTS; the offline page gains a "Try again" link) and B4
+    // (`pushsubscriptionchange`) are fetch-handler logic and an event handler in a CLASSIC worker,
+    // which can import nothing, so there is nowhere for them to go; the prose that could leave was
+    // moved to AI_MAP and notifications.md before this number moved. Headroom stays below the
+    // convention, as the paragraph above asks.
+    'service-worker.js':       1100,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The

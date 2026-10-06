@@ -131,6 +131,15 @@
 import base from './playwright.config.mjs';
 import { devices } from '@playwright/test';
 
+// THE PHONE STAFF CARRY NOW, NOT THE ONE THEY CARRIED (v24.61, iOS audit D). `devices['iPhone 13']`
+// is 390×844; every iPhone Pro since the 15 — the 16 Pro, the 17 Pro and the 18 Pro, which is to a
+// web page the same device as the 17 Pro — is 402×874 at the same density. The user agent and DPR
+// stay the descriptor's, because the ENGINE is what this lane tests and a UA string changes no
+// layout. Playwright 1.56 has no 17 Pro descriptor; the upgrade that carries one (and a newer WebKit)
+// is its own change, with the Chromium baseline churn it brings — KNOWN_LIMITATIONS.md, "The test
+// matrix and the phones staff carry".
+export const IPHONE_PRO_VIEWPORT = { width: 402, height: 874 };
+
 export default {
     ...base,
     retries: process.env.CI ? 1 : 0,
@@ -167,6 +176,6 @@ export default {
     projects: [
         { name: 'webkit', use: { ...devices['Desktop Safari'] } },
         // Mobile Safari — the shape most staff would actually hold, if they hold an iPhone at all.
-        { name: 'mobile-safari', use: { ...devices['iPhone 13'] } },
+        { name: 'mobile-safari', use: { ...devices['iPhone 13'], viewport: IPHONE_PRO_VIEWPORT } },
     ],
 };

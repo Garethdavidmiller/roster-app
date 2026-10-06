@@ -194,6 +194,34 @@ Playwright, ESLint); nothing in it is served to staff, and the Cloud Functions' 
 14.x — the wrong direction, and the review said so too. They clear when the CLI updates its own
 dependencies; re-run `npm audit` after each CLI bump.
 
+## The test matrix and the phones staff carry (v24.61)
+
+The iOS 27 / iPhone 18 Pro audit (6 Oct 2026) found the test matrix a generation behind the fleet:
+the two WebKit lanes ran as an iPhone 13 (390×844), and every iPhone Pro since the 15 — the 16 Pro,
+the 17 Pro and the 18 Pro, which to a web page is the same device as the 17 Pro — is 402×874 at the
+same density. Both lanes now run at that geometry (`IPHONE_PRO_VIEWPORT` in `playwright.webkit.mjs`,
+shared by `playwright.visual-webkit.mjs`); the six WebKit baselines were regenerated and the full
+WebKit smoke suite re-run at the new width before this shipped.
+
+**Not done, deliberately: the Playwright upgrade.** The repo pins `@playwright/test` 1.56.1, whose
+newest iPhone descriptor is the 15 Pro; 1.63.0 carries 17 Pro descriptors and a newer WebKit build
+(2359, nearer Safari 27 than the 2215 run here, which identifies as Safari 26). Two things make that
+its own change rather than a line in this one:
+
+- **It moves the Chromium the deploy gate runs on** (1194 → 1243, Chromium 153), and every one of
+  the 45 committed Chromium visual baselines was rendered on 1194. They would all drift at once, and
+  the dev container's pre-installed Chromium is 1194, so they cannot be regenerated here to match
+  what CI would render — the regeneration has to happen on the CI renderer, reviewed as one commit.
+- **A geometry override already delivers the audit's point.** A descriptor is a viewport, a density
+  and a user-agent string; the string changes no layout, and the engine is the same binary whatever
+  it claims to be. The upgrade's real value is the newer WebKit, which is a reason to do it, in a
+  pull request whose only subject it is.
+
+Landscape (874×402, 956×440) is NOT in the matrix either, on purpose: Playwright's Linux WebKit
+reports every safe-area inset as zero, so a landscape baseline would prove nothing about the Dynamic
+Island insets the audit's B11 added, and the smoke suite's layout assertions are written for
+portrait. A real iPhone in landscape is on the device checklist in the audit, not in CI.
+
 ## Security
 
 > **Forward plan.** The security work in this section is sequenced, with per-phase risk and

@@ -48,7 +48,7 @@
 import { test, expect } from './fixtures.js';
 import { prep, settle } from './visual-harness.js';
 
-// The device's own viewport (iPhone 13, 390×844) is what the config supplies. Where a surface is
+// The viewport (402×874 — the iPhone 15 Pro to 18 Pro, since v24.61; the iPhone 13's 390×844 before) is what the config supplies. Where a surface is
 // taller than the screen the test grows the viewport rather than using `fullPage`, for the reason
 // `visual.spec.js` records: a fullPage shot resizes to scrollHeight at capture time, and a
 // sub-pixel-unstable height rounds differently between runs and shifts the whole frame.
