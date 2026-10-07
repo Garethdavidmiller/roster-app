@@ -118,13 +118,27 @@ body {
     color: var(--primary-blue);
 }
 .tr-tab:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
+/* The view tabs carry their card's emoji, stacked over the label on a phone so three fit. */
+.tr-tab-icon { display: block; font-size: var(--type-body); line-height: 1.2; margin-bottom: 1px; }
+/* The day: one translucent track holding three quieter segments — a qualifier, not a fourth view. */
+.tr-tabs--seg {
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--on-navy-hairline);
+    border-radius: var(--radius-sm);
+    background: var(--on-navy-raised);
+}
+.tr-tabs--seg .tr-tab { padding: 5px 8px; border-color: transparent; background: transparent; font-weight: 600; }
+.tr-tabs--seg .tr-tab[aria-pressed="true"] { background: var(--surface); border-color: var(--surface); font-weight: 700; }
 @media (min-width: 1024px) {
-    .tr-controls { flex-direction: row; gap: 24px; }
+    .tr-controls { flex-direction: row; align-items: stretch; gap: 24px; }
     .tr-controls > .tr-tabs { flex: 1; }
+    .tr-tab-icon { display: inline; margin: 0 6px 0 0; }
 }
 /* A tab strip INSIDE a card (direction, Now / From 13 Dec) sits on the card surface, so it takes the
    card's own idiom: sunken track, the chosen tab white — the Pay Calculator's tax-year tabs. */
 .tr-tabs--in-card { margin: 12px 0; }
+@media (min-width: 1024px) { .tr-tabs--in-card { max-width: 420px; } }
 .tr-tabs--in-card[hidden] { display: none !important; }
 .tr-tabs--in-card .tr-tab {
     border-color: var(--border-light);
@@ -246,11 +260,14 @@ body {
     font-weight: 600;
     white-space: nowrap;
 }
-.tr-trains td:first-child, .tr-trains td:nth-child(2) { width: 22%; font-weight: 600; }
+.tr-trains td:first-child, .tr-trains td:nth-child(2) { width: 28%; font-weight: 600; }
+/* "No change" is the absence of news: plain quiet text, so the chips that remain are the changes. */
+.tr-chip--same { padding-inline: 0; background: none; color: var(--text-light); font-weight: 500; }
 .tr-row--same td { color: var(--text-light); font-weight: 400; }
 .tr-none { color: var(--text-faint); }
 .tr-days {
     display: block;
+    white-space: nowrap;
     color: var(--text-light);
     font-size: var(--type-micro);
     font-weight: 400;
@@ -295,7 +312,18 @@ body {
 
 /* ── Stations: the picker and the card ──────────────────────────────────────── */
 .tr-input.tr-input--wide { width: 100%; max-width: none; }
-.tr-picks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+@media (min-width: 1024px) { .tr-input.tr-input--wide { max-width: 480px; } }
+.tr-picks-label {
+    flex-basis: 100%;
+    margin: 0;
+    /* The app's group label (shared.css .picker-group-label). */
+    color: var(--text-light);
+    font-size: var(--type-badge);
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+.tr-picks { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
 .tr-pick {
     padding: 6px 12px;
     border: 1px solid var(--border-light);
@@ -322,13 +350,29 @@ body {
 .tr-verdict--moved { background: var(--al-warning-bg); color: var(--orange-text); }
 .tr-verdict--unknown { color: var(--text-mid); font-weight: 600; }
 .tr-st-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+/* On a desktop the station reads as two halves — the answer and its figures, then the trains —
+   instead of one table stretched across 1,100px with its numbers a long way from their labels. */
+@media (min-width: 1024px) {
+    #trStation:has(.tr-route) {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        /* The last row takes the train list's extra height, so the note stays under the figures. */
+        grid-template-rows: auto auto 1fr;
+        column-gap: 24px;
+        align-items: start;
+    }
+    #trStation > .tr-verdict { grid-column: 1 / -1; }
+    #trStation > .tr-st-table { grid-column: 1; grid-row: 2; }
+    #trStation > .tr-note { grid-column: 1; grid-row: 3; }
+    #trStation > .tr-route { grid-column: 2; grid-row: 2 / span 2; margin-top: 0; }
+}
 .tr-st-table th, .tr-st-table td {
     padding: 8px 8px 8px 0;
     text-align: left;
     border-bottom: 1px solid var(--border-light);
 }
-.tr-st-table thead th { color: var(--text-light); font-size: var(--type-small); font-weight: 600; }
-.tr-st-table tbody th { font-weight: 600; color: var(--text-mid); width: 46%; }
+.tr-st-table thead th { color: var(--text-light); font-size: var(--type-small); font-weight: 600; white-space: nowrap; }
+.tr-st-table tbody th { font-weight: 600; color: var(--text-mid); width: 40%; }
 .tr-st-table td { font-weight: 700; }
 .tr-station-tile { margin-top: 12px; }
 
@@ -336,10 +380,18 @@ body {
    Chiltern's own poster format — a column per train that repeats every hour, a dot where it stops.
    The table scrolls sideways inside its own box on a phone, the station names pinned, so the page
    itself never does. */
-.tr-grid-wrap { overflow-x: auto; margin-top: 4px; }
+/* position: relative is load-bearing: it makes the box the containing block of the sr-only words in
+   the cells. Without it those absolutely-positioned spans escaped the scroller and stretched the
+   PAGE to 444px on a 390px phone, so the whole page scrolled sideways (v24.74). */
+.tr-grid-wrap { position: relative; overflow-x: auto; margin-top: 4px; }
 /* Focusable, so a keyboard can scroll it sideways on a phone (axe: scrollable-region-focusable). */
 .tr-grid-wrap:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
 .tr-grid { border-collapse: separate; border-spacing: 0; font-size: var(--type-small); }
+@media (min-width: 1024px) {
+    /* Fixed layout: the station column is set, every train column gets an equal share. */
+    .tr-grid { width: 100%; table-layout: fixed; }
+    .tr-grid tbody tr:hover > * { background: var(--surface-sunken); }
+}
 .tr-grid th, .tr-grid td { padding: 5px 6px; border-bottom: 1px solid var(--border-light); text-align: center; }
 .tr-grid thead th { vertical-align: bottom; color: var(--text-mid); font-weight: 600; }
 .tr-grid-min { display: block; color: var(--text-dark); font-size: var(--type-label); font-weight: 800; font-variant-numeric: tabular-nums; }
@@ -366,6 +418,8 @@ body {
 }
 .tr-grid-swipe { margin: 0 0 6px; color: var(--text-light); font-size: var(--type-small); }
 @media (min-width: 700px) { .tr-grid-swipe.touch-only { display: none; } }
+/* After the base station-column rule, so it wins: the column is set, the trains share the rest. */
+@media (min-width: 1024px) { .tr-grid .tr-grid-st { width: 220px; max-width: none; } }
 .tr-grid-origin th, .tr-grid-origin td { background: var(--surface-sunken); }
 .tr-grid-origin .tr-grid-st { background: var(--surface-sunken); }
 .tr-dot {

@@ -184,8 +184,10 @@ function renderStationView(state) {
     const typed = input?.value.trim() ?? '';
     const offered = typed ? matchStations(STATIONS, typed) : busiestStations(TIMETABLES.now[state.day].dep);
     if (picks) {
+        // Say what the chips ARE: without a label, eight station names read as a random selection.
+        const label = `<p class="tr-picks-label">${typed ? 'Matching stations' : 'Busiest stations'}</p>`;
         picks.innerHTML = offered.length
-            ? offered.map(crs => `<button type="button" class="tr-pick" data-station="${esc(crs)}" aria-pressed="${crs === state.station}">${esc(STATIONS[crs] ?? crs)}</button>`).join('')
+            ? label + offered.map(crs => `<button type="button" class="tr-pick" data-station="${esc(crs)}" aria-pressed="${crs === state.station}">${esc(STATIONS[crs] ?? crs)}</button>`).join('')
             : '<p class="card-explainer tr-lead">No station matches that.</p>';
     }
     setText('trStationTitle', state.station ? STATIONS[state.station] ?? state.station : 'Stations');

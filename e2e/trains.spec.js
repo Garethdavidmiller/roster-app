@@ -93,6 +93,31 @@ test.describe('trains', () => {
         expect(errors).toHaveLength(0);
     });
 
+    // Every view at phone width, with the widest content each holds open. The basic-hour grid
+    // scrolls inside its own box, and v24.74 shipped with its screen-reader words escaping that box
+    // and stretching the PAGE to 444px on a 390px phone — the whole page scrolled sideways.
+    for (const width of [360, 390]) {
+        test(`no view scrolls the page sideways at ${width}px`, async ({ page }) => {
+            await page.setViewportSize({ width, height: 800 });
+            await seedSession(page, 'G. Miller');
+            await page.goto('/trains.html');
+            const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+            await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
+            await page.locator('#trLookupInput').fill('1036');
+            expect(await overflow(), 'What’s changing').toBeLessThanOrEqual(1);
+            await page.locator('#trChanges .tr-head', { hasText: 'Aylesbury:' }).click();
+            await page.locator('#trStation .tr-route-sum').click();
+            await page.locator('#trAllTrains').click();
+            expect(await overflow(), 'a station, every train').toBeLessThanOrEqual(1);
+            await page.locator('[data-view="grid"]').click();
+            for (const mode of ['now', 'dec']) {
+                await page.locator(`[data-grid="${mode}"]`).click();
+                await expect(page.locator('#trPattern .tr-dot').first()).toBeVisible();
+                expect(await overflow(), `basic hour, ${mode}`).toBeLessThanOrEqual(1);
+            }
+        });
+    }
+
     test('the pill is offered to the admin only, and a member who types the URL goes to the roster', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/settings.html');

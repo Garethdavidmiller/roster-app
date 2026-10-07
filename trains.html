@@ -107,18 +107,20 @@
         </div>
     </div>
 
-    <!-- WHICH DAY, AND WHICH QUESTION. The app's on-canvas tab strip (Overtime's). Three views, one
-         question each (owner brief, 7 Oct 2026): what changes, a station, the basic hour. -->
+    <!-- WHICH QUESTION, AND WHICH DAY. Two choices, drawn differently so they never read as one
+         six-button grid: the three views are the app's on-canvas tabs (Overtime's), each carrying the
+         emoji of the card it opens; the day is one segmented track beneath them, quieter, because it
+         qualifies whichever view is open. -->
     <div class="tr-controls" id="trControls">
-        <div class="tr-tabs" role="group" aria-label="Day">
+        <div class="tr-tabs" role="group" aria-label="View">
+            <button type="button" class="tr-tab" data-view="changes" aria-pressed="true"><span class="tr-tab-icon" aria-hidden="true">🔔</span>What’s changing</button>
+            <button type="button" class="tr-tab" data-view="stations" aria-pressed="false"><span class="tr-tab-icon" aria-hidden="true">🚉</span>Stations</button>
+            <button type="button" class="tr-tab" data-view="grid" aria-pressed="false"><span class="tr-tab-icon" aria-hidden="true">🕰️</span>Basic hour</button>
+        </div>
+        <div class="tr-tabs tr-tabs--seg" role="group" aria-label="Day">
             <button type="button" class="tr-tab" data-day="SX" aria-pressed="true">Weekdays</button>
             <button type="button" class="tr-tab" data-day="SO" aria-pressed="false">Saturdays</button>
             <button type="button" class="tr-tab" data-day="SU" aria-pressed="false">Sundays</button>
-        </div>
-        <div class="tr-tabs" role="group" aria-label="View">
-            <button type="button" class="tr-tab" data-view="changes" aria-pressed="true">What’s changing</button>
-            <button type="button" class="tr-tab" data-view="stations" aria-pressed="false">Stations</button>
-            <button type="button" class="tr-tab" data-view="grid" aria-pressed="false">Basic hour</button>
         </div>
     </div>
 
