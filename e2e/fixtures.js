@@ -533,6 +533,15 @@ export const test = base.extend({
         // abort is caught by the pre-warm's own `.catch` and changes nothing it does.
         await page.route('**/unlockCalendarViewer', route => route.abort('failed'));
 
+        // The silent re-sign-in asks about the last admin reset BEFORE it signs in, over the two REST
+        // APIs (Oct 2026 — `probeResetAtMs` in firebase-client.js). Hermetic default: the sign-in is
+        // accepted and the account has never been reset, which is what every spec before this assumed.
+        // A spec that needs a reset routes `**/documents/passwordStatus/**` itself (newest route wins).
+        await page.route('https://identitytoolkit.googleapis.com/**', route =>
+            route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ idToken: 'e2e-probe' }) }));
+        await page.route('https://firestore.googleapis.com/**/documents/passwordStatus/**', route =>
+            route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+
         await page.route('**/roster-data.js', async route => {
             const res = await route.fetch();
             let body  = await res.text();

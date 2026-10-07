@@ -156,9 +156,16 @@ function answerNotificationTaps(isBusy) {
         } else if (data.type === 'myb-open-later' && typeof data.url === 'string') {
             const url = new URL(data.url, location.href);
             if (url.origin !== location.origin) return;
+            // SAME PAGE, NEW #hash (same-day bug check): that is a same-document hop — nothing unloads,
+            // nothing is lost — so it goes straight through. The 🙋 reset-request notice tapped while
+            // Operations reviews an upload was being told it would "open another page".
+            const samePage = url.pathname === location.pathname && url.search === location.search;
+            if (samePage && url.hash && url.hash !== location.hash) { location.href = url.href; return; }
             import('./overlay.js').then(({ confirmDialog }) => confirmDialog({
-                message: 'A notification asked to open another page, but this one has unsaved changes or a save still on its way. Open it anyway?',
-                confirmLabel: 'Open it', danger: true,
+                message: samePage
+                    ? 'A notification asked to reload this page, but it has unsaved changes or a save still on its way. Reload anyway?'
+                    : 'A notification asked to open another page, but this one has unsaved changes or a save still on its way. Open it anyway?',
+                confirmLabel: samePage ? 'Reload' : 'Open it', danger: true,
             })).then(ok => { if (ok) location.href = url.href; })
               .catch(err => console.warn('[sw-register] could not offer the notification\'s page:', err));
         }

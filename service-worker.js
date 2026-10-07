@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '24.68';
+const APP_VERSION = '24.69';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -744,6 +744,7 @@ self.addEventListener("fetch", event => {
                 : null;
 
             let networkSettled = false;
+            let viaPreload = false;   // a preload answer may be the browser's HTTP cache — see below
             const networkPromise = (event.preloadResponse
                 // The preload promise RESOLVES undefined when preload is disabled/unsupported
                 // (→ fall back to our own fetch) but REJECTS when the preload network request
@@ -751,7 +752,7 @@ self.addEventListener("fetch", event => {
                 // failure would reach the fallback chain and show the offline page to an ONLINE user
                 // whose own fetch would have worked. Two-arg .then (not trailing .catch) so a
                 // genuine offline fetch rejection still propagates instead of re-fetching.
-                ? event.preloadResponse.then(pre => pre || fetch(freshReq), () => fetch(freshReq))
+                ? event.preloadResponse.then(pre => (pre ? ((viaPreload = true), pre) : fetch(freshReq)), () => fetch(freshReq))
                 : Promise.resolve().then(() => fetch(freshReq))
             ).then(response => {
                 networkSettled = true;
@@ -762,18 +763,17 @@ self.addEventListener("fetch", event => {
                 // guarantee: Firebase always sets it, so absence means a stub we shouldn't
                 // second-guess) — only a present, clearly-non-html type is skipped (v16.19).
                 const ct = response ? (response.headers.get('content-type') || '') : '';
-                // ONLY ON A MISS (Oct 2026 review): over a page this version's cache already holds,
-                // the network copy is either identical or the WRONG release — a navigation preload
-                // the browser answered from its HTTP cache (Pages: max-age=600), or a new release
-                // read by an old worker. The JS/CSS branch above has the full argument.
+                // ONLY ON A MISS (Oct 2026): over a held page the network copy is identical or the WRONG
+                // release (an HTTP-cached preload, or an old worker) — the JS/CSS branch argues it fully.
+                // …AND NEVER A PRELOAD ANSWER: it may be last release's page from the HTTP cache (Pages
+                // max-age), kept for the whole version. Serve the preload; STORE our own no-cache fetch.
+                // Stored under the bare path (query stripped) — findCachedFallback matches ignoreSearch.
                 if (!cachedDoc && response && response.status === 200 && (!ct || ct.includes('text/html'))) {
-                    // Cache under the bare path (query stripped): every distinct
-                    // paycalc.html?payday=… would otherwise pile up as its own ~40 KB entry
-                    // for the life of the version cache. findCachedFallback matches ignoreSearch.
-                    const clone = response.clone();
-                    openCache()
-                        .then(c => c.put(url.origin + url.pathname, unredirect(clone)))
-                        .catch(err => console.warn(`[SW ${APP_VERSION}] cache.put failed (quota?):`, err));
+                    const store = viaPreload
+                        ? fetch(freshReq).then(r => (r && r.status === 200 ? r : null)).catch(() => null)
+                        : Promise.resolve(response.clone());
+                    event.waitUntil(store.then(r => r && openCache().then(c => c.put(url.origin + url.pathname, unredirect(r))))
+                        .catch(err => console.warn(`[SW ${APP_VERSION}] cache.put failed (quota?):`, err)));
                 }
                 return response;
             }, err => { networkSettled = true; throw err; });

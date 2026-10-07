@@ -196,3 +196,35 @@ export function sessionPredatesReset(sessionCreatedMs, resetAtMs) {
     if (sessionCreatedMs == null || !Number.isFinite(sessionCreatedMs)) return true;
     return sessionCreatedMs < resetAtMs;
 }
+
+/**
+ * Read the member's `resetAt` out of a Firestore REST document (Oct 2026, bug check of the reset
+ * refusal). The silent re-sign-in now asks BEFORE it signs in — see `probeResetAtMs` in
+ * firebase-client.js for why — so it reads `passwordStatus/{name}` through the REST API, whose
+ * answer is `{ fields: { resetAt: { timestampValue: "…" } } }`.
+ * @param {number} status  the HTTP status of the read
+ * @param {any} body       its parsed JSON, or null
+ * @returns {number|null}  ms since epoch; 0 = never reset (no document, or no `resetAt`); null = unknown
+ */
+export function resetAtFromRestDoc(status, body) {
+    if (status === 404) return 0;
+    if (status !== 200 || !body || typeof body !== 'object') return null;
+    const v = body.fields?.resetAt?.timestampValue;
+    if (v === undefined) return 0;
+    const ms = Date.parse(String(v));
+    return Number.isFinite(ms) ? ms : null;
+}
+
+/**
+ * Did the Identity Toolkit REST sign-in REJECT the credential (as opposed to failing to answer)?
+ * A rejection is not "unknown": the caller lets the ordinary SDK sign-in run and fail exactly as it
+ * always has, so the remembered-migrated-member logic keeps working.
+ * @param {number} status
+ * @param {any} body
+ * @returns {boolean}
+ */
+export function isRestCredentialRejection(status, body) {
+    if (status !== 400) return false;
+    const m = String(body?.error?.message || '');
+    return /^(INVALID_LOGIN_CREDENTIALS|INVALID_PASSWORD|EMAIL_NOT_FOUND|USER_DISABLED)/.test(m);
+}

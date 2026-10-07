@@ -14,7 +14,7 @@
  *   must be accompanied by a password reset for all affected users.
  */
 
-import { auth, authReady, currentUserAfterBoot, nameToEmail, normaliseSurname, signInWithEmailAndPassword, signOut as firebaseSignOut, restoreMemberPersistence, getResetAtMs } from './firebase-client.js';
+import { auth, authReady, currentUserAfterBoot, nameToEmail, normaliseSurname, signInWithEmailAndPassword, signOut as firebaseSignOut, restoreMemberPersistence, probeResetAtMs } from './firebase-client.js';
 // PURE, and imported rather than re-derived: `isViewerUser` decides whether an identity may be
 // PRESERVED across the expired-identity teardown, so a second local copy of that predicate is a
 // second place a bypass could be introduced. calendar-access-core.js imports nothing, so this adds
@@ -460,6 +460,31 @@ export async function ensureFirebaseSession(name, _gen, password) {
 
     for (const candidate of candidates) {
         if (!fresh()) return commit('none', false);
+        // NOT A SESSION THE LAST RESET WAS AIMED AT (Oct 2026 production review; moved IN FRONT of
+        // the sign-in by the same-day bug check). A silent re-sign-in on a session older than the
+        // member's last admin reset is exactly the lost phone the reset was meant to sign out — and
+        // the reset just made the surname valid again. It is asked BEFORE signing in because the
+        // sign-in itself announces and stores the user: asked afterwards, the Calendar's late-identity
+        // watcher granted the phone first, and a reload mid-check came back through the stored user.
+        // A TYPED sign-in never reaches this (password != null).
+        //   · predates the reset → refuse, end the local session, make the holder type a password
+        //   · could not be confirmed → do not sign in silently, but DESTROY NOTHING: it is treated
+        //     like a sign-in that could not reach the server, which is what it nearly always is
+        //   · the probe says the password is wrong → the ordinary sign-in below fails and handles it
+        if (password == null) {
+            const resetAt = await probeResetAtMs(email, candidate, name, 5000);
+            if (!fresh()) return commit('none', false);
+            if (resetAt === null) {
+                console.warn('[Auth] silent sign-in held — could not confirm the last password reset');
+                return commit('none', false);
+            }
+            if (resetAt !== 'credential' && sessionPredatesReset(_sessionCreatedMs(), resetAt)) {
+                lsDel(AUTH_KEY);
+                lsDel(CALENDAR_SNAPSHOT);
+                console.warn('[Auth] silent sign-in refused — this device signed in before the last password reset');
+                return commit('none', false);
+            }
+        }
         try {
             await signInWithEmailAndPassword(auth, email, candidate);
             // LANDED AFTER A SIGN-OUT (v24.38). The login overlay's 8s bound gives up, calls
@@ -481,20 +506,6 @@ export async function ensureFirebaseSession(name, _gen, password) {
             // The surname default WORKED — the account is on it (or back on it, after an admin
             // reset), so the silent recovery must be re-armed for this device.
             if (candidate === surnamePassword(name)) lsDel(_noDefaultKey(name));
-            // …UNLESS THE RESET WAS AIMED AT THIS DEVICE (Oct 2026 production review). A silent
-            // re-sign-in on a session older than the member's last admin reset is exactly the lost
-            // phone the reset was meant to sign out — and the reset just made the surname valid
-            // again. Refuse it: sign out, end the local session, and make whoever holds the device
-            // type a password. A TYPED sign-in never reaches this (password != null).
-            if (password == null && sessionPredatesReset(_sessionCreatedMs(), await _resetAtWithin(name, 5000))) {
-                // Superseded during the read: the newer attempt owns `auth` now — touch nothing.
-                if (!fresh()) return commit('none', false);
-                await firebaseSignOut(auth).catch(() => {});
-                lsDel(AUTH_KEY);
-                lsDel(CALENDAR_SNAPSHOT);
-                console.warn('[Auth] silent sign-in refused — this device signed in before the last password reset');
-                return commit('none', false);
-            }
             return commit('named', true);
         } catch (e) {
             const _e = /** @type {any} */ (e);
@@ -692,15 +703,6 @@ function _sessionCreatedMs() {
     } catch { return null; }
 }
 
-/** The server's last-reset time for `name`, or null if it cannot be confirmed within `ms`.
- *  @param {string} name @param {number} ms @returns {Promise<number|null>} */
-async function _resetAtWithin(name, ms) {
-    /** @type {ReturnType<typeof setTimeout>|undefined} */
-    let t;
-    try {
-        return await Promise.race([getResetAtMs(name), new Promise(r => { t = setTimeout(() => r(null), ms); })]);
-    } catch { return null; } finally { clearTimeout(t); }
-}
 
 /**
  * Persist a new session for the named user — 60-day absolute expiry, and nothing else. There is no

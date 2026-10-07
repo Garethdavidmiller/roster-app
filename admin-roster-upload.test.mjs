@@ -440,6 +440,19 @@ describe('computeCellStates — review state machine', () => {
             assert.doesNotMatch(html({ ...c, guarded: 'sunday' }), /data-swap/, 'a Sunday asks nothing');
         });
 
+        test('an OLD IMPORT under the row is shown, with what each answer does to it (same-day bug check)', async () => {
+            // "Rest day — leave it" deletes it and leaving the row keeps it, and the row used to show
+            // neither: the tag said "Not recorded" either way.
+            const { guardedRowHtml } = await import('./roster-review-states.js');
+            const c = { ...onRestDay('AL'), manualId: 'imp1', manualValue: '07:00-15:00' };
+            const html = (/** @type {any} */ s) => guardedRowHtml({ key: 'k', s, dayName: 'Mon', dateStr: '15 Jun', badgeHtml: 'B', esc: String });
+            assert.match(html(c), /Saved now<\/span><span class="roster-guard-val">07:00-15:00/);
+            assert.match(html(c), /Kept as saved/);
+            assert.match(html({ ...c, chosen: 'free' }), /Will clear/);
+            assert.match(html({ ...c, chosen: 'swapped' }), /Will record/);
+            assert.doesNotMatch(html(onRestDay('AL')), /Saved now/, 'nothing saved, nothing shown');
+        });
+
         test('a value the guards leave ALONE is still MATCH — this does not fire on agreement', () => {
             // The control. Without it the rule above could be satisfied by calling everything
             // GUARDED, which would bury the real changes in notices.

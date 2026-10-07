@@ -995,3 +995,41 @@ test('a TEAM VIEW member waits for the confirmation too, and their team grid sti
     await expect(page.locator('.team-week-text')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#teamViewBtn')).toBeEnabled();
 });
+
+// ── A LOST PHONE STAYS OUT AFTER AN ADMIN RESET (Oct 2026 bug check) ────────────────────────────
+// v24.65 refused the silent surname sign-in AFTER signing in, by which time the SDK had announced the
+// user and the late-identity watcher here had already granted the Calendar. The reset is now asked
+// about BEFORE any sign-in (probeResetAtMs). These drive the real page: a held session whose Firebase
+// identity is gone, the stub ready to sign in, and the server's answer about the last reset.
+/** @param {import('@playwright/test').Page} page @param {number} resetAgoMs  0 = never reset */
+async function heldSessionWithReset(page, resetAgoMs) {
+    await page.addInitScript(() => {
+        const DAY = 86_400_000;
+        localStorage.setItem('myb_admin_session', JSON.stringify({
+            name: 'G. Miller', ver: 2, expiry: Date.now() + 30 * DAY, createdAt: Date.now() - 10 * DAY,
+        }));
+        localStorage.setItem('myb_roster_selected_member', 'G. Miller');
+        localStorage.setItem('myb_notice_al_booking_2026_done', '1');
+        window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true });
+    });
+    await page.route('https://firestore.googleapis.com/**/documents/passwordStatus/**', route => route.fulfill(resetAgoMs
+        ? { status: 200, contentType: 'application/json',
+            body: JSON.stringify({ fields: { resetAt: { timestampValue: new Date(Date.now() - resetAgoMs).toISOString() } } }) }
+        : { status: 404, contentType: 'application/json', body: '{}' }));
+}
+
+test('a phone whose session predates the last reset is NOT let in — no sign-in, session ended', async ({ page }) => {
+    await heldSessionWithReset(page, 86_400_000);   // reset yesterday; this session is ten days old
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarLock')).toBeVisible({ timeout: 20_000 });
+    await page.waitForTimeout(1500);   // long enough for any late grant to have landed
+    await expect(page.locator('#calendarDisplay')).toBeHidden();
+    expect(await page.evaluate(() => /** @type {any} */ (window).__E2E.authUser), 'the app never signed in').toBeFalsy();
+    expect(await page.evaluate(() => localStorage.getItem('myb_admin_session')), 'the local session is ended').toBeNull();
+});
+
+test('the same held session with NO reset since is let in silently, as before', async ({ page }) => {
+    await heldSessionWithReset(page, 0);
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
+});

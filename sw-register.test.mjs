@@ -646,3 +646,33 @@ describe('the page answers a notification tap\'s "are you busy?"', () => {
     test('a page that passed no check is not busy — it is still answered', async () => assert.deepEqual(await ask(), [{ busy: false }]));
     test('a check that throws counts as busy', async () => assert.deepEqual(await ask(() => { throw new Error('x'); }), [{ busy: true }]));
 });
+
+describe('the page takes a notification\'s "open later" offer', () => {
+    test('same page, new #hash → straight through, no question (nothing unloads)', async () => {
+        const h = makeHarness({ controlled: true });
+        const prev = globalThis.location;
+        const loc = { origin: 'https://myb-roster.web.app', href: 'https://myb-roster.web.app/operations.html',
+            pathname: '/operations.html', search: '', hash: '' };
+        globalThis.location = /** @type {any} */ (loc);
+        try {
+            registerServiceWorker({ isBusy: () => true });
+            await h.flush();
+            (h.swListeners.message || []).forEach(fn => fn({ data: { type: 'myb-open-later', url: 'https://myb-roster.web.app/operations.html#reset-requests' } }));
+            assert.equal(loc.href, 'https://myb-roster.web.app/operations.html#reset-requests');
+        } finally { globalThis.location = prev; h.restore(); }
+    });
+
+    test('another origin is ignored outright', async () => {
+        const h = makeHarness({ controlled: true });
+        const prev = globalThis.location;
+        const loc = { origin: 'https://myb-roster.web.app', href: 'https://myb-roster.web.app/admin.html',
+            pathname: '/admin.html', search: '', hash: '' };
+        globalThis.location = /** @type {any} */ (loc);
+        try {
+            registerServiceWorker({ isBusy: () => true });
+            await h.flush();
+            (h.swListeners.message || []).forEach(fn => fn({ data: { type: 'myb-open-later', url: 'https://evil.example/#x' } }));
+            assert.equal(loc.href, 'https://myb-roster.web.app/admin.html');
+        } finally { globalThis.location = prev; h.restore(); }
+    });
+});

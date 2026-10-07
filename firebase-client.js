@@ -117,18 +117,11 @@ export { isSafeStorageUrl, resolveDocumentOpenUrl };
 
 /**
  * Shared Firebase Auth instance — `initializeAuth`, NOT `getAuth` (Oct 2026 production review).
- *
- * `getAuth` is `initializeAuth` with one more dependency: the popup/redirect resolver. On mobile
- * browsers, Safari and iOS the SDK initialises that resolver PROACTIVELY and AWAITS it before it
- * restores the signed-in user — loading Google's `apis.google.com` script, then a hidden
- * `firebaseapp.com` iframe, and waiting for it to answer (read in the SDK source, auth 1.13.6:
- * `_shouldInitProactively`, then `_initialize` before `initializeCurrentUser`). Every page's
- * `authReady`, every Admin save's `sessionReady` and the Calendar's access decision waited on those
- * third-party loads, on iPhones only — up to 30 seconds on a connection that is open but not
- * answering. This app never signs in with a popup or a redirect, so it pays that for nothing.
- *
- * The persistence list is `getAuth`'s own, in its order, so restoring a stored member — or keeping
- * the Calendar viewer in session storage — behaves exactly as before.
+ * `getAuth` adds the popup/redirect resolver, which on mobile, Safari and iOS the SDK initialises
+ * proactively and AWAITS before restoring the user (auth 1.13.6: `_shouldInitProactively`) — loading
+ * `apis.google.com` and a `firebaseapp.com` iframe, up to 30s on a dead connection, ahead of every
+ * `authReady`, Admin save and Calendar decision. This app never uses a popup or redirect. The
+ * persistence list is `getAuth`'s own, in its order, so a restore behaves exactly as before.
  */
 export const auth = initializeAuth(app, {
     persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
@@ -393,7 +386,7 @@ async function _uploadBytesWithClaimRetry(uploadBytes, storageRef, file, metadat
 // pulls the Firebase SDK from the gstatic CDN). Re-exported so existing importers (session.js) are
 // unaffected. The deliberate functions/roster-parse-helpers.js duplicate + surname-parity.test.mjs
 // source-equivalence check now read auth-identity.js.
-import { normaliseSurname, nameToEmail, credentialCandidatesFor, isCredentialRejection } from './auth-identity.js';
+import { normaliseSurname, nameToEmail, credentialCandidatesFor, isCredentialRejection, resetAtFromRestDoc, isRestCredentialRejection } from './auth-identity.js';
 import { resolveUploadCommit } from './upload-commit.js';
 import { pruneOldDocs } from './doc-retention.js';
 import { buildDocumentClient } from './documents-client.js';
@@ -593,17 +586,35 @@ export async function getPasswordStatus(memberName) {
 }
 
 /**
- * The member's last admin reset, as the SERVER says it (Oct 2026 review — `sessionPredatesReset` in
- * auth-identity.js). Milliseconds; 0 = never reset; null = could not be confirmed, including an
- * answer served from the offline cache, which may predate the reset it is being asked about.
+ * The member's last admin reset, asked BEFORE the app signs in (Oct 2026 bug check). Asked after, the
+ * SDK had already announced and stored the user, so the Calendar granted the lost phone first and a
+ * reload mid-check skipped the check. This signs in over the Identity Toolkit REST API (a token the
+ * SDK never sees, stores or announces) and reads `passwordStatus/{name}` over Firestore REST with it.
+ *
+ * @param {string} email
+ * @param {string} password   the surname default the silent path is about to try
  * @param {string} memberName
- * @returns {Promise<number|null>}
+ * @param {number} timeoutMs  for the two requests together
+ * @returns {Promise<number|null|'credential'>} ms (0 = never reset); null = could not be confirmed;
+ *   'credential' = the password was rejected, so the ordinary sign-in will fail and handle it
  */
-export async function getResetAtMs(memberName) {
-    const snap = await getDoc(doc(db, COLLECTIONS.passwordStatus, memberName));
-    if (/** @type {any} */ (snap).metadata?.fromCache) return null;
-    const resetAt = snap.exists() ? /** @type {any} */ (snap.data())?.resetAt : null;
-    return resetAt && typeof resetAt.toMillis === 'function' ? resetAt.toMillis() : 0;
+export async function probeResetAtMs(email, password, memberName, timeoutMs) {
+    const deadline = Date.now() + timeoutMs;
+    const left = () => Math.max(1, deadline - Date.now());
+    try {
+        const r = await fetchWithTimeout(
+            `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${firebaseConfig.apiKey}`,
+            { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, password, returnSecureToken: true }) }, left());
+        const body = await r.json().catch(() => null);
+        if (isRestCredentialRejection(r.status, body)) return 'credential';
+        const token = r.ok ? body?.idToken : null;
+        if (!token) return null;
+        const d = await fetchWithTimeout(
+            `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/${COLLECTIONS.passwordStatus}/${encodeURIComponent(memberName)}`,
+            { headers: { Authorization: `Bearer ${token}` } }, left());
+        return resetAtFromRestDoc(d.status, await d.json().catch(() => null));
+    } catch { return null; }
 }
 
 /**
