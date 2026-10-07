@@ -439,10 +439,12 @@ jobs:
       matrix:
         project: [webkit, mobile-safari]
         shard: [1, 2]
-    # Each job now carries ONE engine and HALF its tests, so a quarter of the original work — 20 is
-    # very generous. The cap exists to stop a hung job burning a runner for six hours, not to police
-    # the suite's length, so it is deliberately not retuned every time the suite gets faster.
-    timeout-minutes: 20
+    # Each job carries ONE engine and HALF its tests. The TEST STEP carries the budget (15 minutes,
+    # below, for a shard that takes 10–13); this job cap is only the backstop against a hung runner,
+    # and it is wider than the step's on purpose. On 7 Oct 2026 the WebKit apt install took 9 minutes
+    # three times in one afternoon, and a 20-minute JOB cap spent the test budget on a download —
+    # cancelling shards in which every test had passed, on two PRs in a row.
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -468,6 +470,7 @@ jobs:
         run: npx playwright install --with-deps webkit
 
       - name: Run the smoke suite under WebKit
+        timeout-minutes: 15
         run: npm run test:webkit -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/2
         env:
           CI: true

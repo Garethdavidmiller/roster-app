@@ -17,7 +17,7 @@
 
 import { escapeHtml as esc } from './roster-data.js';
 import { changeLabel, daysLabel } from './trains-change.js';
-import { pairColumns, lineOf, minutesWords } from './trains-stations.js';
+import { pairColumns, lineOf, minutesWords, hourNote, orderStations } from './trains-stations.js';
 
 /** The short names the grid's column heads use. Anything not listed shows its full name. */
 const SHORT = /** @type {Record<string, string>} */ ({
@@ -88,16 +88,18 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
     const row = (/** @type {string} */ label, /** @type {string} */ a, /** @type {string} */ b) =>
         `<tr><th scope="row">${esc(label)}</th><td>${a}</td><td>${b}</td></tr>`;
     const journey = (/** @type {number|null} */ n) => n === null ? null : `${n} min`;
-    /** "2", or "1 to 2" when some off-peak hours have fewer — an average hid exactly that. */
-    const hourly = (/** @type {import('./trains-stations.js').StationSummary} */ x) =>
-        x.hourRange[0] === x.hourRange[1] ? x.hourRange[0] : `${x.hourRange[0]} to ${x.hourRange[1]}`;
+    /** The typical hour, with its exception as small print beneath — read aloud as "2 (1 in some hours)". */
+    const hourCell = (/** @type {import('./trains-stations.js').StationSummary} */ x) => {
+        const note = hourNote(x);
+        return note ? `${x.typical}<span class="sr-only"> (</span><span class="tr-days">${esc(note)}</span><span class="sr-only">)</span>` : String(x.typical);
+    };
     /** The minutes that repeat; "Varies" when trains run off-peak but at no regular minute. */
     const pastHour = (/** @type {import('./trains-stations.js').StationSummary} */ x) =>
         x.minutes.length ? minutesWords(x.minutes) : x.hourRange[1] ? 'Varies' : null;
     const table = '<table class="tr-st-table"><thead><tr><th scope="col"><span class="sr-only">Figure</span></th>'
         + '<th scope="col">Now</th><th scope="col">From 13 Dec</th></tr></thead><tbody>'
         + row('Trains a day', cell(now.total), decCell(d => d.total))
-        + row('Off-peak, trains an hour', cell(hourly(now)), decCell(hourly))
+        + row('Off-peak, trains an hour', hourCell(now), dec ? hourCell(dec) : notKnown)
         + row(leaving ? 'Off-peak, leaves Marylebone at' : 'Off-peak, gets into Marylebone at', cell(pastHour(now)), decCell(pastHour))
         + row('Fastest journey', cell(journey(now.fastest)), decCell(d => journey(d.fastest)))
         + row(leaving ? 'First train' : 'First arrival', cell(now.first), decCell(d => d.first))
@@ -156,10 +158,13 @@ export function renderGrid(nowGrid, decGrid, mode, stations) {
     const want = new Set(mode === 'dec'
         ? [...grid.stations, ...paired.flatMap((p, i) => p && grid.columns[i].known ? p.calls : [])]
         : grid.stations);
-    const rowsOrder = [...nowGrid.stations, ...grid.stations].filter((s, i, all) => want.has(s) && all.indexOf(s) === i);
+    const rowsOrder = orderStations([nowGrid.stations, grid.stations]).filter(s => want.has(s));
     const head = '<tr><th scope="col" class="tr-grid-st">Station</th>' + grid.columns.map(c =>
         `<th scope="col"><span class="tr-grid-min">:${String(c.minute).padStart(2, '0')}</span>`
-        + `<span class="tr-grid-end">${esc(SHORT[c.end] ?? stations[c.end] ?? c.end)}</span></th>`).join('') + '</tr>';
+        + `<span class="tr-grid-end">${esc(SHORT[c.end] ?? stations[c.end] ?? c.end)}</span>`
+        // Two Aylesbury columns look alike until the route is named; the dots below agree with it.
+        + (c.via === 'H' ? '<span class="tr-grid-via">via Wycombe</span>' : c.via === 'A' ? '<span class="tr-grid-via">via Amersham</span>' : '')
+        + '</th>').join('') + '</tr>';
     const origin = '<tr class="tr-grid-origin"><th scope="row" class="tr-grid-st">London Marylebone</th>'
         + grid.columns.map(() => `<td>${dot('', 'stops')}</td>`).join('') + '</tr>';
     const body = rowsOrder.map(crs => `<tr><th scope="row" class="tr-grid-st">${esc(stations[crs] ?? crs)}</th>`

@@ -28,6 +28,9 @@ test.describe('trains', () => {
         const heads = page.locator('#trChanges .tr-head');
         await expect(heads.first()).toHaveText(/Stratford-upon-Avon gets a direct train from Marylebone \(the 09:31\)/);
         await expect(page.locator('#trChanges')).toContainText('once Chiltern publishes December’s stops');
+        // Snow Hill's extra trains are Moor Street's own, so they are one headline, not two.
+        await expect(page.locator('#trChanges .tr-head', { hasText: 'Birmingham Moor Street' })).toContainText('of them on to Snow Hill');
+        await expect(page.locator('#trChanges .tr-head', { hasText: /^Birmingham Snow Hill/ })).toHaveCount(0);
         await page.locator('#trChanges .tr-head', { hasText: 'Aylesbury:' }).click();
         await expect(page.locator('[data-view="stations"]')).toHaveAttribute('aria-pressed', 'true');
         await expect(page.locator('#trViewChanges')).toBeHidden();
@@ -37,13 +40,15 @@ test.describe('trains', () => {
         await expect(daily.locator('td').nth(0)).toHaveText('41');
         await expect(daily.locator('td').nth(1)).toHaveText('46');
         // Today two off-peak hours have one Aylesbury train; December fills them. An average of 2
-        // hid that, so the range is shown.
+        // hid that, so the typical hour is shown with its exception.
         const hourly = page.locator('#trStation .tr-st-table tbody tr', { hasText: 'Off-peak, trains an hour' });
-        await expect(hourly.locator('td').nth(0)).toHaveText('1 to 2');
+        await expect(hourly.locator('td').nth(0)).toHaveText('2 (1 in some hours)');
         await expect(hourly.locator('td').nth(1)).toHaveText('2');
+        await expect(page.locator('#trStationHint')).toHaveText('London Marylebone → Aylesbury');
 
         // Coming back rewords the card and recounts it for trains INTO Marylebone.
         await page.locator('[data-sdir="arr"]').click();
+        await expect(page.locator('#trStationHint')).toHaveText('Aylesbury → London Marylebone');
         await expect(page.locator('#trStation')).toContainText('Off-peak, gets into Marylebone at');
         await expect(page.locator('#trStation .tr-verdict')).toHaveText('4 more trains a day: 41, was 37.');
         // Train by train: only the trains that change, the rest one tap away.
@@ -82,6 +87,10 @@ test.describe('trains', () => {
         await page.locator('#trLookupInput').fill('1036');
         await expect(page.locator('#trLookupResult .tr-answer').first())
             .toHaveText('The 10:36 to Banbury: Will run to Birmingham Snow Hill.');
+        await page.locator('#trLookupInput').fill('1715');
+        await expect(page.locator('#trLookupResult')).toContainText('on to Stourbridge');
+        await page.locator('#trLookupInput').fill('1716');
+        await expect(page.locator('#trLookupResult')).toContainText('No train leaves at exactly 17:16 today.');
         await page.locator('#trLookupInput').fill('noon');
         await expect(page.locator('#trLookupResult')).toContainText('Type a time like 17:15');
 

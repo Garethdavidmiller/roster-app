@@ -88,6 +88,19 @@ export const STATIONS = Object.freeze({
     WRW: 'Warwick',
 });
 
+/**
+ * Every station in the order Chiltern's own books print them: the main-line book's rows, then the
+ * Amersham book's, a station in both (Aylesbury) taking its Amersham-book place. The basic hour's
+ * rows follow this, so each column reads downwards in travel order (trains-stations.js, orderStations).
+ */
+export const STATION_ORDER = Object.freeze([
+    'WCX', 'SUD', 'SDH', 'NLT', 'SRU', 'WRU', 'DNM', 'DGC', 'GER', 'SRG', 'BCF', 'HWY',
+    'SDR', 'PRR', 'MRS', 'LTK', 'HDM', 'BIT', 'ISP', 'OXP', 'OXF', 'BCS', 'KGS', 'BAN',
+    'LMS', 'WRW', 'WRP', 'HTN', 'CLV', 'BER', 'WMC', 'STY', 'SAV', 'LPW', 'DDG', 'SOL',
+    'BMO', 'BSW', 'JEQ', 'THW', 'SGB', 'ROW', 'CRA', 'SBJ', 'HOH', 'RIC', 'CLW', 'CFO',
+    'AMR', 'GMN', 'WND', 'SKM', 'AYS', 'AVP',
+]);
+
 /** @typedef {[string, string, string, string, string]} TrainRow */
 /** @typedef {{ dep: TrainRow[], arr: TrainRow[] }} DayTimetable */
 /** @typedef {{ SX: DayTimetable, SO: DayTimetable, SU: DayTimetable }} Timetable */

@@ -309,6 +309,7 @@ body {
 }
 .tr-more:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .tr-note { margin: 12px 0 0; font-size: var(--type-small); }
+.tr-near-on { color: var(--text-light); font-size: var(--type-small); }
 
 /* ── Stations: the picker and the card ──────────────────────────────────────── */
 .tr-input.tr-input--wide { width: 100%; max-width: none; }
@@ -396,6 +397,7 @@ body {
 .tr-grid thead th { vertical-align: bottom; color: var(--text-mid); font-weight: 600; }
 .tr-grid-min { display: block; color: var(--text-dark); font-size: var(--type-label); font-weight: 800; font-variant-numeric: tabular-nums; }
 .tr-grid-end { display: block; font-size: var(--type-micro); white-space: nowrap; }
+.tr-grid-via { display: block; color: var(--text-light); font-size: var(--type-micro); font-weight: 500; white-space: nowrap; }
 .tr-grid .tr-grid-st {
     position: sticky;
     left: 0;

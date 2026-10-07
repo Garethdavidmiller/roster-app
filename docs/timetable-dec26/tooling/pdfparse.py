@@ -53,6 +53,8 @@ for pi, W in enumerate(pages):
             C[ci]['cells'].append(dict(crs=r['crs'], ad=r['ad'], name=r['name'], y=r['y'], text=w[4]))
         for ci, c in enumerate(C):
             c['cells'].sort(key=lambda x: (x['y'], x['text'] != 'f'))
-            trains.append(dict(page=pi + 1, block=bi, col=ci, dir=direction, day=day, title=title, **c))
+            # rows: every station row of this block, in the order the book prints them — the one place
+            # the geography is written down (which branch follows which junction). build.py's STATION_ORDER.
+            trains.append(dict(page=pi + 1, block=bi, col=ci, dir=direction, day=day, title=title, rows=[r['crs'] for r in rows], **c))
 json.dump(trains, open(outp, 'w'), indent=1)
 print(pdf.split('/')[-1], 'columns:', len(trains), collections.Counter((t['dir'], t['day']) for t in trains))
