@@ -178,13 +178,13 @@ describe('headlineChanges — what you will be asked about', () => {
         const now = [...hourly(6, 'OXF', ['HWY', 'OXF'])];
         const dec = [...hourly(6, 'OXF'), row('12:30', 'SAV')];
         const out = headlineChanges(now, dec, { OXF: 'Oxford', SAV: 'Stratford-upon-Avon', HWY: 'High Wycombe' });
-        assert.equal(out[0].text, 'Stratford-upon-Avon gets a direct train from Marylebone (the 12:30)');
+        assert.equal(out[0].text, 'A new direct train to Stratford-upon-Avon, the 12:30');
         assert.equal(out[0].tone, 'more');
         assert.ok(!out.some(h => h.crs === 'HWY'), 'High Wycombe cannot be answered yet, and nothing ends there');
         // Where trains DO end at a through station, the line is about those trains and says so.
         const partial = headlineChanges([...hourly(6, 'OXF', ['HWY', 'OXF']), row('09:00', 'HWY', '', '', 'HWY0930')],
             [...hourly(6, 'OXF'), row('09:00', 'HWY'), row('10:00', 'HWY'), row('11:00', 'HWY')], { OXF: 'Oxford', HWY: 'High Wycombe' });
-        assert.equal(partial.find(h => h.crs === 'HWY')?.text, 'Trains ending at High Wycombe: 3 trains a day (was 1); last train 11:00 (was 09:00)');
+        assert.equal(partial.find(h => h.crs === 'HWY')?.text, '2 more trains a day to High Wycombe (3, was 1); last train 11:00 (was 09:00); counting only the trains that end there');
     });
 
     test('the real weekday tables lead with something, and every headline names a station', () => {
@@ -249,7 +249,7 @@ describe('the words on screen', () => {
         const dec = [...hourly(2, 'BMO'), ...hourly(32, 'BMO'), row('18:02', 'BMO'), row('19:02', 'BMO')];
         const out = headlineChanges(now, dec, { BMO: 'Birmingham Moor Street' });
         assert.equal(out.length, 1);
-        assert.equal(out[0].text, 'Birmingham Moor Street: 2 trains an hour off-peak (was 1); 14 trains a day (was 8)');
+        assert.equal(out[0].text, 'More trains to Birmingham Moor Street: 2 an hour off-peak (was 1); 6 more a day (14, was 8)');
     });
 
     test('a station a line runs on to is folded into the line\'s headline, never a second story', () => {
@@ -258,7 +258,7 @@ describe('the words on screen', () => {
         const out = headlineChanges(now, dec, STATIONS);
         assert.equal(out.length, 1);
         // The last train moves too: the onward clause still sits beside the count it qualifies.
-        assert.equal(out[0].text, 'Birmingham Moor Street: 9 trains a day (was 7); 3 of them on to Snow Hill (was 1); last train 20:02 (was 18:02)');
+        assert.equal(out[0].text, '2 more trains a day to Birmingham Moor Street (9, was 7); 2 more go on to Snow Hill (3, was 1); last train 20:02 (was 18:02)');
         const real = headlineChanges(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, STATIONS);
         assert.ok(!real.some(h => h.crs === 'BSW' || h.crs === 'SBJ' || h.crs === 'AVP'), 'no onward station headlines its own line');
     });
@@ -268,7 +268,7 @@ describe('the words on screen', () => {
         const html = renderHeadlines(items, { showAll: false, partial: true });
         assert.equal((html.match(/class="tr-head"/g) ?? []).length, 5);
         assert.match(html, /Show all 7 changes/);
-        assert.match(html, /once Chiltern publishes December’s stops/);
+        assert.match(html, /once Chiltern publishes where December’s trains stop/);
         assert.doesNotMatch(renderHeadlines(items, { showAll: true, partial: false }), /Show all|tr-note/);
         assert.match(renderHeadlines([], { showAll: false, partial: false }), /No big changes/);
     });
@@ -277,7 +277,7 @@ describe('the words on screen', () => {
         const html = renderHeadlines([{ crs: 'AYS', tone: 'less', text: '<b>x</b>' }], { showAll: false, partial: false });
         assert.match(html, /data-station="AYS"/);
         assert.match(html, /&lt;b&gt;x&lt;\/b&gt;/);
-        assert.match(html, />Less</);
+        assert.match(html, />Fewer trains</);
     });
 
     test('a station card: verdict, today beside December, and a waiting December reads "not known yet" to a screen reader', () => {
@@ -294,7 +294,7 @@ describe('the words on screen', () => {
         const oxf = renderStation(stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, 'OXF', 'dep'), { stations: STATIONS, dir: 'dep', showTrains: false });
         assert.match(oxf, /<p class="tr-sub">Trains that end at Oxford<\/p>/);
         assert.match(oxf, /1 more train a day: 36, was 35\./);
-        assert.match(oxf, /One other train a day calls at Oxford today and run on past it\./);
+        assert.match(oxf, /One other train a day calls at Oxford and run on past it\./);
         assert.match(oxf, /<details class="tr-route">/, 'the trains that end at Oxford are listed, today beside December');
         // Coming back, every train from Oxford STARTS there, so that direction is known in full and carries no
         // label; High Wycombe's arrivals (20 start there, 65 come through) take the other wording.

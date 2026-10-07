@@ -62,6 +62,8 @@ import { renderHeadlines, renderStation, renderGrid, endWords } from './trains-r
  */
 
 const DAY_NAMES = /** @type {Record<Day, string>} */ ({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' });
+/** Whether every December train carries its stops — false until Chiltern's December books are parsed. */
+const DEC_STOPS_KNOWN = Object.values(TIMETABLES.dec).every(d => d.dep.every(stopsKnown) && d.arr.every(stopsKnown));
 
 /** Coordinator body, invoked by trains-boot.js. Exported so a test can import without running. */
 export function init() {
@@ -117,7 +119,9 @@ export function init() {
     // Open on today's kind of day — what a member is most likely to be asked about.
     const dow = new Date().getDay();
     /** @type {PageState} */
-    const state = { day: dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX', view: 'changes', station: null, sdir: 'dep', grid: 'dec', allHeads: false, allTrains: false };
+    const state = { day: dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX', view: 'changes', station: null, sdir: 'dep', grid: DEC_STOPS_KNOWN ? 'dec' : 'now', allHeads: false, allTrains: false };
+    // The grid opens on TODAY until December's stops exist: a December grid of end stations alone read
+    // as a broken page, and it was the first thing the tab showed (owner, 7 Oct 2026).
 
     renderOverview();
     wire(state, () => render(state));
@@ -142,13 +146,16 @@ function renderOverview() {
         : days === 0 ? 'Starts today'
         : 'Now running');
 
-    const body = el('trTotals')?.querySelector('tbody');
-    if (!body) return;
-    body.innerHTML = /** @type {Day[]} */ (['SX', 'SO', 'SU']).map((d) => {
-        const now = TIMETABLES.now[d].dep.length, dec = TIMETABLES.dec[d].dep.length;
-        return `<tr><th scope="row">${esc(DAY_NAMES[d])}</th><td>${now}</td>`
-            + `<td>${dec}${delta(dec - now)}</td></tr>`;
-    }).join('');
+    const line = el('trTotals');
+    if (line) {
+        line.innerHTML = 'Trains a day leaving Marylebone: ' + /** @type {Day[]} */ (['SX', 'SO', 'SU']).map((d) => {
+            const now = TIMETABLES.now[d].dep.length, dec = TIMETABLES.dec[d].dep.length;
+            return `${d === 'SX' ? 'weekdays' : esc(DAY_NAMES[d])} ${now} → <strong>${dec}</strong>${delta(dec - now)}`;
+        }).join(' · ');
+    }
+    // The one caveat about missing stops, said once, here — and gone the day December's stops arrive.
+    const partial = el('trPartial');
+    if (partial) partial.hidden = DEC_STOPS_KNOWN;
 }
 
 /** Everything that depends on the state: the pressed tabs, the visible view and its contents. @param {PageState} state */

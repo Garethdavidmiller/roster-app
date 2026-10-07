@@ -59,30 +59,17 @@ body {
    No hero on the canvas (v24.72): every other page opens straight onto its cards,
    and the one page-level figure here — the countdown — is the card's header chip.
    On a wide screen the totals sit beside the explanation rather than under it. */
-.tr-overview { display: grid; gap: 4px 32px; }
+.tr-overview { display: grid; gap: 8px; }
+.tr-overview > p { margin: 0; }
+/* Desktop: what the page is and the caveat on the left; the data note and the totals on the right. */
 @media (min-width: 1024px) {
-    .tr-overview { grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); align-items: start; }
-    .tr-overview .card-explainer { max-width: 68ch; }
+    .tr-overview { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto; grid-auto-flow: column; column-gap: 40px; }
+    .tr-overview .card-explainer { max-width: 60ch; }
 }
 .tr-caveat { color: var(--text-dark); font-weight: 600; }
-.tr-totals {
-    width: 100%;
-    border-collapse: collapse;
-    font-variant-numeric: tabular-nums;
-}
-.tr-totals th, .tr-totals td {
-    padding: 7px 8px 7px 0;
-    text-align: left;
-    border-bottom: 1px solid var(--border-light);
-}
-.tr-totals thead th {
-    color: var(--text-light);
-    font-size: var(--type-small);
-    font-weight: 600;
-    white-space: nowrap;
-}
-.tr-totals tbody th { font-weight: 600; }
-.tr-totals td:last-child { font-weight: 700; }
+/* The three days' totals as one muted line — a fact worth having, not the thing to open on. */
+.tr-totals { margin: 6px 0 0; color: var(--text-light); font-size: var(--type-small); font-variant-numeric: tabular-nums; }
+.tr-totals strong { color: var(--text-dark); font-weight: 700; }
 
 /* ── Day and direction ──────────────────────────────────────────────────────
    The app's on-canvas tab strip — Overtime's `.ot-tab`, itself sized like the Pay

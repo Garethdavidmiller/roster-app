@@ -364,7 +364,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     test('trains (admin, signed in) — a station open, then the basic hour', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/trains.html');
-        await page.locator('#trChanges .tr-head', { hasText: 'Aylesbury:' }).click();
+        await page.locator('#trChanges .tr-head', { hasText: 'to Aylesbury' }).click();
         await page.locator('#trStation .tr-route-sum').click();
         await expect(page.locator('#trStation .tr-trains tbody tr').first()).toBeVisible();
         let v = await scan(page);

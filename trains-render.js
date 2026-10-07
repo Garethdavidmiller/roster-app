@@ -40,7 +40,8 @@ const dot = (kind, words) => `<span class="tr-dot${kind ? ` tr-dot--${kind}` : '
  */
 export function renderHeadlines(items, { showAll, partial }) {
     const shown = showAll ? items : items.slice(0, 5);
-    const word = /** @type {Record<string, string>} */ ({ more: 'More', less: 'Less', moved: 'Moved' });
+    // The chip says what KIND of change, in words a reader can repeat: "More" alone asked "more what?".
+    const word = /** @type {Record<string, string>} */ ({ more: 'More trains', less: 'Fewer trains', moved: 'Times move' });
     const list = shown.length
         ? `<ul class="tr-heads">${shown.map(h => `<li><button type="button" class="tr-head" data-station="${esc(h.crs)}">`
             + `<span class="tr-chip tr-chip--${h.tone === 'more' ? 'new' : h.tone === 'less' ? 'gone' : 'moved'}">${esc(word[h.tone] ?? '')}</span>`
@@ -49,7 +50,7 @@ export function renderHeadlines(items, { showAll, partial }) {
     const more = !showAll && items.length > shown.length
         ? `<button type="button" class="tr-more" id="trHeadsMore">Show all ${items.length} changes</button>` : '';
     const note = partial
-        ? '<p class="card-explainer tr-note">Only trains that end at a station can be compared yet. Stations most trains run through appear here once Chiltern publishes December’s stops.</p>'
+        ? '<p class="card-explainer tr-note">More stations appear here once Chiltern publishes where December’s trains stop.</p>'
         : '';
     return list + more + note;
 }
@@ -90,8 +91,8 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
         : ending ? [ending.now, ending.dec, ending.trains] : [view.now, null, null];
     const label = ending ? `<p class="tr-sub">${esc(leaving ? `Trains that end at ${name}` : `Trains that start at ${name}`)}</p>` : '';
     const throughNote = ending && ending.through > 0
-        ? `<p class="card-explainer tr-note">${ending.through === 1 ? 'One other train a day calls' : `${ending.through} other trains a day call`} at ${esc(name)} today`
-            + `${leaving ? ' and run on past it' : ' on the way in from further out'}. Chiltern has not published which stations its December trains stop at, so those cannot be compared yet.</p>`
+        ? `<p class="card-explainer tr-note">${ending.through === 1 ? 'One other train a day calls' : `${ending.through} other trains a day call`} at ${esc(name)}`
+            + `${leaving ? ' and run on past it' : ' on the way in'}. Those cannot be compared until Chiltern publishes where December’s trains stop.</p>`
         : '';
     const cell = (/** @type {string|number|null|undefined} */ v) => (v === null || v === undefined || v === '') ? none : esc(String(v));
     const decCell = (/** @type {(s: NonNullable<typeof dec>) => string|number|null} */ f) => dec ? cell(f(dec)) : notKnown;
@@ -195,5 +196,5 @@ export function renderGrid(nowGrid, decGrid, mode, stations) {
         ? '<ul class="tr-grid-key"><li><span class="tr-dot" aria-hidden="true"></span> stops</li><li><span class="tr-dot tr-dot--new" aria-hidden="true"></span> new stop</li><li><span class="tr-dot tr-dot--lost" aria-hidden="true"></span> no longer stops</li></ul>'
         : '';
     const swipe = grid.columns.length > 4 ? '<p class="tr-grid-swipe touch-only">Swipe the table sideways for more trains.</p>' : '';
-    return unknown + key + swipe + `<div class="tr-grid-wrap" tabindex="0" role="region" aria-label="The basic hour — scrolls sideways"><table class="tr-grid"><thead>${head}</thead><tbody>${origin}${body}</tbody></table></div>`;
+    return unknown + key + swipe + `<div class="tr-grid-wrap" tabindex="0" role="region" aria-label="Every hour — scrolls sideways"><table class="tr-grid"><thead>${head}</thead><tbody>${origin}${body}</tbody></table></div>`;
 }

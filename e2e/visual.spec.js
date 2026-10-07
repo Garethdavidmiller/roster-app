@@ -1063,7 +1063,7 @@ test('trains — weekdays, a station open (mobile 390)', async ({ page }) => {
     await prep(page, { width: 390, height: 1500 });
     await page.goto('/trains.html');
     await settle(page, '#trChanges .tr-head');
-    await page.locator('#trChanges .tr-head', { hasText: 'Aylesbury:' }).click();
+    await page.locator('#trChanges .tr-head', { hasText: 'to Aylesbury' }).click();
     await settle(page, '#trStation .tr-st-table');
     await page.evaluate(() => window.scrollTo(0, 0));
     await expect(page).toHaveScreenshot('trains-mobile-390.png');
