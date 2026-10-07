@@ -31,6 +31,12 @@ test.describe('trains', () => {
         await expect(row1036).toContainText('Now runs to Birmingham Snow Hill');
         await expect(row1036.locator('td').nth(1)).toHaveText('—none');
 
+        // Aylesbury Vale Parkway is the Amersham line run on, not a destination of its own (owner,
+        // 7 Oct 2026): no tile of its own, and the line's tile says so.
+        await expect(page.locator('#trRoutes .tr-route-name', { hasText: /^Aylesbury Vale Parkway$/ })).toHaveCount(0);
+        await expect(page.locator('#trRoutes .tr-route', { has: page.locator('.tr-route-name', { hasText: /^Aylesbury via Amersham$/ }) }))
+            .toContainText('Some go on to Aylesbury Vale Parkway');
+
         // Arriving rewords the card and the chips.
         await page.locator('[data-dir="arr"]').click();
         await expect(page.locator('[data-dir="arr"]')).toHaveAttribute('aria-pressed', 'true');

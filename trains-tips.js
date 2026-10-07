@@ -50,6 +50,7 @@ export const CARD_TIPS = {
                 heading: 'Good to know',
                 items: [
                     { icon: '🛤️', html: '<strong>Aylesbury has two routes</strong>: via High Wycombe or via Amersham. A train that changes route is shown as going somewhere different, because the journey is.' },
+                    { icon: '➡️', html: '<strong>Aylesbury Vale Parkway</strong> trains are the Amersham-line Aylesbury trains running one stop further, so they are listed with them. Each train still says where it ends, and <strong>Now ends at Aylesbury</strong> or <strong>Now goes on to Aylesbury Vale Parkway</strong> means only the last stop has changed.' },
                     { icon: '🗓️', html: 'A few weekday trains run at different times on <strong>Mondays and Fridays</strong>. Those are marked under the time.' },
                     { icon: '🚉', html: 'Only times at Marylebone are shown. Which stations each December train stops at is not here yet, so a train with the same time can still stop at different places.' },
                 ],
@@ -65,6 +66,7 @@ export const CARD_TIPS = {
                     { icon: '🔂', html: 'Between 10:00 and 16:00 most hours repeat the same pattern. Each figure is <strong>minutes past every hour</strong> — :06 means 10:06, 11:06, 12:06 and so on.' },
                     { icon: '🧠', html: 'It is the one thing worth learning by heart: know it and you can answer most daytime questions without looking anything up.' },
                     { icon: '🟠', html: '<strong>Changed</strong> marks a destination whose pattern is different from 13 December.' },
+                    { icon: '➡️', html: 'The Amersham line is one pattern: some of its minutes run on to <strong>Aylesbury Vale Parkway</strong>, and the line under its name says which.' },
                 ],
             },
         ],

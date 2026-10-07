@@ -12,7 +12,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     serviceMinutes, alignTimes, compareRoutes, foldWeekdayVariants, basicHour, compareBasicHour,
-    trainsNear, parseTypedTime, daysUntil, changeLabel, daysLabel, routeName, MAX_SHIFT_MIN,
+    trainsNear, parseTypedTime, daysUntil, changeLabel, daysLabel, routeName, MAX_SHIFT_MIN, beyondLabel,
 } from './trains-change.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE } from './trains-data.js';
 
@@ -105,6 +105,41 @@ describe('compareRoutes — one train, a different destination', () => {
     });
 });
 
+describe('a line that runs on — Aylesbury Vale Parkway is the Amersham line, one stop further', () => {
+    test('the Parkway has no route of its own: its trains are the line\'s', () => {
+        const routes = compareRoutes([row('10:27', 'AYS', 'A'), row('10:57', 'AVP')], [row('10:27', 'AYS', 'A'), row('10:57', 'AVP')]);
+        assert.deepEqual(routes.map(r => [r.key, r.station, r.via, r.nowCount]), [['AYSA', 'AYS', 'A', 2]]);
+        assert.equal(routeName(STATIONS, routes[0].station, routes[0].via), 'Aylesbury via Amersham');
+    });
+
+    test('a kept train whose END moves is one train, worded by where it now ends or starts', () => {
+        const [cut] = compareRoutes([row('08:27', 'AVP')], [row('08:27', 'AYS', 'A')])[0].trains;
+        assert.equal(cut.kind, 'terminus');
+        assert.equal(changeLabel(cut, STATIONS), 'Now ends at Aylesbury');
+        const [ext] = compareRoutes([row('07:57', 'AYS', 'A')], [row('07:59', 'AVP')])[0].trains;
+        assert.equal(changeLabel(ext, STATIONS), 'Now goes on to Aylesbury Vale Parkway, 07:59');
+        assert.equal(changeLabel(ext, STATIONS, 'arr'), 'Now starts at Aylesbury Vale Parkway, 07:59');
+    });
+
+    test('the via-High-Wycombe Aylesbury trains are a different line and are not folded in', () => {
+        const routes = compareRoutes([row('10:52', 'AYS', 'H'), row('10:57', 'AVP')], []);
+        assert.deepEqual(routes.map(r => r.key).sort(), ['AYSA', 'AYSH']);
+    });
+
+    test('the basic hour marks which minutes run on', () => {
+        const hours = ['10', '11', '12', '13', '14', '15'];
+        const [line] = basicHour(hours.flatMap(h => [row(`${h}:27`, 'AYS', 'A'), row(`${h}:57`, 'AVP')]));
+        assert.deepEqual([line.key, line.minutes, line.beyond], ['AYSA', [27, 57], [57]]);
+    });
+
+    test('and says so in words, December first', () => {
+        const r = { key: 'AYSA', dec: [27, 57], decBeyond: [57], nowBeyond: [27] };
+        assert.equal(beyondLabel(r, STATIONS), ':57 goes on to Aylesbury Vale Parkway');
+        assert.equal(beyondLabel(r, STATIONS, 'arr'), ':57 starts at Aylesbury Vale Parkway');
+        assert.equal(beyondLabel({ ...r, key: 'OXF' }, STATIONS), '');
+    });
+});
+
 describe('the basic hour', () => {
     test('a minute counts when it repeats in most of the off-peak hours', () => {
         const rows = ['10', '11', '12', '13'].map(h => row(`${h}:06`)).concat([row('14:20')]);
@@ -190,6 +225,12 @@ describe('trains-data.js', () => {
 
     test('checked by hand: the weekday basic hour from 10:00 to 16:00', () => {
         const dec = basicHour(TIMETABLES.dec.SX.dep).map(r => `:${String(r.minutes[0]).padStart(2, '0')} ${r.key}`);
-        assert.deepEqual(dec, [':02 BMO', ':06 OXF', ':10 HWY', ':27 AYSA', ':36 BSW', ':57 AVP']);
+        assert.deepEqual(dec, [':02 BMO', ':06 OXF', ':10 HWY', ':27 AYSA', ':36 BSW']);
+    });
+
+    test('checked by hand: the Amersham line is half-hourly, the :57 running on to the Parkway', () => {
+        const line = basicHour(TIMETABLES.dec.SX.dep).find(r => r.key === 'AYSA');
+        assert.deepEqual(line?.minutes, [27, 57]);
+        assert.deepEqual(line?.beyond, [57]);
     });
 });

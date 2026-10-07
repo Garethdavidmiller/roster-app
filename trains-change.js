@@ -25,6 +25,16 @@
  * hour, so the two are different routes here. A train that keeps its time but changes route is
  * therefore reported as one gone and one new, which is what it is to the person on it.
  *
+ * ── A LINE THAT RUNS ON IS ONE LINE ─────────────────────────────────────────────────────────────
+ *
+ * Aylesbury Vale Parkway trains are the Amersham-line Aylesbury trains running one stop further
+ * (owner, 7 Oct 2026). Treated as a destination of its own, a train cut back from the Parkway to
+ * Aylesbury read as one train removed and another added, and the basic hour showed the line's
+ * half-hourly pattern as two unrelated hourly services. So `LINES` folds an extension into the
+ * line it extends: the trains are compared as one list, and a train whose time holds but whose end
+ * moves is a 'terminus' change — "now ends at Aylesbury", "now goes on to Aylesbury Vale Parkway".
+ * Each train still says where it actually ends; nothing about the destination is lost.
+ *
  * ── THE RAILWAY DAY STARTS AT 03:00 ─────────────────────────────────────────────────────────────
  *
  * A 00:15 departure is the last train of the evening, not the first of the morning, so every
@@ -39,11 +49,24 @@ export const MAX_SHIFT_MIN = 20;
  *  the two together. */
 export const MAX_REROUTE_MIN = 5;
 
+/**
+ * Lines with an extension: the extension's trains are this line's trains, run on (see the header).
+ * Keyed by the line's route key.
+ * @type {Readonly<Record<string, Readonly<{ station: string, via: string, extension: string }>>>}
+ */
+export const LINES = Object.freeze({
+    AYSA: Object.freeze({ station: 'AYS', via: 'A', extension: 'AVP' }),   // the page's short form is "Parkway"
+});
+
+/** An extension station's route key → the line it belongs to. */
+const LINE_OF = /** @type {Record<string, string>} */ (Object.fromEntries(
+    Object.entries(LINES).map(([key, line]) => [line.extension, key])));
+
 /** The hours the basic pattern is read from — the off-peak middle of the day. */
 export const PATTERN_HOURS = Object.freeze({ from: 10, to: 16 });
 
 /** @typedef {[string, string, string, string]} TrainRow  [time 'HH:MM', station, route, days] */
-/** @typedef {'same'|'earlier'|'later'|'new'|'gone'|'rerouted'} ChangeKind */
+/** @typedef {'same'|'earlier'|'later'|'new'|'gone'|'rerouted'|'terminus'} ChangeKind */
 /**
  * @typedef {object} PairedTrain
  * @property {string|null} now    the current time, or null for a new train
@@ -54,6 +77,8 @@ export const PATTERN_HOURS = Object.freeze({ from: 10, to: 16 });
  * @property {{ station: string, via: string, time: string }} [other]  for 'rerouted': the train
  *           on the OTHER route it became (seen from the old route) or came from (from the new one)
  * @property {'old'|'new'} [side]  for 'rerouted': which of the two routes this row is listed under
+ * @property {string} [nowTo]     the station the current train ends (or, arriving, starts) at
+ * @property {string} [decTo]     the same for the December train — they differ only on a 'terminus' change
  */
 /**
  * @typedef {object} RouteChange
@@ -77,11 +102,12 @@ export function serviceMinutes(hhmm) {
 }
 
 /**
- * The route key — the station, plus the route where the station has two.
+ * The route key — the station, plus the route where the station has two; an extension's trains
+ * take the key of the line they run on from (`LINES`).
  * @param {TrainRow} row
  * @returns {string}
  */
-export const routeKey = (row) => row[1] + row[2];
+export const routeKey = (row) => LINE_OF[row[1] + row[2]] ?? row[1] + row[2];
 
 /**
  * Pair two sorted lists of times in order, at the least total shift (see the header).
@@ -121,15 +147,16 @@ export function alignTimes(nowRows, decRows, maxShift = MAX_SHIFT_MIN) {
                 out.push({
                     now: nowRows[i - 1][0], dec: decRows[j - 1][0], shift, days: nowRows[i - 1][3],
                     kind: shift === 0 ? 'same' : shift > 0 ? 'later' : 'earlier',
+                    nowTo: nowRows[i - 1][1], decTo: decRows[j - 1][1],
                 });
                 i--; j--; continue;
             }
         }
         if (i > 0 && cost[i][j] === cost[i - 1][j] + maxShift) {
-            out.push({ now: nowRows[i - 1][0], dec: null, kind: 'gone', shift: 0, days: nowRows[i - 1][3] });
+            out.push({ now: nowRows[i - 1][0], dec: null, kind: 'gone', shift: 0, days: nowRows[i - 1][3], nowTo: nowRows[i - 1][1] });
             i--;
         } else {
-            out.push({ now: null, dec: decRows[j - 1][0], kind: 'new', shift: 0, days: '' });
+            out.push({ now: null, dec: decRows[j - 1][0], kind: 'new', shift: 0, days: '', decTo: decRows[j - 1][1] });
             j--;
         }
     }
@@ -158,7 +185,7 @@ export function foldWeekdayVariants(trains) {
             && Math.abs(serviceMinutes(/** @type {string} */ (p.dec)) - serviceMinutes(/** @type {string} */ (t.now))) <= MAX_SHIFT_MIN);
         if (!partner) return t;
         const shift = serviceMinutes(/** @type {string} */ (partner.dec)) - serviceMinutes(t.now);
-        return { ...t, dec: partner.dec, shift, kind: shift === 0 ? 'same' : shift > 0 ? 'later' : 'earlier' };
+        return { ...t, dec: partner.dec, decTo: partner.decTo, shift, kind: shift === 0 ? 'same' : shift > 0 ? 'later' : 'earlier' };
     });
 }
 
@@ -186,10 +213,15 @@ export function compareRoutes(nowRows, decRows) {
 
     const compared = [...routes.entries()].map(([key, { now, dec }]) => {
         const sample = now[0] ?? dec[0];
+        const line = LINES[key];
+        // On a line with an extension, a kept train whose END moved is a terminus change.
+        const trains = foldWeekdayVariants(alignTimes(byService(now), byService(dec))).map(t =>
+            (t.kind === 'same' || t.kind === 'earlier' || t.kind === 'later') && t.nowTo && t.decTo && t.nowTo !== t.decTo
+                ? { ...t, kind: /** @type {ChangeKind} */ ('terminus') } : t);
         return {
-            key, station: sample[1], via: sample[2], nowCount: now.length, decCount: dec.length,
-            trains: foldWeekdayVariants(alignTimes(byService(now), byService(dec))),
-            tally: /** @type {Record<ChangeKind, number>} */ ({ same: 0, earlier: 0, later: 0, new: 0, gone: 0, rerouted: 0 }),
+            key, station: line?.station ?? sample[1], via: line?.via ?? sample[2],
+            nowCount: now.length, decCount: dec.length, trains,
+            tally: /** @type {Record<ChangeKind, number>} */ ({ same: 0, earlier: 0, later: 0, new: 0, gone: 0, rerouted: 0, terminus: 0 }),
         };
     });
     relinkAcrossRoutes(compared);
@@ -225,9 +257,9 @@ export function relinkAcrossRoutes(routes) {
         if (used.has(g.t) || used.has(f.t)) continue;
         used.add(g.t); used.add(f.t);
         const shift = f.at - g.at;
-        g.t.kind = 'rerouted'; g.t.side = 'old'; g.t.dec = f.t.dec; g.t.shift = shift;
+        g.t.kind = 'rerouted'; g.t.side = 'old'; g.t.dec = f.t.dec; g.t.decTo = f.t.decTo; g.t.shift = shift;
         g.t.other = { station: f.r.station, via: f.r.via, time: /** @type {string} */ (f.t.dec) };
-        f.t.kind = 'rerouted'; f.t.side = 'new'; f.t.now = g.t.now; f.t.shift = shift; f.t.days = g.t.days;
+        f.t.kind = 'rerouted'; f.t.side = 'new'; f.t.now = g.t.now; f.t.nowTo = g.t.nowTo; f.t.shift = shift; f.t.days = g.t.days;
         f.t.other = { station: g.r.station, via: g.r.via, time: /** @type {string} */ (g.t.now) };
     }
 }
@@ -237,27 +269,32 @@ export function relinkAcrossRoutes(routes) {
  * hours. "Most" is a majority of the hours in `PATTERN_HOURS`, so one extra or missing train in a
  * single hour does not change the pattern.
  *
+ * On a line with an extension, `beyond` lists the minutes whose trains mostly run on to it.
+ *
  * @param {TrainRow[]} rows
- * @returns {{ key: string, station: string, via: string, minutes: number[] }[]}  by first minute
+ * @returns {{ key: string, station: string, via: string, minutes: number[], beyond: number[] }[]}  by first minute
  */
 export function basicHour(rows) {
     const hours = PATTERN_HOURS.to - PATTERN_HOURS.from;
     const need = Math.floor(hours / 2) + 1;
-    /** @type {Map<string, { station: string, via: string, seen: Map<number, Set<number>> }>} */
+    /** @type {Map<string, { station: string, via: string, seen: Map<number, Set<number>>, ext: Map<number, number> }>} */
     const routes = new Map();
     for (const r of rows) {
         const h = Number(r[0].slice(0, 2)), m = Number(r[0].slice(3, 5));
         if (h < PATTERN_HOURS.from || h >= PATTERN_HOURS.to || r[3]) continue;   // a weekday exception is not the pattern
         const k = routeKey(r);
-        if (!routes.has(k)) routes.set(k, { station: r[1], via: r[2], seen: new Map() });
-        const seen = /** @type {any} */ (routes.get(k)).seen;
-        if (!seen.has(m)) seen.set(m, new Set());
-        seen.get(m).add(h);
+        const line = LINES[k];
+        if (!routes.has(k)) routes.set(k, { station: line?.station ?? r[1], via: line?.via ?? r[2], seen: new Map(), ext: new Map() });
+        const route = /** @type {any} */ (routes.get(k));
+        if (!route.seen.has(m)) route.seen.set(m, new Set());
+        route.seen.get(m).add(h);
+        if (line && r[1] === line.extension) route.ext.set(m, (route.ext.get(m) ?? 0) + 1);
     }
     const out = [];
-    for (const [key, { station, via, seen }] of routes) {
+    for (const [key, { station, via, seen, ext }] of routes) {
         const minutes = [...seen.entries()].filter(([, hs]) => hs.size >= need).map(([m]) => m).sort((x, y) => x - y);
-        if (minutes.length) out.push({ key, station, via, minutes });
+        const beyond = minutes.filter(m => (ext.get(m) ?? 0) * 2 > (seen.get(m)?.size ?? 0));
+        if (minutes.length) out.push({ key, station, via, minutes, beyond });
     }
     return out.sort((x, y) => x.minutes[0] - y.minutes[0] || x.key.localeCompare(y.key));
 }
@@ -267,21 +304,25 @@ export function basicHour(rows) {
  *
  * @param {TrainRow[]} nowRows
  * @param {TrainRow[]} decRows
- * @returns {{ key: string, station: string, via: string, now: number[], dec: number[], changed: boolean }[]}
+ * @returns {{ key: string, station: string, via: string, now: number[], dec: number[], nowBeyond: number[], decBeyond: number[], changed: boolean }[]}
  */
 export function compareBasicHour(nowRows, decRows) {
     const now = basicHour(nowRows), dec = basicHour(decRows);
-    /** @type {Map<string, { key: string, station: string, via: string, now: number[], dec: number[], changed: boolean }>} */
+    /** @typedef {{ key: string, station: string, via: string, now: number[], dec: number[], nowBeyond: number[], decBeyond: number[], changed: boolean }} PatternRow */
+    /** @type {Map<string, PatternRow>} */
     const rows = new Map();
-    for (const r of now) rows.set(r.key, { key: r.key, station: r.station, via: r.via, now: r.minutes, dec: [], changed: true });
+    const blank = (/** @type {{ key: string, station: string, via: string }} */ r) =>
+        ({ key: r.key, station: r.station, via: r.via, now: [], dec: [], nowBeyond: [], decBeyond: [], changed: true });
+    for (const r of now) rows.set(r.key, { ...blank(r), now: r.minutes, nowBeyond: r.beyond });
     for (const r of dec) {
-        const row = rows.get(r.key) ?? { key: r.key, station: r.station, via: r.via, now: [], dec: [], changed: true };
+        const row = rows.get(r.key) ?? blank(r);
         row.dec = r.minutes;
+        row.decBeyond = r.beyond;
         rows.set(r.key, row);
     }
     const first = (/** @type {{ now: number[], dec: number[] }} */ r) => Math.min(...r.dec, ...r.now);
     return [...rows.values()]
-        .map(r => ({ ...r, changed: r.now.join() !== r.dec.join() }))
+        .map(r => ({ ...r, changed: r.now.join() !== r.dec.join() || r.nowBeyond.join() !== r.decBeyond.join() }))
         .sort((x, y) => first(x) - first(y) || x.key.localeCompare(y.key));
 }
 
@@ -349,6 +390,12 @@ export function changeLabel(t, stations = {}, dir = 'dep') {
         case 'earlier': return `${mins(-t.shift)} earlier`;
         case 'new':     return 'New train';
         case 'gone':    return 'No longer runs';
+        case 'terminus': {
+            const to = /** @type {string} */ (t.decTo), name = stations[to] ?? to;
+            const onwards = Object.values(LINES).some(l => l.extension === to);
+            const what = dir === 'arr' ? `Now starts at ${name}` : onwards ? `Now goes on to ${name}` : `Now ends at ${name}`;
+            return t.shift ? `${what}, ${t.dec}` : what;
+        }
         default: {
             const o = /** @type {NonNullable<PairedTrain['other']>} */ (t.other);
             const where = routeName(stations, o.station, o.via);
@@ -357,6 +404,26 @@ export function changeLabel(t, stations = {}, dir = 'dep') {
             return t.shift ? `${verb} ${where}, ${o.time}` : `${verb} ${where}`;
         }
     }
+}
+
+/**
+ * The words under a line's name in the basic hour: which of its minutes run on to the extension —
+ * ":57 goes on to Aylesbury Vale Parkway". December's pattern when it has one, today's otherwise.
+ * '' for a route with no extension, or none of whose minutes run on.
+ *
+ * @param {{ key: string, dec: number[], decBeyond: number[], nowBeyond: number[] }} r  a compareBasicHour row
+ * @param {Readonly<Record<string, string>>} stations
+ * @param {'dep'|'arr'} [dir]
+ * @returns {string}
+ */
+export function beyondLabel(r, stations, dir = 'dep') {
+    const line = LINES[r.key];
+    const beyond = r.dec.length ? r.decBeyond : r.nowBeyond;
+    if (!line || !beyond.length) return '';
+    const at = beyond.map(m => `:${String(m).padStart(2, '0')}`).join(' and ');
+    const one = beyond.length === 1;
+    const verb = dir === 'arr' ? (one ? 'starts at' : 'start at') : (one ? 'goes on to' : 'go on to');
+    return `${at} ${verb} ${stations[line.extension] ?? line.extension}`;
 }
 
 /**
