@@ -366,8 +366,24 @@ jobs:
       # CI runners have no pre-installed browser, so fetch Chromium here. (The
       # Claude Code dev environment ships Chromium at /opt/pw-browsers, which is
       # why the suite is now locally runnable — see ROADMAP "E2E smoke tests".)
+      # THE DOWNLOAD IS CACHED; THE SYSTEM LIBRARIES ARE NOT. On 7 Oct 2026 this step ran for 9, 15 and
+      # 25 minutes on three runs (about 1 on a normal day), each time inside the browser DOWNLOAD, and
+      # cancelled or timed out jobs in which every test had passed. The browser now lives in the Actions
+      # cache under the Playwright version, so a run restores it in seconds and the CDN is off the
+      # critical path; only a Playwright bump downloads again. `--with-deps` installs GTK/GStreamer
+      # libraries from apt, which the cache cannot hold, so a cache hit still runs `install-deps`.
+      - name: Restore Playwright Chromium from the cache
+        id: pw-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium-${{ hashFiles('node_modules/@playwright/test/package.json') }}
       - name: Install Playwright Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+      - name: Install Chromium's system libraries (browser already cached)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       - name: Run smoke tests
         run: npm run test:e2e
@@ -468,8 +484,20 @@ jobs:
       # `--with-deps` matters here in a way it does not for Chromium: WebKit needs a long list of
       # GTK/GStreamer libraries that no runner ships by default, and without them every test fails
       # at browser launch with an error that looks nothing like a test failure.
+      # Browser restored from the Actions cache, keyed on the Playwright version — the reasoning is on
+      # the smoke job in e2e.yml. A cache hit still installs the apt libraries, which it cannot hold.
+      - name: Restore Playwright WebKit from the cache
+        id: pw-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-webkit-${{ hashFiles('node_modules/@playwright/test/package.json') }}
       - name: Install Playwright WebKit
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps webkit
+      - name: Install WebKit's system libraries (browser already cached)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps webkit
 
       - name: Run the smoke suite under WebKit
         timeout-minutes: 25
@@ -557,8 +585,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Browser restored from the Actions cache, keyed on the Playwright version — the reasoning is on
+      # the smoke job in e2e.yml. A cache hit still installs the apt libraries, which it cannot hold.
+      - name: Restore Playwright Chromium from the cache
+        id: pw-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium-${{ hashFiles('node_modules/@playwright/test/package.json') }}
       - name: Install Playwright Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+      - name: Install Chromium's system libraries (browser already cached)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       - name: Run deployed-CSP proof
         run: npm run test:csp
@@ -627,8 +667,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Browser restored from the Actions cache, keyed on the Playwright version — the reasoning is on
+      # the smoke job in e2e.yml. A cache hit still installs the apt libraries, which it cannot hold.
+      - name: Restore Playwright WebKit from the cache
+        id: pw-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-webkit-${{ hashFiles('node_modules/@playwright/test/package.json') }}
       - name: Install Playwright WebKit
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps webkit
+      - name: Install WebKit's system libraries (browser already cached)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps webkit
 
       - name: Compare against the committed WebKit baselines
         id: compare
@@ -803,8 +855,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Browser restored from the Actions cache, keyed on the Playwright version — the reasoning is on
+      # the smoke job in e2e.yml. A cache hit still installs the apt libraries, which it cannot hold.
+      - name: Restore Playwright Chromium from the cache
+        id: pw-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium-${{ hashFiles('node_modules/@playwright/test/package.json') }}
       - name: Install Playwright Chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
+      - name: Install Chromium's system libraries (browser already cached)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
 
       # `print-visual.spec.js` rasterises page 1 of the real generated PDF, and poppler is what
       # does it. WITHOUT THIS STEP THE PRINT BASELINES WOULD SKIP ON EVERY RUN — loudly, the spec
