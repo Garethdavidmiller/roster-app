@@ -65,16 +65,27 @@ describe('knowing December without its stops', () => {
         assert.equal(decemberKnown(now, [row('10:08', 'OXF', '', '', 'GER1030 OXF1114')], 'GER'), true);
     });
 
-    test('the real tables: end-of-line stations answer, stations passed through say they are waiting', () => {
+    test('the real tables: end-of-line stations answer in full; a station trains run through compares the trains that end there', () => {
         const { now, dec } = { now: TIMETABLES.now.SX.dep, dec: TIMETABLES.dec.SX.dep };
         assert.ok(stationView(now, dec, 'AYS', 'dep').dec, 'Aylesbury');
         assert.ok(stationView(now, dec, 'BMO', 'dep').dec, 'Birmingham Moor Street');
-        for (const crs of ['GER', 'HWY', 'OXF']) {
-            const v = stationView(now, dec, crs, 'dep');
-            assert.equal(v.dec, null, crs);
-            assert.equal(v.trains, null, crs);
-            assert.equal(v.verdict.tone, 'unknown', crs);
-        }
+        // Oxford: one train a day runs through to Banbury, so the whole station cannot be answered —
+        // but 35 trains end there today and 36 in December, and THOSE are compared (v24.77; v24.74
+        // hid them, and the owner asked where Oxford's changes had gone).
+        const oxf = stationView(now, dec, 'OXF', 'dep');
+        assert.equal(oxf.dec, null);
+        assert.equal(oxf.trains, null);
+        assert.ok(oxf.ending);
+        assert.equal(oxf.ending.now.total, 35);
+        assert.equal(oxf.ending.dec.total, 36);
+        assert.equal(oxf.ending.through, 1);
+        assert.equal(oxf.verdict.text, '1 more train a day: 36, was 35.');
+        assert.ok(oxf.ending.trains.length >= 36);
+        for (const crs of ['HWY', 'WRU', 'GER']) assert.ok(stationView(now, dec, crs, 'dep').ending, `${crs} has trains ending there`);
+        // Beaconsfield: every train runs through, nothing ends there — December is waiting.
+        const bcf = stationView(now, dec, 'BCF', 'dep');
+        assert.equal(bcf.ending, null);
+        assert.equal(bcf.verdict.tone, 'unknown');
     });
 });
 
@@ -169,7 +180,11 @@ describe('headlineChanges — what you will be asked about', () => {
         const out = headlineChanges(now, dec, { OXF: 'Oxford', SAV: 'Stratford-upon-Avon', HWY: 'High Wycombe' });
         assert.equal(out[0].text, 'Stratford-upon-Avon gets a direct train from Marylebone (the 12:30)');
         assert.equal(out[0].tone, 'more');
-        assert.ok(!out.some(h => h.crs === 'HWY'), 'High Wycombe cannot be answered yet');
+        assert.ok(!out.some(h => h.crs === 'HWY'), 'High Wycombe cannot be answered yet, and nothing ends there');
+        // Where trains DO end at a through station, the line is about those trains and says so.
+        const partial = headlineChanges([...hourly(6, 'OXF', ['HWY', 'OXF']), row('09:00', 'HWY', '', '', 'HWY0930')],
+            [...hourly(6, 'OXF'), row('09:00', 'HWY'), row('10:00', 'HWY'), row('11:00', 'HWY')], { OXF: 'Oxford', HWY: 'High Wycombe' });
+        assert.equal(partial.find(h => h.crs === 'HWY')?.text, 'Trains ending at High Wycombe: 3 trains a day (was 1); last train 11:00 (was 09:00)');
     });
 
     test('the real weekday tables lead with something, and every headline names a station', () => {
@@ -266,15 +281,25 @@ describe('the words on screen', () => {
     });
 
     test('a station card: verdict, today beside December, and a waiting December reads "not known yet" to a screen reader', () => {
-        const view = stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, 'GER', 'dep');
+        const view = stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, 'BCF', 'dep');
         const html = renderStation(view, { stations: STATIONS, dir: 'dep', showTrains: false });
         assert.match(html, /tr-verdict--unknown/);
         assert.match(html, /Off-peak, leaves Marylebone at/);
-        assert.match(html, /<td>:06, :10 and :40<\/td>/);
-        assert.match(html, /<td>3<span class="sr-only"> \(<\/span><span class="tr-days">4 in some hours<\/span><span class="sr-only">\)<\/span><\/td>/, 'Gerrards Cross: three an hour, four in one — read aloud as "3 (4 in some hours)"');
         assert.match(html, /<span class="sr-only">not known yet<\/span>/);
         assert.doesNotMatch(html, /sr-only">none</, 'an unknown December figure is not "none"');
-        assert.doesNotMatch(html, /See every train/, 'no train list without December');
+        assert.doesNotMatch(html, /tr-route|tr-sub/, 'no train list, and no "trains that end here" label, where nothing ends');
+        const ger = renderStation(stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, 'GER', 'dep'), { stations: STATIONS, dir: 'dep', showTrains: false });
+
+        // Oxford: the figures and the list are about the trains that END there, and say so.
+        const oxf = renderStation(stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, 'OXF', 'dep'), { stations: STATIONS, dir: 'dep', showTrains: false });
+        assert.match(oxf, /<p class="tr-sub">Trains that end at Oxford<\/p>/);
+        assert.match(oxf, /1 more train a day: 36, was 35\./);
+        assert.match(oxf, /One other train a day calls at Oxford today and run on past it\./);
+        assert.match(oxf, /<details class="tr-route">/, 'the trains that end at Oxford are listed, today beside December');
+        // Coming back, every train from Oxford STARTS there, so that direction is known in full and carries no
+        // label; High Wycombe's arrivals (20 start there, 65 come through) take the other wording.
+        assert.doesNotMatch(renderStation(stationView(TIMETABLES.now.SX.arr, TIMETABLES.dec.SX.arr, 'OXF', 'arr'), { stations: STATIONS, dir: 'arr', showTrains: false }), /tr-sub/);
+        assert.match(renderStation(stationView(TIMETABLES.now.SX.arr, TIMETABLES.dec.SX.arr, 'HWY', 'arr'), { stations: STATIONS, dir: 'arr', showTrains: false }), /Trains that start at High Wycombe/);
         const back = renderStation(stationView(TIMETABLES.now.SX.arr, TIMETABLES.dec.SX.arr, 'AYS', 'arr'), { stations: STATIONS, dir: 'arr', showTrains: true });
         assert.match(back, /Off-peak, gets into Marylebone at/);
         assert.match(back, /<details class="tr-route" open>/);
