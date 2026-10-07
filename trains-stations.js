@@ -212,7 +212,7 @@ export function stationView(nowRows, decRows, crs, dir) {
  * @returns {{ tone: 'same'|'more'|'less'|'moved'|'unknown', text: string }}
  */
 export function verdictFor(now, dec, trains) {
-    if (!dec) return { tone: 'unknown', text: 'December not known yet: Chiltern has not published which stations its December trains stop at. Today’s figures are below.' };
+    if (!dec) return { tone: 'unknown', text: 'December not known yet: Chiltern has not published where its December trains stop. Today’s figures are below.' };
     if (!now.total && dec.total) {
         return { tone: 'more', text: dec.total === 1
             ? `New from 13 December: one direct train, the ${dec.first}.`
@@ -305,9 +305,16 @@ export function matchStations(stations, typed, n = 6) {
 }
 
 /**
- * The biggest changes, ranked, as sentences — "the five you'll be asked about". Only stations whose
- * December can be answered are considered (see the header), so this list grows by itself when
- * December's stops arrive.
+ * The biggest changes, ranked, as sentences a colleague can repeat to a customer — "the five you'll
+ * be asked about". CONSEQUENCE FIRST: "5 more trains a day to Aylesbury (46, was 41)", never
+ * "Aylesbury: 46 trains a day (was 41)", which left the reader to do the arithmetic (v24.78). One
+ * line per station, its biggest change first and the rest as clauses; a station a line runs ON to
+ * is folded into its line's sentence; a station most trains run through is compared by the trains
+ * that end there, and the line says so. Only stations whose December can be answered are
+ * considered, so the list grows by itself when December's stops arrive.
+ * @typedef {{ kind: string, named: string, tail: string, tone: 'more'|'less'|'moved', score: number }} HeadlinePart
+ *   named — the clause when it opens the sentence (it carries the station's name); tail — as a
+ *   later clause, when the name has already been said
  * @param {TrainRow[]} nowRows   leaving Marylebone, one day
  * @param {TrainRow[]} decRows
  * @param {Readonly<Record<string, string>>} stations
@@ -315,48 +322,48 @@ export function matchStations(stations, typed, n = 6) {
  */
 export function headlineChanges(nowRows, decRows, stations) {
     const places = new Set([...nowRows, ...decRows].flatMap(callsOf));
-    /** @type {{ crs: string, tone: 'more'|'less'|'moved', text: string, score: number }[]} */
+    /** @type {{ crs: string, tone: 'more'|'less'|'moved', score: number, parts: HeadlinePart[], text: string }[]} */
     const out = [];
     for (const crs of places) {
-        // A station most trains run through: only the trains that END there can be compared, and the
-        // line says so — "Trains ending at High Wycombe: …" — so nobody reads it as the whole station.
         const known = decemberKnown(nowRows, decRows, crs);
         const eNow = known ? nowRows : endingAt(nowRows, crs), eDec = known ? decRows : endingAt(decRows, crs);
         if (!known && !eNow.length && !eDec.length) continue;
         const now = summarise(eNow, crs, 'dep'), dec = summarise(eDec, crs, 'dep');
-        const name = known ? (stations[crs] ?? crs) : `Trains ending at ${stations[crs] ?? crs}`;
+        const name = stations[crs] ?? crs;
         if (known && !now.total && dec.total) {
-            out.push({ crs, tone: 'more', score: 100 + dec.total, text: dec.total === 1
-                ? `${name} gets a direct train from Marylebone (the ${dec.first})`
-                : `${name} gets direct trains from Marylebone (${dec.total} a day)` });
+            out.push({ crs, tone: 'more', score: 100 + dec.total, parts: [], text: dec.total === 1
+                ? `A new direct train to ${name}, the ${dec.first}` : `New direct trains to ${name}: ${dec.total} a day` });
             continue;
         }
-        if (known && now.total && !dec.total) { out.push({ crs, tone: 'less', text: `${name} loses its direct trains`, score: 100 + now.total }); continue; }
-        // One line per station, its biggest change first: two lines about one station read as two
-        // stories, and pushed a different station off the first five.
-        /** @type {{ tone: 'more'|'less'|'moved', score: number, text: string }[]} */
+        if (known && now.total && !dec.total) { out.push({ crs, tone: 'less', score: 100 + now.total, parts: [], text: `No more direct trains to ${name}` }); continue; }
+        /** @type {HeadlinePart[]} */
         const parts = [];
         if (dec.typical !== now.typical) {
+            const more = dec.typical > now.typical;
             const usually = now.hourRange[0] !== now.hourRange[1] || dec.hourRange[0] !== dec.hourRange[1] ? 'usually ' : '';
-            parts.push({ tone: dec.typical > now.typical ? 'more' : 'less', score: 80 + Math.abs(dec.typical - now.typical),
-                text: `${usually}${dec.typical} trains an hour off-peak (was ${now.typical})` });
+            const tail = `${usually}${dec.typical} an hour off-peak (was ${now.typical})`;
+            parts.push({ kind: 'hour', named: `${more ? 'More' : 'Fewer'} trains to ${name}: ${tail}`, tail, tone: more ? 'more' : 'less', score: 80 + Math.abs(dec.typical - now.typical) });
         } else if (now.minutes.length && dec.minutes.length && now.minutes.join() !== dec.minutes.join()) {
-            parts.push({ tone: 'moved', score: 60, text: `off-peak trains leave at ${minutesWords(dec.minutes)} past the hour (was ${minutesWords(now.minutes)})` });
+            const tail = `leave at ${minutesWords(dec.minutes)} past the hour (was ${minutesWords(now.minutes)})`;
+            parts.push({ kind: 'minutes', named: `Trains to ${name} ${tail}`, tail, tone: 'moved', score: 60 });
         }
         const gained = dec.total - now.total;
         if (Math.abs(gained) >= 2) {
-            parts.push({ tone: gained > 0 ? 'more' : 'less', score: 40 + Math.abs(gained), text: `${dec.total} trains a day (was ${now.total})` });
+            const more = gained > 0, n = Math.abs(gained);
+            parts.push({ kind: 'daily', named: `${n} ${more ? 'more' : 'fewer'} trains a day to ${name} (${dec.total}, was ${now.total})`,
+                tail: `${n} ${more ? 'more' : 'fewer'} a day (${dec.total}, was ${now.total})`, tone: more ? 'more' : 'less', score: 40 + n });
         }
         if (now.last && dec.last && Math.abs(serviceMinutes(dec.last) - serviceMinutes(now.last)) >= 10) {
-            parts.push({ tone: 'moved', score: 30, text: `last train ${dec.last} (was ${now.last})` });
+            parts.push({ kind: 'last', named: `Last train to ${name} now ${dec.last} (was ${now.last})`, tail: `last train ${dec.last} (was ${now.last})`, tone: 'moved', score: 30 });
         }
         if (!parts.length) continue;
         parts.sort((a, b) => b.score - a.score);
-        out.push({ crs, tone: parts[0].tone, score: parts[0].score, text: `${name}: ${parts.map(p => p.text).join('; ')}` });
+        if (!known) parts.push({ kind: 'ending', named: '', tail: 'counting only the trains that end there', tone: 'moved', score: 0 });
+        out.push({ crs, tone: parts[0].tone, score: parts[0].score, parts, text: '' });
     }
     // A station a line runs ON to (Snow Hill, Stourbridge, the Parkway) is part of its line's story,
-    // not a second one: "Snow Hill: 18 trains a day (was 15)" are three of Moor Street's own new
-    // trains, counted again. Folded into the line's headline whenever the line has one.
+    // not a second one: "3 more trains a day to Snow Hill" are three of Moor Street's own new trains,
+    // counted again. Folded into the line's sentence, straight after the daily count it qualifies.
     for (const h of [...out]) {
         const line = lineOf(h.crs);
         if (!line || line.station === h.crs) continue;
@@ -364,17 +371,18 @@ export function headlineChanges(nowRows, decRows, stations) {
         if (!parent) continue;
         const before = summarise(nowRows, h.crs, 'dep'), after = summarise(decRows, h.crs, 'dep');
         const short = line.onward.find(o => o.station === h.crs)?.short ?? stations[h.crs] ?? h.crs;
-        if (after.total !== before.total) {
-            // Straight after the daily count it qualifies ("35 trains a day (was 32); 18 of them on to…"),
-            // never after a later clause, where "of them" would point at the wrong thing.
-            const clause = `; ${after.total} of them on to ${short} (was ${before.total})`;
-            const i = parent.text.indexOf(' trains a day (was ');
-            const end = i === -1 ? -1 : parent.text.indexOf(')', i) + 1;
-            parent.text = end > 0 ? parent.text.slice(0, end) + clause + parent.text.slice(end) : parent.text + clause;
+        const diff = after.total - before.total;
+        if (diff) {
+            const tail = `${Math.abs(diff)} ${diff > 0 ? 'more' : 'fewer'} go on to ${short} (${after.total}, was ${before.total})`;
+            if (parent.parts.length) {
+                const at = parent.parts.findIndex(p => p.kind === 'daily');
+                parent.parts.splice(at === -1 ? parent.parts.length : at + 1, 0, { kind: 'onward', named: '', tail, tone: 'moved', score: 0 });
+            } else parent.text += `; ${tail}`;
         }
         out.splice(out.indexOf(h), 1);
     }
-    return out.sort((a, b) => b.score - a.score || a.text.localeCompare(b.text));
+    for (const h of out) if (h.parts.length) h.text = h.parts[0].named + h.parts.slice(1).map(p => `; ${p.tail}`).join('');
+    return out.sort((a, b) => b.score - a.score || a.text.localeCompare(b.text)).map(({ crs, tone, text, score }) => ({ crs, tone, text, score }));
 }
 
 /**

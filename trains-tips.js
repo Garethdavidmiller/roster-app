@@ -49,7 +49,7 @@ export const CARD_TIPS = {
             {
                 heading: 'Why the list is short for now',
                 items: [
-                    { icon: '⏳', html: 'December’s stops are not published yet, so only trains that end at a station can be compared — a line beginning <strong>Trains ending at</strong> is one of those. More changes appear here once Chiltern publishes its December timetable.' },
+                    { icon: '⏳', html: 'December’s stops are not published yet, so only trains that end at a station can be compared — a line that ends <strong>counting only the trains that end there</strong> is one of those. More changes appear here once Chiltern publishes its December timetable.' },
                 ],
             },
         ],
@@ -79,7 +79,7 @@ export const CARD_TIPS = {
     },
 
     'pattern': {
-        title: '🕰️ The basic hour',
+        title: '🕰️ Every hour',
         sections: [
             {
                 items: [

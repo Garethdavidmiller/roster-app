@@ -20,18 +20,18 @@ test.describe('trains', () => {
         await page.goto('/trains.html');
 
         await expect(page.locator('#trCountdown')).toHaveText('67 days to go');
-        await expect(page.locator('#trTotals tbody tr').first()).toContainText('146');
-        await expect(page.locator('#trTotals tbody tr').first()).toContainText('157');
+        await expect(page.locator('#trTotals')).toContainText('weekdays 146 → 157');
         await expect(page.locator('[data-day="SX"]')).toHaveAttribute('aria-pressed', 'true');
 
         // What's changing: sentences, biggest first, and a tap opens that station.
         const heads = page.locator('#trChanges .tr-head');
-        await expect(heads.first()).toHaveText(/Stratford-upon-Avon gets a direct train from Marylebone \(the 09:31\)/);
-        await expect(page.locator('#trChanges')).toContainText('once Chiltern publishes December’s stops');
+        await expect(heads.first()).toHaveText(/A new direct train to Stratford-upon-Avon, the 09:31/);
+        await expect(page.locator('#trChanges')).toContainText('once Chiltern publishes where December’s trains stop');
+        await expect(page.locator('#trPartial')).toBeVisible();
         // Snow Hill's extra trains are Moor Street's own, so they are one headline, not two.
-        await expect(page.locator('#trChanges .tr-head', { hasText: 'Birmingham Moor Street' })).toContainText('of them on to Snow Hill');
+        await expect(page.locator('#trChanges .tr-head', { hasText: 'Birmingham Moor Street' })).toContainText('go on to Snow Hill');
         await expect(page.locator('#trChanges .tr-head', { hasText: /^Birmingham Snow Hill/ })).toHaveCount(0);
-        await page.locator('#trChanges .tr-head', { hasText: 'Aylesbury:' }).click();
+        await page.locator('#trChanges .tr-head', { hasText: 'to Aylesbury' }).click();
         await expect(page.locator('[data-view="stations"]')).toHaveAttribute('aria-pressed', 'true');
         await expect(page.locator('#trViewChanges')).toBeHidden();
         await expect(page.locator('#trStationTitle')).toHaveText('Aylesbury');
@@ -75,7 +75,7 @@ test.describe('trains', () => {
         await page.locator('#trStationPicks .tr-pick', { hasText: /^Oxford$/ }).click();
         await expect(page.locator('#trStation .tr-sub')).toHaveText('Trains that end at Oxford');
         await expect(page.locator('#trStation .tr-verdict')).toHaveText('1 more train a day: 36, was 35.');
-        await expect(page.locator('#trStation')).toContainText('One other train a day calls at Oxford today');
+        await expect(page.locator('#trStation')).toContainText('One other train a day calls at Oxford');
         await expect(page.locator('#trStation .tr-route')).toHaveCount(1);
 
         // The basic hour: today's stops as dots, and Saturdays' December hour gains a :32 to Birmingham.
@@ -121,7 +121,7 @@ test.describe('trains', () => {
             await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
             await page.locator('#trLookupInput').fill('1036');
             expect(await overflow(), 'What’s changing').toBeLessThanOrEqual(1);
-            await page.locator('#trChanges .tr-head', { hasText: 'Aylesbury:' }).click();
+            await page.locator('#trChanges .tr-head', { hasText: 'to Aylesbury' }).click();
             await page.locator('#trStation .tr-route-sum').click();
             await page.locator('#trAllTrains').click();
             expect(await overflow(), 'a station, every train').toBeLessThanOrEqual(1);
