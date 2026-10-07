@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '24.69';
+const APP_VERSION = '24.70';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -770,7 +770,7 @@ self.addEventListener("fetch", event => {
                 // Stored under the bare path (query stripped) — findCachedFallback matches ignoreSearch.
                 if (!cachedDoc && response && response.status === 200 && (!ct || ct.includes('text/html'))) {
                     const store = viaPreload
-                        ? fetch(freshReq).then(r => (r && r.status === 200 ? r : null)).catch(() => null)
+                        ? fetch(freshReq).then(r => (r && r.status === 200 && /text\/html|^$/.test(r.headers.get('content-type') || '') ? r : null)).catch(() => null)
                         : Promise.resolve(response.clone());
                     event.waitUntil(store.then(r => r && openCache().then(c => c.put(url.origin + url.pathname, unredirect(r))))
                         .catch(err => console.warn(`[SW ${APP_VERSION}] cache.put failed (quota?):`, err)));

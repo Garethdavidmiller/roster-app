@@ -33,7 +33,7 @@ let _authEmitDelayMs = 0;    // when >0 the mock answers this late — models a 
 /** The server's last admin reset for the member, as `probeResetAtMs` reports it: 0 = never, null =
  *  could not be confirmed, 'credential' = password rejected, a number = ms. Default 0 so every other
  *  test is unaffected. */
-let _resetAtMs = /** @type {number|null|'credential'} */ (0);
+let _resetAtMs = /** @type {number|null|'credential'|'throttled'} */ (0);
 let _probeCalls = 0;
 /** @type {Promise<void>|null} */
 let _signInGate    = null;   // if set, email/password sign-in awaits it before resolving (generation-guard test)
@@ -1446,7 +1446,20 @@ describe('a silent re-sign-in after an admin reset', () => {
         assert.equal(_signInCalls, 0);
         assert.equal(store.has(AUTH_KEY), true, 'the session stays for the next attempt');
         assert.equal(store.has(CALENDAR_SNAPSHOT), true, 'and so does the stored roster');
+        // Named, and transient (v24.70 bug check): an unrecorded hold left the page with no error to
+        // read and no retry, so a Calendar on station signal stayed locked until the next full load.
+        assert.equal(getFirebaseAuthError(), 'auth/reset-check-unavailable');
         store.delete(CALENDAR_SNAPSHOT);
+    });
+
+    test('a THROTTLED probe is held under the throttle\'s own code, and never reaches the SDK', async () => {
+        // Retrying a throttled password check would only extend the lock-out it is reporting.
+        sessionCreatedAt(NOW - 86_400_000);
+        _resetAtMs = 'throttled';
+        assert.equal(await ensureFirebaseSession('G. Miller'), false);
+        assert.equal(_signInCalls, 0);
+        assert.equal(getFirebaseAuthError(), 'auth/too-many-requests');
+        assert.equal(store.has(AUTH_KEY), true, 'nothing is destroyed');
     });
 
     test('a password the probe says is WRONG goes to the ordinary sign-in, which handles it as before', async () => {

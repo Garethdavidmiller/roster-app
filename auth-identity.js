@@ -216,6 +216,18 @@ export function resetAtFromRestDoc(status, body) {
 }
 
 /**
+ * Did the Identity Toolkit REST sign-in refuse because Google is THROTTLING this account (v24.70)?
+ * Different from both a rejection and a failure to answer: retrying would only extend the lock-out it
+ * is reporting, so the caller holds the silent sign-in under the throttle's own code.
+ * @param {number} status
+ * @param {any} body
+ * @returns {boolean}
+ */
+export function isRestThrottled(status, body) {
+    return status === 400 && /^TOO_MANY_ATTEMPTS/.test(String(body?.error?.message || ''));
+}
+
+/**
  * Did the Identity Toolkit REST sign-in REJECT the credential (as opposed to failing to answer)?
  * A rejection is not "unknown": the caller lets the ordinary SDK sign-in run and fail exactly as it
  * always has, so the remembered-migrated-member logic keeps working.

@@ -11,7 +11,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { normaliseSurname, nameToEmail, surnamePassword, credentialCandidatesFor, isPasswordMigrated, isCredentialRejection, sessionPredatesReset, resetAtFromRestDoc, isRestCredentialRejection,
+import { normaliseSurname, nameToEmail, surnamePassword, credentialCandidatesFor, isPasswordMigrated, isCredentialRejection, sessionPredatesReset, resetAtFromRestDoc, isRestCredentialRejection, isRestThrottled,
          validateNewPassword, MIN_PASSWORD_LENGTH } from './auth-identity.js';
 
 /** Firestore Timestamp-like stub: an object exposing toMillis(). */
@@ -240,5 +240,16 @@ describe('isRestCredentialRejection', () => {
         assert.equal(isRestCredentialRejection(400, { error: { message: 'TOO_MANY_ATTEMPTS_TRY_LATER' } }), false);
         assert.equal(isRestCredentialRejection(500, { error: { message: 'INVALID_PASSWORD' } }), false);
         assert.equal(isRestCredentialRejection(400, null), false);
+    });
+});
+
+describe('isRestThrottled', () => {
+    test('Google\'s too-many-attempts answer is a throttle', () => {
+        assert.equal(isRestThrottled(400, { error: { message: 'TOO_MANY_ATTEMPTS_TRY_LATER : Access disabled' } }), true);
+    });
+    test('a rejection, another status or no body is not', () => {
+        assert.equal(isRestThrottled(400, { error: { message: 'INVALID_PASSWORD' } }), false);
+        assert.equal(isRestThrottled(429, { error: { message: 'TOO_MANY_ATTEMPTS_TRY_LATER' } }), false);
+        assert.equal(isRestThrottled(400, null), false);
     });
 });
