@@ -20,6 +20,9 @@
  * The page is read in the weeks BEFORE the change by staff who will be asked about it. So every
  * train is shown beside the one it replaces, in words a member can repeat to a passenger, and the
  * basic hour sits beside the full lists because it is the one thing worth memorising.
+ *
+ * What comes after the preview — the teaching extras, and the at-a-glance page it becomes on
+ * 13 December: docs/ROADMAP.md → "Trains page — what comes after the preview".
  */
 
 import { CONFIG, escapeHtml as esc } from './roster-data.js';   // esc: every innerHTML value goes through it
@@ -169,7 +172,7 @@ function renderRoutes(state) {
             r.tally.new && `${r.tally.new} new`,
             r.tally.gone && `${r.tally.gone} removed`,
             away && `${away} ${leaving ? `now ${away === 1 ? 'runs' : 'run'} elsewhere` : `now ${away === 1 ? 'comes' : 'come'} from elsewhere`}`,
-            here && `${here} moved here from another route`,
+            here && `${here} from another route`,
         ].filter(Boolean);
         const summary = parts.length ? parts.join(' · ') : 'No change';
         const none = '<span class="tr-none"><span aria-hidden="true">—</span><span class="sr-only">none</span></span>';

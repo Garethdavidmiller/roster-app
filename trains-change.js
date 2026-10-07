@@ -365,7 +365,7 @@ export function changeLabel(t, stations = {}, dir = 'dep') {
  * @returns {string}
  */
 export function daysLabel(days) {
-    return { MFO: 'Mondays and Fridays only', MFX: 'Tuesdays to Thursdays only', WO: 'Wednesdays only' }[days] ?? '';
+    return { MFO: 'Mon and Fri only', MFX: 'Tue to Thu only', WO: 'Wed only' }[days] ?? '';
 }
 
 /**

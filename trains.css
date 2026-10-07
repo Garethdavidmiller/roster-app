@@ -86,6 +86,18 @@ body {
     font-variant-numeric: tabular-nums;
     min-width: min(100%, 360px);
 }
+/* On a wide screen the totals sit BESIDE the introduction rather than under it — stacked, they
+   left a navy band half the page wide and pushed the switches and cards a table's height down. */
+@media (min-width: 1024px) {
+    .tr-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        column-gap: 48px;
+        align-items: end;
+    }
+    .tr-hero-lead { margin-bottom: 4px; }
+    .tr-totals { min-width: 380px; }
+}
 .tr-totals th, .tr-totals td {
     padding: 6px 14px 6px 0;
     text-align: left;
@@ -133,6 +145,14 @@ body {
 .tr-seg-btn:focus-visible {
     outline: var(--focus-outline-gold);
     outline-offset: 2px;
+}
+
+/* On a phone the two groups wrap anyway; as two full-width rows of equal buttons they read as
+   two settings rather than as a row that ran out of room. */
+@media (max-width: 767px) {
+    .tr-controls { flex-direction: column; }
+    .tr-seg { display: flex; }
+    .tr-seg-btn { flex: 1; padding: 0 8px; }
 }
 
 /* ── Columns ────────────────────────────────────────────────────────────────── */
@@ -221,7 +241,18 @@ body {
     color: var(--text-light);
     font-size: var(--type-small);
 }
-.tr-route--changed .tr-route-what { color: var(--orange-text); font-weight: 600; }
+/* A changed route's summary is READ, not scanned: the count and the chips inside carry the alarm,
+   so this stays a quiet dark line rather than an orange one on almost every row. */
+.tr-route--changed .tr-route-what { color: var(--text-mid); font-weight: 500; }
+/* An opened route sits on the sunken surface, so its list reads as belonging to that row and the
+   next route's name is plainly not part of it. */
+.tr-route[open] {
+    margin-inline: -8px;
+    padding-inline: 8px;
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+}
+.tr-route[open] + .tr-route { border-top-color: transparent; }
 
 /* ── The before-and-after table ────────────────────────────────────────────── */
 .tr-trains, .tr-pattern {
@@ -240,7 +271,9 @@ body {
     color: var(--text-light);
     font-size: var(--type-small);
     font-weight: 600;
+    white-space: nowrap;
 }
+.tr-pattern td { white-space: nowrap; }
 .tr-trains td:first-child, .tr-trains td:nth-child(2) { width: 22%; font-weight: 600; }
 .tr-row--same td { color: var(--text-light); font-weight: 400; }
 .tr-none { color: var(--text-faint); }

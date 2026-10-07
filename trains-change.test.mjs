@@ -149,7 +149,7 @@ describe('words', () => {
     test('labels', () => {
         assert.equal(changeLabel(/** @type {any} */ ({ kind: 'later', shift: 1 })), '1 min later');
         assert.equal(changeLabel(/** @type {any} */ ({ kind: 'earlier', shift: -6 })), '6 mins earlier');
-        assert.equal(daysLabel('MFO'), 'Mondays and Fridays only');
+        assert.equal(daysLabel('MFO'), 'Mon and Fri only');
         assert.equal(daysLabel(''), '');
         assert.equal(routeName(STATIONS, 'AYS', 'H'), 'Aylesbury via High Wycombe');
         assert.equal(routeName(STATIONS, 'OXF', ''), 'Oxford');
