@@ -19,11 +19,13 @@ let _deleteCalls = 0;
 let _deleteThrows = false;   // the rule refused the delete — no owner session on this device
 let _deleteHangs = false;    // the delete starts and never settles — a network that stopped answering
 let _lastDeletedEndpoint = null;
+let _uid = null;             // the signed-in Firebase uid (currentAuthUid) — null in every older test
 const _ls = new Map();
 
 mock.module('./firebase-client.js', {
     namedExports: {
         savePushSubscription:   async () => { _saveCalls++; if (_saveThrows) throw new Error('push/subscription-missing-keys'); if (_saveThrowsTransient) throw new Error('unavailable'); },
+        currentAuthUid:         () => _uid,
         deletePushSubscription: async (/** @type {string} */ endpoint) => { _deleteCalls++; _lastDeletedEndpoint = endpoint; if (_deleteThrows) throw new Error('push/no-owner-session'); if (_deleteHangs) await new Promise(() => {}); },
     },
 });
@@ -167,6 +169,22 @@ describe('getNotifState', () => {
         assert.equal(_ls.get('myb_push_saved_endpoint'), 'https://web.push.apple.com/renewed', 'and the new endpoint is remembered');
         assert.equal(await getNotifState(), 'on');
         assert.equal(_saveCalls, 1, 'same endpoint, inside the window: throttled again');
+    });
+    test('a device that CHANGED HANDS re-saves at once, inside the throttle window (Oct 2026)', async () => {
+        // The previous member's session expired rather than signing out, so the record is still theirs.
+        const { sub } = setupEnv({ permission: 'granted', hasSub: true });
+        _ls.set('myb_vapid_ver', 'BDycpNlvciF7');
+        _ls.set('myb_push_resave_at', String(Date.now()));
+        _ls.set('myb_push_saved_endpoint', sub.endpoint);
+        _ls.set('myb_push_saved_owner', 'uid_previous');
+        _uid = 'uid_next';
+        try {
+            assert.equal(await getNotifState(), 'on');
+            assert.equal(_saveCalls, 1, 'a new account on this device must own the record now, not in a day');
+            assert.equal(_ls.get('myb_push_saved_owner'), 'uid_next');
+            assert.equal(await getNotifState(), 'on');
+            assert.equal(_saveCalls, 1, 'same account, inside the window: throttled again');
+        } finally { _uid = null; }
     });
     test('VAPID rotation: stale fingerprint unsubscribes the old sub and re-subscribes', async () => {
         const { sub } = setupEnv({ permission: 'granted', hasSub: true });

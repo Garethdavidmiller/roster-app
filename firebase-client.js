@@ -466,6 +466,10 @@ function keyToBase64(buffer) {
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
+/** The signed-in Firebase uid, or null — what `savePushSubscription` stamps as `owner`. notif.js
+ *  compares it with the uid it last saved under, so a device that changes hands re-saves at once. */
+export function currentAuthUid() { return auth.currentUser?.uid ?? null; }
+
 /**
  * Save a browser PushSubscription to Firestore so the Cloud Function can
  * fan out notifications when a new Huddle is uploaded.

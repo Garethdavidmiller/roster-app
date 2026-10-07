@@ -17,10 +17,12 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { nameToEmail } from './auth-identity.js';
+import { buildOverrideWrite } from './override-utils.js';
+import { manualOverrideId } from './override-id.js';
 import { teamMembers } from './roster-member-data.js';
 import {
     setDoc, getDoc, addDoc, deleteDoc, updateDoc, getDocs,
-    collection, doc, serverTimestamp, increment,
+    collection, doc, serverTimestamp, increment, Timestamp,
 } from 'firebase/firestore';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
@@ -404,6 +406,44 @@ describe('overrides — replacedType (v21.55)', () => {
     test('a member may still only stamp it on their OWN override', async () => {
         await assertFails(setDoc(doc(namedDb('S. Boyle'), 'overrides', uid()),
             { ...WITH('shift'), memberName: 'G. Miller' }));
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE APP'S OWN PAYLOADS MEET THE RULES (Oct 2026 review). Every other override test here writes a
+// hand-built object, so nothing tied the fields `buildOverrideWrite` produces to the rules' field
+// list: a builder change could add a key the rules refuse, and every write in production would be
+// denied with every suite green. These write the REAL builder's output, as each identity sends it.
+// They are also the proof for the provenance pins (who saved it, when, and how).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('overrides — the real builder, and provenance the writer cannot forge', () => {
+    /** A real admin: password sign-in, bound name — what Operations actually runs as. */
+    const namedAdminDb = () => testEnv.authenticatedContext('uid_admin_named', memberClaims('G. Miller', { admin: true })).firestore();
+    const build = (/** @type {any} */ f) => buildOverrideWrite({
+        memberName: 'G. Miller', date: '2026-06-25', type: 'shift', value: '06:30-14:30', source: 'manual', changedBy: 'G. Miller', ...f,
+    }, serverTimestamp());
+    const fixed = (/** @type {any} */ db, name = 'G. Miller') => doc(db, 'overrides', manualOverrideId(name, '2026-06-25'));
+
+    test('a member\'s own save, as the builder writes it — create, then the fixed-id UPDATE', async () => {
+        await assertSucceeds(setDoc(fixed(namedDb('G. Miller')), build({})));
+        await assertSucceeds(setDoc(fixed(namedDb('G. Miller')), build({ type: 'annual_leave', value: 'AL', replacedType: 'shift' })));
+    });
+    test('a manager on behalf, stamping their OWN name', async () => {
+        await assertSucceeds(setDoc(fixed(managerDb('S. Stewart')), build({ changedBy: 'S. Stewart' })));
+    });
+    test('an admin\'s roster import, as the builder writes it', async () => {
+        await assertSucceeds(setDoc(doc(namedAdminDb(), 'overrides', uid()), build({ source: 'roster_import' })));
+    });
+    test('changedBy naming somebody else is REFUSED — "Last saved by" cannot be forged', async () => {
+        await assertFails(setDoc(fixed(namedDb('G. Miller')), build({ changedBy: 'S. Stewart' })));
+    });
+    test('a createdAt of the writer\'s choosing is REFUSED — newest-wins cannot be gamed', async () => {
+        const past = { ...build({}), createdAt: Timestamp.fromDate(new Date('2020-01-01T00:00:00Z')) };
+        await assertFails(setDoc(fixed(namedDb('G. Miller')), past));
+    });
+    test('source roster_import from anyone but the admin is REFUSED', async () => {
+        await assertFails(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), build({ source: 'roster_import' })));
+        await assertFails(setDoc(doc(managerDb('S. Stewart'), 'overrides', uid()), build({ source: 'roster_import', changedBy: 'S. Stewart' })));
     });
 });
 
@@ -1508,11 +1548,32 @@ describe('pushSubscriptions', () => {
         // Mirrors the per-owner DELETE rule: update must re-check the EXISTING doc's owner, not just
         // the incoming value — otherwise a session that knew the doc id could hijack another user's
         // subscription by stamping its own uid as owner.
+        // Since Oct 2026 the SAME BROWSER may take its record over (same endpoint and keys, below), so
+        // the intruder modelled here is the one the rule exists for: they know the document but not
+        // the keys, which live only in the victim's browser and in this unreadable record.
         const id = uid();
         await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
         await assertFails(
-            setDoc(doc(memberDb('uid_intruder'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_intruder' })
+            setDoc(doc(memberDb('uid_intruder'), 'pushSubscriptions', id),
+                { ...VALID_SUB(), keys: { p256dh: 'guessed', auth: 'guessed' }, owner: 'uid_intruder' })
         );
+    });
+
+    test('the SAME browser may take its record over when the device changes hands (Oct 2026)', async () => {
+        // A session that ended without a sign-out left the record owned by the last member; the next
+        // member on that phone re-saves the identical endpoint and keys, and now may.
+        const id = uid();
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await assertSucceeds(
+            setDoc(doc(memberDb('uid_next'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_next' })
+        );
+    });
+
+    test('…but not by pointing it at another endpoint', async () => {
+        const id = uid();
+        await setDoc(doc(memberDb('uid_owner'), 'pushSubscriptions', id), { ...VALID_SUB(), owner: 'uid_owner' });
+        await assertFails(setDoc(doc(memberDb('uid_next'), 'pushSubscriptions', id),
+            { ...VALID_SUB(), endpoint: 'https://fcm.googleapis.com/fcm/send/elsewhere', owner: 'uid_next' }));
     });
 
     test('a legacy (no-owner) subscription can still be CLAIMED by the same device (re-subscribe hardening path)', async () => {

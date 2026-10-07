@@ -79,6 +79,11 @@ notice never follows a member onto a shared device they have left. The next load
 as whoever is signed in then. **Where the delete cannot run as the owner** — the Calendar's member card
 is shown precisely when the member's Firebase identity has gone — the browser subscription is dropped
 instead, and the next send's 410 makes the server delete the record (48-hour review, v24.35).
+**Nor a session that simply ENDED** (Oct 2026 review). An expired session never runs that sign-out,
+so the record stayed the last member's and the rules refused the next member's re-save. The rules now
+let the SAME browser take its record over — same endpoint AND same keys, which exist only in that
+browser and in a record no client can read — and `notif.js` re-saves at once, inside its 24-hour
+throttle, when the signed-in uid differs from the one it last saved under (`myb_push_saved_owner`).
 
 **The second is `password-reset` (v23.62, owner request):** when the admin resets a member's password
 from Operations, that member is told on their OWN devices. Until then the one person the reset was

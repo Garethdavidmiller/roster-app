@@ -50,8 +50,12 @@ note         WRITE-ONLY, and always `""` (v22.69). The rules require the field p
              fail in opposite directions: (1) rules drop the `is string`/`size()` requirement while
              keeping `note` in `hasOnly`; (2) the client stops writing it; (3) rules drop it from
              `hasOnly`. Doing (2) or (3) first permission-denies every override write.
-source       "manual" | "roster_import" — required by Firestore rules; written by all override save paths
-changedBy    Optional — display name of who last changed the override; type-checked by the rules when present
+source       "manual" | "roster_import" — required by Firestore rules; written by all override save paths.
+             Since Oct 2026 the rules let ONLY the admin write "roster_import" (the import runs on the
+             admin-only Operations page); a member or manager may write "manual" only
+changedBy    Optional — display name of who last changed the override. Since Oct 2026 the rules require it
+             to EQUAL the writer's own name claim, so "Last saved by" cannot be forged (a manager writing
+             on behalf stamps their own name, which is what the field means)
 replacedType Optional (v21.55) — the `type` of the override this document REPLACED, or absent when it
              replaced nothing. A write is delete-then-set, so recording annual leave DESTROYS the
              override that said what the day was; on a SWAPPED-IN day (a `shift` sitting on a base
@@ -63,7 +67,10 @@ replacedType Optional (v21.55) — the `type` of the override this document REPL
              because an absence carries no contract information of its own. Absent
              on every document written before v21.55; readers treat absence as "ask the base
              roster", which is exactly what they did before, so no migration is needed.
-createdAt    Firestore server timestamp
+createdAt    Firestore server timestamp — since Oct 2026 the rules require it to BE the server's clock at
+             the write (`== request.time`), on create and on the fixed-id update alike, so the
+             newest-wins ordering cannot be gamed. firestore.rules.test.mjs writes the real
+             `buildOverrideWrite` output against all three pins
 ```
 
 **huddles**
