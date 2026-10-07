@@ -180,5 +180,5 @@ export function renderGrid(nowGrid, decGrid, mode, stations) {
         ? '<ul class="tr-grid-key"><li><span class="tr-dot" aria-hidden="true"></span> stops</li><li><span class="tr-dot tr-dot--new" aria-hidden="true"></span> new stop</li><li><span class="tr-dot tr-dot--lost" aria-hidden="true"></span> no longer stops</li></ul>'
         : '';
     const swipe = grid.columns.length > 4 ? '<p class="tr-grid-swipe touch-only">Swipe the table sideways for more trains.</p>' : '';
-    return unknown + key + swipe + `<div class="tr-grid-wrap"><table class="tr-grid"><thead>${head}</thead><tbody>${origin}${body}</tbody></table></div>`;
+    return unknown + key + swipe + `<div class="tr-grid-wrap" tabindex="0" role="region" aria-label="The basic hour — scrolls sideways"><table class="tr-grid"><thead>${head}</thead><tbody>${origin}${body}</tbody></table></div>`;
 }

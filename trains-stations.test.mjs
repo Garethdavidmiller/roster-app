@@ -264,6 +264,8 @@ describe('the words on screen', () => {
         const decG = stoppingGrid([...hourly(8, 'OXF', ['HWY', 'BCS', 'OXF'])]);
         const now = renderGrid(nowG, decG, 'now', STATIONS);
         assert.match(now, /:06/);
+        // It scrolls sideways on a phone, so a keyboard must be able to reach it (axe, mobile Safari).
+        assert.match(now, /<div class="tr-grid-wrap" tabindex="0" role="region" aria-label="[^"]+">/);
         assert.match(now, /<span class="sr-only">stops<\/span>/);
         const dec = renderGrid(nowG, decG, 'dec', STATIONS);
         assert.match(dec, /tr-dot--lost/);

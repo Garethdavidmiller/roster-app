@@ -337,6 +337,8 @@ body {
    The table scrolls sideways inside its own box on a phone, the station names pinned, so the page
    itself never does. */
 .tr-grid-wrap { overflow-x: auto; margin-top: 4px; }
+/* Focusable, so a keyboard can scroll it sideways on a phone (axe: scrollable-region-focusable). */
+.tr-grid-wrap:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
 .tr-grid { border-collapse: separate; border-spacing: 0; font-size: var(--type-small); }
 .tr-grid th, .tr-grid td { padding: 5px 6px; border-bottom: 1px solid var(--border-light); text-align: center; }
 .tr-grid thead th { vertical-align: bottom; color: var(--text-mid); font-weight: 600; }
