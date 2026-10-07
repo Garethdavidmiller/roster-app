@@ -90,6 +90,15 @@ export function lineOf(crs) {
 export const callingAt = (rows, crs) => rows.filter(r => callsOf(r).includes(crs));
 
 /**
+ * The trains whose far end is `crs`. December knows these without any stops, which is why a
+ * station most trains run through can still compare them.
+ * @param {TrainRow[]} rows
+ * @param {string} crs
+ * @returns {TrainRow[]}
+ */
+export const endingAt = (rows, crs) => rows.filter(r => r[1] === crs);
+
+/**
  * Whether a December figure for `crs` can be trusted although December's stops are missing: every
  * one of TODAY's trains calling there either ends there or ends further along the same line.
  * @param {TrainRow[]} nowRows   today's trains, same day and direction
@@ -161,21 +170,36 @@ export function summarise(rows, crs, dir) {
 }
 
 /**
- * The station, before and after. `dec` is null when December cannot be answered yet (see header).
- * `trains` pairs today's trains calling here with December's, by Marylebone time.
+ * The station, before and after. `dec` is null when December cannot be answered for the whole
+ * station yet (see header). `trains` pairs today's trains calling here with December's, by
+ * Marylebone time. `ending` is the fallback for a station most trains run THROUGH: the trains whose
+ * far end is here need no stops to be compared, and for Oxford, High Wycombe or West Ruislip they are
+ * most of the service — v24.74 hid them along with the through trains, and the owner noticed (7 Oct
+ * 2026: "the change in times for trains that terminate in Oxford … seem to have disappeared"). Its
+ * `through` is how many of today's callers run on, so the card can say what it is NOT comparing.
  * @param {TrainRow[]} nowRows
  * @param {TrainRow[]} decRows
  * @param {string} crs
  * @param {'dep'|'arr'} dir
- * @returns {{ crs: string, now: StationSummary, dec: StationSummary|null, trains: PairedTrain[]|null, verdict: { tone: 'same'|'more'|'less'|'moved'|'unknown', text: string } }}
+ * @returns {{ crs: string, now: StationSummary, dec: StationSummary|null, trains: PairedTrain[]|null,
+ *   ending: { now: StationSummary, dec: StationSummary, trains: PairedTrain[], through: number }|null,
+ *   verdict: { tone: 'same'|'more'|'less'|'moved'|'unknown', text: string } }}
  */
 export function stationView(nowRows, decRows, crs, dir) {
     const now = summarise(nowRows, crs, dir);
-    const known = decemberKnown(nowRows, decRows, crs);
-    const dec = known ? summarise(decRows, crs, dir) : null;
     const byTime = (/** @type {TrainRow[]} */ rs) => [...rs].sort((a, b) => serviceMinutes(a[0]) - serviceMinutes(b[0]));
-    const trains = known ? alignTimes(byTime(callingAt(nowRows, crs)), byTime(callingAt(decRows, crs))) : null;
-    return { crs, now, dec, trains, verdict: verdictFor(now, dec, trains) };
+    if (decemberKnown(nowRows, decRows, crs)) {
+        const dec = summarise(decRows, crs, dir);
+        const trains = alignTimes(byTime(callingAt(nowRows, crs)), byTime(callingAt(decRows, crs)));
+        return { crs, now, dec, trains, ending: null, verdict: verdictFor(now, dec, trains) };
+    }
+    const eNow = endingAt(nowRows, crs), eDec = endingAt(decRows, crs);
+    if (!eNow.length && !eDec.length) return { crs, now, dec: null, trains: null, ending: null, verdict: verdictFor(now, null, null) };
+    const ending = {
+        now: summarise(eNow, crs, dir), dec: summarise(eDec, crs, dir),
+        trains: alignTimes(byTime(eNow), byTime(eDec)), through: now.total - eNow.length,
+    };
+    return { crs, now, dec: null, trains: null, ending, verdict: verdictFor(ending.now, ending.dec, ending.trains) };
 }
 
 /**
@@ -294,16 +318,20 @@ export function headlineChanges(nowRows, decRows, stations) {
     /** @type {{ crs: string, tone: 'more'|'less'|'moved', text: string, score: number }[]} */
     const out = [];
     for (const crs of places) {
-        if (!decemberKnown(nowRows, decRows, crs)) continue;
-        const now = summarise(nowRows, crs, 'dep'), dec = summarise(decRows, crs, 'dep');
-        const name = stations[crs] ?? crs;
-        if (!now.total && dec.total) {
+        // A station most trains run through: only the trains that END there can be compared, and the
+        // line says so — "Trains ending at High Wycombe: …" — so nobody reads it as the whole station.
+        const known = decemberKnown(nowRows, decRows, crs);
+        const eNow = known ? nowRows : endingAt(nowRows, crs), eDec = known ? decRows : endingAt(decRows, crs);
+        if (!known && !eNow.length && !eDec.length) continue;
+        const now = summarise(eNow, crs, 'dep'), dec = summarise(eDec, crs, 'dep');
+        const name = known ? (stations[crs] ?? crs) : `Trains ending at ${stations[crs] ?? crs}`;
+        if (known && !now.total && dec.total) {
             out.push({ crs, tone: 'more', score: 100 + dec.total, text: dec.total === 1
                 ? `${name} gets a direct train from Marylebone (the ${dec.first})`
                 : `${name} gets direct trains from Marylebone (${dec.total} a day)` });
             continue;
         }
-        if (now.total && !dec.total) { out.push({ crs, tone: 'less', text: `${name} loses its direct trains`, score: 100 + now.total }); continue; }
+        if (known && now.total && !dec.total) { out.push({ crs, tone: 'less', text: `${name} loses its direct trains`, score: 100 + now.total }); continue; }
         // One line per station, its biggest change first: two lines about one station read as two
         // stories, and pushed a different station off the first five.
         /** @type {{ tone: 'more'|'less'|'moved', score: number, text: string }[]} */

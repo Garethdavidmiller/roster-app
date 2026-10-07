@@ -62,14 +62,21 @@ test.describe('trains', () => {
         expect(await page.locator('#trStation .tr-trains tbody tr').count()).toBeGreaterThan(changedRows);
         await expect(page.locator('#trStation .tr-trains')).toContainText('from Parkway');
 
-        // A station trains pass THROUGH cannot be answered for December yet, and says so rather
-        // than counting only the trains that end there.
+        // A station trains pass THROUGH cannot be answered for December as a whole, so where
+        // nothing ends there the card says it is waiting rather than counting a subset as the service…
         await page.locator('[data-sdir="dep"]').click();
-        await page.locator('#trStationInput').fill('gerr');
-        await page.locator('#trStationPicks .tr-pick', { hasText: 'Gerrards Cross' }).click();
+        await page.locator('#trStationInput').fill('beac');
+        await page.locator('#trStationPicks .tr-pick', { hasText: 'Beaconsfield' }).click();
         await expect(page.locator('#trStation .tr-verdict')).toContainText('December not known yet');
         await expect(page.locator('#trStation .tr-st-table tbody tr', { hasText: 'Trains a day' }).locator('td').nth(1)).toHaveText('—not known yet');
         await expect(page.locator('#trStation .tr-route')).toHaveCount(0);
+        // …and where trains DO end there (Oxford: 35 of 36), it compares those, labelled as those.
+        await page.locator('#trStationInput').fill('oxf');
+        await page.locator('#trStationPicks .tr-pick', { hasText: /^Oxford$/ }).click();
+        await expect(page.locator('#trStation .tr-sub')).toHaveText('Trains that end at Oxford');
+        await expect(page.locator('#trStation .tr-verdict')).toHaveText('1 more train a day: 36, was 35.');
+        await expect(page.locator('#trStation')).toContainText('One other train a day calls at Oxford today');
+        await expect(page.locator('#trStation .tr-route')).toHaveCount(1);
 
         // The basic hour: today's stops as dots, and Saturdays' December hour gains a :32 to Birmingham.
         await page.locator('[data-view="grid"]').click();
@@ -97,7 +104,7 @@ test.describe('trains', () => {
         // The `?` panels are wired — the page's caveats live there.
         await page.locator('.btn-card-tips[data-card="changes"]').click();
         await expect(page.locator('#tipsLbTitle')).toHaveText('🔔 What’s changing');
-        await expect(page.locator('#tipsLbBody')).toContainText('only stations at the end of a line can be compared');
+        await expect(page.locator('#tipsLbBody')).toContainText('only trains that end at a station can be compared');
 
         expect(errors).toHaveLength(0);
     });

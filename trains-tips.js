@@ -49,7 +49,7 @@ export const CARD_TIPS = {
             {
                 heading: 'Why the list is short for now',
                 items: [
-                    { icon: '⏳', html: 'December’s stops are not published yet, so only stations at the end of a line can be compared. More changes appear here once Chiltern publishes its December timetable.' },
+                    { icon: '⏳', html: 'December’s stops are not published yet, so only trains that end at a station can be compared — a line beginning <strong>Trains ending at</strong> is one of those. More changes appear here once Chiltern publishes its December timetable.' },
                 ],
             },
         ],
@@ -70,7 +70,7 @@ export const CARD_TIPS = {
             {
                 heading: 'Good to know',
                 items: [
-                    { icon: '⏳', html: 'December’s stops are not published yet. Until they are, December can only be shown for stations at the end of a line; elsewhere the card says it is waiting.' },
+                    { icon: '⏳', html: 'December’s stops are not published yet. Until they are, a station most trains run through compares only the <strong>trains that end there</strong>, and says so at the top of the card; where no train ends, the card says it is waiting.' },
                     { icon: '➡️', html: 'Some trains run on past where most of their line stops: <strong>Aylesbury Vale Parkway</strong> trains are Aylesbury trains via Amersham run on, and <strong>Birmingham Snow Hill</strong> and <strong>Stourbridge Junction</strong> trains are Moor Street trains run on.' },
                     { icon: '🗓️', html: 'A few weekday trains run at different times on <strong>Mondays and Fridays</strong>. Those are marked under the time.' },
                 ],

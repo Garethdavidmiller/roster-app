@@ -49,7 +49,7 @@ export function renderHeadlines(items, { showAll, partial }) {
     const more = !showAll && items.length > shown.length
         ? `<button type="button" class="tr-more" id="trHeadsMore">Show all ${items.length} changes</button>` : '';
     const note = partial
-        ? '<p class="card-explainer tr-note">Only the stations at the end of a line can be compared yet. The rest appear here once Chiltern publishes December’s stops.</p>'
+        ? '<p class="card-explainer tr-note">Only trains that end at a station can be compared yet. Stations most trains run through appear here once Chiltern publishes December’s stops.</p>'
         : '';
     return list + more + note;
 }
@@ -81,8 +81,18 @@ export function endWords(to, crs, stations, leaving) {
  * @returns {string}
  */
 export function renderStation(view, { stations, dir, showTrains, allTrains = false }) {
-    const { now, dec } = view;
+    const { ending } = view;
     const leaving = dir === 'dep';
+    const name = stations[view.crs] ?? view.crs;
+    // What the figures and the list are ABOUT: the whole station when December knows it; otherwise
+    // only the trains that end here, labelled, so 36 trains are never taken for the full 37.
+    const [now, dec, trains] = view.dec ? [view.now, view.dec, view.trains]
+        : ending ? [ending.now, ending.dec, ending.trains] : [view.now, null, null];
+    const label = ending ? `<p class="tr-sub">${esc(leaving ? `Trains that end at ${name}` : `Trains that start at ${name}`)}</p>` : '';
+    const throughNote = ending && ending.through > 0
+        ? `<p class="card-explainer tr-note">${ending.through === 1 ? 'One other train a day calls' : `${ending.through} other trains a day call`} at ${esc(name)} today`
+            + `${leaving ? ' and run on past it' : ' on the way in from further out'}. Chiltern has not published which stations its December trains stop at, so those cannot be compared yet.</p>`
+        : '';
     const cell = (/** @type {string|number|null|undefined} */ v) => (v === null || v === undefined || v === '') ? none : esc(String(v));
     const decCell = (/** @type {(s: NonNullable<typeof dec>) => string|number|null} */ f) => dec ? cell(f(dec)) : notKnown;
     const row = (/** @type {string} */ label, /** @type {string} */ a, /** @type {string} */ b) =>
@@ -108,11 +118,11 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
     const verdict = `<p class="tr-verdict tr-verdict--${view.verdict.tone}">${esc(view.verdict.text)}</p>`;
     const minutesNote = '<p class="card-explainer tr-note">Every time on this card is at Marylebone. Off-peak means 10:00 to 16:00.'
         + (dec && dec.fastest === null && now.fastest !== null ? ' December journey times arrive with Chiltern’s published timetable.' : '') + '</p>';
-    if (!view.trains) return verdict + table + minutesNote;
-    const changed = view.trains.filter(t => t.kind !== 'same');
-    const same = view.trains.length - changed.length;
-    const shown = allTrains ? view.trains : changed;
-    const trains = shown.map((t) => {
+    if (!trains) return verdict + table + minutesNote;
+    const changed = trains.filter(t => t.kind !== 'same');
+    const same = trains.length - changed.length;
+    const shown = allTrains ? trains : changed;
+    const rowsHtml = shown.map((t) => {
         // A train whose end moves is styled as a route change; there is no separate terminus chip.
         const chip = t.kind === 'earlier' || t.kind === 'later' ? 'moved' : t.kind === 'terminus' ? 'rerouted' : t.kind;
         const end = (/** @type {string|undefined} */ to) => {
@@ -129,11 +139,11 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
         : `All ${same} stay the same`;
     const list = shown.length
         ? `<table class="tr-trains"><thead><tr><th scope="col">Now</th><th scope="col">From 13 Dec</th><th scope="col">What changes</th></tr></thead>`
-            + `<tbody>${trains}</tbody></table>`
+            + `<tbody>${rowsHtml}</tbody></table>`
         : '<p class="card-explainer tr-lead">Every train keeps its time.</p>';
     const more = !allTrains && same
         ? `<button type="button" class="tr-more" id="trAllTrains">Show the ${same} that stay${same === 1 ? 's' : ''} the same</button>` : '';
-    return verdict + table + minutesNote
+    return label + verdict + table + minutesNote + throughNote
         + `<details class="tr-route"${showTrains || allTrains ? ' open' : ''}><summary class="tr-route-sum"><span class="tr-route-name">Train by train</span>`
         + `<span class="tr-route-what">${esc(tally)} · ${leaving ? 'leaving' : 'getting into'} Marylebone</span></summary>`
         + list + more + '</details>';
