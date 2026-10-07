@@ -89,8 +89,17 @@ mock.module('./firebase-client.js', {
             _reads.push({ member: q.member, cap: q.cap });
             return snapOf(await _handler(q));
         },
+        // THE SERVER'S COPY of single documents (Oct 2026): what a delete re-reads before it runs.
+        doc: (/** @type {any} */ _db, /** @type {any} */ _c, /** @type {string} */ id) => ({ id }),
+        getDoc: async (/** @type {any} */ ref) => {
+            if (_serverFails) throw Object.assign(new Error('unavailable'), { code: 'unavailable' });
+            return { exists: () => _server.has(ref.id), data: () => _server.get(ref.id), metadata: { fromCache: _serverCached } };
+        },
     },
 });
+/** @type {Map<string, any>} */ const _server = new Map();
+let _serverCached = false;
+let _serverFails = false;
 
 /** A read held open until the test releases it. The only way to express "a second load arrived
  *  while the first was still out", which is where every defect in block 1 lives. */
@@ -435,3 +444,42 @@ describe('5 · withManualDuplicates widens a delete only to what it outranks', (
         assert.deepEqual([...store.withManualDuplicates(['import'])], ['import'], 'an import is deleted alone');
     });
 });
+
+// ── 6 · a stale delete may not destroy a colleague's newer edit (Oct 2026 production review) ────────
+// Admin's cache never refreshes on its own, and a manual record has one id per member and day, so a
+// delete aimed at what a manager saw this morning removed what a colleague had written since.
+describe('6 · a delete re-reads what it is about to remove', () => {
+    const seed = async (/** @type {any[]} */ rows) => { const { store } = await freshStore(); store.setAllOverrides(rows); return store; };
+    const al = { id: 'm_2026-06-16_G.%20Miller', memberName: 'G. Miller', date: '2026-06-16', type: 'annual_leave', value: 'AL' };
+    beforeEach(() => { _server.clear(); _serverCached = false; _serverFails = false; });
+
+    test('unchanged on the server → deletable', async () => {
+        const store = await seed([al]);
+        _server.set(al.id, { ...al });
+        assert.equal(await store.staleDeleteVerdict([al.id]), null);
+        await store.assertDeletable([al.id]);
+    });
+
+    test('a colleague changed the day since → REFUSED, with a line that says so', async () => {
+        const store = await seed([al]);
+        _server.set(al.id, { ...al, type: 'rdw', value: '09:00-17:00' });
+        assert.equal(await store.staleDeleteVerdict([al.id]), store.CHANGED_ELSEWHERE_LINE);
+        await assert.rejects(() => store.assertDeletable([al.id]),
+            (/** @type {any} */ e) => e.code === store.DELETE_REFUSED && e.line === store.CHANGED_ELSEWHERE_LINE);
+    });
+
+    test('already gone on the server → not a difference, the delete may proceed', async () => {
+        const store = await seed([al]);
+        assert.equal(await store.staleDeleteVerdict([al.id]), null);
+    });
+
+    test('an offline-cache answer, or no answer, refuses — the check could not be made', async () => {
+        const store = await seed([al]);
+        _server.set(al.id, { ...al });
+        _serverCached = true;
+        assert.equal(await store.staleDeleteVerdict([al.id]), store.UNCHECKED_DELETE_LINE);
+        _serverCached = false; _serverFails = true;
+        assert.equal(await store.staleDeleteVerdict([al.id]), store.UNCHECKED_DELETE_LINE);
+    });
+});
+

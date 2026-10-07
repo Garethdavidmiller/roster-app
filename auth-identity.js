@@ -170,3 +170,29 @@ export const CREDENTIAL_REJECTION_CODES = new Set([
 export function isCredentialRejection(code) {
     return !!code && CREDENTIAL_REJECTION_CODES.has(code);
 }
+
+/**
+ * WAS THIS DEVICE'S SESSION CREATED BEFORE THE MEMBER'S LAST ADMIN RESET? (Oct 2026 production
+ * review.) An admin reset sets the password back to the surname default and revokes refresh tokens —
+ * and a device that still held the 60-day local session then signed straight back in with that same
+ * surname on its next page load, because the no-typed-password path tries exactly that. "Sign them out
+ * of their other devices" was undone by the device it was aimed at: a lost phone came back in.
+ *
+ * So a silent (no-typed-password) re-sign-in is refused when the server's `resetAt` is newer than the
+ * session it is re-establishing. A session created by typing a password after the reset is newer, and
+ * passes; every older device has to type one.
+ *
+ * FAILS CLOSED when the reset time is UNKNOWN (`null`: the read failed, timed out or came from the
+ * offline cache). The surname sign-in it guards has just reached the server, so an unknown answer is
+ * rare, and its cost is one typed password — the alternative cost is the hole this closes.
+ *
+ * @param {number|null} sessionCreatedMs  when this device's local session was created (device clock)
+ * @param {number|null} resetAtMs         server `resetAt` in ms; 0 = never reset; null = unknown
+ * @returns {boolean} true = refuse the silent sign-in
+ */
+export function sessionPredatesReset(sessionCreatedMs, resetAtMs) {
+    if (resetAtMs === 0) return false;
+    if (resetAtMs == null || !Number.isFinite(resetAtMs)) return true;
+    if (sessionCreatedMs == null || !Number.isFinite(sessionCreatedMs)) return true;
+    return sessionCreatedMs < resetAtMs;
+}

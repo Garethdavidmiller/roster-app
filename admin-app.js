@@ -22,6 +22,7 @@ import { guardNamedSession, askBeforeSignOut, signOutAndLeave, warnOnUnload, rel
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
+import { assertDeletable, DELETE_REFUSED } from './admin-override-store.js';
 import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, whenOverridesReady, isOverrideCacheLoaded, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
@@ -1293,6 +1294,7 @@ export function init() {
             // Re-runnable thunk (fresh batch each attempt) so a stale-claim manager's period delete
             // self-heals via writeWithClaimRetry — parity with the other override write paths.
             await withSlowSaveNotice(writeWithClaimRetry(async () => {
+                await assertDeletable(deleteIds);   // never over a colleague's newer edit (Oct 2026 review)
                 const batch = writeBatch(db);
                 deleteIds.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
                 await batch.commit();
@@ -1318,7 +1320,8 @@ export function init() {
         } catch (err) {
             console.error('[Admin] Period delete failed:', err);
             if (feedbackEl) {
-                const msg = (/** @type {any} */ (err)).code === 'unavailable'
+                const msg = (/** @type {any} */ (err)).code === DELETE_REFUSED ? '⚠ ' + /** @type {any} */ (err).line
+                    : (/** @type {any} */ (err)).code === 'unavailable'
                     ? '⚠ You appear to be offline — reconnect and try again.'
                     : unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
                         ? '⚠ ' + unconfirmedWriteLine(err, 'this delete', 'Saved Changes')

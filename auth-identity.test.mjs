@@ -11,7 +11,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { normaliseSurname, nameToEmail, surnamePassword, credentialCandidatesFor, isPasswordMigrated, isCredentialRejection,
+import { normaliseSurname, nameToEmail, surnamePassword, credentialCandidatesFor, isPasswordMigrated, isCredentialRejection, sessionPredatesReset,
          validateNewPassword, MIN_PASSWORD_LENGTH } from './auth-identity.js';
 
 /** Firestore Timestamp-like stub: an object exposing toMillis(). */
@@ -191,3 +191,25 @@ describe('validateNewPassword', () => {
         assert.match(String(validateNewPassword('G. Miller', /** @type {any} */ (undefined), /** @type {any} */ (null))), /at least/);
     });
 });
+
+// The rule behind "a reset signs other devices out" (Oct 2026 production review): it is only as
+// strong as its refusals, so every way it could wave a stale device through is pinned.
+describe('sessionPredatesReset', () => {
+    test('never reset → never refused', () => {
+        assert.equal(sessionPredatesReset(1000, 0), false);
+        assert.equal(sessionPredatesReset(null, 0), false);
+    });
+    test('a session older than the reset is refused; a newer one is not', () => {
+        assert.equal(sessionPredatesReset(1000, 2000), true);
+        assert.equal(sessionPredatesReset(3000, 2000), false);
+    });
+    test('an unknown reset time fails CLOSED', () => {
+        assert.equal(sessionPredatesReset(3000, null), true);
+        assert.equal(sessionPredatesReset(3000, NaN), true);
+    });
+    test('a session with no readable start fails closed against a real reset', () => {
+        assert.equal(sessionPredatesReset(null, 2000), true);
+        assert.equal(sessionPredatesReset(NaN, 2000), true);
+    });
+});
+

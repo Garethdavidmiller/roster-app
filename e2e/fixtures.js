@@ -72,7 +72,9 @@ export const writeBatch = () => {
     return {
         set: (/** @type {any} */ _ref, /** @type {any} */ data) => { e2e.batchWrites.push(data); },
         update: noop,
-        delete: noop,
+        // RECORDED (Oct 2026), not discarded: the roster re-import defect was a DELETE, and a
+        // harness that drops deletes cannot see one happen.
+        delete: (/** @type {any} */ ref) => { (e2e.batchDeletes = e2e.batchDeletes || []).push(String(ref?.path || '')); },
         // HOLD SEAM (v24.21): with window.__E2E.holdCommits set, a commit stays pending until the
         // test calls window.__E2E.releaseCommits() — the way a real commit waits on a weak signal
         // for the server's answer. That wait is what slow-save.js explains, and without a way to
@@ -397,6 +399,8 @@ const _currentUser = () => {
     return null;
 };
 export const getAuth = () => ({ get currentUser() { return _currentUser(); } });
+// firebase-client.js initialises Auth WITHOUT the popup/redirect resolver (Oct 2026); same instance shape.
+export const initializeAuth = getAuth;
 // Emits the CURRENT user, not a hardcoded null (v20.12). calendar-access.js resolves the first
 // emission to decide access, so a stub that always said null would report every seeded member and
 // every restored viewer as locked out — and the whole PIN suite would pass for the wrong reason.

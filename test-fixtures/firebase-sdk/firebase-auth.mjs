@@ -3,6 +3,7 @@ import { state } from './state.mjs';
 
 const auth = { get currentUser() { return state.currentUser; }, authStateReady: () => Promise.resolve() };
 export function getAuth() { return auth; }
+export function initializeAuth() { return auth; }   // what firebase-client.js calls since v24.65
 export function onAuthStateChanged(_auth, cb) { queueMicrotask(() => cb(state.currentUser)); return () => {}; }
 export const indexedDBLocalPersistence = { type: 'indexeddb' };
 export const browserLocalPersistence = { type: 'local' };

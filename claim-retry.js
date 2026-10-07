@@ -172,6 +172,9 @@ export function unconfirmedWriteLine(err, what, whereToCheck) {
  * @returns {string}
  */
 export function saveFailureMessage(err) {
+    // A refusal that already says what happened, in the reader's words (a delete refused over a
+    // colleague's newer edit, admin-override-store.js) is shown as it is.
+    if (typeof err?.line === 'string' && err.line) return err.line;
     if (err?.code === SIGNED_OUT_CODE) return signedOutLine('this change', 'Saved Changes');
     if (err?.code === UNCONFIRMED_CODE) return UNCONFIRMED_LINE;
     if (err?.code === 'permission-denied') return "Couldn't save — you may have been signed out. Please sign in again.";

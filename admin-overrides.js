@@ -26,7 +26,7 @@ export { TYPES, PILL_TYPES, renderTable, resetTableMemberFilter,
          renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, updateSaveBtn, resetBulkPills, _hasStagedEdits, setSaveInFlight, isSaveInFlight };
 import { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache, mutateCache,
          whenOverridesReady, whenLoadSettled, isOverrideCacheLoaded, hasOverrideAuthorityFor,
-         loadOverrides, ensureMemberLoaded, idsReplacedBy, withManualDuplicates } from './admin-override-store.js';
+         loadOverrides, ensureMemberLoaded, idsReplacedBy, withManualDuplicates, assertDeletable } from './admin-override-store.js';
 export { initOverrideStore, getAllOverrides, setAllOverrides, removeFromCache,
          whenOverridesReady, whenLoadSettled, isOverrideCacheLoaded, hasOverrideAuthorityFor,
          loadOverrides, ensureMemberLoaded };
@@ -227,7 +227,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
             const docs = [];
             /** @type {Set<string>} */
             const dropped = new Set(deleteIds);
-
+            if (deleteIds.size) await assertDeletable(removedRows.filter(Boolean));   // never over a newer edit (Oct 2026)
             deleteIds.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
 
             // By ID, because that is all a staged row carries. Built once rather than per entry —

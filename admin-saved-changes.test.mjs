@@ -63,7 +63,7 @@
  * the wiring, not in a rule.
  */
 
-import { test, describe, beforeEach, mock } from 'node:test';
+import { test, describe, beforeEach, afterEach, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 // ── THE FAKE DOM ────────────────────────────────────────────────────────────────────────────────
@@ -171,6 +171,7 @@ mock.module('./firebase-client.js', {
  *  because the render's two disclosure questions — whose rows are these, and do we know about
  *  everyone — are answered from them, and a fixed mock can only ever exercise one answer. */
 /** @type {any[]} */ let _rows = [];
+/** @type {string|null} */ let _refuseDelete = null;
 let _coversAll = true;
 /** Every `loadOverrides` call, so a test can tell "it fetched first" from "it rendered anyway". */
 /** @type {any[]} */ let _loads = [];
@@ -181,6 +182,10 @@ mock.module('./admin-override-store.js', {
         // `renderTable` returns from its `!rows.length` branch before the line that would have
         // hidden the button.
         getAllOverrides: () => _rows,
+        // Oct 2026: every delete re-reads what it removes. `_refuseDelete`, when set, is the line the
+        // store refuses with — a colleague's newer edit, or a check that could not be made.
+        assertDeletable: async () => { if (_refuseDelete) throw Object.assign(new Error(_refuseDelete), { code: 'overrides/delete-refused', line: _refuseDelete }); },
+        DELETE_REFUSED: 'overrides/delete-refused',
         removeFromCache: () => {},
         isTruncated: () => false,
         coversAllStaff: () => _coversAll,
@@ -523,3 +528,31 @@ describe('6. deleting a day takes its older duplicate with it, from both Saved C
         assert.match(el('listFeedback').textContent, /Deleted 1 saved change, and 1 older copy/);
     });
 });
+
+// ── 7 · a stale delete is refused, from both controls (Oct 2026 production review) ──────────────────
+// The store re-reads what a delete removes (admin-override-store.test.mjs, block 6). What only this
+// file can show is that BOTH Saved Changes controls ask it, and that a refusal deletes nothing and
+// says why rather than "check your connection".
+describe('7. a delete over a colleague\'s newer edit is refused, and says so', () => {
+    const ROW = () => [{ id: 'm_2026-06-16_G.%20Miller', memberName: 'G. Miller', date: '2026-06-16', type: 'annual_leave', value: 'AL', source: 'manual' }];
+    const LINE = 'Someone else has changed this since your list loaded, so nothing was deleted.';
+    afterEach(() => { _refuseDelete = null; });
+
+    test('the row ✕', async () => {
+        _rows = ROW(); _refuseDelete = LINE;
+        const btn = makeEl('row-delete'); btn.dataset.id = ROW()[0].id;
+        const target = { closest: (/** @type {string} */ sel) => sel === '.btn-delete' ? btn : null };
+        for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // arms
+        for (const fn of el('overrideTableBody')._on.click ?? []) await fn({ target });   // tries
+        assert.deepEqual(_deleted, [], 'a refused delete removed something');
+        assert.match(el('listFeedback').textContent, /Someone else has changed this/);
+    });
+
+    test('Delete selected', async () => {
+        _rows = ROW(); _refuseDelete = LINE;
+        await bulkDelete([ROW()[0].id]);
+        assert.deepEqual(_deleted, []);
+        assert.match(el('listFeedback').textContent, /Someone else has changed this/);
+    });
+});
+

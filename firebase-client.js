@@ -21,7 +21,7 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 // lives since v21.90) — only
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithCustomToken, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
+import { initializeAuth, onAuthStateChanged, signInWithEmailAndPassword, signInWithCustomToken, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import { runWithClaimRetry, abandonOnSignOut, runGatedWrite } from './claim-retry.js';
 import { buildAnalyticsClient } from './analytics-client.js';
 import { APP_VERSION } from './roster-data.js';
@@ -115,8 +115,24 @@ export { isSafeStorageUrl, resolveDocumentOpenUrl };
 
 // ---- Firebase Authentication ----
 
-/** Shared Firebase Auth instance. */
-export const auth = getAuth(app);
+/**
+ * Shared Firebase Auth instance — `initializeAuth`, NOT `getAuth` (Oct 2026 production review).
+ *
+ * `getAuth` is `initializeAuth` with one more dependency: the popup/redirect resolver. On mobile
+ * browsers, Safari and iOS the SDK initialises that resolver PROACTIVELY and AWAITS it before it
+ * restores the signed-in user — loading Google's `apis.google.com` script, then a hidden
+ * `firebaseapp.com` iframe, and waiting for it to answer (read in the SDK source, auth 1.13.6:
+ * `_shouldInitProactively`, then `_initialize` before `initializeCurrentUser`). Every page's
+ * `authReady`, every Admin save's `sessionReady` and the Calendar's access decision waited on those
+ * third-party loads, on iPhones only — up to 30 seconds on a connection that is open but not
+ * answering. This app never signs in with a popup or a redirect, so it pays that for nothing.
+ *
+ * The persistence list is `getAuth`'s own, in its order, so restoring a stored member — or keeping
+ * the Calendar viewer in session storage — behaves exactly as before.
+ */
+export const auth = initializeAuth(app, {
+    persistence: [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence],
+});
 
 /**
  * Explicit persistence chain for a MEMBER identity: IndexedDB (longest-lived) → localStorage →
@@ -570,6 +586,20 @@ export async function getAllStaffContacts() {
 export async function getPasswordStatus(memberName) {
     const snap = await getDoc(doc(db, COLLECTIONS.passwordStatus, memberName));
     return snap.exists() ? snap.data() : null;
+}
+
+/**
+ * The member's last admin reset, as the SERVER says it (Oct 2026 review — `sessionPredatesReset` in
+ * auth-identity.js). Milliseconds; 0 = never reset; null = could not be confirmed, including an
+ * answer served from the offline cache, which may predate the reset it is being asked about.
+ * @param {string} memberName
+ * @returns {Promise<number|null>}
+ */
+export async function getResetAtMs(memberName) {
+    const snap = await getDoc(doc(db, COLLECTIONS.passwordStatus, memberName));
+    if (/** @type {any} */ (snap).metadata?.fromCache) return null;
+    const resetAt = snap.exists() ? /** @type {any} */ (snap.data())?.resetAt : null;
+    return resetAt && typeof resetAt.toMillis === 'function' ? resetAt.toMillis() : 0;
 }
 
 /**

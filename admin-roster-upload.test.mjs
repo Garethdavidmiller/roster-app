@@ -86,6 +86,7 @@ mock.module('./firebase-client.js', {
 const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek, computeCellStates,
         shiftDisplay, manualShiftDisplay, isZeroLengthRange } = await import('./admin-roster-upload.js');
 const { teamMembers, getBaseShift } = await import('./roster-data.js');
+const { guardedWrites } = await import('./roster-review-states.js');
 // The alignment rules moved OUT of the coordinator at v22.16 (roster-alignment.js) — a Firebase-free
 // module, so this import needs none of the mocking above.
 const { detectShiftedRow, assessRosterAlignment, ALIGNMENT_BLOCK_THRESHOLD, driftCopy, stopCopy, geometryCopy } = await import('./roster-alignment.js');
@@ -290,6 +291,14 @@ describe('fetchOverridesForWeek — fail-closed conflict read (v16.25 regression
             });
     });
 
+    test('an answer served from the OFFLINE CACHE fails closed too (Oct 2026 review)', async () => {
+        // persistentLocalCache: offline, getDocs RESOLVES from the device — often empty for this
+        // week. Accepting it hid every prior import and manual change from the review.
+        _getDocsImpl = async () => ({ docs: [], metadata: { fromCache: true } });
+        await assert.rejects(() => fetchOverridesForWeek(['2026-06-15']),
+            (/** @type {any} */ err) => err.conflictReadFailed === true);
+    });
+
     test('a permission-denied rejection also fails closed (does not swallow to [])', async () => {
         _getDocsImpl = async () => { throw _denied(); };
         await assert.rejects(
@@ -438,13 +447,64 @@ describe('computeCellStates — review state machine', () => {
             assert.equal(run(base).guarded, null);
         });
 
-        test('a stale import under a guarded value still REMOVE_IMPORTs — it already shows a row', () => {
+        // REVERSED Oct 2026 (production review). This test used to pin REMOVE_IMPORT — ticked, so the
+        // default Save DELETED the old import and asked nothing. That is the mechanism that deleted
+        // confirmed leave: an answered swap is itself a roster_import, and the next upload of the
+        // SAME PDF treated it as stale. A different old import on the day now asks the question;
+        // the same one is COVERED. Neither is a default delete.
+        test('a different old import under a guarded leave day ASKS — it is never a default delete', () => {
             assert.ok(restMember);
             const c = computeCellStates(
                 { parsed: [{ memberName: restMember.name, shifts: { [WD]: 'AL' } }], dates: [WD] },
                 [{ memberName: restMember.name, date: WD, value: '07:00-15:00', type: 'shift', source: 'roster_import', id: 'i9' }],
             ).get(`${restMember.name}|${WD}`);
+            assert.equal(c.state, 'GUARDED');
+            assert.equal(c.chosen, null, 'nothing is pre-ticked');
+            assert.equal(c.manualId, 'i9', 'the answer must be able to replace or remove the old import');
+        });
+
+        test('re-uploading the SAME PDF after "Swapped — record it" leaves the recorded leave alone', () => {
+            assert.ok(restMember);
+            for (const v of ['AL', 'SICK']) {
+                const first = computeCellStates(
+                    { parsed: [{ memberName: restMember.name, shifts: { [WD]: v } }], dates: [WD] }, [],
+                ).get(`${restMember.name}|${WD}`);
+                assert.equal(first.state, 'GUARDED');
+                const again = computeCellStates(
+                    { parsed: [{ memberName: restMember.name, shifts: { [WD]: v } }], dates: [WD] },
+                    [{ memberName: restMember.name, date: WD, value: v, type: v === 'AL' ? 'annual_leave' : 'sick',
+                       source: 'roster_import', replacedType: 'shift', id: 'imp1' }],
+                ).get(`${restMember.name}|${WD}`);
+                assert.equal(again.state, 'COVERED', `${v}: the confirmed record was offered for deletion`);
+                assert.notEqual(again.chosen, true);
+            }
+        });
+
+        test('a stale import under a SUNDAY value still REMOVE_IMPORTs — a Sunday can never hold leave', () => {
+            const SUN = '2026-06-14';
+            const sundayRest = teamMembers.find(/** @param {any} m */ m =>
+                !m.hidden && !m.managerOnly && getBaseShift(m, new Date(SUN + 'T12:00:00')) === 'RD');
+            assert.ok(sundayRest, 'fixture: somebody rests that Sunday');
+            const c = computeCellStates(
+                { parsed: [{ memberName: sundayRest.name, shifts: { [SUN]: 'AL' } }], dates: [SUN] },
+                [{ memberName: sundayRest.name, date: SUN, value: '07:00-15:00', type: 'shift', source: 'roster_import', id: 'i8' }],
+            ).get(`${sundayRest.name}|${SUN}`);
             assert.equal(c.state, 'REMOVE_IMPORT');
+        });
+
+        test('what a guarded row SAVES: swapped replaces the old import, rest day removes it, unanswered writes nothing', () => {
+            const base = { state: 'GUARDED', guarded: 'rest-day', parsedShift: 'AL', baseShift: 'RD', manualId: 'i9', manualType: 'shift', manualReplacedType: null };
+            assert.deepEqual(guardedWrites({ ...base, chosen: null }, 'X', WD), []);
+            const sw = guardedWrites({ ...base, chosen: 'swapped' }, 'X', WD);
+            assert.equal(sw.length, 1);
+            assert.equal(sw[0].value, 'AL');
+            assert.equal(sw[0].swapped, true);
+            assert.equal(sw[0].replaceId, 'i9', 'the old import would survive beside the new leave');
+            const free = guardedWrites({ ...base, chosen: 'free' }, 'X', WD);
+            assert.deepEqual(free.map(w => [w.deleteOnly, w.replaceId]), [[true, 'i9']]);
+            // No previous import: unchanged from v24.42 — rest day writes nothing.
+            assert.deepEqual(guardedWrites({ ...base, manualId: null, chosen: 'free' }, 'X', WD), []);
+            assert.deepEqual(guardedWrites({ ...base, chosen: 'swapped', rosterBlocked: true }, 'X', WD), []);
         });
     });
 

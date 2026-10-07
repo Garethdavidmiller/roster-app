@@ -3030,6 +3030,32 @@ test('admin: deleting a recorded booking confirms in the toast, not only at the 
     await expect(page.locator('#alBookedBox')).toBeHidden();
 });
 
+// A STALE DELETE IS REFUSED (Oct 2026 production review). Admin's cache never refreshes on its own,
+// and a manual record has one id per member and day, so deleting what this page showed hours ago
+// removed what a colleague had written since. Before deleting, the page re-reads the documents; here
+// the server answers that the day now holds a different record.
+test('admin: a booked period a colleague has since changed is not deleted, and the admin is told', async ({ page }) => {
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, {
+            docs: [{ id: 'a1', memberName: 'G. Miller', date: '2026-03-02', type: 'annual_leave', value: 'AL', note: '' }],
+            // What the server holds NOW: another manager has made the day a worked rest day.
+            getDocData: { memberName: 'G. Miller', date: '2026-03-02', type: 'rdw', value: '09:00-17:00' },
+        });
+    });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await page.locator('#alBookedToggle').click();
+    const btn = page.locator('#alBookedBody .btn-period-delete').first();
+    await btn.click();
+    await btn.click();
+    await expect(page.locator('#alFeedback')).toContainText(/Someone else has changed this/);
+    expect(await page.evaluate(() => (window.__E2E?.batchDeletes || []).length), 'something was deleted').toBe(0);
+    await expect(page.locator('#alBookedBody .btn-period-delete')).toHaveCount(1);
+});
+
 test('admin: an armed Saved Changes delete says so in its accessible name, and says it only while armed', async ({ page }) => {
     // The recorded-dates ✕ already renames itself "Confirm delete …" while armed; this control kept
     // announcing "Delete G. Miller 2026-09-01" under a button reading "Delete?" (external review,
@@ -5236,11 +5262,16 @@ test('links: when EVERY design was a 24-line one, the empty page says where they
         for (let i = 1; i <= 24; i++) p[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
         w.__E2E.docs = [{ id: 'a', name: 'Option A', patterns: p, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' },
-                        { id: 'b', name: 'Option B', patterns: p, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' }];
+                        { id: 'b', name: 'Option B', patterns: p, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' },
+                        // The pre-v12 singleton is still in Firestore (nothing ever deleted it). With every
+                        // design binned it used to be re-migrated as "Design 1" on every open (Oct 2026).
+                        { id: 'combined-28', patterns: p, updatedAt: 1_700_000_000_000, updatedBy: 'G. Miller' }];
     });
     await page.goto('/links.html');
     await expect(page.locator('#linksEmptyState .links-empty-title')).toHaveText('Your 24-line designs are in Recently deleted');
     await expect(page.locator('#linksEmptyMsg')).toContainText('the 2 designs drawn for 24 moved there. Restore one from Recently deleted');
+    const created = await page.evaluate(() => (window.__E2E?.setWrites || []).filter(w => w.added));
+    expect(created, 'the legacy grid was re-migrated into a new design').toEqual([]);
 });
 
 test('links: the rotation length the in-page fixtures assume', () => {
@@ -7611,6 +7642,26 @@ test('operations: a rest-day absence answered "swapped" is written as a swapped-
     expect(writes.map(w => [w.type, w.value, w.replacedType])).toEqual([['sick', 'SICK', 'shift']]);
 });
 
+// ── RE-UPLOADING THE SAME ROSTER MUST NOT DELETE AN ANSWERED SWAP (Oct 2026 production review) ──
+// An answered "Swapped — record it" is written as a roster_import. The next upload of the SAME PDF
+// classified that import as stale (REMOVE_IMPORT, pre-ticked), and Save deleted the confirmed
+// absence. Driven to the write, because the defect was a delete nobody chose.
+test('operations: re-uploading a roster leaves an already-recorded swapped absence alone', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, {
+        ...ROSTER_REVIEW_PARSE,
+        choices: {},
+        parsed: [{ memberName: 'G. Miller', shifts: { ...ROSTER_REVIEW_PARSE.parsed[0].shifts, '2026-08-05': 'SICK' } }],
+    }, { extraDocs: [{ id: 'imp-swap', memberName: 'G. Miller', date: '2026-08-05', value: 'SICK', type: 'sick',
+                       source: 'roster_import', replacedType: 'shift', note: '' }] });
+    await expect(page.locator('.roster-change-row.roster-change-guarded'), 'the recorded answer is asked about again').toHaveCount(0);
+    await expect(page.locator('.roster-change-row', { hasText: '5 Aug' }).filter({ hasText: /clear|remove/i })).toHaveCount(0);
+    await page.locator('#rosterApplyBtn').click();
+    await expect.poll(() => page.evaluate(() => (window.__E2E?.batchWrites || []).length)).toBeGreaterThan(0);
+    const deleted = await page.evaluate(() => window.__E2E?.batchDeletes || []);
+    expect(deleted.some(p => p.endsWith('/imp-swap')), 'the confirmed absence was deleted').toBe(false);
+});
+
 // ── ANSWERING AN UNREADABLE CELL IN PLACE (v22.17) ────────────────────────────────────────────
 //
 // The composition rule is unit-tested in override-utils.test.mjs. What only a browser answers is
@@ -8161,7 +8212,7 @@ test('operations: App speed shows what the background worker was doing, and whet
     await expect(speed).toContainText('What the app’s background worker was doing');
 
     // The COUNT distribution, in words rather than band strings, and as shares.
-    await expect(speed).toContainText('Nothing to recheck');
+    await expect(speed).toContainText('Nothing to fetch');
     await expect(speed).toContainText('A full sweep');
     await expect(speed, 'counts are stated as a share of boots, not as a speed').toContainText('80%');
 

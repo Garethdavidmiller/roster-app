@@ -16,7 +16,7 @@ import { formatClockInput } from './clock-input.js';
 import { replacedTypeForSwap } from './al-swapped-days.js';
 import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
-import { computeCellStates, guardedRowHtml, guardedWriteValue, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown } from './roster-review-states.js';
+import { computeCellStates, guardedRowHtml, guardedWrites, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown } from './roster-review-states.js';
 // RE-EXPORTED, not re-implemented: the first three moved to roster-cell-rules.js (v22.17/v22.18),
 // computeCellStates to roster-review-states.js (v23.52), and several call sites (and their tests)
 // name this module. The alternative was a rename sweep across three test files for no behavioural
@@ -183,6 +183,11 @@ export async function fetchOverridesForWeek(dates) {
     try {
         const q    = query(collection(db, COLLECTIONS.overrides), where('date', 'in', dates));
         const snap = await getDocs(q);
+        // AN OFFLINE-CACHE ANSWER IS NOT AN ANSWER (Oct 2026 review). With persistent caching,
+        // getDocs does not throw while Firestore is offline — it answers from the device, which may
+        // know nothing about this week. Treated as complete, every prior import and manual change
+        // went unseen. The same refusal admin-override-store.js applies to its own reads.
+        if (/** @type {any} */ (snap).metadata?.fromCache) throw Object.assign(new Error('served from the offline cache'), { code: 'cached-read' });
         return snap.docs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
     } catch (err) {
         console.error('[RosterUpload] Could not fetch existing overrides:', err);
@@ -450,7 +455,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 toWrite.push({ memberName, date, value: state.options[state.chosen].display, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: state.manualId ? { type: state.manualType, replacedType: state.manualReplacedType } : null });
             }
             // A rest day answered "swapped" (v24.42): the roster's value, as a swapped-in working day.
-            const swappedValue = guardedWriteValue(state); if (swappedValue) toWrite.push({ memberName, date, value: swappedValue, baseShift: state.baseShift, swapped: true });
+            // A guarded rest day (v24.42; replacing a previous import since Oct 2026): guardedWrites.
+            toWrite.push(...guardedWrites(state, memberName, date));
             if (state.state === 'CONFLICT' && state.chosen === 'pdf') {
                 // Admin chose PDF over the existing manual entry — replace it, don't leave both
                 // docs for the same date. Write the row's DISPLAYED (normalised) value: a raw
@@ -590,7 +596,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             for (const st of cellStates.values()) {
                 if      (st.state === 'DIFF')          { if (st.chosen !== false) updates++; }
                 else if (st.state === 'REMOVE_IMPORT') { if (st.chosen !== false) clears++; }
-                else if (st.state === 'GUARDED')       { if (guardedWriteValue(st)) updates++; }
+                else if (st.state === 'GUARDED')       { if (guardedWrites(st, '', '').length) updates++; }
                 else if (st.state === 'CONFLICT')      { conflictsTotal++; if (st.chosen === 'pdf') { conflictsSwitched++; updates++; } }
                 else if (st.state === 'UNREADABLE')    {
                     // A resolved one is an update, not an outstanding "couldn't read" — otherwise the

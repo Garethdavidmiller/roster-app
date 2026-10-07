@@ -1,9 +1,9 @@
 // MYB Roster — Service Worker
 // Strategy:
 //   HTML documents + JS modules + CSS (v16.10 — HTML joined JS/CSS, owner-approved)
-//               → Stale-while-revalidate: served INSTANTLY from cache, then the
-//                 cache is refreshed in the background. No blocking network wait
-//                 on any page open. Freshness is preserved by the version-bump →
+//               → Served INSTANTLY from this version's cache; a cached entry is never
+//                 rewritten (Oct 2026 — a background rewrite mixed releases, see the JS/CSS
+//                 branch). No blocking network wait on any page open. Freshness is the version-bump →
 //                 new SW → new cache lifecycle (each deploy precaches fresh assets
 //                 and the new SW claims immediately, then reloads the page); roster
 //                 DATA is always live from Firestore, independent of cached code.
@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '24.64';
+const APP_VERSION = '24.65';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -51,8 +51,8 @@ function unredirect(res) {
         : res;
 }
 
-// Managed JS/CSS files already background-revalidated during THIS SW process lifetime
-// (see the stale-while-revalidate branch). Resets whenever the browser restarts the SW.
+// Managed JS/CSS files this worker process has fetched from the network — cache MISSES since
+// Oct 2026, when a hit stopped being re-fetched (see that branch). Resets when the SW restarts.
 const _revalidated = new Set();
 
 // The count `perf-reporter.js` asks for (v22.94). NAMED so sw-internals.test.mjs runs the real code
@@ -762,7 +762,11 @@ self.addEventListener("fetch", event => {
                 // guarantee: Firebase always sets it, so absence means a stub we shouldn't
                 // second-guess) — only a present, clearly-non-html type is skipped (v16.19).
                 const ct = response ? (response.headers.get('content-type') || '') : '';
-                if (response && response.status === 200 && (!ct || ct.includes('text/html'))) {
+                // ONLY ON A MISS (Oct 2026 review): over a page this version's cache already holds,
+                // the network copy is either identical or the WRONG release — a navigation preload
+                // the browser answered from its HTTP cache (Pages: max-age=600), or a new release
+                // read by an old worker. The JS/CSS branch above has the full argument.
+                if (!cachedDoc && response && response.status === 200 && (!ct || ct.includes('text/html'))) {
                     // Cache under the bare path (query stripped): every distinct
                     // paycalc.html?payday=… would otherwise pile up as its own ~40 KB entry
                     // for the life of the version cache. findCachedFallback matches ignoreSearch.
@@ -773,9 +777,8 @@ self.addEventListener("fetch", event => {
                 }
                 return response;
             }, err => { networkSettled = true; throw err; });
-            // Keep the SW alive so the background/late network result still refreshes the
-            // cache for the NEXT open (a preload response cannot be aborted anyway, so
-            // consuming it here is free — the browser already sent the request).
+            // Keep the SW alive so a late network result on a MISS still reaches the cache for the
+            // next open (a preload response cannot be aborted anyway, so consuming it is free).
             try { event.waitUntil(networkPromise.catch(() => null)); } catch (_e) { /* settled */ }
 
             if (cachedDoc) return cachedDoc;
@@ -845,34 +848,42 @@ self.addEventListener("fetch", event => {
         event.respondWith((async () => {
             const cache   = await openCache();
             const cached  = await cache.match(event.request);
-            // Background-revalidate each file at most ONCE per SW process lifetime. The
-            // cache is version-pinned and content never changes within a version (the
-            // mandatory bump rule), so per-request refreshes were ~35 guaranteed no-op 304s
-            // on EVERY page open — pure radio/connection contention against the page's own
-            // Firestore traffic. One check per SW start keeps the self-heal for a
-            // hypothetically un-bumped deploy without the storm.
+            // A CACHED FILE IS SERVED AND LEFT ALONE (Oct 2026 production review). This used to
+            // revalidate each file once per worker process and WRITE the answer back — a "self-heal
+            // for an un-bumped deploy", which the mandatory bump forbids. What the write actually
+            // did was the opposite of healing: the fetch used the page's own cache mode, so on the
+            // GitHub Pages mirror (every file `max-age=600`) a module the browser had cached in the
+            // last ten minutes — the PREVIOUS release's — was stored in the NEW release's cache,
+            // and the warm-up then skipped it as present. And an OLD worker, still in control just
+            // after a deploy, wrote the NEW release's files into the OLD cache. Either way the
+            // version-pinned cache held two versions, which is the one thing it exists to prevent.
+            //
+            // So: a hit is served and nothing is fetched; a miss is fetched past the browser's HTTP
+            // cache (`no-cache` — a revalidation, a 304 when unchanged) and stored. Freshness comes
+            // from the version bump → new worker → new cache, as it always did.
+            // `new Request(url, …)`, not opts on the existing Request: older Safari ignores a cache
+            // mode passed that way (CLAUDE.md → SW new Request(url) fetch pattern).
             let network = null;
-            if (!cached || !_revalidated.has(relPath)) {
-                _revalidated.add(relPath);
-                network = fetch(event.request)
+            if (!cached) {
+                _revalidated.add(relPath);   // what `_revalidationCount` reports: network fetches this process
+                network = fetch(new Request(event.request.url, {
+                    cache:       'no-cache',
+                    credentials: event.request.credentials,
+                    mode:        event.request.mode === 'navigate' ? 'same-origin' : event.request.mode,
+                }))
                     .then(response => {
                         // ctSafe (v16.23): never cache a text/html body under a JS/CSS path — a
                         // proxy interstitial 200 would otherwise poison the module for the whole
                         // version (this branch never serves .html; isDoc routes those first).
                         if (response && response.status === 200 && ctSafe(relPath, response)) {
                             cache.put(event.request, response.clone())
-                                .catch(err => console.warn(`[SW ${APP_VERSION}] SWR cache.put failed (quota?):`, err));
+                                .catch(err => console.warn(`[SW ${APP_VERSION}] cache.put failed (quota?):`, err));
                         }
                         return response;
                     })
                     .catch(() => null);
             }
-            if (cached) {
-                // Keep the background revalidation (when one started) alive after we return
-                // the cached copy. Guarded: waitUntil after the event settles can throw.
-                if (network) { try { event.waitUntil(network); } catch (_e) { /* settled */ } }
-                return cached;
-            }
+            if (cached) return cached;
             // Cold current-version cache: prefer a GOOD (2xx) network response, but if the network
             // resolved a 4xx/5xx (a transient 502 mid-deploy, a hosting hiccup) fall back to ANY
             // cached copy — the previous version's cache still holds a working module (caches.match

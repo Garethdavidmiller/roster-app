@@ -350,6 +350,8 @@ closed. Nothing has moved; the rule fires the same way and for the same reason.
 
 ### 4. The service worker is NOT what staff are waiting for
 
+**Since the Oct 2026 production review the worker no longer re-fetches a file it already holds** (that background rewrite could store the wrong release — see service-worker.js), so from that release `swrCount` counts cache MISSES, and the figures below describe the behaviour before it.
+
 New this month, and a clean negative. A full sweep (31+ files) was running on **78% of opens (604)**,
 and the card's own rule is that this only matters if those boots are slower: **Worker busy 78% over
 1s (595) against Shifts shown 78%.** Identical. The revalidation storm is real and costs the member

@@ -38,7 +38,38 @@ let _vapidConfigured = false;
 // A bound on every send (ms). `sendNotification` has no timeout of its own, so one push service that
 // never answers held the whole `allSettled` — and the function with it — until the platform killed
 // the request. With it, a stalled endpoint is one failed send (Sep 2026 review).
-const SEND_OPTIONS = Object.freeze({ timeout: 10000 });
+const SEND_TIMEOUT_MS = 10000;
+
+/**
+ * HOW LONG A PUSH SERVICE MAY HOLD EACH NOTICE FOR A PHONE THAT IS OFF (Oct 2026 production review).
+ *
+ * web-push's default is FOUR WEEKS, and nothing here set one — so a phone switched off over a
+ * deadline showed "hours cutoff today" or "answers due today" days later, about a day long gone.
+ * Each feature now says how long its words stay true. Keyed by TAG, because the tag is what a
+ * payload already carries to the senders; an unknown tag gets a day, never four weeks.
+ * @type {Readonly<Record<string, number>>} seconds
+ */
+const PUSH_TTL_BY_TAG = Object.freeze({
+    'huddle':         36 * 3600,   // "Latest Huddle": the next day's plan, sent the evening before
+    'circular':       72 * 3600,   // weekly documents: still the latest for days
+    'newsletter':     72 * 3600,
+    'pay-reminder':   12 * 3600,   // "hours cutoff today"
+    'overtime':       12 * 3600,   // "answers due today" / "form open — answer by …"
+    'reset-request':   6 * 3600,   // "N waiting" — a queue depth that is stale within hours
+    'password-reset':  7 * 24 * 3600,   // tells the member something lasting about their account
+});
+const PUSH_TTL_DEFAULT = 24 * 3600;
+
+/**
+ * The `web-push` send options for a payload: the transport's timeout plus that notice's TTL.
+ * @param {{ tag?: string }} payload
+ * @param {number} timeoutMs
+ * @returns {{ timeout: number, TTL: number }}
+ */
+function pushSendOptions(payload, timeoutMs) {
+    const ttl = PUSH_TTL_BY_TAG[/** @type {string} */ (payload && payload.tag)];
+    return { timeout: timeoutMs, TTL: Number.isFinite(ttl) ? ttl : PUSH_TTL_DEFAULT };
+}
 
 // M8: web-push loaded on first push only (see the require note at the top). Cached after first use.
 let _webpush = null;
@@ -131,6 +162,8 @@ async function sendTargetedPush(payload, ownerUids, logTag) {
     }
 
     const payloadStr = JSON.stringify(payload);
+    // Timeout AND how long the push service may hold it (pushSendOptions — never the 4-week default).
+    const sendOptions = pushSendOptions(payload, SEND_TIMEOUT_MS);
     // ACCEPTED, not attempted (v21.85, external review). A caller that records "the admin has been
     // told" needs to know a push actually left, and `docs.length` says only that we tried: a
     // transient 500 from the push service, or an endpoint whose keys have rotated, counted exactly
@@ -143,7 +176,7 @@ async function sendTargetedPush(payload, ownerUids, logTag) {
         // Only to a real push service (v24.48) — see isAllowedPushEndpoint. Skipped, not deleted.
         if (!isAllowedPushEndpoint(endpoint)) { console.warn(`${logTag} Skipped ${docSnap.id}: not a push-service endpoint`); return; }
         try {
-            await getWebPush().sendNotification({ endpoint, keys }, payloadStr, SEND_OPTIONS);
+            await getWebPush().sendNotification({ endpoint, keys }, payloadStr, sendOptions);
             accepted += 1;
         } catch (err) {
             if (shouldDeleteSubscription(err.statusCode)) {
@@ -166,11 +199,13 @@ async function fanOutPush(payload, logTag) {
     }
 
     const payloadStr = JSON.stringify(payload);
+    // Timeout AND how long the push service may hold it (pushSendOptions — never the 4-week default).
+    const sendOptions = pushSendOptions(payload, SEND_TIMEOUT_MS);
     const sends = snapshot.docs.map(async docSnap => {
         const { endpoint, keys } = docSnap.data();
         if (!isAllowedPushEndpoint(endpoint)) { console.warn(`${logTag} Skipped ${docSnap.id}: not a push-service endpoint`); return; }
         try {
-            await getWebPush().sendNotification({ endpoint, keys }, payloadStr, SEND_OPTIONS);
+            await getWebPush().sendNotification({ endpoint, keys }, payloadStr, sendOptions);
         } catch (err) {
             // Delete ONLY genuinely-dead subscriptions (410/404). A 401 is a VAPID-auth
             // misconfig, not a dead endpoint — deleting on it would wipe the whole collection.
@@ -189,4 +224,4 @@ async function fanOutPush(payload, logTag) {
 }
 
 
-module.exports = { getWebPush, setupWebPush, sendTargetedPush, fanOutPush };
+module.exports = { getWebPush, setupWebPush, sendTargetedPush, fanOutPush, pushSendOptions, PUSH_TTL_BY_TAG };

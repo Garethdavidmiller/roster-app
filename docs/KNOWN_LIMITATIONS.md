@@ -118,7 +118,11 @@ An external review (Oct 2026) reproduced two Admin defects, both fixed in v24.48
   member and date (`manualOverrideId`), so the second save lands on the first one's document.
 
 **What remains, deliberately:** the second editor is not told the day changed underneath them —
-**last save wins**, exactly as when two people save one after the other. Warning them would need
+**last SAVE wins**, exactly as when two people save one after the other. **A DELETE no longer does**
+(Oct 2026 production review): with one id per day, a stale delete removed the colleague's newer
+record, which a sequential deleter would have seen. Every override delete now re-reads what it is
+about to remove and refuses, saying so, when it has changed (`assertDeletable`,
+`admin-override-store.js`); an unconfirmable check refuses too, so deletes need the network. Warning them would need
 every Admin save to run as a TRANSACTION that re-reads each day first; that would also make an
 offline save FAIL rather than queue, and it rewrites the write path most of the e2e suite observes.
 A decision, not an oversight — revisit if a lost edit is ever reported.
@@ -534,11 +538,13 @@ the mirror the meta is the only CSP, but it covers **all resource-loading direct
 **Residual gaps on the mirror only — accepted, and a reason to retire the mirror:**
 1. **`frame-ancestors 'none'` (anti-clickjacking) can't be expressed in a `<meta>` CSP** (browsers
    ignore it there), and GitHub Pages sends no `X-Frame-Options`. The mirror could therefore be
-   framed. Low impact — the app has no same-origin sensitive action a clickjack could drive (all
-   writes need a Firebase auth token, and `frame-src 'none'`/`object-src 'none'` still apply), but it
-   is a genuine difference from the Firebase origin.
-2. **`Cache-Control: no-cache` isn't applied** on the mirror; GitHub Pages uses its own caching.
-   Freshness is still carried by the service-worker version-bump lifecycle, so this is cosmetic.
+   framed. The old reason it was low impact ("writes need a Firebase auth token") was wrong — a
+   clickjack drives the VICTIM's own session. What actually limits it is browser storage
+   partitioning: a third-party frame gets its own empty storage, so the framed app is signed out.
+2. **`Cache-Control: no-cache` isn't applied** on the mirror; GitHub Pages sends `max-age=600`. This
+   was called cosmetic and was not: the service worker's background refresh used the page's cache
+   mode, so a previous release's module could be stored in a new release's cache. Fixed Oct 2026 —
+   the worker never rewrites a cached file and fetches a miss `no-cache` (service-worker.js).
 Both close automatically if/when the GitHub Pages mirror is retired (the stated long-term direction).
 
 **A second header now travels the same way (v19.00).** `X-Robots-Tag: noindex, nofollow` is mirrored

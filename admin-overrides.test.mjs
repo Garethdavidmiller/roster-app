@@ -98,6 +98,9 @@ mock.module('./firebase-client.js', {
             return { forEach: () => {} };
         },
         deleteDoc:       async () => {},
+        // The server's copy a delete re-reads first (Oct 2026) — the same `_server` the batches commit
+        // to, so a colleague's later save is exactly what the re-read finds.
+        getDoc:          async (/** @type {any} */ ref) => ({ exists: () => _server.has(ref.id), data: () => _server.get(ref.id), metadata: {} }),
         // An EXPLICIT id (doc(db, col, id)) is honoured — that is how a manual write names its document
         // since v24.48; only an auto-id call mints a fresh one.
         doc:             (() => { let n = 0; return (/** @type {any[]} */ ...a) => { const id = a.length >= 3 ? String(a[2]) : 'mock-doc-' + (++n); _issuedDocIds.push(id); return { id }; }; })(),
@@ -850,6 +853,17 @@ describe('two editors saving the same day', () => {
         setAllOverrides([...LOADED(), dupe]);
         await executeSave([{ memberName: MEMBER, date: DAY, type: 'shift', value: '07:00-15:00', note: '' }]);
         assert.deepEqual(docsForDay().map(([id]) => id), ['m_2026-06-16_G.%20Miller'], 'the older copy cannot resurface later');
+    });
+
+    test('CLEARING a day a colleague has since rewritten is refused, and their record stands (Oct 2026)', async () => {
+        const fixed = 'm_2026-06-16_G.%20Miller';
+        _server.clear();
+        const mine = { id: fixed, memberName: MEMBER, date: DAY, type: 'annual_leave', value: 'AL', source: 'manual', createdAt: new Date(1) };
+        _server.set(fixed, { ...mine });
+        setAllOverrides([mine]);                                   // editor A loads: the day is AL
+        _server.set(fixed, { ...mine, type: 'rdw', value: '14:00-22:00' });   // editor B saves over it
+        await executeSave([], [fixed]);                            // A clears the row it saw
+        assert.equal(_server.get(fixed)?.value, '14:00-22:00', "a colleague's newer edit was deleted");
     });
 
     test('an import for the day is still replaced by a manual save, as before', async () => {

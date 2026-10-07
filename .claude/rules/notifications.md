@@ -142,6 +142,14 @@ that hands over neither a renewal nor the old key is left as before: the next ch
 - **Title** ≤ ~40 characters *including the emoji* (collapsed notifications truncate hard).
 - **Body** ≤ ~80 characters (≈ two lines collapsed).
 
+## How long a notice may wait (TTL, Oct 2026)
+
+A push service holds a notice for a phone that is off — and web-push's default is FOUR WEEKS, so
+"hours cutoff today" arrived days late. Every send now passes a TTL from `PUSH_TTL_BY_TAG`
+(`functions/push.js`, via `pushSendOptions`): documents 36–72 h, pay and overtime 12 h, the reset
+queue 6 h, password-reset 7 days, anything unlisted one day. **A new notification feature adds its
+tag there**, or it gets a day; `push-transport.test.mjs` fails on a feature with no TTL.
+
 ## Icon, badge, tag
 
 - **`icon`** — always the app icon (`icon-192.png`), resolved against `registration.scope`

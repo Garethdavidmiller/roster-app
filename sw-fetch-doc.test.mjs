@@ -89,6 +89,7 @@ async function navigate(o) {
     /** @type {Record<string, Function>} */
     const listeners = {};
     const fetches = /** @type {string[]} */ ([]);
+    const fetchModes = /** @type {string[]} */ ([]);
     const ctx = {
         self: {
             registration: { scope: SCOPE, navigationPreload: null },
@@ -97,7 +98,7 @@ async function navigate(o) {
             skipWaiting() {}, clients: { claim: async () => {} },
         },
         caches: api,
-        fetch: (/** @type {Request} */ req) => { fetches.push(req.url); return o.network(req, req.signal); },
+        fetch: (/** @type {Request} */ req) => { fetches.push(req.url); fetchModes.push(req.cache); return o.network(req, req.signal); },
         setTimeout: (/** @type {Function} */ fn, /** @type {number} */ ms) => setTimeout(fn, (ms || 0) / SPEED),
         clearTimeout,
         console: { log() {}, warn() {}, error() {} },
@@ -111,14 +112,14 @@ async function navigate(o) {
     let responded = null;
     const waits = /** @type {Promise<any>[]} */ ([]);
     listeners.fetch({
-        request: { url: `${ORIGIN}${o.path}`, method: 'GET', headers: new Headers(), mode: 'navigate', destination: 'document' },
+        request: { url: `${ORIGIN}${o.path}`, method: 'GET', headers: new Headers(), mode: o.mode ?? 'navigate', destination: o.destination ?? 'document', credentials: 'same-origin' },
         preloadResponse: o.preload,
         respondWith: (/** @type {Promise<Response>} */ p) => { responded = p; },
         waitUntil: (/** @type {Promise<any>} */ p) => { waits.push(p); },
     });
     assert.ok(responded, 'a navigation is always answered by the worker');
     const res = await /** @type {Promise<Response>} */ (responded);
-    return { res, body: await res.clone().text(), fetches, stores, settle: () => Promise.allSettled(waits) };
+    return { res, body: await res.clone().text(), fetches, fetchModes, stores, settle: () => Promise.allSettled(waits) };
 }
 
 const ok = (/** @type {string} */ body) => new Response(body, { status: 200, headers: { 'content-type': 'text/html' } });
@@ -215,17 +216,45 @@ describe('service worker — a navigation with a FALLBACK cached', () => {
     });
 });
 
-describe('service worker — the page itself cached (stale-while-revalidate, v16.10)', () => {
-    test('served at once, and the network still refreshes the cache for the next open', async () => {
+describe('service worker — the page itself cached', () => {
+    test('served at once, and a network copy NEVER rewrites it (Oct 2026 production review)', async () => {
+        // The background rewrite was how a previous release got into the new cache — a preload the
+        // browser answered from its HTTP cache (the Pages mirror sends max-age=600) — and how a new
+        // release got into an old worker's cache. Within a version the page cannot change.
         const { body, settle, stores } = await navigate({
             path: '/settings.html',
-            cached: { './settings.html': '<h1>old settings</h1>' },
-            network: async () => ok('<h1>new settings</h1>'),
+            cached: { './settings.html': '<h1>this release</h1>' },
+            network: async () => ok('<h1>some other release</h1>'),
         });
-        assert.match(body, /old settings/);
+        assert.match(body, /this release/);
         await settle();
         await after(20, () => {});
-        const fresh = /** @type {Map<string, Response>} */ (stores.get(CACHE)).get(`${ORIGIN}/settings.html`);
-        assert.match(await /** @type {Response} */ (fresh).text(), /new settings/);
+        const all = await Promise.all([.../** @type {Map<string, Response>} */ (stores.get(CACHE)).values()].map(r => r.clone().text()));
+        assert.ok(!all.some(t => /some other release/.test(t)), 'the cached page was rewritten');
+    });
+});
+
+describe('service worker — a JS module (Oct 2026 production review)', () => {
+    const js = (/** @type {string} */ t) => new Response(t, { status: 200, headers: { 'content-type': 'text/javascript' } });
+    test('a cached module is served and NOT fetched at all', async () => {
+        const { body, fetches } = await navigate({
+            path: '/calendar-app.js', destination: 'script', mode: 'cors',
+            cached: { './calendar-app.js': 'export const v = "this release";' },
+            network: async () => js('export const v = "other";'),
+        });
+        assert.match(body, /this release/);
+        assert.equal(fetches.length, 0, 'a version-pinned hit needs no network');
+    });
+
+    test('a MISS is fetched past the browser HTTP cache, and stored', async () => {
+        const { body, fetchModes, stores, settle } = await navigate({
+            path: '/calendar-app.js', destination: 'script', mode: 'cors',
+            network: async () => js('export const v = "fresh";'),
+        });
+        assert.match(body, /fresh/);
+        assert.deepEqual(fetchModes, ['no-cache'], 'the default mode returns a previous release from the HTTP cache');
+        await settle(); await after(20, () => {});
+        const keys = [.../** @type {Map<string, Response>} */ (stores.get(CACHE)).keys()];
+        assert.ok(keys.some(k => k.endsWith('/calendar-app.js')));
     });
 });

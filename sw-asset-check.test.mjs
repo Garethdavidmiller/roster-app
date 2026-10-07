@@ -469,6 +469,10 @@ test('functions/roster-members.json matches active staff in roster-data.js', asy
     assert.deepEqual(json.roles?.admin,    CONFIG.ADMIN_NAMES,     'roster-members.json roles.admin != CONFIG.ADMIN_NAMES — run npm run generate:roster-members');
     assert.deepEqual(json.roles?.manager,  CONFIG.MANAGER_NAMES,   'roster-members.json roles.manager != CONFIG.MANAGER_NAMES — run npm run generate:roster-members');
     assert.deepEqual(json.roles?.designer, CONFIG.LINKS_DESIGNERS, 'roster-members.json roles.designer != CONFIG.LINKS_DESIGNERS — run npm run generate:roster-members');
+    // OVERTIME_BETA too (Oct 2026 production review). CLAUDE.md said this test guarded it; it did
+    // not. Drift fails silently in BOTH directions: a name added only to CONFIG gets the page with no
+    // form on it, a name removed only from CONFIG keeps being asked and pushed with no way to answer.
+    assert.deepEqual(json.overtimeBeta, CONFIG.OVERTIME_BETA, 'roster-members.json overtimeBeta != CONFIG.OVERTIME_BETA — run npm run generate:roster-members');
     // A non-empty admin list is load-bearing: setupRosterAuth fails closed on an empty one, but catch
     // it here too so a bad edit never even deploys.
     assert.ok(Array.isArray(json.roles?.admin) && json.roles.admin.length > 0, 'roster-members.json roles.admin must be non-empty (admin lockout guard)');
