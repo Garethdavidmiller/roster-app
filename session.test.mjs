@@ -30,6 +30,9 @@ let _onAuthSubs    = 0;      // how many times onAuthStateChanged was subscribed
 let _authUnsubs    = 0;      // how many times the returned unsubscribe was called (restore-bound tests)
 let _authNeverEmits = false; // when true the mock NEVER calls back — models a Firebase restore that hangs
 let _authEmitDelayMs = 0;    // when >0 the mock answers this late — models a restore that arrives after the bound
+/** The server's last admin reset for the member, as `getResetAtMs` reports it: 0 = never, null =
+ *  could not be confirmed, a number = ms. Default 0 so every other test is unaffected. */
+let _resetAtMs = /** @type {number|null} */ (0);
 /** @type {Promise<void>|null} */
 let _signInGate    = null;   // if set, email/password sign-in awaits it before resolving (generation-guard test)
 const _authThrow = code => { const e = new Error(code); /** @type {any} */ (e).code = code; throw e; };
@@ -96,6 +99,7 @@ mock.module('./firebase-client.js', {
         // THEN restore persistence) is assertable — reversing it would migrate the shared viewer
         // into IndexedDB, where it survives the browser closing.
         restoreMemberPersistence:       async () => { _persistenceRestores.push('member'); },
+        getResetAtMs:                   async () => _resetAtMs,
     },
 });
 
@@ -904,7 +908,9 @@ describe('saveSession', () => {
         saveSession('G. Miller');
         const s = JSON.parse(store.get(AUTH_KEY));
         assert.equal('lastActivity' in s, false);
-        assert.deepEqual(Object.keys(s).sort(), ['expiry', 'name', 'ver']);
+        // `createdAt` (Oct 2026) is not a second clock: it is written once and never moves, and it
+        // exists only to be compared with the server's last reset (`sessionPredatesReset`).
+        assert.deepEqual(Object.keys(s).sort(), ['createdAt', 'expiry', 'name', 'ver']);
     });
 
     test('returns true when the write persists (read-back matches)', () => {
@@ -1382,3 +1388,71 @@ describe('terminalAuthEvent — a stalled start-up is TRANSIENT, not a sign-out 
         assert.deepEqual(terminalAuthEvent({ named: false, stalled: false, error: null }), { type: 'NONE', error: null });
     });
 });
+
+// ── AN ADMIN RESET SIGNS OTHER DEVICES OUT, AND THEY STAY OUT (Oct 2026 production review) ───────
+// A reset sets the password back to the surname and revokes refresh tokens. The device it was aimed
+// at — a lost phone still holding the 60-day local session — then re-signed in SILENTLY with that
+// same surname on its next load, because the no-typed-password path tries exactly that. These pin
+// the refusal: a silent re-sign-in on a session older than the last reset ends the session instead.
+describe('a silent re-sign-in after an admin reset', () => {
+    const NOW = Date.now();
+    beforeEach(() => {
+        _existingUser = null;
+        _signInBehavior = 'ok';
+        _signInCalls = 0;
+        _signOutCalled = false;
+        _resetAtMs = 0;
+    });
+    afterEach(() => { _resetAtMs = 0; store.delete(AUTH_KEY); });
+    const sessionCreatedAt = (/** @type {number} */ ms) =>
+        store.set(AUTH_KEY, JSON.stringify({ name: 'G. Miller', ver: SESSION_VER, expiry: ms + SESSION_MS, createdAt: ms }));
+
+    test('a session OLDER than the reset is refused, signed out and ended', async () => {
+        sessionCreatedAt(NOW - 3 * 86_400_000);
+        _resetAtMs = NOW - 86_400_000;
+        assert.equal(await ensureFirebaseSession('G. Miller'), false);
+        assert.equal(_signInCalls, 1, 'the surname was tried — the refusal comes from the reset, not a guess');
+        assert.equal(_signOutCalled, true, 'the surname sign-in must not be left standing');
+        assert.equal(store.has(AUTH_KEY), false, 'the local session survived — the next load would try again');
+        assert.equal(getFirebaseIdentity(), 'none');
+    });
+
+    test('a session created AFTER the reset (the member typed a password since) is let through', async () => {
+        _resetAtMs = NOW - 3 * 86_400_000;
+        sessionCreatedAt(NOW - 86_400_000);
+        assert.equal(await ensureFirebaseSession('G. Miller'), true);
+        assert.equal(store.has(AUTH_KEY), true);
+    });
+
+    test('never reset: unaffected', async () => {
+        sessionCreatedAt(NOW - 30 * 86_400_000);
+        assert.equal(await ensureFirebaseSession('G. Miller'), true);
+    });
+
+    test('an UNKNOWN reset time fails closed — one typed password, never the hole', async () => {
+        sessionCreatedAt(NOW - 86_400_000);
+        _resetAtMs = null;
+        assert.equal(await ensureFirebaseSession('G. Miller'), false);
+        assert.equal(store.has(AUTH_KEY), false);
+    });
+
+    test('a session written before `createdAt` existed is dated from its expiry', async () => {
+        store.set(AUTH_KEY, JSON.stringify({ name: 'G. Miller', ver: SESSION_VER, expiry: NOW - 3 * 86_400_000 + SESSION_MS }));
+        _resetAtMs = NOW - 86_400_000;
+        assert.equal(await ensureFirebaseSession('G. Miller'), false);
+    });
+
+    test('a TYPED password is never refused by it — that is how the member gets back in', async () => {
+        sessionCreatedAt(NOW - 3 * 86_400_000);
+        _resetAtMs = NOW - 86_400_000;
+        assert.equal(await ensureFirebaseSession('G. Miller', undefined, 'miller'), true);
+    });
+
+    test('saveSession records when the session began', () => {
+        saveSession('G. Miller');
+        const s = JSON.parse(store.get(AUTH_KEY));
+        assert.ok(Math.abs(s.createdAt - Date.now()) < 5000);
+        assert.equal(s.expiry - s.createdAt, SESSION_MS);
+    });
+});
+

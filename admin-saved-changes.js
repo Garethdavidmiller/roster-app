@@ -26,7 +26,7 @@
 import { escapeHtml } from './roster-data.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { TYPES, rowValueText } from './admin-shift-types.js';
-import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides, withManualDuplicates } from './admin-override-store.js';
+import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides, withManualDuplicates, assertDeletable, DELETE_REFUSED } from './admin-override-store.js';
 
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
@@ -289,6 +289,7 @@ async function _handleDelete(e) {
         // self-heals (force-refresh + retry once) instead of a hard permission-denied — parity with
         // the executeSave / recordRangeOverrides / bulk-delete write paths.
         await withSlowSaveNotice(writeWithClaimRetry(async () => {
+            await assertDeletable(ids);   // never over a colleague's newer edit (Oct 2026 review)
             const batch = writeBatch(db);
             ids.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
             await batch.commit();
@@ -311,7 +312,8 @@ async function _handleDelete(e) {
         btn.disabled = false;
         _disarmConfirmButton(btn, '✕');
         if (listFeedback) {
-            setStatus(listFeedback, (/** @type {any} */ (err))?.code === 'unavailable'
+            setStatus(listFeedback, (/** @type {any} */ (err))?.code === DELETE_REFUSED ? '⚠ ' + /** @type {any} */ (err).line
+                : (/** @type {any} */ (err))?.code === 'unavailable'
                 ? '⚠ You appear to be offline — reconnect and try again.'
                 : unconfirmedWriteLine(err, 'this delete', 'Saved Changes') ? '⚠ ' + unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
                 : '⚠ Could not delete — check your connection and try again.');
@@ -374,6 +376,7 @@ function _initOverridesTable() {
                 // Re-runnable thunk (fresh batch each attempt) so a stale-claim manager's bulk delete
                 // self-heals once via writeWithClaimRetry rather than erroring.
                 await withSlowSaveNotice(writeWithClaimRetry(async () => {
+                    await assertDeletable(ids);   // as the single delete
                     const batch = writeBatch(db);
                     ids.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
                     await batch.commit();
@@ -391,7 +394,8 @@ function _initOverridesTable() {
             } catch (err) {
                 console.error('[Admin] Bulk delete failed:', err);
                 if (listFeedback) {
-                    setStatus(listFeedback, (/** @type {any} */ (err))?.code === 'unavailable'
+                    setStatus(listFeedback, (/** @type {any} */ (err))?.code === DELETE_REFUSED ? '⚠ ' + /** @type {any} */ (err).line
+                        : (/** @type {any} */ (err))?.code === 'unavailable'
                         ? '⚠ You appear to be offline — reconnect and try again.'
                         : unconfirmedWriteLine(err, 'this delete', 'Saved Changes') ? '⚠ ' + unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
                         : '⚠ Bulk delete failed — check your connection and try again.');

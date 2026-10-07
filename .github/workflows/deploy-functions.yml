@@ -124,11 +124,13 @@ jobs:
       # ONLY guard that they stay in sync — and a functions-only push never triggers the hosting
       # workflow that runs the full suite, so run it here too or a drifted derivation would ship
       # green and break every staff login at the next account re-provision.
-      - name: Check browser/functions surname derivation stays in sync
-        run: node --test surname-parity.test.mjs
-
-      - name: Check roster-members.json is in sync with roster-data.js
-        run: node --test --test-name-pattern "roster-members" sw-asset-check.test.mjs
+      # THE WHOLE ROOT SUITE, NOT TWO PICKED FILES (Oct 2026 production review). This workflow is the
+      # only one a functions-only push runs — deploy-hosting has `paths-ignore: functions/**` — and
+      # several root suites test functions/ code directly (overtime-core, calendar-viewer-auth,
+      # london-clock, member-identity, doc-url-core, the parity suites). Two hand-picked files here
+      # left them unrun on exactly the push that changes what they test. `npm test` subsumes both.
+      - name: Run the root suites (includes surname parity and the roster-members sync)
+        run: npm test
 
       # The rule, and why an unreachable npm is not a finding, is in the script's own header.
       # This is the DEPLOY gate, so an unknown warns and proceeds: blocking a release — including

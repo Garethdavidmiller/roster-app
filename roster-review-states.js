@@ -226,7 +226,16 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     //    redundant AND would MASK a later base-roster change (an override always
                     //    beats the base), so a "matches base today" row silently kept the old value.
                     //    REMOVE_IMPORT already renders a row, so it needs no guarded variant.
-                    state = existing ? 'REMOVE_IMPORT' : (guarded ? 'GUARDED' : 'MATCH');
+                    //  • …EXCEPT A REST DAY THE ROSTER MARKS AS LEAVE OR ABSENCE (Oct 2026 production
+                    //    review). That previous import is not stale: it is the ANSWER to the swap
+                    //    question, written when an admin said "Swapped — record it". Classing it as
+                    //    REMOVE_IMPORT (ticked) deleted confirmed leave on the next upload of the
+                    //    very same PDF. The same import again → COVERED. A different import there
+                    //    (say, an old shift) → the question is asked again, and the answer replaces
+                    //    or removes it — never a default.
+                    const asksSwap = guarded === 'rest-day' && (parsedShift === 'AL' || parsedShift === 'SICK');
+                    if (existing && asksSwap) state = normRest(existing.value) === parsedShift ? 'COVERED' : 'GUARDED';
+                    else state = existing ? 'REMOVE_IMPORT' : (guarded ? 'GUARDED' : 'MATCH');
                 } else {
                     // PDF differs from base (a genuine change), OR a stale differing import must be
                     // replaced with a new value. Approving deletes the old import (replaceId) and
@@ -349,6 +358,26 @@ export function swapQuestionApplies(s) {
  */
 export function guardedWriteValue(s) {
     return swapQuestionApplies(s) && s.chosen === 'swapped' ? s.parsedShift : null;
+}
+
+/**
+ * What saving a GUARDED row writes (Oct 2026 review — pure so the save path is tested, not just the
+ * question). "Swapped" records the roster's leave or absence, REPLACING any previous import on the
+ * day; "rest day" writes nothing, except that a previous import there is REMOVED — the PDF now says
+ * this is not a working day. Unanswered writes nothing at all.
+ * @param {any} s a cell state @param {string} memberName @param {string} date
+ * @returns {Array<{memberName: string, date: string, value: string|null, baseShift: string, swapped?: boolean, replaceId?: string, replacedFrom?: any, deleteOnly?: boolean}>}
+ */
+export function guardedWrites(s, memberName, date) {
+    if (!s || s.state !== 'GUARDED' || s.rosterBlocked) return [];
+    const value = guardedWriteValue(s);
+    if (value) return [{ memberName, date, value, baseShift: s.baseShift, swapped: true,
+        replaceId: s.manualId ?? undefined,
+        replacedFrom: s.manualId ? { type: s.manualType, replacedType: s.manualReplacedType } : null }];
+    if (s.manualId && s.chosen === 'free' && swapQuestionApplies(s)) {
+        return [{ memberName, date, value: null, baseShift: s.baseShift, replaceId: s.manualId, deleteOnly: true }];
+    }
+    return [];
 }
 
 /**

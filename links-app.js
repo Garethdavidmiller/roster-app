@@ -2125,8 +2125,11 @@ export function init() {
             const { named, binned, legacyData, toBin } = _splitDocs(snap.docs.map((/** @type {any} */ d) => ({ id: d.id, data: d.data() })), !snap.metadata?.fromCache);
             _binPre26(toBin);
 
-            // One-time migration: convert combined-28 to a named design
-            if (named.length === 0 && legacyData) {
+            // ONE-TIME migration of combined-28 — and it has to STAY one-time (Oct 2026 review). The
+            // gate was only "no live design", which the 26-line release made true again by binning
+            // every pre-26 design: the legacy grid came back as "Design 1", was binned next load, and
+            // returned again. A collection that has EVER held a design — live or binned — is past it.
+            if (named.length === 0 && binned.length === 0 && legacyData) {
                 // Through the SHARED mapping (v19.94): it once skipped `normalisePatterns` and the
                 // `window` field, persisting legacy unpadded times for good. History: git log.
                 const migrated = designFromDoc('', { ...legacyData, name: 'Design 1' });

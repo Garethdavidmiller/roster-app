@@ -222,7 +222,7 @@ its own wrapper) rather than trying to sit them side by side.
 Grid (primary object) → Auto-generator (collapsed by default) → Coverage (hourly heat map) → Design checks. The generator sits directly beneath the grid because it is the only way to create a new design.
 
 ### Firestore model (multi-design, v12.46)
-`linkDesigns` is a **collection** of named design documents `{ name, patterns, window, revision, updatedAt, updatedBy }` — plus `deletedAt`/`deletedBy` while binned — with auto-IDs. The legacy singleton `linkDesigns/combined-28` (no `name` field) is auto-migrated to a named design ("Design 1") on first load and thereafter ignored — never write to it.
+`linkDesigns` is a **collection** of named design documents `{ name, patterns, window, revision, updatedAt, updatedBy }` — plus `deletedAt`/`deletedBy` while binned — with auto-IDs. The legacy singleton `linkDesigns/combined-28` (no `name` field) is auto-migrated to a named design ("Design 1") only in a collection that has never held a design, live OR binned (Oct 2026 — the gate used to be "no live design", which the 26-line binning made true again, re-migrating it on every open). It is never deleted, so the gate is all that keeps the migration one-time — never write to it.
 
 **Every doc ↔ object conversion is `links-design-doc.js`** (v19.94). Eleven sites in the coordinator
 built these by hand in four shapes, two of them near-identical copies of the same write payload, and

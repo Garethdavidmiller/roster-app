@@ -14,13 +14,13 @@
  *   must be accompanied by a password reset for all affected users.
  */
 
-import { auth, authReady, currentUserAfterBoot, nameToEmail, normaliseSurname, signInWithEmailAndPassword, signOut as firebaseSignOut, restoreMemberPersistence } from './firebase-client.js';
+import { auth, authReady, currentUserAfterBoot, nameToEmail, normaliseSurname, signInWithEmailAndPassword, signOut as firebaseSignOut, restoreMemberPersistence, getResetAtMs } from './firebase-client.js';
 // PURE, and imported rather than re-derived: `isViewerUser` decides whether an identity may be
 // PRESERVED across the expired-identity teardown, so a second local copy of that predicate is a
 // second place a bypass could be introduced. calendar-access-core.js imports nothing, so this adds
 // no cycle (asserted by import-graph.test.mjs).
 import { isViewerUser } from './calendar-access-core.js';
-import { surnamePassword, credentialCandidatesFor, isCredentialRejection } from './auth-identity.js';
+import { surnamePassword, credentialCandidatesFor, isCredentialRejection, sessionPredatesReset } from './auth-identity.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { CALENDAR_SNAPSHOT } from './storage-keys.js';
 import { CONFIG } from './roster-data.js';
@@ -481,6 +481,20 @@ export async function ensureFirebaseSession(name, _gen, password) {
             // The surname default WORKED — the account is on it (or back on it, after an admin
             // reset), so the silent recovery must be re-armed for this device.
             if (candidate === surnamePassword(name)) lsDel(_noDefaultKey(name));
+            // …UNLESS THE RESET WAS AIMED AT THIS DEVICE (Oct 2026 production review). A silent
+            // re-sign-in on a session older than the member's last admin reset is exactly the lost
+            // phone the reset was meant to sign out — and the reset just made the surname valid
+            // again. Refuse it: sign out, end the local session, and make whoever holds the device
+            // type a password. A TYPED sign-in never reaches this (password != null).
+            if (password == null && sessionPredatesReset(_sessionCreatedMs(), await _resetAtWithin(name, 5000))) {
+                // Superseded during the read: the newer attempt owns `auth` now — touch nothing.
+                if (!fresh()) return commit('none', false);
+                await firebaseSignOut(auth).catch(() => {});
+                lsDel(AUTH_KEY);
+                lsDel(CALENDAR_SNAPSHOT);
+                console.warn('[Auth] silent sign-in refused — this device signed in before the last password reset');
+                return commit('none', false);
+            }
             return commit('named', true);
         } catch (e) {
             const _e = /** @type {any} */ (e);
@@ -667,6 +681,27 @@ export function getSession() {
     } catch { return null; }
 }
 
+/** When this device's local session was created, or null when there is none. Sessions written before
+ *  `createdAt` existed derive it from their absolute expiry. @returns {number|null} */
+function _sessionCreatedMs() {
+    try {
+        const s = JSON.parse(lsGet(AUTH_KEY) || 'null');
+        if (!s) return null;
+        if (Number.isFinite(s.createdAt)) return s.createdAt;
+        return Number.isFinite(s.expiry) ? s.expiry - SESSION_MS : null;
+    } catch { return null; }
+}
+
+/** The server's last-reset time for `name`, or null if it cannot be confirmed within `ms`.
+ *  @param {string} name @param {number} ms @returns {Promise<number|null>} */
+async function _resetAtWithin(name, ms) {
+    /** @type {ReturnType<typeof setTimeout>|undefined} */
+    let t;
+    try {
+        return await Promise.race([getResetAtMs(name), new Promise(r => { t = setTimeout(() => r(null), ms); })]);
+    } catch { return null; } finally { clearTimeout(t); }
+}
+
 /**
  * Persist a new session for the named user — 60-day absolute expiry, and nothing else. There is no
  * second clock to start (v20.41).
@@ -682,6 +717,9 @@ export function saveSession(name) {
         name,
         ver:    SESSION_VER,
         expiry: now + SESSION_MS,
+        // When this device's session began — compared with the server's `resetAt` before any silent
+        // re-sign-in (`sessionPredatesReset`). Older sessions derive it from `expiry`.
+        createdAt: now,
     });
     lsSet(AUTH_KEY, payload);
     return lsGet(AUTH_KEY) === payload;

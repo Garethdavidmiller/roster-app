@@ -33,7 +33,7 @@
  * `e2e/pages.spec.js` (which query actually runs).
  */
 
-import { db, collection, query, where, orderBy, limit, getDocs, COLLECTIONS } from './firebase-client.js';
+import { db, collection, query, where, orderBy, limit, getDocs, getDoc, doc, COLLECTIONS } from './firebase-client.js';
 import { manualOverrideId } from './override-id.js';
 import { shouldReplaceOverride } from './override-utils.js';
 import { emptyCoverage, withMember, withAll, hasAuthorityFor, coversEveryone, replaceMemberSlice, mergeCappedRead } from './admin-override-coverage.js';
@@ -305,6 +305,76 @@ const CACHED_READ = 'served-from-cache';
  */
 function refuseCachedRead(snap) {
     if (snap?.metadata?.fromCache) throw Object.assign(new Error('Overrides read was served from the offline cache'), { code: CACHED_READ });
+}
+
+// ── A STALE DELETE MAY NOT DESTROY A NEWER EDIT (Oct 2026 production review) ───────────────────
+// Admin's cache is read once and never refreshes on its own, and since v24.48 a manual record has
+// ONE id per member and day. So a manager deleting a row they saw this morning deleted the document
+// a colleague had since rewritten under that same id — silently, with a receipt saying "Deleted AL
+// day". Before every delete the rows are re-read FROM THE SERVER and compared with what this page
+// showed; a difference refuses the whole delete. Saves stay last-writer-wins (an accepted decision);
+// a delete is the one write that cannot see what it removes.
+//
+// A read-then-delete, not a transaction: the window between the two is milliseconds, against the
+// hours of staleness this closes, and it keeps every delete in the batch shape its callers already
+// retry and gate. It does need the network — an unconfirmable check refuses the delete.
+
+/** What a delete refused because the day changed underneath it says. */
+export const CHANGED_ELSEWHERE_LINE = 'Someone else has changed this since your list loaded, so nothing was deleted. Reload the page to see the latest, then try again.';
+/** What a delete refused because the check could not reach the server says. */
+export const UNCHECKED_DELETE_LINE = "Couldn't check for newer changes, so nothing was deleted. Reconnect and try again.";
+
+/**
+ * The cached rows whose STORED value, type or member differs now — or that the server cannot vouch
+ * for. A row the server no longer holds is not a difference: it is already gone.
+ * @param {Array<{id: string, value?: any, type?: any, memberName?: any}>} rows
+ * @returns {Promise<Array<any>>}
+ */
+export async function findChangedSince(rows) {
+    /** @type {any[]} */
+    const changed = [];
+    for (let i = 0; i < rows.length; i += 20) {
+        const part = rows.slice(i, i + 20);
+        const snaps = await Promise.all(part.map(r => getDoc(doc(db, COLLECTIONS.overrides, r.id))));
+        snaps.forEach((/** @type {any} */ snap, /** @type {number} */ j) => {
+            refuseCachedRead(snap);
+            if (!snap.exists()) return;
+            const now = /** @type {any} */ (snap.data()), was = part[j];
+            if (now.value !== was.value || now.type !== was.type || now.memberName !== was.memberName) changed.push({ ...was, now });
+        });
+    }
+    return changed;
+}
+
+/**
+ * Null when the rows may be deleted; otherwise the line to show the person who asked. Each item is
+ * either the ROW the page showed (best: captured before any reload) or an id, looked up in the
+ * cache. An id the cache cannot resolve is skipped — there is nothing shown to compare against.
+ * @param {Iterable<string|{id: string}>} items
+ * @returns {Promise<string|null>}
+ */
+export async function staleDeleteVerdict(items) {
+    const byId = new Map(_allOverrides.map(o => [o.id, o]));
+    const rows = [...items].map(x => (typeof x === 'string' ? byId.get(x) : x)).filter(Boolean);
+    try {
+        return (await findChangedSince(/** @type {any[]} */ (rows))).length ? CHANGED_ELSEWHERE_LINE : null;
+    } catch {
+        return UNCHECKED_DELETE_LINE;
+    }
+}
+
+/** The code a refused delete throws with; its `line` is what to show. */
+export const DELETE_REFUSED = 'overrides/delete-refused';
+
+/**
+ * Throw `DELETE_REFUSED` unless every row may be deleted — called inside each delete's write, so every
+ * caller's existing error branch reports it.
+ * @param {Iterable<string|{id: string}>} items rows as shown, or ids
+ * @returns {Promise<void>}
+ */
+export async function assertDeletable(items) {
+    const line = await staleDeleteVerdict(items);
+    if (line) throw Object.assign(new Error(line), { code: DELETE_REFUSED, line });
 }
 
 /** @param {{ everyone: boolean, member: string }} opts @returns {Promise<void>} */

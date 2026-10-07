@@ -551,7 +551,7 @@ async function initPageSpeedCard() {
         heading.textContent = 'What the app’s background worker was doing';
         frag.appendChild(heading);
         frag.appendChild(noteLine(
-            'After a release the worker rechecks the app’s own files. This is how many it was rechecking as each page opened — a count, not a speed.'));
+            'The worker fetches any of the app’s own files it has not stored yet — after a release, or when a phone has cleared its storage. This is how many it was fetching as each page opened — a count, not a speed.'));
 
         if (counts.total) {
             const list = document.createElement('div');
@@ -566,7 +566,7 @@ async function initPageSpeedCard() {
             // is why that is safe: a band added there without a word here renders as the raw band
             // ('101+'), which is ugly and true, rather than vanishing from a distribution.
             /** @type {Record<string, string>} */
-            const WORDS = { '0': 'Nothing to recheck', '1-10': 'A few files', '11-30': 'Some files', '31+': 'A full sweep' };
+            const WORDS = { '0': 'Nothing to fetch', '1-10': 'A few files', '11-30': 'Some files', '31+': 'A full sweep' };
             counts.rows.forEach(r => {
                 const row = document.createElement('div');
                 row.className = 'speed-row speed-row--why speed-row--count';
