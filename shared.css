@@ -271,6 +271,10 @@
 
     --border-light: oklch(93.1% 0 0);
     --border-mid:   oklch(84.5% 0 0);
+    /* The resting edge of a CONTROL a reader must find (Oct 2026 review). WCAG 1.4.11 asks 3:1 for a
+       component's boundary; --border-mid is a divider at ~1.5:1 on a card, which left an unticked
+       checkbox the faintest thing on the screen. 62% L clears 3:1 on white, the card and --field-bg. */
+    --border-control: oklch(62.0% 0 0);
 
     --bg-light: oklch(97.9% 0 0);
     --bg-faint: oklch(97.0% 0 0);
@@ -466,7 +470,7 @@
        `--check-fill` is the checked fill and tick/dot contrast partner; `--check-border` the
        resting border. The recipe itself lives under "NATIVE CONTROLS THE APP DRAWS" below. */
     --check-fill:   var(--primary-blue);
-    --check-border: var(--border-mid);
+    --check-border: var(--border-control);
 
     /* ── Button colour intent ─────────────────────────────────────
        Primary   = navy fill, white text
@@ -3005,6 +3009,10 @@ button.nav-panel-link--notices {
    What does NOT join: the fixed full-screen `#loginOverlay` wrapper. The lock card stays in the
    page flow, because the nav drawer, the guides and the documents must stay reachable while the
    Calendar is locked — an `inset: 0` overlay would cover the burger. */
+/* The sign-in <form> exists for password managers only; it must not become a layout box between
+   #loginCard and its fields (login-overlay.js). */
+.login-form { display: contents; }
+
 #loginCard, #pwForceContent, .cal-lock-card {
     background: white;
     border-radius: var(--radius-xl);

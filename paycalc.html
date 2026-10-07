@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
     <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net https://apis.google.com; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://apis.google.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src https://myb-roster.firebaseapp.com https://apis.google.com; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="only light">
     <!-- Staff-only app: nothing here has a public audience. Mirrors the X-Robots-Tag header in
@@ -565,7 +565,7 @@
         <div class="hours-row">
           <div class="h-info">
             <div class="h-title">Any other payslip adjustment</div>
-            <div class="h-sub">For absence deductions, corrections, or any extra payslip line. Tap <strong>+/−</strong> to switch between adding or deducting.</div>
+            <div class="h-sub">For absence deductions, corrections, or any extra payslip line. Taxed like pay, so leave out expense refunds. Tap <strong>+/−</strong> to switch between adding or deducting.</div>
           </div>
           <div class="adj-controls">
             <button id="adjSignBtn" type="button" class="adj-sign-btn" aria-label="Toggle sign: currently positive">+</button>

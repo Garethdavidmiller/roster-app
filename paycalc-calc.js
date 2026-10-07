@@ -455,7 +455,7 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
   const isScottish = /^S/.test(baseCode);
   const TAX = /** @type {any} */ (t.tax), SCOT = /** @type {any} */ (t.scottishTax);
 
-  function resolvePA() {
+  function resolvePA(/** @type {boolean} */ cumulative) {
     let pa = (isScottish ? SCOT : TAX).pa;
     if (baseCode === '0T' || baseCode === 'S0T') return 0;
     const km = baseCode.match(/^[SC]?K(\d+)$/);
@@ -464,7 +464,14 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     // WHY (L standard, M marriage-allowance recipient, N transferor, T other adjustments) — it does
     // not change the arithmetic. Matching only 'L' silently gave M/N/T codes the full £12,570 default.
     const nm = baseCode.match(/^[SC]?(\d+)[LMNT]$/);
-    if (nm) return parseInt(nm[1]) * 10 / P_YR;
+    // HMRC's tax-free pay for a numeric code is (number × 10) + 9 — the code names a £10 band and
+    // PAYE grants its TOP (1257L = £12,579). Applied on the CUMULATIVE path only, and that split is
+    // MEASURED, not a hedge (Oct 2026, against the thirteen real 2025/26 payslips): cumulative
+    // without the 9 ran high every period, worst £3.75 by March, and with it lands within 25p;
+    // the non-cumulative estimate, which approximates a cumulative payroll one period at a time,
+    // matches 9 of 13 to the penny WITHOUT it and only 7 with it. So each path keeps what the real
+    // payslips say it should. K codes are untouched: no K-code payslip has been seen to check.
+    if (nm) return (parseInt(nm[1]) * 10 + (cumulative ? 9 : 0)) / P_YR;
     return pa;
   }
 
@@ -481,7 +488,7 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     // code fell through to the normal banded Scottish calc WITH an allowance — a large under-taxation.
     if (baseCode === 'SD2') return amount * SCOT.bands[4].rate;
     if (baseCode === 'SD3') return amount * SCOT.bands[5].rate;
-    const pa = resolvePA();
+    const pa = resolvePA(scale != null);
     const scaledPa = pa * (scale || 1);
     // HMRC floors taxable income to the nearest whole pound before applying rates.
     // Verified against reference payslips P20 (01/08/2025) and P28 (26/09/2025).
@@ -505,13 +512,16 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
   // Both ytdPay and ytdTax must be non-null — 0 is valid (first period); null means "not provided".
   // Requiring both prevents ytdTax defaulting to 0 when only ytdPay is filled, which would
   // make Math.max(0, cumTaxDue - 0) massively overstate tax for the period.
-  // HMRC "overriding limit" (Income Tax (PAYE) Regs, reg 23): the tax DEDUCTED in a pay period may
-  // never exceed 50% of the taxable payment for that period. It applies to every code but bites mainly
-  // on K codes (which add notional pay), where uncapped tax can exceed — or even swallow — the whole
-  // payment. Any tax the cap defers is collected in later periods (the cumulative recalc picks it up
+  // HMRC "overriding limit" (Income Tax (PAYE) Regs, reg 23): the tax DEDUCTED in a pay period under
+  // a K CODE may never exceed 50% of the taxable payment for that period. It is a K-code rule — K codes
+  // add notional pay, so uncapped tax can exceed or even swallow the whole payment — and is applied
+  // only there (Oct 2026 review; it said "every code" before). No other code's rate reaches 50%, so
+  // that changed no figure: it stops the comment, and the cap, claiming a rule HMRC does not make.
+  // Any tax the cap defers is collected in later periods (the cumulative recalc picks it up
   // from the actual YTD tax the user enters next period, so this caps the DISPLAY without corrupting
-  // the cumulative liability). Never binds for ordinary codes (Miller's tax is ~17–22% of gross).
-  const overridingLimit = Math.max(0, sacGross) * 0.5;
+  // the cumulative liability).
+  const isKCode = /^[SC]?K\d+$/.test(baseCode);
+  const overridingLimit = isKCode ? Math.max(0, sacGross) * 0.5 : Infinity;
 
   if (ytdPay != null && ytdTax != null && !isNonCum && periodN !== null) {
     const N = periodN;

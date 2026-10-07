@@ -180,7 +180,7 @@ export function init() {
     markPageReady();
     // Hold a release's reload while a save is on its way (v24.61): the contact card's writes are
     // counted by slow-save, the password card's two-step write by the flag above.
-    registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(() => writesInFlight() > 0 || _passwordSaving) });
+    registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(() => writesInFlight() > 0 || _passwordSaving), isBusy: () => writesInFlight() > 0 || _passwordSaving });
     sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
     // Forced set-password overlay (PASSWORD_DESIGN.md Phase 2) — fire-and-forget, never on the login
     // critical path. Inside the sessionReady callback so `currentUser` is read LATE: on the in-place

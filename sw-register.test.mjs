@@ -624,3 +624,25 @@ describe('lazyImport — a failed lazy import after an update reloads onto it', 
         } finally { h.restore(); }
     });
 });
+
+// ── A NOTIFICATION TAP ASKS FIRST (Oct 2026 review) ─────────────────────────────────────────────
+// The worker's half is sw-notification-tap.test.mjs; this is the page's: it must answer what its
+// own update reload already asks, and a predicate that throws must count as busy, never as "go".
+describe('the page answers a notification tap\'s "are you busy?"', () => {
+    /** @param {() => boolean} [isBusy] */
+    const ask = async (isBusy) => {
+        const h = makeHarness({ controlled: true });
+        try {
+            registerServiceWorker(isBusy ? { isBusy } : {});
+            await h.flush();
+            const replies = /** @type {any[]} */ ([]);
+            const port = { postMessage: (/** @type {any} */ m) => replies.push(m) };
+            (h.swListeners.message || []).forEach(fn => fn({ data: { type: 'myb-busy?' }, ports: [port] }));
+            return replies;
+        } finally { h.restore(); }
+    };
+    test('busy work on screen → busy', async () => assert.deepEqual(await ask(() => true), [{ busy: true }]));
+    test('nothing to lose → not busy, answered at once', async () => assert.deepEqual(await ask(() => false), [{ busy: false }]));
+    test('a page that passed no check is not busy — it is still answered', async () => assert.deepEqual(await ask(), [{ busy: false }]));
+    test('a check that throws counts as busy', async () => assert.deepEqual(await ask(() => { throw new Error('x'); }), [{ busy: true }]));
+});

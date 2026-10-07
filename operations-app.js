@@ -65,12 +65,11 @@ export function init() {
     // Asked again at the moment of reloading (v24.61): the `{ once: true }` listener this replaced
     // reloaded on the FIRST hide whether or not the review, parse or upload had finished — and if it
     // had not, the one chance was spent and the page never reloaded for that release at all.
-    registerServiceWorker({
-        beforeReload: () => reloadWhenNotBusy(() =>
-            !!document.getElementById('rosterReviewSection')?.classList.contains('visible')
-            || !!/** @type {HTMLSelectElement|null} */ (document.getElementById('rosterType'))?.disabled
-            || !!document.querySelector('[data-uploading]')),
-    });
+    const _opsBusy = () =>
+        !!document.getElementById('rosterReviewSection')?.classList.contains('visible')
+        || !!/** @type {HTMLSelectElement|null} */ (document.getElementById('rosterType'))?.disabled
+        || !!document.querySelector('[data-uploading]');
+    registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_opsBusy), isBusy: _opsBusy });
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
     // Fire-and-forget, login-safe: no-op on a valid session, stands down if a login supersedes it.

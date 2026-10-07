@@ -29,6 +29,7 @@ mock.module('./calendar-overrides.js', {
         setInitialFetchInProgress(v) { _progressHistory.push(v); _fakeFetchInProgress = v; },
         addFetchedMonths(keys)       { _addMonthsHistory.push([...keys]); },
         clearFetchedMonth(key)       { _clearMonthsHistory.push(key); },
+        releaseStaleMonths:          () => [],
         monthKey:                    (y, m) => `${y}-${String(m + 1).padStart(2, '0')}`,
         fetchOverridesForRange:      (...args) => _fetchImpl(...args),
         fetchOverridesForRangeFromCache: (...args) => _cacheFetchImpl(...args),

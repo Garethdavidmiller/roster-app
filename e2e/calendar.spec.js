@@ -571,6 +571,27 @@ test('calendar: the Today highlight moves when the local date turns', async ({ p
     await expect.poll(async () => (await today.textContent())?.trim()).not.toBe(before);
 });
 
+// A month read once used to stay "current" for the life of the page, so a PC or a resumed phone showed
+// the morning's roster in the afternoon (Oct 2026 review). Coming back into view after ten minutes
+// re-reads; coming back sooner does not. The observable is the read itself.
+test('calendar: coming back into view re-reads a month once it is ten minutes old, and not before', async ({ page }) => {
+    await page.clock.install({ time: new Date(2026, 9, 2, 9, 0, 0) });
+    await seedMember(page);
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    const reads = () => page.evaluate(() => /** @type {any} */ (window).__E2E?.docReads || 0);
+    const comeBack = () => page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await expect.poll(reads).toBeGreaterThan(0);
+    await page.clock.runFor('00:05');
+    const settled = await reads();
+    await comeBack();
+    await page.clock.runFor('00:02');
+    expect(await reads(), 'a fresh month is not re-read').toBe(settled);
+    await page.clock.fastForward('11:00');
+    await comeBack();
+    await expect.poll(reads, { message: 'a stale month is re-read on return' }).toBeGreaterThan(settled);
+});
+
 // The page's arrow/t/p shortcuts listen on `document`, so they heard keys another control had
 // already handled (a grade tab's arrows changed the WEEK too) and browser chords (Alt+→ changed the
 // month on top of "forward"; Ctrl+P printed twice).
@@ -2572,6 +2593,24 @@ test('huddle: the Open button works immediately, while the short-lived link is s
     await btn.click();
     await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__opened), { timeout: 3000 })
         .toEqual([STORED]);
+});
+
+// ── A CACHE-SERVED LEAVE BALANCE IS REFUSED (Oct 2026 review) ───────────────────────────────────
+// Offline, the year query is answered from whatever records the device happens to hold, and counting
+// those overstates the leave left. The panel must say it could not load rather than show a figure.
+test('calendar: the leave panel refuses a balance served from the offline cache', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-02T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'a1', memberName: 'G. Miller', date: '2026-03-04', type: 'annual_leave', value: 'AL', note: '' }];
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLbError')).toBeVisible();
+    await expect(page.locator('#alLbTaken')).toHaveText('—');
 });
 
 // ── THE LEAVE PANEL'S YEAR AND ITS SECOND ROUTE (v24.46, owner) ─────────────────────────────────

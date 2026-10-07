@@ -1643,6 +1643,7 @@ export function init() {
         // (v24.61) re-asks BOTH at the moment of reloading — the hand-rolled version re-asked only
         // the writes, so staged week-grid edits could still be reloaded away on a hide.
         beforeReload: () => reloadWhenNotBusy(() => hasUnsavedChanges() || writesInFlight() > 0),
+        isBusy: () => hasUnsavedChanges() || writesInFlight() > 0,   // a notification tap asks too
     });
     sessionReady.then(() => { initErrorReporter(); recordUsage('admin', currentUser); recordPageLatency('admin', currentUser); });
 

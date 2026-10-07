@@ -148,6 +148,10 @@ global.document = /** @type {any} */ (fakeDocument);
 let _commit = async () => {};
 /** Document ids every committed batch deleted, in order. @type {string[]} */
 let _deleted = [];
+/** The size of every batch that reached commit, in order. @type {number[]} */
+let _batchSizes = [];
+/** Every removeFromCache call's ids. @type {string[][]} */
+let _removed = [];
 
 /** v24.38: the delete paths refuse up front when nobody is signed in. */
 const _mockAuth = { currentUser: /** @type {any} */ ({ uid: 'admin' }) };
@@ -161,7 +165,7 @@ mock.module('./firebase-client.js', {
         writeBatch: () => {
             /** @type {string[]} */ const pending = [];
             return { delete(/** @type {any} */ ref) { pending.push(ref.id); },
-                commit: async () => { await _commit(); _deleted.push(...pending); } };
+                commit: async () => { _batchSizes.push(pending.length); await _commit(); _deleted.push(...pending); } };
         },
         writeWithClaimRetry: (/** @type {Function} */ fn) => fn(),
         COLLECTIONS: { overrides: 'overrides' },
@@ -186,7 +190,7 @@ mock.module('./admin-override-store.js', {
         // store refuses with — a colleague's newer edit, or a check that could not be made.
         assertDeletable: async () => { if (_refuseDelete) throw Object.assign(new Error(_refuseDelete), { code: 'overrides/delete-refused', line: _refuseDelete }); },
         DELETE_REFUSED: 'overrides/delete-refused',
-        removeFromCache: () => {},
+        removeFromCache: (/** @type {string[]} */ ids) => { _removed.push([...ids]); },
         isTruncated: () => false,
         coversAllStaff: () => _coversAll,
         OVERRIDES_QUERY_CAP: 400,
@@ -267,7 +271,7 @@ async function bulkDelete(/** @type {string[]} */ ids) {
     await fire('bulkDeleteBtn', 'click');   // deletes
 }
 
-beforeEach(() => { _commit = async () => {}; _deleted = []; _mockAuth.currentUser = { uid: 'admin' }; setup(); });
+beforeEach(() => { _commit = async () => {}; _deleted = []; _batchSizes = []; _removed = []; _mockAuth.currentUser = { uid: 'admin' }; setup(); });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -556,3 +560,25 @@ describe('7. a delete over a colleague\'s newer edit is refused, and says so', (
     });
 });
 
+
+// ── A LONG BULK DELETE IS CHUNKED (Oct 2026 review) ─────────────────────────────────────────────
+// Firestore refuses a batch of more than 500 writes, so "select all" over a long list failed outright
+// and read as a connection problem.
+describe('8. a bulk delete larger than one batch', () => {
+    const many = (/** @type {number} */ n) => Array.from({ length: n }, (_, i) => `r${i}`);
+
+    test('commits in batches no larger than 200, and deletes every row', async () => {
+        const ids = many(450);
+        await bulkDelete(ids);
+        assert.deepEqual(_batchSizes, [200, 200, 50]);
+        assert.equal(_deleted.length, 450);
+    });
+
+    test('a later batch failing takes off the list only what WAS deleted', async () => {
+        let n = 0;
+        _commit = async () => { if (++n === 2) throw new Error('network'); };
+        await bulkDelete(many(450));
+        assert.deepEqual(_removed, [many(200)], 'the first batch is gone from the server, so from the list too');
+        assert.match(el('listFeedback').textContent, /⚠/);
+    });
+});

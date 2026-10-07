@@ -220,12 +220,12 @@ export function buildWeekGridInto(container, dateStr) {
 
         row.innerHTML = `
             <div class="col-check">
-                <input type="checkbox" class="day-cb" aria-label="${DAY_NAMES[date.getDay()]} ${date.getDate()} ${MONTH_ABB[date.getMonth()]}">
+                <input type="checkbox" class="day-cb" id="day-cb-${dateISO}" aria-label="${DAY_NAMES[date.getDay()]} ${date.getDate()} ${MONTH_ABB[date.getMonth()]}">
             </div>
-            <div class="col-day">
+            <label class="col-day" for="day-cb-${dateISO}">
                 <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
                 <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${isToday ? '<span class="day-today-tag">Today</span>' : ''}${badgeHTML}${existing ? ` <span class="overwrite-badge"><span aria-hidden="true">⚠</span> ${escapeHtml(existing.value === 'SICK' ? 'Absent' : existing.value === 'SPARE' ? 'Spare' : (existing.value || existing.type))}</span>` : ''}</span>
-            </div>
+            </label>
             <div class="col-base">${getShiftBadge(baseShift, { showTime: true })}</div>
             <div class="col-pills">
                 ${PILL_TYPES.map(t => `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`).join('\n                ')}

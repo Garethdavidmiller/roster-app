@@ -94,7 +94,7 @@ const {
     rosterOverridesCache, _initialFetchInProgress,
     setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth,
     monthKey, _monthSlices, fetchOverridesForRange, fetchOverridesForRangeFromCache,
-    ensureOverridesCached, getShiftTypesInMonth, setOverrideAccess,
+    ensureOverridesCached, getShiftTypesInMonth, setOverrideAccess, releaseStaleMonths,
 } = await import('./calendar-overrides.js');
 
 // Open the Calendar access gate for this whole file (v20.12). Every read here refuses to run
@@ -514,6 +514,47 @@ describe('a late, superseded read must not write', () => {
         assert.equal(changed, false, 'nothing should have been written');
         assert.equal(rosterOverridesCache.get('A. Smith|2035-09-10')?.value, 'AL',
             'a cache snapshot overwrote an authoritative answer');
+    });
+});
+
+describe('a settled month is re-read once it is old (Oct 2026 review)', () => {
+    // The defect: a month marked fetched stayed fetched for the life of the page, so a shared PC or a
+    // resumed iPhone app showed the morning's roster as current hours later. releaseStaleMonths is
+    // what the page calls on resume; these pin what it may and may not release.
+    beforeEach(() => { rosterOverridesCache.clear(); _mockDocs = []; _getDocsThrows = false; _deferGetDocs = false; });
+    const HOUR = 3_600_000;
+
+    test('a month older than the limit is released, and the next render reads it again', async () => {
+        let renders = 0;
+        await ensureOverridesCached(2041, 2, () => { renders++; });
+        await ensureOverridesCached(2041, 2, () => { renders++; });
+        assert.equal(renders, 1, 'while fresh, the claim stands');
+        assert.ok(releaseStaleMonths(HOUR, Date.now() + 2 * HOUR).includes('2041-03'));
+        await ensureOverridesCached(2041, 2, () => { renders++; });
+        assert.equal(renders, 2, 'released, so the resume render re-reads it');
+    });
+
+    test('a fresh month is not released', async () => {
+        await ensureOverridesCached(2042, 2, () => {});
+        assert.ok(!releaseStaleMonths(HOUR, Date.now() + 60_000).includes('2042-03'));
+    });
+
+    test('a month still being read is never released under its own read', async () => {
+        _deferGetDocs = true;
+        const pending = ensureOverridesCached(2043, 2, () => {});
+        await _tick();
+        assert.ok(!releaseStaleMonths(0, Date.now() + 10 * HOUR).includes('2043-03'), 'in flight — left alone');
+        _deferGetDocs = false;
+        while (_releases.length) _releases.shift()();
+        await pending;
+    });
+
+    test('nothing is released while the initial fetch still owns its months', () => {
+        addFetchedMonths(['2044-03']);
+        setInitialFetchInProgress(true);
+        try { assert.deepEqual(releaseStaleMonths(0, Date.now() + 10 * HOUR), []); }
+        finally { setInitialFetchInProgress(false); }
+        assert.ok(releaseStaleMonths(0, Date.now() + 10 * HOUR).includes('2044-03'), 'and once it settles, its months age like any other');
     });
 });
 

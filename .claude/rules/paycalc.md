@@ -153,6 +153,19 @@ The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from ba
 - **The lock decision never reads a box's contents, and a locked box is WRITTEN with its recorded figure.** F1 froze a half-typed fragment; F2 froze a stale restored value behind a padlock, which reads to the member as the app confirming it.
 - **`resolvePaidInPeriod` must not return 0 while any candidate exists.** The ladder's ORDER is a judgement (a decided award derives and ignores what was saved — the 3.6% award moved 31 Jul → 28 Aug and a stale saved value pinned the lump to a payslip the member can no longer see); never-zero is the safety property. Applying it fixed a residual instance in `restoreBpState`, where a decided award whose payday fell beyond the generated period list still produced 0.
 
+## Tax-free pay: (code × 10) + 9 on the Year to Date path ONLY (Oct 2026 — measured)
+HMRC grants the TOP of a code's £10 band (1257L = £12,579). `computeTax` applies the 9 on the
+CUMULATIVE path (Year to Date figures entered) and NOT on the one-period estimate, and that split is
+what the thirteen real 2025/26 payslips say: cumulative without it ran high every period, worst £3.75
+by March, and with it lands within 25p (now held by a 30p test in the payslip lane); the one-period
+estimate matches 9 of 13 to the penny without it and only 7 with it. **Do not "make them consistent"
+in either direction** — both directions were mutated and both fail. K codes are untouched (no K-code
+payslip to check). The 50% overriding limit applies to **K codes only** (HMRC's rule); no other code's
+rate reaches 50%, so that changed no figure.
+
+The **"Any other payslip adjustment"** box is added to pay and taxed (owner decision, Oct 2026): an
+expense refund does not belong in it, and the row and the guide say so.
+
 ## New-starter visibility clamp (v15.97)
 
 A member who **only started this tax year** should not see earlier tax years in the calculator — "from this year onwards". `computeEarliestVisiblePNum(member)` in `paycalc-periods.js` returns the first period of the member's **join tax year**; `setEarliestVisiblePeriod(getLoggedMember())` is called once at init (before the tabs + period select are built), and `visiblePeriods()` / `isTaxYearVisible()` gate the period `<select>`, the back-pay paid-in select, prev/next navigation, and the tax-year tabs. **Tax-year granularity** (whole prior years are hidden, not individual pre-start periods). **Excluded from the clamp:** members with no `startDate` (long-serving) and **`noProRate` secondment returns** (full-year pay — they *were* employed in the prior year). `paycalc-periods.js` cannot import `getLoggedMember` (circular), so the coordinator passes the member in. Covered by `paycalc-periods.test.mjs`.

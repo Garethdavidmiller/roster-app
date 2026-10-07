@@ -8,7 +8,7 @@
  * Edit here for: sync chip appearance, retry behaviour, initial fetch range.
  */
 
-import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache, accessGeneration } from './calendar-overrides.js';
+import { _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, clearFetchedMonth, releaseStaleMonths, monthKey, fetchOverridesForRange, fetchOverridesForRangeFromCache, accessGeneration } from './calendar-overrides.js';
 import { isAccessFailure } from './claim-retry.js';
 import { noteKnowledge } from './calendar-data-state.js';
 import { formatISO } from './roster-data.js';
@@ -445,11 +445,21 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
 
   // If the tab is suspended on iOS during the initial fetch and then restored,
   // re-render from whatever cached data we have so the calendar is not blank.
+  //
+  // And once the page is settled, coming back into view RE-READS what has gone stale (Oct 2026
+  // review): a month older than STALE_MONTH_MS is released and the re-render fetches it again behind
+  // the grid already on screen. Also on a back/forward-cache restore, which fires no visibilitychange
+  // on every engine. See releaseStaleMonths for why a failed re-read cannot blank a good grid.
+  const STALE_MONTH_MS = 10 * 60_000;
+  const refreshIfStale = () => {
+    if (releaseStaleMonths(STALE_MONTH_MS).length) { if (isTeamViewMode()) renderTeamView(); else renderCalendar(); }
+  };
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && _initialFetchInProgress) {
-      if (isTeamViewMode()) renderTeamView(); else renderCalendar();
-    }
+    if (document.hidden) return;
+    if (_initialFetchInProgress) { if (isTeamViewMode()) renderTeamView(); else renderCalendar(); return; }
+    refreshIfStale();
   });
+  globalThis.addEventListener?.('pageshow', (/** @type {any} */ e) => { if (e.persisted) refreshIfStale(); });   // globalThis: the Node suites have no window
 
   // THE PANEL'S RETRY TAKES OVER FROM THE CHIP (48-hour review). The month panel's Try again re-reads
   // the month without passing through `doRetry`, so a recorded failure outlived a retry that worked
