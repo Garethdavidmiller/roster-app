@@ -102,6 +102,16 @@ shown that yet.
 
 ## Decisions taken — recorded so they are not re-raised
 
+- **The documents keep their stored permanent link as a FALLBACK** (owner, 7 Oct 2026) · **Trigger: a
+  leaked Huddle, Circular or Newsletter link, or a sustained run of `getDocumentUrl` failures that makes
+  the fallback the usual path rather than the exception.** The October 2026 review asked to stop storing
+  the permanent `storageUrl` and to re-mint a signed link inside the open handler. Three options were put:
+  keep the fallback, stop storing it for new uploads only, or remove it and rotate every file. The owner
+  chose to keep it. The 15-minute signed link is still what a member normally opens (v24.19); the
+  stored one is used only when that cannot be fetched — offline, a timeout, a 503 — and removing it
+  would make a document simply not open at those moments, while minting at click time spends the tap
+  and gets the tab pop-up-blocked. EXC-007 in ARCHITECTURE.md stays open on that basis.
+
 - **The staff PIN session keeps NO server-side time limit** (owner, 7 Oct 2026) · **Trigger: a PIN
   tab found open on a device that should not have it, or a PIN rotation that has to chase sessions.**
   The October 2026 production review proposed an `auth_time` ceiling in `isCalendarViewer`, because
