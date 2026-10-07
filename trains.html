@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<!-- MYB Roster — Trains: what changes in the December 2026 timetable -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+    <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="only light">
+    <!-- Staff-only app: nothing here has a public audience. Mirrors the X-Robots-Tag header in
+         firebase.json, and is the ONLY noindex signal the GitHub Pages mirror gets (it cannot serve
+         headers). Rationale in robots.txt; enforced by sw-asset-check.test.mjs. -->
+    <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#001e3c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="MYB Roster">
+  <title>Marylebone Roster — Trains</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="./icon-167.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="./icon-152.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="./icon-120.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
+  <link rel="preload" href="./fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
+  <!-- The Firebase SDK, fetched from the moment the HTML is parsed — see overtime.html for why. -->
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js" crossorigin>
+  <link rel="stylesheet" href="./shared.css">
+  <link rel="stylesheet" href="./trains.css">
+</head>
+<body spellcheck="false">
+
+<!-- Login overlay is injected by login-overlay.js (shared in-place sign-in) when not signed in. -->
+
+<!-- Icon lightbox -->
+<div id="iconLightbox" class="lb-overlay" role="dialog" aria-label="About Marylebone Roster" aria-modal="true">
+    <div id="iconLightboxContent" class="lb-content">
+        <button id="iconLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
+        <img src="icon-192.png" id="lightboxAppIcon" alt="Chiltern Railways app icon">
+        <div class="lightbox-app-name">Marylebone Roster</div>
+        <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
+        <div id="lightboxUpdateStatus" class="lightbox-status"></div>
+        <div class="lightbox-badge">Trains</div>
+        <a href="./" class="lightbox-bug-link"><span aria-hidden="true">📅</span> View staff roster</a>
+        <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
+    </div>
+</div>
+
+<!-- Header -->
+<header class="app-header">
+    <button type="button" class="btn-burger" id="navMenuBtn"
+            aria-label="Open navigation menu" aria-expanded="false">☰</button>
+    <div class="app-header-brand">
+        <img src="icon-192.png" class="app-icon" id="appIcon" alt="Back to calendar" loading="eager">
+        <h1>Marylebone Roster</h1>
+    </div>
+    <span class="badge-page" id="trainsBadge"><span class="badge-glyph" aria-hidden="true">🚆</span> Trains</span>
+</header>
+
+<main class="app" id="trainsMain">
+
+    <!-- ── THE DATE, AND THE WHOLE CHANGE IN THREE LINES ─────────────────────────────────────────
+         Not a card: it is the page's answer, sitting on the canvas the way the Pay Calculator's
+         take-home does. Filled by trains-app.js; the static text is what a reader sees if the
+         script never runs. -->
+    <section class="tr-hero" aria-labelledby="trHeroTitle">
+        <p class="tr-hero-eyebrow" id="trCountdown">New timetable</p>
+        <h2 class="tr-hero-title" id="trHeroTitle">From Sunday 13 December</h2>
+        <p class="tr-hero-lead">Chiltern’s new timetable starts on Sunday 13 December 2026. This page shows what changes
+            for trains leaving and arriving at Marylebone, so you can answer customers before it happens.</p>
+        <table class="tr-totals" id="trTotals" aria-label="Trains leaving Marylebone, now and from 13 December">
+            <thead><tr><th scope="col">Leaving Marylebone</th><th scope="col">Now</th><th scope="col">From 13 Dec</th></tr></thead>
+            <tbody></tbody>
+        </table>
+    </section>
+
+    <!-- ── WHICH DAY, WHICH WAY ──────────────────────────────────────────────────────────────────
+         One choice drives every card below. Buttons with aria-pressed, not tabs: nothing is hidden
+         by them — the same three cards re-render for the chosen day and direction. -->
+    <div class="tr-controls" id="trControls">
+        <div class="tr-seg" role="group" aria-label="Day">
+            <button type="button" class="tr-seg-btn" data-day="SX" aria-pressed="true">Weekdays</button>
+            <button type="button" class="tr-seg-btn" data-day="SO" aria-pressed="false">Saturdays</button>
+            <button type="button" class="tr-seg-btn" data-day="SU" aria-pressed="false">Sundays</button>
+        </div>
+        <div class="tr-seg" role="group" aria-label="Direction">
+            <button type="button" class="tr-seg-btn" data-dir="dep" aria-pressed="true">Leaving</button>
+            <button type="button" class="tr-seg-btn" data-dir="arr" aria-pressed="false">Arriving</button>
+        </div>
+    </div>
+
+    <div class="tr-cols">
+        <div class="tr-col-main">
+            <!-- ── EVERY TRAIN, BY WHERE IT GOES ─────────────────────────────────────────────── -->
+            <div class="card" id="trRoutesCard">
+                <div class="card-header card-header-toggle" id="trRoutesToggleHeader">
+                    <div>
+                        <h2><span aria-hidden="true">🗺️</span> <span id="trRoutesTitle">Where trains go</span></h2>
+                        <span class="hint" id="trRoutesHint">Tap a destination to see every train, now and from 13 December</span>
+                    </div>
+                    <div class="card-header-actions">
+                        <span class="collapse-chevron open" id="trRoutesChevron">▾</span>
+                    </div>
+                </div>
+                <div class="card-collapsible-body open" id="trRoutesBody">
+                    <div class="card-body">
+                        <ul class="tr-key" aria-label="What the labels mean">
+                            <li><span class="tr-chip tr-chip--same">No change</span> same time</li>
+                            <li><span class="tr-chip tr-chip--moved">2 mins later</span> retimed</li>
+                            <li><span class="tr-chip tr-chip--new">New train</span> added</li>
+                            <li><span class="tr-chip tr-chip--gone">No longer runs</span> removed</li>
+                            <li><span class="tr-chip tr-chip--rerouted">Now runs to…</span> different destination</li>
+                        </ul>
+                        <div id="trRoutes" aria-live="polite"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tr-col-side">
+            <!-- ── THE BASIC HOUR ─────────────────────────────────────────────────────────────── -->
+            <div class="card" id="trPatternCard">
+                <div class="card-header card-header-toggle" id="trPatternToggleHeader">
+                    <div>
+                        <h2><span aria-hidden="true">🕰️</span> The basic hour</h2>
+                        <span class="hint">Between 10:00 and 16:00 most hours repeat. Learn this and you know most of the day</span>
+                    </div>
+                    <div class="card-header-actions">
+                        <span class="collapse-chevron open" id="trPatternChevron">▾</span>
+                    </div>
+                </div>
+                <div class="card-collapsible-body open" id="trPatternBody">
+                    <div class="card-body">
+                        <div id="trPattern"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── LOOK UP A TIME ─────────────────────────────────────────────────────────────── -->
+            <div class="card" id="trLookupCard">
+                <div class="card-header card-header-toggle" id="trLookupToggleHeader">
+                    <div>
+                        <h2><span aria-hidden="true">🔎</span> Look up a time</h2>
+                        <span class="hint">A customer asks about “the 17:15”? Type it in</span>
+                    </div>
+                    <div class="card-header-actions">
+                        <span class="collapse-chevron open" id="trLookupChevron">▾</span>
+                    </div>
+                </div>
+                <div class="card-collapsible-body open" id="trLookupBody">
+                    <div class="card-body">
+                        <label class="tr-label" for="trLookupInput">Time</label>
+                        <input type="text" class="tr-input" id="trLookupInput" inputmode="numeric"
+                               autocomplete="off" placeholder="17:15" maxlength="5">
+                        <div id="trLookupResult" aria-live="polite"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── WHAT THIS PAGE CANNOT TELL YOU ─────────────────────────────────────────────── -->
+            <div class="card" id="trAboutCard">
+                <div class="card-header card-header-toggle" id="trAboutToggleHeader">
+                    <div>
+                        <h2><span aria-hidden="true">ℹ️</span> Good to know</h2>
+                        <span class="hint">Where these times come from, and what is not here yet</span>
+                    </div>
+                    <div class="card-header-actions">
+                        <span class="collapse-chevron" id="trAboutChevron">▾</span>
+                    </div>
+                </div>
+                <div class="card-collapsible-body" id="trAboutBody">
+                    <div class="card-body">
+                        <ul class="tr-notes">
+                            <li><strong>Times at Marylebone only.</strong> Which stations each December train stops at
+                                is not on this page yet. A train with the same time can still stop at different stations.</li>
+                            <li><strong>December times can still change.</strong> Before you tell a customer, check the
+                                journey planner on the Chiltern Railways website.</li>
+                            <li><strong>Aylesbury has two routes.</strong> Via High Wycombe or via Amersham. A train that
+                                changes route is shown as going somewhere different, because the journey is.</li>
+                            <li><strong>Joined trains count once.</strong> Two trains coupled together leave as one.</li>
+                        </ul>
+                        <p class="tr-sources" id="trSources"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</main>
+
+<script type="module" src="./trains-boot.js"></script>
+</body>
+</html>

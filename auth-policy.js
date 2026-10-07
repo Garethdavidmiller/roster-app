@@ -63,6 +63,9 @@ export const PAGE_POLICIES = Object.freeze({
     // on the server. At full launch the whole role list drops away and this becomes a plain
     // named-user page, because participation — not a role — decides what is shown.
     overtime:   { requireNamed: true,  role: ['admin', 'manager', 'overtimeBeta'] },
+    // Trains: an admin preview of the December 2026 timetable change (owner, 7 Oct 2026). Public
+    // data, so this is UX rather than protection; it becomes a plain named-user page at launch.
+    trains:     { requireNamed: true,  role: ['admin'] },
 });
 
 /** @returns {AuthDecision} */

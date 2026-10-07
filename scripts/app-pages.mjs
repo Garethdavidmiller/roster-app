@@ -57,7 +57,7 @@ const app = (file, id, more = {}) => ({
     coordinator: `${id}-app.js`, boot: `${id}-boot.js`, cards: true, authBarrier: 'sessionReady', ...more,
 });
 
-/** The seven app pages. Order is the nav drawer's, for readability only. @type {ReadonlyArray<AppPage>} */
+/** The eight app pages. Order is the nav drawer's, for readability only. @type {ReadonlyArray<AppPage>} */
 export const APP_PAGES = Object.freeze([
     app('index.html', 'calendar', { url: '/', css: 'index.css', boot: null, cards: false, authBarrier: 'calendarAuthReady' }),
     app('admin.html', 'admin'),
@@ -67,6 +67,7 @@ export const APP_PAGES = Object.freeze([
     app('settings.html', 'settings'),
     app('links.html', 'links'),
     app('overtime.html', 'overtime'),
+    app('trains.html', 'trains'),
 ]);
 
 /** The printable guides — no shared.css, no drawer, no auth, no analytics id. In the drawer's order,
