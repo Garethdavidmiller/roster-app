@@ -170,7 +170,7 @@ function renderRoutes(state) {
         // A line that runs on (Aylesbury via Amersham → Aylesbury Vale Parkway) says so first:
         // it is why the Parkway has no tile of its own.
         const line = LINES[r.key];
-        const ext = line ? STATIONS[line.extension] ?? line.extension : '';
+        const ext = line ? line.onward.map(o => STATIONS[o.station] ?? o.station).join(' or ') : '';
         const ends = r.tally.terminus;
         const parts = [
             moved && `${moved} retimed`,
@@ -191,8 +191,10 @@ function renderRoutes(state) {
             const days = now ? daysLabel(t.days) : '';
             // On a line that runs on, a train going the extra stop says so under its time — short,
             // because the tile's own summary has just named the station in full.
-            const onwards = (/** @type {string|undefined} */ to) => line && to === line.extension
-                ? `<span class="tr-days">${leaving ? 'to' : 'from'} Parkway</span>` : '';
+            const onwards = (/** @type {string|undefined} */ to) => {
+                const stop = line?.onward.find(o => o.station === to);
+                return stop ? `<span class="tr-days">${leaving ? 'to' : 'from'} ${esc(stop.short)}</span>` : '';
+            };
             return `<tr class="tr-row tr-row--${chip}">`
                 + `<td>${now ? esc(now) : none}`
                 + `${days ? `<span class="tr-days">${esc(days)}</span>` : ''}${now ? onwards(t.nowTo) : ''}</td>`
@@ -251,7 +253,8 @@ function renderLookup(state) {
     const exact = compareRoutes(nowRows, decRows).flatMap(r => r.trains.map(t => ({ r, t })))
         .filter(({ t }) => t.now === at && (t.kind !== 'rerouted' || t.side === 'old'));
     const answer = exact.map(({ r, t }) => {
-        const name = routeName(STATIONS, r.station, r.via);
+        // Where THIS train goes: on a line that runs on, that is not always the route's own station.
+        const name = t.nowTo && t.nowTo !== r.station ? STATIONS[t.nowTo] ?? t.nowTo : routeName(STATIONS, r.station, r.via);
         const label = changeLabel(t, STATIONS, state.dir);
         // A retimed or new train gets its December time; a rerouted one's label already carries it.
         const when = t.kind === 'earlier' || t.kind === 'later' ? ` (${t.dec})` : '';
