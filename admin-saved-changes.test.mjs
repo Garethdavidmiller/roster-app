@@ -579,6 +579,6 @@ describe('8. a bulk delete larger than one batch', () => {
         _commit = async () => { if (++n === 2) throw new Error('network'); };
         await bulkDelete(many(450));
         assert.deepEqual(_removed, [many(200)], 'the first batch is gone from the server, so from the list too');
-        assert.match(el('listFeedback').textContent, /⚠/);
+        assert.match(el('listFeedback').textContent, /Deleted 200 of 450/, 'a part-way stop says how far it got');
     });
 });

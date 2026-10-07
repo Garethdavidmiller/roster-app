@@ -531,7 +531,10 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     // refunded by real cumulative PAYE. The estimate keeps the deduction at £0 — netting a refund
     // into take-home would let one mistyped Year to Date figure invent money — but REPORTS the
     // over-collection so the result can say a refund may be due, rather than a silently wrong £0.
-    return { tax: Math.min(Math.max(0, cumTaxDue - ytdTax), overridingLimit), usingCumulative: true,
+    // …AND NEVER MORE THAN THE PAY ITSELF (same-day bug check). The 50% cap used to bound a mistyped
+    // Tax Paid figure for every code; now that it is K-code-only, a Tax Paid typed as 200 for 2000
+    // charged nearly the whole period. Real PAYE cannot deduct more than it pays, so neither can this.
+    return { tax: Math.min(Math.max(0, cumTaxDue - ytdTax), overridingLimit, Math.max(0, sacGross)), usingCumulative: true,
              refund: Math.max(0, ytdTax - cumTaxDue) };
   }
 

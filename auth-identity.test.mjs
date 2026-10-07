@@ -11,7 +11,7 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { normaliseSurname, nameToEmail, surnamePassword, credentialCandidatesFor, isPasswordMigrated, isCredentialRejection, sessionPredatesReset,
+import { normaliseSurname, nameToEmail, surnamePassword, credentialCandidatesFor, isPasswordMigrated, isCredentialRejection, sessionPredatesReset, resetAtFromRestDoc, isRestCredentialRejection,
          validateNewPassword, MIN_PASSWORD_LENGTH } from './auth-identity.js';
 
 /** Firestore Timestamp-like stub: an object exposing toMillis(). */
@@ -213,3 +213,32 @@ describe('sessionPredatesReset', () => {
     });
 });
 
+
+// ── The pre-sign-in reset probe's two readings (Oct 2026 bug check) ──────────────────────────────
+describe('resetAtFromRestDoc', () => {
+    test('a stored resetAt is read as milliseconds', () => {
+        assert.equal(resetAtFromRestDoc(200, { fields: { resetAt: { timestampValue: '2026-10-07T09:00:00Z' } } }), Date.parse('2026-10-07T09:00:00Z'));
+    });
+    test('no document, or a document without resetAt, is "never reset"', () => {
+        assert.equal(resetAtFromRestDoc(404, null), 0);
+        assert.equal(resetAtFromRestDoc(200, { fields: { passwordSetAt: { timestampValue: '2026-01-01T00:00:00Z' } } }), 0);
+    });
+    test('anything else is UNKNOWN — refused, failed, or unreadable', () => {
+        assert.equal(resetAtFromRestDoc(403, { error: {} }), null);
+        assert.equal(resetAtFromRestDoc(500, null), null);
+        assert.equal(resetAtFromRestDoc(200, { fields: { resetAt: { timestampValue: 'not a date' } } }), null);
+    });
+});
+
+describe('isRestCredentialRejection', () => {
+    test('a wrong or disabled credential is a rejection', () => {
+        for (const m of ['INVALID_LOGIN_CREDENTIALS', 'INVALID_PASSWORD', 'EMAIL_NOT_FOUND', 'USER_DISABLED : x']) {
+            assert.equal(isRestCredentialRejection(400, { error: { message: m } }), true, m);
+        }
+    });
+    test('throttling, other errors and non-400s are not', () => {
+        assert.equal(isRestCredentialRejection(400, { error: { message: 'TOO_MANY_ATTEMPTS_TRY_LATER' } }), false);
+        assert.equal(isRestCredentialRejection(500, { error: { message: 'INVALID_PASSWORD' } }), false);
+        assert.equal(isRestCredentialRejection(400, null), false);
+    });
+});

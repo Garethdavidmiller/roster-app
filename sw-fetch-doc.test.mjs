@@ -174,6 +174,23 @@ describe('service worker — a navigation with NOTHING cached (v24.61)', () => {
     });
 });
 
+describe('service worker — a MISS answered by navigation preload (same-day bug check)', () => {
+    test('the preload is SERVED, but what is STORED is the worker\'s own no-cache fetch', async () => {
+        // A preload uses the navigation's own cache mode, so on the Pages mirror it can be last
+        // release's page from the HTTP cache; stored, it would stay for the whole version.
+        const { body, stores, fetchModes, settle } = await navigate({
+            path: '/admin.html',
+            preload: Promise.resolve(ok('<h1>OLD release</h1>')),
+            network: async () => ok('<h1>NEW release</h1>'),
+        });
+        assert.match(body, /OLD release/, 'the member is not kept waiting for a second fetch');
+        await settle();
+        const stored = await stores.get(CACHE)?.get(`${ORIGIN}/admin.html`)?.clone().text();
+        assert.match(String(stored), /NEW release/, 'the version cache holds the fresh page, never the preload');
+        assert.ok(fetchModes.includes('no-cache'), 'and it was fetched past the HTTP cache');
+    });
+});
+
 describe('service worker — a navigation with a FALLBACK cached', () => {
     test('a hung network is abandoned at the 2 s race for the cached fallback', async () => {
         let aborted = false;

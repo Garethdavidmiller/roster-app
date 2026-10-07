@@ -390,12 +390,19 @@ export function guardedWrites(s, memberName, date) {
 export function guardedRowHtml({ key, s, dayName, dateStr, badgeHtml, esc }) {
     const asks = swapQuestionApplies(s);
     const recording = guardedWriteValue(s) !== null;
+    // WHAT IS SAVED NOW, AND WHAT THE ANSWER DOES TO IT (same-day bug check). Since an old import
+    // under a guarded day stopped being a ticked "Clear old", this row was the only place it showed —
+    // and it did not: "Rest day — leave it" DELETES it (guardedWrites → deleteOnly) under a tag that
+    // still said "Not recorded", and leaving the row unanswered keeps it. The admin is now shown both.
+    const held = s.manualId && s.manualValue != null ? String(s.manualValue) : null;
+    const clearing = !recording && !!held && s.chosen === 'free';
     const btn = (/** @type {string} */ v, /** @type {boolean} */ on, /** @type {string} */ label) =>
         `<button type="button" class="roster-choice-btn${on ? ' is-chosen' : ''}" data-key="${esc(key)}" data-swap="${v}" aria-pressed="${on}">${label}</button>`;
     return `
         <div class="roster-chg-day"><span class="roster-day-abbr">${dayName}</span><span class="roster-day-date">${dateStr}</span></div>
         <div class="roster-guard-said"><span class="roster-guard-lab">Roster</span><span class="roster-guard-val${recording ? ' is-recorded' : ''}">${badgeHtml}</span></div>
-        <span class="roster-act ${recording ? 'act-update' : 'act-none'}">${recording ? 'Will record' : 'Not recorded'}</span>
+        ${held ? `<div class="roster-guard-said"><span class="roster-guard-lab">Saved now</span><span class="roster-guard-val">${esc(held === 'SICK' ? 'Absent' : held)}</span></div>` : ''}
+        <span class="roster-act ${recording ? 'act-update' : clearing ? 'act-clear' : 'act-none'}">${recording ? 'Will record' : clearing ? 'Will clear' : held ? 'Kept as saved' : 'Not recorded'}</span>
         <p class="roster-guard-note">${guardCopy(s.guarded, asks)}</p>
         ${asks ? `<div class="roster-pick roster-guard-pick" role="group" aria-label="Was this a swapped working day?">
             ${btn('yes', s.chosen === 'swapped', 'Swapped \u2014 record it')}${btn('no', s.chosen === 'free', 'Rest day \u2014 leave it')}

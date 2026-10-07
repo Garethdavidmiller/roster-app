@@ -725,6 +725,12 @@ describe('computeTax', () => {
     approx(tax, expected, 'cumulative tax');
   });
 
+  test('cumulative PAYE: a mistyped (too small) Tax Paid can never take more than the period pays', () => {
+    // Before the 50% cap became K-code-only it bounded this for every code; the period's pay is the bound now.
+    const { tax } = computeTax(2600, '1257L', T25, { ytdPay: 60000, ytdTax: 0, periodN: 8 });
+    assert.ok(tax <= 2600, `tax ${tax} exceeds the period's pay`);
+  });
+
   test('cumulative PAYE: ytdTax overpaid → clamps to 0 not negative', () => {
     // ytdTax intentionally very large — result must not go negative
     const { tax } = computeTax(500, '1257L', T25, { ytdPay: 500, ytdTax: 9999, periodN: 2 });
