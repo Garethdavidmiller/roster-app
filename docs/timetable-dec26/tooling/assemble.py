@@ -1,5 +1,5 @@
 """Turn parsed columns into trains: link 'e'/'f' continuations, keep Marylebone departures (out)
-and arrivals (ret). Usage: assemble.py <met-cols.json> <main-cols.json> <out.json>"""
+and arrivals (ret), plus each book's station order. Usage: assemble.py <met-cols.json> <main-cols.json> <out.json>"""
 import sys, json, re, collections
 TIME = re.compile(r'^(\d{2})(\d{2})([a-z]?)$')
 def timed(c): return TIME.match(c['text'])
@@ -40,7 +40,19 @@ def timed_stops(stops, keep):
             continue
         out.append([x['crs'], x['t'][:4]])
     return out
-T = build(json.load(open(sys.argv[1])), 'met') + build(json.load(open(sys.argv[2])), 'main')
+def row_order(cols):
+    """The book's station rows, outward direction, in printed order: the longest block's rows first,
+    then any station another block adds, placed after the nearest station that precedes it there.
+    A station printed twice (arrival and departure) appears once."""
+    order = []
+    for rows in sorted((c.get('rows', []) for c in cols if c['dir'] == 'out'), key=len, reverse=True):
+        for i, crs in enumerate(rows):
+            if crs in order: continue
+            before = next((c for c in reversed(rows[:i]) if c in order), None)
+            order.insert(order.index(before) + 1 if before else len(order), crs)
+    return order
+MET, MAIN = json.load(open(sys.argv[1])), json.load(open(sys.argv[2]))
+T = build(MET, 'met') + build(MAIN, 'main')
 res = []
 for t in T:
     if t['op'] != 'CH': continue                                   # bus replacements are not trains
@@ -75,7 +87,7 @@ for r in res:
         continue
     seen[key] = r
 R = sorted(seen.values(), key=lambda r: (r['kind'], r['day'], (mins(r['t']) - 180) % 1440))
-json.dump(R, open(sys.argv[3], 'w'), indent=1)
+json.dump({'trains': R, 'order': {'met': row_order(MET), 'main': row_order(MAIN)}}, open(sys.argv[3], 'w'), indent=1)
 print('dupes removed:', len(res) - len(R))
 print(collections.Counter((r['kind'], r['day']) for r in R))
 for day in ('SX', 'SO', 'SU'):

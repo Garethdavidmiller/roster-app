@@ -44,8 +44,8 @@ import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE } from './trains-data.js';
 import { CARD_TIPS } from './trains-tips.js';
 import { compareRoutes, trainsNear, parseTypedTime, daysUntil, changeLabel, routeName } from './trains-change.js';
-import { stationView, busiestStations, matchStations, headlineChanges, stoppingGrid, stopsKnown } from './trains-stations.js';
-import { renderHeadlines, renderStation, renderGrid } from './trains-render.js';
+import { stationView, busiestStations, matchStations, headlineChanges, stoppingGrid, stopsKnown, lineOf } from './trains-stations.js';
+import { renderHeadlines, renderStation, renderGrid, endWords } from './trains-render.js';
 
 /** @typedef {'SX'|'SO'|'SU'} Day */
 /** @typedef {'dep'|'arr'} Dir */
@@ -190,7 +190,11 @@ function renderStationView(state) {
             ? label + offered.map(crs => `<button type="button" class="tr-pick" data-station="${esc(crs)}" aria-pressed="${crs === state.station}">${esc(STATIONS[crs] ?? crs)}</button>`).join('')
             : '<p class="card-explainer tr-lead">No station matches that.</p>';
     }
-    setText('trStationTitle', state.station ? STATIONS[state.station] ?? state.station : 'Stations');
+    const name = state.station ? STATIONS[state.station] ?? state.station : null;
+    setText('trStationTitle', name ?? 'Stations');
+    // The subtitle shows the journey the card is about, the way a departure board does.
+    setText('trStationHint', !name ? 'Where is the customer going, or coming back from?'
+        : state.sdir === 'dep' ? `London Marylebone → ${name}` : `${name} → London Marylebone`);
     if (dirs) dirs.hidden = !state.station;
     if (!host) return;
     if (!state.station) { host.innerHTML = '<p class="card-explainer tr-lead">Pick a station above, or start typing its name.</p>'; return; }
@@ -226,10 +230,22 @@ function renderLookup(state) {
         return `<p class="tr-answer"><strong>The ${esc(at)} to ${esc(name)}:</strong> ${esc(label)}${esc(when)}.</p>`;
     }).join('');
 
+    // A train that runs on past its line's station is named by the line, then where it goes on to —
+    // "Birmingham Moor Street, on to Stourbridge": "Stourbridge Junction" alone reads as a train
+    // that misses Birmingham.
+    const where = (/** @type {string} */ st, /** @type {string} */ via) => {
+        const line = lineOf(st);
+        if (line && line.station !== st) {
+            const on = endWords(st, line.station, STATIONS, true);
+            if (on) return `${esc(routeName(STATIONS, line.station, via))} <span class="tr-near-on">${esc(on)}</span>`;
+        }
+        return esc(routeName(STATIONS, st, via));
+    };
     const list = (/** @type {import('./trains-change.js').TrainRow[]} */ rows) => rows.length
-        ? `<ul class="tr-near">${rows.map(([t, st, via]) => `<li><span class="tr-near-time">${esc(t)}</span> ${esc(routeName(STATIONS, st, via))}</li>`).join('')}</ul>`
+        ? `<ul class="tr-near">${rows.map(([t, st, via]) => `<li><span class="tr-near-time">${esc(t)}</span> ${where(st, via)}</li>`).join('')}</ul>`
         : '<p class="card-explainer tr-lead">No trains.</p>';
-    host.innerHTML = answer
+    const noExact = answer ? '' : `<p class="card-explainer tr-lead">No train leaves at exactly ${esc(at)} today.</p>`;
+    host.innerHTML = answer + noExact
         + `<p class="card-explainer tr-lead">${esc(DAY_NAMES[state.day])}, leaving within 15 minutes of ${esc(at)}:</p>`
         + `<div class="tr-near-cols"><div><h3 class="tr-near-head">Now</h3>${list(near.now)}</div>`
         + `<div><h3 class="tr-near-head">From 13 Dec</h3>${list(near.dec)}</div></div>`;

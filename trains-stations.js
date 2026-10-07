@@ -27,6 +27,7 @@
  */
 
 import { serviceMinutes, alignTimes, LINES, lineDepth, PATTERN_HOURS, MAX_SHIFT_MIN } from './trains-change.js';
+import { STATION_ORDER } from './trains-data.js';
 
 /** @typedef {import('./trains-change.js').TrainRow} TrainRow */
 /** @typedef {import('./trains-change.js').PairedTrain} PairedTrain */
@@ -37,6 +38,8 @@ import { serviceMinutes, alignTimes, LINES, lineDepth, PATTERN_HOURS, MAX_SHIFT_
  * @property {number} perHour      off-peak trains an hour (PATTERN_HOURS), rounded to the nearest whole
  * @property {[number, number]} hourRange  the fewest and the most trains in any one off-peak hour — shown
  *                                 to a reader, because an average of 2 hid two hours with only 1 train
+ * @property {number} typical      the trains in a TYPICAL off-peak hour — the most common count (a tie goes to
+ *                                 the higher). What the card says first; the range is its small print
  * @property {number[]} minutes    minutes past the hour, at Marylebone, that repeat in most off-peak hours
  * @property {number|null} fastest quickest journey in minutes, or null when no train's stop times are known
  * @property {string|null} first   first train of the railway day, Marylebone time
@@ -134,6 +137,10 @@ export function summarise(rows, crs, dir) {
     const need = Math.floor(hours / 2) + 1;
     const perHourCounts = Array.from({ length: hours }, (_, i) =>
         inWindow.filter(r => Number(r[0].slice(0, 2)) === PATTERN_HOURS.from + i).length);
+    /** @type {Map<number, number>} */
+    const freq = new Map();
+    for (const n of perHourCounts) freq.set(n, (freq.get(n) ?? 0) + 1);
+    const typical = [...freq.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]?.[0] ?? 0;
     const minutes = [...seen.entries()].filter(([, hs]) => hs.size >= need).map(([m]) => m).sort((a, b) => a - b);
     const journeys = here.flatMap((r) => {
         const stop = parseStops(r).find(s => s.crs === crs);
@@ -145,6 +152,7 @@ export function summarise(rows, crs, dir) {
         total: here.length,
         perHour: Math.round(inWindow.length / hours),
         hourRange: [Math.min(...perHourCounts), Math.max(...perHourCounts)],
+        typical,
         minutes,
         fastest: journeys.length ? Math.min(...journeys) : null,
         first: here[0]?.[0] ?? null,
@@ -187,10 +195,12 @@ export function verdictFor(now, dec, trains) {
             : `New from 13 December: ${dec.total} direct trains a day.` };
     }
     if (now.total && !dec.total) return { tone: 'less', text: 'No direct trains from 13 December.' };
-    if ((now.perHour || dec.perHour) && dec.perHour !== now.perHour) {
-        return dec.perHour > now.perHour
-            ? { tone: 'more', text: `More trains: ${dec.perHour} an hour off-peak, up from ${now.perHour}.` }
-            : { tone: 'less', text: `Fewer trains: ${dec.perHour} an hour off-peak, down from ${now.perHour}.` };
+    if (dec.typical !== now.typical) {
+        // "usually" when either side's hours vary — the table beside says exactly how.
+        const usually = now.hourRange[0] !== now.hourRange[1] || dec.hourRange[0] !== dec.hourRange[1] ? 'usually ' : '';
+        return dec.typical > now.typical
+            ? { tone: 'more', text: `More trains off-peak: ${usually}${dec.typical} an hour, was ${now.typical}.` }
+            : { tone: 'less', text: `Fewer trains off-peak: ${usually}${dec.typical} an hour, was ${now.typical}.` };
     }
     const gained = dec.total - now.total;
     if (gained) {
@@ -204,6 +214,31 @@ export function verdictFor(now, dec, trains) {
     const moved = (trains ?? []).filter(t => t.kind !== 'same').length;
     if (moved) return { tone: 'moved', text: `Same number of trains a day, but ${moved} ${moved === 1 ? 'is' : 'are'} different — see Train by train below.` };
     return { tone: 'same', text: 'No change.' };
+}
+
+/**
+ * Trains an hour as the card states it: the typical hour first, the exception in brackets — "2",
+ * "2 (1 in some hours)", "1 (2 in some hours)". A rounded average said "2" of a station with two
+ * one-train hours and "1" of one with two two-train hours; neither is what a passenger meets.
+ * @param {StationSummary} s
+ * @returns {string}
+ */
+export function hourWords(s) {
+    const note = hourNote(s);
+    return note ? `${s.typical} (${note})` : String(s.typical);
+}
+
+/**
+ * The exception to the typical hour — "1 in some hours" — or '' when every hour is the same. The
+ * card prints it as small print under the number; `hourWords` is the same thing in one line.
+ * @param {StationSummary} s
+ * @returns {string}
+ */
+export function hourNote(s) {
+    const [lo, hi] = s.hourRange, t = s.typical;
+    if (lo === hi) return '';
+    if (lo < t && hi > t) return `${lo} to ${hi} in some hours`;
+    return `${lo < t ? lo : hi} in some hours`;
 }
 
 /**
@@ -273,9 +308,10 @@ export function headlineChanges(nowRows, decRows, stations) {
         // stories, and pushed a different station off the first five.
         /** @type {{ tone: 'more'|'less'|'moved', score: number, text: string }[]} */
         const parts = [];
-        if ((now.perHour || dec.perHour) && dec.perHour !== now.perHour) {
-            parts.push({ tone: dec.perHour > now.perHour ? 'more' : 'less', score: 80 + Math.abs(dec.perHour - now.perHour),
-                text: `${dec.perHour} trains an hour off-peak (was ${now.perHour})` });
+        if (dec.typical !== now.typical) {
+            const usually = now.hourRange[0] !== now.hourRange[1] || dec.hourRange[0] !== dec.hourRange[1] ? 'usually ' : '';
+            parts.push({ tone: dec.typical > now.typical ? 'more' : 'less', score: 80 + Math.abs(dec.typical - now.typical),
+                text: `${usually}${dec.typical} trains an hour off-peak (was ${now.typical})` });
         } else if (now.minutes.length && dec.minutes.length && now.minutes.join() !== dec.minutes.join()) {
             parts.push({ tone: 'moved', score: 60, text: `off-peak trains leave at ${minutesWords(dec.minutes)} past the hour (was ${minutesWords(now.minutes)})` });
         }
@@ -290,6 +326,26 @@ export function headlineChanges(nowRows, decRows, stations) {
         parts.sort((a, b) => b.score - a.score);
         out.push({ crs, tone: parts[0].tone, score: parts[0].score, text: `${name}: ${parts.map(p => p.text).join('; ')}` });
     }
+    // A station a line runs ON to (Snow Hill, Stourbridge, the Parkway) is part of its line's story,
+    // not a second one: "Snow Hill: 18 trains a day (was 15)" are three of Moor Street's own new
+    // trains, counted again. Folded into the line's headline whenever the line has one.
+    for (const h of [...out]) {
+        const line = lineOf(h.crs);
+        if (!line || line.station === h.crs) continue;
+        const parent = out.find(p => p.crs === line.station);
+        if (!parent) continue;
+        const before = summarise(nowRows, h.crs, 'dep'), after = summarise(decRows, h.crs, 'dep');
+        const short = line.onward.find(o => o.station === h.crs)?.short ?? stations[h.crs] ?? h.crs;
+        if (after.total !== before.total) {
+            // Straight after the daily count it qualifies ("35 trains a day (was 32); 18 of them on to…"),
+            // never after a later clause, where "of them" would point at the wrong thing.
+            const clause = `; ${after.total} of them on to ${short} (was ${before.total})`;
+            const i = parent.text.indexOf(' trains a day (was ');
+            const end = i === -1 ? -1 : parent.text.indexOf(')', i) + 1;
+            parent.text = end > 0 ? parent.text.slice(0, end) + clause + parent.text.slice(end) : parent.text + clause;
+        }
+        out.splice(out.indexOf(h), 1);
+    }
     return out.sort((a, b) => b.score - a.score || a.text.localeCompare(b.text));
 }
 
@@ -297,9 +353,10 @@ export function headlineChanges(nowRows, decRows, stations) {
  * The basic hour as a stopping-pattern grid: one column per train that repeats every off-peak hour,
  * one row per station, a dot where it stops. Each column is a real train from the middle of the
  * window, so its dots are that train's stops. `known` is false for a column whose stops are not
- * published yet — its only dots are the inferred ones (`callsOf`).
+ * published yet — its only dots are the inferred ones (`callsOf`). `via` is the Aylesbury route ('H'
+ * or 'A'), so two Aylesbury columns can be told apart in the heading.
  * @param {TrainRow[]} rows   leaving Marylebone, one day
- * @returns {{ columns: { minute: number, end: string, known: boolean, calls: string[] }[], stations: string[] }}
+ * @returns {{ columns: { minute: number, end: string, via: string, known: boolean, calls: string[] }[], stations: string[] }}
  */
 export function stoppingGrid(rows) {
     const hours = PATTERN_HOURS.to - PATTERN_HOURS.from;
@@ -318,23 +375,35 @@ export function stoppingGrid(rows) {
         .sort((a, b) => a[0] - b[0])
         .map(([minute, rs]) => {
             const mid = rs[Math.floor(rs.length / 2)];                    // a real train, mid-window
-            return { minute, end: mid[1], known: stopsKnown(mid), calls: callsOf(mid) };
+            return { minute, end: mid[1], via: mid[2], known: stopsKnown(mid), calls: callsOf(mid) };
         });
     return { columns, stations: orderStations(columns.map(c => c.calls)) };
 }
 
 /**
- * One station order out of several stopping lists: each list's stations stay in their own order,
- * and a station missing so far is placed straight after the station it follows in its own list.
+ * One station order out of several stopping lists. A station the books know goes where Chiltern
+ * prints it (`STATION_ORDER` — the main line, then the Amersham line, Aylesbury with the latter), so
+ * every column reads downwards in travel order whichever lists are on screen. Merging the lists
+ * alone could not do that: a via-Wycombe Aylesbury train put Aylesbury at the foot of the main
+ * line, and the Amersham line's dots then jumped back up the page to reach it (v24.75, Saturdays).
+ * A station the books do not know is placed straight after the one it follows in its own list.
  * @param {string[][]} lists
+ * @param {readonly string[]} [canonical]
  * @returns {string[]}
  */
-export function orderStations(lists) {
+export function orderStations(lists, canonical = STATION_ORDER) {
+    const rank = new Map(canonical.map((c, i) => [c, i]));
     /** @type {string[]} */
     const order = [];
     for (const list of [...lists].sort((a, b) => b.length - a.length)) {
         list.forEach((crs, i) => {
             if (order.includes(crs)) return;
+            const r = rank.get(crs);
+            if (r !== undefined) {
+                const at = order.findIndex(c => (rank.get(c) ?? -1) > r);
+                order.splice(at === -1 ? order.length : at, 0, crs);
+                return;
+            }
             const before = list.slice(0, i).reverse().find(c => order.includes(c));
             order.splice(before ? order.indexOf(before) + 1 : 0, 0, crs);
         });

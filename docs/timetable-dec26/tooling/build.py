@@ -10,8 +10,8 @@ README.md beside this file gives the whole pipeline.
 ── WHAT IS PUBLISHED, AND WHAT IS DELIBERATELY LEFT BEHIND ─────────────────────────────────────
 
 The output is served from both origins to anyone, like roster-member-data.js. So it carries only
-what Chiltern publishes to passengers: a time at Marylebone, the other end of the journey, and for
-Aylesbury the route. The simplifier also holds train lengths, platforms, unit diagrams, joins and
+what Chiltern publishes to passengers: a time at Marylebone, the other end of the journey, for
+Aylesbury the route, every stop, and the order the books list the stations in. The simplifier also holds train lengths, platforms, unit diagrams, joins and
 empty-stock moves. None of that is a passenger fact, and none of it leaves this script.
 
 ── THE AYLESBURY ROUTE ─────────────────────────────────────────────────────────────────────────
@@ -25,7 +25,9 @@ read from the PDFs: a train in the main-line book, or carrying the "H" note, is 
 import sys, json, collections
 
 now_path, dec_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
-NOW = json.load(open(now_path))
+_now = json.load(open(now_path))
+NOW = _now['trains'] if isinstance(_now, dict) else _now          # a pre-v24.76 now.json is a bare list
+ORDER = _now.get('order', {}) if isinstance(_now, dict) else {}
 DEC = json.load(open(dec_path))
 
 # Names for every stop, read from the current timetable's own rows (`names` from assemble.py); these
@@ -40,6 +42,15 @@ STATIONS = {
 for r in NOW:
     for crs, name in r.get('names', {}).items():
         STATIONS.setdefault(crs, name.replace('-On-The-', '-on-the-').replace('-Upon-', '-upon-'))
+# The stations in the order the two books print them. Main-line book first (Wembley Stadium …
+# Stourbridge Junction, the Aylesbury-via-Wycombe branch after Princes Risborough), then the Amersham
+# book (Harrow-on-the-Hill … Aylesbury Vale Parkway). A station in both — Aylesbury — takes its
+# Amersham-book place, so every column of the basic hour reads DOWNWARDS in travel order: the
+# via-Wycombe train's dots run Princes Risborough, Monks Risborough, Little Kimble, then Aylesbury
+# further down, never back up the page. Only named stations: a row no kept train calls at is dropped.
+_main = [c for c in ORDER.get('main', []) if c != 'MYB']
+_met = [c for c in ORDER.get('met', []) if c != 'MYB']
+STATION_ORDER = [c for c in [*[c for c in _main if c not in _met], *_met] if c in STATIONS]
 DAY_NOTES = ('MFO', 'MFX', 'WO')
 ROUTED = {'AYS'}                       # the stations whose route is part of the train's identity
 
@@ -145,6 +156,16 @@ export const STATIONS = Object.freeze({
 """]
 js += [f"    {c}: '{n}',\n" for c, n in sorted(STATIONS.items())]
 js += ["""});
+
+/**
+ * Every station in the order Chiltern's own books print them: the main-line book's rows, then the
+ * Amersham book's, a station in both (Aylesbury) taking its Amersham-book place. The basic hour's
+ * rows follow this, so each column reads downwards in travel order (trains-stations.js, orderStations).
+ */
+export const STATION_ORDER = Object.freeze([
+"""]
+js += [f"    {', '.join(repr(c) for c in STATION_ORDER[k:k + 12])},\n" for k in range(0, len(STATION_ORDER), 12)]
+js += ["""]);
 
 /** @typedef {[string, string, string, string, string]} TrainRow */
 /** @typedef {{ dep: TrainRow[], arr: TrainRow[] }} DayTimetable */

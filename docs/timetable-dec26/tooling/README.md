@@ -36,19 +36,24 @@ the test**: a new simplifier issue legitimately moves them, and a parser regress
 
 - **`pdfparse.py`** reads the PDF's word positions. Every column position is derived from the
   `Operator` label of each block, because the two books are laid out at different offsets — a
-  hard-coded position read the Met book and found nothing at all in the main-line one.
+  hard-coded position read the Met book and found nothing at all in the main-line one. Each column
+  also records its block's **station rows in printed order** (`rows`): the one place the geography
+  is written down — which branch follows which junction — and the source of `STATION_ORDER`.
 - **`assemble.py`** joins a train continued across pages (`e` → `f`), keeps Chiltern trains that
   start or end at Marylebone, and folds a train printed in both books into one. A Mondays-and-Fridays
   and a not-Mondays-and-Fridays copy of the same train together run every weekday. It also keeps
   each train's **stops with times** (`timed_stops`): leaving Marylebone, the ARRIVAL at each stop
   (the first of a printed arr/dep pair); coming in, the DEPARTURE (the last). The Stations view's
-  journey times and the basic-hour grid read these.
+  journey times and the basic-hour grid read these. Its output is `{ trains, order }`: the trains,
+  and each book's station order (`row_order`, outward direction, longest block first).
 - **`simplifier.py`** reads the spreadsheets' arrival and departure columns. `+` in a time, and a
   class-5 headcode, mark empty stock.
 - **`build.py`** keeps passenger trains, merges joined portions (`OXF RP` / `OXF FP` are one
   train), and reads the Aylesbury route from the headcode — its header says how. It writes each row
   as `[time, end, route, days, stops]`; `stops` is `''` for every December row, because the
-  simplifier carries no calling points.
+  simplifier carries no calling points. `STATION_ORDER` is the main-line book's rows, then the
+  Amersham book's, a station in both (Aylesbury) taking its Amersham-book place — so every column
+  of the basic hour reads downwards in travel order — and only stations some kept train calls at.
 
 ## When Chiltern's December books are published
 
