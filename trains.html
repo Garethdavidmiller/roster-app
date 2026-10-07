@@ -94,8 +94,8 @@
         <div class="card-collapsible-body open" id="trOverviewBody">
             <div class="card-body tr-overview">
                 <div>
-                    <p class="card-explainer">Chiltern’s new timetable starts on Sunday 13 December. Below is every train
-                        leaving and arriving at Marylebone, today’s time beside the one that replaces it.</p>
+                    <p class="card-explainer">Chiltern’s new timetable starts on Sunday 13 December. Pick what you need
+                        below: the biggest changes, one station, or the pattern that repeats every hour.</p>
                     <p class="card-explainer tr-caveat">December times can still change. Check Chiltern’s journey planner
                         before you tell a customer.</p>
                 </div>
@@ -107,71 +107,42 @@
         </div>
     </div>
 
-    <!-- WHICH DAY, WHICH WAY. The app's on-canvas tab strip (Overtime's, sized like the Pay
-         Calculator's tax-year tabs): equal tabs, the chosen one the card surface. Buttons with
-         aria-pressed rather than tabs, because nothing is hidden — the cards below redraw. -->
+    <!-- WHICH DAY, AND WHICH QUESTION. The app's on-canvas tab strip (Overtime's). Three views, one
+         question each (owner brief, 7 Oct 2026): what changes, a station, the basic hour. -->
     <div class="tr-controls" id="trControls">
         <div class="tr-tabs" role="group" aria-label="Day">
             <button type="button" class="tr-tab" data-day="SX" aria-pressed="true">Weekdays</button>
             <button type="button" class="tr-tab" data-day="SO" aria-pressed="false">Saturdays</button>
             <button type="button" class="tr-tab" data-day="SU" aria-pressed="false">Sundays</button>
         </div>
-        <div class="tr-tabs" role="group" aria-label="Direction">
-            <button type="button" class="tr-tab" data-dir="dep" aria-pressed="true">Leaving</button>
-            <button type="button" class="tr-tab" data-dir="arr" aria-pressed="false">Arriving</button>
+        <div class="tr-tabs" role="group" aria-label="View">
+            <button type="button" class="tr-tab" data-view="changes" aria-pressed="true">What’s changing</button>
+            <button type="button" class="tr-tab" data-view="stations" aria-pressed="false">Stations</button>
+            <button type="button" class="tr-tab" data-view="grid" aria-pressed="false">Basic hour</button>
         </div>
     </div>
 
-    <div class="tr-cols">
+    <!-- ── WHAT'S CHANGING ──────────────────────────────────────────────────────────────────── -->
+    <section class="tr-view tr-cols" id="trViewChanges" aria-label="What’s changing">
         <div class="tr-col-main">
-            <div class="card" id="trRoutesCard">
-                <div class="card-header card-header-toggle" id="trRoutesToggleHeader">
+            <div class="card" id="trChangesCard">
+                <div class="card-header card-header-toggle" id="trChangesToggleHeader">
                     <div>
-                        <h2><span aria-hidden="true">🗺️</span> <span id="trRoutesTitle">Where trains go</span></h2>
-                        <span class="hint" id="trRoutesHint">Tap a destination to see every train</span>
+                        <h2><span aria-hidden="true">🔔</span> What’s changing</h2>
+                        <span class="hint" id="trChangesHint">Trains leaving Marylebone — biggest change first</span>
                     </div>
                     <div class="card-header-actions">
-                        <span class="card-year-chip" id="trRoutesChip"></span>
-                        <button type="button" class="btn-card-tips" data-card="routes"
-                                aria-label="Tips for where trains go">?</button>
-                        <span class="collapse-chevron open" id="trRoutesChevron">▾</span>
+                        <button type="button" class="btn-card-tips" data-card="changes"
+                                aria-label="Tips for what’s changing">?</button>
+                        <span class="collapse-chevron open" id="trChangesChevron">▾</span>
                     </div>
                 </div>
-                <div class="card-collapsible-body open" id="trRoutesBody">
-                    <div class="card-body">
-                        <ul class="tr-key" aria-label="What the labels mean">
-                            <li><span class="tr-chip tr-chip--same">No change</span></li>
-                            <li><span class="tr-chip tr-chip--moved">Retimed</span></li>
-                            <li><span class="tr-chip tr-chip--new">New train</span></li>
-                            <li><span class="tr-chip tr-chip--gone">No longer runs</span></li>
-                            <li><span class="tr-chip tr-chip--rerouted">Different destination</span></li>
-                        </ul>
-                        <div class="tr-routes" id="trRoutes" aria-live="polite"></div>
-                    </div>
+                <div class="card-collapsible-body open" id="trChangesBody">
+                    <div class="card-body"><div id="trChanges" aria-live="polite"></div></div>
                 </div>
             </div>
         </div>
-
         <div class="tr-col-side">
-            <div class="card" id="trPatternCard">
-                <div class="card-header card-header-toggle" id="trPatternToggleHeader">
-                    <div>
-                        <h2><span aria-hidden="true">🕰️</span> The basic hour</h2>
-                        <span class="hint">Most hours from 10:00 to 16:00 repeat this pattern</span>
-                    </div>
-                    <div class="card-header-actions">
-                        <button type="button" class="btn-card-tips" data-card="pattern"
-                                aria-label="Tips for the basic hour">?</button>
-                        <span class="collapse-chevron open" id="trPatternChevron">▾</span>
-                    </div>
-                </div>
-                <div class="card-collapsible-body open" id="trPatternBody">
-                    <div class="card-body">
-                        <div id="trPattern"></div>
-                    </div>
-                </div>
-            </div>
-
             <div class="card" id="trLookupCard">
                 <div class="card-header card-header-toggle" id="trLookupToggleHeader">
                     <div>
@@ -194,7 +165,63 @@
                 </div>
             </div>
         </div>
-    </div>
+    </section>
+
+    <!-- ── STATIONS ─────────────────────────────────────────────────────────────────────────── -->
+    <section class="tr-view" id="trViewStations" aria-label="Stations" hidden>
+        <div class="card" id="trStationsCard">
+            <div class="card-header card-header-toggle" id="trStationsToggleHeader">
+                <div>
+                    <h2><span aria-hidden="true">🚉</span> <span id="trStationTitle">Stations</span></h2>
+                    <span class="hint">Where is the customer going, or coming back from?</span>
+                </div>
+                <div class="card-header-actions">
+                    <button type="button" class="btn-card-tips" data-card="stations"
+                            aria-label="Tips for stations">?</button>
+                    <span class="collapse-chevron open" id="trStationsChevron">▾</span>
+                </div>
+            </div>
+            <div class="card-collapsible-body open" id="trStationsBody">
+                <div class="card-body">
+                    <label class="field-eyebrow tr-label" for="trStationInput">Station</label>
+                    <input type="text" class="tr-input tr-input--wide" id="trStationInput"
+                           autocomplete="off" placeholder="Start typing a station">
+                    <div class="tr-picks" id="trStationPicks"></div>
+                    <div class="tr-tabs tr-tabs--in-card" role="group" aria-label="Direction" id="trStationDir">
+                        <button type="button" class="tr-tab" data-sdir="dep" aria-pressed="true">Going there</button>
+                        <button type="button" class="tr-tab" data-sdir="arr" aria-pressed="false">Coming back</button>
+                    </div>
+                    <div id="trStation" aria-live="polite"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── THE BASIC HOUR ───────────────────────────────────────────────────────────────────── -->
+    <section class="tr-view" id="trViewGrid" aria-label="The basic hour" hidden>
+        <div class="card" id="trPatternCard">
+            <div class="card-header card-header-toggle" id="trPatternToggleHeader">
+                <div>
+                    <h2><span aria-hidden="true">🕰️</span> The basic hour</h2>
+                    <span class="hint">Every train that leaves at the same minutes each hour, 10:00 to 16:00</span>
+                </div>
+                <div class="card-header-actions">
+                    <button type="button" class="btn-card-tips" data-card="pattern"
+                            aria-label="Tips for the basic hour">?</button>
+                    <span class="collapse-chevron open" id="trPatternChevron">▾</span>
+                </div>
+            </div>
+            <div class="card-collapsible-body open" id="trPatternBody">
+                <div class="card-body">
+                    <div class="tr-tabs tr-tabs--in-card" role="group" aria-label="Timetable" id="trGridMode">
+                        <button type="button" class="tr-tab" data-grid="now" aria-pressed="false">Now</button>
+                        <button type="button" class="tr-tab" data-grid="dec" aria-pressed="true">From 13 Dec</button>
+                    </div>
+                    <div id="trPattern"></div>
+                </div>
+            </div>
+        </div>
+    </section>
 
 </main>
 

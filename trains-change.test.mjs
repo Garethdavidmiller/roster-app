@@ -16,8 +16,8 @@ import {
 } from './trains-change.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE } from './trains-data.js';
 
-/** @param {string} t @param {string} [st] @param {string} [via] @param {string} [days] @returns {[string,string,string,string]} */
-const row = (t, st = 'OXF', via = '', days = '') => [t, st, via, days];
+/** @param {string} t @param {string} [st] @param {string} [via] @param {string} [days] @param {string} [stops] @returns {[string,string,string,string,string]} */
+const row = (t, st = 'OXF', via = '', days = '', stops = '') => [t, st, via, days, stops];
 const kinds = (/** @type {any[]} */ ts) => ts.map(t => `${t.now ?? '-'}>${t.dec ?? '-'} ${t.kind}`);
 
 describe('the railway day', () => {
@@ -79,7 +79,7 @@ describe('compareRoutes — one train, a different destination', () => {
         const routes = compareRoutes([row('10:36', 'BAN')], [row('10:36', 'BSW')]);
         const ban = routes.find(r => r.key === 'BAN'), bsw = routes.find(r => r.key === 'BMO');   // Snow Hill is the Moor Street line
         assert.equal(ban?.trains[0].kind, 'rerouted');
-        assert.equal(changeLabel(/** @type {any} */ (ban).trains[0], STATIONS), 'Now runs to Birmingham Snow Hill');
+        assert.equal(changeLabel(/** @type {any} */ (ban).trains[0], STATIONS), 'Will run to Birmingham Snow Hill');
         assert.equal(changeLabel(/** @type {any} */ (bsw).trains[0], STATIONS), 'Was the 10:36 to Banbury');
         assert.equal(ban?.tally.gone, 0);
         assert.equal(bsw?.tally.new, 0);
@@ -88,7 +88,7 @@ describe('compareRoutes — one train, a different destination', () => {
     test('the Aylesbury route is part of where a train goes', () => {
         const routes = compareRoutes([row('07:57', 'AYS', 'H')], [row('07:57', 'AYS', 'A')]);
         assert.equal(routes.length, 2);
-        assert.equal(changeLabel(routes.find(r => r.via === 'H')?.trains[0] ?? /** @type {any} */ ({}), STATIONS), 'Now runs to Aylesbury via Amersham');
+        assert.equal(changeLabel(routes.find(r => r.via === 'H')?.trains[0] ?? /** @type {any} */ ({}), STATIONS), 'Will run to Aylesbury via Amersham');
     });
 
     test('arrivals are worded as where the train comes from', () => {
@@ -96,7 +96,7 @@ describe('compareRoutes — one train, a different destination', () => {
         const bmo = routes.find(r => r.key === 'BMO');
         assert.equal(changeLabel(/** @type {any} */ (bmo).trains[0], STATIONS, 'arr'), 'Was the 09:13 from Banbury');
         const ban = routes.find(r => r.key === 'BAN');
-        assert.equal(changeLabel(/** @type {any} */ (ban).trains[0], STATIONS, 'arr'), 'Now comes from Birmingham Moor Street, 09:12');
+        assert.equal(changeLabel(/** @type {any} */ (ban).trains[0], STATIONS, 'arr'), 'Will come from Birmingham Moor Street, 09:12');
     });
 
     test('across routes only a close match counts — otherwise it is a genuinely new train', () => {
@@ -115,10 +115,10 @@ describe('a line that runs on — Aylesbury Vale Parkway is the Amersham line, o
     test('a kept train whose END moves is one train, worded by where it now ends or starts', () => {
         const [cut] = compareRoutes([row('08:27', 'AVP')], [row('08:27', 'AYS', 'A')])[0].trains;
         assert.equal(cut.kind, 'terminus');
-        assert.equal(changeLabel(cut, STATIONS), 'Now ends at Aylesbury');
+        assert.equal(changeLabel(cut, STATIONS), 'Will end at Aylesbury');
         const [ext] = compareRoutes([row('07:57', 'AYS', 'A')], [row('07:59', 'AVP')])[0].trains;
-        assert.equal(changeLabel(ext, STATIONS), 'Now goes on to Aylesbury Vale Parkway, 07:59');
-        assert.equal(changeLabel(ext, STATIONS, 'arr'), 'Now starts at Aylesbury Vale Parkway, 07:59');
+        assert.equal(changeLabel(ext, STATIONS), 'Will go on to Aylesbury Vale Parkway, 07:59');
+        assert.equal(changeLabel(ext, STATIONS, 'arr'), 'Will start at Aylesbury Vale Parkway, 07:59');
     });
 
     test('the via-High-Wycombe Aylesbury trains are a different line and are not folded in', () => {
@@ -148,9 +148,9 @@ describe('a line with two onward stops — Snow Hill and Stourbridge are Moor St
 
     test('further along the line is "goes on to"; back towards London is "ends at"', () => {
         const [on] = compareRoutes([row('16:37', 'BMO')], [row('16:37', 'SBJ')])[0].trains;
-        assert.equal(changeLabel(on, STATIONS), 'Now goes on to Stourbridge Junction');
+        assert.equal(changeLabel(on, STATIONS), 'Will go on to Stourbridge Junction');
         const [back] = compareRoutes([row('18:37', 'SBJ')], [row('18:34', 'BSW')])[0].trains;
-        assert.equal(changeLabel(back, STATIONS), 'Now ends at Birmingham Snow Hill, 18:34');
+        assert.equal(changeLabel(back, STATIONS), 'Will end at Birmingham Snow Hill, 18:34');
     });
 
     test('lineDepth orders a line from its own station outwards', () => {
@@ -159,7 +159,7 @@ describe('a line with two onward stops — Snow Hill and Stourbridge are Moor St
 
     test('a train rerouted ONTO the line names where it actually goes, not the line\'s station', () => {
         const ban = compareRoutes([row('10:36', 'BAN')], [row('10:36', 'BSW')]).find(r => r.key === 'BAN');
-        assert.equal(changeLabel(/** @type {any} */ (ban).trains[0], STATIONS), 'Now runs to Birmingham Snow Hill');
+        assert.equal(changeLabel(/** @type {any} */ (ban).trains[0], STATIONS), 'Will run to Birmingham Snow Hill');
     });
 
     test('the basic-hour words name each onward stop separately', () => {
@@ -235,12 +235,15 @@ describe('trains-data.js', () => {
 
     test('every row is a well-formed passenger train at a named station', () => {
         for (const side of /** @type {const} */ (['now', 'dec'])) for (const day of /** @type {const} */ (['SX', 'SO', 'SU'])) {
-            for (const kind of /** @type {const} */ (['dep', 'arr'])) for (const [t, st, via, days] of TIMETABLES[side][day][kind]) {
+            for (const kind of /** @type {const} */ (['dep', 'arr'])) for (const [t, st, via, days, stops] of TIMETABLES[side][day][kind]) {
                 assert.match(t, /^([01]\d|2[0-3]):[0-5]\d$/);
                 assert.ok(STATIONS[st], `${side} ${day} ${kind} ${t}: unnamed station ${st}`);
                 assert.ok(via === '' || (st === 'AYS' && (via === 'H' || via === 'A')), `${t} ${st} route ${via}`);
                 assert.ok(['', 'MFO', 'MFX', 'WO'].includes(days));
                 if (side === 'dec') assert.equal(days, '', 'December has no weekday exceptions on record');
+                assert.match(stops, /^(|[A-Z]{3}\d{4}( [A-Z]{3}\d{4})*)$/, `${side} ${day} ${kind} ${t}: stops`);
+                for (const stop of stops ? stops.split(' ') : []) assert.ok(STATIONS[stop.slice(0, 3)], `unnamed stop ${stop}`);
+                if (side === 'now') assert.ok(stops, `today's ${t} ${st} has its stops`);
             }
         }
     });
@@ -248,7 +251,7 @@ describe('trains-data.js', () => {
     test('checked by hand: the 10:36 to Banbury now runs on to Birmingham Snow Hill', () => {
         const ban = compareRoutes(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep).find(r => r.key === 'BAN');
         const t = ban?.trains.find(x => x.now === '10:36');
-        assert.equal(t && changeLabel(t, STATIONS), 'Now runs to Birmingham Snow Hill');
+        assert.equal(t && changeLabel(t, STATIONS), 'Will run to Birmingham Snow Hill');
     });
 
     test('checked by hand: the weekday basic hour from 10:00 to 16:00', () => {

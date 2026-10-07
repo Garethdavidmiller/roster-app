@@ -36,23 +36,43 @@ export const CARD_TIPS = {
         ],
     },
 
-    'routes': {
-        title: '🗺️ Where trains go',
+    'changes': {
+        title: '🔔 What’s changing',
         sections: [
             {
                 items: [
-                    { icon: '👆', html: 'Tap a destination to see every train, with today\'s time beside the one that replaces it from 13 December.' },
-                    { icon: '🔁', html: 'A train counts as <strong>the same train</strong> when it goes to the same place within 20 minutes of its old time. Beyond that it shows as removed, and the new one as a new train.' },
-                    { icon: '↪️', html: '<strong>Now runs to…</strong> means the train still leaves at about the same time but goes somewhere else — for example, the 10:36 to Banbury now runs on to Birmingham Snow Hill.' },
+                    { icon: '📋', html: 'The biggest changes to trains <strong>leaving Marylebone</strong> on the day chosen above, one line per station, biggest first.' },
+                    { icon: '👆', html: 'Tap a change to open that station and see everything about it.' },
+                    { icon: '🟢', html: '<strong>More</strong> means more trains or a new direct service, <strong>Less</strong> fewer or none, <strong>Moved</strong> the same trains at different times.' },
+                ],
+            },
+            {
+                heading: 'Why the list is short for now',
+                items: [
+                    { icon: '⏳', html: 'December’s stops are not published yet, so only stations at the end of a line can be compared. More changes appear here once Chiltern publishes its December timetable.' },
+                ],
+            },
+        ],
+    },
+
+    'stations': {
+        title: '🚉 Stations',
+        sections: [
+            {
+                items: [
+                    { icon: '⌨️', html: 'Start typing a station, or tap one of the busiest. The card answers in one sentence first, then the figures, today beside December.' },
+                    { icon: '🔢', html: '<strong>Off-peak</strong> means 10:00 to 16:00. <strong>1 to 2</strong> trains an hour means some off-peak hours have one train and some have two.' },
+                    { icon: '🕐', html: 'Every time is at <strong>Marylebone</strong> — when a train leaves, or gets in. <strong>Fastest journey</strong> is the one figure measured at the other station.' },
+                    { icon: '↩️', html: '<strong>Coming back</strong> shows the trains from that station into Marylebone.' },
+                    { icon: '🔁', html: '<strong>Train by train</strong> lists only the trains that change; the ones that stay the same are one tap further. A train counts as the same train when it leaves within 20 minutes of its old time. Beyond that it shows as removed, and the new one as a new train.' },
                 ],
             },
             {
                 heading: 'Good to know',
                 items: [
-                    { icon: '🛤️', html: '<strong>Aylesbury has two routes</strong>: via High Wycombe or via Amersham. A train that changes route is shown as going somewhere different, because the journey is.' },
-                    { icon: '➡️', html: 'Some trains run on past where most of their line stops, so they are listed with that line: <strong>Aylesbury Vale Parkway</strong> with Aylesbury via Amersham, and <strong>Birmingham Snow Hill</strong> and <strong>Stourbridge Junction</strong> with Birmingham Moor Street. Each train still says where it ends, and <strong>Now ends at…</strong> or <strong>Now goes on to…</strong> means only the last stop has changed.' },
+                    { icon: '⏳', html: 'December’s stops are not published yet. Until they are, December can only be shown for stations at the end of a line; elsewhere the card says it is waiting.' },
+                    { icon: '➡️', html: 'Some trains run on past where most of their line stops: <strong>Aylesbury Vale Parkway</strong> trains are Aylesbury trains via Amersham run on, and <strong>Birmingham Snow Hill</strong> and <strong>Stourbridge Junction</strong> trains are Moor Street trains run on.' },
                     { icon: '🗓️', html: 'A few weekday trains run at different times on <strong>Mondays and Fridays</strong>. Those are marked under the time.' },
-                    { icon: '🚉', html: 'Only times at Marylebone are shown. Which stations each December train stops at is not here yet, so a train with the same time can still stop at different places.' },
                 ],
             },
         ],
@@ -63,10 +83,16 @@ export const CARD_TIPS = {
         sections: [
             {
                 items: [
-                    { icon: '🔂', html: 'Between 10:00 and 16:00 most hours repeat the same pattern. Each figure is <strong>minutes past every hour</strong> — :06 means 10:06, 11:06, 12:06 and so on.' },
+                    { icon: '🔂', html: 'Between 10:00 and 16:00 most hours repeat the same trains. Each column is one of them: <strong>:06</strong> at the top means it leaves Marylebone at 10:06, 11:06, 12:06 and so on.' },
+                    { icon: '⚫', html: 'A dot means that train stops at that station. Read down a column to see where it goes; read across a row to see which trains a station gets.' },
                     { icon: '🧠', html: 'It is the one thing worth learning by heart: know it and you can answer most daytime questions without looking anything up.' },
-                    { icon: '🟠', html: '<strong>Changed</strong> marks a destination whose pattern is different from 13 December.' },
-                    { icon: '➡️', html: 'A line that runs on is one pattern — Aylesbury via Amersham, and Birmingham Moor Street. The line under its name says which minutes go further, and where.' },
+                ],
+            },
+            {
+                heading: 'From 13 December',
+                items: [
+                    { icon: '🟢', html: 'A green ring is a stop a train gains; a hollow red dot is one it loses.' },
+                    { icon: '⏳', html: 'Until December’s stops are published, each December column shows only where that train ends.' },
                 ],
             },
         ],
@@ -79,7 +105,7 @@ export const CARD_TIPS = {
                 items: [
                     { icon: '⌨️', html: 'Type a time the way you would say it: <strong>17:15</strong>, <strong>1715</strong> or <strong>715</strong> all work.' },
                     { icon: '💬', html: 'If a train leaves at exactly that time today, the answer says what happens to it from 13 December.' },
-                    { icon: '↔️', html: 'Underneath, every train within 15 minutes either side, today and from 13 December, for the day and direction chosen above.' },
+                    { icon: '↔️', html: 'Underneath, every train leaving Marylebone within 15 minutes either side, today and from 13 December, for the day chosen above.' },
                 ],
             },
         ],

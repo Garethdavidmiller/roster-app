@@ -358,16 +358,21 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
-    // Trains (admin preview). Scanned with a route OPEN and a lookup ANSWERED, because the
-    // before-and-after chips and the answer box are the page — the collapsed list holds none of them.
-    test('trains (admin, signed in) — a route open and a time looked up', async ({ page }) => {
+    // Trains (admin preview). Scanned in the two states with the most structure: a station card
+    // with every train listed (verdict, figures table, before-and-after chips), and the basic-hour
+    // grid, whose dots carry their meaning only in sr-only words.
+    test('trains (admin, signed in) — a station open, then the basic hour', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/trains.html');
-        await expect(page.locator('#trRoutes .tr-route').first()).toBeVisible();
-        await page.locator('#trRoutes .tr-route-sum').first().click();
-        await page.locator('#trLookupInput').fill('1036');
-        await expect(page.locator('#trLookupResult .tr-answer').first()).toBeVisible();
-        const v = await scan(page);
+        await page.locator('#trChanges .tr-head', { hasText: 'Aylesbury:' }).click();
+        await page.locator('#trStation .tr-route-sum').click();
+        await expect(page.locator('#trStation .tr-trains tbody tr').first()).toBeVisible();
+        let v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+        await page.locator('[data-view="grid"]').click();
+        await page.locator('[data-grid="now"]').click();
+        await expect(page.locator('#trPattern .tr-dot').first()).toBeVisible();
+        v = await scan(page);
         expect(v.length, report(v)).toBe(0);
     });
 

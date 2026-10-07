@@ -29,19 +29,31 @@ def build(cols, src):
         if not stops: continue
         out.append(dict(src=src, page=c['page'], col=c['col'], dir=c['dir'], day=c['day'], op=c['op'], notes=c['notes'], stops=stops))
     return out
+def timed_stops(stops, keep):
+    """[[crs, 'HHMM'], …] with one entry per stop. A stop printed twice (arrival and departure) keeps
+    its ARRIVAL leaving London ('first' — when a passenger gets there) and its DEPARTURE coming back
+    ('last' — when a passenger must be on it)."""
+    out = []
+    for x in stops:
+        if out and out[-1][0] == x['crs']:
+            if keep == 'last': out[-1][1] = x['t'][:4]
+            continue
+        out.append([x['crs'], x['t'][:4]])
+    return out
 T = build(json.load(open(sys.argv[1])), 'met') + build(json.load(open(sys.argv[2])), 'main')
 res = []
 for t in T:
     if t['op'] != 'CH': continue                                   # bus replacements are not trains
     s = t['stops']
+    names = {x['crs']: x['name'] for x in s}
     if t['dir'] == 'out':
         if s[0]['crs'] != 'MYB': continue
         res.append(dict(kind='dep', day=t['day'], t=s[0]['t'][:4], dest=s[-1]['crs'], destName=s[-1]['name'], via_h=('H' in t['notes']) or t['src']=='main',
-                        calls=[x['crs'] for x in s[1:]], notes=t['notes'], src=t['src']))
+                        calls=[x['crs'] for x in s[1:]], stops=timed_stops(s[1:], 'first'), names=names, notes=t['notes'], src=t['src']))
     else:
         if s[-1]['crs'] != 'MYB': continue
         res.append(dict(kind='arr', day=t['day'], t=s[-1]['t'][:4], org=s[0]['crs'], orgName=s[0]['name'],
-                        calls=[x['crs'] for x in s[:-1]], notes=t['notes'], src=t['src']))
+                        calls=[x['crs'] for x in s[:-1]], stops=timed_stops(s[:-1], 'last'), names=names, notes=t['notes'], src=t['src']))
 # the same train can appear in both PDFs (Aylesbury via High Wycombe): keep one, prefer the main-line copy
 def dedupe_calls(calls):
     out = []

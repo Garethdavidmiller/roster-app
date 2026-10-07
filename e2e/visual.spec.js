@@ -1056,22 +1056,26 @@ function stubOvertime(page, { windows = [], weeks = [] } = {}) {
     ]);
 }
 
-// Trains (admin preview). The clock is pinned to a Wednesday, so the page opens on Weekdays; the
-// Banbury route is opened because it holds every chip in the key at once — retimed, new, removed
-// and rerouted — which is the page's whole vocabulary in one frame.
-test('trains — weekdays, a route open (mobile 390)', async ({ page }) => {
-    await prep(page, { width: 390, height: 1900 });
+// Trains (admin preview). The clock is pinned to a Wednesday, so the page opens on Weekdays. Mobile
+// is the station card — the view a member lands on from any change — and desktop is the basic hour
+// today, the one picture on the page.
+test('trains — weekdays, a station open (mobile 390)', async ({ page }) => {
+    await prep(page, { width: 390, height: 1500 });
     await page.goto('/trains.html');
-    await settle(page, '#trRoutes .tr-route');
-    await page.locator('#trRoutes .tr-route-sum', { has: page.locator('.tr-route-name', { hasText: /^Banbury$/ }) }).click();
-    await settle(page, '#trRoutes .tr-route[open] .tr-trains');
+    await settle(page, '#trChanges .tr-head');
+    await page.locator('#trChanges .tr-head', { hasText: 'Aylesbury:' }).click();
+    await settle(page, '#trStation .tr-st-table');
+    await page.evaluate(() => window.scrollTo(0, 0));
     await expect(page).toHaveScreenshot('trains-mobile-390.png');
 });
 
-test('trains — weekdays, two columns (desktop 1280)', async ({ page }) => {
+test('trains — weekdays, the basic hour today (desktop 1280)', async ({ page }) => {
     await prep(page, { width: 1280, height: 1300 });
     await page.goto('/trains.html');
-    await settle(page, '#trRoutes .tr-route');
+    await settle(page, '#trChanges .tr-head');
+    await page.locator('[data-view="grid"]').click();
+    await page.locator('[data-grid="now"]').click();
+    await settle(page, '#trPattern .tr-grid');
     await expect(page).toHaveScreenshot('trains-desktop-1280.png');
 });
 
