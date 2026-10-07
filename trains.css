@@ -215,16 +215,17 @@ body {
     border-radius: var(--radius);
 }
 .tr-route-name { font-weight: 700; grid-column: 1; grid-row: 1; }
-.tr-route-count { grid-column: 2; grid-row: 1; }
 .tr-route-what {
     grid-column: 1 / -1;
     color: var(--text-light);
     font-size: var(--type-small);
 }
-.tr-route--changed .tr-route-what { color: var(--text-mid); }
 .tr-route .tr-trains { margin: 0; border-top: 1px solid var(--border-light); }
 .tr-route .tr-trains th:first-child, .tr-route .tr-trains td:first-child { padding-left: var(--space-3); }
 .tr-route .tr-trains tbody tr:last-child td { border-bottom: 0; }
+/* The "show the ones that stay the same" line, and the all-the-same line, inside the open list. */
+.tr-route > .tr-more, .tr-route > .tr-lead { display: block; margin: 0 var(--space-3) var(--space-2); }
+.tr-route > .tr-lead { padding-top: var(--space-2); border-top: 1px solid var(--border-light); }
 
 /* ── The before-and-after table ────────────────────────────────────────────── */
 .tr-trains {

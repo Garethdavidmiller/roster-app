@@ -17,7 +17,7 @@
 
 import { escapeHtml as esc } from './roster-data.js';
 import { changeLabel, daysLabel } from './trains-change.js';
-import { pairColumns } from './trains-stations.js';
+import { pairColumns, lineOf } from './trains-stations.js';
 
 /** The short names the grid's column heads use. Anything not listed shows its full name. */
 const SHORT = /** @type {Record<string, string>} */ ({
@@ -54,12 +54,32 @@ export function renderHeadlines(items, { showAll, partial }) {
 }
 
 /**
- * One station's card body.
+ * Where one train goes beyond (or comes from before) the station on screen, as few words as a phone
+ * row can hold. On a line that runs on (`LINES`), the onward stop's short name — "on to Parkway" —
+ * because "to Aylesbury Vale Parkway" wrapped onto three lines on every train that runs on.
+ * @param {string|undefined} to       the train's end
+ * @param {string} crs                the station on screen
+ * @param {Readonly<Record<string, string>>} stations
+ * @param {boolean} leaving
+ * @returns {string}  '' when the train ends here
+ */
+export function endWords(to, crs, stations, leaving) {
+    if (!to || to === crs) return '';
+    const line = lineOf(crs);
+    const onward = line && line.onward.find(o => o.station === to);
+    if (onward) return `${leaving ? 'on to' : 'from'} ${onward.short}`;
+    return `${leaving ? 'to' : 'from'} ${stations[to] ?? to}`;
+}
+
+/**
+ * One station's card body. The train list shows the trains that CHANGE; the ones that stay the same
+ * are one tap away, counted, so the few real changes are not buried under rows of "No change".
  * @param {ReturnType<typeof import('./trains-stations.js').stationView>} view
- * @param {{ stations: Readonly<Record<string, string>>, dir: 'dep'|'arr', showTrains: boolean }} ctx
+ * @param {{ stations: Readonly<Record<string, string>>, dir: 'dep'|'arr', showTrains: boolean, allTrains?: boolean }} ctx
+ *   showTrains: the list starts open · allTrains: the unchanged trains are shown too
  * @returns {string}
  */
-export function renderStation(view, { stations, dir, showTrains }) {
+export function renderStation(view, { stations, dir, showTrains, allTrains = false }) {
     const { now, dec } = view;
     const leaving = dir === 'dep';
     const cell = (/** @type {string|number|null|undefined} */ v) => (v === null || v === undefined || v === '') ? none : esc(String(v));
@@ -80,20 +100,33 @@ export function renderStation(view, { stations, dir, showTrains }) {
     const minutesNote = '<p class="card-explainer tr-note">Times past the hour are at Marylebone, between 10:00 and 16:00.'
         + (dec && dec.fastest === null && now.fastest !== null ? ' December journey times arrive with Chiltern’s published timetable.' : '') + '</p>';
     if (!view.trains) return verdict + table + minutesNote;
-    const trains = view.trains.map((t) => {
+    const changed = view.trains.filter(t => t.kind !== 'same');
+    const same = view.trains.length - changed.length;
+    const shown = allTrains ? view.trains : changed;
+    const trains = shown.map((t) => {
         const chip = t.kind === 'earlier' || t.kind === 'later' ? 'moved' : t.kind;
-        const end = (/** @type {string|undefined} */ to) => to && to !== view.crs
-            ? `<span class="tr-days">${leaving ? 'to' : 'from'} ${esc(stations[to] ?? to)}</span>` : '';
+        const end = (/** @type {string|undefined} */ to) => {
+            const words = endWords(to, view.crs, stations, leaving);
+            return words ? `<span class="tr-days">${esc(words)}</span>` : '';
+        };
         const days = t.now ? daysLabel(t.days) : '';
         return `<tr class="tr-row tr-row--${chip}"><td>${t.now ? esc(t.now) : none}${days ? `<span class="tr-days">${esc(days)}</span>` : ''}${t.now ? end(t.nowTo) : ''}</td>`
             + `<td>${t.dec ? esc(t.dec) : none}${t.dec ? end(t.decTo) : ''}</td>`
             + `<td><span class="tr-chip tr-chip--${chip}">${esc(changeLabel(t, stations, dir))}</span></td></tr>`;
     }).join('');
+    const tally = changed.length
+        ? `${changed.length} change${changed.length === 1 ? 's' : ''}, ${same} stay${same === 1 ? 's' : ''} the same`
+        : `All ${same} stay the same`;
+    const list = shown.length
+        ? `<table class="tr-trains"><thead><tr><th scope="col">Now</th><th scope="col">From 13 Dec</th><th scope="col">What changes</th></tr></thead>`
+            + `<tbody>${trains}</tbody></table>`
+        : '<p class="card-explainer tr-lead">Every train keeps its time.</p>';
+    const more = !allTrains && same
+        ? `<button type="button" class="tr-more" id="trAllTrains">Show the ${same} that stay${same === 1 ? 's' : ''} the same</button>` : '';
     return verdict + table + minutesNote
-        + `<details class="tr-route"${showTrains ? ' open' : ''}><summary class="tr-route-sum"><span class="tr-route-name">See every train</span>`
-        + `<span class="tr-route-what">${leaving ? 'Times leaving Marylebone' : 'Times getting into Marylebone'}, today beside December</span></summary>`
-        + `<table class="tr-trains"><thead><tr><th scope="col">Now</th><th scope="col">From 13 Dec</th><th scope="col">What changes</th></tr></thead>`
-        + `<tbody>${trains}</tbody></table></details>`;
+        + `<details class="tr-route"${showTrains || allTrains ? ' open' : ''}><summary class="tr-route-sum"><span class="tr-route-name">Train by train</span>`
+        + `<span class="tr-route-what">${esc(tally)} · ${leaving ? 'leaving' : 'getting into'} Marylebone</span></summary>`
+        + list + more + '</details>';
 }
 
 /**

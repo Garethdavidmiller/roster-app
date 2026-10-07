@@ -63,7 +63,7 @@ export const CARD_TIPS = {
                     { icon: '⌨️', html: 'Start typing a station, or tap one of the busiest. The card answers in one sentence first, then the figures, today beside December.' },
                     { icon: '🕐', html: 'Every time is at <strong>Marylebone</strong> — when a train leaves, or gets in. <strong>Fastest journey</strong> is the one figure measured at the other station.' },
                     { icon: '↩️', html: '<strong>Coming back</strong> shows the trains from that station into Marylebone.' },
-                    { icon: '🔁', html: 'In <strong>See every train</strong>, a train counts as the same train when it leaves within 20 minutes of its old time. Beyond that it shows as removed, and the new one as a new train.' },
+                    { icon: '🔁', html: '<strong>Train by train</strong> lists only the trains that change; the ones that stay the same are one tap further. A train counts as the same train when it leaves within 20 minutes of its old time. Beyond that it shows as removed, and the new one as a new train.' },
                 ],
             },
             {

@@ -58,6 +58,7 @@ import { renderHeadlines, renderStation, renderGrid } from './trains-render.js';
  * @property {Dir} sdir              going there, or coming back
  * @property {'now'|'dec'} grid      which basic hour the grid shows
  * @property {boolean} allHeads      the changes list expanded
+ * @property {boolean} allTrains     a station's unchanged trains shown too
  */
 
 const DAY_NAMES = /** @type {Record<Day, string>} */ ({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' });
@@ -116,7 +117,7 @@ export function init() {
     // Open on today's kind of day — what a member is most likely to be asked about.
     const dow = new Date().getDay();
     /** @type {PageState} */
-    const state = { day: dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX', view: 'changes', station: null, sdir: 'dep', grid: 'dec', allHeads: false };
+    const state = { day: dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX', view: 'changes', station: null, sdir: 'dep', grid: 'dec', allHeads: false, allTrains: false };
 
     renderOverview();
     wire(state, () => render(state));
@@ -192,7 +193,7 @@ function renderStationView(state) {
     if (!host) return;
     if (!state.station) { host.innerHTML = '<p class="card-explainer tr-lead">Pick a station above, or start typing its name.</p>'; return; }
     const view = stationView(rows, TIMETABLES.dec[state.day][state.sdir], state.station, state.sdir);
-    host.innerHTML = renderStation(view, { stations: STATIONS, dir: state.sdir, showTrains: false });
+    host.innerHTML = renderStation(view, { stations: STATIONS, dir: state.sdir, showTrains: false, allTrains: state.allTrains });
 }
 
 /**
@@ -241,16 +242,18 @@ function renderLookup(state) {
  */
 function wire(state, onChange) {
     el('trainsMain')?.addEventListener('click', (e) => {
-        const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('button[data-day],button[data-view],button[data-sdir],button[data-grid],button[data-station],#trHeadsMore'));
+        const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('button[data-day],button[data-view],button[data-sdir],button[data-grid],button[data-station],#trHeadsMore,#trAllTrains'));
         if (!b) return;
         if (b.dataset.day) state.day = /** @type {Day} */ (b.dataset.day);
         if (b.dataset.view) state.view = /** @type {View} */ (b.dataset.view);
         if (b.dataset.sdir) state.sdir = /** @type {Dir} */ (b.dataset.sdir);
         if (b.dataset.grid) state.grid = /** @type {'now'|'dec'} */ (b.dataset.grid);
         if (b.id === 'trHeadsMore') state.allHeads = true;
+        if (b.id === 'trAllTrains') state.allTrains = true;
         if (b.dataset.station) {
             // A change in the list opens its station — the next question is always "and what else?".
             state.station = b.dataset.station;
+            state.allTrains = false;
             const fromList = state.view !== 'stations';
             state.view = 'stations';
             onChange();

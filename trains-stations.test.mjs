@@ -14,7 +14,7 @@ import {
     parseStops, stopsKnown, callsOf, lineOf, callingAt, knowableWithoutStops, decemberKnown, summarise,
     stationView, verdictFor, busiestStations, matchStations, headlineChanges, stoppingGrid, orderStations, pairColumns,
 } from './trains-stations.js';
-import { renderHeadlines, renderStation, renderGrid } from './trains-render.js';
+import { renderHeadlines, renderStation, renderGrid, endWords } from './trains-render.js';
 import { TIMETABLES, STATIONS } from './trains-data.js';
 
 /** @returns {[string,string,string,string,string]} */
@@ -211,6 +211,31 @@ describe('the words on screen', () => {
         const back = renderStation(stationView(TIMETABLES.now.SX.arr, TIMETABLES.dec.SX.arr, 'AYS', 'arr'), { stations: STATIONS, dir: 'arr', showTrains: true });
         assert.match(back, /Gets into Marylebone at/);
         assert.match(back, /<details class="tr-route" open>/);
+    });
+
+    test('the train list shows the trains that change; the rest are counted and one tap away', () => {
+        const view = stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, 'AYS', 'dep');
+        const changed = /** @type {any[]} */ (view.trains).filter(t => t.kind !== 'same').length;
+        const same = /** @type {any[]} */ (view.trains).length - changed;
+        assert.ok(changed > 0 && same > 0);
+        const html = renderStation(view, { stations: STATIONS, dir: 'dep', showTrains: true });
+        assert.equal((html.match(/class="tr-row /g) ?? []).length, changed);
+        assert.doesNotMatch(html, /No change/);
+        assert.match(html, new RegExp(`${changed} change, ${same} stay the same`));
+        assert.match(html, new RegExp(`id="trAllTrains">Show the ${same} that stay the same<`));
+        const all = renderStation(view, { stations: STATIONS, dir: 'dep', showTrains: false, allTrains: true });
+        assert.equal((all.match(/class="tr-row /g) ?? []).length, changed + same);
+        assert.match(all, /<details class="tr-route" open>/, 'showing all keeps the list open');
+        assert.doesNotMatch(all, /trAllTrains/);
+    });
+
+    test('a train that runs on names its onward stop in a few words', () => {
+        assert.equal(endWords('AVP', 'AYS', STATIONS, true), 'on to Parkway');
+        assert.equal(endWords('AVP', 'AYS', STATIONS, false), 'from Parkway');
+        assert.equal(endWords('SBJ', 'BMO', STATIONS, true), 'on to Stourbridge');
+        assert.equal(endWords('OXF', 'HWY', STATIONS, true), `to ${STATIONS.OXF}`);
+        assert.equal(endWords('AYS', 'AYS', STATIONS, true), '');
+        assert.equal(endWords(undefined, 'AYS', STATIONS, true), '');
     });
 
     test('the grid: today\'s stops are dots with words; December keeps today\'s row order and marks gained and lost stops', () => {

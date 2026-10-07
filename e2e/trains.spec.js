@@ -41,8 +41,16 @@ test.describe('trains', () => {
         await page.locator('[data-sdir="arr"]').click();
         await expect(page.locator('#trStation')).toContainText('Gets into Marylebone at');
         await expect(page.locator('#trStation .tr-verdict')).toHaveText('4 more trains a day — the off-peak hour stays the same.');
+        // Train by train: only the trains that change, the rest one tap away.
         await page.locator('#trStation .tr-route-sum').click();
         await expect(page.locator('#trStation .tr-trains tbody tr').first()).toBeVisible();
+        await expect(page.locator('#trStation .tr-trains')).not.toContainText('No change');
+        const changedRows = await page.locator('#trStation .tr-trains tbody tr').count();
+        await page.locator('#trAllTrains').click();
+        await expect(page.locator('#trStation .tr-route')).toHaveAttribute('open', '');
+        await expect(page.locator('#trStation .tr-trains')).toContainText('No change');
+        expect(await page.locator('#trStation .tr-trains tbody tr').count()).toBeGreaterThan(changedRows);
+        await expect(page.locator('#trStation .tr-trains')).toContainText('from Parkway');
 
         // A station trains pass THROUGH cannot be answered for December yet, and says so rather
         // than counting only the trains that end there.
