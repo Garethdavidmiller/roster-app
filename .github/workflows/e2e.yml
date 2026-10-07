@@ -439,12 +439,14 @@ jobs:
       matrix:
         project: [webkit, mobile-safari]
         shard: [1, 2]
-    # Each job carries ONE engine and HALF its tests. The TEST STEP carries the budget (15 minutes,
-    # below, for a shard that takes 10–13); this job cap is only the backstop against a hung runner,
-    # and it is wider than the step's on purpose. On 7 Oct 2026 the WebKit apt install took 9 minutes
-    # three times in one afternoon, and a 20-minute JOB cap spent the test budget on a download —
-    # cancelling shards in which every test had passed, on two PRs in a row.
-    timeout-minutes: 30
+    # Each job carries ONE engine and HALF its tests. The TEST STEP carries the budget (25 minutes,
+    # below); this job cap is only the backstop against a hung runner, and it is wider than the
+    # step's on purpose. On 7 Oct 2026 the WebKit apt install took 9 minutes three times in one
+    # afternoon, and a 20-minute JOB cap spent the test budget on a download — cancelling shards in
+    # which every test had passed, on two PRs in a row. The step budget was first set at 15, for a
+    # shard that takes 10–13 on a normal runner; the SAME slow runner then took 15 for the tests
+    # alone (v24.76, #1613), so it is 25: the budget guards against a hang, not against a slow day.
+    timeout-minutes: 35
     permissions:
       contents: read
     steps:
@@ -470,7 +472,7 @@ jobs:
         run: npx playwright install --with-deps webkit
 
       - name: Run the smoke suite under WebKit
-        timeout-minutes: 15
+        timeout-minutes: 25
         run: npm run test:webkit -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}/2
         env:
           CI: true
@@ -772,7 +774,10 @@ jobs:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 25, not 15 (7 Oct 2026): the Chromium install alone ran for the whole of a 15-minute cap on a
+    # slow runner, cancelling the job before a single baseline was compared. The cap is a backstop
+    # against a hang; the comparison itself takes about five minutes.
+    timeout-minutes: 25
     continue-on-error: true
     permissions:
       contents: read
