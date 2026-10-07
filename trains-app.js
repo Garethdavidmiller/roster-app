@@ -2,10 +2,11 @@
 /**
  * trains-app.js — coordinator for trains.html: what changes at Marylebone on 13 December 2026.
  *
- * Owns: the access gate, the session wiring, the day/direction choice and the four renders. Every
- * judgement about the two timetables — which December train is "the same train", the basic hour,
- * the wording of a change — is `trains-change.js`; the timetables themselves are the generated
- * `trains-data.js`. Nothing here reads the network: the page works offline from its first open.
+ * Owns: the access gate, the session wiring, and which view is on screen — the day, the question
+ * (what's changing / a station / the basic hour) and the chosen station. Every judgement about the
+ * timetables is `trains-change.js` and `trains-stations.js`; every word of HTML is `trains-render.js`;
+ * the timetables themselves are the generated `trains-data.js`. Nothing here reads the network: the
+ * page works offline from its first open.
  *
  * ── WHO IT IS FOR, AND WHY IT IS GATED ─────────────────────────────────────────────────────────
  *
@@ -17,9 +18,10 @@
  *
  * ── TEACH THE CHANGE, NOT THE TIMETABLE ────────────────────────────────────────────────────────
  *
- * The page is read in the weeks BEFORE the change by staff who will be asked about it. So every
- * train is shown beside the one it replaces, in words a member can repeat to a passenger, and the
- * basic hour sits beside the full lists because it is the one thing worth memorising.
+ * The page is read in the weeks BEFORE the change by staff who will be asked about it — "how do I
+ * get to Gerrards Cross?", not "what is the 10:10's terminus?". So it is organised by the STATION a
+ * customer is going to, answers in a sentence before it shows a table, and keeps the basic hour as
+ * one picture, because that is the thing worth memorising (owner brief, 7 Oct 2026).
  *
  * What comes after the preview — the teaching extras, and the at-a-glance page it becomes on
  * 13 December: docs/ROADMAP.md → "Trains page — what comes after the preview".
@@ -41,13 +43,22 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE } from './trains-data.js';
 import { CARD_TIPS } from './trains-tips.js';
-import {
-    compareRoutes, compareBasicHour, trainsNear, parseTypedTime, daysUntil, changeLabel, daysLabel,
-    routeName, PATTERN_HOURS, LINES, beyondLabel,
-} from './trains-change.js';
+import { compareRoutes, trainsNear, parseTypedTime, daysUntil, changeLabel, routeName } from './trains-change.js';
+import { stationView, busiestStations, matchStations, headlineChanges, stoppingGrid, stopsKnown } from './trains-stations.js';
+import { renderHeadlines, renderStation, renderGrid } from './trains-render.js';
 
 /** @typedef {'SX'|'SO'|'SU'} Day */
 /** @typedef {'dep'|'arr'} Dir */
+/** @typedef {'changes'|'stations'|'grid'} View */
+/**
+ * @typedef {object} PageState
+ * @property {Day} day
+ * @property {View} view
+ * @property {string|null} station   the station on the Stations view
+ * @property {Dir} sdir              going there, or coming back
+ * @property {'now'|'dec'} grid      which basic hour the grid shows
+ * @property {boolean} allHeads      the changes list expanded
+ */
 
 const DAY_NAMES = /** @type {Record<Day, string>} */ ({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' });
 
@@ -98,20 +109,18 @@ export function init() {
     openAboutLightbox = initAboutLightbox();
 
     initTipsLightbox(CARD_TIPS, { getIsAdmin: () => CONFIG.ADMIN_NAMES.includes(member) });
-    initCardCollapse('trOverviewToggleHeader', 'trOverviewBody', 'trOverviewChevron');
-    initCardCollapse('trRoutesToggleHeader',  'trRoutesBody',  'trRoutesChevron');
-    initCardCollapse('trPatternToggleHeader', 'trPatternBody', 'trPatternChevron');
-    initCardCollapse('trLookupToggleHeader',  'trLookupBody',  'trLookupChevron');
+    for (const id of ['trOverview', 'trChanges', 'trLookup', 'trStations', 'trPattern']) {
+        initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`);
+    }
 
     // Open on today's kind of day — what a member is most likely to be asked about.
     const dow = new Date().getDay();
-    /** @type {{ day: Day, dir: Dir }} */
-    const state = { day: dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX', dir: 'dep' };
+    /** @type {PageState} */
+    const state = { day: dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX', view: 'changes', station: null, sdir: 'dep', grid: 'dec', allHeads: false };
 
     renderOverview();
-    wireControls(state, () => renderChoice(state));
-    wireLookup(() => renderLookup(state));
-    renderChoice(state);
+    wire(state, () => render(state));
+    render(state);
     markPageReady();
 
     sessionReady.then(() => {
@@ -141,100 +150,54 @@ function renderOverview() {
     }).join('');
 }
 
-/** @param {{ day: Day, dir: Dir }} state */
-function renderChoice(state) {
-    renderRoutes(state);
-    renderPattern(state);
-    renderLookup(state);
+/** Everything that depends on the state: the pressed tabs, the visible view and its contents. @param {PageState} state */
+function render(state) {
+    for (const b of /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll('[data-day],[data-view],[data-sdir],[data-grid]')])) {
+        const on = b.dataset.day ? b.dataset.day === state.day : b.dataset.view ? b.dataset.view === state.view
+            : b.dataset.sdir ? b.dataset.sdir === state.sdir : b.dataset.grid === state.grid;
+        b.setAttribute('aria-pressed', String(on));
+    }
+    for (const [view, id] of /** @type {[View, string][]} */ ([['changes', 'trViewChanges'], ['stations', 'trViewStations'], ['grid', 'trViewGrid']])) {
+        const section = el(id);
+        if (section) section.hidden = state.view !== view;
+    }
+    const day = TIMETABLES.now[state.day], dec = TIMETABLES.dec[state.day];
+    if (state.view === 'changes') {
+        setText('trChangesHint', `${DAY_NAMES[state.day]} — the changes you’ll be asked about most`);
+        const host = el('trChanges');
+        if (host) host.innerHTML = renderHeadlines(headlineChanges(day.dep, dec.dep, STATIONS), { showAll: state.allHeads, partial: !dec.dep.every(stopsKnown) });
+        renderLookup(state);
+    } else if (state.view === 'stations') {
+        renderStationView(state);
+    } else {
+        const host = el('trPattern');
+        if (host) host.innerHTML = renderGrid(stoppingGrid(day.dep), stoppingGrid(dec.dep), state.grid, STATIONS);
+    }
 }
 
-/**
- * Every route, busiest first, each a disclosure holding the train-by-train list.
- * @param {{ day: Day, dir: Dir }} state
- */
-function renderRoutes(state) {
-    const host = el('trRoutes');
+/** The station picker and, once one is chosen, its card. @param {PageState} state */
+function renderStationView(state) {
+    const input = /** @type {HTMLInputElement|null} */ (el('trStationInput'));
+    const picks = el('trStationPicks'), host = el('trStation'), dirs = el('trStationDir');
+    const rows = TIMETABLES.now[state.day][state.sdir];
+    const typed = input?.value.trim() ?? '';
+    const offered = typed ? matchStations(STATIONS, typed) : busiestStations(TIMETABLES.now[state.day].dep);
+    if (picks) {
+        picks.innerHTML = offered.length
+            ? offered.map(crs => `<button type="button" class="tr-pick" data-station="${esc(crs)}" aria-pressed="${crs === state.station}">${esc(STATIONS[crs] ?? crs)}</button>`).join('')
+            : '<p class="card-explainer tr-lead">No station matches that.</p>';
+    }
+    setText('trStationTitle', state.station ? STATIONS[state.station] ?? state.station : 'Stations');
+    if (dirs) dirs.hidden = !state.station;
     if (!host) return;
-    const leaving = state.dir === 'dep';
-    setText('trRoutesTitle', leaving ? 'Where trains go' : 'Where trains come from');
-    setText('trRoutesHint', `${DAY_NAMES[state.day]}, ${leaving ? 'leaving' : 'arriving at'} Marylebone. Tap one to see every train`);
-    const nowTotal = TIMETABLES.now[state.day][state.dir].length, decTotal = TIMETABLES.dec[state.day][state.dir].length;
-    setText('trRoutesChip', `${nowTotal} → ${decTotal}`);
-
-    const routes = compareRoutes(TIMETABLES.now[state.day][state.dir], TIMETABLES.dec[state.day][state.dir]);
-    host.innerHTML = routes.map((r) => {
-        const name = routeName(STATIONS, r.station, r.via);
-        const moved = r.tally.earlier + r.tally.later;
-        const away = r.trains.filter(t => t.kind === 'rerouted' && t.side === 'old').length;
-        const here = r.tally.rerouted - away;
-        // A line that runs on (Aylesbury via Amersham → Aylesbury Vale Parkway) says so first:
-        // it is why the Parkway has no tile of its own.
-        const line = LINES[r.key];
-        const ext = line ? line.onward.map(o => STATIONS[o.station] ?? o.station).join(' or ') : '';
-        const ends = r.tally.terminus;
-        const parts = [
-            moved && `${moved} retimed`,
-            r.tally.new && `${r.tally.new} new`,
-            r.tally.gone && `${r.tally.gone} removed`,
-            away && `${away} ${leaving ? `now ${away === 1 ? 'runs' : 'run'} elsewhere` : `now ${away === 1 ? 'comes' : 'come'} from elsewhere`}`,
-            here && `${here} from another route`,
-            ends && `${ends} ${leaving ? `change${ends === 1 ? 's' : ''} where ${ends === 1 ? 'it ends' : 'they end'}` : `change${ends === 1 ? 's' : ''} where ${ends === 1 ? 'it starts' : 'they start'}`}`,
-        ].filter(Boolean);
-        const summary = (line ? `Some ${leaving ? 'go on to' : 'start at'} ${ext} · ` : '')
-            + (parts.length ? parts.join(' · ') : 'No change');
-        const none = '<span class="tr-none"><span aria-hidden="true">—</span><span class="sr-only">none</span></span>';
-        const rows = r.trains.map((t) => {
-            const chip = t.kind === 'earlier' || t.kind === 'later' ? 'moved' : t.kind === 'terminus' ? 'rerouted' : t.kind;
-            // A rerouted train belongs to THIS route on one side only: the chip names the other.
-            const now = t.kind === 'rerouted' && t.side === 'new' ? null : t.now;
-            const dec = t.kind === 'rerouted' && t.side === 'old' ? null : t.dec;
-            const days = now ? daysLabel(t.days) : '';
-            // On a line that runs on, a train going the extra stop says so under its time — short,
-            // because the tile's own summary has just named the station in full.
-            const onwards = (/** @type {string|undefined} */ to) => {
-                const stop = line?.onward.find(o => o.station === to);
-                return stop ? `<span class="tr-days">${leaving ? 'to' : 'from'} ${esc(stop.short)}</span>` : '';
-            };
-            return `<tr class="tr-row tr-row--${chip}">`
-                + `<td>${now ? esc(now) : none}`
-                + `${days ? `<span class="tr-days">${esc(days)}</span>` : ''}${now ? onwards(t.nowTo) : ''}</td>`
-                + `<td>${dec ? esc(dec) : none}${dec ? onwards(t.decTo) : ''}</td>`
-                + `<td><span class="tr-chip tr-chip--${chip}">${esc(changeLabel(t, STATIONS, state.dir))}</span></td></tr>`;
-        }).join('');
-        return `<details class="tr-route${parts.length ? ' tr-route--changed' : ''}">`
-            + `<summary class="tr-route-sum"><span class="tr-route-name">${esc(name)}</span>`
-            + `<span class="card-year-chip tr-route-count">${r.nowCount} → ${r.decCount}</span>`
-            + `<span class="tr-route-what">${esc(summary)}</span></summary>`
-            + `<table class="tr-trains"><thead><tr><th scope="col">Now</th><th scope="col">From 13 Dec</th>`
-            + `<th scope="col">What changes</th></tr></thead><tbody>${rows}</tbody></table></details>`;
-    }).join('');
+    if (!state.station) { host.innerHTML = '<p class="card-explainer tr-lead">Pick a station above, or start typing its name.</p>'; return; }
+    const view = stationView(rows, TIMETABLES.dec[state.day][state.sdir], state.station, state.sdir);
+    host.innerHTML = renderStation(view, { stations: STATIONS, dir: state.sdir, showTrains: false });
 }
 
 /**
- * The basic hour, before and after.
- * @param {{ day: Day, dir: Dir }} state
- */
-function renderPattern(state) {
-    const host = el('trPattern');
-    if (!host) return;
-    const rows = compareBasicHour(TIMETABLES.now[state.day][state.dir], TIMETABLES.dec[state.day][state.dir]);
-    const mins = (/** @type {number[]} */ ms) => ms.length ? ms.map(m => `:${String(m).padStart(2, '0')}`).join(' ') : '—';
-    const changed = rows.filter(r => r.changed).length;
-    const lead = changed
-        ? `${changed === 1 ? 'One line changes' : `${changed} lines change`} in the basic hour.`
-        : 'The basic hour stays the same.';
-    const window = `${String(PATTERN_HOURS.from).padStart(2, '0')}:00–${String(PATTERN_HOURS.to).padStart(2, '0')}:00`;
-    host.innerHTML = `<p class="card-explainer tr-lead">${esc(DAY_NAMES[state.day])}, ${esc(window)}. ${esc(lead)} Each time is minutes past every hour.</p>`
-        + `<table class="tr-pattern"><thead><tr><th scope="col">${state.dir === 'dep' ? 'To' : 'From'}</th>`
-        + `<th scope="col">Now</th><th scope="col">From 13 Dec</th></tr></thead><tbody>`
-        + rows.map(r => `<tr class="${r.changed ? 'tr-pattern--changed' : ''}"><th scope="row">${esc(routeName(STATIONS, r.station, r.via))}${beyondNote(r, state.dir)}</th>`
-            + `<td>${esc(mins(r.now))}</td><td>${esc(mins(r.dec))}${r.changed ? ' <span class="tr-chip tr-chip--moved">Changed</span>' : ''}</td></tr>`).join('')
-        + '</tbody></table>';
-}
-
-/**
- * "What happens to the 17:15?" — the trains near a typed time, before and after.
- * @param {{ day: Day, dir: Dir }} state
+ * "What happens to the 17:15?" — the trains leaving near a typed time, before and after.
+ * @param {PageState} state
  */
 function renderLookup(state) {
     const host = el('trLookupResult');
@@ -245,9 +208,8 @@ function renderLookup(state) {
     const at = parseTypedTime(typed);
     if (!at) { host.innerHTML = '<p class="card-explainer tr-lead">Type a time like 17:15 or 1715.</p>'; return; }
 
-    const nowRows = TIMETABLES.now[state.day][state.dir], decRows = TIMETABLES.dec[state.day][state.dir];
+    const nowRows = TIMETABLES.now[state.day].dep, decRows = TIMETABLES.dec[state.day].dep;
     const near = trainsNear(nowRows, decRows, at);
-    const leaving = state.dir === 'dep';
 
     // The exact train asked about, when there is one, answered in a sentence first.
     const exact = compareRoutes(nowRows, decRows).flatMap(r => r.trains.map(t => ({ r, t })))
@@ -255,57 +217,51 @@ function renderLookup(state) {
     const answer = exact.map(({ r, t }) => {
         // Where THIS train goes: on a line that runs on, that is not always the route's own station.
         const name = t.nowTo && t.nowTo !== r.station ? STATIONS[t.nowTo] ?? t.nowTo : routeName(STATIONS, r.station, r.via);
-        const label = changeLabel(t, STATIONS, state.dir);
+        const label = changeLabel(t, STATIONS, 'dep');
         // A retimed or new train gets its December time; a rerouted one's label already carries it.
         const when = t.kind === 'earlier' || t.kind === 'later' ? ` (${t.dec})` : '';
-        return `<p class="tr-answer"><strong>The ${esc(at)} ${leaving ? 'to' : 'from'} ${esc(name)}:</strong> ${esc(label)}${esc(when)}.</p>`;
+        return `<p class="tr-answer"><strong>The ${esc(at)} to ${esc(name)}:</strong> ${esc(label)}${esc(when)}.</p>`;
     }).join('');
 
     const list = (/** @type {import('./trains-change.js').TrainRow[]} */ rows) => rows.length
         ? `<ul class="tr-near">${rows.map(([t, st, via]) => `<li><span class="tr-near-time">${esc(t)}</span> ${esc(routeName(STATIONS, st, via))}</li>`).join('')}</ul>`
         : '<p class="card-explainer tr-lead">No trains.</p>';
     host.innerHTML = answer
-        + `<p class="card-explainer tr-lead">${esc(DAY_NAMES[state.day])}, ${leaving ? 'leaving' : 'arriving'} within 15 minutes of ${esc(at)}:</p>`
+        + `<p class="card-explainer tr-lead">${esc(DAY_NAMES[state.day])}, leaving within 15 minutes of ${esc(at)}:</p>`
         + `<div class="tr-near-cols"><div><h3 class="tr-near-head">Now</h3>${list(near.now)}</div>`
         + `<div><h3 class="tr-near-head">From 13 Dec</h3>${list(near.dec)}</div></div>`;
-}
-
-
-/** Under a line's name in the basic hour, which of its minutes run on — `beyondLabel`'s words.
- *  @param {any} r @param {Dir} dir */
-function beyondNote(r, dir) {
-    const text = beyondLabel(r, STATIONS, dir);
-    return text ? `<span class="tr-days">${esc(text)}</span>` : '';
 }
 
 // ── Wiring ──────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * @param {{ day: Day, dir: Dir }} state
+ * One delegated click handler for every tab and every station button, and the two text inputs.
+ * @param {PageState} state
  * @param {() => void} onChange
  */
-function wireControls(state, onChange) {
-    const buttons = /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll('#trControls .tr-tab')]);
-    const sync = () => {
-        for (const b of buttons) {
-            const on = b.dataset.day ? b.dataset.day === state.day : b.dataset.dir === state.dir;
-            b.setAttribute('aria-pressed', String(on));
-        }
-    };
-    for (const b of buttons) {
-        b.addEventListener('click', () => {
-            if (b.dataset.day) state.day = /** @type {Day} */ (b.dataset.day);
-            if (b.dataset.dir) state.dir = /** @type {Dir} */ (b.dataset.dir);
-            sync();
+function wire(state, onChange) {
+    el('trainsMain')?.addEventListener('click', (e) => {
+        const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('button[data-day],button[data-view],button[data-sdir],button[data-grid],button[data-station],#trHeadsMore'));
+        if (!b) return;
+        if (b.dataset.day) state.day = /** @type {Day} */ (b.dataset.day);
+        if (b.dataset.view) state.view = /** @type {View} */ (b.dataset.view);
+        if (b.dataset.sdir) state.sdir = /** @type {Dir} */ (b.dataset.sdir);
+        if (b.dataset.grid) state.grid = /** @type {'now'|'dec'} */ (b.dataset.grid);
+        if (b.id === 'trHeadsMore') state.allHeads = true;
+        if (b.dataset.station) {
+            // A change in the list opens its station — the next question is always "and what else?".
+            state.station = b.dataset.station;
+            const fromList = state.view !== 'stations';
+            state.view = 'stations';
             onChange();
-        });
-    }
-    sync();
-}
-
-/** @param {() => void} onChange */
-function wireLookup(onChange) {
+            // From the changes list the card replaces the view the member was scrolled into.
+            if (fromList) el('trViewStations')?.scrollIntoView({ block: 'nearest' });
+            return;
+        }
+        onChange();
+    });
     el('trLookupInput')?.addEventListener('input', onChange);
+    el('trStationInput')?.addEventListener('input', onChange);
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────────────────────────

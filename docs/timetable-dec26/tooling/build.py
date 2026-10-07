@@ -28,6 +28,8 @@ now_path, dec_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
 NOW = json.load(open(now_path))
 DEC = json.load(open(dec_path))
 
+# Names for every stop, read from the current timetable's own rows (`names` from assemble.py); these
+# fixed ones win, so a capitalisation the printed book uses ("Stratford-Upon-Avon") is not copied.
 STATIONS = {
     'AVP': 'Aylesbury Vale Parkway', 'AYS': 'Aylesbury', 'BAN': 'Banbury', 'BIT': 'Bicester Village',
     'BMO': 'Birmingham Moor Street', 'BSW': 'Birmingham Snow Hill', 'GER': 'Gerrards Cross',
@@ -35,6 +37,9 @@ STATIONS = {
     'PRR': 'Princes Risborough', 'SAV': 'Stratford-upon-Avon', 'SBJ': 'Stourbridge Junction',
     'WRU': 'West Ruislip',
 }
+for r in NOW:
+    for crs, name in r.get('names', {}).items():
+        STATIONS.setdefault(crs, name.replace('-On-The-', '-on-the-').replace('-Upon-', '-upon-'))
 DAY_NOTES = ('MFO', 'MFX', 'WO')
 ROUTED = {'AYS'}                       # the stations whose route is part of the train's identity
 
@@ -71,7 +76,10 @@ for day in ('SX', 'SO', 'SU'):
             continue
         via = ('H' if ('H' in r['notes'] or r['src'] == 'main') else 'A') if crs in ROUTED else ''
         days = next((n for n in r['notes'] if n in DAY_NOTES), '')
-        rows[r['kind']].append((f"{r['t'][:2]}:{r['t'][2:]}", crs, via, days))
+        # Every stop but Marylebone, the far end included, as CRS+HHMM — the time a passenger reaches it
+        # leaving London, or must be on the train coming back. '' means "not known", never "none".
+        stops = ' '.join(f'{c}{t}' for c, t in r.get('stops', []))
+        rows[r['kind']].append((f"{r['t'][:2]}:{r['t'][2:]}", crs, via, days, stops))
     out['now'][day] = rows
 
     # ── December: from the simplifier ──
@@ -84,7 +92,8 @@ for day in ('SX', 'SO', 'SU'):
             if crs not in STATIONS:
                 unknown[crs] += 1
                 continue
-            rows[kind].add((hhmm(r[tkey]), crs, dec_via(r['hc'], kind, crs), ''))
+            # The simplifier holds no stops: '' until Chiltern's December books are read (README).
+            rows[kind].add((hhmm(r[tkey]), crs, dec_via(r['hc'], kind, crs), '', ''))
     out['dec'][day] = {k: sorted(v, key=lambda x: (service_order(x[0]), x[1])) for k, v in rows.items()}
     out['now'][day] = {k: sorted(set(v), key=lambda x: (service_order(x[0]), x[1])) for k, v in out['now'][day].items()}
 
@@ -95,8 +104,8 @@ if unknown:
 def table(rows):
     # Six rows a line: a timetable is long, and one row a line put this file over the repo's
     # module-size ratchet with nothing in it but data.
-    cells = [f"['{t}', '{c}', '{v}', '{d}']" for t, c, v, d in rows]
-    lines = [', '.join(cells[i:i + 6]) for i in range(0, len(cells), 6)]
+    cells = [f"['{t}', '{c}', '{v}', '{d}', '{p}']" for t, c, v, d, p in rows]
+    lines = [', '.join(cells[i:i + 3]) for i in range(0, len(cells), 3)]
     return '[\n' + ''.join(f'                {ln},\n' for ln in lines) + '            ]'
 
 
@@ -106,10 +115,15 @@ js = ["""// @ts-check
  *
  * The two timetables the Trains page compares, as Marylebone sees them: every passenger train
  * leaving (`dep`, keyed by where it is going) and arriving (`arr`, keyed by where it came from).
- * Each row is `[time, station code, route, days]`:
+ * Each row is `[time, station code, route, days, stops]`:
  *   - route — Aylesbury only: 'H' via High Wycombe, 'A' via Amersham; '' everywhere else
  *   - days  — the current timetable's weekday exceptions: 'MFO' Mondays and Fridays only,
  *             'MFX' not Mondays and Fridays, 'WO' Wednesdays only; '' runs every day of its kind
+ *   - stops — every stop after Marylebone (leaving) or before it (arriving), the far end included,
+ *             as space-separated CRS+HHMM
+ *             ('HWY1105 BCS1131'): the time a passenger reaches it leaving London, or must be on
+ *             the train coming back. '' means NOT KNOWN — December's stops are not in the
+ *             simplifier and arrive with Chiltern's published December books.
  *
  * PUBLIC, like every file in this repository: it holds only what Chiltern prints for passengers.
  * The simplifier's lengths, platforms, diagrams and empty-stock moves are dropped by the
@@ -132,7 +146,7 @@ export const STATIONS = Object.freeze({
 js += [f"    {c}: '{n}',\n" for c, n in sorted(STATIONS.items())]
 js += ["""});
 
-/** @typedef {[string, string, string, string]} TrainRow */
+/** @typedef {[string, string, string, string, string]} TrainRow */
 /** @typedef {{ dep: TrainRow[], arr: TrainRow[] }} DayTimetable */
 /** @typedef {{ SX: DayTimetable, SO: DayTimetable, SU: DayTimetable }} Timetable */
 

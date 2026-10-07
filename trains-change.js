@@ -84,7 +84,7 @@ export function lineDepth(station) {
 /** The hours the basic pattern is read from — the off-peak middle of the day. */
 export const PATTERN_HOURS = Object.freeze({ from: 10, to: 16 });
 
-/** @typedef {[string, string, string, string]} TrainRow  [time 'HH:MM', station, route, days] */
+/** @typedef {[string, string, string, string, string]} TrainRow  [time 'HH:MM', station, route, days, stops] */
 /** @typedef {'same'|'earlier'|'later'|'new'|'gone'|'rerouted'|'terminus'} ChangeKind */
 /**
  * @typedef {object} PairedTrain

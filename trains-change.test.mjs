@@ -16,8 +16,8 @@ import {
 } from './trains-change.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE } from './trains-data.js';
 
-/** @param {string} t @param {string} [st] @param {string} [via] @param {string} [days] @returns {[string,string,string,string]} */
-const row = (t, st = 'OXF', via = '', days = '') => [t, st, via, days];
+/** @param {string} t @param {string} [st] @param {string} [via] @param {string} [days] @param {string} [stops] @returns {[string,string,string,string,string]} */
+const row = (t, st = 'OXF', via = '', days = '', stops = '') => [t, st, via, days, stops];
 const kinds = (/** @type {any[]} */ ts) => ts.map(t => `${t.now ?? '-'}>${t.dec ?? '-'} ${t.kind}`);
 
 describe('the railway day', () => {
@@ -235,12 +235,15 @@ describe('trains-data.js', () => {
 
     test('every row is a well-formed passenger train at a named station', () => {
         for (const side of /** @type {const} */ (['now', 'dec'])) for (const day of /** @type {const} */ (['SX', 'SO', 'SU'])) {
-            for (const kind of /** @type {const} */ (['dep', 'arr'])) for (const [t, st, via, days] of TIMETABLES[side][day][kind]) {
+            for (const kind of /** @type {const} */ (['dep', 'arr'])) for (const [t, st, via, days, stops] of TIMETABLES[side][day][kind]) {
                 assert.match(t, /^([01]\d|2[0-3]):[0-5]\d$/);
                 assert.ok(STATIONS[st], `${side} ${day} ${kind} ${t}: unnamed station ${st}`);
                 assert.ok(via === '' || (st === 'AYS' && (via === 'H' || via === 'A')), `${t} ${st} route ${via}`);
                 assert.ok(['', 'MFO', 'MFX', 'WO'].includes(days));
                 if (side === 'dec') assert.equal(days, '', 'December has no weekday exceptions on record');
+                assert.match(stops, /^(|[A-Z]{3}\d{4}( [A-Z]{3}\d{4})*)$/, `${side} ${day} ${kind} ${t}: stops`);
+                for (const stop of stops ? stops.split(' ') : []) assert.ok(STATIONS[stop.slice(0, 3)], `unnamed stop ${stop}`);
+                if (side === 'now') assert.ok(stops, `today's ${t} ${st} has its stops`);
             }
         }
     });

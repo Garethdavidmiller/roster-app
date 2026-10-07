@@ -120,9 +120,26 @@ body {
 .tr-tab:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
 @media (min-width: 1024px) {
     .tr-controls { flex-direction: row; gap: 24px; }
-    .tr-tabs:first-child { flex: 3; }
-    .tr-tabs:last-child { flex: 2; }
+    .tr-controls > .tr-tabs { flex: 1; }
 }
+/* A tab strip INSIDE a card (direction, Now / From 13 Dec) sits on the card surface, so it takes the
+   card's own idiom: sunken track, the chosen tab white — the Pay Calculator's tax-year tabs. */
+.tr-tabs--in-card { margin: 12px 0; }
+.tr-tabs--in-card[hidden] { display: none !important; }
+.tr-tabs--in-card .tr-tab {
+    border-color: var(--border-light);
+    background: var(--surface-sunken);
+    color: var(--text-mid);
+}
+.tr-tabs--in-card .tr-tab[aria-pressed="true"] {
+    background: white;
+    border-color: var(--primary-blue);
+    color: var(--primary-blue);
+}
+.tr-tabs--in-card .tr-tab:focus-visible { outline: var(--focus-outline); }
+
+/* `display` on a section out-specifies the `hidden` attribute (page-visibility-parity). */
+.tr-view[hidden] { display: none !important; }
 
 /* ── Columns ────────────────────────────────────────────────────────────────── */
 @media (min-width: 1024px) {
@@ -134,18 +151,7 @@ body {
     }
 }
 
-/* ── The key, and the chips it explains ─────────────────────────────────────── */
-.tr-key {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 14px;
-    margin: 0 0 12px;
-    padding: 0;
-    list-style: none;
-    color: var(--text-mid);
-    font-size: var(--type-small);
-}
-.tr-key li { display: inline-flex; align-items: center; gap: 6px; }
+/* ── Chips ──────────────────────────────────────────────────────────────────── */
 .tr-chip {
     display: inline-block;
     padding: 2px 8px;
@@ -177,7 +183,6 @@ body {
    days and Admin's week rows sit — name and one line of detail on the left, the
    count in the app's header-chip style on the right. Opening one keeps the list
    inside its own tile, so it reads as that destination's and nobody else's. */
-.tr-routes { display: flex; flex-direction: column; gap: 8px; }
 .tr-route {
     background: var(--surface);
     border: 1px solid var(--border-light);
@@ -222,25 +227,24 @@ body {
 .tr-route .tr-trains tbody tr:last-child td { border-bottom: 0; }
 
 /* ── The before-and-after table ────────────────────────────────────────────── */
-.tr-trains, .tr-pattern {
+.tr-trains {
     width: 100%;
     border-collapse: collapse;
     font-variant-numeric: tabular-nums;
     margin-bottom: 12px;
 }
-.tr-trains th, .tr-trains td, .tr-pattern th, .tr-pattern td {
+.tr-trains th, .tr-trains td {
     padding: 7px 8px 7px 0;
     text-align: left;
     vertical-align: top;
     border-bottom: 1px solid var(--border-light);
 }
-.tr-trains thead th, .tr-pattern thead th {
+.tr-trains thead th {
     color: var(--text-light);
     font-size: var(--type-small);
     font-weight: 600;
     white-space: nowrap;
 }
-.tr-pattern td { white-space: nowrap; }
 .tr-trains td:first-child, .tr-trains td:nth-child(2) { width: 22%; font-weight: 600; }
 .tr-row--same td { color: var(--text-light); font-weight: 400; }
 .tr-none { color: var(--text-faint); }
@@ -250,8 +254,133 @@ body {
     font-size: var(--type-micro);
     font-weight: 400;
 }
-.tr-pattern tbody th { font-weight: 600; }
-.tr-pattern--changed td { font-weight: 700; }
+
+/* ── What's changing: one sentence per change, each a way into its station ──── */
+.tr-heads { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+.tr-head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text-dark);
+    font: inherit;
+    font-size: var(--type-body);
+    text-align: left;
+    line-height: 1.4;
+    cursor: pointer;
+}
+.tr-head:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.tr-head-text { font-weight: 600; }
+.tr-head-go { color: var(--text-light); font-size: var(--type-large); }
+.tr-more {
+    margin-top: 10px;
+    padding: 6px 0;
+    border: 0;
+    background: none;
+    color: var(--primary-blue);
+    font: inherit;
+    font-size: var(--type-label);
+    font-weight: 700;
+    text-decoration: underline;
+    cursor: pointer;
+}
+.tr-more:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.tr-note { margin: 12px 0 0; font-size: var(--type-small); }
+
+/* ── Stations: the picker and the card ──────────────────────────────────────── */
+.tr-input.tr-input--wide { width: 100%; max-width: none; }
+.tr-picks { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.tr-pick {
+    padding: 6px 12px;
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius-pill);
+    background: var(--surface-sunken);
+    color: var(--text-dark);
+    font: inherit;
+    font-size: var(--type-label);
+    font-weight: 600;
+    cursor: pointer;
+}
+.tr-pick[aria-pressed="true"] { background: var(--primary-blue); border-color: var(--primary-blue); color: white; }
+.tr-pick:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.tr-verdict {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    font-weight: 700;
+    line-height: 1.45;
+}
+.tr-verdict--more  { background: var(--success-green-bg); color: var(--success-text); }
+.tr-verdict--less  { background: var(--error-bg); color: var(--error-text); }
+.tr-verdict--moved { background: var(--al-warning-bg); color: var(--orange-text); }
+.tr-verdict--unknown { color: var(--text-mid); font-weight: 600; }
+.tr-st-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tr-st-table th, .tr-st-table td {
+    padding: 8px 8px 8px 0;
+    text-align: left;
+    border-bottom: 1px solid var(--border-light);
+}
+.tr-st-table thead th { color: var(--text-light); font-size: var(--type-small); font-weight: 600; }
+.tr-st-table tbody th { font-weight: 600; color: var(--text-mid); width: 46%; }
+.tr-st-table td { font-weight: 700; }
+.tr-station-tile { margin-top: 12px; }
+
+/* ── The basic hour: one picture ───────────────────────────────────────────────
+   Chiltern's own poster format — a column per train that repeats every hour, a dot where it stops.
+   The table scrolls sideways inside its own box on a phone, the station names pinned, so the page
+   itself never does. */
+.tr-grid-wrap { overflow-x: auto; margin-top: 4px; }
+.tr-grid { border-collapse: separate; border-spacing: 0; font-size: var(--type-small); }
+.tr-grid th, .tr-grid td { padding: 5px 6px; border-bottom: 1px solid var(--border-light); text-align: center; }
+.tr-grid thead th { vertical-align: bottom; color: var(--text-mid); font-weight: 600; }
+.tr-grid-min { display: block; color: var(--text-dark); font-size: var(--type-label); font-weight: 800; font-variant-numeric: tabular-nums; }
+.tr-grid-end { display: block; font-size: var(--type-micro); white-space: nowrap; }
+.tr-grid .tr-grid-st {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    min-width: 128px;
+    max-width: 150px;
+    padding-left: 0;
+    background: var(--surface);
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-dark);
+}
+/* A phone cannot fit a whole basic hour at a readable size (seven trains, measured), so it shows
+   as many as it can: a narrower name column, tighter cells, a two-word destination on two lines —
+   and the rest scroll sideways under the pinned names, with a touch-only line saying so. */
+@media (max-width: 480px) {
+    .tr-grid th, .tr-grid td { padding: 5px 3px; }
+    .tr-grid .tr-grid-st { min-width: 100px; max-width: 108px; padding-right: 6px; box-shadow: 1px 0 0 var(--border-light); }
+    .tr-grid-end { white-space: normal; line-height: 1.15; }
+}
+.tr-grid-swipe { margin: 0 0 6px; color: var(--text-light); font-size: var(--type-small); }
+@media (min-width: 700px) { .tr-grid-swipe.touch-only { display: none; } }
+.tr-grid-origin th, .tr-grid-origin td { background: var(--surface-sunken); }
+.tr-grid-origin .tr-grid-st { background: var(--surface-sunken); }
+.tr-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: var(--radius-pill);
+    background: var(--primary-blue);
+    vertical-align: middle;
+}
+.tr-dot--new { background: var(--success-green-bg); box-shadow: inset 0 0 0 3px var(--success-text); }
+.tr-dot--lost { background: transparent; box-shadow: inset 0 0 0 2px var(--error-text); }
+.tr-grid-key {
+    display: flex; flex-wrap: wrap; gap: 6px 16px;
+    margin: 0 0 10px; padding: 0; list-style: none;
+    color: var(--text-mid); font-size: var(--type-small);
+}
+.tr-grid-key li { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ── Text, the lookup and the notes ────────────────────────────────────────── */
 /* Lines the renders write into a card: the shared `.card-explainer`, with less space below. */
@@ -313,6 +442,8 @@ body {
 }
 
 @media print {
+    .tr-view[hidden] { display: none !important; }
+    .tr-dot { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     body { background: white; padding: 0; color: black; }
     .tr-controls, .btn-burger, .btn-card-tips { display: none; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); }
