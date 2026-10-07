@@ -41,7 +41,7 @@ export const CARD_TIPS = {
         sections: [
             {
                 items: [
-                    { icon: '📋', html: 'The biggest changes for the day chosen above, biggest first — the ones you are most likely to be asked about.' },
+                    { icon: '📋', html: 'The biggest changes to trains <strong>leaving Marylebone</strong> on the day chosen above, one line per station, biggest first.' },
                     { icon: '👆', html: 'Tap a change to open that station and see everything about it.' },
                     { icon: '🟢', html: '<strong>More</strong> means more trains or a new direct service, <strong>Less</strong> fewer or none, <strong>Moved</strong> the same trains at different times.' },
                 ],
@@ -61,6 +61,7 @@ export const CARD_TIPS = {
             {
                 items: [
                     { icon: '⌨️', html: 'Start typing a station, or tap one of the busiest. The card answers in one sentence first, then the figures, today beside December.' },
+                    { icon: '🔢', html: '<strong>Off-peak</strong> means 10:00 to 16:00. <strong>1 to 2</strong> trains an hour means some off-peak hours have one train and some have two.' },
                     { icon: '🕐', html: 'Every time is at <strong>Marylebone</strong> — when a train leaves, or gets in. <strong>Fastest journey</strong> is the one figure measured at the other station.' },
                     { icon: '↩️', html: '<strong>Coming back</strong> shows the trains from that station into Marylebone.' },
                     { icon: '🔁', html: '<strong>Train by train</strong> lists only the trains that change; the ones that stay the same are one tap further. A train counts as the same train when it leaves within 20 minutes of its old time. Beyond that it shows as removed, and the new one as a new train.' },
@@ -104,7 +105,7 @@ export const CARD_TIPS = {
                 items: [
                     { icon: '⌨️', html: 'Type a time the way you would say it: <strong>17:15</strong>, <strong>1715</strong> or <strong>715</strong> all work.' },
                     { icon: '💬', html: 'If a train leaves at exactly that time today, the answer says what happens to it from 13 December.' },
-                    { icon: '↔️', html: 'Underneath, every train within 15 minutes either side, today and from 13 December, for the day and direction chosen above.' },
+                    { icon: '↔️', html: 'Underneath, every train leaving Marylebone within 15 minutes either side, today and from 13 December, for the day chosen above.' },
                 ],
             },
         ],

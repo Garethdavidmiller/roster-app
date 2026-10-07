@@ -433,14 +433,16 @@ export function changeLabel(t, stations = {}, dir = 'dep') {
         case 'terminus': {
             const to = /** @type {string} */ (t.decTo), name = stations[to] ?? to;
             const further = lineDepth(to) > lineDepth(/** @type {string} */ (t.nowTo));
-            const what = dir === 'arr' ? `Now starts at ${name}` : further ? `Now goes on to ${name}` : `Now ends at ${name}`;
+            // "Will", never "Now": the page's Now column means TODAY, so "Now runs to" read as a fact
+            // about the current timetable.
+            const what = dir === 'arr' ? `Will start at ${name}` : further ? `Will go on to ${name}` : `Will end at ${name}`;
             return t.shift ? `${what}, ${t.dec}` : what;
         }
         default: {
             const o = /** @type {NonNullable<PairedTrain['other']>} */ (t.other);
             const where = routeName(stations, o.station, o.via);
             if (t.side === 'new') return dir === 'dep' ? `Was the ${o.time} to ${where}` : `Was the ${o.time} from ${where}`;
-            const verb = dir === 'dep' ? 'Now runs to' : 'Now comes from';
+            const verb = dir === 'dep' ? 'Will run to' : 'Will come from';
             return t.shift ? `${verb} ${where}, ${o.time}` : `${verb} ${where}`;
         }
     }

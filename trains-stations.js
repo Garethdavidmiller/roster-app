@@ -35,6 +35,8 @@ import { serviceMinutes, alignTimes, LINES, lineDepth, PATTERN_HOURS, MAX_SHIFT_
  * @typedef {object} StationSummary
  * @property {number} total        trains in the day
  * @property {number} perHour      off-peak trains an hour (PATTERN_HOURS), rounded to the nearest whole
+ * @property {[number, number]} hourRange  the fewest and the most trains in any one off-peak hour — shown
+ *                                 to a reader, because an average of 2 hid two hours with only 1 train
  * @property {number[]} minutes    minutes past the hour, at Marylebone, that repeat in most off-peak hours
  * @property {number|null} fastest quickest journey in minutes, or null when no train's stop times are known
  * @property {string|null} first   first train of the railway day, Marylebone time
@@ -130,6 +132,8 @@ export function summarise(rows, crs, dir) {
         /** @type {Set<number>} */ (seen.get(m)).add(h);
     }
     const need = Math.floor(hours / 2) + 1;
+    const perHourCounts = Array.from({ length: hours }, (_, i) =>
+        inWindow.filter(r => Number(r[0].slice(0, 2)) === PATTERN_HOURS.from + i).length);
     const minutes = [...seen.entries()].filter(([, hs]) => hs.size >= need).map(([m]) => m).sort((a, b) => a - b);
     const journeys = here.flatMap((r) => {
         const stop = parseStops(r).find(s => s.crs === crs);
@@ -140,6 +144,7 @@ export function summarise(rows, crs, dir) {
     return {
         total: here.length,
         perHour: Math.round(inWindow.length / hours),
+        hourRange: [Math.min(...perHourCounts), Math.max(...perHourCounts)],
         minutes,
         fastest: journeys.length ? Math.min(...journeys) : null,
         first: here[0]?.[0] ?? null,
@@ -167,31 +172,48 @@ export function stationView(nowRows, decRows, crs, dir) {
 
 /**
  * One sentence a member of staff can repeat. The order is the order of what matters to a passenger:
- * whether there is a service at all, how often, then when.
+ * whether there is a service at all, how often, how many, then when. Every claim is one the figures
+ * table beside it shows, so the sentence can never say something the numbers do not.
  * @param {StationSummary} now
  * @param {StationSummary|null} dec
  * @param {PairedTrain[]|null} trains
  * @returns {{ tone: 'same'|'more'|'less'|'moved'|'unknown', text: string }}
  */
 export function verdictFor(now, dec, trains) {
-    if (!dec) return { tone: 'unknown', text: 'December stops not published yet — check back once Chiltern’s new timetable is out.' };
-    if (!now.total && dec.total) return { tone: 'more', text: 'New: direct trains from 13 December.' };
+    if (!dec) return { tone: 'unknown', text: 'December not known yet: Chiltern has not published which stations its December trains stop at. Today’s figures are below.' };
+    if (!now.total && dec.total) {
+        return { tone: 'more', text: dec.total === 1
+            ? `New from 13 December: one direct train, the ${dec.first}.`
+            : `New from 13 December: ${dec.total} direct trains a day.` };
+    }
     if (now.total && !dec.total) return { tone: 'less', text: 'No direct trains from 13 December.' };
-    if (dec.perHour !== now.perHour) {
+    if ((now.perHour || dec.perHour) && dec.perHour !== now.perHour) {
         return dec.perHour > now.perHour
             ? { tone: 'more', text: `More trains: ${dec.perHour} an hour off-peak, up from ${now.perHour}.` }
             : { tone: 'less', text: `Fewer trains: ${dec.perHour} an hour off-peak, down from ${now.perHour}.` };
     }
     const gained = dec.total - now.total;
-    if (Math.abs(gained) >= 2) {
-        return gained > 0
-            ? { tone: 'more', text: `${gained} more trains a day — the off-peak hour stays the same.` }
-            : { tone: 'less', text: `${-gained} fewer trains a day — the off-peak hour stays the same.` };
+    if (gained) {
+        const n = Math.abs(gained), trainsWord = n === 1 ? 'train' : 'trains';
+        return { tone: gained > 0 ? 'more' : 'less',
+            text: `${n} ${gained > 0 ? 'more' : 'fewer'} ${trainsWord} a day: ${dec.total}, was ${now.total}.` };
     }
-    if (now.minutes.join() !== dec.minutes.join()) return { tone: 'moved', text: 'Same number of trains, at different times past the hour.' };
+    if (now.minutes.length && dec.minutes.length && now.minutes.join() !== dec.minutes.join()) {
+        return { tone: 'moved', text: `Same number of trains. Off-peak times change from ${minutesWords(now.minutes)} to ${minutesWords(dec.minutes)} past the hour.` };
+    }
     const moved = (trains ?? []).filter(t => t.kind !== 'same').length;
-    if (moved) return { tone: 'moved', text: `Mostly the same — ${moved} train${moved === 1 ? '' : 's'} change${moved === 1 ? 's' : ''}.` };
+    if (moved) return { tone: 'moved', text: `Same number of trains a day, but ${moved} ${moved === 1 ? 'is' : 'are'} different — see Train by train below.` };
     return { tone: 'same', text: 'No change.' };
+}
+
+/**
+ * Minutes past the hour as a reader says them: ":27", ":27 and :57", ":06, :10 and :40".
+ * @param {number[]} ms
+ * @returns {string}
+ */
+export function minutesWords(ms) {
+    const w = ms.map(m => `:${String(m).padStart(2, '0')}`);
+    return w.length < 2 ? (w[0] ?? '') : `${w.slice(0, -1).join(', ')} and ${w[w.length - 1]}`;
 }
 
 /**
@@ -236,27 +258,37 @@ export function headlineChanges(nowRows, decRows, stations) {
     const places = new Set([...nowRows, ...decRows].flatMap(callsOf));
     /** @type {{ crs: string, tone: 'more'|'less'|'moved', text: string, score: number }[]} */
     const out = [];
-    const mm = (/** @type {number[]} */ ms) => ms.map(m => `:${String(m).padStart(2, '0')}`).join(' and ');
     for (const crs of places) {
         if (!decemberKnown(nowRows, decRows, crs)) continue;
         const now = summarise(nowRows, crs, 'dep'), dec = summarise(decRows, crs, 'dep');
         const name = stations[crs] ?? crs;
-        if (!now.total && dec.total) { out.push({ crs, tone: /** @type {const} */ ('more'), text: `${name} gets direct trains (${dec.total} a day)`, score: 100 + dec.total }); continue; }
-        if (now.total && !dec.total) { out.push({ crs, tone: /** @type {const} */ ('less'), text: `${name} loses its direct trains`, score: 100 + now.total }); continue; }
-        if (dec.perHour !== now.perHour) {
-            out.push({ crs, tone: dec.perHour > now.perHour ? 'more' : 'less', score: 80 + Math.abs(dec.perHour - now.perHour),
-                text: `${name}: ${dec.perHour} trains an hour off-peak (was ${now.perHour})` });
+        if (!now.total && dec.total) {
+            out.push({ crs, tone: 'more', score: 100 + dec.total, text: dec.total === 1
+                ? `${name} gets a direct train from Marylebone (the ${dec.first})`
+                : `${name} gets direct trains from Marylebone (${dec.total} a day)` });
+            continue;
+        }
+        if (now.total && !dec.total) { out.push({ crs, tone: 'less', text: `${name} loses its direct trains`, score: 100 + now.total }); continue; }
+        // One line per station, its biggest change first: two lines about one station read as two
+        // stories, and pushed a different station off the first five.
+        /** @type {{ tone: 'more'|'less'|'moved', score: number, text: string }[]} */
+        const parts = [];
+        if ((now.perHour || dec.perHour) && dec.perHour !== now.perHour) {
+            parts.push({ tone: dec.perHour > now.perHour ? 'more' : 'less', score: 80 + Math.abs(dec.perHour - now.perHour),
+                text: `${dec.perHour} trains an hour off-peak (was ${now.perHour})` });
         } else if (now.minutes.length && dec.minutes.length && now.minutes.join() !== dec.minutes.join()) {
-            out.push({ crs, tone: 'moved', score: 60, text: `Trains to ${name} leave at ${mm(dec.minutes)} past the hour (was ${mm(now.minutes)})` });
+            parts.push({ tone: 'moved', score: 60, text: `off-peak trains leave at ${minutesWords(dec.minutes)} past the hour (was ${minutesWords(now.minutes)})` });
         }
         const gained = dec.total - now.total;
         if (Math.abs(gained) >= 2) {
-            out.push({ crs, tone: gained > 0 ? 'more' : 'less', score: 40 + Math.abs(gained),
-                text: `${name}: ${dec.total} trains a day (was ${now.total})` });
+            parts.push({ tone: gained > 0 ? 'more' : 'less', score: 40 + Math.abs(gained), text: `${dec.total} trains a day (was ${now.total})` });
         }
         if (now.last && dec.last && Math.abs(serviceMinutes(dec.last) - serviceMinutes(now.last)) >= 10) {
-            out.push({ crs, tone: 'moved', score: 30, text: `Last train to ${name} now ${dec.last} (was ${now.last})` });
+            parts.push({ tone: 'moved', score: 30, text: `last train ${dec.last} (was ${now.last})` });
         }
+        if (!parts.length) continue;
+        parts.sort((a, b) => b.score - a.score);
+        out.push({ crs, tone: parts[0].tone, score: parts[0].score, text: `${name}: ${parts.map(p => p.text).join('; ')}` });
     }
     return out.sort((a, b) => b.score - a.score || a.text.localeCompare(b.text));
 }

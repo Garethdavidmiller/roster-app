@@ -26,21 +26,26 @@ test.describe('trains', () => {
 
         // What's changing: sentences, biggest first, and a tap opens that station.
         const heads = page.locator('#trChanges .tr-head');
-        await expect(heads.first()).toHaveText(/Stratford-upon-Avon gets direct trains \(1 a day\)/);
+        await expect(heads.first()).toHaveText(/Stratford-upon-Avon gets a direct train from Marylebone \(the 09:31\)/);
         await expect(page.locator('#trChanges')).toContainText('once Chiltern publishes December’s stops');
         await page.locator('#trChanges .tr-head', { hasText: 'Aylesbury:' }).click();
         await expect(page.locator('[data-view="stations"]')).toHaveAttribute('aria-pressed', 'true');
         await expect(page.locator('#trViewChanges')).toBeHidden();
         await expect(page.locator('#trStationTitle')).toHaveText('Aylesbury');
-        await expect(page.locator('#trStation .tr-verdict')).toHaveText('5 more trains a day — the off-peak hour stays the same.');
+        await expect(page.locator('#trStation .tr-verdict')).toHaveText('5 more trains a day: 46, was 41.');
         const daily = page.locator('#trStation .tr-st-table tbody tr', { hasText: 'Trains a day' });
         await expect(daily.locator('td').nth(0)).toHaveText('41');
         await expect(daily.locator('td').nth(1)).toHaveText('46');
+        // Today two off-peak hours have one Aylesbury train; December fills them. An average of 2
+        // hid that, so the range is shown.
+        const hourly = page.locator('#trStation .tr-st-table tbody tr', { hasText: 'Off-peak, trains an hour' });
+        await expect(hourly.locator('td').nth(0)).toHaveText('1 to 2');
+        await expect(hourly.locator('td').nth(1)).toHaveText('2');
 
         // Coming back rewords the card and recounts it for trains INTO Marylebone.
         await page.locator('[data-sdir="arr"]').click();
-        await expect(page.locator('#trStation')).toContainText('Gets into Marylebone at');
-        await expect(page.locator('#trStation .tr-verdict')).toHaveText('4 more trains a day — the off-peak hour stays the same.');
+        await expect(page.locator('#trStation')).toContainText('Off-peak, gets into Marylebone at');
+        await expect(page.locator('#trStation .tr-verdict')).toHaveText('4 more trains a day: 41, was 37.');
         // Train by train: only the trains that change, the rest one tap away.
         await page.locator('#trStation .tr-route-sum').click();
         await expect(page.locator('#trStation .tr-trains tbody tr').first()).toBeVisible();
@@ -57,8 +62,8 @@ test.describe('trains', () => {
         await page.locator('[data-sdir="dep"]').click();
         await page.locator('#trStationInput').fill('gerr');
         await page.locator('#trStationPicks .tr-pick', { hasText: 'Gerrards Cross' }).click();
-        await expect(page.locator('#trStation .tr-verdict')).toContainText('December stops not published yet');
-        await expect(page.locator('#trStation .tr-st-table tbody tr', { hasText: 'Trains a day' }).locator('td').nth(1)).toHaveText('—none');
+        await expect(page.locator('#trStation .tr-verdict')).toContainText('December not known yet');
+        await expect(page.locator('#trStation .tr-st-table tbody tr', { hasText: 'Trains a day' }).locator('td').nth(1)).toHaveText('—not known yet');
         await expect(page.locator('#trStation .tr-route')).toHaveCount(0);
 
         // The basic hour: today's stops as dots, and Saturdays' December hour gains a :32 to Birmingham.
@@ -76,7 +81,7 @@ test.describe('trains', () => {
         await page.locator('[data-view="changes"]').click();
         await page.locator('#trLookupInput').fill('1036');
         await expect(page.locator('#trLookupResult .tr-answer').first())
-            .toHaveText('The 10:36 to Banbury: Now runs to Birmingham Snow Hill.');
+            .toHaveText('The 10:36 to Banbury: Will run to Birmingham Snow Hill.');
         await page.locator('#trLookupInput').fill('noon');
         await expect(page.locator('#trLookupResult')).toContainText('Type a time like 17:15');
 

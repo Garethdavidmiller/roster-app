@@ -164,7 +164,7 @@ function render(state) {
     }
     const day = TIMETABLES.now[state.day], dec = TIMETABLES.dec[state.day];
     if (state.view === 'changes') {
-        setText('trChangesHint', `${DAY_NAMES[state.day]} — the changes you’ll be asked about most`);
+        setText('trChangesHint', `${DAY_NAMES[state.day]}, trains leaving Marylebone — biggest change first`);
         const host = el('trChanges');
         if (host) host.innerHTML = renderHeadlines(headlineChanges(day.dep, dec.dep, STATIONS), { showAll: state.allHeads, partial: !dec.dep.every(stopsKnown) });
         renderLookup(state);

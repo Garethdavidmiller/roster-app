@@ -12,7 +12,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     parseStops, stopsKnown, callsOf, lineOf, callingAt, knowableWithoutStops, decemberKnown, summarise,
-    stationView, verdictFor, busiestStations, matchStations, headlineChanges, stoppingGrid, orderStations, pairColumns,
+    stationView, verdictFor, minutesWords, busiestStations, matchStations, headlineChanges, stoppingGrid, orderStations, pairColumns,
 } from './trains-stations.js';
 import { renderHeadlines, renderStation, renderGrid, endWords } from './trains-render.js';
 import { TIMETABLES, STATIONS } from './trains-data.js';
@@ -84,6 +84,7 @@ describe('summarise — one station in numbers people already use', () => {
         const s = summarise(rows, 'OXF', 'dep');
         assert.equal(s.total, 14);
         assert.equal(s.perHour, 2);
+        assert.deepEqual(s.hourRange, [2, 2]);
         assert.deepEqual(s.minutes, [6, 40]);
         assert.equal(s.first, '05:54');
         assert.equal(s.last, '00:10', 'the railway day ends after midnight');
@@ -106,18 +107,28 @@ describe('verdictFor — the one sentence', () => {
         ({ total: 10, perHour: 2, minutes: [6, 36], fastest: null, first: '06:00', last: '23:00', ...o });
     test('waiting, new, gone, more an hour, fewer an hour, more a day, moved, the same', () => {
         assert.equal(verdictFor(s({}), null, null).tone, 'unknown');
-        assert.equal(verdictFor(s({ total: 0 }), s({}), []).text, 'New: direct trains from 13 December.');
+        assert.equal(verdictFor(s({ total: 0 }), s({}), []).text, 'New from 13 December: 10 direct trains a day.');
+        assert.equal(verdictFor(s({ total: 0 }), s({ total: 1, first: '09:31' }), []).text, 'New from 13 December: one direct train, the 09:31.');
         assert.equal(verdictFor(s({}), s({ total: 0 }), []).text, 'No direct trains from 13 December.');
         assert.match(verdictFor(s({}), s({ perHour: 3 }), []).text, /3 an hour off-peak, up from 2/);
         assert.match(verdictFor(s({}), s({ perHour: 1 }), []).text, /1 an hour off-peak, down from 2/);
-        assert.equal(verdictFor(s({}), s({ total: 15 }), []).text, '5 more trains a day — the off-peak hour stays the same.');
-        assert.equal(verdictFor(s({}), s({ minutes: [10, 40] }), []).tone, 'moved');
+        assert.equal(verdictFor(s({}), s({ total: 15 }), []).text, '5 more trains a day: 15, was 10.');
+        assert.equal(verdictFor(s({}), s({ total: 11, minutes: [10, 40] }), []).text, '1 more train a day: 11, was 10.', 'never "same number" when one more');
+        assert.equal(verdictFor(s({ perHour: 0 }), s({ perHour: 0, total: 12 }), []).text, '2 more trains a day: 12, was 10.', 'no off-peak claim for a station with no off-peak trains');
+        assert.equal(verdictFor(s({}), s({ minutes: [10, 40] }), []).text, 'Same number of trains. Off-peak times change from :06 and :36 to :10 and :40 past the hour.');
         assert.equal(verdictFor(s({}), s({}), []).text, 'No change.');
-        assert.equal(verdictFor(s({}), s({}), [/** @type {any} */ ({ kind: 'later' })]).text, 'Mostly the same — 1 train changes.');
+        assert.equal(verdictFor(s({}), s({}), [/** @type {any} */ ({ kind: 'later' })]).text, 'Same number of trains a day, but 1 is different — see Train by train below.');
     });
 });
 
 describe('finding a station', () => {
+    test('minutes past the hour read as a person says them', () => {
+        assert.equal(minutesWords([27]), ':27');
+        assert.equal(minutesWords([27, 57]), ':27 and :57');
+        assert.equal(minutesWords([6, 10, 40]), ':06, :10 and :40');
+        assert.equal(minutesWords([]), '');
+    });
+
     test('typing matches the start of a word before anywhere, and never offers Marylebone', () => {
         const st = { MYB: 'London Marylebone', GER: 'Gerrards Cross', HWY: 'High Wycombe', AYS: 'Aylesbury', AVP: 'Aylesbury Vale Parkway' };
         assert.deepEqual(matchStations(st, 'wyc'), ['HWY']);
@@ -139,7 +150,7 @@ describe('headlineChanges — what you will be asked about', () => {
         const now = [...hourly(6, 'OXF', ['HWY', 'OXF'])];
         const dec = [...hourly(6, 'OXF'), row('12:30', 'SAV')];
         const out = headlineChanges(now, dec, { OXF: 'Oxford', SAV: 'Stratford-upon-Avon', HWY: 'High Wycombe' });
-        assert.equal(out[0].text, 'Stratford-upon-Avon gets direct trains (1 a day)');
+        assert.equal(out[0].text, 'Stratford-upon-Avon gets a direct train from Marylebone (the 12:30)');
         assert.equal(out[0].tone, 'more');
         assert.ok(!out.some(h => h.crs === 'HWY'), 'High Wycombe cannot be answered yet');
     });
@@ -184,6 +195,14 @@ describe('the stopping-pattern grid', () => {
 });
 
 describe('the words on screen', () => {
+    test('one headline per station, its biggest change first', () => {
+        const now = [...hourly(2, 'BMO'), row('18:02', 'BMO'), row('19:02', 'BMO')];
+        const dec = [...hourly(2, 'BMO'), ...hourly(32, 'BMO'), row('18:02', 'BMO'), row('19:02', 'BMO')];
+        const out = headlineChanges(now, dec, { BMO: 'Birmingham Moor Street' });
+        assert.equal(out.length, 1);
+        assert.equal(out[0].text, 'Birmingham Moor Street: 2 trains an hour off-peak (was 1); 14 trains a day (was 8)');
+    });
+
     test('headlines: five, then a button for the rest, and the partial note', () => {
         const items = Array.from({ length: 7 }, (_, i) => ({ crs: 'AYS', tone: 'more', text: `Change ${i}` }));
         const html = renderHeadlines(items, { showAll: false, partial: true });
@@ -201,15 +220,17 @@ describe('the words on screen', () => {
         assert.match(html, />Less</);
     });
 
-    test('a station card: verdict, today beside December, and a waiting December reads "none" to a screen reader', () => {
+    test('a station card: verdict, today beside December, and a waiting December reads "not known yet" to a screen reader', () => {
         const view = stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, 'GER', 'dep');
         const html = renderStation(view, { stations: STATIONS, dir: 'dep', showTrains: false });
         assert.match(html, /tr-verdict--unknown/);
-        assert.match(html, /Leaves Marylebone at/);
-        assert.match(html, /<span class="sr-only">none<\/span>/);
+        assert.match(html, /Off-peak, leaves Marylebone at/);
+        assert.match(html, /<td>:06, :10 and :40<\/td>/);
+        assert.match(html, /<span class="sr-only">not known yet<\/span>/);
+        assert.doesNotMatch(html, /sr-only">none</, 'an unknown December figure is not "none"');
         assert.doesNotMatch(html, /See every train/, 'no train list without December');
         const back = renderStation(stationView(TIMETABLES.now.SX.arr, TIMETABLES.dec.SX.arr, 'AYS', 'arr'), { stations: STATIONS, dir: 'arr', showTrains: true });
-        assert.match(back, /Gets into Marylebone at/);
+        assert.match(back, /Off-peak, gets into Marylebone at/);
         assert.match(back, /<details class="tr-route" open>/);
     });
 

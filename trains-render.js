@@ -17,7 +17,7 @@
 
 import { escapeHtml as esc } from './roster-data.js';
 import { changeLabel, daysLabel } from './trains-change.js';
-import { pairColumns, lineOf } from './trains-stations.js';
+import { pairColumns, lineOf, minutesWords } from './trains-stations.js';
 
 /** The short names the grid's column heads use. Anything not listed shows its full name. */
 const SHORT = /** @type {Record<string, string>} */ ({
@@ -26,8 +26,9 @@ const SHORT = /** @type {Record<string, string>} */ ({
     PRR: 'Risborough', BIT: 'Bicester V', SAV: 'Stratford', LMS: 'Leamington', KGS: 'Kings Sutton',
 });
 
-const mm = (/** @type {number[]} */ ms) => ms.length ? ms.map(m => `:${String(m).padStart(2, '0')}`).join(' ') : '—';
 const none = '<span class="tr-none"><span aria-hidden="true">—</span><span class="sr-only">none</span></span>';
+/** A December figure that cannot be known yet — a dash too, but never read aloud as "none". */
+const notKnown = '<span class="tr-none"><span aria-hidden="true">—</span><span class="sr-only">not known yet</span></span>';
 /** A grid dot, with its meaning in words for a screen reader. @param {string} kind @param {string} words */
 const dot = (kind, words) => `<span class="tr-dot${kind ? ` tr-dot--${kind}` : ''}" aria-hidden="true"></span><span class="sr-only">${words}</span>`;
 
@@ -83,28 +84,35 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
     const { now, dec } = view;
     const leaving = dir === 'dep';
     const cell = (/** @type {string|number|null|undefined} */ v) => (v === null || v === undefined || v === '') ? none : esc(String(v));
-    const decCell = (/** @type {(s: NonNullable<typeof dec>) => string|number|null} */ f) => dec ? cell(f(dec)) : none;
+    const decCell = (/** @type {(s: NonNullable<typeof dec>) => string|number|null} */ f) => dec ? cell(f(dec)) : notKnown;
     const row = (/** @type {string} */ label, /** @type {string} */ a, /** @type {string} */ b) =>
         `<tr><th scope="row">${esc(label)}</th><td>${a}</td><td>${b}</td></tr>`;
     const journey = (/** @type {number|null} */ n) => n === null ? null : `${n} min`;
+    /** "2", or "1 to 2" when some off-peak hours have fewer — an average hid exactly that. */
+    const hourly = (/** @type {import('./trains-stations.js').StationSummary} */ x) =>
+        x.hourRange[0] === x.hourRange[1] ? x.hourRange[0] : `${x.hourRange[0]} to ${x.hourRange[1]}`;
+    /** The minutes that repeat; "Varies" when trains run off-peak but at no regular minute. */
+    const pastHour = (/** @type {import('./trains-stations.js').StationSummary} */ x) =>
+        x.minutes.length ? minutesWords(x.minutes) : x.hourRange[1] ? 'Varies' : null;
     const table = '<table class="tr-st-table"><thead><tr><th scope="col"><span class="sr-only">Figure</span></th>'
         + '<th scope="col">Now</th><th scope="col">From 13 Dec</th></tr></thead><tbody>'
         + row('Trains a day', cell(now.total), decCell(d => d.total))
-        + row('Off-peak, trains an hour', cell(now.perHour), decCell(d => d.perHour))
-        + row(leaving ? 'Leaves Marylebone at' : 'Gets into Marylebone at', cell(mm(now.minutes)), decCell(d => mm(d.minutes)))
+        + row('Off-peak, trains an hour', cell(hourly(now)), decCell(hourly))
+        + row(leaving ? 'Off-peak, leaves Marylebone at' : 'Off-peak, gets into Marylebone at', cell(pastHour(now)), decCell(pastHour))
         + row('Fastest journey', cell(journey(now.fastest)), decCell(d => journey(d.fastest)))
         + row(leaving ? 'First train' : 'First arrival', cell(now.first), decCell(d => d.first))
         + row(leaving ? 'Last train' : 'Last arrival', cell(now.last), decCell(d => d.last))
         + '</tbody></table>';
     const verdict = `<p class="tr-verdict tr-verdict--${view.verdict.tone}">${esc(view.verdict.text)}</p>`;
-    const minutesNote = '<p class="card-explainer tr-note">Times past the hour are at Marylebone, between 10:00 and 16:00.'
+    const minutesNote = '<p class="card-explainer tr-note">Every time on this card is at Marylebone. Off-peak means 10:00 to 16:00.'
         + (dec && dec.fastest === null && now.fastest !== null ? ' December journey times arrive with Chiltern’s published timetable.' : '') + '</p>';
     if (!view.trains) return verdict + table + minutesNote;
     const changed = view.trains.filter(t => t.kind !== 'same');
     const same = view.trains.length - changed.length;
     const shown = allTrains ? view.trains : changed;
     const trains = shown.map((t) => {
-        const chip = t.kind === 'earlier' || t.kind === 'later' ? 'moved' : t.kind;
+        // A train whose end moves is styled as a route change; there is no separate terminus chip.
+        const chip = t.kind === 'earlier' || t.kind === 'later' ? 'moved' : t.kind === 'terminus' ? 'rerouted' : t.kind;
         const end = (/** @type {string|undefined} */ to) => {
             const words = endWords(to, view.crs, stations, leaving);
             return words ? `<span class="tr-days">${esc(words)}</span>` : '';
