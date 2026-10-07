@@ -43,7 +43,7 @@ import { TIMETABLES, STATIONS, CHANGE_DATE } from './trains-data.js';
 import { CARD_TIPS } from './trains-tips.js';
 import {
     compareRoutes, compareBasicHour, trainsNear, parseTypedTime, daysUntil, changeLabel, daysLabel,
-    routeName, PATTERN_HOURS,
+    routeName, PATTERN_HOURS, LINES, beyondLabel,
 } from './trains-change.js';
 
 /** @typedef {'SX'|'SO'|'SU'} Day */
@@ -167,25 +167,38 @@ function renderRoutes(state) {
         const moved = r.tally.earlier + r.tally.later;
         const away = r.trains.filter(t => t.kind === 'rerouted' && t.side === 'old').length;
         const here = r.tally.rerouted - away;
+        // A line that runs on (Aylesbury via Amersham → Aylesbury Vale Parkway) says so first:
+        // it is why the Parkway has no tile of its own.
+        const line = LINES[r.key];
+        const ext = line ? line.onward.map(o => STATIONS[o.station] ?? o.station).join(' or ') : '';
+        const ends = r.tally.terminus;
         const parts = [
             moved && `${moved} retimed`,
             r.tally.new && `${r.tally.new} new`,
             r.tally.gone && `${r.tally.gone} removed`,
             away && `${away} ${leaving ? `now ${away === 1 ? 'runs' : 'run'} elsewhere` : `now ${away === 1 ? 'comes' : 'come'} from elsewhere`}`,
             here && `${here} from another route`,
+            ends && `${ends} ${leaving ? `change${ends === 1 ? 's' : ''} where ${ends === 1 ? 'it ends' : 'they end'}` : `change${ends === 1 ? 's' : ''} where ${ends === 1 ? 'it starts' : 'they start'}`}`,
         ].filter(Boolean);
-        const summary = parts.length ? parts.join(' · ') : 'No change';
+        const summary = (line ? `Some ${leaving ? 'go on to' : 'start at'} ${ext} · ` : '')
+            + (parts.length ? parts.join(' · ') : 'No change');
         const none = '<span class="tr-none"><span aria-hidden="true">—</span><span class="sr-only">none</span></span>';
         const rows = r.trains.map((t) => {
-            const chip = t.kind === 'earlier' || t.kind === 'later' ? 'moved' : t.kind;
+            const chip = t.kind === 'earlier' || t.kind === 'later' ? 'moved' : t.kind === 'terminus' ? 'rerouted' : t.kind;
             // A rerouted train belongs to THIS route on one side only: the chip names the other.
             const now = t.kind === 'rerouted' && t.side === 'new' ? null : t.now;
             const dec = t.kind === 'rerouted' && t.side === 'old' ? null : t.dec;
             const days = now ? daysLabel(t.days) : '';
+            // On a line that runs on, a train going the extra stop says so under its time — short,
+            // because the tile's own summary has just named the station in full.
+            const onwards = (/** @type {string|undefined} */ to) => {
+                const stop = line?.onward.find(o => o.station === to);
+                return stop ? `<span class="tr-days">${leaving ? 'to' : 'from'} ${esc(stop.short)}</span>` : '';
+            };
             return `<tr class="tr-row tr-row--${chip}">`
                 + `<td>${now ? esc(now) : none}`
-                + `${days ? `<span class="tr-days">${esc(days)}</span>` : ''}</td>`
-                + `<td>${dec ? esc(dec) : none}</td>`
+                + `${days ? `<span class="tr-days">${esc(days)}</span>` : ''}${now ? onwards(t.nowTo) : ''}</td>`
+                + `<td>${dec ? esc(dec) : none}${dec ? onwards(t.decTo) : ''}</td>`
                 + `<td><span class="tr-chip tr-chip--${chip}">${esc(changeLabel(t, STATIONS, state.dir))}</span></td></tr>`;
         }).join('');
         return `<details class="tr-route${parts.length ? ' tr-route--changed' : ''}">`
@@ -214,7 +227,7 @@ function renderPattern(state) {
     host.innerHTML = `<p class="card-explainer tr-lead">${esc(DAY_NAMES[state.day])}, ${esc(window)}. ${esc(lead)} Each time is minutes past every hour.</p>`
         + `<table class="tr-pattern"><thead><tr><th scope="col">${state.dir === 'dep' ? 'To' : 'From'}</th>`
         + `<th scope="col">Now</th><th scope="col">From 13 Dec</th></tr></thead><tbody>`
-        + rows.map(r => `<tr class="${r.changed ? 'tr-pattern--changed' : ''}"><th scope="row">${esc(routeName(STATIONS, r.station, r.via))}</th>`
+        + rows.map(r => `<tr class="${r.changed ? 'tr-pattern--changed' : ''}"><th scope="row">${esc(routeName(STATIONS, r.station, r.via))}${beyondNote(r, state.dir)}</th>`
             + `<td>${esc(mins(r.now))}</td><td>${esc(mins(r.dec))}${r.changed ? ' <span class="tr-chip tr-chip--moved">Changed</span>' : ''}</td></tr>`).join('')
         + '</tbody></table>';
 }
@@ -240,7 +253,8 @@ function renderLookup(state) {
     const exact = compareRoutes(nowRows, decRows).flatMap(r => r.trains.map(t => ({ r, t })))
         .filter(({ t }) => t.now === at && (t.kind !== 'rerouted' || t.side === 'old'));
     const answer = exact.map(({ r, t }) => {
-        const name = routeName(STATIONS, r.station, r.via);
+        // Where THIS train goes: on a line that runs on, that is not always the route's own station.
+        const name = t.nowTo && t.nowTo !== r.station ? STATIONS[t.nowTo] ?? t.nowTo : routeName(STATIONS, r.station, r.via);
         const label = changeLabel(t, STATIONS, state.dir);
         // A retimed or new train gets its December time; a rerouted one's label already carries it.
         const when = t.kind === 'earlier' || t.kind === 'later' ? ` (${t.dec})` : '';
@@ -256,6 +270,13 @@ function renderLookup(state) {
         + `<div><h3 class="tr-near-head">From 13 Dec</h3>${list(near.dec)}</div></div>`;
 }
 
+
+/** Under a line's name in the basic hour, which of its minutes run on — `beyondLabel`'s words.
+ *  @param {any} r @param {Dir} dir */
+function beyondNote(r, dir) {
+    const text = beyondLabel(r, STATIONS, dir);
+    return text ? `<span class="tr-days">${esc(text)}</span>` : '';
+}
 
 // ── Wiring ──────────────────────────────────────────────────────────────────────────────────────
 

@@ -50,6 +50,7 @@ export const CARD_TIPS = {
                 heading: 'Good to know',
                 items: [
                     { icon: '🛤️', html: '<strong>Aylesbury has two routes</strong>: via High Wycombe or via Amersham. A train that changes route is shown as going somewhere different, because the journey is.' },
+                    { icon: '➡️', html: 'Some trains run on past where most of their line stops, so they are listed with that line: <strong>Aylesbury Vale Parkway</strong> with Aylesbury via Amersham, and <strong>Birmingham Snow Hill</strong> and <strong>Stourbridge Junction</strong> with Birmingham Moor Street. Each train still says where it ends, and <strong>Now ends at…</strong> or <strong>Now goes on to…</strong> means only the last stop has changed.' },
                     { icon: '🗓️', html: 'A few weekday trains run at different times on <strong>Mondays and Fridays</strong>. Those are marked under the time.' },
                     { icon: '🚉', html: 'Only times at Marylebone are shown. Which stations each December train stops at is not here yet, so a train with the same time can still stop at different places.' },
                 ],
@@ -65,6 +66,7 @@ export const CARD_TIPS = {
                     { icon: '🔂', html: 'Between 10:00 and 16:00 most hours repeat the same pattern. Each figure is <strong>minutes past every hour</strong> — :06 means 10:06, 11:06, 12:06 and so on.' },
                     { icon: '🧠', html: 'It is the one thing worth learning by heart: know it and you can answer most daytime questions without looking anything up.' },
                     { icon: '🟠', html: '<strong>Changed</strong> marks a destination whose pattern is different from 13 December.' },
+                    { icon: '➡️', html: 'A line that runs on is one pattern — Aylesbury via Amersham, and Birmingham Moor Street. The line under its name says which minutes go further, and where.' },
                 ],
             },
         ],

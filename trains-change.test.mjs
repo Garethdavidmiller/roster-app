@@ -12,7 +12,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     serviceMinutes, alignTimes, compareRoutes, foldWeekdayVariants, basicHour, compareBasicHour,
-    trainsNear, parseTypedTime, daysUntil, changeLabel, daysLabel, routeName, MAX_SHIFT_MIN,
+    trainsNear, parseTypedTime, daysUntil, changeLabel, daysLabel, routeName, MAX_SHIFT_MIN, beyondLabel, lineDepth,
 } from './trains-change.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE } from './trains-data.js';
 
@@ -77,7 +77,7 @@ describe('foldWeekdayVariants — a train that runs at two times on different we
 describe('compareRoutes — one train, a different destination', () => {
     test('a train cut from one route and added to another at the same time is ONE rerouted train', () => {
         const routes = compareRoutes([row('10:36', 'BAN')], [row('10:36', 'BSW')]);
-        const ban = routes.find(r => r.key === 'BAN'), bsw = routes.find(r => r.key === 'BSW');
+        const ban = routes.find(r => r.key === 'BAN'), bsw = routes.find(r => r.key === 'BMO');   // Snow Hill is the Moor Street line
         assert.equal(ban?.trains[0].kind, 'rerouted');
         assert.equal(changeLabel(/** @type {any} */ (ban).trains[0], STATIONS), 'Now runs to Birmingham Snow Hill');
         assert.equal(changeLabel(/** @type {any} */ (bsw).trains[0], STATIONS), 'Was the 10:36 to Banbury');
@@ -102,6 +102,69 @@ describe('compareRoutes — one train, a different destination', () => {
     test('across routes only a close match counts — otherwise it is a genuinely new train', () => {
         const routes = compareRoutes([row('10:00', 'BAN')], [row('10:10', 'BSW')]);
         assert.deepEqual(routes.map(r => r.trains[0].kind).sort(), ['gone', 'new']);
+    });
+});
+
+describe('a line that runs on — Aylesbury Vale Parkway is the Amersham line, one stop further', () => {
+    test('the Parkway has no route of its own: its trains are the line\'s', () => {
+        const routes = compareRoutes([row('10:27', 'AYS', 'A'), row('10:57', 'AVP')], [row('10:27', 'AYS', 'A'), row('10:57', 'AVP')]);
+        assert.deepEqual(routes.map(r => [r.key, r.station, r.via, r.nowCount]), [['AYSA', 'AYS', 'A', 2]]);
+        assert.equal(routeName(STATIONS, routes[0].station, routes[0].via), 'Aylesbury via Amersham');
+    });
+
+    test('a kept train whose END moves is one train, worded by where it now ends or starts', () => {
+        const [cut] = compareRoutes([row('08:27', 'AVP')], [row('08:27', 'AYS', 'A')])[0].trains;
+        assert.equal(cut.kind, 'terminus');
+        assert.equal(changeLabel(cut, STATIONS), 'Now ends at Aylesbury');
+        const [ext] = compareRoutes([row('07:57', 'AYS', 'A')], [row('07:59', 'AVP')])[0].trains;
+        assert.equal(changeLabel(ext, STATIONS), 'Now goes on to Aylesbury Vale Parkway, 07:59');
+        assert.equal(changeLabel(ext, STATIONS, 'arr'), 'Now starts at Aylesbury Vale Parkway, 07:59');
+    });
+
+    test('the via-High-Wycombe Aylesbury trains are a different line and are not folded in', () => {
+        const routes = compareRoutes([row('10:52', 'AYS', 'H'), row('10:57', 'AVP')], []);
+        assert.deepEqual(routes.map(r => r.key).sort(), ['AYSA', 'AYSH']);
+    });
+
+    test('the basic hour marks which minutes run on', () => {
+        const hours = ['10', '11', '12', '13', '14', '15'];
+        const [line] = basicHour(hours.flatMap(h => [row(`${h}:27`, 'AYS', 'A'), row(`${h}:57`, 'AVP')]));
+        assert.deepEqual([line.key, line.minutes, line.beyond], ['AYSA', [27, 57], [{ minute: 57, to: 'AVP' }]]);
+    });
+
+    test('and says so in words, December first', () => {
+        const r = { key: 'AYSA', dec: [27, 57], decBeyond: [{ minute: 57, to: 'AVP' }], nowBeyond: [{ minute: 27, to: 'AVP' }] };
+        assert.equal(beyondLabel(r, STATIONS), ':57 goes on to Aylesbury Vale Parkway');
+        assert.equal(beyondLabel(r, STATIONS, 'arr'), ':57 starts at Aylesbury Vale Parkway');
+        assert.equal(beyondLabel({ ...r, key: 'OXF' }, STATIONS), '');
+    });
+});
+
+describe('a line with two onward stops — Snow Hill and Stourbridge are Moor Street trains run on', () => {
+    test('all three are one route, named by the line\'s own station', () => {
+        const routes = compareRoutes([row('10:02', 'BMO'), row('10:36', 'BSW'), row('16:37', 'SBJ')], []);
+        assert.deepEqual(routes.map(r => [r.key, r.station, r.nowCount]), [['BMO', 'BMO', 3]]);
+    });
+
+    test('further along the line is "goes on to"; back towards London is "ends at"', () => {
+        const [on] = compareRoutes([row('16:37', 'BMO')], [row('16:37', 'SBJ')])[0].trains;
+        assert.equal(changeLabel(on, STATIONS), 'Now goes on to Stourbridge Junction');
+        const [back] = compareRoutes([row('18:37', 'SBJ')], [row('18:34', 'BSW')])[0].trains;
+        assert.equal(changeLabel(back, STATIONS), 'Now ends at Birmingham Snow Hill, 18:34');
+    });
+
+    test('lineDepth orders a line from its own station outwards', () => {
+        assert.deepEqual(['BMO', 'BSW', 'SBJ', 'AYS', 'AVP', 'OXF'].map(lineDepth), [0, 1, 2, 0, 1, -1]);
+    });
+
+    test('a train rerouted ONTO the line names where it actually goes, not the line\'s station', () => {
+        const ban = compareRoutes([row('10:36', 'BAN')], [row('10:36', 'BSW')]).find(r => r.key === 'BAN');
+        assert.equal(changeLabel(/** @type {any} */ (ban).trains[0], STATIONS), 'Now runs to Birmingham Snow Hill');
+    });
+
+    test('the basic-hour words name each onward stop separately', () => {
+        const r = { key: 'BMO', dec: [2, 32, 36], decBeyond: [{ minute: 32, to: 'SBJ' }, { minute: 36, to: 'BSW' }], nowBeyond: [] };
+        assert.equal(beyondLabel(r, STATIONS), ':32 goes on to Stourbridge Junction; :36 goes on to Birmingham Snow Hill');
     });
 });
 
@@ -190,6 +253,18 @@ describe('trains-data.js', () => {
 
     test('checked by hand: the weekday basic hour from 10:00 to 16:00', () => {
         const dec = basicHour(TIMETABLES.dec.SX.dep).map(r => `:${String(r.minutes[0]).padStart(2, '0')} ${r.key}`);
-        assert.deepEqual(dec, [':02 BMO', ':06 OXF', ':10 HWY', ':27 AYSA', ':36 BSW', ':57 AVP']);
+        assert.deepEqual(dec, [':02 BMO', ':06 OXF', ':10 HWY', ':27 AYSA']);
+    });
+
+    test('checked by hand: the Amersham line is half-hourly, the :57 running on to the Parkway', () => {
+        const line = basicHour(TIMETABLES.dec.SX.dep).find(r => r.key === 'AYSA');
+        assert.deepEqual(line?.minutes, [27, 57]);
+        assert.deepEqual(line?.beyond, [{ minute: 57, to: 'AVP' }]);
+    });
+
+    test('checked by hand: the Birmingham line is half-hourly, the :36 running on to Snow Hill', () => {
+        const line = basicHour(TIMETABLES.dec.SX.dep).find(r => r.key === 'BMO');
+        assert.deepEqual(line?.minutes, [2, 36]);
+        assert.deepEqual(line?.beyond, [{ minute: 36, to: 'BSW' }]);
     });
 });
