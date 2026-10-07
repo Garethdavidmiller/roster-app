@@ -3,7 +3,7 @@
  * `requirePageAuth` is pure (explicit roles); `requirePage`/`rolesFor` read the real CONFIG.
  * No mocks. Part of test:hygiene.
  */
-import { test, describe } from 'node:test';
+import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { requirePageAuth, requirePage, rolesFor, isOvertimeReviewer, canOpenOvertime,
     PAGE_POLICIES, DECISIONS } from './auth-policy.js';
@@ -183,11 +183,21 @@ describe('the Overtime beta participant — invited to ANSWER, never to look', (
     // and this very policy demanded an admin/manager role, so a member the SERVER fully intended
     // to ask would have found no link in the drawer and a "not open to everyone yet" panel if she
     // typed the URL. Her form would have been sitting on the server the whole time.
-    const beta = (CONFIG.OVERTIME_BETA || [])[0];
+    //
+    // The live list can be EMPTY (7 Oct 2026: both participants withdrawn). The two predicates still
+    // have to stay apart for the next person invited, so when nobody is on the list a stand-in is
+    // invited for the length of this block and removed after — a real roster CEA, so the name
+    // resolves exactly as an invited one would. Skipping instead would leave the safety property
+    // below unpinned for precisely as long as nobody is watching it.
+    const live = CONFIG.OVERTIME_BETA || [];
+    const beta = live[0] ?? 'T. Bibi';
     const ordinary = 'A. Nobody';
+    const invited = !live.length;
+    before(() => { if (invited) CONFIG.OVERTIME_BETA = [beta]; });
+    after(() => { if (invited) CONFIG.OVERTIME_BETA = live; });
 
     test('a beta member may OPEN Overtime', () => {
-        assert.ok(beta, 'the beta list is empty — this suite has nothing to pin');
+        assert.ok(beta, 'no beta member to pin');
         assert.equal(canOpenOvertime(beta), true);
         assert.equal(requirePage({ status: 'named', member: beta }, 'overtime').decision, 'allow');
     });
