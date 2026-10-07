@@ -1,0 +1,67 @@
+# Saves the Playwright browsers to the Actions cache under MAIN's scope, where every pull request
+# can read them.
+#
+# WHY A WORKFLOW OF ITS OWN. e2e.yml restores each browser from the cache before installing it
+# (#1615), but GitHub scopes a cache entry to the ref that SAVED it, and a pull-request run may read
+# only its own PR's entries and main's. e2e.yml never runs on main (deploy-hosting.yml carries the
+# smoke suite there), so the only WebKit entries were being saved under individual PR refs, where no
+# later PR could reach them — measured on #1616, the first PR after the cache shipped: all nine jobs
+# downloaded their browser again. deploy-hosting.yml does save Chromium under main, but nothing saved
+# WebKit there. This does, for both, so the next PR's "Install Playwright …" steps are skipped.
+#
+# WHEN. After a Playwright bump (the lockfile changes the key, so the old entry is useless), weekly
+# so an entry is never evicted for want of use, and by hand. Each job is a checkout, `npm ci` and
+# one download — a minute or two on a normal runner.
+name: Warm the browser cache
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - package-lock.json
+      - .github/workflows/warm-browser-cache.yml
+  schedule:
+    - cron: '23 4 * * 1'   # Mondays 04:23 UTC — before the week's first PR
+  workflow_dispatch:
+
+concurrency:
+  group: warm-browser-cache
+  cancel-in-progress: false
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    # A download that hangs is the thing this exists to take off the critical path; the cap only
+    # stops a hung one burning a runner.
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Install Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The key is e2e.yml's, character for character — a different key would warm nothing.
+      - name: Restore Playwright ${{ matrix.browser }} from the cache
+        id: pw-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ hashFiles('node_modules/@playwright/test/package.json') }}
+
+      # Only the download: the apt libraries are installed by every job that runs the browser, and
+      # the cache cannot hold them anyway. Saved when the job ends, by the cache action's post step.
+      - name: Download Playwright ${{ matrix.browser }}
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: npx playwright install ${{ matrix.browser }}
