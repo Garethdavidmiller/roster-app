@@ -401,7 +401,7 @@ export function guardedRowHtml({ key, s, dayName, dateStr, badgeHtml, esc }) {
     return `
         <div class="roster-chg-day"><span class="roster-day-abbr">${dayName}</span><span class="roster-day-date">${dateStr}</span></div>
         <div class="roster-guard-said"><span class="roster-guard-lab">Roster</span><span class="roster-guard-val${recording ? ' is-recorded' : ''}">${badgeHtml}</span></div>
-        ${held ? `<div class="roster-guard-said"><span class="roster-guard-lab">Saved now</span><span class="roster-guard-val">${esc(held === 'SICK' ? 'Absent' : held)}</span></div>` : ''}
+        ${held ? `<div class="roster-guard-said roster-guard-held"><span class="roster-guard-lab">Saved now</span><span class="roster-guard-val">${esc(held === 'SICK' ? 'Absent' : held)}</span></div>` : ''}
         <span class="roster-act ${recording ? 'act-update' : clearing ? 'act-clear' : 'act-none'}">${recording ? 'Will record' : clearing ? 'Will clear' : held ? 'Kept as saved' : 'Not recorded'}</span>
         <p class="roster-guard-note">${guardCopy(s.guarded, asks)}</p>
         ${asks ? `<div class="roster-pick roster-guard-pick" role="group" aria-label="Was this a swapped working day?">

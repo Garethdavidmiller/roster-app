@@ -781,7 +781,14 @@ body.auth-ready .container { display: grid; }
     grid-column: 1 / -1; margin: 0;
     font-size: var(--type-small); line-height: 1.4; color: var(--text-mid);
 }
-/* No tick, so no action: a flat label rather than the tappable-looking pills the other rows use. */
+/* PLACED, not flowed (v24.69 bug check): the "Saved now" line is a fourth item in a three-column
+   grid, and auto-placement put it in the tag's column and pushed the tag under the day. The tag
+   keeps the right of the first row; what is saved sits under what the roster said. */
+.roster-change-guarded > .roster-act { grid-column: 3; grid-row: 1; align-self: center; }
+.roster-change-guarded > .roster-guard-held { grid-column: 2; grid-row: 2; }
+/* No tick, so no action: a flat label rather than the tappable-looking pills the other rows use —
+   "Will clear" included, which says what the answer does, not a control. */
+.roster-change-guarded .act-clear,
 .roster-change-guarded .act-none {
     font-size: var(--type-badge); color: var(--text-light); white-space: nowrap;
 }

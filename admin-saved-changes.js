@@ -409,7 +409,7 @@ function _initOverridesTable() {
                         : (/** @type {any} */ (err))?.code === 'unavailable'
                         ? '⚠ You appear to be offline — reconnect and try again.'
                         : unconfirmedWriteLine(err, 'this delete', 'Saved Changes') ? '⚠ ' + unconfirmedWriteLine(err, 'this delete', 'Saved Changes')
-                        : committed.length ? `⚠ Deleted ${new Set(committed).size} of ${ids.length} before it stopped — the rest are still listed. Check your connection and try again.`
+                        : committed.length ? `⚠ Deleted ${picked.filter(id => committed.includes(id)).length} of ${picked.length} before it stopped — the rest are still listed. Check your connection and try again.`
                         : '⚠ Bulk delete failed — check your connection and try again.');
                     listFeedback.className = 'list-feedback error';
                 }

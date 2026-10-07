@@ -386,7 +386,7 @@ async function _uploadBytesWithClaimRetry(uploadBytes, storageRef, file, metadat
 // pulls the Firebase SDK from the gstatic CDN). Re-exported so existing importers (session.js) are
 // unaffected. The deliberate functions/roster-parse-helpers.js duplicate + surname-parity.test.mjs
 // source-equivalence check now read auth-identity.js.
-import { normaliseSurname, nameToEmail, credentialCandidatesFor, isCredentialRejection, resetAtFromRestDoc, isRestCredentialRejection } from './auth-identity.js';
+import { normaliseSurname, nameToEmail, credentialCandidatesFor, isCredentialRejection, resetAtFromRestDoc, isRestCredentialRejection, isRestThrottled } from './auth-identity.js';
 import { resolveUploadCommit } from './upload-commit.js';
 import { pruneOldDocs } from './doc-retention.js';
 import { buildDocumentClient } from './documents-client.js';
@@ -595,8 +595,9 @@ export async function getPasswordStatus(memberName) {
  * @param {string} password   the surname default the silent path is about to try
  * @param {string} memberName
  * @param {number} timeoutMs  for the two requests together
- * @returns {Promise<number|null|'credential'>} ms (0 = never reset); null = could not be confirmed;
- *   'credential' = the password was rejected, so the ordinary sign-in will fail and handle it
+ * @returns {Promise<number|null|'credential'|'throttled'>} ms (0 = never reset); null = could not be
+ *   confirmed; 'credential' = password rejected (the ordinary sign-in fails and handles it);
+ *   'throttled' = Google's rate limit, which the caller does NOT retry
  */
 export async function probeResetAtMs(email, password, memberName, timeoutMs) {
     const deadline = Date.now() + timeoutMs;
@@ -608,6 +609,7 @@ export async function probeResetAtMs(email, password, memberName, timeoutMs) {
               body: JSON.stringify({ email, password, returnSecureToken: true }) }, left());
         const body = await r.json().catch(() => null);
         if (isRestCredentialRejection(r.status, body)) return 'credential';
+        if (isRestThrottled(r.status, body)) return 'throttled';
         const token = r.ok ? body?.idToken : null;
         if (!token) return null;
         const d = await fetchWithTimeout(

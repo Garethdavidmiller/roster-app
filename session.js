@@ -474,7 +474,8 @@ export async function ensureFirebaseSession(name, _gen, password) {
         if (password == null) {
             const resetAt = await probeResetAtMs(email, candidate, name, 5000);
             if (!fresh()) return commit('none', false);
-            if (resetAt === null) {
+            if (resetAt === null || resetAt === 'throttled') {
+                recordError(resetAt === 'throttled' ? 'auth/too-many-requests' : 'auth/reset-check-unavailable');
                 console.warn('[Auth] silent sign-in held — could not confirm the last password reset');
                 return commit('none', false);
             }
@@ -544,6 +545,10 @@ export async function ensureFirebaseSession(name, _gen, password) {
  *  retried; it needs a human (re-login or admin break-glass). @type {Set<string>} */
 const _TRANSIENT_AUTH_CODES = new Set([
     'auth/network-request-failed', 'auth/timeout', 'auth/too-many-requests', 'auth/internal-error',
+    // The pre-sign-in reset check could not get an answer (v24.70). Transient, so a blip is retried
+    // exactly as a blip on the sign-in itself always was; and NAMED, so a probe that has stopped
+    // working in production shows in every place a sign-in error already surfaces.
+    'auth/reset-check-unavailable',
 ]);
 
 /** @param {string|undefined} code @returns {boolean} */

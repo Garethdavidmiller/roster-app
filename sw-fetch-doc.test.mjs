@@ -191,6 +191,18 @@ describe('service worker — a MISS answered by navigation preload (same-day bug
     });
 });
 
+describe('service worker — a MISS whose fresh fetch is not a page', () => {
+    test('a 200 that is not HTML (an interstitial, a JSON error) is never stored under the page', async () => {
+        const { stores, settle } = await navigate({
+            path: '/settings.html',
+            preload: Promise.resolve(ok('<h1>Settings</h1>')),
+            network: async () => new Response('{"error":1}', { status: 200, headers: { 'content-type': 'application/json' } }),
+        });
+        await settle();
+        assert.equal(stores.get(CACHE)?.has(`${ORIGIN}/settings.html`), false);
+    });
+});
+
 describe('service worker — a navigation with a FALLBACK cached', () => {
     test('a hung network is abandoned at the 2 s race for the cached fallback', async () => {
         let aborted = false;
