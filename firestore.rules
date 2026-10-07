@@ -309,10 +309,20 @@ service cloud.firestore {
         ) &&
         request.resource.data.note is string &&
         request.resource.data.note.size() < 500 &&
-        // createdAt is written by every path (serverTimestamp); changedBy only by the
-        // manual/AL/sick paths — validate its type when present without requiring it.
-        request.resource.data.createdAt is timestamp &&
-        (!request.resource.data.keys().hasAny(['changedBy']) || (request.resource.data.changedBy is string && request.resource.data.changedBy.size() <= 100)) &&
+        // ── PROVENANCE IS THE SERVER'S, NOT THE WRITER'S (Oct 2026 review) ─────────────────────
+        // These three said who saved a record, when, and how, and a member could write any value
+        // into them — so "Last saved by <manager>", the newest-wins ordering and the import/manual
+        // split could all be forged on the member's own records. Every client path already writes
+        // exactly what is required here (buildOverrideWrite, with serverTimestamp() and the
+        // session's own name), and firestore.rules.test.mjs runs that real builder against these
+        // lines, so tightening them refuses nothing the app sends.
+        //   · createdAt — the server's clock at this write, on create AND on the fixed-id update.
+        //   · changedBy — when present, the writer's own name claim. A manager on behalf writes
+        //     their own name, not the member's; that is what the field means.
+        //   · source 'roster_import' — the admin only; the import runs on the admin-only Operations page.
+        request.resource.data.createdAt == request.time &&
+        (!request.resource.data.keys().hasAny(['changedBy']) || request.resource.data.changedBy == memberName()) &&
+        (request.resource.data.source == 'manual' || request.auth.token.admin == true) &&
         // ── A FIXED manual id must NAME the record it holds (v24.56) ─────────────────────────
         //
         // Since v24.48 a manual save lands on `m_<date>_<encoded name>` (override-id.js), so the
@@ -851,7 +861,14 @@ service cloud.firestore {
           // device: anybody could otherwise repoint a colleague's record at another endpoint and
           // silently end their notifications (v24.56, auth review). The id is the endpoint's hash,
           // so the browser that owns the endpoint re-saves exactly this.
-          (!('owner' in resource.data) && request.resource.data.endpoint == resource.data.endpoint));
+          (!('owner' in resource.data) && request.resource.data.endpoint == resource.data.endpoint) ||
+          // A record owned by ANOTHER account may be taken over by the SAME BROWSER (Oct 2026
+          // review): a session that ended without a sign-out left the record owned by the last
+          // member, so the next one on that phone could never re-save it — their targeted notices
+          // went nowhere and the previous member's kept arriving. Same endpoint AND same keys is
+          // the proof of possession: the keys exist only in that browser and in this record, which
+          // no client can read (`allow read: if false` above).
+          (request.resource.data.endpoint == resource.data.endpoint && request.resource.data.keys == resource.data.keys));
       // Delete YOUR OWN subscription (owner == your uid), OR a legacy doc that carries no owner
       // (older clients wrote none) — keeping those deletable so VAPID-rotation cleanup can't be
       // locked out. Orphans left by a uid change are swept server-side by fanOutPush's 410/404

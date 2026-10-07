@@ -22,7 +22,7 @@
  * a successful subscribe clears it.
  */
 
-import { savePushSubscription, deletePushSubscription } from './firebase-client.js';
+import { savePushSubscription, deletePushSubscription, currentAuthUid } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { NOTIF_PROMPT_DONE } from './storage-keys.js';
 
@@ -33,7 +33,11 @@ const PROMPT_DISMISSED  = NOTIF_PROMPT_DONE;
 const SUB_RESAVE_KEY    = 'myb_push_resave_at';   // throttle for the periodic subscription re-save
 const SUB_RESAVE_MS     = 86400000;               // at most one keep-alive re-save per ~24h/device
 const SUB_ENDPOINT_KEY  = 'myb_push_saved_endpoint'; // the endpoint the server record was last saved for (v24.61)
+const SUB_OWNER_KEY     = 'myb_push_saved_owner';    // the uid the server record was last saved under (Oct 2026)
 const USER_OFF_KEY      = 'myb_notif_user_off';   // device-level: the member pressed Disable here
+
+/** Record which account the server record was just saved under (null → nothing to record). */
+function _rememberOwner() { const uid = currentAuthUid(); if (uid) lsSet(SUB_OWNER_KEY, uid); }
 
 /** Did the member switch notifications off on this device (rather than lose them)? */
 export function notifOffByChoice() {
@@ -106,6 +110,7 @@ async function subscribe() {
     }
     lsSet(VAPID_VER_KEY, VAPID_FINGERPRINT);
     lsSet(SUB_ENDPOINT_KEY, sub.endpoint);
+    _rememberOwner();
     lsSet(PROMPT_DISMISSED, '1');
     lsDel(USER_OFF_KEY);   // on again — a later loss is a lapse, not the old choice
     return sub;
@@ -164,9 +169,16 @@ export async function getNotifState() {
             // UNLESS THE ENDPOINT CHANGED (v24.61, iOS audit B4): the push service rotated the
             // subscription and the service worker renewed it (`pushsubscriptionchange`), so the
             // server record names a dead endpoint until this re-save — the throttle must not hold it.
+            // …AND UNLESS THE DEVICE CHANGED HANDS (Oct 2026 review): a session that ENDED without a
+            // sign-out (it expired) left the record owned by the last member, so the next one's
+            // targeted notices went nowhere and the last member's kept arriving here — for up to a
+            // day behind the throttle. The rules now let the same browser take its record over
+            // (same endpoint and keys), so re-save the moment the signed-in account differs.
             const lastSave = parseInt(lsGet(SUB_RESAVE_KEY) || '0', 10);
             const rotated  = lsGet(SUB_ENDPOINT_KEY) !== sub.endpoint;
-            if (rotated || !Number.isFinite(lastSave) || Date.now() - lastSave > SUB_RESAVE_MS) {
+            const uid      = currentAuthUid();
+            const handedOn = uid !== null && lsGet(SUB_OWNER_KEY) !== uid;
+            if (rotated || handedOn || !Number.isFinite(lastSave) || Date.now() - lastSave > SUB_RESAVE_MS) {
                 // GUARD the self-heal save (whole-codebase review, nav/notif finding #1): this write
                 // must NOT propagate to the outer catch, which returns 'off-lapsed'. A transient
                 // Firestore failure (offline/blip) on this ~daily best-effort re-save would otherwise
@@ -177,6 +189,7 @@ export async function getNotifState() {
                     await savePushSubscription(sub);
                     lsSet(SUB_RESAVE_KEY, String(Date.now()));
                     lsSet(SUB_ENDPOINT_KEY, sub.endpoint);
+                    _rememberOwner();
                 } catch (e) {
                     if (/** @type {any} */ (e)?.message === 'push/subscription-missing-keys') {
                         // STRUCTURAL failure: the browser handed back a keyless subscription (some Android
@@ -313,6 +326,7 @@ export async function disableNotifications() {
 export async function releaseDevicePush(timeoutMs = 1500) {
     lsDel(SUB_RESAVE_KEY);
     lsDel(SUB_ENDPOINT_KEY);
+    lsDel(SUB_OWNER_KEY);
     // Never granted → there is no subscription to release, and no service worker worth waiting on.
     if (!notifSupported() || Notification.permission !== 'granted') return;
     /** The browser subscription, once found, and whether its server record is known to be gone. */
