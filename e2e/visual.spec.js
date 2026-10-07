@@ -1056,6 +1056,25 @@ function stubOvertime(page, { windows = [], weeks = [] } = {}) {
     ]);
 }
 
+// Trains (admin preview). The clock is pinned to a Wednesday, so the page opens on Weekdays; the
+// Banbury route is opened because it holds every chip in the key at once — retimed, new, removed
+// and rerouted — which is the page's whole vocabulary in one frame.
+test('trains — weekdays, a route open (mobile 390)', async ({ page }) => {
+    await prep(page, { width: 390, height: 1900 });
+    await page.goto('/trains.html');
+    await settle(page, '#trRoutes .tr-route');
+    await page.locator('#trRoutes .tr-route-sum', { has: page.locator('.tr-route-name', { hasText: /^Banbury$/ }) }).click();
+    await settle(page, '#trRoutes .tr-route[open] .tr-trains');
+    await expect(page).toHaveScreenshot('trains-mobile-390.png');
+});
+
+test('trains — weekdays, two columns (desktop 1280)', async ({ page }) => {
+    await prep(page, { width: 1280, height: 1300 });
+    await page.goto('/trains.html');
+    await settle(page, '#trRoutes .tr-route');
+    await expect(page).toHaveScreenshot('trains-desktop-1280.png');
+});
+
 test('overtime — the member form, seven days unanswered (mobile 390)', async ({ page }) => {
     await prep(page, { width: 390, height: 1800 });
     await stubOvertime(page, {

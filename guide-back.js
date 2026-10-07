@@ -41,6 +41,7 @@
         'settings.html':   { href: './settings.html',   label: 'Back to Settings' },
         'links.html':      { href: './links.html',      label: 'Back to Links' },
         'overtime.html':   { href: './overtime.html',   label: 'Back to Overtime' },
+        'trains.html':     { href: './trains.html',     label: 'Back to Trains' },
     };
 
     var back = document.querySelector('.btn-back');

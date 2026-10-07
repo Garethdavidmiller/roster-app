@@ -358,6 +358,19 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // Trains (admin preview). Scanned with a route OPEN and a lookup ANSWERED, because the
+    // before-and-after chips and the answer box are the page — the collapsed list holds none of them.
+    test('trains (admin, signed in) — a route open and a time looked up', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await expect(page.locator('#trRoutes .tr-route').first()).toBeVisible();
+        await page.locator('#trRoutes .tr-route-sum').first().click();
+        await page.locator('#trLookupInput').fill('1036');
+        await expect(page.locator('#trLookupResult .tr-answer').first()).toBeVisible();
+        const v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     test('overtime — member form (signed in)', async ({ page }) => {
         // Scanned with the FORM RENDERED, not the empty shell: seven day groups of mode buttons is
         // the only state on this page with any structure to get wrong.

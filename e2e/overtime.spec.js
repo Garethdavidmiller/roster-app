@@ -2279,6 +2279,17 @@ test.describe('the beta PARTICIPANT — a form of her own, and nothing of anybod
     // the drawer and a "not open to everyone yet" panel if she typed the URL.
     const BETA = 'T. Bibi';
 
+    // The LIVE list can be empty (7 Oct 2026: both participants withdrawn), and what this block pins
+    // is how the page treats whoever is on it — so she is invited in the copy of roster-data.js this
+    // browser is served, and nowhere else. The ordinary member below is unaffected either way.
+    test.beforeEach(async ({ page }) => {
+        await page.route('**/roster-data.js', async (route) => {
+            const res = await route.fetch();
+            const body = (await res.text()).replace(/OVERTIME_BETA:\s*(\/\*\*[^*]*\*\/\s*)?\(?\[[^\]]*\]\)?/, `OVERTIME_BETA: ['${BETA}']`);
+            await route.fulfill({ response: res, body });
+        });
+    });
+
     test('she gets her own form, and no way to see anyone else\'s', async ({ page }) => {
         await seedSession(page, BETA);
         // The reviewer endpoint is stubbed to FAIL, the way the real one 403s for a non-reviewer:

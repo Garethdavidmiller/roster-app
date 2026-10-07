@@ -66,6 +66,7 @@ const UNNAMED_BY_DESIGN = {
     'overtime-boot.js':   'boot shim — 13 lines, no branches; page-contract-parity asserts it exists',
     'admin-boot.js':      'boot shim — 12 lines, no branches; page-contract-parity asserts it exists',
     'settings-boot.js':   'boot shim — 12 lines, no branches; page-contract-parity asserts it exists',
+    'trains-boot.js':     'boot shim — 12 lines, no branches; page-contract-parity asserts it exists',
 
     'operations-errors.js': 'driven through its card by e2e/pages.spec.js (Error Log)',
     'operations-usage.js':  'driven through its card by e2e/pages.spec.js (Usage)',

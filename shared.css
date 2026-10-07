@@ -2470,6 +2470,15 @@ button.lightbox-bug-link {
     .nav-panel-pill--overtime:hover { background: color-mix(in oklch, var(--ot) 91%, black); }
 }
 
+/* Trains — raspberry, the one palette hue no other pill or page wears. */
+.nav-panel-pill--trains {
+    background: var(--raspberry);
+    color: white;
+}
+@media (hover: hover) and (pointer: fine) {
+    .nav-panel-pill--trains:hover { background: var(--raspberry-hover); }
+}
+
 .nav-panel-pill--links {
     background: var(--purple);
     color: white;

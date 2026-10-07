@@ -78,6 +78,9 @@ const NAV_PAGES = [
     // server refuses everyone else — it is only so ordinary staff are not shown a destination that
     // would turn them away. At full launch the flag comes off and every eligible member sees it.
     { id: 'overtime',   label: '⏱️ Overtime',      url: './overtime.html',   colorClass: 'nav-panel-pill--overtime',   overtimeAudienceOnly: true },
+    // Trains is an admin PREVIEW while the page is shaped (owner, 7 Oct 2026) — the page will be
+    // every member's at-a-glance timetable. Opening it is this flag and the auth-policy role, together.
+    { id: 'trains',     label: '🚆 Trains',        url: './trains.html',     colorClass: 'nav-panel-pill--trains',     adminOnly: true },
     // SETTINGS IS A PAGE, SO IT IS A PILL (v20.06). It used to be a flat link pinned above the
     // footer, styled like the Information rows — which made it the only page-destination in the
     // drawer that did not look like one, and meant "where do I go" had two answers in two places
@@ -287,7 +290,7 @@ export function resetNavPanel() {
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime', memberName?: string|null, onSignOut?: (() => void)|null, beforeSignOut?: (() => boolean|Promise<boolean>)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null, authReady?: Promise<any>, canReadDocuments?: () => boolean, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime'|'trains', memberName?: string|null, onSignOut?: (() => void)|null, beforeSignOut?: (() => boolean|Promise<boolean>)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null, authReady?: Promise<any>, canReadDocuments?: () => boolean, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
  *   onLockCalendar (v20.12, calendar only) — the shared-PIN viewer's way to lock the roster before
  *   walking away from a shared office PC. `isViewer` is a THUNK read at drawer-open time, never at
  *   init: Calendar access resolves asynchronously and is still `none` when this function runs.

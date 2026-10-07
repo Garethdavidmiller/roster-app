@@ -555,9 +555,6 @@
             "managerOnly": true
         }
     ],
-    "overtimeBeta": [
-        "T. Bibi",
-        "J. Sumaili"
-    ],
+    "overtimeBeta": [],
     "maxRosterYear": 2030
 }

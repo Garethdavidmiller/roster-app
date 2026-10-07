@@ -1625,6 +1625,12 @@ describe('analytics', () => {
         await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-06'), VALID_PV()));
     });
 
+    test('auth can write the Trains page-view counter (v24.71)', async () => {
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-10'), {
+            month: '2026-10', counts: { trains: 1 },
+        }));
+    });
+
     test('auth can write the seven document/guide OPEN counters (v18.20; all four guides v19.95)', async () => {
         // Huddle/Circular/Newsletter opens + all four guide opens share the pv_ counts map.
         await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-07'), {

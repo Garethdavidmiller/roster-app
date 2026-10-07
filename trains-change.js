@@ -1,0 +1,381 @@
+// @ts-check
+/**
+ * trains-change.js — PURE: what changes at Marylebone when the December 2026 timetable starts.
+ *
+ * Owns every judgement the Trains page makes about two timetables; the page only renders. No DOM,
+ * no Firebase, no clock — `today` is always passed in, so every answer here is testable.
+ *
+ * ── WHAT "THE SAME TRAIN" MEANS, AND WHY IT IS AN ALIGNMENT ─────────────────────────────────────
+ *
+ * Neither source carries an identity that survives a timetable change, so a train cannot be
+ * looked up in December by name. What a member of staff means by "the 17:15 to Aylesbury" is the
+ * train in that SLOT — the one leaving for the same place at about the same time. So each route's
+ * two lists of times are ALIGNED: paired in order, never crossing, at the lowest total shift, and
+ * a time is left unpaired — new, or no longer running — only when pairing it would cost more than
+ * `MAX_SHIFT_MIN`. Order-preserving matters: a greedy nearest-time match can pair the 17:10 with
+ * the 17:20 and the 17:20 with the 17:08, which reads as two trains swapping places when nothing
+ * of the kind happened.
+ *
+ * The threshold is a judgement, stated once here. Twenty minutes keeps a retimed train recognisable
+ * ("6 minutes later") without pairing a half-hourly service with a different train an hour on.
+ *
+ * ── THE ROUTE IS PART OF WHERE A TRAIN GOES ─────────────────────────────────────────────────────
+ *
+ * Aylesbury is reached via High Wycombe or via Amersham, and the journeys differ by most of an
+ * hour, so the two are different routes here. A train that keeps its time but changes route is
+ * therefore reported as one gone and one new, which is what it is to the person on it.
+ *
+ * ── THE RAILWAY DAY STARTS AT 03:00 ─────────────────────────────────────────────────────────────
+ *
+ * A 00:15 departure is the last train of the evening, not the first of the morning, so every
+ * ordering here counts minutes from 03:00 (`serviceMinutes`).
+ */
+
+/** The largest retiming still reported as "the same train, moved". See the header. */
+export const MAX_SHIFT_MIN = 20;
+
+/** The largest gap between a train that stops running and a new one still read as the same train
+ *  going somewhere else. Tighter than MAX_SHIFT_MIN on purpose: across routes, nothing else ties
+ *  the two together. */
+export const MAX_REROUTE_MIN = 5;
+
+/** The hours the basic pattern is read from — the off-peak middle of the day. */
+export const PATTERN_HOURS = Object.freeze({ from: 10, to: 16 });
+
+/** @typedef {[string, string, string, string]} TrainRow  [time 'HH:MM', station, route, days] */
+/** @typedef {'same'|'earlier'|'later'|'new'|'gone'|'rerouted'} ChangeKind */
+/**
+ * @typedef {object} PairedTrain
+ * @property {string|null} now    the current time, or null for a new train
+ * @property {string|null} dec    the December time, or null for one that stops running
+ * @property {ChangeKind} kind
+ * @property {number} shift       minutes later (+) or earlier (−); 0 when unpaired
+ * @property {string} days        the current train's weekday exception ('' when none)
+ * @property {{ station: string, via: string, time: string }} [other]  for 'rerouted': the train
+ *           on the OTHER route it became (seen from the old route) or came from (from the new one)
+ * @property {'old'|'new'} [side]  for 'rerouted': which of the two routes this row is listed under
+ */
+/**
+ * @typedef {object} RouteChange
+ * @property {string} key         station + route, e.g. 'AYSH'
+ * @property {string} station
+ * @property {string} via         '' | 'H' | 'A'
+ * @property {number} nowCount
+ * @property {number} decCount
+ * @property {PairedTrain[]} trains
+ * @property {Record<ChangeKind, number>} tally
+ */
+
+/**
+ * Minutes since 03:00 — the railway day.
+ * @param {string} hhmm
+ * @returns {number}
+ */
+export function serviceMinutes(hhmm) {
+    const h = Number(hhmm.slice(0, 2)), m = Number(hhmm.slice(3, 5));
+    return (h * 60 + m - 180 + 1440) % 1440;
+}
+
+/**
+ * The route key — the station, plus the route where the station has two.
+ * @param {TrainRow} row
+ * @returns {string}
+ */
+export const routeKey = (row) => row[1] + row[2];
+
+/**
+ * Pair two sorted lists of times in order, at the least total shift (see the header).
+ *
+ * A textbook sequence alignment: leaving a time unpaired costs `maxShift`, pairing two costs the
+ * minutes between them, and a pair further apart than `maxShift` is not allowed at all. So any two
+ * times within the threshold are always better paired than both left over.
+ *
+ * @param {TrainRow[]} nowRows   one route's current trains, in service order
+ * @param {TrainRow[]} decRows   the same route's December trains, in service order
+ * @param {number} [maxShift]
+ * @returns {PairedTrain[]}
+ */
+export function alignTimes(nowRows, decRows, maxShift = MAX_SHIFT_MIN) {
+    const a = nowRows.map(r => serviceMinutes(r[0]));
+    const b = decRows.map(r => serviceMinutes(r[0]));
+    const n = a.length, m = b.length;
+    // cost[i][j] — the cheapest alignment of the first i current and first j December times.
+    const cost = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+    for (let i = 1; i <= n; i++) cost[i][0] = i * maxShift;
+    for (let j = 1; j <= m; j++) cost[0][j] = j * maxShift;
+    for (let i = 1; i <= n; i++) {
+        for (let j = 1; j <= m; j++) {
+            const d = Math.abs(a[i - 1] - b[j - 1]);
+            const pair = d <= maxShift ? cost[i - 1][j - 1] + d : Infinity;
+            cost[i][j] = Math.min(pair, cost[i - 1][j] + maxShift, cost[i][j - 1] + maxShift);
+        }
+    }
+    /** @type {PairedTrain[]} */
+    const out = [];
+    let i = n, j = m;
+    while (i > 0 || j > 0) {
+        if (i > 0 && j > 0) {
+            const d = Math.abs(a[i - 1] - b[j - 1]);
+            if (d <= maxShift && cost[i][j] === cost[i - 1][j - 1] + d) {
+                const shift = b[j - 1] - a[i - 1];
+                out.push({
+                    now: nowRows[i - 1][0], dec: decRows[j - 1][0], shift, days: nowRows[i - 1][3],
+                    kind: shift === 0 ? 'same' : shift > 0 ? 'later' : 'earlier',
+                });
+                i--; j--; continue;
+            }
+        }
+        if (i > 0 && cost[i][j] === cost[i - 1][j] + maxShift) {
+            out.push({ now: nowRows[i - 1][0], dec: null, kind: 'gone', shift: 0, days: nowRows[i - 1][3] });
+            i--;
+        } else {
+            out.push({ now: null, dec: decRows[j - 1][0], kind: 'new', shift: 0, days: '' });
+            j--;
+        }
+    }
+    out.reverse();
+    // The backtrack interleaves the unpaired rows by table position, not by time; a reader scans
+    // the list by time. Stable, so two trains at one minute keep their alignment order.
+    const at = (/** @type {PairedTrain} */ t) => serviceMinutes(/** @type {string} */ (t.now ?? t.dec));
+    return out.sort((x, y) => at(x) - at(y));
+}
+
+/**
+ * The current timetable runs a few weekday trains at two times — one on Mondays and Fridays, one
+ * Tuesday to Thursday. December has one train. Alignment pairs one of the two and leaves the other
+ * "no longer runs", which is wrong: it still runs, at the December time. So a left-over train with
+ * a day exception is paired to its partner's December time when the partner carries the opposite
+ * exception and the gap is within MAX_SHIFT_MIN.
+ *
+ * @param {PairedTrain[]} trains  one route, aligned
+ * @returns {PairedTrain[]}
+ */
+export function foldWeekdayVariants(trains) {
+    const OPPOSITE = /** @type {Record<string, string>} */ ({ MFO: 'MFX', MFX: 'MFO' });
+    return trains.map((t) => {
+        if (t.kind !== 'gone' || !OPPOSITE[t.days] || !t.now) return t;
+        const partner = trains.find(p => p.days === OPPOSITE[t.days] && p.now && p.dec
+            && Math.abs(serviceMinutes(/** @type {string} */ (p.dec)) - serviceMinutes(/** @type {string} */ (t.now))) <= MAX_SHIFT_MIN);
+        if (!partner) return t;
+        const shift = serviceMinutes(/** @type {string} */ (partner.dec)) - serviceMinutes(t.now);
+        return { ...t, dec: partner.dec, shift, kind: shift === 0 ? 'same' : shift > 0 ? 'later' : 'earlier' };
+    });
+}
+
+/** @param {TrainRow[]} rows */
+const byService = (rows) => [...rows].sort((x, y) => serviceMinutes(x[0]) - serviceMinutes(y[0]));
+
+/**
+ * Every route on one day and direction, compared. Busiest December route first; a route that
+ * stops altogether sorts by its current count instead, so it is not buried.
+ *
+ * @param {TrainRow[]} nowRows
+ * @param {TrainRow[]} decRows
+ * @returns {RouteChange[]}
+ */
+export function compareRoutes(nowRows, decRows) {
+    /** @type {Map<string, { now: TrainRow[], dec: TrainRow[] }>} */
+    const routes = new Map();
+    const bucket = (/** @type {TrainRow} */ r) => {
+        const k = routeKey(r);
+        if (!routes.has(k)) routes.set(k, { now: [], dec: [] });
+        return /** @type {{ now: TrainRow[], dec: TrainRow[] }} */ (routes.get(k));
+    };
+    for (const r of nowRows) bucket(r).now.push(r);
+    for (const r of decRows) bucket(r).dec.push(r);
+
+    const compared = [...routes.entries()].map(([key, { now, dec }]) => {
+        const sample = now[0] ?? dec[0];
+        return {
+            key, station: sample[1], via: sample[2], nowCount: now.length, decCount: dec.length,
+            trains: foldWeekdayVariants(alignTimes(byService(now), byService(dec))),
+            tally: /** @type {Record<ChangeKind, number>} */ ({ same: 0, earlier: 0, later: 0, new: 0, gone: 0, rerouted: 0 }),
+        };
+    });
+    relinkAcrossRoutes(compared);
+    for (const r of compared) for (const t of r.trains) r.tally[t.kind]++;
+    return compared.sort((x, y) => Math.max(y.decCount, y.nowCount) - Math.max(x.decCount, x.nowCount) || x.key.localeCompare(y.key));
+}
+
+/**
+ * A train that stops running on one route and a new one at the same time on another are, to the
+ * person who catches it, one train that now goes somewhere else — the 10:36 to Banbury running on
+ * to Birmingham, or an Aylesbury train changing route. Pairs each such left-over with the nearest
+ * left-over on a different route, closest first, within MAX_REROUTE_MIN; both become 'rerouted'
+ * and each names the other. Mutates the routes it is given.
+ *
+ * @param {{ station: string, via: string, key: string, trains: PairedTrain[] }[]} routes
+ */
+export function relinkAcrossRoutes(routes) {
+    const gone = [], fresh = [];
+    for (const r of routes) {
+        for (const t of r.trains) {
+            if (t.kind === 'gone' && t.now) gone.push({ r, t, at: serviceMinutes(t.now) });
+            if (t.kind === 'new' && t.dec) fresh.push({ r, t, at: serviceMinutes(t.dec) });
+        }
+    }
+    const pairs = [];
+    for (const g of gone) for (const f of fresh) {
+        const gap = Math.abs(g.at - f.at);
+        if (g.r.key !== f.r.key && gap <= MAX_REROUTE_MIN) pairs.push({ g, f, gap });
+    }
+    pairs.sort((x, y) => x.gap - y.gap || x.g.at - y.g.at);
+    const used = new Set();
+    for (const { g, f } of pairs) {
+        if (used.has(g.t) || used.has(f.t)) continue;
+        used.add(g.t); used.add(f.t);
+        const shift = f.at - g.at;
+        g.t.kind = 'rerouted'; g.t.side = 'old'; g.t.dec = f.t.dec; g.t.shift = shift;
+        g.t.other = { station: f.r.station, via: f.r.via, time: /** @type {string} */ (f.t.dec) };
+        f.t.kind = 'rerouted'; f.t.side = 'new'; f.t.now = g.t.now; f.t.shift = shift; f.t.days = g.t.days;
+        f.t.other = { station: g.r.station, via: g.r.via, time: /** @type {string} */ (g.t.now) };
+    }
+}
+
+/**
+ * The basic hour: for each route, the minutes past the hour it leaves at in most of the off-peak
+ * hours. "Most" is a majority of the hours in `PATTERN_HOURS`, so one extra or missing train in a
+ * single hour does not change the pattern.
+ *
+ * @param {TrainRow[]} rows
+ * @returns {{ key: string, station: string, via: string, minutes: number[] }[]}  by first minute
+ */
+export function basicHour(rows) {
+    const hours = PATTERN_HOURS.to - PATTERN_HOURS.from;
+    const need = Math.floor(hours / 2) + 1;
+    /** @type {Map<string, { station: string, via: string, seen: Map<number, Set<number>> }>} */
+    const routes = new Map();
+    for (const r of rows) {
+        const h = Number(r[0].slice(0, 2)), m = Number(r[0].slice(3, 5));
+        if (h < PATTERN_HOURS.from || h >= PATTERN_HOURS.to || r[3]) continue;   // a weekday exception is not the pattern
+        const k = routeKey(r);
+        if (!routes.has(k)) routes.set(k, { station: r[1], via: r[2], seen: new Map() });
+        const seen = /** @type {any} */ (routes.get(k)).seen;
+        if (!seen.has(m)) seen.set(m, new Set());
+        seen.get(m).add(h);
+    }
+    const out = [];
+    for (const [key, { station, via, seen }] of routes) {
+        const minutes = [...seen.entries()].filter(([, hs]) => hs.size >= need).map(([m]) => m).sort((x, y) => x - y);
+        if (minutes.length) out.push({ key, station, via, minutes });
+    }
+    return out.sort((x, y) => x.minutes[0] - y.minutes[0] || x.key.localeCompare(y.key));
+}
+
+/**
+ * The basic hour, before and after, one row per route that appears in either.
+ *
+ * @param {TrainRow[]} nowRows
+ * @param {TrainRow[]} decRows
+ * @returns {{ key: string, station: string, via: string, now: number[], dec: number[], changed: boolean }[]}
+ */
+export function compareBasicHour(nowRows, decRows) {
+    const now = basicHour(nowRows), dec = basicHour(decRows);
+    /** @type {Map<string, { key: string, station: string, via: string, now: number[], dec: number[], changed: boolean }>} */
+    const rows = new Map();
+    for (const r of now) rows.set(r.key, { key: r.key, station: r.station, via: r.via, now: r.minutes, dec: [], changed: true });
+    for (const r of dec) {
+        const row = rows.get(r.key) ?? { key: r.key, station: r.station, via: r.via, now: [], dec: [], changed: true };
+        row.dec = r.minutes;
+        rows.set(r.key, row);
+    }
+    const first = (/** @type {{ now: number[], dec: number[] }} */ r) => Math.min(...r.dec, ...r.now);
+    return [...rows.values()]
+        .map(r => ({ ...r, changed: r.now.join() !== r.dec.join() }))
+        .sort((x, y) => first(x) - first(y) || x.key.localeCompare(y.key));
+}
+
+/**
+ * Every train within `window` minutes of a time, before and after — "what happens to the 17:15?".
+ *
+ * @param {TrainRow[]} nowRows
+ * @param {TrainRow[]} decRows
+ * @param {string} hhmm
+ * @param {number} [window]
+ * @returns {{ now: TrainRow[], dec: TrainRow[] }}
+ */
+export function trainsNear(nowRows, decRows, hhmm, window = 15) {
+    const at = serviceMinutes(hhmm);
+    const near = (/** @type {TrainRow[]} */ rows) =>
+        byService(rows.filter(r => Math.abs(serviceMinutes(r[0]) - at) <= window));
+    return { now: near(nowRows), dec: near(decRows) };
+}
+
+/**
+ * Read a typed time the way people type one: "17:15", "17.15", "1715", "715", "7:05". Returns
+ * 'HH:MM', or null when it is not a time — never a guess at what was meant.
+ *
+ * @param {string} text
+ * @returns {string|null}
+ */
+export function parseTypedTime(text) {
+    const s = String(text ?? '').trim();
+    let h, m;
+    const sep = s.match(/^(\d{1,2})[:.](\d{2})$/);
+    if (sep) { h = Number(sep[1]); m = Number(sep[2]); }
+    else if (/^\d{3,4}$/.test(s)) { h = Number(s.slice(0, -2)); m = Number(s.slice(-2)); }
+    else return null;
+    if (h > 23 || m > 59) return null;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/**
+ * Whole days from `today` to the change, counted on calendar dates (never by milliseconds, which a
+ * clock change in October would make 23 or 25 hours). 0 on the day itself; negative after it.
+ *
+ * @param {Date} today
+ * @param {string} changeDate  'YYYY-MM-DD'
+ * @returns {number}
+ */
+export function daysUntil(today, changeDate) {
+    const [y, mo, d] = changeDate.split('-').map(Number);
+    const a = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+    return Math.round((Date.UTC(y, mo - 1, d) - a) / 86_400_000);
+}
+
+/**
+ * The wording for one paired train's change — the one place the page's change words are written.
+ *
+ * @param {PairedTrain} t
+ * @param {Readonly<Record<string, string>>} [stations]  names for a rerouted train's other route
+ * @param {'dep'|'arr'} [dir]  leaving Marylebone ("runs to") or arriving ("comes from")
+ * @returns {string}
+ */
+export function changeLabel(t, stations = {}, dir = 'dep') {
+    const mins = (/** @type {number} */ n) => `${n} min${n === 1 ? '' : 's'}`;
+    switch (t.kind) {
+        case 'same':    return 'No change';
+        case 'later':   return `${mins(t.shift)} later`;
+        case 'earlier': return `${mins(-t.shift)} earlier`;
+        case 'new':     return 'New train';
+        case 'gone':    return 'No longer runs';
+        default: {
+            const o = /** @type {NonNullable<PairedTrain['other']>} */ (t.other);
+            const where = routeName(stations, o.station, o.via);
+            if (t.side === 'new') return dir === 'dep' ? `Was the ${o.time} to ${where}` : `Was the ${o.time} from ${where}`;
+            const verb = dir === 'dep' ? 'Now runs to' : 'Now comes from';
+            return t.shift ? `${verb} ${where}, ${o.time}` : `${verb} ${where}`;
+        }
+    }
+}
+
+/**
+ * A current train's weekday exception, in words. '' when it runs every day of its kind.
+ * @param {string} days
+ * @returns {string}
+ */
+export function daysLabel(days) {
+    return { MFO: 'Mon and Fri only', MFX: 'Tue to Thu only', WO: 'Wed only' }[days] ?? '';
+}
+
+/**
+ * The route's name as a passenger would say it.
+ * @param {Readonly<Record<string, string>>} stations
+ * @param {string} station
+ * @param {string} via
+ * @returns {string}
+ */
+export function routeName(stations, station, via) {
+    const name = stations[station] ?? station;
+    return via === 'H' ? `${name} via High Wycombe` : via === 'A' ? `${name} via Amersham` : name;
+}

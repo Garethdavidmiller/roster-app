@@ -1,0 +1,8 @@
+# The INPUTS (and every intermediate file) are never committed. Chiltern's printed timetables are theirs to publish, and the
+# December simplifier spreadsheets carry internal planning detail (train lengths, platforms, unit
+# diagrams, empty-stock moves) that this public repository must not hold. Only the generated
+# trains-data.js — passenger facts alone — is committed, at the repository root.
+*.pdf
+*.xlsx
+*.json
+__pycache__/

@@ -322,6 +322,9 @@ const CAPS = {
     // member's side plus the page's own chrome, and if it grows again the next seam is the member
     // controller — but only once the member path warrants one, not to make a number smaller.
     'overtime-app.js':          750,   // the young one — this is the cap that matters most
+    // NEW at v24.71 with the page, at its measured size plus the standard fix-sized headroom. Every
+    // judgement about the timetables is trains-change.js; growth here should be rendering only.
+    'trains-app.js':            330,
     // NEW at v21.93, and the ratchet asking for a decision is exactly why it is here rather than
     // discovered later. The member form's three rules — completeness, the timed-out-submit verdict,
     // and whose write a 409 refuses — moved out of `overtime-form.js`, where they sat inside a

@@ -422,6 +422,71 @@ which is the part that matters on a detached sheet.
 
 ---
 
+### Trains page — what comes after the preview
+**Status:** Idea (each part) · **Owner:** Gareth · **Trigger:** each part names its own, below ·
+**Blocker:** the open questions at the end · **Review:** before 13 Dec 2026, and again in January
+
+`trains.html` shipped at v24.71 as an **admin-only preview** of "what's changing": a countdown, the
+daily totals, every route's trains before and after with the change in words, the basic hour side
+by side, and a time lookup. The ideas below were proposed with it (7 Oct 2026) and deliberately not
+built yet. They are recorded so the page grows toward a plan rather than by accretion.
+
+**A. Before 13 December — teaching the change.** **Trigger:** the owner opens the preview to staff.
+- **The changes you'll be asked about most** — a short list ranked by how many trains a day each
+  change touches, so nobody has to read every route to learn the important part.
+- **First and last trains, before and after**, per destination. Late-turn staff need this most.
+- **New and lost destinations called out on their own** (Bicester Village and Stratford-upon-Avon each
+  gain a weekday departure; Gerrards Cross loses one) rather than left inside the lists.
+- **What to say to customers** — one ready line per change, in the app's calm voice.
+- **A change of the week** through App Notices, easy to paste into the Daily Huddle. Nine weeks
+  from the preview to the launch fits nine changes.
+- **A short self-check** — five questions with the answer shown at once ("From 13 December, what is
+  the last Saturday train to Birmingham?"). Nothing recorded, so it is practice, not a test.
+- **A printable A4 sheet** from the same data, for the mess room and the ticket office.
+- **Longer and shorter trains** — where a train loses coaches is where crowding complaints come
+  from. Needs train lengths, which are not published to passengers: see the open questions.
+
+**B. On and after 13 December — the at-a-glance page.** **Trigger:** the timetable starts.
+- **The page changes over by itself.** "What's changing" becomes "What changed" for the first few
+  weeks; then **Next out** becomes the front of the page and the change material retires to a tab.
+  `CHANGE_DATE` already drives the countdown, so the switch has a date to key off.
+- **Next out** — today's day type and the next six departures with a countdown ("in 4 min"), full
+  destination name, and (if the owner agrees to publish them) train length and planned platform.
+  Works offline, so it is useful on the gateline away from the boards.
+- **The basic-hour clock** — a clock face with a dot at each repeating minute (:02 Birmingham, :06
+  Oxford…) and a hand at the current minute. Tap a dot for that train.
+- **Where to?** — one button per destination: the next three trains, the minutes it usually leaves
+  at, and first and last today. With calling points, "also stops at…".
+- **Last trains tonight** — from about 20:00 this moves to the top with a countdown to each last
+  train, the after-midnight ones labelled "tonight, just after midnight".
+- **Your shift** — for a signed-in member the Calendar already knows today's shift, so: "You're on
+  15:45–23:55. Busiest spell 17:00–18:59. Last trains you'll see: …". No other tool can say this.
+- **Busy times strip** — a 24-hour bar shaded by trains per hour with a "now" marker, reusing the
+  departure curve the Links work already holds (`links-demand.js`).
+- **Platform view for the next hour** — which train sits where, and which are joined. Needs the
+  internal platform and join data, so it is the furthest out.
+
+**What the page must get right whatever is built.**
+- **It knows its dates** — a preview before 13 December, and it must say it has ended at the May
+  2027 change rather than quietly show old times.
+- **Christmas and bank holidays differ** — no trains on 25 and 26 December, special timetables on
+  other bank holidays. The page should say so, not show the normal pattern.
+- **Publish only what a passenger timetable prints.** The repository and the Pages mirror are
+  public. Lengths, platforms, joins, diagrams and empty-stock moves stay out unless the owner
+  decides otherwise (below). `docs/timetable-dec26/tooling/build.py` enforces this today.
+- **One generated data file.** A revised simplifier is a re-run of the tooling and a test, never a
+  hand edit (README beside the tooling).
+
+**Open questions for the owner.**
+- Who opens it at launch — everyone, including staff on the PIN, with "Your shift" only when signed
+  in? (Today: admin only.)
+- Its place in the drawer — second after Calendar was the suggestion.
+- Are train lengths and planned platforms fine to publish? They make Next out and the crowding
+  list useful, and they are internal planning detail rather than a passenger fact.
+- December calling points — once Chiltern publishes the December timetable PDFs, the same tooling
+  can read them, and "which stations does it stop at" can join the comparison.
+- What "5 (3)" means in the simplifier's coaches column.
+
 ## NEXT — likely, but a trigger is required
 
 ### Overtime full launch — the three things the beta must answer first
