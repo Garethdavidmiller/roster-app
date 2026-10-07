@@ -67,7 +67,7 @@ export function setOverrideAccess(granted) {
     // at the same moment, that is a permanent wait state. `_failureRepainted` goes with it for the
     // same reason: a failure that happened under the old session is not news the new one has heard.
     // Harmless at boot — the first grant runs before the initial fetch claims anything.
-    if (_accessGranted) { _accessGen++; fetchedMonths.clear(); _failureRepainted.clear(); _monthOwner.clear(); }
+    if (_accessGranted) { _accessGen++; fetchedMonths.clear(); _settledAt.clear(); _failureRepainted.clear(); _monthOwner.clear(); }
 }
 
 /** @returns {number} the current grant, for a reader that must ignore a refusal from an older one. */
@@ -87,6 +87,10 @@ export function setOverrideAccessLostHandler(fn) { _onAccessLost = fn; }
 
 
 const fetchedMonths        = new Set();
+// Month key → when its last server read settled (or, for the initial fetch's pre-claim, when it was
+// claimed). What `releaseStaleMonths` measures age from — see there.
+/** @type {Map<string, number>} */
+const _settledAt = new Map();
 // Memoised getShiftTypesInMonth() results. Key: "memberName|year|month".
 // Cleared whenever fetchOverridesForRange() writes new data into rosterOverridesCache.
 const shiftTypesMonthCache = new Map();
@@ -103,7 +107,7 @@ export function setInitialFetchInProgress(v) { _initialFetchInProgress = v; }
  * initial 3-month fetch IIFE to prevent redundant concurrent fetches.
  * @param {string[]} keys
  */
-export function addFetchedMonths(keys) { keys.forEach(k => fetchedMonths.add(k)); }
+export function addFetchedMonths(keys) { const now = Date.now(); keys.forEach(k => { fetchedMonths.add(k); _settledAt.set(k, now); }); }
 
 /**
  * Remove a month from the fetched set so it can be retried on the next render.
@@ -111,7 +115,35 @@ export function addFetchedMonths(keys) { keys.forEach(k => fetchedMonths.add(k))
  * a month that is being offered a fresh attempt must be allowed to report the outcome of it.
  * @param {string} key
  */
-export function clearFetchedMonth(key) { fetchedMonths.delete(key); _failureRepainted.delete(key); }
+export function clearFetchedMonth(key) { fetchedMonths.delete(key); _settledAt.delete(key); _failureRepainted.delete(key); }
+
+/**
+ * Release every SETTLED month older than `maxAgeMs`, so the next render re-reads it (Oct 2026 review).
+ *
+ * A month marked fetched used to be fetched for the life of the page. On a shared office PC, or an
+ * iPhone app resumed from the background, that showed the morning's roster as current in the
+ * afternoon — "As rostered" included. The caller runs this when the page comes back into view and
+ * re-renders; the re-read runs behind the grid already on screen, because knowledge never
+ * downgrades (calendar-data-state.js), so a re-read that fails keeps the good grid rather than
+ * withholding it. A month still IN FLIGHT is left alone, and nothing is released while the initial
+ * fetch runs — it owns its months until it settles.
+ * @param {number} maxAgeMs
+ * @param {number} [now]
+ * @returns {string[]} the month keys released
+ */
+export function releaseStaleMonths(maxAgeMs, now = Date.now()) {
+    if (_initialFetchInProgress) return [];
+    const released = [];
+    for (const key of [...fetchedMonths]) {
+        if (_monthWaiters.has(key)) continue;
+        const at = _settledAt.get(key);
+        if (at === undefined || now - at < maxAgeMs) continue;
+        fetchedMonths.delete(key);
+        _settledAt.delete(key);
+        released.push(key);
+    }
+    return released;
+}
 
 // ── The failed-month repaint, exactly once (v20.40) ────────────────────────────────────────────
 //
@@ -376,6 +408,7 @@ export async function ensureOverridesCached(year, month, renderFn) {
         // is the one place that can tell a settled server read from a cache hit — and the whole
         // point of the readiness model is that those two are not the same claim.
         noteKnowledge(key, 'authoritative');
+        _settledAt.set(key, Date.now());
     } catch (err) {
         settle();
         if (gen !== _accessGen) return;   // issued under an earlier grant — it neither claims nor locks this one

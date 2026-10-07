@@ -216,7 +216,10 @@ export const getDocs = (/** @type {any} */ ref) => {
     id: r.id,
     data: () => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, ts(v)])),
   }));
-  return wrap({ empty: false, size: docs.length, docs, forEach: cb => docs.forEach(cb) });
+  // window.__E2E.docsFromCache marks every snapshot as served from the offline cache (Oct 2026) —
+  // the shape a surface must REFUSE to present as current. Set it after load to aim it at one read.
+  const metadata = { fromCache: !!e2e.docsFromCache };
+  return wrap({ empty: false, size: docs.length, docs, metadata, forEach: cb => docs.forEach(cb) });
 };
 //   window.__E2E = { failGetDoc: true }  → every single-doc read rejects. Used to prove the forced
 //      set-password overlay FAILS OPEN when it can't read passwordStatus (password-force.js) — the

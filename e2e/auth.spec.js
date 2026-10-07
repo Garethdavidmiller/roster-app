@@ -79,6 +79,23 @@ test('login overlay: a failed named sign-in (B1) shows an error, restores the bu
     await expect(page.locator('.login-back')).not.toHaveAttribute('aria-disabled', 'true');
 });
 
+test('login overlay: Enter in the password field signs in through the form, which never navigates, and names the account', async ({ page }) => {
+    // A real <form> with a username field exists for password managers (Oct 2026 review). Two things
+    // it must not do: navigate (action="#" is for the manager, not the browser), and leave the
+    // username empty, which is how a saved password ended up on nobody's name.
+    await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });
+    await page.goto('/admin.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    const { pw } = await pickFirstMemberAndPassword(page);
+    const chosen = await page.locator('#loginName').inputValue();
+    await page.locator('#loginPassword').fill(pw);
+    await page.locator('#loginPassword').press('Enter');
+    await expect(page.locator('#loginError'), 'Enter reached the sign-in').toBeVisible();
+    await expect(page).toHaveURL(/admin\.html$/);
+    await expect(page.locator('#loginUsername')).toHaveValue(chosen);
+    await expect(page.locator('#loginUsername')).toHaveAttribute('autocomplete', 'username');
+});
+
 // ── B1 NAMED-SESSION ENFORCEMENT ──────────────────────────────────────────────
 // These run with sign-in forced to fail (window.__E2E.failSignIn). They prove the per-page matrix:
 // admin/settings re-show the login overlay even though a valid LOCAL session was seeded;

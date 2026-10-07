@@ -945,6 +945,9 @@
         }
 
 
+        /* The day's name and date are the row's LABEL (Oct 2026 review): on a phone the row opened only
+           through its 22px checkbox, and now the whole day column is a target for it too. */
+        .day-row .col-day { cursor: pointer; }
         .col-day .day-name {
             font-size: var(--type-label);
             font-weight: 700;

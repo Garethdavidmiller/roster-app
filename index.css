@@ -2531,7 +2531,7 @@
         .day-detail-week {
             width: 100%;
             text-align: center;
-            color: rgba(255,255,255,0.5);
+            color: rgba(255,255,255,0.65);   /* 4.5:1 over a light page under the glass; 0.5 was ~3.8:1 (Oct 2026 review) */
             font-size: var(--type-badge);
             font-weight: 600;
             letter-spacing: 0.5px;
@@ -2637,7 +2637,7 @@
             align-items: center;
             justify-content: center;
             gap: 5px;
-            color: rgba(255,255,255,0.5);
+            color: rgba(255,255,255,0.65);   /* 4.5:1 over a light page under the glass; 0.5 was ~3.8:1 (Oct 2026 review) */
             font-size: var(--type-small);
             font-weight: 600;
         }

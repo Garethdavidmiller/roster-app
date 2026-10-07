@@ -87,6 +87,7 @@ export function init() {
     // Register the SW before the access gate — a signed-out visit early-returns below and would
     // otherwise never register/update the SW for that load (v16.23; matches operations/settings).
     registerServiceWorker({
+        isBusy: () => _isDirty(),   // a notification tap asks before taking the page away
         async beforeReload() {
             // sw-register.js ignores the return value (this callback reloads itself), so an async
             // dialog is safe here — it just reloads once the user confirms.

@@ -5495,7 +5495,7 @@ test('no focusable field falls below 16px on a touch device @a11y', async ({ pag
  */
 const KNOWN_SMALL = {
     '/admin.html': {
-        'input.day-cb[]': '22x22 — the per-day tick in the week grid; its 44px cell is not a target (no label). App-drawn since v23.50, same size',
+        'input#day-cb-<date>.day-cb[]': '22x22 — the per-day tick in the week grid. Since Oct 2026 the day name and date beside it are its <label>, so the row has a full-height target and this box is no longer the only one. App-drawn since v23.50, same size',
     },
     '/operations.html': {
         'button.auth-gap-retry[Retry]': '34x18 — the retry on a failed account-status read',
@@ -5682,7 +5682,9 @@ test('no control has a tap target under 24px @a11y', async ({ page }, info) => {
                 // a good reading reaches it: filtering here meant a control measured 1x1 once (a
                 // transient overlap) and 53x53 later could never recover. The threshold is applied
                 // to the best reading, below.
-                out.push(`${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className ? '.' + String(el.className).split(' ')[0] : ''}[${(el.textContent||'').trim().slice(0,12)}] = ${w}x${h}`);
+                // A date inside an id is normalised, so one exemption covers every day's control.
+                const id = el.id ? '#' + el.id.replace(/\d{4}-\d{2}-\d{2}/, '<date>') : '';
+                out.push(`${el.tagName.toLowerCase()}${id}${el.className ? '.' + String(el.className).split(' ')[0] : ''}[${(el.textContent||'').trim().slice(0,12)}] = ${w}x${h}`);
             });
             return [...new Set(out)];
         });

@@ -174,6 +174,12 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         new Promise((_, reject) => { _alTimer = setTimeout(() => reject(new Error('AL load timeout')), 15_000); }),
       ]);
       if (myGen !== _alLoadGen) return;   // a newer load started while this was in flight — discard
+      // A CACHE-SERVED ANSWER IS NOT A BALANCE (Oct 2026 review). Offline, Firestore answers this
+      // query from whatever the device happens to hold — possibly a few of the year's records — and
+      // counting those OVERSTATES the leave left, then saves it below as last-known-good. The same
+      // rule the Calendar's month fetch and Admin's store reads already follow: refuse it, so the
+      // catch keeps the memo already on screen, or shows "couldn't load" where there is none.
+      if (/** @type {any} */ (snap).metadata?.fromCache) throw new Error('AL load served from the offline cache');
       // Resolve ONE winner per date before counting (v16.23) — every other consumer applies
       // shouldReplaceOverride, but this loop counted every DOC: a superseded/duplicate AL doc
       // sharing a date with a winning non-AL override (two-device race, offline retry, legacy

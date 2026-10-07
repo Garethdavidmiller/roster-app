@@ -25,6 +25,8 @@
 
 import { escapeHtml } from './roster-data.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
+
+const BULK_DELETE_CHUNK = 200;   // per committed batch — under Firestore's 500, as the range booking
 import { TYPES, rowValueText } from './admin-shift-types.js';
 import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides, withManualDuplicates, assertDeletable, DELETE_REFUSED } from './admin-override-store.js';
 
@@ -372,15 +374,23 @@ function _initOverridesTable() {
 
             bulkDeleteBtn.disabled = true;
             bulkDeleteBtn.textContent = `Deleting ${picked.length}…`;
+            /** @type {string[]} */
+            const committed = [];
             try {
                 // Re-runnable thunk (fresh batch each attempt) so a stale-claim manager's bulk delete
                 // self-heals once via writeWithClaimRetry rather than erroring.
+                // CHUNKED (Oct 2026): a batch over 500 writes is refused. Re-deleting is a no-op, so a
+                // retry is safe; what committed before a failure leaves the list in the catch.
                 await withSlowSaveNotice(writeWithClaimRetry(async () => {
                     await assertDeletable(ids);   // as the single delete
-                    const batch = writeBatch(db);
-                    ids.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
-                    await batch.commit();
-                }));
+                    for (let i = 0; i < ids.length; i += BULK_DELETE_CHUNK) {
+                        const slice = ids.slice(i, i + BULK_DELETE_CHUNK);
+                        const batch = writeBatch(db);
+                        slice.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
+                        await batch.commit();
+                        committed.push(...slice);
+                    }
+                }), { batched: ids.length > BULK_DELETE_CHUNK });
                 removeFromCache(ids);
                 renderTable();
                 _onAfterSave();
@@ -393,6 +403,7 @@ function _initOverridesTable() {
                 }
             } catch (err) {
                 console.error('[Admin] Bulk delete failed:', err);
+                if (committed.length) { removeFromCache(committed); renderTable(); }
                 if (listFeedback) {
                     setStatus(listFeedback, (/** @type {any} */ (err))?.code === DELETE_REFUSED ? '⚠ ' + /** @type {any} */ (err).line
                         : (/** @type {any} */ (err))?.code === 'unavailable'

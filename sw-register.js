@@ -136,6 +136,36 @@ function markUpdateReload() {
 }
 
 /**
+ * A NOTIFICATION TAP MUST NOT THROW AWAY WORK (Oct 2026 review). The worker's `notificationclick`
+ * used to navigate the first app window it found, so tapping a Huddle notice while Admin held staged
+ * edits — or while a range booking was still committing in chunks — took the page away under them.
+ * The worker now ASKS first (`myb-busy?` over a MessageChannel) and, when told busy, leaves the page
+ * where it is and sends `myb-open-later` instead, which this page turns into a question. A page that
+ * does not answer within the worker's half-second is navigated exactly as before, so an older release
+ * still on screen behaves as it always did. Every page answers — `isBusy` absent means "not busy",
+ * answered at once, so the Calendar and the Pay Calculator pay no wait for a check they do not need.
+ * @param {(() => boolean)|undefined} isBusy  the same predicate the page's update reload waits on
+ */
+function answerNotificationTaps(isBusy) {
+    navigator.serviceWorker.addEventListener('message', (e) => {
+        const data = /** @type {any} */ (e.data) || {};
+        if (data.type === 'myb-busy?' && e.ports && e.ports[0]) {
+            let busy;
+            try { busy = !!isBusy?.(); } catch { busy = true; }   // a predicate that throws must not cost work
+            e.ports[0].postMessage({ busy });
+        } else if (data.type === 'myb-open-later' && typeof data.url === 'string') {
+            const url = new URL(data.url, location.href);
+            if (url.origin !== location.origin) return;
+            import('./overlay.js').then(({ confirmDialog }) => confirmDialog({
+                message: 'A notification asked to open another page, but this one has unsaved changes or a save still on its way. Open it anyway?',
+                confirmLabel: 'Open it', danger: true,
+            })).then(ok => { if (ok) location.href = url.href; })
+              .catch(err => console.warn('[sw-register] could not offer the notification\'s page:', err));
+        }
+    });
+}
+
+/**
  * Register the service worker and handle the skip-waiting → reload lifecycle.
  *
  * @param {object}   [opts]
@@ -143,15 +173,18 @@ function markUpdateReload() {
  *                                        The callback decides if/when to reload.
  * @param {boolean}  [opts.bfcache]       Add pagehide/pageshow handlers to manage
  *                                        the update-check interval across bfcache restore.
+ * @param {() => boolean} [opts.isBusy]    Unsaved work or a write in flight — asked by a notification
+ *                                        tap before it navigates this page (answerNotificationTaps).
  * @param {boolean}  [opts.deferWhileVisible] Hold an update's reload until the page is hidden,
  *                                        so a release never takes the page away mid-read. Opt-in;
  *                                        see the controllerchange handler for why only the
  *                                        Calendar uses it.
  */
-export function registerServiceWorker({ beforeReload, bfcache = false, deferWhileVisible = false } = {}) {
+export function registerServiceWorker({ beforeReload, bfcache = false, deferWhileVisible = false, isBusy } = {}) {
     if (!('serviceWorker' in navigator)) return;
     if (_registered) return;
     _registered = true;
+    answerNotificationTaps(isBusy);
     let reloadFired = false;
     // `deferWhileVisible` state: the update that is waiting for the member to look away, and
     // whether the one-shot listener that will run it has been attached.

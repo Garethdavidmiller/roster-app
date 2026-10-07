@@ -216,7 +216,8 @@ export function init() {
         initCardCollapse('otHorizonToggleHeader', 'otHorizonBody', 'otHorizonChevron');
         initCardCollapse('otWeekToggleHeader',    'otWeekBody',    'otWeekChevron');
         // A release must not take a half-answered form, or a submit on its way, with it (v24.61).
-        registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(() => !!currentForm?.isDirty() || !!currentForm?.isSubmitting()) });
+        const _busy = () => !!currentForm?.isDirty() || !!currentForm?.isSubmitting();
+        registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_busy), isBusy: _busy });
 
         canReview = isOvertimeReviewer(currentUser);
         wireTabs();

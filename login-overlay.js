@@ -161,6 +161,13 @@ function overlayHtml(pageLabel, alternative, notice) {
         <div class="login-app-name">Marylebone Roster</div>
         <div class="login-subtitle" id="loginSubtitle">${pageLabel} · Sign in</div>
         ${notice ? '<p class="login-hint login-notice" id="loginNotice" role="status"></p>' : ''}
+        <!-- A REAL FORM, for the password manager (Oct 2026 review). With no <form> and no username
+             field, Safari, Chrome and Android saved the password with no account attached — so it
+             was offered on nobody's name. The username is the member's roster name, set from the
+             name picker; the form never submits anywhere (the submit handler prevents it) and is
+             display:contents, so the card's layout cannot tell it is there. -->
+        <form id="loginForm" class="login-form" action="#" method="post" novalidate>
+        <input type="text" id="loginUsername" name="username" class="visually-hidden" autocomplete="username" tabindex="-1" aria-hidden="true" readonly>
         <div class="login-field">
             <label for="loginGrade">Grade</label>
             <select id="loginGrade"><option value="">— Select grade —</option></select>
@@ -178,7 +185,8 @@ function overlayHtml(pageLabel, alternative, notice) {
             <div id="loginPwHint" class="login-hint">Your surname in lowercase — or the password you’ve set yourself.</div>
         </div>
         <div id="loginError" class="login-error" aria-live="polite"></div>
-        <button type="button" id="loginSubmit">Sign in →</button>
+        <button type="submit" id="loginSubmit">Sign in →</button>
+        </form>
         <div id="loginStatus" class="login-status" aria-live="polite"></div>
         <!-- Reset request (PASSWORD_DESIGN.md — the request queue). ALWAYS VISIBLE since v20.48, and
              BELOW the primary action where a "forgot password" is looked for. It was revealed only
@@ -413,6 +421,8 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         if (gradeSelect.value) nameTrigger()?.focus();
     });
 
+    const usernameInput = /** @type {HTMLInputElement} */ (overlay.querySelector('#loginUsername'));
+    nameSelect.addEventListener('change', () => { usernameInput.value = nameSelect.value; });
     nameSelect.addEventListener('change', () => {
         errorEl.classList.remove('visible');
         resetResetRequest();   // see the grade handler
@@ -534,6 +544,7 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         _attempting = true;
         try {
             const name = nameSelect.value;
+            usernameInput.value = name;   // a preset name is set in code and raises no change event
             // The RAW typed password — NOT normalised. A chosen password keeps its case/digits/
             // symbols; the surname fallback is applied (gated) inside ensureFirebaseSession via
             // credentialCandidatesFor. Firebase is now the authority — there is no local surname
@@ -677,6 +688,10 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         if (alternative) alternative.onSelect();
     });
 
-    submitBtn.addEventListener('click', () => { attempt().catch(() => {}); });
-    passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') attempt().catch(() => {}); });
+    // One route in: the form's submit, which both the button and Enter in the password field raise.
+    // Never let it navigate — `action="#"` exists for the password manager, not for the browser.
+    /** @type {HTMLFormElement} */ (overlay.querySelector('#loginForm')).addEventListener('submit', e => {
+        e.preventDefault();
+        attempt().catch(() => {});
+    });
 }

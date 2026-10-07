@@ -134,12 +134,17 @@ export function buildRangePicker(prefix, opts = {}) {
     // Renders a month grid into any target element for the current yr/mo state.
     /** @param {any} target */
     function renderGrid(target) {
-        const startOff    = (new Date(yr, mo, 1).getDay() + 6) % 7; // Mon = 0
+        // SUNDAY-FIRST (Oct 2026 review). This picker books leave on the Admin page, beside a week
+        // grid that runs Sunday–Saturday and opposite a Calendar that does the same; a Monday-first
+        // grid here put the one day leave can never be booked on (Sunday) at the END of each row,
+        // under a different column than every other view of the same week. Operations' plain date
+        // fields stay Monday-first (date-picker.js) — they pick a day, not a stretch of a roster week.
+        const startOff    = new Date(yr, mo, 1).getDay(); // Sun = 0
         const daysInMonth = new Date(yr, mo + 1, 0).getDate();
         const todayISO    = formatISO(new Date());
         const previewEnd  = !toISO && fromISO && hoverISO > fromISO ? hoverISO : toISO;
         target.innerHTML  = '';
-        ['M','T','W','T','F','S','S'].forEach(d => {
+        ['S','M','T','W','T','F','S'].forEach(d => {
             const el = document.createElement('div');
             el.className = 'rp-dow';
             el.textContent = d;

@@ -492,7 +492,14 @@ from a real-network run — read every `blockedURI` from the CI `csp` job (or a 
 header on a live network), not a proxied dev run — then list exactly those hosts in `firebase.json` AND
 every served page's `<meta>` CSP, and confirm the CI `csp` job (not just local) goes green.
 
-### `script-src`/`frame-src` must allow Firebase Auth's Google-API iframe — `apis.google.com` (fixed v17.82)
+### `script-src`/`frame-src` must allow Firebase Auth's Google-API iframe — `apis.google.com` (fixed v17.82; SUPERSEDED Oct 2026)
+> **Superseded.** Since v24.65 Auth is created with `initializeAuth` and no popup resolver, so the
+> gapi script and the authDomain iframe are never loaded, and the next release took `apis.google.com`
+> and the `firebaseapp.com` frame OUT of every policy (`frame-src 'self'`). `csp-hygiene.test.mjs` now
+> refuses them and `e2e/csp.spec.js` ignores no beacon at all — a refusal of either URL means
+> something has started loading that iframe again. The history below is kept because it explains
+> why the hosts were there.
+
 Firebase Auth (`firebase-auth.js`, loaded from gstatic) pulls in the Google API client
 **`https://apis.google.com/js/api.js`** and opens an auth-helper iframe on the **authDomain**
 (`myb-roster.firebaseapp.com`). `apis.google.com` is a **different domain** from the
@@ -929,6 +936,14 @@ was needed.
 ---
 
 ## Pay calculator
+
+### The pay-period grid ends on 12 Mar 2027 — extend it at the tax-year rollover, not before (Oct 2026)
+The October 2026 review flagged that `CONFIG.LAST_OFFSET` (`paycalc-periods.js`) stops at the last
+2026/27 payday. Extending it needs the 2027/28 rows in `TAX_YEARS`, the thresholds tables, the
+Student Loan tables and the next award, and most of those are not published until early 2027 —
+adding a year now would mean guessing figures the calculator then presents as fact, which is the one
+thing `.claude/rules/paycalc.md` forbids. It is the existing "TAX YEAR ROLLOVER" step in
+`paycalc-periods.js`, due before the first 2027/28 payday (~9 Apr 2027).
 
 ### Not a payslip replacement
 The calculator estimates take-home pay from staff-entered data. Actual payslips from

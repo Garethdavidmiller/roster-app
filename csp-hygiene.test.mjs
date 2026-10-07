@@ -24,14 +24,16 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
  *  entries even though the grep below can't find them — list them here so "no stale" doesn't
  *  false-positive. Keep this list tight: a host belongs here only if it's genuinely used but
  *  unfindable in source. */
-const DYNAMIC_HOSTS = ['firebasestorage.googleapis.com',
-    // Firebase Auth (firebase-auth.js from gstatic) loads the Google API client
-    // (apis.google.com/js/api.js) for its auth-helper iframe, and opens that iframe on the
-    // authDomain (myb-roster.firebaseapp.com). Neither URL is built in our source — the gstatic
-    // SDK requests them — so they'd false-positive as "stale" without being listed here.
-    // (myb-roster.firebaseapp.com DOES appear as `authDomain` in firebase-client.js, so it's not
-    // flagged; apis.google.com does not, so it must be declared.) See KNOWN_LIMITATIONS → CSP.
-    'apis.google.com'];
+const DYNAMIC_HOSTS = ['firebasestorage.googleapis.com'];
+// apis.google.com and the myb-roster.firebaseapp.com frame left this list, and the policy, in Oct
+// 2026: they were the popup/redirect helper's script and iframe, which `initializeAuth` without a
+// popup resolver never loads (auth-init-parity.test.mjs pins that). The test below now REFUSES them.
+
+test('the Google sign-in helper hosts stay out of the policy', () => {
+    const csp = cspValue();
+    assert.doesNotMatch(csp, /apis\.google\.com/, 'the popup helper script is never loaded — nothing to allow');
+    assert.doesNotMatch(csp, /frame-src[^;]*firebaseapp\.com/, 'and nor is its iframe');
+});
 
 /** The runtime source files whose network calls the CSP must permit. */
 // Every app page from scripts/app-pages.mjs (v24.52). The hand-kept copy listed six of the seven and

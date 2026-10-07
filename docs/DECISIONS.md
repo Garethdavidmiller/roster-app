@@ -102,6 +102,27 @@ shown that yet.
 
 ## Decisions taken — recorded so they are not re-raised
 
+- **The staff PIN session keeps NO server-side time limit** (owner, 7 Oct 2026) · **Trigger: a PIN
+  tab found open on a device that should not have it, or a PIN rotation that has to chase sessions.**
+  The October 2026 production review proposed an `auth_time` ceiling in `isCalendarViewer`, because
+  the PIN session lives in sessionStorage and browsers bring that back on a session restore, so a tab
+  can outlive the day it was opened. The owner chose to leave it as it is. Rotating the PIN and
+  revoking the viewer's tokens (RECOVERY_RUNBOOK.md) remains the way to end every PIN session at once.
+
+- **Shared office PCs are not treated as a shared-browser risk** (owner fact, 7 Oct 2026) · **Trigger:
+  a shared Windows login, a kiosk profile, or any PC where two people use one browser profile.** The
+  same review found that the Firestore cache in IndexedDB, and the leave-balance memos, stay on a
+  device after sign-out or a PIN session, and proposed a memory-only cache for PIN viewers and a wipe
+  on sign-out. The owner's answer: *"We all sign in individually into windows on shared PCs"* — so
+  each colleague has their own Windows profile and therefore their own browser storage, and the
+  residue is that person's own. The proposal changes `persistentLocalCache`, an architecture
+  decision, and buys nothing under that arrangement.
+
+- **The Pay Calculator's "other payslip adjustment" stays TAXED, and expense refunds stay out of it**
+  (owner, 7 Oct 2026). The guide used to suggest an expense belonged there, but the box is added to
+  pay and taxed. Rather than add a "not taxed" option, the guide and the row now say it is taxed like
+  pay and that expense refunds should be left out.
+
 - **The `push` run being cancelled when the PR run starts — the DESIGN is right, the RACE is now
   proven, and the question is OPEN** (9 Sep 2026) · **Trigger: FIRED, same day — see below. The open
   question is whether to make the preference deterministic, not whether one suite per branch is

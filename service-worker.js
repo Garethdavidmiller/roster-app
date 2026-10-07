@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '24.66';
+const APP_VERSION = '24.67';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -1048,28 +1048,42 @@ self.addEventListener("notificationclick", event => {
                 // back to openWindow so the app still comes to the foreground.
                 return win.focus().then(focusedClient => {
                     if (!focusedClient) return clients.openWindow(targetUrl);
-                    // ALWAYS navigate — never compare focusedClient.url first. Client.url is
-                    // the client's CREATION url (per spec), which does not track the huddle
-                    // viewer's history.replaceState hash-strip: after one #huddle open, a
-                    // repeat tap on the still-alive window compared equal and became a
-                    // no-op (the viewer never opened again until the OS killed the window).
-                    // Navigating is cheap when only the hash differs (same-document), and
-                    // the viewer always strips its hash after opening, so hashchange
-                    // re-fires reliably on every tap.
-                    if ('navigate' in focusedClient) {
-                        return focusedClient.navigate(targetUrl)
-                            .catch(() => clients.openWindow(targetUrl));
-                    }
-                    // navigate() unsupported (defensive — universal on push-capable browsers):
-                    // fall back to a fresh window rather than dead-ending the tap with only a
-                    // focus and no deep link (v16.23).
-                    return clients.openWindow(targetUrl);
+                    // Ask before navigating: a busy page is left alone and asked (sw-register.js).
+                    return askIfBusy(focusedClient).then(busy => {
+                        if (busy) { focusedClient.postMessage({ type: 'myb-open-later', url: targetUrl }); return undefined; }
+                        return navigateOrOpen(focusedClient);
+                    });
                 }).catch(() => clients.openWindow(targetUrl));
             }
             return clients.openWindow(targetUrl);
         })
     );
+
+    /** @param {any} focusedClient */
+    function navigateOrOpen(focusedClient) {
+        // ALWAYS navigate, never compare focusedClient.url first: Client.url is the CREATION url and
+        // misses the huddle viewer's hash-strip, so a repeat #huddle tap compared equal and did nothing.
+        // A hash-only navigate is same-document, and the viewer strips its hash, so hashchange re-fires.
+        if ('navigate' in focusedClient) {
+            return focusedClient.navigate(targetUrl)
+                .catch(() => clients.openWindow(targetUrl));
+        }
+        return clients.openWindow(targetUrl);   // navigate() unsupported: a fresh window, not a dead tap (v16.23)
+    }
 });
+
+/** Is a window holding unsaved work or a save in flight? Unanswered in 500 ms → false. @param {any} client */
+function askIfBusy(client) {
+    return new Promise(resolve => {
+        try {
+            const channel = new MessageChannel();
+            const done = (/** @type {boolean} */ v) => { channel.port1.close(); resolve(v); };
+            channel.port1.onmessage = (e) => done(!!(e.data && e.data.busy));
+            client.postMessage({ type: 'myb-busy?' }, [channel.port2]);
+            setTimeout(() => done(false), 500);   // a settled promise ignores the later call
+        } catch (_) { resolve(false); }
+    });
+}
 
 // THE SUBSCRIPTION ROTATED UNDER US (v24.61, iOS audit B4): re-subscribe with the key the OLD one
 // carried — this file holds no copy of the VAPID key — or take the ready-made `newSubscription`.

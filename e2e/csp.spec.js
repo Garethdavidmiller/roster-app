@@ -40,10 +40,11 @@ import { APP_PAGES, GUIDE_PAGES } from '../scripts/app-pages.mjs';
  * gen_204 refusal must come from a directive that does not list it, `img-src` being the one that fits
  * a pixel-style beacon. That inference is from the policy, not from a recorded violation.
  */
-const IGNORED_BLOCKS = [
-    'www.google.com/images/cleardot.gif',
-    'apis.google.com/js/gen_204',
-];
+// EMPTY SINCE OCT 2026. Both beacons came from the auth-helper iframe, and `initializeAuth` without a
+// popup resolver (firebase-client.js) never loads it — so the policy dropped apis.google.com, and any
+// refusal of either URL now means something started loading that iframe again. That must fail.
+/** @type {string[]} */
+const IGNORED_BLOCKS = [];
 
 /**
  * Directives a telemetry beacon may legitimately be refused by. Waiving a URL is NOT waiving the

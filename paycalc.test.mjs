@@ -709,8 +709,9 @@ describe('computeTax', () => {
 
   test('cumulative PAYE: uses ytdPay + sacGross across periodN', () => {
     // Period 5, YTD pay = 4800, YTD tax = 200, this period gross = 1200
-    // cumGross = 6000; PA scaled × 5 = (12570/13) × 5
-    const pa = 12570 / P_YR;
+    // cumGross = 6000; PA scaled × 5 = (12579/13) × 5 — the cumulative path grants HMRC's
+    // (code × 10) + 9, measured against real payslips (see resolvePA in paycalc-calc.js).
+    const pa = 12579 / P_YR;
     const scaledPa = pa * 5;
     const cumGross = 4800 + 1200;
     const taxable = Math.floor(Math.max(0, cumGross - scaledPa)); // HMRC floors
@@ -737,7 +738,7 @@ describe('computeTax', () => {
   // silently wrong £0. So computeTax reports the over-collection it clamps away.
   test('cumulative PAYE: an over-collected year reports the refund it clamps to £0', () => {
     // Three periods at 20% on everything (an emergency BR code), now on 1257L at period 4.
-    const pa = 12570 / P_YR, N = 4, cumGross = 9000 + 3000;
+    const pa = 12579 / P_YR, N = 4, cumGross = 9000 + 3000;   // cumulative: (code × 10) + 9
     const taxable = Math.floor(Math.max(0, cumGross - pa * N));
     const cumTaxDue = taxable * T25.tax.r20;            // well inside the basic band
     const r = computeTax(3000, '1257L', T25, { ytdPay: 9000, ytdTax: 1800, periodN: N });
@@ -1248,6 +1249,23 @@ describe('payslip integration (non-cumulative estimates against real payslips)',
       approx(ni, p.ni, `NI ${p.date}`, 0.20);
     });
   }
+
+  // YEAR TO DATE MODE AGAINST THE REAL PAYROLL (Oct 2026). The non-cumulative tests above allow £1
+  // because they compare a one-period estimate with a cumulative payroll; this one does not have that
+  // excuse. Each payslip is estimated the way a member would — the Year to Date totals summed from the
+  // payslips before it — so it is the cumulative path doing what the real payroll did. Before HMRC's
+  // (code × 10) + 9 reached this path it ran high EVERY period, worst £3.75 by March, inside the old £5
+  // tolerance of the half-pair control below. Measured worst after: 25p.
+  test('Year to Date mode: every payslip estimated within 30p of what payroll deducted', () => {
+    let ytdPay = 0, ytdTax = 0, n = 0;
+    for (const [date, v] of Object.entries(PAYSLIP_ACTUALS)) {
+      n++;
+      const { tax, usingCumulative } = computeTax(v.gross, '1257L', T25, { ytdPay, ytdTax, periodN: n });
+      assert.equal(usingCumulative, true);
+      approx(tax, v.tax, `Year to Date tax ${date}`, 0.30);
+      ytdPay += v.gross; ytdTax += v.tax;
+    }
+  });
 
   // Take-home identity: every real payslip's own figures must reconcile as
   //   net = Taxable Pay − Tax − NI − Student Loan.
