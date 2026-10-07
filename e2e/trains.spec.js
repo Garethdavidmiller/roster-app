@@ -19,7 +19,7 @@ test.describe('trains', () => {
         await seedSession(page, 'G. Miller');
         await page.goto('/trains.html');
 
-        await expect(page.locator('#trCountdown')).toHaveText('New timetable · 67 days to go');
+        await expect(page.locator('#trCountdown')).toHaveText('67 days to go');
         await expect(page.locator('#trTotals tbody tr').first()).toContainText('146');
         await expect(page.locator('#trTotals tbody tr').first()).toContainText('157');
         await expect(page.locator('[data-day="SX"]')).toHaveAttribute('aria-pressed', 'true');
@@ -51,6 +51,11 @@ test.describe('trains', () => {
             .toHaveText('The 10:36 to Banbury: Now runs to Birmingham Snow Hill.');
         await page.locator('#trLookupInput').fill('noon');
         await expect(page.locator('#trLookupResult')).toContainText('Type a time like 17:15');
+
+        // The `?` panels are wired (v24.72 — the page's caveats live there now).
+        await page.locator('.btn-card-tips[data-card="routes"]').click();
+        await expect(page.locator('#tipsLbTitle')).toHaveText('🗺️ Where trains go');
+        await expect(page.locator('#tipsLbBody')).toContainText('Aylesbury has two routes');
 
         expect(errors).toHaveLength(0);
     });

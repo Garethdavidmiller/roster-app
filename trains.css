@@ -55,104 +55,73 @@ body {
     color: var(--raspberry);
 }
 
-/* ── The answer, on the canvas ──────────────────────────────────────────────── */
-.tr-hero {
-    color: white;
-    padding: 12px 4px 18px;
+/* ── The overview card ──────────────────────────────────────────────────────
+   No hero on the canvas (v24.72): every other page opens straight onto its cards,
+   and the one page-level figure here — the countdown — is the card's header chip.
+   On a wide screen the totals sit beside the explanation rather than under it. */
+.tr-overview { display: grid; gap: 4px 32px; }
+@media (min-width: 1024px) {
+    .tr-overview { grid-template-columns: minmax(0, 1fr) minmax(320px, 400px); align-items: start; }
+    .tr-overview .card-explainer { max-width: 68ch; }
 }
-.tr-hero-eyebrow {
-    margin: 0 0 4px;
-    color: var(--accent-gold);
-    font-size: var(--type-small);
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-.tr-hero-title {
-    margin: 0 0 8px;
-    font-size: var(--type-xl);
-    font-weight: 800;
-    letter-spacing: var(--track-tight);
-    text-wrap: balance;
-}
-.tr-hero-lead {
-    margin: 0 0 14px;
-    max-width: 62ch;
-    color: var(--on-navy-muted);
-    line-height: 1.5;
-}
+.tr-caveat { color: var(--text-dark); font-weight: 600; }
 .tr-totals {
+    width: 100%;
     border-collapse: collapse;
     font-variant-numeric: tabular-nums;
-    min-width: min(100%, 360px);
-}
-/* On a wide screen the totals sit BESIDE the introduction rather than under it — stacked, they
-   left a navy band half the page wide and pushed the switches and cards a table's height down. */
-@media (min-width: 1024px) {
-    .tr-hero {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        column-gap: 48px;
-        align-items: end;
-    }
-    .tr-hero-lead { margin-bottom: 4px; }
-    .tr-totals { min-width: 380px; }
 }
 .tr-totals th, .tr-totals td {
-    padding: 6px 14px 6px 0;
+    padding: 7px 8px 7px 0;
     text-align: left;
-    border-bottom: 1px solid var(--on-navy-hairline);
+    border-bottom: 1px solid var(--border-light);
 }
 .tr-totals thead th {
-    color: var(--on-navy-faint);
+    color: var(--text-light);
     font-size: var(--type-small);
     font-weight: 600;
+    white-space: nowrap;
 }
 .tr-totals tbody th { font-weight: 600; }
-.tr-totals td:last-child { font-weight: 700; color: white; }
+.tr-totals td:last-child { font-weight: 700; }
 
-/* ── Day and direction ──────────────────────────────────────────────────────── */
+/* ── Day and direction ──────────────────────────────────────────────────────
+   The app's on-canvas tab strip — Overtime's `.ot-tab`, itself sized like the Pay
+   Calculator's tax-year tabs: equal tabs at the app's tab size, translucent on the
+   navy, the chosen one the card surface. NOT gold: gold is the Calendar's colour
+   and the app's small accent, and a gold slab was the loudest thing on the page. */
 .tr-controls {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px 12px;
-    margin-bottom: 12px;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: var(--space-2);
 }
-.tr-seg {
-    display: inline-flex;
-    padding: 3px;
-    gap: 2px;
-    border-radius: var(--radius-pill);
+.tr-tabs { display: flex; gap: 6px; }
+.tr-tab {
+    flex: 1;
+    padding: 7px 8px;
+    border: 1px solid var(--on-navy-hairline);
+    border-radius: var(--radius-sm);
     background: var(--on-navy-raised);
-}
-.tr-seg-btn {
-    min-height: 40px;
-    padding: 0 14px;
-    border: 0;
-    border-radius: var(--radius-pill);
-    background: transparent;
     color: var(--on-navy-muted);
-    font: inherit;
-    font-size: var(--type-label);
-    font-weight: 600;
+    font-family: var(--font-sans);
+    font-size: var(--type-small);
+    font-weight: 700;
     cursor: pointer;
-    transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
+    touch-action: manipulation;
+    transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard),
+                transform var(--dur-fast) var(--ease-standard);
 }
-.tr-seg-btn[aria-pressed="true"] {
-    background: var(--accent-gold);
+.tr-tab:active { transform: scale(var(--press-scale)); }
+.tr-tab[aria-pressed="true"] {
+    background: var(--surface);
+    border-color: var(--surface);
     color: var(--primary-blue);
 }
-.tr-seg-btn:focus-visible {
-    outline: var(--focus-outline-gold);
-    outline-offset: 2px;
-}
-
-/* On a phone the two groups wrap anyway; as two full-width rows of equal buttons they read as
-   two settings rather than as a row that ran out of room. */
-@media (max-width: 767px) {
-    .tr-controls { flex-direction: column; }
-    .tr-seg { display: flex; }
-    .tr-seg-btn { flex: 1; padding: 0 8px; }
+.tr-tab:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
+@media (min-width: 1024px) {
+    .tr-controls { flex-direction: row; gap: 24px; }
+    .tr-tabs:first-child { flex: 3; }
+    .tr-tabs:last-child { flex: 2; }
 }
 
 /* ── Columns ────────────────────────────────────────────────────────────────── */
@@ -203,56 +172,54 @@ body {
 .tr-delta--up   { background: var(--success-green-bg); color: var(--success-text); }
 .tr-delta--down { background: var(--error-bg); color: var(--error-text); }
 
-/* ── A route: a disclosure ─────────────────────────────────────────────────── */
-.tr-route { border-top: 1px solid var(--border-light); }
-.tr-route:first-child { border-top: 0; }
+/* ── A route: a tile ────────────────────────────────────────────────────────
+   The app's row-in-a-card: a bordered tile on the card surface, the way Overtime's
+   days and Admin's week rows sit — name and one line of detail on the left, the
+   count in the app's header-chip style on the right. Opening one keeps the list
+   inside its own tile, so it reads as that destination's and nobody else's. */
+.tr-routes { display: flex; flex-direction: column; gap: 8px; }
+.tr-route {
+    background: var(--surface);
+    border: 1px solid var(--border-light);
+    border-radius: var(--radius);
+    transition: border-color var(--dur-fast) var(--ease-standard);
+}
+.tr-route[open] { border-color: var(--border-mid); }
 .tr-route-sum {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 2px 12px;
-    padding: 12px 28px 12px 0;
-    position: relative;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 2px 10px;
+    padding: var(--space-3);
     cursor: pointer;
     list-style: none;
 }
 .tr-route-sum::-webkit-details-marker { display: none; }
 .tr-route-sum::after {
     content: '▾';
-    position: absolute;
-    right: 4px;
-    top: 12px;
+    grid-column: 3;
+    grid-row: 1;
     color: var(--text-light);
+    font-size: var(--type-small);
     transition: transform var(--dur-fast) var(--ease-standard);
 }
 .tr-route[open] > .tr-route-sum::after { transform: rotate(180deg); }
 .tr-route-sum:focus-visible {
     outline: var(--focus-outline);
     outline-offset: 2px;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius);
 }
-.tr-route-name { font-weight: 700; }
-.tr-route-count {
-    font-variant-numeric: tabular-nums;
-    font-weight: 600;
-    color: var(--text-mid);
-}
+.tr-route-name { font-weight: 700; grid-column: 1; grid-row: 1; }
+.tr-route-count { grid-column: 2; grid-row: 1; }
 .tr-route-what {
     grid-column: 1 / -1;
     color: var(--text-light);
     font-size: var(--type-small);
 }
-/* A changed route's summary is READ, not scanned: the count and the chips inside carry the alarm,
-   so this stays a quiet dark line rather than an orange one on almost every row. */
-.tr-route--changed .tr-route-what { color: var(--text-mid); font-weight: 500; }
-/* An opened route sits on the sunken surface, so its list reads as belonging to that row and the
-   next route's name is plainly not part of it. */
-.tr-route[open] {
-    margin-inline: -8px;
-    padding-inline: 8px;
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
-}
-.tr-route[open] + .tr-route { border-top-color: transparent; }
+.tr-route--changed .tr-route-what { color: var(--text-mid); }
+.tr-route .tr-trains { margin: 0; border-top: 1px solid var(--border-light); }
+.tr-route .tr-trains th:first-child, .tr-route .tr-trains td:first-child { padding-left: var(--space-3); }
+.tr-route .tr-trains tbody tr:last-child td { border-bottom: 0; }
 
 /* ── The before-and-after table ────────────────────────────────────────────── */
 .tr-trains, .tr-pattern {
@@ -287,12 +254,8 @@ body {
 .tr-pattern--changed td { font-weight: 700; }
 
 /* ── Text, the lookup and the notes ────────────────────────────────────────── */
-.tr-lead {
-    margin: 0 0 10px;
-    color: var(--text-mid);
-    font-size: var(--type-label);
-    line-height: 1.5;
-}
+/* Lines the renders write into a card: the shared `.card-explainer`, with less space below. */
+.tr-lead { margin-bottom: 10px; }
 .tr-answer {
     margin: 12px 0;
     padding: 10px 12px;
@@ -345,27 +308,12 @@ body {
 .tr-near li { padding: 4px 0; border-bottom: 1px solid var(--border-light); }
 .tr-near-time { font-weight: 700; font-variant-numeric: tabular-nums; }
 
-.tr-notes {
-    margin: 0 0 12px;
-    padding-left: 18px;
-    line-height: 1.5;
-}
-.tr-notes li + li { margin-top: 8px; }
-.tr-sources {
-    margin: 0;
-    color: var(--text-light);
-    font-size: var(--type-small);
-    line-height: 1.5;
-}
-
 @media (prefers-reduced-motion: reduce) {
-    .tr-seg-btn, .tr-route-sum::after { transition: none; }
+    .tr-tab, .tr-route, .tr-route-sum::after { transition: none; }
 }
 
 @media print {
     body { background: white; padding: 0; color: black; }
-    .tr-hero { color: black; }
-    .tr-hero-eyebrow, .tr-hero-lead, .tr-totals td:last-child { color: black; }
-    .tr-controls, .btn-burger { display: none; }
+    .tr-controls, .btn-burger, .btn-card-tips { display: none; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); }
 }

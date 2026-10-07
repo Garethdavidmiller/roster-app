@@ -39,6 +39,15 @@
 
 <!-- Login overlay is injected by login-overlay.js (shared in-place sign-in) when not signed in. -->
 
+<!-- Tips lightbox -->
+<div id="tipsLightbox" class="lb-overlay" role="dialog" aria-label="Tips" aria-modal="true">
+    <div id="tipsLightboxContent" class="lb-content">
+        <button id="tipsLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
+        <div class="tips-lb-title" id="tipsLbTitle"></div>
+        <div id="tipsLbBody"></div>
+    </div>
+</div>
+
 <!-- Icon lightbox -->
 <div id="iconLightbox" class="lb-overlay" role="dialog" aria-label="About Marylebone Roster" aria-modal="true">
     <div id="iconLightboxContent" class="lb-content">
@@ -66,75 +75,93 @@
 
 <main class="app" id="trainsMain">
 
-    <!-- ── THE DATE, AND THE WHOLE CHANGE IN THREE LINES ─────────────────────────────────────────
-         Not a card: it is the page's answer, sitting on the canvas the way the Pay Calculator's
-         take-home does. Filled by trains-app.js; the static text is what a reader sees if the
-         script never runs. -->
-    <section class="tr-hero" aria-labelledby="trHeroTitle">
-        <div class="tr-hero-text">
-            <p class="tr-hero-eyebrow" id="trCountdown">New timetable</p>
-            <h2 class="tr-hero-title" id="trHeroTitle">From Sunday 13 December</h2>
-            <p class="tr-hero-lead">Chiltern’s new timetable starts on Sunday 13 December 2026. This page shows what changes
-                for trains leaving and arriving at Marylebone, so you can answer customers before it happens.</p>
+    <!-- No page title and no hero on the canvas (v24.72). The header already names the page, and
+         every other page opens straight onto its cards — the countdown is this card's header chip,
+         the way Admin's "AL left" and Settings' status chips carry a card's one datum. -->
+    <div class="card" id="trOverviewCard">
+        <div class="card-header card-header-toggle" id="trOverviewToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">🗓️</span> New timetable</h2>
+                <span class="hint">What changes at Marylebone from 13 December</span>
+            </div>
+            <div class="card-header-actions">
+                <span class="card-year-chip" id="trCountdown"></span>
+                <button type="button" class="btn-card-tips" data-card="overview"
+                        aria-label="Tips for the new timetable">?</button>
+                <span class="collapse-chevron open" id="trOverviewChevron">▾</span>
+            </div>
         </div>
-        <table class="tr-totals" id="trTotals" aria-label="Trains leaving Marylebone, now and from 13 December">
-            <thead><tr><th scope="col">Leaving Marylebone</th><th scope="col">Now</th><th scope="col">From 13 Dec</th></tr></thead>
-            <tbody></tbody>
-        </table>
-    </section>
+        <div class="card-collapsible-body open" id="trOverviewBody">
+            <div class="card-body tr-overview">
+                <div>
+                    <p class="card-explainer">Chiltern’s new timetable starts on Sunday 13 December. Below is every train
+                        leaving and arriving at Marylebone, today’s time beside the one that replaces it.</p>
+                    <p class="card-explainer tr-caveat">December times can still change. Check Chiltern’s journey planner
+                        before you tell a customer.</p>
+                </div>
+                <table class="tr-totals" id="trTotals" aria-label="Trains leaving Marylebone, now and from 13 December">
+                    <thead><tr><th scope="col">Leaving Marylebone</th><th scope="col">Now</th><th scope="col">From 13 Dec</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 
-    <!-- ── WHICH DAY, WHICH WAY ──────────────────────────────────────────────────────────────────
-         One choice drives every card below. Buttons with aria-pressed, not tabs: nothing is hidden
-         by them — the same three cards re-render for the chosen day and direction. -->
+    <!-- WHICH DAY, WHICH WAY. The app's on-canvas tab strip (Overtime's, sized like the Pay
+         Calculator's tax-year tabs): equal tabs, the chosen one the card surface. Buttons with
+         aria-pressed rather than tabs, because nothing is hidden — the cards below redraw. -->
     <div class="tr-controls" id="trControls">
-        <div class="tr-seg" role="group" aria-label="Day">
-            <button type="button" class="tr-seg-btn" data-day="SX" aria-pressed="true">Weekdays</button>
-            <button type="button" class="tr-seg-btn" data-day="SO" aria-pressed="false">Saturdays</button>
-            <button type="button" class="tr-seg-btn" data-day="SU" aria-pressed="false">Sundays</button>
+        <div class="tr-tabs" role="group" aria-label="Day">
+            <button type="button" class="tr-tab" data-day="SX" aria-pressed="true">Weekdays</button>
+            <button type="button" class="tr-tab" data-day="SO" aria-pressed="false">Saturdays</button>
+            <button type="button" class="tr-tab" data-day="SU" aria-pressed="false">Sundays</button>
         </div>
-        <div class="tr-seg" role="group" aria-label="Direction">
-            <button type="button" class="tr-seg-btn" data-dir="dep" aria-pressed="true">Leaving</button>
-            <button type="button" class="tr-seg-btn" data-dir="arr" aria-pressed="false">Arriving</button>
+        <div class="tr-tabs" role="group" aria-label="Direction">
+            <button type="button" class="tr-tab" data-dir="dep" aria-pressed="true">Leaving</button>
+            <button type="button" class="tr-tab" data-dir="arr" aria-pressed="false">Arriving</button>
         </div>
     </div>
 
     <div class="tr-cols">
         <div class="tr-col-main">
-            <!-- ── EVERY TRAIN, BY WHERE IT GOES ─────────────────────────────────────────────── -->
             <div class="card" id="trRoutesCard">
                 <div class="card-header card-header-toggle" id="trRoutesToggleHeader">
                     <div>
                         <h2><span aria-hidden="true">🗺️</span> <span id="trRoutesTitle">Where trains go</span></h2>
-                        <span class="hint" id="trRoutesHint">Tap a destination to see every train, now and from 13 December</span>
+                        <span class="hint" id="trRoutesHint">Tap a destination to see every train</span>
                     </div>
                     <div class="card-header-actions">
+                        <span class="card-year-chip" id="trRoutesChip"></span>
+                        <button type="button" class="btn-card-tips" data-card="routes"
+                                aria-label="Tips for where trains go">?</button>
                         <span class="collapse-chevron open" id="trRoutesChevron">▾</span>
                     </div>
                 </div>
                 <div class="card-collapsible-body open" id="trRoutesBody">
                     <div class="card-body">
                         <ul class="tr-key" aria-label="What the labels mean">
-                            <li><span class="tr-chip tr-chip--same">No change</span> same time</li>
-                            <li><span class="tr-chip tr-chip--moved">2 mins later</span> retimed</li>
-                            <li><span class="tr-chip tr-chip--new">New train</span> added</li>
-                            <li><span class="tr-chip tr-chip--gone">No longer runs</span> removed</li>
-                            <li><span class="tr-chip tr-chip--rerouted">Now runs to…</span> different destination</li>
+                            <li><span class="tr-chip tr-chip--same">No change</span></li>
+                            <li><span class="tr-chip tr-chip--moved">Retimed</span></li>
+                            <li><span class="tr-chip tr-chip--new">New train</span></li>
+                            <li><span class="tr-chip tr-chip--gone">No longer runs</span></li>
+                            <li><span class="tr-chip tr-chip--rerouted">Different destination</span></li>
                         </ul>
-                        <div id="trRoutes" aria-live="polite"></div>
+                        <div class="tr-routes" id="trRoutes" aria-live="polite"></div>
                     </div>
                 </div>
             </div>
         </div>
 
         <div class="tr-col-side">
-            <!-- ── THE BASIC HOUR ─────────────────────────────────────────────────────────────── -->
             <div class="card" id="trPatternCard">
                 <div class="card-header card-header-toggle" id="trPatternToggleHeader">
                     <div>
                         <h2><span aria-hidden="true">🕰️</span> The basic hour</h2>
-                        <span class="hint">Between 10:00 and 16:00 most hours repeat. Learn this and you know most of the day</span>
+                        <span class="hint">Most hours from 10:00 to 16:00 repeat this pattern</span>
                     </div>
                     <div class="card-header-actions">
+                        <button type="button" class="btn-card-tips" data-card="pattern"
+                                aria-label="Tips for the basic hour">?</button>
                         <span class="collapse-chevron open" id="trPatternChevron">▾</span>
                     </div>
                 </div>
@@ -145,7 +172,6 @@
                 </div>
             </div>
 
-            <!-- ── LOOK UP A TIME ─────────────────────────────────────────────────────────────── -->
             <div class="card" id="trLookupCard">
                 <div class="card-header card-header-toggle" id="trLookupToggleHeader">
                     <div>
@@ -153,42 +179,17 @@
                         <span class="hint">A customer asks about “the 17:15”? Type it in</span>
                     </div>
                     <div class="card-header-actions">
+                        <button type="button" class="btn-card-tips" data-card="lookup"
+                                aria-label="Tips for looking up a time">?</button>
                         <span class="collapse-chevron open" id="trLookupChevron">▾</span>
                     </div>
                 </div>
                 <div class="card-collapsible-body open" id="trLookupBody">
                     <div class="card-body">
-                        <label class="tr-label" for="trLookupInput">Time</label>
+                        <label class="field-eyebrow tr-label" for="trLookupInput">Time</label>
                         <input type="text" class="tr-input" id="trLookupInput" inputmode="numeric"
                                autocomplete="off" placeholder="17:15" maxlength="5">
                         <div id="trLookupResult" aria-live="polite"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ── WHAT THIS PAGE CANNOT TELL YOU ─────────────────────────────────────────────── -->
-            <div class="card" id="trAboutCard">
-                <div class="card-header card-header-toggle" id="trAboutToggleHeader">
-                    <div>
-                        <h2><span aria-hidden="true">ℹ️</span> Good to know</h2>
-                        <span class="hint">Where these times come from, and what is not here yet</span>
-                    </div>
-                    <div class="card-header-actions">
-                        <span class="collapse-chevron" id="trAboutChevron">▾</span>
-                    </div>
-                </div>
-                <div class="card-collapsible-body" id="trAboutBody">
-                    <div class="card-body">
-                        <ul class="tr-notes">
-                            <li><strong>Times at Marylebone only.</strong> Which stations each December train stops at
-                                is not on this page yet. A train with the same time can still stop at different stations.</li>
-                            <li><strong>December times can still change.</strong> Before you tell a customer, check the
-                                journey planner on the Chiltern Railways website.</li>
-                            <li><strong>Aylesbury has two routes.</strong> Via High Wycombe or via Amersham. A train that
-                                changes route is shown as going somewhere different, because the journey is.</li>
-                            <li><strong>Joined trains count once.</strong> Two trains coupled together leave as one.</li>
-                        </ul>
-                        <p class="tr-sources" id="trSources"></p>
                     </div>
                 </div>
             </div>

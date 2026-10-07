@@ -33,12 +33,14 @@ import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } fr
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
+import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
-import { TIMETABLES, STATIONS, SOURCES, CHANGE_DATE } from './trains-data.js';
+import { TIMETABLES, STATIONS, CHANGE_DATE } from './trains-data.js';
+import { CARD_TIPS } from './trains-tips.js';
 import {
     compareRoutes, compareBasicHour, trainsNear, parseTypedTime, daysUntil, changeLabel, daysLabel,
     routeName, PATTERN_HOURS,
@@ -95,18 +97,18 @@ export function init() {
     });
     openAboutLightbox = initAboutLightbox();
 
+    initTipsLightbox(CARD_TIPS, { getIsAdmin: () => CONFIG.ADMIN_NAMES.includes(member) });
+    initCardCollapse('trOverviewToggleHeader', 'trOverviewBody', 'trOverviewChevron');
     initCardCollapse('trRoutesToggleHeader',  'trRoutesBody',  'trRoutesChevron');
     initCardCollapse('trPatternToggleHeader', 'trPatternBody', 'trPatternChevron');
     initCardCollapse('trLookupToggleHeader',  'trLookupBody',  'trLookupChevron');
-    initCardCollapse('trAboutToggleHeader',   'trAboutBody',   'trAboutChevron');
 
     // Open on today's kind of day — what a member is most likely to be asked about.
     const dow = new Date().getDay();
     /** @type {{ day: Day, dir: Dir }} */
     const state = { day: dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX', dir: 'dep' };
 
-    renderHero();
-    renderSources();
+    renderOverview();
     wireControls(state, () => renderChoice(state));
     wireLookup(() => renderLookup(state));
     renderChoice(state);
@@ -122,17 +124,13 @@ export function init() {
 
 // ── Renders ─────────────────────────────────────────────────────────────────────────────────────
 
-/** The countdown and the three totals. */
-function renderHero() {
+/** The countdown chip and the three totals. */
+function renderOverview() {
     const days = daysUntil(new Date(), CHANGE_DATE);
-    const eyebrow = el('trCountdown'), title = el('trHeroTitle');
-    if (eyebrow) {
-        eyebrow.textContent = days > 1 ? `New timetable · ${days} days to go`
-            : days === 1 ? 'New timetable · starts tomorrow'
-            : days === 0 ? 'New timetable · starts today'
-            : 'New timetable · now running';
-    }
-    if (title && days < 0) title.textContent = 'Since Sunday 13 December';
+    setText('trCountdown', days > 1 ? `${days} days to go`
+        : days === 1 ? 'Starts tomorrow'
+        : days === 0 ? 'Starts today'
+        : 'Now running');
 
     const body = el('trTotals')?.querySelector('tbody');
     if (!body) return;
@@ -160,6 +158,8 @@ function renderRoutes(state) {
     const leaving = state.dir === 'dep';
     setText('trRoutesTitle', leaving ? 'Where trains go' : 'Where trains come from');
     setText('trRoutesHint', `${DAY_NAMES[state.day]}, ${leaving ? 'leaving' : 'arriving at'} Marylebone. Tap one to see every train`);
+    const nowTotal = TIMETABLES.now[state.day][state.dir].length, decTotal = TIMETABLES.dec[state.day][state.dir].length;
+    setText('trRoutesChip', `${nowTotal} → ${decTotal}`);
 
     const routes = compareRoutes(TIMETABLES.now[state.day][state.dir], TIMETABLES.dec[state.day][state.dir]);
     host.innerHTML = routes.map((r) => {
@@ -190,7 +190,7 @@ function renderRoutes(state) {
         }).join('');
         return `<details class="tr-route${parts.length ? ' tr-route--changed' : ''}">`
             + `<summary class="tr-route-sum"><span class="tr-route-name">${esc(name)}</span>`
-            + `<span class="tr-route-count">${r.nowCount} → ${r.decCount}${delta(r.decCount - r.nowCount)}</span>`
+            + `<span class="card-year-chip tr-route-count">${r.nowCount} → ${r.decCount}</span>`
             + `<span class="tr-route-what">${esc(summary)}</span></summary>`
             + `<table class="tr-trains"><thead><tr><th scope="col">Now</th><th scope="col">From 13 Dec</th>`
             + `<th scope="col">What changes</th></tr></thead><tbody>${rows}</tbody></table></details>`;
@@ -211,7 +211,7 @@ function renderPattern(state) {
         ? `${changed === 1 ? 'One line changes' : `${changed} lines change`} in the basic hour.`
         : 'The basic hour stays the same.';
     const window = `${String(PATTERN_HOURS.from).padStart(2, '0')}:00–${String(PATTERN_HOURS.to).padStart(2, '0')}:00`;
-    host.innerHTML = `<p class="tr-lead">${esc(DAY_NAMES[state.day])}, ${esc(window)}. ${esc(lead)} Each time is minutes past every hour.</p>`
+    host.innerHTML = `<p class="card-explainer tr-lead">${esc(DAY_NAMES[state.day])}, ${esc(window)}. ${esc(lead)} Each time is minutes past every hour.</p>`
         + `<table class="tr-pattern"><thead><tr><th scope="col">${state.dir === 'dep' ? 'To' : 'From'}</th>`
         + `<th scope="col">Now</th><th scope="col">From 13 Dec</th></tr></thead><tbody>`
         + rows.map(r => `<tr class="${r.changed ? 'tr-pattern--changed' : ''}"><th scope="row">${esc(routeName(STATIONS, r.station, r.via))}</th>`
@@ -230,7 +230,7 @@ function renderLookup(state) {
     const typed = input.value.trim();
     if (!typed) { host.innerHTML = ''; return; }
     const at = parseTypedTime(typed);
-    if (!at) { host.innerHTML = '<p class="tr-lead">Type a time like 17:15 or 1715.</p>'; return; }
+    if (!at) { host.innerHTML = '<p class="card-explainer tr-lead">Type a time like 17:15 or 1715.</p>'; return; }
 
     const nowRows = TIMETABLES.now[state.day][state.dir], decRows = TIMETABLES.dec[state.day][state.dir];
     const near = trainsNear(nowRows, decRows, at);
@@ -249,16 +249,13 @@ function renderLookup(state) {
 
     const list = (/** @type {import('./trains-change.js').TrainRow[]} */ rows) => rows.length
         ? `<ul class="tr-near">${rows.map(([t, st, via]) => `<li><span class="tr-near-time">${esc(t)}</span> ${esc(routeName(STATIONS, st, via))}</li>`).join('')}</ul>`
-        : '<p class="tr-lead">No trains.</p>';
+        : '<p class="card-explainer tr-lead">No trains.</p>';
     host.innerHTML = answer
-        + `<p class="tr-lead">${esc(DAY_NAMES[state.day])}, ${leaving ? 'leaving' : 'arriving'} within 15 minutes of ${esc(at)}:</p>`
+        + `<p class="card-explainer tr-lead">${esc(DAY_NAMES[state.day])}, ${leaving ? 'leaving' : 'arriving'} within 15 minutes of ${esc(at)}:</p>`
         + `<div class="tr-near-cols"><div><h3 class="tr-near-head">Now</h3>${list(near.now)}</div>`
         + `<div><h3 class="tr-near-head">From 13 Dec</h3>${list(near.dec)}</div></div>`;
 }
 
-function renderSources() {
-    setText('trSources', `Now: ${SOURCES.now}. From 13 December: ${SOURCES.dec}.`);
-}
 
 // ── Wiring ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -267,7 +264,7 @@ function renderSources() {
  * @param {() => void} onChange
  */
 function wireControls(state, onChange) {
-    const buttons = /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll('#trControls .tr-seg-btn')]);
+    const buttons = /** @type {HTMLButtonElement[]} */ ([...document.querySelectorAll('#trControls .tr-tab')]);
     const sync = () => {
         for (const b of buttons) {
             const on = b.dataset.day ? b.dataset.day === state.day : b.dataset.dir === state.dir;

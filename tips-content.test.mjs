@@ -42,6 +42,7 @@ const PAGES = [
     { js: 'settings-app.js',   html: 'settings.html' },
     { js: 'links-tips.js',     html: 'links.html', scope: { ROTATING_LINES, DEFAULT_MAX_RUN } },
     { js: 'overtime-tips.js',  html: 'overtime.html' },
+    { js: 'trains-tips.js',    html: 'trains.html' },
 ];
 
 /**
