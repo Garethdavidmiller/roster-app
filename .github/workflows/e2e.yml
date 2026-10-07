@@ -372,6 +372,9 @@ jobs:
       # cache under the Playwright version, so a run restores it in seconds and the CDN is off the
       # critical path; only a Playwright bump downloads again. `--with-deps` installs GTK/GStreamer
       # libraries from apt, which the cache cannot hold, so a cache hit still runs `install-deps`.
+      # THE ENTRY IS SAVED UNDER MAIN BY warm-browser-cache.yml: a pull-request run can read only its
+      # own PR's entries and main's, and this workflow never runs on main — so an entry saved here
+      # helps only a re-run of the same PR (measured on #1616: every job downloaded again).
       - name: Restore Playwright Chromium from the cache
         id: pw-cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
