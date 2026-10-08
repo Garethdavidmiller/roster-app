@@ -447,7 +447,8 @@ body {
     font-size: var(--type-small);
 }
 .tr-input {
-    width: 8em;
+    width: 12em;
+    max-width: 100%;
     box-sizing: border-box;
     padding: 10px 12px;
     border: 1.5px solid var(--border-light);

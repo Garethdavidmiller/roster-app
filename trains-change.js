@@ -383,19 +383,29 @@ export function trainsNear(nowRows, decRows, hhmm, window = 15) {
 }
 
 /**
- * Read a typed time the way people type one: "17:15", "17.15", "1715", "715", "7:05". Returns
- * 'HH:MM', or null when it is not a time — never a guess at what was meant.
+ * Read a typed time the way people type one — "17:15", "17.15", "1715", "715", "7:05" — or SAY one:
+ * "5.15pm", "515pm", "5:15 pm", "5pm", "12am" (v24.79). An a.m./p.m. tail decides the half of the
+ * day; without one a bare hour is refused, because "5" is 05:00 to a parser and 17:00 to the person
+ * typing it. Returns 'HH:MM', or null when it is not a time — never a guess at what was meant.
  *
  * @param {string} text
  * @returns {string|null}
  */
 export function parseTypedTime(text) {
-    const s = String(text ?? '').trim();
+    const s = String(text ?? '').trim().toLowerCase().replace(/\s+/g, '');
+    const half = s.match(/^(.*?)(a\.?m\.?|p\.?m\.?)$/);
+    const body = half ? half[1] : s;
+    const pm = half ? half[2].startsWith('p') : null;
     let h, m;
-    const sep = s.match(/^(\d{1,2})[:.](\d{2})$/);
+    const sep = body.match(/^(\d{1,2})[:.](\d{2})$/);
     if (sep) { h = Number(sep[1]); m = Number(sep[2]); }
-    else if (/^\d{3,4}$/.test(s)) { h = Number(s.slice(0, -2)); m = Number(s.slice(-2)); }
+    else if (/^\d{3,4}$/.test(body)) { h = Number(body.slice(0, -2)); m = Number(body.slice(-2)); }
+    else if (pm !== null && /^\d{1,2}$/.test(body)) { h = Number(body); m = 0; }
     else return null;
+    if (pm !== null) {
+        if (h < 1 || h > 12) return null;          // "13pm" is not a time anyone says
+        h = (h % 12) + (pm ? 12 : 0);              // 12am is midnight, 12pm midday
+    }
     if (h > 23 || m > 59) return null;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }

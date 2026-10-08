@@ -159,8 +159,9 @@
                 <div class="card-collapsible-body open" id="trLookupBody">
                     <div class="card-body">
                         <label class="field-eyebrow tr-label" for="trLookupInput">Time</label>
-                        <input type="text" class="tr-input" id="trLookupInput" inputmode="numeric"
-                               autocomplete="off" placeholder="17:15" maxlength="5">
+                        <!-- A full keyboard, not the numeric pad: "5.15pm" needs letters (v24.79). -->
+                        <input type="text" class="tr-input" id="trLookupInput" autocomplete="off"
+                               autocapitalize="off" spellcheck="false" placeholder="17:15 or 5.15pm" maxlength="9">
                         <div id="trLookupResult" aria-live="polite"></div>
                     </div>
                 </div>

@@ -288,8 +288,21 @@ export function busiestStations(rows, n = 8) {
     return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, n).map(([crs]) => crs);
 }
 
+/** Short forms people type for a word in a station's name, each standing for the printed word. */
+const SHORT_FORMS = /** @type {Readonly<Record<string, readonly string[]>>} */ ({
+    birmingham: ['bham', 'brum'], cross: ['x'], parkway: ['pkwy', 'pway'], junction: ['jn', 'jct'],
+});
+
+/** A name or a query as the words a person types: lower case, "&" as "and", no apostrophes or hyphens. */
+const words = (/** @type {string} */ s) => s.toLowerCase().replace(/&/g, ' and ').replace(/['’.]/g, '').split(/[\s-]+/).filter(Boolean);
+
 /**
- * Stations whose name matches what was typed — start-of-word first, then anywhere.
+ * Stations whose name matches what was typed, the way people type one (v24.79): "wyc", "moor st",
+ * "gerrards x", "oxford pkwy", "bham", "chalfont latimer", "w ruislip", the initials "hw", or the
+ * three-letter code. Each typed word must begin a word of the name (or a short form of it), in the
+ * name's order. Ranked: the code itself, then a name that starts like the query, then a match
+ * anywhere in the name, then initials, then any fragment — so "oxf" offers Oxford before Oxford
+ * Parkway, and "ruis" offers both Ruislips. Never Marylebone: every journey here starts or ends there.
  * @param {Readonly<Record<string, string>>} stations
  * @param {string} typed
  * @param {number} [n]
@@ -298,10 +311,31 @@ export function busiestStations(rows, n = 8) {
 export function matchStations(stations, typed, n = 6) {
     const q = typed.trim().toLowerCase();
     if (!q) return [];
-    const all = Object.entries(stations).filter(([crs]) => crs !== 'MYB');
-    const word = all.filter(([crs, name]) => crs.toLowerCase() === q || name.toLowerCase().split(/[\s&-]+/).some(w => w.startsWith(q)));
-    const any = all.filter(([, name]) => name.toLowerCase().includes(q));
-    return [...new Set([...word, ...any].map(([crs]) => crs))].slice(0, n);
+    const qWords = words(q);
+    const compact = q.replace(/[^a-z]/g, '');
+    /** @type {{ crs: string, name: string, rank: number }[]} */
+    const hits = [];
+    for (const [crs, name] of Object.entries(stations)) {
+        if (crs === 'MYB') continue;
+        const tokens = words(name).map(w => [w, ...(SHORT_FORMS[w] ?? [])]);
+        let at = 0, first = -1;
+        const inOrder = qWords.every((qw) => {
+            const i = tokens.findIndex((forms, k) => k >= at && forms.some(f => f.startsWith(qw)));
+            if (i === -1) return false;
+            if (first === -1) first = i;
+            at = i + 1;
+            return true;
+        });
+        const initials = tokens.reduce((acc, forms) => acc.flatMap(a => forms.map(f => a + f[0])), ['']);
+        const rank = crs.toLowerCase() === q ? 0
+            : inOrder && first === 0 ? 1
+            : inOrder ? 2
+            : compact.length >= 2 && initials.includes(compact) ? 3
+            : q.length >= 3 && words(name).join(' ').includes(q) ? 4      // "hw" is in SmetHWick; a fragment needs three letters
+            : -1;
+        if (rank >= 0) hits.push({ crs, name, rank });
+    }
+    return hits.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name)).slice(0, n).map(h => h.crs);
 }
 
 /**

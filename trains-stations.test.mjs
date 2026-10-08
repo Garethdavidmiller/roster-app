@@ -166,6 +166,25 @@ describe('finding a station', () => {
         assert.deepEqual(matchStations(st, 'ger'), ['GER'], 'its code works too');
     });
 
+    test('typing the way people say a station: short forms, word order, initials, codes (v24.79)', () => {
+        const m = (/** @type {string} */ q) => matchStations(STATIONS, q);
+        assert.deepEqual(m('moor st'), ['BMO']);
+        assert.deepEqual(m('gerrards x'), ['GER']);
+        assert.deepEqual(m('oxford pkwy'), ['OXP']);
+        assert.deepEqual(m('bham'), ['BMO', 'BSW']);
+        assert.deepEqual(m('stourbridge jn'), ['SBJ']);
+        assert.deepEqual(m('w ruislip'), ['WRU']);
+        assert.deepEqual(m('chalfont latimer'), ['CFO']);
+        assert.deepEqual(m('chalfont & latimer'), ['CFO']);
+        assert.deepEqual(m('thame'), ['HDM']);
+        assert.deepEqual(m('bicester'), ['BCS', 'BIT']);
+        assert.deepEqual(m('hw'), ['HWY'], 'initials');
+        assert.deepEqual(m('gx'), ['GER'], 'initials with a short form');
+        assert.deepEqual(m('oxf'), ['OXF', 'OXP'], 'the code first, then the names');
+        assert.deepEqual(m('ruis'), ['SRU', 'WRU']);
+        assert.deepEqual(m('london'), [], 'never Marylebone');
+    });
+
     test('busiest stations are the ones the most trains call at', () => {
         const rows = [row('10:00', 'OXF', '', '', 'HWY1030 OXF1100'), row('10:10', 'HWY', '', '', 'HWY1040')];
         assert.deepEqual(busiestStations(rows, 2), ['HWY', 'OXF']);
