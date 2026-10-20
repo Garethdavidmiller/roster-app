@@ -41,7 +41,7 @@ import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
-import { TIMETABLES, STATIONS, CHANGE_DATE } from './trains-data.js';
+import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL } from './trains-data.js';
 import { CARD_TIPS } from './trains-tips.js';
 import { compareRoutes, trainsNear, parseTypedTime, daysUntil, changeLabel, routeName } from './trains-change.js';
 import { stationView, busiestStations, matchStations, headlineChanges, stoppingGrid, stopsKnown, lineOf } from './trains-stations.js';
@@ -62,7 +62,7 @@ import { renderHeadlines, renderStation, renderGrid, endWords } from './trains-r
  */
 
 const DAY_NAMES = /** @type {Record<Day, string>} */ ({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' });
-/** Whether every December train carries its stops — false until Chiltern's December books are parsed. */
+/** Whether every December train carries its stops — true since v24.80, when Chiltern's December books were parsed; false from a stopless source. */
 const DEC_STOPS_KNOWN = Object.values(TIMETABLES.dec).every(d => d.dep.every(stopsKnown) && d.arr.every(stopsKnown));
 
 /** Coordinator body, invoked by trains-boot.js. Exported so a test can import without running. */
@@ -156,6 +156,9 @@ function renderOverview() {
     // The one caveat about missing stops, said once, here — and gone the day December's stops arrive.
     const partial = el('trPartial');
     if (partial) partial.hidden = DEC_STOPS_KNOWN;
+    // Christmas and New Year are not in Chiltern's books; the note goes once its further changes end.
+    const festive = el('trFestive');
+    if (festive) festive.hidden = daysUntil(new Date(), FURTHER_CHANGES_UNTIL) < 0;
 }
 
 /** Everything that depends on the state: the pressed tabs, the visible view and its contents. @param {PageState} state */

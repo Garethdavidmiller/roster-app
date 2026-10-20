@@ -791,6 +791,33 @@ inactive user-interface component is the one thing WCAG 1.4.3 exempts. A skipped
 content is what the admin re-reads before changing their mind, so it gets no exemption and was
 fixed.
 
+## Trains page — preview items shipped (v24.74–v24.80), moved 20 Oct 2026
+
+Moved verbatim from ROADMAP.md → "Trains page — what comes after the preview", where they were
+proposed with the v24.71 preview on 7 Oct 2026. Each is followed by where it lives now.
+
+From **A. Before 13 December — teaching the change**:
+
+- **The changes you'll be asked about most** — a short list ranked by how many trains a day each
+  change touches, so nobody has to read every route to learn the important part.
+  *Now:* What's changing, `headlineChanges` in `trains-stations.js` (v24.74; consequence first
+  v24.78; one line per story v24.80).
+- **First and last trains, before and after**, per destination. Late-turn staff need this most.
+  *Now:* the station card's First and Last rows, each way (v24.74).
+- **New and lost destinations called out on their own** (Bicester Village and Stratford-upon-Avon each
+  gain a weekday departure; Gerrards Cross loses one) rather than left inside the lists.
+  *Now:* a new or withdrawn direct service ranks above every other headline (v24.74). The example
+  was written from the simplifier; read from the published books, Stratford-upon-Avon gains its
+  09:31, Bicester Village gains two trains a day, and Gerrards Cross keeps its number of trains with
+  twelve at different times.
+
+From **Open questions for the owner**:
+
+- December calling points — once Chiltern publishes the December timetable PDFs, the same tooling
+  can read them, and "which stations does it stop at" can join the comparison.
+  *Answered at v24.80:* Chiltern published the books, the same two scripts read them unchanged, and
+  December now comes from them — every train with its stops (`docs/timetable-dec26/tooling/README.md`).
+
 ## Closed limitations, moved out of KNOWN_LIMITATIONS.md (2 Sep 2026)
 
 From an external review of the Markdown estate. `KNOWN_LIMITATIONS.md` promises "intentional

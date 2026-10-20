@@ -374,6 +374,12 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await expect(page.locator('#trPattern .tr-dot').first()).toBeVisible();
         v = await scan(page);
         expect(v.length, report(v)).toBe(0);
+        // December's grid, once its stops were known (v24.80), gained a key and "new stop" / "no
+        // longer stops" dots — structure today's grid does not have.
+        await page.locator('[data-grid="dec"]').click();
+        await expect(page.locator('#trPattern .tr-grid-key')).toBeVisible();
+        v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
     });
 
     test('overtime — member form (signed in)', async ({ page }) => {

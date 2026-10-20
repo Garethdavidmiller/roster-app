@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: October 2026 — v24.70 · Updated every 0.10 version*
+*Last updated: October 2026 — v24.80 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -428,15 +428,13 @@ which is the part that matters on a detached sheet.
 
 `trains.html` shipped at v24.71 as an **admin-only preview** of "what's changing": a countdown, the
 daily totals, every route's trains before and after with the change in words, the basic hour side
-by side, and a time lookup. The ideas below were proposed with it (7 Oct 2026) and deliberately not
-built yet. They are recorded so the page grows toward a plan rather than by accretion.
+by side, and a time lookup. By v24.80 it was station-first — ranked changes in a colleague's words,
+a card per station, the basic hour as a stopping-pattern grid — and both timetables came from
+Chiltern's published books, every stop included. The ideas below were proposed with it (7 Oct 2026)
+and deliberately not built yet; the ones since built are in ROADMAP_HISTORY.md → "Trains page —
+preview items shipped". They are recorded so the page grows toward a plan rather than by accretion.
 
 **A. Before 13 December — teaching the change.** **Trigger:** the owner opens the preview to staff.
-- **The changes you'll be asked about most** — a short list ranked by how many trains a day each
-  change touches, so nobody has to read every route to learn the important part.
-- **First and last trains, before and after**, per destination. Late-turn staff need this most.
-- **New and lost destinations called out on their own** (Bicester Village and Stratford-upon-Avon each
-  gain a weekday departure; Gerrards Cross loses one) rather than left inside the lists.
 - **What to say to customers** — one ready line per change, in the app's calm voice.
 - **A change of the week** through App Notices, easy to paste into the Daily Huddle. Nine weeks
   from the preview to the launch fits nine changes.
@@ -456,7 +454,7 @@ built yet. They are recorded so the page grows toward a plan rather than by accr
 - **The basic-hour clock** — a clock face with a dot at each repeating minute (:02 Birmingham, :06
   Oxford…) and a hand at the current minute. Tap a dot for that train.
 - **Where to?** — one button per destination: the next three trains, the minutes it usually leaves
-  at, and first and last today. With calling points, "also stops at…".
+  at, and first and last today. With calling points (December's are in since v24.80), "also stops at…".
 - **Last trains tonight** — from about 20:00 this moves to the top with a countdown to each last
   train, the after-midnight ones labelled "tonight, just after midnight".
 - **Your shift** — for a signed-in member the Calendar already knows today's shift, so: "You're on
@@ -469,8 +467,15 @@ built yet. They are recorded so the page grows toward a plan rather than by accr
 **What the page must get right whatever is built.**
 - **It knows its dates** — a preview before 13 December, and it must say it has ended at the May
   2027 change rather than quietly show old times.
-- **Christmas and bank holidays differ** — no trains on 25 and 26 December, special timetables on
-  other bank holidays. The page should say so, not show the normal pattern.
+- **Christmas and bank holidays differ** — special timetables over Christmas and New Year and on
+  bank holidays. The page should say so, not show the normal pattern. Chiltern's December books do
+  not help: they say nothing about Christmas or bank holidays (checked 20 Oct 2026). **Since v24.80
+  the page says so for Christmas:** Chiltern's timetable page states more changes between 13
+  December and 10 January, "including significant changes over the Christmas and New Year period",
+  and the overview names that window until it ends (`FURTHER_CHANGES_UNTIL`). **Still open:** the
+  actual festive times, which will have to come from Chiltern's Christmas publicity — no 2026 detail
+  was published when checked, and last year's pattern is not evidence for this one — and the bank
+  holidays inside the books' validity (Good Friday, Easter Monday, the early-May holiday).
 - **Publish only what a passenger timetable prints.** The repository and the Pages mirror are
   public. Lengths, platforms, joins, diagrams and empty-stock moves stay out unless the owner
   decides otherwise (below). `docs/timetable-dec26/tooling/build.py` enforces this today.
@@ -483,8 +488,6 @@ built yet. They are recorded so the page grows toward a plan rather than by accr
 - Its place in the drawer — second after Calendar was the suggestion.
 - Are train lengths and planned platforms fine to publish? They make Next out and the crowding
   list useful, and they are internal planning detail rather than a passenger fact.
-- December calling points — once Chiltern publishes the December timetable PDFs, the same tooling
-  can read them, and "which stations does it stop at" can join the comparison.
 - What "5 (3)" means in the simplifier's coaches column.
 
 ## NEXT — likely, but a trigger is required

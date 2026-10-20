@@ -6,8 +6,9 @@
  *
  * ── THE CAVEATS LIVE HERE, AND ONE OF THEM ALSO LIVES ON THE PAGE ───────────────────────────────
  *
- * The page's limits (no December stopping stations, a draft weekday plan, joined trains counted
- * once, Aylesbury's two routes) were a fifth card until v24.72. Every other page keeps that kind of
+ * The page's limits (joined trains counted once, Aylesbury's two routes — and, until Chiltern
+ * published its December books in v24.80, no December stops and a draft weekday plan) were a fifth
+ * card until v24.72. Every other page keeps that kind of
  * depth behind its cards' `?`, so they moved here — except "December times can still change", which
  * is the one a member must not miss before telling a passenger something, so it also stays in the
  * overview card's own text. Discovery may not depend on opening a panel.
@@ -23,14 +24,15 @@ export const CARD_TIPS = {
                 items: [
                     { icon: '📅', html: 'Chiltern\'s new timetable starts on <strong>Sunday 13 December 2026</strong>. Until then the trains in this page\'s <strong>Now</strong> column are the ones running.' },
                     { icon: '🚆', html: 'The totals count every passenger train <strong>leaving Marylebone</strong> on that kind of day. Two trains coupled together count once, because they leave as one.' },
-                    { icon: '⚠️', html: 'December times can still change before the 13th. Before you tell a customer, check the journey planner on the Chiltern Railways website.' },
+                    { icon: '⚠️', html: 'December times can still change. Before you tell a customer, check the journey planner on the Chiltern Railways website.' },
+                    { icon: '🎄', html: '<strong>Christmas and New Year are not on this page.</strong> Chiltern says it will change times again between 13&nbsp;December and 10&nbsp;January, with big changes over Christmas and New Year, and Amersham-line times may change during those weeks too. For those dates, check the journey planner nearer the time.' },
                 ],
             },
             {
                 heading: 'Where these times come from',
                 items: [
-                    { icon: '📄', html: 'Now: Chiltern\'s public timetables, valid until 11 December 2026.' },
-                    { icon: '📄', html: 'From 13 December: Chiltern\'s December 2026 Marylebone timetable plan. The weekend plans are final; the weekday plan is still a draft.' },
+                    { icon: '📄', html: 'Now: Chiltern\'s public timetables, valid until Saturday 12 December 2026.' },
+                    { icon: '📄', html: 'From 13 December: Chiltern\'s new public timetables, valid until Saturday 15 May 2027.' },
                 ],
             },
         ],
@@ -43,13 +45,13 @@ export const CARD_TIPS = {
                 items: [
                     { icon: '📋', html: 'The biggest changes to trains <strong>leaving Marylebone</strong> on the day chosen above, one line per station, biggest first.' },
                     { icon: '👆', html: 'Tap a change to open that station and see everything about it.' },
-                    { icon: '🟢', html: '<strong>More</strong> means more trains or a new direct service, <strong>Less</strong> fewer or none, <strong>Moved</strong> the same trains at different times.' },
+                    { icon: '🟢', html: '<strong>More trains</strong> means more trains or a new direct service, <strong>Fewer trains</strong> fewer or none, <strong>Times move</strong> the same trains at different times.' },
                 ],
             },
             {
-                heading: 'Why the list is short for now',
+                heading: 'One line per story',
                 items: [
-                    { icon: '⏳', html: 'December’s stops are not published yet, so only trains that end at a station can be compared — a line that ends <strong>counting only the trains that end there</strong> is one of those. More changes appear here once Chiltern publishes its December timetable.' },
+                    { icon: '🔗', html: 'When the same trains are added, or taken away, at several stations, that is one line, named by where the trains go. <strong>They also stop at</strong> lists the other stations they call at; <strong>5 of them also stop at</strong> means only five of those trains call there.' },
                 ],
             },
         ],
@@ -61,7 +63,7 @@ export const CARD_TIPS = {
             {
                 items: [
                     { icon: '⌨️', html: 'Start typing a station, or tap one of the busiest. Short forms work too: <strong>Moor St</strong>, <strong>Gerrards X</strong>, <strong>Oxford Pkwy</strong>, <strong>Bham</strong>, or the three-letter code. The card answers in one sentence first, then the figures, today beside December.' },
-                    { icon: '🔢', html: '<strong>Off-peak</strong> means 10:00 to 16:00. <strong>1 to 2</strong> trains an hour means some off-peak hours have one train and some have two.' },
+                    { icon: '🔢', html: '<strong>Off-peak</strong> means 10:00 to 16:00. <strong>2 (1 in some hours)</strong> trains an hour means most off-peak hours have two trains, and some have only one.' },
                     { icon: '🕐', html: 'Every time is at <strong>Marylebone</strong> — when a train leaves, or gets in. <strong>Fastest journey</strong> is the one figure measured at the other station.' },
                     { icon: '↩️', html: '<strong>Coming back</strong> shows the trains from that station into Marylebone.' },
                     { icon: '🔁', html: '<strong>Train by train</strong> lists only the trains that change; the ones that stay the same are one tap further. A train counts as the same train when it leaves within 20 minutes of its old time. Beyond that it shows as removed, and the new one as a new train.' },
@@ -70,7 +72,6 @@ export const CARD_TIPS = {
             {
                 heading: 'Good to know',
                 items: [
-                    { icon: '⏳', html: 'December’s stops are not published yet. Until they are, a station most trains run through compares only the <strong>trains that end there</strong>, and says so at the top of the card; where no train ends, the card says it is waiting.' },
                     { icon: '➡️', html: 'Some trains run on past where most of their line stops: <strong>Aylesbury Vale Parkway</strong> trains are Aylesbury trains via Amersham run on, and <strong>Birmingham Snow Hill</strong> and <strong>Stourbridge Junction</strong> trains are Moor Street trains run on.' },
                     { icon: '🗓️', html: 'A few weekday trains run at different times on <strong>Mondays and Fridays</strong>. Those are marked under the time.' },
                 ],
@@ -92,7 +93,6 @@ export const CARD_TIPS = {
                 heading: 'From 13 December',
                 items: [
                     { icon: '🟢', html: 'A green ring is a stop a train gains; a hollow red dot is one it loses.' },
-                    { icon: '⏳', html: 'Until December’s stops are published, each December column shows only where that train ends.' },
                 ],
             },
         ],

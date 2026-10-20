@@ -14,7 +14,7 @@ import {
     serviceMinutes, alignTimes, compareRoutes, foldWeekdayVariants, basicHour, compareBasicHour,
     trainsNear, parseTypedTime, daysUntil, changeLabel, daysLabel, routeName, MAX_SHIFT_MIN, beyondLabel, lineDepth,
 } from './trains-change.js';
-import { TIMETABLES, STATIONS, CHANGE_DATE } from './trains-data.js';
+import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL } from './trains-data.js';
 
 /** @param {string} t @param {string} [st] @param {string} [via] @param {string} [days] @param {string} [stops] @returns {[string,string,string,string,string]} */
 const row = (t, st = 'OXF', via = '', days = '', stops = '') => [t, st, via, days, stops];
@@ -231,10 +231,24 @@ describe('trains-data.js', () => {
         assert.equal(new Date(2026, 11, 13).getDay(), 0);
     });
 
+    test('the Christmas note lasts as long as the changes Chiltern says it will still make', () => {
+        // Chiltern's timetable page (checked 20 Oct 2026): "Further changes will be made to the
+        // timetable between 13 December 2026 and 10 January 2027".
+        assert.equal(FURTHER_CHANGES_UNTIL, '2027-01-10');
+        assert.ok(FURTHER_CHANGES_UNTIL > CHANGE_DATE);
+        // The page shows the note while this is not negative: still on the 10th, gone on the 11th.
+        assert.equal(daysUntil(new Date(2027, 0, 10, 23, 30), FURTHER_CHANGES_UNTIL), 0);
+        assert.equal(daysUntil(new Date(2027, 0, 11, 0, 30), FURTHER_CHANGES_UNTIL), -1);
+    });
+
     test('departure counts match the sources', () => {
         const counts = (/** @type {'now'|'dec'} */ side) => ['SX', 'SO', 'SU'].map(d => TIMETABLES[side][/** @type {'SX'} */ (d)].dep.length);
         assert.deepEqual(counts('now'), [146, 100, 91]);
-        assert.deepEqual(counts('dec'), [157, 105, 94]);
+        // Counted off the printed December books by hand (v24.80): weekdays 116 main-line columns
+        // leaving Marylebone plus 45 in the Amersham book, less 3 printed in both; Saturdays and
+        // Sundays the same way. The roster office's simplifier, December's source before the books,
+        // had 157 on weekdays — its weekday plan was a draft, and the published evening peak moved.
+        assert.deepEqual(counts('dec'), [158, 105, 94]);
     });
 
     test('every row is a well-formed passenger train at a named station', () => {
@@ -247,7 +261,8 @@ describe('trains-data.js', () => {
                 if (side === 'dec') assert.equal(days, '', 'December has no weekday exceptions on record');
                 assert.match(stops, /^(|[A-Z]{3}\d{4}( [A-Z]{3}\d{4})*)$/, `${side} ${day} ${kind} ${t}: stops`);
                 for (const stop of stops ? stops.split(' ') : []) assert.ok(STATIONS[stop.slice(0, 3)], `unnamed stop ${stop}`);
-                if (side === 'now') assert.ok(stops, `today's ${t} ${st} has its stops`);
+                // Both sides from Chiltern's public books since v24.80, so every train has its stops.
+                assert.ok(stops, `${side} ${t} ${st} has its stops`);
             }
         }
     });
@@ -256,6 +271,13 @@ describe('trains-data.js', () => {
         const ban = compareRoutes(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep).find(r => r.key === 'BAN');
         const t = ban?.trains.find(x => x.now === '10:36');
         assert.equal(t && changeLabel(t, STATIONS), 'Will run to Birmingham Snow Hill');
+    });
+
+    test('checked by hand against the December book: the 10:36 and where it stops', () => {
+        const t = TIMETABLES.dec.SX.dep.find(r => r[0] === '10:36');
+        assert.equal(t?.[1], 'BSW');
+        const at = Object.fromEntries((t?.[4] ?? '').split(' ').map(s => [s.slice(0, 3), s.slice(3)]));
+        assert.deepEqual([at.HWY, at.BAN, at.LMS, at.BMO, at.BSW], ['1106', '1142', '1201', '1234', '1238']);
     });
 
     test('checked by hand: the weekday basic hour from 10:00 to 16:00', () => {

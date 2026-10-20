@@ -20,25 +20,36 @@ test.describe('trains', () => {
         await page.goto('/trains.html');
 
         await expect(page.locator('#trCountdown')).toHaveText('67 days to go');
-        await expect(page.locator('#trTotals')).toContainText('weekdays 146 → 157');
+        await expect(page.locator('#trTotals')).toContainText('weekdays 146 → 158');
         await expect(page.locator('[data-day="SX"]')).toHaveAttribute('aria-pressed', 'true');
+        // Chiltern's books say nothing about Christmas, so the page says it cannot answer for it.
+        await expect(page.locator('#trFestive')).toBeVisible();
+        await expect(page.locator('#trFestive')).toContainText('Christmas and New Year are not on this page.');
 
         // What's changing: sentences, biggest first, and a tap opens that station.
         const heads = page.locator('#trChanges .tr-head');
         await expect(heads.first()).toHaveText(/A new direct train to Stratford-upon-Avon, the 09:31/);
-        await expect(page.locator('#trChanges')).toContainText('once Chiltern publishes where December’s trains stop');
-        await expect(page.locator('#trPartial')).toBeVisible();
+        // Both timetables come from Chiltern's books since v24.80: nothing says it is waiting for stops.
+        await expect(page.locator('#trChanges')).not.toContainText('once Chiltern publishes');
+        await expect(page.locator('#trPartial')).toBeHidden();
         // Snow Hill's extra trains are Moor Street's own, so they are one headline, not two.
         await expect(page.locator('#trChanges .tr-head', { hasText: 'Birmingham Moor Street' })).toContainText('go on to Snow Hill');
         await expect(page.locator('#trChanges .tr-head', { hasText: /^Birmingham Snow Hill/ })).toHaveCount(0);
-        await page.locator('#trChanges .tr-head', { hasText: 'to Aylesbury' }).click();
+        // And the Amersham line's new trains are Aylesbury's: one line names every station they call
+        // at, and no other line repeats them, even with the whole list open.
+        await page.locator('#trHeadsMore').click();
+        const ays = page.locator('#trChanges .tr-head', { hasText: 'to Aylesbury' });
+        await expect(ays).toContainText('they also stop at Amersham, Great Missenden, Wendover and Stoke Mandeville');
+        await expect(ays).toContainText('5 of them also stop at Harrow-on-the-Hill');
+        await expect(page.locator('#trChanges .tr-head', { hasText: /trains a day to (Amersham|Great Missenden|Harrow)/ })).toHaveCount(0);
+        await ays.click();
         await expect(page.locator('[data-view="stations"]')).toHaveAttribute('aria-pressed', 'true');
         await expect(page.locator('#trViewChanges')).toBeHidden();
         await expect(page.locator('#trStationTitle')).toHaveText('Aylesbury');
-        await expect(page.locator('#trStation .tr-verdict')).toHaveText('5 more trains a day: 46, was 41.');
+        await expect(page.locator('#trStation .tr-verdict')).toHaveText('6 more trains a day: 47, was 41.');
         const daily = page.locator('#trStation .tr-st-table tbody tr', { hasText: 'Trains a day' });
         await expect(daily.locator('td').nth(0)).toHaveText('41');
-        await expect(daily.locator('td').nth(1)).toHaveText('46');
+        await expect(daily.locator('td').nth(1)).toHaveText('47');
         // Today two off-peak hours have one Aylesbury train; December fills them. An average of 2
         // hid that, so the typical hour is shown with its exception.
         const hourly = page.locator('#trStation .tr-st-table tbody tr', { hasText: 'Off-peak, trains an hour' });
@@ -50,7 +61,7 @@ test.describe('trains', () => {
         await page.locator('[data-sdir="arr"]').click();
         await expect(page.locator('#trStationHint')).toHaveText('Aylesbury → London Marylebone');
         await expect(page.locator('#trStation')).toContainText('Off-peak, gets into Marylebone at');
-        await expect(page.locator('#trStation .tr-verdict')).toHaveText('4 more trains a day: 41, was 37.');
+        await expect(page.locator('#trStation .tr-verdict')).toHaveText('5 more trains a day: 42, was 37.');
         // Train by train: only the trains that change, the rest one tap away.
         await page.locator('#trStation .tr-route-sum').click();
         await expect(page.locator('#trStation .tr-trains tbody tr').first()).toBeVisible();
@@ -62,22 +73,22 @@ test.describe('trains', () => {
         expect(await page.locator('#trStation .tr-trains tbody tr').count()).toBeGreaterThan(changedRows);
         await expect(page.locator('#trStation .tr-trains')).toContainText('from Parkway');
 
-        // A station trains pass THROUGH cannot be answered for December as a whole, so where
-        // nothing ends there the card says it is waiting rather than counting a subset as the service…
+        // With December's stops published, a station every train runs THROUGH is answered in full —
+        // until v24.80 Beaconsfield said "December not known yet"…
         await page.locator('[data-sdir="dep"]').click();
         await page.locator('#trStationInput').fill('beac');
         await page.locator('#trStationPicks .tr-pick', { hasText: 'Beaconsfield' }).click();
-        await expect(page.locator('#trStation .tr-verdict')).toContainText('December not known yet');
-        await expect(page.locator('#trStation .tr-st-table tbody tr', { hasText: 'Trains a day' }).locator('td').nth(1)).toHaveText('—not known yet');
-        await expect(page.locator('#trStation .tr-route')).toHaveCount(0);
-        // …and where trains DO end there (Oxford: 35 of 36), it compares those, labelled as those.
+        await expect(page.locator('#trStation .tr-verdict')).toHaveText('Same number of trains a day, but 11 are different — see Train by train below.');
+        await expect(page.locator('#trStation')).not.toContainText('not known yet');
+        await expect(page.locator('#trStation .tr-route')).toHaveCount(1);
+        // …and Oxford counts the train that runs on to Banbury too, where it could count only the
+        // trains that end there — so the card no longer says it is about those.
         await page.locator('#trStationInput').fill('gerrards x');
         await expect(page.locator('#trStationPicks .tr-pick')).toHaveText(['Gerrards Cross']);
         await page.locator('#trStationInput').fill('oxf');
         await page.locator('#trStationPicks .tr-pick', { hasText: /^Oxford$/ }).click();
-        await expect(page.locator('#trStation .tr-sub')).toHaveText('Trains that end at Oxford');
-        await expect(page.locator('#trStation .tr-verdict')).toHaveText('1 more train a day: 36, was 35.');
-        await expect(page.locator('#trStation')).toContainText('One other train a day calls at Oxford');
+        await expect(page.locator('#trStation .tr-verdict')).toHaveText('1 more train a day: 37, was 36.');
+        await expect(page.locator('#trStation .tr-sub')).toHaveCount(0);
         await expect(page.locator('#trStation .tr-route')).toHaveCount(1);
 
         // The basic hour: today's stops as dots, and Saturdays' December hour gains a :32 to Birmingham.
@@ -88,7 +99,10 @@ test.describe('trains', () => {
         await page.locator('[data-day="SO"]').click();
         await page.locator('[data-grid="dec"]').click();
         await expect(page.locator('#trPattern thead')).toContainText(':32');
-        await expect(page.locator('#trPattern')).toContainText('stops are not published yet');
+        // December's columns carry their real stops: the new :32 stops at Banbury beside the :02.
+        await expect(page.locator('#trPattern tbody tr', { hasText: 'Banbury' }).locator('.tr-dot')).toHaveCount(2);
+        await expect(page.locator('#trPattern .tr-grid-key')).toBeVisible();
+        await expect(page.locator('#trPattern')).not.toContainText('not published yet');
 
         // The lookup answers the exact train in a sentence, for the day now chosen.
         await page.locator('[data-day="SX"]').click();
@@ -108,9 +122,18 @@ test.describe('trains', () => {
         // The `?` panels are wired — the page's caveats live there.
         await page.locator('.btn-card-tips[data-card="changes"]').click();
         await expect(page.locator('#tipsLbTitle')).toHaveText('🔔 What’s changing');
-        await expect(page.locator('#tipsLbBody')).toContainText('only trains that end at a station can be compared');
+        await expect(page.locator('#tipsLbBody')).toContainText('5 of them also stop at means only five of those trains call there');
 
         expect(errors).toHaveLength(0);
+    });
+
+    test('the Christmas note goes once Chiltern\'s further changes end, on 10 January', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2027-01-11T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await expect(page.locator('#trCountdown')).toHaveText('Now running');
+        await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
+        await expect(page.locator('#trFestive')).toBeHidden();
     });
 
     // Every view at phone width, with the widest content each holds open. The basic-hour grid
