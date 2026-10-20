@@ -220,7 +220,7 @@ function renderLookup(state) {
     const typed = input.value.trim();
     if (!typed) { host.innerHTML = ''; return; }
     const at = parseTypedTime(typed);
-    if (!at) { host.innerHTML = '<p class="card-explainer tr-lead">Type a time like 17:15 or 1715.</p>'; return; }
+    if (!at) { host.innerHTML = '<p class="card-explainer tr-lead">Type a time like 17:15, 1715 or 5.15pm.</p>'; return; }
 
     const nowRows = TIMETABLES.now[state.day].dep, decRows = TIMETABLES.dec[state.day].dep;
     const near = trainsNear(nowRows, decRows, at);

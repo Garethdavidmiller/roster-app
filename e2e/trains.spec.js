@@ -71,6 +71,8 @@ test.describe('trains', () => {
         await expect(page.locator('#trStation .tr-st-table tbody tr', { hasText: 'Trains a day' }).locator('td').nth(1)).toHaveText('—not known yet');
         await expect(page.locator('#trStation .tr-route')).toHaveCount(0);
         // …and where trains DO end there (Oxford: 35 of 36), it compares those, labelled as those.
+        await page.locator('#trStationInput').fill('gerrards x');
+        await expect(page.locator('#trStationPicks .tr-pick')).toHaveText(['Gerrards Cross']);
         await page.locator('#trStationInput').fill('oxf');
         await page.locator('#trStationPicks .tr-pick', { hasText: /^Oxford$/ }).click();
         await expect(page.locator('#trStation .tr-sub')).toHaveText('Trains that end at Oxford');
@@ -96,6 +98,8 @@ test.describe('trains', () => {
             .toHaveText('The 10:36 to Banbury: Will run to Birmingham Snow Hill.');
         await page.locator('#trLookupInput').fill('1715');
         await expect(page.locator('#trLookupResult')).toContainText('on to Stourbridge');
+        await page.locator('#trLookupInput').fill('5.15pm');
+        await expect(page.locator('#trLookupResult .tr-answer').first()).toContainText('The 17:15 to Oxford');
         await page.locator('#trLookupInput').fill('1716');
         await expect(page.locator('#trLookupResult')).toContainText('No train leaves at exactly 17:16 today.');
         await page.locator('#trLookupInput').fill('noon');

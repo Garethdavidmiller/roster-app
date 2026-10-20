@@ -60,7 +60,7 @@ export const CARD_TIPS = {
         sections: [
             {
                 items: [
-                    { icon: '⌨️', html: 'Start typing a station, or tap one of the busiest. The card answers in one sentence first, then the figures, today beside December.' },
+                    { icon: '⌨️', html: 'Start typing a station, or tap one of the busiest. Short forms work too: <strong>Moor St</strong>, <strong>Gerrards X</strong>, <strong>Oxford Pkwy</strong>, <strong>Bham</strong>, or the three-letter code. The card answers in one sentence first, then the figures, today beside December.' },
                     { icon: '🔢', html: '<strong>Off-peak</strong> means 10:00 to 16:00. <strong>1 to 2</strong> trains an hour means some off-peak hours have one train and some have two.' },
                     { icon: '🕐', html: 'Every time is at <strong>Marylebone</strong> — when a train leaves, or gets in. <strong>Fastest journey</strong> is the one figure measured at the other station.' },
                     { icon: '↩️', html: '<strong>Coming back</strong> shows the trains from that station into Marylebone.' },
@@ -103,7 +103,7 @@ export const CARD_TIPS = {
         sections: [
             {
                 items: [
-                    { icon: '⌨️', html: 'Type a time the way you would say it: <strong>17:15</strong>, <strong>1715</strong> or <strong>715</strong> all work.' },
+                    { icon: '⌨️', html: 'Type a time the way you would say it: <strong>17:15</strong>, <strong>1715</strong>, <strong>5.15pm</strong> or <strong>515pm</strong> all work. Without am or pm, <strong>515</strong> means 05:15.' },
                     { icon: '💬', html: 'If a train leaves at exactly that time today, the answer says what happens to it from 13 December.' },
                     { icon: '↔️', html: 'Underneath, every train leaving Marylebone within 15 minutes either side, today and from 13 December, for the day chosen above.' },
                 ],
