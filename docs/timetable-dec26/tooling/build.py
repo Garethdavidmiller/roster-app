@@ -4,8 +4,18 @@ Usage (from the repository root):
     python3 -I docs/timetable-dec26/tooling/build.py <now.json> <dec.json> trains-data.js
 
 <now.json> is assemble.py's output (the CURRENT public timetable, from Chiltern's printed PDFs).
-<dec.json> is simplifier.py's output (the DECEMBER 2026 Marylebone simplifier spreadsheets).
+<dec.json> is assemble.py's output from Chiltern's DECEMBER 2026 public timetable PDFs (v24.80) —
+    or, as a fallback, simplifier.py's output (the roster office's December 2026 Marylebone
+    simplifier spreadsheets, which carry no stops and whose weekday plan was a draft).
 README.md beside this file gives the whole pipeline.
+
+── BOTH SIDES FROM THE PUBLIC BOOKS (v24.80) ───────────────────────────────────────────────────
+
+Until Chiltern published its December books, December came from the simplifier: a WORKING document,
+compared against a PUBLIC one. That was not like-for-like — measured when the books arrived, every
+Amersham-line arrival into Marylebone was 3 minutes later in the public book than in the simplifier,
+and the published weekday evening peak was reshuffled from the draft. Read from the books, both sides
+are the timetable a passenger sees, and every December train carries its stops.
 
 ── WHAT IS PUBLISHED, AND WHAT IS DELIBERATELY LEFT BEHIND ─────────────────────────────────────
 
@@ -19,8 +29,9 @@ empty-stock moves. None of that is a passenger fact, and none of it leaves this 
 Aylesbury is the one destination reached two ways, and the two take very different times, so a
 train that changes route has changed even if its departure time has not. December's route is read
 from the headcode, which encodes it: leaving London 2A runs via High Wycombe and 2B/1B via
-Amersham; arriving, 2H/1H came via High Wycombe and 2C/1C via Amersham. The current timetable's is
-read from the PDFs: a train in the main-line book, or carrying the "H" note, is via High Wycombe.
+Amersham; arriving, 2H/1H came via High Wycombe and 2C/1C via Amersham — but only when December comes
+from the simplifier. Read from the PDFs (both timetables since v24.80), a train in the main-line book,
+or carrying the "H" note, is via High Wycombe.
 """
 import sys, json, collections
 
@@ -29,6 +40,7 @@ _now = json.load(open(now_path))
 NOW = _now['trains'] if isinstance(_now, dict) else _now          # a pre-v24.76 now.json is a bare list
 ORDER = _now.get('order', {}) if isinstance(_now, dict) else {}
 DEC = json.load(open(dec_path))
+DEC_BOOKS = isinstance(DEC, dict) and 'trains' in DEC              # the public books, not the simplifier
 
 # Names for every stop, read from the current timetable's own rows (`names` from assemble.py); these
 # fixed ones win, so a capitalisation the printed book uses ("Stratford-Upon-Avon") is not copied.
@@ -39,7 +51,7 @@ STATIONS = {
     'PRR': 'Princes Risborough', 'SAV': 'Stratford-upon-Avon', 'SBJ': 'Stourbridge Junction',
     'WRU': 'West Ruislip',
 }
-for r in NOW:
+for r in [*NOW, *(DEC['trains'] if DEC_BOOKS else [])]:
     for crs, name in r.get('names', {}).items():
         STATIONS.setdefault(crs, name.replace('-On-The-', '-on-the-').replace('-Upon-', '-upon-'))
 # The stations in the order the two books print them. Main-line book first (Wembley Stadium …
@@ -48,8 +60,18 @@ for r in NOW:
 # Amersham-book place, so every column of the basic hour reads DOWNWARDS in travel order: the
 # via-Wycombe train's dots run Princes Risborough, Monks Risborough, Little Kimble, then Aylesbury
 # further down, never back up the page. Only named stations: a row no kept train calls at is dropped.
-_main = [c for c in ORDER.get('main', []) if c != 'MYB']
-_met = [c for c in ORDER.get('met', []) if c != 'MYB']
+def _merged(book):
+    """One book's rows, today's order first; a row only December's book prints goes after the row
+    that precedes it there."""
+    order = [c for c in ORDER.get(book, []) if c != 'MYB']
+    later = [c for c in (DEC.get('order', {}).get(book, []) if DEC_BOOKS else []) if c != 'MYB']
+    for i, c in enumerate(later):
+        if c in order: continue
+        before = next((p for p in reversed(later[:i]) if p in order), None)
+        order.insert(order.index(before) + 1 if before else 0, c)
+    return order
+_main = _merged('main')
+_met = _merged('met')
 STATION_ORDER = [c for c in [*[c for c in _main if c not in _met], *_met] if c in STATIONS]
 DAY_NOTES = ('MFO', 'MFX', 'WO')
 ROUTED = {'AYS'}                       # the stations whose route is part of the train's identity
@@ -73,12 +95,12 @@ def dec_via(hc, kind, crs):
     return 'H' if hc[1:2] == 'H' else 'A'
 
 
-out = {'now': {}, 'dec': {}}
-unknown = collections.Counter()
-for day in ('SX', 'SO', 'SU'):
-    # ── Current: from the printed timetable ──
-    rows = {'dep': [], 'arr': []}
-    for r in NOW:
+def book_rows(trains, day):
+    """The rows for one day from a public book (assemble.py output) — today's, and December's since
+    v24.80. Every stop but Marylebone, the far end included, as CRS+HHMM: the time a passenger
+    reaches it leaving London, or must be on the train coming back."""
+    rows = {'dep': set(), 'arr': set()}
+    for r in trains:
         if r['day'] != day:
             continue
         crs = r['dest'] if r['kind'] == 'dep' else r['org']
@@ -87,13 +109,14 @@ for day in ('SX', 'SO', 'SU'):
             continue
         via = ('H' if ('H' in r['notes'] or r['src'] == 'main') else 'A') if crs in ROUTED else ''
         days = next((n for n in r['notes'] if n in DAY_NOTES), '')
-        # Every stop but Marylebone, the far end included, as CRS+HHMM — the time a passenger reaches it
-        # leaving London, or must be on the train coming back. '' means "not known", never "none".
         stops = ' '.join(f'{c}{t}' for c, t in r.get('stops', []))
-        rows[r['kind']].append((f"{r['t'][:2]}:{r['t'][2:]}", crs, via, days, stops))
-    out['now'][day] = rows
+        rows[r['kind']].add((f"{r['t'][:2]}:{r['t'][2:]}", crs, via, days, stops))
+    return rows
 
-    # ── December: from the simplifier ──
+
+def simplifier_rows(day):
+    """December from the roster office's simplifier — the fallback before the public books. It holds
+    no stops: '' means NOT KNOWN, and the page says it is waiting rather than guess."""
     rows = {'dep': set(), 'arr': set()}
     for kind, key, tkey in (('dep', 'deps', 'dep'), ('arr', 'arrs', 'arr')):
         for r in DEC[day][key]:
@@ -103,10 +126,18 @@ for day in ('SX', 'SO', 'SU'):
             if crs not in STATIONS:
                 unknown[crs] += 1
                 continue
-            # The simplifier holds no stops: '' until Chiltern's December books are read (README).
             rows[kind].add((hhmm(r[tkey]), crs, dec_via(r['hc'], kind, crs), '', ''))
-    out['dec'][day] = {k: sorted(v, key=lambda x: (service_order(x[0]), x[1])) for k, v in rows.items()}
-    out['now'][day] = {k: sorted(set(v), key=lambda x: (service_order(x[0]), x[1])) for k, v in out['now'][day].items()}
+    return rows
+
+
+out = {'now': {}, 'dec': {}}
+unknown = collections.Counter()
+by_service = lambda x: (service_order(x[0]), x[1])
+for day in ('SX', 'SO', 'SU'):
+    now = book_rows(NOW, day)
+    dec = book_rows(DEC['trains'], day) if DEC_BOOKS else simplifier_rows(day)
+    out['now'][day] = {k: sorted(v, key=by_service) for k, v in now.items()}
+    out['dec'][day] = {k: sorted(v, key=by_service) for k, v in dec.items()}
 
 if unknown:
     sys.exit(f'Unnamed stations — add them to STATIONS: {dict(unknown)}')
@@ -128,13 +159,14 @@ js = ["""// @ts-check
  * leaving (`dep`, keyed by where it is going) and arriving (`arr`, keyed by where it came from).
  * Each row is `[time, station code, route, days, stops]`:
  *   - route — Aylesbury only: 'H' via High Wycombe, 'A' via Amersham; '' everywhere else
- *   - days  — the current timetable's weekday exceptions: 'MFO' Mondays and Fridays only,
- *             'MFX' not Mondays and Fridays, 'WO' Wednesdays only; '' runs every day of its kind
+ *   - days  — a weekday exception: 'MFO' Mondays and Fridays only, 'MFX' not Mondays and
+ *             Fridays, 'WO' Wednesdays only; '' runs every day of its kind
  *   - stops — every stop after Marylebone (leaving) or before it (arriving), the far end included,
  *             as space-separated CRS+HHMM
  *             ('HWY1105 BCS1131'): the time a passenger reaches it leaving London, or must be on
- *             the train coming back. '' means NOT KNOWN — December's stops are not in the
- *             simplifier and arrive with Chiltern's published December books.
+ *             the train coming back. '' means NOT KNOWN — never "no stops". Since v24.80 both
+ *             sides come from Chiltern's public books and every row carries its stops; a row
+ *             built from the roster office's simplifier (the fallback) has none.
  *
  * PUBLIC, like every file in this repository: it holds only what Chiltern prints for passengers.
  * The simplifier's lengths, platforms, diagrams and empty-stock moves are dropped by the
@@ -145,10 +177,10 @@ js = ["""// @ts-check
 /** When the December 2026 timetable starts (a Sunday). */
 export const CHANGE_DATE = '2026-12-13';
 
-/** Where each side of the comparison came from — shown on the page, so a reader can judge it. */
+/** Where each side of the comparison came from. The page's ? panel says the same in words. */
 export const SOURCES = Object.freeze({
-    now: 'Chiltern Railways public timetables, valid until 11 December 2026',
-    dec: 'Chiltern Railways December 2026 Marylebone timetable plan — weekend plans final, the weekday plan still a draft',
+    now: 'Chiltern Railways public timetables, valid until 12 December 2026',
+    dec: '""" + ("Chiltern Railways public timetables, valid from 13 December 2026 until 15 May 2027" if DEC_BOOKS else "Chiltern Railways December 2026 Marylebone timetable plan — weekend plans final, the weekday plan still a draft") + """',
 });
 
 /** @type {Readonly<Record<string, string>>} */

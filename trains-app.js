@@ -62,7 +62,7 @@ import { renderHeadlines, renderStation, renderGrid, endWords } from './trains-r
  */
 
 const DAY_NAMES = /** @type {Record<Day, string>} */ ({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' });
-/** Whether every December train carries its stops — false until Chiltern's December books are parsed. */
+/** Whether every December train carries its stops — true since v24.80, when Chiltern's December books were parsed; false from a stopless source. */
 const DEC_STOPS_KNOWN = Object.values(TIMETABLES.dec).every(d => d.dep.every(stopsKnown) && d.arr.every(stopsKnown));
 
 /** Coordinator body, invoked by trains-boot.js. Exported so a test can import without running. */

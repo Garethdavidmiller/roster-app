@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: October 2026 — v24.70 · Updated every 0.10 version*
+*Last updated: October 2026 — v24.80 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -1036,3 +1036,23 @@ Printing from **My availability** gives a short notice instead. It is a form, no
 - **A member says their submission vanished** → it did not. Submissions are append-only, and the
   reviewer's by-day view flags who submitted after the initial deadline and who changed their answer
   since. Check the week's *Who is available* before assuming a fault.
+
+---
+
+## The Trains page's timetables (v24.71, admin preview)
+
+`trains.html` compares two Chiltern timetables held in one generated file, `trains-data.js`. Nothing
+about it is live: it reads no network, and its times change only when somebody regenerates that file.
+
+- **What it holds** (v24.80): today's books, valid until Saturday 12 December 2026, and December's,
+  valid from 13 December 2026 to Saturday 15 May 2027 — both Chiltern's public timetables, every
+  stop included. Until v24.80 December came from the roster office's simplifier, which has no stops;
+  the generator still accepts one as a fallback.
+- **When to regenerate:** whenever Chiltern issues new books — a correction, or the May 2027
+  timetable, whose deadline is in `MAINTENANCE_CALENDAR.md`. The steps, and the figures the tests
+  hold to the printed books, are in `docs/timetable-dec26/tooling/README.md`. If a hand-checked
+  figure moves, check the books before changing the test: a new issue moves them legitimately, and
+  a parser fault looks exactly the same.
+- **Never commit the inputs.** The PDFs and the simplifier spreadsheets stay out of the repository
+  (the tooling's `.gitignore` refuses them); the spreadsheets hold platforms, lengths and diagrams
+  that are not passenger facts.

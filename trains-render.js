@@ -92,7 +92,7 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
     const label = ending ? `<p class="tr-sub">${esc(leaving ? `Trains that end at ${name}` : `Trains that start at ${name}`)}</p>` : '';
     const throughNote = ending && ending.through > 0
         ? `<p class="card-explainer tr-note">${ending.through === 1 ? 'One other train a day calls' : `${ending.through} other trains a day call`} at ${esc(name)}`
-            + `${leaving ? ' and run on past it' : ' on the way in'}. Those cannot be compared until Chiltern publishes where December’s trains stop.</p>`
+            + `${leaving ? ` and ${ending.through === 1 ? 'runs' : 'run'} on past it` : ' on the way in'}. Those cannot be compared until Chiltern publishes where December’s trains stop.</p>`
         : '';
     const cell = (/** @type {string|number|null|undefined} */ v) => (v === null || v === undefined || v === '') ? none : esc(String(v));
     const decCell = (/** @type {(s: NonNullable<typeof dec>) => string|number|null} */ f) => dec ? cell(f(dec)) : notKnown;

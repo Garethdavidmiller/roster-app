@@ -9,10 +9,12 @@
  *
  * ── WHAT IS KNOWN, AND WHAT IS NOT YET ─────────────────────────────────────────────────────────
  *
- * Today's trains carry every stop (`row[4]`), read from Chiltern's printed timetables. December's
- * do not: the simplifier holds only the time at Marylebone and the far end, and the stops arrive
- * with Chiltern's published December books. Until then a December figure is reported for a station
- * only when it can be known WITHOUT the stops:
+ * Every train carries its stops (`row[4]`), read from Chiltern's printed timetables — today's, and
+ * since v24.80 December's, when Chiltern published its December books. Before that, December came
+ * from the roster office's simplifier, which holds only the time at Marylebone and the far end, and
+ * the rules below are what kept the page honest then; they still hold for any source without stops
+ * (build.py falls back to the simplifier). Without stops, a December figure is reported for a
+ * station only when it can be known WITHOUT them:
  *   - a train calls where it ends, and
  *   - on a line that runs on (`LINES` in trains-change.js) it also calls at the line's stations
  *     before its end — owner fact: those trains ARE the line's trains, run on.
@@ -232,13 +234,24 @@ export function verdictFor(now, dec, trains) {
         return { tone: gained > 0 ? 'more' : 'less',
             text: `${n} ${gained > 0 ? 'more' : 'fewer'} ${trainsWord} a day: ${dec.total}, was ${now.total}.` };
     }
-    if (now.minutes.length && dec.minutes.length && now.minutes.join() !== dec.minutes.join()) {
+    if (sameRegularity(now, dec) && now.minutes.join() !== dec.minutes.join()) {
         return { tone: 'moved', text: `Same number of trains. Off-peak times change from ${minutesWords(now.minutes)} to ${minutesWords(dec.minutes)} past the hour.` };
     }
     const moved = (trains ?? []).filter(t => t.kind !== 'same').length;
     if (moved) return { tone: 'moved', text: `Same number of trains a day, but ${moved} ${moved === 1 ? 'is' : 'are'} different — see Train by train below.` };
     return { tone: 'same', text: 'No change.' };
 }
+
+/**
+ * Whether two stations' off-peak times can be compared minute for minute: the same number of times
+ * repeat in most hours on both sides, so a difference is a train that MOVED. A train whose minute
+ * only wobbles stops "repeating" without going anywhere — Beaconsfield's December :13 arrival is :10
+ * in two hours of six — and comparing lists of different lengths said "from :13 and :39 to :39" of a
+ * station that keeps all three trains an hour (v24.80, seen once December's stops were known).
+ * @param {StationSummary} now
+ * @param {StationSummary} dec
+ */
+const sameRegularity = (now, dec) => now.minutes.length > 0 && now.minutes.length === dec.minutes.length;
 
 /**
  * Trains an hour as the card states it: the typical hour first, the exception in brackets — "2",
@@ -271,9 +284,11 @@ export function hourNote(s) {
  * @returns {string}
  */
 export function minutesWords(ms) {
-    const w = ms.map(m => `:${String(m).padStart(2, '0')}`);
-    return w.length < 2 ? (w[0] ?? '') : `${w.slice(0, -1).join(', ')} and ${w[w.length - 1]}`;
+    return andList(ms.map(m => `:${String(m).padStart(2, '0')}`));
 }
+
+/** A list as a reader says it: "A", "A and B", "A, B and C". */
+const andList = (/** @type {string[]} */ ws) => ws.length < 2 ? (ws[0] ?? '') : `${ws.slice(0, -1).join(', ')} and ${ws[ws.length - 1]}`;
 
 /**
  * The stations staff are most likely to be asked about: the most trains calling today, busiest first.
@@ -343,12 +358,15 @@ export function matchStations(stations, typed, n = 6) {
  * be asked about". CONSEQUENCE FIRST: "5 more trains a day to Aylesbury (46, was 41)", never
  * "Aylesbury: 46 trains a day (was 41)", which left the reader to do the arithmetic (v24.78). One
  * line per station, its biggest change first and the rest as clauses; a station a line runs ON to
- * is folded into its line's sentence; a station most trains run through is compared by the trains
- * that end there, and the line says so. Only stations whose December can be answered are
- * considered, so the list grows by itself when December's stops arrive.
+ * is folded into its line's sentence, and so is a station whose change is made of a destination's
+ * own trains; a station most trains run through is compared by the trains that end there, and the
+ * line says so. Only stations whose December can be answered are considered.
  * @typedef {{ kind: string, named: string, tail: string, tone: 'more'|'less'|'moved', score: number }} HeadlinePart
  *   named — the clause when it opens the sentence (it carries the station's name); tail — as a
  *   later clause, when the name has already been said
+ * @typedef {{ crs: string, tone: 'more'|'less'|'moved', score: number, parts: HeadlinePart[], text: string, sig: Set<string> }} Headline
+ *   sig — the trains the station's change is made of: '+' and the December train for each new one,
+ *   '-' and today's for each that goes, so two stations' changes can be compared train for train
  * @param {TrainRow[]} nowRows   leaving Marylebone, one day
  * @param {TrainRow[]} decRows
  * @param {Readonly<Record<string, string>>} stations
@@ -356,7 +374,8 @@ export function matchStations(stations, typed, n = 6) {
  */
 export function headlineChanges(nowRows, decRows, stations) {
     const places = new Set([...nowRows, ...decRows].flatMap(callsOf));
-    /** @type {{ crs: string, tone: 'more'|'less'|'moved', score: number, parts: HeadlinePart[], text: string }[]} */
+    const byTime = (/** @type {TrainRow[]} */ rs) => [...rs].sort((a, b) => serviceMinutes(a[0]) - serviceMinutes(b[0]));
+    /** @type {Headline[]} */
     const out = [];
     for (const crs of places) {
         const known = decemberKnown(nowRows, decRows, crs);
@@ -364,12 +383,16 @@ export function headlineChanges(nowRows, decRows, stations) {
         if (!known && !eNow.length && !eDec.length) continue;
         const now = summarise(eNow, crs, 'dep'), dec = summarise(eDec, crs, 'dep');
         const name = stations[crs] ?? crs;
+        // A train is its time, its end and its days: one minute can be two trains — today's weekday
+        // 17:37 runs to Snow Hill on Mondays and Fridays and to Princes Risborough on the other days.
+        const sig = new Set(alignTimes(byTime(callingAt(eNow, crs)), byTime(callingAt(eDec, crs))).flatMap(t =>
+            t.kind === 'new' ? [`+${t.dec} ${t.decTo}`] : t.kind === 'gone' ? [`-${t.now} ${t.nowTo} ${t.days}`] : []));
         if (known && !now.total && dec.total) {
-            out.push({ crs, tone: 'more', score: 100 + dec.total, parts: [], text: dec.total === 1
+            out.push({ crs, tone: 'more', score: 100 + dec.total, parts: [], sig, text: dec.total === 1
                 ? `A new direct train to ${name}, the ${dec.first}` : `New direct trains to ${name}: ${dec.total} a day` });
             continue;
         }
-        if (known && now.total && !dec.total) { out.push({ crs, tone: 'less', score: 100 + now.total, parts: [], text: `No more direct trains to ${name}` }); continue; }
+        if (known && now.total && !dec.total) { out.push({ crs, tone: 'less', score: 100 + now.total, parts: [], sig, text: `No more direct trains to ${name}` }); continue; }
         /** @type {HeadlinePart[]} */
         const parts = [];
         if (dec.typical !== now.typical) {
@@ -377,7 +400,7 @@ export function headlineChanges(nowRows, decRows, stations) {
             const usually = now.hourRange[0] !== now.hourRange[1] || dec.hourRange[0] !== dec.hourRange[1] ? 'usually ' : '';
             const tail = `${usually}${dec.typical} an hour off-peak (was ${now.typical})`;
             parts.push({ kind: 'hour', named: `${more ? 'More' : 'Fewer'} trains to ${name}: ${tail}`, tail, tone: more ? 'more' : 'less', score: 80 + Math.abs(dec.typical - now.typical) });
-        } else if (now.minutes.length && dec.minutes.length && now.minutes.join() !== dec.minutes.join()) {
+        } else if (sameRegularity(now, dec) && now.minutes.join() !== dec.minutes.join()) {
             const tail = `leave at ${minutesWords(dec.minutes)} past the hour (was ${minutesWords(now.minutes)})`;
             parts.push({ kind: 'minutes', named: `Trains to ${name} ${tail}`, tail, tone: 'moved', score: 60 });
         }
@@ -393,7 +416,7 @@ export function headlineChanges(nowRows, decRows, stations) {
         if (!parts.length) continue;
         parts.sort((a, b) => b.score - a.score);
         if (!known) parts.push({ kind: 'ending', named: '', tail: 'counting only the trains that end there', tone: 'moved', score: 0 });
-        out.push({ crs, tone: parts[0].tone, score: parts[0].score, parts, text: '' });
+        out.push({ crs, tone: parts[0].tone, score: parts[0].score, parts, sig, text: '' });
     }
     // A station a line runs ON to (Snow Hill, Stourbridge, the Parkway) is part of its line's story,
     // not a second one: "3 more trains a day to Snow Hill" are three of Moor Street's own new trains,
@@ -415,8 +438,78 @@ export function headlineChanges(nowRows, decRows, stations) {
         }
         out.splice(out.indexOf(h), 1);
     }
+    foldSameTrains(out, nowRows, decRows, stations);
     for (const h of out) if (h.parts.length) h.text = h.parts[0].named + h.parts.slice(1).map(p => `; ${p.tail}`).join('');
     return out.sort((a, b) => b.score - a.score || a.text.localeCompare(b.text)).map(({ crs, tone, text, score }) => ({ crs, tone, text, score }));
+}
+
+/**
+ * ONE STORY, ONE LINE (v24.80). Once every December stop was known, a new train was counted again at
+ * every station it calls at: weekdays opened with the same six Amersham-line trains told five times —
+ * "6 more trains a day to Amersham", "… to Aylesbury", "… to Great Missenden" — and four "5 more"
+ * lines under them. So a station whose change is made ENTIRELY of a destination's trains joins that
+ * destination's sentence by name, and its own line goes:
+ *   - the destination is a station trains END at, further along the books' order: the place a
+ *     passenger is told the train is going, never a station it passes on the way;
+ *   - "they also stop at" only when the two changes are the same trains. A station with only some of
+ *     them reads "5 of them also stop at", so its own count is still in the sentence — and only when
+ *     both changes run one way, or "them" would count a train that goes;
+ *   - nothing the station's own line said is lost: it folds only when every clause of it is a daily
+ *     count, or a clause the destination's sentence states word for word — every time here is at
+ *     Marylebone, so the same words are the same fact. Haddenham keeps its Saturday line — 3 an
+ *     hour, was 2 — though its new trains are Birmingham's.
+ * A new or withdrawn direct service never folds: it is the news.
+ * @param {Headline[]} out   changed in place: folded stations removed, named in their destination's line
+ * @param {TrainRow[]} nowRows
+ * @param {TrainRow[]} decRows
+ * @param {Readonly<Record<string, string>>} stations
+ */
+function foldSameTrains(out, nowRows, decRows, stations) {
+    const ends = new Set([...nowRows, ...decRows].map(r => r[1]));
+    const rank = new Map(STATION_ORDER.map((c, i) => [c, i]));
+    const along = (/** @type {string} */ crs) => rank.get(crs) ?? -1;
+    const oneWay = (/** @type {Headline} */ h) => [...h.sig].every(x => x[0] === (h.tone === 'more' ? '+' : '-'));
+    const foldsInto = (/** @type {Headline} */ h, /** @type {Headline} */ y) => y !== h && y.tone === h.tone
+        && ends.has(y.crs) && along(y.crs) > along(h.crs)
+        && [...h.sig].every(x => y.sig.has(x)) && (h.sig.size === y.sig.size || (oneWay(h) && oneWay(y)))
+        && h.parts.every(p => p.kind === 'daily' || y.parts.some(q => q.kind === p.kind && q.tail === p.tail));
+    /** @type {Map<Headline, Headline>} */
+    const host = new Map();
+    for (const h of out) {
+        if (h.tone === 'moved' || !h.parts.length || !h.sig.size) continue;
+        // The tightest fit: the fewest trains, then the furthest along — the end of the line they run to.
+        const best = out.filter(y => foldsInto(h, y)).sort((a, b) => a.sig.size - b.sig.size || along(b.crs) - along(a.crs))[0];
+        if (best) host.set(h, best);
+    }
+    // "Further along" makes every chain end; the bound keeps a later edit from turning a wrong answer into a hang.
+    const top = (/** @type {Headline} */ h) => {
+        let y = h;
+        for (let i = 0; i < out.length && host.has(y); i++) y = /** @type {Headline} */ (host.get(y));
+        return y;
+    };
+    /** @type {Map<Headline, Headline[]>} */
+    const joined = new Map();
+    for (const h of host.keys()) joined.set(top(h), [...(joined.get(top(h)) ?? []), h]);
+    for (const [y, hs] of joined) {
+        /** @type {Map<number, string[]>} how many of the destination's trains each station shares — all of them first */
+        const shares = new Map();
+        for (const h of hs.sort((a, b) => along(a.crs) - along(b.crs))) {
+            const k = h.sig.size === y.sig.size ? Infinity : h.sig.size;
+            shares.set(k, [...(shares.get(k) ?? []), stations[h.crs] ?? h.crs]);
+        }
+        const clauses = [...shares.entries()].sort((a, b) => b[0] - a[0]).map(([k, names]) => {
+            const all = k === Infinity;
+            const who = all ? (y.sig.size === 1 ? 'it' : 'they') : `${k === 1 ? 'one' : k} of them`;
+            const plural = all ? y.sig.size > 1 : k > 1;
+            return `${who} also ${y.tone === 'less' ? 'stopped' : plural ? 'stop' : 'stops'} at ${andList(names)}`;
+        });
+        if (y.parts.length) {
+            // Straight after the count it qualifies, before a line's onward clause: "they" is that count's trains.
+            const daily = y.parts.findIndex(p => p.kind === 'daily');
+            y.parts.splice(daily === -1 ? 1 : daily + 1, 0, ...clauses.map(tail => /** @type {HeadlinePart} */ ({ kind: 'also', named: '', tail, tone: 'moved', score: 0 })));
+        } else y.text += clauses.map(c => `; ${c}`).join('');
+    }
+    for (const h of host.keys()) out.splice(out.indexOf(h), 1);
 }
 
 /**
