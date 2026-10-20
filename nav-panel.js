@@ -78,9 +78,9 @@ const NAV_PAGES = [
     // server refuses everyone else — it is only so ordinary staff are not shown a destination that
     // would turn them away. At full launch the flag comes off and every eligible member sees it.
     { id: 'overtime',   label: '⏱️ Overtime',      url: './overtime.html',   colorClass: 'nav-panel-pill--overtime',   overtimeAudienceOnly: true },
-    // Trains is an admin PREVIEW while the page is shaped (owner, 7 Oct 2026) — the page will be
-    // every member's at-a-glance timetable. Opening it is this flag and the auth-policy role, together.
-    { id: 'trains',     label: '🚆 Trains',        url: './trains.html',     colorClass: 'nav-panel-pill--trains',     adminOnly: true },
+    // Trains is every member's since v24.81 (owner, 20 Oct 2026); it was an admin preview from v24.71.
+    // A gate here and the auth-policy role always move together — page-contract-parity checks it.
+    { id: 'trains',     label: '🚆 Trains',        url: './trains.html',     colorClass: 'nav-panel-pill--trains'     },
     // SETTINGS IS A PAGE, SO IT IS A PILL (v20.06). It used to be a flat link pinned above the
     // footer, styled like the Information rows — which made it the only page-destination in the
     // drawer that did not look like one, and meant "where do I go" had two answers in two places

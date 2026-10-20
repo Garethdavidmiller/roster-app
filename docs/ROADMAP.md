@@ -430,11 +430,13 @@ which is the part that matters on a detached sheet.
 daily totals, every route's trains before and after with the change in words, the basic hour side
 by side, and a time lookup. By v24.80 it was station-first — ranked changes in a colleague's words,
 a card per station, the basic hour as a stopping-pattern grid — and both timetables came from
-Chiltern's published books, every stop included. The ideas below were proposed with it (7 Oct 2026)
+Chiltern's published books, every stop included. **At v24.81 it opened to every member** (owner,
+20 Oct 2026; DECISIONS.md). The ideas below were proposed with it (7 Oct 2026)
 and deliberately not built yet; the ones since built are in ROADMAP_HISTORY.md → "Trains page —
 preview items shipped". They are recorded so the page grows toward a plan rather than by accretion.
 
-**A. Before 13 December — teaching the change.** **Trigger:** the owner opens the preview to staff.
+**A. Before 13 December — teaching the change.** **Trigger:** ~~the owner opens the preview to staff~~
+**met 20 Oct 2026 (v24.81)** — these are ready to pick up, in whatever order the owner chooses.
 - **What to say to customers** — one ready line per change, in the app's calm voice.
 - **A change of the week** through App Notices, easy to paste into the Daily Huddle. Nine weeks
   from the preview to the launch fits nine changes.
@@ -483,9 +485,12 @@ preview items shipped". They are recorded so the page grows toward a plan rather
   hand edit (README beside the tooling).
 
 **Open questions for the owner.**
-- Who opens it at launch — everyone, including staff on the PIN, with "Your shift" only when signed
-  in? (Today: admin only.)
-- Its place in the drawer — second after Calendar was the suggestion.
+- Staff on the PIN. Since v24.81 every signed-in member has the page (DECISIONS.md), and a colleague
+  reading the roster on the staff PIN meets the sign-in when they tap it, as on every page but the
+  Calendar. Letting them in without one is possible — the timetable is public — but changes the page's
+  session model; "Your shift" would still need a sign-in either way.
+- Its place in the drawer — second after Calendar was the suggestion. Today a member sees it after
+  Pay (and Overtime, where they have it), before Settings.
 - Are train lengths and planned platforms fine to publish? They make Next out and the crowding
   list useful, and they are internal planning detail rather than a passenger fact.
 - What "5 (3)" means in the simplifier's coaches column.

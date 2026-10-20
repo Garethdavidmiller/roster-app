@@ -161,18 +161,15 @@ test.describe('trains', () => {
         });
     }
 
-    test('the pill is offered to the admin only, and a member who types the URL goes to the roster', async ({ page }) => {
-        await seedSession(page, 'G. Miller');
-        await page.goto('/settings.html');
-        await page.locator('#navMenuBtn').click();
-        await expect(page.locator('.nav-panel-pill--trains')).toHaveCount(1);
-
+    test('every member is offered the pill, and the pill opens the page (live for everyone, v24.81)', async ({ page }) => {
+        // C. Reen holds no role at all: what she gets, every member gets. Until v24.81 the pill was
+        // the admin's only and this same visit was sent back to the roster.
         await seedSession(page, 'C. Reen');
         await page.goto('/settings.html');
         await page.locator('#navMenuBtn').click();
-        await expect(page.locator('.nav-panel-pill--trains')).toHaveCount(0);
-
-        await page.goto('/trains.html');
-        await expect(page).not.toHaveURL(/trains\.html/);
+        await page.locator('.nav-panel-pill--trains').click();
+        await expect(page).toHaveURL(/trains\.html/);
+        await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
+        await expect(page.locator('#loginOverlay')).toBeHidden();
     });
 });
