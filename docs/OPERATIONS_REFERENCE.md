@@ -1039,7 +1039,7 @@ Printing from **My availability** gives a short notice instead. It is a form, no
 
 ---
 
-## The Trains page's timetables (v24.71, admin preview)
+## The Trains page's timetables (v24.71; every member's since v24.81)
 
 `trains.html` compares two Chiltern timetables held in one generated file, `trains-data.js`. Nothing
 about it is live: it reads no network, and its times change only when somebody regenerates that file.

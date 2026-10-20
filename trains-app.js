@@ -8,13 +8,13 @@
  * the timetables themselves are the generated `trains-data.js`. Nothing here reads the network: the
  * page works offline from its first open.
  *
- * ── WHO IT IS FOR, AND WHY IT IS GATED ─────────────────────────────────────────────────────────
+ * ── WHO IT IS FOR ──────────────────────────────────────────────────────────────────────────────
  *
- * A PREVIEW for the admin while the page is shaped (owner, 7 Oct 2026), to become every member's
- * "Trains" page later. The gate is CLIENT UX, not a boundary: the timetable is public information
- * and `trains-data.js` is served to anyone, like every module. Opening it to staff is one line in
- * `auth-policy.js` and one flag in `nav-panel.js`, which page-contract-parity requires to move
- * together.
+ * Every signed-in member, since v24.81 (owner, 20 Oct 2026 — "make the trains page live for
+ * everyone"); an admin preview from v24.71 while it was shaped. The sign-in is the app's ordinary
+ * front door, not a boundary: the timetable is public information and `trains-data.js` is served to
+ * anyone, like every module. Narrowing it again is one line in `auth-policy.js` and one flag in
+ * `nav-panel.js`, which page-contract-parity requires to move together.
  *
  * ── TEACH THE CHANGE, NOT THE TIMETABLE ────────────────────────────────────────────────────────
  *
@@ -85,7 +85,8 @@ export function init() {
         return;
     }
     if (access.decision === 'forbidden') {
-        // A preview: a member who reached the URL goes back to the roster, quietly.
+        // Not reachable while the policy admits every member (v24.81). Kept so that a role added
+        // back to the policy fails closed — back to the roster, quietly — rather than open.
         window.location.replace('./');
         return;
     }

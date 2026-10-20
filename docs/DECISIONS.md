@@ -102,6 +102,16 @@ shown that yet.
 
 ## Decisions taken — recorded so they are not re-raised
 
+- **The Trains page is every member's** (owner, 20 Oct 2026 — "make the trains page live for
+  everyone"; v24.81) · **Trigger to revisit: staff on the PIN asking for it without signing in.** It
+  was an admin preview from v24.71 while it was shaped. "Everyone" was taken as every member with a
+  login: the page signs people in like every page except the Calendar, so a colleague reading the
+  roster on the staff PIN meets the sign-in when they tap it. Letting them in without one is possible —
+  the timetable is public — but changes the page's session model, so that part stays an open question
+  in ROADMAP.md → "Trains page — what comes after the preview". Narrowing it again is one line in
+  `auth-policy.js` and one flag in `nav-panel.js`, which `page-contract-parity.test.mjs` requires to
+  move together.
+
 - **The documents keep their stored permanent link as a FALLBACK** (owner, 7 Oct 2026) · **Trigger: a
   leaked Huddle, Circular or Newsletter link, or a sustained run of `getDocumentUrl` failures that makes
   the fallback the usual path rather than the exception.** The October 2026 review asked to stop storing

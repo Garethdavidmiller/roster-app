@@ -1056,7 +1056,7 @@ function stubOvertime(page, { windows = [], weeks = [] } = {}) {
     ]);
 }
 
-// Trains (admin preview). The clock is pinned to a Wednesday, so the page opens on Weekdays. Mobile
+// Trains (every member's since v24.81). The clock is pinned to a Wednesday, so the page opens on Weekdays. Mobile
 // is the station card — the view a member lands on from any change — and desktop is the basic hour
 // today, the one picture on the page.
 test('trains — weekdays, a station open (mobile 390)', async ({ page }) => {

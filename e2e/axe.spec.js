@@ -358,7 +358,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
-    // Trains (admin preview). Scanned in the two states with the most structure: a station card
+    // Trains (every member's since v24.81). Scanned in the two states with the most structure: a station card
     // with every train listed (verdict, figures table, before-and-after chips), and the basic-hour
     // grid, whose dots carry their meaning only in sr-only words.
     test('trains (admin, signed in) — a station open, then the basic hour', async ({ page }) => {
