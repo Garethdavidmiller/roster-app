@@ -14,7 +14,7 @@ import {
     serviceMinutes, alignTimes, compareRoutes, foldWeekdayVariants, basicHour, compareBasicHour,
     trainsNear, parseTypedTime, daysUntil, changeLabel, daysLabel, routeName, MAX_SHIFT_MIN, beyondLabel, lineDepth,
 } from './trains-change.js';
-import { TIMETABLES, STATIONS, CHANGE_DATE } from './trains-data.js';
+import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL } from './trains-data.js';
 
 /** @param {string} t @param {string} [st] @param {string} [via] @param {string} [days] @param {string} [stops] @returns {[string,string,string,string,string]} */
 const row = (t, st = 'OXF', via = '', days = '', stops = '') => [t, st, via, days, stops];
@@ -229,6 +229,16 @@ describe('trains-data.js', () => {
     test('the change date is the Sunday the December timetable starts', () => {
         assert.equal(CHANGE_DATE, '2026-12-13');
         assert.equal(new Date(2026, 11, 13).getDay(), 0);
+    });
+
+    test('the Christmas note lasts as long as the changes Chiltern says it will still make', () => {
+        // Chiltern's timetable page (checked 20 Oct 2026): "Further changes will be made to the
+        // timetable between 13 December 2026 and 10 January 2027".
+        assert.equal(FURTHER_CHANGES_UNTIL, '2027-01-10');
+        assert.ok(FURTHER_CHANGES_UNTIL > CHANGE_DATE);
+        // The page shows the note while this is not negative: still on the 10th, gone on the 11th.
+        assert.equal(daysUntil(new Date(2027, 0, 10, 23, 30), FURTHER_CHANGES_UNTIL), 0);
+        assert.equal(daysUntil(new Date(2027, 0, 11, 0, 30), FURTHER_CHANGES_UNTIL), -1);
     });
 
     test('departure counts match the sources', () => {

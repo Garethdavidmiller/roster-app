@@ -89,3 +89,7 @@ and both are reasons the books are the right source:
 
 Re-run every step, then update `SOURCES` in `build.py` to the new issue's validity, and
 `CHANGE_DATE` if the timetable change moves. `CHANGE_DATE` is the first day of the new timetable.
+`FURTHER_CHANGES_UNTIL` is the last day of any changes Chiltern says it will still make after that
+(its timetable page said 10 January 2027 for this issue, with "significant changes over the Christmas
+and New Year period"); until then the page says Christmas and New Year are not on it. Read it off
+Chiltern's timetable page for each issue — the books do not carry it.

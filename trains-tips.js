@@ -24,7 +24,8 @@ export const CARD_TIPS = {
                 items: [
                     { icon: '📅', html: 'Chiltern\'s new timetable starts on <strong>Sunday 13 December 2026</strong>. Until then the trains in this page\'s <strong>Now</strong> column are the ones running.' },
                     { icon: '🚆', html: 'The totals count every passenger train <strong>leaving Marylebone</strong> on that kind of day. Two trains coupled together count once, because they leave as one.' },
-                    { icon: '⚠️', html: 'December times can still change before the 13th. Before you tell a customer, check the journey planner on the Chiltern Railways website.' },
+                    { icon: '⚠️', html: 'December times can still change. Before you tell a customer, check the journey planner on the Chiltern Railways website.' },
+                    { icon: '🎄', html: '<strong>Christmas and New Year are not on this page.</strong> Chiltern says it will change times again between 13&nbsp;December and 10&nbsp;January, with big changes over Christmas and New Year, and Amersham-line times may change during those weeks too. For those dates, check the journey planner nearer the time.' },
                 ],
             },
             {

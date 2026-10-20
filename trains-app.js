@@ -41,7 +41,7 @@ import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
-import { TIMETABLES, STATIONS, CHANGE_DATE } from './trains-data.js';
+import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL } from './trains-data.js';
 import { CARD_TIPS } from './trains-tips.js';
 import { compareRoutes, trainsNear, parseTypedTime, daysUntil, changeLabel, routeName } from './trains-change.js';
 import { stationView, busiestStations, matchStations, headlineChanges, stoppingGrid, stopsKnown, lineOf } from './trains-stations.js';
@@ -156,6 +156,9 @@ function renderOverview() {
     // The one caveat about missing stops, said once, here — and gone the day December's stops arrive.
     const partial = el('trPartial');
     if (partial) partial.hidden = DEC_STOPS_KNOWN;
+    // Christmas and New Year are not in Chiltern's books; the note goes once its further changes end.
+    const festive = el('trFestive');
+    if (festive) festive.hidden = daysUntil(new Date(), FURTHER_CHANGES_UNTIL) < 0;
 }
 
 /** Everything that depends on the state: the pressed tabs, the visible view and its contents. @param {PageState} state */

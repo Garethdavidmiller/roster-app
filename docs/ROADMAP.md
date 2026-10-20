@@ -467,11 +467,15 @@ preview items shipped". They are recorded so the page grows toward a plan rather
 **What the page must get right whatever is built.**
 - **It knows its dates** — a preview before 13 December, and it must say it has ended at the May
   2027 change rather than quietly show old times.
-- **Christmas and bank holidays differ** — no trains on 25 and 26 December, special timetables on
-  other bank holidays. The page should say so, not show the normal pattern. Chiltern's December books
-  do not help here: they say nothing about Christmas, and their weekday table simply runs from
-  14 December to 14 May (checked 20 Oct 2026). The special days will have to come from Chiltern's
-  Christmas publicity.
+- **Christmas and bank holidays differ** — special timetables over Christmas and New Year and on
+  bank holidays. The page should say so, not show the normal pattern. Chiltern's December books do
+  not help: they say nothing about Christmas or bank holidays (checked 20 Oct 2026). **Since v24.80
+  the page says so for Christmas:** Chiltern's timetable page states more changes between 13
+  December and 10 January, "including significant changes over the Christmas and New Year period",
+  and the overview names that window until it ends (`FURTHER_CHANGES_UNTIL`). **Still open:** the
+  actual festive times, which will have to come from Chiltern's Christmas publicity — no 2026 detail
+  was published when checked, and last year's pattern is not evidence for this one — and the bank
+  holidays inside the books' validity (Good Friday, Easter Monday, the early-May holiday).
 - **Publish only what a passenger timetable prints.** The repository and the Pages mirror are
   public. Lengths, platforms, joins, diagrams and empty-stock moves stay out unless the owner
   decides otherwise (below). `docs/timetable-dec26/tooling/build.py` enforces this today.

@@ -1053,6 +1053,10 @@ about it is live: it reads no network, and its times change only when somebody r
   hold to the printed books, are in `docs/timetable-dec26/tooling/README.md`. If a hand-checked
   figure moves, check the books before changing the test: a new issue moves them legitimately, and
   a parser fault looks exactly the same.
+- **Christmas and New Year are not in the books.** Chiltern's timetable page says it will still
+  change times between 13 December and 10 January, "including significant changes over the Christmas
+  and New Year period", so the overview says Christmas and New Year are not on the page until
+  `FURTHER_CHANGES_UNTIL` (10 January 2027), then drops the note by itself.
 - **Never commit the inputs.** The PDFs and the simplifier spreadsheets stay out of the repository
   (the tooling's `.gitignore` refuses them); the spreadsheets hold platforms, lengths and diagrams
   that are not passenger facts.

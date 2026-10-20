@@ -22,6 +22,9 @@ test.describe('trains', () => {
         await expect(page.locator('#trCountdown')).toHaveText('67 days to go');
         await expect(page.locator('#trTotals')).toContainText('weekdays 146 → 158');
         await expect(page.locator('[data-day="SX"]')).toHaveAttribute('aria-pressed', 'true');
+        // Chiltern's books say nothing about Christmas, so the page says it cannot answer for it.
+        await expect(page.locator('#trFestive')).toBeVisible();
+        await expect(page.locator('#trFestive')).toContainText('Christmas and New Year are not on this page.');
 
         // What's changing: sentences, biggest first, and a tap opens that station.
         const heads = page.locator('#trChanges .tr-head');
@@ -122,6 +125,15 @@ test.describe('trains', () => {
         await expect(page.locator('#tipsLbBody')).toContainText('5 of them also stop at means only five of those trains call there');
 
         expect(errors).toHaveLength(0);
+    });
+
+    test('the Christmas note goes once Chiltern\'s further changes end, on 10 January', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2027-01-11T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await expect(page.locator('#trCountdown')).toHaveText('Now running');
+        await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
+        await expect(page.locator('#trFestive')).toBeHidden();
     });
 
     // Every view at phone width, with the widest content each holds open. The basic-hour grid

@@ -177,6 +177,15 @@ js = ["""// @ts-check
 /** When the December 2026 timetable starts (a Sunday). */
 export const CHANGE_DATE = '2026-12-13';
 
+/**
+ * The last day of the changes Chiltern says it will still make once the timetable has started:
+ * "Further changes will be made to the timetable between 13 December 2026 and 10 January 2027,
+ * including significant changes over the Christmas and New Year period" (Chiltern's timetable page,
+ * checked 20 Oct 2026). The books themselves say nothing about Christmas, so until this day the page
+ * says Christmas and New Year are not on it.
+ */
+export const FURTHER_CHANGES_UNTIL = '2027-01-10';
+
 /** Where each side of the comparison came from. The page's ? panel says the same in words. */
 export const SOURCES = Object.freeze({
     now: 'Chiltern Railways public timetables, valid until 12 December 2026',
