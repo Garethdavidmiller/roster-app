@@ -673,6 +673,24 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    test('the new-timetable notice open (calendar) — the Trains badge on the glass (v24.82)', async ({ page }) => {
+        // The same shell as the scan above, and one thing that scan cannot see: this notice's section
+        // badge is the Trains pill's raspberry under white type, a pairing no other notice carries.
+        // Members only, and alive from its 21 Oct posting until the timetable starts on 13 Dec — so a
+        // named identity and a clock inside that life, the re-enable registered after the seeders.
+        await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await seedMemberSession(page, 'G. Miller');
+        await seedMember(page);
+        await clearNoticeFlags(page, ['myb_notice_timetable_2026_done']);
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await expect(page.locator('#timetableNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await page.waitForTimeout(600);      // let the fade finish — mid-transition is the bug
+        const v = await scan(page, { exclude: ['.other-month'] });
+        expect(v.length, report(v)).toBe(0);
+    });
+
     // The install strip carries the app's only text colours composited over a TRANSLUCENT white
     // overlay on the navy canvas — `--on-navy-raised` under an rgba white body and a fainter rgba
     // white steps line. Contrast there is decided by what is behind it, so no other page's scan

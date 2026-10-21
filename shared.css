@@ -1641,7 +1641,7 @@ button.lightbox-bug-link {
 /* Page-identity badge — coloured to match the page's nav pill.
    Use class="notice-badge notice-badge--[page]" on every notice lightbox.
    Modifier classes: --pay (green) · --links (purple) · --settings (indigo)
-                     --ops (orange) · --calendar (gold) · no modifier = neutral */
+                     --ops (orange) · --calendar (gold) · --trains (raspberry) · no modifier = neutral */
 .notice-badge {
     display: inline-flex;
     align-items: center;
@@ -1660,6 +1660,7 @@ button.lightbox-bug-link {
 .notice-badge--settings { background: var(--indigo);      color: white; }
 .notice-badge--ops      { background: var(--orange);      color: var(--primary-blue); }
 .notice-badge--calendar { background: var(--accent-gold); color: var(--primary-blue); }
+.notice-badge--trains   { background: var(--raspberry);   color: white; }
 
 /* THE CARD — three zones, and a surface that reads (v23.32).
    Use class="lb-content notice-lb-content" on every notice content div, and put the children in

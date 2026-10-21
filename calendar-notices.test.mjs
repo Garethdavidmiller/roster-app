@@ -127,7 +127,9 @@ async function drain() { for (let i = 0; i < 8; i++) await Promise.resolve(); }
 //
 // A notice posted AFTER this date fails these tests loudly rather than quietly dropping out of the
 // matrix. That is the intended behaviour: move the date, do not delete the case.
-const PINNED_NOW = new Date(2026, 8, 10, 9, 0);   // after al-booking-2026's 8 Sep 2026 posting
+// Moved on (v24.82) from 10 Sep 2026, when timetable-2026 was posted on 21 Oct — still inside
+// al-booking-2026's 90 days, so both live notices are in the matrix.
+const PINNED_NOW = new Date(2026, 9, 22, 9, 0);   // after timetable-2026's 21 Oct 2026 posting
 
 /** Every notice this module carries, as the pairing that decides who sees it. Read from the source
  *  so a notice added later joins the matrix instead of being missed by it. */
@@ -267,6 +269,18 @@ describe('3 · one notice silencing another', () => {
         assert.equal(_writes.length, 0, 'a dismissed notice writes nothing further');
     });
 
+    test('a dismissed notice does not silence the one after it — the behavioural form, back with two (v24.82)', async () => {
+        // The shape the IIFE contract above guards, driven for real now that two notices are live:
+        // the first is dismissed on this device, and the second must still open.
+        assert.ok(NOTICES.length >= 2, `needs two notices to be about anything, found ${NOTICES.length}`);
+        const [first, second] = NOTICES;
+        await wire({ accessType: 'named', store: { [DONE_KEY_OF(first)]: '1' } });
+        await settleAccess();
+        const opened = _openedViaHelper.map(lb => lb._cfg.overlay.id);
+        assert.ok(!opened.includes(first.overlay), 'the dismissed one stays dismissed');
+        assert.ok(opened.includes(second.overlay), 'the one after it still opens — a plain block would have returned out of the wiring');
+    });
+
     test('a missing overlay element skips only its own notice', async () => {
         // With one notice this proves the skip is clean — no open, no write, no throw. With two or
         // more it proves the stronger thing: the notice whose markup IS present still runs.
@@ -383,6 +397,84 @@ describe('5 · the leave reminder is a ONE-OFF (v23.60, owner decision)', () => 
             assert.equal(_openedViaHelper.length, 0, `snooze ${offsetDays}d: not shown`);
             assert.deepEqual(_writes, [[DONE, '1']], `snooze ${offsetDays}d: promoted to done`);
         }
+    });
+
+    test('once done, it stays done', async () => {
+        await wire({ ...SHOWN, store: { [DONE]: '1' } });
+        await settleAccess();
+        assert.equal(_openedViaHelper.length, 0);
+        assert.deepEqual(_writes, []);
+    });
+});
+
+
+describe('6 · the timetable notice: a one-off from the start, until the timetable starts (v24.82)', () => {
+    // Owner request, 21 Oct 2026: tell members a new timetable is coming and send them to the Trains
+    // page to learn it. One-off on the rule block 5 settled, so the costs are the same two: coming
+    // back nags, never showing means nobody is told.
+    const TT    = /** @type {{ overlay: string, audience: string }} */ (NOTICES.find(n => n.overlay === 'timetableNoticeLb'));
+    const DONE  = DONE_KEY_OF(TT);
+    const GO_ID = 'timetableNoticeGo';
+    const SHOWN = { accessType: /** @type {const} */ ('named'), present: [TT.overlay, GO_ID] };
+    const IIFE  = (() => {
+        const start = SOURCE.indexOf("NOTICE_ID   = 'timetable-2026'");
+        return SOURCE.slice(start, SOURCE.indexOf('}());', start));
+    })();
+
+    test('it is in the matrix, addressed to members, with its own key and no snooze', () => {
+        assert.ok(TT, 'found by the same pattern as every other notice');
+        assert.equal(TT.audience, 'members', 'the Trains page signs people in — on the PIN its link would meet only a sign-in');
+        assert.match(DONE, /^myb_notice_timetable_2026_done$/);
+        assert.doesNotMatch(IIFE, /SNOOZE_KEY/, 'a one-off declares no snooze');
+    });
+
+    test('it stops being offered on the day the timetable starts', async () => {
+        // The expiry is a day count, the kind of number that is right until somebody moves a date.
+        // Posting day plus that count must land on the day Chiltern's new timetable starts.
+        const { CHANGE_DATE } = await import('./trains-data.js');
+        const days = Number(/isNoticeExpired\(NOTICE_DATE, (\d+)\)/.exec(IIFE)?.[1]);
+        const [, d, mon, y] = /** @type {RegExpExecArray} */ (/NOTICE_DATE = '(\d+) (\w{3}) (\d{4})'/.exec(IIFE));
+        const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].indexOf(mon);
+        const lastDay = new Date(Number(y), month, Number(d) + days);      // calendar days, so a clock change cannot move it
+        const [cy, cm, cd] = CHANGE_DATE.split('-').map(Number);
+        assert.deepEqual([lastDay.getFullYear(), lastDay.getMonth() + 1, lastDay.getDate()], [cy, cm, cd]);
+    });
+
+    test('a member who has not seen it gets it, and nothing is flagged until they act', async () => {
+        await wire(SHOWN);
+        await settleAccess();
+        assert.equal(_openedViaHelper.length, 1);
+        assert.deepEqual(_writes, []);
+    });
+
+    test('every close — the ×, the backdrop, Escape, "Not now" — marks it done, and nothing else', async () => {
+        await wire(SHOWN);
+        await settleAccess();
+        _openedViaHelper[0]._cfg.onClose();
+        assert.deepEqual(_writes, [[DONE, '1']]);
+    });
+
+    test('taking the link to the Trains page marks it done too', async () => {
+        await wire(SHOWN);
+        await settleAccess();
+        const go = _listeners.get(`${GO_ID}:click`);
+        assert.ok(go, `the link (#${GO_ID}) has a click handler`);
+        go();
+        assert.deepEqual(_writes, [[DONE, '1']]);
+    });
+
+    test('archived on OPEN, so the drawer keeps it after the link has taken the member away', async () => {
+        await wire(SHOWN);
+        await settleAccess();
+        _openedViaHelper[0]._cfg.onOpen();
+        assert.deepEqual(_archived.map(n => [n.id, n.section, n.date]), [['timetable-2026', 'Trains', '21 Oct 2026']]);
+    });
+
+    test('past its life, a device that never saw it is flagged and shown nothing', async () => {
+        await wire({ ...SHOWN, expired: true });
+        await settleAccess();
+        assert.equal(_openedViaHelper.length, 0);
+        assert.deepEqual(_writes, [[DONE, '1']]);
     });
 
     test('once done, it stays done', async () => {

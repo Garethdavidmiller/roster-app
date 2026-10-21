@@ -1010,6 +1010,7 @@ async function heldSessionWithReset(page, resetAgoMs) {
         }));
         localStorage.setItem('myb_roster_selected_member', 'G. Miller');
         localStorage.setItem('myb_notice_al_booking_2026_done', '1');
+        localStorage.setItem('myb_notice_timetable_2026_done', '1');
         window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true });
     });
     await page.route('https://firestore.googleapis.com/**/documents/passwordStatus/**', route => route.fulfill(resetAgoMs
