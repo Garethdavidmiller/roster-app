@@ -490,10 +490,9 @@ preview items shipped". They are recorded so the page grows toward a plan rather
   hand edit (README beside the tooling).
 
 **Open questions for the owner.**
-- Staff on the PIN. Since v24.81 every signed-in member has the page (DECISIONS.md), and a colleague
-  reading the roster on the staff PIN meets the sign-in when they tap it, as on every page but the
-  Calendar. Letting them in without one is possible — the timetable is public — but changes the page's
-  session model; "Your shift" would still need a sign-in either way.
+- ~~Staff on the PIN.~~ **DECIDED 22 Oct 2026 — the station PIN reads the page (v24.84; DECISIONS.md,
+  AUTH_AND_SESSIONS.md invariant 24).** "Your shift", if it is built, still needs a sign-in: it is a
+  member's own roster, and the PIN is nobody.
 - Its place in the drawer — second after Calendar was the suggestion. Today a member sees it after
   Pay (and Overtime, where they have it), before Settings.
 - Are train lengths and planned platforms fine to publish? They make Next out and the crowding

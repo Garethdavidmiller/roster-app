@@ -47,6 +47,14 @@ export const CALENDAR_VIEWER_CLAIM = 'calendarViewer';
 /** Digits in the staff PIN. The VALUE lives only in Secret Manager; this is its shape. */
 export const PIN_LENGTH = 4;
 
+/** The hash that asks for the staff-PIN card FIRST (see calendar-access.js's module header). Read
+ *  once at boot and removed from the address bar, so it is never carried into a member's session or
+ *  a bookmark made afterwards. The member card WRITES it, the Calendar's boot reads it back, and a
+ *  Lock lands on it — the Calendar's, and since v24.84 the Trains page's, which is why it lives here
+ *  rather than in `calendar-lock-cards.js` (which re-exports it): a page that is not the Calendar can
+ *  import it without the Calendar's cards. */
+export const PIN_FIRST_HASH = '#staff-pin';
+
 /**
  * Is this Firebase user the shared Calendar viewer?
  *

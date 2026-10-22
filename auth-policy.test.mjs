@@ -5,7 +5,7 @@
  */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { requirePageAuth, requirePage, rolesFor, isOvertimeReviewer, canOpenOvertime,
+import { requirePageAuth, requirePage, rolesFor, isOvertimeReviewer, canOpenOvertime, admitsStaffPin,
     PAGE_POLICIES, DECISIONS } from './auth-policy.js';
 import { CONFIG } from './roster-data.js';
 
@@ -239,5 +239,21 @@ describe('the Overtime beta participant — invited to ANSWER, never to look', (
         for (const page of gated) {
             assert.equal(requirePage({ status: 'named', member: beta }, page).decision, 'forbidden', page);
         }
+    });
+});
+
+describe('the station PIN — which pages it may read (v24.84)', () => {
+    // The PIN is a capability, not a person, so it is a flag beside the policy rather than a value of
+    // `named`: requirePageAuth never sees it. Trains joined the Calendar on 22 Oct 2026 (owner). A
+    // flag that crept onto a page with member data would let the station PC keep its PIN there —
+    // the page would still show its sign-in, so only this list can see it happen.
+    test('the Calendar and Trains, and nothing else', () => {
+        const admitted = Object.keys(PAGE_POLICIES).filter(admitsStaffPin);
+        assert.deepEqual(admitted.sort(), ['calendar', 'trains']);
+        assert.equal(admitsStaffPin('no-such-page'), false, 'an unknown page admits nothing');
+    });
+    test('admitting the PIN changes nothing about who counts as a member there', () => {
+        assert.equal(requirePage({ status: 'signedOut', member: null }, 'trains').decision, 'login',
+            'Trains still asks a signed-out browser to sign in — the PIN is asked for separately, first');
     });
 });

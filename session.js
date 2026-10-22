@@ -843,12 +843,14 @@ export async function shedCalendarViewer() {
  * never torn down. Anonymous identities are left alone.
  *
  * @param {{ preserveCalendarViewer?: boolean }} [opts]  `preserveCalendarViewer` is passed ONLY by
- *   the Calendar (v20.12). The shared viewer is a non-anonymous Firebase identity with no local
+ *   the pages that admit the staff PIN: the Calendar (v20.12), and since v24.84 Trains, through
+ *   `holdsStaffPin` below. The shared viewer is a non-anonymous Firebase identity with no local
  *   session BY CONSTRUCTION — exactly the shape this function exists to tear down — so without the
  *   flag the staff PIN would be demanded again on every single navigation. Protected pages take the
  *   DEFAULT, so a viewer who walks to Admin, Settings, Operations or Links is still torn down there
  *   and can never masquerade as a member. Do not make preserving it the default to "simplify" this:
- *   the whole value of the flag is that it is opt-in, per page, at the one page that wants it.
+ *   the whole value of the flag is that it is opt-in, per page, at the pages that want it — the ones
+ *   whose policy says `staffPin: true` (auth-policy.js).
  * @returns {Promise<void>}
  */
 export async function reconcileExpiredIdentity({ preserveCalendarViewer = false } = {}) {
@@ -864,11 +866,60 @@ export async function reconcileExpiredIdentity({ preserveCalendarViewer = false 
     const u = auth.currentUser || (gen === _authGen ? await restoreFirstAuthUser().catch(() => null) : null);
     if (gen !== _authGen) return;                    // a login/logout now owns the identity — stand down
     if (!u || u.isAnonymous || getSession()) return; // no lingering NAMED identity, or a valid session exists
-    if (preserveCalendarViewer && isViewerUser(u)) return;   // the Calendar's own viewer — see the JSDoc
+    if (preserveCalendarViewer && isViewerUser(u)) return;   // the staff PIN, on a page that admits it — see the JSDoc
     try {
         await firebaseSignOut(auth);
         console.warn('[Auth] Signed out a Firebase identity whose local session had expired (Finding #9).');
     } catch (err) {
         console.warn('[Auth] expired-identity signOut failed:', /** @type {any} */ (err)?.message);
     }
+}
+
+/**
+ * Does this browser hold the shared staff PIN — and KEEP it? (v24.84)
+ *
+ * For a page other than the Calendar whose policy admits the PIN (`admitsStaffPin`, auth-policy.js —
+ * Trains, owner 22 Oct 2026). Until then such a page ran the bare `reconcileExpiredIdentity()` every
+ * protected page runs, which signs the viewer out by design: a station PC that opened Trains from
+ * its unlocked Calendar met a member sign-in, and was asked for the PIN again on the way back.
+ *
+ * It is the Calendar's own decision (`resolveAccess`, calendar-access.js) with the members taken out:
+ * tear down any OTHER identity that outlived its session, keep the viewer, and read ground truth once
+ * the boot restore has had its turn — all inside one budget, never one per step. A browser with a
+ * local member session is answered `false`, because a member outranks the viewer exactly as
+ * `decideAccess` ranks them; the caller asks only when it has no member.
+ *
+ * What a `true` grants is the caller's page with NO member on it. The viewer carries no identity
+ * claims (AUTH_AND_SESSIONS.md 7), so nothing keyed off `getSession()` comes within reach.
+ *
+ * @param {number} [budgetMs]  the whole decision's deadline — the Calendar's 6.5s
+ * @returns {Promise<boolean>}
+ */
+export async function holdsStaffPin(budgetMs = 6500) {
+    const started = Date.now();
+    const remaining = () => Math.max(0, budgetMs - (Date.now() - started));
+    /** @type {any} */ let timer;
+    try {
+        await Promise.race([
+            reconcileExpiredIdentity({ preserveCalendarViewer: true }),
+            new Promise(resolve => { timer = setTimeout(resolve, remaining()); }),
+        ]);
+    } catch { /* best effort — the answer below reads ground truth either way */ }
+    finally { clearTimeout(timer); }
+    if (getSession()) return false;
+    return isViewerUser(await currentUserAfterBoot(remaining()));
+}
+
+/**
+ * Sign the staff PIN out of this browser, and PROVE it went (v24.84) — the drawer's Lock on a page
+ * that admitted it. The Calendar's `lockCalendar` does the same behind its own access state. Throws
+ * when the viewer is still current afterwards, because a Lock that reports a success it did not
+ * achieve is worse than one that fails visibly (v20.39, audit §13); does nothing to anybody who is
+ * not the viewer, a member above all.
+ * @returns {Promise<void>}
+ */
+export async function signOutStaffPin() {
+    if (!isViewerUser(auth.currentUser)) return;
+    await firebaseSignOut(auth);
+    if (isViewerUser(auth.currentUser)) throw new Error('viewer still current after sign-out — not locked');
 }

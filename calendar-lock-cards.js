@@ -55,15 +55,14 @@
 
 import { clearSession } from './session.js';
 import { releaseDevicePush } from './notif.js';
-import { normalisePin, isCompletePin, attemptBackoffMs, PIN_LENGTH } from './calendar-access-core.js';
+import { normalisePin, isCompletePin, attemptBackoffMs, PIN_LENGTH, PIN_FIRST_HASH } from './calendar-access-core.js';
 import { mountLockCard, unmountLockCard } from './calendar-lock-slot.js';
 import { lazyImport } from './sw-register.js';
 
-/** The hash that asks for the staff-PIN card FIRST (see calendar-access.js's module header). Read
- *  once at boot and removed from the address bar, so it is never carried into a member's session or
- *  a bookmark made afterwards. Declared here because the member card WRITES it; the boot reads it
- *  back from `calendar-access.js`, which imports it from here. */
-export const PIN_FIRST_HASH = '#staff-pin';
+/** The hash that asks for the staff-PIN card FIRST. Declared in `calendar-access-core.js` since
+ *  v24.84 (the Trains page's Lock lands on it too) and re-exported here, where `calendar-access.js`
+ *  has always imported it from. */
+export { PIN_FIRST_HASH };
 
 /**
  * Wire the cards to their collaborators. Called ONCE, at module scope in `calendar-access.js`, so

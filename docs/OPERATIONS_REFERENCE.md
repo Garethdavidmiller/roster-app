@@ -637,7 +637,9 @@ survives; removing it is a separate decision nobody is forced into by this proce
 
 The Calendar opens for **either** a signed-in member **or** the shared staff PIN. Everything
 privileged — Admin, Settings, Operations, Links — still needs a real member sign-in; the PIN grants
-one capability and one only: *read the Calendar's override data*.
+one capability and one only: *read the Calendar's override data*. The one other page it opens is
+**Trains** (v24.84, owner, 22 Oct 2026), which reads nothing at all — the timetable is public — and
+was admitted because the staff customers ask are the station's (AUTH_AND_SESSIONS.md invariant 24).
 
 ### Why it exists
 
@@ -657,6 +659,7 @@ lets both be fixed at once.
 | Browser closed and reopened | The PIN is asked for again. That is the point — a PC left on a Windows account does not carry the roster into the next person's day. |
 | Guides | Reachable **without** the PIN. The nav drawer is never locked. |
 | Huddle, Circular, Newsletter | Need the PIN or a sign-in (v23.17). A locked tap says what to do rather than opening; a notification tap is held on the PIN card and finishes once access is given. |
+| Trains page (v24.84) | Opens with the PIN, from the drawer's 🚆 Trains pill, and the PIN is still held on the way back. Its drawer shows **Staff PIN access** and **Lock Calendar**, which locks the station and lands on the PIN card. Admin, Pay and Settings still ask for a member sign-in, and signing in there ends the PIN. A fresh browser that opens Trains directly is asked to sign in — the PIN is entered on the Calendar. |
 | A member whose sign-in has been lost from the device (v20.79) | They get **their own sign-in card**, never the PIN — see below. |
 | A slow start on a poor connection (v20.80) | A greyed-out calendar shape while the app works out what to show, rather than a blank screen. |
 

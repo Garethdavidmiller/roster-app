@@ -6,7 +6,7 @@
  * (what's changing / a station / the basic hour) and the chosen station. Every judgement about the
  * timetables is `trains-change.js` and `trains-stations.js`; every word of HTML is `trains-render.js`;
  * the timetables themselves are the generated `trains-data.js`. Nothing here reads the network: once
- * opened (the first open signs in), the page works offline.
+ * opened, the page works offline.
  *
  * ── WHO IT IS FOR ──────────────────────────────────────────────────────────────────────────────
  *
@@ -15,6 +15,10 @@
  * front door, not a boundary: the timetable is public information and `trains-data.js` is served to
  * anyone, like every module. Narrowing it again is one line in `auth-policy.js` and one flag in
  * `nav-panel.js`, which page-contract-parity requires to move together.
+ *
+ * And the station PIN, since v24.84 (owner, 22 Oct 2026), whose staff are the ones customers ask:
+ * the policy's `staffPin` flag has the page ask `holdsStaffPin` before offering a sign-in, and every
+ * other protected page still signs the PIN out on arrival (session.js → `reconcileExpiredIdentity`).
  *
  * ── TEACH THE CHANGE, NOT THE TIMETABLE ────────────────────────────────────────────────────────
  *
@@ -37,9 +41,10 @@
 import { CONFIG } from './roster-data.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
-import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
+import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity, holdsStaffPin, signOutStaffPin } from './session.js';
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
-import { requirePage, canOpenOvertime } from './auth-policy.js';
+import { requirePage, canOpenOvertime, admitsStaffPin } from './auth-policy.js';
+import { PIN_FIRST_HASH } from './calendar-access-core.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -77,20 +82,21 @@ const phase = () => timetablePhase(new Date(), { change: CHANGE_DATE, festiveUnt
 /** Coordinator body, invoked by trains-boot.js. Exported so a test can import without running. */
 export function init() {
     reloadIfRestoredForSomeoneElse();
-    // Tear down a lingering privileged Firebase identity whose local session has expired.
-    reconcileExpiredIdentity().catch(() => {});
-
     const currentUser = getSession()?.name ?? null;
 
     // Decided from the LOCAL session, as Operations and Overtime do — the auth store is often still
     // initialising here, and a role-gated page must not treat "pending" as "allowed".
     const access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'trains');
     if (access.decision === 'login') {
-        initLoginOverlay({
+        // No member — but the station PIN reads this page too (v24.84), so ask for it BEFORE offering a
+        // sign-in: a station PC is not shown one, and keeps the PIN it unlocked the Calendar with. The
+        // policy decides whether to ask at all, so dropping its flag also signs the PIN out here again.
+        const pin = admitsStaffPin('trains') ? holdsStaffPin() : reconcileExpiredIdentity().then(() => false);
+        pin.then((held) => held ? start(null) : initLoginOverlay({
             pageLabel: 'Trains',
             // No session saved (iOS private mode can refuse the write): reload into a fresh sign-in.
             onSuccess: () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } },
-        });
+        }));
         return;
     }
     if (access.decision === 'forbidden') {
@@ -99,29 +105,42 @@ export function init() {
         window.location.replace('./');
         return;
     }
-    const member = /** @type {string} */ (currentUser);
+    // Tear down a lingering privileged Firebase identity whose local session has expired.
+    reconcileExpiredIdentity().catch(() => {});
+    start(/** @type {string} */ (currentUser));
+}
+
+/**
+ * The page, for a member — or, with `member` null, for the station PIN, which is nobody: no session
+ * to establish or guard, no password to force, and the drawer's Lock where a member has Sign out.
+ * @param {string|null} member
+ */
+function start(member) {
     dismissLoginOverlay();
     registerServiceWorker();
-
-    const established = ensureNamedSession(member);
-    resolveSession(established);
-    guardNamedSession({ page: 'trains', pageLabel: 'Trains', member, established });
+    if (member) {
+        const established = ensureNamedSession(member);
+        resolveSession(established);
+        guardNamedSession({ page: 'trains', pageLabel: 'Trains', member, established });
+    }
+    const isAdmin = !!member && CONFIG.ADMIN_NAMES.includes(member);
 
     /** @type {any} */
     let openAboutLightbox = null;
     initNavPanel({
-        authReady: sessionReady,
+        authReady: member ? sessionReady : Promise.resolve(),
         currentPage: 'trains',
         memberName: member,
-        isAdmin: CONFIG.ADMIN_NAMES.includes(member),
-        isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(member),
+        isAdmin,
+        isLinksDesigner: !!member && CONFIG.LINKS_DESIGNERS.includes(member),
         canOpenOvertime: canOpenOvertime(member),
         onLogoClick: () => openAboutLightbox?.(),
-        onSignOut: () => signOutAndLeave({ to: './' }),
+        onSignOut: member ? () => signOutAndLeave({ to: './' }) : null,
+        onLockCalendar: member ? null : { isViewer: () => true, lock: lockStaffPin },
     });
     openAboutLightbox = initAboutLightbox();
 
-    initTipsLightbox(CARD_TIPS, { getIsAdmin: () => CONFIG.ADMIN_NAMES.includes(member) });
+    initTipsLightbox(CARD_TIPS, { getIsAdmin: () => isAdmin });
     for (const id of ['trOverview', 'trChanges', 'trLookup', 'trStations', 'trPattern']) {
         initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`);
     }
@@ -140,12 +159,26 @@ export function init() {
     // A page left open overnight still turns the countdown — and, on the day, every label with it.
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { renderOverview(); render(state); } });
 
-    sessionReady.then(() => {
-        initErrorReporter();
-        recordUsage('trains', member);
-        recordPageLatency('trains', member);
-    });
-    sessionReady.then(() => initPasswordForce(member)).catch(() => {});
+    if (member) {
+        sessionReady.then(() => {
+            initErrorReporter();
+            recordUsage('trains', member);
+            recordPageLatency('trains', member);
+        });
+        sessionReady.then(() => initPasswordForce(member)).catch(() => {});
+        return;
+    }
+    // The station PIN is already the current Firebase user (holdsStaffPin read it), and the rules take
+    // these writes from it — so there is nothing to wait for, and no member to name in them.
+    initErrorReporter();
+    recordUsage('trains', null);
+    recordPageLatency('trains', null);
+}
+
+/** The drawer's Lock for the station PIN: sign it out, then the Calendar's PIN card, as `lockCalendar` does. */
+async function lockStaffPin() {
+    await signOutStaffPin();
+    window.location.replace('./' + PIN_FIRST_HASH);
 }
 
 // ── Renders ─────────────────────────────────────────────────────────────────────────────────────
