@@ -588,6 +588,11 @@ export function perfSamples() {
     // the block exists to reveal, and a 50/50 fixture would hide a layout fault in either row.
     add('calendar', 'readyCached',  'lt500ms', 480); add('calendar', 'readyCached',  '1-3s', 60);
     add('calendar', 'readyFetched', '1-3s', 140);    add('calendar', 'readyFetched', '3-8s', 110);
+    // BEFORE THE SIGN-IN CHECK (v24.85) — a member's own stored roster, painted while the check runs.
+    // Seeded so the block renders and the truncation guard measures its label; quick-weighted, which
+    // is the shape it exists to show, and a share of `ready` well under 100% so its sentence prints.
+    add('calendar', 'rosterSnapshot', 'lt500ms', 330); add('calendar', 'rosterSnapshot', '500ms-1s', 40);
+    add('calendar', 'rosterSnapshot', '1-3s', 20);
     // OPENS A RELEASE CAUSED (v22.92) — a small share, deliberately, because that is the shape the
     // row has to stay readable in. A `readyUpdate` count anywhere near `ready` would be a fixture
     // asserting the finding rather than exercising the layout, and it would hide the case the block

@@ -1208,6 +1208,9 @@ function _paintSnapshotBeforeGrant() {
         if (!days) return false;
         const card = mountLockCard({ id: 'calendarSnapshot', className: 'cal-snapshot' });
         card?.appendChild(buildCalendarContainer(getDisplayMonth(), getDisplayYear(), { member, snapshot: days }));
+        // The moment the member first sees their shifts, timed for the App Speed card (v24.85) —
+        // only here, where the copy is actually on screen before the check, never for a fall-through.
+        if (card) markMilestone('rosterSnapshot');
         return !!card;
     } catch (e) { console.warn('[Calendar] own-roster copy not painted', e); return false; }
 }

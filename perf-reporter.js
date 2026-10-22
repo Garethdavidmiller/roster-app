@@ -139,8 +139,12 @@ function askSwrCount() {
     });
 }
 
-/** @type {Record<string, string>} milestone id → performance.mark name */
-const MILESTONE_MARKS = { authBoot: 'myb-auth-boot', access: 'myb-access', rosterCached: 'myb-roster-cached', rosterLive: 'myb-roster-live' };
+/** milestone id → performance.mark name. `rosterSnapshot` (v24.85) is the Calendar painting a member's
+ *  own stored roster before the sign-in check answers (calendar-snapshot.js) — the moment they first
+ *  SEE their shifts, which no other rung times: "Shifts shown" is the grid after the check. Like
+ *  `rosterCached` it reports only when it happened, so an open with no stored copy gives it no time.
+ *  @type {Record<string, string>} */
+const MILESTONE_MARKS = { authBoot: 'myb-auth-boot', access: 'myb-access', rosterCached: 'myb-roster-cached', rosterLive: 'myb-roster-live', rosterSnapshot: 'myb-roster-snapshot' };
 /** @type {Record<string, (t: number) => void>} */
 const _resolveMilestone = {};
 /** @type {Record<string, Promise<number>>} */
@@ -152,7 +156,7 @@ for (const id of Object.keys(MILESTONE_MARKS)) {
 /**
  * Mark one of the start-ladder milestones. Idempotent, silent on any platform without the
  * Performance API, and — like `markPageReady` — it must never be able to break the page it times.
- * @param {'authBoot'|'access'|'rosterCached'|'rosterLive'} id
+ * @param {'authBoot'|'access'|'rosterCached'|'rosterLive'|'rosterSnapshot'} id
  * @returns {void}
  */
 export function markMilestone(id) {
@@ -354,7 +358,7 @@ export function recordPageLatency(page, identity = null) {
         else _pageReady.then(recordReady)
             .catch(() => { /* never rejects; here so a future change cannot make it unhandled */ });
 
-        // The other three rungs, by exactly the same rule — already marked, or recorded when they
+        // The other rungs, by exactly the same rule — already marked, or recorded when they
         // arrive. A page that never reaches one simply never reports it, which is the honest
         // answer: a milestone that did not happen must not be given a time.
         for (const id of Object.keys(MILESTONE_MARKS)) {

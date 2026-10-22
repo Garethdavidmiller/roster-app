@@ -1019,6 +1019,28 @@ test('a cached, slow-restoring open writes `ready` — and no `readyProvisional`
         .flatMap(w => Object.keys((w.data && w.data.samples) || {})));
     await expect.poll(async () => (await sampleKeys()).some(k => k.includes('|ready|')), { timeout: 25_000 }).toBe(true);
     expect((await sampleKeys()).filter(k => k.includes('|readyProvisional|'))).toEqual([]);
+    // No stored copy was seeded, so none was painted — and an open that showed none must not be timed
+    // as though it had (v24.85). The test below is the other half.
+    expect((await sampleKeys()).filter(k => k.includes('|rosterSnapshot|'))).toEqual([]);
+});
+
+// THE MOMENT A MEMBER FIRST SEES THEIR SHIFTS IS TIMED (v24.85). "Shifts shown" is the grid after the
+// sign-in check; the stored copy is on screen before any of it, and until this had no time of its own,
+// so the App Speed card could not say whether it helped. A NON-ADMIN member, as above.
+test('painting the member\'s stored copy writes a `rosterSnapshot` sample', async ({ page }) => {
+    test.setTimeout(60_000);
+    await seedSession(page, 'S. Silva');
+    await seedMember(page, 'S. Silva');
+    await seedSnapshot(page, 'S. Silva', { [SNAP_DATE]: { type: 'annual_leave', value: 'AL' } });
+    await page.addInitScript(() => {
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true, authRestoreDelayMs: 3000 });
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarSnapshot')).toBeVisible({ timeout: 2000 });
+    const sampleKeys = async () => page.evaluate(() => (window.__E2E?.setWrites || [])
+        .filter(w => String(w.path || '').includes('perf_'))
+        .flatMap(w => Object.keys((w.data && w.data.samples) || {})));
+    await expect.poll(async () => (await sampleKeys()).some(k => k.includes('|calendar|rosterSnapshot|')), { timeout: 25_000 }).toBe(true);
 });
 
 test('a TEAM VIEW member waits for the confirmation too, and their team grid still restores', async ({ page }) => {

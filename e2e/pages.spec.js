@@ -7057,6 +7057,9 @@ test('operations: no App Speed row label is truncated at phone width', async ({ 
         if (b && !b.classList.contains('open')) document.getElementById('pageSpeedToggleHeader')?.click();
     });
     await expect(page.locator('#pageSpeedCard')).toContainText('What put the shifts on screen');
+    // The ROW, not the words: the ladder's note names this block too, so a text match passed with
+    // the block deleted (v24.85, found by mutation).
+    await expect(page.locator('#pageSpeedCard .speed-row-name', { hasText: /^Own roster$/ })).toHaveCount(1);
     const names = page.locator('#pageSpeedCard .speed-row-name');
     expect(await names.count(), 'the fixture did not reach the card — nothing is being measured')
         .toBeGreaterThan(8);

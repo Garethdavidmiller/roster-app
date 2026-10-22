@@ -8,7 +8,7 @@
  */
 import { sessionReady } from './session.js';
 import { withClaimRetry, getPerfStats } from './firebase-client.js';
-import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, summariseStartMilestones, summariseReadySource, summariseUpdateOpens, summariseProvisionalOpens, summariseSwrCounts, summariseHeavySwrOpens, THIN_SAMPLE } from './perf-stats.js';
+import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, summariseStartMilestones, summariseReadySource, summariseEarlyRoster, summariseUpdateOpens, summariseProvisionalOpens, summariseSwrCounts, summariseHeavySwrOpens, THIN_SAMPLE } from './perf-stats.js';
 import { escapeHtml } from './roster-data.js';
 import { PRIVACY_FOOTER, PAGE_META, _cardLoadError, _usageMonthLabel } from './operations-reports.js';
 
@@ -110,6 +110,33 @@ async function initPageSpeedCard() {
         p.className = 'speed-note';
         p.textContent = text;
         return p;
+    };
+    /** One block of TIMING rows — each a quick / a-moment / slow bar, its share over a second and its
+     *  count — under a small "over 1s · opens" header. Five blocks drew this list by hand, line for
+     *  line the same, until v24.85 needed a sixth: one builder, so a fix to the row reaches all of them.
+     *  @param {Array<{ label: string, sub: string, total: number, quick: number, ok: number, slow: number, pctQuick: number, pctOk: number, pctSlow: number, pctOver1s: number }>} rows */
+    const timingRowList = (rows) => {
+        const list = document.createElement('div');
+        list.className = 'speed-rows';
+        const head = document.createElement('div');
+        head.className = 'speed-row speed-row--why speed-dual-head';
+        head.innerHTML = '<span></span><span></span>'
+            + '<span class="speed-dual-label">over 1s</span>'
+            + '<span class="speed-dual-label">opens</span>';
+        list.appendChild(head);
+        rows.forEach(r => {
+            const row = document.createElement('div');
+            row.className = 'speed-row speed-row--why';
+            const thin = r.total < THIN_SAMPLE;
+            row.innerHTML =
+                `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
+                    + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
+                `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
+                `<span class="speed-row-count">${r.pctOver1s}%</span>` +
+                `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
+            list.appendChild(row);
+        });
+        return list;
     };
     /** Per-page rows showing ALL THREE milestones — appears, code loaded, usable — so the same page's
      *  speeds sit together and one page's stage can be scanned against every other's.
@@ -393,29 +420,9 @@ async function initPageSpeedCard() {
         heading.className = 'usage-section-label speed-dim-label';
         heading.textContent = 'How far the start gets';
         frag.appendChild(heading);
-        frag.appendChild(noteLine('Compare neighbouring rows: a big jump is where the time went. Each step is timed from the page opening, so they run in order: shifts are shown only once the sign-in check has finished, so "Shifts shown" can never beat "Recognised". Same bands as the rest of the card.'));
+        frag.appendChild(noteLine('Compare neighbouring rows: a big jump is where the time went. Each step is timed from the page opening, so they run in order: "Shifts shown" is the roster after the sign-in check, so it can never beat "Recognised". What a member sees before the check is timed under “Before the sign-in check” below. Same bands as the rest of the card.'));
 
-        const list = document.createElement('div');
-        list.className = 'speed-rows';
-        const head = document.createElement('div');
-        head.className = 'speed-row speed-row--why speed-dual-head';
-        head.innerHTML = '<span></span><span></span>'
-            + '<span class="speed-dual-label">over 1s</span>'
-            + '<span class="speed-dual-label">opens</span>';
-        list.appendChild(head);
-        rows.forEach(r => {
-            const row = document.createElement('div');
-            row.className = 'speed-row speed-row--why';
-            const thin = r.total < THIN_SAMPLE;
-            row.innerHTML =
-                `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
-                    + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
-                `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
-                `<span class="speed-row-count">${r.pctOver1s}%</span>` +
-                `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
-            list.appendChild(row);
-        });
-        frag.appendChild(list);
+        frag.appendChild(timingRowList(rows));
         return frag;
     };
 
@@ -441,27 +448,36 @@ async function initPageSpeedCard() {
         frag.appendChild(heading);
         frag.appendChild(noteLine('A grid from the saved copy never waited for the server. Only the Calendar reports this, so the two do not add up to “Shifts shown” above.'));
 
-        const list = document.createElement('div');
-        list.className = 'speed-rows';
-        const head = document.createElement('div');
-        head.className = 'speed-row speed-row--why speed-dual-head';
-        head.innerHTML = '<span></span><span></span>'
-            + '<span class="speed-dual-label">over 1s</span>'
-            + '<span class="speed-dual-label">opens</span>';
-        list.appendChild(head);
-        rows.forEach(r => {
-            const row = document.createElement('div');
-            row.className = 'speed-row speed-row--why';
-            const thin = r.total < THIN_SAMPLE;
-            row.innerHTML =
-                `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
-                    + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
-                `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
-                `<span class="speed-row-count">${r.pctOver1s}%</span>` +
-                `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
-            list.appendChild(row);
-        });
-        frag.appendChild(list);
+        frag.appendChild(timingRowList(rows));
+        return frag;
+    };
+
+    /** BEFORE THE SIGN-IN CHECK (v24.85) — when a member first sees their shifts.
+     *
+     *  Since v24.59 the Calendar shows a signed-in member their own roster from the copy kept on their
+     *  phone while the check runs (calendar-snapshot.js), and the card could not see it: every block
+     *  above times the roster AFTER the check, so "Shifts shown" read as the wait to see one. This
+     *  is the row that says whether the copy is doing its job, and its count says how often it had
+     *  the chance — Team View, the station PIN and a first visit have no copy to show.
+     *
+     *  The share is stated against the ladder's own `ready`, as the subset blocks do, and dropped
+     *  rather than printed when it would read over 100% — the two are counted on different paths, so
+     *  nothing guarantees one sits inside the other.
+     *  @param {Record<string, number>} samples @param {string} page */
+    const earlyRosterRows = (samples, page) => {
+        const { rows } = summariseEarlyRoster(samples, { page });
+        if (!rows.length) return null;
+        const readyTotal = summariseStartMilestones(samples, { page }).rows
+            .find(r => r.metric === 'ready')?.total || 0;
+        const pct = readyTotal ? Math.round((rows[0].total / readyTotal) * 100) : null;
+        const frag = document.createDocumentFragment();
+        const heading = document.createElement('p');
+        heading.className = 'usage-section-label speed-dim-label';
+        heading.textContent = 'Before the sign-in check';
+        frag.appendChild(heading);
+        frag.appendChild(noteLine(
+            `A signed-in member is shown their own roster at once, from the copy kept on their phone, while the check runs — so this does not wait for the server. Counted only on opens that had a copy to show${pct !== null && pct <= 100 ? `: ${pct}% of them` : ''}.`));
+        frag.appendChild(timingRowList(rows));
         return frag;
     };
 
@@ -502,27 +518,7 @@ async function initPageSpeedCard() {
         frag.appendChild(noteLine(
             `Older versions could show a returning member their own saved roster while the server confirmed who they were. That was retired in September 2026 (v24.29) because it almost never got the chance to, so this row only counts devices still on an older version and will empty out. These opens are also counted in “Shifts shown” above, not separately.${share}`));
 
-        const list = document.createElement('div');
-        list.className = 'speed-rows';
-        const head = document.createElement('div');
-        head.className = 'speed-row speed-row--why speed-dual-head';
-        head.innerHTML = '<span></span><span></span>'
-            + '<span class="speed-dual-label">over 1s</span>'
-            + '<span class="speed-dual-label">opens</span>';
-        list.appendChild(head);
-        rows.forEach(r => {
-            const row = document.createElement('div');
-            row.className = 'speed-row speed-row--why';
-            const thin = r.total < THIN_SAMPLE;
-            row.innerHTML =
-                `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
-                    + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
-                `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
-                `<span class="speed-row-count">${r.pctOver1s}%</span>` +
-                `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
-            list.appendChild(row);
-        });
-        frag.appendChild(list);
+        frag.appendChild(timingRowList(rows));
         return frag;
     };
 
@@ -598,27 +594,7 @@ async function initPageSpeedCard() {
                 : '';
             frag.appendChild(noteLine(
                 `And whether it cost anything: these are the opens where the worker was rechecking a full sweep. They are also counted in “Shifts shown” above, not separately.${share} If this row is no slower than that one, the worker is not what staff are waiting for.`));
-            const hl = document.createElement('div');
-            hl.className = 'speed-rows';
-            const hh = document.createElement('div');
-            hh.className = 'speed-row speed-row--why speed-dual-head';
-            hh.innerHTML = '<span></span><span></span>'
-                + '<span class="speed-dual-label">over 1s</span>'
-                + '<span class="speed-dual-label">opens</span>';
-            hl.appendChild(hh);
-            heavy.rows.forEach(r => {
-                const row = document.createElement('div');
-                row.className = 'speed-row speed-row--why';
-                const thin = r.total < THIN_SAMPLE;
-                row.innerHTML =
-                    `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
-                        + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
-                    `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
-                    `<span class="speed-row-count">${r.pctOver1s}%</span>` +
-                    `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
-                hl.appendChild(row);
-            });
-            frag.appendChild(hl);
+            frag.appendChild(timingRowList(heavy.rows));
         }
         return frag;
     };
@@ -658,27 +634,7 @@ async function initPageSpeedCard() {
         frag.appendChild(noteLine(
             `An update installs and the page reloads onto it. These opens are also counted in “Shifts shown” above, not separately.${share} On the calendar the reload waits until the page is hidden, so a slow figure here is a background load, not somebody waiting.`));
 
-        const list = document.createElement('div');
-        list.className = 'speed-rows';
-        const head = document.createElement('div');
-        head.className = 'speed-row speed-row--why speed-dual-head';
-        head.innerHTML = '<span></span><span></span>'
-            + '<span class="speed-dual-label">over 1s</span>'
-            + '<span class="speed-dual-label">opens</span>';
-        list.appendChild(head);
-        rows.forEach(r => {
-            const row = document.createElement('div');
-            row.className = 'speed-row speed-row--why';
-            const thin = r.total < THIN_SAMPLE;
-            row.innerHTML =
-                `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
-                    + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
-                `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
-                `<span class="speed-row-count">${r.pctOver1s}%</span>` +
-                `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
-            list.appendChild(row);
-        });
-        frag.appendChild(list);
+        frag.appendChild(timingRowList(rows));
         return frag;
     };
 
@@ -714,6 +670,11 @@ async function initPageSpeedCard() {
         // reading it anywhere else would leave the reader to remember which row it belonged to.
         const source = readySourceRows(samples, busiest.page);
         if (source) { frag.appendChild(source); any = true; }
+        // Then what a member saw BEFORE all of that (v24.85) — the copy of their own roster painted
+        // while the check runs. Straight after the two blocks about "Shifts shown", because it is the
+        // answer that figure cannot give: how soon the shifts were on screen at all.
+        const early = earlyRosterRows(samples, busiest.page);
+        if (early) { frag.appendChild(early); any = true; }
         // Then the OTHER subset of that same rung — the opens a release caused. Beside the block
         // above because both split "Shifts shown", and after it because this one is rarer: it
         // renders only once updated devices have actually been reloaded by a release.
