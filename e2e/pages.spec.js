@@ -637,8 +637,11 @@ test('operations: App speed shows THREE milestones, and a page with no ready dat
     // read as the answer, and it now belongs to `ready` alone.
     await expect(speed).not.toContainText('Fully ready');
     // The verdict for `ready` is driven by ITS OWN samples — all in the 1–3s band, so it must not
-    // report the quick verdict `domReady` earns.
-    await expect(speed).toContainText(/usable quickly|waiting too long/i);
+    // report the quick verdict `domReady` earns. Nor "mostly become usable quickly" (v24.85): this
+    // regex accepted that sentence until then, and with NONE of these opens under a second it is the
+    // very misstatement that release removed from the card.
+    await expect(speed).toContainText('Pages most often take a moment to become usable.');
+    await expect(speed).not.toContainText(/usable quickly/i);
 
     // Three bars per page row, and the header names all three columns.
     const calRow = speed.locator('.speed-row--dual', { hasText: 'Calendar' }).first();

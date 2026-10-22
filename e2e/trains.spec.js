@@ -259,7 +259,7 @@ test.describe('trains', () => {
     }
 
     test('the Calendar\'s one-time notice tells a member, and its link opens this page (v24.82)', async ({ page }) => {
-        // The rest of the notice — every dismissal marks it done, it expires as the timetable starts,
+        // The rest of the notice — every dismissal marks it done, it ends with 31 October (v24.86),
         // it is refused to the station PC — is pinned in calendar-notices.test.mjs. This is the half
         // only a browser can prove: it opens on the real Calendar, and its link is the right link.
         // (The seeders re-mark it done on every load, so the done flag cannot be read after the

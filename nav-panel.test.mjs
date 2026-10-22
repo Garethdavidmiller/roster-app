@@ -100,6 +100,17 @@ describe('isNoticeExpired', () => {
     test('unparseable date is treated as not expired (fail-open)', () => {
         assert.equal(isNoticeExpired('not a date'), false);
     });
+    test('a LAST DAY with a one-day window is live all that day and gone from the next midnight (v24.86)', () => {
+        // calendar-notices.js ends both October notices with `isNoticeExpired('31 Oct 2026', 1)` —
+        // a date rather than a count from posting, because the clocks go back on 25 October and a
+        // count would end an hour early. This pins the arithmetic that choice leans on.
+        mock.timers.enable({ apis: ['Date'], now: new Date(2026, 9, 31, 23, 59, 59) });
+        try {
+            assert.equal(isNoticeExpired('31 Oct 2026', 1), false, 'still offered a second before midnight');
+            mock.timers.setTime(new Date(2026, 10, 1, 0, 0, 1).getTime());
+            assert.equal(isNoticeExpired('31 Oct 2026', 1), true, 'gone a second after it');
+        } finally { mock.timers.reset(); }
+    });
 });
 
 // ── archiveNotice ─────────────────────────────────────────────────────────────

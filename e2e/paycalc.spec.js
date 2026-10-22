@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, clickInView } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, seedMemberSession, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, clickInView } from './helpers.js';
 // The REAL pay tables, imported rather than restated: the unsupported-role block below asserts that
 // a CES is priced as a CES, and a literal rate there would go stale on the next award — or, worse,
 // be "corrected" to whatever the page happened to show.
@@ -434,6 +434,89 @@ test('paycalc: the Settings deep link lands on the backup card OPEN', async ({ p
     const box = await card.boundingBox();
     const vh = page.viewportSize().height;
     expect(box.y, `card landed at y=${Math.round(box.y)} of ${vh}`).toBeLessThan(vh / 3);
+});
+
+// ── The Calendar's Year to Date notice (v24.86) ───────────────────────────────────────────────────
+// Its rules — the load after the timetable notice, CEA/CES only, a one-off, ending on 31 October — are
+// unit-tested in calendar-notices.test.mjs. These are the halves only a browser can prove: the order
+// across two real loads, and that its link lands a member on the card it teaches, open, with nothing
+// else in the way. Clock pinned inside both notices' life (22–31 Oct 2026) and the Pay page's own
+// Year to Date notice's (to ~26 Nov), so neither silently retires and leaves these proving nothing.
+const YTD_NOTICE_DAY = new Date('2026-10-22T09:00:00Z');
+
+test('paycalc: the Calendar\'s Year to Date link lands on that card OPEN, and the Pay notice stays out of its way', async ({ page }) => {
+    // Phone width for the same reason as the backup card's deep link above: on one column the card
+    // sits far down a page that keeps growing after load, which is what the correction is for.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.clock.setFixedTime(YTD_NOTICE_DAY);
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        // The Pay page's own Year to Date notice, UNSEEN — on a clean device it opens (the test
+        // above proves it). Arriving by this link must count as having been told.
+        localStorage.removeItem('myb_pc_ytd_notice_2_shown');
+    });
+    await page.goto('/paycalc.html#payslipCard');
+    await expect(page.locator('#payslipCardBody')).toHaveClass(/open/);
+
+    await page.waitForTimeout(900);
+    const card = page.locator('#payslipCard');
+    await expect(card, 'the card must be visible before its landing position means anything').toBeVisible();
+    const box = await card.boundingBox();
+    const vh = page.viewportSize().height;
+    expect(box.y, `card landed at y=${Math.round(box.y)} of ${vh}`).toBeLessThan(vh / 3);
+
+    // Flagged seen without ever having opened over the two boxes it asks the member to fill.
+    await expect.poll(() => page.evaluate(() => localStorage.getItem('myb_pc_ytd_notice_2_shown'))).toBe('1');
+    await page.waitForTimeout(1500);
+    await expect(page.locator('#noticeYtdLightbox.visible')).toHaveCount(0);
+});
+
+test('the Calendar\'s Year to Date notice comes the load AFTER the timetable one, and its link opens the card', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(YTD_NOTICE_DAY);
+    await seedSession(page, 'G. Miller');
+    await seedMemberSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    // Registered AFTER the seeders, which mark every Calendar notice done on every load. The Year to
+    // Date notice is undismissed on every load — it is the subject; the timetable notice on the FIRST
+    // load only, so that load is the one where it opens and is dismissed for real.
+    await page.addInitScript(() => {
+        const n = Number(sessionStorage.getItem('__e2e_ytd_load') || 0) + 1;
+        sessionStorage.setItem('__e2e_ytd_load', String(n));
+        localStorage.removeItem('myb_notice_ytd_figures_2026_done');
+        if (n === 1) localStorage.removeItem('myb_notice_timetable_2026_done');
+    });
+
+    // Load 1 — the timetable notice, and nothing behind it, even once it is dismissed. Measured by
+    // mutation: deleting the follow rule leaves this GREEN, because the timetable notice's timer fires
+    // first and `openNoticeIfClear` then finds the page covered. What this proves is the composed
+    // behaviour on a real page; the rule's own teeth are calendar-notices.test.mjs block 7.
+    await page.goto('/');
+    const timetable = page.locator('#timetableNoticeLb');
+    await expect(timetable).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+    await page.locator('#timetableNoticeLater').click();
+    await expect(timetable).not.toHaveClass(/\bopen\b/);
+    expect(await page.evaluate(() => localStorage.getItem('myb_notice_timetable_2026_done')),
+        'dismissing it is what lets the next one come').toBe('1');
+    await page.waitForTimeout(2500);                       // past the 1,500ms defer, twice over
+    await expect(page.locator('#ytdNoticeLb'), 'not on the same load').not.toHaveClass(/\bopen\b/);
+
+    // Load 2 — now it comes, and its link lands on the card, open.
+    await page.reload();
+    const notice = page.locator('#ytdNoticeLb');
+    await expect(notice).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+    await expect(notice).toContainText('Taxable Pay');
+    await expect(notice).toContainText('Tax Paid');
+    await page.locator('#ytdNoticeGo').click();
+    await expect(page).toHaveURL(/paycalc\.html#payslipCard$/);
+    await expect(page.locator('#payslipCardBody')).toHaveClass(/open/);
+    // The seeders re-mark it done on the Pay page's load, so its own flag proves nothing here; the
+    // drawer's archive is the store nothing re-seeds.
+    const archived = await page.evaluate(() =>
+        JSON.parse(localStorage.getItem('myb_app_notices') || '[]').map((/** @type {{ id: string }} */ n) => n.id));
+    expect(archived, 'kept in the drawer\'s App Notices once it has been shown').toContain('ytd-figures-2026');
+    expect(errors).toHaveLength(0);
 });
 
 test('paycalc: a long confirm dialog keeps its own buttons on screen', async ({ page }) => {

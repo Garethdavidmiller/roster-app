@@ -59,6 +59,7 @@ export function seedSession(page, name = 'G. Miller') {
         }));
         localStorage.setItem('myb_notice_al_booking_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_2026_done', '1');
+        localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
     }, name);
 }
@@ -71,12 +72,15 @@ export function seedSession(page, name = 'G. Miller') {
  * time: whichever reaches `openNoticeIfClear` first wins, the loser stays closed and unflagged, and
  * a spec asserting on the loser fails for a reason that has nothing to do with what it is testing.
  * (`sign-in-2026` was retired at v23.23, leaving one key; `timetable-2026` restored the hazard at
- * v24.82, so the default names two again — and a spec about either should pass its own.)
+ * v24.82, so the default names two again — and a spec about either should pass its own.) The
+ * Year to Date notice (v24.86) is in the default too, though it can never be the loser: it is wired
+ * only on a load after the timetable notice was dismissed, so clearing both shows the timetable one.
  *
  * @param {import('@playwright/test').Page} page
  * @param {string[]} [keys] the done-flags to remove; defaults to every live notice
  */
-export function clearNoticeFlags(page, keys = ['myb_notice_al_booking_2026_done', 'myb_notice_timetable_2026_done']) {
+export function clearNoticeFlags(page, keys = ['myb_notice_al_booking_2026_done', 'myb_notice_timetable_2026_done',
+                                               'myb_notice_ytd_figures_2026_done']) {
     return page.addInitScript(ks => ks.forEach(k => localStorage.removeItem(k)), keys);
 }
 
@@ -119,6 +123,7 @@ export function seedMember(page, name = 'G. Miller') {
         localStorage.setItem('myb_roster_selected_member', n);
         localStorage.setItem('myb_notice_al_booking_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_2026_done', '1');
+        localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
     }, name);
 }
 
@@ -312,6 +317,7 @@ export function seedMemberSession(page, name = 'G. Miller') {
         // Same notice suppression as seedMember, same reason — see the note there.
         localStorage.setItem('myb_notice_al_booking_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_2026_done', '1');
+        localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
         window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
     }, name);
 }

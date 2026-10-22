@@ -88,6 +88,12 @@ mock.module('./overlay.js', {
         openNoticeIfClear: (/** @type {any} */ lb) => { _openedViaHelper.push(lb); },
     },
 });
+// The Year to Date notice asks whose Pay Calculator this is, through the session, when it OPENS.
+// `roster-data.js` is left REAL — it is pure, and the roles it holds are the thing being asked.
+/** @type {{ name: string } | null} */ let _session = null;
+mock.module('./session.js', {
+    namedExports: { getSession: () => _session },
+});
 mock.module('./calendar-access.js', {
     namedExports: {
         calendarAccessReady: { then: (/** @type {any} */ fn) => _access.promise.then(fn) },
@@ -96,10 +102,14 @@ mock.module('./calendar-access.js', {
 });
 
 let _n = 0;
-/** Wire the notices with the timers under test control, then let the access decision land. */
-async function wire({ accessType = 'none', present = NOTICES.map(n => n.overlay), store = {}, expired = false } = {}) {
+/** Wire the notices with the timers under test control, then let the access decision land.
+ *  A named access carries a member's session — a CEA, whom the Pay Calculator prices — and the PIN
+ *  and a locked page carry none, which is what each of those really holds. */
+async function wire({ accessType = 'none', present = NOTICES.map(n => n.overlay), store = {}, expired = false,
+                      session = accessType === 'named' ? { name: 'G. Miller' } : null } = {}) {
     _present = new Set(present);
     _accessType = accessType;
+    _session = session;
     _store = { ...store };
     _reads = []; _writes = []; _archived = []; _openedViaHelper = []; _directOpens = 0; _listeners = new Map();
     _expired = expired;
@@ -132,16 +142,31 @@ async function drain() { for (let i = 0; i < 8; i++) await Promise.resolve(); }
 const PINNED_NOW = new Date(2026, 9, 22, 9, 0);   // after timetable-2026's 21 Oct 2026 posting
 
 /** Every notice this module carries, as the pairing that decides who sees it. Read from the source
- *  so a notice added later joins the matrix instead of being missed by it. */
-const NOTICES = [...SOURCE.matchAll(/getElementById\('(\w+NoticeLb)'\)[\s\S]*?_openWhenAudienceAllows\(lb, '([a-z-]+)'\)/g)]
-    .map(m => ({ overlay: m[1], audience: m[2] }));
+ *  so a notice added later joins the matrix instead of being missed by it. A notice may pass the gate
+ *  a further condition (`[,)]` — v24.86), and may FOLLOW another: it is wired only once that
+ *  notice's done flag was set on an earlier load, and the matrix has to know which those are. */
+const NOTICES = [...SOURCE.matchAll(/getElementById\('(\w+NoticeLb)'\)[\s\S]*?_openWhenAudienceAllows\(lb, '([a-z-]+)'[,)]/g)]
+    .map(m => ({ overlay: m[1], audience: m[2], follows: FOLLOWS_OF(m[1]) }));
+
+/** The IIFE that declares a notice's overlay — its own scope, so a key read from it is that notice's.
+ *  (This was an 800-character window before the overlay line, which is right until a notice with a
+ *  long comment sits after a short one and the window reaches back into its neighbour.) */
+function IIFE_OF(/** @type {string} */ overlay) {
+    const at = SOURCE.indexOf(`getElementById('${overlay}')`);
+    if (at < 0) throw new Error(`no notice declares ${overlay}`);
+    return SOURCE.slice(SOURCE.lastIndexOf('(function () {', at), SOURCE.indexOf('}());', at));
+}
 
 /** The notice's own done key, read from the IIFE that declares the overlay — never guessed from its id. */
 function DONE_KEY_OF(/** @type {{overlay: string}} */ n) {
-    const iife = SOURCE.slice(SOURCE.indexOf(`getElementById('${n.overlay}')`) - 800, SOURCE.indexOf(`getElementById('${n.overlay}')`));
-    const m = /const DONE_KEY\s*=\s*'([^']+)'/.exec(iife);
-    if (!m) throw new Error(`no DONE_KEY declared before ${n.overlay}`);
+    const m = /const DONE_KEY\s*=\s*'([^']+)'/.exec(IIFE_OF(n.overlay));
+    if (!m) throw new Error(`no DONE_KEY declared in ${n.overlay}'s notice`);
     return m[1];
+}
+
+/** The done key of the notice this one waits behind, or null for a notice that waits for none. */
+function FOLLOWS_OF(/** @type {string} */ overlay) {
+    return /const FOLLOWS\s*=\s*'([^']+)'/.exec(IIFE_OF(overlay))?.[1] ?? null;
 }
 
 /** The real rule — pure, so mocking it would only test the mock. */
@@ -165,15 +190,17 @@ afterEach(() => { mock.timers.reset(); });
 
 
 describe('1 · a notice reaching somebody it is not addressed to', () => {
-    /** @param {'named'|'viewer'|'none'} accessType */
-    async function shownTo(accessType) {
-        await wire({ accessType });
+    /** @param {'named'|'viewer'|'none'} accessType @param {Record<string, string>} [store] */
+    async function shownTo(accessType, store = {}) {
+        await wire({ accessType, store });
         await settleAccess();
         return _openedViaHelper.map(lb => lb._cfg.overlay.id).sort();
     }
-    /** @param {'named'|'viewer'|'none'} accessType */
-    function expectedFor(accessType) {
-        return NOTICES.filter(n => noticeAudienceAllows(n.audience, accessType)).map(n => n.overlay).sort();
+    /** Addressed to this access type, not already done, and — for a notice that follows another —
+     *  behind one that IS done. @param {'named'|'viewer'|'none'} accessType @param {Record<string, string>} [store] */
+    function expectedFor(accessType, store = {}) {
+        return NOTICES.filter(n => noticeAudienceAllows(n.audience, accessType)
+            && !store[DONE_KEY_OF(n)] && (!n.follows || !!store[n.follows])).map(n => n.overlay).sort();
     }
 
     test('the matrix has notices to be about, and says what it can prove with them', () => {
@@ -189,11 +216,26 @@ describe('1 · a notice reaching somebody it is not addressed to', () => {
         // notice returns, because this matrix is derived from the source rather than hand-kept.
         assert.equal(NOTICES.length >= 1, true, `found ${NOTICES.length} notices`);
         assert.deepEqual(NOTICES.filter(n => !n.audience), [], 'every notice declares an audience');
+        // A notice whose gate call the pattern cannot read would silently drop out of every row.
+        assert.equal(NOTICES.length, (SOURCE.match(/const NOTICE_ID\s*=/g) ?? []).length,
+            'every notice the module declares is in the matrix');
     });
 
     for (const accessType of /** @type {const} */ (['named', 'viewer', 'none'])) {
         test(`${accessType}: exactly the notices addressed to it`, async () => {
             assert.deepEqual(await shownTo(accessType), expectedFor(accessType));
+        });
+    }
+
+    // A NOTICE THAT FOLLOWS ANOTHER IS ABSENT FROM THE ROWS ABOVE BY DESIGN — they run on a device
+    // that has dismissed nothing, which is exactly where a follower stays unwired. So it gets rows of
+    // its own, on a device whose earlier load set the flags it waits for; without them the audience
+    // gate would be proved for every notice except the one that waits (v24.86).
+    for (const accessType of /** @type {const} */ (['named', 'viewer', 'none'])) {
+        test(`${accessType}: a notice that follows another, once that one is done`, async () => {
+            const store = Object.fromEntries(NOTICES.filter(n => n.follows).map(n => [/** @type {string} */ (n.follows), '1']));
+            assert.ok(Object.keys(store).length > 0, 'no live notice follows another — this row would prove nothing');
+            assert.deepEqual(await shownTo(accessType, store), expectedFor(accessType, store));
         });
     }
 
@@ -331,7 +373,7 @@ describe('4 · a notice added later skipping the check', () => {
     });
 
     test('every audience named is one the rule understands', async () => {
-        const named = [...SOURCE.matchAll(/_openWhenAudienceAllows\(lb, '([a-z-]+)'\)/g)].map(m => m[1]);
+        const named = [...SOURCE.matchAll(/_openWhenAudienceAllows\(lb, '([a-z-]+)'[,)]/g)].map(m => m[1]);
         assert.equal(named.length > 0, true);
         for (const a of named) {
             // An unrecognised audience must not silently behave like 'everyone'.
@@ -408,7 +450,10 @@ describe('5 · the leave reminder is a ONE-OFF (v23.60, owner decision)', () => 
 });
 
 
-describe('6 · the timetable notice: a one-off from the start, until the timetable starts (v24.82)', () => {
+/** The last day the October notices are offered, as the module declares it. */
+const OCTOBER_LAST_DAY = /** @type {RegExpExecArray} */ (/const OCTOBER_LAST_DAY = '([^']+)'/.exec(SOURCE))[1];
+
+describe('6 · the timetable notice: a one-off from the start, offered to the end of October (v24.82; v24.86)', () => {
     // Owner request, 21 Oct 2026: tell members a new timetable is coming and send them to the Trains
     // page to learn it. One-off on the rule block 5 settled, so the costs are the same two: coming
     // back nags, never showing means nobody is told.
@@ -428,16 +473,14 @@ describe('6 · the timetable notice: a one-off from the start, until the timetab
         assert.doesNotMatch(IIFE, /SNOOZE_KEY/, 'a one-off declares no snooze');
     });
 
-    test('it stops being offered on the day the timetable starts', async () => {
-        // The expiry is a day count, the kind of number that is right until somebody moves a date.
-        // Posting day plus that count must land on the day Chiltern's new timetable starts.
-        const { CHANGE_DATE } = await import('./trains-data.js');
-        const days = Number(/isNoticeExpired\(NOTICE_DATE, (\d+)\)/.exec(IIFE)?.[1]);
-        const [, d, mon, y] = /** @type {RegExpExecArray} */ (/NOTICE_DATE = '(\d+) (\w{3}) (\d{4})'/.exec(IIFE));
-        const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].indexOf(mon);
-        const lastDay = new Date(Number(y), month, Number(d) + days);      // calendar days, so a clock change cannot move it
-        const [cy, cm, cd] = CHANGE_DATE.split('-').map(Number);
-        assert.deepEqual([lastDay.getFullYear(), lastDay.getMonth() + 1, lastDay.getDate()], [cy, cm, cd]);
+    test('it is offered to the end of 31 October, the Year to Date notice\'s last day too (owner, 22 Oct 2026)', () => {
+        // It shipped running 53 days to 13 December, the day the timetable starts; the owner brought
+        // it forward to end with the notice that waits behind it. A DATE, not a count from posting —
+        // the clocks go back on 25 October, and a count from the 21st would have ended at 23:00 on
+        // the 31st. That `isNoticeExpired(day, 1)` keeps all of that day is pinned in nav-panel.test.mjs.
+        assert.equal(OCTOBER_LAST_DAY, '31 Oct 2026');
+        assert.match(IIFE, /isNoticeExpired\(OCTOBER_LAST_DAY, 1\)/, 'the shared last day, not a count of its own');
+        assert.doesNotMatch(IIFE, /isNoticeExpired\(NOTICE_DATE/, 'no second end date beside the shared one');
     });
 
     test('a member who has not seen it gets it, and nothing is flagged until they act', async () => {
@@ -482,5 +525,126 @@ describe('6 · the timetable notice: a one-off from the start, until the timetab
         await settleAccess();
         assert.equal(_openedViaHelper.length, 0);
         assert.deepEqual(_writes, []);
+    });
+});
+
+
+describe('7 · the Year to Date notice: the load AFTER the timetable one, to members the Pay Calculator prices (v24.86)', () => {
+    // Owner request, 22 Oct 2026: teach the Pay Calculator's Year to Date figures, link to the card,
+    // and only "the time after the trains app notice". Organised by what a wrong answer costs:
+    // arriving on the SAME load stacks two notices on one visit (what the owner asked to avoid);
+    // arriving at a Dispatcher or a manager advertises a page that refuses them; never arriving at
+    // all means the colleague who would gain most from the figures is never told they exist.
+    const YTD   = /** @type {{ overlay: string, audience: string, follows: string|null }} */ (NOTICES.find(n => n.overlay === 'ytdNoticeLb'));
+    const TT    = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'timetableNoticeLb'));
+    const DONE  = DONE_KEY_OF(YTD);
+    const GO_ID = 'ytdNoticeGo';
+    const IIFE  = IIFE_OF('ytdNoticeLb');
+    /** A device whose earlier load dismissed the timetable notice, with a CEA signed in. */
+    const SHOWN = { accessType: /** @type {const} */ ('named'), present: [YTD.overlay, GO_ID],
+                    store: { [DONE_KEY_OF(TT)]: '1' } };
+    const ytdOpened = () => _openedViaHelper.some(lb => lb._cfg.overlay.id === YTD.overlay);
+
+    test('it is in the matrix, addressed to members, with its own key, no snooze, behind the REAL timetable key', () => {
+        assert.ok(YTD, 'found by the same pattern as every other notice');
+        assert.equal(YTD.audience, 'members', 'it is about your pay — on the PIN it addresses nobody');
+        assert.match(DONE, /^myb_notice_ytd_figures_2026_done$/);
+        assert.doesNotMatch(IIFE, /SNOOZE_KEY/, 'a one-off declares no snooze');
+        // FOLLOWS restates the timetable notice's key. A renamed key on either side would leave this
+        // notice waiting for a flag nothing writes — silently, for as long as it is live.
+        assert.equal(YTD.follows, DONE_KEY_OF(TT));
+        assert.match(IIFE, /isNoticeExpired\(OCTOBER_LAST_DAY, 1\)/, 'it ends with the timetable notice');
+    });
+
+    test('NOT on the load that dismisses the timetable notice — even after that notice is closed', async () => {
+        await wire({ accessType: 'named', present: [TT.overlay, YTD.overlay, GO_ID] });
+        await settleAccess();
+        const tt = _openedViaHelper.find(lb => lb._cfg.overlay.id === TT.overlay);
+        assert.ok(tt, 'the timetable notice opens first');
+        tt._cfg.onClose();                                   // dismissed: its flag is written now…
+        assert.deepEqual(_writes, [[DONE_KEY_OF(TT), '1']]);
+        mock.timers.tick(10_000);                            // …and nothing follows it up this visit
+        await drain();
+        assert.equal(ytdOpened(), false, 'the follower was never wired on this load');
+    });
+
+    test('the load after, it opens — and nothing is flagged until the member acts', async () => {
+        await wire(SHOWN);
+        await settleAccess();
+        assert.equal(ytdOpened(), true);
+        assert.deepEqual(_writes, []);
+    });
+
+    test('for a CES too: the grade the Pay Calculator prices is the test, not one role', async () => {
+        await wire({ ...SHOWN, session: { name: 'F. Mohamed' } });   // a CES on the roster
+        await settleAccess();
+        assert.equal(ytdOpened(), true);
+    });
+
+    test('never to a member the Pay Calculator turns away — and never flagged for them', async () => {
+        // Its own refusal is `gradeForRole`; the same function decides here. A refused member is left
+        // unflagged, like an out-of-audience device: the notice is not theirs to have seen.
+        for (const name of ['D. Minto', 'S. Stewart', 'Z. Nobody']) {          // Dispatcher · manager · not on the roster
+            await wire({ ...SHOWN, session: { name } });
+            await settleAccess();
+            assert.equal(ytdOpened(), false, `${name}: not offered`);
+            assert.deepEqual(_writes, [], `${name}: not flagged`);
+        }
+    });
+
+    test('whose calculator it is, is read when the notice OPENS — a front-door sign-in on this load', async () => {
+        // At wiring time a member signing in at the Calendar's front door has no session yet. Read
+        // then, the notice would be refused on exactly the load they signed in on.
+        await wire({ ...SHOWN, session: null });
+        _session = { name: 'G. Miller' };                    // signed in before access is decided
+        await settleAccess();
+        assert.equal(ytdOpened(), true);
+    });
+
+    test('every close — the ×, the backdrop, Escape, "Not now" — marks it done, and nothing else', async () => {
+        await wire(SHOWN);
+        await settleAccess();
+        /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === YTD.overlay))._cfg.onClose();
+        assert.deepEqual(_writes, [[DONE, '1']]);
+    });
+
+    test('taking the link to the Year to Date card marks it done too', async () => {
+        await wire(SHOWN);
+        await settleAccess();
+        const go = _listeners.get(`${GO_ID}:click`);
+        assert.ok(go, `the link (#${GO_ID}) has a click handler`);
+        go();
+        assert.deepEqual(_writes, [[DONE, '1']]);
+    });
+
+    test('archived on OPEN, so the drawer keeps it after the link has taken the member away', async () => {
+        await wire(SHOWN);
+        await settleAccess();
+        /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === YTD.overlay))._cfg.onOpen();
+        assert.deepEqual(_archived.map(n => [n.id, n.section, n.date]), [['ytd-figures-2026', 'Pay', '22 Oct 2026']]);
+    });
+
+    test('past 31 October, a device that never saw it is flagged and shown nothing', async () => {
+        await wire({ ...SHOWN, expired: true });
+        await settleAccess();
+        assert.equal(ytdOpened(), false);
+        assert.deepEqual(_writes, [[DONE, '1']]);
+    });
+
+    test('once done, it stays done', async () => {
+        await wire({ ...SHOWN, store: { ...SHOWN.store, [DONE]: '1' } });
+        await settleAccess();
+        assert.equal(ytdOpened(), false);
+        assert.deepEqual(_writes, []);
+    });
+
+    test('its link names the card the Pay Calculator opens by that name', () => {
+        // The journey itself is e2e (paycalc.spec.js); this catches a rename on either page.
+        const page = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+        const href = /id="ytdNoticeGo"/.test(page) && /href="\.\/paycalc\.html#(\w+)" id="ytdNoticeGo"/.exec(page)?.[1];
+        assert.equal(href, 'payslipCard');
+        assert.match(readFileSync(new URL('./paycalc.html', import.meta.url), 'utf8'), /id="payslipCard"/);
+        assert.match(readFileSync(new URL('./paycalc-app.js', import.meta.url), 'utf8'),
+            /openCardNamedByHash\('payslipCard', 'payslipCardBody', 'payslipCardToggle'\)/);
     });
 });

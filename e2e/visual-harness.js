@@ -50,6 +50,7 @@ export function dismissOneTimeOverlays(page) {
             'myb_links_welcome_seen': '1',     // links first-visit notice
             'myb_notice_al_booking_2026_done': '1',  // the live calendar notice (v23.31)
             'myb_notice_timetable_2026_done': '1',   // the new-timetable calendar notice (v24.82)
+            'myb_notice_ytd_figures_2026_done': '1', // the Year to Date calendar notice (v24.86)
         };
         for (const [k, v] of Object.entries(flags)) {
             try { localStorage.setItem(k, v); } catch { /* iOS private mode — ignore */ }

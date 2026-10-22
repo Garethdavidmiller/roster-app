@@ -190,6 +190,22 @@ left **unflagged** — not marked seen — so it arrives when that device is nex
 
 Notices on other pages need no audience: those pages already require a session.
 
+## Waiting for another notice, or for a reader known only at open time (v24.86)
+
+`ytd-figures-2026` added both, and the next notice can reuse them as they are:
+
+- **After another notice:** declare `const FOLLOWS = '<that notice's DONE_KEY>'` in the IIFE and
+  `if (!lsGet(FOLLOWS)) return;` after the expiry check. It is read at WIRING time, so the notice
+  never comes on the load where the other one is dismissed. `calendar-notices.test.mjs` pins
+  `FOLLOWS` equal to the other IIFE's `DONE_KEY` and gives followers matrix rows of their own.
+- **For a reader known only once access is decided** (e.g. "would the Pay Calculator price this
+  member?"): pass a third argument, `_openWhenAudienceAllows(lb, 'members', () => …)`. It is read
+  after the audience check, at open time, because a front-door sign-in has no session at wiring
+  time. A refusal leaves the notice unflagged, exactly like an out-of-audience device.
+- **Ending on a date rather than after N days:** `isNoticeExpired('<last day>', 1)` offers the whole
+  of that day and stops at the next midnight. A count from posting drifts by an hour across a clock
+  change.
+
 ## Rules
 
 | Rule | Value |

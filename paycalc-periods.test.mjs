@@ -72,8 +72,11 @@ mock.module('./ls.js', {
     },
 });
 
+// The REAL role → grade rule (roster-data.js since v24.86), so the mock cannot restate it.
+const { gradeForRole: _realGradeForRole } = await import('./roster-data.js?real');
 mock.module('./roster-data.js', {
     namedExports: {
+        gradeForRole:    _realGradeForRole,
         teamMembers:     _teamMembersData,
         APP_VERSION:     '13.00',
         CONFIG:          { ADMIN_NAMES: [], LINKS_DESIGNERS: [], MAX_YEAR: 2027, MIN_YEAR: 2025 },

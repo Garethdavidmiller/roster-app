@@ -51,7 +51,7 @@ import { isDataEmpty, calcHPP, updatePriorHpp, resolveHppForPeriod, applyHppMode
 import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent, applyBpMode } from './paycalc-backpay.js';
 import { hppTaxYearForPayslip } from './paycalc-hpp-schedule.js';
 import { initNavPanel } from './nav-panel.js';
-import { initCardCollapse, createLightbox } from './overlay.js';
+import { initCardCollapse, createLightbox, openCardNamedByHash } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
@@ -1812,6 +1812,8 @@ export function init() {
     ], { createLightbox });
 
     initTransferCard();
+    // The Calendar's Year to Date notice links to #payslipCard (v24.86): open that card, held in view.
+    openCardNamedByHash('payslipCard', 'payslipCardBody', 'payslipCardToggle');
     // Pay data is localStorage-only and evictable until asked otherwise — see ls.js (v22.13).
     requestPersistentStorage(pcPrefix());
     // The year card's fill control (v22.06). After a bulk fill: reload the visible form ONLY if

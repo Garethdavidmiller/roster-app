@@ -691,6 +691,24 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    test('the Year to Date notice open (calendar) — the Pay badge on the glass (v24.86)', async ({ page }) => {
+        // The green Pay badge under white type had never been scanned on any page — the Pay page's own
+        // notices are suppressed in this suite. Members only, and only on a load AFTER the timetable
+        // notice was dismissed: the seeders mark that one done, so clearing this notice's flag alone
+        // is the whole setup. A CEA, because the notice is offered only where the Pay Calculator prices.
+        await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await seedMemberSession(page, 'G. Miller');
+        await seedMember(page);
+        await clearNoticeFlags(page, ['myb_notice_ytd_figures_2026_done']);
+        await page.goto('/');
+        await expect(page.locator('.calendar-day').first()).toBeVisible();
+        await expect(page.locator('#ytdNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await page.waitForTimeout(600);      // let the fade finish — mid-transition is the bug
+        const v = await scan(page, { exclude: ['.other-month'] });
+        expect(v.length, report(v)).toBe(0);
+    });
+
     // The install strip carries the app's only text colours composited over a TRANSLUCENT white
     // overlay on the navy canvas — `--on-navy-raised` under an rgba white body and a fainter rgba
     // white steps line. Contrast there is decided by what is behind it, so no other page's scan
