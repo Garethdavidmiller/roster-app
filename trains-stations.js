@@ -23,12 +23,24 @@
  * counting only the trains that happen to end there and calling that the service. A short count
  * presented as the answer is the failure this rule exists to prevent.
  *
- * Every figure is in MARYLEBONE time — when a train leaves, or gets in — because that is the clock
- * the people using this page stand under. Journey minutes are the one figure measured at the other
- * station, and need that train's stops.
+ * ── EVERY TIME IS WHERE THE PASSENGER GETS ON ──────────────────────────────────────────────────
+ *
+ * Going there, that is Marylebone: when a train leaves. Coming back, it is the station on the card —
+ * when the train leaves THERE (`boardingTime`), with its time into Marylebone as small print. Until
+ * v24.83 coming back was measured at Marylebone too, and a train that kept its London arrival but
+ * left Banbury ten minutes sooner read "No change" — to the one person it mattered to, a missed
+ * train. Journey minutes are measured between the two ends either way, and need the train's stops.
+ *
+ * ── ONE REAL DAY ────────────────────────────────────────────────────────────────────────────────
+ *
+ * Today's weekdays are not all alike: a few trains run only on Mondays and Fridays and their
+ * partners only Tuesday to Thursday. Counted row by row, one train was two, and "146 a weekday" was
+ * a day that never happens. So every COUNT is of one real day (`aRealDay`) — a weekday's is a
+ * Tuesday-to-Thursday's, three days of five — while a station's train list still shows both
+ * versions, each with its days.
  */
 
-import { serviceMinutes, alignTimes, LINES, lineDepth, PATTERN_HOURS, MAX_SHIFT_MIN } from './trains-change.js';
+import { serviceMinutes, alignTimes, compareRoutes, LINES, lineDepth, PATTERN_HOURS, MAX_SHIFT_MIN } from './trains-change.js';
 import { STATION_ORDER } from './trains-data.js';
 
 /** @typedef {import('./trains-change.js').TrainRow} TrainRow */
@@ -37,16 +49,41 @@ import { STATION_ORDER } from './trains-data.js';
 /**
  * @typedef {object} StationSummary
  * @property {number} total        trains in the day
- * @property {number} perHour      off-peak trains an hour (PATTERN_HOURS), rounded to the nearest whole
- * @property {[number, number]} hourRange  the fewest and the most trains in any one off-peak hour — shown
+ * @property {number[]} hourCounts trains in each daytime hour (PATTERN_HOURS), first hour first
+ * @property {number} daytime      trains in the daytime window altogether
+ * @property {[number, number]} hourRange  the fewest and the most trains in any one daytime hour — shown
  *                                 to a reader, because an average of 2 hid two hours with only 1 train
- * @property {number} typical      the trains in a TYPICAL off-peak hour — the most common count (a tie goes to
- *                                 the higher). What the card says first; the range is its small print
- * @property {number[]} minutes    minutes past the hour, at Marylebone, that repeat in most off-peak hours
+ * @property {number|null} typical the trains in a TYPICAL daytime hour — a count MOST of the hours share —
+ *                                 or null when no count does (`rateWords` then gives the range). A tie
+ *                                 went to the higher until v24.83, which made 3, 3, 2, 2, 1, 1 "usually 3"
+ * @property {number[]} minutes    minutes past the hour, at the boarding station, that repeat in most daytime hours
  * @property {number|null} fastest quickest journey in minutes, or null when no train's stop times are known
- * @property {string|null} first   first train of the railway day, Marylebone time
- * @property {string|null} last    last train of the railway day, Marylebone time
+ * @property {string|null} first   first train of the railway day, at the boarding station
+ * @property {string|null} last    last train of the railway day, at the boarding station
  */
+
+/**
+ * The trains of one real day of this kind (see the header): a weekday's figures are a Tuesday to
+ * Thursday's, so a Mondays-and-Fridays-only train ('MFO') and a Wednesdays-only one ('WO') are left
+ * out of every count. A day with no exceptions is returned whole.
+ * @param {TrainRow[]} rows
+ * @returns {TrainRow[]}
+ */
+export const aRealDay = (rows) => rows.filter(r => r[3] !== 'MFO' && r[3] !== 'WO');
+
+/**
+ * When a passenger gets on (see the header): leaving Marylebone, the train's time there; coming back,
+ * its time at `crs` — the departure, from its stops — or its Marylebone time when its stops are not
+ * known.
+ * @param {TrainRow} row
+ * @param {string} crs
+ * @param {'dep'|'arr'} dir
+ * @returns {string}
+ */
+export function boardingTime(row, crs, dir) {
+    if (dir === 'dep') return row[0];
+    return parseStops(row).find(s => s.crs === crs)?.time ?? row[0];
+}
 
 /**
  * A row's stops as `[{ crs, time }]`. Empty when they are not known.
@@ -132,26 +169,26 @@ export function decemberKnown(nowRows, decRows, crs) {
  * @returns {StationSummary}
  */
 export function summarise(rows, crs, dir) {
-    const here = callingAt(rows, crs).sort((a, b) => serviceMinutes(a[0]) - serviceMinutes(b[0]));
+    const at = (/** @type {TrainRow} */ r) => boardingTime(r, crs, dir);
+    const here = callingAt(aRealDay(rows), crs).sort((a, b) => serviceMinutes(at(a)) - serviceMinutes(at(b)));
     const hours = PATTERN_HOURS.to - PATTERN_HOURS.from;
-    const inWindow = here.filter((r) => {
-        const h = Number(r[0].slice(0, 2));
-        return h >= PATTERN_HOURS.from && h < PATTERN_HOURS.to;
-    });
+    const hourOf = (/** @type {TrainRow} */ r) => Number(at(r).slice(0, 2));
+    const inWindow = here.filter((r) => hourOf(r) >= PATTERN_HOURS.from && hourOf(r) < PATTERN_HOURS.to);
     /** @type {Map<number, Set<number>>} */
     const seen = new Map();
     for (const r of inWindow) {
-        const h = Number(r[0].slice(0, 2)), m = Number(r[0].slice(3, 5));
+        const m = Number(at(r).slice(3, 5));
         if (!seen.has(m)) seen.set(m, new Set());
-        /** @type {Set<number>} */ (seen.get(m)).add(h);
+        /** @type {Set<number>} */ (seen.get(m)).add(hourOf(r));
     }
     const need = Math.floor(hours / 2) + 1;
-    const perHourCounts = Array.from({ length: hours }, (_, i) =>
-        inWindow.filter(r => Number(r[0].slice(0, 2)) === PATTERN_HOURS.from + i).length);
+    const hourCounts = Array.from({ length: hours }, (_, i) => inWindow.filter(r => hourOf(r) === PATTERN_HOURS.from + i).length);
     /** @type {Map<number, number>} */
     const freq = new Map();
-    for (const n of perHourCounts) freq.set(n, (freq.get(n) ?? 0) + 1);
-    const typical = [...freq.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]?.[0] ?? 0;
+    for (const n of hourCounts) freq.set(n, (freq.get(n) ?? 0) + 1);
+    // TYPICAL means most of the hours: a count only half of them share is not what a passenger meets.
+    const [mode, times] = [...freq.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0] ?? [0, 0];
+    const typical = times > hours / 2 ? mode : null;
     const minutes = [...seen.entries()].filter(([, hs]) => hs.size >= need).map(([m]) => m).sort((a, b) => a - b);
     const journeys = here.flatMap((r) => {
         const stop = parseStops(r).find(s => s.crs === crs);
@@ -161,13 +198,14 @@ export function summarise(rows, crs, dir) {
     }).filter(n => n > 0);
     return {
         total: here.length,
-        perHour: Math.round(inWindow.length / hours),
-        hourRange: [Math.min(...perHourCounts), Math.max(...perHourCounts)],
+        hourCounts,
+        daytime: inWindow.length,
+        hourRange: [Math.min(...hourCounts), Math.max(...hourCounts)],
         typical,
         minutes,
         fastest: journeys.length ? Math.min(...journeys) : null,
-        first: here[0]?.[0] ?? null,
-        last: here[here.length - 1]?.[0] ?? null,
+        first: here.length ? at(here[0]) : null,
+        last: here.length ? at(here[here.length - 1]) : null,
     };
 }
 
@@ -192,41 +230,124 @@ export function stationView(nowRows, decRows, crs, dir) {
     const byTime = (/** @type {TrainRow[]} */ rs) => [...rs].sort((a, b) => serviceMinutes(a[0]) - serviceMinutes(b[0]));
     if (decemberKnown(nowRows, decRows, crs)) {
         const dec = summarise(decRows, crs, dir);
-        const trains = alignTimes(byTime(callingAt(nowRows, crs)), byTime(callingAt(decRows, crs)));
-        return { crs, now, dec, trains, ending: null, verdict: verdictFor(now, dec, trains) };
+        const trains = stationTrains(nowRows, decRows, crs, dir);
+        return { crs, now, dec, trains, ending: null, verdict: verdictFor(now, dec, trains, dir) };
     }
     const eNow = endingAt(nowRows, crs), eDec = endingAt(decRows, crs);
-    if (!eNow.length && !eDec.length) return { crs, now, dec: null, trains: null, ending: null, verdict: verdictFor(now, null, null) };
+    if (!eNow.length && !eDec.length) return { crs, now, dec: null, trains: null, ending: null, verdict: verdictFor(now, null, null, dir) };
     const ending = {
         now: summarise(eNow, crs, dir), dec: summarise(eDec, crs, dir),
         trains: alignTimes(byTime(eNow), byTime(eDec)), through: now.total - eNow.length,
     };
-    return { crs, now, dec: null, trains: null, ending, verdict: verdictFor(ending.now, ending.dec, ending.trains) };
+    return { crs, now, dec: null, trains: null, ending, verdict: verdictFor(ending.now, ending.dec, ending.trains, dir) };
+}
+
+/**
+ * @typedef {PairedTrain & { nowAt?: string, decAt?: string, nowIn?: string, decIn?: string, farShift?: number, atShift?: number }} StationTrain
+ *   nowAt / decAt — when the passenger gets on (`boardingTime`); coming back, nowIn / decIn are the
+ *   times into Marylebone, for the small print. farShift — for a train kept at this station, how far
+ *   the OTHER end moved (its arrival there going out, into Marylebone coming back), so a train that
+ *   leaves on time but gets in later is not called "No change". atShift — for a train whose end
+ *   moved, how far its time HERE moved too
+ */
+
+/**
+ * Every train that calls at `crs`, today and from the change, as ONE comparison seen from the station.
+ *
+ * WHICH TRAIN BECOMES WHICH is decided once, for the whole line (`compareRoutes`): each route's trains
+ * aligned on their own, Monday-and-Friday versions folded onto their partner, a train that now goes
+ * somewhere else linked across routes. The time lookup reads the same answer, so the two can no
+ * longer disagree — until v24.83 a station card aligned only its own trains, by time alone, and
+ * told a member the Mondays-and-Fridays 17:37 "No longer runs" while the lookup said "4 mins earlier
+ * (17:33)" of the same train.
+ *
+ * Then each pair is read AT this station, because a train can keep running and stop calling here, or
+ * start calling here: 'passes' — it still runs, it no longer stops here; 'calls' — it ran, and now
+ * stops here. "No longer runs" and "New train" are kept for trains that really go or come.
+ *
+ * Coming back, each time is the train's departure from `crs` and a retiming is measured there — see
+ * the header for why.
+ * @param {TrainRow[]} nowRows   one day and direction, every train
+ * @param {TrainRow[]} decRows
+ * @param {string} crs
+ * @param {'dep'|'arr'} dir
+ * @returns {StationTrain[]}  in boarding-time order
+ */
+export function stationTrains(nowRows, decRows, crs, dir) {
+    const key = (/** @type {string} */ time, /** @type {string|undefined} */ end, /** @type {string} */ days = '') => `${time} ${end} ${days}`;
+    const nowBy = new Map(nowRows.map(r => [key(r[0], r[1], r[3]), r]));
+    const decBy = new Map(decRows.map(r => [key(r[0], r[1]), r]));          // a pair carries no December days
+    const calls = (/** @type {TrainRow|undefined} */ r) => !!r && callsOf(r).includes(crs);
+    /** @type {StationTrain[]} */
+    const out = [];
+    for (const t of compareRoutes(nowRows, decRows).flatMap(r => r.trains)) {
+        if (t.kind === 'rerouted' && t.side === 'new') continue;               // its 'old' side carries both trains
+        const n = t.now ? nowBy.get(key(t.now, t.nowTo, t.days)) : undefined;
+        const d = t.dec ? decBy.get(key(t.dec, t.decTo)) : undefined;
+        const nHere = calls(n), dHere = calls(d);
+        if (!nHere && !dHere) continue;
+        /** @type {StationTrain} */
+        const s = { ...t };
+        if (nHere && !dHere) Object.assign(s, d ? { kind: 'passes' } : { kind: 'gone' }, { dec: null, decTo: undefined, shift: 0 });
+        if (!nHere && dHere) Object.assign(s, n ? { kind: 'calls' } : { kind: 'new' }, { now: null, nowTo: undefined, days: '', shift: 0 });
+        if (s.now && n) s.nowAt = boardingTime(n, crs, dir);
+        if (s.dec && d) s.decAt = boardingTime(d, crs, dir);
+        if (dir === 'arr') {
+            if (s.now) s.nowIn = s.now;
+            if (s.dec) s.decIn = s.dec;
+        }
+        // A train whose far end moved can still have moved HERE — Banbury's 08:09 into London becomes
+        // the 08:08 from Stourbridge — and here is where the passenger stands.
+        if ((s.kind === 'terminus' || s.kind === 'rerouted') && nHere && dHere && s.nowAt && s.decAt) {
+            s.atShift = serviceMinutes(s.decAt) - serviceMinutes(s.nowAt);
+        }
+        const kept = s.kind === 'same' || s.kind === 'earlier' || s.kind === 'later';
+        if (kept && n && d && s.nowAt && s.decAt) {
+            // A kept train's retiming is measured where the passenger gets on…
+            const shift = serviceMinutes(s.decAt) - serviceMinutes(s.nowAt);
+            s.shift = shift;
+            s.kind = shift === 0 ? 'same' : shift > 0 ? 'later' : 'earlier';
+            // …and where it gets them to is the second thing they ask: "Same time, gets there 5 mins later".
+            const end = (/** @type {TrainRow} */ r) => dir === 'dep' ? parseStops(r).find(x => x.crs === crs)?.time : r[0];
+            const a = end(n), b = end(d);
+            if (a && b) s.farShift = serviceMinutes(b) - serviceMinutes(a);
+        }
+        out.push(s);
+    }
+    const at = (/** @type {StationTrain} */ s) => serviceMinutes(/** @type {string} */ (s.nowAt ?? s.decAt ?? s.now ?? s.dec));
+    return out.sort((a, b) => at(a) - at(b));
 }
 
 /**
  * One sentence a member of staff can repeat. The order is the order of what matters to a passenger:
  * whether there is a service at all, how often, how many, then when. Every claim is one the figures
  * table beside it shows, so the sentence can never say something the numbers do not.
+ * Coming back, the minutes are when trains leave the station on the card (`boardingTime`).
  * @param {StationSummary} now
  * @param {StationSummary|null} dec
  * @param {PairedTrain[]|null} trains
+ * @param {'dep'|'arr'} [dir]
  * @returns {{ tone: 'same'|'more'|'less'|'moved'|'unknown', text: string }}
  */
-export function verdictFor(now, dec, trains) {
+export function verdictFor(now, dec, trains, dir = 'dep') {
     if (!dec) return { tone: 'unknown', text: 'December not known yet: Chiltern has not published where its December trains stop. Today’s figures are below.' };
+    // No train either side — a station that only some days reach. It used to say "No change." over a
+    // table of noughts, which a reader takes for "the trains carry on as they are".
+    if (!now.total && !dec.total) {
+        return { tone: 'same', text: dir === 'dep'
+            ? 'No direct trains from Marylebone on this day, now or from 13 December.'
+            : 'No direct trains to Marylebone on this day, now or from 13 December.' };
+    }
     if (!now.total && dec.total) {
         return { tone: 'more', text: dec.total === 1
             ? `New from 13 December: one direct train, the ${dec.first}.`
             : `New from 13 December: ${dec.total} direct trains a day.` };
     }
     if (now.total && !dec.total) return { tone: 'less', text: 'No direct trains from 13 December.' };
-    if (dec.typical !== now.typical) {
-        // "usually" when either side's hours vary — the table beside says exactly how.
-        const usually = now.hourRange[0] !== now.hourRange[1] || dec.hourRange[0] !== dec.hourRange[1] ? 'usually ' : '';
-        return dec.typical > now.typical
-            ? { tone: 'more', text: `More trains off-peak: ${usually}${dec.typical} an hour, was ${now.typical}.` }
-            : { tone: 'less', text: `Fewer trains off-peak: ${usually}${dec.typical} an hour, was ${now.typical}.` };
+    if (hourChanged(now, dec)) {
+        const more = dec.daytime > now.daytime;
+        return { tone: more ? 'more' : 'less',
+            text: `${more ? 'More' : 'Fewer'} trains in the daytime: ${rateWords(dec)}, was ${rateWords(now, { short: true })}.` };
     }
     const gained = dec.total - now.total;
     if (gained) {
@@ -235,11 +356,64 @@ export function verdictFor(now, dec, trains) {
             text: `${n} ${gained > 0 ? 'more' : 'fewer'} ${trainsWord} a day: ${dec.total}, was ${now.total}.` };
     }
     if (sameRegularity(now, dec) && now.minutes.join() !== dec.minutes.join()) {
-        return { tone: 'moved', text: `Same number of trains. Off-peak times change from ${minutesWords(now.minutes)} to ${minutesWords(dec.minutes)} past the hour.` };
+        return { tone: 'moved', text: `Same number of trains. In the daytime they leave at ${minutesWords(dec.minutes)} past the hour, was ${minutesWords(now.minutes)}.` };
     }
-    const moved = (trains ?? []).filter(t => t.kind !== 'same').length;
+    // A train that leaves on time but gets there later is a change too: "No change." sat above
+    // "Fastest journey 159 → 164 min" at Cradley Heath (v24.83).
+    const moved = (trains ?? []).filter(t => t.kind !== 'same' || (/** @type {StationTrain} */ (t).farShift ?? 0) !== 0).length;
     if (moved) return { tone: 'moved', text: `Same number of trains a day, but ${moved} ${moved === 1 ? 'is' : 'are'} different — see Train by train below.` };
     return { tone: 'same', text: 'No change.' };
+}
+
+/**
+ * Whether the daytime service changed in a way a passenger meets: a different typical hour, or —
+ * where either side has none — a different description AND a different number of daytime trains
+ * (the same trains spread differently is left to the daily count and the times). Tone follows the
+ * daytime total, so the colour can never say "more" of a sentence about fewer.
+ * @param {StationSummary} now
+ * @param {StationSummary} dec
+ */
+export function hourChanged(now, dec) {
+    if (now.daytime === dec.daytime) return false;
+    if (now.typical !== null && dec.typical !== null) {
+        return now.typical !== dec.typical && Math.sign(dec.typical - now.typical) === Math.sign(dec.daytime - now.daytime);
+    }
+    return rateWords(now) !== rateWords(dec);
+}
+
+/**
+ * The daytime service as a passenger would be told it: "2 an hour", "usually 2 an hour" (some hours
+ * differ — the table says how), "1 to 3 an hour" (no count is shared by most hours), "about 1 every 2
+ * hours". `short` drops the "an hour" a second figure in the same sentence does not need.
+ * @param {StationSummary} s
+ * @param {{ short?: boolean }} [opts]
+ * @returns {string}
+ */
+export function rateWords(s, { short = false } = {}) {
+    const [lo, hi] = s.hourRange;
+    const unit = short ? '' : ' an hour';
+    if (s.typical === null) return lo === 0 && hi === 1 ? 'about 1 every 2 hours' : `${lo} to ${hi}${unit}`;
+    if (s.typical === 0) return lo === hi ? `none${short ? '' : ' in the daytime'}` : 'hardly any';
+    return `${lo === hi ? '' : 'usually '}${s.typical}${unit}`;
+}
+
+/**
+ * The stops a kept train gains and loses on the way — "it does not stop at Kings Sutton". The time
+ * lookup said only where a train ENDS, so the 10:36 read "Will run to Birmingham Snow Hill" and said
+ * nothing of Kings Sutton, which it stops calling at (v24.83). Stations past either train's end are
+ * not listed: a train that runs further, or ends sooner, says so in its own words.
+ * @param {TrainRow} nowRow
+ * @param {TrainRow} decRow
+ * @returns {{ lost: string[], gained: string[] }}  station codes, in the order the train reaches them
+ */
+export function stopChanges(nowRow, decRow) {
+    if (!stopsKnown(nowRow) || !stopsKnown(decRow)) return { lost: [], gained: [] };
+    const a = callsOf(nowRow), b = callsOf(decRow);
+    const before = (/** @type {string[]} */ calls, /** @type {string} */ end) => calls.slice(0, Math.max(0, calls.indexOf(end)));
+    return {
+        lost: before(a, a.includes(decRow[1]) ? decRow[1] : nowRow[1]).filter(c => !b.includes(c)),
+        gained: before(b, b.includes(nowRow[1]) ? nowRow[1] : decRow[1]).filter(c => !a.includes(c)),
+    };
 }
 
 /**
@@ -254,28 +428,32 @@ export function verdictFor(now, dec, trains) {
 const sameRegularity = (now, dec) => now.minutes.length > 0 && now.minutes.length === dec.minutes.length;
 
 /**
- * Trains an hour as the card states it: the typical hour first, the exception in brackets — "2",
- * "2 (1 in some hours)", "1 (2 in some hours)". A rounded average said "2" of a station with two
- * one-train hours and "1" of one with two two-train hours; neither is what a passenger meets.
+ * Trains an hour as the card's figures cell states it: the typical hour, with the exception as small
+ * print (`hourNote`) — "2", "2 (1 in some hours)", "1 (none in one hour)" — or, where no count is
+ * shared by most hours, the range itself: "1 to 3", "1 every 2 hours". A rounded average said "2" of a
+ * station with two one-train hours; a tie broken upwards said "3" of 3, 3, 2, 2, 1, 1 (v24.83).
  * @param {StationSummary} s
  * @returns {string}
  */
 export function hourWords(s) {
+    const [lo, hi] = s.hourRange;
+    if (s.typical === null) return lo === 0 && hi === 1 ? '1 every 2 hours' : `${lo} to ${hi}`;
     const note = hourNote(s);
     return note ? `${s.typical} (${note})` : String(s.typical);
 }
 
 /**
- * The exception to the typical hour — "1 in some hours" — or '' when every hour is the same. The
- * card prints it as small print under the number; `hourWords` is the same thing in one line.
+ * The exception to the typical hour — "1 in some hours", "none in one hour" — or '' when every hour
+ * is the same or there is no typical hour.
  * @param {StationSummary} s
  * @returns {string}
  */
 export function hourNote(s) {
     const [lo, hi] = s.hourRange, t = s.typical;
-    if (lo === hi) return '';
-    if (lo < t && hi > t) return `${lo} to ${hi} in some hours`;
-    return `${lo < t ? lo : hi} in some hours`;
+    if (lo === hi || t === null) return '';
+    const odd = s.hourCounts.filter(n => n !== t).length;
+    const other = lo < t && hi > t ? `${lo} to ${hi}` : String(lo < t ? lo : hi);
+    return `${other === '0' ? 'none' : other} in ${odd === 1 ? 'one hour' : 'some hours'}`;
 }
 
 /**
@@ -299,13 +477,14 @@ const andList = (/** @type {string[]} */ ws) => ws.length < 2 ? (ws[0] ?? '') : 
 export function busiestStations(rows, n = 8) {
     /** @type {Map<string, number>} */
     const counts = new Map();
-    for (const r of rows) for (const crs of callsOf(r)) counts.set(crs, (counts.get(crs) ?? 0) + 1);
+    for (const r of aRealDay(rows)) for (const crs of callsOf(r)) counts.set(crs, (counts.get(crs) ?? 0) + 1);
     return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, n).map(([crs]) => crs);
 }
 
 /** Short forms people type for a word in a station's name, each standing for the printed word. */
 const SHORT_FORMS = /** @type {Readonly<Record<string, readonly string[]>>} */ ({
     birmingham: ['bham', 'brum'], cross: ['x'], parkway: ['pkwy', 'pway'], junction: ['jn', 'jct'],
+    great: ['gt'], street: ['st'], upon: ['on'],
 });
 
 /** A name or a query as the words a person types: lower case, "&" as "and", no apostrophes or hyphens. */
@@ -325,8 +504,9 @@ const words = (/** @type {string} */ s) => s.toLowerCase().replace(/&/g, ' and '
  */
 export function matchStations(stations, typed, n = 6) {
     const q = typed.trim().toLowerCase();
-    if (!q) return [];
     const qWords = words(q);
+    // Nothing but punctuation is nothing typed: an empty word list "matches" every name (v24.83).
+    if (!qWords.length) return [];
     const compact = q.replace(/[^a-z]/g, '');
     /** @type {{ crs: string, name: string, rank: number }[]} */
     const hits = [];
@@ -342,10 +522,14 @@ export function matchStations(stations, typed, n = 6) {
             return true;
         });
         const initials = tokens.reduce((acc, forms) => acc.flatMap(a => forms.map(f => a + f[0])), ['']);
+        // The name with its spaces gone, in every short form — so "snowhill", "moorst", "highwycombe"
+        // and "bhammoor" find what "snow hill", "moor st" and "high wycombe" already did.
+        const runTogether = tokens.reduce((acc, forms) => acc.flatMap(a => forms.map(f => a + f.replace(/[^a-z]/g, ''))), ['']);
         const rank = crs.toLowerCase() === q ? 0
             : inOrder && first === 0 ? 1
             : inOrder ? 2
             : compact.length >= 2 && initials.includes(compact) ? 3
+            : compact.length >= 4 && runTogether.some(f => f.includes(compact)) ? 4
             : q.length >= 3 && words(name).join(' ').includes(q) ? 4      // "hw" is in SmetHWick; a fragment needs three letters
             : -1;
         if (rank >= 0) hits.push({ crs, name, rank });
@@ -373,6 +557,10 @@ export function matchStations(stations, typed, n = 6) {
  * @returns {{ crs: string, tone: 'more'|'less'|'moved', text: string, score: number }[]}
  */
 export function headlineChanges(nowRows, decRows, stations) {
+    // One real day (see the header): a train that runs Mondays and Fridays, and its Tuesday-to-
+    // Thursday partner, are one train — counted twice, they put Haddenham's weekday at 44 trains.
+    nowRows = aRealDay(nowRows);
+    decRows = aRealDay(decRows);
     const places = new Set([...nowRows, ...decRows].flatMap(callsOf));
     const byTime = (/** @type {TrainRow[]} */ rs) => [...rs].sort((a, b) => serviceMinutes(a[0]) - serviceMinutes(b[0]));
     /** @type {Headline[]} */
@@ -395,11 +583,11 @@ export function headlineChanges(nowRows, decRows, stations) {
         if (known && now.total && !dec.total) { out.push({ crs, tone: 'less', score: 100 + now.total, parts: [], sig, text: `No more direct trains to ${name}` }); continue; }
         /** @type {HeadlinePart[]} */
         const parts = [];
-        if (dec.typical !== now.typical) {
-            const more = dec.typical > now.typical;
-            const usually = now.hourRange[0] !== now.hourRange[1] || dec.hourRange[0] !== dec.hourRange[1] ? 'usually ' : '';
-            const tail = `${usually}${dec.typical} an hour off-peak (was ${now.typical})`;
-            parts.push({ kind: 'hour', named: `${more ? 'More' : 'Fewer'} trains to ${name}: ${tail}`, tail, tone: more ? 'more' : 'less', score: 80 + Math.abs(dec.typical - now.typical) });
+        if (hourChanged(now, dec)) {
+            const more = dec.daytime > now.daytime;
+            const tail = `${rateWords(dec)} in the daytime (was ${rateWords(now, { short: true })})`;
+            const step = now.typical !== null && dec.typical !== null ? Math.abs(dec.typical - now.typical) : 1;
+            parts.push({ kind: 'hour', named: `${more ? 'More' : 'Fewer'} trains to ${name}: ${tail}`, tail, tone: more ? 'more' : 'less', score: 80 + step });
         } else if (sameRegularity(now, dec) && now.minutes.join() !== dec.minutes.join()) {
             const tail = `leave at ${minutesWords(dec.minutes)} past the hour (was ${minutesWords(now.minutes)})`;
             parts.push({ kind: 'minutes', named: `Trains to ${name} ${tail}`, tail, tone: 'moved', score: 60 });
@@ -411,7 +599,10 @@ export function headlineChanges(nowRows, decRows, stations) {
                 tail: `${n} ${more ? 'more' : 'fewer'} a day (${dec.total}, was ${now.total})`, tone: more ? 'more' : 'less', score: 40 + n });
         }
         if (now.last && dec.last && Math.abs(serviceMinutes(dec.last) - serviceMinutes(now.last)) >= 10) {
-            parts.push({ kind: 'last', named: `Last train to ${name} now ${dec.last} (was ${now.last})`, tail: `last train ${dec.last} (was ${now.last})`, tone: 'moved', score: 30 });
+            // Never "now": read before the change, "Last train to Hatton now 21:02" named a train that
+            // does not stop there yet (v24.83). Later/earlier says which way, true on either side of it.
+            const later = serviceMinutes(dec.last) > serviceMinutes(now.last) ? 'Later' : 'Earlier';
+            parts.push({ kind: 'last', named: `${later} last train to ${name}: ${dec.last} (was ${now.last})`, tail: `${later.toLowerCase()} last train, ${dec.last} (was ${now.last})`, tone: 'moved', score: 30 });
         }
         if (!parts.length) continue;
         parts.sort((a, b) => b.score - a.score);
@@ -426,11 +617,17 @@ export function headlineChanges(nowRows, decRows, stations) {
         if (!line || line.station === h.crs) continue;
         const parent = out.find(p => p.crs === line.station);
         if (!parent) continue;
+        // The clause below carries a daily count and nothing else, so anything more the onward station
+        // says must already be its line's own words — the same last train is one fact. Otherwise it
+        // keeps its own line: a Snow Hill last train the line's sentence does not mention went with it
+        // (v24.83).
+        if (!h.parts.every(p => p.kind === 'daily' || parent.parts.some(q => q.kind === p.kind && q.tail === p.tail))) continue;
         const before = summarise(nowRows, h.crs, 'dep'), after = summarise(decRows, h.crs, 'dep');
         const short = line.onward.find(o => o.station === h.crs)?.short ?? stations[h.crs] ?? h.crs;
         const diff = after.total - before.total;
         if (diff) {
-            const tail = `${Math.abs(diff)} ${diff > 0 ? 'more' : 'fewer'} go on to ${short} (${after.total}, was ${before.total})`;
+            const n = Math.abs(diff);
+            const tail = `${n} ${diff > 0 ? 'more' : 'fewer'} ${n === 1 ? 'goes' : 'go'} on to ${short} (${after.total}, was ${before.total})`;
             if (parent.parts.length) {
                 const at = parent.parts.findIndex(p => p.kind === 'daily');
                 parent.parts.splice(at === -1 ? parent.parts.length : at + 1, 0, { kind: 'onward', named: '', tail, tone: 'moved', score: 0 });
@@ -513,17 +710,38 @@ function foldSameTrains(out, nowRows, decRows, stations) {
 }
 
 /**
- * The basic hour as a stopping-pattern grid: one column per train that repeats every off-peak hour,
- * one row per station, a dot where it stops. Each column is a real train from the middle of the
- * window, so its dots are that train's stops. `known` is false for a column whose stops are not
- * published yet — its only dots are the inferred ones (`callsOf`). `via` is the Aylesbury route ('H'
- * or 'A'), so two Aylesbury columns can be told apart in the heading.
+ * @typedef {{ minute: number, end: string, via: string, known: boolean, calls: string[], some: string[], hours: number, of: number }} GridColumn
+ *   calls — every station a train in this column stops at; some — those only SOME of its hours stop
+ *   at; hours — how many of the `of` daytime hours it runs in at all
+ */
+
+/**
+ * The basic hour as a stopping-pattern grid: one column per train that leaves at the same minute in
+ * most daytime hours, one row per station, a dot where it stops.
+ *
+ * A COLUMN IS EVERY HOUR'S TRAIN, NOT ONE OF THEM. Until v24.83 each column was the train from the
+ * middle of the window, and its stops were called the hour's: the weekday :10 calls at West Ruislip
+ * in some hours and Denham Golf Club in the others, and the grid — "the one thing worth learning by
+ * heart" — showed Denham Golf Club every hour and West Ruislip never. Now a station every one of the
+ * column's trains stops at is a dot; one only some stop at is in `some`, drawn as a half dot; the
+ * column is named by the end most of its trains run to (a tie goes to the further along); and a
+ * minute that runs in fewer than all the hours says how many. `known` is false when any of its
+ * trains' stops are unpublished — then its dots are the inferred ones (`callsOf`). `via` is the
+ * Aylesbury route ('H' or 'A'), so two Aylesbury columns can be told apart in the heading.
  * @param {TrainRow[]} rows   leaving Marylebone, one day
- * @returns {{ columns: { minute: number, end: string, via: string, known: boolean, calls: string[] }[], stations: string[] }}
+ * @returns {{ columns: GridColumn[], stations: string[] }}
  */
 export function stoppingGrid(rows) {
     const hours = PATTERN_HOURS.to - PATTERN_HOURS.from;
     const need = Math.floor(hours / 2) + 1;
+    const rank = new Map(STATION_ORDER.map((c, i) => [c, i]));
+    /** The value most of `xs` share; a tie goes to the furthest along the line. @param {string[]} xs */
+    const mostly = (xs) => {
+        /** @type {Map<string, number>} */
+        const n = new Map();
+        for (const x of xs) n.set(x, (n.get(x) ?? 0) + 1);
+        return [...n.entries()].sort((a, b) => b[1] - a[1] || (rank.get(b[0]) ?? -1) - (rank.get(a[0]) ?? -1) || a[0].localeCompare(b[0]))[0][0];
+    };
     /** @type {Map<number, TrainRow[]>} */
     const byMinute = new Map();
     for (const r of rows) {
@@ -537,8 +755,15 @@ export function stoppingGrid(rows) {
         .filter(([, rs]) => new Set(rs.map(r => r[0].slice(0, 2))).size >= need)
         .sort((a, b) => a[0] - b[0])
         .map(([minute, rs]) => {
-            const mid = rs[Math.floor(rs.length / 2)];                    // a real train, mid-window
-            return { minute, end: mid[1], via: mid[2], known: stopsKnown(mid), calls: callsOf(mid) };
+            /** @type {Map<string, number>} */
+            const stopsAt = new Map();
+            for (const r of rs) for (const c of callsOf(r)) stopsAt.set(c, (stopsAt.get(c) ?? 0) + 1);
+            const calls = [...stopsAt.keys()];
+            return {
+                minute, end: mostly(rs.map(r => r[1])), via: mostly(rs.map(r => r[2])), known: rs.every(stopsKnown),
+                calls, some: calls.filter(c => /** @type {number} */ (stopsAt.get(c)) < rs.length),
+                hours: new Set(rs.map(r => r[0].slice(0, 2))).size, of: hours,
+            };
         });
     return { columns, stations: orderStations(columns.map(c => c.calls)) };
 }

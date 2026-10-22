@@ -637,7 +637,9 @@ survives; removing it is a separate decision nobody is forced into by this proce
 
 The Calendar opens for **either** a signed-in member **or** the shared staff PIN. Everything
 privileged — Admin, Settings, Operations, Links — still needs a real member sign-in; the PIN grants
-one capability and one only: *read the Calendar's override data*.
+one capability and one only: *read the Calendar's override data*. The one other page it opens is
+**Trains** (v24.84, owner, 22 Oct 2026), which reads nothing at all — the timetable is public — and
+was admitted because the staff customers ask are the station's (AUTH_AND_SESSIONS.md invariant 24).
 
 ### Why it exists
 
@@ -657,6 +659,7 @@ lets both be fixed at once.
 | Browser closed and reopened | The PIN is asked for again. That is the point — a PC left on a Windows account does not carry the roster into the next person's day. |
 | Guides | Reachable **without** the PIN. The nav drawer is never locked. |
 | Huddle, Circular, Newsletter | Need the PIN or a sign-in (v23.17). A locked tap says what to do rather than opening; a notification tap is held on the PIN card and finishes once access is given. |
+| Trains page (v24.84) | Opens with the PIN, from the drawer's 🚆 Trains pill, and the PIN is still held on the way back. Its drawer shows **Staff PIN access** and **Lock Calendar**, which locks the station and lands on the PIN card. Admin, Pay and Settings still ask for a member sign-in, and signing in there ends the PIN. A fresh browser that opens Trains directly is asked to sign in — the PIN is entered on the Calendar. |
 | A member whose sign-in has been lost from the device (v20.79) | They get **their own sign-in card**, never the PIN — see below. |
 | A slow start on a poor connection (v20.80) | A greyed-out calendar shape while the app works out what to show, rather than a blank screen. |
 
@@ -1060,3 +1063,19 @@ about it is live: it reads no network, and its times change only when somebody r
 - **Never commit the inputs.** The PDFs and the simplifier spreadsheets stay out of the repository
   (the tooling's `.gitignore` refuses them); the spreadsheets hold platforms, lengths and diagrams
   that are not passenger facts.
+- **It turns over by itself on 13 December** (v24.83). From the change the first column reads
+  "Until 12 Dec", a typed time is looked up in the timetable that is running, and a new end reads
+  "Now goes on to …"; after `DEC_VALID_UNTIL` (15 May 2027) the page says both timetables have ended.
+  Nothing to switch on the day — but check it live that morning (MAINTENANCE_CALENDAR).
+- **A weekday's figures are a Tuesday to Thursday's.** A few of today's weekday trains run only on
+  Mondays and Fridays, or only Tuesday to Thursday; counting every row counted one train twice. The
+  train lists still show both, each with its days.
+- **Coming back is timed at the station** the passenger gets on at, with the time into Marylebone
+  as small print — so a member answering "when's my train back from Banbury?" reads Banbury's time.
+- **Leaf fall.** Until 10 January Chiltern runs London-bound Amersham-line trains up to 3 minutes
+  early (its autumn timetable): today's book carries that and December's does not, so those
+  stations' cards say so coming back. `LEAF_FALL` in `build.py` — read it off Chiltern's timetable
+  page for each autumn.
+- **What the books print that a plain list of stops cannot**, and how the generator treats it —
+  pick-up-only and set-down-only stops, "arrives 8 minutes earlier", buses, weekday versions that
+  stop differently: the tooling README → "What each step knows".

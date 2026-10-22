@@ -604,6 +604,51 @@ for (const [label, url] of [['Admin', '/admin.html'], ['Settings', '/settings.ht
     });
 }
 
+// The one protected page the PIN may read (v24.84, owner, 22 Oct 2026). The loop above is the other
+// half and stays: Admin and Settings still sign the PIN out, and only auth-policy's `staffPin` flag
+// separates the two — page-contract-parity holds every coordinator to it.
+test('a viewer opens Trains from the drawer and reads it, still unlocked when it comes back', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await stubPinExchange(page);
+    await page.goto('/index.html');
+    await enterPin(page, '1234');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel .nav-panel-pill--trains').click();
+
+    await expect(page).toHaveURL(/trains\.html/);
+    await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
+    await expect(page.locator('#loginOverlay')).toHaveCount(0);
+    // The drawer is the station's, not a member's: the PIN's label and Lock, and no Sign out.
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanelMember')).toHaveText('Staff PIN access');
+    await expect(page.locator('#navLockCalendarBtn')).toBeVisible();
+    await expect(page.locator('#navPanel .nav-panel-pill--trains')).toHaveAttribute('aria-current', 'page');
+
+    // Until v24.84 arriving here signed the PIN out, so the Calendar asked for it again.
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await expect(page.locator('#calendarLock')).toHaveCount(0);
+    expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('Lock on the Trains page locks the station: the PIN card, and Trains asks for a sign-in again', async ({ page }) => {
+    await stubPinExchange(page);
+    await page.goto('/index.html');
+    await enterPin(page, '1234');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await page.goto('/trains.html');
+    await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
+
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navLockCalendarBtn').click();
+    // Back to the PIN card, as the Calendar's own Lock does: this is a machine the PIN is used on.
+    await expect(page.locator('#calLockPin')).toBeVisible();
+    await expect(page.locator('#calendarDisplay')).toBeHidden();
+    await page.goto('/trains.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+});
+
 test('Lock Calendar appears for a viewer and not for a member', async ({ page }) => {
     await stubPinExchange(page);
     await page.goto('/index.html');

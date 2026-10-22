@@ -14,8 +14,9 @@ Generates `trains-data.js` (repository root), which the Trains page (`trains.htm
 
 The December PDFs are the "Full Timetable PDF" of each line on Chiltern's website. Each table states
 its own validity, one line per kind of day: weekdays from Monday 14 December, Saturdays from
-Saturday 19 December, Sundays from Sunday 13 December. None of them mentions Christmas, so the page
-does not either; its general caveat (check the journey planner) covers it.
+Saturday 19 December, Sundays from Sunday 13 December. None of them mentions Christmas; Chiltern's
+timetable page does (see `FURTHER_CHANGES_UNTIL` below), and the page's Christmas note comes from
+there, not from the books.
 
 The `.gitignore` here refuses all of them. The spreadsheets hold lengths, platforms, unit diagrams
 and empty-stock moves: internal detail the public repository must not carry. The generator drops
@@ -41,11 +42,12 @@ December lines with
 `python3 -I docs/timetable-dec26/tooling/simplifier.py $IN/sx.xlsx $IN/so.xlsx $IN/su.xlsx $IN/dec.json`;
 `build.py` tells the two outputs apart by their shape.
 
-Then `node --test trains-change.test.mjs trains-stations.test.mjs`. The last block of the first
-holds the generated tables to facts checked by hand against the printed books — the departure
-counts, the 10:36 to Banbury running on to Birmingham, where December's 10:36 stops, the weekday
-basic hour. **If one of those moves, check the books before you change the test**: a new issue of
-the books legitimately moves them, and a parser regression looks the same.
+Then `node --test trains-change.test.mjs trains-stations.test.mjs`. The last blocks of the first
+hold the generated tables to facts checked by hand against the printed books — the departure
+counts (rows, and a real Tuesday-to-Thursday), the 10:36 to Banbury running on to Birmingham, where
+December's 10:36 stops, the weekday grid as the page draws it (`stoppingGrid`), the restricted stops
+and the weekday versions. **If one of those moves, check the books before you change the test**: a
+new issue of the books legitimately moves them, and a parser regression looks the same.
 
 ## What each step knows
 
@@ -56,11 +58,23 @@ the books legitimately moves them, and a parser regression looks the same.
   is written down — which branch follows which junction — and the source of `STATION_ORDER`.
 - **`assemble.py`** joins a train continued across pages (`e` → `f`), keeps Chiltern trains that
   start or end at Marylebone, and folds a train printed in both books into one. A Mondays-and-Fridays
-  and a not-Mondays-and-Fridays copy of the same train together run every weekday. It also keeps
+  and a not-Mondays-and-Fridays copy of the same train at the same time are ONE row — but only when
+  they stop alike (v24.83): the 17:45 to Oxford calls at High Wycombe on Mondays and Fridays and at
+  Beaconsfield on the other days, and merging them sent it to Beaconsfield every weekday. Copies that
+  stop differently stay two rows, each with its days. It also keeps
   each train's **stops with times** (`timed_stops`): leaving Marylebone, the ARRIVAL at each stop
   (the first of a printed arr/dep pair); coming in, the DEPARTURE (the last). The Stations view's
   journey times and the basic-hour grid read these. Its output is `{ trains, order }`: the trains,
   and each book's station order (`row_order`, outward direction, longest block first).
+  **The letter after a time is read, never sliced off** (v24.83, `LETTERS`): `u` (pick up only) is
+  not a stop for anyone leaving London and `s` (set down only) not one for anyone coming in, so each
+  is dropped from that direction's stops — until then nine such stops read as ordinary ones and
+  moved the counts at Banbury, Bicester North, High Wycombe and Haddenham. `c` ("Arrives 8 minutes
+  earlier") gives the arrival a passenger leaving London is told. An unknown letter stops the build:
+  a new note must be read, not dropped. A bus is excluded by its `&` under Facilities — the books
+  print CH as a bus's operator too.
+  **Not represented:** note `A` on the 21:02 to Stourbridge Junction — it also calls at Langley
+  Green, Old Hill and Lye, which no other kept train serves and which carry no times in the book.
 - **`simplifier.py`** (fallback) reads the spreadsheets' arrival and departure columns. `+` in a
   time, and a class-5 headcode, mark empty stock.
 - **`build.py`** writes each row as `[time, end, route, days, stops]`. From the books, a train in
@@ -93,3 +107,8 @@ Re-run every step, then update `SOURCES` in `build.py` to the new issue's validi
 (its timetable page said 10 January 2027 for this issue, with "significant changes over the Christmas
 and New Year period"); until then the page says Christmas and New Year are not on it. Read it off
 Chiltern's timetable page for each issue — the books do not carry it.
+`DEC_VALID_UNTIL` is the last day of the new books ("until Saturday 15 May 2027"); after it the page
+says both timetables have ended. `LEAF_FALL` is Chiltern's autumn timetable — its end date, how many
+minutes early London-bound trains run, and on which stations (all from its timetable page) — because
+today's Amersham-line book carries it and the new one does not; the page says so on those cards.
+Every date the page shows is derived from these (`dateWords`), so moving them moves every sentence.

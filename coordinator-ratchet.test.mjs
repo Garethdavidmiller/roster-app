@@ -209,6 +209,12 @@ const CAPS = {
     // here with no tie to authentication, and the same injected-handles shape documents-client.js
     // took at v21.90, so it now runs in Node against a fake Firestore.
     'firebase-client.js':       900,
+    // NEW at v24.84, a decision rather than a discovery: the station PIN reads the Trains page, and
+    // the two viewer transitions that took (`holdsStaffPin`, `signOutStaffPin`) carried session.js
+    // from 874 lines to 925. They sit beside `reconcileExpiredIdentity` and `shedCalendarViewer` on
+    // purpose — when the PIN is kept and when it is shed must be answered in ONE module, because a
+    // second home is a second place a bypass could be introduced. Measured 925, plus the headroom.
+    'session.js':              1000,
     // 1300 → 1350 at v21.29, deliberately and after extracting first. The page-ready fix added the
     // surface-selection logic, the cache-first-paint race and their reasoning; the RULE it carried
     // ("is a roster on screen?") went to calendar-data-state.js as `showsRoster`, beside the four
@@ -324,7 +330,11 @@ const CAPS = {
     'overtime-app.js':          750,   // the young one — this is the cap that matters most
     // NEW at v24.71 with the page, at its measured size plus the standard fix-sized headroom. Every
     // judgement about the timetables is trains-change.js; growth here should be rendering only.
-    'trains-app.js':            330,
+    // 330 → 400 at v24.84, a deliberate RAISE: the station PIN reads the page now, and what that
+    // added here is wiring — a second way into `start`, and the member-only steps it skips. The RULE
+    // (keep the PIN, shed any other stale identity, a member outranks it) went to session.js as
+    // `holdsStaffPin`, where session.test.mjs holds it; measured 350, plus the standard headroom.
+    'trains-app.js':            400,
     // NEW at v21.93, and the ratchet asking for a decision is exactly why it is here rather than
     // discovered later. The member form's three rules — completeness, the timed-out-submit verdict,
     // and whose write a 409 refuses — moved out of `overtime-form.js`, where they sat inside a

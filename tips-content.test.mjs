@@ -24,6 +24,11 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { ROTATING_LINES, DEFAULT_MAX_RUN } from './links-design.js';
+// trains-tips.js reads its dates and numbers from the page's own modules (v24.83), so it is evaluated
+// with the same values.
+import { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
+import { MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords } from './trains-change.js';
+import { DAYTIME } from './trains-render.js';
 
 /**
  * Pages that own a CARD_TIPS block, paired with the HTML whose `?` buttons consume it.
@@ -42,7 +47,7 @@ const PAGES = [
     { js: 'settings-app.js',   html: 'settings.html' },
     { js: 'links-tips.js',     html: 'links.html', scope: { ROTATING_LINES, DEFAULT_MAX_RUN } },
     { js: 'overtime-tips.js',  html: 'overtime.html' },
-    { js: 'trains-tips.js',    html: 'trains.html' },
+    { js: 'trains-tips.js',    html: 'trains.html', scope: { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL, MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords, DAYTIME } },
 ];
 
 /**

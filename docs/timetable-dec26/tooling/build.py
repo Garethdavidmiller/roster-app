@@ -186,6 +186,29 @@ export const CHANGE_DATE = '2026-12-13';
  */
 export const FURTHER_CHANGES_UNTIL = '2027-01-10';
 
+/**
+ * The last day of December's books ("until Saturday 15 May 2027"). After it, both timetables on this
+ * page have ended, and the page says so rather than presenting either as current.
+ */
+export const DEC_VALID_UNTIL = '2027-05-15';
+
+/**
+ * Chiltern's autumn LEAF FALL timetable, until Sunday 10 January 2027. It moves only trains TOWARDS
+ * London on the line via Amersham: "Every train on the route via Amersham will leave Aylesbury Vale
+ * Parkway, Aylesbury, Stoke Mandeville, Wendover, Great Missenden, Amersham, Chalfont & Latimer and
+ * Chorleywood … up to three minutes earlier than before, when heading towards London Marylebone"
+ * (Chiltern's timetable page, checked 20 Oct 2026). Today's Amersham-line book carries those
+ * minutes and December's does not — Chiltern says its December books "do not reflect further
+ * changes that may be needed to the 'via Amersham' route between 13 December 2026 and 10 January
+ * 2027". So a few minutes' difference at these stations, coming back, may be leaf fall and not the
+ * new timetable, and the page says so there.
+ */
+export const LEAF_FALL = Object.freeze({
+    until: '2027-01-10',
+    minutes: 3,
+    stations: Object.freeze(['AVP', 'AYS', 'SKM', 'WND', 'GMN', 'AMR', 'CFO', 'CLW']),
+});
+
 /** Where each side of the comparison came from. The page's ? panel says the same in words. */
 export const SOURCES = Object.freeze({
     now: 'Chiltern Railways public timetables, valid until 12 December 2026',

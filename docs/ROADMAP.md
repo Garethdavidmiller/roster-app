@@ -447,9 +447,11 @@ preview items shipped". They are recorded so the page grows toward a plan rather
   from. Needs train lengths, which are not published to passengers: see the open questions.
 
 **B. On and after 13 December — the at-a-glance page.** **Trigger:** the timetable starts.
-- **The page changes over by itself.** "What's changing" becomes "What changed" for the first few
-  weeks; then **Next out** becomes the front of the page and the change material retires to a tab.
-  `CHANGE_DATE` already drives the countdown, so the switch has a date to key off.
+- **The page changes over by itself.** *Its words already do (v24.83): from 13 December the first
+  column is "Until 12 Dec", the lookup answers from the running timetable, and it says when both
+  timetables have ended.* Still an idea: "What's changing" becoming "What changed" for the first few
+  weeks, then **Next out** becoming the front of the page with the change material retired to a tab.
+  `timetablePhase` (trains-change.js) is where that switch goes.
 - **Next out** — today's day type and the next six departures with a countdown ("in 4 min"), full
   destination name, and (if the owner agrees to publish them) train length and planned platform.
   Works offline, so it is useful on the gateline away from the boards.
@@ -468,7 +470,10 @@ preview items shipped". They are recorded so the page grows toward a plan rather
 
 **What the page must get right whatever is built.**
 - **It knows its dates** — a preview before 13 December, and it must say it has ended at the May
-  2027 change rather than quietly show old times.
+  2027 change rather than quietly show old times. **Done at v24.83** (`timetablePhase`,
+  `DEC_VALID_UNTIL`), found by the 21 Oct 2026 deep review, which also found the page counting one
+  weekday train twice, timing "Coming back" at Marylebone instead of where the passenger gets on,
+  and its grid showing one hour's stops as every hour's.
 - **Christmas and bank holidays differ** — special timetables over Christmas and New Year and on
   bank holidays. The page should say so, not show the normal pattern. Chiltern's December books do
   not help: they say nothing about Christmas or bank holidays (checked 20 Oct 2026). **Since v24.80
@@ -485,10 +490,9 @@ preview items shipped". They are recorded so the page grows toward a plan rather
   hand edit (README beside the tooling).
 
 **Open questions for the owner.**
-- Staff on the PIN. Since v24.81 every signed-in member has the page (DECISIONS.md), and a colleague
-  reading the roster on the staff PIN meets the sign-in when they tap it, as on every page but the
-  Calendar. Letting them in without one is possible — the timetable is public — but changes the page's
-  session model; "Your shift" would still need a sign-in either way.
+- ~~Staff on the PIN.~~ **DECIDED 22 Oct 2026 — the station PIN reads the page (v24.84; DECISIONS.md,
+  AUTH_AND_SESSIONS.md invariant 24).** "Your shift", if it is built, still needs a sign-in: it is a
+  member's own roster, and the PIN is nobody.
 - Its place in the drawer — second after Calendar was the suggestion. Today a member sees it after
   Pay (and Overtime, where they have it), before Settings.
 - Are train lengths and planned platforms fine to publish? They make Next out and the crowding

@@ -33,8 +33,8 @@
  * Aylesbury read as one train removed and another added, and the basic hour showed a half-hourly
  * line as two unrelated hourly services. So `LINES` folds a line's onward stops into the line: the
  * trains are compared as one list, and a train whose time holds but whose end moves is a
- * 'terminus' change — "now ends at Aylesbury", "now goes on to Stourbridge Junction". Each train
- * still says where it actually ends; nothing about the destination is lost.
+ * 'terminus' change — "Will end at Aylesbury", "Will go on to Stourbridge Junction" (`changeLabel`).
+ * Each train still says where it actually ends; nothing about the destination is lost.
  *
  * ── THE RAILWAY DAY STARTS AT 03:00 ─────────────────────────────────────────────────────────────
  *
@@ -57,7 +57,8 @@ export const MAX_REROUTE_MIN = 5;
  * @type {Readonly<Record<string, Readonly<{ station: string, via: string, onward: ReadonlyArray<{ station: string, short: string }> }>>>}
  */
 export const LINES = Object.freeze({
-    AYSA: Object.freeze({ station: 'AYS', via: 'A', onward: Object.freeze([{ station: 'AVP', short: 'Parkway' }]) }),
+    // "Aylesbury Vale", not "Parkway": five stations on the page are Parkways (v24.83).
+    AYSA: Object.freeze({ station: 'AYS', via: 'A', onward: Object.freeze([{ station: 'AVP', short: 'Aylesbury Vale' }]) }),
     BMO:  Object.freeze({ station: 'BMO', via: '',  onward: Object.freeze([
         { station: 'BSW', short: 'Snow Hill' }, { station: 'SBJ', short: 'Stourbridge' }]) }),
 });
@@ -81,11 +82,14 @@ export function lineDepth(station) {
     return -1;
 }
 
-/** The hours the basic pattern is read from — the off-peak middle of the day. */
+/** The hours the basic pattern is read from — the middle of the day, which the page calls DAYTIME.
+ *  Never "off-peak" on screen: at a ticket office that word means a fare (v24.83). */
 export const PATTERN_HOURS = Object.freeze({ from: 10, to: 16 });
 
 /** @typedef {[string, string, string, string, string]} TrainRow  [time 'HH:MM', station, route, days, stops] */
-/** @typedef {'same'|'earlier'|'later'|'new'|'gone'|'rerouted'|'terminus'} ChangeKind */
+/** @typedef {'same'|'earlier'|'later'|'new'|'gone'|'rerouted'|'terminus'|'passes'|'calls'} ChangeKind
+ *  passes / calls are a STATION's view only (trains-stations.js, `stationTrains`): a train that still
+ *  runs but stops calling there, or that already ran and starts calling there. */
 /**
  * @typedef {object} PairedTrain
  * @property {string|null} now    the current time, or null for a new train
@@ -296,75 +300,8 @@ function endOf(route, to, time) {
     return { station, via: station === route.station ? route.via : '', time };
 }
 
-/**
- * The basic hour: for each route, the minutes past the hour it leaves at in most of the off-peak
- * hours. "Most" is a majority of the hours in `PATTERN_HOURS`, so one extra or missing train in a
- * single hour does not change the pattern.
- *
- * On a line that runs on, `beyond` lists the minutes whose trains mostly run past the line's own
- * station, with where most of them end.
- *
- * @param {TrainRow[]} rows
- * @returns {{ key: string, station: string, via: string, minutes: number[], beyond: { minute: number, to: string }[] }[]}  by first minute
- */
-export function basicHour(rows) {
-    const hours = PATTERN_HOURS.to - PATTERN_HOURS.from;
-    const need = Math.floor(hours / 2) + 1;
-    /** @type {Map<string, { station: string, via: string, seen: Map<number, Set<number>>, ends: Map<number, Map<string, number>> }>} */
-    const routes = new Map();
-    for (const r of rows) {
-        const h = Number(r[0].slice(0, 2)), m = Number(r[0].slice(3, 5));
-        if (h < PATTERN_HOURS.from || h >= PATTERN_HOURS.to || r[3]) continue;   // a weekday exception is not the pattern
-        const k = routeKey(r);
-        const line = LINES[k];
-        if (!routes.has(k)) routes.set(k, { station: line?.station ?? r[1], via: line?.via ?? r[2], seen: new Map(), ends: new Map() });
-        const route = /** @type {any} */ (routes.get(k));
-        if (!route.seen.has(m)) route.seen.set(m, new Set());
-        route.seen.get(m).add(h);
-        if (line) {
-            if (!route.ends.has(m)) route.ends.set(m, new Map());
-            route.ends.get(m).set(r[1], (route.ends.get(m).get(r[1]) ?? 0) + 1);
-        }
-    }
-    const out = [];
-    for (const [key, { station, via, seen, ends }] of routes) {
-        const minutes = [...seen.entries()].filter(([, hs]) => hs.size >= need).map(([m]) => m).sort((x, y) => x - y);
-        const beyond = minutes.flatMap((m) => {
-            const counts = [...(ends.get(m) ?? new Map()).entries()].sort((x, y) => y[1] - x[1]);
-            const [to] = counts[0] ?? [station];
-            return to !== station ? [{ minute: m, to }] : [];
-        });
-        if (minutes.length) out.push({ key, station, via, minutes, beyond });
-    }
-    return out.sort((x, y) => x.minutes[0] - y.minutes[0] || x.key.localeCompare(y.key));
-}
-
-/**
- * The basic hour, before and after, one row per route that appears in either.
- *
- * @param {TrainRow[]} nowRows
- * @param {TrainRow[]} decRows
- * @returns {{ key: string, station: string, via: string, now: number[], dec: number[], nowBeyond: { minute: number, to: string }[], decBeyond: { minute: number, to: string }[], changed: boolean }[]}
- */
-export function compareBasicHour(nowRows, decRows) {
-    const now = basicHour(nowRows), dec = basicHour(decRows);
-    /** @typedef {{ key: string, station: string, via: string, now: number[], dec: number[], nowBeyond: { minute: number, to: string }[], decBeyond: { minute: number, to: string }[], changed: boolean }} PatternRow */
-    /** @type {Map<string, PatternRow>} */
-    const rows = new Map();
-    const blank = (/** @type {{ key: string, station: string, via: string }} */ r) =>
-        ({ key: r.key, station: r.station, via: r.via, now: [], dec: [], nowBeyond: [], decBeyond: [], changed: true });
-    for (const r of now) rows.set(r.key, { ...blank(r), now: r.minutes, nowBeyond: r.beyond });
-    for (const r of dec) {
-        const row = rows.get(r.key) ?? blank(r);
-        row.dec = r.minutes;
-        row.decBeyond = r.beyond;
-        rows.set(r.key, row);
-    }
-    const first = (/** @type {{ now: number[], dec: number[] }} */ r) => Math.min(...r.dec, ...r.now);
-    return [...rows.values()]
-        .map(r => ({ ...r, changed: r.now.join() !== r.dec.join() || JSON.stringify(r.nowBeyond) !== JSON.stringify(r.decBeyond) }))
-        .sort((x, y) => first(x) - first(y) || x.key.localeCompare(y.key));
-}
+/** How far either side of a typed time the lookup lists trains. The page's words read it from here. */
+export const NEAR_WINDOW_MIN = 15;
 
 /**
  * Every train within `window` minutes of a time, before and after — "what happens to the 17:15?".
@@ -375,7 +312,7 @@ export function compareBasicHour(nowRows, decRows) {
  * @param {number} [window]
  * @returns {{ now: TrainRow[], dec: TrainRow[] }}
  */
-export function trainsNear(nowRows, decRows, hhmm, window = 15) {
+export function trainsNear(nowRows, decRows, hhmm, window = NEAR_WINDOW_MIN) {
     const at = serviceMinutes(hhmm);
     const near = (/** @type {TrainRow[]} */ rows) =>
         byService(rows.filter(r => Math.abs(serviceMinutes(r[0]) - at) <= window));
@@ -427,59 +364,95 @@ export function daysUntil(today, changeDate) {
 /**
  * The wording for one paired train's change — the one place the page's change words are written.
  *
- * @param {PairedTrain} t
+ * TENSE FOLLOWS THE CHANGE DATE. Before it, a new end is "Will go on to …": the page's first column
+ * is TODAY, so "Now runs to" read as a fact about the current timetable. From the change, the same
+ * train "Now goes on to …" — until v24.83 it said "Will" for weeks after it had happened. The
+ * caller says which (`started`); nothing here reads a clock.
+ *
+ * @param {PairedTrain & { farShift?: number, atShift?: number }} t
  * @param {Readonly<Record<string, string>>} [stations]  names for a rerouted train's other route
  * @param {'dep'|'arr'} [dir]  leaving Marylebone ("runs to") or arriving ("comes from")
+ * @param {{ started?: boolean, withTime?: boolean }} [opts]  started: the change has happened ·
+ *   withTime: add the December time to a new end (a station card already shows it in its own cell)
  * @returns {string}
  */
-export function changeLabel(t, stations = {}, dir = 'dep') {
+export function changeLabel(t, stations = {}, dir = 'dep', { started = false, withTime = true } = {}) {
     const mins = (/** @type {number} */ n) => `${n} min${n === 1 ? '' : 's'}`;
+    // On a station card a new end can come with a new time at the station itself (`atShift`).
+    const at = /** @type {{ atShift?: number }} */ (t).atShift ?? 0;
+    const moved = (/** @type {string} */ what) => at ? `${mins(Math.abs(at))} ${at > 0 ? 'later' : 'earlier'}, ${what[0].toLowerCase()}${what.slice(1)}` : what;
     switch (t.kind) {
-        case 'same':    return 'No change';
+        case 'same': {
+            // The time a passenger catches it holds; where it gets them to may not.
+            const far = t.farShift ?? 0;
+            if (!far) return 'No change';
+            return `Same time, gets ${dir === 'dep' ? 'there' : 'in'} ${mins(Math.abs(far))} ${far > 0 ? 'later' : 'earlier'}`;
+        }
         case 'later':   return `${mins(t.shift)} later`;
         case 'earlier': return `${mins(-t.shift)} earlier`;
         case 'new':     return 'New train';
         case 'gone':    return 'No longer runs';
+        case 'passes':  return started ? 'No longer stops here' : 'Will no longer stop here';
+        case 'calls':   return started ? 'Now stops here' : 'Will stop here';
         case 'terminus': {
             const to = /** @type {string} */ (t.decTo), name = stations[to] ?? to;
             const further = lineDepth(to) > lineDepth(/** @type {string} */ (t.nowTo));
-            // "Will", never "Now": the page's Now column means TODAY, so "Now runs to" read as a fact
-            // about the current timetable.
-            const what = dir === 'arr' ? `Will start at ${name}` : further ? `Will go on to ${name}` : `Will end at ${name}`;
-            return t.shift ? `${what}, ${t.dec}` : what;
+            const what = dir === 'arr' ? (started ? `Now starts at ${name}` : `Will start at ${name}`)
+                : further ? (started ? `Now goes on to ${name}` : `Will go on to ${name}`)
+                : (started ? `Now ends at ${name}` : `Will end at ${name}`);
+            return t.shift && withTime ? `${what}, ${t.dec}` : moved(what);
         }
         default: {
             const o = /** @type {NonNullable<PairedTrain['other']>} */ (t.other);
             const where = routeName(stations, o.station, o.via);
             if (t.side === 'new') return dir === 'dep' ? `Was the ${o.time} to ${where}` : `Was the ${o.time} from ${where}`;
-            const verb = dir === 'dep' ? 'Will run to' : 'Will come from';
-            return t.shift ? `${verb} ${where}, ${o.time}` : `${verb} ${where}`;
+            const verb = dir === 'dep' ? (started ? 'Now runs to' : 'Will run to') : (started ? 'Now comes from' : 'Will come from');
+            return t.shift && withTime ? `${verb} ${where}, ${o.time}` : moved(`${verb} ${where}`);
         }
     }
 }
 
 /**
- * The words under a line's name in the basic hour: which of its minutes run on, and where to —
- * ":57 goes on to Aylesbury Vale Parkway". December's pattern when it has one, today's otherwise.
- * '' for a route that does not run on, or none of whose minutes do.
- *
- * @param {{ key: string, dec: number[], decBeyond: { minute: number, to: string }[], nowBeyond: { minute: number, to: string }[] }} r  a compareBasicHour row
- * @param {Readonly<Record<string, string>>} stations
- * @param {'dep'|'arr'} [dir]
+ * Where the page is in the timetable's life, and the words that follow from it — one pure answer, so
+ * the coordinator's date decisions are tested rather than read (v24.83).
+ *   - before the change: the first column is "Now", the countdown counts down;
+ *   - from the change: the first column is "Until <the day before>", and "today" means December;
+ *   - after December's books expire: both timetables have ended, and the page says so.
+ * `festive` keeps the Christmas note up until the last day of Chiltern's further changes.
+ * @param {Date} today
+ * @param {{ change: string, festiveUntil: string, validUntil: string }} dates  'YYYY-MM-DD' each
+ * @returns {{ phase: 'before'|'running'|'ended', started: boolean, countdown: string, oldLabel: string, newLabel: string, festive: boolean }}
+ */
+export function timetablePhase(today, { change, festiveUntil, validUntil }) {
+    const toChange = daysUntil(today, change);
+    const phase = daysUntil(today, validUntil) < 0 ? 'ended' : toChange <= 0 ? 'running' : 'before';
+    const countdown = phase === 'ended' ? 'Timetable ended'
+        : toChange > 1 ? `${toChange} days to go` : toChange === 1 ? 'Starts tomorrow' : toChange === 0 ? 'Starts today' : 'Now running';
+    return {
+        phase, started: toChange <= 0, countdown,
+        oldLabel: toChange <= 0 ? `Until ${dateWords(change, -1, { short: true })}` : 'Now',
+        newLabel: `From ${dateWords(change, 0, { short: true })}`,
+        festive: daysUntil(today, festiveUntil) >= 0,
+    };
+}
+
+/**
+ * A 'YYYY-MM-DD' date, moved by `offset` days, as the page writes one: "13 December", "13 Dec",
+ * "Sunday 13 December". Derived, never typed: the next timetable change moves CHANGE_DATE and every
+ * sentence follows (v24.83 — seventeen visible strings had the day written in by hand).
+ * @param {string} iso
+ * @param {number} [offset]
+ * @param {{ short?: boolean, weekday?: boolean }} [opts]
  * @returns {string}
  */
-export function beyondLabel(r, stations, dir = 'dep') {
-    const beyond = r.dec.length ? r.decBeyond : r.nowBeyond;
-    if (!LINES[r.key] || !beyond.length) return '';
-    /** @type {Map<string, number[]>} */
-    const byEnd = new Map();
-    for (const { minute, to } of beyond) byEnd.set(to, [...(byEnd.get(to) ?? []), minute]);
-    return [...byEnd.entries()].map(([to, ms]) => {
-        const at = ms.map(m => `:${String(m).padStart(2, '0')}`).join(' and ');
-        const one = ms.length === 1;
-        const verb = dir === 'arr' ? (one ? 'starts at' : 'start at') : (one ? 'goes on to' : 'go on to');
-        return `${at} ${verb} ${stations[to] ?? to}`;
-    }).join('; ');
+export function dateWords(iso, offset = 0, { short = false, weekday = false } = {}) {
+    const [y, m, d] = iso.split('-').map(Number);
+    const at = new Date(Date.UTC(y, m - 1, d + offset));
+    const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const month = MONTHS[at.getUTCMonth()];
+    const words = `${at.getUTCDate()} ${short ? month.slice(0, 3) : month}`;
+    return weekday ? `${DAYS[at.getUTCDay()]} ${words}` : words;
 }
 
 /**

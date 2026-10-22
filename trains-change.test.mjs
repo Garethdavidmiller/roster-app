@@ -2,7 +2,7 @@
  * trains-change.test.mjs — what the Trains page says changes in December.
  * Run with: node --test trains-change.test.mjs   (no mocks; part of test:hygiene)
  *
- * The page's whole value is one sentence per train — "6 minutes later", "now runs to Birmingham" —
+ * The page's whole value is one sentence per train — "6 minutes later", "Will run to Birmingham" —
  * and a wrong one is worse than none, because a member of staff repeats it to a passenger. So the
  * pairing rules are pinned on small hand-made tables where the right answer is obvious, and then
  * the real generated tables are held to the facts that were checked against the printed books.
@@ -11,10 +11,11 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    serviceMinutes, alignTimes, compareRoutes, foldWeekdayVariants, basicHour, compareBasicHour,
-    trainsNear, parseTypedTime, daysUntil, changeLabel, daysLabel, routeName, MAX_SHIFT_MIN, beyondLabel, lineDepth,
+    serviceMinutes, alignTimes, compareRoutes, foldWeekdayVariants, trainsNear, parseTypedTime, daysUntil, changeLabel,
+    daysLabel, routeName, MAX_SHIFT_MIN, NEAR_WINDOW_MIN, lineDepth, timetablePhase, dateWords,
 } from './trains-change.js';
-import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL } from './trains-data.js';
+import { stoppingGrid, aRealDay, callsOf } from './trains-stations.js';
+import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
 
 /** @param {string} t @param {string} [st] @param {string} [via] @param {string} [days] @param {string} [stops] @returns {[string,string,string,string,string]} */
 const row = (t, st = 'OXF', via = '', days = '', stops = '') => [t, st, via, days, stops];
@@ -46,6 +47,14 @@ describe('alignTimes — which December train is "the same train"', () => {
     test('beyond the threshold a time is left unpaired, as new or no longer running', () => {
         const out = alignTimes([row('09:00')], [row(`09:${String(MAX_SHIFT_MIN + 1).padStart(2, '0')}`)]);
         assert.deepEqual(out.map(t => t.kind).sort(), ['gone', 'new']);
+        // The threshold itself, in minutes the tips state: 20 is still the same train, 21 is not.
+        assert.equal(MAX_SHIFT_MIN, 20);
+        assert.deepEqual(kinds(alignTimes([row('09:00')], [row('09:20')])), ['09:00>09:20 later']);
+    });
+
+    test('the unpaired are listed by time, not by where the alignment left them', () => {
+        // The backtrack puts both new trains before the one that goes; a reader scans by time.
+        assert.deepEqual(kinds(alignTimes([row('10:30')], [row('10:00'), row('11:00')])), ['->10:00 new', '10:30>- gone', '->11:00 new']);
     });
 
     test('an extra train lands between its neighbours, listed in time order', () => {
@@ -125,19 +134,6 @@ describe('a line that runs on — Aylesbury Vale Parkway is the Amersham line, o
         const routes = compareRoutes([row('10:52', 'AYS', 'H'), row('10:57', 'AVP')], []);
         assert.deepEqual(routes.map(r => r.key).sort(), ['AYSA', 'AYSH']);
     });
-
-    test('the basic hour marks which minutes run on', () => {
-        const hours = ['10', '11', '12', '13', '14', '15'];
-        const [line] = basicHour(hours.flatMap(h => [row(`${h}:27`, 'AYS', 'A'), row(`${h}:57`, 'AVP')]));
-        assert.deepEqual([line.key, line.minutes, line.beyond], ['AYSA', [27, 57], [{ minute: 57, to: 'AVP' }]]);
-    });
-
-    test('and says so in words, December first', () => {
-        const r = { key: 'AYSA', dec: [27, 57], decBeyond: [{ minute: 57, to: 'AVP' }], nowBeyond: [{ minute: 27, to: 'AVP' }] };
-        assert.equal(beyondLabel(r, STATIONS), ':57 goes on to Aylesbury Vale Parkway');
-        assert.equal(beyondLabel(r, STATIONS, 'arr'), ':57 starts at Aylesbury Vale Parkway');
-        assert.equal(beyondLabel({ ...r, key: 'OXF' }, STATIONS), '');
-    });
 });
 
 describe('a line with two onward stops — Snow Hill and Stourbridge are Moor Street trains run on', () => {
@@ -161,30 +157,6 @@ describe('a line with two onward stops — Snow Hill and Stourbridge are Moor St
         const ban = compareRoutes([row('10:36', 'BAN')], [row('10:36', 'BSW')]).find(r => r.key === 'BAN');
         assert.equal(changeLabel(/** @type {any} */ (ban).trains[0], STATIONS), 'Will run to Birmingham Snow Hill');
     });
-
-    test('the basic-hour words name each onward stop separately', () => {
-        const r = { key: 'BMO', dec: [2, 32, 36], decBeyond: [{ minute: 32, to: 'SBJ' }, { minute: 36, to: 'BSW' }], nowBeyond: [] };
-        assert.equal(beyondLabel(r, STATIONS), ':32 goes on to Stourbridge Junction; :36 goes on to Birmingham Snow Hill');
-    });
-});
-
-describe('the basic hour', () => {
-    test('a minute counts when it repeats in most of the off-peak hours', () => {
-        const rows = ['10', '11', '12', '13'].map(h => row(`${h}:06`)).concat([row('14:20')]);
-        assert.deepEqual(basicHour(rows).map(r => r.minutes), [[6]]);
-    });
-
-    test('a weekday exception is never part of the pattern', () => {
-        const rows = ['10', '11', '12', '13', '14', '15'].map(h => row(`${h}:33`, 'BSW', '', 'MFX'));
-        assert.deepEqual(basicHour(rows), []);
-    });
-
-    test('before and after are paired by route, and flagged only when they differ', () => {
-        const hours = ['10', '11', '12', '13', '14', '15'];
-        const out = compareBasicHour(hours.map(h => row(`${h}:02`, 'BMO')),
-            hours.flatMap(h => [row(`${h}:02`, 'BMO'), row(`${h}:32`, 'BMO')]));
-        assert.deepEqual(out.map(r => [r.now, r.dec, r.changed]), [[[2], [2, 32], true]]);
-    });
 });
 
 describe('looking up a time', () => {
@@ -203,6 +175,9 @@ describe('looking up a time', () => {
         const near = trainsNear([row('17:20'), row('17:00'), row('18:00')], [row('17:10')], '17:15');
         assert.deepEqual(near.now.map(r => r[0]), ['17:00', '17:20']);
         assert.deepEqual(near.dec.map(r => r[0]), ['17:10']);
+        // The window the page states ("within 15 minutes") is the one it uses.
+        assert.equal(NEAR_WINDOW_MIN, 15);
+        assert.deepEqual(trainsNear([row('17:00'), row('16:59')], [], '17:15').now.map(r => r[0]), ['17:00']);
     });
 });
 
@@ -216,10 +191,65 @@ describe('words', () => {
     test('labels', () => {
         assert.equal(changeLabel(/** @type {any} */ ({ kind: 'later', shift: 1 })), '1 min later');
         assert.equal(changeLabel(/** @type {any} */ ({ kind: 'earlier', shift: -6 })), '6 mins earlier');
+        assert.equal(changeLabel(/** @type {any} */ ({ kind: 'same' })), 'No change');
+        assert.equal(changeLabel(/** @type {any} */ ({ kind: 'new' })), 'New train');
+        assert.equal(changeLabel(/** @type {any} */ ({ kind: 'gone' })), 'No longer runs');
         assert.equal(daysLabel('MFO'), 'Mon and Fri only');
+        assert.equal(daysLabel('MFX'), 'Tue to Thu only');
         assert.equal(daysLabel(''), '');
         assert.equal(routeName(STATIONS, 'AYS', 'H'), 'Aylesbury via High Wycombe');
         assert.equal(routeName(STATIONS, 'OXF', ''), 'Oxford');
+    });
+
+    test('a station\'s own words: a train that passes it, or starts calling, is not one that goes or comes (v24.83)', () => {
+        assert.equal(changeLabel(/** @type {any} */ ({ kind: 'passes' })), 'Will no longer stop here');
+        assert.equal(changeLabel(/** @type {any} */ ({ kind: 'calls' })), 'Will stop here');
+        assert.equal(changeLabel(/** @type {any} */ ({ kind: 'passes' }), {}, 'dep', { started: true }), 'No longer stops here');
+        assert.equal(changeLabel(/** @type {any} */ ({ kind: 'calls' }), {}, 'dep', { started: true }), 'Now stops here');
+        // Kept at the station, moved at the other end: the second thing a passenger asks.
+        assert.equal(changeLabel(/** @type {any} */ ({ kind: 'same', farShift: 5 })), 'Same time, gets there 5 mins later');
+        assert.equal(changeLabel(/** @type {any} */ ({ kind: 'same', farShift: -1 }), {}, 'arr'), 'Same time, gets in 1 min earlier');
+        // A new end that also moves the train here says both — the station's change first.
+        const t = /** @type {any} */ ({ kind: 'terminus', nowTo: 'BMO', decTo: 'SBJ', dec: '09:16', shift: 3, atShift: -1 });
+        assert.equal(changeLabel(t, STATIONS, 'arr', { withTime: false }), '1 min earlier, will start at Stourbridge Junction');
+        assert.equal(changeLabel(t, STATIONS, 'arr'), 'Will start at Stourbridge Junction, 09:16', 'the lookup keeps its time');
+    });
+
+    test('the tense follows the change date: "Will" before it, "Now" after (v24.83)', () => {
+        const [ext] = compareRoutes([row('07:57', 'AYS', 'A')], [row('07:57', 'AVP')])[0].trains;
+        assert.equal(changeLabel(ext, STATIONS), 'Will go on to Aylesbury Vale Parkway');
+        assert.equal(changeLabel(ext, STATIONS, 'dep', { started: true }), 'Now goes on to Aylesbury Vale Parkway');
+        assert.equal(changeLabel(ext, STATIONS, 'arr', { started: true }), 'Now starts at Aylesbury Vale Parkway');
+        const ban = compareRoutes([row('10:36', 'BAN')], [row('10:36', 'BSW')]).find(r => r.key === 'BAN');
+        assert.equal(changeLabel(/** @type {any} */ (ban).trains[0], STATIONS, 'dep', { started: true }), 'Now runs to Birmingham Snow Hill');
+    });
+});
+
+describe('timetablePhase — what the page calls things, on which day (v24.83)', () => {
+    const D = { change: '2026-12-13', festiveUntil: '2027-01-10', validUntil: '2027-05-15' };
+    const at = (/** @type {number} */ y, /** @type {number} */ m, /** @type {number} */ d, h = 10) => timetablePhase(new Date(y, m - 1, d, h), D);
+    test('before the change: counting down, and the first column is today\'s', () => {
+        assert.deepEqual(at(2026, 10, 21), { phase: 'before', started: false, countdown: '53 days to go', oldLabel: 'Now', newLabel: 'From 13 Dec', festive: true });
+        assert.equal(at(2026, 12, 11).countdown, '2 days to go');
+        assert.equal(at(2026, 12, 12, 23).countdown, 'Starts tomorrow');
+    });
+    test('from the change: the first column is the old timetable, by name', () => {
+        assert.deepEqual(at(2026, 12, 13, 0), { phase: 'running', started: true, countdown: 'Starts today', oldLabel: 'Until 12 Dec', newLabel: 'From 13 Dec', festive: true });
+        assert.equal(at(2026, 12, 20).countdown, 'Now running');
+    });
+    test('the Christmas note lasts through the 10th of January and not after', () => {
+        assert.equal(at(2027, 1, 10, 23).festive, true);
+        assert.equal(at(2027, 1, 11, 0).festive, false);
+    });
+    test('once December\'s books expire, the page says the timetable has ended', () => {
+        assert.equal(at(2027, 5, 15, 23).phase, 'running');
+        assert.deepEqual([at(2027, 5, 16).phase, at(2027, 5, 16).countdown], ['ended', 'Timetable ended']);
+    });
+    test('dates are derived, never typed', () => {
+        assert.equal(dateWords('2026-12-13'), '13 December');
+        assert.equal(dateWords('2026-12-13', -1, { weekday: true }), 'Saturday 12 December');
+        assert.equal(dateWords('2026-12-13', 0, { short: true, weekday: true }), 'Sunday 13 Dec');
+        assert.equal(dateWords('2027-01-01', -1), '31 December');
     });
 });
 
@@ -243,7 +273,13 @@ describe('trains-data.js', () => {
 
     test('departure counts match the sources', () => {
         const counts = (/** @type {'now'|'dec'} */ side) => ['SX', 'SO', 'SU'].map(d => TIMETABLES[side][/** @type {'SX'} */ (d)].dep.length);
-        assert.deepEqual(counts('now'), [146, 100, 91]);
+        // Rows, not trains: today's weekdays print a few trains twice, once for Mondays and Fridays and
+        // once for the other days (v24.83 keeps the two apart where they stop differently).
+        assert.deepEqual(counts('now'), [147, 100, 91]);
+        // A real day — counted off the books by the data review (v24.83): 145 leave Marylebone on a
+        // Tuesday to Thursday, 144 on a Monday or Friday. "146" was a day that never happens.
+        assert.equal(aRealDay(TIMETABLES.now.SX.dep).length, 145);
+        assert.equal(TIMETABLES.now.SX.dep.filter(r => r[3] !== 'MFX' && r[3] !== 'WO').length, 144);
         // Counted off the printed December books by hand (v24.80): weekdays 116 main-line columns
         // leaving Marylebone plus 45 in the Amersham book, less 3 printed in both; Saturdays and
         // Sundays the same way. The roster office's simplifier, December's source before the books,
@@ -280,20 +316,53 @@ describe('trains-data.js', () => {
         assert.deepEqual([at.HWY, at.BAN, at.LMS, at.BMO, at.BSW], ['1106', '1142', '1201', '1234', '1238']);
     });
 
-    test('checked by hand: the weekday basic hour from 10:00 to 16:00', () => {
-        const dec = basicHour(TIMETABLES.dec.SX.dep).map(r => `:${String(r.minutes[0]).padStart(2, '0')} ${r.key}`);
-        assert.deepEqual(dec, [':02 BMO', ':06 OXF', ':10 HWY', ':27 AYSA']);
+    // These facts were checked by hand against the books, and are pinned on the grid the page DRAWS
+    // (`stoppingGrid`). Until v24.83 they were pinned on `basicHour`, which nothing had rendered since
+    // v24.74 — so the grid on screen had no hand-checked fact behind it at all.
+    test('checked by hand: the weekday basic hour from 10:00 to 16:00, and where each runs to', () => {
+        const cols = (/** @type {'now'|'dec'} */ side) => stoppingGrid(TIMETABLES[side].SX.dep).columns.map(c => `:${String(c.minute).padStart(2, '0')} ${c.end}${c.via}`);
+        assert.deepEqual(cols('dec'), [':02 BMO', ':06 OXF', ':10 HWY', ':27 AYSA', ':36 BSW', ':40 OXF', ':57 AVP']);
+        // Today's :27 Amersham train runs in only four of the six hours; December's in all six.
+        assert.deepEqual(stoppingGrid(TIMETABLES.now.SX.dep).columns.filter(c => c.minute === 27).map(c => [c.hours, c.of]), [[4, 6]]);
     });
 
-    test('checked by hand: the Amersham line is half-hourly, the :57 running on to the Parkway', () => {
-        const line = basicHour(TIMETABLES.dec.SX.dep).find(r => r.key === 'AYSA');
-        assert.deepEqual(line?.minutes, [27, 57]);
-        assert.deepEqual(line?.beyond, [{ minute: 57, to: 'AVP' }]);
+    test('checked by hand: a column is every hour\'s train — the :10 alternates West Ruislip and Denham Golf Club', () => {
+        const ten = stoppingGrid(TIMETABLES.dec.SX.dep).columns.find(c => c.minute === 10);
+        assert.deepEqual([...(ten?.some ?? [])].sort(), ['DGC', 'WRU'], 'each in some hours only');
+        // The :36 reaches Birmingham every hour from December; today two of them end at Banbury.
+        const now36 = stoppingGrid(TIMETABLES.now.SX.dep).columns.find(c => c.minute === 36);
+        const dec36 = stoppingGrid(TIMETABLES.dec.SX.dep).columns.find(c => c.minute === 36);
+        assert.ok(now36?.some.includes('LMS') && dec36?.calls.includes('LMS') && !dec36.some.includes('LMS'));
     });
+});
 
-    test('checked by hand: the Birmingham line is half-hourly, the :36 running on to Snow Hill', () => {
-        const line = basicHour(TIMETABLES.dec.SX.dep).find(r => r.key === 'BMO');
-        assert.deepEqual(line?.minutes, [2, 36]);
-        assert.deepEqual(line?.beyond, [{ minute: 36, to: 'BSW' }]);
+describe('trains-data.js — what the books print that a plain list of stops cannot say (v24.83)', () => {
+    const train = (/** @type {'now'|'dec'} */ side, /** @type {'SX'|'SO'|'SU'} */ day, /** @type {'dep'|'arr'} */ dir, /** @type {string} */ t, /** @type {string} */ end) =>
+        TIMETABLES[side][day][dir].filter(r => r[0] === t && r[1] === end);
+    test('a pick-up-only stop is not a stop for anyone leaving London, nor a set-down-only one coming in', () => {
+        // Each letter checked on the rendered page by the data review: "u" pick up only, "s" set down only.
+        assert.ok(!callsOf(train('dec', 'SX', 'dep', '17:03', 'SBJ')[0]).includes('BCS'), 'December 17:03: Bicester North 17:56u');
+        assert.ok(!callsOf(train('dec', 'SX', 'dep', '18:14', 'BAN')[0]).includes('HDM'), 'December 18:14: Haddenham 18:53u');
+        assert.ok(!callsOf(train('now', 'SX', 'dep', '18:37', 'SBJ')[0]).includes('PRR'), 'today\'s 18:37: Princes Risborough 19:09u');
+        assert.ok(!callsOf(train('dec', 'SX', 'arr', '11:20', 'BSW')[0]).includes('HWY'), 'December 11:20 in: High Wycombe 10:49s');
+        assert.ok(!callsOf(train('dec', 'SU', 'arr', '10:15', 'BMO')[0]).includes('BAN'), 'December Sunday 10:15 in: Banbury 09:18s');
+    });
+    test('"c — arrives 8 minutes earlier": the arrival is what a passenger leaving London is told', () => {
+        assert.match(train('now', 'SX', 'dep', '22:10', 'AYS')[0][4], /PRR2306/);
+        assert.match(train('dec', 'SX', 'dep', '22:11', 'AYS')[0][4], /PRR2306/);
+    });
+    test('two weekday versions that stop differently stay two rows, each with its days', () => {
+        const oxf = train('now', 'SX', 'dep', '17:45', 'OXF');
+        assert.deepEqual(oxf.map(r => r[3]).sort(), ['MFO', 'MFX']);
+        assert.ok(callsOf(/** @type {any} */ (oxf.find(r => r[3] === 'MFO'))).includes('HWY'), 'Mondays and Fridays: High Wycombe');
+        assert.ok(callsOf(/** @type {any} */ (oxf.find(r => r[3] === 'MFX'))).includes('BCF'), 'other weekdays: Beaconsfield');
+        assert.deepEqual(train('now', 'SX', 'arr', '08:03', 'OXF').map(r => r[3]).sort(), ['MFO', 'MFX']);
+    });
+    test('when the December books run out, and the leaf-fall weeks', () => {
+        assert.equal(DEC_VALID_UNTIL, '2027-05-15');
+        assert.equal(LEAF_FALL.until, '2027-01-10');
+        assert.equal(LEAF_FALL.minutes, 3);
+        assert.deepEqual([...LEAF_FALL.stations], ['AVP', 'AYS', 'SKM', 'WND', 'GMN', 'AMR', 'CFO', 'CLW']);
+        for (const c of LEAF_FALL.stations) assert.ok(STATIONS[c], c);
     });
 });

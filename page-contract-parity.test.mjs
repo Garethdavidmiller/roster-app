@@ -40,6 +40,7 @@ const read = (/** @type {string} */ f) => readFileSync(new URL(f, import.meta.ur
 // (service worker, auth policy, nav, rules, reports, guide back-arrow), which cannot read the list
 // because the app has no build step.
 import { APP_PAGES as APP_PAGE_ENTRIES, GUIDE_PAGES, REDIRECT_PAGES, servedFiles, cardPageFiles, appPage } from './scripts/app-pages.mjs';
+import { admitsStaffPin } from './auth-policy.js';
 
 const GUIDES = new Set(GUIDE_PAGES.map(p => p.file));
 const LEGACY_REDIRECTS = new Set(REDIRECT_PAGES.map(p => p.file));
@@ -448,6 +449,28 @@ test('every app page has a nav pill, so the drawer is a complete map', () => {
     const pageIds = APP_PAGES.map(pageIdOf);
     const missing = pageIds.filter(id => !nav.includes(`id: '${id}'`));
     assert.deepEqual(missing, [], 'page ids with no NAV_PAGES entry');
+});
+
+test('the station PIN is asked for where the policy admits it, and nowhere else (v24.84)', () => {
+    // `staffPin` in auth-policy.js is the one answer to "where may the station PIN go?", and a
+    // coordinator agrees with it in BOTH directions or the answer is a story. Asking where it is not
+    // admitted keeps the PIN on a page that may show member data, and that page still shows its own
+    // sign-in, so nothing on screen changes; admitting it without asking signs the PIN out on arrival,
+    // which is the bug the flag was added to fix. The Calendar is the one page whose PIN gate is its
+    // own module (calendar-access.js), not a coordinator asking. And no coordinator may keep the PIN
+    // by hand: `preserveCalendarViewer` goes through `holdsStaffPin`, behind the policy.
+    /** @type {string[]} */ const problems = [];
+    for (const page of APP_PAGES) {
+        const file = coordinatorFor(page);
+        const id = pageIdOf(page);
+        const code = codeOnly(read(`./${file}`));
+        const asks = callSites(code, 'holdsStaffPin').length > 0;
+        if (/\bpreserveCalendarViewer\b/.test(code)) problems.push(`${file} keeps the PIN by hand — ask holdsStaffPin, behind the policy`);
+        if (asks && !admitsStaffPin(id)) problems.push(`${file} asks for the PIN, but auth-policy.js does not admit it on '${id}'`);
+        if (asks && !callSites(code, 'admitsStaffPin').length) problems.push(`${file} asks for the PIN without consulting the policy`);
+        if (!asks && admitsStaffPin(id) && id !== 'calendar') problems.push(`${file}: the policy admits the PIN on '${id}', but the page never asks — it signs the PIN out`);
+    }
+    assert.deepEqual(problems, []);
 });
 
 test('a role-gated pill is gated from EVERY coordinator, not just its own page', () => {

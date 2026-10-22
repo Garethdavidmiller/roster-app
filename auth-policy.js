@@ -30,7 +30,7 @@
 import { CONFIG } from './roster-data.js';
 
 /** @typedef {import('./auth-state-core.js').AuthState} AuthState */
-/** @typedef {{ requireNamed?: boolean, anonymousOk?: boolean, soft?: boolean, role?: string[]|null }} PagePolicy */
+/** @typedef {{ requireNamed?: boolean, anonymousOk?: boolean, soft?: boolean, role?: string[]|null, staffPin?: boolean }} PagePolicy */
 /** @typedef {{ decision: 'allow'|'soft-allow'|'login'|'forbidden'|'pending', reason: string }} AuthDecision */
 
 /** The possible decisions (for callers/tests to reference). */
@@ -45,10 +45,16 @@ export const DECISIONS = Object.freeze(['allow', 'soft-allow', 'login', 'forbidd
  *    ACTIONS, not page access) → role null.
  *  - paycalc: any identity, SOFT (a local-first calculator — never blocked).
  *  - calendar: public, anonymous reads allowed. guides: no auth.
+ *
+ * `staffPin: true` — the shared staff PIN may read this page as well (v24.84). Not a value of
+ * `named` and not a role: the PIN is a capability with no member behind it (calendar-access.js →
+ * "What the viewer is"), so `requirePageAuth` never sees it. A page that sets it ASKS for the PIN
+ * itself, through `holdsStaffPin` (session.js), and every page that does not signs the PIN out on
+ * arrival — `reconcileExpiredIdentity`'s default — so it can never stand in for a member there.
  * @type {Record<string, PagePolicy>}
  */
 export const PAGE_POLICIES = Object.freeze({
-    calendar:   { requireNamed: false, anonymousOk: true },
+    calendar:   { requireNamed: false, anonymousOk: true, staffPin: true },
     guides:     { requireNamed: false },
     paycalc:    { requireNamed: true,  soft: true,  role: null },
     settings:   { requireNamed: true,  role: null },
@@ -64,9 +70,22 @@ export const PAGE_POLICIES = Object.freeze({
     // named-user page, because participation — not a role — decides what is shown.
     overtime:   { requireNamed: true,  role: ['admin', 'manager', 'overtimeBeta'] },
     // Trains: every named member's since v24.81 (owner, 20 Oct 2026) — an admin preview from v24.71.
-    // Public data, so the sign-in is the app's ordinary front door rather than a protection.
-    trains:     { requireNamed: true,  role: null },
+    // Public data, so the sign-in is the app's ordinary front door rather than a protection — and the
+    // station PIN reads it too since v24.84 (owner, 22 Oct 2026: "the station pin staff should be able
+    // to view the trains page"), because the people asked about the timetable are at the station.
+    trains:     { requireNamed: true,  role: null, staffPin: true },
 });
+
+/**
+ * May the shared staff PIN read this page? (v24.84) Read from `PAGE_POLICIES`, so the table above is
+ * the one answer to "where may the station PIN go?" — and `page-contract-parity.test.mjs` holds every
+ * coordinator that asks for the PIN to a page whose policy says yes.
+ * @param {string} page
+ * @returns {boolean}
+ */
+export function admitsStaffPin(page) {
+    return PAGE_POLICIES[page]?.staffPin === true;
+}
 
 /** @returns {AuthDecision} */
 function decide(/** @type {AuthDecision['decision']} */ decision, /** @type {string} */ reason) {

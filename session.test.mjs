@@ -527,7 +527,8 @@ describe('reconcileExpiredIdentity', () => {
     // construction — exactly the shape this function exists to tear down — so the Calendar asks for
     // it to be kept, or the staff PIN would be demanded on every navigation. Six protected
     // coordinators (admin, settings, operations, links, paycalc, overtime) call this BARE and take
-    // the default; `calendar-access.js` is the only caller that opts in.
+    // the default; the two pages that admit the PIN opt in — `calendar-access.js`, and Trains through
+    // `holdsStaffPin` (v24.84, tested below), which calls it bare too once a member is signed in.
     //
     // PRESERVING TOO MUCH is the expensive direction and it is silent. Flip the default and a
     // station PC that entered the PIN and then opened Admin keeps that identity live instead of
@@ -1374,6 +1375,79 @@ describe('shedCalendarViewer — fail closed, or the shared viewer goes long-liv
         await shedCalendarViewer();
         assert.equal(_signOutCalled, false, 'this function only ever sheds the shared viewer');
         assert.deepEqual(_persistenceRestores, []);
+    });
+});
+
+// ── A PAGE THAT ADMITS THE STAFF PIN KEEPS IT, AND ONLY IT (v24.84) ─────────────────────────────
+//
+// The Trains page reads the station PIN since v24.84 (owner, 22 Oct 2026). Before, it ran the bare
+// reconcile every protected page runs, and that signed the PIN out on arrival: the station PC met a
+// member sign-in, and lost the PIN it had unlocked the Calendar with. `holdsStaffPin` is the page's
+// question; these pin both halves of its answer, because each failure is silent on its own page —
+// keeping too much leaves an expired member's privileges live behind a page that renders the same,
+// and keeping too little shows a sign-in to a station that should not need one.
+const { holdsStaffPin, signOutStaffPin } = await import('./session.js');
+describe('holdsStaffPin / signOutStaffPin — the station PIN on a page that admits it', () => {
+    const viewer = { uid: CALENDAR_VIEWER_UID, isAnonymous: false, email: null };
+    beforeEach(() => {
+        store.clear();
+        _signOutCalled = false; _signOutBehavior = 'ok';
+        _existingUser = null; _authNeverEmits = false; _authEmitDelayMs = 0;
+        _resetBootRestore();
+        mockAuth.currentUser = null;
+    });
+    afterEach(() => { _signOutBehavior = 'ok'; _authNeverEmits = false; mockAuth.currentUser = null; });
+
+    test('the PIN, with no member: held, and NOT signed out', async () => {
+        mockAuth.currentUser = viewer;
+        assert.equal(await holdsStaffPin(), true);
+        assert.equal(_signOutCalled, false, 'the station would be asked for the PIN again on the way back');
+        assert.equal(mockAuth.currentUser, viewer);
+    });
+
+    test('a member identity that outlived its session is still torn down, and is not the PIN', async () => {
+        mockAuth.currentUser = { uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' };
+        assert.equal(await holdsStaffPin(), false);
+        assert.equal(_signOutCalled, true, 'admitting the PIN must not become an amnesty for an expired member');
+    });
+
+    test('a member with a session outranks the PIN, and nobody at all holds nothing', async () => {
+        saveSession('G. Miller');
+        mockAuth.currentUser = viewer;
+        assert.equal(await holdsStaffPin(), false, 'the member path decides a member\'s page');
+        store.clear();
+        mockAuth.currentUser = null;
+        assert.equal(await holdsStaffPin(), false);
+        assert.equal(_signOutCalled, false);
+    });
+
+    test('a restore that never arrives answers within the budget — no PIN, never a hang', async () => {
+        _authNeverEmits = true;
+        const started = Date.now();
+        assert.equal(await holdsStaffPin(60), false);
+        assert.ok(Date.now() - started < 1000, 'the page would sit blank waiting for Firebase');
+    });
+
+    test('Lock signs the PIN out and resolves; a member is never touched', async () => {
+        mockAuth.currentUser = viewer;
+        await signOutStaffPin();
+        assert.equal(_signOutCalled, true);
+        assert.equal(mockAuth.currentUser, null);
+        _signOutCalled = false;
+        mockAuth.currentUser = { uid: 'uid-miller', isAnonymous: false, email: 'g.miller@myb.test' };
+        await signOutStaffPin();
+        assert.equal(_signOutCalled, false, 'Lock is for the station PIN only');
+    });
+
+    test('a Lock whose sign-out RESOLVES with the PIN still current is refused, not reported', () => {
+        // The station walks away believing it locked. Modelled by pinning currentUser, as above.
+        const orig = Object.getOwnPropertyDescriptor(mockAuth, 'currentUser');
+        Object.defineProperty(mockAuth, 'currentUser', { configurable: true, get: () => viewer, set: () => {} });
+        return assert.rejects(() => signOutStaffPin(), /still current after sign-out/)
+            .finally(() => {
+                if (orig) Object.defineProperty(mockAuth, 'currentUser', orig);
+                else delete /** @type {any} */ (mockAuth).currentUser;
+            });
     });
 });
 

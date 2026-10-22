@@ -147,8 +147,9 @@ export function isViewerMode() { return _accessType === 'viewer'; }
  * sign out a NON-ANONYMOUS Firebase identity that has outlived its local session (Finding #9) — and
  * the viewer is non-anonymous with no local session by construction, so the default behaviour would
  * sign it out on every single page load and the PIN would be required on every navigation. The flag
- * is scoped to this one caller: protected pages keep the default, so a viewer walking to Admin or
- * Settings is still torn down and cannot masquerade as a member.
+ * is scoped to the pages that admit the PIN — this one, and Trains through `holdsStaffPin` (v24.84):
+ * other protected pages keep the default, so a viewer walking to Admin or Settings is still torn down
+ * and cannot masquerade as a member.
  *
  * @returns {Promise<'named'|'viewer'|'none'>}
  */
