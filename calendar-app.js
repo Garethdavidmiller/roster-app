@@ -1292,8 +1292,9 @@ initCalendarAccess({
     _accessDecided(t);
 }, _accessDecided);
 
-// The page's one-time notices (al-booking-2026, and whatever /new-notice adds next). `sign-in-2026`
-// was retired at v23.23 — see calendar-notices.js for why it went by decision, not by expiry.
+// The page's one-time notices (timetable-2026, ytd-figures-2026, install-app-2026, and whatever
+// /new-notice adds next). `sign-in-2026` (v23.23) and `al-booking-2026` (v24.91) were retired early,
+// by decision rather than expiry — calendar-notices.js says why.
 // Their wiring lives in calendar-notices.js — see its header for why they left this file. They
 // queue behind the forced set-password step (below), the way the paycalc YTD notice does.
 initCalendarNotices({ after: _passwordForceSettled });

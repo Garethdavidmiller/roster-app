@@ -35,13 +35,20 @@ const SOURCE = readFileSync(new URL('./calendar-notices.js', import.meta.url), '
 
 // ── THE PAGE ────────────────────────────────────────────────────────────────────────────────────
 /** @type {Set<string>} */ let _present = new Set();
-/** Click handlers the notices attach, by `<id>:<type>` — so a test can take the CTA (block 5). */
+/** Click handlers the notices attach, by `<id>:<type>` — so a test can take the CTA (blocks 5–7). */
 /** @type {Map<string, Function>} */ let _listeners = new Map();
+/** One element per id for the whole wiring, so a line the install notice hides STAYS hidden (block 5). */
+/** @type {Map<string, any>} */ let _els = new Map();
 function fakeEl(/** @type {string} */ id) {
-    return { id, addEventListener(/** @type {string} */ type, /** @type {Function} */ fn) { _listeners.set(`${id}:${type}`, fn); } };
+    return { id, hidden: undefined,
+             addEventListener(/** @type {string} */ type, /** @type {Function} */ fn) { _listeners.set(`${id}:${type}`, fn); } };
 }
 global.document = {
-    getElementById: (/** @type {string} */ id) => (_present.has(id) ? fakeEl(id) : null),
+    getElementById: (/** @type {string} */ id) => {
+        if (!_present.has(id)) return null;
+        if (!_els.has(id)) _els.set(id, fakeEl(id));
+        return _els.get(id);
+    },
 };
 
 // ── THE ACCESS DECISION ─────────────────────────────────────────────────────────────────────────
@@ -64,6 +71,7 @@ let _accessType = 'none';
 /** @type {any[]} */                 let _archived = [];
 /** @type {any[]} */                 let _openedViaHelper = [];
 let _directOpens = 0;
+/** @type {string[]} */              let _closed = [];
 let _expired = false;
 
 mock.module('./ls.js', {
@@ -83,7 +91,7 @@ mock.module('./overlay.js', {
         createLightbox: (/** @type {any} */ cfg) => ({
             _cfg: cfg,
             open() { _directOpens += 1; },      // must never be reached — see the v19.53 rule
-            close() {},
+            close() { _closed.push(cfg.overlay.id); },
         }),
         openNoticeIfClear: (/** @type {any} */ lb) => { _openedViaHelper.push(lb); },
     },
@@ -93,6 +101,20 @@ mock.module('./overlay.js', {
 /** @type {{ name: string } | null} */ let _session = null;
 mock.module('./session.js', {
     namedExports: { getSession: () => _session },
+});
+// The install notice asks install-prompt.js what this browser can do, and tells it when to stand the
+// strip down. Faked so a test can BE an iPhone, the mirror or a desktop; the real detection is driven
+// in a browser (e2e/calendar.spec.js). Every call is recorded, in order.
+/** @type {{ how: 'prompt'|'ios'|'menu', mirror: boolean } | null} */
+let _route = { how: 'menu', mirror: false };
+/** @type {string[]} */ let _installCalls = [];
+mock.module('./install-prompt.js', {
+    namedExports: {
+        installRoute: () => _route,
+        promptInstall: () => { _installCalls.push('prompt'); return true; },
+        yieldToInstallNotice: () => { _installCalls.push('yield'); },
+        retireInstallStrip: () => { _installCalls.push('retire'); },
+    },
 });
 mock.module('./calendar-access.js', {
     namedExports: {
@@ -106,12 +128,15 @@ let _n = 0;
  *  A named access carries a member's session — a CEA, whom the Pay Calculator prices — and the PIN
  *  and a locked page carry none, which is what each of those really holds. */
 async function wire({ accessType = 'none', present = NOTICES.map(n => n.overlay), store = {}, expired = false,
-                      session = accessType === 'named' ? { name: 'G. Miller' } : null } = {}) {
+                      session = accessType === 'named' ? { name: 'G. Miller' } : null,
+                      route = /** @type {typeof _route} */ ({ how: 'menu', mirror: false }) } = {}) {
     _present = new Set(present);
     _accessType = accessType;
     _session = session;
+    _route = route;
     _store = { ...store };
     _reads = []; _writes = []; _archived = []; _openedViaHelper = []; _directOpens = 0; _listeners = new Map();
+    _els = new Map(); _closed = []; _installCalls = [];
     _expired = expired;
     _access = newAccessGate();
     const mod = await import(`./calendar-notices.js?n=${++_n}`);
@@ -137,16 +162,18 @@ async function drain() { for (let i = 0; i < 8; i++) await Promise.resolve(); }
 //
 // A notice posted AFTER this date fails these tests loudly rather than quietly dropping out of the
 // matrix. That is the intended behaviour: move the date, do not delete the case.
-// Moved on (v24.82) from 10 Sep 2026, when timetable-2026 was posted on 21 Oct — still inside
-// al-booking-2026's 90 days, so both live notices are in the matrix.
-const PINNED_NOW = new Date(2026, 9, 22, 9, 0);   // after timetable-2026's 21 Oct 2026 posting
+// Moved on (v24.82) from 10 Sep 2026, when timetable-2026 was posted on 21 Oct. install-app-2026 was
+// posted on the 22nd, the day this already reads, so every live notice is in the matrix.
+const PINNED_NOW = new Date(2026, 9, 22, 9, 0);   // after timetable-2026's posting and on install-app-2026's
 
 /** Every notice this module carries, as the pairing that decides who sees it. Read from the source
  *  so a notice added later joins the matrix instead of being missed by it. A notice may pass the gate
  *  a further condition (`[,)]` — v24.86), and may FOLLOW another: it is wired only once that
- *  notice's done flag was set on an earlier load, and the matrix has to know which those are. */
+ *  notice's done flag was set on an earlier load, and the matrix has to know which those are. It may
+ *  also wait for the Year to Date notice only where that one is the member's to get (`followsPay`,
+ *  v24.91) — the Pay Calculator's own test decides, as it does for that notice itself. */
 const NOTICES = [...SOURCE.matchAll(/getElementById\('(\w+NoticeLb)'\)[\s\S]*?_openWhenAudienceAllows\(lb, '([a-z-]+)'[,)]/g)]
-    .map(m => ({ overlay: m[1], audience: m[2], follows: FOLLOWS_OF(m[1]) }));
+    .map(m => ({ overlay: m[1], audience: m[2], follows: FOLLOWS_OF(m[1]), followsPay: FOLLOWS_PAY_OF(m[1]) }));
 
 /** The IIFE that declares a notice's overlay — its own scope, so a key read from it is that notice's.
  *  (This was an 800-character window before the overlay line, which is right until a notice with a
@@ -167,6 +194,17 @@ function DONE_KEY_OF(/** @type {{overlay: string}} */ n) {
 /** The done key of the notice this one waits behind, or null for a notice that waits for none. */
 function FOLLOWS_OF(/** @type {string} */ overlay) {
     return /const FOLLOWS\s*=\s*'([^']+)'/.exec(IIFE_OF(overlay))?.[1] ?? null;
+}
+
+/** The done key of a notice this one waits for only where the Pay Calculator is the member's. */
+function FOLLOWS_PAY_OF(/** @type {string} */ overlay) {
+    return /const FOLLOWS_PAY\s*=\s*'([^']+)'/.exec(IIFE_OF(overlay))?.[1] ?? null;
+}
+
+/** Would the Pay Calculator price this session's member? The real test, from the real roster. */
+const { teamMembers, gradeForRole } = await import('./roster-data.js');
+function payCalcFor(/** @type {{ name: string } | null} */ session) {
+    return !!gradeForRole(teamMembers.find(m => m.name === session?.name)?.role);
 }
 
 /** The real rule — pure, so mocking it would only test the mock. */
@@ -197,10 +235,13 @@ describe('1 · a notice reaching somebody it is not addressed to', () => {
         return _openedViaHelper.map(lb => lb._cfg.overlay.id).sort();
     }
     /** Addressed to this access type, not already done, and — for a notice that follows another —
-     *  behind one that IS done. @param {'named'|'viewer'|'none'} accessType @param {Record<string, string>} [store] */
+     *  behind one that IS done, or that is not this member's to get. The session is the one `wire`
+     *  gives each access type. @param {'named'|'viewer'|'none'} accessType @param {Record<string, string>} [store] */
     function expectedFor(accessType, store = {}) {
+        const session = accessType === 'named' ? { name: 'G. Miller' } : null;
         return NOTICES.filter(n => noticeAudienceAllows(n.audience, accessType)
-            && !store[DONE_KEY_OF(n)] && (!n.follows || !!store[n.follows])).map(n => n.overlay).sort();
+            && !store[DONE_KEY_OF(n)] && (!n.follows || !!store[n.follows])
+            && (!n.followsPay || !!store[n.followsPay] || !payCalcFor(session))).map(n => n.overlay).sort();
     }
 
     test('the matrix has notices to be about, and says what it can prove with them', () => {
@@ -228,15 +269,25 @@ describe('1 · a notice reaching somebody it is not addressed to', () => {
     }
 
     // A NOTICE THAT FOLLOWS ANOTHER IS ABSENT FROM THE ROWS ABOVE BY DESIGN — they run on a device
-    // that has dismissed nothing, which is exactly where a follower stays unwired. So it gets rows of
-    // its own, on a device whose earlier load set the flags it waits for; without them the audience
-    // gate would be proved for every notice except the one that waits (v24.86).
-    for (const accessType of /** @type {const} */ (['named', 'viewer', 'none'])) {
-        test(`${accessType}: a notice that follows another, once that one is done`, async () => {
-            const store = Object.fromEntries(NOTICES.filter(n => n.follows).map(n => [/** @type {string} */ (n.follows), '1']));
-            assert.ok(Object.keys(store).length > 0, 'no live notice follows another — this row would prove nothing');
-            assert.deepEqual(await shownTo(accessType, store), expectedFor(accessType, store));
-        });
+    // that has dismissed nothing, which is exactly where a follower stays unwired. So each follower
+    // gets rows of its own, on a device whose earlier loads set exactly the flags IT waits for;
+    // without them the audience gate would be proved for every notice except the ones that wait
+    // (v24.86). One store for all of them stopped working at v24.91, when a follower began waiting
+    // for another follower: its flag marks that one done, so neither could be seen in one row.
+    test('at least one live notice follows another — or the rows below prove nothing', () => {
+        assert.ok(NOTICES.some(n => n.follows), 'no live notice follows another');
+    });
+    for (const f of NOTICES.filter(n => n.follows)) {
+        for (const accessType of /** @type {const} */ (['named', 'viewer', 'none'])) {
+            test(`${accessType}: ${f.overlay}, once the notices it waits for are done`, async () => {
+                const store = Object.fromEntries([f.follows, f.followsPay].filter(Boolean)
+                    .map(k => [/** @type {string} */ (k), '1']));
+                const shown = await shownTo(accessType, store);
+                assert.deepEqual(shown, expectedFor(accessType, store));
+                assert.equal(shown.includes(f.overlay), noticeAudienceAllows(f.audience, accessType),
+                    'the follower itself opens exactly where its audience allows');
+            });
+        }
     }
 
     test('a device outside the audience is NOT flagged seen', async () => {
@@ -386,66 +437,232 @@ describe('4 · a notice added later skipping the check', () => {
 });
 
 
-describe('5 · the leave reminder is a ONE-OFF (v23.60, owner decision)', () => {
-    // It shipped on the actionable pattern — a 7-day snooze on any dismissal, a day on the CTA,
-    // repeating until its 90-day expiry — and the owner ruled it a heads-up, not a nag. Organised by
-    // what a wrong answer COSTS: COMING BACK is the shipped defect and the quiet one (a member who
-    // has read it is told again next week, and the week after, and reads the app as nagging), while
-    // NEVER SHOWING is what a careless fix produces — the notice deleted rather than made one-off.
-    const LEAVE  = NOTICES.find(n => n.overlay === 'alNoticeLb');
-    const DONE   = DONE_KEY_OF(LEAVE);
-    const SNOOZE = /const SNOOZE_KEY\s*=\s*'([^']+)'/.exec(SOURCE)[1];
-    const GO_ID  = LEAVE.overlay.replace(/Lb$/, 'Go');
-    // Its audience is 'members', so a named session shows it. The CTA element has to EXIST in the
-    // fake page for the notice to attach its handler — `present` defaults to the overlays alone.
-    const SHOWN  = { accessType: 'named', present: [LEAVE.overlay, GO_ID] };
+describe('5 · the install notice: a phone browser, third in line, and the right "how" (v24.91)', () => {
+    // Owner, 22 Oct 2026: remind everyone to install the app on their phone rather than use the web
+    // address. Organised by what a wrong answer costs. On a desktop, or inside the installed app, it
+    // asks for the impossible. On the load another notice is dismissed it stacks two asks on one
+    // visit, which the owner has ruled out. On the GitHub Pages mirror a plain "install" makes installs
+    // on the address the app is moving staff off. And a wrong "how" tells a member to press something
+    // that is not there — the one failure they cannot work around from the notice itself.
+    const INST  = /** @type {{ overlay: string, audience: string, follows: string|null, followsPay: string|null }} */ (NOTICES.find(n => n.overlay === 'installNoticeLb'));
+    const TT    = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'timetableNoticeLb'));
+    const YTD   = /** @type {{ overlay: string }} */ (NOTICES.find(n => n.overlay === 'ytdNoticeLb'));
+    const DONE  = DONE_KEY_OF(INST);
+    const IIFE  = IIFE_OF('installNoticeLb');
+    /** The lines it chooses between as it opens — read from the module, so a line added there is in. */
+    const LINES = [...SOURCE.matchAll(/^\s+(installNotice\w+):\s/gm)].map(m => m[1]);
+    /** A member's phone browser whose earlier loads dismissed the timetable and Year to Date notices. */
+    const SHOWN = { accessType: /** @type {const} */ ('named'), present: [INST.overlay, ...LINES, 'installNoticeLater'],
+                    store: { [DONE_KEY_OF(TT)]: '1', [DONE_KEY_OF(YTD)]: '1' } };
+    const opened = () => /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === INST.overlay));
+    /** Its lines that are showing, once it has opened. */
+    const showing = () => LINES.filter(id => _els.get(id)?.hidden === false).sort();
 
-    test('the keys came from the source and are the notice\'s own', () => {
-        assert.match(DONE, /^myb_notice_al_booking_2026_done$/);
-        assert.match(SNOOZE, /^myb_notice_al_booking_2026_snooze$/);
+    test('it is in the matrix, addressed to members, with its own key, no snooze, behind the REAL keys', () => {
+        assert.ok(INST, 'found by the same pattern as every other notice');
+        assert.equal(INST.audience, 'members', 'the station PC is not a person — nobody should install the staff roster on it');
+        assert.match(DONE, /^myb_notice_install_app_2026_done$/);
+        assert.doesNotMatch(IIFE, /SNOOZE_KEY/, 'a one-off declares no snooze');
+        // Restated keys: a rename on either side would leave this notice waiting for a flag nothing writes.
+        assert.equal(INST.follows, DONE_KEY_OF(TT));
+        assert.equal(INST.followsPay, DONE_KEY_OF(YTD));
+        assert.match(IIFE, /isNoticeExpired\(NOTICE_DATE, 90\)/, '90 days — it does not end with the October notices');
     });
 
-    test('a device that has never dismissed it still gets it, ONCE — the fix must not delete the notice', async () => {
+    test('on a member\'s phone browser, the load after the Year to Date notice, it opens — nothing flagged yet', async () => {
         await wire(SHOWN);
         await settleAccess();
-        assert.equal(_openedViaHelper.length, 1, 'it opens');
-        assert.deepEqual(_writes, [], 'and nothing is flagged until the member dismisses it');
+        assert.ok(opened());
+        assert.deepEqual(_writes, []);
     });
 
-    test('closing it — the ×, the backdrop, Escape or "Not now" — marks it DONE and writes no snooze', async () => {
-        await wire(SHOWN);
+    test('NOT on the load the Year to Date notice is dismissed — that flag is read at wiring time', async () => {
+        await wire({ ...SHOWN, present: [...SHOWN.present, YTD.overlay], store: { [DONE_KEY_OF(TT)]: '1' } });
         await settleAccess();
-        _openedViaHelper[0]._cfg.onClose();
-        assert.deepEqual(_writes, [[DONE, '1']], 'exactly one write: done. A snooze here is the defect coming back');
+        const ytd = /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === YTD.overlay));
+        assert.ok(ytd, 'the Year to Date notice comes first');
+        assert.equal(opened(), undefined, 'and this one is not decided on that load');
+        ytd._cfg.onClose();                                   // dismissed: its flag is written now…
+        mock.timers.tick(10_000);                             // …and nothing follows it up this visit
+        await drain();
+        assert.equal(opened(), undefined);
+        assert.deepEqual(_writes, [[DONE_KEY_OF(YTD), '1']], 'this notice is not flagged — it comes next time');
+        assert.deepEqual(_installCalls, [], 'and the strip keeps its place on this visit');
     });
 
-    test('taking the CTA marks it DONE too — the member acted and does not need telling again', async () => {
-        await wire(SHOWN);
+    test('for a member the Year to Date notice is not for, it waits for the timetable one alone', async () => {
+        // A Dispatcher never gets the Year to Date notice, so waiting for its flag would hold this one
+        // back until that notice expires and is flagged on 1 November.
+        await wire({ ...SHOWN, store: { [DONE_KEY_OF(TT)]: '1' }, session: { name: 'D. Minto' } });
         await settleAccess();
-        const go = _listeners.get(`${GO_ID}:click`);
-        assert.ok(go, `the CTA (#${GO_ID}) has a click handler`);
+        assert.ok(opened());
+    });
+
+    test('never before the timetable notice has been dismissed', async () => {
+        await wire({ ...SHOWN, store: { [DONE_KEY_OF(YTD)]: '1' } });
+        await settleAccess();
+        assert.equal(opened(), undefined);
+        assert.deepEqual(_installCalls, [], 'not decided, so the strip is left alone');
+    });
+
+    test('not on a desktop or in the installed app — and NOT flagged, so their phone\'s browser still gets it', async () => {
+        await wire({ ...SHOWN, route: null });
+        await settleAccess();
+        assert.equal(opened(), undefined);
+        assert.deepEqual(_writes, []);
+        assert.deepEqual(_installCalls, [], 'not decided, so the strip keeps its own ask');
+    });
+
+    test('not on the shared PIN station — and not flagged there', async () => {
+        await wire({ ...SHOWN, accessType: 'viewer', session: null });
+        await settleAccess();
+        assert.equal(opened(), undefined);
+        assert.deepEqual(_writes, []);
+        assert.deepEqual(_installCalls, []);
+    });
+
+    test('decided, it stands the strip down AT ONCE — not 1500ms later, on top of it', async () => {
+        await wire(SHOWN);
+        _access.decide();
+        await _access.promise;
+        await drain();
+        assert.deepEqual(_installCalls, ['yield'], 'the strip leaves the screen as the notice is decided');
+        assert.equal(opened(), undefined, 'while the notice itself is still on its defer');
+        mock.timers.tick(1600);
+        assert.ok(opened());
+    });
+
+    /** @type {Array<[NonNullable<typeof _route>, string[], string]>} */
+    const ROUTES = [
+        [{ how: 'prompt', mirror: false }, ['installNoticeActions', 'installNoticeInstall'],
+            'Chromium has handed over its offer: one tap, and no "already installed" line, since it offers only where it is not'],
+        [{ how: 'menu', mirror: false }, ['installNoticeHave', 'installNoticeMenu'],
+            'any other phone browser: its own menu'],
+        [{ how: 'ios', mirror: false }, ['installNoticeHave', 'installNoticeIos'],
+            'an iPhone or iPad: Share, then Add to Home Screen'],
+        // The mirror gets no steps of its own: the main address shows them once the member is there,
+        // and with them the card ran past a phone's screen and hid its one button.
+        [{ how: 'ios', mirror: true }, ['installNoticeActions', 'installNoticeGo', 'installNoticeMirror', 'installNoticePay'],
+            'the mirror on an iPhone: the main address, and the pay figures that stay behind'],
+        [{ how: 'menu', mirror: true }, ['installNoticeActions', 'installNoticeGo', 'installNoticeMirror', 'installNoticePay'],
+            'the mirror on Android: the same — never the menu, which would install the mirror'],
+    ];
+    for (const [route, lines, what] of ROUTES) {
+        test(`it says what this browser does — ${what}`, async () => {
+            await wire({ ...SHOWN, route });
+            await settleAccess();
+            opened()._cfg.onOpen();
+            assert.deepEqual(showing(), [...lines].sort());
+        });
+    }
+
+    test('the route is read as it OPENS — an offer that arrives after the gate still gets its one tap', async () => {
+        await wire(SHOWN);                                    // a phone browser with no offer yet
+        _access.decide();
+        await _access.promise;
+        await drain();
+        _route = { how: 'prompt', mirror: false };            // Chromium fires inside the 1500ms
+        mock.timers.tick(1600);
+        opened()._cfg.onOpen();
+        assert.ok(showing().includes('installNoticeInstall'));
+    });
+
+    test('should the browser stop answering before it opens, the route the gate saw is used — the mirror stays the mirror', async () => {
+        // A tablet whose keyboard is attached in the 1500ms between the gate and the open reads as
+        // no route at all. Falling back to a generic "use the menu" there would tell a member on the
+        // mirror to install the mirror.
+        await wire({ ...SHOWN, route: { how: 'menu', mirror: true } });
+        _access.decide();
+        await _access.promise;
+        await drain();
+        _route = null;
+        mock.timers.tick(1600);
+        opened()._cfg.onOpen();
+        assert.deepEqual(showing(), ['installNoticeActions', 'installNoticeGo', 'installNoticeMirror', 'installNoticePay']);
+    });
+
+    test('the one-tap button spends the offer FIRST, then answers the notice and retires the strip', async () => {
+        await wire({ ...SHOWN, route: { how: 'prompt', mirror: false } });
+        await settleAccess();
+        opened()._cfg.onOpen();
+        const tap = _listeners.get('installNoticeInstall:click');
+        assert.ok(tap, 'the button has a click handler');
+        _installCalls = [];
+        tap();
+        assert.deepEqual(_installCalls, ['prompt', 'retire'], 'the browser wants the tap behind its prompt, so nothing goes before it');
+        assert.deepEqual(_writes, [[DONE, '1']]);
+        assert.deepEqual(_closed, [INST.overlay], 'and the notice gets out of the way of the browser\'s dialog');
+    });
+
+    test('the mirror\'s link answers it too — the member has acted', async () => {
+        await wire({ ...SHOWN, route: { how: 'ios', mirror: true } });
+        await settleAccess();
+        const go = _listeners.get('installNoticeGo:click');
+        assert.ok(go, 'the link has a click handler');
+        _installCalls = [];
         go();
         assert.deepEqual(_writes, [[DONE, '1']]);
+        assert.deepEqual(_installCalls, ['retire']);
     });
 
-    test('a snooze left by the OLD rule is a dismissal: promoted to done, nothing shown', async () => {
-        // A snooze can only have been written by somebody who closed the notice, so under the new
-        // rule they have seen it. Both a live snooze and a LAPSED one — the lapsed one is exactly
-        // the device that would have been nagged again on its next open.
-        for (const offsetDays of [+3, -1]) {
-            const stamp = new Date(Date.now() + offsetDays * 86_400_000).toISOString();
-            await wire({ ...SHOWN, store: { [SNOOZE]: stamp } });
+    test('every close — the ×, the backdrop, Escape, "Not now" — answers it, and the strip does not ask again', async () => {
+        // A member who has read the whole case and said "Not now" is not asked again next visit by the
+        // one-line version of it. Settings keeps its install card as the place to find it.
+        await wire(SHOWN);
+        await settleAccess();
+        _installCalls = [];
+        opened()._cfg.onClose();
+        assert.deepEqual(_writes, [[DONE, '1']]);
+        assert.deepEqual(_installCalls, ['retire']);
+    });
+
+    test('archived on OPEN, with the "how" this browser was shown — and the mirror\'s never says install here', async () => {
+        /** @type {Array<[NonNullable<typeof _route>, RegExp]>} */
+        const cases = [[{ how: 'ios', mirror: false }, /Share button, then Add to Home Screen/],
+                       [{ how: 'menu', mirror: false }, /browser’s menu/],
+                       [{ how: 'prompt', mirror: false }, /browser’s menu/],          // the button is spent once used
+                       [{ how: 'menu', mirror: true }, /myb-roster\.web\.app/]];
+        for (const [route, how] of cases) {
+            await wire({ ...SHOWN, route });
             await settleAccess();
-            assert.equal(_openedViaHelper.length, 0, `snooze ${offsetDays}d: not shown`);
-            assert.deepEqual(_writes, [[DONE, '1']], `snooze ${offsetDays}d: promoted to done`);
+            opened()._cfg.onOpen();
+            assert.deepEqual(_archived.map(n => [n.id, n.section, n.date]), [['install-app-2026', 'General', '22 Oct 2026']]);
+            assert.match(_archived[0].body, how, JSON.stringify(route));
+            if (route.mirror) assert.doesNotMatch(_archived[0].body, /browser’s menu|Share/, 'on the mirror the record sends them to the main address');
         }
     });
 
-    test('once done, it stays done', async () => {
-        await wire({ ...SHOWN, store: { [DONE]: '1' } });
+    test('past its 90 days, a device that never saw it is flagged and shown nothing', async () => {
+        await wire({ ...SHOWN, expired: true });
         await settleAccess();
-        assert.equal(_openedViaHelper.length, 0);
+        assert.equal(opened(), undefined);
+        assert.deepEqual(_writes, [[DONE, '1']]);
+    });
+
+    test('once done, it stays done', async () => {
+        await wire({ ...SHOWN, store: { ...SHOWN.store, [DONE]: '1' } });
+        await settleAccess();
+        assert.equal(opened(), undefined);
         assert.deepEqual(_writes, []);
+        assert.deepEqual(_installCalls, []);
+    });
+
+    test('every line the markup gives it is one the module shows or hides — none is stranded', () => {
+        // A line added to index.html and not here would stay `hidden` on every phone for ever.
+        const page  = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+        const block = page.slice(page.indexOf('id="installNoticeLb"'), page.indexOf('<!-- Annual Leave lightbox'));
+        const ids   = [...block.matchAll(/id="(installNotice\w+)"/g)].map(m => m[1])
+            .filter(id => !/^installNotice(Lb|Content|Close|Later)$/.test(id));
+        assert.deepEqual([...ids].sort(), [...LINES].sort());
+        assert.ok(LINES.length >= 8, `found ${LINES.length} lines — the pattern reading the module has stopped matching`);
+    });
+
+    test('the mirror\'s link is the app\'s main address — the one notifications are sent from', () => {
+        const page = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+        const href = /<a href="([^"]+)" id="installNoticeGo"/.exec(page)?.[1];
+        const site = /const STAFF_SITE_URL\s*=\s*'([^']+)'/.exec(readFileSync(new URL('./functions/index.js', import.meta.url), 'utf8'))?.[1];
+        assert.ok(site, 'STAFF_SITE_URL is still declared where this reads it');
+        assert.equal(href, `${site}/`);
     });
 });
 
@@ -455,8 +672,9 @@ const OCTOBER_LAST_DAY = /** @type {RegExpExecArray} */ (/const OCTOBER_LAST_DAY
 
 describe('6 · the timetable notice: a one-off from the start, offered to the end of October (v24.82; v24.86)', () => {
     // Owner request, 21 Oct 2026: tell members a new timetable is coming and send them to the Trains
-    // page to learn it. One-off on the rule block 5 settled, so the costs are the same two: coming
-    // back nags, never showing means nobody is told.
+    // page to learn it. One-off on the rule the owner set for the leave reminder (10 Sep 2026; that
+    // notice was retired at v24.91), so the costs are the same two: coming back nags, never showing
+    // means nobody is told.
     const TT    = /** @type {{ overlay: string, audience: string }} */ (NOTICES.find(n => n.overlay === 'timetableNoticeLb'));
     const DONE  = DONE_KEY_OF(TT);
     const GO_ID = 'timetableNoticeGo';

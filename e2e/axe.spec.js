@@ -13,7 +13,7 @@
 // installed — otherwise the SDK-dependent pages never render and the scan can't reach them.
 import { test, expect } from './fixtures.js';
 import AxeBuilder from '@axe-core/playwright';
-import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin, openPinCard, clearNoticeFlags, sheetAction, openRosterReview, ROSTER_REVIEW_DATES } from './helpers.js';
+import { seedSession, seedMember, seedMemberSession, seedViewerAccess, stubPinExchange, enterPin, openPinCard, clearNoticeFlags, sheetAction, openRosterReview, ROSTER_REVIEW_DATES, isTouchProject } from './helpers.js';
 import { GUIDE_PAGES } from '../scripts/app-pages.mjs';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
@@ -639,35 +639,37 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         });
     }
 
-    test('one-time notice open (calendar) — the state the other scans used to sample by accident', async ({ page }) => {
+    test('one-time notice open (calendar) — the state the other scans used to sample by accident', async ({ page }, info) => {
         // A notice is the app's only overlay that opens on a TIMER rather than on a tap, which is
         // what made it a race for everything else and why it needs its own scan: dark glass over a
         // translucent card, every text colour an rgba white, so contrast here is decided by what is
         // composited BEHIND it — the one arrangement in the app where a scan of some other page
         // proves nothing at all.
         //
-        // THE SUBJECT MOVED AT v23.23 AND AGAIN AT v23.31, and the coverage is what matters rather
-        // than which notice carries it. `sign-in-2026` was retired, then `backpay-2026` deleted once
-        // its cutoff passed, leaving `al-booking-2026` — same `.notice-lb-content` shell, same
-        // rgba-white text over the same glass, so it scans the identical arrangement. Two
-        // consequences, both deliberate:
-        //   · Its audience is `'members'`, not `'signed-out'`, so this needs a NAMED identity
-        //     (a session AND a restored Firebase user) rather than the file's viewer seed.
-        //   · It expires 90 days after its 8 Sep 2026 posting, so the clock is pinned inside that
-        //     window. Move this to the next notice when it is deleted rather than deleting the scan
-        //     — it is the only one that sees a notice overlay.
+        // THE SUBJECT HAS MOVED FOUR TIMES, and the coverage is what matters rather than which notice
+        // carries it: `sign-in-2026`, then `backpay-2026` (v23.23), then `al-booking-2026` (v23.31),
+        // and at v24.91, when the leave reminder was retired early, `install-app-2026`. Same
+        // `.notice-lb-content` shell, same rgba-white text over the same glass — and the one badge no
+        // other notice wears, the neutral General chip with no section colour. Three consequences:
+        //   · Its audience is `'members'`, so this needs a NAMED identity (a session AND a restored
+        //     Firebase user) rather than the file's viewer seed.
+        //   · It is offered only on a touch screen, so the desktop project has nothing to open. The
+        //     timetable and Year to Date notices below are scanned on both.
+        //   · It runs 90 days from its 22 Oct 2026 posting, so the clock is pinned inside that life.
+        //     Move this to the next notice when it is deleted rather than deleting the scan.
         //
         // The re-enable is registered AFTER the seeders, which set the same key themselves: init
         // scripts run in registration order and last write wins. Putting it first is how this test
         // silently reverts to scanning a notice that never opens.
-        await page.clock.setFixedTime(new Date('2026-09-10T09:00:00Z'));   // inside the notice's 90-day life
+        test.skip(!isTouchProject(info), 'the install notice is offered only on a touch screen');
+        await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));   // its posting day
         await seedSession(page, 'G. Miller');
         await seedMemberSession(page, 'G. Miller');
         await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_al_booking_2026_done']);
+        await clearNoticeFlags(page, ['myb_notice_install_app_2026_done']);
         await page.goto('/');
         await expect(page.locator('.calendar-day').first()).toBeVisible();
-        await expect(page.locator('#alNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await expect(page.locator('#installNoticeLb')).toHaveClass(/\bopen\b/, { timeout: 15_000 });
         await page.waitForTimeout(600);      // let the fade finish — mid-transition is the bug
         const v = await scan(page, { exclude: ['.other-month'] });
         expect(v.length, report(v)).toBe(0);
@@ -676,8 +678,8 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     test('the new-timetable notice open (calendar) — the Trains badge on the glass (v24.82)', async ({ page }) => {
         // The same shell as the scan above, and one thing that scan cannot see: this notice's section
         // badge is the Trains pill's raspberry under white type, a pairing no other notice carries.
-        // Members only, and alive from its 21 Oct posting until the timetable starts on 13 Dec — so a
-        // named identity and a clock inside that life, the re-enable registered after the seeders.
+        // Members only, and alive from its 21 Oct posting to the end of 31 October — so a named
+        // identity and a clock inside that life, the re-enable registered after the seeders.
         await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
         await seedSession(page, 'G. Miller');
         await seedMemberSession(page, 'G. Miller');

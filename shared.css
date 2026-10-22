@@ -1769,21 +1769,30 @@ button.lightbox-bug-link {
     margin: 0;
 }
 
-/* Primary CTA link — gold, full-width, tactile press */
+/* Primary CTA — gold, full-width, tactile press. Usually a link; a <button> where the notice ACTS
+   rather than goes somewhere (the install notice's one-tap install, v24.91) — hence the border, font
+   and line-height a link inherits and a button does not, which leave a link unchanged. */
 .notice-cta {
     display: block;
     background-color: var(--accent-gold);
     color: var(--primary-blue);
+    border: none;
+    font-family: inherit;
     font-size: var(--type-button);
     font-weight: 700;
+    line-height: inherit;
     text-decoration: none;
     text-align: center;
     padding: 13px 20px;
     border-radius: var(--radius-button);
+    cursor: pointer;
     touch-action: manipulation;
     transition: background-color var(--dur-fast) var(--ease-standard),
                 transform      var(--dur-fast) var(--ease-standard);
 }
+/* `display` above out-specifies the UA's `[hidden]` — the install notice shows one CTA of two. */
+.notice-cta[hidden],
+.notice-actions[hidden] { display: none; }
 @media (hover: hover) and (pointer: fine) {
     .notice-cta:hover { background-color: var(--accent-gold-dark); }
 }
@@ -3313,7 +3322,8 @@ body.auth-ready .boot-placeholder { display: none; }
 .card-header .hint { font-size: var(--type-small); color: var(--text-light); display: block; }
 /* A "☰ → Daily Huddle" path told to staff is one token, not three words: without this the wrap
    could land between the burger glyph and the arrow, leaving a line starting "→ Daily Huddle" that
-   reads as broken punctuation rather than a route. (v18.86) */
+   reads as broken punctuation rather than a route. (v18.86) A web address told to staff is the same
+   kind of token — "myb-" ending one line of the install notice read as a typo (v24.91). */
 .nav-path { white-space: nowrap; }
 .card-body { padding: var(--space-3) var(--space-4); }
 

@@ -5,7 +5,7 @@
  * Split out of calendar-app.js at v21.61, when the second live notice took the coordinator over
  * its ratchet cap. The split is the honest response rather than a raise: a notice is a
  * self-contained unit with one lifecycle (show once, archive, retire on a date), notices ARRIVE
- * AND EXPIRE routinely (this file's two will both be deleted within months, per the 180-day rule),
+ * AND EXPIRE routinely (the two it was split out with were both deleted within months),
  * and each one was growing the page coordinator by ~50 lines of wiring that has nothing to do with
  * coordinating the Calendar. `/new-notice` additions for index.html land HERE from now on.
  *
@@ -24,7 +24,7 @@
  * not signed in. Open through `_openWhenAudienceAllows` rather than wiring the check per notice, so
  * a notice added later cannot quietly skip it.
  *
- * ── NO SIGNED-OUT NOTICE LIVE, AND WHAT THAT COSTS THE GUARD (v23.23; updated v23.31, v24.82, v24.86) ─
+ * ── NO SIGNED-OUT NOTICE LIVE, AND WHAT THAT COSTS THE GUARD (v23.23; updated to v24.91) ──────────
  *
  * `sign-in-2026` was retired here by owner decision, not by its expiry. v23.19 made the Calendar's
  * front door a sign-in card, so its whole audience — somebody reading the roster on the staff PIN —
@@ -32,8 +32,9 @@
  * choice the reader had just declined a moment earlier. `backpay-2026` followed at v23.31, deleted
  * once its hard cutoff had passed rather than left inert until the 180-day sweep.
  *
- * That left `al-booking-2026` alone until v24.82 added `timetable-2026` and v24.86 the Year to Date
- * notice that follows it, and all three are `'members'` —
+ * That left `al-booking-2026` alone until v24.82 added `timetable-2026`, v24.86 the Year to Date
+ * notice that follows it and v24.91 the install notice — the same release that retired the leave
+ * reminder early, by owner decision (22 Oct 2026). Every one of them is `'members'` —
  * so **no live notice addresses the signed-out audience**, and the positive direction of the
  * audience gate has nothing to exercise it. `calendar-notices.test.mjs` can still prove a notice is REFUSED to the wrong audience and
  * that every notice is gated at all; what it can no longer prove behaviourally is that a
@@ -50,6 +51,7 @@ import { calendarAccessReady, getAccessType } from './calendar-access.js';
 import { noticeAudienceAllows } from './calendar-access-core.js';
 import { getSession } from './session.js';
 import { teamMembers, gradeForRole } from './roster-data.js';
+import { installRoute, promptInstall, yieldToInstallNotice, retireInstallStrip } from './install-prompt.js';
 
 /**
  * Open a notice once access is decided AND this device is one of its audience.
@@ -68,17 +70,23 @@ import { teamMembers, gradeForRole } from './roster-data.js';
  * member signing in at the front door has no session yet. It is held to the audience rule's
  * standard — read once, after access, and a refusal leaves the notice untouched and unflagged.
  *
+ * And ONE thing to do the moment a notice is decided, `whenDecided`, for a notice that makes the same
+ * ask as something already on the page: the install notice takes the install strip down then
+ * (v24.91), rather than 1500ms later, on top of it.
+ *
  * @param {{ open: () => void }} lb
  * @param {'members'|'signed-out'|'everyone'} audience
  * @param {() => boolean} [alsoWhen]
+ * @param {() => void} [whenDecided]
  */
-function _openWhenAudienceAllows(lb, audience, alsoWhen = () => true) {
+function _openWhenAudienceAllows(lb, audience, alsoWhen = () => true, whenDecided = () => {}) {
     // Access first, then whatever the coordinator asked us to queue behind (v23.21: the forced
     // set-password overlay a front-door sign-in may put up — see calendar-app.js). `_after` never
     // rejects and never hangs (the coordinator bounds it), so this cannot silence a notice.
     calendarAccessReady.then(() => _after).then(() => {
         if (!noticeAudienceAllows(audience, getAccessType())) return;
         if (!alsoWhen()) return;
+        whenDecided();
         setTimeout(() => openNoticeIfClear(lb), 1500);
     });
 }
@@ -99,6 +107,18 @@ const OCTOBER_LAST_DAY = '31 Oct 2026';
 let _after = Promise.resolve();
 
 /**
+ * Would the Pay Calculator price THIS member, or show them its refusal card? `gradeForRole` is the
+ * Pay page's own test, imported from roster-data.js so the two cannot disagree. Read at OPEN time by
+ * the notices that ask it: a member signing in at the front door on this very load has no session
+ * at wiring time.
+ * @returns {boolean}
+ */
+function payCalcIsTheirs() {
+    const name = getSession()?.name;
+    return !!gradeForRole(teamMembers.find(m => m.name === name)?.role);
+}
+
+/**
  * Wire every one-time notice this page carries. Called once from calendar-app.js.
  * @param {{ after?: Promise<any> }} [opts]  `after` — settle before any notice opens. The coordinator
  *   passes the forced set-password step's promise, so a notice can never race a mandatory overlay
@@ -110,66 +130,14 @@ export function initCalendarNotices({ after } = {}) {
     // snoozed, expired), and as plain blocks those returns leave THIS function — so the first
     // notice already dismissed silenced every notice after it. Caught by a render check the same
     // hour it was written; the wrapper is the scope those returns need.
-    // ── Reminder: book the rest of your 2026 annual leave (v23.31; a ONE-OFF since v23.60) ────────
-    //
-    // The leave year is the calendar year, and leave still unbooked late in it can have dates
-    // allocated for the member. It shipped on the skill's actionable pattern — a 7-day snooze on any
-    // dismissal, 1 day on the CTA, repeating until its 90-day expiry — and the owner ruled that wrong
-    // (10 Sep 2026): it is a heads-up, not a nag, and a member who has read it once has been told.
-    // So EVERY dismissal now marks it DONE — the ×, the backdrop, Escape, "Not now" and the CTA
-    // alike — and it never returns on that device. A snooze already sitting on a device can only
-    // have been written by a dismissal under the old rule, which under this rule is "seen", so it
-    // is promoted to done rather than re-shown when it lapses. The 90-day expiry stays: a device
-    // first opened after ~7 Dec 2026 is flagged and shown nothing. Archived on OPEN because there is
-    // a CTA (the member may leave before onClose fires).
-    (function () {
-        const NOTICE_ID   = 'al-booking-2026';
-        const NOTICE_DATE = '8 Sep 2026';
-        const DONE_KEY    = 'myb_notice_al_booking_2026_done';
-        const SNOOZE_KEY  = 'myb_notice_al_booking_2026_snooze';
-
-        const overlay = document.getElementById('alNoticeLb');
-        if (!overlay) return;
-        if (lsGet(DONE_KEY)) return;
-        // A snooze predates the one-off rule and exists only on a device that already dismissed
-        // the notice once. That is "seen": promote it, rather than re-showing when it lapses.
-        if (lsGet(SNOOZE_KEY)) { lsSet(DONE_KEY, '1'); return; }
-        // Long expiry — a seasonal reminder that stays relevant for months, not a launch nudge.
-        if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }
-
-        const markDone = () => lsSet(DONE_KEY, '1');
-
-        const lb = createLightbox({
-            overlay,
-            content:  /** @type {HTMLElement} */ (document.getElementById('alNoticeContent')),
-            closeBtn: /** @type {HTMLElement} */ (document.getElementById('alNoticeClose')),
-            onOpen() {
-                archiveNotice({
-                    id: NOTICE_ID, title: 'Book your remaining 2026 leave', section: 'Calendar',
-                    date: NOTICE_DATE,
-                    body: 'Only a few months of the 2026 leave year are left. Book any annual leave you still '
-                        + 'have soon — leave left unbooked later in the year may have dates allocated for you.',
-                });
-            },
-            onClose() { markDone(); },
-        });
-
-        document.getElementById('alNoticeGo')?.addEventListener('click', markDone);
-        document.getElementById('alNoticeLater')?.addEventListener('click', () => lb.close());
-
-        // 'members' — it is about YOUR remaining leave and it opens the Admin page's booking card
-        // for you; on the PIN-unlocked station PC it addresses nobody. A PIN unlock is not flagged
-        // seen, so the notice still arrives when that device is next signed in.
-        _openWhenAudienceAllows(lb, 'members');
-    }());
-
     // ── The new timetable, and where to learn it (v24.82; owner request, 21 Oct 2026) ────────────
     //
     // Chiltern's timetable changes on Sunday 13 December, and staff will be asked about it; this
     // points members at the Trains page, which shows the change station by station. A ONE-OFF from
-    // the start, on the rule the leave reminder above settled (owner, 10 Sep 2026): every dismissal —
-    // the ×, the backdrop, Escape, "Not now" and the link — marks it DONE, so it declares no snooze
-    // key at all. Its body says where the page sits in the menu, so "Not now" loses nothing.
+    // the start, on the rule the owner set for the leave reminder (10 Sep 2026; that notice was
+    // retired early at v24.91): every dismissal — the ×, the backdrop, Escape, "Not now" and the
+    // link — marks it DONE, so it declares no snooze key at all. Its body says where the page sits
+    // in the menu, so "Not now" loses nothing.
     // It is offered until the end of 31 October (owner, 22 Oct 2026 — `OCTOBER_LAST_DAY`). It
     // shipped running to 13 December, the day the timetable starts; the owner brought it forward to
     // end with the Year to Date notice below, which waits for this one to be dismissed. Archived on
@@ -204,9 +172,10 @@ export function initCalendarNotices({ after } = {}) {
         document.getElementById('timetableNoticeGo')?.addEventListener('click', markDone);
         document.getElementById('timetableNoticeLater')?.addEventListener('click', () => lb.close());
 
-        // 'members' — the Trains page signs people in, so on the PIN-unlocked station PC its link
-        // would lead only to a sign-in. A PIN unlock is not flagged seen, so the notice still
-        // arrives when that device is next signed in.
+        // 'members' — chosen while the Trains page signed people in, when its link would have led the
+        // station PC only to a sign-in. The PIN has read Trains since v24.84; whether the station
+        // should be told too is the owner's open question (CLAUDE.md's notice table). A PIN unlock
+        // is not flagged seen, so the notice still arrives when that device is next signed in.
         _openWhenAudienceAllows(lb, 'members');
     }());
 
@@ -218,7 +187,7 @@ export function initCalendarNotices({ after } = {}) {
     // figures make the estimate worse, not better — the cumulative method applies the wrong allowance
     // to every payslip of the year at once. Measured on a real payslip with the default code where the
     // payslip said 1182L: the next estimate £23.20 out without the figures, £207.60 out with them.
-    // A ONE-OFF on the rule the two notices above settled: every dismissal marks it done.
+    // A ONE-OFF on the same rule as the timetable notice above: every dismissal marks it done.
     //
     // IT COMES THE TIME AFTER THE TIMETABLE NOTICE, never on the same load (owner). So it reads that
     // notice's done flag NOW, at wiring time, and is not wired at all until the flag was set on an
@@ -275,13 +244,129 @@ export function initCalendarNotices({ after } = {}) {
         document.getElementById('ytdNoticeGo')?.addEventListener('click', markDone);
         document.getElementById('ytdNoticeLater')?.addEventListener('click', () => lb.close());
 
-        /** Would the Pay Calculator price THIS member, or show them its refusal card? */
-        const payCalcIsTheirs = () => {
-            const name = getSession()?.name;
-            return !!gradeForRole(teamMembers.find(m => m.name === name)?.role);
-        };
-
         // 'members' — it is about YOUR pay, and on the PIN-unlocked station PC it addresses nobody.
         _openWhenAudienceAllows(lb, 'members', payCalcIsTheirs);
     }());
+
+    // ── Put the roster on your home screen (v24.91; owner, 22 Oct 2026) ────────────────────────────
+    //
+    // "Reminding everyone to install the web app on mobile rather than use the web address." The
+    // install strip (install-prompt.js) has asked since Sep 2026, in one line at the top of the page
+    // that a thumb dismisses at a glance; this is the whole case, made once. A ONE-OFF on the same
+    // rule as the notices above: every dismissal marks it done.
+    //
+    // ONLY WHERE THERE IS SOMETHING TO INSTALL — a phone or tablet in a browser, never a desktop and
+    // never the installed app itself (`installRoute()` is null for both). Read at open time through
+    // the gate, and a refusal leaves it unflagged, so a member who meets the Calendar on a PC first
+    // still gets it on their phone. Offered for 90 days; after that a device that never saw it is
+    // flagged and shown nothing.
+    //
+    // THIRD IN LINE, and never on the load another notice is dismissed — the order the owner
+    // confirmed for the first two. It FOLLOWS the timetable notice, and it also waits for the Year to
+    // Date notice, but only where that one is the member's to get: a Dispatcher never gets it, and
+    // waiting for it would hold this notice back until the Year to Date notice expires on
+    // 1 November. Both flags are read at WIRING time, as FOLLOWS always is, so the order holds by
+    // construction: on the load the Year to Date notice is shown, this one is refused at the gate,
+    // whichever timer fires first.
+    //
+    // WHAT IT SAYS DEPENDS ON THE BROWSER, chosen as it opens, because Chromium's offer can arrive
+    // after the gate: one tap where Chromium has handed its install offer over; Share, then Add to
+    // Home Screen, on an iPhone or iPad; the browser's own menu anywhere else. On the GitHub Pages
+    // mirror — where most staff still open the roster — it never says install HERE: the app does not
+    // make installs on the address it is moving people off (install-prompt.js's header), so it sends
+    // them to myb-roster.web.app, and warns that Pay Calculator figures do not follow by themselves
+    // (they live in this address's own storage; the Pay page's Move Your Pay Data card moves them).
+    // It gives the mirror NO steps and no "already installed" line: with them the card ran past a
+    // phone's screen and put its one button out of sight (measured at 393×851), and the main address
+    // shows the steps itself — its install strip at once, then this notice, for a device that is
+    // new there.
+    //
+    // ONE ASK AT A TIME with the strip: once this notice is decided, the strip and the notification
+    // ask leave the screen for the visit, and once it is answered the strip does not ask again on this
+    // device. Archived on OPEN, because two of its answers leave the page or the browser.
+    (function () {
+        const NOTICE_ID   = 'install-app-2026';
+        const NOTICE_DATE = '22 Oct 2026';
+        const DONE_KEY    = 'myb_notice_install_app_2026_done';
+        const FOLLOWS     = 'myb_notice_timetable_2026_done';
+        const FOLLOWS_PAY = 'myb_notice_ytd_figures_2026_done';   // …where that notice is the member's
+
+        const overlay = document.getElementById('installNoticeLb');
+        if (!overlay) return;
+        if (lsGet(DONE_KEY)) return;
+        if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }
+        if (!lsGet(FOLLOWS)) return;
+        const payNoticeDone = !!lsGet(FOLLOWS_PAY);
+
+        /** Answered, whichever way: done, and the strip is not to ask again either. */
+        const answered = () => { lsSet(DONE_KEY, '1'); retireInstallStrip(); };
+        /** The route the gate saw, for the open 1500ms later should the browser stop answering
+         *  then — a tablet whose keyboard was attached meanwhile. The mirror must stay the mirror. */
+        let decided = /** @type {NonNullable<ReturnType<typeof installRoute>>} */ ({ how: 'menu', mirror: false });
+
+        const lb = createLightbox({
+            overlay,
+            content:  /** @type {HTMLElement} */ (document.getElementById('installNoticeContent')),
+            closeBtn: /** @type {HTMLElement} */ (document.getElementById('installNoticeClose')),
+            onOpen() {
+                const route = installRoute() ?? decided;
+                _showInstallRoute(route);
+                archiveNotice({
+                    id: NOTICE_ID, title: 'Put the roster on your home screen', section: 'General',
+                    date: NOTICE_DATE,
+                    body: 'The roster works better from your phone’s home screen than from its web address: it opens '
+                        + 'in one tap, fills the screen, and your saved pay figures are far less likely to be cleared. '
+                        + INSTALL_HOW[route.mirror ? 'mirror' : route.how],
+                });
+            },
+            onClose() { answered(); },
+        });
+
+        document.getElementById('installNoticeInstall')?.addEventListener('click', () => {
+            promptInstall();               // first, while the tap still counts as the member's
+            answered();
+            lb.close();
+        });
+        document.getElementById('installNoticeGo')?.addEventListener('click', answered);
+        document.getElementById('installNoticeLater')?.addEventListener('click', () => lb.close());
+
+        // 'members' — the station PC is not a person, and nobody should install the staff roster on
+        // it (install-prompt.js says why). A PIN unlock is not flagged seen.
+        _openWhenAudienceAllows(lb, 'members',
+            () => !!installRoute() && (payNoticeDone || !payCalcIsTheirs()),
+            () => { decided = installRoute() ?? decided; yieldToInstallNotice(); });
+    }());
+}
+
+/** The install notice's archived how-to, per route — what the drawer's App Notices keeps of the lines
+ *  this device was shown. A one-tap offer is spent once used, so its record gives the menu route. */
+const INSTALL_HOW = {
+    prompt: 'To add it later, open your browser’s menu and look for Install app or Add to Home screen.',
+    menu:   'Open your browser’s menu and look for Install app or Add to Home screen.',
+    ios:    'Tap your browser’s Share button, then Add to Home Screen.',
+    mirror: 'Add it from the app’s main address, myb-roster.web.app — and if you have saved Pay Calculator '
+          + 'figures, move them first with Move Your Pay Data on the Pay page.',
+};
+
+/**
+ * Show the install notice's lines for one route and hide the rest. Every line it owns is set, shown
+ * or hidden, so nothing depends on the markup's starting state.
+ * @param {{ how: 'prompt'|'ios'|'menu', mirror: boolean }} route
+ */
+function _showInstallRoute({ how, mirror }) {
+    /** @type {Record<string, boolean>} */
+    const shown = {
+        installNoticeMirror:  mirror,
+        installNoticeIos:     !mirror && how === 'ios',
+        installNoticeMenu:    !mirror && how === 'menu',
+        installNoticePay:     mirror,
+        installNoticeHave:    !mirror && how !== 'prompt',   // Chromium offers only where it is not installed
+        installNoticeActions: mirror || how === 'prompt',
+        installNoticeInstall: how === 'prompt',
+        installNoticeGo:      mirror,
+    };
+    for (const [id, on] of Object.entries(shown)) {
+        const el = document.getElementById(id);
+        if (el) /** @type {HTMLElement} */ (el).hidden = !on;
+    }
 }

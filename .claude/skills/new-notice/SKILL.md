@@ -206,6 +206,19 @@ Notices on other pages need no audience: those pages already require a session.
   of that day and stops at the next midnight. A count from posting drifts by an hour across a clock
   change.
 
+`install-app-2026` (v24.91) added three more:
+
+- **After a notice only some members get:** `const FOLLOWS_PAY = '<its DONE_KEY>'`, read at wiring
+  time beside `FOLLOWS`, and `alsoWhen` accepts it OR the member not being that notice's reader
+  (`payCalcIsTheirs`, now module-level). Waiting on a flag a member can never set would hold the
+  notice back until that one expires. The test matrix reads `FOLLOWS_PAY` like `FOLLOWS`.
+- **Copy that depends on the device:** put every variant in the markup, `hidden`, and choose in
+  `onOpen` — not at the gate, if what decides it can change in the 1500ms between them. A test
+  pins every variant line in the markup to the module that toggles it.
+- **When it makes the same ask as something already on the page:** a fourth argument,
+  `whenDecided`, runs the moment the notice is decided — the install notice stands the install strip
+  down then, rather than covering it 1500ms later.
+
 ## Rules
 
 | Rule | Value |

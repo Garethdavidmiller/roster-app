@@ -48,9 +48,9 @@ export function dismissOneTimeOverlays(page) {
             'myb_pc_ns_migrated': '1',         // paycalc legacy data-ownership prompt
             'myb_notif_prompt_done': '1',      // calendar notification prompt strip
             'myb_links_welcome_seen': '1',     // links first-visit notice
-            'myb_notice_al_booking_2026_done': '1',  // the live calendar notice (v23.31)
             'myb_notice_timetable_2026_done': '1',   // the new-timetable calendar notice (v24.82)
             'myb_notice_ytd_figures_2026_done': '1', // the Year to Date calendar notice (v24.86)
+            'myb_notice_install_app_2026_done': '1', // the install calendar notice (v24.91)
         };
         for (const [k, v] of Object.entries(flags)) {
             try { localStorage.setItem(k, v); } catch { /* iOS private mode — ignore */ }
