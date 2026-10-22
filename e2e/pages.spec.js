@@ -8,6 +8,7 @@ import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, pickFirst
 import { ROTATING_LINES } from '../links-design.js';
 import { SUNDAY_FORBIDDEN_TYPES } from '../override-utils.js';
 import { describeSetList } from '../links-target-sets.js';
+import { teamMembers, getBaseShift } from '../roster-data.js';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
 
@@ -7668,6 +7669,111 @@ test('operations: re-uploading a roster leaves an already-recorded swapped absen
     await expect.poll(() => page.evaluate(() => (window.__E2E?.batchWrites || []).length)).toBeGreaterThan(0);
     const deleted = await page.evaluate(() => window.__E2E?.batchDeletes || []);
     expect(deleted.some(p => p.endsWith('/imp-swap')), 'the confirmed absence was deleted').toBe(false);
+});
+
+// ── THE REVIEW ON A PHONE (v24.90, owner's screenshot) ───────────────────────────────────────
+//
+// "This looks messy": on a phone set to large text a guarded row's ABSENT badge drew over its own
+// "Not recorded" tag ("IOT RECORDED"), "New roster" wrapped onto two lines, and people with nothing
+// to approve wore a "0" badge and a Skip all. Each was invisible at the size the tests ran at.
+
+/** A second member for the review, taken from the roster rather than named: a CEA whose base week
+ *  has a worked weekday and a Monday-to-Saturday rest day. `base` is that week, so a parse built
+ *  from it matches everywhere except the days a test changes, and only those are drawn. */
+function secondReviewMember() {
+    const at = (/** @type {string} */ iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); };
+    for (const m of teamMembers) {
+        if (m.hidden || m.managerOnly || m.role !== 'CEA' || m.name === 'G. Miller') continue;
+        const base = Object.fromEntries(ROSTER_REVIEW_DATES.map(iso => [iso, getBaseShift(m, at(iso))]));
+        const rest = ROSTER_REVIEW_DATES.slice(1).find(iso => base[iso] === 'RD');
+        const worked = ROSTER_REVIEW_DATES.slice(1).find(iso => /^\d\d:\d\d-\d\d:\d\d$/.test(base[iso]));
+        if (rest && worked) return { name: m.name, base, rest, worked };
+    }
+    throw new Error('no CEA has a worked weekday and a weekday rest day in the fixture week');
+}
+
+test('operations: no review row draws one thing over another, or clips a label, at large text (v24.90) @layout', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.setViewportSize({ width: 390, height: 1600 });
+    // Every row shape the owner's screenshot held: changed days, two conflicts, and a rest day that
+    // asks the swap question — the row whose badge drew over its tag.
+    await openRosterReview(page, { ...ROSTER_REVIEW_PARSE, choices: {}, parsed: [{ memberName: 'G. Miller',
+        shifts: { ...ROSTER_REVIEW_PARSE.parsed[0].shifts, '2026-08-05': 'SICK',
+                  '2026-08-06': '14:00-22:30', '2026-08-07': '08:00-16:30' } }] });
+    await expect(page.locator('.roster-change-row.roster-change-guarded')).toHaveCount(1);
+    await expect(page.locator('.roster-change-row.roster-change-conflict')).toHaveCount(2);
+    // Android's Font size multiplies used font sizes and leaves the viewport alone, so this scales
+    // every element from its ORIGINAL size — scaling in one pass would compound down nested text.
+    await page.evaluate(() => {
+        /** @type {any} */ (window).__sizes = [...document.querySelectorAll('*')].map(el => [el, parseFloat(getComputedStyle(el).fontSize)]);
+    });
+    for (const mult of [1, 1.3, 1.6]) {
+        const faults = await page.evaluate((k) => {
+            for (const [el, px] of /** @type {any} */ (window).__sizes) if (px) el.style.fontSize = (px * k) + 'px';
+            const out = [];
+            const LEAVES = '.shift-badge, .review-shift-time, .roster-act, .roster-day-abbr, .roster-day-date, .roster-guard-lab, '
+                + '.roster-cb-lab, .roster-arrow, .roster-tick, .roster-choice-btn, .roster-remove-note, .roster-guard-note';
+            for (const row of document.querySelectorAll('#rosterChangeList .roster-change-row')) {
+                const leaves = [...row.querySelectorAll(LEAVES)].filter(el => el.getBoundingClientRect().width > 0);
+                for (let i = 0; i < leaves.length; i++) for (let j = i + 1; j < leaves.length; j++) {
+                    if (leaves[i].contains(leaves[j]) || leaves[j].contains(leaves[i])) continue;
+                    const a = leaves[i].getBoundingClientRect(), b = leaves[j].getBoundingClientRect();
+                    const x = Math.min(a.right, b.right) - Math.max(a.left, b.left), y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+                    if (x > 1 && y > 1) out.push(`overlap: "${leaves[i].textContent?.trim()}" × "${leaves[j].textContent?.trim()}"`);
+                }
+                for (const el of row.querySelectorAll('.roster-choice-btn, .roster-act, .roster-cb-lab, .roster-guard-lab')) {
+                    if (el.scrollWidth > el.clientWidth + 1) out.push(`clipped: "${el.textContent?.trim()}"`);
+                }
+                for (const el of row.querySelectorAll('.roster-cb-lab, .roster-guard-lab')) {
+                    if (el.getBoundingClientRect().height > parseFloat(getComputedStyle(el).fontSize) * 2) out.push(`wrapped: "${el.textContent?.trim()}"`);
+                }
+            }
+            return out;
+        }, mult);
+        expect(faults, `text ×${mult}`).toEqual([]);
+    }
+});
+
+test('operations: a person whose every row is a notice wears no count and no Skip all (v24.90)', async ({ page }) => {
+    const other = secondReviewMember();
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, { ...ROSTER_REVIEW_PARSE, parsed: [ROSTER_REVIEW_PARSE.parsed[0],
+        { memberName: other.name, shifts: { ...other.base, [ROSTER_REVIEW_DATES[0]]: 'SICK' } }] });   // a Sunday absence
+    const section = page.locator(`.roster-person-section[data-member="${other.name}"]`);
+    await expect(section.locator('.roster-change-row.roster-change-guarded')).toHaveCount(1);
+    await expect(section.locator('.roster-change-badge'), 'a "0" badge reads as an alert').toHaveCount(0);
+    await expect(section.locator('.roster-skip-all-btn'), 'there is nothing to skip').toHaveCount(0);
+    // A person with changes keeps both.
+    const miller = page.locator('.roster-person-section[data-member="G. Miller"]');
+    await expect(miller.locator('.roster-change-badge')).toHaveCount(1);
+    await expect(miller.locator('.roster-skip-all-btn')).toHaveCount(1);
+});
+
+// An ANSWERED rest day writes (v24.42), and Skip all left the answer standing — so a skipped, inert
+// section was still written by Save. The v21.94 bug, on the row type added after it. Driven to the
+// write, because the counter and the collector are separate passes.
+test('operations: Skip all takes back a "Swapped — record it" answer, so Save writes nothing for that person (v24.90)', async ({ page }) => {
+    const other = secondReviewMember();
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, { ...ROSTER_REVIEW_PARSE, choices: {}, parsed: [ROSTER_REVIEW_PARSE.parsed[0],
+        { memberName: other.name, shifts: { ...other.base, [other.worked]: '05:00-13:00', [other.rest]: 'SICK' } }] });
+    const section = page.locator(`.roster-person-section[data-member="${other.name}"]`);
+    const guarded = section.locator('.roster-change-row.roster-change-guarded');
+    await guarded.locator('[data-swap="yes"]').click();
+    await expect(guarded.locator('.roster-act')).toHaveText('Will record');
+
+    await section.locator('.roster-skip-all-btn').click();
+    await expect(guarded.locator('.roster-act'), 'the answer is taken back').toHaveText('Not recorded');
+    await expect(guarded.locator('[data-swap="yes"]')).toHaveAttribute('aria-pressed', 'false');
+    // Restore does not answer it again: there is no safe default, which is why the row asks.
+    await section.locator('.roster-skip-all-btn').click();
+    await expect(guarded.locator('.roster-act')).toHaveText('Not recorded');
+    await section.locator('.roster-skip-all-btn').click();
+
+    await page.locator('#rosterApplyBtn').click();
+    await expect.poll(() => page.evaluate(() => (window.__E2E?.batchWrites || []).length)).toBeGreaterThan(0);
+    const theirs = await page.evaluate((n) => (window.__E2E?.batchWrites || []).filter(w => w.memberName === n), other.name);
+    expect(theirs, 'a skipped person is written nothing — the swap included').toEqual([]);
 });
 
 // ── ANSWERING AN UNREADABLE CELL IN PLACE (v22.17) ────────────────────────────────────────────
