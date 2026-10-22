@@ -7,8 +7,7 @@
 
    The page has one visual idea of its own: a BEFORE-AND-AFTER ROW. Every train
    is shown beside the one it replaces, with a chip in words — so the chip
-   colours are the vocabulary, and the key at the top of the routes card states
-   it once.
+   colours are the vocabulary, and every chip also says its meaning in words.
    ========================================================================= */
 
 body {
@@ -70,6 +69,8 @@ body {
 /* The three days' totals as one muted line — a fact worth having, not the thing to open on. */
 .tr-totals { margin: 6px 0 0; color: var(--text-light); font-size: var(--type-small); font-variant-numeric: tabular-nums; }
 .tr-totals strong { color: var(--text-dark); font-weight: 700; }
+/* One day's figure never breaks inside itself ("Sundays 91 → / 94" did at 375px). */
+.tr-total { white-space: nowrap; }
 
 /* ── Day and direction ──────────────────────────────────────────────────────
    The app's on-canvas tab strip — Overtime's `.ot-tab`, itself sized like the Pay
@@ -163,7 +164,9 @@ body {
     white-space: nowrap;
 }
 .tr-chip--same     { background: var(--surface-sunken); color: var(--text-mid); }
-.tr-chip--moved    { background: var(--al-warning-bg); color: var(--orange-text); }
+/* Amber, not the warning red: --al-warning sits 3° of hue from --error-red, so "Times move" and
+   "No longer runs" were the same pink with different text (v24.83). */
+.tr-chip--moved    { background: var(--orange-light); color: var(--orange-text); }
 .tr-chip--new      { background: var(--success-green-bg); color: var(--success-text); }
 .tr-chip--gone     { background: var(--error-bg); color: var(--error-text); }
 .tr-chip--rerouted { background: color-mix(in oklch, var(--raspberry) 12%, white); color: var(--raspberry); white-space: normal; }
@@ -248,13 +251,19 @@ body {
     white-space: nowrap;
 }
 .tr-trains td:first-child, .tr-trains td:nth-child(2) { width: 28%; font-weight: 600; }
+/* Every word in the train table may wrap — its chips here, its small print below (.tr-days). Held to
+   one line, either made the table's narrowest width wider than a phone's card, and the card clips:
+   the "What changes" column, the one a member opened the card for, was cut off at the right edge in
+   451 of 648 station views at 375px (346 already on v24.82; the longer chips made it worse). The PAGE
+   never scrolled, which is why the sideways-scroll test passed (v24.83). A chip that wraps is a
+   rounded box, not a capsule, so its corners stay clear of its words. */
+.tr-trains .tr-chip { white-space: normal; border-radius: var(--radius-sm); }
 /* "No change" is the absence of news: plain quiet text, so the chips that remain are the changes. */
 .tr-chip--same { padding-inline: 0; background: none; color: var(--text-light); font-weight: 500; }
 .tr-row--same td { color: var(--text-light); font-weight: 400; }
 .tr-none { color: var(--text-faint); }
 .tr-days {
     display: block;
-    white-space: nowrap;
     color: var(--text-light);
     font-size: var(--type-micro);
     font-weight: 400;
@@ -280,6 +289,14 @@ body {
     cursor: pointer;
 }
 .tr-head:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+/* On a phone the chip takes its own line above the sentence: beside it, it left the sentence 188px
+   of a 323px row and the longest ran to eleven lines (v24.83). */
+@media (max-width: 519px) {
+    .tr-head { grid-template-columns: minmax(0, 1fr) auto; row-gap: 6px; }
+    .tr-head .tr-chip { grid-column: 1; justify-self: start; }
+    .tr-head-text { grid-column: 1; }
+    .tr-head-go { grid-column: 2; grid-row: 1 / span 2; }
+}
 .tr-head-text { font-weight: 600; }
 .tr-head-go { color: var(--text-light); font-size: var(--type-large); }
 .tr-more {
@@ -423,6 +440,9 @@ body {
 }
 .tr-dot--new { background: var(--success-green-bg); box-shadow: inset 0 0 0 3px var(--success-text); }
 .tr-dot--lost { background: transparent; box-shadow: inset 0 0 0 2px var(--error-text); }
+/* Some hours only: half filled. A column is every hour's train at that minute (stoppingGrid), and a
+   station only some of them stop at is not a stop "every hour" (v24.83). */
+.tr-dot--some { background: linear-gradient(90deg, var(--primary-blue) 50%, transparent 50%); box-shadow: inset 0 0 0 2px var(--primary-blue); }
 .tr-grid-key {
     display: flex; flex-wrap: wrap; gap: 6px 16px;
     margin: 0 0 10px; padding: 0; list-style: none;
@@ -485,6 +505,12 @@ body {
 }
 .tr-near li { padding: 4px 0; border-bottom: 1px solid var(--border-light); }
 .tr-near-time { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* A thumb's target (v24.83): on a phone the tabs, the station chips and the "Show…" buttons were
+   27–31px tall. After the base rules, so it wins. */
+@media (pointer: coarse) {
+    .tr-tab, .tr-pick, .tr-more { min-height: 44px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
     .tr-tab, .tr-route, .tr-route-sum::after { transition: none; }

@@ -95,8 +95,13 @@
             <!-- Three short lines, then the trains. A paragraph about the page, a totals table and two rows
                  of controls once stood between a reader and the first answer (v24.72–v24.77). -->
             <div class="card-body tr-overview">
-                <p class="card-explainer">Today’s timetable beside the new one that starts on Sunday 13 December. Both
+                <!-- Worded by trains-app.js from the date (timetablePhase): "Today's…" before the change, "The
+                     timetable that ran until…" after it. This text is what shows before the script runs. -->
+                <p class="card-explainer" id="trLead">Today’s timetable beside the new one that starts on Sunday 13 December. Both
                     are Chiltern’s published timetables, not live running information.</p>
+                <!-- After December's books expire (DEC_VALID_UNTIL) neither column is running any more. -->
+                <p class="card-explainer tr-caveat" id="trEnded" hidden><strong>Both timetables on this page have
+                    ended.</strong> Check Chiltern’s journey planner for today’s trains.</p>
                 <p class="card-explainer tr-caveat">December times can still change. Check Chiltern’s journey planner
                     before you tell a customer.</p>
                 <!-- Chiltern's books say nothing about Christmas, and its timetable page says more changes
@@ -179,7 +184,7 @@
         <div class="card" id="trStationsCard">
             <div class="card-header card-header-toggle" id="trStationsToggleHeader">
                 <div>
-                    <h2><span aria-hidden="true">🚉</span> <span id="trStationTitle">Stations</span></h2>
+                    <h2><span aria-hidden="true">🚉</span> <span id="trStationTitle" tabindex="-1">Stations</span></h2>
                     <span class="hint" id="trStationHint">Where is the customer going, or coming back from?</span>
                 </div>
                 <div class="card-header-actions">
@@ -210,7 +215,7 @@
             <div class="card-header card-header-toggle" id="trPatternToggleHeader">
                 <div>
                     <h2><span aria-hidden="true">🕰️</span> Every hour</h2>
-                    <span class="hint">The trains that leave at the same minutes every hour, 10:00 to 16:00, and where each one stops</span>
+                    <span class="hint" id="trPatternHint">The trains that leave at the same minutes in most hours from 10:00 to 16:00, and where each one stops</span>
                 </div>
                 <div class="card-header-actions">
                     <button type="button" class="btn-card-tips" data-card="pattern"
@@ -221,8 +226,8 @@
             <div class="card-collapsible-body open" id="trPatternBody">
                 <div class="card-body">
                     <div class="tr-tabs tr-tabs--in-card" role="group" aria-label="Timetable" id="trGridMode">
-                        <button type="button" class="tr-tab" data-grid="now" aria-pressed="true">Now</button>
-                        <button type="button" class="tr-tab" data-grid="dec" aria-pressed="false">From 13 Dec</button>
+                        <button type="button" class="tr-tab" data-grid="now" id="trGridNow" aria-pressed="true">Now</button>
+                        <button type="button" class="tr-tab" data-grid="dec" id="trGridDec" aria-pressed="false">From 13 Dec</button>
                     </div>
                     <div id="trPattern"></div>
                 </div>
