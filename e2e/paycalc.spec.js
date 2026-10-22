@@ -172,13 +172,49 @@ for (const { w, h } of [{ w: 1024, h: 900 }, { w: 1280, h: 1000 }, { w: 1366, h:
 // the table appearing as figures are typed, and saved figures surviving a reload INTO AN OPEN
 // section (restored values hidden behind a closed disclosure was the designed-against failure).
 
+// ── The payslip in hand, and the two settings that explain most big gaps (v24.87) ────────────────
+// A colleague held her 23 Oct 2026 payslip on the 22nd and found no box to check it in: it appeared
+// only from payday. And her £111.51 gap came from two settings — no pension, the default tax code —
+// which the old line never mentioned. The wording is unit-tested (paycalc-breakdown.test.mjs); THIS
+// pins the wiring: that the box keys off the payslip in hand, and that the line is handed the code
+// and pension the estimate really used, not the box contents or a default.
+test('paycalc: the payslip check is there while the payslip is in hand, and names this estimate\'s tax code and pension', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));   // cut off on the 17th, pays the 23rd
+    await seedSession(page);
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_ns_migrated', '1'); });
+    await page.goto('/paycalc.html?payday=2026-10-23');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await expect(page.locator('#checkActualWrap'), 'before payday, with the payslip in hand').toBeVisible();
+
+    const verdict = page.locator('#actualVerdict');
+    await page.locator('#taxCode').fill('1182L');
+    await page.locator('#actualNetInput').fill('1000');                 // far from any estimate: the big-gap line
+    await expect(verdict).toContainText('this estimate uses tax code 1182L and a pension of £151.86.');
+    // The pension the ESTIMATE took, read through the same path as the figure: a typed 0 is an opt-out.
+    await page.locator('#pensionAmt').fill('0');
+    await expect(verdict).toContainText('this estimate uses tax code 1182L and no pension.');
+    // And a blank Tax Code box is named as what the calculation made of it.
+    await page.locator('#taxCode').fill('');
+    await expect(verdict).toContainText('this estimate uses tax code 1257L and no pension.');
+
+    // The NEXT payslip has not been cut off yet, so it cannot be in anybody's hand.
+    const next = await page.locator('#periodSelect option').evaluateAll(os =>
+        os.find(o => /20 Nov 2026/.test(o.textContent ?? ''))?.getAttribute('value') ?? null);
+    expect(next, 'the 20 Nov payslip is on the list').not.toBeNull();
+    await page.locator('#periodSelect').selectOption(/** @type {string} */ (next));
+    await expect(page.locator('#checkActualWrap')).toBeHidden();
+    expect(errors).toHaveLength(0);
+});
+
 test('paycalc: the payslip comparison renders per typed line and survives a reload', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await seedSession(page);
     await page.addInitScript(() => { localStorage.setItem('myb_pc_ytd_notice_2_shown', '1'); });
     await page.goto('/paycalc.html');
     await expect(page.locator('#periodSelect option').first()).toBeAttached();
-    // A PAID period — the check block only renders for one. P2's payday is long past.
+    // A PAID period — the check block renders once a payslip may be in hand (from its cut-off,
+    // v24.87), and P2's payday is long past.
     await page.locator('#periodSelect').selectOption({ index: 1 });
     await expect(page.locator('#checkActualWrap')).toBeVisible();
 

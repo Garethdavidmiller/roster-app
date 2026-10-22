@@ -199,6 +199,59 @@ test('buildActualCheck: quiet when empty; band boundaries; direction named', () 
     assert.ok(!/check-ok/.test(far), 'a large gap is not a green line');
 });
 
+// THE ESTIMATE'S OWN SETTINGS COME FIRST (v24.87). A colleague's estimate ran £111.51 over her
+// payslip with every hour right — no pension and the default tax code where her payslip showed
+// £151.86 and 1182L — and this line sent her to hours, absence and back pay. Organised by what a
+// wrong line COSTS: naming the wrong figure sends the member to correct something already right;
+// naming none (the old line) leaves the actual cause unmentioned.
+test('buildActualCheck: a big gap names THIS estimate\'s tax code and pension, before anything else', () => {
+    const text = (/** @type {string} */ h) => h.replace(/<[^>]+>/g, '');
+    // Her case: £3,114.48 paid, £3,225.99 estimated, with no pension and the default code.
+    const hers = text(buildActualCheck(3114.48, 3225.99, { taxCode: '1257L', pension: 0 }));
+    assert.match(hers, /£111\.51 less/);
+    assert.match(hers, /this estimate uses tax code 1257L and no pension\./, 'the two settings, as facts about the estimate');
+    assert.match(hers, /Tax Code and the "Smart RPS CR Scheme" line on your payslip/, 'where each is printed — the payslip\'s own words');
+    assert.match(hers, /Your Settings/, 'and where to change them');
+    assert.ok(hers.indexOf('tax code 1257L') < hers.indexOf('hours are complete'), 'the settings come FIRST');
+    assert.match(hers, /If they match, check this payslip's hours are complete/, 'the old checks follow, conditionally');
+    assert.match(hers, /absence, back pay, a payroll correction, or a student loan deduction that isn't on the payslip/);
+
+    // A pension that IS being taken is stated as its amount — never as "no pension".
+    const taken = text(buildActualCheck(2800, 2900, { taxCode: '1182L', pension: 151.86 }));
+    assert.match(taken, /this estimate uses tax code 1182L and a pension of £151\.86\./);
+    assert.doesNotMatch(taken, /no pension/);
+});
+
+test('buildActualCheck: a close gap names the tax code first — before the Year to Date advice', () => {
+    // A wrong code is exactly this size (£23.20 on hers), and Year to Date figures make a wrong code
+    // WORSE — so the order of the two sentences is the point, not the wording.
+    const text = (/** @type {string} */ h) => h.replace(/<[^>]+>/g, '');
+    const close = text(buildActualCheck(3114.48, 3137.68, { taxCode: '1257L', pension: 151.86 }));
+    assert.match(close, /^Close — your payslip pays £23\.20 less than this estimate\./);
+    assert.match(close, /this estimate's tax code, 1257L, matches the Tax Code on your payslip/);
+    assert.ok(close.indexOf('1257L') < close.indexOf('Year to Date'), 'the code before the Year to Date figures');
+    assert.match(close, /If it does, small gaps usually come from tax adjustments; entering your Year to Date figures/);
+    assert.doesNotMatch(close, /pension/, 'a pension is never a gap this small — naming it would be noise');
+});
+
+test('buildActualCheck: nothing typed into the Tax Code box reaches the page as markup', () => {
+    // A real PAYE code is letters and digits; anything else is described, never quoted.
+    for (const [actual, estimated] of [[2800, 2900], [2890, 2900]]) {
+        const html = buildActualCheck(actual, estimated, { taxCode: '12<img src=x>57L', pension: 0 });
+        assert.doesNotMatch(html, /<img/, `£${estimated - actual} gap: the typed markup is not echoed`);
+        assert.match(html, /the tax code in Your Settings/, `£${estimated - actual} gap: it is described instead`);
+    }
+});
+
+test('buildActualCheck: told nothing about the settings, it says what it said before v24.87', () => {
+    // The two lines above are only as good as the call site passing the REAL figures — that is
+    // pinned in a browser (e2e/paycalc.spec.js). Here: no settings, no claims about them.
+    assert.doesNotMatch(buildActualCheck(2800, 2900), /tax code|pension/i);
+    assert.doesNotMatch(buildActualCheck(2910, 2900), /tax code|pension/i);
+    assert.equal(buildActualCheck(2900, 2900, { taxCode: '1257L', pension: 0 }),
+        buildActualCheck(2900, 2900), 'an exact match has nothing to explain');
+});
+
 // Provenance chips (v18.44 — review item 1): the take-home £ names its sources; a normal payslip
 // renders NOTHING.
 test('buildProvChips: empty on a normal payslip; one chip per active source', () => {

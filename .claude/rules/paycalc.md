@@ -289,11 +289,20 @@ appear when noteworthy. The bp/HPP *banners* remain the opt-in OFFER surfaces; a
 compact receipt once a figure is IN.
 
 **"Check against your payslip" (v18.42 — review item 3):** the result card's foot carries a £ input
-(`#actualNetInput`, PAID payslips only — `calculate()` gates visibility on `payday <= now`) where the
-member types the take-home printed on the real payslip; the pure `buildActualCheck(actual, estimated)`
-in `paycalc-breakdown.js` (tested) renders a calm verdict — exact match / within £2 ("the expected
-rounding from payroll's cumulative tax method") / ≤£25 close (points at the Year to Date card) /
-larger (points at the documented less-accurate cases: hours, absence, back pay, corrections). NEVER
+(`#actualNetInput`) where the member types the take-home printed on the real payslip. **It appears from
+the payslip's CUT-OFF (v24.87)**, not its payday — `payslipMayBeInHand` in `paycalc-periods.js`, the
+same rule the Year to Date picker uses, because a payslip arrives before it pays and that is when a
+member compares it. The pure `buildActualCheck(actual, estimated, used)` in `paycalc-breakdown.js`
+(tested) renders a calm verdict — exact match / within £2 ("the expected rounding from payroll's
+cumulative tax method") / ≤£25 close / larger. **A gap names THIS estimate's own settings first
+(v24.87):** the close band the tax code, then the Year to Date card; the large band the tax code AND
+the pension, then hours, absence, back pay and corrections. `used` is what the estimate APPLIED —
+`computeTax`'s reported `code` and the pension deducted — so the line states facts about its inputs
+and still guesses nothing about the payslip. Found on a real payslip: £111.51 out with every hour
+right, from no pension and the default code, while the old line sent her to her hours. The tax code
+goes before the Year to Date advice deliberately: with a wrong code, Year to Date figures make the
+NEXT estimate worse, not better (measured on that payslip: £23.20 out without them, £207.60 with them,
+because the cumulative method applies the wrong allowance to the whole year at once). NEVER
 red — a mismatch is information, not an error. The figure persists in the period blob (`actualNet`,
 null-when-blank like pension) and is deliberately EXCLUDED from `isDataEmpty` so a period holding
 only this figure never counts as "entered" for HPP/year-so-far.

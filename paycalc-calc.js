@@ -441,8 +441,11 @@ export function computeGross(i) {
  * @param {number|null} [opts.ytdPay]    - YTD pay from last payslip; null = not provided
  * @param {number|null} [opts.ytdTax]    - YTD tax from last payslip; null = not provided
  * @param {number|null} [opts.periodN]   - HMRC 4-weekly period number 1–13 (required for cumulative)
- * @returns {{ tax: number, usingCumulative: boolean, refund: number }} refund — tax the cumulative
- *   recalculation says was over-collected (>0 only on the cumulative path); never netted into `tax`.
+ * @returns {{ tax: number, usingCumulative: boolean, refund: number, code: string }} refund — tax the
+ *   cumulative recalculation says was over-collected (>0 only on the cumulative path); never netted
+ *   into `tax`. code — the code this calculation APPLIED, normalised (upper case, no spaces, 1257L
+ *   when none was given): the "Check against your payslip" line quotes it (v24.87), and it is the
+ *   only place that knows what a blank Tax Code box became.
  */
 export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null, periodN = null } = {}) {
   const rawCode    = (taxCode || '1257L').toUpperCase().replace(/\s+/g, '');
@@ -535,10 +538,10 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     // Tax Paid figure for every code; now that it is K-code-only, a Tax Paid typed as 200 for 2000
     // charged nearly the whole period. Real PAYE cannot deduct more than it pays, so neither can this.
     return { tax: Math.min(Math.max(0, cumTaxDue - ytdTax), overridingLimit, Math.max(0, sacGross)), usingCumulative: true,
-             refund: Math.max(0, ytdTax - cumTaxDue) };
+             refund: Math.max(0, ytdTax - cumTaxDue), code: rawCode };
   }
 
-  return { tax: Math.min(taxOnAmount(sacGross, null), overridingLimit), usingCumulative: false, refund: 0 };
+  return { tax: Math.min(taxOnAmount(sacGross, null), overridingLimit), usingCumulative: false, refund: 0, code: rawCode };
 }
 
 /**

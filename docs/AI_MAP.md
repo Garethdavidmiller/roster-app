@@ -1779,6 +1779,7 @@ Period arithmetic and select UI for `paycalc.html` (v13.80).
   back-pay accrual caps at it so a future selection can't accrue unworked weeks
 - `buildBackPayPeriodSelect(minPNum = 0, maxPNum = Infinity)` — optional floor + ceiling so the back-pay paid-in dropdown only offers periods within the award's own tax year (prefillBackPay passes `48 + ty.first`, `48 + ty.last`)
 - `buildYtdSourceSelect(ty)` (v17.98) — offers the tax year's PAID payslips (newest first) for the Year to Date card's "From which payslip?" source select — plus, from its cut-off, the payslip about to be paid (`ytdSourceOffered`)
+- `payslipMayBeInHand(p, now?)` (v24.87) — `p.cutoff <= now`: from its cut-off a payslip may be in the member's hand (it arrives before payday). ONE rule for the two surfaces that read a payslip the member holds: the Year to Date picker (`ytdSourceOffered` calls it) and the "Check against your payslip" box, which appeared only from payday until v24.87. Period dates sit at noon, so the turn comes midway through the cut-off day.
 - `ytdSourceOffered(p, ty, now?)` / `ytdAutoSource(ty, now?)` (72-hour review) — payslips are issued BEFORE payday, so from the current period's cut-off its payslip may already be in hand and the picker offers it. The first-entry auto-anchor is the standing assumption (the payslip before today's, clamped into the year), which the member corrects by picking; a window that recorded nothing was tried and removed (it stamped a payslip LATE after payday)
 - `hasBoxingDay(p)` / `hasBankHoliday(p)` — period content checks
 - `CONDITIONAL_ROWS` — data-driven array: `{ condition, rows, fields }` — used by `updateBhRows`
@@ -1900,7 +1901,7 @@ The two PURE HTML builders for the pay-result card, extracted from `calculate()`
 - `fmtHrsMins(h)` — decimal hours → "Nh"/"Nh Mm" (the per-row hours label; was the inline `fh` in `calculate()`)
 - `buildSummaryRows(d)` — the `#summary` estimate rows: Regular/Total pay → back pay → HPP → pension → tax → NI → Student Loan (`d.slLines`, pre-rendered) → estimated take-home
 - `buildActualComparison({actual, estimate})` (v22.07) — the estimate-vs-payslip table: one row per payslip line the member typed (an absent figure is not a £0 claim; net alone renders nothing — the verdict line owns that case), difference signed actual−estimate, dash on an exact match, and it EXPLAINS NOTHING — cause words are banned by test. Inputs autosave into the period blob as `actualGross`/`actualTax`/`actualNi`/`actualPension` (paycalc-form-data — same null-when-blank rule as `actualNet`; none joins `isDataEmpty`), and `writeFormData` OPENS the disclosure when restoring saved figures so they never land in a closed section
-- `buildActualCheck(actual, estimated)` — the payslip-vs-estimate reconciliation line. `buildProvChips(d)` — the provisional-figure chips (`''` when there are none). Both pure, both cited by `.claude/rules/paycalc.md`.
+- `buildActualCheck(actual, estimated, used?)` — the payslip-vs-estimate reconciliation line. `used` = `{ taxCode, pension }` the estimate APPLIED; when given, a gap over £2 names them first (v24.87 — the close band the code, before the Year to Date advice; the large band code and pension, before hours/absence/back pay). Only a plain letters-and-digits code is quoted, so nothing typed reaches the page as markup. `buildProvChips(d)` — the provisional-figure chips (`''` when there are none). Both pure, both cited by `.claude/rules/paycalc.md`.
 - `buildBreakdownRows(d)` — the `#bdBody` full breakdown: one row per pay component present (Mon–Fri + London always; premiums/OT/RDW/training/adjustment/notes/extras guarded on > 0)
 
 ### `paycalc-form-data.js`
@@ -2035,7 +2036,7 @@ Pure functions only — no DOM, no Firebase, no localStorage.
   tyLabel)` — the one shared predicate for "period paid before its award", used by `getRateForPeriod`,
   `updateRateForPeriod` and `confirmSettings` (paycalc-settings.js) and the period hint in
   `paycalc-app.js`; the back-pay accrual caps arrears with `awardFromForYear` directly.
-- `computeGross()`, `computeTax()`, `computeNI()`, `computeSL()`
+- `computeGross()`, `computeTax()`, `computeNI()`, `computeSL()` — `computeTax` also returns `code`, the code it APPLIED (upper case, no spaces, 1257L for a blank box; v24.87), which the payslip check quotes
 - `P_YR` (13 four-weekly periods a year) · `getLondonAllowanceForPeriod(p, ty)` — the London Allowance for a period, honouring the year's mid-year `londonAllowFrom` cut-over
 - `PENSION_STEPS` — the per-era employee pension defaults, newest-first, each era's payslip provenance in a comment beside it. **Cited in six other documents and absent from this map until v21.63**, which is exactly the gap this file exists to close. `getPensionForPeriod(grade, payday)` resolves a payday to its era — the figure `VAL-PAY-003` is about.
 - `calcBandedTax(taxable, bands, scale = 1)` — the shared band walker; `scale` multiplies every band top, which is how cumulative PAYE prices period N. `getThresholds(yearLabel)` → that year's `{tax, scottishTax, ni, sl, londonAllow}` table.

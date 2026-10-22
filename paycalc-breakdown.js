@@ -159,16 +159,36 @@ export function buildBreakdownRows(d) {
  *   < 1p   → exact match
  *   ≤ £2   → within the expected cumulative-PAYE rounding (the payslip-regression tolerance —
  *            payroll computes tax cumulatively, the estimate per period)
- *   ≤ £25  → close; usually a tax adjustment — pointing at the Year to Date card
- *   larger → check hours / absence / back pay / payroll corrections / a student loan that was
- *            NOT deducted on that payslip (the documented
+ *   ≤ £25  → close; the TAX CODE first, then the Year to Date card
+ *   larger → the TAX CODE and the PENSION first, then hours / absence / back pay / payroll
+ *            corrections / a student loan that was NOT deducted on that payslip (the documented
  *            less-accurate cases from the result card's own caveat)
+ *
+ * ── THE ESTIMATE'S OWN SETTINGS COME FIRST (v24.87) ─────────────────────────────────────────────
+ *
+ * A colleague's estimate ran £111.51 over her payslip with every hour right: the calculator was
+ * taking no pension and the default tax code where her payslip shows £151.86 and 1182L. This line
+ * sent her to her hours, absence and back pay — every one a dead end — and named neither setting.
+ * Those two are the likeliest cause of a large gap and the quickest to check, so the line now
+ * states what THIS estimate used before anything else. It still guesses nothing about the payslip:
+ * they are facts about the estimate's own inputs, and the member compares them with the paper.
+ *
+ * The close band names the code alone — a pension is never that small a gap, and a wrong code is
+ * exactly that size (£23.20 on hers). It comes BEFORE the Year to Date advice on purpose: Year to
+ * Date figures make a wrong code WORSE, because the cumulative method applies the wrong allowance
+ * to every payslip of the year at once. Measured on her figures, the next payslip: £23.20 out
+ * without them, £207.60 with them.
+ *
+ * Only a plain code — letters and digits, which is every real PAYE code — is quoted. Anything else
+ * is described instead, so nothing typed into the Tax Code box is written into the page as markup.
  *
  * @param {number} actual    take-home printed on the payslip (0/absent → '')
  * @param {number} estimated the app's take-home for the same payslip
+ * @param {{ taxCode?: string, pension?: number }} [used] what THIS estimate applied: the code
+ *   `computeTax` reports and the pension deducted. Absent, the lines read as they did before v24.87.
  * @returns {string}
  */
-export function buildActualCheck(actual, estimated) {
+export function buildActualCheck(actual, estimated, used = {}) {
     if (!(actual > 0)) return '';
     const diff = actual - estimated;
     const ad   = Math.abs(diff);
@@ -180,9 +200,25 @@ export function buildActualCheck(actual, estimated) {
     if (ad <= 2)
         return `<div class="check-actual-line check-ok"><span aria-hidden="true">✓</span> Matches your payslip to within ${fmt(ad)} — the expected rounding from payroll's cumulative tax method.</div>`;
     const dir = diff > 0 ? 'more' : 'less';
-    if (ad <= 25)
-        return `<div class="check-actual-line check-near">Close — your payslip pays ${fmt(ad)} ${dir} than this estimate. Small gaps usually come from tax adjustments; entering your Year to Date figures sharpens the next estimate.</div>`;
-    return `<div class="check-actual-line check-near">Your payslip pays ${fmt(ad)} ${dir} than this estimate. Check this payslip's hours are complete, and look for absence, back pay, a payroll correction, or a student loan deduction that isn't on the payslip.</div>`;
+    const gap = `${fmt(ad)} ${dir} than this estimate.`;
+    const knowsCode = typeof used.taxCode === 'string';
+    const plainCode = knowsCode && /^[A-Z0-9]{1,12}$/.test(used.taxCode ?? '') ? used.taxCode : null;
+    // Each sentence is written out whole, so the words on screen can be found in this file.
+    if (ad <= 25) {
+        if (!knowsCode)
+            return `<div class="check-actual-line check-near">Close — your payslip pays ${gap} Small gaps usually come from tax adjustments; entering your Year to Date figures sharpens the next estimate.</div>`;
+        const codeCheck = plainCode
+            ? `First check that this estimate's tax code, <strong>${plainCode}</strong>, matches the Tax Code on your payslip — you can change it in Your Settings.`
+            : 'First check that the tax code in Your Settings matches the Tax Code on your payslip.';
+        return `<div class="check-actual-line check-near">Close — your payslip pays ${gap} ${codeCheck} If it does, small gaps usually come from tax adjustments; entering your Year to Date figures sharpens the next estimate.</div>`;
+    }
+    const pension = used.pension;
+    const lookFurther = "this payslip's hours are complete, and look for absence, back pay, a payroll correction, or a student loan deduction that isn't on the payslip.";
+    if (!knowsCode || typeof pension !== 'number' || !Number.isFinite(pension))
+        return `<div class="check-actual-line check-near">Your payslip pays ${gap} Check ${lookFurther}</div>`;
+    const code = plainCode ? `tax code <strong>${plainCode}</strong>` : 'the tax code in Your Settings';
+    const pensionUsed = pension > 0 ? `a pension of <strong>${fmt(pension)}</strong>` : '<strong>no pension</strong>';
+    return `<div class="check-actual-line check-near">Your payslip pays ${gap} Check two settings first: this estimate uses ${code} and ${pensionUsed}. Compare them with the Tax Code and the "Smart RPS CR Scheme" line on your payslip, and correct them in Your Settings. If they match, check ${lookFurther}</div>`;
 }
 
 /**

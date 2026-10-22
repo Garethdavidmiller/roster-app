@@ -506,6 +506,15 @@ describe('computeSL', () => {
 // ── computeTax ────────────────────────────────────────────────────────────────
 
 describe('computeTax', () => {
+  test('reports the code it APPLIED — what a blank or untidy Tax Code box became (v24.87)', () => {
+    // "Check against your payslip" quotes this to the member, so it must be the code the figure was
+    // worked out with, on both paths — not whatever was typed.
+    assert.equal(computeTax(2000, '', T25).code, '1257L', 'a blank box is the default code');
+    assert.equal(computeTax(2000, ' 1182l ', T25).code, '1182L', 'tidied as the calculation tidies it');
+    assert.equal(computeTax(2000, '1182L', T25, { ytdPay: 20000, ytdTax: 3000, periodN: 8 }).code, '1182L',
+      'the cumulative path reports it too');
+  });
+
   test('NT code → 0 tax always', () => {
     const { tax } = computeTax(2000, 'NT', T25);
     assert.equal(tax, 0);
