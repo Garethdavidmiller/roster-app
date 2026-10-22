@@ -214,6 +214,10 @@ export function initCalendarNotices({ after } = {}) {
     //
     // Teaches the Pay Calculator's Year to Date card — what the two figures are, where they are on a
     // payslip, and what they do — and links to the card itself, opened (paycalc.html#payslipCard).
+    // It asks for the TAX CODE to be checked first (v24.88, owner): with a wrong code, Year to Date
+    // figures make the estimate worse, not better — the cumulative method applies the wrong allowance
+    // to every payslip of the year at once. Measured on a real payslip with the default code where the
+    // payslip said 1182L: the next estimate £23.20 out without the figures, £207.60 out with them.
     // A ONE-OFF on the rule the two notices above settled: every dismissal marks it done.
     //
     // IT COMES THE TIME AFTER THE TIMETABLE NOTICE, never on the same load (owner). So it reads that
@@ -260,8 +264,9 @@ export function initCalendarNotices({ after } = {}) {
                 archiveNotice({
                     id: NOTICE_ID, title: 'Make your pay estimates more accurate', section: 'Pay',
                     date: NOTICE_DATE,
-                    body: 'Copy Taxable Pay and Tax Paid from the Year to Date box at the bottom left of your latest payslip into the '
-                        + 'Pay Calculator’s 📊 Year to Date Figures card, and its tax figure usually gets much closer to your payslip.',
+                    body: 'Check the tax code in Your Settings matches your payslip, then copy Taxable Pay and Tax Paid from the Year to '
+                        + 'Date box at the bottom left of your latest payslip into the Pay Calculator’s 📊 Year to Date Figures '
+                        + 'card — its tax figure usually gets much closer to your payslip.',
                 });
             },
             onClose() { markDone(); },

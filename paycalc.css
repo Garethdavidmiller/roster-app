@@ -1947,10 +1947,15 @@ body.role-unsupported .disclaimer { display: none; }
 .yearso-receipt div + div { margin-top: 4px; }
 
 /* ── Estimate-vs-payslip comparison (v22.07) ────────────────────────────────────────────────── */
+/* 24px tall at least — WCAG 2.2's tap-target floor, which pages.spec.js enforces on a phone. At
+   12px type and this padding it drew 23px, and nothing noticed while the payslip check showed only
+   on PAID payslips: the tap-target sweep opens the Pay page on today's payslip, where the box was
+   hidden. From v24.87 it shows from the payslip's cut-off, so the sweep met it and failed by 1px. */
 .check-more-btn {
     background: none;
     border: none;
     padding: 6px 0 2px;
+    min-height: 24px;
     font-family: var(--font-sans);
     font-size: var(--type-small);
     font-weight: 600;
