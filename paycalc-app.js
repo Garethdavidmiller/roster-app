@@ -928,7 +928,7 @@ export function init() {
       const _ytdSrc = parseInt(lsGet(ytdSrcKey(_ty)) ?? '', 10) || 0;
       if (!(_ytdSrc && _curP && _curP.num === _ytdSrc + 1)) { ytdP = null; ytdT = null; }
       const periodN = _curP ? (_curP.num - 48) - _ty.first + 1 : null;
-      const { tax, usingCumulative, refund: taxRefund, code: taxCodeUsed } = computeTax(
+      const { tax, usingCumulative, refund: taxRefund, code: taxCodeUsed, recognised: taxCodeKnown } = computeTax(
         sacGross, /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value, thresholds,
         { ytdPay: ytdP, ytdTax: ytdT, periodN },
       );
@@ -1021,6 +1021,7 @@ export function init() {
       // Check against the real payslip (v18.42): from the payslip's CUT-OFF (v24.87 — it arrives before
       // payday), and a big gap names this estimate's tax code and pension first (buildActualCheck's
       // header). The input autosaves in this period's blob (actualNet), so each payslip keeps its own.
+      const _srcP = _ytdSrc ? getPeriods().find(/** @param {any} x */ x => x.num === _ytdSrc) : null;
       const _caWrap = document.getElementById('checkActualWrap');
       if (_caWrap) {
         const _caInHand = payslipMayBeInHand(_curP);
@@ -1028,7 +1029,8 @@ export function init() {
         const _caEl = /** @type {HTMLInputElement|null} */ (document.getElementById('actualNetInput'));
         const _caActual = _caInHand ? Math.max(0, parseSmartFloat(_caEl?.value ?? '') || 0) : 0;
         const _caV = document.getElementById('actualVerdict');
-        if (_caV) _caV.innerHTML = buildActualCheck(_caActual, net, { taxCode: taxCodeUsed, pension });
+        if (_caV) _caV.innerHTML = buildActualCheck(_caActual, net, { taxCode: taxCodeUsed, recognised: taxCodeKnown, pension,
+          ytdFrom: usingCumulative && _srcP ? fdShort(_srcP.payday) : '' });
         // The other payslip lines (v22.07): a per-line comparison against the SAME figures the
         // summary rows display. Estimates never guess causes — buildActualComparison's header.
         const _cmpEl = document.getElementById('actualCompare');
@@ -1050,7 +1052,6 @@ export function init() {
       // Empty (invisible) on a normal payslip — chips only appear when noteworthy.
       const _chipsEl = document.getElementById('provChips');
       if (_chipsEl) {
-        const _srcP = _ytdSrc ? getPeriods().find(/** @param {any} x */ x => x.num === _ytdSrc) : null;
         _chipsEl.innerHTML = buildProvChips({
           usingCumulative,
           srcLabel: _srcP ? fdShort(_srcP.payday) : '',

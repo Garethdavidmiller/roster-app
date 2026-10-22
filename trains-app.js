@@ -232,7 +232,9 @@ function render(state) {
 /** The station chips alone — what typing in the station box changes. @param {PageState} state */
 function renderPicks_(state) {
     const typed = /** @type {HTMLInputElement|null} */ (el('trStationInput'))?.value.trim() ?? '';
-    const offered = typed ? matchStations(STATIONS, typed) : busiestStations(TIMETABLES.now[state.day].dep);
+    // Equal matches go busiest first — on weekdays, so the station Enter opens does not change with the day chosen.
+    const offered = typed ? matchStations(STATIONS, typed, 6, busiestStations(TIMETABLES.now.SX.dep, Infinity))
+        : busiestStations(TIMETABLES.now[state.day].dep);
     setHTML(el('trStationPicks'), renderPicks(offered, { typed: !!typed, selected: state.station, stations: STATIONS }));
 }
 

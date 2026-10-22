@@ -2,7 +2,7 @@
 // Run with: node --test perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones, READY_SOURCES, summariseReadySource, EARLY_ROSTER, summariseEarlyRoster, UPDATE_OPENS, summariseUpdateOpens, PROVISIONAL_OPENS, summariseProvisionalOpens, SWR_COUNT_BUCKETS, bucketSwrCount, SWR_HEAVY_BUCKET, createPerfBatcher } from './perf-stats.js';
+import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones, READY_SOURCES, summariseReadySource, EARLY_ROSTER, summariseEarlyRoster, EARLY_ROSTER_FROM, earlyRosterShare, UPDATE_OPENS, summariseUpdateOpens, PROVISIONAL_OPENS, summariseProvisionalOpens, SWR_COUNT_BUCKETS, bucketSwrCount, SWR_HEAVY_BUCKET, createPerfBatcher } from './perf-stats.js';
 
 /** Build a samples map from [page, metric, bucket, count] rows (version/mode/conn fixed). */
 function samplesFrom(rows) {
@@ -600,6 +600,56 @@ describe('summariseEarlyRoster', () => {
 
     test('it is not a rung of the ladder, whose note says its rows run in order', () => {
         assert.ok(!START_MILESTONES.some(m => m.metric === 'rosterSnapshot'));
+    });
+});
+
+// ── earlyRosterShare — how often the copy had the chance (v24.89, the 48-hour review) ────────────
+//
+// The share was divided by every version's `ready`, so in the month the metric shipped the opens of
+// versions that CANNOT report a copy sat under it. This is the reviewer's case, to the percent.
+describe('earlyRosterShare', () => {
+    const at = (version, metric, n, page = 'calendar') =>
+        [perfSampleKey({ version, page, metric, bucket: 'lt500ms', mode: 'standalone', conn: '4g' }), n];
+
+    test('only versions that can report a copy are divided — 60%, not the 19% mixed versions printed', () => {
+        const samples = Object.fromEntries([
+            at('v24.84', 'ready', 1300),          // three weeks before the metric existed
+            at('v24.85', 'ready', 600),
+            at('v24.85', 'rosterSnapshot', 360),
+        ]);
+        assert.equal(earlyRosterShare(samples, { page: 'calendar' }), 60);
+        assert.equal(Math.round(360 / 1900 * 100), 19, 'the old divisor — what the card used to print');
+    });
+
+    test('a version counts by its number, written with or without a v, and a later major counts', () => {
+        const samples = Object.fromEntries([
+            at('24.86', 'ready', 100), at('24.86', 'rosterSnapshot', 50),
+            at('v25.01', 'ready', 100), at('v25.01', 'rosterSnapshot', 50),
+            at('v24.9', 'ready', 800),            // reads as 24.9, which is BELOW 24.85 — not 24.90
+            at('nonsense', 'ready', 800),         // unreadable ⇒ below every release, so not divided
+        ]);
+        assert.equal(earlyRosterShare(samples, { page: 'calendar' }), 50);
+        assert.equal(EARLY_ROSTER_FROM, '24.85', 'the release that began reporting the copy');
+    });
+
+    test('nothing to state ⇒ null: no copy shown, no counted opens, or a figure over 100%', () => {
+        assert.equal(earlyRosterShare({}, { page: 'calendar' }), null);
+        assert.equal(earlyRosterShare(Object.fromEntries([at('v24.85', 'ready', 400)]), { page: 'calendar' }), null,
+            'no paint reported is not 0% — the block itself does not render');
+        assert.equal(earlyRosterShare(Object.fromEntries([
+            at('v24.84', 'ready', 400), at('v24.85', 'rosterSnapshot', 40),
+        ]), { page: 'calendar' }), null, 'a copy but no counted opens to divide by');
+        assert.equal(earlyRosterShare(Object.fromEntries([
+            at('v24.85', 'ready', 10), at('v24.85', 'rosterSnapshot', 12),
+        ]), { page: 'calendar' }), null, 'counted on different paths, so over 100% is dropped, not printed');
+    });
+
+    test('another page\'s opens are not divided', () => {
+        const samples = Object.fromEntries([
+            at('v24.85', 'ready', 100), at('v24.85', 'rosterSnapshot', 25),
+            at('v24.85', 'ready', 900, 'paycalc'),
+        ]);
+        assert.equal(earlyRosterShare(samples, { page: 'calendar' }), 25);
     });
 });
 

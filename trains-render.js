@@ -16,8 +16,8 @@
  */
 
 import { escapeHtml as esc } from './roster-data.js';
-import { changeLabel, daysLabel, PATTERN_HOURS, compareRoutes, trainsNear, routeName, lineDepth, dateWords, NEAR_WINDOW_MIN } from './trains-change.js';
-import { pairColumns, lineOf, minutesWords, hourNote, hourWords, orderStations, stopChanges, aRealDay } from './trains-stations.js';
+import { changeLabel, daysLabel, PATTERN_HOURS, compareRoutes, trainsNear, routeName, lineDepth, dateWords, NEAR_WINDOW_MIN, serviceMinutes } from './trains-change.js';
+import { pairColumns, lineOf, minutesWords, hourNote, hourWords, orderStations, stopChanges, aRealDay, parseStops } from './trains-stations.js';
 
 /** The short names the grid's column heads use. Anything not listed shows its full name. */
 const SHORT = /** @type {Record<string, string>} */ ({
@@ -146,7 +146,10 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
     // LEAF_FALL): a few minutes' difference coming back may be the season, not the new timetable.
     const leafNote = leafFall && !leaving
         ? `<p class="card-explainer tr-note"><strong>Leaf fall:</strong> until ${esc(leafFall.until)}, trains to London on this line leave up to ${leafFall.minutes} minutes earlier than usual. `
-            + `The ${esc(labels.old)} column includes that and the ${esc(labels.new)} column does not, so a change of ${leafFall.minutes} minutes or less here may be leaf fall. Check the journey planner before ${esc(leafFall.until)}.</p>`
+            // Only a LATER December time can be the season: leaf fall moves today's trains earlier, so a
+            // December train that is earlier still is a real change (v24.89, the 48-hour review — the
+            // note said "a change of 3 minutes or less", and ten such earlier rows sat beneath it).
+            + `The ${esc(labels.old)} column includes that and the ${esc(labels.new)} column does not, so a train up to ${leafFall.minutes} minutes later in the ${esc(labels.new)} column may only be leaf fall. Check the journey planner before ${esc(leafFall.until)}.</p>`
         : '';
     if (!trains) return verdict + table + minutesNote + leafNote;
     const changed = trains.filter(t => t.kind !== 'same' || (/** @type {any} */ (t).farShift ?? 0) !== 0);
@@ -307,6 +310,11 @@ export function renderLookup({ at, day, nowRows, decRows, started, labels, chang
             ...(gained.length ? [`also stops at ${andList(gained.map(c => stations[c] ?? c))}`] : [])];
         return bits.length ? ` From ${from} it ${bits.join(', and ')}.` : '';
     };
+    // When a train gets to its end. A kept train can leave on time and still arrive at a different
+    // time — the 21:02 to Stourbridge gets there 6 minutes later — which the station cards say and
+    // the lookup answered "No change" (v24.89, the 48-hour review).
+    const arrives = (/** @type {TrainRow|undefined} */ r) => r ? parseStops(r).find(x => x.crs === r[1])?.time : undefined;
+    const mins = (/** @type {number} */ m) => `${m} min${m === 1 ? '' : 's'}`;
     const pairs = compareRoutes(nowRows, decRows).flatMap(r => r.trains.map(t => ({ r, t })));
     const exact = pairs.filter(({ t }) => started
         ? t.dec === at && (t.kind !== 'rerouted' || t.side === 'new')
@@ -314,18 +322,22 @@ export function renderLookup({ at, day, nowRows, decRows, started, labels, chang
     const answer = exact.map(({ r, t }) => {
         const n = rowOf(nowRows, t.now, t.nowTo, t.days), d = rowOf(decRows, t.dec, t.decTo);
         const days = daysLabel(t.days);
+        const a = arrives(n), b = arrives(d);
+        const far = t.kind === 'same' && a && b ? serviceMinutes(b) - serviceMinutes(a) : 0;
         if (!started) {
             const when = t.kind === 'earlier' || t.kind === 'later' ? ` (${t.dec})` : '';
             return `<p class="tr-answer"><strong>The ${esc(at)} to ${esc(named(r, t.nowTo))}${days ? ` (${esc(days)})` : ''}:</strong> `
-                + `${esc(changeLabel(t, stations, 'dep'))}${esc(when)}.${esc(stopsWords(n, d))}</p>`;
+                + `${esc(changeLabel(far ? { ...t, farShift: far } : t, stations, 'dep'))}${esc(when)}.${esc(stopsWords(n, d))}</p>`;
         }
         // From the change, the same pairing read the other way: what the running train used to be.
         const on = days ? ` on ${days === 'Mon and Fri only' ? 'Mondays and Fridays' : days === 'Tue to Thu only' ? 'Tuesdays to Thursdays' : 'Wednesdays'}` : '';
         const o = t.other;
-        const was = t.kind === 'same' ? `Same time as before ${from}${on}`
+        // A new end that came with a new time keeps the old time too, as the before-change answer
+        // does — "it ended at Birmingham Moor Street" of a train that was the 17:07 (v24.89).
+        const was = t.kind === 'same' ? `Same time as before ${from}${on}${far ? `, but gets there ${mins(Math.abs(far))} ${far > 0 ? 'later' : 'earlier'} than it did` : ''}`
             : t.kind === 'earlier' || t.kind === 'later' ? `Until ${until} it left at ${t.now}${on}`
             : t.kind === 'new' ? `New from ${from}`
-            : t.kind === 'terminus' ? `Until ${until} it ${lineDepth(/** @type {string} */ (t.decTo)) > lineDepth(/** @type {string} */ (t.nowTo)) ? 'ended at' : 'went on to'} ${stations[/** @type {string} */ (t.nowTo)] ?? t.nowTo}`
+            : t.kind === 'terminus' ? `Until ${until}${on ? `,${on},` : ''} it ${t.shift ? `left at ${t.now} and ` : ''}${lineDepth(/** @type {string} */ (t.decTo)) > lineDepth(/** @type {string} */ (t.nowTo)) ? 'ended at' : 'went on to'} ${stations[/** @type {string} */ (t.nowTo)] ?? t.nowTo}`
             : o ? `Until ${until} this was the ${o.time} to ${routeName(stations, o.station, o.via)}` : `New from ${from}`;
         return `<p class="tr-answer"><strong>The ${esc(at)} to ${esc(named(r, t.decTo))}:</strong> ${esc(was)}.${esc(stopsWords(n, d))}</p>`;
     }).join('');

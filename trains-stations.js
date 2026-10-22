@@ -278,6 +278,12 @@ export function stationTrains(nowRows, decRows, crs, dir) {
     const nowBy = new Map(nowRows.map(r => [key(r[0], r[1], r[3]), r]));
     const decBy = new Map(decRows.map(r => [key(r[0], r[1]), r]));          // a pair carries no December days
     const calls = (/** @type {TrainRow|undefined} */ r) => !!r && callsOf(r).includes(crs);
+    // Whether December's train still runs on PAST this station: it calls somewhere today's reaches
+    // only after it — going out, a later stop; coming back, an earlier one.
+    const runsPast = (/** @type {TrainRow} */ n, /** @type {TrainRow} */ d) => {
+        const a = callsOf(n), b = callsOf(d), i = a.indexOf(crs);
+        return (dir === 'dep' ? a.slice(i + 1) : a.slice(0, i)).some(c => b.includes(c));
+    };
     /** @type {StationTrain[]} */
     const out = [];
     for (const t of compareRoutes(nowRows, decRows).flatMap(r => r.trains)) {
@@ -288,7 +294,14 @@ export function stationTrains(nowRows, decRows, crs, dir) {
         if (!nHere && !dHere) continue;
         /** @type {StationTrain} */
         const s = { ...t };
-        if (nHere && !dHere) Object.assign(s, d ? { kind: 'passes' } : { kind: 'gone' }, { dec: null, decTo: undefined, shift: 0 });
+        // Gone from here. A train that still runs on past this station "no longer stops here"; one whose
+        // end moved SHORT of it never reaches it, so it keeps its own words — "Will end at Birmingham
+        // Moor Street", "Will run to West Ruislip" (v24.89, the 48-hour review: the page's own tip says
+        // "no longer stops here" is a train that passes the station).
+        if (nHere && !dHere) {
+            const short = !!d && !!n && (s.kind === 'terminus' || s.kind === 'rerouted') && !runsPast(n, d);
+            Object.assign(s, !d ? { kind: 'gone' } : short ? {} : { kind: 'passes' }, short ? { dec: null, shift: 0 } : { dec: null, decTo: undefined, shift: 0 });
+        }
         if (!nHere && dHere) Object.assign(s, n ? { kind: 'calls' } : { kind: 'new' }, { now: null, nowTo: undefined, days: '', shift: 0 });
         if (s.now && n) s.nowAt = boardingTime(n, crs, dir);
         if (s.dec && d) s.decAt = boardingTime(d, crs, dir);
@@ -314,8 +327,20 @@ export function stationTrains(nowRows, decRows, crs, dir) {
         }
         out.push(s);
     }
+    // A Monday-and-Friday train and its Tuesday-to-Thursday partner fold onto ONE December train
+    // (`foldWeekdayVariants`), so where neither stopped here and December's does, both read "Will stop
+    // here": one train listed twice, and counted twice in the tally and the sentence above it (v24.89,
+    // the 48-hour review — Gerrards Cross's 17:45 to Oxford). A December train is listed once.
+    const listed = new Set(out.filter(s => s.kind !== 'calls' && s.dec).map(s => `${s.dec} ${s.decTo}`));
+    const once = out.filter((s) => {
+        if (s.kind !== 'calls') return true;
+        const k = `${s.dec} ${s.decTo}`;
+        if (listed.has(k)) return false;
+        listed.add(k);
+        return true;
+    });
     const at = (/** @type {StationTrain} */ s) => serviceMinutes(/** @type {string} */ (s.nowAt ?? s.decAt ?? s.now ?? s.dec));
-    return out.sort((a, b) => at(a) - at(b));
+    return once.sort((a, b) => at(a) - at(b));
 }
 
 /**
@@ -409,10 +434,22 @@ export function rateWords(s, { short = false } = {}) {
 export function stopChanges(nowRow, decRow) {
     if (!stopsKnown(nowRow) || !stopsKnown(decRow)) return { lost: [], gained: [] };
     const a = callsOf(nowRow), b = callsOf(decRow);
-    const before = (/** @type {string[]} */ calls, /** @type {string} */ end) => calls.slice(0, Math.max(0, calls.indexOf(end)));
+    const rank = new Map(STATION_ORDER.map((c, i) => [c, i]));
+    // A train's calls before the OTHER train's end: up to it where this train stops there; where it
+    // only passes it, up to the first call the books place beyond it; where it never gets that far,
+    // up to its own end. The middle case was missing (v24.89, the 48-hour review): the 06:57 to
+    // Gerrards Cross now ends at West Ruislip, which today's train passes, and "does not stop at
+    // Denham Golf Club" named a station past its new end.
+    const before = (/** @type {string[]} */ calls, /** @type {string} */ end, /** @type {string} */ own) => {
+        let i = calls.indexOf(end);
+        const r = rank.get(end);
+        if (i === -1 && r !== undefined) i = calls.findIndex(c => (rank.get(c) ?? -1) > r);
+        if (i === -1) i = calls.indexOf(own);
+        return calls.slice(0, Math.max(0, i));
+    };
     return {
-        lost: before(a, a.includes(decRow[1]) ? decRow[1] : nowRow[1]).filter(c => !b.includes(c)),
-        gained: before(b, b.includes(nowRow[1]) ? nowRow[1] : decRow[1]).filter(c => !a.includes(c)),
+        lost: before(a, decRow[1], nowRow[1]).filter(c => !b.includes(c)),
+        gained: before(b, nowRow[1], decRow[1]).filter(c => !a.includes(c)),
     };
 }
 
@@ -497,18 +534,21 @@ const words = (/** @type {string} */ s) => s.toLowerCase().replace(/&/g, ' and '
  * name's order. Ranked: the code itself, then a name that starts like the query, then a match
  * anywhere in the name, then initials, then any fragment — so "oxf" offers Oxford before Oxford
  * Parkway, and "ruis" offers both Ruislips. Never Marylebone: every journey here starts or ends there.
+ * Two names that match equally put the name typed in full first, then the busier station (`prefer`),
+ * then the alphabet — Enter opens the first, and "risborough" opened Monks Risborough (v24.89).
  * @param {Readonly<Record<string, string>>} stations
  * @param {string} typed
  * @param {number} [n]
+ * @param {readonly string[]} [prefer]  station codes, most likely first — the page passes the busiest
  * @returns {string[]}
  */
-export function matchStations(stations, typed, n = 6) {
+export function matchStations(stations, typed, n = 6, prefer = []) {
     const q = typed.trim().toLowerCase();
     const qWords = words(q);
     // Nothing but punctuation is nothing typed: an empty word list "matches" every name (v24.83).
     if (!qWords.length) return [];
     const compact = q.replace(/[^a-z]/g, '');
-    /** @type {{ crs: string, name: string, rank: number }[]} */
+    /** @type {{ crs: string, name: string, rank: number, whole: boolean }[]} */
     const hits = [];
     for (const [crs, name] of Object.entries(stations)) {
         if (crs === 'MYB') continue;
@@ -532,9 +572,12 @@ export function matchStations(stations, typed, n = 6) {
             : compact.length >= 4 && runTogether.some(f => f.includes(compact)) ? 4
             : q.length >= 3 && words(name).join(' ').includes(q) ? 4      // "hw" is in SmetHWick; a fragment needs three letters
             : -1;
-        if (rank >= 0) hits.push({ crs, name, rank });
+        if (rank >= 0) hits.push({ crs, name, rank, whole: words(name).join(' ') === qWords.join(' ') });
     }
-    return hits.sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name)).slice(0, n).map(h => h.crs);
+    const order = new Map(prefer.map((c, i) => [c, i]));
+    const busy = (/** @type {string} */ crs) => order.get(crs) ?? prefer.length;
+    return hits.sort((a, b) => a.rank - b.rank || Number(b.whole) - Number(a.whole) || busy(a.crs) - busy(b.crs) || a.name.localeCompare(b.name))
+        .slice(0, n).map(h => h.crs);
 }
 
 /**

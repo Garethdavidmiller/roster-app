@@ -597,8 +597,15 @@ export function perfSamples() {
     // BEFORE THE SIGN-IN CHECK (v24.85) — a member's own stored roster, painted while the check runs.
     // Seeded so the block renders and the truncation guard measures its label; quick-weighted, which
     // is the shape it exists to show, and a share of `ready` well under 100% so its sentence prints.
-    add('calendar', 'rosterSnapshot', 'lt500ms', 330); add('calendar', 'rosterSnapshot', '500ms-1s', 40);
-    add('calendar', 'rosterSnapshot', '1-3s', 20);
+    // The share divides only by opens on versions that can report a copy (v24.89), so the copy and
+    // the quick `ready` opens carry such a version — MOVED there, not added, so every total on the
+    // card is what it was. On the fixture's own version alone the share sentence would never print.
+    add('calendar', 'rosterSnapshot', 'lt500ms', 330, '4g', 'standalone', 'v24.85');
+    add('calendar', 'rosterSnapshot', '500ms-1s', 40, '4g', 'standalone', 'v24.85');
+    add('calendar', 'rosterSnapshot', '1-3s', 20, '4g', 'standalone', 'v24.85');
+    const quickReady = 'v21.29|calendar|ready|lt500ms|standalone|4g';
+    add('calendar', 'ready', 'lt500ms', out[quickReady], '4g', 'standalone', 'v24.85');
+    delete out[quickReady];
     // OPENS A RELEASE CAUSED (v22.92) — a small share, deliberately, because that is the shape the
     // row has to stay readable in. A `readyUpdate` count anywhere near `ready` would be a fixture
     // asserting the finding rather than exercising the layout, and it would hide the case the block

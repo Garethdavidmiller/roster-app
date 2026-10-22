@@ -243,6 +243,46 @@ test('buildActualCheck: nothing typed into the Tax Code box reaches the page as 
     }
 });
 
+test('buildActualCheck: a code the calculator does not recognise is named as that — never as applied (v24.89)', () => {
+    const text = (/** @type {string} */ h) => h.replace(/<[^>]+>/g, '');
+    // "OT" typed for a payslip's 0T: priced on the standard allowance, £233.40 out.
+    const big = text(buildActualCheck(2800, 3033.40, { taxCode: 'OT', recognised: false, pension: 151.86 }));
+    assert.doesNotMatch(big, /this estimate uses tax code OT/, 'the false claim v24.87 made');
+    assert.match(big, /The tax code in Your Settings, OT, isn't one the calculator recognises, so this estimate uses the standard allowance instead/);
+    assert.match(big, /0T and D0 are written with a zero, not the letter O/, 'the look-alike, named');
+    assert.match(big, /This estimate also takes a pension of £151\.86/);
+    assert.match(big, /If both are right, check this payslip's hours are complete/);
+    // The zero-not-O hint only where an O was typed.
+    const close = text(buildActualCheck(3100, 3111.40, { taxCode: '1182', recognised: false, pension: 151.86 }));
+    assert.match(close, /^Close — your payslip pays £11\.40 less than this estimate\. The tax code in Your Settings, 1182, isn't one/);
+    assert.doesNotMatch(close, /letter O/);
+    // No Year to Date advice while the code is unreadable: with a wrong code they make it worse.
+    assert.doesNotMatch(close, /Year to Date/);
+    // A code that is not even plain text is described, never quoted.
+    const odd = buildActualCheck(2800, 3033.40, { taxCode: '12<b>', recognised: false, pension: 0 });
+    assert.doesNotMatch(odd, /<b>/);
+    assert.match(text(odd), /The tax code in Your Settings isn't one the calculator recognises/);
+});
+
+test('buildActualCheck: with Year to Date figures in use, a big gap names the payslip they count from (v24.89)', () => {
+    const text = (/** @type {string} */ h) => h.replace(/<[^>]+>/g, '');
+    // 22 Oct: figures copied from the 23 Oct payslip, stamped as the 25 Sep one — the 23 Oct pay
+    // counted twice, £193.40 out. The card names its payslip; the line a member reads now does too.
+    const big = text(buildActualCheck(2800, 2993.40, { taxCode: '1257L', pension: 151.86, ytdFrom: '25 Sep' }));
+    assert.match(big, /this estimate uses tax code 1257L and a pension of £151\.86\./, 'the two settings still first');
+    assert.match(big, /It also counts your Year to Date figures as copied from your 25 Sep payslip — if they came from a later one, choose that payslip in the Year to Date Figures card\./);
+    assert.ok(big.indexOf('tax code 1257L') < big.indexOf('25 Sep') && big.indexOf('25 Sep') < big.indexOf('hours are complete'),
+        'settings, then the anchor, then the hours');
+    assert.match(big, /If all of that matches, check this payslip's hours are complete/);
+    // A close gap is never a whole payslip counted twice, and the figures are already in.
+    const close = text(buildActualCheck(3114.48, 3130.00, { taxCode: '1257L', pension: 151.86, ytdFrom: '25 Sep' }));
+    assert.doesNotMatch(close, /25 Sep|entering your Year to Date figures/);
+    assert.match(close, /If it does, small gaps usually come from tax adjustments\.$/);
+    // Without them in use, nothing changes; and only a payday label is ever quoted.
+    assert.doesNotMatch(text(buildActualCheck(2800, 2993.40, { taxCode: '1257L', pension: 151.86 })), /counts your Year to Date/);
+    assert.doesNotMatch(buildActualCheck(2800, 2993.40, { taxCode: '1257L', pension: 0, ytdFrom: '<b>25 Sep</b>' }), /<b>|counts your Year to Date/);
+});
+
 test('buildActualCheck: told nothing about the settings, it says what it said before v24.87', () => {
     // The two lines above are only as good as the call site passing the REAL figures — that is
     // pinned in a browser (e2e/paycalc.spec.js). Here: no settings, no claims about them.

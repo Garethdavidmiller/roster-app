@@ -8076,6 +8076,54 @@ test('operations: App speed can split Recognised by connection, beside Getting r
     expect(pcts.appRows).toEqual(['0%', '0%']);
 });
 
+test('operations: App speed states the stored-copy share against the versions that can count it', async ({ page }) => {
+    /*
+     * THE WIRING for the v24.89 fix (the 48-hour review). `earlyRosterShare` is pinned in
+     * perf-stats.test.mjs; what it cannot see is the card using it. The card used to divide by the
+     * ladder's `ready` across EVERY version, so in the month the copy began to be counted, three weeks
+     * of opens from versions that cannot report one sat under it: 360 copies over 1,900 opens printed
+     * 19%, when the 600 opens that could have reported one make it 60%.
+     */
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            '24_84|calendar|ready|lt500ms|standalone|4g':          1300,
+            '24_85|calendar|ready|lt500ms|standalone|4g':           600,
+            '24_85|calendar|rosterSnapshot|lt500ms|standalone|4g':  360,
+            '24_84|calendar|domReady|lt500ms|standalone|4g':       1300,
+            '24_85|calendar|domReady|lt500ms|standalone|4g':        600,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed).toContainText('Before the sign-in check');
+    await expect(speed).toContainText('60% of Calendar opens since the app began counting it');
+    await expect(speed, 'the all-version divisor — the figure this fixes').not.toContainText('19%');
+    // The ladder names the block, because it is there.
+    await expect(speed).toContainText('timed under “Before the sign-in check” below');
+});
+
+test('operations: App speed points at the stored-copy block only when it renders', async ({ page }) => {
+    /*
+     * The ladder's note said "timed under “Before the sign-in check” below" on EVERY window — and the
+     * block returns nothing for one with no copy reported, which "Last month" in the release month
+     * always is. A pointer to a heading that is not on the card (the 48-hour review, v24.89).
+     */
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            '24_84|calendar|authBoot|lt500ms|standalone|4g': 600,
+            '24_84|calendar|ready|lt500ms|standalone|4g':    600,
+            '24_84|calendar|domReady|lt500ms|standalone|4g': 600,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed).toContainText('How far the start gets');
+    await expect(speed).toContainText('Compare neighbouring rows');
+    await expect(speed).not.toContainText('Before the sign-in check');
+});
+
 test('operations: App speed reports the opens a release caused, as a SHARE of all opens', async ({ page }) => {
     /*
      * THE RULE TESTED, THE WIRING NOT — this is the wiring.

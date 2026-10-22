@@ -298,7 +298,14 @@ cumulative tax method") / ≤£25 close / larger. **A gap names THIS estimate's 
 (v24.87):** the close band the tax code, then the Year to Date card; the large band the tax code AND
 the pension, then hours, absence, back pay and corrections. `used` is what the estimate APPLIED —
 `computeTax`'s reported `code` and the pension deducted — so the line states facts about its inputs
-and still guesses nothing about the payslip. Found on a real payslip: £111.51 out with every hour
+and still guesses nothing about the payslip. **A code the engine does not recognise is never quoted
+as applied (v24.89):** "OT" typed for a payslip's 0T, or "1182" with no letter, is priced on the
+default allowance, so `computeTax` reports `recognised: false` and the line says the code is not
+recognised (with a zero-not-O hint) instead of "this estimate uses tax code OT". **Where Year to
+Date figures are in use, a large gap also names the payslip they count from (v24.89)** — `used.ytdFrom`,
+passed only when the cumulative method ran: between cut-off and payday the first-entry stamp is the
+latest PAID payslip while the member may be copying from the next, which counts that payslip's pay
+twice (£193.40 out on 22 Oct, the day the Calendar's notice asked members to copy the figures). Found on a real payslip: £111.51 out with every hour
 right, from no pension and the default code, while the old line sent her to her hours. The tax code
 goes before the Year to Date advice deliberately: with a wrong code, Year to Date figures make the
 NEXT estimate worse, not better (measured on that payslip: £23.20 out without them, £207.60 with them,

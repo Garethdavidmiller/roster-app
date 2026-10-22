@@ -462,6 +462,26 @@ export function summariseEarlyRoster(samples, { page }) {
     return _summariseMetricRows(samples, page, EARLY_ROSTER);
 }
 
+/** The first app version that reports `rosterSnapshot`. Opens on an older version cannot. */
+export const EARLY_ROSTER_FROM = '24.85';
+
+/**
+ * How often a member was shown the stored copy: `rosterSnapshot` over `ready`, BOTH counted only on
+ * versions at or after EARLY_ROSTER_FROM — a whole percent, or null with nothing to divide or over
+ * 100% (the two are counted on different paths). Every version's `ready` was the divisor until v24.89
+ * (the 48-hour review), so the month the metric shipped printed 19% for a true 60%.
+ * @param {Record<string, number>} samples @param {{ page: string }} opts @returns {number|null}
+ */
+export function earlyRosterShare(samples, { page }) {
+    // '24_85', 'v24.85' and '24.85' all read 2485; an unreadable version reads 0, below every release.
+    const num = (/** @type {string|undefined} */ v) => { const m = /^v?(\d+)[._](\d+)/i.exec(String(v ?? '')); return m ? Number(m[1]) * 100 + Number(m[2]) : 0; };
+    const counted = Object.fromEntries(Object.entries(samples || {}).filter(([k]) => num(parsePerfSampleKey(k).version) >= num(EARLY_ROSTER_FROM)));
+    const shown = summariseEarlyRoster(counted, { page }).rows[0]?.total || 0;
+    const ready = summariseStartMilestones(counted, { page }).rows.find(r => r.metric === 'ready')?.total || 0;
+    const pct = shown && ready ? Math.round((shown / ready) * 100) : null;
+    return pct !== null && pct <= 100 ? pct : null;
+}
+
 /**
  * OPENS A RELEASE CAUSED (v22.92) — the reading v22.90 shipped without.
  *

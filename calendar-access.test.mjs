@@ -248,7 +248,7 @@ function fakeDom() {
     };
     globalThis.window = {
         matchMedia: () => ({ matches: false }),
-        location: { hash: '', replace(url) { ops.push('replace:' + url); }, reload() {} },
+        location: { hash: '', replace(url) { ops.push('replace:' + url); }, reload() { ops.push('reload'); } },
     };
     globalThis.history = { state: null, replaceState(_s, _t, url) { ops.push('replaceState:' + url); } };
     // Node 22 defines `navigator` as a getter-only global, so a plain assignment throws. The
@@ -966,7 +966,21 @@ describe('lockCalendar + handleAccessLost', () => {
         await unlockWithPin('1234');
         ops = [];
         await lockCalendar();
-        assert.ok(ops.includes('replace:./#staff-pin'), `the next person gets the sign-in card: ${JSON.stringify(ops)}`);
+        assert.ok(ops.includes('replaceState:./#staff-pin'), `the next person gets the sign-in card: ${JSON.stringify(ops)}`);
+    });
+
+    test('locking RELOADS, whatever path the Calendar was opened at (v24.89)', async () => {
+        // It ended in `location.replace('./#staff-pin')`, and this file asserted exactly that — but a
+        // fake `location` has no path, so it could not see that from `/` (how the station opens the
+        // Calendar) the target differs by its fragment alone and the browser loads nothing. The
+        // viewer was signed out and the roster stayed up. The address is now rewritten in place and
+        // the page reloaded; the browser half is e2e/calendar-pin.spec.js, locking from `/`.
+        await unlockWithPin('1234');
+        ops = [];
+        await lockCalendar();
+        const at = ops.indexOf('replaceState:./#staff-pin');
+        assert.ok(at >= 0 && ops.indexOf('reload') > at, `rewrite the address, THEN reload: ${JSON.stringify(ops)}`);
+        assert.ok(!ops.some(o => o.startsWith('replace:')), 'a fragment-only navigation is the defect, not a reload');
     });
 
     // ── LOCK MUST NOT REPORT SUCCESS IT DID NOT ACHIEVE (v20.39, audit §13) ─────────────────────
@@ -988,8 +1002,8 @@ describe('lockCalendar + handleAccessLost', () => {
         signOutBehavior = 'noop';   // resolves; `currentUser` stays the viewer
         await assert.rejects(() => lockCalendar(), /not locked/,
             'lockCalendar resolved with the viewer still signed in');
-        assert.ok(!ops.some(o => o.startsWith('replace:')),
-            'the page navigated as though it had locked — the next person gets the roster');
+        assert.ok(!ops.some(o => o === 'reload' || o.startsWith('replace')),
+            'the page reloaded as though it had locked — the next person gets the roster');
         assert.equal(isViewerMode(), true,
             'and the app must not pretend otherwise in its own state either');
     });
@@ -1001,7 +1015,7 @@ describe('lockCalendar + handleAccessLost', () => {
         ops = [];
         signOutBehavior = 'reject';
         await assert.rejects(() => lockCalendar());
-        assert.ok(!ops.some(o => o.startsWith('replace:')), 'a failed sign-out still reloaded');
+        assert.ok(!ops.some(o => o === 'reload' || o.startsWith('replace')), 'a failed sign-out still reloaded');
     });
 
     test('losing access mid-session drops back to locked rather than looping on retry', async () => {

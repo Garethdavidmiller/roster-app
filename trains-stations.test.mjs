@@ -600,6 +600,64 @@ describe('a station\'s trains, one comparison with the time lookup (v24.83)', ()
     });
 });
 
+describe('the 48-hour review\'s Trains findings, on the real books (v24.89)', () => {
+    const look = (/** @type {'SX'|'SO'|'SU'} */ day, /** @type {string} */ time, started = false) =>
+        renderLookup({ at: time, day, nowRows: TIMETABLES.now[day].dep, decRows: TIMETABLES.dec[day].dep, started,
+            labels: started ? { old: 'Until 12 Dec', new: 'From 13 Dec' } : { old: 'Now', new: 'From 13 Dec' }, change: CHANGE_DATE, stations: STATIONS });
+    const card = (/** @type {'SX'|'SO'|'SU'} */ d, /** @type {'dep'|'arr'} */ dir, /** @type {string} */ crs) => stationTrains(TIMETABLES.now[d][dir], TIMETABLES.dec[d][dir], crs, dir);
+    const words = (/** @type {any} */ t, /** @type {'dep'|'arr'} */ dir) => changeLabel(t, STATIONS, dir, { withTime: false });
+
+    test('the lookup says when a train that leaves on time gets there at a different time — as the station card does', () => {
+        assert.match(look('SX', '21:02'), /<strong>The 21:02 to Stourbridge Junction:<\/strong> Same time, gets there 6 mins later\./);
+        assert.match(look('SX', '09:10'), /Same time, gets there 5 mins earlier\. From 13 December it does not stop at Beaconsfield\./);
+        assert.match(look('SU', '12:38'), /<strong>The 12:38 to Birmingham Moor Street:<\/strong> Same time, gets there 6 mins earlier\./);
+        assert.match(look('SX', '21:02', true), /Same time as before 13 December, but gets there 6 mins later than it did\./);
+        // And still "No change" where nothing did.
+        assert.match(look('SX', '10:06'), /<strong>The 10:06 to Oxford:<\/strong> No change\./);
+    });
+    test('after the change, a train whose end moved keeps the time it used to leave at', () => {
+        assert.match(look('SX', '17:03', true), /<strong>The 17:03 to Stourbridge Junction:<\/strong> Until 12 December it left at 17:07 and ended at Birmingham Moor Street\./);
+        assert.match(look('SX', '16:41', true), /Until 12 December it left at 16:37 and went on to Stourbridge Junction\./);
+    });
+    test('a December train is listed once, however many of today\'s trains fold onto it', () => {
+        const ger = card('SX', 'dep', 'GER').filter(t => t.dec === '17:45' && t.decTo === 'OXF');
+        assert.equal(ger.length, 1, 'the 17:45 to Oxford read "Will stop here" twice');
+        assert.equal(stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, 'GER', 'dep').verdict.text,
+            'Same number of trains a day, but 15 are different — see Train by train below.');
+        assert.equal(card('SX', 'arr', 'SRG').filter(t => t.dec === '08:02' && t.decTo === 'OXF').length, 1);
+    });
+    test('two trains are one only if they share a stop: a withdrawn train is not "no longer stops here"', () => {
+        // Coming back, the 07:54 and 08:26 from Gerrards Cross are withdrawn. They used to be paired with
+        // a Banbury and a Leamington fast that reach Marylebone at the same time and share none of their stops.
+        const ger = card('SX', 'arr', 'GER');
+        for (const at of ['07:54', '08:26']) assert.equal(ger.find(t => t.nowAt === at)?.kind, 'gone', at);
+        assert.equal(card('SX', 'arr', 'BAN').find(t => t.decAt === '07:10')?.kind, 'new', 'the Banbury fast is a new train');
+        // A real reroute shares its stops and is still one train.
+        assert.equal(card('SX', 'dep', 'KGS').find(t => t.now === '10:36')?.kind, 'passes');
+    });
+    test('a train cut back short of a station says where it ends, not that it passes the station', () => {
+        const sbj = card('SX', 'dep', 'SBJ').find(t => t.now === '16:37');
+        assert.equal(words(sbj, 'dep'), 'Will end at Birmingham Moor Street');
+        assert.equal(sbj?.dec, null, 'no December time at a station the train no longer reaches');
+        assert.equal(words(card('SX', 'dep', 'GER').find(t => t.now === '06:57'), 'dep'), 'Will run to West Ruislip');
+        assert.equal(words(card('SX', 'arr', 'AVP').find(t => t.nowAt === '09:40'), 'arr'), 'Will start at Aylesbury');
+        // One that still runs THROUGH the station keeps "no longer stops here".
+        assert.equal(words(card('SX', 'dep', 'BCS').find(t => t.now === '17:07'), 'dep'), 'Will no longer stop here');
+    });
+    test('the stops a train drops are never past its new end, even where today\'s train passes that end', () => {
+        const n = TIMETABLES.now.SX.dep.find(r => r[0] === '06:57'), d = TIMETABLES.dec.SX.dep.find(r => r[0] === '06:57');
+        assert.deepEqual(stopChanges(/** @type {any} */ (n), /** @type {any} */ (d)), { lost: [], gained: [] });
+        assert.match(look('SX', '06:57'), /<strong>The 06:57 to Gerrards Cross:<\/strong> Will run to West Ruislip\.<\/p>/);
+    });
+    test('two names that match equally: the one typed in full, then the busier station', () => {
+        const busiest = busiestStations(TIMETABLES.now.SX.dep, Infinity);
+        assert.equal(matchStations(STATIONS, 'risborough', 6, busiest)[0], 'PRR', 'Enter opened Monks Risborough');
+        assert.equal(matchStations(STATIONS, 'warwick', 6, busiest)[0], 'WRW', 'the name typed in full beats a busier Parkway');
+        assert.equal(matchStations(STATIONS, 'denham', 6, busiest)[0], 'DNM');
+        assert.deepEqual(matchStations(STATIONS, 'risborough'), ['MRS', 'PRR'], 'with no preference, the alphabet as before');
+    });
+});
+
 describe('the station card, the lookup and the totals as a member reads them (v24.83)', () => {
     test('the columns are named by the date, and the leaf-fall note comes back only on its line', () => {
         const view = stationView(TIMETABLES.now.SO.arr, TIMETABLES.dec.SO.arr, 'AMR', 'arr');
@@ -608,7 +666,9 @@ describe('the station card, the lookup and the totals as a member reads them (v2
         assert.match(html, /<th scope="col">Until 12 Dec<\/th><th scope="col">From 13 Dec<\/th>/);
         assert.match(html, /<strong>Leaf fall:<\/strong> until 10 January, trains to London on this line leave up to 3 minutes earlier than usual\./);
         // It names the columns as the table above it does, so it stays true when they are renamed on 13 December.
-        assert.match(html, /The Until 12 Dec column includes that and the From 13 Dec column does not, so a change of 3 minutes or less here may be leaf fall\. Check the journey planner before 10 January\./);
+        // Only a LATER December time can be the season — leaf fall moves today's trains earlier (v24.89).
+        assert.match(html, /The Until 12 Dec column includes that and the From 13 Dec column does not, so a train up to 3 minutes later in the From 13 Dec column may only be leaf fall\. Check the journey planner before 10 January\./);
+        assert.doesNotMatch(html, /a change of 3 minutes or less/);
         assert.match(view.verdict.text, /they leave at :14 past the hour, was :08/, 'Saturday Amersham, timed at Amersham');
         assert.doesNotMatch(renderStation(stationView(TIMETABLES.now.SO.dep, TIMETABLES.dec.SO.dep, 'AMR', 'dep'),
             { stations: STATIONS, dir: 'dep', showTrains: false, leafFall: { minutes: 3, until: '10 January' } }), /Leaf fall/, 'not going there');

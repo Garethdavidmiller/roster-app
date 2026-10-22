@@ -215,6 +215,10 @@ export function foldWeekdayVariants(trains) {
 /** @param {TrainRow[]} rows */
 const byService = (rows) => [...rows].sort((x, y) => serviceMinutes(x[0]) - serviceMinutes(y[0]));
 
+/** A row's calling stations as codes, from the stops field ("CRSHHMM …", as `parseStops` in
+ *  trains-stations.js reads it). Empty when its stops are not known. @param {TrainRow|undefined} row */
+const stopCodes = (row) => (row?.[4] ?? '').split(' ').filter(Boolean).map(s => s.slice(0, 3));
+
 /**
  * Every route on one day and direction, compared. Busiest December route first; a route that
  * stops altogether sorts by its current count instead, so it is not buried.
@@ -247,7 +251,19 @@ export function compareRoutes(nowRows, decRows) {
             tally: /** @type {Record<ChangeKind, number>} */ ({ same: 0, earlier: 0, later: 0, new: 0, gone: 0, rerouted: 0, terminus: 0 }),
         };
     });
-    relinkAcrossRoutes(compared);
+    // Two trains on different routes are one train going somewhere else only if they share a stop
+    // beyond Marylebone. Coming back, two DIFFERENT trains reach Marylebone within minutes of each
+    // other: the withdrawn 07:54 from Gerrards Cross was paired with a Banbury fast that calls at none
+    // of its stations, so the Gerrards Cross card said a train that no longer runs "Will no longer
+    // stop here", and Banbury's said a brand-new one "Will stop here" (v24.89, the 48-hour review).
+    // Where either side's stops are not known, the time alone decides, as before.
+    const nowBy = new Map(nowRows.map(r => [`${r[0]} ${r[1]} ${r[3] ?? ''}`, r]));
+    const decBy = new Map(decRows.map(r => [`${r[0]} ${r[1]}`, r]));
+    relinkAcrossRoutes(compared, (gone, fresh) => {
+        const a = stopCodes(nowBy.get(`${gone.now} ${gone.nowTo} ${gone.days ?? ''}`));
+        const b = stopCodes(decBy.get(`${fresh.dec} ${fresh.decTo}`));
+        return !a.length || !b.length || a.some(c => b.includes(c));
+    });
     for (const r of compared) for (const t of r.trains) r.tally[t.kind]++;
     return compared.sort((x, y) => Math.max(y.decCount, y.nowCount) - Math.max(x.decCount, x.nowCount) || x.key.localeCompare(y.key));
 }
@@ -260,8 +276,10 @@ export function compareRoutes(nowRows, decRows) {
  * and each names the other. Mutates the routes it is given.
  *
  * @param {{ station: string, via: string, key: string, trains: PairedTrain[] }[]} routes
+ * @param {(gone: PairedTrain, fresh: PairedTrain) => boolean} [samePath]  whether the two can be one
+ *   train at all — `compareRoutes` asks that they share a stop; the time alone decides without it
  */
-export function relinkAcrossRoutes(routes) {
+export function relinkAcrossRoutes(routes, samePath = () => true) {
     const gone = [], fresh = [];
     for (const r of routes) {
         for (const t of r.trains) {
@@ -272,7 +290,7 @@ export function relinkAcrossRoutes(routes) {
     const pairs = [];
     for (const g of gone) for (const f of fresh) {
         const gap = Math.abs(g.at - f.at);
-        if (g.r.key !== f.r.key && gap <= MAX_REROUTE_MIN) pairs.push({ g, f, gap });
+        if (g.r.key !== f.r.key && gap <= MAX_REROUTE_MIN && samePath(g.t, f.t)) pairs.push({ g, f, gap });
     }
     pairs.sort((x, y) => x.gap - y.gap || x.g.at - y.g.at);
     const used = new Set();

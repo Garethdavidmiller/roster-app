@@ -8,7 +8,7 @@
  */
 import { sessionReady } from './session.js';
 import { withClaimRetry, getPerfStats } from './firebase-client.js';
-import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, summariseStartMilestones, summariseReadySource, summariseEarlyRoster, summariseUpdateOpens, summariseProvisionalOpens, summariseSwrCounts, summariseHeavySwrOpens, THIN_SAMPLE } from './perf-stats.js';
+import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, summariseStartMilestones, summariseReadySource, summariseEarlyRoster, earlyRosterShare, summariseUpdateOpens, summariseProvisionalOpens, summariseSwrCounts, summariseHeavySwrOpens, THIN_SAMPLE } from './perf-stats.js';
 import { escapeHtml } from './roster-data.js';
 import { PRIVACY_FOOTER, PAGE_META, _cardLoadError, _usageMonthLabel } from './operations-reports.js';
 
@@ -420,7 +420,11 @@ async function initPageSpeedCard() {
         heading.className = 'usage-section-label speed-dim-label';
         heading.textContent = 'How far the start gets';
         frag.appendChild(heading);
-        frag.appendChild(noteLine('Compare neighbouring rows: a big jump is where the time went. Each step is timed from the page opening, so they run in order: "Shifts shown" is the roster after the sign-in check, so it can never beat "Recognised". What a member sees before the check is timed under “Before the sign-in check” below. Same bands as the rest of the card.'));
+        // The pointer to the block below only when that block will render — it returns nothing for a
+        // window with no copy reported, and "Last month" in the release month is exactly that (v24.89).
+        const early = summariseEarlyRoster(samples, { page }).rows.length
+            ? ' What a member sees before the check is timed under “Before the sign-in check” below.' : '';
+        frag.appendChild(noteLine(`Compare neighbouring rows: a big jump is where the time went. Each step is timed from the page opening, so they run in order: "Shifts shown" is the roster after the sign-in check, so it can never beat "Recognised".${early} Same bands as the rest of the card.`));
 
         frag.appendChild(timingRowList(rows));
         return frag;
@@ -460,23 +464,20 @@ async function initPageSpeedCard() {
      *  is the row that says whether the copy is doing its job, and its count says how often it had
      *  the chance — Team View, the station PIN and a first visit have no copy to show.
      *
-     *  The share is stated against the ladder's own `ready`, as the subset blocks do, and dropped
-     *  rather than printed when it would read over 100% — the two are counted on different paths, so
-     *  nothing guarantees one sits inside the other.
+     *  The share is `earlyRosterShare`'s (perf-stats.js): against `ready` on the versions that can
+     *  report a copy, not every version's — which printed 19% for a true 60% in the month it shipped.
      *  @param {Record<string, number>} samples @param {string} page */
     const earlyRosterRows = (samples, page) => {
         const { rows } = summariseEarlyRoster(samples, { page });
         if (!rows.length) return null;
-        const readyTotal = summariseStartMilestones(samples, { page }).rows
-            .find(r => r.metric === 'ready')?.total || 0;
-        const pct = readyTotal ? Math.round((rows[0].total / readyTotal) * 100) : null;
+        const pct = earlyRosterShare(samples, { page });
         const frag = document.createDocumentFragment();
         const heading = document.createElement('p');
         heading.className = 'usage-section-label speed-dim-label';
         heading.textContent = 'Before the sign-in check';
         frag.appendChild(heading);
         frag.appendChild(noteLine(
-            `A signed-in member is shown their own roster at once, from the copy kept on their phone, while the check runs — so this does not wait for the server. Counted only on opens that had a copy to show${pct !== null && pct <= 100 ? `: ${pct}% of them` : ''}.`));
+            `A signed-in member is shown their own roster at once, from the copy kept on their phone, while the check runs — so this does not wait for the server. Counted only on opens that had a copy to show${pct !== null ? ` — ${pct}% of Calendar opens since the app began counting it` : ''}.`));
         frag.appendChild(timingRowList(rows));
         return frag;
     };

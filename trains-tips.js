@@ -80,7 +80,7 @@ export const CARD_TIPS = {
                     { icon: '🔢', html: `<strong>Daytime</strong> means ${DAYTIME}. <strong>2 (1 in some hours)</strong> trains an hour means most daytime hours have two trains, and some have only one; <strong>1 to 3</strong> means no one number is true of most hours.` },
                     { icon: '🕐', html: '<strong>Going there</strong>, every time is when the train leaves <strong>Marylebone</strong>. <strong>Coming back</strong>, it is when the train leaves the station on the card, with the time it gets into Marylebone underneath.' },
                     { icon: '🔁', html: `<strong>Train by train</strong> lists only the trains that change; the ones that stay the same are one tap further. A train counts as the same train when it leaves within ${MAX_SHIFT_MIN} minutes of its old time. Beyond that it shows as removed, and the new one as a new train.` },
-                    { icon: '🚏', html: '<strong>No longer stops here</strong> is a train that still runs but passes this station; <strong>Will stop here</strong> is one that already ran and now calls here too.' },
+                    { icon: '🚏', html: '<strong>No longer stops here</strong> is a train that still runs but passes this station; <strong>Will stop here</strong> is one that already ran and now calls here too. A train that no longer comes this far says where it now ends — or, coming back, where it starts.' },
                 ],
             },
             {

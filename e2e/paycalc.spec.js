@@ -197,6 +197,11 @@ test('paycalc: the payslip check is there while the payslip is in hand, and name
     // And a blank Tax Code box is named as what the calculation made of it.
     await page.locator('#taxCode').fill('');
     await expect(verdict).toContainText('this estimate uses tax code 1257L and no pension.');
+    // A code the calculator cannot read is priced on the standard allowance, so it is never quoted as
+    // the code in use (v24.89) — "OT" with a letter O beside a payslip's 0T was the case found.
+    await page.locator('#taxCode').fill('OT');
+    await expect(verdict).toContainText("The tax code in Your Settings, OT, isn't one the calculator recognises");
+    await expect(verdict).not.toContainText('this estimate uses tax code OT');
 
     // The NEXT payslip has not been cut off yet, so it cannot be in anybody's hand.
     const next = await page.locator('#periodSelect option').evaluateAll(os =>
@@ -204,6 +209,38 @@ test('paycalc: the payslip check is there while the payslip is in hand, and name
     expect(next, 'the 20 Nov payslip is on the list').not.toBeNull();
     await page.locator('#periodSelect').selectOption(/** @type {string} */ (next));
     await expect(page.locator('#checkActualWrap')).toBeHidden();
+    expect(errors).toHaveLength(0);
+});
+
+test('paycalc: with Year to Date figures in use, a payslip gap names the payslip they count from (v24.89)', async ({ page }) => {
+    /*
+     * On 22 Oct a first entry is stamped with the 25 Sep payslip — the latest PAID one — while a
+     * member holding the 23 Oct payslip copies from that: its pay is then counted twice (£193.40 out,
+     * the 48-hour review). The card names its payslip; this is the line a member chasing the gap
+     * reads, and it is only as good as the calculator handing it the anchor actually used.
+     */
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));   // the 23 Oct payslip is in hand
+    await seedSession(page);
+    await seedMember(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        localStorage.setItem('myb_pc_gmiller_ytd_src_2026_27', '56');   // paid 25 Sep — the first-entry stamp that day
+        localStorage.setItem('myb_pc_gmiller_ytd_pay_2026_27', '21000');
+        localStorage.setItem('myb_pc_gmiller_ytd_tax_2026_27', '2800');
+    });
+    await page.goto('/paycalc.html?payday=2026-10-23');
+    await expect(page.locator('#ytdStatusChip')).toHaveText('✓ in use');
+    await page.locator('#actualNetInput').fill('1000');                 // far from any estimate: the big-gap line
+    const verdict = page.locator('#actualVerdict');
+    await expect(verdict).toContainText('It also counts your Year to Date figures as copied from your 25 Sep payslip');
+    // The 23 Oct payslip chosen instead: the figures now sharpen the NEXT payslip, so this one's line
+    // stops naming them.
+    await page.locator('#ytdSrcSelect').selectOption('57', { force: true });
+    await expect(page.locator('#ytdStatusChip')).not.toHaveText('✓ in use');
+    await expect(verdict).toContainText('this estimate uses tax code');
+    await expect(verdict).not.toContainText('counts your Year to Date figures');
     expect(errors).toHaveLength(0);
 });
 

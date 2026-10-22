@@ -649,6 +649,28 @@ test('Lock on the Trains page locks the station: the PIN card, and Trains asks f
     await expect(page.locator('#loginOverlay')).toBeVisible();
 });
 
+// ── LOCK FROM WHERE THE STATION ACTUALLY IS (v24.89) ──────────────────────────────────────────────
+// Every lock test above starts at `/index.html`, and from there `location.replace('./#staff-pin')`
+// is a navigation to another path, so the page reloaded and locked. The station opens the Calendar
+// at `/` — the start_url, the drawer's Calendar pill — where the same call differs by its fragment
+// alone: the browser scrolled, the drawer closed as though it had locked, and the roster stayed on
+// screen with the viewer signed out underneath it. Reproduced on 22 Oct 2026; live since late
+// September. Both paths are pinned, because the one that broke is the one nobody tested.
+for (const start of ['/', '/index.html']) {
+    test(`Lock Calendar locks when the Calendar was opened at ${start}`, async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await stubPinExchange(page);
+        await page.goto(start);
+        await enterPin(page, '1234');
+        await expect(page.locator('#calendarDisplay')).toBeVisible();
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navLockCalendarBtn').click();
+        await expect(page.locator('#calLockPin'), 'the PIN card, for the next person at this machine').toBeVisible();
+        await expect(page.locator('#calendarDisplay'), 'and no roster left on screen').toBeHidden();
+        expect(errors, errors.join('\n')).toEqual([]);
+    });
+}
+
 test('Lock Calendar appears for a viewer and not for a member', async ({ page }) => {
     await stubPinExchange(page);
     await page.goto('/index.html');

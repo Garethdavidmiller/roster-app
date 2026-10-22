@@ -90,6 +90,12 @@ test.describe('trains', () => {
         // trains that end there — so the card no longer says it is about those.
         await page.locator('#trStationInput').fill('gerrards x');
         await expect(page.locator('#trStationPicks .tr-pick')).toHaveText(['Gerrards Cross']);
+        // Two names that match equally: Enter opens the busier station, not the first in the alphabet —
+        // "Risborough" opened Monks Risborough (v24.89, the 48-hour review).
+        await page.locator('#trStationInput').fill('risborough');
+        await expect(page.locator('#trStationPicks .tr-pick')).toHaveText(['Princes Risborough', 'Monks Risborough']);
+        await page.locator('#trStationInput').press('Enter');
+        await expect(page.locator('#trStationTitle')).toHaveText('Princes Risborough');
         await page.locator('#trStationInput').fill('oxf');
         await page.locator('#trStationPicks .tr-pick', { hasText: /^Oxford$/ }).click();
         await expect(page.locator('#trStation .tr-verdict')).toHaveText('1 more train a day: 37, was 36.');
