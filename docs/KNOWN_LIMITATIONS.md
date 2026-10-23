@@ -1081,6 +1081,38 @@ costs a working iPhone nothing but a dialog. **Unconfirmed on a device:** whethe
 the home-screen app lands in Safari itself or in the in-app Safari sheet; both can print from the
 share menu.
 
+### Samsung Internet’s Dark mode repaints the app dark — the opt-out it ignores, and the per-device answer (Oct 2026)
+Reported 23 Oct 2026 from a Samsung phone: the Calendar’s off-white cards and day cells turned dark
+grey, dark text turned light (the navy month heading light blue), every tinted cell darkened with its
+hue kept, and the navy header untouched. That is a browser’s **forced-dark algorithm** repainting the
+page, not a theme in the app — the app has none, by decision (`.claude/rules/css-tokens.md` → "No dark
+mode"), and nobody can switch one on inside it.
+
+**The app already declares the opt-out browsers define for this, both ways:** `color-scheme: only light`
+on `html` in `shared.css`, and `<meta name="color-scheme" content="only light">` on every served page
+(`page-contract-parity.test.mjs` fails a page without it; both origins were checked serving it on the
+day of the report). Chrome honours it — its auto dark theme skips a page that says `only light`.
+**Samsung Internet does not.** Its Dark mode (its own setting, or following the phone’s) darkens any
+site that offers no dark theme of its own, ignores `only light`, and Samsung’s developer relations have
+said there is no page-side logic that bypasses it. A copy installed to the home screen from Samsung
+Internet keeps Samsung Internet’s engine, so it is repainted the same way; one installed from Chrome
+is not. The July 2026 report that led to the opt-out (v17.16; `only` at v18.10) was the same picture
+on a Samsung device: the opt-out answered Chrome, and could never answer Samsung Internet.
+
+**What it costs.** Nothing in data or logic, and the roster stays readable: every cell carries its
+word or emoji as well as its colour (the WCAG 1.4.1 rule the app already follows), and the algorithm
+keeps hues, so Early is still orange and Late still blue, only darker. What is lost is the design —
+and a member may read it as a fault, or as a feature somebody enabled.
+
+**The answer is per device, not in code.** The colleague turns Dark mode off in Samsung Internet
+(under Settings → Appearance, or Labs, depending on the version — the menu moves), uses Chrome, or
+installs the app from Chrome. **The one thing that stops the algorithm in code is a real dark theme**
+(`prefers-color-scheme: dark`), which Samsung Internet would then use instead of its own. That reverses
+the no-dark-mode decision across every page stylesheet and is declined for this; ROADMAP.md → "Dark
+mode (toggleable)" is where it would be reopened. Do not answer the report with a darker palette or an
+inverted-back override: the algorithm runs on the computed colours, after the stylesheet, and would
+repaint the repair too.
+
 ### Service worker activates immediately (`skipWaiting`)
 `self.skipWaiting()` means a new SW takes over all open tabs at once.
 In the rare case this causes a mid-session race, a hard reload resolves it.
