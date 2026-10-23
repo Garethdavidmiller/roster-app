@@ -48,10 +48,17 @@ jobs:
           key: playwright-${{ runner.os }}-chromium-${{ hashFiles('node_modules/@playwright/test/package.json') }}
       - name: Install Playwright Chromium
         if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-      - name: Install Chromium's system libraries (browser already cached)
-        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install chromium
+      # The system libraries: a 3-minute first attempt and a second chance. Why: e2e.yml's smoke job.
+      - name: Install Chromium's system libraries
+        id: sys-libs
+        timeout-minutes: 3
+        continue-on-error: true
         run: npx playwright install-deps chromium
+      - name: Install Chromium's system libraries (second attempt)
+        if: steps.sys-libs.outcome != 'success'
+        timeout-minutes: 5
+        run: sudo dpkg --configure -a && npx playwright install-deps chromium
 
       - name: Run offline service-worker check
         run: npm run test:offline

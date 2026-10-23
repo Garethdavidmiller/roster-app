@@ -926,3 +926,93 @@ describe('every run-script stays inside its own block scalar', () => {
         assert.ok(anyBlock, 'no `run: |` block found at all — the opener regex has stopped matching');
     });
 });
+
+describe('a stalled apt mirror costs a few minutes, not the job (23 Oct 2026)', () => {
+    /**
+     * Every job that runs a browser installs its GTK/GStreamer libraries from apt, which no cache
+     * can hold. On 22 Oct that step stalled on four jobs across two runs until each job's own limit
+     * ran out (9, 10 and 35 minutes) while a sibling job's copy took 14 seconds, and every test that
+     * ran had passed. The jobs read as CANCELLED, as if somebody had stopped them, and one of them
+     * was a release gate's twin: the same step sits in deploy-hosting.yml.
+     *
+     * The fix is a SHAPE, so it is held as one, for every workflow, and a job added later cannot bring
+     * the old step back:
+     *   · the browser download never installs the libraries itself (`install --with-deps`), so the
+     *     libraries always go through the guarded step, on a cache hit and a cache miss alike;
+     *   · the first attempt has a short limit and may fail;
+     *   · the step straight after it is a second attempt that runs only when the first did not
+     *     succeed, has a limit of its own, and may NOT fail quietly — a second stall fails the job.
+     *
+     * Read as text, not YAML, like the rest of this file: the suite runs with nothing installed.
+     */
+    const files = readdirSync(WF_DIR).filter(f => /\.ya?ml$/.test(f));
+
+    /** Each step as its block of lines. Steps sit six spaces in throughout this repo's workflows;
+     *  a comment line belongs to no step, and anything shallower than a step's body ends it. */
+    function stepsOf(/** @type {string} */ src) {
+        /** @type {string[][]} */ const steps = [];
+        /** @type {string[] | null} */ let cur = null;
+        for (const line of src.split('\n')) {
+            if (/^ {6}- /.test(line)) { cur = [line]; steps.push(cur); }
+            else if (/^\s*(#.*)?$/.test(line)) continue;
+            else if (cur && /^ {8,}\S/.test(line)) cur.push(line);
+            else cur = null;
+        }
+        return steps.map(lines => lines.filter(l => !/^\s*#/.test(l)).join('\n'));
+    }
+    /** A step's own key, on the dash line or at the step's body indent; null when it has none. */
+    const field = (/** @type {string} */ step, /** @type {string} */ key) =>
+        new RegExp(`^(?: {6}- | {8})${key}:[ \\t]*(.*?)[ \\t]*$`, 'm').exec(step)?.[1] ?? null;
+    const INSTALL_DEPS = /npx playwright install-deps (\w+)/;
+
+    /** Every guarded pair found, so the last contract can prove the scan saw them. */
+    let pairs = 0;
+
+    for (const file of files) {
+        const steps = stepsOf(readFileSync(join(WF_DIR, file), 'utf8'));
+
+        test(`${file}: no browser install brings its own libraries`, () => {
+            const offenders = steps.filter(s => /npx playwright install\b[^\n]*--with-deps/.test(s))
+                .map(s => field(s, 'name') ?? s.split('\n')[0].trim());
+            assert.deepEqual(offenders, [],
+                'these install the browser AND its apt libraries in one unguarded step, so a stalled '
+                + 'mirror there can still eat the job: download the browser alone (`npx playwright '
+                + 'install <browser>`) and let the guarded `install-deps` pair install the libraries');
+        });
+
+        test(`${file}: every install of the libraries is bounded, and has a second attempt`, () => {
+            /** @type {string[]} */ const faults = [];
+            steps.forEach((step, i) => {
+                const m = INSTALL_DEPS.exec(step);
+                if (!m || /\.outcome/.test(field(step, 'if') ?? '')) return;   // a second attempt, checked below
+                const name = field(step, 'name') ?? `step ${i + 1}`;
+                const id = field(step, 'id');
+                const limit = Number(field(step, 'timeout-minutes'));
+                if (!id) faults.push(`${name}: no id, so nothing can read whether it succeeded`);
+                if (!(limit > 0 && limit <= 5)) faults.push(`${name}: needs a timeout-minutes of 5 or less (has ${field(step, 'timeout-minutes')})`);
+                if (field(step, 'continue-on-error') !== 'true') faults.push(`${name}: must be allowed to fail, or a stall still fails the job with no second attempt`);
+                if (field(step, 'if') !== null) faults.push(`${name}: must run on every path — a cache hit and a cache miss both need the libraries (has if: ${field(step, 'if')})`);
+
+                const next = steps[i + 1] ?? '';
+                const nextName = field(next, 'name') ?? 'the next step';
+                if (field(next, 'if') !== `steps.${id}.outcome != 'success'`) {
+                    faults.push(`${name}: the step after it must be its second attempt, if: steps.${id}.outcome != 'success' (${nextName} has if: ${field(next, 'if')})`);
+                    return;
+                }
+                if (INSTALL_DEPS.exec(next)?.[1] !== m[1]) faults.push(`${nextName}: must install the same browser's libraries (${m[1]})`);
+                if (!(Number(field(next, 'timeout-minutes')) > 0)) faults.push(`${nextName}: needs a timeout-minutes of its own`);
+                if (field(next, 'continue-on-error') === 'true') faults.push(`${nextName}: must FAIL the job on a second stall, not continue past it`);
+                pairs += 1;
+            });
+            assert.deepEqual(faults, [], faults.join('\n'));
+        });
+    }
+
+    test('the scan found the pairs it is about', () => {
+        // Runs after the per-file tests above (node:test runs a describe's tests in order). Every
+        // contract above passes on a scan that matched nothing, so pin it to what IS there: the eight
+        // jobs that install a browser as of 23 Oct 2026 — the smoke, webkit, csp, visual and
+        // visual-webkit jobs, the release gate, the live health check and the offline proof.
+        assert.ok(pairs >= 8, `found ${pairs} guarded install pairs; expected at least 8`);
+    });
+});
