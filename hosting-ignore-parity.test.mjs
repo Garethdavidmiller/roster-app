@@ -89,17 +89,42 @@ test('the dot-file pattern is still there, or the explicit paths are load-bearin
     );
 });
 
+const deployWorkflow = readFileSync(new URL('./.github/workflows/deploy-hosting.yml', import.meta.url), 'utf8');
+/**
+ * deploy-hosting.yml's `paths-ignore` entries: EVERY list item in the block, however it is quoted.
+ * A reader that saw only the single-quoted style would wave a served path written any other way
+ * straight past the second test below.
+ */
+const pathsIgnore = [...deployWorkflow
+    .slice(deployWorkflow.indexOf('paths-ignore:'), deployWorkflow.indexOf('workflow_dispatch:'))
+    .matchAll(/^\s*-\s+(.+?)\s*$/gm)].map(m => m[1].replace(/^(['"])(.*)\1$/, '$2'));
+
 test('a deploy is not triggered by a change that cannot reach the served app', () => {
     // The other half of the same idea, and it has a cost the ignore list does not: deploy-hosting
     // QUEUES rather than cancels, so a no-op deploy delays the next real release by a full run.
-    const wf = readFileSync(new URL('./.github/workflows/deploy-hosting.yml', import.meta.url), 'utf8');
-    const pathsIgnore = wf.slice(wf.indexOf('paths-ignore:'), wf.indexOf('workflow_dispatch:'));
-    for (const dir of TOOLING_DIRS) {
-        assert.match(
-            pathsIgnore, new RegExp(`'${dir.replace('.', '[.]')}/\\*\\*'`),
-            `deploy-hosting.yml's paths-ignore must list '${dir}/**' — it is excluded from the\n` +
+    // The unit tests joined on 23 Oct 2026, when #1625 — workflows, docs and one test file — spent
+    // an 18-minute run republishing v24.91 byte for byte.
+    for (const entry of [...TOOLING_DIRS.map(dir => `${dir}/**`), '**/*.test.mjs']) {
+        assert.ok(
+            pathsIgnore.includes(entry),
+            `deploy-hosting.yml's paths-ignore must list '${entry}' — it is excluded from the\n` +
             `bundle, so a deploy triggered by it republishes an identical tree and queues in\n` +
             `front of the next real one.`,
         );
     }
+});
+
+test('the deploy never skips a change to a file a member is served', () => {
+    // THE DIRECTION WITH TEETH. A missing entry above costs a wasted run; a WRONG entry here costs a
+    // release — a change to a served file would merge, deploy nothing, and leave production on the
+    // old version with every check green. The hourly currency check notices only when that change
+    // carried the version bump; nothing notices one that did not.
+    // So every skipped path must be one the bundle itself excludes, stated identically. The four
+    // that deploy elsewhere (functions, rules, indexes) are excluded from the bundle too.
+    assert.ok(pathsIgnore.length > 0, 'found no paths-ignore entries in deploy-hosting.yml — has the block moved?');
+    const served = pathsIgnore.filter(entry => !hostingIgnore.includes(entry));
+    assert.deepEqual(served, [],
+        'deploy-hosting.yml skips a deploy for these, but firebase.json does not keep them out of the\n' +
+        'bundle — so a change to one is a change to what members are served, and it would never deploy.\n' +
+        'Either the file is served and must not be skipped, or it is not and belongs in hosting.ignore too.');
 });

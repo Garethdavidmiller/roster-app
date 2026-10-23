@@ -24,6 +24,12 @@ on:
       # imports, and `tooling/*.mjs` with its `results/*.json`. Those were eligible to be SERVED,
       # and a change to one of them triggered a deploy of a tree no member can see a difference in.
       - 'docs/**'
+      # The unit tests, for the same reason again (23 Oct 2026). firebase.json keeps every `*.test.mjs`
+      # out of the bundle, yet a change to one still started a deploy: #1625 touched only workflows,
+      # docs and workflow-hygiene.test.mjs, and its merge spent an 18-minute run republishing v24.91
+      # byte for byte. hosting-ignore-parity.test.mjs holds every entry here to the bundle's
+      # own exclusions, so this list can never skip a change to a file a member is served.
+      - '**/*.test.mjs'
   workflow_dispatch:
 
 # ── ONE DEPLOY AT A TIME, AND THE NEWEST ONE LAST (1 Sep 2026) ─────────────────────────────────
