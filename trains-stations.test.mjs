@@ -17,9 +17,10 @@ import {
     stationView, verdictFor, minutesWords, hourWords, hourNote, rateWords, busiestStations, matchStations, headlineChanges, stoppingGrid, orderStations, pairColumns,
     aRealDay, boardingTime, stationTrains, stopChanges, stationBands,
 } from './trains-stations.js';
-import { renderHeadlines, renderStation, renderGrid, endWords, renderLookup, renderTotals } from './trains-render.js';
-import { changeLabel } from './trains-change.js';
-import { TIMETABLES, STATIONS, STATION_ORDER, CHANGE_DATE } from './trains-data.js';
+import { renderHeadlines, renderStation, renderGrid, endWords, renderLookup, renderTotals, renderLastTrains, renderPicks } from './trains-render.js';
+import { changeLabel, caveatWords, timetablePhase } from './trains-change.js';
+import { lastTrains } from './trains-stations.js';
+import { TIMETABLES, STATIONS, STATION_ORDER, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL } from './trains-data.js';
 
 /** @returns {[string,string,string,string,string]} */
 const row = (/** @type {string} */ t, st = 'OXF', via = '', days = '', stops = '') => [t, st, via, days, stops];
@@ -804,5 +805,72 @@ describe('the UX pass (v24.92): leads and chips, the two lines, one train at a t
         const dep = renderStation(stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, 'AYS', 'dep'), { stations: STATIONS, dir: 'dep', showTrains: true, allTrains: true, leafFall: leaf });
         assert.doesNotMatch(dep, /may be leaf fall/);
         assert.doesNotMatch(renderStation(view, { stations: STATIONS, dir: 'arr', showTrains: true, allTrains: true }), /may be leaf fall/);
+    });
+});
+
+
+describe('the eight improvements (v24.94): the caveat by phase, Last trains, the remembered station, one list when the lists match', () => {
+    const DATES = { change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL };
+    const at = (/** @type {string} */ iso) => timetablePhase(new Date(iso), DATES);
+
+    test('caveatWords — the warning a member needs THAT day, and the same ask every time but the last', () => {
+        assert.deepEqual(caveatWords(at('2026-10-23T09:00:00Z'), DATES), { lead: 'December times can still change.', ask: 'before you tell a customer' });
+        assert.deepEqual(caveatWords(at('2026-12-20T10:00:00Z'), DATES), { lead: 'Times change again over Christmas and New Year, until 10 January.', ask: 'before you tell a customer' });
+        assert.deepEqual(caveatWords(at('2027-01-11T09:00:00Z'), DATES), { lead: 'These are the published timetables, not live running.', ask: 'before you tell a customer' });
+        assert.deepEqual(caveatWords(at('2027-05-17T09:00:00Z'), DATES), { lead: 'The timetables on this page have ended.', ask: 'for today’s trains' });
+        // The month is derived from the change date, never typed.
+        assert.equal(caveatWords({ phase: 'before', festive: true }, { change: '2027-05-16', festiveUntil: '2027-06-01' }).lead, 'May times can still change.');
+    });
+
+    test('lastTrains — the station card\'s own "Last train" for every station, in the books\' order, with how it moved', () => {
+        const rows = lastTrains(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep);
+        assert.ok(rows.length > 20);
+        assert.ok(rows.every(r => r.now || r.dec), 'a station with no train either side is left out');
+        const beac = rows.find(r => r.crs === 'BCF');
+        assert.deepEqual(beac, { crs: 'BCF', now: '00:10', dec: '00:10', shift: 0, kind: 'same' });
+        assert.equal(beac?.now, summarise(TIMETABLES.now.SX.dep, 'BCF', 'dep').last, 'never disagrees with the station card');
+        // The books' order: the stations STATION_ORDER knows come in its order.
+        const ranks = rows.map(r => STATION_ORDER.indexOf(r.crs)).filter(i => i >= 0);
+        assert.deepEqual(ranks, [...ranks].sort((a, b) => a - b));
+        // Saturdays: Hatton's last train moves half an hour later (the headline says so too).
+        const hatton = /** @type {string} */ (Object.keys(STATIONS).find(k => STATIONS[k] === 'Hatton'));
+        const sat = lastTrains(TIMETABLES.now.SO.dep, TIMETABLES.dec.SO.dep).find(r => r.crs === hatton);
+        assert.deepEqual(sat, { crs: hatton, now: '20:32', dec: '21:02', shift: 30, kind: 'later' });
+    });
+
+    test('renderLastTrains — banded by line, the moved time bold with a chip, a kept time quiet', () => {
+        const labels = { old: 'Now', new: 'From 13 Dec' };
+        const bands = stationBands([...TIMETABLES.now.SO.dep, ...TIMETABLES.dec.SO.dep]);
+        const html = renderLastTrains(lastTrains(TIMETABLES.now.SO.dep, TIMETABLES.dec.SO.dep), { stations: STATIONS, labels, bands });
+        assert.match(html, /<thead><tr><th scope="col">Station<\/th><th scope="col">Now<\/th><th scope="col">From 13 Dec<\/th>/);
+        assert.match(html, /<tr class="tr-last-band"><td colspan="4">Main line<\/td><\/tr>/);
+        assert.match(html, /<tr class="tr-last-band"><td colspan="4">Aylesbury via Amersham<\/td><\/tr>/);
+        assert.match(html, /<th scope="row">Hatton<\/th><td>20:32<\/td><td><strong>21:02<\/strong><\/td><td><span class="tr-chip tr-chip--moved">30 mins later<\/span><\/td>/);
+        assert.match(html, /<th scope="row">Beaconsfield<\/th><td>00:10<\/td><td>00:10<\/td><td><\/td>/, 'unchanged: no bold, no chip');
+        assert.equal(renderLastTrains([], { stations: STATIONS, labels }), '<p class="card-explainer tr-lead">No trains.</p>');
+        const gone = renderLastTrains([{ crs: 'BCF', now: '23:00', dec: null, shift: null, kind: 'gone' }, { crs: 'HWY', now: null, dec: '23:30', shift: null, kind: 'new' }], { stations: STATIONS, labels });
+        assert.match(gone, /No train<\/span>/); assert.match(gone, /tr-chip--new">New<\/span>/);
+        assert.doesNotMatch(gone, /tr-last-band/, 'one line alone is not banded');
+    });
+
+    test('renderPicks — the remembered station first as "Last time", once, and never while typing', () => {
+        const base = { typed: false, selected: null, stations: STATIONS };
+        const html = renderPicks(['HWY', 'BCF', 'GER'], { ...base, last: 'BCF' });
+        assert.match(html, /^<p class="tr-picks-label">Last time<\/p><button type="button" class="tr-pick" data-station="BCF" aria-pressed="false">Beaconsfield<\/button><p class="tr-picks-label">Busiest stations<\/p>/);
+        assert.equal((html.match(/data-station="BCF"/g) ?? []).length, 1, 'offered once, not twice');
+        assert.doesNotMatch(renderPicks(['HWY', 'BCF'], { ...base, typed: true, last: 'BCF' }), /Last time/);
+        assert.doesNotMatch(renderPicks(['HWY'], { ...base, last: 'XXX' }), /Last time/, 'a code the books do not know is ignored');
+        assert.doesNotMatch(renderPicks(['HWY'], base), /Last time/);
+    });
+
+    test('renderLookup — two identical near lists are shown once; a train only one side has is marked', () => {
+        const common = { started: false, labels: { old: 'Now', new: 'From 13 Dec' }, change: CHANGE_DATE, stations: STATIONS };
+        const same = renderLookup({ at: '17:16', day: 'SO', nowRows: TIMETABLES.now.SO.dep, decRows: TIMETABLES.dec.SO.dep, ...common });
+        assert.match(same, /— <strong>the same trains<\/strong> now and from 13 Dec:<\/p><div class="tr-near-cols tr-near-cols--one">/);
+        assert.doesNotMatch(same, /tr-near-head|tr-near-only/);
+        const differ = renderLookup({ at: '10:36', day: 'SX', nowRows: TIMETABLES.now.SX.dep, decRows: TIMETABLES.dec.SX.dep, ...common });
+        assert.equal((differ.match(/tr-near-head/g) ?? []).length, 2);
+        assert.match(differ, /<li class="tr-near-only"><span class="tr-near-time">10:36<\/span> Banbury<span class="sr-only"> — only in this timetable<\/span><\/li>/);
+        assert.doesNotMatch(differ, /tr-near-only"><span class="tr-near-time">10:40/, 'a train both sides have is not marked');
     });
 });
