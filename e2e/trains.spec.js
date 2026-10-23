@@ -11,6 +11,21 @@
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession, seedMemberSession, seedMember, clearNoticeFlags } from './helpers.js';
 
+/**
+ * Type into the station box. Under a chosen station the box and the chips have folded away (v24.92),
+ * so "Change station" brings them back first.
+ * @param {import('@playwright/test').Page} page @param {string} text
+ */
+async function findStation(page, text) {
+    if (await page.locator('#trStationPicker').isHidden()) await page.locator('#trStationChange').click();
+    await page.locator('#trStationInput').fill(text);
+}
+
+/** Open the lookup card where it starts collapsed — on a phone (v24.92). @param {import('@playwright/test').Page} page */
+async function openLookup(page) {
+    if (!(await page.locator('#trLookupBody').evaluate(e => e.classList.contains('open')))) await page.locator('#trLookupChevron').click();
+}
+
 test.describe('trains', () => {
     test('the admin sees what changes, opens a station from it, and the day drives every view', async ({ page }) => {
         const errors = collectFatalErrors(page);
@@ -80,7 +95,7 @@ test.describe('trains', () => {
         // With December's stops published, a station every train runs THROUGH is answered in full —
         // until v24.80 Beaconsfield said "December not known yet"…
         await page.locator('[data-sdir="dep"]').click();
-        await page.locator('#trStationInput').fill('beac');
+        await findStation(page, 'beac');
         await page.locator('#trStationPicks .tr-pick', { hasText: 'Beaconsfield' }).click();
         // 16 since v24.83: a train that passes it now, or starts calling, is counted at the station.
         await expect(page.locator('#trStation .tr-verdict')).toHaveText('Same number of trains a day, but 16 are different — see Train by train below.');
@@ -88,7 +103,7 @@ test.describe('trains', () => {
         await expect(page.locator('#trStation .tr-route')).toHaveCount(1);
         // …and Oxford counts the train that runs on to Banbury too, where it could count only the
         // trains that end there — so the card no longer says it is about those.
-        await page.locator('#trStationInput').fill('gerrards x');
+        await findStation(page, 'gerrards x');
         await expect(page.locator('#trStationPicks .tr-pick')).toHaveText(['Gerrards Cross']);
         // Two names that match equally: Enter opens the busier station, not the first in the alphabet —
         // "Risborough" opened Monks Risborough (v24.89, the 48-hour review).
@@ -96,7 +111,7 @@ test.describe('trains', () => {
         await expect(page.locator('#trStationPicks .tr-pick')).toHaveText(['Princes Risborough', 'Monks Risborough']);
         await page.locator('#trStationInput').press('Enter');
         await expect(page.locator('#trStationTitle')).toHaveText('Princes Risborough');
-        await page.locator('#trStationInput').fill('oxf');
+        await findStation(page, 'oxf');
         await page.locator('#trStationPicks .tr-pick', { hasText: /^Oxford$/ }).click();
         await expect(page.locator('#trStation .tr-verdict')).toHaveText('1 more train a day: 37, was 36.');
         await expect(page.locator('#trStation .tr-sub')).toHaveCount(0);
@@ -118,6 +133,7 @@ test.describe('trains', () => {
         // The lookup answers the exact train in a sentence, for the day now chosen.
         await page.locator('[data-day="SX"]').click();
         await page.locator('[data-view="changes"]').click();
+        await openLookup(page);
         await page.locator('#trLookupInput').fill('1036');
         await expect(page.locator('#trLookupResult .tr-answer').first())
             .toHaveText('The 10:36 to Banbury: Will run to Birmingham Snow Hill. From 13 December it does not stop at Kings Sutton.');
@@ -156,22 +172,27 @@ test.describe('trains', () => {
         await expect(page.locator('#trCountdown')).toHaveText('Now running');
         await expect(page.locator('#trLead')).toContainText('The timetable that ran until Saturday 12 December beside the new one');
         await expect(page.locator('[data-day="SU"]')).toHaveAttribute('aria-pressed', 'true');
+        await openLookup(page);
         await page.locator('#trLookupInput').fill('15:38');
         await expect(page.locator('#trLookupResult .tr-answer')).toHaveText('The 15:38 to Birmingham Moor Street: New from 13 December.');
         await expect(page.locator('#trLookupResult .tr-near-head').first()).toHaveText('Until 12 Dec');
         await page.locator('[data-view="grid"]').click();
         await expect(page.locator('#trGridNow')).toHaveText('Until 12 Dec');
         await page.locator('[data-view="stations"]').click();
-        await page.locator('#trStationInput').fill('banbury');
+        await findStation(page, 'banbury');
         await page.locator('#trStationInput').press('Enter');
         await expect(page.locator('#trStation .tr-st-table thead')).toContainText('Until 12 Dec');
     });
 
-    test('once December\'s books run out, the page says both timetables have ended (v24.83)', async ({ page }) => {
+    test('once December\'s books run out, the page says both timetables have ended (v24.83) — on a return visit too', async ({ page }) => {
         await page.clock.setFixedTime(new Date('2027-05-17T09:00:00Z'));
         await seedSession(page, 'C. Reen');
+        // A device that has read the overview before: it would open folded, but its one message now is
+        // that both timetables have ended, and that must be seen (v24.92).
+        await page.addInitScript(() => localStorage.setItem('myb_trains_overview_seen', '1'));
         await page.goto('/trains.html');
         await expect(page.locator('#trCountdown')).toHaveText('Timetable ended');
+        await expect(page.locator('#trOverviewBody')).toHaveClass(/\bopen\b/);
         await expect(page.locator('#trEnded')).toBeVisible();
     });
 
@@ -180,7 +201,7 @@ test.describe('trains', () => {
         await seedSession(page, 'C. Reen');
         await page.goto('/trains.html');
         await page.locator('[data-view="stations"]').click();
-        await page.locator('#trStationInput').fill('amersham');
+        await findStation(page, 'amersham');
         await page.locator('#trStationInput').press('Enter');
         await expect(page.locator('#trStationTitle')).toHaveText('Amersham');
         await expect(page.locator('#trStation')).not.toContainText('Leaf fall');
@@ -188,7 +209,7 @@ test.describe('trains', () => {
         await expect(page.locator('#trStation')).toContainText('Leaf fall: until 10 January, trains to London on this line leave up to 3 minutes earlier than usual.');
         // The Mondays-and-Fridays 17:37 is the 17:33's twin, 4 minutes earlier — the card once said "No longer runs".
         await page.locator('[data-sdir="dep"]').click();
-        await page.locator('#trStationInput').fill('snowhill');
+        await findStation(page, 'snowhill');
         await page.locator('#trStationInput').press('Enter');
         await page.locator('#trStation .tr-route-sum').click();
         const twin = page.locator('#trStation .tr-trains tbody tr', { hasText: 'Mon and Fri only' });
@@ -197,7 +218,7 @@ test.describe('trains', () => {
         await expect(page.locator('#trStation .tr-trains')).not.toContainText('No longer runs');
     });
 
-    test('a headline opens its station going there; Back returns to the list; focus stays where it was (v24.83)', async ({ page }) => {
+    test('a headline opens its station going there; Back returns to the list; focus lands on the station\'s name (v24.83, v24.92)', async ({ page }) => {
         await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
         await seedSession(page, 'C. Reen');
         await page.goto('/trains.html');
@@ -213,13 +234,157 @@ test.describe('trains', () => {
         await page.goBack();
         await expect(page).toHaveURL(/trains\.html/);
         await expect(page.locator('#trViewChanges')).toBeVisible();
-        // A control redrawn under the keyboard keeps focus, so the next Tab does not restart at the menu.
+        // A control redrawn under the keyboard keeps focus, so the next Tab does not restart at the
+        // menu — and a chip, which folds away with the picker once pressed (v24.92), hands focus to
+        // the station's name: the answer to what was pressed.
         await page.locator('[data-view="stations"]').click();
+        await page.locator('#trStationChange').click();
+        await expect(page.locator('#trStationInput')).toBeFocused();
         const pick = page.locator('#trStationPicks .tr-pick').nth(1);
-        const crs = await pick.getAttribute('data-station');
+        const name = await pick.innerText();
         await pick.focus();
         await page.keyboard.press('Enter');
-        await expect(page.locator(`#trStationPicks .tr-pick[data-station="${crs}"]`)).toBeFocused();
+        await expect(page.locator('#trStationTitle')).toBeFocused();
+        await expect(page.locator('#trStationTitle')).toHaveText(name);
+        await expect(page.locator('#trStationPicker')).toBeHidden();
+        // The day tabs keep their own focus as before.
+        await page.locator('[data-day="SO"]').focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('[data-day="SO"]')).toBeFocused();
+    });
+
+    test('the page opens on the answers (v24.92): the overview folds from the second visit, the caveat stays, the lookup is first', async ({ page }) => {
+        await page.setViewportSize({ width: 393, height: 727 });
+        await page.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
+        await seedSession(page, 'C. Reen');
+        await page.goto('/trains.html');
+        // First visit: the overview is open and read.
+        await expect(page.locator('#trOverviewBody')).toHaveClass(/\bopen\b/);
+        await expect(page.locator('#trFestive')).toBeVisible();
+        // The caveat is beneath the tabs, not in the card, and on every view.
+        const caveat = page.locator('#trCaveat');
+        await expect(caveat).toHaveText(/December times can still change\. Check Chiltern’s journey planner before you tell a customer\./);
+        await expect(page.locator('#trOverviewCard')).not.toContainText('before you tell a customer');
+        for (const view of ['stations', 'grid', 'changes']) {
+            await page.locator(`[data-view="${view}"]`).click();
+            await expect(caveat).toBeVisible();
+        }
+        // The day row is labelled.
+        await expect(page.locator('.tr-seg-label')).toHaveText('Day');
+        // Second visit: the overview opens folded; its header still carries the countdown.
+        await page.reload();
+        await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
+        await expect(page.locator('#trOverviewBody')).not.toHaveClass(/\bopen\b/);
+        await expect(page.locator('#trOverviewChevron')).toHaveAttribute('aria-expanded', 'false');
+        await expect(page.locator('#trCountdown')).toHaveText('51 days to go');
+        // On a phone the lookup comes before the list and starts folded; opening it puts the cursor in the box.
+        expect(await page.evaluate(() => {
+            const lookup = document.getElementById('trLookupCard'), changes = document.getElementById('trChangesCard');
+            return !!lookup && !!changes && !!(lookup.compareDocumentPosition(changes) & Node.DOCUMENT_POSITION_FOLLOWING);
+        }), 'the lookup card precedes the changes card').toBe(true);
+        await expect(page.locator('#trLookupBody')).not.toHaveClass(/\bopen\b/);
+        const first = await page.locator('#trChanges .tr-head').first().evaluate(e => Math.round(e.getBoundingClientRect().top));
+        expect(first, 'the first headline is on the first screen with room to spare (589px before v24.92)').toBeLessThan(500);
+        await page.locator('#trLookupToggleHeader').click();
+        await expect(page.locator('#trLookupInput')).toBeFocused();
+        await page.keyboard.type('1715');
+        await expect(page.locator('#trLookupResult .tr-answer').first()).toContainText('The 17:15 to Oxford');
+        // A desktop has the room: the lookup is open in its own column.
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.reload();
+        await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
+        await expect(page.locator('#trLookupBody')).toHaveClass(/\bopen\b/);
+    });
+
+    test('a chosen station folds the picker away; Change station brings it back; the headlines read as lead, detail and a chip (v24.92)', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
+        await seedSession(page, 'C. Reen');
+        await page.goto('/trains.html');
+        const first = page.locator('#trChanges .tr-head').first();
+        await expect(first.locator('.tr-chip')).toHaveText('New route');
+        await expect(first.locator('.tr-head-lead')).toHaveText('A new direct train to Stratford-upon-Avon, the 09:31');
+        await expect(first.locator('.tr-head-detail')).toHaveCount(0);
+        const ays = page.locator('#trChanges .tr-head', { hasText: 'to Aylesbury' });
+        await expect(ays.locator('.tr-chip')).toHaveText('+6 a day');
+        await expect(ays.locator('.tr-head-lead')).toHaveText('6 more trains a day to Aylesbury');
+        await expect(ays.locator('.tr-head-detail')).toContainText('47, was 41 · they also stop at Amersham');
+        await ays.click();
+        // The answer sits under the station's name: no search box or chips between them.
+        await expect(page.locator('#trStationPicker')).toBeHidden();
+        await expect(page.locator('#trStationChange')).toBeVisible();
+        await expect(page.locator('#trStation .tr-verdict')).toBeVisible();
+        await page.locator('#trStationChange').click();
+        await expect(page.locator('#trStationPicker')).toBeVisible();
+        await expect(page.locator('#trStationChange')).toBeHidden();
+        await expect(page.locator('#trStationPicks .tr-pick[aria-pressed="true"]')).toHaveText('Aylesbury');
+        await page.locator('#trStationInput').fill('banbury');
+        await page.locator('#trStationInput').press('Enter');
+        await expect(page.locator('#trStationTitle')).toHaveText('Banbury');
+        await expect(page.locator('#trStationPicker')).toBeHidden();
+        // Change station starts the search afresh: the busiest chips, not the last search's one match.
+        await page.locator('#trStationChange').click();
+        await expect(page.locator('#trStationInput')).toHaveValue('');
+        await expect(page.locator('#trStationPicks .tr-picks-label')).toHaveText('Busiest stations');
+        // Coming back from Aylesbury, a shift the leaf-fall note explains is quiet text; the tally says how many.
+        await page.locator('#trStationPicks .tr-pick', { hasText: 'Aylesbury' }).click();
+        await page.locator('[data-sdir="arr"]').click();
+        await page.locator('#trStation .tr-route-sum').click();
+        await page.locator('#trAllTrains').click();
+        const quiet = page.locator('#trStation .tr-trains tbody tr', { hasText: 'may be leaf fall' });
+        expect(await quiet.count()).toBeGreaterThan(0);
+        await expect(quiet.first().locator('.tr-chip')).toHaveClass(/tr-chip--same/);
+        await expect(page.locator('#trStation .tr-route-what')).toContainText(/\d+ of them by 3 minutes or less, which may be leaf fall/);
+    });
+
+    test('where they stop: a column tap shows one train\'s stops, the lines are banded, and the heads follow the reader down (v24.92)', async ({ page }) => {
+        await page.setViewportSize({ width: 393, height: 727 });
+        await page.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
+        await seedSession(page, 'C. Reen');
+        await page.goto('/trains.html');
+        await expect(page.locator('[data-view="grid"]')).toHaveText(/Where they stop/);
+        await page.locator('[data-view="grid"]').click();
+        await expect(page.locator('#trPatternCard h2')).toHaveText(/Where they stop/);
+        await expect(page.locator('#trPattern .tr-grid-band')).toHaveText(['Main line', 'Aylesbury via Amersham']);
+        const rows = page.locator('#trPattern tbody tr:not(.tr-grid-band)');
+        const all = await rows.count();
+        await expect(page.locator('#trPattern .tr-grid-tip')).toContainText('Tap a time at the top');
+        // The mirror: hidden while the real heads are on screen, shown once they have scrolled off —
+        // drawn by its own module, served to the page with the one export the coordinator calls.
+        // (Not the resource-timing buffer: the page loads more modules than its 250 entries hold.)
+        expect(await page.evaluate(() => import('./trains-grid-mirror.js').then(m => typeof m.syncGridMirror)),
+            'trains-grid-mirror.js is served and exports syncGridMirror').toBe('function');
+        const stick = page.locator('#trPattern .tr-grid-stick');
+        await expect(stick).toBeHidden();
+        await page.locator('#trPattern .tr-grid tbody tr', { hasText: 'Banbury' }).scrollIntoViewIfNeeded();
+        await page.evaluate(() => window.scrollBy(0, 120));
+        await expect(stick).toBeVisible();
+        await expect(stick).toContainText(':06');
+        await expect(stick).toHaveAttribute('aria-hidden', 'true');
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await expect(stick).toBeHidden();
+        // One train at a time.
+        const oxford = page.locator('#trPattern .tr-grid-colbtn', { hasText: /^:06/ });
+        await oxford.click();
+        await expect(oxford).toHaveAttribute('aria-pressed', 'true');
+        await expect(oxford).toBeFocused();
+        await expect(page.locator('#trPattern .tr-grid-focus')).toContainText('Only where the :06 to Oxford stops.');
+        expect(await rows.count()).toBeLessThan(all);
+        await expect(page.locator('#trPattern tbody tr', { hasText: 'Beaconsfield' })).toBeVisible();
+        await expect(page.locator('#trPattern tbody tr', { hasText: 'Banbury' })).toHaveCount(0);
+        await expect(page.locator('#trPattern .tr-grid-band')).toHaveCount(0);
+        // Every row left has the chosen train's dot — or a lost one.
+        expect(await page.locator('#trPattern tbody tr:not(.tr-grid-origin) td.tr-col-on').evaluateAll(tds => tds.every(td => td.querySelector('.tr-dot')))).toBe(true);
+        await page.locator('#trGridAll').click();
+        expect(await rows.count()).toBe(all);
+        await expect(page.locator('#trPattern .tr-grid-wrap')).toBeFocused();
+        // A pressed head released: the same tap again.
+        await oxford.click();
+        await page.locator('#trPattern .tr-grid-colbtn[aria-pressed="true"]').click();
+        expect(await rows.count()).toBe(all);
+        // Another day lets the chosen column go.
+        await oxford.click();
+        await page.locator('[data-day="SO"]').click();
+        await expect(page.locator('#trPattern .tr-grid-colbtn[aria-pressed="true"]')).toHaveCount(0);
     });
 
     // Every view at phone width, with the widest content each holds open. The basic-hour grid
@@ -239,6 +404,7 @@ test.describe('trains', () => {
                 return Math.max(0, ...[...document.querySelectorAll('#trStation *')].map(e => e.getBoundingClientRect().right - edge));
             });
             await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
+            await openLookup(page);
             await page.locator('#trLookupInput').fill('1036');
             expect(await overflow(), 'What’s changing').toBeLessThanOrEqual(1);
             await page.locator('#trChanges .tr-head', { hasText: 'to Aylesbury' }).click();
@@ -248,7 +414,7 @@ test.describe('trains', () => {
             expect(await clipped(), 'a station, every train').toBeLessThanOrEqual(1);
             // Banbury coming back holds the widest of them: a London arrival under every time, and
             // "Same time, gets in 11 mins later".
-            await page.locator('#trStationInput').fill('banbury');
+            await findStation(page, 'banbury');
             await page.locator('#trStationInput').press('Enter');
             await page.locator('[data-sdir="arr"]').click();
             await page.locator('#trStation .tr-route-sum').click();

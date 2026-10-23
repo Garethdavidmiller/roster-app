@@ -8,8 +8,9 @@
  *
  * The page's limits were a fifth card until v24.72. Every other page keeps that kind of depth behind
  * its cards' `?`, so they moved here — except "December times can still change", which is the one a
- * member must not miss before telling a passenger something, so it also stays in the overview card's
- * own text. Discovery may not depend on opening a panel.
+ * member must not miss before telling a passenger something, so it also stays on the page itself:
+ * one line beneath the tabs, on every view (v24.92 — it was in the overview card, which now opens
+ * collapsed on a return visit). Discovery may not depend on opening a panel.
  *
  * ── NOTHING HERE IS TYPED TWICE ─────────────────────────────────────────────────────────────────
  *
@@ -94,12 +95,13 @@ export const CARD_TIPS = {
     },
 
     'pattern': {
-        title: '🕰️ Every hour',
+        title: '🕰️ Where they stop',
         sections: [
             {
                 items: [
                     { icon: '🔂', html: `Between ${DAYTIME} most hours repeat the same trains. Each column is one of them: <strong>:06</strong> at the top means it leaves Marylebone at 10:06, 11:06, 12:06 and so on.` },
                     { icon: '⚫', html: 'A dot means that train stops at that station every hour; a <strong>half dot</strong> means only in some hours. <strong>4 of 6 hours</strong> under a time means it does not run every hour.' },
+                    { icon: '👆', html: 'Tap a time at the top to show only the stations that train stops at. Tap it again, or <strong>Show every station</strong>, for the whole picture. The rows are in two groups, the main line and the Aylesbury line via Amersham, as Chiltern’s two timetable books divide them.' },
                     { icon: '🧠', html: 'It is the one thing worth learning by heart: know it and you can answer most daytime questions without looking anything up.' },
                 ],
             },

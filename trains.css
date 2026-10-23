@@ -65,7 +65,6 @@ body {
     .tr-overview { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto; grid-auto-flow: column; column-gap: 40px; }
     .tr-overview .card-explainer { max-width: 60ch; }
 }
-.tr-caveat { color: var(--text-dark); font-weight: 600; }
 /* The three days' totals as one muted line — a fact worth having, not the thing to open on. */
 .tr-totals { margin: 6px 0 0; color: var(--text-light); font-size: var(--type-small); font-variant-numeric: tabular-nums; }
 .tr-totals strong { color: var(--text-dark); font-weight: 700; }
@@ -120,8 +119,30 @@ body {
 .tr-tabs--seg .tr-tab[aria-pressed="true"] { background: var(--surface); border-color: var(--surface); font-weight: 700; }
 @media (min-width: 1024px) {
     .tr-controls { flex-direction: row; align-items: stretch; gap: 24px; }
-    .tr-controls > .tr-tabs { flex: 1; }
+    .tr-controls > * { flex: 1; }
     .tr-tab-icon { display: inline; margin: 0 6px 0 0; }
+}
+/* The day row carries its label (v24.92): "Day", the app's uppercase group label, beside the track —
+   without it three pills under three pills read as a second row of views. */
+.tr-day-row { display: flex; align-items: center; gap: 10px; }
+.tr-day-row > .tr-tabs { flex: 1; }
+.tr-seg-label {
+    flex: 0 0 auto;
+    color: var(--on-navy-muted);
+    font-size: var(--type-badge);
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+/* The one caveat, beneath the controls on every view (v24.92). It was a paragraph in the overview
+   card, which now opens collapsed on a return visit; on the navy canvas it takes the drawer's muted
+   white, which clears AA, and on paper it is black. */
+.tr-caveat-line {
+    margin: 0 0 var(--space-2);
+    color: var(--on-navy-muted);
+    font-size: var(--type-small);
+    font-weight: 600;
+    line-height: 1.4;
 }
 /* A tab strip INSIDE a card (direction, Now / From 13 Dec) sits on the card surface, so it takes the
    card's own idiom: sunken track, the chosen tab white — the Pay Calculator's tax-year tabs. */
@@ -144,6 +165,9 @@ body {
 .tr-view[hidden] { display: none !important; }
 
 /* ── Columns ────────────────────────────────────────────────────────────────── */
+/* The lookup is FIRST in the DOM (v24.92 — first on a phone, where it matters with a customer
+   waiting), so the desktop places the two columns explicitly rather than by source order: the list
+   left, the lookup right, as before. Placement, not `order`, so the tab order is the reading order. */
 @media (min-width: 1024px) {
     .tr-cols {
         display: grid;
@@ -151,6 +175,8 @@ body {
         column-gap: 24px;
         align-items: start;
     }
+    .tr-col-main { grid-column: 1; grid-row: 1; }
+    .tr-col-side { grid-column: 2; grid-row: 1; }
 }
 
 /* ── Chips ──────────────────────────────────────────────────────────────────── */
@@ -297,7 +323,19 @@ body {
     .tr-head-text { grid-column: 1; }
     .tr-head-go { grid-column: 2; grid-row: 1 / span 2; }
 }
-.tr-head-text { font-weight: 600; }
+.tr-head-text { font-weight: 600; min-width: 0; }
+/* A row is a bold lead and quieter detail (v24.92): every word bold and the Aylesbury row was six
+   lines in which nothing stood out. The detail is never clamped — the stations a new train also calls
+   at are said there and nowhere else. */
+.tr-head-lead { display: block; font-weight: 700; }
+.tr-head-detail {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-light);
+    font-size: var(--type-small);
+    font-weight: 500;
+    line-height: 1.4;
+}
 .tr-head-go { color: var(--text-light); font-size: var(--type-large); }
 .tr-more {
     margin-top: 10px;
@@ -316,6 +354,10 @@ body {
 .tr-near-on { color: var(--text-light); font-size: var(--type-small); }
 
 /* ── Stations: the picker and the card ──────────────────────────────────────── */
+/* "Change station", shown in the picker's place once a station is chosen (v24.92). `display` is set,
+   so its `[hidden]` companion is restated (page-visibility-parity). */
+.tr-change-station { display: block; margin: 0 0 4px; }
+.tr-change-station[hidden], .tr-more[hidden] { display: none !important; }
 .tr-input.tr-input--wide { width: 100%; max-width: none; }
 @media (min-width: 1024px) { .tr-input.tr-input--wide { max-width: 480px; } }
 .tr-picks-label, .tr-sub {
@@ -430,6 +472,89 @@ body {
 @media (min-width: 1024px) { .tr-grid .tr-grid-st { width: 220px; max-width: none; } }
 .tr-grid-origin th, .tr-grid-origin td { background: var(--surface-sunken); }
 .tr-grid-origin .tr-grid-st { background: var(--surface-sunken); }
+/* ONE TRAIN AT A TIME (v24.92). Each column head is a button: pressed, the grid keeps only that
+   train's rows, and its column is tinted and underlined so the eye has the column it chose. The
+   other columns are LEFT OUT, never faded — a fade is a contrast bug (css-tokens.md). */
+.tr-grid-colbtn {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: center;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.tr-grid-colbtn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.tr-grid .tr-col-on { background: var(--surface-sunken); }
+.tr-grid thead th.tr-col-on { box-shadow: inset 0 -3px 0 var(--primary-blue); }
+.tr-grid-focus { margin: 0 0 8px; color: var(--text-mid); font-size: var(--type-small); }
+.tr-grid-focus .tr-more { margin: 0; padding: 0 2px; }
+.tr-grid-tip { margin: 0 0 6px; }
+/* The two lines, named: a band row before each group, pinned left with the station names so the
+   label stays in view when the table is scrolled sideways. */
+.tr-grid-band td {
+    position: sticky;
+    left: 0;
+    padding: 12px 0 4px;
+    background: var(--surface);
+    text-align: left;
+    color: var(--text-light);
+    font-size: var(--type-badge);
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+/* THE COLUMN HEADS, KEPT IN VIEW (v24.92). A fixed picture of the header row that trains-app.js
+   shows while the real one is above the screen and the table is not — 39 rows of dots were read up to
+   600px below the minute and destination that give them meaning. Fixed, not sticky: the card and
+   every ancestor clip their overflow, and a sticky element sticks to the nearest of those, never to
+   the screen. aria-hidden and inert; the real heads stay the controls. */
+.tr-grid-stick {
+    position: fixed;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    box-sizing: border-box;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border-light);
+    box-shadow: var(--shadow-1);
+    pointer-events: none;
+}
+.tr-grid-stick[hidden] { display: none !important; }
+.tr-grid-stick-st {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-end;
+    box-sizing: border-box;
+    padding: 5px 6px 5px 0;
+    background: var(--surface);
+    color: var(--text-mid);
+    font-size: var(--type-small);
+    font-weight: 600;
+    text-align: left;
+}
+.tr-grid-stick-clip { flex: 1; min-width: 0; overflow: hidden; }
+.tr-grid-stick-row { display: flex; }
+.tr-grid-stick-row > div {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    box-sizing: border-box;
+    padding: 5px 6px;
+    color: var(--text-mid);
+    font-size: var(--type-small);
+    font-weight: 600;
+    text-align: center;
+}
+@media (max-width: 480px) {
+    .tr-grid-stick-row > div { padding: 5px 3px; }
+    .tr-grid-stick-st { padding-right: 6px; box-shadow: 1px 0 0 var(--border-light); }
+}
 .tr-dot {
     display: inline-block;
     width: 12px;
@@ -520,6 +645,7 @@ body {
     .tr-view[hidden] { display: none !important; }
     .tr-dot { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     body { background: white; padding: 0; color: black; }
-    .tr-controls, .btn-burger, .btn-card-tips { display: none; }
+    .tr-controls, .btn-burger, .btn-card-tips, .tr-grid-stick, .tr-grid-tip, .tr-change-station { display: none; }
+    .tr-caveat-line { color: black; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); }
 }
