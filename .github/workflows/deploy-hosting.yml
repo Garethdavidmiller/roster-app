@@ -27,9 +27,42 @@ on:
       # The unit tests, for the same reason again (23 Oct 2026). firebase.json keeps every `*.test.mjs`
       # out of the bundle, yet a change to one still started a deploy: #1625 touched only workflows,
       # docs and workflow-hygiene.test.mjs, and its merge spent an 18-minute run republishing v24.91
-      # byte for byte. hosting-ignore-parity.test.mjs holds every entry here to the bundle's
-      # own exclusions, so this list can never skip a change to a file a member is served.
+      # byte for byte.
       - '**/*.test.mjs'
+      # And, from the same day, THE REST OF firebase.json's hosting.ignore, so the two lists stop
+      # drifting: whatever the bundle leaves out, a change to it alone does not deploy. This job
+      # publishes the repository as it stands and builds nothing from any of these. A few name
+      # files that are not normally committed at all (test output, archives, images, example
+      # payslips); they are here because one rule is easier to check than a list of exceptions.
+      # hosting-ignore-parity.test.mjs holds the two lists together, and names the only entries
+      # left out on purpose: firebase.json, which IS the hosting config and always deploys, and
+      # `**/.*` and `**/node_modules/**`, the two patterns GitHub might read differently from
+      # Firebase. One cost to know: a firebase-tools bump in package.json now waits for the next
+      # real release — run this workflow by hand (workflow_dispatch) to deploy with it sooner.
+      - 'generate-sri.mjs'
+      - '**/*.zip'
+      - 'example-payslips/**'
+      - '**/*.pdf'
+      - '**/*.jpg'
+      - '**/*.jpeg'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'playwright.config.mjs'
+      - 'playwright.csp.mjs'
+      - 'playwright.visual.mjs'
+      - 'playwright.visual-webkit.mjs'
+      - 'playwright.offline.mjs'
+      - 'playwright.live.mjs'
+      - 'playwright.webkit.mjs'
+      - 'e2e/**'
+      - 'experiments/**'
+      - 'test-fixtures/**'
+      - 'playwright-report/**'
+      - 'test-results/**'
+      - 'scripts/**'
+      - 'githooks/**'
+      - 'eslint.config.js'
+      - 'jsconfig.json'
   workflow_dispatch:
 
 # ── ONE DEPLOY AT A TIME, AND THE NEWEST ONE LAST (1 Sep 2026) ─────────────────────────────────

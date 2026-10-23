@@ -93,25 +93,40 @@ const deployWorkflow = readFileSync(new URL('./.github/workflows/deploy-hosting.
 /**
  * deploy-hosting.yml's `paths-ignore` entries: EVERY list item in the block, however it is quoted.
  * A reader that saw only the single-quoted style would wave a served path written any other way
- * straight past the second test below.
+ * straight past the checks below.
  */
 const pathsIgnore = [...deployWorkflow
     .slice(deployWorkflow.indexOf('paths-ignore:'), deployWorkflow.indexOf('workflow_dispatch:'))
     .matchAll(/^\s*-\s+(.+?)\s*$/gm)].map(m => m[1].replace(/^(['"])(.*)\1$/, '$2'));
 
+/**
+ * The three pattern shapes GitHub's path filter and Firebase's ignore list read the same way: a
+ * directory's contents (`docs/**`), a plain path (`package.json`) and a file type at any depth
+ * (`**\/*.md`). The skip list may use only these. Anything else is a bet on how GitHub reads a glob,
+ * which nothing here can test — and `**\/.*`, the obvious one to copy across, loses that bet badly
+ * if GitHub's `**\/` swallows the slash: it would then match every file with a dot in its name,
+ * index.html included, and no push would deploy again.
+ */
+const SAME_TO_BOTH = /^(?:[\w.-]+(?:\/[\w.-]+)*\/\*\*|[\w.-]+(?:\/[\w.-]+)*|\*\*\/\*(?:\.[\w-]+)+)$/;
+
+/**
+ * The one file the bundle leaves out that must ALWAYS deploy. It is never served itself, but it is
+ * the hosting config: the CSP, the headers, the redirects and this exclusion list.
+ */
+const ALWAYS_DEPLOYS = 'firebase.json';
+
 test('a deploy is not triggered by a change that cannot reach the served app', () => {
     // The other half of the same idea, and it has a cost the ignore list does not: deploy-hosting
     // QUEUES rather than cancels, so a no-op deploy delays the next real release by a full run.
-    // The unit tests joined on 23 Oct 2026, when #1625 — workflows, docs and one test file — spent
-    // an 18-minute run republishing v24.91 byte for byte.
-    for (const entry of [...TOOLING_DIRS.map(dir => `${dir}/**`), '**/*.test.mjs']) {
-        assert.ok(
-            pathsIgnore.includes(entry),
-            `deploy-hosting.yml's paths-ignore must list '${entry}' — it is excluded from the\n` +
-            `bundle, so a deploy triggered by it republishes an identical tree and queues in\n` +
-            `front of the next real one.`,
-        );
-    }
+    // Measured 23 Oct 2026, when #1625 — workflows, docs and one test file — spent an 18-minute run
+    // republishing v24.91 byte for byte. So the rule covers the whole list rather than a chosen few:
+    // whatever the bundle leaves out, the deploy skips, bar the two exceptions declared above.
+    const missing = hostingIgnore.filter(entry =>
+        entry !== ALWAYS_DEPLOYS && SAME_TO_BOTH.test(entry) && !pathsIgnore.includes(entry));
+    assert.deepEqual(missing, [],
+        'firebase.json leaves these out of the bundle, but deploy-hosting.yml\'s paths-ignore does not\n' +
+        'list them — so a change to one alone republishes an identical site and queues in front of the\n' +
+        'next real deploy. Add each to paths-ignore, spelled the same way.');
 });
 
 test('the deploy never skips a change to a file a member is served', () => {
@@ -119,12 +134,25 @@ test('the deploy never skips a change to a file a member is served', () => {
     // release — a change to a served file would merge, deploy nothing, and leave production on the
     // old version with every check green. The hourly currency check notices only when that change
     // carried the version bump; nothing notices one that did not.
-    // So every skipped path must be one the bundle itself excludes, stated identically. The four
-    // that deploy elsewhere (functions, rules, indexes) are excluded from the bundle too.
     assert.ok(pathsIgnore.length > 0, 'found no paths-ignore entries in deploy-hosting.yml — has the block moved?');
     const served = pathsIgnore.filter(entry => !hostingIgnore.includes(entry));
     assert.deepEqual(served, [],
         'deploy-hosting.yml skips a deploy for these, but firebase.json does not keep them out of the\n' +
         'bundle — so a change to one is a change to what members are served, and it would never deploy.\n' +
         'Either the file is served and must not be skipped, or it is not and belongs in hosting.ignore too.');
+    const unsure = pathsIgnore.filter(entry => !SAME_TO_BOTH.test(entry));
+    assert.deepEqual(unsure, [],
+        'deploy-hosting.yml skips a deploy for these patterns, but GitHub may not read them the way\n' +
+        'Firebase does. Use only a directory\'s contents (dir/**), a plain path, or a file type at any\n' +
+        'depth (**/*.ext) — see SAME_TO_BOTH.');
+});
+
+test('a change to firebase.json always deploys', () => {
+    // firebase.json is in hosting.ignore, being config rather than a page, so the subset rule above
+    // would let it into the skip list. It must never be there.
+    assert.ok(hostingIgnore.includes(ALWAYS_DEPLOYS), 'firebase.json has left hosting.ignore — re-read this file\'s exceptions');
+    assert.ok(!pathsIgnore.includes(ALWAYS_DEPLOYS),
+        'deploy-hosting.yml\'s paths-ignore lists firebase.json. It is left out of the bundle because it is\n' +
+        'config rather than a page, but it carries the CSP, the headers, the redirects and the exclusion\n' +
+        'list itself — a change to it alone would merge and never reach Firebase Hosting.');
 });
