@@ -70,9 +70,10 @@ jobs:
           key: playwright-${{ runner.os }}-chromium-${{ hashFiles('node_modules/@playwright/test/package.json') }}
       - name: Install Playwright Chromium
         if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-      - name: Install Chromium's system libraries (browser already cached)
-        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install chromium
+      # The system libraries, with a time limit of their own. Why: e2e.yml's smoke job.
+      - name: Install Chromium's system libraries
+        timeout-minutes: 8
         run: npx playwright install-deps chromium
 
       - name: Open the live site on both origins

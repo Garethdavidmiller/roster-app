@@ -118,7 +118,9 @@ jobs:
       # the local server applies no firebase.json headers; csp-hygiene.test.mjs checks the
       # CSP config statically.) Do not deploy if smoke fails.
       # Browser restored from the Actions cache, keyed on the Playwright version — the reasoning is on
-      # the smoke job in e2e.yml. A cache hit still installs the apt libraries, which it cannot hold.
+      # the smoke job in e2e.yml. The apt libraries, which the cache cannot hold, install on every run
+      # with a time limit of their own (reason in the same place): a stalled mirror here would otherwise
+      # hold up the release for the job's whole 40 minutes.
       - name: Restore Playwright Chromium from the cache
         id: pw-cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -127,9 +129,10 @@ jobs:
           key: playwright-${{ runner.os }}-chromium-${{ hashFiles('node_modules/@playwright/test/package.json') }}
       - name: Install Playwright Chromium
         if: steps.pw-cache.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-      - name: Install Chromium's system libraries (browser already cached)
-        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright install chromium
+      # The system libraries, with a time limit of their own. Why: e2e.yml's smoke job.
+      - name: Install Chromium's system libraries
+        timeout-minutes: 8
         run: npx playwright install-deps chromium
 
       - name: Run smoke tests
