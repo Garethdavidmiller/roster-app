@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -1298,6 +1298,151 @@ test('install strip: on desktop it leaves the browser its OWN install offer', as
     });
     expect(prevented).toBe(false);
     await expect(page.locator('#installPrompt')).toBeHidden();
+});
+
+// ── The install notice: the strip's whole case, made once (v24.91) ────────────────────────────────
+//
+// What calendar-notices.test.mjs cannot see, because it fakes install-prompt.js: that the REAL
+// detection reads a real phone's browser the way the notice needs, that the browser's real install
+// offer reaches the notice's button, and that the strip really leaves the screen. The rules
+// themselves — the order, the audience, every "how", the mirror — are pinned there.
+//
+// The user agent is set per describe rather than taken from the project, so both touch engines run
+// both platforms' copy: what decides "Share" or "the menu" is the platform, not the engine.
+const INSTALL_NOTICE_DAY = new Date('2026-10-22T09:00:00Z');   // its posting day; 90 days to run
+const ANDROID_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
+const IPHONE_UA  = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
+
+/** A member's phone browser whose earlier loads answered the timetable and Year to Date notices. */
+async function memberDueTheInstallNotice(page) {
+    await page.clock.setFixedTime(INSTALL_NOTICE_DAY);
+    await seedSession(page, 'G. Miller');
+    await seedMemberSession(page, 'G. Miller');
+    await seedMember(page);
+    await clearNoticeFlags(page, ['myb_notice_install_app_2026_done']);   // after the seeders: last write wins
+}
+
+/** The browser's install offer, as Chromium would hand it over — `window.__promptFired` records a use. */
+function offerInstall(page) {
+    return page.evaluate(() => {
+        const e = new Event('beforeinstallprompt', { cancelable: true });
+        /** @type {any} */ (e).prompt = () => { /** @type {any} */ (window).__promptFired = true; return Promise.resolve(); };
+        window.dispatchEvent(e);
+    });
+}
+
+test.describe('install notice — in an Android browser', () => {
+    test.use({ userAgent: ANDROID_UA });
+
+    test('it takes the strip\'s place, and its one tap is the browser\'s own offer', async ({ page }, info) => {
+        test.skip(!isTouchProject(info), 'it is offered only on a touch screen');
+        const errors = collectFatalErrors(page);
+        await memberDueTheInstallNotice(page);
+        await page.goto('/');
+        await page.waitForSelector('#calendarDisplay table, #calendarDisplay .calendar-container', { timeout: 15_000 });
+        await offerInstall(page);                             // inside the 1,500ms the notice waits
+        const notice = page.locator('#installNoticeLb');
+        await expect(notice).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await expect(page.locator('#installNoticeInstall')).toBeVisible();
+        for (const id of ['#installNoticeMenu', '#installNoticeIos', '#installNoticeMirror', '#installNoticeGo', '#installNoticeHave']) {
+            await expect(page.locator(id), `${id} is another browser's answer`).toBeHidden();
+        }
+        // The browser's offer would have put the strip up too. One ask at a time: it has stood down.
+        await expect(page.locator('#installPrompt')).toBeHidden();
+        await page.locator('#installNoticeInstall').click();
+        expect(await page.evaluate(() => /** @type {any} */ (window).__promptFired), 'the real offer, spent').toBe(true);
+        await expect(notice).not.toHaveClass(/\bopen\b/);
+        expect(await page.evaluate(() => [localStorage.getItem('myb_notice_install_app_2026_done'),
+                                          localStorage.getItem('myb_install_prompt_done')]),
+            'answered — and the strip will not ask again').toEqual(['1', '1']);
+        expect(errors).toHaveLength(0);
+    });
+
+    test('with no offer from the browser it names the menu — and closing it is an answer', async ({ page }, info) => {
+        test.skip(!isTouchProject(info), 'it is offered only on a touch screen');
+        const errors = collectFatalErrors(page);
+        await memberDueTheInstallNotice(page);
+        await page.goto('/');
+        const notice = page.locator('#installNoticeLb');
+        await expect(notice).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await expect(notice).toContainText('Put the roster on your home screen');
+        await expect(page.locator('#installNoticeMenu')).toBeVisible();
+        await expect(page.locator('#installNoticeHave'), 'it may already be installed: Chrome offers only where it is not').toBeVisible();
+        await expect(page.locator('#installNoticeActions'), 'nothing to press — the browser\'s menu does it').toBeHidden();
+        await page.locator('#installNoticeClose').click();
+        await expect(notice).not.toHaveClass(/\bopen\b/);
+        expect(await page.evaluate(() => [localStorage.getItem('myb_notice_install_app_2026_done'),
+                                          localStorage.getItem('myb_install_prompt_done')])).toEqual(['1', '1']);
+        const archived = await page.evaluate(() =>
+            JSON.parse(localStorage.getItem('myb_app_notices') || '[]').map((/** @type {{ id: string }} */ n) => n.id));
+        expect(archived, 'kept in the drawer\'s App Notices').toContain('install-app-2026');
+        expect(errors).toHaveLength(0);
+    });
+});
+
+test.describe('install notice — on an iPhone', () => {
+    test.use({ userAgent: IPHONE_UA });
+
+    test('it says Share, then Add to Home Screen — and the strip saying the same has stood down', async ({ page }, info) => {
+        test.skip(!isTouchProject(info), 'it is offered only on a touch screen');
+        const errors = collectFatalErrors(page);
+        await memberDueTheInstallNotice(page);
+        await page.goto('/');
+        const notice = page.locator('#installNoticeLb');
+        await expect(notice).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await expect(page.locator('#installNoticeIos')).toBeVisible();
+        await expect(page.locator('#installNoticeIos')).toContainText('Add to Home Screen');
+        await expect(page.locator('#installNoticeMenu')).toBeHidden();
+        await expect(page.locator('#installNoticeActions')).toBeHidden();
+        // On an iPhone the strip shows its own steps the moment access is decided — the same moment
+        // the notice is decided — so this is the strip coming up and going straight back down.
+        await expect(page.locator('#installPrompt')).toBeHidden();
+        expect(errors).toHaveLength(0);
+    });
+});
+
+test('install notice: never on a desktop — and not flagged there, so the member\'s phone still gets it', async ({ page }, info) => {
+    test.skip(isTouchProject(info), 'a touch screen is where it IS offered — the describes above');
+    const errors = collectFatalErrors(page);
+    await memberDueTheInstallNotice(page);
+    await page.goto('/');
+    await page.waitForSelector('#calendarDisplay table, #calendarDisplay .calendar-container', { timeout: 15_000 });
+    await page.waitForTimeout(2500);                          // past the 1,500ms defer
+    await expect(page.locator('#installNoticeLb')).not.toHaveClass(/\bopen\b/);
+    expect(await page.evaluate(() => localStorage.getItem('myb_notice_install_app_2026_done'))).toBeNull();
+    expect(errors).toHaveLength(0);
+});
+
+test('the Calendar\'s three notices come one per load — timetable, Year to Date, then install (v24.91)', async ({ page }, info) => {
+    // The order the owner confirmed for the first two, carried to the third, on a real page across
+    // real reloads. The session is seeded WITHOUT the seeders' notice flags: here the flags are the
+    // subject, and each must survive a reload exactly as a dismissal leaves it.
+    test.skip(!isTouchProject(info), 'the third is offered only on a touch screen');
+    test.setTimeout(90_000);
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(INSTALL_NOTICE_DAY);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_admin_session', JSON.stringify({
+            name: 'G. Miller', ver: 2, expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,
+        }));
+        localStorage.setItem('myb_roster_selected_member', 'G. Miller');
+        /** @type {any} */ (window).__E2E = Object.assign(/** @type {any} */ (window).__E2E || {}, { authUser: true });
+    });
+    await page.goto('/');
+    for (const [lb, answer] of [['#timetableNoticeLb', '#timetableNoticeLater'],
+                                ['#ytdNoticeLb', '#ytdNoticeLater'],
+                                ['#installNoticeLb', '#installNoticeClose']]) {
+        await expect(page.locator(lb)).toHaveClass(/\bopen\b/, { timeout: 15_000 });
+        await page.locator(answer).click();
+        await expect(page.locator(lb)).not.toHaveClass(/\bopen\b/);
+        await page.waitForTimeout(2500);                      // past the defer: nothing follows on this load
+        await expect(page.locator('.notice-lb-content:visible'), `nothing after ${lb} on its own load`).toHaveCount(0);
+        await page.reload();
+    }
+    await page.waitForSelector('#calendarDisplay table, #calendarDisplay .calendar-container', { timeout: 15_000 });
+    await page.waitForTimeout(2500);
+    await expect(page.locator('.notice-lb-content:visible'), 'all three answered: nothing more').toHaveCount(0);
+    expect(errors).toHaveLength(0);
 });
 
 // ─── 360px: THE WIDTH NOTHING RENDERED ────────────────────────────────────────────────────────

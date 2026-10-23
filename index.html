@@ -185,25 +185,6 @@
         </div>
     </div>
 
-    <div id="alNoticeLb" class="lb-overlay" role="dialog" aria-label="Book your remaining 2026 leave" aria-modal="true">
-        <div id="alNoticeContent" class="lb-content notice-lb-content">
-            <button id="alNoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
-            <div class="notice-head">
-                <div class="notice-badge notice-badge--calendar">📅 Calendar</div>
-                <div class="lightbox-app-name">Book your remaining 2026 leave</div>
-                <div class="notice-date">Posted 8 Sep 2026</div>
-            </div>
-            <div class="notice-main">
-                <p class="notice-body">There are only a few months left in the 2026 leave year. If you still have annual leave to take, <strong>book it soon</strong> — leave that is still unbooked later in the year may have dates allocated for you.</p>
-                <p class="notice-body">Your remaining days are on the 🏖️ button above the calendar and on the Admin page's Annual Leave card. Ask your manager if the figure looks wrong.</p>
-            </div>
-            <div class="notice-actions">
-                <a href="./admin.html#book-annual-leave" id="alNoticeGo" class="notice-cta">Book annual leave &rarr;</a>
-                <button id="alNoticeLater" class="notice-later" type="button">Not now</button>
-            </div>
-        </div>
-    </div>
-
     <!-- One-time notice: the new timetable, and where to learn it (v24.82; calendar-notices.js) -->
     <div id="timetableNoticeLb" class="lb-overlay" role="dialog" aria-label="A new timetable starts on 13 December" aria-modal="true">
         <div id="timetableNoticeContent" class="lb-content notice-lb-content">
@@ -221,6 +202,58 @@
             <div class="notice-actions">
                 <a href="./trains.html" id="timetableNoticeGo" class="notice-cta">See what’s changing &rarr;</a>
                 <button id="timetableNoticeLater" class="notice-later" type="button">Not now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- One-time notice: the Pay Calculator's Year to Date figures (v24.86). Opens only on a load
+         AFTER the timetable notice has been dismissed, to CEA/CES members — calendar-notices.js. -->
+    <div id="ytdNoticeLb" class="lb-overlay" role="dialog" aria-label="Make your pay estimates more accurate" aria-modal="true">
+        <div id="ytdNoticeContent" class="lb-content notice-lb-content">
+            <button id="ytdNoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
+            <div class="notice-head">
+                <div class="notice-badge notice-badge--pay">💷 Pay</div>
+                <div class="lightbox-app-name">Make your pay estimates more accurate</div>
+                <div class="notice-date">Posted 22 Oct 2026</div>
+            </div>
+            <div class="notice-main">
+                <p class="notice-body">The Pay Calculator’s tax figure usually gets much closer to your payslip once it knows your <strong>Year to Date</strong> figures — what you have earned, and the tax taken from it, so far this tax year.</p>
+                <p class="notice-body">First, check the tax code in <strong>Your Settings</strong> matches your payslip — with a wrong one, these figures make the estimate worse.</p>
+                <p class="notice-body">Then copy <strong>Taxable Pay</strong> and <strong>Tax Paid</strong> from the Year to Date box at the bottom left of your latest payslip into the <strong>📊 Year to Date Figures</strong> card, and check it names the payslip they came from.</p>
+                <p class="notice-body">Update them each time a new payslip arrives.</p>
+            </div>
+            <div class="notice-actions">
+                <a href="./paycalc.html#payslipCard" id="ytdNoticeGo" class="notice-cta">Open Year to Date Figures &rarr;</a>
+                <button id="ytdNoticeLater" class="notice-later" type="button">Not now</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- One-time notice: put the roster on your home screen (v24.91; owner, 22 Oct 2026). Phones and
+         tablets in a browser only, on a load after the Year to Date notice — or after the timetable
+         one, for a member the Year to Date notice is not for. calendar-notices.js. ALL ITS COPY IS
+         HERE, as with the install strip further down: which of the "how" lines show is decided as it
+         opens, from install-prompt.js's `installRoute()`, and the module only toggles `hidden`. -->
+    <div id="installNoticeLb" class="lb-overlay" role="dialog" aria-label="Put the roster on your home screen" aria-modal="true">
+        <div id="installNoticeContent" class="lb-content notice-lb-content">
+            <button id="installNoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
+            <div class="notice-head">
+                <div class="notice-badge">📣 General</div>
+                <div class="lightbox-app-name">Put the roster on your home screen</div>
+                <div class="notice-date">Posted 22 Oct 2026</div>
+            </div>
+            <div class="notice-main">
+                <p class="notice-body">The roster works better from your phone’s home screen than from its web address. It opens in one tap, fills the screen, and your saved pay figures are far less likely to be cleared.</p>
+                <p class="notice-body" id="installNoticeMirror" hidden>Add it from the app’s main address, <strong class="nav-path">myb-roster.web.app</strong>: open it with the button below, sign in, and it will show you how.</p>
+                <p class="notice-body" id="installNoticeIos" hidden>Tap your browser’s <strong>Share</strong> button, then <strong>Add to Home Screen</strong> — on an iPhone or iPad, notifications only work once the roster is there.</p>
+                <p class="notice-body" id="installNoticeMenu" hidden>Open your browser’s menu and look for <strong>Install app</strong> or <strong>Add to Home screen</strong>.</p>
+                <p class="notice-body" id="installNoticePay" hidden>Your saved Pay Calculator figures stay at this address. If you have any, move them first with 💾&nbsp;<strong>Move Your Pay Data</strong> on the Pay page.</p>
+                <p class="notice-body" id="installNoticeHave" hidden>Already on your home screen? Open it from there instead.</p>
+            </div>
+            <div class="notice-actions" id="installNoticeActions" hidden>
+                <button id="installNoticeInstall" class="notice-cta" type="button" hidden>Install the app</button>
+                <a href="https://myb-roster.web.app/" id="installNoticeGo" class="notice-cta" hidden>Open myb-roster.web.app &rarr;</a>
+                <button id="installNoticeLater" class="notice-later" type="button">Not now</button>
             </div>
         </div>
     </div>

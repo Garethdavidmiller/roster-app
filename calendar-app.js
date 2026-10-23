@@ -1208,6 +1208,9 @@ function _paintSnapshotBeforeGrant() {
         if (!days) return false;
         const card = mountLockCard({ id: 'calendarSnapshot', className: 'cal-snapshot' });
         card?.appendChild(buildCalendarContainer(getDisplayMonth(), getDisplayYear(), { member, snapshot: days }));
+        // The moment the member first sees their shifts, timed for the App Speed card (v24.85) —
+        // only here, where the copy is actually on screen before the check, never for a fall-through.
+        if (card) markMilestone('rosterSnapshot');
         return !!card;
     } catch (e) { console.warn('[Calendar] own-roster copy not painted', e); return false; }
 }
@@ -1289,8 +1292,9 @@ initCalendarAccess({
     _accessDecided(t);
 }, _accessDecided);
 
-// The page's one-time notices (al-booking-2026, and whatever /new-notice adds next). `sign-in-2026`
-// was retired at v23.23 — see calendar-notices.js for why it went by decision, not by expiry.
+// The page's one-time notices (timetable-2026, ytd-figures-2026, install-app-2026, and whatever
+// /new-notice adds next). `sign-in-2026` (v23.23) and `al-booking-2026` (v24.91) were retired early,
+// by decision rather than expiry — calendar-notices.js says why.
 // Their wiring lives in calendar-notices.js — see its header for why they left this file. They
 // queue behind the forced set-password step (below), the way the paycalc YTD notice does.
 initCalendarNotices({ after: _passwordForceSettled });

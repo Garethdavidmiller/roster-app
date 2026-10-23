@@ -66,6 +66,9 @@ mock.module('./roster-data.js', {
         formatISO: d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,
         parseSmartFloat: v => parseFloat(String(v)),
         parseSmartFloatOrNull: _realRosterData.parseSmartFloatOrNull,
+        // The REAL rule (v24.86: it lives in roster-data.js now, re-exported by paycalc-settings.js).
+        // A copy here would turn the gradeForRole block below into a test of the copy.
+        gradeForRole: _realRosterData.gradeForRole,
     },
 });
 mock.module('./paycalc-roster-suggestions.js', {

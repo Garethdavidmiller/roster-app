@@ -649,6 +649,28 @@ test('Lock on the Trains page locks the station: the PIN card, and Trains asks f
     await expect(page.locator('#loginOverlay')).toBeVisible();
 });
 
+// ── LOCK FROM WHERE THE STATION ACTUALLY IS (v24.89) ──────────────────────────────────────────────
+// Every lock test above starts at `/index.html`, and from there `location.replace('./#staff-pin')`
+// is a navigation to another path, so the page reloaded and locked. The station opens the Calendar
+// at `/` — the start_url, the drawer's Calendar pill — where the same call differs by its fragment
+// alone: the browser scrolled, the drawer closed as though it had locked, and the roster stayed on
+// screen with the viewer signed out underneath it. Reproduced on 22 Oct 2026; live since late
+// September. Both paths are pinned, because the one that broke is the one nobody tested.
+for (const start of ['/', '/index.html']) {
+    test(`Lock Calendar locks when the Calendar was opened at ${start}`, async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await stubPinExchange(page);
+        await page.goto(start);
+        await enterPin(page, '1234');
+        await expect(page.locator('#calendarDisplay')).toBeVisible();
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navLockCalendarBtn').click();
+        await expect(page.locator('#calLockPin'), 'the PIN card, for the next person at this machine').toBeVisible();
+        await expect(page.locator('#calendarDisplay'), 'and no roster left on screen').toBeHidden();
+        expect(errors, errors.join('\n')).toEqual([]);
+    });
+}
+
 test('Lock Calendar appears for a viewer and not for a member', async ({ page }) => {
     await stubPinExchange(page);
     await page.goto('/index.html');
@@ -789,10 +811,17 @@ test('a signed-in member keeps the full footer — name, bell and sign out', asy
 // rule rather than hardcode one, which is the shape a members-only regression would take.
 // **The next `'signed-out'` notice restores this test** — `.claude/skills/new-notice/` says so.
 test.describe('one-time notices and the PIN unlock', () => {
-    // Inside the leave-reminder notice's life (posted 8 Sep 2026, 90-day expiry), or it silently
-    // retires and these would pass by testing nothing. Pinned rather than removed with the notice:
-    // what is under test is the audience gate, and the next members-only notice inherits it.
-    const BEFORE_CUTOFF = new Date('2026-09-10T09:00:00Z');
+    // Inside the timetable notice's life (posted 21 Oct 2026, offered to the end of 31 October), or
+    // it silently retires and these would pass by testing nothing. Pinned rather than removed with
+    // the notice: what is under test is the audience gate, and the next members-only notice inherits
+    // it — as this one did at v24.91, from the leave reminder retired that day.
+    //
+    // WHY THIS NOTICE AND NOT THE YEAR TO DATE ONE, though that is the more obviously personal: the
+    // audience must be the ONLY thing standing between the notice and the station. The Year to Date
+    // notice also asks whose Pay Calculator this is, which a PIN unlock never answers — so it stays
+    // off the station even when declared `'everyone'`, and the mutation this block exists to catch
+    // would pass. The timetable notice has no second condition.
+    const BEFORE_CUTOFF = new Date('2026-10-22T09:00:00Z');
     // The notices open 1500ms after access is granted. Proving an ABSENCE means waiting past that,
     // and the first test below is what makes this number credible rather than hopeful: it shows a
     // permitted notice is already on screen by then, on the same session, through the same path.
@@ -804,18 +833,18 @@ test.describe('one-time notices and the PIN unlock', () => {
     // lost the race to another one. That is not a hypothetical: it is what the first version of
     // this block did, and a mutation declaring the members-only notice `'everyone'` — the exact
     // reported bug — sailed through it.
-    test('...and NOT the one about your own annual leave', async ({ page }) => {
+    test('...and NOT one addressed to members', async ({ page }) => {
         const errors = collectFatalErrors(page);
         await page.clock.setFixedTime(BEFORE_CUTOFF);
         await seedViewerAccess(page);
         await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_al_booking_2026_done']);
+        await clearNoticeFlags(page, ['myb_notice_timetable_2026_done']);
         await page.goto('/');
         await expect(page.locator('.month-year')).toBeVisible();
         await page.waitForTimeout(PAST_THE_DEFER);
-        await expect(page.locator('#alNoticeLb')).not.toHaveClass(/open/);
+        await expect(page.locator('#timetableNoticeLb')).not.toHaveClass(/open/);
         // ...and NOT flagged seen, or it would never arrive on the day that device signs in.
-        const flagged = await page.evaluate(() => localStorage.getItem('myb_notice_al_booking_2026_done'));
+        const flagged = await page.evaluate(() => localStorage.getItem('myb_notice_timetable_2026_done'));
         expect(flagged, 'a suppressed notice must be left untouched, not marked seen').toBeNull();
 
         // ...and NOT in the ARCHIVE either, which is the half the report was actually about: the
@@ -826,7 +855,7 @@ test.describe('one-time notices and the PIN unlock', () => {
         const archived = await page.evaluate(() =>
             JSON.parse(localStorage.getItem('myb_app_notices') || '[]').map(n => n.id));
         expect(archived, 'a notice the station was not addressed by must not reach its drawer')
-            .not.toContain('al-booking-2026');
+            .not.toContain('timetable-2026');
         expect(errors, 'Uncaught JS exceptions on a viewer calendar').toHaveLength(0);
     });
 
@@ -836,10 +865,10 @@ test.describe('one-time notices and the PIN unlock', () => {
         await seedSession(page);
         await seedMemberSession(page);
         await seedMember(page);
-        await clearNoticeFlags(page, ['myb_notice_al_booking_2026_done']);
+        await clearNoticeFlags(page, ['myb_notice_timetable_2026_done']);
         await page.goto('/');
         await expect(page.locator('.month-year')).toBeVisible();
-        await expect(page.locator('#alNoticeLb'), 'the same notice the station PC was refused').toHaveClass(/open/);
+        await expect(page.locator('#timetableNoticeLb'), 'the same notice the station PC was refused').toHaveClass(/open/);
         expect(errors, 'Uncaught JS exceptions on a member calendar').toHaveLength(0);
     });
 });
@@ -1019,6 +1048,28 @@ test('a cached, slow-restoring open writes `ready` — and no `readyProvisional`
         .flatMap(w => Object.keys((w.data && w.data.samples) || {})));
     await expect.poll(async () => (await sampleKeys()).some(k => k.includes('|ready|')), { timeout: 25_000 }).toBe(true);
     expect((await sampleKeys()).filter(k => k.includes('|readyProvisional|'))).toEqual([]);
+    // No stored copy was seeded, so none was painted — and an open that showed none must not be timed
+    // as though it had (v24.85). The test below is the other half.
+    expect((await sampleKeys()).filter(k => k.includes('|rosterSnapshot|'))).toEqual([]);
+});
+
+// THE MOMENT A MEMBER FIRST SEES THEIR SHIFTS IS TIMED (v24.85). "Shifts shown" is the grid after the
+// sign-in check; the stored copy is on screen before any of it, and until this had no time of its own,
+// so the App Speed card could not say whether it helped. A NON-ADMIN member, as above.
+test('painting the member\'s stored copy writes a `rosterSnapshot` sample', async ({ page }) => {
+    test.setTimeout(60_000);
+    await seedSession(page, 'S. Silva');
+    await seedMember(page, 'S. Silva');
+    await seedSnapshot(page, 'S. Silva', { [SNAP_DATE]: { type: 'annual_leave', value: 'AL' } });
+    await page.addInitScript(() => {
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true, authRestoreDelayMs: 3000 });
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarSnapshot')).toBeVisible({ timeout: 2000 });
+    const sampleKeys = async () => page.evaluate(() => (window.__E2E?.setWrites || [])
+        .filter(w => String(w.path || '').includes('perf_'))
+        .flatMap(w => Object.keys((w.data && w.data.samples) || {})));
+    await expect.poll(async () => (await sampleKeys()).some(k => k.includes('|calendar|rosterSnapshot|')), { timeout: 25_000 }).toBe(true);
 });
 
 test('a TEAM VIEW member waits for the confirmation too, and their team grid still restores', async ({ page }) => {
@@ -1054,8 +1105,9 @@ async function heldSessionWithReset(page, resetAgoMs) {
             name: 'G. Miller', ver: 2, expiry: Date.now() + 30 * DAY, createdAt: Date.now() - 10 * DAY,
         }));
         localStorage.setItem('myb_roster_selected_member', 'G. Miller');
-        localStorage.setItem('myb_notice_al_booking_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_2026_done', '1');
+        localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
+        localStorage.setItem('myb_notice_install_app_2026_done', '1');
         window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true });
     });
     await page.route('https://firestore.googleapis.com/**/documents/passwordStatus/**', route => route.fulfill(resetAgoMs

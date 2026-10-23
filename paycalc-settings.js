@@ -15,7 +15,7 @@ import { GRADES, taxYearForPeriod, calcProRateFactor, getPensionForPeriod, getRa
 import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, visiblePeriods, payslipPeriodNum } from './paycalc-periods.js';
 import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix } from './paycalc-migrations.js';
 import { getSession } from './session.js';
-import { teamMembers } from './roster-data.js';
+import { teamMembers, gradeForRole } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
 import { fdShort, fdLong } from './paycalc-format.js';
 import { setStatus } from './status-text.js';
@@ -44,27 +44,10 @@ export function getContr() {
   return (g && GRADES[g]) ? GRADES[g].contr : GRADES.cea.contr;
 }
 
-/**
- * The pay grade this app has CONFIRMED rates and contract terms for, given a member's role — or
- * null when it has none (v21.78).
- *
- * Written because the absence of a grade was indistinguishable from CEA. `getGrade()` returns ''
- * for anybody the app never stored one for, and every consumer then falls back to `GRADES.cea`, so
- * a Dispatcher or a manager opening the calculator received a complete, plausible CEA estimate.
- * That is worse than an unsupported state: an unverified figure at least looks unverified, whereas
- * this one was somebody else's pay presented as theirs.
- *
- * Dispatcher pay is not modelled because the rates and contractual terms are not on record — see
- * `.claude/rules/paycalc.md`. Do not invent them, and do not extend this map to a role until a real
- * payslip has confirmed it.
- *
- * @param {string|undefined|null} role @returns {'cea'|'ces'|null}
- */
-export function gradeForRole(role) {
-  if (role === 'CEA') return 'cea';
-  if (role === 'CES') return 'ces';
-  return null;
-}
+// `gradeForRole` — which pay grade a member's ROLE is, or null when this app has no confirmed
+// rates for it (v21.78). It lives in roster-data.js since v24.86, where the Calendar's Year to Date
+// notice can ask the same question without loading this module; re-exported so nothing here moves.
+export { gradeForRole };
 
 /** Return the teamMembers entry for the logged-in session user, or null. */
 export function getLoggedMember() {

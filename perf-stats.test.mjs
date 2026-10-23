@@ -2,7 +2,7 @@
 // Run with: node --test perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones, READY_SOURCES, summariseReadySource, UPDATE_OPENS, summariseUpdateOpens, PROVISIONAL_OPENS, summariseProvisionalOpens, SWR_COUNT_BUCKETS, bucketSwrCount, SWR_HEAVY_BUCKET, createPerfBatcher } from './perf-stats.js';
+import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones, READY_SOURCES, summariseReadySource, EARLY_ROSTER, summariseEarlyRoster, EARLY_ROSTER_FROM, earlyRosterShare, UPDATE_OPENS, summariseUpdateOpens, PROVISIONAL_OPENS, summariseProvisionalOpens, SWR_COUNT_BUCKETS, bucketSwrCount, SWR_HEAVY_BUCKET, createPerfBatcher } from './perf-stats.js';
 
 /** Build a samples map from [page, metric, bucket, count] rows (version/mode/conn fixed). */
 function samplesFrom(rows) {
@@ -344,6 +344,29 @@ describe('perfVerdict', () => {
         assert.equal(perfVerdict(r.overall).tone, 'ok');    // 50% quick, 0% slow, <80% quick
     });
 
+    test('"mostly quick" only when quick IS the larger band (v24.85)', () => {
+        // The month that reported it: 2 quick, 19 a moment, 3 slow — 24 sign-ins, 8% within a second.
+        // One sentence for the whole ok band read "Signing in mostly feels quick" beside that 8%.
+        const login = (/** @type {number} */ q, /** @type {number} */ m, /** @type {number} */ sl) => perfVerdict(summarisePerf(samplesFrom([
+            ['login', 'loginTotal', 'lt500ms', q], ['login', 'loginTotal', '1-3s', m], ['login', 'loginTotal', '3-8s', sl]]), { metric: 'loginTotal' }).overall, 'login');
+        const real = login(2, 19, 3);
+        assert.equal(real.tone, 'ok', 'still amber — the thresholds are unchanged');
+        assert.equal(real.text, 'Sign-ins most often take a moment, and some take longer.');
+        assert.doesNotMatch(real.text, /quick/);
+        // No tail about slower ones when none were slow.
+        assert.equal(login(6, 14, 0).text, 'Sign-ins most often take a moment.');
+        // Quick the larger band (a tie counts as quick): the sentence it always had.
+        assert.equal(login(12, 8, 0).text, 'Signing in mostly feels quick, with some slower sign-ins.');
+        assert.equal(login(10, 10, 0).text, 'Signing in mostly feels quick, with some slower sign-ins.');
+        // Every journey has both halves, so none borrows another's words.
+        for (const kind of /** @type {const} */ (['pages', 'login', 'fcp', 'ready'])) {
+            const r = summarisePerf(samplesFrom([['admin', 'domReady', 'lt500ms', 2], ['admin', 'domReady', '1-3s', 19], ['admin', 'domReady', '3-8s', 3]]));
+            const v = perfVerdict(r.overall, kind);
+            assert.match(v.text, /most often takes? a moment/, kind);
+            assert.ok(!/undefined/.test(v.text), kind);
+        }
+    });
+
     test('login kind uses sign-in copy; tone logic unchanged', () => {
         const empty = perfVerdict(summarisePerf({}).overall, 'login');
         assert.equal(empty.tone, 'none');
@@ -542,6 +565,91 @@ describe('summariseStartMilestones', () => {
             assert.ok(m.label && m.label.length <= 13, `${m.metric}: label must fit the row column`);
             assert.ok(m.sub && m.sub.length > 0, `${m.metric}: the sub carries what the label gives up`);
         }
+    });
+});
+
+// ── summariseEarlyRoster — what a member sees before the sign-in check (v24.85) ─────────────────
+//
+// The Calendar paints a member's own stored roster before the check answers, and until this nothing
+// timed it, so the card reported the wait for the confirmed roster as the wait to see one. The rule
+// that matters is the honest one: it reports what was PAINTED and nothing else — not the ladder's
+// rungs, not `ready`, and nothing for a page that never painted a copy.
+describe('summariseEarlyRoster', () => {
+    test('the stored copy\'s paint is its own row, on the card\'s usual bands', () => {
+        const samples = Object.fromEntries([
+            mk('calendar', 'rosterSnapshot', 'lt500ms', 30),
+            mk('calendar', 'rosterSnapshot', '500ms-1s', 6),
+            mk('calendar', 'rosterSnapshot', '1-3s', 4),
+        ]);
+        const { rows } = summariseEarlyRoster(samples, { page: 'calendar' });
+        assert.deepEqual(rows.map(r => r.metric), EARLY_ROSTER.map(m => m.metric));
+        assert.equal(rows[0].total, 40);
+        assert.equal(rows[0].label, 'Own roster');
+        assert.equal(rows[0].pctOver1s, 10, 'only the 1–3s four are over a second');
+    });
+
+    test('it counts nothing but the paint — not `ready`, not a rung, not another page', () => {
+        const samples = Object.fromEntries([
+            mk('calendar', 'ready', 'lt500ms', 900),
+            mk('calendar', 'authBoot', '1-3s', 400),
+            mk('paycalc', 'rosterSnapshot', '3-8s', 50),
+        ]);
+        assert.deepEqual(summariseEarlyRoster(samples, { page: 'calendar' }).rows, [],
+            'no paint reported ⇒ no row: a zero here would claim the copy never helped');
+    });
+
+    test('it is not a rung of the ladder, whose note says its rows run in order', () => {
+        assert.ok(!START_MILESTONES.some(m => m.metric === 'rosterSnapshot'));
+    });
+});
+
+// ── earlyRosterShare — how often the copy had the chance (v24.89, the 48-hour review) ────────────
+//
+// The share was divided by every version's `ready`, so in the month the metric shipped the opens of
+// versions that CANNOT report a copy sat under it. This is the reviewer's case, to the percent.
+describe('earlyRosterShare', () => {
+    const at = (version, metric, n, page = 'calendar') =>
+        [perfSampleKey({ version, page, metric, bucket: 'lt500ms', mode: 'standalone', conn: '4g' }), n];
+
+    test('only versions that can report a copy are divided — 60%, not the 19% mixed versions printed', () => {
+        const samples = Object.fromEntries([
+            at('v24.84', 'ready', 1300),          // three weeks before the metric existed
+            at('v24.85', 'ready', 600),
+            at('v24.85', 'rosterSnapshot', 360),
+        ]);
+        assert.equal(earlyRosterShare(samples, { page: 'calendar' }), 60);
+        assert.equal(Math.round(360 / 1900 * 100), 19, 'the old divisor — what the card used to print');
+    });
+
+    test('a version counts by its number, written with or without a v, and a later major counts', () => {
+        const samples = Object.fromEntries([
+            at('24.86', 'ready', 100), at('24.86', 'rosterSnapshot', 50),
+            at('v25.01', 'ready', 100), at('v25.01', 'rosterSnapshot', 50),
+            at('v24.9', 'ready', 800),            // reads as 24.9, which is BELOW 24.85 — not 24.90
+            at('nonsense', 'ready', 800),         // unreadable ⇒ below every release, so not divided
+        ]);
+        assert.equal(earlyRosterShare(samples, { page: 'calendar' }), 50);
+        assert.equal(EARLY_ROSTER_FROM, '24.85', 'the release that began reporting the copy');
+    });
+
+    test('nothing to state ⇒ null: no copy shown, no counted opens, or a figure over 100%', () => {
+        assert.equal(earlyRosterShare({}, { page: 'calendar' }), null);
+        assert.equal(earlyRosterShare(Object.fromEntries([at('v24.85', 'ready', 400)]), { page: 'calendar' }), null,
+            'no paint reported is not 0% — the block itself does not render');
+        assert.equal(earlyRosterShare(Object.fromEntries([
+            at('v24.84', 'ready', 400), at('v24.85', 'rosterSnapshot', 40),
+        ]), { page: 'calendar' }), null, 'a copy but no counted opens to divide by');
+        assert.equal(earlyRosterShare(Object.fromEntries([
+            at('v24.85', 'ready', 10), at('v24.85', 'rosterSnapshot', 12),
+        ]), { page: 'calendar' }), null, 'counted on different paths, so over 100% is dropped, not printed');
+    });
+
+    test('another page\'s opens are not divided', () => {
+        const samples = Object.fromEntries([
+            at('v24.85', 'ready', 100), at('v24.85', 'rosterSnapshot', 25),
+            at('v24.85', 'ready', 900, 'paycalc'),
+        ]);
+        assert.equal(earlyRosterShare(samples, { page: 'calendar' }), 25);
     });
 });
 

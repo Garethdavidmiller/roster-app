@@ -81,12 +81,37 @@
  * **The width is read ONCE, at init.** A tablet rotated from landscape to portrait mid-session gets
  * no strip, which is right rather than merely tolerable: we have already let that session's event
  * through to the browser, and re-arming on resize would put up a button with nothing behind it.
+ *
+ * ── AND THE NOTICE THAT MAKES THE SAME ASK IN FULL (v24.91) ───────────────────────────────────
+ *
+ * `install-app-2026` (calendar-notices.js) is a one-time notice asking the same thing with the
+ * reasons, and this module is where it learns what to say: `installRoute()` is the detection above,
+ * read for a notice rather than for the strip. Three rules keep the two from asking twice:
+ *
+ *   · **One held offer, module-wide.** Chromium's event is single-use, so the strip and the notice
+ *     spend the SAME one (`promptInstall`) — two holders would be two buttons the browser honours
+ *     once. It is still captured only where the strip would have captured it: a member who
+ *     dismissed the strip long ago is not given one, and the notice tells them the browser menu
+ *     route instead, which works without it.
+ *   · **The notice takes the visit.** The moment it is decided (`yieldToInstallNotice`), the strip
+ *     and the notification ask leave the screen for the rest of the visit, unflagged — the
+ *     strip's own precedence rule, one level up.
+ *   · **An answered notice retires the strip** (`retireInstallStrip`). A member who has read the
+ *     whole case and said "Not now" is not asked again by a one-line version of it on the next
+ *     visit; Settings keeps the install card as the place to find it.
  */
 import { lsGet, lsSet } from './ls.js';
 import { isIOS } from './notif.js';
 
 /** One-off per device, like the notification prompt beside it. */
 const DISMISSED_KEY = 'myb_install_prompt_done';
+
+/** Chromium's install offer, held from the moment it fires until something spends it — the strip
+ *  or the install notice, never both (see the header). @type {any} */
+let _offer = null;
+
+/** Set once the install notice has taken this visit's ask: the strip then stays off screen. */
+let _yielded = false;
 
 /** True when running as an installed Home Screen PWA. Mirrors notif.js's private copy. */
 function isStandalone() {
@@ -121,6 +146,50 @@ function canBeSeen(strip) {
 }
 
 /**
+ * How this device would install the roster — for the install notice, which asks only where there is
+ * something to install. `null` for a desktop, and for the installed app itself.
+ *
+ * A phone or tablet is read off `(pointer: coarse)`, the test the app already uses for touch-only UI;
+ * the strip's width flag would count a narrowed desktop window as a phone. `how` is what to do in
+ * THIS browser: 'prompt' (Chromium handed over its offer — one tap, through `promptInstall`), 'ios'
+ * (Share, then Add to Home Screen) or 'menu' (any other browser's own menu). `mirror` is the Pages
+ * mirror, where the answer is to install from the main address instead — never from here — and where
+ * `how` is never 'prompt', because no offer is captured there.
+ * @returns {{ how: 'prompt'|'ios'|'menu', mirror: boolean } | null}
+ */
+export function installRoute() {
+    if (isStandalone() || !window.matchMedia?.('(pointer: coarse)').matches) return null;
+    const mirror = isDeprecatedMirror();
+    return { how: !mirror && _offer ? 'prompt' : isIOS() ? 'ios' : 'menu', mirror };
+}
+
+/**
+ * Spend the held offer: the browser's own install dialog. Call it first thing in a click handler —
+ * the browser wants the member's gesture behind it.
+ * @returns {boolean} false when there was none to spend
+ */
+export function promptInstall() {
+    const p = _offer;
+    _offer = null;                   // single-use: a spent prompt cannot be shown again
+    if (!p) return false;
+    try { p.prompt(); } catch { /* the browser withdrew it — nothing to recover */ }
+    return true;
+}
+
+/** The install notice is about to ask in full: the strip, and the notification ask it outranks,
+ *  leave the screen for this visit — unflagged, so neither is lost. */
+export function yieldToInstallNotice() {
+    _yielded = true;
+    for (const id of ['installPrompt', 'notifPrompt']) {
+        const el = /** @type {HTMLElement|null} */ (document.getElementById(id));
+        if (el) el.style.display = 'none';
+    }
+}
+
+/** The member has answered the install notice, so the strip does not ask again on this device. */
+export function retireInstallStrip() { lsSet(DISMISSED_KEY, '1'); }
+
+/**
  * Show the install strip when it is both possible and appropriate.
  *
  * @param {object} deps
@@ -140,11 +209,9 @@ export function initInstallPrompt({ accessReady, getAccessType }) {
     const stepsEl    = document.getElementById('installPromptSteps');
     if (!actionBtn || !dismissBtn || !stepsEl) return;
 
-    /** @type {any} */
-    let deferred = null;
-
     /** Hide the notification ask for THIS visit only — it returns next time. See the header. */
     function show() {
+        if (_yielded) return;        // the install notice has this visit's ask
         const notif = document.getElementById('notifPrompt');
         if (notif) /** @type {HTMLElement} */ (notif).style.display = 'none';
         /** @type {HTMLElement} */ (strip).style.display = 'flex';
@@ -156,7 +223,7 @@ export function initInstallPrompt({ accessReady, getAccessType }) {
     // together rather than assuming an order.
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();          // without this Chrome shows its own mini-infobar instead
-        deferred = e;
+        _offer = e;
         accessReady.then(() => {
             const t = getAccessType();
             if (t !== 'named') return;    // a named member only — never the shared station
@@ -167,14 +234,14 @@ export function initInstallPrompt({ accessReady, getAccessType }) {
     });
 
     // Installed from the browser's own menu while this page is open.
-    window.addEventListener('appinstalled', () => { deferred = null; dismiss(); });
+    window.addEventListener('appinstalled', () => { _offer = null; dismiss(); });
 
     // WebKit. No event exists, so the app decides — hence the guards above.
     if (isIOS()) {
         accessReady.then(() => {
             const t = getAccessType();
             if (t !== 'named') return;
-            if (deferred) return;                          // Chromium branch already handled it
+            if (_offer) return;                            // Chromium branch already handled it
             actionBtn.hidden = true;                       // there is nothing to press
             stepsEl.hidden   = false;                      // so say what to tap instead
             show();
@@ -182,10 +249,8 @@ export function initInstallPrompt({ accessReady, getAccessType }) {
     }
 
     actionBtn.addEventListener('click', () => {
-        const p = deferred;
-        deferred = null;             // single-use: a spent prompt cannot be shown again
+        promptInstall();             // first, inside the member's gesture
         dismiss();
-        try { p?.prompt(); } catch { /* the browser withdrew it — nothing to recover */ }
     });
     dismissBtn.addEventListener('click', dismiss);
 }

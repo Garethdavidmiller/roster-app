@@ -90,6 +90,12 @@ test.describe('trains', () => {
         // trains that end there — so the card no longer says it is about those.
         await page.locator('#trStationInput').fill('gerrards x');
         await expect(page.locator('#trStationPicks .tr-pick')).toHaveText(['Gerrards Cross']);
+        // Two names that match equally: Enter opens the busier station, not the first in the alphabet —
+        // "Risborough" opened Monks Risborough (v24.89, the 48-hour review).
+        await page.locator('#trStationInput').fill('risborough');
+        await expect(page.locator('#trStationPicks .tr-pick')).toHaveText(['Princes Risborough', 'Monks Risborough']);
+        await page.locator('#trStationInput').press('Enter');
+        await expect(page.locator('#trStationTitle')).toHaveText('Princes Risborough');
         await page.locator('#trStationInput').fill('oxf');
         await page.locator('#trStationPicks .tr-pick', { hasText: /^Oxford$/ }).click();
         await expect(page.locator('#trStation .tr-verdict')).toHaveText('1 more train a day: 37, was 36.');
@@ -259,7 +265,7 @@ test.describe('trains', () => {
     }
 
     test('the Calendar\'s one-time notice tells a member, and its link opens this page (v24.82)', async ({ page }) => {
-        // The rest of the notice — every dismissal marks it done, it expires as the timetable starts,
+        // The rest of the notice — every dismissal marks it done, it ends with 31 October (v24.86),
         // it is refused to the station PC — is pinned in calendar-notices.test.mjs. This is the half
         // only a browser can prove: it opens on the real Calendar, and its link is the right link.
         // (The seeders re-mark it done on every load, so the done flag cannot be read after the

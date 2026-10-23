@@ -620,7 +620,8 @@
     </div>
     <!-- Check against the real payslip (v18.42 — review item 3): the member types the actual
          take-home printed on this payslip; a calm verdict states how close the estimate is.
-         PAID payslips only (a future one has nothing to compare — calculate() gates visibility).
+         Shown from the payslip's CUT-OFF, because a payslip arrives before its payday (v24.87 — it was
+         paid payslips only); calculate() gates visibility through payslipMayBeInHand.
          The figure autosaves in this period's data blob (actualNet) like every other field. -->
     <div class="check-actual" id="checkActualWrap" hidden>
       <div class="field-eyebrow">Check against your payslip</div>
@@ -721,7 +722,7 @@
             </div>
           </div>
         </div>
-        <div class="field-hint">Both are in the <strong>Year to Date</strong> box on your payslip.</div>
+        <div class="field-hint">Both are in the <strong>Year to Date</strong> box at the bottom left of your payslip.</div>
       </div>
 
       <!-- Source payslip anchor (v17.98): records WHICH payslip the two totals were copied from,

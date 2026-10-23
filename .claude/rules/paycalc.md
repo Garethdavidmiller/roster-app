@@ -32,7 +32,7 @@ thing you are about to break. Each states WHAT must hold; the WHY is below, or i
 | 10 | **`validateBackup` is the trust boundary, and restore is a REPLACE, never a merge.** A backup is a file from somewhere; these are pay figures, not approximations. | `paycalc-transfer.js` |
 | 11 | **The roster-assist never infers an ambiguous category** (swap shifts, rest-day weekday overrides) — and **viewing a period never persists it**. | `paycalc-roster-suggestions.js` · `paycalc-app.js` |
 | 12 | **A pension opt-out is DATED, and the date is EDITABLE in both directions.** It applies from the payslip the member named onwards and never earlier — a period storing `null` takes the period default, so a timeless flag rewrites history (measured: £115.92 onto one 2025/26 take-home). An empty or unreadable timeline means CONTRIBUTING. Correcting the date must MOVE the spell's start (`withOptOutStartAt`), and un-ticking must END the spell at the payslip on screen (`withRejoinAt`) — recording a raw change at a payslip silently swallowed a forward correction and turned every rejoin into an erasure. | `paycalc-pension.js` |
-| 13 | **A role with no confirmed rates gets no figure at all**, rather than a caption over somebody else's. | `paycalc-settings.js` → `gradeForRole` |
+| 13 | **A role with no confirmed rates gets no figure at all**, rather than a caption over somebody else's — and nothing sends such a member to the page either (the Calendar's Year to Date notice asks the same function, v24.86). | `roster-data.js` → `gradeForRole` (re-exported by `paycalc-settings.js`) |
 | 14 | **The first period of an award window is a FRACTION**, not a whole period — its shifts run back into March and the award starts 1 April. Counting it whole made the lump 19% high against a real payslip. The rule is unit-tested; the thing that can silently regress is `calcBackPay` PASSING it, and since v23.63 that is guarded in the unit lane too — `paycalc-backpay.test.mjs` drives the real `calcBackPay` against a fake `document` and asserts the returned £, alongside the rendered £ in `e2e/paycalc.spec.js` ("the back-pay lump scales the first period"). | `paycalc-backpay.js` → `awardWindowFactor` |
 | 15 | **What a pay key IS has ONE authority, and an unrecognised one is carried, never dropped.** `paycalc-inventory.js` classifies; the backup summary, the card's itemised list and the damage preflight all ask it. A hand-written list restating the key vocabulary under-reported tax years for as long as it existed, silently — and a backup states what it holds ITEMISED, because a payslip count describes neither side of a replace. | `paycalc-inventory.js` |
 | 16 | **The HPP and back-pay card HEADERS are the app's passive teaching of two entitlements, and the only route that reaches a member who does not already know to go looking.** Their collapsed title + hint ("Paid once a year on a January payslip — look for the green note on that payslip") is where a colleague who has never heard of HPP learns it exists. The result banners that promote both are gated on a STORED estimate (`_hppAvailableHere`, `_bpAvailableHere`), which needs prior-year hours — so the member who most needs the teaching gets no banner. The Pay Calculator Guide has an `<h2>` for each, so this is not the only EXPLANATION — it is the only route that costs the reader nothing, and asks nothing of them first. A guide has to be opened, and a member who has never heard of HPP has no reason to open a guide looking for it. That is the distinction the invariant protects (3 Sep 2026, external review: the row said "the ONLY route", which the guide makes literally untrue and which weakens the real point). Never hide, group or shorten these headers without an owner decision; the case that nearly did is ROADMAP.md → "More pay tools — DECLINED", and the principle is CLAUDE.md → "Plain English that TEACHES". | `paycalc.html` (card headers) · `paycalc-app.js` (banner gates) |
@@ -212,8 +212,8 @@ exact payslip line name first and quote it.
 | In-app item | Exact payslip line name | Rate |
 |-------------|-------------------------|------|
 | Pension contribution | `Smart RPS CR Scheme` | — |
-| Year-to-date pay figure (for accurate tax) | `Taxable Pay` (in the **Year to Date** box) | — |
-| Year-to-date tax figure | `Tax Paid` (in the **Year to Date** box) | — |
+| Year-to-date pay figure (for accurate tax) | `Taxable Pay` (in the **Year to Date** box, at the **bottom left** of a Chiltern payslip — owner, 22 Oct 2026; the help text said bottom-right until v24.86) | — |
+| Year-to-date tax figure | `Tax Paid` (in the same **Year to Date** box, bottom left) | — |
 | London Allowance | `London Allowance` | fixed |
 | Saturday (rostered) | `Ord Basic Pay @1.25` | 1.25× |
 | Bank Holiday worked (rostered) | `Bank Holiday Rostered 1.25` | 1.25× |
@@ -289,11 +289,27 @@ appear when noteworthy. The bp/HPP *banners* remain the opt-in OFFER surfaces; a
 compact receipt once a figure is IN.
 
 **"Check against your payslip" (v18.42 — review item 3):** the result card's foot carries a £ input
-(`#actualNetInput`, PAID payslips only — `calculate()` gates visibility on `payday <= now`) where the
-member types the take-home printed on the real payslip; the pure `buildActualCheck(actual, estimated)`
-in `paycalc-breakdown.js` (tested) renders a calm verdict — exact match / within £2 ("the expected
-rounding from payroll's cumulative tax method") / ≤£25 close (points at the Year to Date card) /
-larger (points at the documented less-accurate cases: hours, absence, back pay, corrections). NEVER
+(`#actualNetInput`) where the member types the take-home printed on the real payslip. **It appears from
+the payslip's CUT-OFF (v24.87)**, not its payday — `payslipMayBeInHand` in `paycalc-periods.js`, the
+same rule the Year to Date picker uses, because a payslip arrives before it pays and that is when a
+member compares it. The pure `buildActualCheck(actual, estimated, used)` in `paycalc-breakdown.js`
+(tested) renders a calm verdict — exact match / within £2 ("the expected rounding from payroll's
+cumulative tax method") / ≤£25 close / larger. **A gap names THIS estimate's own settings first
+(v24.87):** the close band the tax code, then the Year to Date card; the large band the tax code AND
+the pension, then hours, absence, back pay and corrections. `used` is what the estimate APPLIED —
+`computeTax`'s reported `code` and the pension deducted — so the line states facts about its inputs
+and still guesses nothing about the payslip. **A code the engine does not recognise is never quoted
+as applied (v24.89):** "OT" typed for a payslip's 0T, or "1182" with no letter, is priced on the
+default allowance, so `computeTax` reports `recognised: false` and the line says the code is not
+recognised (with a zero-not-O hint) instead of "this estimate uses tax code OT". **Where Year to
+Date figures are in use, a large gap also names the payslip they count from (v24.89)** — `used.ytdFrom`,
+passed only when the cumulative method ran: between cut-off and payday the first-entry stamp is the
+latest PAID payslip while the member may be copying from the next, which counts that payslip's pay
+twice (£193.40 out on 22 Oct, the day the Calendar's notice asked members to copy the figures). Found on a real payslip: £111.51 out with every hour
+right, from no pension and the default code, while the old line sent her to her hours. The tax code
+goes before the Year to Date advice deliberately: with a wrong code, Year to Date figures make the
+NEXT estimate worse, not better (measured on that payslip: £23.20 out without them, £207.60 with them,
+because the cumulative method applies the wrong allowance to the whole year at once). NEVER
 red — a mismatch is information, not an error. The figure persists in the period blob (`actualNet`,
 null-when-blank like pension) and is deliberately EXCLUDED from `isDataEmpty` so a period holding
 only this figure never counts as "entered" for HPP/year-so-far.

@@ -441,11 +441,18 @@ export function computeGross(i) {
  * @param {number|null} [opts.ytdPay]    - YTD pay from last payslip; null = not provided
  * @param {number|null} [opts.ytdTax]    - YTD tax from last payslip; null = not provided
  * @param {number|null} [opts.periodN]   - HMRC 4-weekly period number 1–13 (required for cumulative)
- * @returns {{ tax: number, usingCumulative: boolean, refund: number }} refund — tax the cumulative
- *   recalculation says was over-collected (>0 only on the cumulative path); never netted into `tax`.
+ * @returns {{ tax: number, usingCumulative: boolean, refund: number, code: string, recognised: boolean }}
+ *   refund — tax the cumulative recalculation says was over-collected (>0 only on the cumulative
+ *   path); never netted into `tax`. code — the code as this calculation READ it (upper case, no
+ *   spaces, 1257L when the box was blank). recognised — whether it is a code this engine knows.
+ *   An unrecognised one ("OT" with a letter O, "1182" with no letter) is priced on the DEFAULT
+ *   allowance, a fallback as old as the engine — so `code` is what was typed, not what was priced,
+ *   and the "Check against your payslip" line must say so rather than quote it as applied (v24.89).
  */
 export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null, periodN = null } = {}) {
-  const rawCode    = (taxCode || '1257L').toUpperCase().replace(/\s+/g, '');
+  // Spaces go BEFORE the default, so a box holding only spaces is blank — 1257L — rather than an
+  // empty code the engine does not recognise (v24.89; it priced the same bar the cumulative +9).
+  const rawCode    = String(taxCode ?? '').toUpperCase().replace(/\s+/g, '') || '1257L';
   const isNonCum   = /[WM]1$|X$/.test(rawCode);
   // Welsh (C-prefix) income-tax rates are identical to rUK/English (Wales has not diverged from
   // the Westminster rates), so strip a leading C and treat it as the equivalent rUK code. Without
@@ -453,6 +460,9 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
   // (Numeric C-codes like C1257L were already handled by resolvePA's [SC]? prefix.)
   const baseCode   = rawCode.replace(/[WM]1$|X$/, '').replace(/^C/, '');
   const isScottish = /^S/.test(baseCode);
+  // Every shape this engine prices on its own terms — mirrors the branches below. Anything else
+  // falls through to the default allowance, and is reported as not recognised (v24.89).
+  const recognised = /^(NT|S?BR|S?D[01]|SD[23]|S?0T|S?K\d+|S?\d+[LMNT])$/.test(baseCode);
   const TAX = /** @type {any} */ (t.tax), SCOT = /** @type {any} */ (t.scottishTax);
 
   function resolvePA(/** @type {boolean} */ cumulative) {
@@ -535,10 +545,10 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     // Tax Paid figure for every code; now that it is K-code-only, a Tax Paid typed as 200 for 2000
     // charged nearly the whole period. Real PAYE cannot deduct more than it pays, so neither can this.
     return { tax: Math.min(Math.max(0, cumTaxDue - ytdTax), overridingLimit, Math.max(0, sacGross)), usingCumulative: true,
-             refund: Math.max(0, ytdTax - cumTaxDue) };
+             refund: Math.max(0, ytdTax - cumTaxDue), code: rawCode, recognised };
   }
 
-  return { tax: Math.min(taxOnAmount(sacGross, null), overridingLimit), usingCumulative: false, refund: 0 };
+  return { tax: Math.min(taxOnAmount(sacGross, null), overridingLimit), usingCumulative: false, refund: 0, code: rawCode, recognised };
 }
 
 /**

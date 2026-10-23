@@ -310,13 +310,29 @@ function _todayAt(/** @type {Date} */ now) {
 }
 
 /**
+ * Could the member be holding `p`'s payslip yet? From its CUT-OFF, not its payday — payslips are
+ * issued before payday, so the one about to be paid may already be in their hand. Every paid
+ * payslip is inside it too, because a cut-off always falls before its payday.
+ *
+ * ONE rule for the two surfaces that read a payslip the member holds (v24.87): the Year to Date
+ * picker below, and the "Check against your payslip" box, which until then appeared only from
+ * payday — so a member comparing the payslip in their hand, days before it paid, found no box.
+ * @param {{ cutoff: Date }} p @param {Date} [now]
+ */
+export function payslipMayBeInHand(p, now = new Date()) {
+  return p.cutoff <= now;
+}
+
+/**
  * May `p` be picked as the source of `ty`'s Year to Date figures? Any of the year's PAID payslips —
  * and, from its cut-off, the payslip about to be paid, because it may already be in the member's hand.
+ * (It read `p.num < today || p.cutoff <= now` until v24.87; the first half is implied by the second,
+ * since a paid payslip's cut-off is behind it, so the shared rule is the same answer.)
  * @param {any} p @param {{ first:number, last:number }} ty @param {Date} [now]
  */
 export function ytdSourceOffered(p, ty, now = new Date()) {
   if (p.num < 48 + ty.first || p.num > 48 + ty.last) return false;
-  return p.num < _todayAt(now).today || p.cutoff <= now;
+  return payslipMayBeInHand(p, now);
 }
 
 /**

@@ -72,8 +72,11 @@ mock.module('./ls.js', {
     },
 });
 
+// The REAL role → grade rule (roster-data.js since v24.86), so the mock cannot restate it.
+const { gradeForRole: _realGradeForRole } = await import('./roster-data.js?real');
 mock.module('./roster-data.js', {
     namedExports: {
+        gradeForRole:    _realGradeForRole,
         teamMembers:     _teamMembersData,
         APP_VERSION:     '13.00',
         CONFIG:          { ADMIN_NAMES: [], LINKS_DESIGNERS: [], MAX_YEAR: 2027, MIN_YEAR: 2025 },
@@ -101,7 +104,7 @@ const {
     hasBoxingDay, hasBankHoliday,
     _setSelectPeriod, prevPeriod, nextPeriod,
     computeEarliestVisiblePNum, setEarliestVisiblePeriod, getEarliestVisiblePNum,
-    visiblePeriods, isTaxYearVisible, ytdAutoSource, ytdSourceOffered,
+    visiblePeriods, isTaxYearVisible, ytdAutoSource, ytdSourceOffered, payslipMayBeInHand,
 } = await import('./paycalc-periods.js');
 
 const {
@@ -898,5 +901,34 @@ describe('Year to Date source — offered and auto-anchored only where the app c
     test('a finished tax year is never ambiguous — its last payslip', () => {
         const now = new Date(2026, 8, 22, 10);
         assert.equal(ytdAutoSource(PRIOR, now), 48 + PRIOR.last);
+    });
+
+    // ── THE PAYSLIP IN HAND, AS ONE RULE (v24.87) ────────────────────────────────────────────────
+    // "Check against your payslip" appeared only from payday, so a member comparing the payslip in
+    // their hand — days before it paid, which is when they hold it — found no box. It now shares
+    // the picker's rule, and these pin that the two cannot drift apart.
+    test('a payslip may be in hand from its cut-off, and stays so once paid', () => {
+        // The grid's dates sit at NOON (paycalc-periods.js → ANCHOR_DATE, a pro-rata invariant), so
+        // the turn comes midway through the cut-off day. Pinned either side of that day, not at
+        // the hour: the hour belongs to the grid, and this rule only promises "from the cut-off".
+        assert.equal(payslipMayBeInHand(sep25, new Date(2026, 8, 18, 23, 59)), false, 'the evening before its cut-off');
+        assert.equal(payslipMayBeInHand(sep25, new Date(2026, 8, 20, 9, 0)), true, 'the morning after its cut-off');
+        assert.equal(payslipMayBeInHand(sep25, new Date(2026, 8, 22, 10)), true, 'between cut-off and payday');
+        assert.equal(payslipMayBeInHand(aug28, new Date(2026, 8, 22, 10)), true, 'a paid payslip');
+        assert.equal(payslipMayBeInHand(oct23, new Date(2026, 8, 22, 10)), false, 'the next one, not yet cut off');
+    });
+
+    test('the Year to Date picker offers exactly the in-year payslips that may be in hand — on any day', () => {
+        // ytdSourceOffered read `p.num < today || p.cutoff <= now` before it called the shared rule.
+        // The first half is implied by the second, and this walks the real grid to show it: every
+        // day of the tax year, every payslip of it, the two answers agree.
+        const inYear = getPeriods().filter((/** @type {any} */ p) => p.num >= 48 + TY.first && p.num <= 48 + TY.last);
+        assert.ok(inYear.length >= 13, `the 2026/27 grid has its payslips (${inYear.length})`);
+        for (let day = new Date(2026, 3, 1, 12); day < new Date(2027, 3, 30); day.setDate(day.getDate() + 1)) {
+            for (const p of inYear) {
+                assert.equal(ytdSourceOffered(p, TY, day), payslipMayBeInHand(p, day),
+                    `${p.payday.toDateString()} on ${day.toDateString()}`);
+            }
+        }
     });
 });

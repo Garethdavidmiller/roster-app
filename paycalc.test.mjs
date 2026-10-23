@@ -506,6 +506,39 @@ describe('computeSL', () => {
 // ── computeTax ────────────────────────────────────────────────────────────────
 
 describe('computeTax', () => {
+  test('reports the code it APPLIED — what a blank or untidy Tax Code box became (v24.87)', () => {
+    // "Check against your payslip" quotes this to the member, so it must be the code the figure was
+    // worked out with, on both paths — not whatever was typed.
+    assert.equal(computeTax(2000, '', T25).code, '1257L', 'a blank box is the default code');
+    assert.equal(computeTax(2000, ' 1182l ', T25).code, '1182L', 'tidied as the calculation tidies it');
+    assert.equal(computeTax(2000, '1182L', T25, { ytdPay: 20000, ytdTax: 3000, periodN: 8 }).code, '1182L',
+      'the cumulative path reports it too');
+  });
+
+  test('says whether it RECOGNISED the code — an unknown one is priced on the default allowance (v24.89)', () => {
+    // The payslip check quoted every code as "the code this estimate uses". For one the engine
+    // cannot read, that is false: it was priced as 1257L. "OT" (a letter O) beside a payslip's 0T
+    // is the case that matters — they look alike, and it is a new starter's emergency code.
+    for (const c of ['1257L', 'S1257L', 'C1257L', '1182M', 'BR', 'SBR', 'CBR', 'D0', 'SD1', 'SD3', 'NT', '0T', 'C0T', 'K500', 'SK500', '1257LW1', '1257LX'])
+      assert.equal(computeTax(2000, c, T25).recognised, true, `${c} is one the engine prices`);
+    const asDefault = computeTax(2000, '1257L', T25).tax;
+    for (const c of ['OT', 'DO', '1182', '1182LCUM', 'D2', 'SNT', 'K', 'L']) {
+      const r = computeTax(2000, c, T25);
+      assert.equal(r.recognised, false, `${c} is not a code the engine knows`);
+      assert.equal(r.code, c, `${c} is reported as typed — it is what the member must correct`);
+      if (!c.startsWith('S')) assert.equal(r.tax, asDefault, `${c} falls back to the default allowance (the fallback this flag reports)`);
+    }
+  });
+
+  test('a Tax Code box holding only spaces is blank: 1257L, recognised (v24.89)', () => {
+    const blank = computeTax(2000, '', T25), spaces = computeTax(2000, '   ', T25);
+    assert.deepEqual([spaces.code, spaces.recognised], ['1257L', true]);
+    assert.equal(spaces.tax, blank.tax);
+    const cum = { ytdPay: 20000, ytdTax: 3000, periodN: 8 };
+    assert.equal(computeTax(2000, '   ', T25, cum).tax, computeTax(2000, '', T25, cum).tax,
+      'the same on the cumulative path, which used to miss the +9 for a box of spaces');
+  });
+
   test('NT code → 0 tax always', () => {
     const { tax } = computeTax(2000, 'NT', T25);
     assert.equal(tax, 0);

@@ -567,6 +567,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
      */
     function renderReviewTable(parsedResult, cellStates) {
         const { dates, parsed, weekEnding } = parsedResult;
+        /** A guarded row's inner HTML for `member|date` — drawn, answered and skipped through here. @param {string} key @param {any} s */
+        const guardedInner = (key, s) => {
+            const date = key.split('|')[1], d = parseISODate(date);
+            return guardedRowHtml({ key, s, dayName: DAY_NAMES[d.getDay()], dateStr: `${d.getDate()} ${MONTH_ABB[d.getMonth()]}`, badgeHtml: shiftDisplay(s.parsedShift, date), esc });
+        };
 
         // Recompute what pressing "Save changes" will actually do, and refresh BOTH the Save
         // button (label carries the running count + disables when nothing will be written) and
@@ -746,12 +751,13 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             section.className = 'roster-person-section' + (alignment.blocked ? ' roster-blocked' : '');
             section.dataset.member = entry.memberName;
 
-            // Person header
+            // Person header. No count and no Skip all where every row is a notice (v24.90): a "0"
+            // badge read as an alert, and Skip all had nothing to skip (owner's screenshot).
             section.innerHTML = `
                 <div class="roster-person-header">
                     <span class="roster-person-name">${esc(entry.memberName)}</span>
-                    <span class="roster-change-badge">${pendingCount}</span>
-                    <button class="roster-skip-all-btn" data-member="${esc(entry.memberName)}" aria-pressed="false">Skip all</button>
+                    ${pendingCount ? `<span class="roster-change-badge">${pendingCount}</span>
+                    <button class="roster-skip-all-btn" data-member="${esc(entry.memberName)}" aria-pressed="false">Skip all</button>` : ''}
                 </div>`;
 
             // Day-drift: the one check that does NOT come from the model (roster-alignment.js).
@@ -776,7 +782,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 const dateStr = `${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
 
                 const row = document.createElement('div');
-                row.className  = `roster-change-row${s.state === 'CONFLICT' ? ' roster-change-conflict' : ''}`;
+                row.className  = `roster-change-row${s.state === 'CONFLICT' ? ' roster-change-conflict' : s.state === 'DIFF' || s.state === 'REMOVE_IMPORT' ? ' roster-change-diff' : ''}`;
                 row.dataset.key = key;
 
                 if (s.state === 'DIFF') {
@@ -814,7 +820,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 } else if (s.state === 'GUARDED') {
                     // Said / did / why, plus the rest-day swap question (v24.42) — roster-review-states.js.
                     row.classList.add('roster-change-guarded');
-                    row.innerHTML = guardedRowHtml({ key, s, dayName, dateStr, badgeHtml: shiftDisplay(s.parsedShift, date), esc });
+                    row.innerHTML = guardedInner(key, s);
                 } else if (s.state === 'UNREADABLE' && s.options) {
                     // The two reads disagreed and we know BOTH readings — offer them rather than a
                     // dead end (owner, Jul 2026: "there is no way to choose the correct option from
@@ -990,6 +996,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         const pPill = rowEl.querySelector('.roster-cv-pdf');
                         if (mPill) mPill.classList.remove('cv-dim');
                         if (pPill) pPill.classList.add('cv-dim');
+                    } else if (s.state === 'GUARDED' && nowSkipped && s.chosen != null) {
+                        // An ANSWERED rest day writes (v24.42): "swapped" records the roster's value,
+                        // and "rest day" deletes an old import. Skip all left the answer standing, so
+                        // the skipped, inert section was still written by Save — the v21.94 shape
+                        // below, on the row type added after it. Unanswered writes nothing, and
+                        // Restore does not re-answer, for the same reason as that row.
+                        s.chosen = null;
+                        rowHtml.innerHTML = guardedInner(rowHtml.dataset.key ?? '', s);
                     } else if (s.state === 'UNREADABLE') {
                         // SKIP ALL MUST SKIP THE ROW THE ADMIN WAS LEAST SURE ABOUT (v21.94).
                         //
@@ -1053,8 +1067,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // The rest-day swap question (v24.42): redrawn whole, focus back on the pressed button.
                 if (choiceBtn.dataset.swap !== undefined) {
                     s.chosen = choiceBtn.dataset.swap === 'yes' ? 'swapped' : 'free';
-                    const rowEl = /** @type {any} */ (choiceBtn.closest('.roster-change-row')), d = parseISODate((choiceBtn.dataset.key ?? '').split('|')[1]);
-                    rowEl.innerHTML = guardedRowHtml({ key: choiceBtn.dataset.key ?? '', s, dayName: DAY_NAMES[d.getDay()], dateStr: `${d.getDate()} ${MONTH_ABB[d.getMonth()]}`, badgeHtml: shiftDisplay(s.parsedShift, formatISO(d)), esc });
+                    const rowEl = /** @type {any} */ (choiceBtn.closest('.roster-change-row'));
+                    rowEl.innerHTML = guardedInner(choiceBtn.dataset.key ?? '', s);
                     rowEl.querySelector(`[data-swap="${choiceBtn.dataset.swap}"]`)?.focus();
                     refreshOutcome();
                     return;

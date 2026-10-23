@@ -8,6 +8,7 @@ import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, pickFirst
 import { ROTATING_LINES } from '../links-design.js';
 import { SUNDAY_FORBIDDEN_TYPES } from '../override-utils.js';
 import { describeSetList } from '../links-target-sets.js';
+import { teamMembers, getBaseShift } from '../roster-data.js';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
 
@@ -637,8 +638,11 @@ test('operations: App speed shows THREE milestones, and a page with no ready dat
     // read as the answer, and it now belongs to `ready` alone.
     await expect(speed).not.toContainText('Fully ready');
     // The verdict for `ready` is driven by ITS OWN samples — all in the 1–3s band, so it must not
-    // report the quick verdict `domReady` earns.
-    await expect(speed).toContainText(/usable quickly|waiting too long/i);
+    // report the quick verdict `domReady` earns. Nor "mostly become usable quickly" (v24.85): this
+    // regex accepted that sentence until then, and with NONE of these opens under a second it is the
+    // very misstatement that release removed from the card.
+    await expect(speed).toContainText('Pages most often take a moment to become usable.');
+    await expect(speed).not.toContainText(/usable quickly/i);
 
     // Three bars per page row, and the header names all three columns.
     const calRow = speed.locator('.speed-row--dual', { hasText: 'Calendar' }).first();
@@ -7057,6 +7061,9 @@ test('operations: no App Speed row label is truncated at phone width', async ({ 
         if (b && !b.classList.contains('open')) document.getElementById('pageSpeedToggleHeader')?.click();
     });
     await expect(page.locator('#pageSpeedCard')).toContainText('What put the shifts on screen');
+    // The ROW, not the words: the ladder's note names this block too, so a text match passed with
+    // the block deleted (v24.85, found by mutation).
+    await expect(page.locator('#pageSpeedCard .speed-row-name', { hasText: /^Own roster$/ })).toHaveCount(1);
     const names = page.locator('#pageSpeedCard .speed-row-name');
     expect(await names.count(), 'the fixture did not reach the card — nothing is being measured')
         .toBeGreaterThan(8);
@@ -7664,6 +7671,111 @@ test('operations: re-uploading a roster leaves an already-recorded swapped absen
     expect(deleted.some(p => p.endsWith('/imp-swap')), 'the confirmed absence was deleted').toBe(false);
 });
 
+// ── THE REVIEW ON A PHONE (v24.90, owner's screenshot) ───────────────────────────────────────
+//
+// "This looks messy": on a phone set to large text a guarded row's ABSENT badge drew over its own
+// "Not recorded" tag ("IOT RECORDED"), "New roster" wrapped onto two lines, and people with nothing
+// to approve wore a "0" badge and a Skip all. Each was invisible at the size the tests ran at.
+
+/** A second member for the review, taken from the roster rather than named: a CEA whose base week
+ *  has a worked weekday and a Monday-to-Saturday rest day. `base` is that week, so a parse built
+ *  from it matches everywhere except the days a test changes, and only those are drawn. */
+function secondReviewMember() {
+    const at = (/** @type {string} */ iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); };
+    for (const m of teamMembers) {
+        if (m.hidden || m.managerOnly || m.role !== 'CEA' || m.name === 'G. Miller') continue;
+        const base = Object.fromEntries(ROSTER_REVIEW_DATES.map(iso => [iso, getBaseShift(m, at(iso))]));
+        const rest = ROSTER_REVIEW_DATES.slice(1).find(iso => base[iso] === 'RD');
+        const worked = ROSTER_REVIEW_DATES.slice(1).find(iso => /^\d\d:\d\d-\d\d:\d\d$/.test(base[iso]));
+        if (rest && worked) return { name: m.name, base, rest, worked };
+    }
+    throw new Error('no CEA has a worked weekday and a weekday rest day in the fixture week');
+}
+
+test('operations: no review row draws one thing over another, or clips a label, at large text (v24.90) @layout', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.setViewportSize({ width: 390, height: 1600 });
+    // Every row shape the owner's screenshot held: changed days, two conflicts, and a rest day that
+    // asks the swap question — the row whose badge drew over its tag.
+    await openRosterReview(page, { ...ROSTER_REVIEW_PARSE, choices: {}, parsed: [{ memberName: 'G. Miller',
+        shifts: { ...ROSTER_REVIEW_PARSE.parsed[0].shifts, '2026-08-05': 'SICK',
+                  '2026-08-06': '14:00-22:30', '2026-08-07': '08:00-16:30' } }] });
+    await expect(page.locator('.roster-change-row.roster-change-guarded')).toHaveCount(1);
+    await expect(page.locator('.roster-change-row.roster-change-conflict')).toHaveCount(2);
+    // Android's Font size multiplies used font sizes and leaves the viewport alone, so this scales
+    // every element from its ORIGINAL size — scaling in one pass would compound down nested text.
+    await page.evaluate(() => {
+        /** @type {any} */ (window).__sizes = [...document.querySelectorAll('*')].map(el => [el, parseFloat(getComputedStyle(el).fontSize)]);
+    });
+    for (const mult of [1, 1.3, 1.6]) {
+        const faults = await page.evaluate((k) => {
+            for (const [el, px] of /** @type {any} */ (window).__sizes) if (px) el.style.fontSize = (px * k) + 'px';
+            const out = [];
+            const LEAVES = '.shift-badge, .review-shift-time, .roster-act, .roster-day-abbr, .roster-day-date, .roster-guard-lab, '
+                + '.roster-cb-lab, .roster-arrow, .roster-tick, .roster-choice-btn, .roster-remove-note, .roster-guard-note';
+            for (const row of document.querySelectorAll('#rosterChangeList .roster-change-row')) {
+                const leaves = [...row.querySelectorAll(LEAVES)].filter(el => el.getBoundingClientRect().width > 0);
+                for (let i = 0; i < leaves.length; i++) for (let j = i + 1; j < leaves.length; j++) {
+                    if (leaves[i].contains(leaves[j]) || leaves[j].contains(leaves[i])) continue;
+                    const a = leaves[i].getBoundingClientRect(), b = leaves[j].getBoundingClientRect();
+                    const x = Math.min(a.right, b.right) - Math.max(a.left, b.left), y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+                    if (x > 1 && y > 1) out.push(`overlap: "${leaves[i].textContent?.trim()}" × "${leaves[j].textContent?.trim()}"`);
+                }
+                for (const el of row.querySelectorAll('.roster-choice-btn, .roster-act, .roster-cb-lab, .roster-guard-lab')) {
+                    if (el.scrollWidth > el.clientWidth + 1) out.push(`clipped: "${el.textContent?.trim()}"`);
+                }
+                for (const el of row.querySelectorAll('.roster-cb-lab, .roster-guard-lab')) {
+                    if (el.getBoundingClientRect().height > parseFloat(getComputedStyle(el).fontSize) * 2) out.push(`wrapped: "${el.textContent?.trim()}"`);
+                }
+            }
+            return out;
+        }, mult);
+        expect(faults, `text ×${mult}`).toEqual([]);
+    }
+});
+
+test('operations: a person whose every row is a notice wears no count and no Skip all (v24.90)', async ({ page }) => {
+    const other = secondReviewMember();
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, { ...ROSTER_REVIEW_PARSE, parsed: [ROSTER_REVIEW_PARSE.parsed[0],
+        { memberName: other.name, shifts: { ...other.base, [ROSTER_REVIEW_DATES[0]]: 'SICK' } }] });   // a Sunday absence
+    const section = page.locator(`.roster-person-section[data-member="${other.name}"]`);
+    await expect(section.locator('.roster-change-row.roster-change-guarded')).toHaveCount(1);
+    await expect(section.locator('.roster-change-badge'), 'a "0" badge reads as an alert').toHaveCount(0);
+    await expect(section.locator('.roster-skip-all-btn'), 'there is nothing to skip').toHaveCount(0);
+    // A person with changes keeps both.
+    const miller = page.locator('.roster-person-section[data-member="G. Miller"]');
+    await expect(miller.locator('.roster-change-badge')).toHaveCount(1);
+    await expect(miller.locator('.roster-skip-all-btn')).toHaveCount(1);
+});
+
+// An ANSWERED rest day writes (v24.42), and Skip all left the answer standing — so a skipped, inert
+// section was still written by Save. The v21.94 bug, on the row type added after it. Driven to the
+// write, because the counter and the collector are separate passes.
+test('operations: Skip all takes back a "Swapped — record it" answer, so Save writes nothing for that person (v24.90)', async ({ page }) => {
+    const other = secondReviewMember();
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, { ...ROSTER_REVIEW_PARSE, choices: {}, parsed: [ROSTER_REVIEW_PARSE.parsed[0],
+        { memberName: other.name, shifts: { ...other.base, [other.worked]: '05:00-13:00', [other.rest]: 'SICK' } }] });
+    const section = page.locator(`.roster-person-section[data-member="${other.name}"]`);
+    const guarded = section.locator('.roster-change-row.roster-change-guarded');
+    await guarded.locator('[data-swap="yes"]').click();
+    await expect(guarded.locator('.roster-act')).toHaveText('Will record');
+
+    await section.locator('.roster-skip-all-btn').click();
+    await expect(guarded.locator('.roster-act'), 'the answer is taken back').toHaveText('Not recorded');
+    await expect(guarded.locator('[data-swap="yes"]')).toHaveAttribute('aria-pressed', 'false');
+    // Restore does not answer it again: there is no safe default, which is why the row asks.
+    await section.locator('.roster-skip-all-btn').click();
+    await expect(guarded.locator('.roster-act')).toHaveText('Not recorded');
+    await section.locator('.roster-skip-all-btn').click();
+
+    await page.locator('#rosterApplyBtn').click();
+    await expect.poll(() => page.evaluate(() => (window.__E2E?.batchWrites || []).length)).toBeGreaterThan(0);
+    const theirs = await page.evaluate((n) => (window.__E2E?.batchWrites || []).filter(w => w.memberName === n), other.name);
+    expect(theirs, 'a skipped person is written nothing — the swap included').toEqual([]);
+});
+
 // ── ANSWERING AN UNREADABLE CELL IN PLACE (v22.17) ────────────────────────────────────────────
 //
 // The composition rule is unit-tested in override-utils.test.mjs. What only a browser answers is
@@ -8068,6 +8180,54 @@ test('operations: App speed can split Recognised by connection, beside Getting r
     // Recognised spreads (one class slow, one fast); Getting ready is flat at 0% on both.
     expect(pcts.authRows.sort()).toEqual(['0%', '100%']);
     expect(pcts.appRows).toEqual(['0%', '0%']);
+});
+
+test('operations: App speed states the stored-copy share against the versions that can count it', async ({ page }) => {
+    /*
+     * THE WIRING for the v24.89 fix (the 48-hour review). `earlyRosterShare` is pinned in
+     * perf-stats.test.mjs; what it cannot see is the card using it. The card used to divide by the
+     * ladder's `ready` across EVERY version, so in the month the copy began to be counted, three weeks
+     * of opens from versions that cannot report one sat under it: 360 copies over 1,900 opens printed
+     * 19%, when the 600 opens that could have reported one make it 60%.
+     */
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            '24_84|calendar|ready|lt500ms|standalone|4g':          1300,
+            '24_85|calendar|ready|lt500ms|standalone|4g':           600,
+            '24_85|calendar|rosterSnapshot|lt500ms|standalone|4g':  360,
+            '24_84|calendar|domReady|lt500ms|standalone|4g':       1300,
+            '24_85|calendar|domReady|lt500ms|standalone|4g':        600,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed).toContainText('Before the sign-in check');
+    await expect(speed).toContainText('60% of Calendar opens since the app began counting it');
+    await expect(speed, 'the all-version divisor — the figure this fixes').not.toContainText('19%');
+    // The ladder names the block, because it is there.
+    await expect(speed).toContainText('timed under “Before the sign-in check” below');
+});
+
+test('operations: App speed points at the stored-copy block only when it renders', async ({ page }) => {
+    /*
+     * The ladder's note said "timed under “Before the sign-in check” below" on EVERY window — and the
+     * block returns nothing for one with no copy reported, which "Last month" in the release month
+     * always is. A pointer to a heading that is not on the card (the 48-hour review, v24.89).
+     */
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            '24_84|calendar|authBoot|lt500ms|standalone|4g': 600,
+            '24_84|calendar|ready|lt500ms|standalone|4g':    600,
+            '24_84|calendar|domReady|lt500ms|standalone|4g': 600,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed).toContainText('How far the start gets');
+    await expect(speed).toContainText('Compare neighbouring rows');
+    await expect(speed).not.toContainText('Before the sign-in check');
 });
 
 test('operations: App speed reports the opens a release caused, as a SHARE of all opens', async ({ page }) => {

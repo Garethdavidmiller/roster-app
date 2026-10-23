@@ -34,7 +34,7 @@ import {
   updateBhRows, buildPeriodSelect,
   updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
   setEarliestVisiblePeriod, isTaxYearVisible, visiblePeriods,
-  _setSelectPeriod, buildYtdSourceSelect, ytdAutoSource,
+  _setSelectPeriod, buildYtdSourceSelect, ytdAutoSource, payslipMayBeInHand,
 } from './paycalc-periods.js';
 import {
   getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
@@ -51,7 +51,7 @@ import { isDataEmpty, calcHPP, updatePriorHpp, resolveHppForPeriod, applyHppMode
 import { prefillBackPay, calcBackPay, restoreBpState, _bpAwardTaxYear, _backdatedFromPNum, raiseByPercent, applyBpMode } from './paycalc-backpay.js';
 import { hppTaxYearForPayslip } from './paycalc-hpp-schedule.js';
 import { initNavPanel } from './nav-panel.js';
-import { initCardCollapse, createLightbox } from './overlay.js';
+import { initCardCollapse, createLightbox, openCardNamedByHash } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
@@ -928,7 +928,7 @@ export function init() {
       const _ytdSrc = parseInt(lsGet(ytdSrcKey(_ty)) ?? '', 10) || 0;
       if (!(_ytdSrc && _curP && _curP.num === _ytdSrc + 1)) { ytdP = null; ytdT = null; }
       const periodN = _curP ? (_curP.num - 48) - _ty.first + 1 : null;
-      const { tax, usingCumulative, refund: taxRefund } = computeTax(
+      const { tax, usingCumulative, refund: taxRefund, code: taxCodeUsed, recognised: taxCodeKnown } = computeTax(
         sacGross, /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value, thresholds,
         { ytdPay: ytdP, ytdTax: ytdT, periodN },
       );
@@ -1018,17 +1018,19 @@ export function init() {
       // (The pension explainer + absence caveat live INSIDE the Full pay breakdown now — v18.45,
       // sweep item 4: two permanent paragraphs at the result's foot diluted the real notices.)
 
-      // Check against the real payslip (v18.42 — review item 3): PAID payslips only (a future one
-      // has nothing to compare), verdict from the pure builder. The input autosaves in this
-      // period's blob (actualNet), so each payslip keeps its own figure.
+      // Check against the real payslip (v18.42): from the payslip's CUT-OFF (v24.87 — it arrives before
+      // payday), and a big gap names this estimate's tax code and pension first (buildActualCheck's
+      // header). The input autosaves in this period's blob (actualNet), so each payslip keeps its own.
+      const _srcP = _ytdSrc ? getPeriods().find(/** @param {any} x */ x => x.num === _ytdSrc) : null;
       const _caWrap = document.getElementById('checkActualWrap');
       if (_caWrap) {
-        const _caPaid = _curP.payday <= new Date();
-        _caWrap.hidden = !_caPaid;
+        const _caInHand = payslipMayBeInHand(_curP);
+        _caWrap.hidden = !_caInHand;
         const _caEl = /** @type {HTMLInputElement|null} */ (document.getElementById('actualNetInput'));
-        const _caActual = _caPaid ? Math.max(0, parseSmartFloat(_caEl?.value ?? '') || 0) : 0;
+        const _caActual = _caInHand ? Math.max(0, parseSmartFloat(_caEl?.value ?? '') || 0) : 0;
         const _caV = document.getElementById('actualVerdict');
-        if (_caV) _caV.innerHTML = buildActualCheck(_caActual, net);
+        if (_caV) _caV.innerHTML = buildActualCheck(_caActual, net, { taxCode: taxCodeUsed, recognised: taxCodeKnown, pension,
+          ytdFrom: usingCumulative && _srcP ? fdShort(_srcP.payday) : '' });
         // The other payslip lines (v22.07): a per-line comparison against the SAME figures the
         // summary rows display. Estimates never guess causes — buildActualComparison's header.
         const _cmpEl = document.getElementById('actualCompare');
@@ -1037,7 +1039,7 @@ export function init() {
             const _e = /** @type {HTMLInputElement|null} */ (document.getElementById(id));
             return (_e && _e.value.trim() !== '') ? parseSmartFloat(_e.value) : null;
           };
-          _cmpEl.innerHTML = _caPaid ? buildActualComparison({
+          _cmpEl.innerHTML = _caInHand ? buildActualComparison({
             actual: { gross: _av('actualGrossInput'), pension: _av('actualPensionInput'),
                       tax: _av('actualTaxInput'), ni: _av('actualNiInput'),
                       net: _caActual > 0 ? _caActual : null },
@@ -1050,7 +1052,6 @@ export function init() {
       // Empty (invisible) on a normal payslip — chips only appear when noteworthy.
       const _chipsEl = document.getElementById('provChips');
       if (_chipsEl) {
-        const _srcP = _ytdSrc ? getPeriods().find(/** @param {any} x */ x => x.num === _ytdSrc) : null;
         _chipsEl.innerHTML = buildProvChips({
           usingCumulative,
           srcLabel: _srcP ? fdShort(_srcP.payday) : '',
@@ -1812,6 +1813,8 @@ export function init() {
     ], { createLightbox });
 
     initTransferCard();
+    // The Calendar's Year to Date notice links to #payslipCard (v24.86): open that card, held in view.
+    openCardNamedByHash('payslipCard', 'payslipCardBody', 'payslipCardToggle');
     // Pay data is localStorage-only and evictable until asked otherwise — see ls.js (v22.13).
     requestPersistentStorage(pcPrefix());
     // The year card's fill control (v22.06). After a bulk fill: reload the visible form ONLY if

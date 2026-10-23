@@ -117,6 +117,11 @@ export function initPaycalcLightboxes() {
     const noop = () => {};
     if (isNoticeExpired(NOTICE_DATE, 90) && !lsGet(NOTICE_YTD_KEY)) { lsSet(NOTICE_YTD_KEY, '1'); return noop; }
     if (lsGet(NOTICE_YTD_KEY)) return noop;
+    // Arriving from the Calendar's Year to Date notice (`#payslipCard`, v24.86) is this notice
+    // already delivered: the member has just read the same instruction and the card it names is open
+    // in front of them. Opened over that card, it would cover the two boxes it asks them to fill —
+    // so it counts as seen, and a later visit does not tell them a second time.
+    if (window.location.hash === '#payslipCard') { lsSet(NOTICE_YTD_KEY, '1'); return noop; }
     if (_ownerPending) return noop;   // data-ownership prompt takes priority this load
 
     const lb = document.getElementById('noticeYtdLightbox');

@@ -383,7 +383,16 @@ export async function lockCalendar() {
     }
     // Back to the PIN card, not the sign-in card: whoever pressed Lock got in with the PIN, so this
     // is a machine the PIN is used on, and the next person is most likely to want the same route.
-    window.location.replace('./' + PIN_FIRST_HASH);
+    //
+    // A RELOAD, NOT A NAVIGATION TO './#staff-pin' (v24.89). That navigation loads a page only when
+    // the path it starts from differs. From `/index.html` it does — where every test began — but `/`
+    // is how the station opens the Calendar (the start_url, the drawer's Calendar pill), and from
+    // there the target differs by its fragment alone, so the browser only scrolled. The viewer was
+    // signed out, the drawer closed as if locked, and the roster stayed on screen to be browsed:
+    // reproduced in a browser on 22 Oct 2026, and live from late September. Rewriting the address in
+    // place and reloading is the same from every path, and leaves no extra history entry behind.
+    history.replaceState(null, '', './' + PIN_FIRST_HASH);
+    window.location.reload();
 }
 
 // ── The workspace gate ──────────────────────────────────────────────────────────────────────────

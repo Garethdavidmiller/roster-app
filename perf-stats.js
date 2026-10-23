@@ -439,6 +439,50 @@ export function summariseReadySource(samples, { page }) {
 }
 
 /**
+ * WHAT A MEMBER SEES BEFORE THE SIGN-IN CHECK (v24.85) — the moment their shifts first appear.
+ *
+ * Since v24.59 the Calendar paints a signed-in member's own roster from the copy kept on their phone
+ * (calendar-snapshot.js) before the check answers, and nothing timed it. Every rung of the ladder
+ * above comes after that check, so "Shifts shown" reported the wait for the CONFIRMED roster as
+ * though it were the wait to see one, and the card could not say whether the stored copy was doing
+ * its job.
+ *
+ * Not a rung, deliberately: it is a different path, not a later step on the same one, and on the
+ * ladder it would sit above "Recognised" while the ladder's note says its rows run in order. It is
+ * reported only when the copy was painted — the member's own calendar, signed in, a copy under 14
+ * days old; Team View, the station PIN and a first visit have none — so its count is also how often
+ * the copy got the chance.
+ */
+export const EARLY_ROSTER = /** @type {const} */ ([
+    { metric: 'rosterSnapshot', label: 'Own roster', sub: 'a member\u2019s own roster, from the copy on their phone' },
+]);
+
+/** @param {Record<string, number>} samples @param {{page: string}} opts */
+export function summariseEarlyRoster(samples, { page }) {
+    return _summariseMetricRows(samples, page, EARLY_ROSTER);
+}
+
+/** The first app version that reports `rosterSnapshot`. Opens on an older version cannot. */
+export const EARLY_ROSTER_FROM = '24.85';
+
+/**
+ * How often a member was shown the stored copy: `rosterSnapshot` over `ready`, BOTH counted only on
+ * versions at or after EARLY_ROSTER_FROM — a whole percent, or null with nothing to divide or over
+ * 100% (the two are counted on different paths). Every version's `ready` was the divisor until v24.89
+ * (the 48-hour review), so the month the metric shipped printed 19% for a true 60%.
+ * @param {Record<string, number>} samples @param {{ page: string }} opts @returns {number|null}
+ */
+export function earlyRosterShare(samples, { page }) {
+    // '24_85', 'v24.85' and '24.85' all read 2485; an unreadable version reads 0, below every release.
+    const num = (/** @type {string|undefined} */ v) => { const m = /^v?(\d+)[._](\d+)/i.exec(String(v ?? '')); return m ? Number(m[1]) * 100 + Number(m[2]) : 0; };
+    const counted = Object.fromEntries(Object.entries(samples || {}).filter(([k]) => num(parsePerfSampleKey(k).version) >= num(EARLY_ROSTER_FROM)));
+    const shown = summariseEarlyRoster(counted, { page }).rows[0]?.total || 0;
+    const ready = summariseStartMilestones(counted, { page }).rows.find(r => r.metric === 'ready')?.total || 0;
+    const pct = shown && ready ? Math.round((shown / ready) * 100) : null;
+    return pct !== null && pct <= 100 ? pct : null;
+}
+
+/**
  * OPENS A RELEASE CAUSED (v22.92) — the reading v22.90 shipped without.
  *
  * Deferring the update reload until the member looks away removed a cost nobody could size. This is
@@ -707,6 +751,12 @@ export function summariseBootPhases(samples, { page }) {
  *   'login' = signing in · 'fcp' = a page first appearing on screen · 'pages' = the page's CODE
  *   finishing (DOMContentLoaded) · 'ready' = the page's own content actually on screen.
  *
+ * `ok` is a wide band — under a fifth slow and under four fifths quick — so it carries TWO sentences,
+ * chosen by which band is larger (v24.85). With one, a month of 8% quick, 79% "a moment" and 13%
+ * slow read "Signing in mostly feels quick" directly beside its own 8%. `moment` is the other one,
+ * worded "most often" because the larger band can be anything above 40%; `momentSlow` adds the tail
+ * only when something actually was slow, so a sentence never mentions slower loads there were none of.
+ *
  * `pages` and `ready` used to be the same claim and are not (v20.80). DCL fires when the module
  * scripts finish; the Calendar's access decision is asynchronous, so it can land while the page is
  * still blank. The copy below therefore stops calling `pages` "fully ready" — that phrase now
@@ -716,6 +766,8 @@ const VERDICT_TEXT = {
     pages: {
         good: 'The app\u2019s code loads quickly for staff.',
         ok:   'The app\u2019s code mostly loads quickly, with some slower loads.',
+        moment:     'The app\u2019s code most often takes a moment to load.',
+        momentSlow: 'The app\u2019s code most often takes a moment to load, and sometimes longer.',
         bad:  'The app\u2019s code is taking too long to load for some staff.',
         none: 'Not enough data yet — this builds up as staff use the app.',
         thin: 'Too few page opens yet to read as a trend.',
@@ -723,6 +775,8 @@ const VERDICT_TEXT = {
     ready: {
         good: 'Pages become usable quickly for staff.',
         ok:   'Pages mostly become usable quickly, with some slower loads.',
+        moment:     'Pages most often take a moment to become usable.',
+        momentSlow: 'Pages most often take a moment to become usable, and some take longer.',
         bad:  'Some staff are waiting too long before a page is usable.',
         none: 'Not enough data yet — only pages that report this milestone are counted.',
         thin: 'Too few page opens yet to read as a trend.',
@@ -730,6 +784,8 @@ const VERDICT_TEXT = {
     fcp: {
         good: 'Pages appear on screen almost instantly.',
         ok:   'Pages mostly appear quickly, with some slower first paints.',
+        moment:     'Pages most often take a moment to appear.',
+        momentSlow: 'Pages most often take a moment to appear, and some take longer.',
         bad:  'Some staff wait too long before anything appears on screen.',
         none: 'Not enough data yet — this builds up as staff use the app.',
         thin: 'Too few page opens yet to read as a trend.',
@@ -737,6 +793,8 @@ const VERDICT_TEXT = {
     login: {
         good: 'Signing in is quick for staff.',
         ok:   'Signing in mostly feels quick, with some slower sign-ins.',
+        moment:     'Sign-ins most often take a moment.',
+        momentSlow: 'Sign-ins most often take a moment, and some take longer.',
         bad:  'Signing in is taking too long for some staff.',
         none: 'No sign-ins recorded for this period.',   // month-neutral: this headline also renders in the Last-month view (v16.22)
         thin: 'Too few sign-ins yet to read as a trend.',
@@ -760,7 +818,9 @@ export const THIN_SAMPLE = 20;
 
 /**
  * One-line plain-English verdict for the overall speed, with a status tone for colour. Thresholds:
- * ≥20% slow → bad; else ≥80% quick → good; else ok. Empty → a "still building up" message.
+ * ≥20% slow → bad; else ≥80% quick → good; else ok — whose sentence says "mostly quick" only when
+ * quick is the larger band, and "most often a moment" when it is not. Empty → a "still building up"
+ * message.
  *
  * A total below `THIN_SAMPLE` short-circuits to `thin` BEFORE any of those, because a verdict is a
  * claim and there is not enough here to make one. The percentage is still shown beside it — the
@@ -775,7 +835,8 @@ export function perfVerdict(overall, kind = 'pages') {
     if (overall.total < THIN_SAMPLE) return { tone: 'thin', text: text.thin };
     if (overall.pctSlow >= 20)  return { tone: 'bad',  text: text.bad };
     if (overall.pctQuick >= 80) return { tone: 'good', text: text.good };
-    return { tone: 'ok', text: text.ok };
+    if (overall.pctQuick >= overall.pctOk) return { tone: 'ok', text: text.ok };
+    return { tone: 'ok', text: overall.pctSlow ? text.momentSlow : text.moment };
 }
 
 /** A login-to-usable span older than this is treated as a stale/abandoned marker and ignored. */

@@ -673,3 +673,27 @@ describe('the `rosterCached` milestone', () => {
             'a boot with no saved copy must not be given a time');
     });
 });
+
+// ── THE MOMENT A MEMBER FIRST SEES THEIR SHIFTS (v24.85) ────────────────────────────────────────
+//
+// The Calendar's paint of a member's own stored roster, before the sign-in check. Same honesty rule
+// as the rung above, for the same reason: an open with no stored copy has no such moment.
+describe('the `rosterSnapshot` milestone', () => {
+    test('a marked paint is recorded — including one marked before recordPageLatency ran', async () => {
+        _samples.length = 0; _marks.clear(); _ss.clear();
+        const { recordPageLatency, markMilestone } = await import('./perf-reporter.js?fresh=rs-hit');
+        // The real order: the copy is painted at boot, the reading runs only after the grant.
+        markMilestone('rosterSnapshot');
+        recordPageLatency('calendar', 'S. Silva');
+        await new Promise(r => setTimeout(r, 0));
+        assert.ok(_samples.some(s => s.metric === 'rosterSnapshot' && s.page === 'calendar'), 'a painted copy reports');
+    });
+
+    test('an UNMARKED boot reports nothing — no copy, no moment', async () => {
+        _samples.length = 0; _marks.clear(); _ss.clear();
+        const { recordPageLatency } = await import('./perf-reporter.js?fresh=rs-miss');
+        recordPageLatency('calendar', 'S. Silva');
+        await new Promise(r => setTimeout(r, 0));
+        assert.ok(!_samples.some(s => s.metric === 'rosterSnapshot'), 'an open with no copy must not be given a time');
+    });
+});

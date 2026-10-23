@@ -651,7 +651,12 @@ body.auth-ready .container { display: grid; }
    an unanswered row that offers readings wears `.act-read` there until it is answered. */
 .roster-cb-day .roster-act { margin-left: auto; align-self: center; }
 .roster-cb-opt { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.roster-cb-lab { flex: 0 0 66px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em;
+/* THE LABEL COLUMN (v24.90): wide enough for the longest label, "New roster", and sized in `em`
+   so it grows with the label at any text size — and never wrapped. A fixed 66px wrapped "New
+   roster" onto two lines at ordinary size, so its value sat a line above the label's end. The
+   guarded row's "Roster" / "Saved now" share it, so a value starts at the same place on both. */
+.roster-cb-lab, .roster-guard-lab { flex: 0 0 auto; min-width: 7em; white-space: nowrap; }
+.roster-cb-lab { font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em;
                  text-transform: uppercase; color: var(--conflict-text); }
 .roster-cv-manual, .roster-cv-pdf { font-size: var(--type-small); font-weight: 600; }
 /* Strikethrough only — see the dims note above. This is the option the admin may be about to
@@ -672,9 +677,12 @@ body.auth-ready .container { display: grid; }
    differently on every row — two wide buttons here, three uneven ones there, a narrow Skip stranded
    beside a wide Neither — because the widths came from the option LABELS, which are data. A grid
    makes the arrangement a property of the control instead of a property of somebody's shift. */
+/* The column's minimum is in `em` (v24.90), so at a large text size the buttons STACK rather than
+   clip their own labels: a fixed 132px kept two columns at any size, and on a phone set large
+   "Swapped — record it" read "Swapped — recor". 10em is the old 132px at this card's ordinary size. */
 .roster-pick {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10em), 1fr));
     gap: 8px;
     margin-top: 3px;
 }
@@ -760,10 +768,12 @@ body.auth-ready .container { display: grid; }
 .roster-change-row.roster-change-guarded {
     background: var(--surface-sunken);
     border-left: 4px solid var(--border-light);
-    /* Two lines (v24.41): day · what the roster said · the tag, then the reason across the full
-       width under them. A grid rather than the list's flex row, because the reason must WRAP below
-       instead of being squeezed into the middle column beside a badge. */
-    display: grid; grid-template-columns: auto 1fr auto; column-gap: 12px; row-gap: 6px;
+    /* A COLUMN (v24.90): the day and its tag, what the roster said, what is saved now, the reason
+       and the question, each on its own line — the "Your choice" card's shape. It was a three-column
+       grid (day · said · tag), and on a phone with large text the badge outgrew its column and drew
+       over the tag, which read "IOT RECORDED" (owner's screenshot, 22 Oct). Nothing shares a line
+       with the badge now, so no text size can make the two meet. */
+    flex-direction: column; align-items: stretch; gap: 6px;
 }
 .roster-guard-said { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .roster-guard-lab {
@@ -776,22 +786,37 @@ body.auth-ready .container { display: grid; }
 /* …until the admin answers "swapped" (v24.42): then it IS what will be recorded, so it gets its
    colour back, and the tag beside it turns to the green every other row uses for an outcome. */
 .roster-guard-val.is-recorded .shift-badge { filter: none; }
-.roster-guard-pick { grid-column: 1 / -1; }
 .roster-guard-note {
-    grid-column: 1 / -1; margin: 0;
+    margin: 0;
     font-size: var(--type-small); line-height: 1.4; color: var(--text-mid);
 }
-/* PLACED, not flowed (v24.69 bug check): the "Saved now" line is a fourth item in a three-column
-   grid, and auto-placement put it in the tag's column and pushed the tag under the day. The tag
-   keeps the right of the first row; what is saved sits under what the roster said. */
-.roster-change-guarded > .roster-act { grid-column: 3; grid-row: 1; align-self: center; }
-.roster-change-guarded > .roster-guard-held { grid-column: 2; grid-row: 2; }
 /* No tick, so no action: a flat label rather than the tappable-looking pills the other rows use —
    "Will clear" included, which says what the answer does, not a control. */
 .roster-change-guarded .act-clear,
 .roster-change-guarded .act-none {
     font-size: var(--type-badge); color: var(--text-light); white-space: nowrap;
 }
+
+/* ── A CHANGED DAY: THE NEW VALUE MAY RUN UNDER THE TAG (v24.90) ───────────────────────────────
+   The tick, the day, what it was, what it becomes, the tag. The tag shares the FIRST line with what
+   the day was, and the new value takes the second line across the full width, under the tag too.
+   As one wrapping row both values shared a line's width with the tag, so on a phone with large text
+   the new time fell to a third line under "→ Early" while the old one stayed beside its badge
+   (owner's screenshot, 22 Oct). The new value is what will be written, so it gets the room. A
+   REMOVE row's note takes a third line. `display: contents` lifts the values into this grid. */
+.roster-change-row.roster-change-diff {
+    display: grid; align-items: center;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "tick day from act" "tick day to to" "tick day note note";
+    column-gap: 10px; row-gap: 2px;
+}
+.roster-change-diff > .roster-tick { grid-area: tick; }
+.roster-change-diff > .roster-chg-day { grid-area: day; }
+.roster-change-diff > .roster-chg-vals { display: contents; }
+.roster-change-diff .roster-from-val { grid-area: from; }
+.roster-change-diff .roster-to-val { grid-area: to; }
+.roster-change-diff .roster-remove-note { grid-area: note; }
+.roster-change-diff > .roster-act { grid-area: act; }
 
 /* REMOVE_IMPORT — a stale PDF import whose day now matches base; approving deletes it (no write). */
 .roster-remove-note { font-size: var(--type-badge); color: var(--text-light); font-style: italic; }

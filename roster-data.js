@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '24.84';
+export const APP_VERSION = '24.91';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -243,6 +243,34 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
     // one. It is one un-set flag away, which is the whole reason to close it — the same
     // fall-through shape that DID give a Dispatcher somebody else's pay rate until v21.78.
     // `null`, never 0: a zero is a claim about their leave and this function has none to make.
+    return null;
+}
+
+/**
+ * The pay grade this app has CONFIRMED rates and contract terms for, given a member's role — or
+ * null when it has none (v21.78).
+ *
+ * Written because the absence of a grade was indistinguishable from CEA. `getGrade()` returns ''
+ * for anybody the app never stored one for, and every consumer then falls back to `GRADES.cea`, so
+ * a Dispatcher or a manager opening the calculator received a complete, plausible CEA estimate.
+ * That is worse than an unsupported state: an unverified figure at least looks unverified, whereas
+ * this one was somebody else's pay presented as theirs.
+ *
+ * Dispatcher pay is not modelled because the rates and contractual terms are not on record — see
+ * `.claude/rules/paycalc.md`. Do not invent them, and do not extend this map to a role until a real
+ * payslip has confirmed it.
+ *
+ * LIVES HERE, NOT IN paycalc-settings.js, SINCE v24.86. The Calendar's Year to Date notice asks the
+ * same question the Pay Calculator asks before it shows a figure — "would this page work for you?"
+ * — and must answer it the SAME way, so a member it sends there is never met by the refusal card.
+ * Importing the answer from the paycalc family would have loaded that whole module graph onto the
+ * Calendar to read three lines. paycalc-settings.js re-exports it, so its consumers are unchanged.
+ *
+ * @param {string|undefined|null} role @returns {'cea'|'ces'|null}
+ */
+export function gradeForRole(role) {
+    if (role === 'CEA') return 'cea';
+    if (role === 'CES') return 'ces';
     return null;
 }
 

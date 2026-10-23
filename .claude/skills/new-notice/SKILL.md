@@ -190,6 +190,35 @@ left **unflagged** — not marked seen — so it arrives when that device is nex
 
 Notices on other pages need no audience: those pages already require a session.
 
+## Waiting for another notice, or for a reader known only at open time (v24.86)
+
+`ytd-figures-2026` added both, and the next notice can reuse them as they are:
+
+- **After another notice:** declare `const FOLLOWS = '<that notice's DONE_KEY>'` in the IIFE and
+  `if (!lsGet(FOLLOWS)) return;` after the expiry check. It is read at WIRING time, so the notice
+  never comes on the load where the other one is dismissed. `calendar-notices.test.mjs` pins
+  `FOLLOWS` equal to the other IIFE's `DONE_KEY` and gives followers matrix rows of their own.
+- **For a reader known only once access is decided** (e.g. "would the Pay Calculator price this
+  member?"): pass a third argument, `_openWhenAudienceAllows(lb, 'members', () => …)`. It is read
+  after the audience check, at open time, because a front-door sign-in has no session at wiring
+  time. A refusal leaves the notice unflagged, exactly like an out-of-audience device.
+- **Ending on a date rather than after N days:** `isNoticeExpired('<last day>', 1)` offers the whole
+  of that day and stops at the next midnight. A count from posting drifts by an hour across a clock
+  change.
+
+`install-app-2026` (v24.91) added three more:
+
+- **After a notice only some members get:** `const FOLLOWS_PAY = '<its DONE_KEY>'`, read at wiring
+  time beside `FOLLOWS`, and `alsoWhen` accepts it OR the member not being that notice's reader
+  (`payCalcIsTheirs`, now module-level). Waiting on a flag a member can never set would hold the
+  notice back until that one expires. The test matrix reads `FOLLOWS_PAY` like `FOLLOWS`.
+- **Copy that depends on the device:** put every variant in the markup, `hidden`, and choose in
+  `onOpen` — not at the gate, if what decides it can change in the 1500ms between them. A test
+  pins every variant line in the markup to the module that toggles it.
+- **When it makes the same ask as something already on the page:** a fourth argument,
+  `whenDecided`, runs the moment the notice is decided — the install notice stands the install strip
+  down then, rather than covering it 1500ms later.
+
 ## Rules
 
 | Rule | Value |

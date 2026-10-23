@@ -57,8 +57,9 @@ export function seedSession(page, name = 'G. Miller') {
             ver: 2,
             expiry: Date.now() + 90 * 24 * 60 * 60 * 1000,   // arbitrary future — NOT SESSION_MS
         }));
-        localStorage.setItem('myb_notice_al_booking_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_2026_done', '1');
+        localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
+        localStorage.setItem('myb_notice_install_app_2026_done', '1');
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
     }, name);
 }
@@ -70,13 +71,17 @@ export function seedSession(page, name = 'G. Miller') {
  * PASS THE ONE KEY YOU MEAN whenever more than one notice is live. Only one can be on screen at a
  * time: whichever reaches `openNoticeIfClear` first wins, the loser stays closed and unflagged, and
  * a spec asserting on the loser fails for a reason that has nothing to do with what it is testing.
- * (`sign-in-2026` was retired at v23.23, leaving one key; `timetable-2026` restored the hazard at
- * v24.82, so the default names two again — and a spec about either should pass its own.)
+ * (`sign-in-2026` was retired at v23.23 and `al-booking-2026` at v24.91.) The default names every
+ * live notice, and only one of them can open on such a load: the Year to Date notice (v24.86) and
+ * the install notice (v24.91) are wired only once the timetable notice was dismissed on an earlier
+ * load, so clearing all three shows the timetable one. A spec about a follower clears its key alone
+ * — the seeders have already marked the notices before it done.
  *
  * @param {import('@playwright/test').Page} page
  * @param {string[]} [keys] the done-flags to remove; defaults to every live notice
  */
-export function clearNoticeFlags(page, keys = ['myb_notice_al_booking_2026_done', 'myb_notice_timetable_2026_done']) {
+export function clearNoticeFlags(page, keys = ['myb_notice_timetable_2026_done', 'myb_notice_ytd_figures_2026_done',
+                                               'myb_notice_install_app_2026_done']) {
     return page.addInitScript(ks => ks.forEach(k => localStorage.removeItem(k)), keys);
 }
 
@@ -117,8 +122,9 @@ export function seedSessionOnce(page, name = 'G. Miller') {
 export function seedMember(page, name = 'G. Miller') {
     return page.addInitScript((n) => {
         localStorage.setItem('myb_roster_selected_member', n);
-        localStorage.setItem('myb_notice_al_booking_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_2026_done', '1');
+        localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
+        localStorage.setItem('myb_notice_install_app_2026_done', '1');
     }, name);
 }
 
@@ -310,8 +316,9 @@ export function seedMemberSession(page, name = 'G. Miller') {
         }));
         localStorage.setItem('myb_roster_selected_member', n);
         // Same notice suppression as seedMember, same reason — see the note there.
-        localStorage.setItem('myb_notice_al_booking_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_2026_done', '1');
+        localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
+        localStorage.setItem('myb_notice_install_app_2026_done', '1');
         window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
     }, name);
 }
@@ -588,6 +595,18 @@ export function perfSamples() {
     // the block exists to reveal, and a 50/50 fixture would hide a layout fault in either row.
     add('calendar', 'readyCached',  'lt500ms', 480); add('calendar', 'readyCached',  '1-3s', 60);
     add('calendar', 'readyFetched', '1-3s', 140);    add('calendar', 'readyFetched', '3-8s', 110);
+    // BEFORE THE SIGN-IN CHECK (v24.85) — a member's own stored roster, painted while the check runs.
+    // Seeded so the block renders and the truncation guard measures its label; quick-weighted, which
+    // is the shape it exists to show, and a share of `ready` well under 100% so its sentence prints.
+    // The share divides only by opens on versions that can report a copy (v24.89), so the copy and
+    // the quick `ready` opens carry such a version — MOVED there, not added, so every total on the
+    // card is what it was. On the fixture's own version alone the share sentence would never print.
+    add('calendar', 'rosterSnapshot', 'lt500ms', 330, '4g', 'standalone', 'v24.85');
+    add('calendar', 'rosterSnapshot', '500ms-1s', 40, '4g', 'standalone', 'v24.85');
+    add('calendar', 'rosterSnapshot', '1-3s', 20, '4g', 'standalone', 'v24.85');
+    const quickReady = 'v21.29|calendar|ready|lt500ms|standalone|4g';
+    add('calendar', 'ready', 'lt500ms', out[quickReady], '4g', 'standalone', 'v24.85');
+    delete out[quickReady];
     // OPENS A RELEASE CAUSED (v22.92) — a small share, deliberately, because that is the shape the
     // row has to stay readable in. A `readyUpdate` count anywhere near `ready` would be a fixture
     // asserting the finding rather than exercising the layout, and it would hide the case the block
