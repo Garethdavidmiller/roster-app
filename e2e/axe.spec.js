@@ -367,6 +367,9 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await page.locator('#trChanges .tr-head', { hasText: 'to Aylesbury' }).click();
         await page.locator('#trStation .tr-route-sum').click();
         await expect(page.locator('#trStation .tr-trains tbody tr').first()).toBeVisible();
+        // Last trains (v24.94): a second table under the station's, with its band rows and chips.
+        await page.locator('#trLastChevron').click();
+        await expect(page.locator('#trLast .tr-last tbody tr').first()).toBeVisible();
         let v = await scan(page);
         expect(v.length, report(v)).toBe(0);
         await page.locator('[data-view="grid"]').click();

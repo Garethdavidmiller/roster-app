@@ -173,7 +173,7 @@ const PINNED_NOW = new Date(2026, 9, 22, 9, 0);   // after timetable-2026's post
  *  also wait for the Year to Date notice only where that one is the member's to get (`followsPay`,
  *  v24.91) — the Pay Calculator's own test decides, as it does for that notice itself. */
 const NOTICES = [...SOURCE.matchAll(/getElementById\('(\w+NoticeLb)'\)[\s\S]*?_openWhenAudienceAllows\(lb, '([a-z-]+)'[,)]/g)]
-    .map(m => ({ overlay: m[1], audience: m[2], follows: FOLLOWS_OF(m[1]), followsPay: FOLLOWS_PAY_OF(m[1]) }));
+    .map(m => ({ overlay: m[1], audience: m[2], follows: FOLLOWS_OF(m[1]), followsPay: FOLLOWS_PAY_OF(m[1]), starts: STARTS_OF(m[1]) }));
 
 /** The IIFE that declares a notice's overlay — its own scope, so a key read from it is that notice's.
  *  (This was an 800-character window before the overlay line, which is right until a notice with a
@@ -200,6 +200,16 @@ function FOLLOWS_OF(/** @type {string} */ overlay) {
 function FOLLOWS_PAY_OF(/** @type {string} */ overlay) {
     return /const FOLLOWS_PAY\s*=\s*'([^']+)'/.exec(IIFE_OF(overlay))?.[1] ?? null;
 }
+
+/** The local midnight a notice starts on (`const STARTS = new Date(y, m, d)`), as a time, or null for one
+ *  that starts when it ships (v24.94 — the final-week timetable notice). A notice not yet due is left
+ *  out of the rows below and gets rows of its own with the clock moved to its week. */
+function STARTS_OF(/** @type {string} */ overlay) {
+    const m = /const STARTS\s*=\s*new Date\((\d+),\s*(\d+),\s*(\d+)\)/.exec(IIFE_OF(overlay));
+    return m ? new Date(+m[1], +m[2], +m[3]).getTime() : null;
+}
+/** Is this notice's start behind the (mocked) clock? */
+const due = (/** @type {{ starts: number|null }} */ n) => n.starts === null || Date.now() >= n.starts;
 
 /** Would the Pay Calculator price this session's member? The real test, from the real roster. */
 const { teamMembers, gradeForRole } = await import('./roster-data.js');
@@ -240,7 +250,7 @@ describe('1 · a notice reaching somebody it is not addressed to', () => {
     function expectedFor(accessType, store = {}) {
         const session = accessType === 'named' ? { name: 'G. Miller' } : null;
         return NOTICES.filter(n => noticeAudienceAllows(n.audience, accessType)
-            && !store[DONE_KEY_OF(n)] && (!n.follows || !!store[n.follows])
+            && due(n) && !store[DONE_KEY_OF(n)] && (!n.follows || !!store[n.follows])
             && (!n.followsPay || !!store[n.followsPay] || !payCalcFor(session))).map(n => n.overlay).sort();
     }
 
@@ -284,7 +294,7 @@ describe('1 · a notice reaching somebody it is not addressed to', () => {
                     .map(k => [/** @type {string} */ (k), '1']));
                 const shown = await shownTo(accessType, store);
                 assert.deepEqual(shown, expectedFor(accessType, store));
-                assert.equal(shown.includes(f.overlay), noticeAudienceAllows(f.audience, accessType),
+                assert.equal(shown.includes(f.overlay), due(f) && noticeAudienceAllows(f.audience, accessType),
                     'the follower itself opens exactly where its audience allows');
             });
         }
@@ -864,5 +874,86 @@ describe('7 · the Year to Date notice: the load AFTER the timetable one, to mem
         assert.match(readFileSync(new URL('./paycalc.html', import.meta.url), 'utf8'), /id="payslipCard"/);
         assert.match(readFileSync(new URL('./paycalc-app.js', import.meta.url), 'utf8'),
             /openCardNamedByHash\('payslipCard', 'payslipCardBody', 'payslipCardToggle'\)/);
+    });
+});
+
+
+describe('6 · the final-week timetable notice: due on 6 December, gone on the 13th, members only (v24.94)', () => {
+    // Owner, 23 Oct 2026: the October notice ended six weeks before the change, and from then nothing
+    // in the app said the day was coming. This one is offered 6–12 December. Organised by what a wrong
+    // answer costs: early, and it nags for seven weeks beside the October notice; late, and it tells
+    // people about a Sunday that has passed; flagged on a device that arrives early, and that device
+    // never sees it; shown to the PIN station, and a shared PC is told about "your" page.
+    const SOON = /** @type {{ overlay: string, audience: string, starts: number|null }} */ (NOTICES.find(n => n.overlay === 'timetableSoonNoticeLb'));
+    const DONE = DONE_KEY_OF(SOON);
+    const IIFE = IIFE_OF('timetableSoonNoticeLb');
+    const opened = () => /** @type {any} */ (_openedViaHelper.find(lb => lb._cfg.overlay.id === SOON.overlay));
+    const DEC_6 = new Date(2026, 11, 6, 9, 0).getTime(), DEC_5 = new Date(2026, 11, 5, 21, 0).getTime(), DEC_12 = new Date(2026, 11, 12, 23, 0).getTime();
+
+    test('it is in the matrix, addressed to members, with its own key, no snooze, starting on 6 December and ending with the 12th', () => {
+        assert.ok(SOON, 'found by the same pattern as every other notice');
+        assert.equal(SOON.audience, 'members');
+        assert.equal(DONE, 'myb_notice_timetable_soon_2026_done');
+        assert.doesNotMatch(IIFE, /SNOOZE_KEY/, 'a one-off declares no snooze');
+        assert.equal(SOON.starts, new Date(2026, 11, 6).getTime(), 'STARTS is read from the source');
+        assert.match(IIFE, /isNoticeExpired\(CHANGE_EVE, 1\)/, 'offered through the whole of the Saturday, gone on the day');
+        assert.match(IIFE, /const CHANGE_EVE\s*=\s*'12 Dec 2026'/);
+        assert.match(IIFE, /Date\.now\(\) < STARTS\.getTime\(\)\) return;/, 'an early device is left unflagged, not dismissed');
+    });
+
+    test('on a member\'s device in its week it opens, and nothing is flagged', async () => {
+        mock.timers.setTime(DEC_6);
+        await wire({ accessType: 'named' });
+        await settleAccess();
+        assert.ok(opened());
+        assert.deepEqual(_writes, []);
+    });
+
+    test('the evening before it is due: not opened, and NOT flagged, so the same device sees it on Sunday', async () => {
+        mock.timers.setTime(DEC_5);
+        await wire({ accessType: 'named' });
+        await settleAccess();
+        assert.equal(opened(), undefined);
+        assert.deepEqual(_writes.filter(([k]) => k === DONE), []);
+    });
+
+    test('late on the Saturday it is still offered', async () => {
+        mock.timers.setTime(DEC_12);
+        await wire({ accessType: 'named' });
+        await settleAccess();
+        assert.ok(opened());
+    });
+
+    test('once expired, a device that never saw it is flagged and shown nothing', async () => {
+        // The harness answers every expiry question with one flag, so every notice retires here; the
+        // claim is about THIS one: flagged, not opened.
+        mock.timers.setTime(new Date(2026, 11, 13, 9, 0).getTime());
+        await wire({ accessType: 'named', expired: true });
+        await settleAccess();
+        assert.equal(opened(), undefined);
+        assert.ok(_writes.some(([k, v]) => k === DONE && v === '1'), 'flagged done without being shown');
+    });
+
+    test('not on the shared PIN station in its week — and not flagged there', async () => {
+        mock.timers.setTime(DEC_6);
+        await wire({ accessType: 'viewer', session: null });
+        await settleAccess();
+        assert.equal(opened(), undefined);
+        assert.deepEqual(_writes, []);
+    });
+
+    test('every dismissal marks it done: the link, Not now, and the close', async () => {
+        mock.timers.setTime(DEC_6);
+        await wire({ accessType: 'named', present: [SOON.overlay, 'timetableSoonNoticeGo', 'timetableSoonNoticeLater'] });
+        await settleAccess();
+        const lb = opened();
+        assert.ok(lb);
+        _listeners.get('timetableSoonNoticeGo:click')?.();
+        assert.deepEqual(_writes, [[DONE, '1']], 'the link marks it done before the page is left');
+        _writes = [];
+        lb._cfg.onClose();
+        assert.deepEqual(_writes, [[DONE, '1']], 'so does a close');
+        lb._cfg.onOpen();                                     // the harness records an open; the lightbox would run this itself
+        assert.ok(_archived.some(n => n.id === 'timetable-soon-2026'), 'archived on OPEN, before the link can take the member away');
     });
 });

@@ -81,7 +81,7 @@ export function seedSession(page, name = 'G. Miller') {
  * @param {string[]} [keys] the done-flags to remove; defaults to every live notice
  */
 export function clearNoticeFlags(page, keys = ['myb_notice_timetable_2026_done', 'myb_notice_ytd_figures_2026_done',
-                                               'myb_notice_install_app_2026_done']) {
+                                               'myb_notice_install_app_2026_done', 'myb_notice_timetable_soon_2026_done']) {
     return page.addInitScript(ks => ks.forEach(k => localStorage.removeItem(k)), keys);
 }
 

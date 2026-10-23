@@ -22,6 +22,7 @@ identity); the **emoji carries feature identity**.
 | Overtime availability | ⏱️ | Overtime nav pill / page badge | `overtime` | event |
 | Password reset request | 🙋 | Operations "Password Reset Requests" card | `reset-request` | event |
 | Password was reset | 🔑 | Settings "Password" card | `password-reset` | event |
+| Timetable change (one-off, v24.94) | 🚆 | Trains nav pill / page badge | `timetable` | event |
 
 When the app gains a new notifying feature, add ONE row here and ONE entry to the
 `NOTIFICATION_FEATURES` map — never hand-write a payload.
@@ -55,6 +56,7 @@ Because a document is republished regularly and the Huddle in particular is sent
 | Overtime reminder | `⏱️ Overtime — answers due today` | `Initial answers for week ending Sat 5 Sep are due by 12:00 today.` |
 | Reset request | `🙋 Reset requests — 2 waiting` | `S. Silva asked for a reset. 1 other waiting.` |
 | Password was reset | `🔑 Password reset — set a new one` | `The admin reset your password. Open Settings to choose your own.` |
+| Timetable change | `🚆 New timetable from Sunday` | `Chiltern’s times change on 13 December. Tap to see what changes at Marylebone.` |
 
 **The Overtime pair is targeted too (v21.47).** Both notices go through `sendTargetedPush` to
 member uids resolved from the account email — the asked notice to whoever a window newly asked
@@ -152,7 +154,8 @@ that hands over neither a renewal nor the old key is left as before: the next ch
 A push service holds a notice for a phone that is off — and web-push's default is FOUR WEEKS, so
 "hours cutoff today" arrived days late. Every send now passes a TTL from `PUSH_TTL_BY_TAG`
 (`functions/push.js`, via `pushSendOptions`): documents 36–72 h, pay and overtime 12 h, the reset
-queue 6 h, password-reset 7 days, anything unlisted one day. **A new notification feature adds its
+queue 6 h, password-reset 7 days, the timetable reminder one day (sent on the Saturday evening, still
+true all Sunday), anything unlisted one day. **A new notification feature adds its
 tag there**, or it gets a day; `push-transport.test.mjs` fails on a feature with no TTL.
 
 ## Icon, badge, tag
@@ -198,6 +201,10 @@ adding the feature. Full rationale: OPERATIONS_REFERENCE.md → "Huddle notifica
   it alone would still leave the admin hunting for the one the notification was about). A tap while
   Operations is ALREADY open re-reads the queue, and the hash is stripped once followed so the next
   tap is a hash change rather than a repeat that fires nothing (Sep 2026 review).
+- Timetable change → `trains.html` (v24.94). A BROADCAST by design, sent ONCE by `sendTimetableReminder`
+  (`functions/documents.js` — daily at 18:00 London, guarded to the evening before `TIMETABLE_CHANGE`): a
+  timetable every member will be asked about passes the "all 50 staff" test by itself. The next change
+  moves the one constant; the function is harmless on every other evening.
 - Overtime → `overtime.html` (both the asked notice and the deadline reminder). **Added to this
   list at v21.63** — `overtime.html` had been in `SAFE_NOTIFICATION_PAGES` since the feature
   shipped, so the code was right and the prose was one row short. A reader auditing the allowlist

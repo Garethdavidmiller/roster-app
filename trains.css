@@ -289,7 +289,7 @@ sunken track whose chosen tab went white, a third recipe for one job. */
 /* Column heads are the app's eyebrow — the metrics of .field-eyebrow, which Admin's week-grid header
 and the Links grid's heads already wear (v24.93; these were 12px sentence case, the one table recipe
 the Pay Calculator's comparison table also uses — the uppercase label is the commoner of the two). */
-.tr-trains thead th, .tr-st-table thead th, .tr-near-head {
+.tr-trains thead th, .tr-st-table thead th, .tr-last thead th, .tr-near-head {
     color: var(--text-light);
     font-size: var(--type-micro);
     font-weight: 700;
@@ -702,6 +702,35 @@ uppercase. */
 }
 .tr-near li { padding: 4px 0; border-bottom: 1px solid var(--border-light); }
 .tr-near-time { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ── v24.94: the caveat's link, the lookup's one-column case, Last trains, the desktop jump card ── */
+.tr-caveat-line a { color: var(--primary-blue); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.tr-caveat-line a:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: 2px; }
+/* The lookup's near lists: ONE column when both timetables list the same trains; where they differ,
+   a row only one side has is marked at its left edge, and says so to a screen reader. */
+.tr-near-cols--one { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1024px) { .tr-near-cols--one { max-width: 480px; } }
+.tr-near-only { border-left: 3px solid var(--primary-blue); padding-left: 8px; font-weight: 700; }
+/* Last trains: the station table's recipe, with the grid's band rows between the two lines. */
+.tr-last { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tr-last th, .tr-last td { padding: 7px 8px 7px 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border-light); }
+.tr-last tbody th { font-weight: 600; color: var(--text-mid); }
+.tr-last td { font-weight: 600; white-space: nowrap; }
+.tr-last td:last-child { white-space: normal; }
+.tr-last .tr-chip { white-space: normal; border-radius: var(--radius-sm); }
+.tr-last-band td {
+    padding: 12px 0 4px;
+    color: var(--text-light);
+    font-size: var(--type-badge);
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+/* The desktop's jump card: a second copy of the Stations tab's chips earns its place only where there
+   is a column with nothing in it. Below 1024px it does not exist. */
+#trJumpCard { display: none; }
+@media (min-width: 1024px) { #trJumpCard { display: block; } }
+#trJumpCard[hidden] { display: none !important; }
 
 /* A thumb's target (v24.83): on a phone the tabs, the station chips and the "Show…" buttons were
    27–31px tall. After the base rules, so it wins. */

@@ -469,6 +469,47 @@ describe('sendPayReminderNotification — a daily schedule that must fire on exa
     });
 });
 
+describe('sendTimetableReminder — one broadcast, on the evening before the timetable change (v24.94)', () => {
+    // Daily at 18:00 London with a one-date guard, not a yearly cron: a function nobody remembers to
+    // delete must not fire on 12 December of some later year. Organised by what a wrong answer costs —
+    // a day early and the Sunday is "this Sunday" to nobody; the day itself and it announces a change
+    // that happened this morning; another year and 50 staff are told about a timetable that is not coming.
+    test('an ordinary evening sends nothing', async () => {
+        const b = build();
+        b.setNow({ year: 2026, month: 11, day: 11 });           // Fri 11 Dec 2026
+        await b.eps.sendTimetableReminder.run({});
+        assert.equal(b.sends.length, 0);
+    });
+
+    test('the day itself sends nothing — the reminder is for the evening before', async () => {
+        const b = build();
+        b.setNow({ year: 2026, month: 11, day: 13 });           // Sun 13 Dec 2026, the change
+        await b.eps.sendTimetableReminder.run({});
+        assert.equal(b.sends.length, 0);
+    });
+
+    test('Saturday 12 December 2026 sends the reminder to everyone, deep-linked to the Trains page', async () => {
+        const b = build();
+        b.setNow({ year: 2026, month: 11, day: 12 });
+        await b.eps.sendTimetableReminder.run({});
+        assert.equal(b.sends.length, 1);
+        const { payload, tag } = b.sends[0];
+        assert.equal(tag, '[timetable]');
+        assert.equal(payload.tag, 'timetable');
+        assert.equal(payload.title, '🚆 New timetable from Sunday');
+        assert.match(payload.body, /13 December/);
+        assert.doesNotMatch(payload.body, /!/, 'calm tone — no exclamation marks');
+        assert.ok(payload.url.endsWith('/trains.html'), payload.url);
+    });
+
+    test('the same date in another year sends nothing', async () => {
+        const b = build();
+        b.setNow({ year: 2027, month: 11, day: 12 });
+        await b.eps.sendTimetableReminder.run({});
+        assert.equal(b.sends.length, 0);
+    });
+});
+
 // ── getDocumentUrl — the short-lived URL (v24.16) ──────────────────────────────────────────────
 //
 // EXECUTED, not merely defined. `functions-surface.test.mjs` proves this endpoint exists; v20.50 is

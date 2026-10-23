@@ -37,7 +37,7 @@ export const CARD_TIPS = {
                     { icon: '📅', html: `Chiltern's new timetable starts on <strong>${dateWords(CHANGE_DATE, 0, { weekday: true })}</strong>. Until then the trains in this page's first column are the ones running; from then, the second.` },
                     { icon: '🚆', html: 'The totals count every passenger train <strong>leaving Marylebone</strong> on that kind of day. Two trains coupled together count once, because they leave as one.' },
                     { icon: '🗓️', html: 'A few of today\'s weekday trains run only on <strong>Mondays and Fridays</strong>, or only <strong>Tuesday to Thursday</strong>. Weekday counts are for a Tuesday to Thursday; the trains themselves are listed with their days.' },
-                    { icon: '⚠️', html: 'December times can still change. Before you tell a customer, check the journey planner on the Chiltern Railways website.' },
+                    { icon: '⚠️', html: 'December times can still change. Before you tell a customer, check the journey planner — it is linked in the line beneath the tabs — or the live departure boards, linked from the About panel (the logo in the menu).' },
                     { icon: '🎄', html: `<strong>Christmas and New Year are not on this page.</strong> Chiltern says it will change times again between ${dateWords(CHANGE_DATE)} and ${dateWords(FURTHER_CHANGES_UNTIL)}, with big changes over Christmas and New Year, and Amersham-line times may change during those weeks too. For those dates, check the journey planner nearer the time.` },
                 ],
             },
@@ -47,6 +47,19 @@ export const CARD_TIPS = {
                     { icon: '📄', html: `First column: Chiltern's public timetables, valid until ${dateWords(CHANGE_DATE, -1, { weekday: true })}.` },
                     { icon: '📄', html: `From ${dateWords(CHANGE_DATE)}: Chiltern's new public timetables, valid until ${dateWords(DEC_VALID_UNTIL, 0, { weekday: true })} ${DEC_VALID_UNTIL.slice(0, 4)}.` },
                     { icon: '🍂', html: `Today's Amersham-line timetable is Chiltern's <strong>leaf-fall</strong> one: until ${dateWords(LEAF_FALL.until)}, trains to London on that line leave up to ${LEAF_FALL.minutes} minutes earlier than usual. The new timetable does not include that, so small differences coming back on that line may be leaf fall.` },
+                ],
+            },
+        ],
+    },
+
+    'last': {
+        title: '🌙 Last trains',
+        sections: [
+            {
+                items: [
+                    { icon: '🕛', html: 'The <strong>last train from Marylebone</strong> that calls at each station, on the kind of day chosen above — the time it leaves Marylebone, not the time it gets there.' },
+                    { icon: '🗓️', html: 'A typical day of that kind: the few weekday trains that run only on Mondays and Fridays, or only on Wednesdays, are left out, as they are on a station\'s card.' },
+                    { icon: '⚠️', html: 'Published times, not live running. For tonight\'s actual last train, check the live departure boards — linked from the About panel (the logo in the menu).' },
                 ],
             },
         ],

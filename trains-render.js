@@ -328,13 +328,20 @@ export function renderTotals(timetables) {
  * The station chips: what was typed matched, or the busiest stations — labelled, because eight names
  * with no label read as a random selection.
  * @param {string[]} offered
- * @param {{ typed: boolean, selected: string|null, stations: Readonly<Record<string, string>> }} ctx
+ * @param {{ typed: boolean, selected: string|null, stations: Readonly<Record<string, string>>, last?: string|null }} ctx
+ *   last: the station this device looked at last, offered first before anything is typed (v24.94)
  * @returns {string}
  */
-export function renderPicks(offered, { typed, selected, stations }) {
+export function renderPicks(offered, { typed, selected, stations, last = null }) {
     if (!offered.length) return '<p class="card-explainer tr-lead">No station matches that.</p>';
-    return `<p class="tr-picks-label">${typed ? 'Matching stations' : 'Busiest stations'}</p>`
-        + offered.map(crs => `<button type="button" class="tr-pick" data-station="${esc(crs)}" aria-pressed="${crs === selected}">${esc(stations[crs] ?? crs)}</button>`).join('');
+    const chip = (/** @type {string} */ crs) => `<button type="button" class="tr-pick" data-station="${esc(crs)}" aria-pressed="${crs === selected}">${esc(stations[crs] ?? crs)}</button>`;
+    // Before anything is typed, the station this device looked at last comes first, under its own
+    // label (v24.94): a member asks about the same station again and again — their own commute, the
+    // barrier's regulars — and it is one chip rather than a search. Never while typing: the matches
+    // are the answer to what was typed.
+    const remembered = !typed && last && stations[last] ? `<p class="tr-picks-label">Last time</p>${chip(last)}` : '';
+    return remembered + `<p class="tr-picks-label">${typed ? 'Matching stations' : 'Busiest stations'}</p>`
+        + offered.filter(crs => !remembered || crs !== last).map(chip).join('');
 }
 
 /**
@@ -410,13 +417,61 @@ export function renderLookup({ at, day, nowRows, decRows, started, labels, chang
         }
         return esc(routeName(stations, st, via));
     };
-    const list = (/** @type {TrainRow[]} */ rows) => rows.length
-        ? `<ul class="tr-near">${rows.map(([t, st, via, days]) => `<li><span class="tr-near-time">${esc(t)}</span> ${where(st, via)}`
-            + `${daysLabel(days) ? ` <span class="tr-days">${esc(daysLabel(days))}</span>` : ''}</li>`).join('')}</ul>`
+    // The same train on both sides is the same time, end, route and days. Two identical lists are
+    // shown ONCE and said to be the same — a member was comparing them by eye to learn that — and
+    // where they differ, a row only one side has is marked (v24.94).
+    const key = (/** @type {TrainRow} */ r) => r.slice(0, 4).join('|');
+    const onlyIn = (/** @type {TrainRow[]} */ rows, /** @type {TrainRow[]} */ other) =>
+        new Set(rows.filter(r => !other.some(o => key(o) === key(r))).map(key));
+    const same = near.now.length === near.dec.length && near.now.every((r, i) => key(r) === key(near.dec[i]));
+    const list = (/** @type {TrainRow[]} */ rows, /** @type {Set<string>} */ only = new Set()) => rows.length
+        ? `<ul class="tr-near">${rows.map((r) => { const [t, st, via, days] = r; const mark = only.has(key(r));
+            return `<li${mark ? ' class="tr-near-only"' : ''}><span class="tr-near-time">${esc(t)}</span> ${where(st, via)}`
+                + `${daysLabel(days) ? ` <span class="tr-days">${esc(daysLabel(days))}</span>` : ''}`
+                + `${mark ? '<span class="sr-only"> — only in this timetable</span>' : ''}</li>`; }).join('')}</ul>`
         : '<p class="card-explainer tr-lead">No trains.</p>';
     const dayName = /** @type {Record<string, string>} */ ({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' })[day];
+    const within = `${esc(dayName)}, leaving within ${NEAR_WINDOW_MIN} minutes of ${esc(at)}`;
+    const lc = (/** @type {string} */ s) => s.charAt(0).toLowerCase() + s.slice(1);
+    if (same) {
+        return answer + noExact
+            + (near.now.length ? `<p class="card-explainer tr-lead">${within} — <strong>the same trains</strong> ${esc(lc(labels.old))} and ${esc(lc(labels.new))}:</p>`
+                : `<p class="card-explainer tr-lead">${within}:</p>`)
+            + `<div class="tr-near-cols tr-near-cols--one"><div>${list(near.now)}</div></div>`;
+    }
     return answer + noExact
-        + `<p class="card-explainer tr-lead">${esc(dayName)}, leaving within ${NEAR_WINDOW_MIN} minutes of ${esc(at)}:</p>`
-        + `<div class="tr-near-cols"><div><h3 class="tr-near-head">${esc(labels.old)}</h3>${list(near.now)}</div>`
-        + `<div><h3 class="tr-near-head">${esc(labels.new)}</h3>${list(near.dec)}</div></div>`;
+        + `<p class="card-explainer tr-lead">${within}:</p>`
+        + `<div class="tr-near-cols"><div><h3 class="tr-near-head">${esc(labels.old)}</h3>${list(near.now, onlyIn(near.now, near.dec))}</div>`
+        + `<div><h3 class="tr-near-head">${esc(labels.new)}</h3>${list(near.dec, onlyIn(near.dec, near.now))}</div></div>`;
+}
+
+/**
+ * "Last trains": every station's last train from Marylebone, before and after, for one kind of day
+ * (v24.94). One row per station in the books' order, banded by line like the grid. December's time is
+ * bold where it moved, with a chip saying by how much; "New" or "No train" where a side has none. A
+ * station whose last train keeps its time is a quiet row, so the changes are what stand out.
+ * @param {ReturnType<import('./trains-stations.js').lastTrains>} rows
+ * @param {{ stations: Readonly<Record<string, string>>, labels: { old: string, new: string },
+ *   bands?: { label: string, stations: string[] }[] }} o
+ * @returns {string}
+ */
+export function renderLastTrains(rows, { stations, labels, bands = [] }) {
+    if (!rows.length) return '<p class="card-explainer tr-lead">No trains.</p>';
+    const mins = (/** @type {number} */ m) => `${Math.abs(m)} min${Math.abs(m) === 1 ? '' : 's'}`;
+    const what = (/** @type {typeof rows[number]} */ r) => r.kind === 'new' ? '<span class="tr-chip tr-chip--new">New</span>'
+        : r.kind === 'gone' ? '<span class="tr-chip tr-chip--gone">No train</span>'
+        : r.kind === 'later' || r.kind === 'earlier' ? `<span class="tr-chip tr-chip--moved">${mins(/** @type {number} */ (r.shift))} ${r.kind}</span>` : '';
+    const bandOf = (/** @type {string} */ crs) => bands.findIndex(b => b.stations.includes(crs));
+    const banded = new Set(rows.map(r => bandOf(r.crs)).filter(i => i >= 0)).size > 1;
+    const dash = '<span class="tr-none">—</span>';
+    let lastBand = -1;
+    const body = rows.map((r) => {
+        const band = bandOf(r.crs);
+        const head = banded && band >= 0 && band !== lastBand ? `<tr class="tr-last-band"><td colspan="4">${esc(bands[band].label)}</td></tr>` : '';
+        if (band >= 0) lastBand = band;
+        const dec = !r.dec ? dash : r.kind === 'same' ? esc(r.dec) : `<strong>${esc(r.dec)}</strong>`;
+        return `${head}<tr><th scope="row">${esc(stations[r.crs] ?? r.crs)}</th><td>${r.now ? esc(r.now) : dash}</td><td>${dec}</td><td>${what(r)}</td></tr>`;
+    }).join('');
+    return `<table class="tr-last"><thead><tr><th scope="col">Station</th><th scope="col">${esc(labels.old)}</th><th scope="col">${esc(labels.new)}</th>`
+        + '<th scope="col"><span class="sr-only">What changes</span></th></tr></thead>' + `<tbody>${body}</tbody></table>`;
 }

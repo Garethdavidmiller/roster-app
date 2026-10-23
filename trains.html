@@ -58,6 +58,10 @@
         <div id="lightboxUpdateStatus" class="lightbox-status"></div>
         <div class="lightbox-badge">Trains</div>
         <a href="./" class="lightbox-bug-link"><span aria-hidden="true">📅</span> View staff roster</a>
+            <!-- The live answer this page cannot give (v24.94): the timetable says what should run, the
+                 boards say what is. Both addresses were checked on 23 Oct 2026. -->
+            <a href="https://www.nationalrail.co.uk/live-trains/departures/london-marylebone/" target="_blank" rel="noopener noreferrer" class="lightbox-bug-link"><span aria-hidden="true">🕒</span> Live departures from Marylebone</a>
+            <a href="https://www.chilternrailways.co.uk/live-train-times" target="_blank" rel="noopener noreferrer" class="lightbox-bug-link"><span aria-hidden="true">🚆</span> Chiltern live train times</a>
         <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
     </div>
 </div>
@@ -126,7 +130,7 @@
         <!-- "Where they stop" names the question a member is asked ("does the :06 stop at
              Beaconsfield?"); "Every hour" named the mechanism, and meant nothing until opened (v24.92). -->
         <div class="tr-tabs" role="group" aria-label="View">
-            <button type="button" class="tr-tab" data-view="changes" aria-pressed="true"><span class="tr-tab-icon" aria-hidden="true">🔔</span>What’s changing</button>
+            <button type="button" class="tr-tab" data-view="changes" aria-pressed="true"><span class="tr-tab-icon" aria-hidden="true">🔔</span><span id="trChangesTab">What’s changing</span></button>
             <button type="button" class="tr-tab" data-view="stations" aria-pressed="false"><span class="tr-tab-icon" aria-hidden="true">🚉</span>Stations</button>
             <button type="button" class="tr-tab" data-view="grid" aria-pressed="false"><span class="tr-tab-icon" aria-hidden="true">🕰️</span>Where they stop</button>
         </div>
@@ -176,12 +180,30 @@
                     </div>
                 </div>
             </div>
+        <!-- JUMP TO A STATION (v24.94). A desktop's right column held the lookup and nothing under it, and
+             the station PIN reads this page, so the station PC is a desktop reader: the busiest stations
+             here answer a barrier question in one click. trains.css shows it from 1024px only — on a phone
+             the Stations tab is one tap away, and a second copy of its chips would push the list down. -->
+        <div class="card" id="trJumpCard">
+            <div class="card-header card-header-toggle" id="trJumpToggleHeader">
+                <div>
+                    <h2><span aria-hidden="true">🚉</span> Jump to a station</h2>
+                    <span class="hint">The busiest first — or search on the Stations tab</span>
+                </div>
+                <div class="card-header-actions">
+                    <span class="collapse-chevron open" id="trJumpChevron">▾</span>
+                </div>
+            </div>
+            <div class="card-collapsible-body open" id="trJumpBody">
+                <div class="card-body"><div class="tr-picks" id="trJumpPicks"></div></div>
+            </div>
+        </div>
         </div>
         <div class="tr-col-main">
             <div class="card" id="trChangesCard">
                 <div class="card-header card-header-toggle" id="trChangesToggleHeader">
                     <div>
-                        <h2><span aria-hidden="true">🔔</span> What’s changing</h2>
+                        <h2><span aria-hidden="true">🔔</span> <span id="trChangesTitle">What’s changing</span></h2>
                         <span class="hint" id="trChangesHint">Trains leaving Marylebone — biggest change first</span>
                     </div>
                     <div class="card-header-actions">
@@ -231,7 +253,28 @@
                 </div>
             </div>
         </div>
-    </section>
+    
+    <!-- LAST TRAINS (v24.94). The late turn's question — "what's the last train to X tonight?" — for every
+         station at once, the way a station's own poster answers it. Collapsed: a header saying it exists
+         is what a member needs to find it, and one tap opens the whole network. The day tabs choose the
+         day; trains-app.js writes the figures from the same rule as each station card's "Last train". -->
+    <div class="card" id="trLastCard">
+        <div class="card-header card-header-toggle" id="trLastToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">🌙</span> Last trains</h2>
+                <span class="hint" id="trLastHint">The last train from Marylebone to every station</span>
+            </div>
+            <div class="card-header-actions">
+                <button type="button" class="btn-card-tips" data-card="last"
+                        aria-label="Tips for last trains">?</button>
+                <span class="collapse-chevron open" id="trLastChevron">▾</span>
+            </div>
+        </div>
+        <div class="card-collapsible-body open" id="trLastBody">
+            <div class="card-body"><div id="trLast"></div></div>
+        </div>
+    </div>
+</section>
 
     <!-- ── THE BASIC HOUR: WHERE THEY STOP ──────────────────────────────────────────────────── -->
     <section class="tr-view" id="trViewGrid" aria-label="Where they stop" hidden>

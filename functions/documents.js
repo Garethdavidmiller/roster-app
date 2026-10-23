@@ -634,6 +634,48 @@ const sendPayReminderNotification = onSchedule(
     }
 );
 
+// ============================================================================
+// sendTimetableReminder — the evening before Chiltern's timetable change (v24.94)
+// ============================================================================
+/**
+ * Runs daily at 18:00 London time and sends on ONE evening: the day before TIMETABLE_CHANGE, when
+ * every subscribed device is told that the times change from Sunday and the tap lands on the Trains
+ * page. Daily with a date guard rather than a yearly cron, so a forgotten function cannot fire on
+ * the same calendar day of some later year; the next timetable change moves the one constant.
+ * A broadcast by design — the question in .claude/rules/notifications.md ("would I be happy for all
+ * 50 staff to read this?") answers itself for a timetable every member will be asked about.
+ */
+const TIMETABLE_CHANGE = Object.freeze({ year: 2026, month: 11, day: 13 });   // Sunday 13 December 2026 (month 0-based)
+const sendTimetableReminder = onSchedule(
+    {
+        schedule:  '0 18 * * *',
+        timeZone:  'Europe/London',
+        region:    'europe-west2',
+        secrets:   [VAPID_PRIVATE_KEY],
+    },
+    async () => {
+        try {
+            const { year, month, day } = nowInLondon();
+            const eve = new Date(Date.UTC(TIMETABLE_CHANGE.year, TIMETABLE_CHANGE.month, TIMETABLE_CHANGE.day - 1));
+            if (year !== eve.getUTCFullYear() || month !== eve.getUTCMonth() || day !== eve.getUTCDate()) {
+                console.log('[timetable] Not the evening before the change — skipping');
+                return;
+            }
+            setupWebPush(VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY);
+            await fanOutPush(buildPushPayload({
+                feature: 'timetable',
+                body:    'Chiltern’s times change on 13 December. Tap to see what changes at Marylebone.',
+                baseUrl: STAFF_SITE_URL,
+                url:     `${STAFF_SITE_URL}/trains.html`,
+            }), '[timetable]');
+            console.log('[timetable] Timetable reminder sent');
+        } catch (err) {
+            console.error('[timetable] Unhandled error:', err);
+            throw err;
+        }
+    }
+);
+
     /**
      * POST /getDocumentUrl  — a SHORT-LIVED URL for the latest document of one kind.
      *
@@ -766,7 +808,7 @@ const sendPayReminderNotification = onSchedule(
         },
     );
 
-    return { ingestHuddle, getDocumentUrl, onHuddleCreated, onCircularCreated, onNewsletterCreated, sendPayReminderNotification };
+    return { ingestHuddle, getDocumentUrl, onHuddleCreated, onCircularCreated, onNewsletterCreated, sendPayReminderNotification, sendTimetableReminder };
 }
 
 module.exports = { buildDocumentEndpoints };
