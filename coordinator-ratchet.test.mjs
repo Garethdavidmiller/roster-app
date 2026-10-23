@@ -334,7 +334,19 @@ const CAPS = {
     // added here is wiring — a second way into `start`, and the member-only steps it skips. The RULE
     // (keep the PIN, shed any other stale identity, a member outranks it) went to session.js as
     // `holdsStaffPin`, where session.test.mjs holds it; measured 350, plus the standard headroom.
-    'trains-app.js':            400,
+    // 400 → 450 at v24.92, the measured UX pass, after a SPLIT: the fixed copy of the grid's column
+    // heads — DOM measuring, no coordinator state — left for trains-grid-mirror.js, and what stayed
+    // is wiring (the picker folding away, a grid column pressed, the overview folding from the
+    // second visit) whose every judgement is in trains-render.js or trains-stations.js. Measured
+    // 410 with the mirror gone — ten lines over, which is the headroom the v24.84 raise left
+    // having been spent by two releases of wiring. Measured + 50, rounded to the next 50.
+    'trains-app.js':            450,
+    // NEW at v24.92: crossed LARGE_THRESHOLD (929) when the headlines gained their lead, detail and
+    // chip and the grid its two line bands (`stationBands`). Pure and tested throughout, so the size
+    // is the domain's, not a coordinator's — but the seam is plain if it grows again: the headline
+    // builder (`headlineChanges` and `foldSameTrains`, ~230 lines) is a module of its own waiting to
+    // be cut, the same shape as trains-change.js. Measured + 50, rounded to the next 50.
+    'trains-stations.js':      1000,
     // NEW at v21.93, and the ratchet asking for a decision is exactly why it is here rather than
     // discovered later. The member form's three rules — completeness, the timed-out-submit verdict,
     // and whose write a 409 refuses — moved out of `overtime-form.js`, where they sat inside a

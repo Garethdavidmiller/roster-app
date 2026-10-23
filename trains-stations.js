@@ -243,12 +243,13 @@ export function stationView(nowRows, decRows, crs, dir) {
 }
 
 /**
- * @typedef {PairedTrain & { nowAt?: string, decAt?: string, nowIn?: string, decIn?: string, farShift?: number, atShift?: number }} StationTrain
+ * @typedef {PairedTrain & { nowAt?: string, decAt?: string, nowIn?: string, decIn?: string, farShift?: number, atShift?: number, via?: string }} StationTrain
  *   nowAt / decAt — when the passenger gets on (`boardingTime`); coming back, nowIn / decIn are the
  *   times into Marylebone, for the small print. farShift — for a train kept at this station, how far
  *   the OTHER end moved (its arrival there going out, into Marylebone coming back), so a train that
  *   leaves on time but gets in later is not called "No change". atShift — for a train whose end
- *   moved, how far its time HERE moved too
+ *   moved, how far its time HERE moved too. via — the row's Aylesbury route ('A', 'H' or ''), so a
+ *   card can tell an Amersham-line train from a via-Wycombe one (the leaf-fall rows, v24.92)
  */
 
 /**
@@ -293,7 +294,7 @@ export function stationTrains(nowRows, decRows, crs, dir) {
         const nHere = calls(n), dHere = calls(d);
         if (!nHere && !dHere) continue;
         /** @type {StationTrain} */
-        const s = { ...t };
+        const s = { ...t, via: (n ?? d)?.[2] ?? '' };
         // Gone from here. A train that still runs on past this station "no longer stops here"; one whose
         // end moved SHORT of it never reaches it, so it keeps its own words — "Will end at Birmingham
         // Moor Street", "Will run to West Ruislip" (v24.89, the 48-hour review: the page's own tip says
@@ -588,16 +589,27 @@ export function matchStations(stations, typed, n = 6, prefer = []) {
  * is folded into its line's sentence, and so is a station whose change is made of a destination's
  * own trains; a station most trains run through is compared by the trains that end there, and the
  * line says so. Only stations whose December can be answered are considered.
- * @typedef {{ kind: string, named: string, tail: string, tone: 'more'|'less'|'moved', score: number }} HeadlinePart
+ * @typedef {{ kind: string, named: string, tail: string, tone: 'more'|'less'|'moved', score: number, brief?: string, note?: string }} HeadlinePart
  *   named — the clause when it opens the sentence (it carries the station's name); tail — as a
- *   later clause, when the name has already been said
- * @typedef {{ crs: string, tone: 'more'|'less'|'moved', score: number, parts: HeadlinePart[], text: string, sig: Set<string> }} Headline
+ *   later clause, when the name has already been said; brief / note — the opening clause for the
+ *   screen (v24.92): the sentence without its figures, and the figures alone ("47, was 41")
+ * @typedef {{ crs: string, tone: 'more'|'less'|'moved', score: number, parts: HeadlinePart[], text: string, lead: string, tails: string[], route: 'new'|'gone'|null, delta: number, sig: Set<string> }} Headline
  *   sig — the trains the station's change is made of: '+' and the December train for each new one,
- *   '-' and today's for each that goes, so two stations' changes can be compared train for train
+ *   '-' and today's for each that goes, so two stations' changes can be compared train for train;
+ *   lead / tails — a headline with no parts (a new or withdrawn direct service) keeps its sentence
+ *   here, and the clauses a fold adds to it; route says which of the two it is; delta — the
+ *   station's change in trains a day, for the chip
+ *
+ * ON SCREEN A HEADLINE IS A LEAD AND ITS DETAIL (v24.92). `text` is still the whole sentence — what a
+ * test pins and a screen reader hears — but a row that was six lines of bold on a phone now opens
+ * with its one bold clause, `lead` ("6 more trains a day to Aylesbury"), and carries the figures and
+ * every further clause beneath it as `detail` ("47, was 41 · they also stop at …"). `chip` is the
+ * words for the coloured chip: the change in trains a day where there is one ("+6 a day"), which
+ * scans down a list the way seven green "More trains" did not, else the kind of change.
  * @param {TrainRow[]} nowRows   leaving Marylebone, one day
  * @param {TrainRow[]} decRows
  * @param {Readonly<Record<string, string>>} stations
- * @returns {{ crs: string, tone: 'more'|'less'|'moved', text: string, score: number }[]}
+ * @returns {{ crs: string, tone: 'more'|'less'|'moved', text: string, lead: string, detail: string, chip: string, score: number }[]}
  */
 export function headlineChanges(nowRows, decRows, stations) {
     // One real day (see the header): a train that runs Mondays and Fridays, and its Tuesday-to-
@@ -619,38 +631,45 @@ export function headlineChanges(nowRows, decRows, stations) {
         const sig = new Set(alignTimes(byTime(callingAt(eNow, crs)), byTime(callingAt(eDec, crs))).flatMap(t =>
             t.kind === 'new' ? [`+${t.dec} ${t.decTo}`] : t.kind === 'gone' ? [`-${t.now} ${t.nowTo} ${t.days}`] : []));
         if (known && !now.total && dec.total) {
-            out.push({ crs, tone: 'more', score: 100 + dec.total, parts: [], sig, text: dec.total === 1
+            out.push({ crs, tone: 'more', score: 100 + dec.total, parts: [], sig, text: '', tails: [], route: 'new', delta: dec.total, lead: dec.total === 1
                 ? `A new direct train to ${name}, the ${dec.first}` : `New direct trains to ${name}: ${dec.total} a day` });
             continue;
         }
-        if (known && now.total && !dec.total) { out.push({ crs, tone: 'less', score: 100 + now.total, parts: [], sig, text: `No more direct trains to ${name}` }); continue; }
+        if (known && now.total && !dec.total) {
+            out.push({ crs, tone: 'less', score: 100 + now.total, parts: [], sig, text: '', tails: [], route: 'gone', delta: -now.total, lead: `No more direct trains to ${name}` });
+            continue;
+        }
         /** @type {HeadlinePart[]} */
         const parts = [];
         if (hourChanged(now, dec)) {
             const more = dec.daytime > now.daytime;
             const tail = `${rateWords(dec)} in the daytime (was ${rateWords(now, { short: true })})`;
             const step = now.typical !== null && dec.typical !== null ? Math.abs(dec.typical - now.typical) : 1;
-            parts.push({ kind: 'hour', named: `${more ? 'More' : 'Fewer'} trains to ${name}: ${tail}`, tail, tone: more ? 'more' : 'less', score: 80 + step });
+            parts.push({ kind: 'hour', named: `${more ? 'More' : 'Fewer'} trains to ${name}: ${tail}`, tail, tone: more ? 'more' : 'less', score: 80 + step,
+                brief: `${more ? 'More' : 'Fewer'} trains to ${name}: ${rateWords(dec)} in the daytime`, note: `was ${rateWords(now, { short: true })}` });
         } else if (sameRegularity(now, dec) && now.minutes.join() !== dec.minutes.join()) {
             const tail = `leave at ${minutesWords(dec.minutes)} past the hour (was ${minutesWords(now.minutes)})`;
-            parts.push({ kind: 'minutes', named: `Trains to ${name} ${tail}`, tail, tone: 'moved', score: 60 });
+            parts.push({ kind: 'minutes', named: `Trains to ${name} ${tail}`, tail, tone: 'moved', score: 60,
+                brief: `Trains to ${name} leave at ${minutesWords(dec.minutes)} past the hour`, note: `was ${minutesWords(now.minutes)}` });
         }
         const gained = dec.total - now.total;
         if (Math.abs(gained) >= 2) {
             const more = gained > 0, n = Math.abs(gained);
             parts.push({ kind: 'daily', named: `${n} ${more ? 'more' : 'fewer'} trains a day to ${name} (${dec.total}, was ${now.total})`,
-                tail: `${n} ${more ? 'more' : 'fewer'} a day (${dec.total}, was ${now.total})`, tone: more ? 'more' : 'less', score: 40 + n });
+                tail: `${n} ${more ? 'more' : 'fewer'} a day (${dec.total}, was ${now.total})`, tone: more ? 'more' : 'less', score: 40 + n,
+                brief: `${n} ${more ? 'more' : 'fewer'} trains a day to ${name}`, note: `${dec.total}, was ${now.total}` });
         }
         if (now.last && dec.last && Math.abs(serviceMinutes(dec.last) - serviceMinutes(now.last)) >= 10) {
             // Never "now": read before the change, "Last train to Hatton now 21:02" named a train that
             // does not stop there yet (v24.83). Later/earlier says which way, true on either side of it.
             const later = serviceMinutes(dec.last) > serviceMinutes(now.last) ? 'Later' : 'Earlier';
-            parts.push({ kind: 'last', named: `${later} last train to ${name}: ${dec.last} (was ${now.last})`, tail: `${later.toLowerCase()} last train, ${dec.last} (was ${now.last})`, tone: 'moved', score: 30 });
+            parts.push({ kind: 'last', named: `${later} last train to ${name}: ${dec.last} (was ${now.last})`, tail: `${later.toLowerCase()} last train, ${dec.last} (was ${now.last})`, tone: 'moved', score: 30,
+                brief: `${later} last train to ${name}: ${dec.last}`, note: `was ${now.last}` });
         }
         if (!parts.length) continue;
         parts.sort((a, b) => b.score - a.score);
         if (!known) parts.push({ kind: 'ending', named: '', tail: 'counting only the trains that end there', tone: 'moved', score: 0 });
-        out.push({ crs, tone: parts[0].tone, score: parts[0].score, parts, sig, text: '' });
+        out.push({ crs, tone: parts[0].tone, score: parts[0].score, parts, sig, text: '', lead: '', tails: [], route: null, delta: gained });
     }
     // A station a line runs ON to (Snow Hill, Stourbridge, the Parkway) is part of its line's story,
     // not a second one: "3 more trains a day to Snow Hill" are three of Moor Street's own new trains,
@@ -674,13 +693,60 @@ export function headlineChanges(nowRows, decRows, stations) {
             if (parent.parts.length) {
                 const at = parent.parts.findIndex(p => p.kind === 'daily');
                 parent.parts.splice(at === -1 ? parent.parts.length : at + 1, 0, { kind: 'onward', named: '', tail, tone: 'moved', score: 0 });
-            } else parent.text += `; ${tail}`;
+            } else parent.tails.push(tail);
         }
         out.splice(out.indexOf(h), 1);
     }
     foldSameTrains(out, nowRows, decRows, stations);
-    for (const h of out) if (h.parts.length) h.text = h.parts[0].named + h.parts.slice(1).map(p => `; ${p.tail}`).join('');
-    return out.sort((a, b) => b.score - a.score || a.text.localeCompare(b.text)).map(({ crs, tone, text, score }) => ({ crs, tone, text, score }));
+    for (const h of out) {
+        if (h.parts.length) {
+            h.text = h.parts[0].named + h.parts.slice(1).map(p => `; ${p.tail}`).join('');
+            h.lead = h.parts[0].brief ?? h.parts[0].named;
+            h.tails = [...(h.parts[0].note ? [h.parts[0].note] : []), ...h.parts.slice(1).map(p => p.tail)];
+        } else h.text = h.lead + h.tails.map(t => `; ${t}`).join('');
+    }
+    return out.sort((a, b) => b.score - a.score || a.text.localeCompare(b.text))
+        .map(({ crs, tone, text, lead, tails, route, delta, score }) => ({ crs, tone, text, lead, detail: tails.join(' · '), chip: headlineChip(tone, route, delta), score }));
+}
+
+/**
+ * The words on a headline's chip (v24.92). A new or withdrawn direct service is named as such — its
+ * count is the whole service; a line about times moving says so; otherwise the change in trains a
+ * day, signed, and the kind of change only when the count did not move.
+ * @param {'more'|'less'|'moved'} tone
+ * @param {'new'|'gone'|null} route
+ * @param {number} delta
+ * @returns {string}
+ */
+function headlineChip(tone, route, delta) {
+    if (route === 'new') return 'New route';
+    if (route === 'gone') return 'No direct trains';
+    if (tone === 'moved') return 'Times move';
+    if (delta) return `${delta > 0 ? '+' : '−'}${Math.abs(delta)} a day`;
+    return tone === 'less' ? 'Fewer trains' : 'More trains';
+}
+
+/**
+ * The grid's rows in two bands, as Chiltern's two books divide them (v24.92): the main line, and
+ * the Aylesbury line via Amersham — the stations only its trains call at, which `STATION_ORDER`
+ * prints last. Found from the rows, never typed: a station is Amersham's when every train calling
+ * there is an Amersham-line train — Aylesbury via Amersham (route 'A'), or one that runs on past
+ * Aylesbury along that line (`LINES`: the Parkway trains carry no route code of their own) — and
+ * its band is the order from the first such station on (Aylesbury itself, reached both ways, sits
+ * in that band as the books place it). One band when the rows hold no such station — hand-made
+ * tables, or a day with no Amersham trains — and the grid then draws no band rows at all.
+ * @param {TrainRow[]} rows   every row the page holds, both timetables, both directions
+ * @param {readonly string[]} [order]
+ * @returns {{ label: string, stations: string[] }[]}
+ */
+export function stationBands(rows, order = STATION_ORDER) {
+    const amersham = (/** @type {TrainRow} */ r) => r[2] === 'A' || (r[1] !== 'AYS' && lineOf(r[1])?.via === 'A');
+    /** @type {Map<string, boolean>} */
+    const onlyA = new Map();
+    for (const r of rows) for (const c of callsOf(r)) onlyA.set(c, (onlyA.get(c) ?? true) && amersham(r));
+    const at = order.findIndex(c => onlyA.get(c) === true);
+    if (at === -1) return [{ label: 'Main line', stations: [...order] }];
+    return [{ label: 'Main line', stations: order.slice(0, at) }, { label: 'Aylesbury via Amersham', stations: order.slice(at) }];
 }
 
 /**
@@ -747,7 +813,7 @@ function foldSameTrains(out, nowRows, decRows, stations) {
             // Straight after the count it qualifies, before a line's onward clause: "they" is that count's trains.
             const daily = y.parts.findIndex(p => p.kind === 'daily');
             y.parts.splice(daily === -1 ? 1 : daily + 1, 0, ...clauses.map(tail => /** @type {HeadlinePart} */ ({ kind: 'also', named: '', tail, tone: 'moved', score: 0 })));
-        } else y.text += clauses.map(c => `; ${c}`).join('');
+        } else y.tails.push(...clauses);
     }
     for (const h of host.keys()) out.splice(out.indexOf(h), 1);
 }

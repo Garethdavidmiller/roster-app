@@ -3,7 +3,7 @@
  * trains-app.js — coordinator for trains.html: what changes at Marylebone on 13 December 2026.
  *
  * Owns: the access gate, the session wiring, and which view is on screen — the day, the question
- * (what's changing / a station / the basic hour) and the chosen station. Every judgement about the
+ * (what's changing / a station / where they stop) and the chosen station. Every judgement about the
  * timetables is `trains-change.js` and `trains-stations.js`; every word of HTML is `trains-render.js`;
  * the timetables themselves are the generated `trains-data.js`. Nothing here reads the network: once
  * opened, the page works offline.
@@ -27,6 +27,18 @@
  * customer is going to, answers in a sentence before it shows a table, and keeps the basic hour as
  * one picture, because that is the thing worth memorising (owner brief, 7 Oct 2026).
  *
+ * ── OPEN ON THE ANSWERS (v24.92) ───────────────────────────────────────────────────────────────
+ *
+ * Measured on a Pixel 5 (393×727) before this release: the first headline began at 589px, under
+ * 318px of overview prose and two rows of controls; a tap on a headline landed the answer at 421px,
+ * under 266px of search box and station chips; the time lookup — the one thing needed with a
+ * customer waiting — sat at 1,450px. So the overview opens collapsed from the second visit
+ * (`OVERVIEW_SEEN_KEY`; its header says everything it still needs to, and the one caveat a member
+ * must not miss moved to a line beneath the tabs), the station picker folds away once a station is
+ * chosen (`pickerOpen`), and the lookup comes first — collapsed on a phone, so the list is still the
+ * first thing read, and opening it puts the cursor in the box. The grid gained a column tap that
+ * shows one train's stops alone (`gridCol`) and a fixed copy of its column heads (trains-grid-mirror.js).
+ *
  * ── ON AND AFTER THE CHANGE ─────────────────────────────────────────────────────────────────────
  *
  * The page does not stop at 13 December. `timetablePhase` (trains-change.js) decides, from the clock,
@@ -39,6 +51,7 @@
  */
 
 import { CONFIG } from './roster-data.js';
+import { lsGet, lsSet } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcileExpiredIdentity, holdsStaffPin, signOutStaffPin } from './session.js';
@@ -56,8 +69,9 @@ import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
 import { CARD_TIPS } from './trains-tips.js';
 import { parseTypedTime, daysUntil, timetablePhase, dateWords } from './trains-change.js';
-import { stationView, busiestStations, matchStations, headlineChanges, stoppingGrid, stopsKnown } from './trains-stations.js';
+import { stationView, busiestStations, matchStations, headlineChanges, stoppingGrid, stopsKnown, stationBands } from './trains-stations.js';
 import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml, renderTotals, renderPicks, DAYTIME } from './trains-render.js';
+import { syncGridMirror } from './trains-grid-mirror.js';
 
 /** @typedef {'SX'|'SO'|'SU'} Day */
 /** @typedef {'dep'|'arr'} Dir */
@@ -71,6 +85,8 @@ import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml,
  * @property {'now'|'dec'} grid      which basic hour the grid shows
  * @property {boolean} allHeads      the changes list expanded
  * @property {boolean} allTrains     a station's unchanged trains shown too
+ * @property {boolean} pickerOpen    the station search and chips are on screen (always, until a station is chosen)
+ * @property {number|null} gridCol   the grid column whose stops alone are shown
  */
 
 const DAY_NAMES = /** @type {Record<Day, string>} */ ({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' });
@@ -78,6 +94,10 @@ const DAY_NAMES = /** @type {Record<Day, string>} */ ({ SX: 'Weekdays', SO: 'Sat
 const DEC_STOPS_KNOWN = Object.values(TIMETABLES.dec).every(d => d.dep.every(stopsKnown) && d.arr.every(stopsKnown));
 /** Where the page is in the timetable's life, read fresh each render (see the header). */
 const phase = () => timetablePhase(new Date(), { change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL });
+/** Set once the overview card has been on screen on this device: it opens collapsed from then on (v24.92). */
+const OVERVIEW_SEEN_KEY = 'myb_trains_overview_seen';
+/** The grid's two bands — the books' two lines — found from every row the page holds (trains-stations.js, `stationBands`). */
+const BANDS = stationBands(Object.values(TIMETABLES).flatMap(t => Object.values(t).flatMap(d => [...d.dep, ...d.arr])));
 
 /** Coordinator body, invoked by trains-boot.js. Exported so a test can import without running. */
 export function init() {
@@ -141,14 +161,25 @@ function start(member) {
     openAboutLightbox = initAboutLightbox();
 
     initTipsLightbox(CARD_TIPS, { getIsAdmin: () => isAdmin });
-    for (const id of ['trOverview', 'trChanges', 'trLookup', 'trStations', 'trPattern']) {
-        initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`);
-    }
+    const cards = Object.fromEntries(['trOverview', 'trChanges', 'trLookup', 'trStations', 'trPattern'].map(id => [id,
+        // Opening the lookup — by its chevron or its header — puts the cursor in the box: that is what
+        // a member opened it to do. `setOpen` runs the same callback, but only ever with `false` here.
+        initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`, id === 'trLookup' ? (/** @type {boolean} */ open) => { if (open) el('trLookupInput')?.focus(); } : undefined)]));
+    // OPEN ON THE ANSWERS (the header). The overview is read once; from the next visit its header —
+    // title, hint and the countdown chip — says everything it needs to, and the card opens collapsed.
+    // Except when both timetables have ended: then its one message IS the card's, and must be seen.
+    if (lsGet(OVERVIEW_SEEN_KEY) && phase().phase !== 'ended') cards.trOverview.setOpen(false);
+    lsSet(OVERVIEW_SEEN_KEY, '1');
+    // On a phone the lookup sits above the changes list and starts collapsed: its header says what it
+    // is for, the list stays the first thing read, and the box is one tap away rather than two
+    // screens. A desktop has the room, and keeps it open in its own column.
+    if (window.matchMedia('(max-width: 1023px)').matches) cards.trLookup.setOpen(false);
 
     // Open on today's kind of day — what a member is most likely to be asked about.
     const dow = new Date().getDay();
     /** @type {PageState} */
-    const state = { day: dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX', view: 'changes', station: null, sdir: 'dep', grid: DEC_STOPS_KNOWN ? 'dec' : 'now', allHeads: false, allTrains: false };
+    const state = { day: dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX', view: 'changes', station: null, sdir: 'dep', grid: DEC_STOPS_KNOWN ? 'dec' : 'now',
+        allHeads: false, allTrains: false, pickerOpen: true, gridCol: null };
     // The grid opens on TODAY until December's stops exist: a December grid of end stations alone read
     // as a broken page, and it was the first thing the tab showed (owner, 7 Oct 2026).
 
@@ -225,8 +256,11 @@ function render(state) {
     } else {
         // The day is named in the subtitle because the day tabs do not print (v24.83).
         setText('trPatternHint', `${DAY_NAMES[state.day]}: the trains that leave at the same minutes in most hours from ${DAYTIME}, and where each one stops`);
-        setHTML(el('trPattern'), renderGrid(stoppingGrid(day.dep), stoppingGrid(dec.dep), state.grid, STATIONS));
+        setHTML(el('trPattern'), renderGrid(stoppingGrid(day.dep), stoppingGrid(dec.dep), state.grid, STATIONS, { focus: state.gridCol, bands: BANDS }));
     }
+    // The fixed copy of the grid's column heads: rebuilt from whatever the grid now is — including
+    // nothing, when another view is on screen (trains-grid-mirror.js).
+    syncGridMirror(el('trPattern'));
 }
 
 /** The station chips alone — what typing in the station box changes. @param {PageState} state */
@@ -246,6 +280,13 @@ function renderStationCard(state) {
     // which the day tabs cannot say on paper.
     setText('trStationHint', !name ? 'Where is the customer going, or coming back from?'
         : `${DAY_NAMES[state.day]} · ${state.sdir === 'dep' ? `London Marylebone → ${name}` : `${name} → London Marylebone`}`);
+    // The search box and the chips are for FINDING a station; under a chosen one they fold away, and
+    // "Change station" stands in their place (v24.92 — the answer sat 266px below the station's name).
+    const folded = !!state.station && !state.pickerOpen;
+    const picker = el('trStationPicker');
+    if (picker) picker.hidden = folded;
+    const change = el('trStationChange');
+    if (change) change.hidden = !folded;
     const dirs = el('trStationDir');
     if (dirs) dirs.hidden = !state.station;
     if (!state.station) { setHTML(el('trStation'), '<p class="card-explainer tr-lead">Pick a station above, or start typing its name.</p>'); return; }
@@ -276,28 +317,44 @@ function renderLookup(state) {
 function wire(state) {
     let pushed = false;     // a station opened from the changes list has a Back entry (Android Back returns to the list)
     el('trainsMain')?.addEventListener('click', (e) => {
-        const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('button[data-day],button[data-view],button[data-sdir],button[data-grid],button[data-station],#trHeadsMore,#trAllTrains'));
+        const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest(
+            'button[data-day],button[data-view],button[data-sdir],button[data-grid],button[data-station],button[data-col],#trHeadsMore,#trAllTrains,#trGridAll,#trStationChange'));
         if (!b) return;
         const was = state.view, scope = b.parentElement?.closest('[id]')?.id ?? '';
-        if (b.dataset.day) state.day = /** @type {Day} */ (b.dataset.day);
+        // A column index names a train of one day's grid, so another day or the other timetable lets it go.
+        if (b.dataset.day) { state.day = /** @type {Day} */ (b.dataset.day); state.gridCol = null; }
         if (b.dataset.view) state.view = /** @type {View} */ (b.dataset.view);
         if (b.dataset.sdir) state.sdir = /** @type {Dir} */ (b.dataset.sdir);
-        if (b.dataset.grid) state.grid = /** @type {'now'|'dec'} */ (b.dataset.grid);
+        if (b.dataset.grid) { state.grid = /** @type {'now'|'dec'} */ (b.dataset.grid); state.gridCol = null; }
+        if (b.dataset.col) { const i = Number(b.dataset.col); state.gridCol = state.gridCol === i ? null : i; }
+        if (b.id === 'trGridAll') state.gridCol = null;
         if (b.id === 'trHeadsMore') state.allHeads = true;
         if (b.id === 'trAllTrains') state.allTrains = true;
+        if (b.id === 'trStationChange') {
+            // Back to finding a station, from the start: the last search would otherwise still be
+            // filtering the chips to the station already on screen.
+            state.pickerOpen = true;
+            const box = /** @type {HTMLInputElement|null} */ (el('trStationInput'));
+            if (box) box.value = '';
+        }
         if (b.dataset.station) {
             // A change in the list opens its station — the next question is always "and what else?" —
             // going there, whichever way the card last faced.
             state.station = b.dataset.station;
             state.allTrains = false;
+            state.pickerOpen = false;
             state.view = 'stations';
             if (was !== 'stations') { state.sdir = 'dep'; history.pushState({ trains: 'station' }, ''); pushed = true; }
         }
         if (pushed && was === 'stations' && state.view !== 'stations') { pushed = false; history.back(); }
         render(state);
-        if (b.dataset.station && was !== 'stations') {
-            el('trViewStations')?.scrollIntoView({ block: 'nearest' });
+        if (b.dataset.station) {
+            // The chip pressed has folded away with the picker, so focus goes to the station's name —
+            // the answer to what was pressed — and the card comes into view when the list was on screen.
+            if (was !== 'stations') el('trViewStations')?.scrollIntoView({ block: 'nearest' });
             el('trStationTitle')?.focus();
+        } else if (b.id === 'trStationChange') {
+            el('trStationInput')?.focus();
         } else refocus(b, scope);
     });
     window.addEventListener('popstate', (e) => {
@@ -324,10 +381,11 @@ function wire(state) {
  */
 function refocus(b, scope) {
     if (b.isConnected && document.activeElement === b) return;
-    const sel = ['day', 'view', 'sdir', 'grid', 'station'].map(k => b.dataset[k] ? `[data-${k}="${b.dataset[k]}"]` : '').find(Boolean);
+    const sel = ['day', 'view', 'sdir', 'grid', 'station', 'col'].map(k => b.dataset[k] ? `[data-${k}="${b.dataset[k]}"]` : '').find(Boolean);
     const next = /** @type {HTMLElement|null} */ (sel ? el(scope)?.querySelector(sel) ?? null
         : b.id === 'trHeadsMore' ? document.querySelectorAll('#trChanges .tr-head')[5] ?? null
-        : b.id === 'trAllTrains' ? document.querySelector('#trStation .tr-route-sum') : null);
+        : b.id === 'trAllTrains' ? document.querySelector('#trStation .tr-route-sum')
+        : b.id === 'trGridAll' ? document.querySelector('#trPattern .tr-grid-wrap') : null);
     next?.focus();
 }
 

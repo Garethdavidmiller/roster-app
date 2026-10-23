@@ -40,7 +40,16 @@ const dot = (kind, words) => `<span class="tr-dot${kind ? ` tr-dot--${kind}` : '
 
 /**
  * The ranked changes list.
- * @param {{ crs: string, tone: string, text: string }[]} items
+ *
+ * A ROW IS A LEAD AND ITS DETAIL (v24.92). Every word of every row was bold and the chip said "More
+ * trains" on seven rows of eight, so nothing stood out and the Aylesbury row ran to six lines on a
+ * phone. Now the one clause a colleague repeats is the bold line, the figures and every further
+ * clause sit beneath it in smaller, quieter type, and the chip carries the number ("+6 a day") or
+ * the exception ("New route", "Times move") — trains-stations.js writes all three. NOTHING IS
+ * CLIPPED: the stations a new train also calls at are said in that detail and nowhere else on the
+ * page, so a two-line clamp would have hidden a fact rather than depth.
+ * @param {{ crs: string, tone: string, text: string, lead?: string, detail?: string, chip?: string }[]} items
+ *   lead / detail / chip as `headlineChanges` returns them; a bare `text` renders as the lead alone
  * @param {{ showAll: boolean, partial: boolean }} opts  partial: December's stops are not in yet
  * @returns {string}
  */
@@ -50,8 +59,10 @@ export function renderHeadlines(items, { showAll, partial }) {
     const word = /** @type {Record<string, string>} */ ({ more: 'More trains', less: 'Fewer trains', moved: 'Times move' });
     const list = shown.length
         ? `<ul class="tr-heads">${shown.map(h => `<li><button type="button" class="tr-head" data-station="${esc(h.crs)}">`
-            + `<span class="tr-chip tr-chip--${h.tone === 'more' ? 'new' : h.tone === 'less' ? 'gone' : 'moved'}">${esc(word[h.tone] ?? '')}</span>`
-            + `<span class="tr-head-text">${esc(h.text)}</span><span class="tr-head-go" aria-hidden="true">›</span></button></li>`).join('')}</ul>`
+            + `<span class="tr-chip tr-chip--${h.tone === 'more' ? 'new' : h.tone === 'less' ? 'gone' : 'moved'}">${esc(h.chip ?? word[h.tone] ?? '')}</span>`
+            + `<span class="tr-head-text"><span class="tr-head-lead">${esc(h.lead ?? h.text)}</span>`
+            + (h.detail ? `<span class="tr-head-detail">${esc(h.detail)}</span>` : '')
+            + `</span><span class="tr-head-go" aria-hidden="true">›</span></button></li>`).join('')}</ul>`
         : '<p class="card-explainer tr-lead">No big changes found for this day.</p>';
     // "Show all 10 changes" read as the whole list, when every retimed train is on a station's card
     // instead (v24.83): say how many more LINES, and where the small changes are.
@@ -156,11 +167,21 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
     const same = trains.length - changed.length;
     const shown = allTrains ? trains : changed;
     const CHIP = /** @type {Record<string, string>} */ ({ earlier: 'moved', later: 'moved', terminus: 'rerouted', passes: 'gone', calls: 'new' });
+    // Coming back on a leaf-fall line, a December time LATER by no more than the leaf-fall minutes may
+    // be the season rather than the timetable — the note above the list says so — and nine of
+    // Aylesbury's 42 rows coming back wore an amber chip for a shift of 3 minutes or less, among the
+    // new trains and reroutes. Those rows read as quiet text that says why, and the tally counts
+    // them, so the chips left on the list are the changes worth finding (v24.92; measured).
+    // Never for a train via High Wycombe: leaf fall is the Amersham line's, and Aylesbury's card holds both.
+    const mayBeLeaf = (/** @type {import('./trains-stations.js').StationTrain} */ t) =>
+        !!leafFall && !leaving && t.kind === 'later' && (t.shift ?? 0) <= leafFall.minutes && t.via !== 'H';
+    const leafy = changed.filter(mayBeLeaf).length;
     const rowsHtml = shown.map((t) => {
         const s = /** @type {import('./trains-stations.js').StationTrain} */ (t);
         // A train whose end moves is styled as a route change; one that stops or starts calling here
         // as a train lost or gained, because to this station that is what it is.
-        const chip = CHIP[s.kind] ?? s.kind;
+        const quiet = mayBeLeaf(s);
+        const chip = quiet ? 'same' : CHIP[s.kind] ?? s.kind;
         const end = (/** @type {string|undefined} */ to) => {
             const words = endWords(to, view.crs, stations, leaving);
             return words ? `<span class="tr-days">${esc(words)}</span>` : '';
@@ -170,12 +191,13 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
         const nowT = s.nowAt ?? s.now, decT = s.decAt ?? s.dec;
         return `<tr class="tr-row tr-row--${chip}"><td>${nowT ? esc(nowT) : none}${days ? small(days) : ''}${nowT ? end(s.nowTo) : ''}${!leaving && s.nowIn ? small(`in ${s.nowIn}`) : ''}</td>`
             + `<td>${decT ? esc(decT) : none}${decT ? end(s.decTo) : ''}${!leaving && s.decIn ? small(`in ${s.decIn}`) : ''}</td>`
-            + `<td><span class="tr-chip tr-chip--${chip}">${esc(changeLabel(s, stations, dir, { started, withTime: false }))}</span></td></tr>`;
+            + `<td><span class="tr-chip tr-chip--${chip}">${esc(changeLabel(s, stations, dir, { started, withTime: false }) + (quiet ? ' · may be leaf fall' : ''))}</span></td></tr>`;
     }).join('');
     // Never "0 stay the same": Amersham coming back read "38 change, 0 stay the same" (v24.83).
-    const tally = changed.length && !same ? (changed.length === 1 ? 'Its one train changes' : `All ${changed.length} change`)
+    const tally = (changed.length && !same ? (changed.length === 1 ? 'Its one train changes' : `All ${changed.length} change`)
         : changed.length ? `${changed.length} change${changed.length === 1 ? 's' : ''}, ${same} stay${same === 1 ? 's' : ''} the same`
-        : same === 1 ? 'Its one train stays the same' : `All ${same} stay the same`;
+        : same === 1 ? 'Its one train stays the same' : `All ${same} stay the same`)
+        + (leafFall && leafy ? ` · ${leafy} of them by ${leafFall.minutes} minute${leafFall.minutes === 1 ? '' : 's'} or less, which may be leaf fall` : '');
     const list = shown.length
         ? `<table class="tr-trains"><thead><tr><th scope="col">${esc(labels.old)}</th><th scope="col">${esc(labels.new)}</th><th scope="col">What changes</th></tr></thead>`
             + `<tbody>${rowsHtml}</tbody></table>`
@@ -194,48 +216,75 @@ export function renderStation(view, { stations, dir, showTrains, allTrains = fal
  * do, and "4 of 6 hours" under a minute that does not run every hour. In the December view, a column
  * paired with today's marks a stop it gains (ring) and one it loses (hollow), each with words for a
  * screen reader.
+ *
+ * ONE TRAIN AT A TIME, AND THE TWO LINES NAMED (v24.92). On a phone the grid is 39 rows and four of
+ * its seven columns, read two ways at once. Each column head is a button: pressed, the grid shows
+ * only the stations that train stops at (and, in December's view, any it stopped at and no longer
+ * does), so "does the :06 stop at Beaconsfield?" is answered down one short column. And the rows
+ * are banded as the books divide them — the main line, then Aylesbury via Amersham — so the empty
+ * region where one line's dots end reads as structure, not as a gap. Nothing is faded: the other
+ * columns are left out, never dimmed (css-tokens.md → opacity on a group).
  * @param {ReturnType<typeof import('./trains-stations.js').stoppingGrid>} nowGrid
  * @param {ReturnType<typeof import('./trains-stations.js').stoppingGrid>} decGrid
  * @param {'now'|'dec'} mode
  * @param {Readonly<Record<string, string>>} stations
+ * @param {{ focus?: number|null, bands?: { label: string, stations: string[] }[] }} [opts]
+ *   focus — the index of the one column to show the stops of; bands — the row bands
+ *   (trains-stations.js, `stationBands`); band rows are drawn only when more than one band has rows
  * @returns {string}
  */
-export function renderGrid(nowGrid, decGrid, mode, stations) {
+export function renderGrid(nowGrid, decGrid, mode, stations, { focus = null, bands = [] } = {}) {
     const grid = mode === 'now' ? nowGrid : decGrid;
     if (!grid.columns.length) return '<p class="card-explainer tr-lead">No train leaves at the same minute in most daytime hours on this day.</p>';
     const paired = mode === 'dec' ? pairColumns(nowGrid.columns, decGrid.columns) : [];
+    const col = focus !== null && focus >= 0 && focus < grid.columns.length ? focus : null;
+    /** 'all', 'some' (only some of the column's hours stop there) or '' (none). */
+    const stopsAt = (/** @type {{ calls: string[], some?: string[] }} */ c, /** @type {string} */ crs) =>
+        !c.calls.includes(crs) ? '' : c.some?.includes(crs) ? 'some' : 'all';
     // December keeps today's row order, so flipping the toggle moves dots and never rows. A row is
     // shown when a December train stops there, or when a train it can be compared with stopped there
     // and no longer does — never for a column whose December stops are still unknown.
     const want = new Set(mode === 'dec'
         ? [...grid.stations, ...paired.flatMap((p, i) => p && grid.columns[i].known ? p.calls : [])]
         : grid.stations);
-    const rowsOrder = orderStations([nowGrid.stations, grid.stations]).filter(s => want.has(s));
-    const head = '<tr><th scope="col" class="tr-grid-st">Station</th>' + grid.columns.map(c =>
-        `<th scope="col"><span class="tr-grid-min">:${String(c.minute).padStart(2, '0')}</span>`
+    // With one column chosen, only the rows it has something to say about.
+    const inFocus = (/** @type {string} */ crs) => col === null || !!stopsAt(grid.columns[col], crs)
+        || (mode === 'dec' && grid.columns[col].known && !!paired[col] && !!stopsAt(/** @type {any} */ (paired[col]), crs));
+    const rowsOrder = orderStations([nowGrid.stations, grid.stations]).filter(s => want.has(s) && inFocus(s));
+    const on = (/** @type {number} */ i) => col === i ? ' class="tr-col-on"' : '';
+    const head = '<tr><th scope="col" class="tr-grid-st">Station</th>' + grid.columns.map((c, i) =>
+        `<th scope="col"${on(i)}><button type="button" class="tr-grid-colbtn" data-col="${i}" aria-pressed="${col === i}">`
+        + `<span class="tr-grid-min">:${String(c.minute).padStart(2, '0')}</span>`
         + `<span class="tr-grid-end">${esc(SHORT[c.end] ?? stations[c.end] ?? c.end)}</span>`
         // Two Aylesbury columns look alike until the route is named; the dots below agree with it.
         + (c.via === 'H' ? '<span class="tr-grid-via">via Wycombe</span>' : c.via === 'A' ? '<span class="tr-grid-via">via Amersham</span>' : '')
         + (c.hours < c.of ? `<span class="tr-grid-via">${c.hours} of ${c.of} hours</span>` : '')
-        + '</th>').join('') + '</tr>';
+        + `<span class="sr-only">${col === i ? ', showing only its stops' : ', show only its stops'}</span></button></th>`).join('') + '</tr>';
     const origin = '<tr class="tr-grid-origin"><th scope="row" class="tr-grid-st">London Marylebone</th>'
-        + grid.columns.map(() => `<td>${dot('', 'stops')}</td>`).join('') + '</tr>';
-    /** 'all', 'some' (only some of the column's hours stop there) or '' (none). */
-    const stopsAt = (/** @type {{ calls: string[], some?: string[] }} */ c, /** @type {string} */ crs) =>
-        !c.calls.includes(crs) ? '' : c.some?.includes(crs) ? 'some' : 'all';
-    const body = rowsOrder.map(crs => `<tr><th scope="row" class="tr-grid-st">${esc(stations[crs] ?? crs)}</th>`
+        + grid.columns.map((_, i) => `<td${on(i)}>${dot('', 'stops')}</td>`).join('') + '</tr>';
+    const bandOf = (/** @type {string} */ crs) => bands.findIndex(b => b.stations.includes(crs));
+    const banded = new Set(rowsOrder.map(bandOf).filter(i => i >= 0)).size > 1;
+    let lastBand = -1;
+    const body = rowsOrder.map((crs) => {
+        const b = bandOf(crs);
+        const band = banded && b >= 0 && b !== lastBand
+            ? `<tr class="tr-grid-band"><td colspan="${grid.columns.length + 1}">${esc(bands[b].label)}</td></tr>` : '';
+        if (b >= 0) lastBand = b;
+        return band + `<tr><th scope="row" class="tr-grid-st">${esc(stations[crs] ?? crs)}</th>`
         + grid.columns.map((c, i) => {
+            const td = (/** @type {string} */ inner) => `<td${on(i)}>${inner}</td>`;
             const here = stopsAt(c, crs);
             const before = paired[i];
             if (mode === 'dec' && c.known && before) {
                 const was = stopsAt(before, crs);
-                if (here && !was) return `<td>${dot('new', here === 'some' ? 'new stop, some hours' : 'new stop')}</td>`;
-                if (!here && was) return `<td>${dot('lost', 'no longer stops')}</td>`;
-                if (here === 'all' && was === 'some') return `<td>${dot('', 'stops, now every hour')}</td>`;
-                if (here === 'some' && was === 'all') return `<td>${dot('some', 'stops in some hours only, was every hour')}</td>`;
+                if (here && !was) return td(dot('new', here === 'some' ? 'new stop, some hours' : 'new stop'));
+                if (!here && was) return td(dot('lost', 'no longer stops'));
+                if (here === 'all' && was === 'some') return td(dot('', 'stops, now every hour'));
+                if (here === 'some' && was === 'all') return td(dot('some', 'stops in some hours only, was every hour'));
             }
-            return here === 'some' ? `<td>${dot('some', 'stops in some hours')}</td>` : here ? `<td>${dot('', 'stops')}</td>` : '<td></td>';
-        }).join('') + '</tr>').join('');
+            return here === 'some' ? td(dot('some', 'stops in some hours')) : here ? td(dot('', 'stops')) : td('');
+        }).join('') + '</tr>';
+    }).join('');
     const unknown = mode === 'dec' && grid.columns.some(c => !c.known)
         ? '<p class="card-explainer tr-note">December’s stops are not published yet, so for now each December column shows only where that train ends.</p>'
         : '';
@@ -248,7 +297,14 @@ export function renderGrid(nowGrid, decGrid, mode, stations) {
             + (compared ? keyItem('new', 'new stop') + keyItem('lost', 'no longer stops') : '') + '</ul>'
         : '';
     const swipe = grid.columns.length > 4 ? '<p class="tr-grid-swipe touch-only">Swipe the table sideways for more trains.</p>' : '';
-    return unknown + key + swipe + `<div class="tr-grid-wrap" tabindex="0" role="region" aria-label="Every hour — scrolls sideways"><table class="tr-grid"><thead>${head}</thead><tbody>${origin}${body}</tbody></table></div>`;
+    // What the chosen column is, in words — and the way back. Discovery does not depend on the
+    // buttons being found: when none is chosen, one line says what they do.
+    const c = col === null ? null : grid.columns[col];
+    const focusLine = c
+        ? `<p class="tr-grid-focus">Only where the <strong>:${String(c.minute).padStart(2, '0')} to ${esc(routeName(stations, c.end, c.via))}</strong> stops. `
+            + '<button type="button" class="tr-more" id="trGridAll">Show every station</button></p>'
+        : '<p class="card-explainer tr-note tr-grid-tip">Tap a time at the top to show only where that train stops.</p>';
+    return unknown + key + focusLine + swipe + `<div class="tr-grid-wrap" tabindex="0" role="region" aria-label="Where they stop — scrolls sideways"><table class="tr-grid"><thead>${head}</thead><tbody>${origin}${body}</tbody></table></div>`;
 }
 
 /** @typedef {import('./trains-change.js').TrainRow} TrainRow */

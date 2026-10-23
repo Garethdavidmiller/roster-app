@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import {
     parseStops, stopsKnown, callsOf, lineOf, callingAt, knowableWithoutStops, decemberKnown, summarise,
     stationView, verdictFor, minutesWords, hourWords, hourNote, rateWords, busiestStations, matchStations, headlineChanges, stoppingGrid, orderStations, pairColumns,
-    aRealDay, boardingTime, stationTrains, stopChanges,
+    aRealDay, boardingTime, stationTrains, stopChanges, stationBands,
 } from './trains-stations.js';
 import { renderHeadlines, renderStation, renderGrid, endWords, renderLookup, renderTotals } from './trains-render.js';
 import { changeLabel } from './trains-change.js';
@@ -708,5 +708,101 @@ describe('the station card\'s own cells (v24.83)', () => {
         const html = renderStation(stationView(TIMETABLES.now.SX.arr, TIMETABLES.dec.SX.arr, 'AYS', 'arr'), { stations: odd, dir: 'arr', showTrains: true, allTrains: true });
         assert.doesNotMatch(html, /<b>Aylesbury<\/b>/);
         assert.match(html, /&lt;b&gt;Aylesbury&lt;\/b&gt;/);
+    });
+});
+
+describe('the UX pass (v24.92): leads and chips, the two lines, one train at a time, quiet leaf-fall rows', () => {
+    const everyRow = Object.values(TIMETABLES).flatMap(t => Object.values(t).flatMap(d => [...d.dep, ...d.arr]));
+
+    test('a headline is a lead, its detail and a chip — and its text is still the whole sentence', () => {
+        const sx = headlineChanges(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, STATIONS);
+        const ays = /** @type {NonNullable<ReturnType<typeof headlineChanges>[0]>} */ (sx.find(h => h.crs === 'AYS'));
+        assert.equal(ays.lead, '6 more trains a day to Aylesbury');
+        assert.equal(ays.chip, '+6 a day');
+        assert.equal(ays.detail, '47, was 41 · they also stop at Amersham, Great Missenden, Wendover and Stoke Mandeville · 5 of them also stop at Harrow-on-the-Hill, Rickmansworth, Chorleywood and Chalfont & Latimer');
+        // The sentence a test pins and a screen reader hears has not moved.
+        assert.equal(ays.text, '6 more trains a day to Aylesbury (47, was 41); they also stop at Amersham, Great Missenden, Wendover and Stoke Mandeville; 5 of them also stop at Harrow-on-the-Hill, Rickmansworth, Chorleywood and Chalfont & Latimer');
+        const sav = /** @type {any} */ (sx.find(h => h.crs === 'SAV'));
+        assert.equal(sav.chip, 'New route');
+        assert.equal(sav.lead, sav.text);
+        assert.equal(sav.detail, '');
+        assert.equal(sx.find(h => h.crs === 'HDM')?.chip, '−2 a day');
+        const so = headlineChanges(TIMETABLES.now.SO.dep, TIMETABLES.dec.SO.dep, STATIONS);
+        const htn = /** @type {any} */ (so.find(h => h.crs === 'HTN'));
+        assert.deepEqual([htn.lead, htn.detail, htn.chip], ['Later last train to Hatton: 21:02', 'was 20:32', 'Times move']);
+        // A frequency change leads without its bracket, and the bracket is the detail.
+        const bmo = /** @type {any} */ (so.find(h => h.crs === 'BMO'));
+        assert.equal(bmo.lead, 'More trains to Birmingham Moor Street: usually 2 an hour in the daytime');
+        assert.match(bmo.detail, /^was usually 1 · 4 more a day \(28, was 24\) · they also stop at/);
+        assert.equal(bmo.chip, '+4 a day');
+        // A withdrawn direct service, and a fold's clause landing in the detail of a line with no parts.
+        const gone = headlineChanges([row('10:00', 'SAV', '', '', 'WRW1101 SAV1131')], [], STATIONS);
+        assert.deepEqual([gone.find(h => h.crs === 'SAV')?.chip, gone.find(h => h.crs === 'SAV')?.lead], ['No direct trains', 'No more direct trains to Stratford-upon-Avon']);
+        const onward = /** @type {any} */ (headlineChanges([], [row('10:02', 'BMO'), row('11:02', 'BSW')], STATIONS)[0]);
+        assert.equal(onward.lead, 'New direct trains to Birmingham Moor Street: 2 a day');
+        assert.equal(onward.detail, '1 more goes on to Snow Hill (1, was 0)');
+        assert.equal(onward.text, `${onward.lead}; ${onward.detail}`);
+    });
+
+    test('stationBands: the two books\' lines, found from the rows', () => {
+        const bands = stationBands(everyRow);
+        assert.deepEqual(bands.map(b => b.label), ['Main line', 'Aylesbury via Amersham']);
+        assert.deepEqual(bands[1].stations, ['HOH', 'RIC', 'CLW', 'CFO', 'AMR', 'GMN', 'WND', 'SKM', 'AYS', 'AVP']);
+        assert.deepEqual([...bands[0].stations, ...bands[1].stations], [...STATION_ORDER], 'every station in one band, in the books\' order');
+        // A Parkway train carries no route code and is still an Amersham-line train.
+        assert.equal(stationBands([row('06:35', 'AVP', '', '', 'HOH0647 AYS0734 AVP0742')]).length, 2);
+        // A via-Wycombe train calling at Harrow would make Harrow the main line's; the Parkway, still
+        // only Amersham's, keeps a band of its own.
+        const mixed = stationBands([row('06:35', 'AVP', '', '', 'HOH0647 AVP0742'), row('07:00', 'HWY', 'H', '', 'HOH0712 HWY0745')]);
+        assert.ok(mixed[0].stations.includes('HOH') && mixed[1].stations.join() === 'AVP', JSON.stringify(mixed));
+        // Nothing via Amersham: one band, and the grid then draws no band rows.
+        assert.deepEqual(stationBands(hourly(6, 'OXF', ['HWY', 'OXF'])).map(b => b.label), ['Main line']);
+    });
+
+    test('renderGrid: every column head is a button; pressed, only that train\'s rows show; the lines are banded', () => {
+        const nowG = stoppingGrid(TIMETABLES.now.SX.dep), decG = stoppingGrid(TIMETABLES.dec.SX.dep);
+        const bands = stationBands(everyRow);
+        const all = renderGrid(nowG, decG, 'dec', STATIONS, { bands });
+        assert.equal((all.match(/class="tr-grid-colbtn"/g) ?? []).length, decG.columns.length);
+        assert.match(all, /<tr class="tr-grid-band"><td colspan="\d+">Main line<\/td><\/tr>/);
+        assert.match(all, /Aylesbury via Amersham<\/td>/);
+        assert.match(all, /Tap a time at the top to show only where that train stops/);
+        assert.doesNotMatch(all, /tr-grid-focus|tr-col-on|aria-pressed="true"/);
+        const i = decG.columns.findIndex(c => c.end === 'OXF');
+        const one = renderGrid(nowG, decG, 'dec', STATIONS, { focus: i, bands });
+        const was = pairColumns(nowG.columns, decG.columns)[i];
+        const rows = new Set([...decG.columns[i].calls, ...(was?.calls ?? [])]);
+        assert.equal((one.match(/<tr><th scope="row"/g) ?? []).length, rows.size, 'the stations it stops at, and any it stopped at');
+        assert.equal((one.match(/aria-pressed="true"/g) ?? []).length, 1);
+        assert.match(one, /<th scope="col" class="tr-col-on"><button/);
+        assert.match(one, /Only where the <strong>:06 to Oxford<\/strong> stops\. <button type="button" class="tr-more" id="trGridAll">Show every station<\/button>/);
+        assert.doesNotMatch(one, /tr-grid-band/, 'one line\'s rows alone are not banded');
+        assert.doesNotMatch(renderGrid(nowG, decG, 'dec', STATIONS), /tr-grid-band/, 'no bands passed, none drawn');
+        assert.doesNotMatch(renderGrid(nowG, decG, 'dec', STATIONS, { focus: 99 }), /tr-col-on/, 'an out-of-range column is ignored');
+        assert.match(renderGrid(nowG, decG, 'now', STATIONS, { bands }), /Aylesbury via Amersham<\/td>/, 'today\'s grid is banded too');
+    });
+
+    test('renderHeadlines: a bold lead and quieter detail; a bare text is the lead alone', () => {
+        const html = renderHeadlines([{ crs: 'AYS', tone: 'more', text: 'T', lead: 'Lead', detail: 'Detail', chip: '+6 a day' },
+            { crs: 'OXF', tone: 'less', text: 'Bare' }], { showAll: true, partial: false });
+        assert.match(html, /<span class="tr-chip tr-chip--new">\+6 a day<\/span><span class="tr-head-text"><span class="tr-head-lead">Lead<\/span><span class="tr-head-detail">Detail<\/span><\/span>/);
+        assert.match(html, /<span class="tr-chip tr-chip--gone">Fewer trains<\/span><span class="tr-head-text"><span class="tr-head-lead">Bare<\/span><\/span>/);
+    });
+
+    test('coming back on a leaf-fall line, a shift within the leaf-fall minutes is quiet text that says why — never via Wycombe, earlier, or going there', () => {
+        const view = stationView(TIMETABLES.now.SX.arr, TIMETABLES.dec.SX.arr, 'AYS', 'arr');
+        const leaf = { minutes: 3, until: '10 January' };
+        const html = renderStation(view, { stations: STATIONS, dir: 'arr', showTrains: true, allTrains: true, leafFall: leaf });
+        const quiet = view.trains?.filter(t => t.kind === 'later' && (t.shift ?? 0) <= 3 && /** @type {any} */ (t).via !== 'H') ?? [];
+        const loud = view.trains?.filter(t => t.kind === 'later' && (t.shift ?? 0) <= 3 && /** @type {any} */ (t).via === 'H') ?? [];
+        assert.ok(quiet.length > 0, 'the real Aylesbury card has such rows');
+        assert.equal((html.match(/tr-chip--same">\d mins? later · may be leaf fall</g) ?? []).length, quiet.length);
+        assert.equal((html.match(/tr-chip--moved">[123] mins? later</g) ?? []).length, loud.length, 'a via-Wycombe train keeps its chip: leaf fall is the Amersham line\'s');
+        assert.match(html, /tr-chip--moved">\d+ mins later</, 'a bigger shift keeps its chip');
+        assert.match(html, new RegExp(`${quiet.length} of them by 3 minutes or less, which may be leaf fall`));
+        assert.doesNotMatch(html, /earlier · may be leaf fall/);
+        const dep = renderStation(stationView(TIMETABLES.now.SX.dep, TIMETABLES.dec.SX.dep, 'AYS', 'dep'), { stations: STATIONS, dir: 'dep', showTrains: true, allTrains: true, leafFall: leaf });
+        assert.doesNotMatch(dep, /may be leaf fall/);
+        assert.doesNotMatch(renderStation(view, { stations: STATIONS, dir: 'arr', showTrains: true, allTrains: true }), /may be leaf fall/);
     });
 });
