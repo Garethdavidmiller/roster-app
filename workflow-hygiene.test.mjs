@@ -927,31 +927,38 @@ describe('every run-script stays inside its own block scalar', () => {
     });
 });
 
-describe('a stalled apt mirror fails a job by name, not by eating it (23 Oct 2026)', () => {
+describe('a stalled apt mirror costs a retry, not the job (23–24 Oct 2026)', () => {
     /**
-     * Every job that runs a browser installs its GTK/GStreamer libraries from apt, which no cache
-     * can hold. On 22 Oct that step ran for 9 minutes on one job and until the job's own limit on
-     * three (10 and 35 minutes), while a sibling job's copy took 14 seconds, and every test that ran
-     * had passed. The jobs read as CANCELLED, as if somebody had stopped them, and the same step sits
-     * in deploy-hosting.yml, where it holds up a release.
+     * Every job that runs a browser installs ~26 MB of GTK/GStreamer libraries and fonts from apt,
+     * which no cache can hold. On 22 Oct that step ran for 9 minutes on one job and until the job's
+     * own limit on three, while a sibling's copy took 14 seconds; on 23–24 Oct it stalled on seven
+     * steps across three runs, two of them the deploy's own gate. Every test that had run had passed.
      *
-     * The fix is a SHAPE, so it is held as one, for every workflow, and a job added later cannot bring
-     * the old step back:
-     *   · the browser download never installs the libraries itself (`install --with-deps`), so the
-     *     libraries always go through the bounded step, on a cache hit and a cache miss alike;
-     *   · that step has a limit of its own — long enough for a slow-but-steady mirror (5–6 minutes,
-     *     measured), short enough to leave room inside the job's limit, so a stall FAILS the job
-     *     naming the step instead of the job being cancelled;
-     *   · it may not continue past a failure, and runs on every path.
+     * #1625 (23 Oct) gave the step a limit of its own, 8 minutes, so a stall FAILS the job by name
+     * instead of the job being cancelled — and tried a retry it had to take out: the timed-out step's
+     * apt ran as root under sudo, a kill from the runner's user could not reach it, and it kept the
+     * package lock, so the retry died in under a second. The next day moved the install into ONE
+     * composite action, .github/actions/install-browser-deps, shaped around that failure: the clock
+     * runs INSIDE sudo (root signals root), only the DOWNLOAD phase is bounded (no dpkg is ever
+     * interrupted, nothing holds a lock afterwards, apt resumes the partial files), and the install
+     * then runs from the local cache. The package list is Playwright's own (`install-deps --dry-run`).
      *
-     * There is deliberately NO second attempt, and nothing here asks for one. The first version had
-     * one, and its first real stall showed why it cannot work: the timed-out step's apt runs as root
-     * under sudo, survives the kill and keeps the package lock, so the retry failed in under a second.
+     * The shape is held for every workflow AND for the action, so a job added later cannot bring the
+     * raw step back and a budget edit cannot quietly outgrow the step's limit:
+     *   · the browser download never installs the libraries itself (`install --with-deps`);
+     *   · no workflow runs `npx playwright install-deps` directly — every install goes through the
+     *     action, or it has no second attempt;
+     *   · each calling step has a limit of its own (8 minutes or less) inside its job's, names its
+     *     browser, may not continue past a failure, and runs on every path;
+     *   · in the action, `timeout` wraps apt AS ROOT, only the download phase is bounded, the final
+     *     install is not, and the attempts' worst case fits inside those 8 minutes.
      *
      * Read as text, not YAML, like the rest of this file: the suite runs with nothing installed.
      */
     const files = readdirSync(WF_DIR).filter(f => /\.ya?ml$/.test(f));
     const MAX_MINUTES = 8;
+    const ACTION_USE = './.github/actions/install-browser-deps';
+    const ACTION_DIR = join(WF_DIR, '..', 'actions', 'install-browser-deps');
 
     /** Each job's own block, keyed by name: top-level job keys sit two spaces in under `jobs:`. */
     function jobsOf(/** @type {string} */ src) {
@@ -988,7 +995,15 @@ describe('a stalled apt mirror fails a job by name, not by eating it (23 Oct 202
             assert.deepEqual(offenders, [],
                 'these install the browser AND its apt libraries in one unbounded step, so a stalled '
                 + 'mirror there can still eat the job: download the browser alone (`npx playwright '
-                + 'install <browser>`) and let the bounded `install-deps` step install the libraries');
+                + 'install <browser>`) and let the bounded action install the libraries');
+        });
+
+        test(`${file}: no step installs the libraries outside the action`, () => {
+            const offenders = stepsOf(src).filter(s => /npx playwright install-deps\b/.test(s))
+                .map(s => field(s, 'name') ?? s.split('\n')[0].trim());
+            assert.deepEqual(offenders, [],
+                'these run `npx playwright install-deps` directly, which has no second attempt when the '
+                + `mirror stalls: use \`uses: ${ACTION_USE}\` with \`browser:\` instead`);
         });
 
         test(`${file}: every install of the libraries is bounded, inside its job's own limit`, () => {
@@ -996,7 +1011,7 @@ describe('a stalled apt mirror fails a job by name, not by eating it (23 Oct 202
             for (const job of jobsOf(src)) {
                 const jobLimit = Number(/^ {4}timeout-minutes:[ \t]*(\d+)/m.exec(job.src)?.[1]);
                 for (const step of stepsOf(job.src)) {
-                    if (!/npx playwright install-deps \w+/.test(step)) continue;
+                    if (field(step, 'uses') !== ACTION_USE) continue;
                     const name = `${job.name} › ${field(step, 'name') ?? 'an unnamed step'}`;
                     const limit = Number(field(step, 'timeout-minutes'));
                     if (!(limit > 0 && limit <= MAX_MINUTES)) {
@@ -1006,6 +1021,8 @@ describe('a stalled apt mirror fails a job by name, not by eating it (23 Oct 202
                     }
                     if (field(step, 'continue-on-error') !== null) faults.push(`${name}: must FAIL the job on a stall, not continue past it`);
                     if (field(step, 'if') !== null) faults.push(`${name}: must run on every path — a cache hit and a cache miss both need the libraries (has if: ${field(step, 'if')})`);
+                    const browser = /^ {10}browser:[ \t]*(\S+)/m.exec(step)?.[1] ?? null;
+                    if (!/^(chromium|webkit)$/.test(browser ?? '')) faults.push(`${name}: must name its browser (with: browser: chromium | webkit; has ${browser})`);
                     bounded += 1;
                 }
             }
@@ -1019,5 +1036,50 @@ describe('a stalled apt mirror fails a job by name, not by eating it (23 Oct 202
         // jobs that install a browser as of 23 Oct 2026 — the smoke, webkit, csp, visual and
         // visual-webkit jobs, the release gate, the live health check and the offline proof.
         assert.ok(bounded >= 8, `found ${bounded} bounded installs of the libraries; expected at least 8`);
+    });
+
+    describe('the action itself', () => {
+        const action = readFileSync(join(ACTION_DIR, 'action.yml'), 'utf8');
+        const script = readFileSync(join(ACTION_DIR, 'install.sh'), 'utf8');
+
+        test('is a composite action whose step names its shell and runs the script', () => {
+            assert.match(action, /^\s+using:\s*composite\s*$/m, 'runs.using must be composite');
+            assert.match(action, /^\s+shell:\s*bash\s*$/m, 'a composite run step needs its shell, or GitHub rejects it at call time');
+            assert.match(action, /install\.sh/, 'the step must run install.sh, where the shape is held');
+        });
+
+        test('takes the package list from Playwright, and falls back to the plain command if that output moves', () => {
+            assert.match(script, /npx playwright install-deps --dry-run "\$BROWSER"/, 'the list must be Playwright\'s own, not a copy kept here');
+            assert.match(script, /exec timeout -k \d+ "[^"]+" npx playwright install-deps "\$BROWSER"/, 'the fallback is the plain command, still bounded');
+        });
+
+        test('the clock runs as root around apt, and only the download phase is bounded', () => {
+            assert.match(script, /^if \[ "\$\(id -u\)" = "0" \]; then asroot\(\) \{ "\$@"; \}; else asroot\(\) \{ sudo -n "\$@"; \}; fi$/m,
+                'asroot must be sudo on a runner — a timeout started by the runner\'s user cannot kill root\'s apt (23 Oct 2026)');
+            assert.match(script, /^ {8}asroot timeout -k \d+ "\$secs" "\$@" && \{/m, 'the bounded attempt must start timeout AS ROOT around the command');
+            assert.match(script, /^attempt "[^"]*" "\$UPDATE_SECONDS" apt-get [^\n]*\bupdate\b/m, 'apt-get update goes through the bounded attempt');
+            assert.match(script, /^attempt "[^"]*" "\$ATTEMPT_SECONDS" apt-get [^\n]*--download-only/m, 'the download phase goes through the bounded attempt');
+            const finals = script.split('\n').filter(l => /^asroot apt-get\b/.test(l) && /\binstall\b/.test(l) && !/--download-only/.test(l));
+            assert.equal(finals.length, 1, 'exactly one install from the local cache, run as root and under no timeout of its own');
+            assert.ok(!/timeout/.test(finals[0]), 'the final install must not be cut off mid-dpkg');
+            const bare = script.split('\n').filter(l => /^\s*(sudo -n )?timeout\b/.test(l) && /apt-get/.test(l));
+            assert.deepEqual(bare, [], 'every timeout around apt goes through asroot');
+        });
+
+        test('the attempts\' worst case fits inside the calling step\'s limit', () => {
+            const attempts = Number(/^ {2}attempts:\n(?:[^\n]*\n)*?\s+default:\s*'(\d+)'/m.exec(action)?.[1]);
+            const perAttempt = Number(/^ {2}attempt-seconds:\n(?:[^\n]*\n)*?\s+default:\s*'(\d+)'/m.exec(action)?.[1]);
+            const scriptAttempts = Number(/^ATTEMPTS="\$\{ATTEMPTS:-(\d+)\}"/m.exec(script)?.[1]);
+            const scriptPer = Number(/^ATTEMPT_SECONDS="\$\{ATTEMPT_SECONDS:-(\d+)\}"/m.exec(script)?.[1]);
+            const update = Number(/^UPDATE_SECONDS="\$\{UPDATE_SECONDS:-(\d+)\}"/m.exec(script)?.[1]);
+            assert.ok(attempts > 1 && perAttempt > 0 && update > 0, `the defaults must be readable (attempts ${attempts}, per attempt ${perAttempt}s, update ${update}s)`);
+            assert.equal(scriptAttempts, attempts, 'action.yml and install.sh must agree on the attempts');
+            assert.equal(scriptPer, perAttempt, 'action.yml and install.sh must agree on the seconds per attempt');
+            // Every attempt at both phases stalling, each cut off plus its 3 s pause, then the install
+            // from cache (measured at 15–30 s; allowed 60).
+            const worst = attempts * (update + perAttempt + 6) + 60;
+            assert.ok(worst <= MAX_MINUTES * 60,
+                `worst case ${worst}s does not fit inside the calling step's ${MAX_MINUTES} minutes — shrink the attempts, not the step's limit`);
+        });
     });
 });

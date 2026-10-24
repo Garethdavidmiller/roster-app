@@ -1,0 +1,61 @@
+name: Install a Playwright browser's system libraries
+description: >
+  The apt libraries a Playwright browser needs (GTK, GStreamer, fonts), installed in bounded
+  attempts so a stalled Ubuntu mirror costs a retry rather than the job.
+
+# ── WHY THIS EXISTS ───────────────────────────────────────────────────────────────────────────
+#
+# Every job that runs a browser installs ~26 MB of system libraries from apt, which no cache can
+# hold, so they install on EVERY run. On 22–24 Oct 2026 the runner's Ubuntu mirror stalled on a
+# quarter of those installs — delivering at tens of kilobytes per second, or nothing — while a
+# sibling job's copy took 15 seconds. One release day lost seven install steps across three runs,
+# two of them the deploy's own gate, and every test that had run had passed.
+#
+# #1625 (23 Oct) gave the step a limit of its own, 8 minutes, so a stall FAILS THE JOB BY NAME
+# instead of being cancelled at the job's limit. It also tried a retry, and had to take it out:
+# the timed-out step's apt runs as root under sudo, a kill from the runner's user cannot reach it,
+# and it kept the package lock, so the retry died in under a second on "dpkg frontend lock was
+# locked by another process".
+#
+# ── WHAT THIS DOES DIFFERENTLY ────────────────────────────────────────────────────────────────
+#
+#   * The clock runs INSIDE sudo. `timeout` is started as root around apt itself, so root signals
+#     root: a cut-off attempt leaves nothing behind, and nothing holds the lock.
+#   * Only the DOWNLOAD phase is bounded (`apt-get update`, then `apt-get install --download-only`).
+#     A kill can only ever land where no dpkg is running, so no package is half-installed, and apt
+#     resumes the partial files on the next attempt — a slow mirror makes progress across attempts
+#     rather than starting over. The install itself then runs from the local cache, with nothing
+#     left to fetch.
+#   * The package list is Playwright's own (`npx playwright install-deps --dry-run`), so a
+#     Playwright bump that needs a new library is picked up without anyone editing a list here. If
+#     that output ever changes shape, the script falls back to the plain command, still bounded.
+#   * apt is also told to give a DEAD connection 30 s rather than its default 120, and to retry it.
+#
+# The budget fits inside the calling step's `timeout-minutes: 8`, which stays as the backstop:
+# three attempts of 30 s at the index and three of 100 s at the download, plus the install from
+# cache, is under 8 minutes even when every attempt stalls. workflow-hygiene.test.mjs holds the
+# calling steps to that limit and this action to that budget.
+
+inputs:
+  browser:
+    description: 'chromium or webkit — what `npx playwright install-deps` is asked for.'
+    required: true
+  attempts:
+    description: 'Bounded attempts at each network phase before the step fails.'
+    required: false
+    default: '3'
+  attempt-seconds:
+    description: 'The cap on ONE download attempt, in seconds. The defaults fit inside the calling step limit of 8 minutes.'
+    required: false
+    default: '100'
+
+runs:
+  using: composite
+  steps:
+    - name: Install the ${{ inputs.browser }} system libraries, in bounded attempts
+      shell: bash
+      env:
+        BROWSER: ${{ inputs.browser }}
+        ATTEMPTS: ${{ inputs.attempts }}
+        ATTEMPT_SECONDS: ${{ inputs.attempt-seconds }}
+      run: bash "${{ github.action_path }}/install.sh"
