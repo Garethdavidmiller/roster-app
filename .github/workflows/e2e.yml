@@ -382,14 +382,15 @@ jobs:
       # jobs read as CANCELLED, as if somebody had stopped them. A slow mirror is slow but steady:
       # measured on 23 Oct at about 85 KB/s, so the ~26 MB of fonts and libraries took 5–6 minutes.
       # 8 minutes lets that finish, and fails anything longer BY NAME, well inside every job's limit.
-      # The recovery for a failure here is a re-run.
-      # NO SECOND ATTEMPT, and that is measured rather than assumed: the first version cut the install
-      # off at 3 minutes and retried, and on its first real stall the retry failed in under a second.
-      # The timed-out step's apt runs as root under sudo, survives the step being killed and keeps the
-      # package lock ("dpkg frontend lock was locked by another process"), so a retry would have to kill
-      # a root process mid-install first. The same step is in every job that installs a browser — this
-      # file, deploy-hosting.yml, live-health.yml and offline.yml — and workflow-hygiene.test.mjs holds
-      # each one to this shape.
+      # THE RECOVERY FOR A STALL IS BUILT IN (24 Oct 2026): .github/actions/install-browser-deps makes
+      # three bounded attempts. The first retry (23 Oct) failed in under a second, and the reason shapes
+      # the action: the timed-out step's apt ran as root under sudo, a kill from the runner's user could
+      # not reach it, and it kept the package lock. So the clock now runs INSIDE sudo — root signals
+      # root — and only the DOWNLOAD phase is bounded: nothing a cut-off can land in holds a lock or
+      # half-installs a package, apt resumes the partial files on the next attempt, and the install
+      # itself then runs from the local cache with nothing left to fetch. The same action is in every
+      # job that installs a browser — this file, deploy-hosting.yml, live-health.yml and offline.yml —
+      # and workflow-hygiene.test.mjs holds each caller to this limit and the action to its budget.
       - name: Restore Playwright Chromium from the cache
         id: pw-cache
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -401,7 +402,9 @@ jobs:
         run: npx playwright install chromium
       - name: Install Chromium's system libraries
         timeout-minutes: 8
-        run: npx playwright install-deps chromium
+        uses: ./.github/actions/install-browser-deps
+        with:
+          browser: chromium
 
       - name: Run smoke tests
         run: npm run test:e2e
@@ -516,7 +519,9 @@ jobs:
       # The system libraries, with a time limit of their own. Why: e2e.yml's smoke job.
       - name: Install WebKit's system libraries
         timeout-minutes: 8
-        run: npx playwright install-deps webkit
+        uses: ./.github/actions/install-browser-deps
+        with:
+          browser: webkit
 
       - name: Run the smoke suite under WebKit
         timeout-minutes: 25
@@ -618,7 +623,9 @@ jobs:
       # The system libraries, with a time limit of their own. Why: e2e.yml's smoke job.
       - name: Install Chromium's system libraries
         timeout-minutes: 8
-        run: npx playwright install-deps chromium
+        uses: ./.github/actions/install-browser-deps
+        with:
+          browser: chromium
 
       - name: Run deployed-CSP proof
         run: npm run test:csp
@@ -701,7 +708,9 @@ jobs:
       # The system libraries, with a time limit of their own. Why: e2e.yml's smoke job.
       - name: Install WebKit's system libraries
         timeout-minutes: 8
-        run: npx playwright install-deps webkit
+        uses: ./.github/actions/install-browser-deps
+        with:
+          browser: webkit
 
       - name: Compare against the committed WebKit baselines
         id: compare
@@ -890,7 +899,9 @@ jobs:
       # The system libraries, with a time limit of their own. Why: e2e.yml's smoke job.
       - name: Install Chromium's system libraries
         timeout-minutes: 8
-        run: npx playwright install-deps chromium
+        uses: ./.github/actions/install-browser-deps
+        with:
+          browser: chromium
 
       # `print-visual.spec.js` rasterises page 1 of the real generated PDF, and poppler is what
       # does it. WITHOUT THIS STEP THE PRINT BASELINES WOULD SKIP ON EVERY RUN — loudly, the spec

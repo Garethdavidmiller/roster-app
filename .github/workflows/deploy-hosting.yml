@@ -172,7 +172,9 @@ jobs:
       # The system libraries, with a time limit of their own. Why: e2e.yml's smoke job.
       - name: Install Chromium's system libraries
         timeout-minutes: 8
-        run: npx playwright install-deps chromium
+        uses: ./.github/actions/install-browser-deps
+        with:
+          browser: chromium
 
       - name: Run smoke tests
         run: npm run test:e2e
