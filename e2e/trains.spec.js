@@ -397,6 +397,12 @@ test.describe('trains', () => {
     for (const width of [360, 390]) {
         test(`no view scrolls the page sideways at ${width}px`, async ({ page }) => {
             await page.setViewportSize({ width, height: 800 });
+            // A weekday, pinned: the page opens on the real day's timetable, and the headlines
+            // follow it. "to Aylesbury" is a Monday-to-Friday headline — Saturday's list is
+            // Birmingham, Haddenham and a later last train to Hatton, Sunday's Banbury and
+            // Birmingham — so an unpinned clock failed this test the first time the deploy's smoke
+            // run fell on a weekend (Sat 24 Oct 2026), seventeen days after it was written.
+            await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
             await seedSession(page, 'G. Miller');
             await page.goto('/trains.html');
             const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
