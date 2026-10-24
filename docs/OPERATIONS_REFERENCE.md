@@ -1079,3 +1079,19 @@ about it is live: it reads no network, and its times change only when somebody r
 - **What the books print that a plain list of stops cannot**, and how the generator treats it —
   pick-up-only and set-down-only stops, "arrives 8 minutes earlier", buses, weekday versions that
   stop differently: the tooling README → "What each step knows".
+
+### The one-off timetable push, and the final week's notice (v24.94)
+
+Two reminders run themselves in the week before the change, and nobody presses anything:
+
+- **Saturday 12 December 2026, 18:00 London** — `sendTimetableReminder` (functions/documents.js) sends
+  ONE broadcast push to every subscribed device: "🚆 New timetable from Sunday", landing on the Trains
+  page. It is a DAILY schedule with a one-date guard, so on every other evening it logs "Not the
+  evening before the change — skipping" and does nothing. To confirm it went: the function's log on
+  the 13th says "Timetable reminder sent". To stop it beforehand: delete `sendTimetableReminder` from
+  the builder's return in documents.js and from `functions-surface.test.mjs`, and deploy. The next
+  timetable change moves `TIMETABLE_CHANGE` there; until then the function is harmless.
+- **6 to 12 December** — the Calendar notice `timetable-soon-2026` (calendar-notices.js) is offered to
+  signed-in members, once each, and retires itself on the 13th. A member who sees the push and the
+  notice sees the same message twice, which is the intent: the push reaches the phones with
+  notifications on, the notice reaches everyone who opens the Calendar.

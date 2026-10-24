@@ -493,3 +493,22 @@ export function routeName(stations, station, via) {
     const name = stations[station] ?? station;
     return via === 'H' ? `${name} via High Wycombe` : via === 'A' ? `${name} via Amersham` : name;
 }
+
+/**
+ * The one caveat beneath the tabs, worded for where the page is in the timetable's life (v24.94).
+ * It was fixed text — "December times can still change" — which is right until the change,
+ * arguable through Chiltern's festive changes, and wrong for the four months after. Each phase gets
+ * the warning a member needs THAT day. The sentence that follows is the same ask every time, and
+ * trains-app.js writes it with the journey planner as a link, so the words here stay plain text.
+ * @param {{ phase: 'before'|'running'|'ended', festive: boolean }} p   from `timetablePhase`
+ * @param {{ change: string, festiveUntil: string }} dates   'YYYY-MM-DD' each
+ * @returns {{ lead: string, ask: string }}  lead: the phase's warning · ask: what to do at the planner
+ */
+export function caveatWords(p, { change, festiveUntil }) {
+    const month = dateWords(change).split(' ')[1];
+    const lead = p.phase === 'ended' ? 'The timetables on this page have ended.'
+        : p.phase === 'before' ? `${month} times can still change.`
+        : p.festive ? `Times change again over Christmas and New Year, until ${dateWords(festiveUntil)}.`
+        : 'These are the published timetables, not live running.';
+    return { lead, ask: p.phase === 'ended' ? 'for today’s trains' : 'before you tell a customer' };
+}

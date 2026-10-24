@@ -898,6 +898,11 @@ const NOTIFICATION_FEATURES = {
     // the call site puts it in the file the notification rules already point at, where the emoji,
     // the tag and the budgets are enforced together.
     passwordReset: { emoji: '🔑', tag: 'password-reset', defaultHeadline: 'Password reset — set a new one', hashPath: '/settings.html' },
+    // A broadcast, ONCE (v24.94): the evening before Chiltern's timetable change, every subscribed
+    // device is told and the tap lands on the Trains page. 🚆 is the Trains nav pill. Event grammar
+    // with a fixed headline, like passwordReset above: it only ever says one thing. Sent by
+    // sendTimetableReminder (documents.js), which is guarded to the one date.
+    timetable:  { emoji: '🚆', tag: 'timetable', defaultHeadline: 'New timetable from Sunday', hashPath: '/trains.html' },
 };
 
 /**

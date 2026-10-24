@@ -57,6 +57,7 @@ const PUSH_TTL_BY_TAG = Object.freeze({
     'overtime':       12 * 3600,   // "answers due today" / "form open — answer by …"
     'reset-request':   6 * 3600,   // "N waiting" — a queue depth that is stale within hours
     'password-reset':  7 * 24 * 3600,   // tells the member something lasting about their account
+    'timetable':      24 * 3600,   // "from Sunday": sent on the Saturday evening, still true all Sunday
 });
 const PUSH_TTL_DEFAULT = 24 * 3600;
 

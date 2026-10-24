@@ -559,13 +559,11 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 | `timetable-2026` | `index.html` | A new timetable starts on 13 December | 🚆 Trains | 21 Oct 2026 | **ends 31 Oct 2026** (owner, 22 Oct; it ran to 13 Dec until v24.86) — `OCTOBER_LAST_DAY` | ✅ live — `'members'`. Whether the station PC should see it too (the PIN reads Trains since v24.84) is an open owner decision. A one-off from the start: no snooze key. Its body names the menu route (☰ then 🚆 Trains), so "Not now" loses nothing. The first `notice-badge--trains` | One-time; `myb_notice_timetable_2026_done` set on any dismissal, the link included |
 | `ytd-figures-2026` | `index.html` | Make your pay estimates more accurate | 💷 Pay | 22 Oct 2026 | ends 31 Oct 2026, with the timetable notice | ✅ live — `'members'`, and only where the Pay Calculator prices (`gradeForRole`). Owner request: comes the load AFTER the timetable notice is dismissed (`FOLLOWS`), never the same one. Its link opens the Year to Date card (`paycalc.html#payslipCard`), and arriving that way counts as `ytd_2627` seen | One-time; `myb_notice_ytd_figures_2026_done` set on any dismissal, the link included |
 | `install-app-2026` | `index.html` | Put the roster on your home screen | 📣 General | 22 Oct 2026 | 90 days (~20 Jan 2027) | ✅ live — `'members'`, on a phone or tablet in a browser only (`installRoute`, install-prompt.js). Third in line: after the timetable notice, and after the Year to Date one where that is the member's. Its "how" is chosen as it opens; on the Pages mirror it sends staff to myb-roster.web.app, never installing there. Answering it retires the install strip | One-time; `myb_notice_install_app_2026_done` set on any dismissal, its button and link included |
+| `timetable-soon-2026` | `index.html` | The new timetable starts on Sunday | 🚆 Trains | 6 Dec 2026 | ends 12 Dec 2026 | ⏳ **starts 6 Dec** — `'members'`; the first notice with a START date (`STARTS`; an early device is left unflagged, not dismissed). A push goes out on the Saturday evening too | One-time; `myb_notice_timetable_soon_2026_done` set on any dismissal |
 
-The retired `links-beta-2026` (posted 9 Jun 2026, 28 days) was replaced at v19.51: the beta chip
-went at v19.50, so its lead paragraph described a page that no longer existed. Only the paragraph
-that was still true survived, joined by the fatigue-checks framing and the shared-designs/bin note
-(which said 30 days until v19.86). It took a **new storage key** (`myb_links_welcome_seen`) — reusing the old one would have
-meant every current designer, all of whom closed the beta notice months ago, never saw the
-replacement.
+The retired `links-beta-2026` (9 Jun 2026) was replaced at v19.51 on a **new storage key**
+(`myb_links_welcome_seen`): reusing the old one would have hidden the replacement from every designer
+who had already closed the beta notice. The rest of that story is in git.
 
 The retired `sign-in-2026` (posted 27 Aug 2026, `'signed-out'`) was deleted at **v23.23 by owner
 decision, seven weeks before its 90-day expiry** — the one notice here retired for being WRONG

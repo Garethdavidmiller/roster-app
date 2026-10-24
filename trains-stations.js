@@ -927,3 +927,26 @@ export function pairColumns(now, dec) {
         return /** @type {any} */ (best.n);
     });
 }
+
+/**
+ * The last train from Marylebone to every station, before and after — the late turn's question
+ * ("what's the last train to Beaconsfield tonight?") for the whole network at once (v24.94). Each
+ * figure is the one the station card shows as "Last train", from `summarise`, so the two never
+ * disagree: the Marylebone departure of the last train that calls there, on a typical day of that
+ * kind (the Monday-and-Friday and Wednesday-only trains left out, as everywhere on the page).
+ * @param {TrainRow[]} nowRows  trains leaving Marylebone, today's timetable
+ * @param {TrainRow[]} decRows  the same, December's
+ * @returns {{ crs: string, now: string|null, dec: string|null, shift: number|null,
+ *   kind: 'same'|'later'|'earlier'|'new'|'gone' }[]}
+ *   in the books' order · shift: minutes December's is later, negative for earlier, null when a side has no train
+ */
+export function lastTrains(nowRows, decRows) {
+    const called = new Set([...nowRows, ...decRows].flatMap(r => callsOf(r)));
+    return orderStations([[...called]]).map((crs) => {
+        const now = summarise(nowRows, crs, 'dep').last, dec = summarise(decRows, crs, 'dep').last;
+        const shift = now && dec ? serviceMinutes(dec) - serviceMinutes(now) : null;
+        /** @type {'same'|'later'|'earlier'|'new'|'gone'} */
+        const kind = !now ? 'new' : !dec ? 'gone' : shift === 0 ? 'same' : /** @type {number} */ (shift) > 0 ? 'later' : 'earlier';
+        return { crs, now, dec, shift, kind };
+    }).filter(r => r.now || r.dec);
+}

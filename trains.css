@@ -129,35 +129,48 @@ body {
 .tr-seg-label {
     flex: 0 0 auto;
     color: var(--on-navy-muted);
-    font-size: var(--type-badge);
-    font-weight: 800;
+    /* Overtime's member-bar label, the app's one control label on the canvas: 12px, 700. */
+    font-size: var(--type-small);
+    font-weight: 700;
     letter-spacing: 0.5px;
     text-transform: uppercase;
 }
 /* The one caveat, beneath the controls on every view (v24.92). It was a paragraph in the overview
-   card, which now opens collapsed on a return visit; on the navy canvas it takes the drawer's muted
-   white, which clears AA, and on paper it is black. */
+card, which now opens collapsed on a return visit. It takes the app's note-between-cards — the Pay
+Calculator's setup banner and privacy note: the card surface, a gold left edge, the resting shadow —
+so it reads as the page's own notice, not a caption on the navy (v24.93; it was muted white text,
+which no other page sets on the canvas). On paper it is black with a plain border. */
 .tr-caveat-line {
-    margin: 0 0 var(--space-2);
-    color: var(--on-navy-muted);
+    margin: 0 0 12px;
+    padding: 9px 12px 9px 15px;
+    background: var(--surface);
+    border-left: 3px solid var(--accent-gold);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-1);
+    color: var(--text-mid);
     font-size: var(--type-small);
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1.4;
 }
-/* A tab strip INSIDE a card (direction, Now / From 13 Dec) sits on the card surface, so it takes the
-   card's own idiom: sunken track, the chosen tab white — the Pay Calculator's tax-year tabs. */
+/* A tab strip INSIDE a card (direction, Now / From 13 Dec) sits on the card surface, so it is the Pay
+Calculator's in-card tabs (.ty-tab), exactly: outlined on the surface, the chosen one navy with white
+type — the "which of these" control every card-bearing page already uses. Until v24.93 it was a
+sunken track whose chosen tab went white, a third recipe for one job. */
 .tr-tabs--in-card { margin: 12px 0; }
 @media (min-width: 1024px) { .tr-tabs--in-card { max-width: 420px; } }
 .tr-tabs--in-card[hidden] { display: none !important; }
 .tr-tabs--in-card .tr-tab {
-    border-color: var(--border-light);
-    background: var(--surface-sunken);
+    border: 1.5px solid var(--border-mid);
+    background: transparent;
     color: var(--text-mid);
 }
 .tr-tabs--in-card .tr-tab[aria-pressed="true"] {
-    background: white;
+    background: var(--primary-blue);
     border-color: var(--primary-blue);
-    color: var(--primary-blue);
+    color: white;
+}
+@media (hover: hover) and (pointer: fine) {
+    .tr-tabs--in-card .tr-tab:not([aria-pressed="true"]):hover { background: var(--bg-faint); border-color: var(--primary-blue); }
 }
 .tr-tabs--in-card .tr-tab:focus-visible { outline: var(--focus-outline); }
 
@@ -254,7 +267,10 @@ body {
 .tr-route .tr-trains th:first-child, .tr-route .tr-trains td:first-child { padding-left: var(--space-3); }
 .tr-route .tr-trains tbody tr:last-child td { border-bottom: 0; }
 /* The "show the ones that stay the same" line, and the all-the-same line, inside the open list. */
-.tr-route > .tr-more, .tr-route > .tr-lead { display: block; margin: 0 var(--space-3) var(--space-2); }
+.tr-route > .tr-lead { display: block; margin: 0 var(--space-3) var(--space-2); }
+/* A <button> shrink-wraps even as a block (measured: the dashed button spanned its words alone), so
+   the tile’s inset is written into the width rather than left to `auto`. */
+.tr-route > .tr-more { width: calc(100% - 2 * var(--space-3)); margin: 0 var(--space-3) var(--space-2); }
 .tr-route > .tr-lead { padding-top: var(--space-2); border-top: 1px solid var(--border-light); }
 
 /* ── The before-and-after table ────────────────────────────────────────────── */
@@ -270,10 +286,15 @@ body {
     vertical-align: top;
     border-bottom: 1px solid var(--border-light);
 }
-.tr-trains thead th {
+/* Column heads are the app's eyebrow — the metrics of .field-eyebrow, which Admin's week-grid header
+and the Links grid's heads already wear (v24.93; these were 12px sentence case, the one table recipe
+the Pay Calculator's comparison table also uses — the uppercase label is the commoner of the two). */
+.tr-trains thead th, .tr-st-table thead th, .tr-last thead th, .tr-near-head {
     color: var(--text-light);
-    font-size: var(--type-small);
-    font-weight: 600;
+    font-size: var(--type-micro);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
     white-space: nowrap;
 }
 .tr-trains td:first-child, .tr-trains td:nth-child(2) { width: 28%; font-weight: 600; }
@@ -337,26 +358,59 @@ body {
     line-height: 1.4;
 }
 .tr-head-go { color: var(--text-light); font-size: var(--type-large); }
+/* "Show N more" and "Show the N that stay the same" are the Pay Calculator's reveal-more button
+(.show-more-btn): full width, a dashed outline and a chevron — the app's one way of saying "there is
+more of this list". Until v24.93 they were underlined text links, which no other page uses for a
+button. The chevron is drawn here so the button's text stays its label alone. */
 .tr-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
     margin-top: 10px;
-    padding: 6px 0;
-    border: 0;
+    padding: 10px 0;
+    border: 1.5px dashed var(--border-mid);
+    border-radius: var(--radius-sm);
     background: none;
-    color: var(--primary-blue);
-    font: inherit;
-    font-size: var(--type-label);
+    color: var(--text-mid);
+    font-family: inherit;
+    font-size: var(--type-small);
     font-weight: 700;
-    text-decoration: underline;
     cursor: pointer;
+    touch-action: manipulation;
+    transition: border-color var(--dur-med), color var(--dur-med);
+}
+.tr-more::after { content: '▾'; font-size: var(--type-micro); }
+@media (hover: hover) and (pointer: fine) {
+    .tr-more:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
 }
 .tr-more:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+/* The two that ACT rather than reveal — "Change station" and the grid's "Show every station" — are
+Overtime's small outlined pill (.ot-refresh-btn): white, a hairline, badge type, a press. */
+.tr-change-station, .tr-grid-focus .tr-more {
+    display: inline-flex;
+    width: auto;
+    padding: 4px 11px;
+    border: 1px solid var(--border-mid);
+    border-radius: var(--radius-pill);
+    background: white;
+    color: var(--text-dark);
+    font-size: var(--type-badge);
+    transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+.tr-change-station::after, .tr-grid-focus .tr-more::after { content: none; }
+.tr-change-station:active, .tr-grid-focus .tr-more:active { transform: scale(var(--press-scale)); }
+@media (hover: hover) and (pointer: fine) {
+    .tr-change-station:hover, .tr-grid-focus .tr-more:hover { background: var(--bg-light); border-color: var(--border-mid); color: var(--text-dark); }
+}
 .tr-note { margin: 12px 0 0; font-size: var(--type-small); }
 .tr-near-on { color: var(--text-light); font-size: var(--type-small); }
 
 /* ── Stations: the picker and the card ──────────────────────────────────────── */
 /* "Change station", shown in the picker's place once a station is chosen (v24.92). `display` is set,
    so its `[hidden]` companion is restated (page-visibility-parity). */
-.tr-change-station { display: block; margin: 0 0 4px; }
+.tr-change-station { margin: 0 0 4px; }
 .tr-change-station[hidden], .tr-more[hidden] { display: none !important; }
 .tr-input.tr-input--wide { width: 100%; max-width: none; }
 @media (min-width: 1024px) { .tr-input.tr-input--wide { max-width: 480px; } }
@@ -373,30 +427,50 @@ body {
 /* Above a station card's verdict when it is about the trains that END here, not the whole station. */
 .tr-sub { margin-bottom: 6px; }
 .tr-picks { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
+/* The station chips are the app's choice pills — Admin's shift-type pills and Overtime's answers:
+outlined in their own colour on the surface, filled when chosen, badge type, a thumb's height. Until
+v24.93 they were sunken capsules at 13px, a recipe no other page has. */
 .tr-pick {
-    padding: 6px 12px;
-    border: 1px solid var(--border-light);
+    min-height: 44px;
+    padding: 5px 12px;
+    border: 1.5px solid currentColor;
     border-radius: var(--radius-pill);
-    background: var(--surface-sunken);
-    color: var(--text-dark);
-    font: inherit;
-    font-size: var(--type-label);
-    font-weight: 600;
+    background: transparent;
+    color: var(--text-mid);
+    font-family: var(--font-sans);
+    font-size: var(--type-badge);
+    font-weight: 700;
     cursor: pointer;
+    white-space: nowrap;
+    touch-action: manipulation;
+    transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard),
+                transform var(--dur-fast) var(--ease-standard);
 }
+.tr-pick:active { transform: scale(var(--press-scale)); }
 .tr-pick[aria-pressed="true"] { background: var(--primary-blue); border-color: var(--primary-blue); color: white; }
 .tr-pick:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) { .tr-pick:not([aria-pressed="true"]):hover { color: var(--primary-blue); } }
+/* Density is a pointer decision, not a width one (css-tokens.md): on a mouse the pills take Admin's
+and Overtime's desktop height, and grow back to a thumb's on a touch screen of any width. */
+@media (min-width: 1024px) and (pointer: fine) { .tr-pick { min-height: 36px; padding: 5px 8px; } }
+/* The answer, as the app's accented row — Overtime's saved day, Admin's "Recording for" strip: the
+card surface, a hairline, and a LEFT EDGE in the answer's colour. The words stay dark; the edge
+carries the tone, so "no longer runs" is not a slab of red type above a table (v24.93; it was a
+tinted box with the whole sentence in the tone's colour). */
 .tr-verdict {
     margin: 0 0 12px;
-    padding: 10px 12px;
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
+    padding: 10px 12px 10px 13px;
+    background: var(--surface);
+    border: 1px solid var(--border-light);
+    border-left: 4px solid var(--border-mid);
+    border-radius: var(--radius);
+    color: var(--text-dark);
     font-weight: 700;
     line-height: 1.45;
 }
-.tr-verdict--more  { background: var(--success-green-bg); color: var(--success-text); }
-.tr-verdict--less  { background: var(--error-bg); color: var(--error-text); }
-.tr-verdict--moved { background: var(--al-warning-bg); color: var(--orange-text); }
+.tr-verdict--more { border-left-color: var(--success-green); }
+.tr-verdict--less { border-left-color: var(--error-red); }
+.tr-verdict--moved { border-left-color: var(--orange); }
 .tr-verdict--unknown { color: var(--text-mid); font-weight: 600; }
 .tr-st-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 /* On a desktop the station reads as two halves — the answer and its figures, then the trains —
@@ -420,10 +494,12 @@ body {
     text-align: left;
     border-bottom: 1px solid var(--border-light);
 }
-.tr-st-table thead th { color: var(--text-light); font-size: var(--type-small); font-weight: 600; white-space: nowrap; }
 .tr-st-table tbody th { font-weight: 600; color: var(--text-mid); width: 40%; }
 .tr-st-table td { font-weight: 700; }
 .tr-station-tile { margin-top: 12px; }
+/* The station's name takes focus when a chip is chosen (trains-app.js), so a keyboard reader lands
+on the answer: the app's ring, not the browser's orange one. */
+#trStationTitle:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: 2px; }
 
 /* ── The basic hour: one picture ───────────────────────────────────────────────
    Chiltern's own poster format — a column per train that repeats every hour, a dot where it stops.
@@ -492,7 +568,7 @@ body {
 .tr-grid .tr-col-on { background: var(--surface-sunken); }
 .tr-grid thead th.tr-col-on { box-shadow: inset 0 -3px 0 var(--primary-blue); }
 .tr-grid-focus { margin: 0 0 8px; color: var(--text-mid); font-size: var(--type-small); }
-.tr-grid-focus .tr-more { margin: 0; padding: 0 2px; }
+.tr-grid-focus .tr-more { margin: 0; }
 .tr-grid-tip { margin: 0 0 6px; }
 /* The two lines, named: a band row before each group, pinned left with the station names so the
    label stays in view when the table is scrolled sideways. */
@@ -580,17 +656,18 @@ body {
 .tr-lead { margin-bottom: 10px; }
 .tr-answer {
     margin: 12px 0;
-    padding: 10px 12px;
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
+    padding: 10px 12px 10px 13px;
+    background: var(--surface);
+    border: 1px solid var(--border-light);
+    border-left: 4px solid var(--primary-blue);
+    border-radius: var(--radius);
     line-height: 1.5;
 }
-.tr-label {
-    display: block;
-    margin-bottom: 6px;
-    color: var(--text-mid);
-    font-size: var(--type-small);
-}
+/* The Time and Station labels are the shared eyebrow (.field-eyebrow); this adds the spacing only.
+It set a size and a colour too until v24.93 — declared after shared.css at equal specificity, they
+won, and this page's two field labels were 12px sentence-grey where every other page's are 10px
+uppercase. */
+.tr-label { display: block; margin-bottom: 6px; }
 .tr-input {
     width: 12em;
     max-width: 100%;
@@ -616,12 +693,7 @@ body {
     grid-template-columns: 1fr 1fr;
     gap: 12px;
 }
-.tr-near-head {
-    margin: 0 0 6px;
-    color: var(--text-light);
-    font-size: var(--type-small);
-    font-weight: 600;
-}
+.tr-near-head { margin: 0 0 6px; }
 .tr-near {
     margin: 0;
     padding: 0;
@@ -631,6 +703,35 @@ body {
 .tr-near li { padding: 4px 0; border-bottom: 1px solid var(--border-light); }
 .tr-near-time { font-weight: 700; font-variant-numeric: tabular-nums; }
 
+/* ── v24.94: the caveat's link, the lookup's one-column case, Last trains, the desktop jump card ── */
+.tr-caveat-line a { color: var(--primary-blue); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.tr-caveat-line a:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: 2px; }
+/* The lookup's near lists: ONE column when both timetables list the same trains; where they differ,
+   a row only one side has is marked at its left edge, and says so to a screen reader. */
+.tr-near-cols--one { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1024px) { .tr-near-cols--one { max-width: 480px; } }
+.tr-near-only { border-left: 3px solid var(--primary-blue); padding-left: 8px; font-weight: 700; }
+/* Last trains: the station table's recipe, with the grid's band rows between the two lines. */
+.tr-last { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tr-last th, .tr-last td { padding: 7px 8px 7px 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border-light); }
+.tr-last tbody th { font-weight: 600; color: var(--text-mid); }
+.tr-last td { font-weight: 600; white-space: nowrap; }
+.tr-last td:last-child { white-space: normal; }
+.tr-last .tr-chip { white-space: normal; border-radius: var(--radius-sm); }
+.tr-last-band td {
+    padding: 12px 0 4px;
+    color: var(--text-light);
+    font-size: var(--type-badge);
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+/* The desktop's jump card: a second copy of the Stations tab's chips earns its place only where there
+   is a column with nothing in it. Below 1024px it does not exist. */
+#trJumpCard { display: none; }
+@media (min-width: 1024px) { #trJumpCard { display: block; } }
+#trJumpCard[hidden] { display: none !important; }
+
 /* A thumb's target (v24.83): on a phone the tabs, the station chips and the "Show…" buttons were
    27–31px tall. After the base rules, so it wins. */
 @media (pointer: coarse) {
@@ -638,7 +739,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .tr-tab, .tr-route, .tr-route-sum::after { transition: none; }
+    .tr-tab, .tr-pick, .tr-more, .tr-route, .tr-route-sum::after { transition: none; }
 }
 
 @media print {
@@ -646,6 +747,6 @@ body {
     .tr-dot { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     body { background: white; padding: 0; color: black; }
     .tr-controls, .btn-burger, .btn-card-tips, .tr-grid-stick, .tr-grid-tip, .tr-change-station { display: none; }
-    .tr-caveat-line { color: black; }
+    .tr-caveat-line { color: black; box-shadow: none; border: 1px solid var(--print-muted); border-left-width: 3px; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); }
 }

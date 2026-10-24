@@ -43,14 +43,16 @@ canvas with **off-white cards** (`--surface`, above), so an OS/browser "force da
 light surfaces mangles it — the off-white cards flip to grey while the navy stays put (a real
 staff report, Jul 2026, on a Samsung device). To opt out of algorithmic darkening the app declares
 **`color-scheme: only light`** in `shared.css` (on `html`) AND as a `<meta name="color-scheme"
-content="only light">` on every served page (all seven app pages + all five guides — the guides don't
+content="only light">` on every served page (every app page and every guide — the guides don't
 import `shared.css`, so the meta is their only signal). The `only` keyword (v18.10, was plain
 `light`) forbids a conforming browser from overriding the scheme. **Do not add a
 `prefers-color-scheme` rule or a dark palette** without an explicit owner decision — there is none
 anywhere in the codebase by design, and a force-dark report is a device-side setting (Samsung
 Internet / Chrome auto-dark / system force-dark), not an app bug to "fix" with a dark theme. A
 stale cached copy predating v17.16 (no opt-out at all) is the other cause — resolved by updating
-the install, not by code.
+the install, not by code. **Samsung Internet is the one the opt-out cannot reach** (confirmed 23 Oct
+2026): its Dark mode repaints a page that says `only light` regardless, and the answer is per device,
+not in code — KNOWN_LIMITATIONS.md → "Samsung Internet’s Dark mode repaints the app dark".
 
 ## Canonical card-header system (v18.16 — the admin parity pass)
 

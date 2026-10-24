@@ -32,6 +32,7 @@ const DEPLOY_SURFACE = [
     'onCircularCreated',
     'onNewsletterCreated',
     'sendPayReminderNotification',
+    'sendTimetableReminder',
     'parseRosterPDF',
     'setupRosterAuth',
     'resetMemberPassword',

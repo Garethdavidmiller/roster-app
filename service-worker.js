@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '24.92';
+const APP_VERSION = '24.94';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -1020,8 +1020,8 @@ const APP_SCOPE = self.registration.scope;
 // not an access grant — this allowlist only decides which in-scope page a payload may navigate to;
 // the page itself still runs its own admin gate, and a non-admin who somehow received the payload
 // would land on that gate. It is on the list because the notification is only ever SENT to the
-// admin's own owner-stamped devices (sendTargetedPush in functions/index.js).
-const SAFE_NOTIFICATION_PAGES = ['', 'index.html', 'paycalc.html', 'operations.html', 'overtime.html', 'settings.html'];
+// admin's own owner-stamped devices (sendTargetedPush in functions/index.js). trains.html (v24.94) is the one-off timetable reminder's landing page.
+const SAFE_NOTIFICATION_PAGES = ['', 'index.html', 'paycalc.html', 'operations.html', 'overtime.html', 'settings.html', 'trains.html'];
 
 self.addEventListener("notificationclick", event => {
     event.notification.close();
