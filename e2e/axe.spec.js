@@ -362,6 +362,10 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
     // with every train listed (verdict, figures table, before-and-after chips), and the basic-hour
     // grid, whose dots carry their meaning only in sr-only words.
     test('trains (admin, signed in) — a station open, then the basic hour', async ({ page }) => {
+        // A weekday, pinned: "to Aylesbury" is a Monday-to-Friday headline (the page opens on the
+        // real day's timetable), and this scan first met a Saturday on 24 Oct 2026 — see the same
+        // pin in e2e/trains.spec.js.
+        await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
         await seedSession(page, 'G. Miller');
         await page.goto('/trains.html');
         await page.locator('#trChanges .tr-head', { hasText: 'to Aylesbury' }).click();
