@@ -143,6 +143,10 @@ export function buildRangePicker(prefix, opts = {}) {
         const daysInMonth = new Date(yr, mo + 1, 0).getDate();
         const todayISO    = formatISO(new Date());
         const previewEnd  = !toISO && fromISO && hoverISO > fromISO ? hoverISO : toISO;
+        // A rebuild under the focused day took a keyboard user's focus to <body> — every pick and
+        // every hover rebuilds (whole-app review, Oct 2026). The same date gets it back, below.
+        const active      = /** @type {HTMLElement|null} */ (document.activeElement);
+        const focusedIso  = active && target.contains(active) ? active.dataset.iso || '' : '';
         target.innerHTML  = '';
         ['S','M','T','W','T','F','S'].forEach(d => {
             const el = document.createElement('div');
@@ -184,6 +188,7 @@ export function buildRangePicker(prefix, opts = {}) {
                 el.classList.add('rp-preview', 'rp-preview-end');
             target.appendChild(el);
         }
+        if (focusedIso) /** @type {HTMLElement|null} */ (target.querySelector(`[data-iso="${focusedIso}"]`))?.focus({ preventScroll: true });
     }
 
     function render() {

@@ -215,10 +215,13 @@ const ingestHuddle = onRequest(
             // Use a permanent download-token URL scoped to the retention window. We deliberately do
             // NOT use a v4 signed URL: GCS caps v4 expiry at 7 DAYS, so the old 365-day request threw
             // on every ingest and silently fell through to this same token path anyway — and a real
-            // 7-day URL would 403 on huddles still within the 3-month retention window. Reads on the
-            // huddles collection are open (matching the calendar's no-auth model) and huddles
+            // 7-day URL would 403 on huddles still within the 3-month retention window. Huddles
             // auto-prune at 3 months (pruneOldHuddles), so a token URL that lives for the retention
-            // window is the correct fit. The bucket segment matches isSafeStorageUrl's allowlist.
+            // window is the correct fit. (This said reads on the collection were "open, matching the
+            // calendar's no-auth model" — true until v23.18, when they closed to a member, the admin
+            // or the PIN viewer. The FILE behind this URL is still a bearer URL — ARCHITECTURE.md
+            // EXC-007 — which is what getDocumentUrl's short-lived links narrow.) The bucket segment
+            // matches isSafeStorageUrl's allowlist.
             const downloadToken = crypto.randomUUID();
             await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: downloadToken } });
             const encodedPath = encodeURIComponent(storagePath);

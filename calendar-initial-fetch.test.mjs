@@ -22,6 +22,7 @@ let _addMonthsHistory = [];   // calls to addFetchedMonths
 let _clearMonthsHistory = []; // calls to clearFetchedMonth
 let _fakeFetchInProgress = false;
 let _cacheFetchImpl   = () => Promise.resolve(false);   // phase 1: local-cache paint
+let _releaseImpl      = () => [];   // releaseStaleMonths — which months the return-to-page released
 
 mock.module('./calendar-overrides.js', {
     namedExports: {
@@ -29,7 +30,7 @@ mock.module('./calendar-overrides.js', {
         setInitialFetchInProgress(v) { _progressHistory.push(v); _fakeFetchInProgress = v; },
         addFetchedMonths(keys)       { _addMonthsHistory.push([...keys]); },
         clearFetchedMonth(key)       { _clearMonthsHistory.push(key); },
-        releaseStaleMonths:          () => [],
+        releaseStaleMonths:          (...args) => _releaseImpl(...args),
         monthKey:                    (y, m) => `${y}-${String(m + 1).padStart(2, '0')}`,
         fetchOverridesForRange:      (...args) => _fetchImpl(...args),
         fetchOverridesForRangeFromCache: (...args) => _cacheFetchImpl(...args),
@@ -44,6 +45,7 @@ mock.module('./roster-data.js', {
 });
 
 const { initInitialFetch } = await import('./calendar-initial-fetch.js');
+const { knowledgeOf, _reset: resetKnowledge } = await import('./calendar-data-state.js');
 
 // ── Minimal DOM helpers ───────────────────────────────────────────────────────
 
@@ -570,6 +572,26 @@ describe('visibilitychange', () => {
         _docListeners['visibilitychange']?.[0]?.();
         assert.equal(rendered, false);
     });
+
+    // INVARIANT 18 HOLDS FOR TEAM VIEW TOO (whole-app review, Oct 2026). Returning to the page
+    // released the stale months and then repainted Team View FROM CACHE, so nothing asked for them
+    // again and a station PC left on Team View showed hours-old leave as current. The return must
+    // take the path that re-reads.
+    test('in Team View, months released on return are RE-READ, not merely repainted', () => {
+        _fetchImpl = () => new Promise(() => {});
+        _releaseImpl = () => ['2026-10'];
+        let repaints = 0, refetches = 0;
+        initInitialFetch({
+            isTeamViewMode: () => true, renderCalendar: () => {},
+            renderTeamView: () => { repaints++; }, refetchTeamView: () => { refetches++; },
+        });
+        global.document.hidden = false;
+        const listeners = _docListeners['visibilitychange'];
+        listeners?.[listeners.length - 1]?.();
+        _releaseImpl = () => [];
+        assert.equal(refetches, 1, 'the released months were never asked for again');
+        assert.equal(repaints, 0, 'a cache repaint is not a re-read');
+    });
 });
 
 // ── E1: the render path must never be gated on auth (AUTH_PLAN.md → E1) ───────
@@ -604,6 +626,27 @@ describe('E1 — auth must not gate the cache paint', () => {
         assert.equal(renderCalendar.mock.callCount() >= 1, true,
             'the cached roster must be painted even though auth never arrived');
         assert.equal(serverCalled, false, 'phase 2 correctly still waiting on auth');
+    });
+
+    // PER MONTH (whole-app review, Oct 2026): the cache read names the months it held rows for,
+    // and only those may be drawn as known. One cached month used to mark the whole window.
+    test('phase 1 marks as cached only the months the cache held rows for', async () => {
+        resetKnowledge();
+        const key = (/** @type {Date} */ d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const now = new Date();
+        const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        _cacheFetchImpl = (/** @type {any} */ _s, /** @type {any} */ _e, /** @type {string[]} */ months) => {
+            months?.push(key(now));
+            return Promise.resolve(true);
+        };
+        _fetchImpl = () => new Promise(() => {});
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {}, authReady: new Promise(() => {}) });
+        await flushAsync(6);
+        assert.equal(knowledgeOf(key(now)), 'cached');
+        assert.equal(knowledgeOf(key(prev)), 'unknown', 'a month this device never loaded was marked known');
+        assert.equal(knowledgeOf(key(next)), 'unknown');
+        resetKnowledge();
     });
 
     test('an empty cache paints nothing (no spurious render) but still does not block', async () => {

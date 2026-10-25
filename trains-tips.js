@@ -12,6 +12,13 @@
  * one line beneath the tabs, on every view (v24.92 — it was in the overview card, which now opens
  * collapsed on a return visit). Discovery may not depend on opening a panel.
  *
+ * ── EVERY LINE HOLDS ON BOTH SIDES OF THE CHANGE ────────────────────────────────────────────────
+ *
+ * These panels are built once, at import, with no phase — so a sentence true only before the change
+ * ("December times can still change", "today's leaf-fall timetable", "Chiltern says it will…") went
+ * on saying it for the four months after (whole-app review, Oct 2026). The caveat beneath the tabs
+ * is the phase-aware one (`caveatWords`); here, name the columns and dates rather than "today".
+ *
  * ── NOTHING HERE IS TYPED TWICE ─────────────────────────────────────────────────────────────────
  *
  * Every date, window and threshold is read from where the page's own code reads it — the change
@@ -34,11 +41,11 @@ export const CARD_TIPS = {
         sections: [
             {
                 items: [
-                    { icon: '📅', html: `Chiltern's new timetable starts on <strong>${dateWords(CHANGE_DATE, 0, { weekday: true })}</strong>. Until then the trains in this page's first column are the ones running; from then, the second.` },
+                    { icon: '📅', html: `The page's first column is Chiltern's timetable <strong>until ${dateWords(CHANGE_DATE, -1, { weekday: true })}</strong>; the second is the new one, <strong>from ${dateWords(CHANGE_DATE, 0, { weekday: true })}</strong>.` },
                     { icon: '🚆', html: 'The totals count every passenger train <strong>leaving Marylebone</strong> on that kind of day. Two trains coupled together count once, because they leave as one.' },
                     { icon: '🗓️', html: 'A few of today\'s weekday trains run only on <strong>Mondays and Fridays</strong>, or only <strong>Tuesday to Thursday</strong>. Weekday counts are for a Tuesday to Thursday; the trains themselves are listed with their days.' },
-                    { icon: '⚠️', html: 'December times can still change. Before you tell a customer, check the journey planner — it is linked in the line beneath the tabs — or the live departure boards, linked from the About panel (the logo in the menu).' },
-                    { icon: '🎄', html: `<strong>Christmas and New Year are not on this page.</strong> Chiltern says it will change times again between ${dateWords(CHANGE_DATE)} and ${dateWords(FURTHER_CHANGES_UNTIL)}, with big changes over Christmas and New Year, and Amersham-line times may change during those weeks too. For those dates, check the journey planner nearer the time.` },
+                    { icon: '⚠️', html: 'These are published times, and they can change. Before you tell a customer, check the journey planner — it is linked in the line beneath the tabs — or the live departure boards, linked from the About panel (the logo in the menu).' },
+                    { icon: '🎄', html: `<strong>Christmas and New Year are not on this page.</strong> Between ${dateWords(CHANGE_DATE)} and ${dateWords(FURTHER_CHANGES_UNTIL)} Chiltern changes times again, with big changes over Christmas and New Year, and Amersham-line times may change in those weeks too. For those dates, check the journey planner.` },
                 ],
             },
             {
@@ -46,7 +53,7 @@ export const CARD_TIPS = {
                 items: [
                     { icon: '📄', html: `First column: Chiltern's public timetables, valid until ${dateWords(CHANGE_DATE, -1, { weekday: true })}.` },
                     { icon: '📄', html: `From ${dateWords(CHANGE_DATE)}: Chiltern's new public timetables, valid until ${dateWords(DEC_VALID_UNTIL, 0, { weekday: true })} ${DEC_VALID_UNTIL.slice(0, 4)}.` },
-                    { icon: '🍂', html: `Today's Amersham-line timetable is Chiltern's <strong>leaf-fall</strong> one: until ${dateWords(LEAF_FALL.until)}, trains to London on that line leave up to ${LEAF_FALL.minutes} minutes earlier than usual. The new timetable does not include that, so small differences coming back on that line may be leaf fall.` },
+                    { icon: '🍂', html: `The first column's Amersham-line times are Chiltern's <strong>leaf-fall</strong> ones: until ${dateWords(LEAF_FALL.until)}, trains to London on that line leave up to ${LEAF_FALL.minutes} minutes earlier than usual. The new timetable does not include that, so small differences coming back on that line may be leaf fall.` },
                 ],
             },
         ],
@@ -90,7 +97,7 @@ export const CARD_TIPS = {
         sections: [
             {
                 items: [
-                    { icon: '⌨️', html: 'Start typing a station, or tap one of the busiest. Short forms work too: <strong>Moor St</strong>, <strong>Gerrards X</strong>, <strong>Oxford Pkwy</strong>, <strong>Bham</strong>, <strong>Gt Missenden</strong>, or the three-letter code. Press Enter to open the first match. The card answers in one sentence first, then the figures, today beside December.' },
+                    { icon: '⌨️', html: 'Start typing a station, or tap one of the busiest. Short forms work too: <strong>Moor St</strong>, <strong>Gerrards X</strong>, <strong>Oxford Pkwy</strong>, <strong>Bham</strong>, <strong>Gt Missenden</strong>, or the three-letter code. Press Enter to open the first match. The card answers in one sentence first, then the figures, the old timetable beside the new.' },
                     { icon: '🔢', html: `<strong>Daytime</strong> means ${DAYTIME}. <strong>2 (1 in some hours)</strong> trains an hour means most daytime hours have two trains, and some have only one; <strong>1 to 3</strong> means no one number is true of most hours.` },
                     { icon: '🕐', html: '<strong>Going there</strong>, every time is when the train leaves <strong>Marylebone</strong>. <strong>Coming back</strong>, it is when the train leaves the station on the card, with the time it gets into Marylebone underneath.' },
                     { icon: '🔁', html: `<strong>Train by train</strong> lists only the trains that change; the ones that stay the same are one tap further. A train counts as the same train when it leaves within ${MAX_SHIFT_MIN} minutes of its old time. Beyond that it shows as removed, and the new one as a new train.` },

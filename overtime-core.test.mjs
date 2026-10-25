@@ -1223,6 +1223,11 @@ describe('push notices — the words and the one morning, each wrong-able silent
         test('a GMT deadline also renders 12:00 — noon London is the definition, not an offset', () => {
             assert.match(C.londonDeadlineLabel(WINTER.initialDeadlineAt), / · 12:00$/);
         });
+        // Node's en-GB data spells September "Sept"; the form says "Sep" (whole-app review, Oct 2026).
+        test('September is "Sep", as the form spells it — never Intl\'s "Sept"', () => {
+            const sep = Date.UTC(2026, 8, 1, 11);   // Tue 1 Sep 2026, 12:00 London
+            assert.equal(C.londonDeadlineLabel(sep), 'Tue 1 Sep · 12:00');
+        });
     });
 
     describe('the two notices fit the design language without clipping', () => {

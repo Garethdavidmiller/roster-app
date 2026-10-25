@@ -82,6 +82,33 @@ export function warnOnUnload(isDirty) {
 }
 
 /**
+ * Ask before a DRAWER LINK leaves the page with unsaved work (whole-app review, Oct 2026). The
+ * browser's own unload prompt was the only guard on those exits, and a phone never shows it, so a
+ * drawer pill discarded staged edits without a word. Capture phase on `document`, so it runs before
+ * the link's own listeners and before the drawer navigates; on "Leave" it clicks the link again with
+ * itself stood aside, so whatever the page hangs on that link still runs (Admin's Calendar pill
+ * writes the month being edited first). A `_blank` link leaves the page where it is, so it passes.
+ * @param {() => boolean} isDirty
+ */
+export function askBeforeLeavingByDrawer(isDirty) {
+    let passing = false;
+    document.addEventListener('click', (e) => {
+        if (passing || !isDirty()) return;
+        const link = /** @type {HTMLAnchorElement|null} */ (/** @type {Element} */ (e.target)?.closest?.('.nav-panel a[href]'));
+        if (!link || link.target === '_blank') return;
+        e.preventDefault();
+        e.stopPropagation();
+        confirmDialog({ message: 'You have unsaved changes. Leave this page anyway?', confirmLabel: 'Leave' })
+            .then((ok) => {
+                if (!ok) return;
+                _leaving = true;   // answered: the unload warning must not ask a second time
+                passing = true;
+                try { link.click(); } finally { passing = false; }
+            });
+    }, true);
+}
+
+/**
  * The drawer's `beforeSignOut`: with unsaved work, or a save still on its way, ask first; without
  * either, carry on. Resolves `false` to cancel, in which case nothing has been released.
  *

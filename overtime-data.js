@@ -58,11 +58,28 @@ export function correctedNow() {
  * @returns {Promise<{ ok: true, data: any } | { ok: false, code: string, status?: number, data?: any }>}
  */
 async function post(name, body, opts = {}) {
+    const first = await postOnce(name, body, opts, false);
+    // A STALE CLAIM HEALS ITSELF (whole-app review, Oct 2026). A member given the manager role holds a
+    // token minted without it until its hourly refresh, so every call — and every Try again — was
+    // refused for up to an hour. One retry on a FRESH token, as Firestore's withClaimRetry does; a
+    // second refusal is a real answer.
+    if (!first.ok && (first.status === 401 || first.status === 403) && !opts.signal?.aborted) {
+        return postOnce(name, body, opts, true);
+    }
+    return first;
+}
+
+/**
+ * One attempt of `post`, with the cached token or a forced-fresh one.
+ * @param {string} name @param {object} body @param {{ signal?: AbortSignal }} opts @param {boolean} fresh
+ * @returns {Promise<{ ok: true, data: any } | { ok: false, code: string, status?: number, data?: any }>}
+ */
+async function postOnce(name, body, opts, fresh) {
     let token;
     try {
         const user = auth.currentUser;
         if (!user) return { ok: false, code: 'no-session' };
-        token = await user.getIdToken();
+        token = await user.getIdToken(fresh);
     } catch (_) {
         return { ok: false, code: 'no-session' };
     }

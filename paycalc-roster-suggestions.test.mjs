@@ -35,7 +35,7 @@ const {
   getOverridesFetchState,
 } = await import('./paycalc-roster-suggestions.js');
 
-const { teamMembers } = await import('./roster-data.js');
+const { teamMembers, parseISODate } = await import('./roster-data.js');
 const cReen = teamMembers.find(m => m.name === 'C. Reen');
 // C. Reen: fixed roster — Mon–Fri 12:00-19:00 (7h), Sat/Sun RD.
 const sBoyle = teamMembers.find(m => m.name === 'S. Boyle');
@@ -54,8 +54,13 @@ function mockSnap(docs) {
   return { forEach: cb => docs.forEach(d => cb({ data: () => d })) };
 }
 
+/**
+ * A pay period spanning the given dates. Built at LOCAL NOON with the app's own `parseISODate`, as
+ * the app builds its periods — `new Date('YYYY-MM-DD')` is UTC midnight, which is the previous
+ * evening anywhere west of UTC, and failed 30 tests there (whole-app review, I9).
+ */
 function period(...isoStrings) {
-  const dates = isoStrings.map(s => new Date(s)).sort((a, b) => a - b);
+  const dates = isoStrings.map(parseISODate).sort((a, b) => a - b);
   return { start: dates[0], cutoff: dates[dates.length - 1] };
 }
 

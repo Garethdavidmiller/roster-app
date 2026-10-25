@@ -34,7 +34,7 @@ import { serverTimestamp } from './firebase-client.js';
 import { createLightbox, confirmDialog } from './overlay.js';
 import { checkName } from './links-design-naming.js';
 import { ROTATING_LINES } from './links-design.js';
-import { docPayload, restoredEntryFrom } from './links-design-doc.js';
+import { docPayload, restoredEntryFrom, binEntryFromDoc } from './links-design-doc.js';
 import { parseDesignImport, summariseImport } from './links-import.js';
 import { deletedLabel } from './links-deletion.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
@@ -227,18 +227,25 @@ export function createDesignLibrary(ctx) {
                 _binStatus(settledElsewhere);
                 return;
             }
-            const { updatedAt: restoredTs, revision: restoredRev } = res;
+            const { updatedAt: restoredTs, revision: restoredRev, data } = res;
             bin = bin.filter(x => x.id !== id);
             // The store armed the baseline from the server. A restored design is an OLD document a
             // co-editor may still hold, so entering it with no baseline is worse than for a new
             // one: the next save would skip the "someone else saved" confirm entirely. A null
             // stamp reads as an UNKNOWN baseline (guard on), never "nothing to compare".
-            const restored = restoredEntryFrom(d, { updatedAt: restoredTs, updatedBy: ctx.currentUser, revision: restoredRev });
+            //
+            // And it is built from what the SERVER holds (`data`, read inside the restore's own
+            // transaction), not from the bin row `d`, which is only as fresh as the moment the bin
+            // opened. Pairing that stale copy with the server's new revision is how a colleague's
+            // newer save was overwritten without a prompt (whole-app review, Oct 2026). The store
+            // always returns `data` with `ok`; the fallback is for nothing but a malformed reply.
+            const restored = restoredEntryFrom(data ? binEntryFromDoc(id, data) : d,
+                { updatedAt: restoredTs, updatedBy: ctx.currentUser, revision: restoredRev });
             ctx.addDesign(restored);
             // Restoring into an EMPTY workspace OPENS the design — the masthead names the open one.
             if (!ctx.hasOpenDesign()) ctx.activate(restored); else ctx.renderPicker();
             renderBinList();
-            _binStatus(`“${d.name}” restored.`, 'ok');
+            _binStatus(`“${restored.name}” restored.`, 'ok');
         } catch (err) {
             console.error('[Links] Restore failed:', err);
             _binStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t restore that design — check your connection and try again.');

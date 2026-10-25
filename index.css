@@ -3485,6 +3485,46 @@
         }
         @media print { .calendar-snapshot-note { display: none; } }
 
+        /* ---- A month drawn from this device's cache, outside the first load (whole-app review) ----
+           calendar-renderer.js. `stale` is the grid "labelled as possibly out of date, with a retry"
+           (calendar-data-state.js), and for months the first load did not cover nothing labelled it.
+           The snapshot note's pill in the sync chip's ERROR tint — this read failed, it is not still
+           running. Where the chip is on screen it already says this, so the note steps back: one
+           message at a time, as above. */
+        .calendar-stale-note {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 4px 8px;
+            width: fit-content;
+            max-width: 100%;
+            margin: 0 auto 8px;
+            font-size: var(--type-micro);
+            font-weight: 600;
+            color: var(--error-banner);
+            background: color-mix(in srgb, var(--error-red) 10%, transparent);
+            border: 1px solid color-mix(in srgb, var(--error-red) 30%, transparent);
+            border-radius: var(--radius-pill);
+            padding: 3px 9px;
+        }
+        .calendar-stale-retry {
+            min-height: 24px;
+            padding: 0 4px;
+            border: none;
+            background: none;
+            color: inherit;
+            font: inherit;
+            text-decoration: underline;
+            cursor: pointer;
+        }
+        .calendar-stale-retry:focus-visible {
+            outline: 2px solid var(--error-banner);
+            outline-offset: 2px;
+        }
+        .calendar-container:has(.sync-chip) .calendar-stale-note { display: none; }
+        @media print { .calendar-stale-note { display: none; } }
+
         /* ---- Skeleton shimmer — shown on calendar grid during initial Firestore fetch ---- */
         @keyframes shimmer {
             0%   { background-position: -400px 0; }

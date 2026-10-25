@@ -61,6 +61,7 @@ on:
 permissions:
   contents: read
   actions: read
+  pages: read   # whether the mirror deploys from deploy-mirror.yml — see the second stand-down
   issues: write
 
 jobs:
@@ -85,6 +86,7 @@ jobs:
           # would have failed open on every single run while looking exactly like a working guard.
           GITHUB_TOKEN: ${{ github.token }}
           HOSTING_WORKFLOW: deploy-hosting.yml
+          PAGES_WORKFLOW: deploy-mirror.yml
         run: |
           set -uo pipefail
 
@@ -174,6 +176,26 @@ jobs:
             if [ -n "$IN_FLIGHT" ]; then
               echo "::notice::Production is behind main and a Hosting deploy is STILL RUNNING ($IN_FLIGHT). That is a deploy in progress, not a stale production. Standing down."
               exit 0
+            fi
+          fi
+
+          # ── THE GATED MIRROR TRAILS HOSTING; IT DOES NOT LEAD IT (whole-app review, Oct 2026) ──
+          # Once Pages deploys from deploy-mirror.yml, a release reaches the mirror only after Hosting
+          # has passed and published — so during a release BOTH origins are behind, and then the
+          # mirror alone for the minute its own deploy takes. Neither is a finding while one of the
+          # two deploys is running. Asked only when Pages really does deploy from that workflow:
+          # building from the branch, a lagging mirror is a broken build, and v24.23 above is why
+          # that must never hide behind a Hosting run. Fails open, like the query above.
+          if [ -n "$LIVE_WEB" ] && [ -n "$LIVE_PAGES" ] && [ "$LIVE_PAGES" != "$EXPECTED" ]; then
+            BUILD_TYPE=$(curl -fsSL --max-time 30 -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$GITHUB_REPOSITORY/pages" 2>/dev/null | jq -r '.build_type // empty' 2>/dev/null || true)
+            if [ "$BUILD_TYPE" = "workflow" ]; then
+              for WF in "$HOSTING_WORKFLOW" "$PAGES_WORKFLOW"; do
+                IN_FLIGHT=$(curl -fsSL --max-time 30 -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/$WF/runs?branch=main&per_page=5" 2>/dev/null | jq -r '[.workflow_runs[] | select(.status != "completed")] | first | .html_url // empty' 2>/dev/null || true)
+                if [ -n "$IN_FLIGHT" ]; then
+                  echo "::notice::The mirror is behind main and a release is STILL RUNNING ($IN_FLIGHT); the gated mirror follows Hosting. Standing down."
+                  exit 0
+                fi
+              done
             fi
           fi
 

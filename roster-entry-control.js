@@ -65,6 +65,16 @@ const HINT_OTHER = 'Times are optional — leave both blank to use the usual hou
  *  first rather than a competing row of equals. */
 const Q_TYPE = 'What kind of day was it?';
 const Q_OTHER = 'Which kind of Other day?';
+/** LEAVE OR AN ABSENCE ENTERED ON A BASE REST DAY IS ASKED ABOUT, never rewritten (whole-app review,
+ *  Oct 2026). The rest-day guard turns it into RD — right for a real rest day, wrong for a swapped
+ *  week — and this control used to let that happen in silence: the AL pill stayed lit, the hint said
+ *  "this day will be saved", and Save wrote a Rest Day, replacing any record already on the day. A
+ *  GUARDED row asks the roster's own leave the same question with the same two answers, and so does
+ *  this: only "Swapped" writes, and it writes the value as covering a swapped-in working day. */
+const Q_SWAP = 'A rest day on the base roster. Was it a swapped working day?';
+const HINT_SWAP_ASK = 'Answer the question above \u2014 nothing is saved for this day until you do.';
+const HINT_SWAP_YES = '\u2713 this day will be saved, as a swapped working day';
+const HINT_SWAP_NO  = 'A rest day \u2014 nothing will be recorded for this day.';
 
 /**
  * The in-place "enter it myself" control for an unreadable cell (v22.17).
@@ -136,11 +146,24 @@ export function entryControlHtml(key, s, date) {
                 ${(d.rdw || baseIsRd) ? 'checked' : ''}${baseIsRd ? ' disabled' : ''}> Rest day worked${
                 baseIsRd ? '<span class="roster-entry-lock">(automatic on a rest day)</span>' : ''}</label>
         </div>`;
+    // The swap question, under the pills, only while the draft is leave or an absence on a base rest
+    // day — the one value the guard would otherwise rewrite to RD behind the admin's back.
+    const asksSwap = !!d.type && draftAsksSwap(d, s);
+    const swapBtn = (/** @type {string} */ v, /** @type {string} */ label) =>
+        `<button type="button" class="roster-entry-swap-btn${d.swap === v ? ' is-on' : ''}"
+            data-key="${esc(key)}" data-entry-swap="${v}" aria-pressed="${d.swap === v}">${label}</button>`;
+    const swapQ = !asksSwap ? '' : `<div class="roster-entry-swap">
+            <p class="roster-entry-q roster-entry-q--sub">${Q_SWAP}</p>
+            <div class="roster-entry-swap-btns" role="group" aria-label="Was it a swapped working day?">
+                ${swapBtn('yes', 'Swapped \u2014 record it')}${swapBtn('no', 'Rest day \u2014 leave it')}
+            </div>
+        </div>`;
     return `<div class="roster-entry" data-key="${esc(key)}">
         <p class="roster-entry-q">${Q_TYPE}</p>
         <div class="roster-entry-pills" role="group" aria-label="Choose the shift type">${pills}</div>
         ${sunNote}
         ${otherOpts}
+        ${swapQ}
         ${needsTime ? `<div class="roster-entry-times">
             <input type="text" class="roster-entry-time" data-key="${esc(key)}" data-part="from"
                    value="${esc(d.from)}" inputmode="numeric" maxlength="5" placeholder="HH:MM"
@@ -224,16 +247,18 @@ export function patchEntryRow(rowEl, done, st) {
     // approved change). What v22.54 got right still holds: a row whose READING is picked stays a
     // decision while a half-finished entry is open beside it, so its words must say so too.
     const cls = st ? unreadableTagClass(st) : (done ? 'act-choice' : 'act-read');
+    const left = entryLeftAsRest(st);
     const act = rowEl.querySelector('.roster-act');
     if (act) {
-        act.textContent = done ? 'Your entry' : (cls === 'act-choice' ? 'Your choice' : "Couldn't read");
-        act.classList.toggle('act-choice', cls === 'act-choice');
-        act.classList.toggle('act-read', cls === 'act-read');
+        act.textContent = done ? 'Your entry' : left ? 'Not recorded' : (cls === 'act-choice' ? 'Your choice' : "Couldn't read");
+        act.classList.toggle('act-choice', !left && cls === 'act-choice');
+        act.classList.toggle('act-read', !left && cls === 'act-read');
+        act.classList.toggle('act-none', left);
     }
     const note = rowEl.querySelector('.roster-remove-note');
     if (note) note.textContent = done
         ? '\u2713 you entered the shift below'
-        : 'check the paper roster, or enter it below';
+        : left ? 'a rest day \u2014 nothing is recorded' : 'check the paper roster, or enter it below';
     // The button's own words, authored beside the row that owns them — an options row's control
     // says "Neither — enter it" and must not rename itself to the other row's "Enter the shift"
     // while the admin has it open. Constants remain the fallback for a row that stamps neither.
@@ -252,7 +277,7 @@ export function patchEntryRow(rowEl, done, st) {
     const hint = rowEl.querySelector('.roster-entry-hint');
     if (hint) hint.textContent = st ? entryHint(st.draft || {}, st) : (done ? HINT_DONE : HINT_TODO);
     // The row's tint follows the chip: unanswered until something will be written.
-    rowEl.classList.toggle('roster-change-unreadable', cls === 'act-read');
+    rowEl.classList.toggle('roster-change-unreadable', !left && cls === 'act-read');
 }
 
 /**
@@ -280,6 +305,7 @@ function draftValue(d, st) {
  *  @param {any} d @param {any} st @returns {string} */
 function entryHint(d, st) {
     const { value, error } = draftValue(d, st);
+    if (value && draftAsksSwap(d, st)) return d.swap === 'yes' ? HINT_SWAP_YES : d.swap === 'no' ? HINT_SWAP_NO : HINT_SWAP_ASK;
     if (value) return HINT_DONE;
     // `composeOtherValue`'s own "no flavour yet" message names Spare, because the week editor
     // offers it. This control does not, so it says its own sentence rather than promising a chip
@@ -300,8 +326,11 @@ export function entryClick(el, st) {
     const d = { ...(st.draft || {}), open: true };
     const type = el.dataset?.entryType;
     const flav = el.dataset?.entryFlavour;
-    if (type !== undefined)      d.type = d.type === type ? null : type;
-    else if (flav !== undefined) d.flavour = d.flavour === flav ? null : flav;
+    const swap = el.dataset?.entrySwap;
+    // A new type or flavour is a new question, so an earlier swap answer does not carry over to it.
+    if (type !== undefined)      { d.type = d.type === type ? null : type; delete d.swap; }
+    else if (flav !== undefined) { d.flavour = d.flavour === flav ? null : flav; delete d.swap; }
+    else if (swap !== undefined) d.swap = swap === 'yes' ? 'yes' : 'no';
     else if (el.classList?.contains('roster-entry-rdw-cb')) d.rdw = !!el.checked;
     else return false;
     st.draft = d;
@@ -323,6 +352,31 @@ export function commitEntry(s) {
     const d = s.draft || {};
     const raw = draftValue(d, s).value;
     if (!raw) { s.entered = null; if (s.chosen === 'entered') s.chosen = null; return; }
-    s.entered = normaliseCellValue(raw, s.baseShift, s.date);
+    const n = normaliseCellValue(raw, s.baseShift, s.date);
+    // Leave or an absence on a base rest day: written only when answered "swapped", and then as what
+    // the admin entered, marked as covering a swapped-in working day (`swapped` → replacedType at the
+    // save, exactly as a GUARDED row's answer is). Unanswered or "rest day" writes nothing at all.
+    if (n.guarded === 'rest-day') {
+        if (d.swap === 'yes') { s.entered = { value: raw, display: raw, guarded: null, swapped: true }; s.chosen = 'entered'; }
+        else { s.entered = null; if (s.chosen === 'entered') s.chosen = null; }
+        return;
+    }
+    s.entered = n;
     s.chosen  = 'entered';
+}
+
+/** Would the rest-day guard rewrite this draft's value — leave or an absence on a base rest day?
+ *  @param {any} d the draft @param {any} st the cell state @returns {boolean} */
+function draftAsksSwap(d, st) {
+    const { value } = draftValue(d, st);
+    return !!value && normaliseCellValue(value, st.baseShift, st.date).guarded === 'rest-day';
+}
+
+/**
+ * Has the admin answered "Rest day — leave it" for this cell's entry? The row then says "Not
+ * recorded" — an answer, not a cell nobody could read — and the summary stops counting it as one.
+ * @param {any} st an UNREADABLE cell state @returns {boolean}
+ */
+export function entryLeftAsRest(st) {
+    return !!st?.draft && st.draft.swap === 'no' && draftAsksSwap(st.draft, st);
 }

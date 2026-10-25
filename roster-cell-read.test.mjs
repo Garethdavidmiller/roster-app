@@ -21,8 +21,9 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 
 const require_ = createRequire(import.meta.url);
-const { buildCellTable, renderCellTable, buildCellPrompt, DAY_LABELS, SHIFT_VOCABULARY } =
+const { buildCellTable, renderCellTable, buildCellPrompt, DAY_LABELS, SHIFT_VOCABULARY, reviewBlankReadsOfFilledCells } =
     require_('./functions/roster-prompt.js');
+const { buildSafeEntries, buildWeekDates } = require_('./functions/roster-parse-helpers.js');
 const { awaitGeometryWithin, settledGeometry } = require_('./functions/roster-geometry.js');
 
 /** A geometry row, cells Sunday-first. `occupancy` is derived exactly as the real reader derives it. */
@@ -207,5 +208,66 @@ describe('settledGeometry — reuse, or ask again, and never the other way round
 
     test('a missing early result does not throw and does not re-ask', async () => {
         assert.equal(await settledGeometry(null, Promise.resolve(REAL), async () => REAL), null);
+    });
+});
+
+// ── AN EMPTY READ OF A FILLED CELL IS A QUESTION (whole-app review, H3) ─────────────────────────
+//
+// `buildSafeEntries` resolves an empty read by the day: a rest day on Sunday. On the geometry path
+// the server holds what the cell actually says, so a worked Sunday the model reported as BLANK —
+// or left out — became `RD`, matched the base Sunday, and was never shown. The witness refuses
+// claims in EMPTY cells and could not see this; `RD` is not a claim.
+describe('reviewBlankReadsOfFilledCells — the grid says what an empty read missed', () => {
+    const dates = buildWeekDates('2026-10-31');
+    const SUN = dates[0];
+    const reply = (/** @type {Record<string, string>} */ days) => ({ memberName: 'G. Miller', ...days });
+    const WEEK = { Monday: '06:00-14:00', Tuesday: '06:00-14:00', Wednesday: 'RD', Thursday: '06:00-14:00',
+        Friday: '06:00-14:00', Saturday: 'RD' };
+    /** The real pipeline order: buildSafeEntries, then the rule. Returns the Sunday and the report. */
+    const run = (/** @type {any} */ parsed, /** @type {string[]} */ cells) => {
+        const safe = buildSafeEntries([parsed], DAY_LABELS, dates);
+        const sent = reviewBlankReadsOfFilledCells(safe, [parsed], [{ memberName: 'G. Miller', cells }], dates);
+        return { safe, sent, sunday: safe[0].shifts[SUN] };
+    };
+    const CELLS = ['08:00-16:00 | CEA 3', '06:00-14:00', '06:00-14:00', 'RD', '06:00-14:00', '06:00-14:00', 'RD'];
+
+    test('a worked Sunday read as BLANK goes to review, naming the cell — not a rest day', () => {
+        const { sunday, sent } = run(reply({ Sunday: 'BLANK', ...WEEK }), CELLS);
+        assert.ok(sunday.startsWith('UNKNOWN|'), `the Sunday became ${sunday}, which the review would never show`);
+        assert.match(sunday, /08:00-16:00 \| CEA 3/, 'the review must say what the PDF cell holds');
+        assert.deepEqual(sent, [{ memberName: 'G. Miller', dates: [SUN] }]);
+    });
+
+    test('so does a Sunday the model left out altogether', () => {
+        assert.ok(run(reply({ ...WEEK }), CELLS).sunday.startsWith('UNKNOWN|'));
+    });
+
+    test('a Sunday the grid shows EMPTY stays the rest day it is', () => {
+        const { sunday, sent } = run(reply({ Sunday: 'BLANK', ...WEEK }), ['', ...CELLS.slice(1)]);
+        assert.equal(sunday, 'RD');
+        assert.deepEqual(sent, []);
+    });
+
+    test('a cell that SAYS rest is not a question — RD, OFF, SN, and a Sunday NA or NS', () => {
+        for (const text of ['RD', 'OFF', 'SN', 'NA', 'NS']) {
+            assert.equal(run(reply({ Sunday: 'BLANK', ...WEEK }), [text, ...CELLS.slice(1)]).sunday, 'RD',
+                `a Sunday cell printed "${text}" and read as empty is a rest day either way`);
+        }
+    });
+
+    test('a value the model DID read is left exactly as read', () => {
+        const { sunday, sent } = run(reply({ Sunday: '08:00-16:00', ...WEEK }), CELLS);
+        assert.equal(sunday, '08:00-16:00');
+        assert.deepEqual(sent, []);
+    });
+
+    test('Mon–Sat it was already a question; the question now names the cell', () => {
+        const { safe } = run(reply({ Sunday: 'BLANK', ...WEEK, Tuesday: 'BLANK' }), ['', ...CELLS.slice(1)]);
+        assert.match(safe[0].shifts[dates[2]], /^UNKNOWN\|the PDF has "06:00-14:00"/);
+    });
+
+    test('a weekday cell that SAYS rest keeps the ordinary unread-cell question', () => {
+        const { safe } = run(reply({ Sunday: 'BLANK', ...WEEK, Wednesday: 'BLANK' }), ['', ...CELLS.slice(1)]);
+        assert.match(safe[0].shifts[dates[3]], /^UNKNOWN\|no Wednesday cell was read/);
     });
 });

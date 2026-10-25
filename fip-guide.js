@@ -40,6 +40,20 @@ var jumpChips = Array.prototype.slice.call(document.querySelectorAll('.country-j
 
 function norm(/** @type {string} */ s) { return (s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 
+/**
+ * The WORDS of a text, accents folded — the way the drawer's cross-guide search reads it
+ * (guide-search.js `tokeniseText`). The finder lower-cased and nothing else, so "obb", "mav" and
+ * "krakow" — an operator or city typed on a UK keyboard — found nothing, and "cie" matched the middle
+ * of "Société" and offered Switzerland instead of Ireland (whole-app review, Oct 2026).
+ * @param {string} s @returns {string[]}
+ */
+function foldWords(s) {
+    return (s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+        .split(/[^a-z0-9]+/).filter(Boolean);
+}
+// Each card's words, read once: the cards are static, and the filter runs on every keystroke.
+var cardWords = countryCards.map(function (card) { return foldWords(card.textContent || ''); });
+
 var printBtn = document.querySelector('.btn-print');
 /**
  * Say what the ⤓ PDF button will actually print, now that it prints what is on screen.
@@ -66,9 +80,13 @@ describePrintScope(null);
  *  operator/train name like "ÖBB" or "Railjet" finds its country too). Empty query resets. */
 function applyCountryFilter(/** @type {string} */ raw) {
     var q = norm(raw);
+    var terms = foldWords(raw);
     var shown = 0;
-    countryCards.forEach(function (card) {
-        var match = !q || norm(card.textContent || '').indexOf(q) !== -1;
+    countryCards.forEach(function (card, i) {
+        // Every typed word must START a word of the card — accents folded on both sides.
+        var match = !q || terms.every(function (t) {
+            return cardWords[i].some(function (w) { return w.indexOf(t) === 0; });
+        });
         card.hidden = !match;
         if (match) shown++;
     });
@@ -366,6 +384,9 @@ document.querySelector('.btn-print')?.addEventListener('click', function () {
     resetStalePrint();
     expandAllForPrint();
 }, true);
+// …and when guide-print.js REFUSES the print (a home-screen app on iOS 27), nothing will restore
+// what the prepare opened — so the refusal says so, and the page puts itself back (whole-app review).
+document.addEventListener('guide:print-refused', resetStalePrint);
 
 // ── PRINT THIS COUNTRY (v24.06) ────────────────────────────────────────────────────────────────
 //

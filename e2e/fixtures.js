@@ -264,7 +264,16 @@ export const addDoc = (/** @type {any} */ ref, /** @type {any} */ data) => {
   // which stringifies to "undefined" and still matches an [data-id] locator, so the spec counted a
   // design that was not choosable. Whatever a create returns here must look like Firestore's.
   e2e.addDocSeq = (e2e.addDocSeq || 0) + 1;
-  return Promise.resolve({ ...marker('docRef'), id: 'e2e-added-' + e2e.addDocSeq });
+  const created = { ...marker('docRef'), id: 'e2e-added-' + e2e.addDocSeq };
+  // window.__E2E.addDocHold holds every create open until the test calls window.__E2E.releaseAddDoc()
+  // (whole-app review, Oct 2026) — the lever that keeps a first save in flight long enough to edit the
+  // design under it, which an instantly-resolving create could never show. A GATE, like txHold.
+  // (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
+  if (e2e.addDocHold) {
+    if (!e2e._addDocGate) e2e._addDocGate = new Promise(r => { e2e.releaseAddDoc = r; });
+    return e2e._addDocGate.then(() => created);
+  }
+  return Promise.resolve(created);
 };
 // setDoc RECORDS its payload (v19.41), for the same reason writeBatch does: a test that can only
 // see the UI is checking the SUMMARY of a write, not the write. The Links soft delete is exactly

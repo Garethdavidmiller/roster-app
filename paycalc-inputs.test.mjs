@@ -134,6 +134,20 @@ test('decPreview writes the hh/mm hint for a decimal and hides it for a whole nu
   assert.equal(hint.hidden, true);
 });
 
+// A DECIMAL COMMA (whole-app review, Oct 2026). A phone set to a decimal-comma region offers "," on
+// the decimal keypad, and "7,5" priced 7h — the preview and the blur split looked for "." only.
+test('a decimal COMMA in an hours box is read as the point, by the read and by the preview', () => {
+  installDom({ h: field('7,5'), m: field('') });
+  assert.deepEqual(hmPair('h', 'm'), { h: 7, m: 30 });
+  assert.equal(hhmmDec('h', 'm'), 7.5);
+  const wrap = new FakeEl('div'); wrap.className = 'hhmm-wrap';
+  const col = new FakeEl('div'); col.appendChild(wrap);
+  const h = field('7,5'); wrap.appendChild(h);
+  installDom({ h });
+  decPreview('h');
+  assert.equal(col.querySelector('.hhmm-dec-hint')?.textContent, '= 7h 30m');
+});
+
 // ── wireIosTap (v21.66) ──────────────────────────────────────────────────────────────────────────
 //
 // Organised by the two ways this wiring can be wrong, both of which shipped or nearly shipped:

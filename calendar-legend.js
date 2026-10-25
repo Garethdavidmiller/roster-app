@@ -76,6 +76,25 @@ export function legendVisibility({ types, isDispatcher, displayMonth, easterMont
 }
 
 /**
+ * Is the member on the DISPATCHER roster on any day of this month? PURE. Asked per DAY because a
+ * scheduled roster move (`rosterChanges`) can start or end mid-month — the member's base
+ * `rosterType` kept the Night key up for months after a move away from Dispatch, and down after a
+ * move onto it (whole-app review, Oct 2026).
+ *
+ * @param {any} member @param {number} year @param {number} month 0-11
+ * @param {(member: any, date: Date) => any} resolve  `resolveMemberRoster`, injected (rule 4)
+ * @returns {boolean}
+ */
+export function onDispatcherRosterIn(member, year, month, resolve) {
+    if (!member) return false;
+    const days = new Date(year, month + 1, 0).getDate();
+    for (let d = 1; d <= days; d++) {
+        if (resolve(member, new Date(year, month, d))?.rosterType === 'dispatcher') return true;
+    }
+    return false;
+}
+
+/**
  * Is the legend shown at all? PURE, and THREE answers rather than two.
  *
  * `'stand-down'` is not a synonym for `'hide'`, and collapsing the two is the easiest mistake here
@@ -107,6 +126,7 @@ export function legendShown(display, isTeamViewMode) {
  * @param {(year: number) => Date} deps.computeEaster
  * @param {() => string} deps.displayVerdict   `decideDisplay(knowledgeOf(monthKey(...)))`
  * @param {() => boolean} deps.isTeamViewMode
+ * @param {(member: any, date: Date) => any} [deps.resolveMemberRoster]  the roster in force on a date
  * @returns {{ update: () => void }}
  */
 export function createLegend(deps) {
@@ -120,7 +140,8 @@ export function createLegend(deps) {
 
         const visible = legendVisibility({
             types,
-            isDispatcher: !!member && member.rosterType === 'dispatcher',
+            isDispatcher: onDispatcherRosterIn(member, deps.getDisplayYear(), deps.getDisplayMonth(),
+                deps.resolveMemberRoster || (m => m)),
             displayMonth: deps.getDisplayMonth(),
             easterMonth: deps.computeEaster(deps.getDisplayYear()).getMonth(),
         });

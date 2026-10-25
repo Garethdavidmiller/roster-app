@@ -148,3 +148,21 @@ export function isFetchTimeout(/** @type {any} */ err) {
 export function isFetchAborted(/** @type {any} */ err) {
     return !!err && err.code === FETCH_ABORTED_CODE;
 }
+
+/**
+ * The server's REFUSAL inside an error a Cloud Function caller threw, or null (whole-app review, Oct
+ * 2026). The admin callers throw `Server responded <status>: <body>`, and the bodies are JSON with an
+ * `error` sentence written for the admin ("No Firebase account for … — run Set up accounts first").
+ * Operations' Reset turned every one of those into a bare "Retry" button that could never succeed,
+ * with the sentence only in the console. A 4xx is an ANSWER — retrying cannot change it — so it is
+ * returned with its reason; a 5xx, a network failure or a timeout is not a refusal and returns null.
+ * @param {any} err
+ * @returns {{ status: number, reason: string }|null}
+ */
+export function serverRefusal(err) {
+    const m = /^Server responded (4\d\d): ([\s\S]*)$/.exec(String(err?.message ?? ''));
+    if (!m) return null;
+    let reason = m[2].trim();
+    try { const parsed = JSON.parse(reason); if (parsed && typeof parsed.error === 'string') reason = parsed.error; } catch { /* not JSON — the body is the reason */ }
+    return { status: Number(m[1]), reason: reason || `The server refused the request (${m[1]}).` };
+}

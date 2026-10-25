@@ -51,7 +51,7 @@ import { PROPOSALS, isProposalId, proposalById, proposalCopyName } from './links
 import { createTargetPanel } from './links-generator-targets.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
-import { formatClockInput } from './clock-input.js';
+import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
@@ -250,11 +250,11 @@ export function init() {
     let design = null;
     let dirty  = false;
     _isDirty = () => dirty;   // point the SW beforeReload at THIS pass's flag (v16.23)
-    /** Designs with a save in flight — by id, or by working copy before the first save. Their Save
-     *  stays disabled and a second press is ignored; PER DESIGN, so a write that cannot finish (no
-     *  signal) never locks every other design's Save with it (Sep 2026 re-review). */
+    /** Designs with a save in flight — by id, or 'unsaved' for ANY first save (never the design object:
+     *  a window edit or a generator apply replaces it mid-save, re-enabling Save for a second create —
+     *  whole-app review). PER DESIGN, so a write that cannot finish never locks the others (Sep 2026). */
     const savingKeys = new Set();
-    const savingHere = () => savingKeys.has(activeDesignId ?? design);
+    const savingHere = () => savingKeys.has(activeDesignId ?? 'unsaved');
     /** Bumped whenever another design becomes the working copy, so a save that lands after a
      *  switch knows the page no longer shows what it saved (see `saveChanges`). */
     let activation = 0;
@@ -392,8 +392,8 @@ export function init() {
             if (!design) return;
             // Pad what was typed — "6:20" and "06:20" are the same instruction, and the stored
             // value must be the one canonical form the rest of the workspace reads.
-            const start = canonicaliseWindowTime(els[row].start?.value) || '';
-            const end   = canonicaliseWindowTime(els[row].end?.value) || '';
+            const start = canonicaliseWindowTime(finaliseClockInput(els[row].start?.value ?? '')) || '';   // "240" left as typed is 02:40
+            const end   = canonicaliseWindowTime(finaliseClockInput(els[row].end?.value ?? '')) || '';
             const candidate = { start, end };
             if (!isValidWindowRow(candidate)) {
                 // Put the stored value back so the field never sits showing something that is not
@@ -963,7 +963,7 @@ export function init() {
         const out = new Set();
         for (const row of Object.values(design?.patterns || {})) {
             for (const s of Object.values(/** @type {any} */ (row) || {})) {
-                if (s && s !== 'RD' && s !== 'OFF' && s !== 'SPARE') out.add(s);
+                if (s && s !== 'RD' && s !== 'OFF' && s !== 'SPARE' && normaliseCustomShift(s)) out.add(s);   // never a night or past-midnight duty (whole-app review)
             }
         }
         if (!out.size) for (const t of DEFAULT_SHIFT_TIMES) out.add(t);
@@ -1878,7 +1878,7 @@ export function init() {
             if (status) { setStatus(status, same ? said : `${lead} — your later changes are not saved yet`); status.className = `links-save-status${queued ? '' : ' ok'}`; }
             updateLastSaved(currentUser, lastSaveTime(entry) ?? new Date());
         };
-        const key = savingId ?? dsn;
+        const key = savingId ?? 'unsaved';   // see savingKeys
         savingKeys.add(key);
         for (const b of btns) { b.disabled = true; b.textContent = 'Saving…'; }
         header?.render(_headerState());

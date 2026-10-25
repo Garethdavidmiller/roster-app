@@ -84,21 +84,16 @@ const tests = rootFiles.filter(f => f.includes('.test.'));
 // ARCHITECTURE.md already works this way for its `EXC-*` register: a closed exception is deleted,
 // not struck through. This applies the same rule where it was not being applied.
 //
-// **The exemption list is the important half, and it is by NAME rather than by pattern.** Two
-// headings legitimately read as closed:
-//
-//   · the `apis.google.com` CSP section says "(fixed v17.82)" and is a STANDING CONSTRAINT — the
-//     policy must go on allowing those hosts, and it records a false pass where a local
-//     `npm run test:csp` is green while CI is red. A rule that deleted it would delete a warning.
-//   · the mixed-version cache window is "mitigated, not fully closed (accepted)" — a live trade.
-//
-// So this guard cannot be a blanket ban on the words: it needs a reason per exemption, written
-// down, which is the only form that stays honest. Adding to EXEMPT is a decision somebody makes.
+// **The exemption list is the important half, and it is by NAME rather than by pattern.** A
+// heading may legitimately read as closed — the mixed-version cache window is "mitigated, not fully
+// closed (accepted)", a live trade — so this guard cannot be a blanket ban on the words: it needs a
+// reason per exemption, written down, which is the only form that stays honest. Adding to EXEMPT is
+// a decision somebody makes, and an exemption whose reason stops being true comes OUT: the
+// `apis.google.com` CSP section was exempted as a "standing constraint" and kept for a release after
+// the policy stopped allowing those hosts, stating the reverse of the live CSP (whole-app review,
+// I8). It is in ROADMAP_HISTORY.md now.
 const CLOSED_WORDS = /\b(CLOSED|FIXED|SUPERSEDED|RESOLVED|no longer a limitation|RESTORED)\b/i;
 const CLOSED_HEADING_EXEMPT = [
-    // "(fixed v17.82)" — the FIX is history, the CONSTRAINT is permanent: CSP must keep allowing
-    // apis.google.com and the auth iframe, and the section carries the local-green/CI-red false pass.
-    'must allow Firebase Auth',
     // "mitigated, not fully closed (accepted)" — the word is there to say it is NOT closed.
     'Mixed-version cache window',
 ];
@@ -304,6 +299,32 @@ test('every module has its own AI_MAP entry, not just a mention', () => {
         'there for the full description finds a table row or somebody else\'s paragraph:\n  ' +
         noEntry.join('\n  ') +
         '\nGive each one a `### ` entry, or add it to an existing grouped heading.');
+});
+
+// ── CONTRACT 1e: FILE_INDEX gives every module its OWN ROW, not merely a mention ───────────────
+//
+// Contract 1 reads FILE_INDEX as one string, so a module whose row was deleted or renamed still
+// passes while any OTHER row names it — `trains-change.js` is named in `trains-app.js`'s row, and
+// renaming its own row to `trains-chang.js` left this file green (whole-app review, I7). That is
+// the AI_MAP dead end contract 1d closed, in the other routing doc.
+//
+// "Its own row" means the FIRST file a tree row names. Test files are left out: they are grouped
+// onto shared rows by convention, which is why contract 1 checks them as a substring.
+test('every module has its own FILE_INDEX row, not just a mention', () => {
+    const rowed = new Set();
+    for (const line of FILE_INDEX.split('\n')) {
+        const row = line.match(/^[│ ]*[├└]── (.+?)(?:\s+←|\s*$)/);
+        const first = row?.[1].match(/([A-Za-z0-9_./-]+\.m?js)\b/);
+        if (first) rowed.add(first[1].split('/').pop());
+    }
+    assert.ok(rowed.size > 100, `only ${rowed.size} module rows found — the row scan is wrong`);
+
+    const functionsModules = readdirSync(new URL('./functions/', import.meta.url))
+        .filter(f => f.endsWith('.js') && !f.includes('.test.'));
+    const noRow = [...modules, ...functionsModules].filter(m => !rowed.has(m)).sort();
+    assert.deepEqual(noRow, [],
+        'these modules are MENTIONED in docs/FILE_INDEX.md but have no row of their own, so a ' +
+        'reader looking one up lands in another file\'s description:\n  ' + noRow.join('\n  '));
 });
 
 

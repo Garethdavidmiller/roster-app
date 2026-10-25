@@ -233,13 +233,20 @@ export function initAuthSetup({ currentIsAdmin, onAttention }) {
                 }
             };
 
-            /** Render a setupRosterAuth response, wiring the dry-run → confirm step for leaver removal. */
-            const renderResult = (/** @type {any} */ data) => {
+            /**
+             * Render a setupRosterAuth response, wiring the dry-run → confirm step for leaver removal.
+             * `afterConfirm` APPENDS beneath the first run's report rather than replacing it (whole-app
+             * review, Oct 2026): the confirm used to wipe it, and with it the "taken back — tell them"
+             * names the admin is the only person able to act on. The re-run's "already existed" list
+             * is the whole roster again, so it is left out of the appended part.
+             * @param {any} data @param {boolean} [afterConfirm]
+             */
+            const renderResult = (data, afterConfirm = false) => {
                 const { created = [], skipped = [], reclaimed = [], disabled = [], failed = [],
                         orphanSweepFailed = false, orphanDryRun = false, orphansToDisable = [] } = data;
                 const lines = [];
                 if (created.length)  lines.push(`✅ Created (${created.length}): ${created.join(', ')}`);
-                if (skipped.length)  lines.push(`⏭️ Already existed (${skipped.length}): ${skipped.join(', ')}`);
+                if (skipped.length && !afterConfirm) lines.push(`⏭️ Already existed (${skipped.length}): ${skipped.join(', ')}`);
                 // v24.24: an account this server never stamped was taken back — its password is now the
                 // member's default and every session on it was signed out. The admin is the only person
                 // who can tell the member, so the names are the point of the line.
@@ -250,7 +257,9 @@ export function initAuthSetup({ currentIsAdmin, onAttention }) {
                 if (orphanSweepFailed) lines.push('⚠️ The leaver check failed — leavers were not disabled. Run Set up accounts again.');
                 if (!lines.length && !orphanDryRun) lines.push('Nothing to do — all accounts already up to date.');
 
-                resultEl.innerHTML = lines.map(l => `<p class="auth-result-line">${escapeHtml(l)}</p>`).join('');
+                const html = lines.map(l => `<p class="auth-result-line">${escapeHtml(l)}</p>`).join('');
+                if (afterConfirm) { document.getElementById('authConfirmOrphans')?.remove(); resultEl.insertAdjacentHTML('beforeend', html); }
+                else resultEl.innerHTML = html;
 
                 // B4 dry-run: the server previewed which accounts WOULD be disabled — require an
                 // explicit confirm before any account is disabled (no accidental leaver sweeps).
@@ -266,7 +275,7 @@ export function initAuthSetup({ currentIsAdmin, onAttention }) {
                             confirmBtn.disabled = true;
                             confirmBtn.textContent = 'Disabling…';
                             try {
-                                renderResult(await doSetup({ removeOrphans: true, confirmOrphanRemoval: true }));
+                                renderResult(await doSetup({ removeOrphans: true, confirmOrphanRemoval: true }), true);
                                 loadGaps().catch(() => {});   // the leavers line above should now clear
                             } catch (e) {
                                 // Re-enable so a transient/expired-token failure (the dry-run may be
@@ -277,7 +286,9 @@ export function initAuthSetup({ currentIsAdmin, onAttention }) {
                                 confirmBtn.textContent = confirmLabel;
                             }
                         });
-                    } else {
+                    } else if (!orphanSweepFailed) {
+                        // Not after a FAILED check (whole-app review, Oct 2026): "none" is not known
+                        // then, and the two lines side by side contradicted each other.
                         resultEl.insertAdjacentHTML('beforeend', '<p class="auth-result-line">✓ No leaver accounts to disable.</p>');
                     }
                 }

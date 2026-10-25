@@ -13,7 +13,7 @@
  */
 
 import { enhanceSelect } from './select-sheet.js';
-import { CONFIG, MONTH_NAMES, computeEaster, teamMembers } from './roster-data.js';
+import { CONFIG, MONTH_NAMES, computeEaster, teamMembers, resolveMemberRoster } from './roster-data.js';
 import { formatClock, printedStamp } from './date-format.js';
 import { authReady, authBootstrap } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
@@ -306,6 +306,7 @@ const legend = createLegend({
     getDisplayYear,
     getDisplayMonth,
     computeEaster,
+    resolveMemberRoster,
     displayVerdict: () => decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth()))),
     isTeamViewMode: () => teamView.isTeamViewMode(),
 });
@@ -716,6 +717,7 @@ try {
             // (v18.21 — without this an early/boot-time team view stayed base-roster-only: see
             // initInitialFetch's JSDoc for the two-sided stand-down).
             renderTeamView: () => { teamView.refreshFromCache(); _markReadyIfGridShown(); },
+            refetchTeamView: () => teamView.refetchShownWeek(),   // stale months released: re-READ, not repaint
             // Phase 2 (the authoritative server read) waits for this; phase 1 (the local-cache
             // paint) deliberately does not — see AUTH_PLAN.md → E1. Since v20.12 the promise is
             // `calendarAccessReady`, which is ALREADY RESOLVED whenever this runs: the whole

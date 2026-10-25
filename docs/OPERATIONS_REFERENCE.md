@@ -549,6 +549,45 @@ The fix: in `functions/`, `npm audit fix --omit=dev` (never `--force`, which can
 check the lockfile diff is patch/minor releases only, run `npm run test:functions`, bump the version
 (CI counts `functions/package-lock.json` as served) and merge. The deploy re-runs on the merge.
 
+## The Pages mirror — putting it behind the Hosting gate
+
+**Why.** Most staff open the app on the GitHub Pages mirror, and GitHub builds it straight from
+`main` with no test of any kind. On 24 Oct 2026 v24.94 failed the Firebase Hosting gate while the
+mirror shipped it, so for about three hours most staff ran a release the gate had refused. `main`
+also requires no checks before a merge. That is `ARCHITECTURE.md` → EXC-008.
+
+**What is already in the repository** (whole-app review, Oct 2026). `deploy-mirror.yml` publishes the
+mirror from the commit a SUCCESSFUL "Deploy Firebase Hosting" run released, and from nothing else:
+it checks every precached file is in the site, deploys, then proves the live mirror serves that
+version, and a failure lands on the same `deploy-failure` issue as the other deploys. **It does
+nothing until the switch below** — it reads the Pages setting first and stands down while the branch
+build is in charge. The hourly currency check knows the difference too: once the mirror is gated it
+trails Hosting rather than leading it, so "both origins behind" during a release is not reported.
+
+**The owner's steps — none of these can be done from the repository.**
+
+1. **Require the checks on `main`.** GitHub → the repo → Settings → Rules → Rulesets → New branch
+   ruleset. Target the default branch. Turn on **Require status checks to pass** and **Require
+   branches to be up to date before merging**, and add the checks from a recent pull request run:
+   `version`, `unit`, `nodeps`, `functions`, `rules`, `csp` and every `smoke` entry. Leave out
+   `guard` (it decides whether the others run), and `visual` / `visual-webkit`, which are report-only
+   by design. Whether the `webkit` entries gate merging is your call: the deploy gate deliberately
+   runs Chromium only (DECISIONS.md, 8 Sep 2026).
+2. **Switch the Pages source.** Settings → Pages → Build and deployment → Source: **GitHub Actions**.
+3. **Publish once, now.** Actions → "Deploy GitHub Pages mirror" → Run workflow, from `main`. A manual
+   run publishes the last commit Hosting released from `main` — never main's tip.
+4. **Check it.** Open `https://garethdavidmiller.github.io/roster-app/` in a private window: past the
+   splash, no red errors in the console (the deployment health check at the top of CLAUDE.md).
+
+**What changes afterwards.** The mirror updates a minute or two after a Hosting deploy finishes
+(about twenty minutes after a merge) instead of a minute after the push. A push that changes only
+docs or tests republishes neither origin, exactly as Hosting already behaves. A failed gate leaves
+BOTH origins on the previous release, and the issue says so.
+
+**Undoing it.** Set the Pages source back to "Deploy from a branch" (`main`, `/ (root)`). The
+workflow notices and stands down; nothing else needs touching. The `.nojekyll` file is what the
+branch build needs, so it stays either way.
+
 ## Removing a staff member
 
 Five steps, and **the order matters** — step 2 changes what the roster parser can read. Referred to
@@ -595,6 +634,13 @@ it reads as a clean bill. Check the three lists by hand when the leaver held a r
 Hiding them removes them from `activeMembers`, which is the server-owned list `setupRosterAuth`
 trusts — but that governs PROVISIONING, not revocation. The Firebase Auth account keeps working until
 this is run, and the surname default is still a valid password for it (`ARCHITECTURE.md` → EXC-005).
+
+**It also stops their notifications** (whole-app review, Oct 2026). A leaver who never pressed Sign
+out — the normal case: they simply stop opening the app — keeps a push record stamped with their
+account, and the staff broadcasts (the Huddle, the documents, pay reminders) go to every record, so
+their phone went on receiving them indefinitely. The confirmed sweep now deletes the records the
+disabled account owns (`releasePushForOwner`, `functions/push.js`). A record older than v17.76 has no
+owner and cannot be attributed; it goes when the push service retires it.
 
 **4. Check it actually took** (v22.53).
 

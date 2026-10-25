@@ -16,6 +16,7 @@ import {
 } from './paycalc-calc.js';
 import { bhsForYear } from './paycalc-roster-suggestions.js';
 import { fdLong } from './paycalc-format.js';
+import { MONTH_ABB } from './date-format.js';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 // Period arithmetic constants.
@@ -246,6 +247,21 @@ function _populatePeriodSelect(/** @type {any} */ el, /** @type {any} */ periods
 }
 
 /**
+ * The line shown when a deep link names a payslip this calculator does not carry — a payday before
+ * its first tax year or after its last (whole-app review, Oct 2026). It used to open the current
+ * payslip and say nothing, so a member who tapped Pay on April 2027 read November 2026's figures as
+ * the ones they had asked for. Pure, so the words are pinned; '' when there is nothing to say.
+ * @param {string} askedFor  the date or month the link named, as words — '' when it matched
+ * @param {any[]} periods  the payslips on offer
+ * @returns {string}
+ */
+export function periodLinkMissNote(askedFor, periods) {
+  if (!askedFor || !periods.length) return '';
+  return `There's no payslip for ${askedFor} in the calculator — it covers payslips paid `
+    + `${fdLong(periods[0].payday)} to ${fdLong(periods[periods.length - 1].payday)}.`;
+}
+
+/**
  * Populate the period selector, navigate to the appropriate default period, and
  * return the current-earning period number (used by the coordinator as the ● anchor).
  *
@@ -267,6 +283,7 @@ export function buildPeriodSelect() {
   const _urlParams = new URLSearchParams(window.location.search);
   const _paydayParam = _urlParams.get('payday');
   const _monthParam  = _urlParams.get('month');
+  let _askedFor = '';   // the payslip a link asked for and the list does not hold, as words
   if (_paydayParam) {
     const [_py, _pm, _pd] = _paydayParam.split('-').map(Number);
     const _matched = periods.find((/** @type {any} */ p) =>
@@ -275,6 +292,7 @@ export function buildPeriodSelect() {
       p.payday.getDate()     === _pd
     );
     if (_matched) defPNum = _matched.num;
+    else if (_py && _pm >= 1 && _pm <= 12 && _pd) _askedFor = fdLong(new Date(_py, _pm - 1, _pd));
   } else if (_monthParam) {
     const [_my, _mm] = _monthParam.split('-').map(Number);
     // NOON, matching the period anchors (v16.23): every p.start/p.cutoff is noon-anchored
@@ -284,7 +302,10 @@ export function buildPeriodSelect() {
     const _mid = new Date(_my, _mm - 1, 15, 12);
     const _matched = periods.find((/** @type {any} */ p) => p.start <= _mid && _mid <= p.cutoff);
     if (_matched) defPNum = _matched.num;
+    else if (_my && _mm >= 1 && _mm <= 12) _askedFor = `${MONTH_ABB[_mm - 1]} ${_my}`;
   }
+  const _note = document.getElementById('periodLinkNote');
+  if (_note) { _note.textContent = periodLinkMissNote(_askedFor, periods); _note.hidden = !_note.textContent; }
 
   _populatePeriodSelect(sel, periods, { currentPNum: _currentPNum });
 

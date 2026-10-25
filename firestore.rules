@@ -15,9 +15,10 @@ rules_version = '2';
 //
 //   COLLECTION          VIEWER GETS            WHY THAT IS RIGHT
 //   overrides           READ only              the point of the feature; writes need name/admin/manager
-//   huddles             read (already open)    unchanged — open by design, notification taps have no session
-//   circulars           read (already open)    unchanged, same reason
-//   newsletters         read (already open)    unchanged, same reason
+//   huddles             READ                   member, admin or PIN viewer (v23.18 — was open until the
+//                                              owner closed the three documents behind the PIN or a password)
+//   circulars           READ                   same rule as huddles (v23.18)
+//   newsletters         READ                   same rule as huddles (v23.18)
 //   linkDesigns         nothing                needs `name` or admin (v19.39) — the viewer has neither
 //   linkTargetSets      nothing                same read as linkDesigns; write per-creator (v21.04)
 //   staffContact        nothing                owner (`name`) or admin
@@ -938,7 +939,7 @@ service cloud.firestore {
       // bootstrap was removed at v20.12, and the CALENDAR_PIN_ACCESS=false path that could still
       // run it was retired v24.34, so it must not be cited as the reason the rule is loose.) The SHAPE is validated:
       // pv_ docs are pinned to a pv_YYYY-MM id with month == the id suffix, counts keys are
-      // limited to the six known page ids, and each count value must be an int; activeAccounts
+      // limited to the known page and open ids, and each count value must be an int; activeAccounts
       // is pinned to that id with months/daily maps. Firestore rules still can't enforce
       // increment-ONLY (a write could set an int to any value) or validate the date-keyed
       // sub-map keys — App Check is the eventual integrity control; the data is non-sensitive
@@ -960,7 +961,7 @@ service cloud.firestore {
            request.resource.data.month is string &&
            docId == 'pv_' + request.resource.data.month &&
            request.resource.data.counts is map &&
-           // Six page-view ids + the document/guide OPEN ids (v18.20 — Huddle/Circular/Newsletter
+           // One page-view id per app page + the document/guide OPEN ids (v18.20 — Huddle/Circular/Newsletter
            // opens and the guide opens share the same anonymous counter map; guide-staff and
            // guide-paycalc added v19.95, guide-rangers with the fifth guide at v20.05). The list
            // must hold one id per NAV_GUIDES entry — firestore-contract-parity.test.mjs checks it

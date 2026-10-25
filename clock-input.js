@@ -1,7 +1,7 @@
 // @ts-check
 /**
- * clock-input.js — the two rules of a TEXT clock box: what counts as a time, and what the box
- * shows while one is being typed. Pure; no DOM, no Firebase, no imports.
+ * clock-input.js — the rules of a TEXT clock box: what counts as a time, what the box shows while
+ * one is being typed, and what it holds once it is left. Pure; no DOM, no Firebase, no imports.
  *
  * Three places in the app type a time into a text box rather than an `<input type="time">`: the
  * roster review's entry control (`manualCellValue`, override-utils.js), the Overtime custom-hours
@@ -15,8 +15,9 @@
  * ratchet said that file had grown past 900 lines. It was right in the way it is meant to be: both
  * functions are rules a Node test pins without a DOM, and neither is about overrides.
  *
- * `isClockTime` ACCEPTS; `formatClockInput` SHAPES. A shaped value is still judged — the shaper
- * never widens what the guard admits, it only makes the admitted form reachable from a phone.
+ * `isClockTime` ACCEPTS; `formatClockInput` and `finaliseClockInput` SHAPE. A shaped value is still
+ * judged — the shapers never widen what the guard admits, they only make the admitted form
+ * reachable from a phone.
  */
 
 /**
@@ -41,18 +42,40 @@ export function isClockTime(v) {
  * a box whose reader demands `HH:MM` could not be filled from a phone at all: the Links window
  * times reverted "0730" and the roster review's entry cells stayed "Not saved" on it. The admin
  * week grid had solved this on its own since v10; this is that rule as a pure function, and since
- * v24.64 the week grid uses it too (admin-time-inputs.js keeps only the focus move): keep the digits, at most four; a THREE-digit run whose first pair cannot
- * be an hour ("630") is read as a leading zero dropped ("06:30"), never "63:0"; a four-digit run that
- * is not a time ("2400", "6300") is left for `isClockTime` to refuse — reshaping it would produce a
- * valid time nobody typed; the colon goes in after the hour once there is one. Setting a box to the value it already holds is
- * a no-op for the caret, so callers may assign the result unconditionally.
+ * v24.64 the week grid uses it too (admin-time-inputs.js keeps only the focus move): keep the
+ * digits, at most four; the colon goes in after the hour once there is one; a four-digit run that
+ * is not a time ("2400", "6300") is left for `isClockTime` to refuse — reshaping it would produce
+ * a valid time nobody typed. Setting a box to the value it already holds is a no-op for the caret,
+ * so callers may assign the result unconditionally.
+ *
+ * THREE DIGITS ARE RESHAPED HERE ONLY WHEN NO FOURTH COULD FOLLOW (whole-app review, Oct 2026). A
+ * first digit of 3 to 9 cannot begin an hour, so "630" can only be 06:30 and becomes it at once.
+ * "240" is different: it may be 02:40, or the first three keys of "2400". This function used to
+ * read every run whose first pair passed 23 as a dropped zero, so "240" became "02:40" — five
+ * characters, a full box — and the last 0 of a midnight finish was never typed; 02:40 is a valid
+ * time, so it saved. The unit test fed the whole string "2400" and passed, because a whole string
+ * is not how a box is filled. A first pair of 24 to 29 is now left as typed, and the dropped-zero
+ * reading waits for the box to be left (`finaliseClockInput`), when no fourth digit is coming.
  * @param {string} raw  whatever is in the box
  * @returns {string}
  */
 export function formatClockInput(raw) {
     let d = String(raw ?? '').replace(/[^0-9]/g, '').slice(0, 4);
-    // The dropped-zero reading applies to THREE digits only: a four-digit run that is not a time — "2400", "6300" — is left as it is,
-    // for `isClockTime` to refuse, never reshaped into a valid time nobody typed (24-hour review).
-    if (d.length === 3 && parseInt(d.slice(0, 2), 10) > 23) d = '0' + d;
+    if (d.length === 3 && +d[0] >= 3) d = '0' + d;
     return d.length >= 3 ? `${d.slice(0, 2)}:${d.slice(2)}` : d;
+}
+
+/**
+ * What a TEXT clock box should hold once it is LEFT — on blur, or before its value is read. The
+ * keystroke rule above, plus the one reading it has to defer: three digits whose first pair cannot
+ * be an hour ("240", "253") are a dropped leading zero (02:40, 02:53). Leaving the box is what says
+ * no fourth digit is coming. Anything else is what `formatClockInput` shows, so a box that already
+ * holds a time, or an impossible one, is unchanged.
+ * @param {string} raw  whatever is in the box
+ * @returns {string}
+ */
+export function finaliseClockInput(raw) {
+    const d = String(raw ?? '').replace(/[^0-9]/g, '').slice(0, 4);
+    if (d.length === 3 && +d.slice(0, 2) > 23) return `0${d[0]}:${d.slice(1)}`;
+    return formatClockInput(raw);
 }

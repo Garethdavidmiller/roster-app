@@ -239,6 +239,43 @@ reports every safe-area inset as zero, so a landscape baseline would prove nothi
 Island insets the audit's B11 added, and the smoke suite's layout assertions are written for
 portrait. A real iPhone in landscape is on the device checklist in the audit, not in CI.
 
+### Playwright's WebKit crashes when a page leaves after two history entries and a Back (measured Oct 2026, v24.97)
+
+The WebKit that Playwright 1.56.1 runs here (build 2215, "Safari 26.0") **crashes its web process**
+on a cross-document navigation made after two `history.pushState` calls and a `history.back()`. It
+crashes on `assign` and `replace` alike, on both WebKit projects, here and on CI. The page never
+commits. Playwright reports *"waiting for … navigation to finish"* until the assertion times out,
+and *"Target crashed"* after that.
+
+**It is the test browser, not the app.** A standalone script reproduces it with no app code and no
+test runner, on any page served over HTTP, through `page.evaluate`:
+
+```js
+history.pushState({}, '');
+history.pushState({}, '');
+addEventListener('popstate', () => setTimeout(() => location.assign('/b'), 300), { once: true });
+history.back();
+```
+
+Chromium navigates, and so does WebKit after one push and a back, or after two pushes with no back.
+**Playwright 1.63's WebKit (build 2359, "Safari 26.6") navigates every time**, measured three runs
+out of three. Safari on a phone is not believed to share it, but nobody has checked on a device. To
+check: Admin → change a row → ☰ → Calendar → **Leave**.
+
+**Why the app meets it.** It is the shape of any exit taken from a dialog opened over the drawer:
+the drawer's history entry, the dialog's entry, then the dialog closing. v24.97's "Leave" (Admin
+asking before a drawer link drops staged edits) is the first such exit with a test.
+
+**What a test does about it.** Stop the navigation at the network with `route.fulfill({ status:
+204 })`, which every browser treats as "stay on this page", and assert the request Leave made. Prove
+the destination in a second test that gets there without the dialog. `admin: a drawer pill or the
+logo asks before leaving staged edits` and the test after it in `e2e/pages.spec.js` do exactly
+this. **Never skip such a test on WebKit**: it is the lane's only view of the dialog, the drawer and
+the guard on Safari's engine.
+
+**When Playwright is upgraded** (the change described above), run those four lines again. If WebKit
+navigates, this entry can go, and the Leave test can let the Calendar load again.
+
 ## Security
 
 > **Forward plan.** The security work in this section is sequenced, with per-phase risk and
@@ -491,47 +528,6 @@ live vector — not worth the breakage. **If narrowing is retried:** first captu
 from a real-network run — read every `blockedURI` from the CI `csp` job (or a browser with the narrowed
 header on a live network), not a proxied dev run — then list exactly those hosts in `firebase.json` AND
 every served page's `<meta>` CSP, and confirm the CI `csp` job (not just local) goes green.
-
-### `script-src`/`frame-src` must allow Firebase Auth's Google-API iframe — `apis.google.com` (fixed v17.82; SUPERSEDED Oct 2026)
-> **Superseded.** Since v24.65 Auth is created with `initializeAuth` and no popup resolver, so the
-> gapi script and the authDomain iframe are never loaded, and the next release took `apis.google.com`
-> and the `firebaseapp.com` frame OUT of every policy (`frame-src 'self'`). `csp-hygiene.test.mjs` now
-> refuses them and `e2e/csp.spec.js` ignores no beacon at all — a refusal of either URL means
-> something has started loading that iframe again. The history below is kept because it explains
-> why the hosts were there.
-
-Firebase Auth (`firebase-auth.js`, loaded from gstatic) pulls in the Google API client
-**`https://apis.google.com/js/api.js`** and opens an auth-helper iframe on the **authDomain**
-(`myb-roster.firebaseapp.com`). `apis.google.com` is a **different domain** from the
-`*.googleapis.com` `connect-src` wildcard, so it was never covered — the CI `csp` job failed on the
-three app pages that initialise Auth with `Refused to load the script 'https://apis.google.com/js/api.js'`
-(directive `script-src-elem`). It only surfaced on CI: behind the dev-container proxy `www.gstatic.com`
-is tunnel-blocked, so the SDK never loads and never makes the call (the documented **false pass** — a
-local `npm run test:csp` stays green while CI is red). Fix: `script-src` now includes
-`https://apis.google.com`; `frame-src` (was `'none'`) now allows
-`https://myb-roster.firebaseapp.com https://apis.google.com` for the auth iframe — the standard
-Firebase-Auth-under-CSP requirement. **Second layer (v17.96):** once the gapi script could load, it
-began pinging its own telemetry endpoint (`apis.google.com/js/gen_204`) — a `connect-src` violation
-(the `*.googleapis.com` wildcard does NOT cover `apis.google.com`). `connect-src` now includes
-`https://apis.google.com` too. Lesson: allowing a third-party script means allowing what it then
-CONNECTS to — check the CI csp job after each layer, not just the first. Applied to the `firebase.json` header AND every served page's `<meta>` CSP
-(csp-meta-parity), with `apis.google.com` added to `csp-hygiene.test.mjs`'s `DYNAMIC_HOSTS` (it's
-requested by the gstatic SDK, not built in our source).
-
-**Third layer — the beacons we deliberately keep blocked (v18.90).** Once the iframe was allowed to
-load and connect, it started firing two fire-and-forget telemetry requests the app does not need:
-`www.google.com/images/cleardot.gif` (a 1×1 tracking pixel) and `apis.google.com/js/gen_204`
-(Google's logging beacon). These are **correctly refused** — `www.google.com` is in no directive, and
-`apis.google.com` is allowed to CONNECT but not to serve images. The problem was the *test*, not the
-policy: `e2e/csp.spec.js` asserted zero violations of any kind, so a deliberately-blocked third-party
-beacon failed the run. Worse, it only failed *sometimes* — the beacons fire only if the iframe reaches
-that state before the spec ends — which is why the `csp` job failed on three unrelated PRs in one day
-(#1070/#1078/#1080) while the parallel run of the same commit passed. `IGNORED_BLOCKS` now names those
-two URIs, gated by `BEACON_DIRECTIVES` so the waiver applies **only** to `img-src`/`connect-src`
-refusals: if `apis.google.com` is ever refused for a `script-src` or `frame-src` load — the v17.82
-outage — it still fails. (A live Chromium probe under the Hosting emulator confirmed the `gen_204`
-beacon is refused by `img-src`, so the two directives named are the two that can legitimately fire.) **Do not widen the policy to make a beacon pass;** blocking third-party
-telemetry is the intended behaviour.
 
 ### GitHub Pages mirror — CSP via `<meta>`, with two residual header-only gaps (v17.63)
 The staff mirror at `garethdavidmiller.github.io/roster-app/` is served by GitHub Pages, which
@@ -1074,12 +1070,16 @@ In a home-screen web app on iOS 27, `window.print()` is a no-op: no print sheet,
 fault in Apple's web-app shell rather than the engine; it is not fixed in iOS 27.0.1 and no
 page-side workaround exists. Every print control in the app now goes through `print-guard.js`:
 on an installed iPhone or iPad running iOS 27 or later the tap explains and offers "Open in
-Safari" (one tap, the same page) instead of silently doing nothing. An iOS 26 install keeps its
-print, and so does every Android install. **When Apple ships the fix, raise `PRINT_BLOCKED_FROM_IOS`
-by one rather than removing the guard** — installs update on their own schedule, and the guard
-costs a working iPhone nothing but a dialog. **Unconfirmed on a device:** whether `window.open` from
-the home-screen app lands in Safari itself or in the in-app Safari sheet; both can print from the
-share menu.
+Safari" (one tap, the same page) instead of silently doing nothing. Every Android install keeps its
+print. **Every iOS home-screen launch gets the explanation, iOS 26 and earlier included** (whole-app
+review, Oct 2026): the guard first read the iOS version and blocked only 27 and later, but WebKit
+freezes the user agent at `iPhone OS 18_7` on every recent iPhone, so on a real iOS 27 device it read
+18 and stood down — the dead buttons were dead again, while its tests passed on an invented `27_0`.
+No page-readable signal tells iOS 27 from 26 now, so an older install that could print is sent to
+Safari too: a dialog, against a button that does nothing. **When Apple ships the fix there is no
+version to raise** — retire the guard only once an installed iPhone is seen to print. **Unconfirmed
+on a device:** whether `window.open` from the home-screen app lands in Safari itself or in the in-app
+Safari sheet; both can print from the share menu.
 
 ### Samsung Internet’s Dark mode repaints the app dark — the opt-out it ignores, and the per-device answer (Oct 2026)
 Reported 23 Oct 2026 from a Samsung phone: the Calendar’s off-white cards and day cells turned dark
@@ -1326,7 +1326,12 @@ refute it — distinguishing a printed RD from an empty cell from a printed duty
 text, which is phase 3 of the ROADMAP's plan. Nor can the phase-1 witness see a shifted row whose week is fully
 occupied (nothing empty to contradict); since v24.04/v24.12 the geometry path (phase 2) assigns days
 by coordinate so such a row cannot shift, and `assessRosterAlignment` covers the legacy fallback path. Both limits are
-stated in the module header and pinned by its tests rather than left to be discovered.
+stated in the module header and pinned by its tests rather than left to be discovered. **One case of
+the first limit is closed on the geometry path** (whole-app review, Oct 2026): a cell the model reports
+EMPTY while the grid holds text in it goes to the review naming that text
+(`reviewBlankReadsOfFilledCells`, `functions/roster-prompt.js`) — before, a worked Sunday read that way
+became a rest day and was never shown. A cell the model reads as `RD` when it prints a duty is still
+phase 3.
 
 ### Cloud Function payday constant duplicated from `roster-data.js`
 `functions/roster-parse-helpers.js` contains its own `FIRST_PAYDAY_MS` and `INTERVAL_DAYS`
@@ -1850,7 +1855,7 @@ taken on 19 Sep 2026 (`LATENCY.md` → THE CLOSING READ) and the file is closed,
 use for the App Speed card. A regression there would not look like an error — it would look like a
 thinner sample that still reads as data.
 
-`page-contract-parity.test.mjs` now pins all seven coordinators: each calls all three, and each call
+`page-contract-parity.test.mjs` now pins every page's coordinator (eight since the Trains page): each calls all three, and each call
 sits inside that page's declared auth barrier rather than at module scope. All seven were correctly
 wired when the guard was written, so this closes no defect — it protects a rule that was obeyed
 everywhere and checked nowhere. Verified by four mutations (a deleted call; a call kept but hoisted
@@ -1967,7 +1972,7 @@ appear in DevTools and the Operations Error Log.
 
 What is over there: the **2027/28 paycalc rollover** (hard deadline 6 Apr 2027, warning Feb 2027 —
 the period selector runs out at ≈ P62 and does not warn, it simply stops offering periods),
-**`MAX_YEAR` 2030 → 2032** (end 2028, lunar/bank-holiday data first), the **override-count archive
+**`MAX_YEAR` 2030 → 2032** (end 2028, lunar/bank-holiday data first, then `npm run generate:roster-members`), the **override-count archive
 trigger** (design at ~4,000, must land before ~5,000), the recurring guide and pay-threshold source
 reviews, and the **after-every-new-starter** checks — including the work email, which since v19.30
 nothing prompts for.

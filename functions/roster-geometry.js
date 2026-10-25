@@ -39,7 +39,9 @@
  * empty cell for a shifted claim to contradict, so a drift on that row passes this witness (it may
  * still trip `roster-alignment.js`). And `RD` written into an occupied cell is not checked here —
  * telling a printed "RD" from a printed duty means READING the text, which is phase 3, and a rule
- * that read it now would be the model's job done twice with two sets of failure modes.
+ * that read it now would be the model's job done twice with two sets of failure modes. (The one
+ * sub-case that needs only "is the cell filled at all" — an EMPTY read of a filled cell on the
+ * geometry path — is `reviewBlankReadsOfFilledCells` in roster-prompt.js, whole-app review H3.)
  *
  * ── FAIL OPEN, EVERYWHERE, AND SAY SO ───────────────────────────────────────────────────────────
  *

@@ -744,6 +744,16 @@ describe('fetchOverridesForRangeFromCache', () => {
         assert.equal(await fetchOverridesForRangeFromCache('2026-08-01', '2026-08-31'), false);
     });
 
+    // ONE MONTH CANNOT VOUCH FOR THREE (whole-app review, Oct 2026). The boot window is three
+    // months and the boolean answers for all of them, so a single cached month marked a month this
+    // device never loaded as known — drawn from the bare base roster, its leave missing.
+    test('it names WHICH months held cached rows', async () => {
+        _mockCacheDocs = [_cacheDoc('c9', 'G. Miller', '2041-08-10', 'annual_leave', 'AL')];
+        const months = /** @type {string[]} */ ([]);
+        await fetchOverridesForRangeFromCache('2041-07-01', '2041-09-30', months);
+        assert.deepEqual(months, ['2041-08'], 'only the month that held a row is known from the cache');
+    });
+
     test('never throws — a cache miss resolves false instead of reaching the error path', async () => {
         _cacheThrows = true;
         assert.equal(await fetchOverridesForRangeFromCache('2026-08-01', '2026-08-31'), false);

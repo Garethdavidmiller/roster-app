@@ -255,7 +255,24 @@ export async function peekNotifState() {
  * then subscribes. A no-op resulting in 'denied' if the user blocks the prompt.
  * @returns {Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>}
  */
-export async function enableNotifications() {
+export async function enableNotifications() { return _announce(await _enableNotifications()); }
+
+/**
+ * Tell every other notification control on the page what the setting is now (whole-app review, Oct
+ * 2026). The drawer's bell and the Settings card each repainted only themselves, so turning
+ * notifications off with the bell left the card on "✓ On" and the summary on "You're all set" until
+ * a reload. Listeners re-read the state rather than trusting `detail`, which is there for logs.
+ * @template T
+ * @param {T} state
+ * @returns {T}
+ */
+function _announce(state) {
+    if (typeof document !== 'undefined') document.dispatchEvent(new CustomEvent('myb:notif-changed', { detail: { state } }));
+    return state;
+}
+
+/** @returns {Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>} */
+async function _enableNotifications() {
     if (!notifSupported()) return 'unsupported';
     try {
         const perm = Notification.permission === 'granted'
@@ -277,7 +294,10 @@ export async function enableNotifications() {
  * Turn notifications off — unsubscribe locally and remove the server record.
  * @returns {Promise<'off-default'|'denied'|'unsupported'>}
  */
-export async function disableNotifications() {
+export async function disableNotifications() { return _announce(await _disableNotifications()); }
+
+/** @returns {Promise<'off-default'|'denied'|'unsupported'>} */
+async function _disableNotifications() {
     if (!notifSupported()) return 'unsupported';
     lsSet(USER_OFF_KEY, '1');   // a CHOICE — read back as off, never as "stopped"
     try {
@@ -286,7 +306,12 @@ export async function disableNotifications() {
         if (sub) {
             const { endpoint } = sub;
             await sub.unsubscribe();
-            await deletePushSubscription(endpoint).catch(() => {});
+            // STARTED, NOT AWAITED (whole-app review, Oct 2026). A Firestore delete resolves only on
+            // the server's acknowledgement, so offline this waited for ever and the control sat on
+            // "Disabling…". The browser subscription is already gone, which is what stops the
+            // notices; the record is tidied when the connection returns, or by the server on its
+            // next send (a 410 from the push service deletes it).
+            deletePushSubscription(endpoint).catch(() => {});
         }
     } catch (err) {
         console.warn('[Notifications] Disable failed:', /** @type {any} */ (err).message);

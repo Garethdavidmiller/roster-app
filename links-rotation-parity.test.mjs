@@ -150,3 +150,45 @@ describe('the length is never STATED — not in code, not in prose', () => {
         assert.match(app, /getElementById\('objLongTarget'\)\?\.setAttribute\('max'/);
     });
 });
+
+describe('the length is never USED as a bare number in code', () => {
+    /**
+     * Whole-app review, I6. The two blocks above catch the number in a `const` and in prose, and
+     * neither sees it passed straight into a call: `runDesignChecks(design.patterns, 26)` stayed
+     * green while 26 was right — and would have become the "28 rows beside a 22-row grid" defect
+     * this file was written for on the next change of length.
+     *
+     * Strings and comments are stripped first (prose is the block above's job; history is left
+     * alone). With the strings gone, a `//` can only open a comment, so trailing comments go too —
+     * the URL hazard `stripComments` avoids lived inside strings. A number next to a colon or a
+     * dot is part of a time or a decimal, not a count.
+     *
+     * If the rotation moves to a number that also means something else in these modules — 24
+     * would, as hours in a day — this fails on each of those sites, and that is the sweep worth
+     * doing at that moment: look at each and confirm it is not the rotation. Name what it is
+     * instead (`HOURS_PER_DAY`), or, where that is a refactor too far for the change in hand, add
+     * the exact line to OTHER_MEANINGS with what the number means there.
+     */
+    /** @type {Record<string, string>} exact trimmed source line → what the number means there */
+    const OTHER_MEANINGS = {};
+
+    /** Remove string and template literals so only CODE is read. */
+    const stripStrings = (/** @type {string} */ s) =>
+        s.replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`/g, '""');
+
+    test('no Links module passes the rotation length as a literal', () => {
+        const bare = new RegExp(`(?<![\\w.:$])${ROTATING_LINES}(?![\\w.:])`);
+        /** @type {string[]} */ const offenders = [];
+        for (const f of LINKS_JS) {
+            stripStrings(stripComments(read(f))).split('\n').forEach((line, i) => {
+                const text = line.replace(/\/\/.*$/, '').trim();
+                if (!bare.test(text)) return;
+                if (f === 'links-design.js' && /^export const ROTATING_LINES = \d+;$/.test(text)) return;
+                if (Object.hasOwn(OTHER_MEANINGS, text)) return;
+                offenders.push(`${f}:${i + 1}: ${text}`);
+            });
+        }
+        assert.deepEqual(offenders, [],
+            `use ROTATING_LINES (or TOTAL_POS) instead of the number ${ROTATING_LINES}:\n  ${offenders.join('\n  ')}`);
+    });
+});

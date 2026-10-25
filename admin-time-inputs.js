@@ -5,9 +5,10 @@
  *
  * Owns: two DELEGATED `document` listeners for every `.time-input` (the per-row start/end boxes and
  *   the bulk bar's `#bulkStart`/`#bulkEnd`).
- * Does NOT own: the typing RULE (`formatClockInput`, clock-input.js — "0730" → "07:30", and "630" →
- *   "06:30", never "63:0") or what a valid time is (`TIME_RE`, roster-data.js); nor the row's staged
- *   state, which the editor marks from its own `input` listener on each box.
+ * Does NOT own: the typing RULES (`formatClockInput` / `finaliseClockInput`, clock-input.js —
+ *   "0730" → "07:30", "630" → "06:30" as typed, "240" → "02:40" once the box is left) or what a valid
+ *   time is (`TIME_RE`, roster-data.js); nor the row's staged state, which the editor marks from its
+ *   own `input` listener on each box.
  *
  * ── WHY IT IS ITS OWN MODULE (v24.64) ─────────────────────────────────────────────────────────
  *
@@ -25,7 +26,7 @@
  */
 
 import { TIME_RE } from './roster-data.js';
-import { formatClockInput } from './clock-input.js';
+import { formatClockInput, finaliseClockInput } from './clock-input.js';
 
 let _formatting = false;
 let _wired = false;
@@ -43,8 +44,10 @@ export function initTimeInputs() {
         _formatting = true;
         timeInput.value = formatClockInput(timeInput.value);
         _formatting = false;
-        // A complete time moves on: start → its row's end, bulk start → bulk end.
-        if (timeInput.value.length === 5) {
+        // A complete time moves on: start → its row's end, bulk start → bulk end. A REAL time, not
+        // five characters: "24:00" fills the box too, and moving on from it would leave an
+        // impossible finish behind with the cursor already somewhere else.
+        if (TIME_RE.test(timeInput.value)) {
             if (timeInput.classList.contains('day-start')) {
                 /** @type {HTMLElement|null} */ (timeInput.closest('.day-row')?.querySelector('.day-end'))?.focus();
             } else if (timeInput.id === 'bulkStart') {
@@ -56,7 +59,10 @@ export function initTimeInputs() {
     document.addEventListener('focusout', e => {
         if (!/** @type {Element} */ (e.target).classList.contains('time-input')) return;
         const timeInput = /** @type {HTMLInputElement} */ (e.target);
-        const val = timeInput.value.trim();
+        // Leaving the box is what settles a three-digit "240" as 02:40 (clock-input.js); the save
+        // reads `.value`, so the settled form is the one written.
+        const val = finaliseClockInput(timeInput.value.trim());
+        if (val !== timeInput.value) timeInput.value = val;
         if (!val) { timeInput.classList.remove('input-error'); timeInput.removeAttribute('aria-invalid'); return; }
         const invalid = !TIME_RE.test(val);
         timeInput.classList.toggle('input-error', invalid);

@@ -45,7 +45,7 @@ const RETRY_AUTH_WAIT_MS = 2000;
  * that the cached roster paints sooner.
  *
  * @param {{ isTeamViewMode: () => boolean, renderCalendar: () => void, renderTeamView?: () => void,
- *           authReady?: Promise<any>, onAccessLost?: (() => void)|null }} deps
+ *           refetchTeamView?: () => void, authReady?: Promise<any>, onAccessLost?: (() => void)|null }} deps
  *   authReady — resolves once a usable Firebase Auth session exists (the calendar passes
  *   `calendarAuthReady`). Defaults to already-resolved, so callers and tests that don't care are
  *   unaffected. Phase 2 waits on it; phase 1 deliberately does NOT.
@@ -63,8 +63,10 @@ const RETRY_AUTH_WAIT_MS = 2000;
  *   down. Deterministic on boot-into-team-view (restored mode), because Firestore's
  *   IndexedDB persistence makes this 3-month read reliably beat the week query — which is
  *   why a refresh never recovered.
+ *   refetchTeamView — re-renders the shown week AND re-reads its months, for the page coming back
+ *   into view after stale months were released. Defaults to `renderTeamView` for callers without one.
  */
-export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamView = () => {}, authReady = Promise.resolve(), onAccessLost = null }) {
+export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamView = () => {}, refetchTeamView = renderTeamView, authReady = Promise.resolve(), onAccessLost = null }) {
   const now  = new Date();
   const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -346,12 +348,14 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
       // signal too. Tick parity matters because it is observable — the suite flushes a fixed
       // number of microtasks, so an extra link makes four unrelated tests fail on the render they
       // were asserting had happened.
-      const _painted = await fetchOverridesForRangeFromCache(startStr, endStr);
+      const _cachedMonths = /** @type {string[]} */ ([]);
+      const _painted = await fetchOverridesForRangeFromCache(startStr, endStr, _cachedMonths);
       // The device holds a previously-known state for this window, so the grid may be drawn — but
       // only as `cached`, never as current (v20.40). An EMPTY cache stays `unknown`, deliberately:
       // "nothing cached" and "no overrides" are indistinguishable from here, and that conflation is
       // precisely the bug this model exists to stop. The chip already says "Updating…" meanwhile.
-      if (_painted) noteKnowledge(_initialMonthKeys, 'cached');
+      // PER MONTH (whole-app review, Oct 2026): one month with cached rows used to mark all three.
+      if (_painted) noteKnowledge(_cachedMonths, 'cached');
       // Settle AFTER the knowledge is recorded, never before. A boot awaiting this signal is about
       // to render, and it renders from `knowledgeOf` — so signalling first left the ordering to
       // microtask scheduling. It happened to work (the continuation here is synchronous, so it beat
@@ -451,8 +455,11 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
   // the grid already on screen. Also on a back/forward-cache restore, which fires no visibilitychange
   // on every engine. See releaseStaleMonths for why a failed re-read cannot blank a good grid.
   const STALE_MONTH_MS = 10 * 60_000;
+  // Team View RE-READS here rather than repainting (whole-app review, Oct 2026): `renderTeamView`
+  // is a cache repaint, so released months were never asked for again and invariant 18 held for the
+  // month grid only. The month grid's own render already re-reads what it is missing.
   const refreshIfStale = () => {
-    if (releaseStaleMonths(STALE_MONTH_MS).length) { if (isTeamViewMode()) renderTeamView(); else renderCalendar(); }
+    if (releaseStaleMonths(STALE_MONTH_MS).length) { if (isTeamViewMode()) refetchTeamView(); else renderCalendar(); }
   };
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;

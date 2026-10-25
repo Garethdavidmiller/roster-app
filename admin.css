@@ -2492,6 +2492,14 @@
 .other-rdw-warn { flex-basis: 100%; color: var(--warning-amber); font-weight: 600; font-size: var(--type-badge); }
 .other-rdw-warn[hidden] { display: none; }
 .other-opts-hint { flex-basis: 100%; color: var(--text-light); font-size: var(--type-badge); }
+/* A THUMB'S HEIGHT ON TOUCH (whole-app review, Oct 2026). The flavour chips and the "Rest day (RDW)"
+   tick measured ~20px tall under a coarse pointer — under WCAG 2.2's 24px floor — and the touch gate
+   never saw them, because it scans with this submenu closed. Gated on the POINTER, not the width,
+   as the Links paint chips are (css-tokens.md). */
+@media (pointer: coarse) {
+    .other-flavour-btn,
+    .other-rdw-label { min-height: 30px; }
+}
 /* ── SAVE RECEIPT (v21.38) ───────────────────────────────────────────────────────────────────────
    The day-by-day list under a successful save. FOLDED by default: the headline already answers the
    ordinary case, and a list that opens itself would push the week grid down the screen after every

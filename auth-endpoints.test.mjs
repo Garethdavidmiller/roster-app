@@ -188,8 +188,11 @@ function build({
     rosterJson = null,
     existingUsers = null,
     usersPerPage = Infinity,
+    releaseFail = null,
 } = {}) {
     const sends = [];
+    /** Every `releasePushForOwner` call — the leaver's push records leaving with the account (H4). */
+    const released = [];
     /** Every Auth MUTATION, in order. The point of recording rather than counting: a test asking
      *  "did a refused call still reset the password?" needs the payload, not a tally. */
     const authOps = [];
@@ -286,6 +289,11 @@ function build({
         // Present so a handler that reached for the broadcast would RUN and be caught by an
         // assertion, rather than throwing an import error that reads like a broken test.
         fanOutPush: async (payload) => { sends.push({ payload, uids: 'EVERYONE' }); return 0; },
+        releasePushForOwner: async (uid) => {
+            released.push(uid);
+            if (releaseFail) throw new Error(releaseFail);
+            return 1;
+        },
     } };
     // The server-owned roster, stubbed only where a test needs a BROKEN one. The cache entry is
     // always cleared first, so one test's broken config cannot leak into the next build.
@@ -300,7 +308,7 @@ function build({
         STAFF_SITE_URL: 'https://myb-roster.web.app',
         ADMIN_FUNCTION_ORIGINS: ['https://myb-roster.web.app'],
     });
-    return { eps, sends, db, authOps, users };
+    return { eps, sends, db, authOps, users, released };
 }
 
 function makeRes() {
@@ -922,6 +930,29 @@ describe('setupRosterAuth previews leavers before it disables them', () => {
         assert.ok(out.body.disabled.some((l) => l.includes('x.gone')));
         assert.ok(authOps.some((o) => o.op === 'updateUser' && o.uid === leaver.uid && o.patch.disabled === true));
         assert.ok(authOps.some((o) => o.op === 'revokeRefreshTokens' && o.uid === leaver.uid));
+    });
+
+    // Whole-app review, H4. A leaver who never ran Sign out keeps an owner-stamped push record, and
+    // `fanOutPush` consults no owner — so every Huddle, document and pay reminder went on reaching
+    // their phone after the account was disabled.
+    test('with the confirm, the leaver\'s push records go too — and only theirs', async () => {
+        const { eps, released } = build({ existingUsers: [leaver] });
+        await call(eps.setupRosterAuth, asAdmin({ removeOrphans: true, confirmOrphanRemoval: true }));
+        assert.deepEqual(released, [leaver.uid]);
+    });
+
+    test('the dry run removes no push records', async () => {
+        const { eps, released } = build({ existingUsers: [leaver] });
+        await call(eps.setupRosterAuth, asAdmin({ removeOrphans: true }));
+        assert.deepEqual(released, []);
+    });
+
+    test('a push clean-up that fails still reports the leaver as disabled', async () => {
+        // The account IS disabled by then; the report says what happened to the account.
+        const { eps } = build({ existingUsers: [leaver], releaseFail: 'firestore down' });
+        const out = await call(eps.setupRosterAuth, asAdmin({ removeOrphans: true, confirmOrphanRemoval: true }));
+        assert.ok(out.body.disabled.some((l) => l.includes('x.gone')), JSON.stringify(out.body));
+        assert.ok(!out.body.failed.some((l) => l.includes('x.gone')));
     });
 
     test('a current member is never swept, even one whose account already existed', async () => {

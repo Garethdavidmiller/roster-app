@@ -12,9 +12,9 @@
 import { teamMembers, MONTH_ABB, getShiftBadge, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { parseOtherValue, buildOverrideWrite, nextReplacedType } from './override-utils.js';
-import { formatClockInput } from './clock-input.js';
+import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { replacedTypeForSwap } from './al-swapped-days.js';
-import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick } from './roster-entry-control.js';
+import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
 import { computeCellStates, guardedRowHtml, guardedWrites, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies } from './roster-review-states.js';
 // RE-EXPORTED, not re-implemented: the first three moved to roster-cell-rules.js (v22.17/v22.18),
@@ -445,7 +445,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             if (state.state === 'UNREADABLE' && state.chosen === 'entered' && state.entered) {
                 // The admin answered the unreadable cell in place (v22.17). Writes the same shape a
                 // picked reading does, and the value has been through the identical guards.
-                toWrite.push({ memberName, date, value: state.entered.display, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: state.manualId ? { type: state.manualType, replacedType: state.manualReplacedType } : null });
+                // `swapped`: leave or an absence on a base rest day, answered "Swapped" in the entry
+                // control (whole-app review) — stored as covering a swapped-in working day.
+                toWrite.push({ memberName, date, value: state.entered.display, baseShift: state.baseShift, replaceId: state.manualId, swapped: !!state.entered.swapped, replacedFrom: state.manualId ? { type: state.manualType, replacedType: state.manualReplacedType } : null });
             }
             if (state.state === 'UNREADABLE' && typeof state.chosen === 'number' && state.options?.[state.chosen]) {
                 // The admin resolved a two-way "couldn't read" by picking one of the two readings
@@ -601,14 +603,15 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             for (const st of cellStates.values()) {
                 if      (st.state === 'DIFF')          { if (st.chosen !== false) updates++; }
                 else if (st.state === 'REMOVE_IMPORT') { if (st.chosen !== false) clears++; }
-                else if (st.state === 'GUARDED')       { if (guardedWrites(st, '', '').length) updates++; }
+                // "Rest day — leave it" over an old import DELETES it: a clear, not a shift updated (whole-app review).
+                else if (st.state === 'GUARDED')       { const gw = guardedWrites(st, '', ''); if (gw.length) { if (gw[0].deleteOnly) clears++; else updates++; } }
                 else if (st.state === 'CONFLICT')      { conflictsTotal++; if (st.chosen === 'pdf') { conflictsSwitched++; updates++; } }
                 else if (st.state === 'UNREADABLE')    {
                     // A resolved one is an update, not an outstanding "couldn't read" — otherwise the
                     // banner keeps reporting a problem the admin has just fixed.
                     if (typeof st.chosen === 'number' && st.options?.[st.chosen]) updates++;
                     else if (st.chosen === 'entered' && st.entered) updates++;
-                    else unreadable++;
+                    else if (!entryLeftAsRest(st)) unreadable++;   // answered "rest day": nothing to save, nothing unread
                 }
             }
             const writes = updates + clears;
@@ -634,8 +637,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // they contribute to no count above — and the summary went silent about the one thing
             // that had changed. A withheld row is an outcome; "nothing will happen to these" is
             // exactly what the admin needs to read before they scroll past them.
+            // Only rows STILL unticked are held back: one the admin has checked and ticked is counted
+            // above, and counting it here too said the same day was both saving and withheld.
             const heldBack = [...cellStates.values()].filter(st =>
-                st.drift && (st.state === 'DIFF' || st.state === 'REMOVE_IMPORT')).length;
+                st.drift && (st.state === 'DIFF' || st.state === 'REMOVE_IMPORT') && st.chosen === false).length;
             if (heldBack > 0)
                 lines.push(`<div class="ro-line ro-read"><span class="ro-k">⚠</span><span><strong>${heldBack}</strong> `
                     + `day${heldBack !== 1 ? 's' : ''} held back — the week may be a day out, so nothing there is selected</span></div>`);
@@ -873,12 +878,12 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                                 <span class="roster-day-abbr">${dayName}</span>
                                 <span class="roster-day-date">${dateStr}</span>
                             </div>
-                            <span class="roster-act ${unreadableTagClass(s)}">${s.chosen === 'entered' && s.entered ? 'Your entry' : "Couldn't read"}</span>
+                            <span class="roster-act ${entryLeftAsRest(s) ? 'act-none' : unreadableTagClass(s)}">${s.chosen === 'entered' && s.entered ? 'Your entry' : entryLeftAsRest(s) ? 'Not recorded' : "Couldn't read"}</span>
                             <div class="roster-chg-vals">
                                 ${shiftDisplay(s.parsedShift)}
                                 <span class="roster-remove-note">${s.chosen === 'entered' && s.entered
                                     ? '\u2713 you entered the shift below'
-                                    : 'check the paper roster, or enter it below'}</span>
+                                    : entryLeftAsRest(s) ? 'a rest day \u2014 nothing is recorded' : 'check the paper roster, or enter it below'}</span>
                             </div>
                         </div>
                         ${s.isManual && s.manualValue ? `<div class="roster-cb-opt">
@@ -1055,7 +1060,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // `entryClick` owns which of those exist and what each does to the draft; this only
             // redraws the control — never the list, see `redrawEntry`'s header for the measurement.
             const entryHit = /** @type {HTMLElement|null} */ (
-                target.closest('.roster-entry-pill, .roster-entry-flavour, .roster-entry-rdw-cb'));
+                target.closest('.roster-entry-pill, .roster-entry-flavour, .roster-entry-rdw-cb, .roster-entry-swap-btn'));
             if (entryHit) {
                 const s = cellStates.get(entryHit.dataset.key ?? '');
                 if (!s || !entryClick(entryHit, s)) return;
@@ -1134,12 +1139,17 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         // A time box changes the draft on every keystroke, not on blur: an admin who types a time
         // and presses Save without leaving the field would otherwise save nothing, with the value
         // visibly on screen. `input` also fires for the native picker.
-        changeList.addEventListener('input', /** @param {any} e */ e => {
+        // `shape` is the keystroke rule while typing and the settled one when the box is LEFT: a
+        // three-digit "240" stays as typed until then, because it may be the start of "2400"
+        // (clock-input.js, whole-app review Oct 2026), and only leaving it says it is 02:40.
+        const entryTime = (/** @type {any} */ e, /** @type {(v: string) => string} */ shape) => {
             const el = /** @type {HTMLInputElement} */ (e.target);
             if (!el.classList?.contains('roster-entry-time')) return;
             const s = cellStates.get(el.dataset.key ?? '');
             if (!s) return;
-            el.value = formatClockInput(el.value);   // a phone keypad has no colon (v24.61): "0730" → "07:30" as typed
+            const shaped = shape(el.value);   // a phone keypad has no colon (v24.61): "0730" → "07:30" as typed
+            if (e.type === 'focusout' && shaped === el.value) return;
+            el.value = shaped;
             s.draft = { ...s.draft, [el.dataset.part === 'to' ? 'to' : 'from']: el.value };
             commitEntry(s);
             // PATCH THE ROW, do not re-render it. A full render on every keystroke would destroy the
@@ -1148,7 +1158,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // summary above had already counted the entry, so the screen contradicted itself.
             patchEntryRow(el.closest('.roster-change-row'), s.chosen === 'entered' && !!s.entered, s);
             refreshOutcome();
-        });
+        };
+        changeList.addEventListener('input', /** @param {any} e */ e => entryTime(e, formatClockInput));
+        changeList.addEventListener('focusout', /** @param {any} e */ e => entryTime(e, finaliseClockInput));
 
         // ---- Empty state ----
         if (sectionsShown === 0) {

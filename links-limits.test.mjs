@@ -431,4 +431,17 @@ describe('the contracted-days ceiling — 219 a year, at the link\'s own length'
         assert.equal(ceiling(part), undefined, 'a half-built design could only rise');
         assert.equal(assessHardLimits(design(wk(W, W, W, W, W, R, R)), 1).checks.some(c => c.id === 'contracted-days'), false);
     });
+
+    // Whole-app review, Oct 2026: the part-built early return covered only a design with no run
+    // breach, so one that broke the run limit fell through to a green "within the 219".
+    test('a part-built design that BREAKS the run limit still gets no ceiling verdict', () => {
+        /** @type {Record<string, any>} */ const p = {};
+        for (let pos = 1; pos <= ROTATING_LINES; pos++) p[String(pos)] = Object.fromEntries(DAYS.map(d => [d, 'RD']));
+        p['1'] = Object.fromEntries(DAYS.map(d => [d, '07:00-15:00']));
+        p['2'] = Object.fromEntries(DAYS.map(d => [d, '07:00-15:00']));
+        const r = assessHardLimits(p);
+        assert.equal(r.checks.find(c => c.id === 'consecutive-days')?.status, 'breach', 'the breach stands');
+        assert.equal(ceiling(p), undefined, 'and nothing is said about lines nobody has drawn');
+        assert.equal(r.assessable, false);
+    });
 });

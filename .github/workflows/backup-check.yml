@@ -42,8 +42,9 @@ name: Are Firestore backups actually being taken?
 # never fixes. It cannot: turning backups on has a cost attached and is the owner's call, and a
 # workflow that could enable them could also be the thing that quietly disables them.
 #
-# `github-deploy@` is a DEPLOY service account and may well not hold `datastore.backupSchedules.list`.
-# If so this reports exactly that and names the role. **"We cannot see" is a different finding from
+# The account it asks as — the deploy account until the owner names a read-only one (the auth step
+# below says how) — may well not hold `datastore.backupSchedules.list`. If so this reports exactly
+# that and names the permission. **"We cannot see" is a different finding from
 # "there are none"**, and reporting them as the same thing is how a check like this becomes noise —
 # which is why the job goes RED only on a definite absence, and stays green on an unknown.
 
@@ -68,17 +69,23 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
+      # WHICH ACCOUNT ASKS (whole-app review, Oct 2026). A question this read-only should not be
+      # asked as the DEPLOY account, which can replace the whole project. The owner creates a
+      # read-only one and names it in the repository variable BACKUP_CHECK_SERVICE_ACCOUNT
+      # (SECURITY_RELEASE_PLAN.md → Appendix A2 → "Tightening it", which has the commands); until
+      # then this falls back to the deploy account it has always used, so nothing breaks first.
       - name: Authenticate to Google Cloud (Workload Identity Federation)
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
           workload_identity_provider: 'projects/532910998075/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
-          service_account: 'github-deploy@myb-roster.iam.gserviceaccount.com'
+          service_account: ${{ vars.BACKUP_CHECK_SERVICE_ACCOUNT || 'github-deploy@myb-roster.iam.gserviceaccount.com' }}
 
       - name: Ask whether backups exist
         id: ask
         shell: bash
         env:
           PROJECT: myb-roster
+          ACCOUNT: ${{ vars.BACKUP_CHECK_SERVICE_ACCOUNT || 'github-deploy@myb-roster.iam.gserviceaccount.com' }}
         run: |
           set -uo pipefail
           DB='(default)'
@@ -108,7 +115,7 @@ jobs:
           if [ $SCHED_RC -ne 0 ]; then
             SCHED_STATE=unknown
             if grep -qiE 'permission|denied|forbidden|not authoriz|PERMISSION_DENIED' /tmp/sched.err; then
-              SCHED_TEXT="**Could not check** — \`github-deploy@\` lacks permission to list backup schedules. That is NOT the same as \"there are none\". Grant \`roles/datastore.viewer\` (or just \`datastore.backupSchedules.list\`) to answer it."
+              SCHED_TEXT="**Could not check** — \`$ACCOUNT\` lacks permission to list backup schedules. That is NOT the same as \"there are none\". Grant it \`datastore.backupSchedules.list\` (the predefined \`roles/datastore.backupSchedulesViewer\`) — not \`roles/datastore.viewer\`, which also reads every document."
             else
               SCHED_TEXT="**Could not check** — the command failed for a reason other than permissions; see the run log."
             fi
@@ -133,7 +140,7 @@ jobs:
           set -e
           if [ $PITR_RC -ne 0 ]; then
             PITR_STATE=unknown
-            PITR_TEXT="**Could not check PITR** — see the run log."
+            PITR_TEXT="**Could not check PITR** — see the run log. Reading it needs \`datastore.databases.getMetadata\`."
             sed -e 's/^/    /' /tmp/pitr.err >> "$GITHUB_STEP_SUMMARY" || true
           elif [ "$PITR" = "POINT_IN_TIME_RECOVERY_ENABLED" ]; then
             PITR_STATE=present
@@ -158,13 +165,17 @@ jobs:
           # trains its reader to ignore it, and the one thing here that must never be ignored is a
           # real "nothing is recoverable".
           if [ "$SCHED_STATE" = absent ] && [ "$PITR_STATE" = absent ]; then
+            echo "verdict=absent" >> "$GITHUB_OUTPUT"
             echo "::error::No Firestore backup schedules AND no PITR — nothing is recoverable."
             exit 1
           fi
           echo "Schedules: $SCHED_STATE · PITR: $PITR_STATE"
 
+      # ONLY ON THE ANSWER IT EXISTS TO REPORT (whole-app review, Oct 2026). `failure()` alone
+      # also fired when the SIGN-IN failed — and the comment it posts opens "Firestore has no
+      # backups", which an authentication error is no evidence of. A red run says that one.
       - name: Say so, once, in an issue
-        if: failure()
+        if: failure() && steps.ask.outputs.verdict == 'absent'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

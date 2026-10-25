@@ -384,8 +384,9 @@ body.auth-ready .container { display: grid; }
     font-size: var(--type-small);
     color: var(--text-mid);
 }
-.roster-entry-pills { display: flex; flex-wrap: wrap; gap: 6px; }
-.roster-entry-pill {
+.roster-entry-pills, .roster-entry-swap-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+.roster-entry-swap { display: flex; flex-direction: column; gap: 8px; }
+.roster-entry-pill, .roster-entry-swap-btn {
     font-family: inherit;
     font-size: var(--type-small);
     font-weight: 700;
@@ -398,13 +399,13 @@ body.auth-ready .container { display: grid; }
     cursor: pointer;
     transition: background var(--dur-med), color var(--dur-med), border-color var(--dur-med);
 }
-.roster-entry-pill.is-on {
+.roster-entry-pill.is-on, .roster-entry-swap-btn.is-on {
     background: var(--primary-blue);
     border-color: var(--primary-blue);
     color: white;
 }
 .roster-entry-pill:disabled { opacity: .38; cursor: not-allowed; }
-.roster-entry-pill:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+.roster-entry-pill:focus-visible, .roster-entry-swap-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
 .roster-entry-times { display: flex; align-items: center; gap: 8px; }
 .roster-entry-time {
     /* >=16px, or iOS zooms the page the moment this is focused — the rule the e2e scans for. */
@@ -473,6 +474,7 @@ body.auth-ready .container { display: grid; }
 .roster-entry-lock { color: var(--text-light); font-size: var(--type-badge); }
 @media (hover: hover) and (pointer: fine) {
     .roster-entry-pill:not(.is-on):not(:disabled):hover,
+    .roster-entry-swap-btn:not(.is-on):hover,
     .roster-entry-flavour:not(.is-on):hover {
         border-color: var(--primary-blue);
         color: var(--primary-blue);

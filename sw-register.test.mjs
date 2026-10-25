@@ -20,7 +20,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { registerServiceWorker, reloadWhileHidden, reloadWhenNotBusy, lazyImport, _resetForTest } = await import('./sw-register.js');
+const { registerServiceWorker, reloadWhileHidden, reloadWhenNotBusy, lazyImport, hasPendingUpdate, _resetForTest } = await import('./sw-register.js');
 import { readFileSync } from 'node:fs';
 
 const _realSetInterval   = globalThis.setInterval;
@@ -160,6 +160,21 @@ test('hard reload (registration exists, controller null): the next claim IS an u
         h.fireControllerChange();                       // a NEW SW claims the bypassed page
         assert.equal(h.state.reloads, 1,
             'a hard-reloaded page must not be misclassified as a first install — its first claim is a genuine update');
+    } finally { h.restore(); }
+});
+
+// The About panel asks this (whole-app review, Oct 2026): the worker skipWaiting()s, so
+// `registration.waiting` is never set while a release's reload is being held.
+test('hasPendingUpdate: false until a genuine update claims the page, never for the first install', async () => {
+    const h = makeHarness({ controlled: false });
+    try {
+        registerServiceWorker({ beforeReload: () => {} });   // a page that HOLDS the reload
+        await h.flush();
+        assert.equal(hasPendingUpdate(), false);
+        h.fireControllerChange();                            // the first-install claim
+        assert.equal(hasPendingUpdate(), false, 'the first install is not an update waiting');
+        h.fireControllerChange();                            // a release lands; its reload is held
+        assert.equal(hasPendingUpdate(), true);
     } finally { h.restore(); }
 });
 

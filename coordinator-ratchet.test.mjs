@@ -22,10 +22,16 @@
  *
  * ── THE HEADROOM IS DELIBERATE, AND SO IS ITS SIZE ──────────────────────────────────────────────
  *
- * Caps are the measured size PLUS 50, rounded up to the next 50 — so every file carries 50–99 lines
- * of room. Enough to fix a bug, add a comment or re-wire a call; nowhere near enough for a business
- * rule. Line count is a PROXY for the rule at the top of this file, and the proxy is only honest if
- * it leaves room for the work that does NOT violate the rule.
+ * A cap is SET at the measured size PLUS 50, rounded up to the next 50 — so a file carries 50–99
+ * lines of room on the day its cap is set. Enough to fix a bug, add a comment or re-wire a call;
+ * nowhere near enough for a business rule. Line count is a PROXY for the rule at the top of this
+ * file, and the proxy is only honest if it leaves room for the work that does NOT violate the rule.
+ *
+ * That room is then SPENT, and nothing gives it back: a file can sit at its cap, and two do as of
+ * Oct 2026 (the whole-app review counted them — this paragraph used to say "every file carries
+ * 50–99 lines of room", which stopped being true the first time one grew). At the cap, even a
+ * comment fails here. That is the moment the section below is for — not a reason to restore the
+ * margin by raising the cap in passing.
  *
  * The first cut rounded to the next 50 with no addition, which gave `admin-roster-upload.js` — 1,200
  * lines exactly — a cap of 1,200 and zero headroom. A guard that fails on a one-line fix is a guard

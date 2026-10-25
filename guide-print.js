@@ -18,6 +18,10 @@ const NOTICE_ID = 'printUnavailable';
 
 /** Say why the button did nothing, once, under the header, with the one tap that fixes it. */
 function explain() {
+    // A page that PREPARED for this print undoes it now (whole-app review, Oct 2026): the FIP guide
+    // opens every country card before deciding, and with no print coming neither `afterprint` nor a
+    // return to the page ever fires, so 35 cards stayed open on an installed iOS 27 app.
+    document.dispatchEvent(new Event('guide:print-refused'));
     let notice = document.getElementById(NOTICE_ID);
     if (!notice) {
         notice = document.createElement('p');

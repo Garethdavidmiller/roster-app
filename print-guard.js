@@ -15,15 +15,20 @@
  *
  * ── THE RULE ────────────────────────────────────────────────────────────────────────────────────
  *
- * `printIsBlocked()` is true only for `navigator.standalone === true`, which exists on iOS alone and
- * is true only when the page was launched from the Home Screen — it is the one signal that names
- * this exact situation, where `display-mode: standalone` would also be true on an installed Android
- * app that prints perfectly well. The iOS major version is read from the user agent; 27 and above
- * are blocked, and so is an UNKNOWN version, because an iPad on its desktop-class user agent carries
- * no version at all and is the device most likely to be printing. An iPhone on iOS 26 or earlier,
- * where the bug does not exist, keeps its print. When Apple ships the fix, raise the floor here —
- * one number — rather than removing the guard, since the installs it protects update on their own
- * schedule.
+ * `printIsBlocked()` is true for `navigator.standalone === true`, which exists on iOS alone and is
+ * true only when the page was launched from the Home Screen — the one signal that names this exact
+ * situation, where `display-mode: standalone` would also be true on an installed Android app that
+ * prints perfectly well.
+ *
+ * IT USED TO READ THE iOS VERSION TOO, AND THAT NEVER WORKED ON A REAL iPHONE (whole-app review, Oct
+ * 2026). The rule blocked iOS 27 and later and let iOS 26 and earlier print — but WebKit freezes the
+ * version in the user agent: every recent iPhone reports `iPhone OS 18_7`, iOS 27 included. So the
+ * guard read 18, stood down, and the dead buttons it was written to explain were dead again; its
+ * tests passed because they fed it an invented `27_0` that no device sends. Nothing a page can read
+ * tells iOS 27 from iOS 26 now, so every home-screen launch is treated as blocked. The cost is a
+ * dialog on an older install that could have printed; the alternative is a button that does nothing.
+ * When Apple fixes the shell, this stays until an installed iPhone is seen to print — there is no
+ * version number left to raise.
  *
  * ── WHAT IT SAYS ────────────────────────────────────────────────────────────────────────────────
  *
@@ -39,32 +44,16 @@ export const PRINT_UNAVAILABLE_TEXT =
 /** @type {string} */
 export const OPEN_IN_SAFARI_LABEL = 'Open in Safari';
 
-/** The first iOS release on which a home-screen web app cannot print. Raise when Apple fixes it. */
-export const PRINT_BLOCKED_FROM_IOS = 27;
-
 /**
- * The iOS major version a user agent names, or null when it names none (an iPad on its desktop
- * user agent, or any non-iOS browser).
- * @param {string} [ua]
- * @returns {number|null}
- */
-export function iosMajorVersion(ua = typeof navigator === 'undefined' ? '' : navigator.userAgent) {
-    const m = /(?:iPhone|iPad|iPod).*? OS (\d+)_/.exec(ua) || /CPU OS (\d+)_/.exec(ua);
-    return m ? parseInt(m[1], 10) : null;
-}
-
-/**
- * Whether `window.print()` would silently do nothing here.
- * @param {{ standalone?: boolean, iosMajor?: number|null }} [env]  defaults read the live page;
- *   tests pass both.
+ * Whether `window.print()` would silently do nothing here: a page launched from the Home Screen on
+ * an iPhone or iPad (see the header for why no version is read).
+ * @param {{ standalone?: boolean }} [env]  defaults read the live page; tests pass it.
  * @returns {boolean}
  */
 export function printIsBlocked({
     standalone = typeof navigator !== 'undefined' && /** @type {any} */ (navigator).standalone === true,
-    iosMajor = iosMajorVersion(),
 } = {}) {
-    if (!standalone) return false;
-    return iosMajor === null || iosMajor >= PRINT_BLOCKED_FROM_IOS;
+    return standalone === true;
 }
 
 /**

@@ -543,20 +543,31 @@ async function renderWeekDetail(weekEnding) {
     // reminder audit on it — so it is derived from the clock here, never read off the row.
     paintWeekDetail(host, { ...win, phase: phaseAt(win, now) }, data, {
         dates, now,
-        grade: reviewGrade, onGrade: (g) => { reviewGrade = g; },
+        grade: reviewGrade, onGrade: (g) => { reviewGrade = g; paintWeekChip(data, g); },
         day: reviewDay, onDay: (d) => { reviewDay = d; },
         onRefresh: () => renderWeekDetail(weekEnding),
         onAsk: (memberName, ask) => setAsking(weekEnding, memberName, ask),
     });
+    paintWeekChip(data, reviewGrade);
+}
+
+/**
+ * The card header's `received/expected` chip, from the SAME population the card counts.
+ *
+ * Withdrawn participants come out of BOTH halves of the chip, exactly as they come out of the
+ * counts inside the card. A chip reading 4/6 above a card reading "4 of 5" is two answers to one
+ * question, and the reader has no way to tell which is the mistake — and the same goes for the
+ * GRADE lens, which the chip ignored until the whole-app review (Oct 2026): "1/2" above "0 of 1
+ * form received" under CES. So it is repainted when the grade changes, too.
+ * @param {any} data @param {string} grade  'ALL' or one grade
+ */
+function paintWeekChip(data, grade) {
     const chip = el('otWeekChip');
-    if (chip) {
-        // Withdrawn participants come out of BOTH halves of the chip, exactly as they come out
-        // of the counts inside the card. A chip reading 4/6 above a card reading "4 of 5" is
-        // two answers to one question, and the reader has no way to tell which is the mistake.
-        const expected = data.participants.filter((/** @type {any} */ p) => !isWithdrawn(p));
-        const received = expected.filter((/** @type {any} */ p) => data.submissions.has(p.memberName)).length;
-        chip.textContent = `${received}/${expected.length}`;
-    }
+    if (!chip) return;
+    const expected = data.participants.filter((/** @type {any} */ p) =>
+        !isWithdrawn(p) && (grade === 'ALL' || p.grade === grade));
+    const received = expected.filter((/** @type {any} */ p) => data.submissions.has(p.memberName)).length;
+    chip.textContent = `${received}/${expected.length}`;
 }
 
 /**

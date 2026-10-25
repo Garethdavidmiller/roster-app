@@ -1211,6 +1211,33 @@ describe('weekAvailabilitySummary', () => {
         const text = weekAvailabilitySummary({ ...arg, dates: ['2026-09-10'] });
         assert.match(text, /No response: A\. Smith · B\. Jones · C\. Brown/);
     });
+
+    // Whole-app review, Oct 2026: the screen flags a request to come off a rostered Sunday beside the
+    // member's answer, and the copied summary dropped it — the one request on the page about
+    // CONTRACTED work, lost on the way to the conversation where it is decided.
+    test('a Sunday release request is copied, on its OWN line, never folded into the answer', () => {
+        const sun = '2026-09-13';
+        const text = weekAvailabilitySummary({ ...arg, dates: [sun], submissions: new Map([
+            ['A. Smith', { days: { [sun]: { mode: 'unavailable', releaseRequested: true } } }],
+            ['B. Jones', { days: { [sun]: { mode: 'all_day' } } }],
+        ]) });
+        assert.match(text, /^ {2}Asked to come off this Sunday: A\. Smith$/m);
+        assert.match(text, /Not available: A\. Smith$/m, 'the overtime answer stands on its own');
+    });
+
+    test('every Sunday names the request line — "nobody" in words; another day only if somebody asked', () => {
+        const sun = weekAvailabilitySummary({ ...arg, dates: ['2026-09-13'] });
+        assert.match(sun, /Asked to come off this Sunday: nobody/);
+        const wed = weekAvailabilitySummary(arg);
+        assert.doesNotMatch(wed, /Asked to come off/, 'no request line on a weekday nobody asked about');
+    });
+
+    test('a release request outside the shown participants is not copied — the copy matches the screen', () => {
+        const sun = '2026-09-13';
+        const text = weekAvailabilitySummary({ ...arg, dates: [sun], participants: [{ memberName: 'B. Jones' }],
+            submissions: new Map([['A. Smith', { days: { [sun]: { mode: 'all_day', releaseRequested: true } } }]]) });
+        assert.match(text, /Asked to come off this Sunday: nobody/);
+    });
 });
 
 // ── reminderLine (v22.05) — the audit row's four states ────────────────────────────────────────

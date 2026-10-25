@@ -274,7 +274,14 @@ jobs:
           fi
           echo "no node_modules - the lane is being tested as a reviewer would meet it"
 
+      # WEST OF UTC, deliberately (whole-app review, I9). Every other lane runs in the runner's UTC,
+      # and the app in London, which agree for most of the year — so a fixture written against
+      # UTC midnight passes everywhere this repo tests and fails on a reviewer's laptop in another
+      # zone: 30 tests did, in Los Angeles. This is the lane written for that reviewer, so it is
+      # the one that runs where they might be.
       - name: Run every suite that needs nothing installed
+        env:
+          TZ: America/Los_Angeles
         run: npm run test:nodeps
 
   # ── CLOUD FUNCTIONS, ON THE RUNTIME THEY ACTUALLY RUN ON (v21.82) ──────────────────────────────

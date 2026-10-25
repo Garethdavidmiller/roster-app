@@ -11,7 +11,7 @@
 
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { fetchWithTimeout, isFetchTimeout, isFetchAborted, FETCH_TIMEOUT_CODE, FETCH_ABORTED_CODE, DEFAULT_FETCH_TIMEOUT_MS } from './fetch-timeout.js';
+import { fetchWithTimeout, isFetchTimeout, isFetchAborted, serverRefusal, FETCH_TIMEOUT_CODE, FETCH_ABORTED_CODE, DEFAULT_FETCH_TIMEOUT_MS } from './fetch-timeout.js';
 
 const realFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = realFetch; });
@@ -274,5 +274,21 @@ describe('the deadline covers reading the body', () => {
         globalThis.fetch = /** @type {any} */ (() => Promise.resolve({ ok: true, status: 200, json: () => Promise.reject(new SyntaxError('bad json')) }));
         const r = await fetchWithTimeout('https://example.test', {}, 500);
         await assert.rejects(() => r.json(), (/** @type {any} */ err) => { assert.equal(err.name, 'SyntaxError'); return true; });
+    });
+});
+
+// ── A REFUSAL IS AN ANSWER, NOT A RETRY (whole-app review, Oct 2026) ────────────────────────────
+describe('serverRefusal', () => {
+    test('a 4xx carries the server\'s own sentence', () => {
+        const e = new Error('Server responded 404: {"error":"No Firebase account for \\"B. Toth\\" — run Set up accounts first"}');
+        assert.deepEqual(serverRefusal(e), { status: 404, reason: 'No Firebase account for "B. Toth" — run Set up accounts first' });
+    });
+    test('a body that is not JSON is the reason itself', () => {
+        assert.deepEqual(serverRefusal(new Error('Server responded 403: Forbidden')), { status: 403, reason: 'Forbidden' });
+    });
+    test('a 5xx, a network failure and a timeout are not refusals — they keep their Retry', () => {
+        assert.equal(serverRefusal(new Error('Server responded 500: {"error":"Reset failed"}')), null);
+        assert.equal(serverRefusal(new TypeError('Failed to fetch')), null);
+        assert.equal(serverRefusal(null), null);
     });
 });

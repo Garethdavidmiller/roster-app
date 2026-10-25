@@ -37,7 +37,19 @@ describe('writing the copy', () => {
         assert.equal(s.member, 'G. Miller');
         assert.deepEqual(s.months['2026-10'].days, {
             '2026-10-06': { type: 'annual_leave', value: 'AL', source: 'manual', changedBy: 'G. Miller' },
-        }, 'a colleague\'s row is never written, and nothing beyond the four fields is kept');
+        }, 'a colleague\'s row is never written, and nothing beyond the fields a paint needs is kept');
+    });
+
+    // Whole-app review, Oct 2026: an absence on a day swapped in from a rest day is shown only
+    // because it carries `replacedType`; trimmed away, the stored copy painted Rest over it.
+    test('keeps replacedType, so a swapped-in absence still shows over a rest day', async () => {
+        const { isOverrideDisplaySuppressed } = await import('./override-utils.js');
+        snap.saveSnapshotMonths('G. Miller', { '2026-10': [rec('G. Miller', '2026-10-08',
+            { type: 'sick', value: 'SICK', replacedType: 'shift' })] }, NOW);
+        const day = snap.snapshotMonth('G. Miller', 2026, 9, NOW)?.get('2026-10-08');
+        assert.equal(day?.replacedType, 'shift');
+        assert.equal(isOverrideDisplaySuppressed(/** @type {any} */ (day), 'RD', false), false,
+            'the stored record must reach the display rule with what it needs to show the absence');
     });
 
     test('an empty month is a real answer — nothing changed — and is stored as one', () => {

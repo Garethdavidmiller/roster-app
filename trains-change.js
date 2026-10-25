@@ -366,6 +366,21 @@ export function parseTypedTime(text) {
 }
 
 /**
+ * Today's date AS THE RAILWAY COUNTS IT: before 03:00 it is still yesterday (the header's rule). The
+ * books file the 00:01, 00:05 and 00:10 departures under the evening before, so a page choosing its
+ * day by the calendar answered from the wrong timetable for the first minutes after midnight — "no
+ * Saturday train at 00:05" while Friday's 00:05 to Banbury had not gone (whole-app review, Oct
+ * 2026). Wall-clock, not "now minus three hours", so a clock change cannot move the boundary.
+ * @param {Date} [now]
+ * @returns {Date}
+ */
+export function railwayToday(now = new Date()) {
+    const d = new Date(now);
+    if (d.getHours() < 3) d.setDate(d.getDate() - 1);
+    return d;
+}
+
+/**
  * Whole days from `today` to the change, counted on calendar dates (never by milliseconds, which a
  * clock change in October would make 23 or 25 hours). 0 on the day itself; negative after it.
  *

@@ -94,6 +94,12 @@ export function init() {
     /** Which week that form is for, so a resync knows whether a moved window is the visible one. */
     /** @type {string|null} */
     let currentFormWeek = null;
+    // The service worker, BEFORE the access gate below (whole-app review, Oct 2026) — the sign-in and
+    // "not open to you" branches return early, and a signed-out view must still take an update, as
+    // Operations and Links do. A release must not take a half-answered form, or a submit on its way,
+    // with it (v24.61) — `currentForm` is null until the form exists, so the check costs nothing earlier.
+    const _busy = () => !!currentForm?.isDirty() || !!currentForm?.isSubmitting();
+    registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_busy), isBusy: _busy });
 
     /**
      * The reviewer's workspace — horizon, week selection, detail, creation preview, confirm bar,
@@ -215,9 +221,6 @@ export function init() {
         initCardCollapse('otMineToggleHeader',    'otMineBody',    'otMineChevron');
         initCardCollapse('otHorizonToggleHeader', 'otHorizonBody', 'otHorizonChevron');
         initCardCollapse('otWeekToggleHeader',    'otWeekBody',    'otWeekChevron');
-        // A release must not take a half-answered form, or a submit on its way, with it (v24.61).
-        const _busy = () => !!currentForm?.isDirty() || !!currentForm?.isSubmitting();
-        registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(_busy), isBusy: _busy });
 
         canReview = isOvertimeReviewer(currentUser);
         wireTabs();

@@ -6,8 +6,8 @@
 //  3. AI_MAP.md is current to the latest 0.10 milestone — makes the
 //     "update docs every 0.10 version" policy (CLAUDE.md) self-enforcing
 //     instead of relying on someone remembering to do the sweep.
-//  4. functions/roster-members.json matches active staff in roster-data.js —
-//     catches the "added a member but forgot to re-run generate-roster-members.mjs" mistake.
+//  4. functions/roster-members.json matches what scripts/generate-roster-members.mjs would write,
+//     field by field — catches the "changed roster-data.js but forgot to regenerate" mistake.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
@@ -476,6 +476,21 @@ test('functions/roster-members.json matches active staff in roster-data.js', asy
     // A non-empty admin list is load-bearing: setupRosterAuth fails closed on an empty one, but catch
     // it here too so a bad edit never even deploys.
     assert.ok(Array.isArray(json.roles?.admin) && json.roles.admin.length > 0, 'roster-members.json roles.admin must be non-empty (admin lockout guard)');
+
+    // EVERY FIELD, from the generator itself (whole-app review, I4). The assertions above restate
+    // the fields one at a time, and two were missing: `maxRosterYear` and `overtimeRoster`. Raising
+    // CONFIG.MAX_YEAR changes none of the fields above, so the booked MAX_YEAR bump would have left
+    // the server on the old horizon (Overtime windows refused as `beyond-horizon` from the first
+    // week past it) with this test green. Asking the generator what it would write covers every
+    // field, including one added after this line was written.
+    const { buildRosterMembers } = await import('./scripts/generate-roster-members.mjs');
+    const generated = JSON.parse(JSON.stringify(buildRosterMembers()));
+    assert.deepEqual(Object.keys(json).sort(), Object.keys(generated).sort(),
+        'functions/roster-members.json carries different fields from the ones the generator writes — run npm run generate:roster-members');
+    for (const key of Object.keys(generated)) {
+        assert.deepEqual(json[key], generated[key],
+            `functions/roster-members.json "${key}" is out of date — run npm run generate:roster-members`);
+    }
 });
 
 test('no unused CSS custom properties defined in :root', () => {

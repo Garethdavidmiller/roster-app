@@ -166,7 +166,7 @@ describe('workflow-lint reaches composite actions', () => {
 // an outage: there is no way to make a real setup failure happen on demand in CI, which is exactly
 // why the original gap survived review.
 describe('a failed deploy is announced, whenever it fails', () => {
-    const DEPLOY_WORKFLOWS = ['deploy-rules.yml', 'deploy-hosting.yml', 'deploy-functions.yml'];
+    const DEPLOY_WORKFLOWS = ['deploy-rules.yml', 'deploy-hosting.yml', 'deploy-functions.yml', 'deploy-mirror.yml'];
 
     test('the deploy workflows are all present', () => {
         for (const f of DEPLOY_WORKFLOWS) {
@@ -370,7 +370,7 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
 // None of the three fails anything at the time it is made, which is why they are pinned rather
 // than reviewed.
 describe('the deploy workflows serialise rather than race', () => {
-    const DEPLOYS = ['deploy-hosting.yml', 'deploy-functions.yml', 'deploy-rules.yml'];
+    const DEPLOYS = ['deploy-hosting.yml', 'deploy-functions.yml', 'deploy-rules.yml', 'deploy-mirror.yml'];
 
     /** @param {string} file */
     const concurrencyOf = (file) => {
@@ -451,7 +451,7 @@ describe('the deploy workflows serialise rather than race', () => {
 // The guard is one `if:` per workflow, which is exactly the kind of line a later edit removes
 // without noticing. Asserted here rather than trusted.
 describe('deploy workflows only run from main', () => {
-    for (const wf of ['deploy-hosting.yml', 'deploy-functions.yml', 'deploy-rules.yml']) {
+    for (const wf of ['deploy-hosting.yml', 'deploy-functions.yml', 'deploy-rules.yml', 'deploy-mirror.yml']) {
         test(`${wf} gates its deploy job on refs/heads/main`, () => {
             const src = readFileSync(new URL(`.github/workflows/${wf}`, import.meta.url), 'utf8');
             assert.match(src, /if:\s*github\.ref == 'refs\/heads\/main'/,
@@ -604,6 +604,32 @@ describe('the version guard exempts only what cannot go stale', () => {
                 `${f} is exempt from the version guard. If that was done to quiet a failing job, `
                 + 'it disarmed the guard for precisely the files it exists to protect.');
         }
+    });
+
+    test('and so does EVERY file the service worker precaches, read from the worker itself', () => {
+        // The list above is a sample, and a sample proves only itself (whole-app review, I5):
+        // appending `|[.]png$|[.]woff2$` to the exclusion passed every assertion in this block,
+        // while the icons and the font are precached into the version cache — a changed icon
+        // shipped without a bump stays the OLD icon on every device that already has this version.
+        // So the corpus is the warm-up's own arrays, derived the way sw-asset-check derives them:
+        // from the fetchInBatches calls, not from array names typed here.
+        const sw = readFileSync('service-worker.js', 'utf8');
+        const arrayOf = (/** @type {string} */ n) =>
+            sw.match(new RegExp(`const ${n}\\s*=\\s*\\[([\\s\\S]*?)\\];`))?.[1] ?? '';
+        const warmed = [...sw.matchAll(/fetchInBatches\(([\s\S]*?),\s*\w+\s*=>/g)]
+            .flatMap(m => [...m[1].matchAll(/([A-Z_]+_ASSETS)/g)].map(x => x[1]));
+        const served = warmed
+            .flatMap(n => arrayOf(n).split('\n').filter(l => !l.trim().startsWith('//')))
+            .flatMap(l => [...l.matchAll(/['"]\.\/([^'"]+)['"]/g)].map(m => m[1]));
+        assert.ok(served.length > 100,
+            `only ${served.length} precached files found — the warm-up scan has stopped matching`);
+        for (const ext of ['.js', '.css', '.html', '.png', '.woff2', '.json']) {
+            assert.ok(served.some(f => f.endsWith(ext)), `the precache scan found no ${ext} file`);
+        }
+        const exempt = served.filter(f => !needsBump(f));
+        assert.deepEqual(exempt, [],
+            `the version guard exempts files the service worker precaches: ${exempt.join(', ')}. `
+            + 'A change to one of these reaches devices only through a new version cache.');
     });
 
     test('and the guard still fails the branch rather than warning', () => {
@@ -830,12 +856,23 @@ describe('the currency canary stands down for a deploy in flight', () => {
     test('it keys on the workflow FILE, and that file exists', () => {
         // A display-name match ("Hosting" in r['name']) reads fine and stops working silently the
         // day somebody retitles the deploy. The filename is what the repo keys on everywhere else,
-        // and it is checkable from here — which is the entire reason to prefer it.
-        const m = code.match(/HOSTING_WORKFLOW:\s*(\S+)/);
-        assert.ok(m, 'the stand-down must name the Hosting deploy workflow by file');
-        assert.ok(readdirSync(WF_DIR).includes(m[1]),
-            `production-currency.yml stands down for ${m[1]}, which is not in ${WF_DIR}. The `
-            + 'deploy workflow was renamed and the canary now sees no deploy, ever.');
+        // and it is checkable from here — which is the entire reason to prefer it. Both deploys it
+        // waits for: Hosting, and since Oct 2026 the gated Pages mirror that follows it.
+        for (const key of ['HOSTING_WORKFLOW', 'PAGES_WORKFLOW']) {
+            const m = code.match(new RegExp(`${key}:\\s*(\\S+)`));
+            assert.ok(m, `the stand-down must name ${key} by file`);
+            assert.ok(readdirSync(WF_DIR).includes(m[1]),
+                `production-currency.yml stands down for ${m[1]}, which is not in ${WF_DIR}. The `
+                + 'deploy workflow was renamed and the canary now sees no deploy, ever.');
+        }
+    });
+
+    test('the gated-mirror stand-down asks whether Pages really deploys from the workflow', () => {
+        // Without the build_type question, "both origins behind while Hosting runs" would also
+        // excuse a mirror whose BRANCH build is broken — the masking v24.23 removed.
+        assert.match(code, /\/pages"[^\n]*build_type/, 'the second stand-down must read the Pages build_type');
+        assert.match(code, /"\$BUILD_TYPE" = "workflow"/, 'and act only when it is "workflow"');
+        assert.match(code, /\n\s+pages: read/, 'reading the Pages settings needs `pages: read`');
     });
 
     test('the poll cannot outlive the job that runs it', () => {

@@ -28,6 +28,7 @@ SECURITY_RELEASE_PLAN.md for status"; it may not restate the stage.
 | **B — write isolation** | ✅ Complete (B0–B4, H2; strict since v16.29) | — | — | Strict `overrides` rules live, no lockout, self-heal proven |
 | **Member-claim binding** | ✅ Complete — v24.23 believes a `name` only on a password sign-in at the name's derived email; v24.24 stamps the server-only `member` claim (Set up accounts); v24.27 requires it (`isMember()` in `firestore.rules`, `memberNameFromClaims` on the server) | — | — | Every member rule and endpoint reads identity through `isMember()` / `memberName()`; never roll rules back past v24.23 |
 | **A5 — push subscriptions** | ✅ Complete (v17.76, extended v18.74) | — | — | Per-owner create/update/delete enforced |
+| **A7 — deploy credential scope** | Code side done (v24.97): the backup check reads its account from the `BACKUP_CHECK_SERVICE_ACCOUNT` repository variable, and alerts only on a definite "no backups" | **Owner, in GCP:** limit the WIF provider to `refs/heads/main`, then give the backup check a read-only account — the commands are **Appendix A2 → "Tightening it"** | — | A token for `github-deploy@` cannot be minted from any ref but `main`, and the weekly backup check no longer runs as the deploy account |
 | **C — passwords** | Forced migration live (Phase 0+1 v18.63, Phase 2 v18.92, reset queue v18.93–95) | **C5** — retire the surname default | Track E (below): un-migrated roster-viewers never sign in, so the metric cannot converge. **⚠️ A SECOND ROUTE is on the table and NOT adopted** — C6 (below) would let the remaining surname credentials be replaced server-side with unknown random ones, which answers the CREDENTIAL question without touching the READ question. The two routes and what the second costs: `CREDENTIAL_LIFECYCLE.md` §7. Until the owner decides, this row stands as written | ≥90% migrated **and** a proven recovery route for the remainder |
 | **C2 — email verification/reset** | Deferred | — | Needs an email relay that does not exist | Relay available and owner wants it. **A saved address is not a credential** — possession must be proven and recorded (`verifiedAt`) before it can recover an account; design in `CREDENTIAL_LIFECYCLE.md` §8 |
 | **C6 — one-time recovery/activation codes** | Proposed, not started | Owner decision | — | Design in `CREDENTIAL_LIFECYCLE.md` §1. Supersedes C4′ as the recovery path: today's reset makes the SURNAME valid again, so the migration's own repair mechanism undoes the migration. C4′ stays live until C6 does — break-glass may not have a gap |
@@ -623,3 +624,53 @@ change to the pool/provider/binding must preserve it. (Functions deploy also nee
 the SA — Cloud Functions/Run/Build/Artifact Registry/Eventarc/Scheduler/Secret Manager/Service Account
 User — unchanged by WIF, which swaps only the auth mechanism. WIF resource names use the numeric project
 **number**, not the id.)
+
+### Tightening it — deploys from `main` only, and a read-only backup check (A7, whole-app review Oct 2026)
+
+**What is open.** The provider's condition names the REPOSITORY and nothing else, so a workflow on
+ANY branch of this repository can exchange its GitHub token for `github-deploy@` — which can replace
+the rules, the functions and the hosted site. "Deploy only from `main`" is an `if:` inside each deploy
+workflow, and a branch controls its own copy of that file: a pushed branch that edits the `if:` away
+deploys. Branch protection on `main` does not help, because the token is minted on the branch. And
+the weekly backup check asks a read-only question as that same deploy account.
+
+**Nothing in the repository can close the first half** — it is the provider's condition, in GCP. The
+code side is done: no workflow authenticates from anything but `main` (deploys are `push` to `main`;
+the backup check is a schedule, which runs on the default branch), so the tightened condition below
+refuses nothing that runs today. A `workflow_dispatch` of the backup check from another branch will
+be refused afterwards — that is the point.
+
+Run in Cloud Shell, signed in as the project owner:
+
+```bash
+PROJECT=myb-roster
+NUMBER=532910998075
+
+# 1 · Deploys from main only. Keeps the repository condition (the invariant above) and adds the ref.
+gcloud iam workload-identity-pools providers update-oidc github-provider \
+  --project="$PROJECT" --location=global --workload-identity-pool=github-pool \
+  --attribute-condition="assertion.repository == 'Garethdavidmiller/roster-app' && assertion.ref == 'refs/heads/main'"
+
+# 2 · A read-only account for the backup check — two permissions, no document reads.
+#     (roles/datastore.viewer would also read every document; do not use it here.)
+gcloud iam roles create backupCheckReader --project="$PROJECT" \
+  --title="Backup check (read-only)" \
+  --permissions=datastore.backupSchedules.list,datastore.databases.getMetadata
+gcloud iam service-accounts create backup-check --project="$PROJECT" \
+  --display-name="Backup check (read-only)"
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member="serviceAccount:backup-check@$PROJECT.iam.gserviceaccount.com" \
+  --role="projects/$PROJECT/roles/backupCheckReader"
+gcloud iam service-accounts add-iam-policy-binding "backup-check@$PROJECT.iam.gserviceaccount.com" \
+  --project="$PROJECT" --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/projects/$NUMBER/locations/global/workloadIdentityPools/github-pool/attribute.repository/Garethdavidmiller/roster-app"
+```
+
+Then, in GitHub: **Settings → Secrets and variables → Actions → Variables → New repository
+variable**, name `BACKUP_CHECK_SERVICE_ACCOUNT`, value `backup-check@myb-roster.iam.gserviceaccount.com`.
+The workflow falls back to the deploy account while the variable is unset, so the order above is safe.
+
+**Confirm both:** run *"Are Firestore backups actually being taken?"* from the Actions tab on `main`
+— its summary should name `backup-check@` and give a real answer rather than "could not check" — and
+let the next deploy from `main` go through. A deploy that fails at "Authenticate to Google Cloud"
+after step 1 means the condition was mistyped; re-run step 1 with the line exactly as above.

@@ -42,7 +42,7 @@ const {
     summariseSignIns,
     summariseAccountGaps,
 } = require('./roster-parse-helpers');
-const { setupWebPush, sendTargetedPush } = require('./push');
+const { setupWebPush, sendTargetedPush, releasePushForOwner } = require('./push');
 const { mustReclaim } = require('./member-identity');
 
 /**
@@ -315,6 +315,16 @@ const setupRosterAuth = onRequest(
                             // Revoke so an already-issued ID token for this account is rejected on
                             // its next refresh (within the hour), not just future sign-ins. Best-effort.
                             try { await getAuth().revokeRefreshTokens(uid); } catch (_) { /* non-fatal */ }
+                            // And stop the broadcasts (whole-app review, H4): a leaver who never ran
+                            // Sign out keeps an owner-stamped push record, and every staff broadcast
+                            // went on reaching their phone. Best-effort, like the revoke — the account
+                            // is disabled either way, and that is what this row reports.
+                            try {
+                                const n = await releasePushForOwner(uid);
+                                if (n) console.log(`[setupRosterAuth] Removed ${n} push record(s) for leaver: ${label}`);
+                            } catch (pushErr) {
+                                console.warn(`[setupRosterAuth] Could not remove push records for ${label}: ${pushErr.message}`);
+                            }
                             disabled.push(label);
                             console.log(`[setupRosterAuth] Disabled + revoked leaver: ${label}`);
                         } catch (err) {
@@ -511,9 +521,10 @@ const resetMemberPassword = onRequest(
 /**
  * requestPasswordReset — a locked-out member asks the admin to reset their password.
  *
- * THE APP'S ONLY PUBLIC UNAUTHENTICATED ENDPOINT, and deliberately so. A member who has forgotten
- * their password cannot sign in, so they have no Firebase identity — and `signInAnonymously` runs only
- * on the calendar (calendar-app.js), never on a protected page's login overlay. So a direct Firestore
+ * ONE OF THE APP'S TWO PUBLIC UNAUTHENTICATED ENDPOINTS (the other is `unlockCalendarViewer`, the
+ * staff-PIN exchange), and deliberately so. A member who has forgotten their password cannot sign
+ * in, so they have no Firebase identity — and nothing in the app signs in anonymously (the Calendar
+ * stopped at v20.12, and the last path that could was retired at v24.34). So a direct Firestore
  * write is impossible for exactly the person who needs this. The alternatives were to establish a new
  * anonymous session on the protected pages (an explicit anti-goal in SECURITY_RELEASE_PLAN.md, and new
  * auth behaviour beside the login path — the area with this app's worst outage history) or to open a
@@ -787,11 +798,14 @@ const requestPasswordReset = onRequest(
  * Nothing is written, nothing is cached, and **no identity leaves this function**: the response is
  * four integers.
  *
- * WHAT IT DOES NOT MEASURE. Sign-ins, not activity. Sessions last 30 days (absolute)
- * (session.js), so most page opens are session RESTORES, not sign-ins — a member can sign in once
- * and use the app daily for a month. Two consequences, both stated on the card rather than hidden:
- *   · Because a live session REQUIRES a sign-in inside 30 days, "signed in within 30 days" is a
- *     slight OVER-count of active people — it includes anyone who signed in once and stopped.
+ * WHAT IT DOES NOT MEASURE. Sign-ins, not activity. Sessions last 60 days (absolute — `SESSION_MS`
+ * in session.js, 30 until v20.47), so most page opens are session RESTORES, not sign-ins — a member
+ * can sign in once and use the app daily for two months. Two consequences, both stated on the card:
+ *   · "Signed in within 30 days" is therefore NOT a count of active people, in either direction: it
+ *     misses anyone whose one sign-in was 31–60 days ago and who has used the app every day since,
+ *     and it includes anyone who signed in once and stopped. (While sessions lasted 30 days a live
+ *     session required a sign-in inside the window, and this line called the figure a slight
+ *     over-count; that stopped being true at v20.47.)
  *   · There is no history. `lastSignInTime` is only the LAST one, so month-over-month cannot be
  *     reconstructed retroactively; this figure is deliberately a snapshot, and it sits ALONGSIDE the
  *     existing trend rather than replacing it.

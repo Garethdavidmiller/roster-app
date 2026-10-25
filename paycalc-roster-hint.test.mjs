@@ -56,7 +56,7 @@ mock.module('./paycalc-roster-suggestions.js', {
     },
 });
 
-const { fillFromRoster, snapKey, _restoreRosterSuggested } = await import('./paycalc-roster-hint.js');
+const { fillFromRoster, snapKey, _restoreRosterSuggested, _applyRosterSuggestion } = await import('./paycalc-roster-hint.js');
 
 const A = '60', B = '61';
 /** @type {number} */ let _autosaves = 0;
@@ -150,5 +150,50 @@ describe('restoring the calendar-fill highlight after a reload', () => {
         _restoreRosterSuggested(1);
         assert.ok(cls.satH.has('roster-suggested'), 'the hours box is gold');
         assert.ok(cls.satM.has('roster-suggested'), 'and so is the minutes box beside it — "00" never matched a blank');
+    });
+});
+
+// ── ONE PAIR, ONE AUTHOR (whole-app review, Oct 2026) ──────────────────────────────────────────
+//
+// The background refresh fills only what the member has not typed — and used to judge that per BOX.
+// A payslip saved as RDW 8h 0m reloads as "8" beside a BLANK minutes box (writeFormData writes a
+// saved 0 as blank), so a calendar 7h 30m kept the typed 8 and put its 30 in the blank: 8h 30m, a
+// figure neither side gave, priced at once and saved by the next unrelated edit. The reviewer saw a
+// take-home move £7.96 in the browser. The pair is one figure; if either half was typed, it is theirs.
+describe('the background fill treats an hours box and its minutes box as ONE figure', () => {
+    /** Fields with a working classList, so "typed" vs "gold" is real. */
+    function gold() {
+        setupDom('1');
+        for (const id of HM_IDS) {
+            const c = new Set();
+            _els[id].classList = { add: (/** @type {string} */ x) => c.add(x), remove: (/** @type {string} */ x) => c.delete(x), contains: (/** @type {string} */ x) => c.has(x) };
+        }
+    }
+    const CAL = { rdwH: 7, rdwM: 30 };
+
+    test('typed hours beside a blank minutes box (a saved 8h 0m) take NOTHING from the calendar', () => {
+        gold();
+        _els.rdwH.value = '8';
+        _applyRosterSuggestion(CAL);
+        assert.equal(_els.rdwH.value, '8');
+        assert.equal(_els.rdwM.value, '', 'the calendar\'s 30 went into the blank half of a typed 8h 0m — priced as 8h 30m');
+    });
+
+    test('typed minutes beside a blank hours box take nothing either', () => {
+        gold();
+        _els.rdwM.value = '45';
+        _applyRosterSuggestion(CAL);
+        assert.equal(_els.rdwH.value, '', 'the calendar\'s 7 joined a typed 45 minutes — 7h 45m');
+        assert.equal(_els.rdwM.value, '45');
+    });
+
+    test('a pair the member never typed is still filled, and a gold pair is still refreshed', () => {
+        gold();
+        _applyRosterSuggestion(CAL);
+        assert.equal(_els.rdwH.value, 7);
+        assert.equal(_els.rdwM.value, '30');
+        _applyRosterSuggestion({ rdwH: 6, rdwM: 15 });
+        assert.equal(_els.rdwH.value, 6, 'a calendar-filled pair follows the calendar');
+        assert.equal(_els.rdwM.value, '15');
     });
 });

@@ -834,6 +834,12 @@ a local `npm run test:csp` stays green while CI is red. Deleting it would have r
 warning. The other is the mixed-version cache window, "mitigated, not fully closed (accepted)",
 which is a live accepted trade.
 
+**The first of those two has since closed, and was moved here on 25 Oct 2026** (whole-app review,
+I8). v24.65 stopped loading the Google-API iframe and the next release took `apis.google.com` and the
+auth frame out of every policy, so its heading came to state the reverse of the live CSP while a
+doc-parity exemption, argued on the now-false ground that the constraint was permanent, kept it in
+place. It is the last section of this group.
+
 Nothing below was rewritten. Where a durable lesson exists it already lives in the contract or the
 module header that owns it — the staff-PIN invariants in `CALENDAR_DATA.md` and
 `AUTH_AND_SESSIONS.md`, the AL rest-day rule in `al-entitlement.js`, the pension-timeline reasoning
@@ -1290,6 +1296,47 @@ limitation entry is kept for history; the underlying issue is resolved.
 | `doc-retention.js:pruneOldDocs` (was `firebase-client.js:_pruneOldDocs`) | Individual Storage file delete inside prune loop | `.catch(() => {})` | `.catch(e => console.warn('[pruneOldDocs] ...', e))` |
 | `firebase-client.js:uploadCircular` | Rollback Storage delete on Firestore write failure | `.catch(() => {})` | `.catch(e => console.warn('[uploadCircular] rollback ...', e))` |
 | `firebase-client.js:uploadNewsletter` | Rollback Storage delete on Firestore write failure | `.catch(() => {})` | `.catch(e => console.warn('[uploadNewsletter] rollback ...', e))` |
+
+### `script-src`/`frame-src` allowed Firebase Auth's Google-API iframe — `apis.google.com` (fixed v17.82; SUPERSEDED Oct 2026, moved here 25 Oct 2026)
+> **Superseded.** Since v24.65 Auth is created with `initializeAuth` and no popup resolver, so the
+> gapi script and the authDomain iframe are never loaded, and the next release took `apis.google.com`
+> and the `firebaseapp.com` frame OUT of every policy (`frame-src 'self'`). `csp-hygiene.test.mjs` now
+> refuses them and `e2e/csp.spec.js` ignores no beacon at all — a refusal of either URL means
+> something has started loading that iframe again. The history below is kept because it explains
+> why the hosts were there.
+
+Firebase Auth (`firebase-auth.js`, loaded from gstatic) pulls in the Google API client
+**`https://apis.google.com/js/api.js`** and opens an auth-helper iframe on the **authDomain**
+(`myb-roster.firebaseapp.com`). `apis.google.com` is a **different domain** from the
+`*.googleapis.com` `connect-src` wildcard, so it was never covered — the CI `csp` job failed on the
+three app pages that initialise Auth with `Refused to load the script 'https://apis.google.com/js/api.js'`
+(directive `script-src-elem`). It only surfaced on CI: behind the dev-container proxy `www.gstatic.com`
+is tunnel-blocked, so the SDK never loads and never makes the call (the documented **false pass** — a
+local `npm run test:csp` stays green while CI is red). Fix: `script-src` now includes
+`https://apis.google.com`; `frame-src` (was `'none'`) now allows
+`https://myb-roster.firebaseapp.com https://apis.google.com` for the auth iframe — the standard
+Firebase-Auth-under-CSP requirement. **Second layer (v17.96):** once the gapi script could load, it
+began pinging its own telemetry endpoint (`apis.google.com/js/gen_204`) — a `connect-src` violation
+(the `*.googleapis.com` wildcard does NOT cover `apis.google.com`). `connect-src` now includes
+`https://apis.google.com` too. Lesson: allowing a third-party script means allowing what it then
+CONNECTS to — check the CI csp job after each layer, not just the first. Applied to the `firebase.json` header AND every served page's `<meta>` CSP
+(csp-meta-parity), with `apis.google.com` added to `csp-hygiene.test.mjs`'s `DYNAMIC_HOSTS` (it's
+requested by the gstatic SDK, not built in our source).
+
+**Third layer — the beacons we deliberately keep blocked (v18.90).** Once the iframe was allowed to
+load and connect, it started firing two fire-and-forget telemetry requests the app does not need:
+`www.google.com/images/cleardot.gif` (a 1×1 tracking pixel) and `apis.google.com/js/gen_204`
+(Google's logging beacon). These are **correctly refused** — `www.google.com` is in no directive, and
+`apis.google.com` is allowed to CONNECT but not to serve images. The problem was the *test*, not the
+policy: `e2e/csp.spec.js` asserted zero violations of any kind, so a deliberately-blocked third-party
+beacon failed the run. Worse, it only failed *sometimes* — the beacons fire only if the iframe reaches
+that state before the spec ends — which is why the `csp` job failed on three unrelated PRs in one day
+(#1070/#1078/#1080) while the parallel run of the same commit passed. `IGNORED_BLOCKS` now names those
+two URIs, gated by `BEACON_DIRECTIVES` so the waiver applies **only** to `img-src`/`connect-src`
+refusals: if `apis.google.com` is ever refused for a `script-src` or `frame-src` load — the v17.82
+outage — it still fails. (A live Chromium probe under the Hosting emulator confirmed the `gen_204`
+beacon is refused by `img-src`, so the two directives named are the two that can legitimately fire.) **Do not widen the policy to make a beacon pass;** blocking third-party
+telemetry is the intended behaviour.
 
 ---
 

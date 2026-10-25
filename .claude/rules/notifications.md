@@ -81,7 +81,13 @@ notice never follows a member onto a shared device they have left. The next load
 as whoever is signed in then. **Where the delete cannot run as the owner** — the Calendar's member card
 is shown precisely when the member's Firebase identity has gone — the browser subscription is dropped
 instead, and the next send's 410 makes the server delete the record (48-hour review, v24.35).
-**Nor a session that simply ENDED** (Oct 2026 review). An expired session never runs that sign-out,
+**Nor a hold that ends without a sign-out** (whole-app review, Oct 2026): `reconcileExpiredIdentity`
+releases the record before signing out an expired session's lingering identity, and a session the
+last password reset refuses drops its subscription — on a station PC left on the staff PIN, no next
+member ever comes to take the record over. **Nor a LEAVER** (whole-app review, Oct 2026): `fanOutPush` consults no owner, so a member who left
+without signing out went on receiving every broadcast. The confirmed leaver sweep in
+`setupRosterAuth` deletes the records the disabled account owns (`releasePushForOwner`,
+`functions/push.js`). **Nor a session that simply ENDED** (Oct 2026 review). An expired session never runs that sign-out,
 so the record stayed the last member's and the rules refused the next member's re-save. The rules now
 let the SAME browser take its record over — same endpoint AND same keys, which exist only in that
 browser and in a record no client can read — and `notif.js` re-saves at once, inside its 24-hour

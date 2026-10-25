@@ -27,7 +27,10 @@ test('service worker precaches the app and serves it offline', async ({ page, co
     // 2) Wait for the detached, batched precache warm-up to have stored the core assets. Poll the
     //    Cache Storage directly (the SW writes the __precache-complete marker only when EVERY asset
     //    cached, but the assets we assert on land well before that).
-    await page.waitForFunction(async (assets) => {
+    //    POLLED FROM NODE (whole-app review, Oct 2026). This was `page.waitForFunction(async …)`, and
+    //    Playwright tests that predicate's RETURN VALUE synchronously — an async function returns a
+    //    Promise, which is truthy, so the wait resolved after one evaluation whatever the cache held.
+    await expect.poll(() => page.evaluate(async (assets) => {
         const keys = await caches.keys();
         for (const k of keys) {
             const c = await caches.open(k);
@@ -35,7 +38,17 @@ test('service worker precaches the app and serves it offline', async ({ page, co
             if (hits.every(Boolean)) return true;
         }
         return false;
-    }, READY_ASSETS, { timeout: 30_000 });
+    }, READY_ASSETS), { timeout: 30_000, message: 'the warm-up never cached the core assets' }).toBe(true);
+
+    // 2b) And each one is a REAL 200 in Cache Storage — the offline promise itself, asserted where it
+    //     lives. Step 4's fetches cannot prove it alone: `context.setOffline` cuts the PAGE's network,
+    //     not the worker's (see the note below this test), so a worker that cached nothing still
+    //     answered them from the dev server and the lane passed.
+    const cached = await page.evaluate(async (assets) => Promise.all(assets.map(async a => {
+        const r = await caches.match(a);
+        return { a, status: r ? r.status : 0 };
+    })), READY_ASSETS);
+    for (const { a, status } of cached) expect(status, `${a} is not in the precache`).toBe(200);
 
     // 3) Drop the network.
     await context.setOffline(true);

@@ -65,6 +65,27 @@ const PUBLIC_MEMBER_FIELDS = /** @type {const} */ ({
         + 'a bilingual line until a CEA one frees up.',
 });
 
+/**
+ * What may sit INSIDE a field whose value is an object (whole-app review, I10). The checks below
+ * read `Object.keys(member)`, which stops at the top level — so a `reason` added to a roster move,
+ * or anything tucked into `proRatedAL`, would publish unclassified while this file stayed green.
+ * Every object-valued field must have its inside described here, or the nested check fails.
+ *
+ * `entries` — an array of records, each limited to the listed fields.
+ * `by-year` — `{ [year]: number }` and nothing else, so no other kind of value can ride in it.
+ */
+const PUBLIC_NESTED_SHAPES = /** @type {const} */ ({
+    rosterChanges: {
+        kind: 'entries',
+        fields: {
+            from:        'The date the move takes effect — the week they appear on the new pattern.',
+            rosterType:  'The pattern moved to. Public, as the top-level field is.',
+            currentWeek: 'Where in the new pattern. Public, as the top-level field is.',
+        },
+    },
+    proRatedAL: { kind: 'by-year' },
+});
+
 describe('roster-data.js is world-readable, so what it carries is a decision', () => {
     test('every field shipped in teamMembers has been classified as public', () => {
         const seen = new Set();
@@ -89,6 +110,31 @@ describe('roster-data.js is world-readable, so what it carries is a decision', (
         assert.deepEqual(unused, [],
             `PUBLIC_MEMBER_FIELDS permits fields no member carries: ${unused.join(', ')}. `
             + 'Remove them, so the list keeps describing what is actually published.');
+    });
+
+    test('and every field NESTED inside one has been classified too', () => {
+        /** @type {string[]} */ const offenders = [];
+        for (const m of teamMembers) {
+            for (const [k, v] of Object.entries(m)) {
+                if (v === null || typeof v !== 'object' || v instanceof Date) continue;
+                const shape = /** @type {any} */ (PUBLIC_NESTED_SHAPES)[k];
+                if (!shape) { offenders.push(`${k}: holds an object whose inside nobody has classified`); continue; }
+                if (shape.kind === 'entries') {
+                    if (!Array.isArray(v)) { offenders.push(`${k}: expected a list of records`); continue; }
+                    for (const entry of v) {
+                        for (const f of Object.keys(entry)) if (!(f in shape.fields)) offenders.push(`${k}[].${f}`);
+                    }
+                } else {
+                    for (const [year, days] of Object.entries(v)) {
+                        if (!/^\d{4}$/.test(year) || typeof days !== 'number') offenders.push(`${k}.${year}`);
+                    }
+                }
+            }
+        }
+        assert.deepEqual([...new Set(offenders)].sort(), [],
+            'roster-data.js ships to anyone who asks, and these NESTED fields are not classified. '
+            + 'Decide whether a stranger may read each; if yes, describe it in PUBLIC_NESTED_SHAPES '
+            + 'with a reason, and if no, it belongs in Firestore behind a claim.');
     });
 
     test('the fields deliberately kept OUT stay out', () => {

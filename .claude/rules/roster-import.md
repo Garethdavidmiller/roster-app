@@ -113,6 +113,14 @@ missed a row that IS on the page". It takes the safe reading. So phase 2 can go 
 type and nothing will look broken; the coordinator logs which path it took, with the reason and the
 unmatched count, on every parse. Read that line first.
 
+**An EMPTY read of a FILLED cell is a question, not the day's default** (whole-app review, Oct
+2026). `buildSafeEntries` resolves a blank by the day — a rest day on Sunday — which is right when
+nobody knows what the cell held. On this path the server does, so `reviewBlankReadsOfFilledCells`
+(`roster-prompt.js`) sends such a cell to the review naming its printed text. Before it, a worked
+Sunday the model reported as BLANK became `RD`, matched the base Sunday and was never shown; the
+witness cannot see that case, because `RD` is not a claim. A cell that SAYS rest is left alone, and
+the rule feeds nothing to the drift breaker.
+
 **The cell table is JSON, one object per member, and that is a safety property.** A roster cell
 legitimately contains a pipe (`06:00-14:00 | CEA 1` is one cell's two printed lines), so a delimited
 table would draw its structure and its data from the same alphabet. As JSON the framing and the

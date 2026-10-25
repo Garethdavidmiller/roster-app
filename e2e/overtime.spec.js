@@ -1748,6 +1748,26 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await expect(page.locator(`[data-day="${D[0]}"]`)).toHaveClass(/ot-day--saved/);
     });
 
+    // Whole-app review, Oct 2026: the custom-time boxes updated the answer but never the row, so an
+    // edited saved range kept its green "recorded" tint while holding an unsaved change.
+    test('editing a saved custom time turns the row cream, and putting it back turns it green', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        const saved = Object.fromEntries(D.map(d => [d, { mode: 'unavailable' }]));
+        saved[D[0]] = { mode: 'custom', start: '06:00', end: '10:00', nextDay: false };   // the server always stores nextDay
+        await stubWithRoster(page, [winOver({ submission: { currentRevision: 1, days: saved } })], OVR);
+        await page.goto('/overtime.html');
+        const row = page.locator(`[data-day="${D[0]}"]`);
+        await expect(row).toHaveClass(/ot-day--saved/);
+        const end = row.locator('.ot-custom-input[data-which="end"]');
+        await end.fill('12:00');
+        await end.blur();
+        await expect(row).toHaveClass(/ot-day--changed/);
+        await expect(row).not.toHaveClass(/ot-day--saved/);
+        await end.fill('10:00');
+        await end.blur();
+        await expect(row).toHaveClass(/ot-day--saved/);
+    });
+
     test('re-pressing a saved anchored answer keeps it, even when the roster lost its time', async ({ page }) => {
         // The stale note says "change it if that no longer suits", inviting a tap on the selected
         // pill. Before v20.75 that tap rebuilt the answer from the CURRENT roster — a rest day, no
@@ -2268,6 +2288,34 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await page.locator('[data-grade="CEA"]').click();
         expect(await shownDays(), 'the grade switch keeps the picked day').toBe(1);
         await expect(page.locator('[data-glance]').nth(2)).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    // Whole-app review, Oct 2026: the header chip kept the all-grades figure under a grade lens, so it
+    // read "1/2" above a card counting one grade — two answers to one question.
+    test('the week chip counts the same grade as the card beneath it', async ({ page }) => {
+        await seedSession(page, 'H. Croft');
+        await page.addInitScript((rows) => {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: rows };
+        }, [
+            { id: 'A. One', memberName: 'A. One', grade: 'CEA', rosterOrder: 1 },
+            { id: 'B. Two', memberName: 'B. Two', grade: 'CES', rosterOrder: 2 },
+        ]);
+        await page.route('**/getMyOvertimeState', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, windows: [] }) }));
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW,
+                planningWeeks: [{ ...W, exists: true, state: 'created', canCreate: false,
+                    expected: 2, received: 2, noResponse: 0 }], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day-panel').first().waitFor();
+        const chip = page.locator('#otWeekChip');
+        await expect(chip).toHaveText(/\/2$/);
+        await page.locator('[data-grade="CES"]').click();
+        await expect(chip, 'one CES on the week').toHaveText(/\/1$/);
+        await page.locator('[data-grade="ALL"]').click();
+        await expect(chip).toHaveText(/\/2$/);
     });
 });
 

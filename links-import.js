@@ -45,7 +45,7 @@
  * time the two disagreed nobody would know which to believe.
  */
 
-import { DAYS, canonicaliseShift, ROTATING_LINES } from './links-design.js';
+import { DAYS, canonicaliseShift, ROTATING_LINES, normaliseCustomShift } from './links-design.js';
 
 /** How long a pasted design name may be — matches the picker's own limit. */
 export const MAX_IMPORT_NAME = 100;
@@ -222,7 +222,32 @@ export function parseGrid(text, { lines = ROTATING_LINES } = {}) {
             + 'design checks will flag them.');
     }
     for (const a of assumptions) warnings.push(a);
+    const night = nightDutyWarning(patterns);
+    if (night) warnings.push(night);
     return { ok: true, patterns, warnings };
+}
+
+/**
+ * A WARNING for a duty no CEA works — a night start, or a finish past midnight. Typed entry refuses
+ * both (`normaliseCustomShift`) and the paint bar never offers one, but an import accepted them
+ * silently, and the bar then painted the night duty as an "early" chip (whole-app review, Oct 2026).
+ * A warning rather than a refusal: somebody else's proposal may carry one, and the designer should
+ * see it before Save rather than lose the whole import over it.
+ * @param {Record<string, Record<string, string>>} patterns
+ * @returns {string|null}
+ */
+function nightDutyWarning(patterns) {
+    const found = new Set();
+    for (const row of Object.values(patterns)) {
+        for (const s of Object.values(row)) {
+            if (s && s !== 'RD' && s !== 'OFF' && s !== 'SPARE' && !normaliseCustomShift(s)) found.add(s);
+        }
+    }
+    if (!found.size) return null;
+    const list = [...found].sort().join(', ');
+    return found.size === 1
+        ? `One duty starts at night or finishes after midnight (${list}). CEAs do not work nights — check it before you save.`
+        : `${found.size} duties start at night or finish after midnight (${list}). CEAs do not work nights — check them before you save.`;
 }
 
 /**
@@ -289,6 +314,8 @@ export function parseDesignImport(text, { lines = ROTATING_LINES } = {}) {
             ? [`Only ${count} of ${lines} lines are filled — the rest stay empty, and the design checks will flag them.`]
             : [];
         for (const a of assumptions) warnings.push(a);
+        const night = nightDutyWarning(patterns);
+        if (night) warnings.push(night);
         return { ok: true, name: importName(obj.name), patterns, warnings };
     }
 

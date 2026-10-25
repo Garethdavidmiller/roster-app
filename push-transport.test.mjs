@@ -302,3 +302,20 @@ test('every notification feature has its own TTL', () => {
     }
 });
 
+// Whole-app review, H4 — the leaver sweep's last step. Deletes exactly the records the account owns:
+// one more would cost somebody else their notifications, one fewer keeps broadcasting to a leaver.
+describe('releasePushForOwner deletes the records one account owns, and nothing else', () => {
+    test('every record that uid owns, and only those', async () => {
+        const { mod, deleted, queries } = build([sub('a1', 'uid_leaver'), sub('a2', 'uid_leaver'), sub('b1', 'uid_other'), sub('c1')]);
+        assert.equal(await mod.releasePushForOwner('uid_leaver'), 2);
+        assert.deepEqual(deleted.sort(), ['a1', 'a2']);
+        assert.deepEqual(queries, ['uid_leaver'], 'one owner query, never a scan of the collection');
+    });
+
+    test('no uid deletes nothing and asks nothing', async () => {
+        const { mod, deleted, queries } = build([sub('c1'), sub('a1', 'uid_leaver')]);
+        for (const bad of ['', null, undefined]) assert.equal(await mod.releasePushForOwner(/** @type {any} */ (bad)), 0);
+        assert.deepEqual(deleted, []);
+        assert.deepEqual(queries, [], 'an empty owner must never reach a where() — it could match the unowned records');
+    });
+});

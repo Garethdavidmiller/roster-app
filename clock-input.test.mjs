@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { isClockTime, formatClockInput } from './clock-input.js';
+import { isClockTime, formatClockInput, finaliseClockInput } from './clock-input.js';
 
 // clock-input.test.mjs — the two rules of a TEXT clock box, moved here with the module at v24.61.
 // Organised by cost: accepting nonsense is the expensive direction for `isClockTime` (a `29:00`
@@ -38,6 +38,46 @@ describe('formatClockInput — a numeric keypad has no colon, so the box supplie
         assert.equal(formatClockInput('ab'), '');
         assert.equal(formatClockInput(''), '');
         assert.equal(formatClockInput(/** @type {any} */ (null)), '');
+    });
+});
+
+// ── A BOX IS FILLED ONE KEY AT A TIME (whole-app review, Oct 2026) ───────────────────────────────
+//
+// Every assertion above feeds a WHOLE string, and "2400" passed as a whole string while the box
+// saved 02:40: after "240" the shaper read a dropped zero, the box held "02:40" — five characters,
+// full — and the last 0 of a midnight finish was never typed. `type` fills a maxlength-5 box the
+// way the input handler sees it, so the test meets the box as a person does.
+describe('a box filled key by key, and settled only when it is left', () => {
+    /** @param {string} keys */
+    const type = (keys) => {
+        let v = '';
+        for (const k of keys) { if ((v + k).length <= 5) v = formatClockInput(v + k); }
+        return v;
+    };
+    it('"2400" typed key by key is 24:00 and refused — never the valid 02:40 it used to fill itself with', () => {
+        assert.equal(type('2400'), '24:00');
+        assert.equal(isClockTime(type('2400')), false);
+        assert.equal(isClockTime(finaliseClockInput(type('2400'))), false, 'leaving the box must not rescue it into a time nobody typed');
+    });
+    it('every first pair from 24 to 29 waits for its fourth key', () => {
+        for (const keys of ['2400', '2530', '2615', '2959']) {
+            assert.equal(type(keys), `${keys.slice(0, 2)}:${keys.slice(2)}`, keys);
+            assert.equal(isClockTime(type(keys)), false, keys);
+        }
+    });
+    it('three such digits LEFT in the box are a dropped zero — 240 is 02:40 once nothing more is coming', () => {
+        assert.equal(type('240'), '24:0', 'still typing: it may yet be 2400');
+        assert.equal(finaliseClockInput(type('240')), '02:40');
+        assert.equal(finaliseClockInput(type('253')), '02:53');
+    });
+    it('a first digit of 3 to 9 begins no hour, so it is settled as it is typed', () => {
+        assert.equal(type('630'), '06:30');
+        assert.equal(type('0730'), '07:30');
+        assert.equal(type('2355'), '23:55');
+    });
+    it('leaving a box changes nothing that is already a time, or already impossible, or unfinished', () => {
+        for (const v of ['06:30', '23:55', '00:00', '24:00', '19:75', '12:3', '07', ''])
+            assert.equal(finaliseClockInput(v), formatClockInput(v), v);
     });
 });
 

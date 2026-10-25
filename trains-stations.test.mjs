@@ -237,6 +237,16 @@ describe('finding a station', () => {
         assert.deepEqual(matchStations(st, 'ger'), ['GER'], 'its code works too');
     });
 
+    // Whole-app review, Oct 2026: the timetable prints "Stratford Parkway", and National Rail and the
+    // Rangers guide say "Stratford-upon-Avon Parkway" — typing the full name found nothing.
+    test('a station\'s other name finds it, and the printed name is still the one offered', () => {
+        assert.equal(STATIONS.STY, 'Stratford Parkway', 'the printed name is unchanged');
+        assert.equal(matchStations(STATIONS, 'Stratford-upon-Avon Parkway')[0], 'STY');
+        assert.equal(matchStations(STATIONS, 'stratford upon avon parkway')[0], 'STY');
+        assert.ok(matchStations(STATIONS, 'stratford-upon-avon').includes('STY'), 'and the Parkway is offered beside the town');
+        assert.ok(matchStations(STATIONS, 'stratford-upon-avon').includes('SAV'));
+    });
+
     test('typing the way people say a station: short forms, word order, initials, codes (v24.79)', () => {
         const m = (/** @type {string} */ q) => matchStations(STATIONS, q);
         assert.deepEqual(m('moor st'), ['BMO']);
@@ -266,7 +276,8 @@ describe('finding a station', () => {
         assert.deepEqual(m('snowhill'), ['BSW']);
         assert.deepEqual(m('moorst'), ['BMO']);
         assert.deepEqual(m('highwycombe'), ['HWY']);
-        assert.deepEqual(m('stratford-on-avon'), ['SAV']);
+        // The town first; its Parkway, also known by the town's name, offered after it (whole-app review).
+        assert.deepEqual(m('stratford-on-avon'), ['SAV', 'STY']);
         assert.deepEqual(m('b ham'), ['BMO', 'BSW']);
         // Nothing but punctuation is nothing typed — it once "matched" six stations at random.
         for (const q of ['.', "'", '-', ' - ']) assert.deepEqual(m(q), [], JSON.stringify(q));

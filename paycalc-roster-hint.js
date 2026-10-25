@@ -94,7 +94,8 @@ function renderRosterDayList(days) {
 }
 
 /**
- * Fills a single H/M field pair if currently blank (or previously roster-filled).
+ * Fills a single H/M field pair if NEITHER box was typed by the member (each blank or previously
+ * roster-filled).
  * @param {any} hId
  * @param {any} mId
  * @param {any} hVal
@@ -110,15 +111,19 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
   // confirmed "none" where the engine actually has no information. A real 0-in-one-field
   // pairing (e.g. 5h 0m, or 0h 30m) still passes because the other field is non-zero.
   if ((hVal == null || hVal === 0) && (mVal == null || mVal === 0)) return;
-  // Treat H and M independently — a manually-edited field is skipped individually
-  // rather than blocking its paired field.
+  // ONE PAIR, ONE AUTHOR (whole-app review, Oct 2026). The hours and minutes boxes are one figure,
+  // and this used to fill each independently — so a payslip saved as 8h 0m, which reloads as "8"
+  // beside a BLANK minutes box, took the calendar's 30 into the blank and priced 8h 30m: a figure
+  // neither the member nor the calendar gave, saved by the next unrelated edit. Blank hours beside
+  // 45 typed minutes did the same in reverse. If the member typed either box, the pair is theirs.
   const hEdited = elH.value !== '' && !elH.classList.contains('roster-suggested');
   const mEdited = elM.value !== '' && !elM.classList.contains('roster-suggested');
-  if (!hEdited && hVal != null) {
+  if (hEdited || mEdited) return;
+  if (hVal != null) {
     elH.value = hVal ?? '';
     elH.classList.add('roster-suggested');
   }
-  if (!mEdited && mVal != null) {
+  if (mVal != null) {
     elM.value = minutesFieldText(mVal);   // "00", not "0" — display only; the stored value is unchanged
     elM.classList.add('roster-suggested');
   }
@@ -163,6 +168,10 @@ export function _restoreRosterSuggested(pNum) {
     const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
     const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
     if (!elH || !elM) continue;
+    // A 0/0 pair is the calendar suggesting NOTHING, and the snapshot stores one for every category
+    // it had no hours for — so a blank minutes box matched it and came back gold on every reload,
+    // with "📅 Hours from calendar" under hand-typed hours (whole-app review, Oct 2026; since v24.35).
+    if (!(+hVal > 0) && !(+mVal > 0)) continue;
     // `hVal != null` (not `hVal ||`): a snapped value of 0 is a REAL roster suggestion (e.g. the
     // hours half of a 0h30m fill) — coercing it to '' dropped the gold highlight on reload and made
     // the field read as hand-edited, blocking future re-fills (review finding).

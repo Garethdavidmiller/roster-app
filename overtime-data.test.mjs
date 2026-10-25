@@ -233,6 +233,33 @@ describe('2 · a timeout reported as a failure', () => {
         assert.equal(_calls.length, 0);
     });
 
+    // Whole-app review, Oct 2026: a member given the manager role holds a token minted without it
+    // until the hourly refresh, and every call — every Try again — was refused for that hour.
+    test('a 403 is retried ONCE on a forced-fresh token, and the fresh answer is the one returned', async () => {
+        const data = await freshData();
+        /** @type {boolean[]} */ const asked = [];
+        _user = { getIdToken: async (/** @type {boolean} */ fresh) => { asked.push(!!fresh); return fresh ? 'tok-fresh' : 'tok-stale'; } };
+        _respond = async (req) => req.options.headers.Authorization === 'Bearer tok-fresh'
+            ? { ok: true, status: 200, json: async () => ({ ok: true, windows: [] }) }
+            : { ok: false, status: 403, json: async () => ({ error: 'Forbidden — reviewer access required' }) };
+        const r = await data.getMyOvertimeState();
+        assert.equal(/** @type {any} */ (r).ok, true, 'the refreshed claim is let in');
+        assert.deepEqual(asked, [false, true], 'cached first, then forced fresh — once');
+        assert.equal(_calls.length, 2);
+    });
+
+    test('a second refusal is the answer — no third try, and nothing but auth errors are retried', async () => {
+        const data = await freshData();
+        _respond = async () => ({ ok: false, status: 403, json: async () => ({ error: 'forbidden' }) });
+        const r = await data.getMyOvertimeState();
+        assert.equal(/** @type {any} */ (r).status, 403);
+        assert.equal(_calls.length, 2);
+        _calls = [];
+        _respond = async () => ({ ok: false, status: 409, json: async () => ({ error: 'conflict' }) });
+        await data.getMyOvertimeState();
+        assert.equal(_calls.length, 1, 'a conflict is not a stale claim');
+    });
+
     test('every call carries a bearer token', async () => {
         const data = await freshData();
         await data.getMyOvertimeState();

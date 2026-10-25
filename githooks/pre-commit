@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Checks that every root-level .js module is listed in both AI_MAP and CLAUDE.md.
-# Blocks the commit if any module is missing from either file.
+# Checks that every root-level module (.js and .mjs) is listed in both AI_MAP and FILE_INDEX,
+# among the other checks below. Blocks the commit if any module is missing from either file.
 # To install: git config core.hooksPath githooks
 
 cd "$(git rev-parse --show-toplevel)"
@@ -39,10 +39,16 @@ done
 
 ERRORS=0
 
-for f in *.js; do
+# .mjs too (whole-app review, I7): the glob was `*.js` alone, so a root module written as .mjs was
+# never checked here. The skips mirror doc-parity.test.mjs's NOT_ROUTED set and its runner-config
+# rule, so the hook and the suite agree about what counts as a module.
+for f in *.js *.mjs; do
+  [ -e "$f" ] || continue
   [[ "$f" == *test* ]] && continue
-  # Tooling config files are not application modules — skip them.
-  [[ "$f" == "eslint.config.js" ]] && continue
+  # Tooling, runner config and vendored files are not application modules — skip them.
+  case "$f" in
+    eslint.config.js|generate-sri.mjs|purify.es.mjs|playwright.*) continue ;;
+  esac
 
   if ! grep -q "$f" "$DOC_AI_MAP" 2>/dev/null; then
     echo "  doc-check: $f not listed in $DOC_AI_MAP"

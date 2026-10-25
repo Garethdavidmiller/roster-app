@@ -212,6 +212,67 @@ test('paycalc: the payslip check is there while the payslip is in hand, and name
     expect(errors).toHaveLength(0);
 });
 
+// A payday the calculator does not carry used to open the current payslip silently (whole-app review).
+test('paycalc: a link to a payday outside the calculator says so, and a covered one says nothing', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_ns_migrated', '1'); });
+    await page.goto('/paycalc.html?payday=2027-04-09');
+    const note = page.locator('#periodLinkNote');
+    await expect(note).toBeVisible();
+    await expect(note).toContainText("There's no payslip for 9 Apr 2027 in the calculator");
+    await page.goto('/paycalc.html?month=2027-06');
+    await expect(note).toContainText('Jun 2027');
+    await page.goto('/paycalc.html?payday=2026-10-23');
+    await expect(page.locator('#pensionAmt')).toBeVisible();
+    await expect(note).toBeHidden();
+});
+
+// ── THE GOLD HIGHLIGHT MEANS "FROM YOUR CALENDAR", AND NOTHING ELSE (whole-app review, Oct 2026) ──
+// The roster snapshot stores 0/0 for every category the calendar had nothing for, and a BLANK
+// minutes box matched it — so every reload painted empty boxes gold and put "📅 Hours from
+// calendar" under hours typed by hand (a regression from v24.35).
+const SNAP_ZEROES = { bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0, otH: 0, otM: 0, rdwH: 0, rdwM: 0, boxH: 0, boxM: 0 };
+
+test('paycalc: a blank box the calendar suggested nothing for is never gold, and the chip says so', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript((zeroes) => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        // Hand-typed Saturday and Sunday that differ from what the calendar once suggested.
+        localStorage.setItem('myb_pc_gmiller_p57', JSON.stringify({ satH: 9, satM: 5, sunH: 17, sunM: 5 }));
+        localStorage.setItem('myb_pc_gmiller_snap_57', JSON.stringify({ satH: 8, satM: 30, sunH: 16, sunM: 30, ...zeroes }));
+    }, SNAP_ZEROES);
+    await page.goto('/paycalc.html?payday=2026-10-23');
+    await expect(page.locator('#satH')).toHaveValue('9');
+    for (const id of ['otM', 'rdwM', 'otH', 'rdwH']) {
+        await expect(page.locator('#' + id), `${id} is blank and was suggested nothing`).not.toHaveClass(/roster-suggested/);
+    }
+    await expect(page.locator('#provChips')).not.toContainText('Hours from calendar');
+});
+
+test('paycalc: editing a calendar-filled box takes "Hours from calendar" away at once', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript((zeroes) => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        // Saturday exactly as the calendar filled it, so it comes back gold; Sunday typed by hand, so
+        // the background calendar read leaves it alone and Saturday is the only gold on the card.
+        localStorage.setItem('myb_pc_gmiller_p57', JSON.stringify({ satH: 8, satM: 30, sunH: 17, sunM: 5 }));
+        localStorage.setItem('myb_pc_gmiller_snap_57', JSON.stringify({ satH: 8, satM: 30, sunH: 16, sunM: 30, ...zeroes }));
+    }, SNAP_ZEROES);
+    await page.goto('/paycalc.html?payday=2026-10-23');
+    await expect(page.locator('#satH')).toHaveClass(/roster-suggested/);
+    await expect(page.locator('#provChips')).toContainText('Hours from calendar');
+    // The field's own autosave → calculate() rebuilds the chips in the same input event, so the
+    // class must already be gone when it does — otherwise the chip outlives the edit.
+    // And the minutes beside it are the member's now too — one pair, one author.
+    await page.locator('#satH').fill('9');
+    await expect(page.locator('#satH')).not.toHaveClass(/roster-suggested/);
+    await expect(page.locator('#satM')).not.toHaveClass(/roster-suggested/);
+    await expect(page.locator('#provChips')).not.toContainText('Hours from calendar');
+});
+
 test('paycalc: with Year to Date figures in use, a payslip gap names the payslip they count from (v24.89)', async ({ page }) => {
     /*
      * On 22 Oct a first entry is stamped with the 25 Sep payslip — the latest PAID one — while a
@@ -275,6 +336,43 @@ test('paycalc: the payslip comparison renders per typed line and survives a relo
     await expect(page.locator('#actualGrossInput')).toHaveValue('3808.87');
     await expect(page.locator('#actualCompare table.actual-cmp')).toBeVisible();
 
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
+// ── ONE EDIT REACHES THE FIGURES THAT READ STORAGE (whole-app review, Oct 2026) ───────────────
+// autosave() priced the page BEFORE it saved, and "This tax year so far" — like the Holiday Pay
+// Premium card and its stored estimate, the figure a January payslip adds — reads the payslip back
+// from storage. So each lagged one edit behind: the first keystroke changed the result card and
+// nothing that summed the year. One input here, and the block must move without a second one.
+test('paycalc: one edit reaches "This tax year so far" at once, not on the next edit', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-10-25T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        // Internal period 51 is the 8 May 2026 payday (48 is 13 Feb 2026; a period is 28 days).
+        localStorage.setItem('myb_pc_gmiller_p51', JSON.stringify({
+            satH: 7, satM: 0, bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0, otH: 0, otM: 0,
+            rdwH: 0, rdwM: 0, sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0,
+            slSkip: false, otherAdj: 0, actualNet: null,
+        }));
+    });
+    await page.goto('/paycalc.html?payday=2026-05-08');
+    const block = page.locator('#ytdYearSoFar');
+    // SETTLED before it is read: the block's first paint is not its last, and a "before" taken from
+    // an earlier one made this pass against the very order it exists to refuse.
+    await expect(block).toContainText('1 of 8 paid payslips entered');
+    await page.waitForLoadState('networkidle');
+    const before = await block.innerText();
+    // READ ONCE, NOT POLLED. The input handler prices the page synchronously, so the block is
+    // already what this edit made it; a polling assertion would wait for whatever recalculates
+    // NEXT, and that later pass reads storage after the save — hiding exactly this lag.
+    await page.locator('#otH').fill('10');
+    const afterFirst = await block.innerText();
+    expect(afterFirst, 'the year still reads the payslip as it was before this edit').not.toBe(before);
+    await page.locator('#otH').fill('0');
+    expect(await block.innerText(), 'and the next edit moves it again, not to the state one edit ago').not.toBe(afterFirst);
     expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
 });
 
@@ -1428,6 +1526,22 @@ for (const [name, role, grade, otherGrade] of [
         expect(errors, `Uncaught JS exceptions for ${role}`).toHaveLength(0);
     });
 }
+
+// Before the 24 Oct 2025 award a CES was paid at a rate that is not on record (AWARD_RATES
+// `pre: null`), so the estimate prices those periods at the later one — and must SAY so, never call
+// it the "current rate" (whole-app review, Oct 2026; paycalc.md invariant 1).
+test('paycalc: a CES period before the 2025 award says the rate before it is not on record', async ({ page }) => {
+    const member = 'F. Mohamed';   // the CES row of the grade test above
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page, member);
+    await page.addInitScript(() => { localStorage.setItem('myb_pc_ns_migrated', '1'); });
+    await page.goto('/paycalc.html?payday=2025-07-04');
+    await expect(page.locator('#rateYearLabel')).toContainText('post-rise rate');
+    await expect(page.locator('#rateStepNote')).toContainText("isn't on record");
+    await page.goto('/paycalc.html?payday=2025-11-21');
+    await expect(page.locator('#rateYearLabel')).toContainText('current rate');
+    await expect(page.locator('#rateStepNote')).toBeHidden();
+});
 
 // ── THE FILL BUTTON TELLS THE TRUTH (v21.67) ─────────────────────────────────────────────────────
 //

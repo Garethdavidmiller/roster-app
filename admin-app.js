@@ -18,7 +18,7 @@ import { CONFIG, teamMembers, MONTH_ABB, formatISO, isSunday, parseISODate, TIME
 import { addDays, isRestGap, fmtPeriodDate, fmtPeriodRange } from './admin-period-dates.js';
 import { db, auth, doc, writeBatch, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
-import { guardNamedSession, askBeforeSignOut, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
+import { guardNamedSession, askBeforeSignOut, askBeforeLeavingByDrawer, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
@@ -160,7 +160,8 @@ export function init() {
         headerIcon.setAttribute('role', 'button');
         headerIcon.tabIndex = 0;
         headerIcon.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); headerIcon.click(); } });
-        headerIcon.addEventListener('click', () => { window.location.href = './'; });
+        // Through the unsaved-changes banner like every other exit (whole-app review, Oct 2026).
+        headerIcon.addEventListener('click', () => { const go = () => { window.location.href = './'; }; if (confirmNavigate(go)) go(); });
     })();
 
     // ---- Per-card tips lightbox ----
@@ -416,8 +417,10 @@ export function init() {
         hideALConfirm();
     }
 
-    // Warn browser/OS before closing or navigating away
+    // Warn browser/OS before closing or navigating away — and ask in the page before a drawer link
+    // leaves, since a phone never shows the browser's prompt (whole-app review, Oct 2026).
     warnOnUnload(hasUnsavedChanges);
+    askBeforeLeavingByDrawer(hasUnsavedChanges);
 
     // Pending navigation callback — set by confirmNavigate() when unsaved changes
     // exist. Executed if the user taps "Discard and continue" in the banner.
@@ -1676,6 +1679,8 @@ export function init() {
                     const d = parseISODate(fieldDate.value);
                     lsSet(VIEWED_MONTH, d.getMonth());     // 0-indexed, matches app.js
                     lsSet(VIEWED_YEAR,  d.getFullYear());
+                    // …and NAMED in the link, because the Calendar drops a stored FUTURE month (whole-app review).
+                    calPill.setAttribute('href', `./?date=${fieldDate.value}`);
                 }
                 // Let the <a> navigate normally
             });

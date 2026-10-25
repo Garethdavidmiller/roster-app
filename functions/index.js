@@ -41,7 +41,7 @@ const {
 } = require('./roster-parse-helpers');
 const { applySundayScanCorrections, settleDisputedSundays } = require('./roster-sunday-repair');
 const { extractRosterGeometry, applyGeometryWitness, geometryCoverage, awaitGeometryWithin, settledGeometry } = require('./roster-geometry');
-const { SHIFT_VOCABULARY, buildCellTable, buildCellPrompt, DAY_LABELS: CELL_DAY_LABELS } = require('./roster-prompt');
+const { SHIFT_VOCABULARY, buildCellTable, buildCellPrompt, reviewBlankReadsOfFilledCells, DAY_LABELS: CELL_DAY_LABELS } = require('./roster-prompt');
 const {
     CALENDAR_VIEWER_UID,
     isValidPinShape,
@@ -641,6 +641,10 @@ columnScan: one key per column header; every staff member appears in every colum
         // needs no special case beyond being told which spelling to expect.
         const headers = cellTable.usable ? CELL_DAY_LABELS : parsed.columnHeaders;
         const safeEntries = buildSafeEntries(parsed.parsed, headers, dates);
+        // On the geometry path the server holds each cell's printed text, so an EMPTY read of a
+        // filled cell is a question, not the day's default — a worked Sunday read as BLANK became a
+        // rest day here and was never shown (whole-app review, H3; the rule is in roster-prompt.js).
+        if (geometryPath) reviewBlankReadsOfFilledCells(safeEntries, parsed.parsed, cellTable.rows, dates);
 
         if (safeEntries.length === 0) {
             res.status(502).json({ error: 'The AI found no recognisable staff members — check the roster type is correct and try again' });
@@ -656,17 +660,24 @@ columnScan: one key per column header; every staff member appears in every colum
         // mirrors the raw row read, and running after would let it REVERSE a correct Case-A
         // repair (see the helper's JSDoc). Run first, a copied scan is a harmless no-op and the
         // validated Sunday pass lands last as the final authority.
-        const _ccStats = applyColumnScanCrossCheck(safeEntries, parsed.columnScan, parsed.columnHeaders, dates);
+        //
+        // NEITHER SCAN IS READ ON THE GEOMETRY PATH (whole-app review, Oct 2026). Its prompt asks for
+        // neither, and both repairs MOVE a cell to another day — on a week whose days the PDF's own
+        // grid already placed, that is the one-day drift the path exists to remove. This said "a
+        // no-op either way", which was true only while the model never volunteered the keys.
+        const columnScan = geometryPath ? undefined : parsed.columnScan;
+        const sundayScan = geometryPath ? undefined : parsed.sundayScan;
+        const _ccStats = applyColumnScanCrossCheck(safeEntries, columnScan, parsed.columnHeaders, dates);
 
         // ---- Post-processing: validate Sunday values using sundayScan ----
         // Catches blank-misread-as-Monday (Case A) and RDW-stripped (Case B).
         // The geometry path has a Sunday column BY CONSTRUCTION — the cell table stamps all seven
-        // day labels on every row — and no `sundayScan`, so the correction below is a no-op there
-        // either way. Reading `parsed.columnHeaders` unguarded threw a TypeError before v24.12.
+        // day labels on every row — and its `sundayScan` is withheld above, so the correction below
+        // returns at once there. Reading `parsed.columnHeaders` unguarded threw a TypeError before v24.12.
         const hasSundayColumn = geometryPath
             || parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(String(h).trim().toLowerCase()));
         // A Sunday it cannot repair is left for the grid below and settled after it (roster-sunday-repair.js).
-        const disputedSundays = applySundayScanCorrections(safeEntries, parsed.sundayScan, hasSundayColumn, dates);
+        const disputedSundays = applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, dates);
 
         // v22.16 flagged every plain-time Sunday here as UNREADABLE, on the premise that a
         // genuinely worked Sunday carries an RDW marker on the paper roster. THREE REAL ROSTERS SAY
@@ -710,7 +721,7 @@ columnScan: one key per column header; every staff member appears in every colum
         // about rather than assuming away.
         const geometry = await settledGeometry(geometryEarly, geometryPromise);
         const geoStats = applyGeometryWitness(safeEntries, geometry, dates);
-        settleDisputedSundays(safeEntries, disputedSundays, geoStats, dates, parsed.sundayScan);
+        settleDisputedSundays(safeEntries, disputedSundays, geoStats, dates, sundayScan);
         if (geoStats.status !== 'complete') {
             console.warn(`[parseRosterPDF] geometry witness ${geoStats.status}: ${geoStats.checked}/${geoStats.total} members matched`
                 + (geoStats.unmatched.length ? ` — unmatched: ${geoStats.unmatched.join(', ')}` : '')

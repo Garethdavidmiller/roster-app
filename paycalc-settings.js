@@ -311,17 +311,22 @@ export function updateRateForPeriod(ty, p) {
   // The rate is FIXED BY GRADE (v17.87) — ALWAYS read-only; the member never types it. A pre-rise
   // payslip shows that period's historic rate, a current/post-rise payslip the new rate.
   field.readOnly = true;
+  // A payslip before the year's pay rise, for a grade whose rate BEFORE it is not on record (CES
+  // 2025/26). It is priced at the later rate — the only figure there is — and must never be labelled
+  // "current rate" as though that were what it paid (whole-app review, Oct 2026; invariant 1).
+  const from      = awardFromForYear(ty.label);
+  const preUnknown = !preAward && !!p && !!from && p.payday < from && awardRatesFor(grade, ty.label)?.pre == null;
   const lbl = document.getElementById('rateYearLabel');
-  if (lbl) lbl.textContent = preAward ? `${ty.label} · pre-rise rate` : `${ty.label} · current rate`;
+  if (lbl) lbl.textContent = `${ty.label} · ${preAward ? 'pre-rise rate' : preUnknown ? 'post-rise rate' : 'current rate'}`;
   // Spell out the pre/post-rise position plainly under the field (owner: make pre vs post clear).
   const note = document.getElementById('rateStepNote');
   if (note) {
-    const from = awardFromForYear(ty.label);
-    const show = preAward && !!from;
-    note.textContent = show
+    note.textContent = preAward && from
       ? `This payslip predates the ${fdShort(from)} pay rise — later payslips switch to the new rate automatically.`
-      : '';
-    note.style.display = show ? '' : 'none';
+      : preUnknown && from
+        ? `This payslip predates the ${fdShort(from)} pay rise, and the rate before it isn't on record for your grade — so this estimate uses the later rate, and your payslip will show less basic pay.`
+        : '';
+    note.style.display = note.textContent ? '' : 'none';
   }
 }
 

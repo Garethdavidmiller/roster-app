@@ -105,6 +105,14 @@ mock.module('./firebase-client.js', {
     },
 });
 
+// The push release an ending hold triggers (whole-app review, Oct 2026) — recorded WITH the identity
+// current at the time, because the delete must happen while the departing member still holds it.
+/** @type {any[]} */
+const _pushReleases = [];
+mock.module('./notif.js', {
+    namedExports: { releaseDevicePush: async () => { _pushReleases.push(auth.currentUser); } },
+});
+
 mock.module('./ls.js', {
     namedExports: {
         lsGet: k      => store.has(k) ? store.get(k) : null,
@@ -451,6 +459,16 @@ describe('reconcileExpiredIdentity', () => {
 
     beforeEach(() => { store.clear(); _signOutCalled = false; _existingUser = null; });
     afterEach(() => { auth.currentUser = null; _existingUser = null; });   // don't leak identity into other tests
+
+    test('releases the push record BEFORE the sign-out, while the expired member still holds it', async () => {
+        _pushReleases.length = 0;
+        const member = { isAnonymous: false, email: 'g.miller@myb.test' };
+        auth.currentUser = /** @type {any} */ (member);
+        await reconcileExpiredIdentity();
+        assert.equal(_pushReleases.length, 1, 'an ending hold releases this device\'s push record');
+        assert.equal(_pushReleases[0], member, 'and does it while the departing member is still the identity');
+        assert.equal(_signOutCalled, true);
+    });
 
     test('signs out a NAMED identity when there is no valid local session', async () => {
         auth.currentUser = /** @type {any} */ ({ isAnonymous: false, email: 'g.miller@myb.test' });
@@ -1464,6 +1482,13 @@ describe('terminalAuthEvent — a stalled start-up is TRANSIENT, not a sign-out 
         assert.deepEqual(terminalAuthEvent({ named: false, stalled: false, error: 'auth/invalid-credential' }), { type: 'NONE', error: 'auth/invalid-credential' });
         assert.deepEqual(terminalAuthEvent({ named: false, stalled: false, error: null }), { type: 'NONE', error: null });
     });
+    // Whole-app review, Oct 2026: three retries on a weak connection ended as NONE, and every write
+    // page then cleared the 60-day session — a slow network signing people out by another route.
+    test('a failure that never reached an answer is TRANSIENT as well — the session is kept', () => {
+        for (const code of ['auth/network-request-failed', 'auth/reset-check-unavailable', 'auth/internal-error', 'auth/too-many-requests']) {
+            assert.deepEqual(terminalAuthEvent({ named: false, stalled: false, error: code }), { type: 'TRANSIENT', error: code }, code);
+        }
+    });
 });
 
 // ── AN ADMIN RESET SIGNS OTHER DEVICES OUT, AND THEY STAY OUT (Oct 2026 production review) ───────
@@ -1491,11 +1516,16 @@ describe('a silent re-sign-in after an admin reset', () => {
         // and a reload mid-check came back through the stored user. The SDK must never be reached.
         sessionCreatedAt(NOW - 3 * 86_400_000);
         _resetAtMs = NOW - 86_400_000;
+        const releasedBefore = _pushReleases.length;
         assert.equal(await ensureFirebaseSession('G. Miller'), false);
         assert.equal(_probeCalls, 1, 'the reset was asked about');
         assert.equal(_signInCalls, 0, 'and the app never signed in — nothing was announced or stored');
         assert.equal(store.has(AUTH_KEY), false, 'the local session survived — the next load would try again');
         assert.equal(getFirebaseIdentity(), 'none');
+        // The device the reset was meant to sign out stops receiving that member's notices too.
+        // Fire-and-forget behind a dynamic import, so give it a few turns of the loop to land.
+        for (let i = 0; i < 50 && _pushReleases.length === releasedBefore; i++) await new Promise(r => setTimeout(r, 5));
+        assert.equal(_pushReleases.length, releasedBefore + 1, 'the refused device releases its push record');
     });
 
     test('a session created AFTER the reset (the member typed a password since) is let through', async () => {
