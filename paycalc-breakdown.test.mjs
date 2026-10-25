@@ -370,3 +370,17 @@ describe('buildActualComparison', () => {
         }
     });
 });
+
+describe('buildActualCheck quotes the tax code as the payslip prints it (v24.96)', () => {
+    test('an emergency suffix is its own word', () => {
+        const h = buildActualCheck(2800, 2993.40, { taxCode: '1257LM1', recognised: true, pension: 0 });
+        assert.match(h, /tax code <strong>1257L M1<\/strong>/);
+        assert.match(buildActualCheck(2800, 2993.40, { taxCode: '1257LX', recognised: true, pension: 0 }), /<strong>1257L X<\/strong>/);
+        assert.match(buildActualCheck(2800, 2993.40, { taxCode: 'K500W1', recognised: true, pension: 0 }), /<strong>K500 W1<\/strong>/);
+    });
+    test('a plain code is unchanged, and markup never gets through', () => {
+        assert.match(buildActualCheck(2800, 2993.40, { taxCode: '1257L', recognised: true, pension: 0 }), /<strong>1257L<\/strong>/);
+        assert.match(buildActualCheck(2800, 2993.40, { taxCode: 'BR', recognised: true, pension: 0 }), /<strong>BR<\/strong>/);
+        assert.doesNotMatch(buildActualCheck(2800, 2993.40, { taxCode: '<b>1257L</b>', recognised: true, pension: 0 }), /<b>/);
+    });
+});

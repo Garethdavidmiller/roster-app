@@ -100,6 +100,9 @@ const OVERVIEW_SEEN_KEY = 'myb_trains_overview_seen';
 const LAST_STATION_KEY = 'myb_trains_station';
 /** Where "check the journey planner" goes (v24.94): National Rail's planner takes a December date. Address checked 23 Oct 2026. */
 const JOURNEY_PLANNER_URL = 'https://www.nationalrail.co.uk/journey-planner/';
+/** Today's kind of day, as the day tabs name it. @returns {Day} */
+const todayDay = () => { const dow = new Date().getDay(); return dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX'; };
+let dayPinned = false;   // set once a day tab is pressed: the chosen day then survives the tab's sleep
 /** The grid's two bands — the books' two lines — found from every row the page holds (trains-stations.js, `stationBands`). */
 const BANDS = stationBands(Object.values(TIMETABLES).flatMap(t => Object.values(t).flatMap(d => [...d.dep, ...d.arr])));
 
@@ -116,11 +119,11 @@ export function init() {
         // sign-in: a station PC is not shown one, and keeps the PIN it unlocked the Calendar with. The
         // policy decides whether to ask at all, so dropping its flag also signs the PIN out here again.
         const pin = admitsStaffPin('trains') ? holdsStaffPin() : reconcileExpiredIdentity().then(() => false);
-        pin.then((held) => held ? start(null) : initLoginOverlay({
+        pin.then((held) => { if (held) { start(null); return; } document.body.classList.add('auth-ready'); initLoginOverlay({
             pageLabel: 'Trains',
             // No session saved (iOS private mode can refuse the write): reload into a fresh sign-in.
             onSuccess: () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } },
-        }));
+        }); });
         return;
     }
     if (access.decision === 'forbidden') {
@@ -140,6 +143,7 @@ export function init() {
  * @param {string|null} member
  */
 function start(member) {
+    document.body.classList.add('auth-ready');   // the cards show; the boot placeholder goes (trains.html, v24.96)
     dismissLoginOverlay();
     registerServiceWorker();
     if (member) {
@@ -184,12 +188,12 @@ function start(member) {
     // Open on today's kind of day — what a member is most likely to be asked about. And, once
     // Chiltern's festive changes are over, on STATIONS (v24.94): "what is changing" has become "the
     // timetable", and a station is the question — the one this device asked about last, if any.
-    const dow = new Date().getDay(), p0 = phase();
+    const p0 = phase();
     const settled = p0.started && !p0.festive && p0.phase !== 'ended';
     const remembered = lsGet(LAST_STATION_KEY);
     const opensOn = settled && remembered && STATIONS[remembered] ? remembered : null;
     /** @type {PageState} */
-    const state = { day: dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX', view: settled ? 'stations' : 'changes', station: opensOn, sdir: 'dep',
+    const state = { day: todayDay(), view: settled ? 'stations' : 'changes', station: opensOn, sdir: 'dep',
         grid: DEC_STOPS_KNOWN ? 'dec' : 'now', allHeads: false, allTrains: false, pickerOpen: !opensOn, gridCol: null };
     // The grid opens on TODAY until December's stops exist: a December grid of end stations alone read
     // as a broken page, and it was the first thing the tab showed (owner, 7 Oct 2026).
@@ -199,7 +203,12 @@ function start(member) {
     render(state);
     markPageReady();
     // A page left open overnight still turns the countdown — and, on the day, every label with it.
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { renderOverview(); render(state); } });
+    // A tab left open overnight (the station PC's, since the PIN reads this page) comes back on TODAY's
+    // kind of day unless somebody chose one (v24.96); the labels and the phase re-read too.
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible') return;
+        if (!dayPinned && state.day !== todayDay()) { state.day = todayDay(); state.gridCol = null; }
+        renderOverview(); render(state); });
 
     if (member) {
         sessionReady.then(() => {
@@ -239,8 +248,9 @@ function renderOverview() {
     // Christmas and New Year are not in Chiltern's books; the note goes once its further changes end.
     const festive = el('trFestive');
     if (festive) festive.hidden = !p.festive;
-    const ended = el('trEnded');
-    if (ended) ended.hidden = p.phase !== 'ended';
+    setText('trOverviewHint', `What change${p.started ? 'd' : 's'} at Marylebone from ${dateWords(CHANGE_DATE)}`);
+    const ended = el('trEnded');   // the same planner link as the caveat (v24.96); the static words named Chiltern's
+    if (ended) { ended.hidden = p.phase !== 'ended'; setHTML(ended, `<strong>Both timetables on this page have ended.</strong> Check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a> for today’s trains.`); }
     setText('trGridNow', p.oldLabel);
     setText('trGridDec', p.newLabel);
 }
@@ -280,7 +290,7 @@ function render(state) {
     }
     // The fixed copy of the grid's column heads: rebuilt from whatever the grid now is — including
     // nothing, when another view is on screen (trains-grid-mirror.js).
-    syncGridMirror(el('trPattern'));
+    syncGridMirror(state.view === 'grid' ? el('trPattern') : null);
 }
 
 /** The station chips alone — what typing in the station box changes. @param {PageState} state */
@@ -320,7 +330,7 @@ function renderStationCard(state) {
     if (!state.station) { setHTML(el('trStation'), '<p class="card-explainer tr-lead">Pick a station above, or start typing its name.</p>'); return; }
     lsSet(LAST_STATION_KEY, state.station);   // remembered for the chips, and for where the page opens once it opens on Stations
     const p = phase();
-    const view = stationView(TIMETABLES.now[state.day][state.sdir], TIMETABLES.dec[state.day][state.sdir], state.station, state.sdir);
+    const view = stationView(TIMETABLES.now[state.day][state.sdir], TIMETABLES.dec[state.day][state.sdir], state.station, state.sdir, { change: CHANGE_DATE, started: phase().started });
     const leaf = state.sdir === 'arr' && LEAF_FALL.stations.includes(state.station) && daysUntil(new Date(), LEAF_FALL.until) >= 0;
     setHTML(el('trStation'), renderStation(view, { stations: STATIONS, dir: state.sdir, showTrains: false, allTrains: state.allTrains,
         labels: { old: p.oldLabel, new: p.newLabel }, started: p.started, leafFall: leaf ? { minutes: LEAF_FALL.minutes, until: dateWords(LEAF_FALL.until) } : null }));
@@ -351,7 +361,7 @@ function wire(state) {
         if (!b) return;
         const was = state.view, scope = b.parentElement?.closest('[id]')?.id ?? '';
         // A column index names a train of one day's grid, so another day or the other timetable lets it go.
-        if (b.dataset.day) { state.day = /** @type {Day} */ (b.dataset.day); state.gridCol = null; }
+        if (b.dataset.day) { state.day = /** @type {Day} */ (b.dataset.day); state.gridCol = null; dayPinned = true; }
         if (b.dataset.view) state.view = /** @type {View} */ (b.dataset.view);
         if (b.dataset.sdir) state.sdir = /** @type {Dir} */ (b.dataset.sdir);
         if (b.dataset.grid) { state.grid = /** @type {'now'|'dec'} */ (b.dataset.grid); state.gridCol = null; }

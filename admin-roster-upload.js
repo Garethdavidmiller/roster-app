@@ -16,7 +16,7 @@ import { formatClockInput } from './clock-input.js';
 import { replacedTypeForSwap } from './al-swapped-days.js';
 import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
-import { computeCellStates, guardedRowHtml, guardedWrites, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown } from './roster-review-states.js';
+import { computeCellStates, guardedRowHtml, guardedWrites, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies } from './roster-review-states.js';
 // RE-EXPORTED, not re-implemented: the first three moved to roster-cell-rules.js (v22.17/v22.18),
 // computeCellStates to roster-review-states.js (v23.52), and several call sites (and their tests)
 // name this module. The alternative was a rename sweep across three test files for no behavioural
@@ -746,6 +746,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // record, and the admin would go looking for a third thing to approve.
             const pendingCount = changedDates.filter(/** @param {any} d */ d =>
                 cellStates.get(`${entry.memberName}|${d}`)?.state !== 'GUARDED').length;
+            // Skip all is offered wherever a row can WRITE (v24.96, the 72-hour review): an answered
+            // rest-day question writes too, and v24.90 — which made Skip all take that answer back —
+            // also removed the button for a person whose rows are all guarded, so their answer could
+            // never return to "unanswered, writes nothing". The badge still counts pending rows alone.
+            const canWrite = pendingCount > 0 || changedDates.some(/** @param {any} d */ d => {
+                const s = cellStates.get(`${entry.memberName}|${d}`);
+                return s?.state === 'GUARDED' && swapQuestionApplies(s);
+            });
 
             const section = document.createElement('div');
             section.className = 'roster-person-section' + (alignment.blocked ? ' roster-blocked' : '');
@@ -756,8 +764,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             section.innerHTML = `
                 <div class="roster-person-header">
                     <span class="roster-person-name">${esc(entry.memberName)}</span>
-                    ${pendingCount ? `<span class="roster-change-badge">${pendingCount}</span>
-                    <button class="roster-skip-all-btn" data-member="${esc(entry.memberName)}" aria-pressed="false">Skip all</button>` : ''}
+                    ${pendingCount ? `<span class="roster-change-badge">${pendingCount}</span>` : ''}
+                    ${canWrite ? `<button class="roster-skip-all-btn" data-member="${esc(entry.memberName)}" aria-pressed="false">Skip all</button>` : ''}
                 </div>`;
 
             // Day-drift: the one check that does NOT come from the model (roster-alignment.js).

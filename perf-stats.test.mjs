@@ -355,9 +355,9 @@ describe('perfVerdict', () => {
         assert.doesNotMatch(real.text, /quick/);
         // No tail about slower ones when none were slow.
         assert.equal(login(6, 14, 0).text, 'Sign-ins most often take a moment.');
-        // Quick the larger band (a tie counts as quick): the sentence it always had.
+        // Quick a MAJORITY (v24.96 — a tie is not one): the sentence it always had.
         assert.equal(login(12, 8, 0).text, 'Signing in mostly feels quick, with some slower sign-ins.');
-        assert.equal(login(10, 10, 0).text, 'Signing in mostly feels quick, with some slower sign-ins.');
+        assert.equal(login(10, 10, 0).text, 'Sign-ins most often take a moment.');
         // Every journey has both halves, so none borrows another's words.
         for (const kind of /** @type {const} */ (['pages', 'login', 'fcp', 'ready'])) {
             const r = summarisePerf(samplesFrom([['admin', 'domReady', 'lt500ms', 2], ['admin', 'domReady', '1-3s', 19], ['admin', 'domReady', '3-8s', 3]]));
@@ -989,5 +989,38 @@ describe('createPerfBatcher — samples coalesce into one merged write', () => {
         b.add('2026-09', 'k1'); b.add('2026-10', 'k2');
         arms[0]();
         assert.deepEqual(writes, [['2026-09', { k1: 1 }], ['2026-10', { k2: 1 }]]);
+    });
+});
+
+describe('perfVerdict — "mostly quick" is a MAJORITY claim (v24.96, the 72-hour review)', () => {
+    // v24.85 chose the sentence by the larger band. At 41% quick / 40% a moment / 19% slow — 59% over
+    // a second — it still read "mostly feels quick"; at 99 / 100 / 1 the rounded percentages tied
+    // and the comparison went to quick. The rule is raw counts and a majority.
+    const of = (/** @type {number} */ quick, /** @type {number} */ ok, /** @type {number} */ slow) => {
+        const total = quick + ok + slow, pct = (/** @type {number} */ n) => Math.round((n / total) * 100);
+        return { quick, ok, slow, total, pctQuick: pct(quick), pctOk: pct(ok), pctSlow: pct(slow) };
+    };
+    test('a plurality of quick opens is not "mostly quick"', () => {
+        assert.match(perfVerdict(of(41, 40, 19), 'login').text, /most often/, '41% quick, 59% over a second');
+        assert.match(perfVerdict(of(99, 100, 1), 'login').text, /most often/, 'the rounded percentages tie; the counts do not');
+        assert.match(perfVerdict(of(45, 36, 19), 'login').text, /most often/);
+    });
+    test('a majority is', () => {
+        assert.match(perfVerdict(of(60, 30, 10), 'login').text, /mostly feels quick/);
+        assert.match(perfVerdict(of(50, 40, 10), 'login').text, /mostly feels quick/, 'exactly half, and the larger band');
+        assert.match(perfVerdict(of(50, 50, 0), 'login').text, /most often/, 'half, but not the larger band');
+    });
+});
+
+describe('earlyRosterShare — no share from a handful of opens (v24.96)', () => {
+    const key = (/** @type {string} */ metric, /** @type {string} */ bucket) =>
+        perfSampleKey({ version: 'v24.90', page: 'calendar', metric, bucket, mode: 'standalone', conn: '4g' });
+    test('below THIN_SAMPLE ready opens the share is withheld, as the rows beside it say "(few)"', () => {
+        const thin = { [key('ready', 'lt500ms')]: 3, [key('rosterSnapshot', 'lt500ms')]: 1 };
+        assert.equal(earlyRosterShare(thin, { page: 'calendar' }), null, '3 opens, 1 copy painted: "33%" is not a finding');
+    });
+    test('from THIN_SAMPLE opens it is reported', () => {
+        const enough = { [key('ready', 'lt500ms')]: THIN_SAMPLE, [key('rosterSnapshot', 'lt500ms')]: 12 };
+        assert.equal(earlyRosterShare(enough, { page: 'calendar' }), 60);
     });
 });

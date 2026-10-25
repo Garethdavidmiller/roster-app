@@ -878,7 +878,7 @@ describe('7 · the Year to Date notice: the load AFTER the timetable one, to mem
 });
 
 
-describe('6 · the final-week timetable notice: due on 6 December, gone on the 13th, members only (v24.94)', () => {
+describe('8 · the final-week timetable notice: due on 6 December, gone on the 13th, members only (v24.94)', () => {
     // Owner, 23 Oct 2026: the October notice ended six weeks before the change, and from then nothing
     // in the app said the day was coming. This one is offered 6–12 December. Organised by what a wrong
     // answer costs: early, and it nags for seven weeks beside the October notice; late, and it tells
@@ -956,4 +956,30 @@ describe('6 · the final-week timetable notice: due on 6 December, gone on the 1
         lb._cfg.onOpen();                                     // the harness records an open; the lightbox would run this itself
         assert.ok(_archived.some(n => n.id === 'timetable-soon-2026'), 'archived on OPEN, before the link can take the member away');
     });
+});
+
+describe('9 · every notice key is pre-dismissed by the browser suites\' session seeders (v24.96)', () => {
+    // A notice the seeders do not pre-dismiss opens over every real-clock browser journey during its
+    // window and intercepts the clicks after it — and the Hosting deploy runs that suite. The final-week
+    // notice (6–12 Dec 2026) shipped without its key in the seeders; the 72-hour review found it with a
+    // pinned clock before the week did. The keys are read from the notices' own source, so a notice
+    // added later joins this contract by existing.
+    const KEYS = [...SOURCE.matchAll(/const DONE_KEY\s*=\s*'([^']+)'/g)].map(m => m[1]);
+    const here = new URL('.', import.meta.url);
+    const SEEDERS = {
+        'e2e/helpers.js':          { text: readFileSync(new URL('./e2e/helpers.js', here), 'utf8'),          atLeast: 3 },   // seedSession, seedMemberSession and the third seeder
+        'e2e/visual-harness.js':   { text: readFileSync(new URL('./e2e/visual-harness.js', here), 'utf8'),   atLeast: 1 },
+        'e2e/calendar-pin.spec.js': { text: readFileSync(new URL('./e2e/calendar-pin.spec.js', here), 'utf8'), atLeast: 1 },  // heldSessionWithReset
+    };
+    test('the scan is reading real keys', () => {
+        assert.ok(KEYS.length >= 4, `found ${KEYS.length} DONE_KEYs in calendar-notices.js`);
+        assert.ok(KEYS.every(k => /^myb_notice_[a-z0-9_]+_done$/.test(k)), KEYS.join(', '));
+    });
+    for (const [file, { text, atLeast }] of Object.entries(SEEDERS)) {
+        test(`${file} sets every notice key`, () => {
+            // A seeder calls setItem with the key, or lists it in a flags map the harness then writes.
+            const missing = KEYS.filter(k => (text.match(new RegExp(`setItem\\(['"]${k}['"]|['"]${k}['"]\\s*:\\s*['"]1['"]`, 'g')) ?? []).length < atLeast);
+            assert.deepEqual(missing, [], `${file} must pre-dismiss ${missing.join(', ')} (at least ${atLeast} seeder(s)) or the notice opens over every journey in its window`);
+        });
+    }
 });

@@ -530,6 +530,20 @@ describe('computeTax', () => {
     }
   });
 
+  test('every RECOGNISED shape is priced on its own terms, not merely recognised (v24.96)', () => {
+    // The regex that answers `recognised` is a hand-kept mirror of the pricing branches, and the test
+    // above pins it one way only (an unknown code prices as the default). A shape added to the regex
+    // without a branch would re-create the v24.87 false claim — "this estimate uses tax code X" —
+    // while pricing as 1257L. So: each shape with an effect of its own must differ from the default.
+    const asDefault = computeTax(2000, '1257L', T25).tax;
+    for (const c of ['BR', 'D0', 'D1', 'NT', '0T', 'K500', 'SK500', '1000L', 'S1257L', 'SD0', 'SD2', 'SD3', 'CBR', 'K500X']) {
+      const r = computeTax(2000, c, T25);
+      assert.equal(r.recognised, true, `${c} is recognised`);
+      assert.notEqual(r.tax, asDefault, `${c} must not price as 1257L`);
+    }
+    for (const c of ['1257LM1', '1257LX', 'C1257L']) assert.equal(computeTax(2000, c, T25).tax, asDefault, `${c} is the default allowance by another name`);
+  });
+
   test('a Tax Code box holding only spaces is blank: 1257L, recognised (v24.89)', () => {
     const blank = computeTax(2000, '', T25), spaces = computeTax(2000, '   ', T25);
     assert.deepEqual([spaces.code, spaces.recognised], ['1257L', true]);

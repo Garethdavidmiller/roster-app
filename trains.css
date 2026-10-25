@@ -539,6 +539,7 @@ on the answer: the app's ring, not the browser's orange one. */
    and the rest scroll sideways under the pinned names, with a touch-only line saying so. */
 @media (max-width: 480px) {
     .tr-grid th, .tr-grid td { padding: 5px 3px; }
+    .tr-grid-colbtn { padding: 5px 3px; }
     .tr-grid .tr-grid-st { min-width: 100px; max-width: 108px; padding-right: 6px; box-shadow: 1px 0 0 var(--border-light); }
     .tr-grid-end { white-space: normal; line-height: 1.15; }
 }
@@ -565,6 +566,11 @@ on the answer: the app's ring, not the browser's orange one. */
     touch-action: manipulation;
 }
 .tr-grid-colbtn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+/* The whole cell is the button (v24.96): the head's padding sits on the button, not the cell, so a
+   thumb has the 51px cell rather than the 28px of text inside it — the one new control members are
+   told to tap had the page's smallest target. */
+.tr-grid thead th.tr-grid-colhead { padding: 0; }
+.tr-grid-colbtn { padding: 5px 6px; }
 .tr-grid .tr-col-on { background: var(--surface-sunken); }
 .tr-grid thead th.tr-col-on { box-shadow: inset 0 -3px 0 var(--primary-blue); }
 .tr-grid-focus { margin: 0 0 8px; color: var(--text-mid); font-size: var(--type-small); }
@@ -591,7 +597,7 @@ on the answer: the app's ring, not the browser's orange one. */
    the screen. aria-hidden and inert; the real heads stay the controls. */
 .tr-grid-stick {
     position: fixed;
-    top: 0;
+    top: env(safe-area-inset-top, 0px);   /* an installed iPhone's status bar; trains-grid-mirror.js reads this back */
     z-index: 5;
     display: flex;
     box-sizing: border-box;
@@ -735,7 +741,7 @@ uppercase. */
 /* A thumb's target (v24.83): on a phone the tabs, the station chips and the "Show…" buttons were
    27–31px tall. After the base rules, so it wins. */
 @media (pointer: coarse) {
-    .tr-tab, .tr-pick, .tr-more { min-height: 44px; }
+    .tr-tab, .tr-pick, .tr-more, .tr-grid-colbtn { min-height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -750,3 +756,9 @@ uppercase. */
     .tr-caveat-line { color: black; box-shadow: none; border: 1px solid var(--print-muted); border-left-width: 3px; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); }
 }
+
+/* The boot placeholder's other half (v24.96): the cards wait for `auth-ready`, which trains-app.js
+   sets when the page has a reader — a member, the PIN, or the sign-in overlay. shared.css owns the
+   placeholder itself. The [hidden] companion keeps `hidden` honest (page-visibility-parity). */
+body:not(.auth-ready) #trainsMain { display: none; }
+#trainsMain[hidden] { display: none; }

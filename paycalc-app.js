@@ -1029,7 +1029,9 @@ export function init() {
         const _caEl = /** @type {HTMLInputElement|null} */ (document.getElementById('actualNetInput'));
         const _caActual = _caInHand ? Math.max(0, parseSmartFloat(_caEl?.value ?? '') || 0) : 0;
         const _caV = document.getElementById('actualVerdict');
-        if (_caV) _caV.innerHTML = buildActualCheck(_caActual, net, { taxCode: taxCodeUsed, recognised: taxCodeKnown, pension,
+        // The pension the estimate DEDUCTED: sacGross floors at zero, so a pension above the gross is
+        // only taken up to it, and the check must name the figure it used (v24.96).
+        if (_caV) _caV.innerHTML = buildActualCheck(_caActual, net, { taxCode: taxCodeUsed, recognised: taxCodeKnown, pension: Math.min(pension, Math.max(0, grossWithBp)),
           ytdFrom: usingCumulative && _srcP ? fdShort(_srcP.payday) : '' });
         // The other payslip lines (v22.07): a per-line comparison against the SAME figures the
         // summary rows display. Estimates never guess causes — buildActualComparison's header.

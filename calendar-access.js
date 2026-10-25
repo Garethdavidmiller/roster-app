@@ -67,7 +67,7 @@
  */
 
 import { auth, signInWithCustomToken, signOut, setViewerPersistence, onAuthStateChanged, currentUserAfterBoot } from './firebase-client.js';
-import { getSession, reconcileExpiredIdentity, ensureNamedSession } from './session.js';
+import { getSession, reconcileExpiredIdentity, ensureNamedSession, ACCESS_DECISION_BUDGET_MS } from './session.js';
 import { fetchWithTimeout } from './fetch-timeout.js';
 import { isViewerUser, decideAccess, isCompletePin, classifyUnlockFailure, PIN_LENGTH, CALENDAR_VIEWER_CLAIM } from './calendar-access-core.js';
 import { lockCardId, armSkeleton, showBootSkeleton } from './calendar-lock-slot.js';
@@ -89,7 +89,7 @@ const UNLOCK_TIMEOUT_MS = 15000;
  *  waits for shares this budget, so a wedged auth layer costs it once rather than once per step.
  *  Past it the answer is `none`, which shows the unlock card, which is recoverable — and the
  *  late-identity watcher then corrects it the moment a real identity turns up. */
-const ACCESS_DECISION_BUDGET_MS = 6500;
+// ACCESS_DECISION_BUDGET_MS is session.js's since v24.96 — one constant for this decision and holdsStaffPin's.
 
 /** @type {'named'|'viewer'|'none'} */
 let _accessType = 'none';

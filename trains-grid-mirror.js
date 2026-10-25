@@ -71,8 +71,11 @@ export function syncGridMirror(host) {
         const table = wrap.querySelector('table'), thead = wrap.querySelector('thead');
         if (!table || !thead) { stick.hidden = true; return; }
         const t = table.getBoundingClientRect(), h = thead.getBoundingClientRect();
-        // While the real header is above the screen and the table's foot is not.
-        const show = h.height > 0 && h.bottom < 0 && t.bottom > stick.offsetHeight + 8;
+        // While the real header is above the screen — above the mirror's own top edge, which sits
+        // under an installed iPhone's status bar (env(safe-area-inset-top), v24.96) — and the table's
+        // foot is not.
+        const inset = parseFloat(getComputedStyle(stick).top) || 0;
+        const show = h.height > 0 && h.bottom < inset && t.bottom > inset + stick.offsetHeight + 8;
         stick.hidden = !show;
         if (!show) return;
         const w = wrap.getBoundingClientRect();

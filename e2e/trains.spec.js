@@ -474,7 +474,8 @@ test.describe('trains', () => {
         await page.locator('#navMenuBtn').click();
         await page.locator('.nav-panel-pill--trains').click();
         await expect(page).toHaveURL(/trains\.html/);
-        await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
+        // The caveat line is on every view and in every phase; the changes headline is not — from 11 Jan 2027 the page opens on Stations (v24.96).
+        await expect(page.locator('#trCaveat')).toBeVisible();
         await expect(page.locator('#loginOverlay')).toBeHidden();
     });
 });
@@ -626,5 +627,50 @@ test.describe('trains — the eight improvements (v24.94)', () => {
             JSON.parse(localStorage.getItem('myb_app_notices') || '[]').map((/** @type {{ id: string }} */ n) => n.id));
         expect(archived).toContain('timetable-soon-2026');
         expect(errors).toHaveLength(0);
+    });
+
+    // ── the 72-hour review (v24.96) ────────────────────────────────────────────────────────────
+
+    test('a tab that sleeps over midnight wakes on today\'s kind of day, unless a day was chosen', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-10-23T22:00:00Z'));   // a Friday evening
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await expect(page.locator('[data-day="SX"]')).toHaveAttribute('aria-pressed', 'true');
+        const wake = async () => page.evaluate(() => {
+            Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+            document.dispatchEvent(new Event('visibilitychange'));
+        });
+        await page.clock.setFixedTime(new Date('2026-10-24T08:00:00Z'));   // Saturday morning, same tab
+        await wake();
+        await expect(page.locator('[data-day="SO"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('#trChangesHint')).toContainText('Saturdays');
+        // A chosen day is kept: pick Sundays, sleep into Monday, wake — still Sundays.
+        await page.locator('[data-day="SU"]').click();
+        await page.clock.setFixedTime(new Date('2026-10-26T08:00:00Z'));
+        await wake();
+        await expect(page.locator('[data-day="SU"]')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    test('a remembered station that is not in the table is ignored when the page would open on it', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2027-01-12T09:00:00Z'));   // settled: the page opens on Stations
+        await seedSession(page, 'G. Miller');
+        await page.addInitScript(() => localStorage.setItem('myb_trains_station', 'XXX'));
+        await page.goto('/trains.html');
+        await expect(page.locator('[data-view="stations"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('#trStationInput')).toBeVisible();        // the picker, not a card titled "XXX"
+        await expect(page.locator('#trStation .tr-verdict')).toHaveCount(0);
+        await expect(page.locator('#trStationTitle')).not.toContainText('XXX');
+    });
+
+    test('the other timetable lets a chosen column go', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await page.locator('[data-view="grid"]').click();
+        await page.locator('[data-grid="dec"]').click();
+        await page.locator('#trPattern .tr-grid-colbtn').first().click();
+        await expect(page.locator('#trPattern .tr-grid-colbtn[aria-pressed="true"]')).toHaveCount(1);
+        await page.locator('[data-grid="now"]').click();
+        await expect(page.locator('#trPattern .tr-grid-colbtn[aria-pressed="true"]')).toHaveCount(0);
     });
 });

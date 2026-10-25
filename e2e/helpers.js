@@ -60,6 +60,7 @@ export function seedSession(page, name = 'G. Miller') {
         localStorage.setItem('myb_notice_timetable_2026_done', '1');
         localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
         localStorage.setItem('myb_notice_install_app_2026_done', '1');
+        localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 6–12 Dec 2026: left out until the 72-hour review (v24.96)
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
     }, name);
 }
@@ -125,6 +126,7 @@ export function seedMember(page, name = 'G. Miller') {
         localStorage.setItem('myb_notice_timetable_2026_done', '1');
         localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
         localStorage.setItem('myb_notice_install_app_2026_done', '1');
+        localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 6–12 Dec 2026: left out until the 72-hour review (v24.96)
     }, name);
 }
 
@@ -319,6 +321,7 @@ export function seedMemberSession(page, name = 'G. Miller') {
         localStorage.setItem('myb_notice_timetable_2026_done', '1');
         localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
         localStorage.setItem('myb_notice_install_app_2026_done', '1');
+        localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 6–12 Dec 2026: left out until the 72-hour review (v24.96)
         window.__E2E = Object.assign(window.__E2E || {}, { authUser: true });
     }, name);
 }

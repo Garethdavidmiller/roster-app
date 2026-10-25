@@ -47,6 +47,7 @@
  */
 import { notifSupported, getNotifState, enableNotifications } from './notif.js';
 import { lsGet, lsSet } from './ls.js';
+import { installNoticeHasTheVisit } from './install-prompt.js';
 import { NOTIF_PROMPT_DONE } from './storage-keys.js';
 
 /**
@@ -98,8 +99,10 @@ export function initNotifPrompt({ authReady, getAccessType }) {
     // indefinitely, with nobody who could turn it off. A staff member who wants notifications wants
     // them on their own phone, where they are signed in.
     authReady.then(() => {
-        // Same rule as the renewal above: a named member only.
-        if (getAccessType() !== 'named') return;
+        // Same rule as the renewal above: a named member only — and not once the install notice has
+        // taken this visit's ask (it hides this strip when it yields; this keeps the strip from
+        // landing AFTER that, v24.96).
+        if (getAccessType() !== 'named' || installNoticeHasTheVisit()) return;
         _prompt.style.display = 'flex';
     });
     function hide() { _prompt.style.display = 'none'; }

@@ -154,8 +154,8 @@ that hands over neither a renewal nor the old key is left as before: the next ch
 A push service holds a notice for a phone that is off — and web-push's default is FOUR WEEKS, so
 "hours cutoff today" arrived days late. Every send now passes a TTL from `PUSH_TTL_BY_TAG`
 (`functions/push.js`, via `pushSendOptions`): documents 36–72 h, pay and overtime 12 h, the reset
-queue 6 h, password-reset 7 days, the timetable reminder one day (sent on the Saturday evening, still
-true all Sunday), anything unlisted one day. **A new notification feature adds its
+queue 6 h, password-reset 7 days, the timetable reminder 30 hours (sent at 18:00 on the Saturday; 24 would have expired at 18:00 on the
+Sunday, before a phone that was off all day came back), anything unlisted one day. **A new notification feature adds its
 tag there**, or it gets a day; `push-transport.test.mjs` fails on a feature with no TTL.
 
 ## Icon, badge, tag
