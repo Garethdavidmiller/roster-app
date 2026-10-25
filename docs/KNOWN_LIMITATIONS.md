@@ -239,6 +239,43 @@ reports every safe-area inset as zero, so a landscape baseline would prove nothi
 Island insets the audit's B11 added, and the smoke suite's layout assertions are written for
 portrait. A real iPhone in landscape is on the device checklist in the audit, not in CI.
 
+### Playwright's WebKit crashes when a page leaves after two history entries and a Back (measured Oct 2026, v24.97)
+
+The WebKit that Playwright 1.56.1 runs here (build 2215, "Safari 26.0") **crashes its web process**
+on a cross-document navigation made after two `history.pushState` calls and a `history.back()`. It
+crashes on `assign` and `replace` alike, on both WebKit projects, here and on CI. The page never
+commits. Playwright reports *"waiting for … navigation to finish"* until the assertion times out,
+and *"Target crashed"* after that.
+
+**It is the test browser, not the app.** A standalone script reproduces it with no app code and no
+test runner, on any page served over HTTP, through `page.evaluate`:
+
+```js
+history.pushState({}, '');
+history.pushState({}, '');
+addEventListener('popstate', () => setTimeout(() => location.assign('/b'), 300), { once: true });
+history.back();
+```
+
+Chromium navigates, and so does WebKit after one push and a back, or after two pushes with no back.
+**Playwright 1.63's WebKit (build 2359, "Safari 26.6") navigates every time**, measured three runs
+out of three. Safari on a phone is not believed to share it, but nobody has checked on a device. To
+check: Admin → change a row → ☰ → Calendar → **Leave**.
+
+**Why the app meets it.** It is the shape of any exit taken from a dialog opened over the drawer:
+the drawer's history entry, the dialog's entry, then the dialog closing. v24.97's "Leave" (Admin
+asking before a drawer link drops staged edits) is the first such exit with a test.
+
+**What a test does about it.** Stop the navigation at the network with `route.fulfill({ status:
+204 })`, which every browser treats as "stay on this page", and assert the request Leave made. Prove
+the destination in a second test that gets there without the dialog. `admin: a drawer pill or the
+logo asks before leaving staged edits` and the test after it in `e2e/pages.spec.js` do exactly
+this. **Never skip such a test on WebKit**: it is the lane's only view of the dialog, the drawer and
+the guard on Safari's engine.
+
+**When Playwright is upgraded** (the change described above), run those four lines again. If WebKit
+navigates, this entry can go, and the Leave test can let the Calendar load again.
+
 ## Security
 
 > **Forward plan.** The security work in this section is sequenced, with per-phase risk and

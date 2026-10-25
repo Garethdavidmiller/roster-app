@@ -2094,20 +2094,24 @@ test('admin: a week-grid time box formats as typed, moves on, and flags an impos
 // Only the browser's own unload prompt guarded those exits, and a phone never shows it, so staged
 // rows were discarded without a word. The drawer asks in a dialog (the page's banner would sit under
 // the drawer's scrim); the logo goes through the same banner as every other exit on the page.
-test('admin: a drawer pill or the logo asks before leaving staged edits', async ({ page }) => {
+/** Open Admin on a FUTURE week (Mon 7 Dec 2026). The Calendar drops a stored future month, so only
+ *  the Calendar pill's `?date=` can get a member there (whole-app review, B3). The MEMBER seeder,
+ *  because the Calendar's gate shows a sign-in card to a session with no identity behind it.
+ *  @param {import('@playwright/test').Page} page */
+async function openAdminOnDecember(page) {
     await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
-    // The MEMBER seeder (it signs the stubbed identity in), because the last step lands on the
-    // Calendar, whose gate shows a sign-in card to a session with no identity behind it.
     await seedMemberSession(page, 'G. Miller');
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
-    // A FUTURE month, so the last step below also proves the pill names it: the Calendar drops a
-    // stored future month, and only the pill's ?date= gets it there (whole-app review, B3).
     await page.locator('#fieldDate').evaluate((el) => {
         /** @type {HTMLInputElement} */ (el).value = '2026-12-07';       // Monday
         el.dispatchEvent(new Event('change', { bubbles: true }));
     });
     await expect(page.locator('#weekNavLabel')).toContainText('Dec 2026');
+}
+
+test('admin: a drawer pill or the logo asks before leaving staged edits', async ({ page }) => {
+    await openAdminOnDecember(page);
     const row = page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="shift"]:not([disabled])') }).first();
     await clickInView(row.locator('.type-pill-btn[data-type="shift"]'));
     await row.locator('.day-start').fill('06:00');
@@ -2128,10 +2132,36 @@ test('admin: a drawer pill or the logo asks before leaving staged edits', async 
     await page.locator('#unsavedKeepBtn').click();
     await expect(page).toHaveURL(/admin\.html/);
 
-    // Leave, from the drawer, runs the pill's own work too: the Calendar opens on the edited month.
+    // Leave, from the drawer, runs the pill's own work too: the navigation it starts names the
+    // edited month.
+    //
+    // STOPPED AT THE NETWORK, ON PURPOSE (v24.97). Playwright 1.56's WebKit crashes its web process on
+    // any cross-document navigation made after two pushState calls and a history.back(), and this
+    // flow is exactly that: the drawer's entry, the dialog's entry, the dialog closing. Four lines
+    // with nothing of the app in them crash it the same way, on both WebKit projects, here and on
+    // CI; Playwright 1.63's WebKit does not (KNOWN_LIMITATIONS.md → "Playwright's WebKit crashes").
+    // So the Calendar is answered 204 No Content, which every browser treats as "stay on this
+    // page", and the test reads what Leave asked for. Letting the Calendar load would fail every
+    // WebKit run for a fault the app does not have; whether the Calendar honours the month is the
+    // next test, which opens it without a dialog.
+    const leaving = page.waitForRequest((req) => req.isNavigationRequest() && !req.url().includes('admin.html'));
+    await page.route((url) => url.pathname === '/', (route) => route.fulfill({ status: 204 }));
     await page.locator('#navMenuBtn').click();
     await page.locator('.nav-panel-pill--calendar').click();
     await page.getByRole('button', { name: 'Leave', exact: true }).click();
+    const to = new URL((await leaving).url());
+    expect(to.pathname, 'Leave goes to the Calendar').toBe('/');
+    expect(to.searchParams.get('date'), 'Leave runs the pill’s own work: the link names the month being edited').toBe('2026-12-07');
+});
+
+// ── ADMIN'S CALENDAR PILL OPENS THE MONTH BEING EDITED, A FUTURE ONE INCLUDED (whole-app review, B3) ──
+// The pill used to store the month and leave the link bare, and the Calendar drops a stored future
+// month, so December became August. No staged edits here, so no dialog: the test above proves Leave
+// goes through this same pill.
+test('admin: the Calendar pill opens the Calendar on the month being edited, a future one included', async ({ page }) => {
+    await openAdminOnDecember(page);
+    await page.locator('#navMenuBtn').click();
+    await page.locator('.nav-panel-pill--calendar').click();
     // Wait for the Calendar to ARRIVE, not merely for the address to change: ending on the first
     // frame of the navigation tore the page down under a request still in flight, and failed a run.
     await expect(page.locator('.calendar-day').first()).toBeVisible();
