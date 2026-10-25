@@ -399,9 +399,11 @@ export function createDesignStore(deps) {
          * replace would push our load-time copy over whatever the design carried when it was
          * deleted. Re-arms the baseline, which matters MORE here than for a new design: this is an
          * old document a co-editor may still hold open.
-         * Returns `{ status }`: `ok` with the new revision, or `gone` when somebody removed the
-         * design for good in the meantime — so the workspace can say what happened instead of
-         * blaming the network for a state no retry will change.
+         * Returns `{ status }`: `ok` with the new revision AND `data` — the name, patterns and window
+         * the transaction read, which the caller must build the restored design from (never from
+         * its bin row) — or `gone` when somebody removed the design for good in the meantime, so
+         * the workspace can say what happened instead of blaming the network for a state no retry
+         * will change.
          * @param {string} id @param {string} by
          */
         async restore(id, by) {
@@ -414,6 +416,8 @@ export function createDesignStore(deps) {
             // direction), and a false conflict is exactly what teaches people to click through the
             // one prompt that protects them.
             let committed = 0;
+            /** @type {{name: any, patterns: any, window: any}|null} */
+            let content = null;
             try {
                 await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
                     const snap = await tx.get(ref);
@@ -441,6 +445,15 @@ export function createDesignStore(deps) {
                     // true, so the honest answer is to leave the document alone and say so.
                     if (!snap.data()?.deletedAt) { committed = -1; return; }
                     committed = nextRevision(snap.data());
+                    // THE CONTENT COMES BACK WITH THE REVISION (whole-app review, Oct 2026). The
+                    // caller used to rebuild the design from its BIN ROW, read when the bin opened,
+                    // and stamp it with this revision. If a colleague saved, restored or re-binned
+                    // the design since, the server held their version while the restorer held their
+                    // own stale copy at the server's revision, so their next save matched, raised no
+                    // conflict, and wrote over the colleague's work. What this transaction read is
+                    // what the merge brought back, so it is the only copy entitled to that revision.
+                    const { name, patterns, window } = snap.data() ?? {};
+                    content = { name, patterns, window };
                     tx.set(ref, {
                         deletedAt: deleteField(), deletedBy: deleteField(), revision: committed,
                         updatedAt: serverTimestamp(), updatedBy: by,
@@ -454,7 +467,7 @@ export function createDesignStore(deps) {
             // not `ok`: the caller must not advance a local baseline to a revision no write
             // produced, which is this module's third rule.
             if (committed === -1) return { status: 'already-restored' };
-            return { status: 'ok', updatedAt: await readStamp(ref), revision: committed };
+            return { status: 'ok', updatedAt: await readStamp(ref), revision: committed, data: content };
         },
 
         /**

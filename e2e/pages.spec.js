@@ -2039,7 +2039,7 @@ test('admin: a week-grid time box formats as typed, moves on, and flags an impos
     await expect(start, 'three digits whose first pair is not an hour read as a dropped zero').toHaveValue('06:30');
     await expect(end, 'a complete start moves on to the end').toBeFocused();
     await end.fill('');   // prefilled with the rostered finish, and the box holds five characters
-    await end.pressSequentially('1975');   // NOT 25xx — "257" is read as a dropped zero, 02:57
+    await end.pressSequentially('1975');
     await expect(end).toHaveValue('19:75');
     await start.focus();   // leave the box — the HH:MM check runs on blur
     await expect(end).toHaveClass(/\binput-error\b/);
@@ -2048,6 +2048,21 @@ test('admin: a week-grid time box formats as typed, moves on, and flags an impos
     await end.pressSequentially('1400');
     await expect(end).toHaveValue('14:00');
     await expect(end, 'typing again clears the error').not.toHaveAttribute('aria-invalid', 'true');
+    // A MIDNIGHT FINISH TYPED AS 2400 (whole-app review, Oct 2026). The box reshaped "240" into
+    // 02:40 — five characters, a full box — so the last 0 was never typed and 02:40 was saved. Typed
+    // key by key, it now reads 24:00 and is refused; three digits are a dropped zero only once the
+    // box is left.
+    await end.fill('');
+    await end.pressSequentially('2400');
+    await expect(end).toHaveValue('24:00');
+    await start.focus();
+    await expect(end, 'midnight is written 00:00; 24:00 is refused, never saved as something else').toHaveClass(/\binput-error\b/);
+    await end.fill('');
+    await end.pressSequentially('240');
+    await expect(end, 'still typing: it may yet be 2400').toHaveValue('24:0');
+    await start.focus();
+    await expect(end, 'left as three digits, it is a dropped zero').toHaveValue('02:40');
+    await expect(end).not.toHaveClass(/\binput-error\b/);
 });
 
 // ── THE BANNER DESCRIBES THE YEAR THE READER IS LOOKING AT (v22.82) ──────────────────────────
@@ -4410,6 +4425,33 @@ test('operations: Skip all also clears a resolved "couldn\'t read" pick', async 
     await expect(flagged.first().locator('.roster-choice-btn[data-opt="0"]')).not.toHaveClass(/is-chosen/);
 });
 
+// The review's entry boxes share the week grid's typing rule (clock-input.js), and shared its defect
+// (whole-app review, Oct 2026): "240" was reshaped to 02:40 as it was typed, so a midnight finish
+// keyed as 2400 was entered as 02:40. Typed key by key it is now 24:00, which counts for nothing;
+// three digits are a dropped zero only once the box is left.
+test('operations: an entered finish typed as 2400 is refused, and 240 settles as 02:40 only when left', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page);
+    const saveBtn = page.locator('#rosterApplyBtn');
+    await expect(saveBtn).toHaveText(/Save 3 changes/);
+    const garbled = page.locator('.roster-change-row', { hasText: 'XZ9 GARBLED' });
+    await garbled.locator('.roster-choice-btn--enter').click();
+    await garbled.locator('.roster-entry-pill', { hasText: 'Shift' }).click();
+    const from = garbled.locator('.roster-entry-time[data-part="from"]');
+    const to = garbled.locator('.roster-entry-time[data-part="to"]');
+    await from.pressSequentially('1800');
+    await to.pressSequentially('2400');
+    await expect(to).toHaveValue('24:00');
+    await expect(saveBtn, '24:00 is not a time, so nothing is entered').toHaveText(/Save 3 changes/);
+    await to.fill('');
+    await to.pressSequentially('240');
+    await expect(to, 'still typing: it may yet be 2400').toHaveValue('24:0');
+    await from.focus();
+    await expect(to, 'left as three digits, it is a dropped zero').toHaveValue('02:40');
+    await expect(saveBtn, 'and the settled time is what the entry now holds').toHaveText(/Save 4 changes/);
+});
+
 // The same hole on the OTHER unreadable row shape (v24.28 review): a row with no readings can hold
 // an ENTERED value, and Skip all reset only rows that offered readings — so the entry was saved
 // from under the overlay. And Restore re-ticked every row, including one the admin had unticked.
@@ -6384,6 +6426,15 @@ test('links window: a time typed without a colon is shaped into one, so a phone 
     await page.keyboard.press('Tab');
     await expect(end).toHaveValue('14:20');                            // accepted, not reverted
     await expect.poll(() => page.locator('.cov-heat-cell.heat-gap').count()).toBeLessThan(before);
+    // Three digits whose first pair is no hour are settled when the box is LEFT, not as they are
+    // typed: the box used to read "240" as 02:40 before the 0 of "2400" could arrive (whole-app
+    // review, Oct 2026). The commit has to read the SETTLED form, or "24:5" is refused and reverted.
+    const start = page.locator('#winMonSatStart');
+    await start.fill('');
+    await start.pressSequentially('245');
+    await expect(start, 'still typing: it may yet be a four-digit time').toHaveValue('24:5');
+    await page.keyboard.press('Tab');
+    await expect(start, 'left as three digits, it is a dropped zero, and committed as one').toHaveValue('02:45');
 });
 
 test('links window: compare states BOTH windows and flags that they differ', async ({ page }) => {

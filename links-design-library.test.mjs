@@ -133,6 +133,23 @@ describe('the bin is the library\'s, and the coordinator reaches it through the 
         assert.match(el('designBinStatus').textContent, /restored/);
     });
 
+    // The store's half of this is pinned in links-design-store.test.mjs; this is the WIRING — the
+    // restored entry the coordinator receives must be built from `res.data`, because the bin row
+    // here is the stale copy a colleague's save has since replaced (whole-app review, Oct 2026).
+    test('a restored design is built from the server\'s copy, never from the stale bin row', async () => {
+        const theirs = { 1: { sun: 'RD', mon: '07:15-15:15', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } };
+        const { lib, designs } = setup({
+            restore: async () => ({ status: 'ok', updatedAt: null, revision: 10,
+                data: { name: 'Alpha', patterns: theirs, window: null } }),
+        });
+        lib.setBin([{ ...BINNED('a', 'Alpha'), patterns: { 1: { sun: 'RD', mon: 'RD', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } } }]);
+        await clickBin('.bin-restore', 'a');
+        assert.equal(designs.length, 1);
+        assert.deepEqual(designs[0].patterns, theirs,
+            'the server holds the colleague\'s newer patterns; pairing the bin row with revision 10 lets the next save overwrite them silently');
+        assert.equal(designs[0].revision, 10);
+    });
+
     test('the duplicate-name rule holds on the way back from the bin', async () => {
         const { lib, calls, designs } = setup();
         designs.push({ id: 'live', name: 'Alpha' });

@@ -1,0 +1,180 @@
+name: Deploy GitHub Pages mirror
+
+# ── THE MIRROR GOES OUT ONLY AFTER THE HOSTING GATE HAS PASSED (whole-app review, Oct 2026) ──────
+#
+# Most staff open the app on the GitHub Pages mirror (ARCHITECTURE.md, EXC-006). It was published
+# by GitHub's own "pages build and deployment", straight from main, with no test of any kind — so on
+# 24 Oct 2026 v24.94 failed the Firebase Hosting gate while the mirror shipped it, and for about
+# three hours most staff ran a release the gate had refused.
+#
+# This publishes the mirror from the commit a SUCCESSFUL "Deploy Firebase Hosting" run released,
+# and from nothing else. A manual run publishes the last commit Hosting released from main — never
+# main's tip, which may be a tree the gate refused.
+#
+# IT IS INERT UNTIL THE OWNER SWITCHES Settings → Pages → Source TO "GitHub Actions". The first job
+# reads that setting and stands down while Pages still builds from the branch: a workflow deploy
+# against a branch-built site fails, and announcing that as a failed deploy would be crying wolf on
+# the issue thread the real failures use. The switch: OPERATIONS_REFERENCE.md → "The Pages mirror".
+#
+# WHAT IT PUBLISHES IS WHAT THE BRANCH BUILD PUBLISHED — the committed tree at that commit (`git
+# archive`), less dot-files, which the app never loads. The same files, now behind the gate.
+# Narrowing it to the Hosting bundle (firebase.json's ignore list) would also stop the mirror
+# serving the test files, and is a separate decision.
+
+on:
+  workflow_run:
+    workflows: ['Deploy Firebase Hosting']
+    types: [completed]
+  workflow_dispatch:
+
+# One at a time, in order, never cancelled mid-flight — the same rule and the same reasons as the
+# three deploy workflows (deploy-hosting.yml has the account). Hosting runs queue, so the runs that
+# trigger this one complete in order, and this queue keeps that order on the way out.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  # WHICH COMMIT, AND WHETHER PAGES WILL TAKE A WORKFLOW DEPLOY AT ALL. A separate job so the deploy
+  # job, which must name the github-pages environment, never starts when there is nothing to do: an
+  # environment on a job records a deployment whether or not a step publishes anything.
+  plan:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pages: read
+      actions: read
+    outputs:
+      sha: ${{ steps.plan.outputs.sha }}
+      go: ${{ steps.plan.outputs.go }}
+    steps:
+      - name: Decide what to publish
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_run" ]; then
+            if [ "$RUN_CONCLUSION" != "success" ] || [ "$RUN_BRANCH" != "main" ]; then
+              echo "The Hosting run did not release main ($RUN_CONCLUSION on $RUN_BRANCH), so there is nothing to publish."
+              echo "go=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sha="$RUN_SHA"
+          else
+            sha=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy-hosting.yml/runs?branch=main&status=success&per_page=1" --jq '.workflow_runs[0].head_sha // empty')
+            if [ -z "$sha" ]; then
+              echo "::error::There is no successful Hosting release on main to publish."
+              exit 1
+            fi
+          fi
+          # An unreadable answer FAILS (and is reported), rather than standing down: a gate that
+          # quietly skipped every release would look exactly like one waiting for the switch.
+          build_type=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq '.build_type')
+          if [ "$build_type" != "workflow" ]; then
+            echo "::notice::Pages still builds from the branch (build_type=$build_type), so the mirror is not behind the Hosting gate yet. Set Settings → Pages → Source to GitHub Actions."
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Publishing $sha"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "go=true" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: plan
+    if: needs.plan.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pages: write
+      id-token: write   # deploy-pages proves the run to the Pages service with an OIDC token
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.plan.outputs.sha }}
+          persist-credentials: false
+
+      - name: Lay out the committed tree
+        run: |
+          set -euo pipefail
+          mkdir _site
+          git archive --format=tar HEAD | tar -x -C _site
+
+      # The mirror is where most staff are, so a file missing from it is a broken app for most staff.
+      # Every path the service worker precaches must be in the artifact — the same five lists, and
+      # the same reading of them, as sw-asset-check.test.mjs's ghost-entry check.
+      - name: Every precached file is in the site
+        run: |
+          set -euo pipefail
+          node - <<'EOF'
+          const { readFileSync, existsSync } = require('node:fs');
+          const sw = readFileSync('_site/service-worker.js', 'utf8');
+          const missing = [];
+          let seen = 0;
+          for (const name of ['NETWORK_FIRST_FILES', 'CORE_ASSETS', 'SUPPLEMENTARY_ASSETS', 'FONT_ASSETS', 'ICON_ASSETS']) {
+            const body = (sw.match(new RegExp(`const ${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`)) || [])[1] || '';
+            for (const m of body.matchAll(/['"]([^'"]+)['"]/g)) {
+              if (m[1].startsWith('http')) continue;
+              seen++;
+              if (!existsSync('_site/' + m[1].replace(/^\.\//, ''))) missing.push(`${name}: ${m[1]}`);
+            }
+          }
+          if (seen < 20) { console.error(`::error::Read only ${seen} precached paths — the lists have stopped parsing.`); process.exit(1); }
+          if (missing.length) { console.error('::error::Precached files missing from the site:\n  ' + missing.join('\n  ')); process.exit(1); }
+          console.log(`All ${seen} precached paths are in the site.`);
+          EOF
+
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+      # The same proof the Hosting deploy asks of its own origin: the LIVE mirror serves the version
+      # just published. The query string defeats the CDN's ten-minute cache, so a pass is the origin.
+      - name: Verify the mirror serves this release
+        run: |
+          set -uo pipefail
+          VERSION=$(grep -oE "APP_VERSION = '[^']+'" _site/roster-data.js | grep -oE "[0-9]+\.[0-9]+")
+          echo "Expecting APP_VERSION $VERSION on the Pages mirror"
+          for i in $(seq 1 12); do
+            curl -sS -o /tmp/rd.js "https://garethdavidmiller.github.io/roster-app/roster-data.js?release=$GITHUB_RUN_ID-$i" || true
+            if grep -q "APP_VERSION = '$VERSION'" /tmp/rd.js; then
+              echo "OK: the Pages mirror is serving v$VERSION"
+              exit 0
+            fi
+            echo "Attempt $i: v$VERSION not live yet, retrying in 10s"
+            sleep 10
+          done
+          echo "::error::The Pages mirror did not serve v$VERSION within two minutes of the deploy."
+          exit 1
+
+  # A failure anywhere above — the plan, the layout check, the deploy or the live proof — opens or
+  # updates the same deploy-failure issue the other deploys use. Its own job, for the reason
+  # deploy-hosting.yml gives: a step-level reporter cannot run when the job died in setup.
+  report-failure:
+    needs: deploy
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: ./.github/actions/report-deploy-failure
+        with:
+          target: 'GitHub Pages mirror'
+          token: ${{ github.token }}

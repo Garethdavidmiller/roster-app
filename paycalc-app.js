@@ -561,7 +561,7 @@ export function init() {
           const _refreshP = getPeriods().find(/** @param {any} x */ x => x.num === _fetchedPNum);
           if (_refreshP) {
             const _refreshS = getRosterSuggestion(_refreshP, getLoggedMember());
-            if (_refreshS) { _applyRosterSuggestion(_refreshS); calculate(); }
+            if (_refreshS) { _applyRosterSuggestion(_refreshS); calculate(); updateRosterHint(); }   // the hint again AFTER the fill (whole-app review)
           }
         });
       }

@@ -1497,3 +1497,118 @@ describe('a shifted read fails closed', () => {
         }
     });
 });
+
+// ── THE REST-DAY GUARD ASKS, ON EVERY ROUTE (whole-app review, Oct 2026) ─────────────────────────
+//
+// Two routes still answered the swap question in silence after v24.42 made the parsed path ask it.
+// Each is pinned here at the rule the save path reads; e2e/pages.spec.js drives both to the write.
+
+/** A member, and a Mon–Sat date on which their base roster is a rest day. */
+function restDayFixture() {
+    for (const iso of ['2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19', '2026-06-20', '2026-06-15']) {
+        const m = teamMembers.find(/** @param {any} x */ x => !x.hidden && !x.managerOnly
+            && getBaseShift(x, new Date(iso + 'T12:00:00')) === 'RD');
+        if (m) return { name: m.name, date: iso };
+    }
+    throw new Error('no member has a weekday base rest day in the fixture week');
+}
+
+describe('leave or an absence ENTERED on a base rest day asks the swap question (D1)', () => {
+    for (const type of ['annual_leave', 'sick']) {
+        test(`${type}: unanswered writes nothing and says so; "Swapped" writes the entry, marked as a swap`, async () => {
+            const { commitEntry, entryControlHtml, entryClick, entryLeftAsRest } = await import('./roster-entry-control.js');
+            const { date } = restDayFixture();
+            const s = { draft: { type, from: '', to: '', open: true }, baseShift: 'RD', date };
+            commitEntry(s);
+            assert.equal(s.entered, null, 'unanswered: nothing is entered — it used to be a silent Rest Day');
+            assert.notEqual(s.chosen, 'entered');
+            const html = entryControlHtml(`X|${date}`, s, date);
+            assert.match(html, /Was it a swapped working day\?/, 'the question is on screen');
+            assert.match(html, /data-entry-swap="yes"/);
+            assert.match(html, /data-entry-swap="no"/);
+            assert.match(html, /nothing is saved for this day until you do/, 'the hint never says "will be saved" over it');
+            assert.doesNotMatch(html, /this day will be saved<\/p>/);
+
+            entryClick({ dataset: { entrySwap: 'yes' } }, s);
+            const want = type === 'annual_leave' ? 'AL' : 'SICK';
+            assert.equal(s.chosen, 'entered');
+            assert.deepEqual({ value: s.entered.value, display: s.entered.display, swapped: s.entered.swapped },
+                { value: want, display: want, swapped: true }, 'the admin\'s own value, marked as covering a swapped-in day');
+            assert.match(entryControlHtml(`X|${date}`, s, date), /saved, as a swapped working day/);
+
+            entryClick({ dataset: { entrySwap: 'no' } }, s);
+            assert.equal(s.entered, null, '"Rest day — leave it" writes nothing');
+            assert.equal(entryLeftAsRest(s), true, 'and the row can say it was answered, not unread');
+        });
+    }
+
+    test('on a working base day the same pill writes as before, with no question', async () => {
+        const { commitEntry, entryControlHtml } = await import('./roster-entry-control.js');
+        const s = { draft: { type: 'annual_leave', from: '', to: '', open: true }, baseShift: '06:00-14:00', date: MON };
+        commitEntry(s);
+        assert.equal(s.chosen, 'entered');
+        assert.equal(s.entered.value, 'AL');
+        assert.ok(!s.entered.swapped);
+        assert.doesNotMatch(entryControlHtml(`X|${MON}`, s, MON), /swapped working day/);
+    });
+
+    test('a new type takes the swap answer back — a second question is not answered by the first', async () => {
+        const { commitEntry, entryClick } = await import('./roster-entry-control.js');
+        const { date } = restDayFixture();
+        const s = { draft: { type: 'annual_leave', from: '', to: '', open: true, swap: 'yes' }, baseShift: 'RD', date };
+        commitEntry(s);
+        assert.equal(s.chosen, 'entered');
+        entryClick({ dataset: { entryType: 'sick' } }, s);
+        assert.equal(s.draft.swap, undefined);
+        assert.equal(s.entered, null, 'Absent on the same rest day asks again');
+    });
+
+    test('the save path carries the answer: a "swapped" entry is written with swapped=true', () => {
+        // Pinned statically: admin-roster-upload.js imports Firebase from a CDN URL, so its save loop
+        // cannot be driven here. The browser test in e2e/pages.spec.js drives it to the payload.
+        const src = readFileSync(new URL('./admin-roster-upload.js', import.meta.url), 'utf8');
+        assert.match(src, /value: state\.entered\.display,[^\n]*swapped: !!state\.entered\.swapped/);
+    });
+});
+
+describe('the roster\'s leave or absence over a HAND-RECORDED swap is shown as what it is (D2)', () => {
+    const { name, date } = restDayFixture();
+    const key = `${name}|${date}`;
+    const run = (/** @type {string} */ parsed, /** @type {any[]} */ existing) =>
+        computeCellStates({ parsed: [{ memberName: name, shifts: { [date]: parsed } }], dates: [date] }, existing).get(key);
+    const manual = (/** @type {string} */ type, /** @type {string} */ value, extra = {}) =>
+        [{ id: 'm1', memberName: name, date, type, value, ...extra }];
+
+    test('PDF AL over a hand-recorded shift is a conflict whose new side is the leave, not "Rest"', () => {
+        const c = run('AL', manual('shift', '23:00-06:00'));
+        assert.equal(c.state, 'CONFLICT');
+        assert.equal(c.displayShift, 'AL', 'it read RD, so the leave was nowhere on screen');
+        assert.equal(c.guarded, null);
+        // "Use new roster" writes this value; replacing the manual shift, nextReplacedType carries
+        // 'shift' forward, so the leave costs a day and displays on the rest-day base.
+        assert.equal(shiftValueToOverrideType(c.displayShift, c.baseShift, date), 'annual_leave');
+    });
+
+    test('PDF Absent over a hand-recorded shift likewise', () => {
+        const c = run('SICK', manual('shift', '06:00-14:00'));
+        assert.equal(c.state, 'CONFLICT');
+        assert.equal(c.displayShift, 'SICK');
+    });
+
+    test('a hand-recorded absence on a swapped-in day against PDF leave is a conflict, not hidden', () => {
+        const c = run('AL', manual('sick', 'SICK', { replacedType: 'shift' }));
+        assert.equal(c.state, 'CONFLICT', 'it was COVERED, so the PDF\'s leave never reached the admin');
+        assert.equal(c.displayShift, 'AL');
+    });
+
+    test('the same leave already recorded on the swapped-in day is covered', () => {
+        assert.equal(run('AL', manual('annual_leave', 'AL', { replacedType: 'shift' })).state, 'COVERED');
+    });
+
+    test('unchanged: a previous IMPORT under the day still asks, and a bare manual absence is still covered', () => {
+        const imp = run('AL', [{ id: 'i1', memberName: name, date, type: 'shift', value: '23:00-06:00', source: 'roster_import' }]);
+        assert.equal(imp.state, 'GUARDED');
+        assert.equal(run('AL', manual('sick', 'SICK')).state, 'COVERED',
+            'no evidence of a swap: both say not working on a rest day, and neither costs anything');
+    });
+});

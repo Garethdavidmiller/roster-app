@@ -386,6 +386,27 @@ describe('creating and restoring ARM the baseline', () => {
         assert.equal(w.payload.revision, 7);
     });
 
+    // ── THE RESTORE HANDS BACK WHAT IT BROUGHT BACK (whole-app review, Oct 2026) ───────────────
+    //
+    // A's bin row was read when the bin opened. Since then B saved a change, so the SERVER holds
+    // B's patterns. The restore's merge brings B's version back — and the caller used to rebuild
+    // the design from A's stale row and stamp it with the new revision, so A's next save matched,
+    // raised no conflict, and wrote A's old patterns over B's. The only copy entitled to the
+    // revision is the one the transaction read, so the store must return it.
+    test('a restore returns the content the server holds, not anything the caller had', async () => {
+        const theirs = { 1: { sun: 'RD', mon: '07:15-15:15', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } };
+        const win = { monSat: { start: '06:20', end: '23:55' }, sun: { start: '07:15', end: '23:25' } };
+        const { api } = makeDb({ initial: {
+            name: 'Renamed by B', patterns: theirs, window: win,
+            deletedAt: ts(500), deletedBy: 'S. Silva', revision: 9,
+        } });
+        const res = await createDesignStore(api).restore(ID, ME);
+        assert.equal(res.status, 'ok');
+        assert.equal(res.revision, 10);
+        assert.deepEqual(res.data, { name: 'Renamed by B', patterns: theirs, window: win },
+            'the name, patterns and window the transaction read — the caller builds from these');
+    });
+
     // ── RESTORE ANSWERS ABOUT THE ROW AS IT IS NOW, NOT AS THE BIN REMEMBERS IT ────────────────
     //
     // Same stale-row race as "Remove for good" above, from the other side: A opens the bin, B acts,

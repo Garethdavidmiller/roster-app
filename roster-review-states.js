@@ -45,7 +45,7 @@
  */
 
 import { teamMembers, getBaseShift, isSunday, parseISODate } from './roster-data.js';
-import { shouldReplaceOverride } from './override-utils.js';
+import { shouldReplaceOverride, isContractedWorkOverride, contractEvidence } from './override-utils.js';
 import { normaliseCellValue } from './roster-cell-rules.js';
 import { assessRosterAlignment } from './roster-alignment.js';
 
@@ -185,7 +185,9 @@ export function computeCellStates(parsedResult, existingOverrides) {
             // marker. Extracted to normaliseCellValue (v19.32) so the review table's new "pick a
             // reading" control puts a CHOSEN value through the identical guards; a second copy is
             // how a picked Sunday AL would quietly become writable when the parsed path forbids it.
-            const { value: normParsed, display: displayValue, guarded } = normaliseCellValue(parsedShift, baseShift, date);
+            const { value: normParsed, display: normDisplay, guarded: normGuarded } = normaliseCellValue(parsedShift, baseShift, date);
+            let displayValue = normDisplay;
+            let guarded = normGuarded;
             const normRest = /** @param {any} s */ s => (s === 'OFF' ? 'RD' : s);
             const normBase = normRest(baseShift);
             const isSun    = isSunday(date);   // still needed by the RDW-parity check below
@@ -243,10 +245,21 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     state = 'DIFF';
                 }
             } else {
+                // A HAND-RECORDED SWAP MAKES THE ROSTER'S LEAVE REAL (whole-app review, Oct 2026). The
+                // rest-day guard reads the BASE roster, but a manager who recorded a shift on a base rest
+                // day has said the member was contracted to work it — so leave or an absence the PDF
+                // marks there costs a day and must be shown as what the PDF said. Rewriting it to RD
+                // showed "New roster: Rest", hid the leave entirely, and "Use new roster" then deleted
+                // the swap and recorded a rest day. Written as the roster's own value, it carries the
+                // swap forward as `replacedType` (nextReplacedType at the save) and so displays.
+                const swappedIn = guarded === 'rest-day' && (parsedShift === 'AL' || parsedShift === 'SICK')
+                    && isContractedWorkOverride(contractEvidence(existing)) === true;
+                if (swappedIn) { displayValue = parsedShift; guarded = null; }
+                const incoming = swappedIn ? parsedShift : normParsed;
                 // A manual override exists — check if it already matches the PDF
-                if (normRest(existing.value) === normParsed && rdwMatches) {
+                if (normRest(existing.value) === incoming && rdwMatches) {
                     state = 'COVERED';   // manual is already correct — nothing to do
-                } else if ((existing.value === 'SICK' || existing.value === 'AL') && normBase === 'RD' && normParsed === 'RD') {
+                } else if (!swappedIn && (existing.value === 'SICK' || existing.value === 'AL') && normBase === 'RD' && normParsed === 'RD') {
                     // Absence OR annual leave on a base rest day AND the PDF also shows rest —
                     // not a real conflict; leave the manual override untouched. AL joined SICK
                     // here in lockstep with the restSafe AL→RD normalisation (v16.19): without

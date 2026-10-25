@@ -51,7 +51,7 @@ import { PROPOSALS, isProposalId, proposalById, proposalCopyName } from './links
 import { createTargetPanel } from './links-generator-targets.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
-import { formatClockInput } from './clock-input.js';
+import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { printOrExplain, explainNoPrint } from './print-guard.js';
 import { assessFatigue } from './links-fatigue.js';
 import { initLinksCompare } from './links-compare.js';
@@ -392,8 +392,8 @@ export function init() {
             if (!design) return;
             // Pad what was typed — "6:20" and "06:20" are the same instruction, and the stored
             // value must be the one canonical form the rest of the workspace reads.
-            const start = canonicaliseWindowTime(els[row].start?.value) || '';
-            const end   = canonicaliseWindowTime(els[row].end?.value) || '';
+            const start = canonicaliseWindowTime(finaliseClockInput(els[row].start?.value ?? '')) || '';   // "240" left as typed is 02:40
+            const end   = canonicaliseWindowTime(finaliseClockInput(els[row].end?.value ?? '')) || '';
             const candidate = { start, end };
             if (!isValidWindowRow(candidate)) {
                 // Put the stored value back so the field never sits showing something that is not
