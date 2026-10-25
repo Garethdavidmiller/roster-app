@@ -716,6 +716,7 @@ try {
             // (v18.21 — without this an early/boot-time team view stayed base-roster-only: see
             // initInitialFetch's JSDoc for the two-sided stand-down).
             renderTeamView: () => { teamView.refreshFromCache(); _markReadyIfGridShown(); },
+            refetchTeamView: () => teamView.refetchShownWeek(),   // stale months released: re-READ, not repaint
             // Phase 2 (the authoritative server read) waits for this; phase 1 (the local-cache
             // paint) deliberately does not — see AUTH_PLAN.md → E1. Since v20.12 the promise is
             // `calendarAccessReady`, which is ALREADY RESOLVED whenever this runs: the whole

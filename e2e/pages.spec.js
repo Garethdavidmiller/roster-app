@@ -2065,6 +2065,42 @@ test('admin: a week-grid time box formats as typed, moves on, and flags an impos
     await expect(end).not.toHaveClass(/\binput-error\b/);
 });
 
+// ── LEAVING ADMIN BY THE DRAWER OR THE LOGO ASKS FIRST (whole-app review, Oct 2026) ────────────
+// Only the browser's own unload prompt guarded those exits, and a phone never shows it, so staged
+// rows were discarded without a word. The drawer asks in a dialog (the page's banner would sit under
+// the drawer's scrim); the logo goes through the same banner as every other exit on the page.
+test('admin: a drawer pill or the logo asks before leaving staged edits', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const row = page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="shift"]:not([disabled])') }).first();
+    await clickInView(row.locator('.type-pill-btn[data-type="shift"]'));
+    await row.locator('.day-start').fill('06:00');
+    await row.locator('.day-end').fill('14:00');
+
+    // The drawer: asked, and Cancel keeps the page and the edit.
+    await page.locator('#navMenuBtn').click();
+    await page.locator('.nav-panel-pill--calendar').click();
+    await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page, 'Cancel must keep the page').toHaveURL(/admin\.html/);
+    await expect(row.locator('.day-start')).toHaveValue('06:00');
+
+    // The logo: the page's own banner, and "Keep editing" keeps it.
+    await page.keyboard.press('Escape');
+    await page.locator('#appIcon').click();
+    await expect(page.locator('#unsavedBanner')).toBeVisible();
+    await page.locator('#unsavedKeepBtn').click();
+    await expect(page).toHaveURL(/admin\.html/);
+
+    // Leave, from the drawer, runs the pill's own work too: the Calendar opens on the edited month.
+    await page.locator('#navMenuBtn').click();
+    await page.locator('.nav-panel-pill--calendar').click();
+    await page.getByRole('button', { name: 'Leave', exact: true }).click();
+    await expect(page).not.toHaveURL(/admin\.html/);
+});
+
 // ── THE BANNER DESCRIBES THE YEAR THE READER IS LOOKING AT (v22.82) ──────────────────────────
 // Reported by the owner: scrolled the picker to February 2027 and the four figures still described
 // 2026 — 26 taken, 2 remaining — so next year's untouched 32 days read as all but spent.

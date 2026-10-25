@@ -278,6 +278,43 @@ test('paycalc: the payslip comparison renders per typed line and survives a relo
     expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
 });
 
+// ── ONE EDIT REACHES THE FIGURES THAT READ STORAGE (whole-app review, Oct 2026) ───────────────
+// autosave() priced the page BEFORE it saved, and "This tax year so far" — like the Holiday Pay
+// Premium card and its stored estimate, the figure a January payslip adds — reads the payslip back
+// from storage. So each lagged one edit behind: the first keystroke changed the result card and
+// nothing that summed the year. One input here, and the block must move without a second one.
+test('paycalc: one edit reaches "This tax year so far" at once, not on the next edit', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-10-25T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        // Internal period 51 is the 8 May 2026 payday (48 is 13 Feb 2026; a period is 28 days).
+        localStorage.setItem('myb_pc_gmiller_p51', JSON.stringify({
+            satH: 7, satM: 0, bhH: 0, bhM: 0, bhOtH: 0, bhOtM: 0, otH: 0, otM: 0,
+            rdwH: 0, rdwM: 0, sunH: 0, sunM: 0, boxH: 0, boxM: 0, peer: 0,
+            slSkip: false, otherAdj: 0, actualNet: null,
+        }));
+    });
+    await page.goto('/paycalc.html?payday=2026-05-08');
+    const block = page.locator('#ytdYearSoFar');
+    // SETTLED before it is read: the block's first paint is not its last, and a "before" taken from
+    // an earlier one made this pass against the very order it exists to refuse.
+    await expect(block).toContainText('1 of 8 paid payslips entered');
+    await page.waitForLoadState('networkidle');
+    const before = await block.innerText();
+    // READ ONCE, NOT POLLED. The input handler prices the page synchronously, so the block is
+    // already what this edit made it; a polling assertion would wait for whatever recalculates
+    // NEXT, and that later pass reads storage after the save — hiding exactly this lag.
+    await page.locator('#otH').fill('10');
+    const afterFirst = await block.innerText();
+    expect(afterFirst, 'the year still reads the payslip as it was before this edit').not.toBe(before);
+    await page.locator('#otH').fill('0');
+    expect(await block.innerText(), 'and the next edit moves it again, not to the state one edit ago').not.toBe(afterFirst);
+    expect(errors, `fatal errors: ${errors.join(', ')}`).toHaveLength(0);
+});
+
 // ── Fill this tax year from Calendar (v22.06) ─────────────────────────────────────────────────
 // The rules are unit-tested (paycalc-fill-year.test.mjs); only a browser can prove the WIRING —
 // that the button the "Not entered yet" line offers runs the real engine against the real

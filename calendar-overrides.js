@@ -323,11 +323,18 @@ export async function fetchOverridesForRange(startStr, endStr) {
  * Never throws: a cache miss (first visit, evicted IndexedDB) is the normal empty state, not a
  * failure, and must never reach the sync chip's error path.
  *
+ * **Which months it knows is reported PER MONTH** (whole-app review, Oct 2026). The boolean below
+ * answers for the whole range, and the boot window is three months — so one month with cached rows
+ * marked all three `cached`, and a month this device never loaded was drawn from the bare base
+ * roster as though it were known. `monthsWithRows`, when passed, receives the key of each month
+ * whose slice held at least one cached row, and only those may be called known.
+ *
  * @param {string} startStr - 'YYYY-MM-DD' inclusive start
  * @param {string} endStr   - 'YYYY-MM-DD' inclusive end
+ * @param {string[]} [monthsWithRows] - filled with the month keys that had cached rows
  * @returns {Promise<boolean>} true if the cache produced anything that changed the display
  */
-export async function fetchOverridesForRangeFromCache(startStr, endStr) {
+export async function fetchOverridesForRangeFromCache(startStr, endStr, monthsWithRows) {
     // THE ONE THAT MATTERS. A cache hit never reaches a security rule, so this line — not
     // firestore.rules — is what stops yesterday's overrides painting before today's PIN. Returns
     // false (paints nothing) rather than throwing, because "no access yet" is indistinguishable to
@@ -355,8 +362,9 @@ export async function fetchOverridesForRangeFromCache(startStr, endStr) {
         let changed = false;
         for (const { key, from, to } of _monthSlices(startStr, endStr)) {
             if (_monthOwner.has(key)) continue;
-            if (reconcileRangeIntoCache(rosterOverridesCache,
-                    records.filter(r => r.date >= from && r.date <= to), from, to,
+            const slice = records.filter(r => r.date >= from && r.date <= to);
+            if (slice.length) monthsWithRows?.push(key);
+            if (reconcileRangeIntoCache(rosterOverridesCache, slice, from, to,
                     { authoritative: false })) changed = true;
         }
         if (changed) shiftTypesMonthCache.clear();

@@ -45,6 +45,7 @@ mock.module('./paycalc-settings.js', {
         getProRateFactor:  () => 1,
         getPensionDefault: () => 147.36,
         getStoredRateForYear: () => 20.74,
+        isPensionOptedOut: () => false,
     },
 });
 

@@ -200,12 +200,14 @@ test('the FIP print button prepares without beforeprint @print', async ({ page }
 
 // ── A HOME-SCREEN APP ON iOS 27 CANNOT PRINT, AND THE BUTTON SAYS SO (v24.61, audit A1) ─────────
 // `window.print()` is a no-op there (WebKit 325259), so a print control that just calls it is a
-// dead button. The guard keys on `navigator.standalone` (iOS-only, Home Screen launch only) and the
-// iOS major in the user agent; both are faked here, and `window.print` is instrumented rather than
-// stubbed so the assertion is that it was NOT reached.
+// dead button. The guard keys on `navigator.standalone` (iOS-only, Home Screen launch only), faked
+// here, and `window.print` is instrumented rather than stubbed so the assertion is that it was NOT
+// reached. The user agent is the FROZEN one a real iOS 27 iPhone sends, `18_7` (whole-app review,
+// Oct 2026): these tests used an invented `27_0`, which is how a guard that read the version passed
+// here and stood down on every real device.
 const IOS27_STANDALONE = () => {
     Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
-    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148', configurable: true });
+    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148', configurable: true });
     /** @type {any} */ (window).__prints = 0;
     window.print = () => { /** @type {any} */ (window).__prints++; };
     /** @type {any} */ (window).__opened = [];
@@ -235,7 +237,7 @@ test('the FIP per-country print is guarded the same way @print', async ({ page }
 });
 test('the same iPhone in a Safari TAB still prints — the guard is about the shell, not the engine @print', async ({ page }) => {
     await page.addInitScript(() => {
-        Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 27_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Mobile/15E148 Safari/604.1', configurable: true });
+        Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.0 Mobile/15E148 Safari/604.1', configurable: true });
         /** @type {any} */ (window).__prints = 0;
         window.print = () => { /** @type {any} */ (window).__prints++; };
     });

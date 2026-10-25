@@ -14,7 +14,7 @@ import {
   taxYearForPeriod, capHours, getRateForPeriod, getLondonAllowanceForPeriod,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, todaysPeriodNum, hasBankHoliday, hasBoxingDay, isTaxYearVisible } from './paycalc-periods.js';
-import { getLoggedMember, getGrade, getEffectiveContr, getProRateFactor, getPensionDefault, getStoredRateForYear } from './paycalc-settings.js';
+import { getLoggedMember, getGrade, getEffectiveContr, getProRateFactor, getPensionDefault, getStoredRateForYear, isPensionOptedOut } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { readSavedPeriod, hppEstKey, hppActualKey, hppModeKey, ytdSrcKey, readPayslipActuals, isActualsDev } from './paycalc-migrations.js';
 import { formatISO, parseSmartFloat } from './roster-data.js';
@@ -195,8 +195,11 @@ function _expectedNonPremiumYtd(ty) {
     // computeYearSoFar) — the typed YTD "Taxable Pay" reflects the actual pension sacrifice, so
     // subtracting only the default over-subtracts on any period where the member overrode pension,
     // biasing this rough estimate. Fall back to the period default (pro-rated) when none is saved.
+    // …except inside an opt-out spell, where the result card and the year block price no pension
+    // whatever figure the payslip still holds (whole-app review, Oct 2026).
     const saved   = readSavedPeriod(p.num);
-    const pension = (saved.data && saved.data.pension != null)
+    const pension = isPensionOptedOut(p) ? 0
+      : (saved.data && saved.data.pension != null)
       ? (parseFloat(String(saved.data.pension)) || 0)
       : (parseFloat(String(getPensionDefault(p))) || 0) * factor;
     nonPremium += basic + london - pension;

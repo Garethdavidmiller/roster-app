@@ -12,8 +12,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     serviceMinutes, alignTimes, compareRoutes, foldWeekdayVariants, trainsNear, parseTypedTime, daysUntil, changeLabel,
-    daysLabel, routeName, MAX_SHIFT_MIN, NEAR_WINDOW_MIN, lineDepth, timetablePhase, dateWords,
-} from './trains-change.js';
+    daysLabel, routeName, MAX_SHIFT_MIN, NEAR_WINDOW_MIN, lineDepth, timetablePhase, dateWords, railwayToday } from './trains-change.js';
 import { stoppingGrid, aRealDay, callsOf } from './trains-stations.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
 
@@ -364,5 +363,25 @@ describe('trains-data.js — what the books print that a plain list of stops can
         assert.equal(LEAF_FALL.minutes, 3);
         assert.deepEqual([...LEAF_FALL.stations], ['AVP', 'AYS', 'SKM', 'WND', 'GMN', 'AMR', 'CFO', 'CLW']);
         for (const c of LEAF_FALL.stations) assert.ok(STATIONS[c], c);
+    });
+});
+
+// ── THE RAILWAY DAY RUNS TO 03:00 (whole-app review, Oct 2026) ──────────────────────────────────
+// The books file the 00:01, 00:05 and 00:10 departures under the evening before; a page choosing its
+// day by the calendar answered from the wrong timetable for the first minutes after midnight.
+describe('railwayToday', () => {
+    test('before 03:00 it is still yesterday — across a month end too', () => {
+        assert.equal(railwayToday(new Date(2026, 9, 24, 0, 5)).getDate(), 23, 'Saturday 00:05 is Friday night');
+        assert.equal(railwayToday(new Date(2026, 9, 24, 2, 59)).getDay(), 5);
+        assert.equal(railwayToday(new Date(2026, 10, 1, 0, 30)).getMonth(), 9, '1 November 00:30 is 31 October');
+    });
+    test('from 03:00 it is the calendar day', () => {
+        assert.equal(railwayToday(new Date(2026, 9, 24, 3, 0)).getDate(), 24);
+        assert.equal(railwayToday(new Date(2026, 9, 24, 23, 59)).getDate(), 24);
+    });
+    test('it does not move the caller\'s date', () => {
+        const now = new Date(2026, 9, 24, 0, 5);
+        railwayToday(now);
+        assert.equal(now.getDate(), 24);
     });
 });

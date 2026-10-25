@@ -23,6 +23,8 @@ let _periods = [];
 /** Controllable pro-rate factor per period (default 1 = long-server). A joiner test sets 0 for
  *  its pre-start periods to exercise the annual-projection clamp. @type {(p:any)=>number} */
 let _proRate = () => 1;
+/** Which payslip numbers sit inside an opt-out spell (the real rule is paycalc-pension.js). @type {(p:any)=>boolean} */
+let _optedOut = () => false;
 
 mock.module('./paycalc-periods.js', {
     namedExports: {
@@ -42,8 +44,9 @@ mock.module('./paycalc-settings.js', {
         getLoggedMember:      () => null,
         getEffectiveContr:    () => 140,
         getProRateFactor:     /** @param {any} p */ p => _proRate(p),
-        getPensionDefault:    () => 147.36,
+        getPensionDefault:    /** @param {any} p */ p => (_optedOut(p) ? 0 : 147.36),
         getStoredRateForYear: () => 21.49,
+        isPensionOptedOut:    /** @param {any} p */ p => _optedOut(p),
     },
 });
 
@@ -114,6 +117,7 @@ function reset() {
     _ls.clear();
     _periods = [P60, P61, P62, P63];
     _proRate = () => 1;
+    _optedOut = () => false;
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -138,6 +142,19 @@ describe('computeYearSoFar', () => {
         assert.ok(Math.abs(y.ni  - (m60.ni  + m61.ni )) < 0.01);
         assert.ok(Math.abs(y.net - (m60.net + m61.net)) < 0.01);
         assert.ok(Math.abs(y.projectedNet - (y.net / 2) * 4) < 0.01, 'projection = avg × year total');
+    });
+
+    // ── AN OPT-OUT SPELL OUTRANKS A FIGURE SAVED BEFORE IT (whole-app review, Oct 2026) ────────
+    // The result card prices a payslip inside an opt-out spell with no pension — the field is locked
+    // at £0.00 — even when the payslip still holds a figure saved while she was contributing. This
+    // block read the saved figure first and deducted it: about £106 of take-home apart, one payslip.
+    test('a payslip inside an opt-out spell is priced with no pension, whatever it saved', () => {
+        _optedOut = (/** @type {any} */ p) => p.num >= 61;
+        _ls.set('myb_pc_p61', JSON.stringify({ otH: 4, otM: 0, pension: 147.36 }));   // saved before she left
+        const y = computeYearSoFar(TY, OPTS);
+        const m = mirror({ oHrs: 4, pension: 0 });
+        assert.ok(Math.abs(y.net - m.net) < 0.01,
+            `the year deducted the old saved pension: got ${y.net.toFixed(2)}, the card's figure is ${m.net.toFixed(2)}`);
     });
 
     test('mid-year joiner: annual projection extrapolates over EMPLOYED periods, not the full year', () => {

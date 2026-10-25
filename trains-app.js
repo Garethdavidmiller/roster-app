@@ -68,7 +68,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
 import { CARD_TIPS } from './trains-tips.js';
-import { parseTypedTime, daysUntil, timetablePhase, dateWords, caveatWords } from './trains-change.js';
+import { parseTypedTime, daysUntil, timetablePhase, dateWords, caveatWords, railwayToday } from './trains-change.js';
 import { stationView, busiestStations, matchStations, headlineChanges, stoppingGrid, stopsKnown, stationBands, lastTrains } from './trains-stations.js';
 import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml, renderTotals, renderPicks, renderLastTrains, DAYTIME } from './trains-render.js';
 import { syncGridMirror } from './trains-grid-mirror.js';
@@ -93,15 +93,15 @@ const DAY_NAMES = /** @type {Record<Day, string>} */ ({ SX: 'Weekdays', SO: 'Sat
 /** Whether every December train carries its stops — true since v24.80, when Chiltern's December books were parsed; false from a stopless source. */
 const DEC_STOPS_KNOWN = Object.values(TIMETABLES.dec).every(d => d.dep.every(stopsKnown) && d.arr.every(stopsKnown));
 /** Where the page is in the timetable's life, read fresh each render (see the header). */
-const phase = () => timetablePhase(new Date(), { change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL });
+const phase = () => timetablePhase(railwayToday(), { change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL });
 /** Set once the overview card has been on screen on this device: it opens collapsed from then on (v24.92). */
 const OVERVIEW_SEEN_KEY = 'myb_trains_overview_seen';
 /** The station this device looked at last (v24.94): first among the chips, and what the page opens on once it opens on Stations. Read here alone. */
 const LAST_STATION_KEY = 'myb_trains_station';
 /** Where "check the journey planner" goes (v24.94): National Rail's planner takes a December date. Address checked 23 Oct 2026. */
 const JOURNEY_PLANNER_URL = 'https://www.nationalrail.co.uk/journey-planner/';
-/** Today's kind of day, as the day tabs name it. @returns {Day} */
-const todayDay = () => { const dow = new Date().getDay(); return dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX'; };
+/** Today's kind of day, as the day tabs name it — the RAILWAY day, which runs to 03:00. @returns {Day} */
+const todayDay = () => { const dow = railwayToday().getDay(); return dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX'; };
 let dayPinned = false;   // set once a day tab is pressed: the chosen day then survives the tab's sleep
 /** The grid's two bands — the books' two lines — found from every row the page holds (trains-stations.js, `stationBands`). */
 const BANDS = stationBands(Object.values(TIMETABLES).flatMap(t => Object.values(t).flatMap(d => [...d.dep, ...d.arr])));
@@ -331,7 +331,7 @@ function renderStationCard(state) {
     lsSet(LAST_STATION_KEY, state.station);   // remembered for the chips, and for where the page opens once it opens on Stations
     const p = phase();
     const view = stationView(TIMETABLES.now[state.day][state.sdir], TIMETABLES.dec[state.day][state.sdir], state.station, state.sdir, { change: CHANGE_DATE, started: phase().started });
-    const leaf = state.sdir === 'arr' && LEAF_FALL.stations.includes(state.station) && daysUntil(new Date(), LEAF_FALL.until) >= 0;
+    const leaf = state.sdir === 'arr' && LEAF_FALL.stations.includes(state.station) && daysUntil(railwayToday(), LEAF_FALL.until) >= 0;
     setHTML(el('trStation'), renderStation(view, { stations: STATIONS, dir: state.sdir, showTrains: false, allTrains: state.allTrains,
         labels: { old: p.oldLabel, new: p.newLabel }, started: p.started, leafFall: leaf ? { minutes: LEAF_FALL.minutes, until: dateWords(LEAF_FALL.until) } : null }));
 }

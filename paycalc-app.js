@@ -591,8 +591,7 @@ export function init() {
     // isDataEmpty imported from paycalc-hpp.js
 
     function autosave() {
-      calculate(); // no-op double-call is harmless but kept here for standalone inputs
-      const pNum = currentPeriodNum();
+      const pNum = currentPeriodNum();   // SAVED before calculate() below: HPP + the year card read storage (whole-app review)
       const _autoP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
       const d    = readFormData({
         adjNegative: _adjNegative,
@@ -602,6 +601,7 @@ export function init() {
         lsSet(periodKey(pNum), JSON.stringify(d));
         updateSaveStatus(pNum);
       } catch { /* storage unavailable */ }
+      calculate();
     }
 
     /** @param {number} pNum */

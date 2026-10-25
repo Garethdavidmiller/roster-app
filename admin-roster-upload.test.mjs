@@ -565,6 +565,25 @@ describe('computeCellStates — review state machine', () => {
         assert.deepEqual(c.options.map(/** @param {any} o */ o => o.value), ['AL', 'RD']);
     });
 
+    // A BARE 'RDW' IS NEVER OFFERED AS A PICK (whole-app review, Oct 2026). Picking it built
+    // {type:'rdw', value:'RDW'}, which firestore.rules refuses (an rdw needs HH:MM-HH:MM), and the
+    // refusal failed the WHOLE save batch with a message about the session. Beside a reading that
+    // carries a time it means "rest day worked, at that time"; with no time anywhere it is dropped.
+    test('a bare RDW beside a timed reading is offered as RDW at that time', () => {
+        const c = runChoice('UNKNOWN|14:30-22:00 or RDW? (PDF unclear)', ['14:30-22:00', 'RDW']);
+        assert.ok(c.options, 'still two readings to choose between');
+        const shown = c.options.map(/** @param {any} o */ o => o.display);
+        assert.ok(!shown.includes('RDW'), `a bare RDW was offered: ${shown.join(' | ')}`);
+        assert.deepEqual(shown, ['14:30-22:00', 'RDW|14:30-22:00'],
+            'an ordinary turn and a rest day worked are two different writes, so both are asked');
+    });
+
+    test('a bare RDW with no time anywhere is dropped, leaving nothing to pick', () => {
+        const c = runChoice('UNKNOWN|RDW or Rest day? (PDF unclear)', ['RDW', 'RD']);
+        assert.equal(c.state, 'UNREADABLE');
+        assert.equal(c.options, null, 'one writable reading is not a choice — the row stays skip-only');
+    });
+
     test('a flagged cell over a MANUAL override records that a saved entry is at stake', () => {
         // Picking a reading writes with replaceId = the existing doc, so it REPLACES whatever is
         // there. For a previous import that is correct and routine. For a MANUAL entry it is the one

@@ -1074,12 +1074,16 @@ In a home-screen web app on iOS 27, `window.print()` is a no-op: no print sheet,
 fault in Apple's web-app shell rather than the engine; it is not fixed in iOS 27.0.1 and no
 page-side workaround exists. Every print control in the app now goes through `print-guard.js`:
 on an installed iPhone or iPad running iOS 27 or later the tap explains and offers "Open in
-Safari" (one tap, the same page) instead of silently doing nothing. An iOS 26 install keeps its
-print, and so does every Android install. **When Apple ships the fix, raise `PRINT_BLOCKED_FROM_IOS`
-by one rather than removing the guard** — installs update on their own schedule, and the guard
-costs a working iPhone nothing but a dialog. **Unconfirmed on a device:** whether `window.open` from
-the home-screen app lands in Safari itself or in the in-app Safari sheet; both can print from the
-share menu.
+Safari" (one tap, the same page) instead of silently doing nothing. Every Android install keeps its
+print. **Every iOS home-screen launch gets the explanation, iOS 26 and earlier included** (whole-app
+review, Oct 2026): the guard first read the iOS version and blocked only 27 and later, but WebKit
+freezes the user agent at `iPhone OS 18_7` on every recent iPhone, so on a real iOS 27 device it read
+18 and stood down — the dead buttons were dead again, while its tests passed on an invented `27_0`.
+No page-readable signal tells iOS 27 from 26 now, so an older install that could print is sent to
+Safari too: a dialog, against a button that does nothing. **When Apple ships the fix there is no
+version to raise** — retire the guard only once an installed iPhone is seen to print. **Unconfirmed
+on a device:** whether `window.open` from the home-screen app lands in Safari itself or in the in-app
+Safari sheet; both can print from the share menu.
 
 ### Samsung Internet’s Dark mode repaints the app dark — the opt-out it ignores, and the per-device answer (Oct 2026)
 Reported 23 Oct 2026 from a Samsung phone: the Calendar’s off-white cards and day cells turned dark

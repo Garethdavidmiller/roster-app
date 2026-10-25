@@ -138,12 +138,25 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 // would have rejected on the parsed path. `chosen` stays null = skip, so the DEFAULT
                 // is still "write nothing"; a pick is always a deliberate act.
                 const cand = choices?.[key];
-                const opts = Array.isArray(cand)
-                    ? cand.map(v => normaliseCellValue(v, baseShift, date))
-                          // A pair that normalises to the same thing is not a question worth asking
-                          // (e.g. AL vs RD on a Sunday — both become RD).
-                          .filter((o, i, all) => all.findIndex(x => x.value === o.value) === i)
+                // A BARE 'RDW' IS NOT A READING ANYTHING CAN WRITE (whole-app review, Oct 2026). The
+                // parsed path has refused it since v16.23 (above), but as one of two readings it was
+                // offered, and picking it built {type:'rdw', value:'RDW'}, which firestore.rules
+                // refuses — failing the whole save batch with a misleading message. Beside a reading
+                // that carries a time, it is "rest day worked, at that time"; with no time anywhere,
+                // there is nothing to offer and it is dropped.
+                const pairedTime = Array.isArray(cand)
+                    ? cand.map(v => String(v).match(/\d{2}:\d{2}-\d{2}:\d{2}/)?.[0]).find(Boolean) ?? null
+                    : null;
+                const readings = Array.isArray(cand)
+                    ? cand.map(v => (v === 'RDW' ? (pairedTime ? `${RDW_PREFIX}${pairedTime}` : null) : v))
+                          .filter(v => v != null)
                     : [];
+                const opts = readings.map(v => normaliseCellValue(v, baseShift, date))
+                    // A pair that would WRITE the same thing is not a question worth asking (AL vs RD
+                    // on a Sunday — both become RD). Compared on `display`, which is what the save
+                    // writes: `value` strips the RDW marker, so "RDW at 14:30" and a 14:30 shift — two
+                    // different writes, rest day worked against ordinary turn — used to collapse.
+                    .filter((o, i, all) => all.findIndex(x => x.display === o.display) === i);
                 states.set(key, {
                     state: 'UNREADABLE',
                     // The DATE is carried on the state (v22.17). The in-place entry has to apply the

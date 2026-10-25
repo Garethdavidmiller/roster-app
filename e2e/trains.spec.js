@@ -166,6 +166,20 @@ test.describe('trains', () => {
         await expect(page.locator('#trFestive')).toBeHidden();
     });
 
+    // THE RAILWAY DAY RUNS TO 03:00 (whole-app review, Oct 2026). The books file the 00:01, 00:05 and
+    // 00:10 departures under the evening before, and the page chose its day by the calendar — so for
+    // the first minutes after midnight it answered from the wrong timetable. Local times, no "Z":
+    // the page reads the browser's clock, and the browser and this file share a time zone.
+    test('just after midnight the page stays on the evening\'s timetable', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-10-24T00:05:00'));   // Saturday 00:05 — still Friday night
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await expect(page.locator('[data-day="SX"]'), 'Friday night\'s 00:05 to Banbury is a weekday train').toHaveAttribute('aria-pressed', 'true');
+        await page.clock.setFixedTime(new Date('2026-10-26T00:05:00'));   // Monday 00:05 — still Sunday night
+        await page.reload();
+        await expect(page.locator('[data-day="SU"]')).toHaveAttribute('aria-pressed', 'true');
+    });
+
     test('from 13 December the page turns: the old timetable by name, and the lookup answers from the new one (v24.83)', async ({ page }) => {
         // A Sunday after the change. Until v24.83 the columns still said "Now" of the stopped timetable
         // and "the 15:38" — December's Moor Street train — read "No train leaves at exactly 15:38 today".

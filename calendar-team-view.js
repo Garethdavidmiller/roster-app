@@ -93,7 +93,7 @@ export function weekStartForMonth(displayed, today) {
  *   which is what it always did.
  * @param {Function} deps._pushOverlayState      Registers Back-button close handler
  * @param {Function} deps._clearOverlayHistory   Removes Back-button handler when closing via button
- * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any, isGridShown: () => boolean, isGridConfirmed: () => boolean }}
+ * @returns {{ toggleTeamView: any, isTeamViewMode: any, restoreTeamView: any, jumpToCurrentWeek: any, refreshFromCache: any, refetchShownWeek: () => void, isGridShown: () => boolean, isGridConfirmed: () => boolean }}
  */
 export function initTeamView({ rosterOverridesCache, ensureOverridesCached, monthKey, clearFetchedMonth,
                                 getSelectedMemberIndex, isFirstRun, renderCalendar, getDisplayedMonth,
@@ -562,6 +562,19 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         if (_activeId) document.getElementById(_activeId)?.focus({ preventScroll: true });
     }
 
+    /**
+     * Re-render AND re-read the shown week (whole-app review, Oct 2026). For the page coming back
+     * into view after `releaseStaleMonths` (invariant 18): `refreshFromCache` repaints without
+     * fetching, so a station PC left on Team View went on showing hours-old leave and changes as
+     * current — the months were released and nothing asked for them again. Rendering without
+     * `skipFetch` routes the week through `ensureTeamWeekCached`, which re-reads exactly the
+     * released months and repaints from cache when each lands.
+     */
+    function refetchShownWeek() {
+        if (!teamViewMode) return;
+        renderTeamView(currentTeamGrade);
+    }
+
     // ── TOGGLE / CHROME ───────────────────────────────────────────────────────
 
     /** Toggles between personal calendar and team week view. */
@@ -685,6 +698,7 @@ export function initTeamView({ rosterOverridesCache, ensureOverridesCached, mont
         restoreTeamView,
         jumpToCurrentWeek,
         refreshFromCache,
+        refetchShownWeek,
         /** @returns {boolean} did the last team render draw SHIFT DATA, rather than the withheld
          *  "checking"/"couldn't check" panel? False before the first render. */
         isGridShown: () => teamViewMode && _lastRenderDisplay !== 'loading' && _lastRenderDisplay !== 'unavailable',
