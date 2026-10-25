@@ -291,7 +291,7 @@ export function resetNavPanel() {
 /**
  * Initialise the navigation panel for the current page.
  * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime'|'trains', memberName?: string|null, onSignOut?: (() => void)|null, beforeSignOut?: (() => boolean|Promise<boolean>)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null, authReady?: Promise<any>, canReadDocuments?: () => boolean, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
- *   onLockCalendar (v20.12, calendar only) — the shared-PIN viewer's way to lock the roster before
+ *   onLockCalendar (v20.12; the Calendar, and Trains since v24.84) — the shared-PIN viewer's way to lock the roster before
  *   walking away from a shared office PC. `isViewer` is a THUNK read at drawer-open time, never at
  *   init: Calendar access resolves asynchronously and is still `none` when this function runs.
  *   canReadDocuments (v23.17, calendar only) — a THUNK: may the drawer's two document links read?
@@ -704,7 +704,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (viewer && label && !label.textContent) label.textContent = 'Staff PIN access';
         // A footer with no member and no viewer has nothing in it — keep it away entirely rather
         // than showing an empty bar. (A member's footer is never hidden: it renders without the
-        // attribute, and this only ever runs on the calendar.)
+        // attribute, and this runs only where a PIN viewer can be: the Calendar and, since v24.84, Trains.)
         const footer = document.querySelector('.nav-panel-footer');
         if (footer && !onSignOut) {
             if (viewer) footer.removeAttribute('hidden'); else footer.setAttribute('hidden', '');

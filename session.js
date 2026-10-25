@@ -892,10 +892,14 @@ export async function reconcileExpiredIdentity({ preserveCalendarViewer = false 
  * What a `true` grants is the caller's page with NO member on it. The viewer carries no identity
  * claims (AUTH_AND_SESSIONS.md 7), so nothing keyed off `getSession()` comes within reach.
  *
- * @param {number} [budgetMs]  the whole decision's deadline — the Calendar's 6.5s
+ * @param {number} [budgetMs]  the whole decision's deadline — the Calendar's, by default
  * @returns {Promise<boolean>}
  */
-export async function holdsStaffPin(budgetMs = 6500) {
+/** The whole access decision's deadline, in ms — the Calendar's (resolveAccess) and the PIN check's
+ *  (holdsStaffPin) alike. ONE constant since v24.96: calendar-access.js imports it from here. */
+export const ACCESS_DECISION_BUDGET_MS = 6500;
+
+export async function holdsStaffPin(budgetMs = ACCESS_DECISION_BUDGET_MS) {
     const started = Date.now();
     const remaining = () => Math.max(0, budgetMs - (Date.now() - started));
     /** @type {any} */ let timer;

@@ -775,7 +775,10 @@ describe('the UX pass (v24.92): leads and chips, the two lines, one train at a t
         const rows = new Set([...decG.columns[i].calls, ...(was?.calls ?? [])]);
         assert.equal((one.match(/<tr><th scope="row"/g) ?? []).length, rows.size, 'the stations it stops at, and any it stopped at');
         assert.equal((one.match(/aria-pressed="true"/g) ?? []).length, 1);
-        assert.match(one, /<th scope="col" class="tr-col-on"><button/);
+        assert.match(one, /<th scope="col" class="tr-grid-colhead tr-col-on"><button/);
+        // Every head cell carries the class that hands its padding to the button (v24.96): the whole
+        // cell is the tap target, not the 28px of text inside it.
+        assert.equal((one.match(/<th scope="col" class="tr-grid-colhead/g) ?? []).length, decG.columns.length);
         assert.match(one, /Only where the <strong>:06 to Oxford<\/strong> stops\. <button type="button" class="tr-more" id="trGridAll">Show every station<\/button>/);
         assert.doesNotMatch(one, /tr-grid-band/, 'one line\'s rows alone are not banded');
         assert.doesNotMatch(renderGrid(nowG, decG, 'dec', STATIONS), /tr-grid-band/, 'no bands passed, none drawn');
@@ -872,5 +875,58 @@ describe('the eight improvements (v24.94): the caveat by phase, Last trains, the
         assert.equal((differ.match(/tr-near-head/g) ?? []).length, 2);
         assert.match(differ, /<li class="tr-near-only"><span class="tr-near-time">10:36<\/span> Banbury<span class="sr-only"> — only in this timetable<\/span><\/li>/);
         assert.doesNotMatch(differ, /tr-near-only"><span class="tr-near-time">10:40/, 'a train both sides have is not marked');
+    });
+});
+
+describe('the 72-hour review (v24.96): one train is one train, "Same time" over a changed stop, dates derived', () => {
+    const args = (/** @type {string} */ at, /** @type {'SX'|'SO'|'SU'} */ day, extra = {}) => ({
+        at, day, nowRows: TIMETABLES.now[day].dep, decRows: TIMETABLES.dec[day].dep, started: false,
+        labels: { old: 'Now', new: 'From 13 Dec' }, change: CHANGE_DATE, stations: STATIONS, ...extra });
+
+    test('the near lists never mark a train "only in this timetable" when the other side runs it at the same time, end and route', () => {
+        // The Tue–Thu 17:33 to Snow Hill and December's every-weekday 17:33 are one train; so are the
+        // two 17:45 Oxford variants and December's one. v24.94 keyed on the days and marked all of them.
+        const h = renderLookup(args('17:33', 'SX'));
+        assert.doesNotMatch(h, /tr-near-only"><span class="tr-near-time">17:33/, 'the 17:33 to Snow Hill is on both sides');
+        assert.doesNotMatch(h, /tr-near-only"><span class="tr-near-time">17:45/, 'the 17:45 to Oxford is on both sides');
+        // A time only one side has at all is still marked (the 17:37 Princes Risborough became the 17:41).
+        assert.match(h, /tr-near-only"><span class="tr-near-time">17:37<\/span> Princes Risborough/);
+        assert.match(h, /tr-near-only"><span class="tr-near-time">17:41<\/span> Princes Risborough/);
+    });
+
+    test('a difference in the days alone is neither "the same trains" nor a train only one side has', () => {
+        const decRows = TIMETABLES.dec.SX.dep;
+        const days = TIMETABLES.now.SX.dep.find(r => r[3])?.[3];
+        assert.ok(days, 'the current weekday book has a train with a days exception');
+        // December's own rows as "now", with one of them running on some days only.
+        const nowRows = decRows.map(r => r[0] === '17:33' ? [r[0], r[1], r[2], days, ...r.slice(4)] : r);
+        const h = renderLookup(args('17:33', 'SX', { nowRows, decRows }));
+        assert.equal((h.match(/tr-near-head/g) ?? []).length, 2, 'two columns: the days changed');
+        assert.doesNotMatch(h, /the same trains/);
+        assert.doesNotMatch(h, /tr-near-only/, 'and no train is marked as only one side\'s');
+    });
+
+    test('"Same time" heads an answer whose stops changed; "No change" stays for a train nothing happened to', () => {
+        const a = renderLookup(args('09:02', 'SX'));
+        assert.match(a, /<strong>The 09:02 to Birmingham Moor Street:<\/strong> Same time\. From 13 December it also stops at Kings Sutton\./);
+        assert.doesNotMatch(a, /No change\. From 13 December/);
+        const sat = renderLookup(args('08:02', 'SO'));
+        assert.match(sat, /Same time\. From 13 December it does not stop at Kings Sutton, Hatton and Lapworth\./);
+        // Somewhere in the weekday book a train neither moves nor changes a stop: its answer is still "No change."
+        const untouched = TIMETABLES.now.SX.dep.map(r => renderLookup(args(r[0], 'SX'))).find(h => /No change\.<\/p>/.test(h));
+        assert.ok(untouched, 'a train with nothing changed keeps the plain answer');
+    });
+
+    test('the verdicts take the change date from the data, and drop "now or from" once it has come', () => {
+        const sav = Object.keys(STATIONS).find(c => /Stratford/.test(STATIONS[c]));
+        assert.ok(sav, 'Stratford-upon-Avon is in the station table');
+        const now = TIMETABLES.now.SX.dep, dec = TIMETABLES.dec.SX.dep;
+        assert.equal(stationView(now, dec, sav, 'dep', { change: CHANGE_DATE }).verdict.text, 'New from 13 December: one direct train, the 09:31.');
+        assert.match(stationView(now, dec, sav, 'dep', { change: '2027-05-16' }).verdict.text, /^New from 16 May: /, 'moving the constant moves the sentence');
+        assert.equal(stationView(now, dec, sav, 'dep').verdict.text, 'New from 13 December: one direct train, the 09:31.', 'no date given: the old words, unchanged');
+        // A station no Saturday train reaches on either side reads "now or from" before the change and not after.
+        const none = STATION_ORDER.find(c => { const v = stationView(TIMETABLES.now.SO.dep, TIMETABLES.dec.SO.dep, c, 'dep', { change: CHANGE_DATE }); return /^No direct trains from Marylebone on this day, now or from 13 December\.$/.test(v.verdict.text); });
+        assert.ok(none, 'such a station exists in the Saturday books');
+        assert.equal(stationView(TIMETABLES.now.SO.dep, TIMETABLES.dec.SO.dep, none, 'dep', { change: CHANGE_DATE, started: true }).verdict.text, 'No direct trains from Marylebone on this day.');
     });
 });

@@ -478,7 +478,9 @@ export function earlyRosterShare(samples, { page }) {
     const counted = Object.fromEntries(Object.entries(samples || {}).filter(([k]) => num(parsePerfSampleKey(k).version) >= num(EARLY_ROSTER_FROM)));
     const shown = summariseEarlyRoster(counted, { page }).rows[0]?.total || 0;
     const ready = summariseStartMilestones(counted, { page }).rows.find(r => r.metric === 'ready')?.total || 0;
-    const pct = shown && ready ? Math.round((shown / ready) * 100) : null;
+    // The rows beside this figure wear "(few)" below THIN_SAMPLE; the share said "33%" over 3 opens
+    // until v24.96. No share until there are enough opens to make a claim.
+    const pct = shown && ready >= THIN_SAMPLE ? Math.round((shown / ready) * 100) : null;
     return pct !== null && pct <= 100 ? pct : null;
 }
 
@@ -819,8 +821,10 @@ export const THIN_SAMPLE = 20;
 /**
  * One-line plain-English verdict for the overall speed, with a status tone for colour. Thresholds:
  * ≥20% slow → bad; else ≥80% quick → good; else ok — whose sentence says "mostly quick" only when
- * quick is the larger band, and "most often a moment" when it is not. Empty → a "still building up"
- * message.
+ * quick is a MAJORITY of the opens (v24.96: v24.85 made it the larger band, and at 41% quick / 40% a
+ * moment / 19% slow — 59% over a second — it still read "mostly feels quick"; raw counts, because the
+ * rounded percentages tie at 99 / 100 / 1), and "most often a moment" otherwise. Empty → a "still
+ * building up" message.
  *
  * A total below `THIN_SAMPLE` short-circuits to `thin` BEFORE any of those, because a verdict is a
  * claim and there is not enough here to make one. The percentage is still shown beside it — the
@@ -835,7 +839,7 @@ export function perfVerdict(overall, kind = 'pages') {
     if (overall.total < THIN_SAMPLE) return { tone: 'thin', text: text.thin };
     if (overall.pctSlow >= 20)  return { tone: 'bad',  text: text.bad };
     if (overall.pctQuick >= 80) return { tone: 'good', text: text.good };
-    if (overall.pctQuick >= overall.pctOk) return { tone: 'ok', text: text.ok };
+    if (overall.quick > overall.ok && overall.quick * 2 >= overall.total) return { tone: 'ok', text: text.ok };
     return { tone: 'ok', text: overall.pctSlow ? text.momentSlow : text.moment };
 }
 

@@ -466,8 +466,10 @@ async function initPageSpeedCard() {
      *
      *  The share is `earlyRosterShare`'s (perf-stats.js): against `ready` on the versions that can
      *  report a copy, not every version's — which printed 19% for a true 60% in the month it shipped.
-     *  @param {Record<string, number>} samples @param {string} page */
-    const earlyRosterRows = (samples, page) => {
+     *  @param {Record<string, number>} samples @param {string} page
+     *  @param {string} [windowLabel] "this month" / "last month" — the share is of ONE window's opens, and said
+     *    "since the app began counting it" until v24.96, which was true for the month it shipped and no other */
+    const earlyRosterRows = (samples, page, windowLabel = 'this month') => {
         const { rows } = summariseEarlyRoster(samples, { page });
         if (!rows.length) return null;
         const pct = earlyRosterShare(samples, { page });
@@ -477,7 +479,7 @@ async function initPageSpeedCard() {
         heading.textContent = 'Before the sign-in check';
         frag.appendChild(heading);
         frag.appendChild(noteLine(
-            `A signed-in member is shown their own roster at once, from the copy kept on their phone, while the check runs — so this does not wait for the server. Counted only on opens that had a copy to show${pct !== null ? ` — ${pct}% of Calendar opens since the app began counting it` : ''}.`));
+            `A signed-in member is shown their own roster at once, from the copy kept on their phone, while the check runs — so this does not wait for the server. Counted only on opens that had a copy to show${pct !== null ? ` — ${pct}% of ${windowLabel === 'last month' ? 'last month’s' : 'this month’s'} Calendar opens, on versions that count it` : ''}.`));
         frag.appendChild(timingRowList(rows));
         return frag;
     };
@@ -646,7 +648,7 @@ async function initPageSpeedCard() {
      *  the wrong page the first time that changes. The busiest page is the one whose distribution
      *  drives the headline figure, which is the same reason the Calendar is the interesting one now.
      *  @param {Record<string, number>} samples @param {Array<any>} byPage */
-    const whySection = (samples, byPage) => {
+    const whySection = (samples, byPage, windowLabel = 'this month') => {
         const busiest = byPage[0];
         if (!busiest || !busiest.total) return null;
         const meta = PAGE_META[busiest.page];
@@ -674,7 +676,7 @@ async function initPageSpeedCard() {
         // Then what a member saw BEFORE all of that (v24.85) — the copy of their own roster painted
         // while the check runs. Straight after the two blocks about "Shifts shown", because it is the
         // answer that figure cannot give: how soon the shifts were on screen at all.
-        const early = earlyRosterRows(samples, busiest.page);
+        const early = earlyRosterRows(samples, busiest.page, windowLabel);
         if (early) { frag.appendChild(early); any = true; }
         // Then the OTHER subset of that same rung — the opens a release caused. Beside the block
         // above because both split "Shifts shown", and after it because this one is rarer: it
@@ -772,7 +774,7 @@ async function initPageSpeedCard() {
             }
 
             // Section 3 — WHY. The per-page rows above say which page is slow; this says for whom.
-            const why = whySection(w.samples || {}, w.pages.byPage);
+            const why = whySection(w.samples || {}, w.pages.byPage, windowLabel);
             if (why) body.appendChild(why);
 
             const note = document.createElement('p');

@@ -40,7 +40,7 @@
  * versions, each with its days.
  */
 
-import { serviceMinutes, alignTimes, compareRoutes, LINES, lineDepth, PATTERN_HOURS, MAX_SHIFT_MIN } from './trains-change.js';
+import { serviceMinutes, alignTimes, compareRoutes, LINES, lineDepth, PATTERN_HOURS, MAX_SHIFT_MIN, dateWords } from './trains-change.js';
 import { STATION_ORDER } from './trains-data.js';
 
 /** @typedef {import('./trains-change.js').TrainRow} TrainRow */
@@ -221,25 +221,28 @@ export function summarise(rows, crs, dir) {
  * @param {TrainRow[]} decRows
  * @param {string} crs
  * @param {'dep'|'arr'} dir
+ * @param {{ change?: string|null, started?: boolean }} [when] the change date (ISO) the verdict names, and
+ *   whether it has come. Every date the page shows is derived from the data module (v24.96): the verdicts typed
+ *   "13 December" until the 72-hour review, which is how that sentence had become a claim rather than a fact.
  * @returns {{ crs: string, now: StationSummary, dec: StationSummary|null, trains: PairedTrain[]|null,
  *   ending: { now: StationSummary, dec: StationSummary, trains: PairedTrain[], through: number }|null,
  *   verdict: { tone: 'same'|'more'|'less'|'moved'|'unknown', text: string } }}
  */
-export function stationView(nowRows, decRows, crs, dir) {
+export function stationView(nowRows, decRows, crs, dir, when = {}) {
     const now = summarise(nowRows, crs, dir);
     const byTime = (/** @type {TrainRow[]} */ rs) => [...rs].sort((a, b) => serviceMinutes(a[0]) - serviceMinutes(b[0]));
     if (decemberKnown(nowRows, decRows, crs)) {
         const dec = summarise(decRows, crs, dir);
         const trains = stationTrains(nowRows, decRows, crs, dir);
-        return { crs, now, dec, trains, ending: null, verdict: verdictFor(now, dec, trains, dir) };
+        return { crs, now, dec, trains, ending: null, verdict: verdictFor(now, dec, trains, dir, when) };
     }
     const eNow = endingAt(nowRows, crs), eDec = endingAt(decRows, crs);
-    if (!eNow.length && !eDec.length) return { crs, now, dec: null, trains: null, ending: null, verdict: verdictFor(now, null, null, dir) };
+    if (!eNow.length && !eDec.length) return { crs, now, dec: null, trains: null, ending: null, verdict: verdictFor(now, null, null, dir, when) };
     const ending = {
         now: summarise(eNow, crs, dir), dec: summarise(eDec, crs, dir),
         trains: alignTimes(byTime(eNow), byTime(eDec)), through: now.total - eNow.length,
     };
-    return { crs, now, dec: null, trains: null, ending, verdict: verdictFor(ending.now, ending.dec, ending.trains, dir) };
+    return { crs, now, dec: null, trains: null, ending, verdict: verdictFor(ending.now, ending.dec, ending.trains, dir, when) };
 }
 
 /**
@@ -353,23 +356,25 @@ export function stationTrains(nowRows, decRows, crs, dir) {
  * @param {StationSummary|null} dec
  * @param {PairedTrain[]|null} trains
  * @param {'dep'|'arr'} [dir]
+ * @param {{ change?: string|null, started?: boolean }} [when] see stationView
  * @returns {{ tone: 'same'|'more'|'less'|'moved'|'unknown', text: string }}
  */
-export function verdictFor(now, dec, trains, dir = 'dep') {
+export function verdictFor(now, dec, trains, dir = 'dep', { change = null, started = false } = {}) {
+    const from = change ? dateWords(change) : '13 December';
     if (!dec) return { tone: 'unknown', text: 'December not known yet: Chiltern has not published where its December trains stop. Today’s figures are below.' };
     // No train either side — a station that only some days reach. It used to say "No change." over a
     // table of noughts, which a reader takes for "the trains carry on as they are".
     if (!now.total && !dec.total) {
         return { tone: 'same', text: dir === 'dep'
-            ? 'No direct trains from Marylebone on this day, now or from 13 December.'
-            : 'No direct trains to Marylebone on this day, now or from 13 December.' };
+            ? `No direct trains from Marylebone on this day${started ? '' : `, now or from ${from}`}.`
+            : `No direct trains to Marylebone on this day${started ? '' : `, now or from ${from}`}.` };
     }
     if (!now.total && dec.total) {
         return { tone: 'more', text: dec.total === 1
-            ? `New from 13 December: one direct train, the ${dec.first}.`
-            : `New from 13 December: ${dec.total} direct trains a day.` };
+            ? `New from ${from}: one direct train, the ${dec.first}.`
+            : `New from ${from}: ${dec.total} direct trains a day.` };
     }
-    if (now.total && !dec.total) return { tone: 'less', text: 'No direct trains from 13 December.' };
+    if (now.total && !dec.total) return { tone: 'less', text: `No direct trains from ${from}.` };
     if (hourChanged(now, dec)) {
         const more = dec.daytime > now.daytime;
         return { tone: more ? 'more' : 'less',

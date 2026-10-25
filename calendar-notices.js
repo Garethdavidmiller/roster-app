@@ -248,6 +248,63 @@ export function initCalendarNotices({ after } = {}) {
         _openWhenAudienceAllows(lb, 'members', payCalcIsTheirs);
     }());
 
+    // WIRED BEFORE THE INSTALL NOTICE (v24.96, the 72-hour review). Two notices can be due on one load
+    // during 6–12 December — this one and, on a phone that never answered it, the install notice — and
+    // the first to ask for the screen takes it (openNoticeIfClear refuses a second, leaving it unflagged
+    // for the next load). The time-critical reminder goes first; the install notice, which keeps for
+    // 90 days, comes back the load after.
+    // ── The new timetable starts on Sunday: the final week's reminder (v24.94; owner, 23 Oct 2026) ──
+    //
+    // The first timetable notice ended with October (OCTOBER_LAST_DAY), six weeks before the change,
+    // and from then nothing in the app said the day was coming. This is offered from Sunday 6 December
+    // to the end of Saturday the 12th, members only, a ONE-OFF on the same rule as the first — every
+    // dismissal marks it done. Its words name the weekend rather than "13 December" so it does not
+    // read as the October notice coming round again. A push goes out on the Saturday evening too
+    // (functions/documents.js, sendTimetableReminder) — to the phones that have notifications on;
+    // this reaches the Calendar, which everyone opens.
+    //
+    // A NOTICE THAT STARTS ON A DATE is new here. The start is read from the clock at wiring time, and
+    // a device that arrives early is left UNFLAGGED, exactly as an out-of-audience device is: it gets
+    // the notice when its week comes. calendar-notices.test.mjs reads `STARTS` and keeps a notice out
+    // of the matrix until it is due.
+    (function () {
+        const NOTICE_ID   = 'timetable-soon-2026';
+        const NOTICE_DATE = '6 Dec 2026';
+        const DONE_KEY    = 'myb_notice_timetable_soon_2026_done';
+        const STARTS      = new Date(2026, 11, 6);      // local midnight, Sunday 6 December
+        const CHANGE_EVE  = '12 Dec 2026';              // offered through the whole of the Saturday; gone on the day itself
+
+        const overlay = document.getElementById('timetableSoonNoticeLb');
+        if (!overlay) return;
+        if (lsGet(DONE_KEY)) return;
+        if (isNoticeExpired(CHANGE_EVE, 1)) { lsSet(DONE_KEY, '1'); return; }
+        if (Date.now() < STARTS.getTime()) return;
+
+        const markDone = () => lsSet(DONE_KEY, '1');
+
+        const lb = createLightbox({
+            overlay,
+            content:  /** @type {HTMLElement} */ (document.getElementById('timetableSoonNoticeContent')),
+            closeBtn: /** @type {HTMLElement} */ (document.getElementById('timetableSoonNoticeClose')),
+            onOpen() {
+                archiveNotice({
+                    id: NOTICE_ID, title: 'The new timetable starts on Sunday', section: 'Trains',
+                    date: NOTICE_DATE,
+                    body: 'Chiltern’s new timetable starts on Sunday 13 December. The Trains page shows what '
+                        + 'changes at every station, and the last trains — open it from the menu: ☰ then 🚆 Trains.',
+                });
+            },
+            onClose() { markDone(); },
+        });
+
+        document.getElementById('timetableSoonNoticeGo')?.addEventListener('click', markDone);
+        document.getElementById('timetableSoonNoticeLater')?.addEventListener('click', () => lb.close());
+
+        // 'members', as the October notice was: whether the station PC should be told too is still the
+        // owner's open question. A PIN unlock is left unflagged, so a signed-in load still gets it.
+        _openWhenAudienceAllows(lb, 'members');
+    }());
+
     // ── Put the roster on your home screen (v24.91; owner, 22 Oct 2026) ────────────────────────────
     //
     // "Reminding everyone to install the web app on mobile rather than use the web address." The
@@ -336,58 +393,6 @@ export function initCalendarNotices({ after } = {}) {
             () => !!installRoute() && (payNoticeDone || !payCalcIsTheirs()),
             () => { decided = installRoute() ?? decided; yieldToInstallNotice(); });
     }());
-
-    // ── The new timetable starts on Sunday: the final week's reminder (v24.94; owner, 23 Oct 2026) ──
-    //
-    // The first timetable notice ended with October (OCTOBER_LAST_DAY), six weeks before the change,
-    // and from then nothing in the app said the day was coming. This is offered from Sunday 6 December
-    // to the end of Saturday the 12th, members only, a ONE-OFF on the same rule as the first — every
-    // dismissal marks it done. Its words name the weekend rather than "13 December" so it does not
-    // read as the October notice coming round again. A push goes out on the Saturday evening too
-    // (functions/documents.js, sendTimetableReminder) — to the phones that have notifications on;
-    // this reaches the Calendar, which everyone opens.
-    //
-    // A NOTICE THAT STARTS ON A DATE is new here. The start is read from the clock at wiring time, and
-    // a device that arrives early is left UNFLAGGED, exactly as an out-of-audience device is: it gets
-    // the notice when its week comes. calendar-notices.test.mjs reads `STARTS` and keeps a notice out
-    // of the matrix until it is due.
-    (function () {
-        const NOTICE_ID   = 'timetable-soon-2026';
-        const NOTICE_DATE = '6 Dec 2026';
-        const DONE_KEY    = 'myb_notice_timetable_soon_2026_done';
-        const STARTS      = new Date(2026, 11, 6);      // local midnight, Sunday 6 December
-        const CHANGE_EVE  = '12 Dec 2026';              // offered through the whole of the Saturday; gone on the day itself
-
-        const overlay = document.getElementById('timetableSoonNoticeLb');
-        if (!overlay) return;
-        if (lsGet(DONE_KEY)) return;
-        if (isNoticeExpired(CHANGE_EVE, 1)) { lsSet(DONE_KEY, '1'); return; }
-        if (Date.now() < STARTS.getTime()) return;
-
-        const markDone = () => lsSet(DONE_KEY, '1');
-
-        const lb = createLightbox({
-            overlay,
-            content:  /** @type {HTMLElement} */ (document.getElementById('timetableSoonNoticeContent')),
-            closeBtn: /** @type {HTMLElement} */ (document.getElementById('timetableSoonNoticeClose')),
-            onOpen() {
-                archiveNotice({
-                    id: NOTICE_ID, title: 'The new timetable starts on Sunday', section: 'Trains',
-                    date: NOTICE_DATE,
-                    body: 'Chiltern’s new timetable starts on Sunday 13 December. The Trains page shows what '
-                        + 'changes at every station, and the last trains — open it from the menu: ☰ then 🚆 Trains.',
-                });
-            },
-            onClose() { markDone(); },
-        });
-
-        document.getElementById('timetableSoonNoticeGo')?.addEventListener('click', markDone);
-        document.getElementById('timetableSoonNoticeLater')?.addEventListener('click', () => lb.close());
-
-        // 'members', as the October notice was: whether the station PC should be told too is still the
-        // owner's open question. A PIN unlock is left unflagged, so a signed-in load still gets it.
-        _openWhenAudienceAllows(lb, 'members');
-    }());
 }
 
 /** The install notice's archived how-to, per route — what the drawer's App Notices keeps of the lines
@@ -414,7 +419,7 @@ function _showInstallRoute({ how, mirror }) {
         installNoticePay:     mirror,
         installNoticeHave:    !mirror && how !== 'prompt',   // Chromium offers only where it is not installed
         installNoticeActions: mirror || how === 'prompt',
-        installNoticeInstall: how === 'prompt',
+        installNoticeInstall: !mirror && how === 'prompt',   // never an Install button on the mirror, whatever `how` says (v24.96)
         installNoticeGo:      mirror,
     };
     for (const [id, on] of Object.entries(shown)) {

@@ -110,6 +110,9 @@ describe('the url is the worker\'s, not the payload\'s', () => {
     test('no open window → a new one, re-based onto this scope', async () => {
         const { opened } = await tap({ windows: [], url: 'https://elsewhere.example/overtime.html' });
         assert.deepEqual(opened, [`${SCOPE}overtime.html`]);
+        // The timetable push (v24.94) names the main address; a mirror install lands on ITS trains page.
+        const { opened: trains } = await tap({ windows: [], url: 'https://myb-roster.web.app/trains.html' });
+        assert.deepEqual(trains, [`${SCOPE}trains.html`]);
     });
 
     test('a page not on the allowlist lands on the app root', async () => {

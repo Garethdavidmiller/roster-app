@@ -21,7 +21,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
-// The nineteen deployed functions. Order-insensitive; names are what `firebase deploy` sees.
+// The twenty-one deployed functions. Order-insensitive; names are what `firebase deploy` sees.
 const DEPLOY_SURFACE = [
     'ingestHuddle',
     // v24.16 — the short-lived document URL (owner decision, AUTH_PLAN.md E6). A DEPLOYED function,

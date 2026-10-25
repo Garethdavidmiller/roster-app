@@ -27,6 +27,7 @@
  */
 import { describe, test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { EventEmitter } from 'node:events';
 import { createRequire } from 'node:module';
 
@@ -500,6 +501,22 @@ describe('sendTimetableReminder — one broadcast, on the evening before the tim
         assert.match(payload.body, /13 December/);
         assert.doesNotMatch(payload.body, /!/, 'calm tone — no exclamation marks');
         assert.ok(payload.url.endsWith('/trains.html'), payload.url);
+    });
+
+    test('the change date lives in two files and one weekday, and they agree (v24.96)', () => {
+        // functions/documents.js guards the push on TIMETABLE_CHANGE; trains-data.js draws the page from
+        // CHANGE_DATE; the headline says "from Sunday". Three places, read as text so the check needs no
+        // import of either, and so the next change cannot move one without the others.
+        const here = new URL('.', import.meta.url);
+        const fn = readFileSync(new URL('./functions/documents.js', here), 'utf8');
+        const data = readFileSync(new URL('./trains-data.js', here), 'utf8');
+        const m = /TIMETABLE_CHANGE = Object\.freeze\(\{ year: (\d{4}), month: (\d{1,2}), day: (\d{1,2}) \}\)/.exec(fn);
+        const c = /export const CHANGE_DATE = '(\d{4})-(\d{2})-(\d{2})'/.exec(data);
+        assert.ok(m && c, 'both constants are where this test expects them');
+        const fromFn = `${m[1]}-${String(Number(m[2]) + 1).padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+        assert.equal(fromFn, `${c[1]}-${c[2]}-${c[3]}`, 'the push and the page name the same change date');
+        assert.equal(new Date(Date.UTC(Number(c[1]), Number(c[2]) - 1, Number(c[3]))).getUTCDay(), 0, 'the headline says "from Sunday" — the date must be one');
+        assert.match(fn, /TIMETABLE_CHANGE_WORDS/, 'the body takes its words from the constant, not a typed date');
     });
 
     test('the same date in another year sends nothing', async () => {

@@ -3,8 +3,8 @@
  * (second cut of the index.js domain split; the first was push.js at v20.52).
  *
  * Owns: ingestHuddle (the Power Automate upload), the three onDocumentCreated notification
- * triggers, the scheduled pay reminder, and their private helpers (the huddle prune, the
- * fan-out wrappers). Everything DOCUMENT-shaped: a file arrives or a doc is created, staff
+ * triggers, the scheduled pay reminder, the one-off timetable reminder (sendTimetableReminder,
+ * v24.94), and their private helpers (the huddle prune, the fan-out wrappers). Everything DOCUMENT-shaped: a file arrives or a doc is created, staff
  * are told, old copies are reclaimed.
  *
  * ── WHY A FACTORY, NOT A PLAIN MODULE ──────────────────────────────────────────────────────────
@@ -646,6 +646,11 @@ const sendPayReminderNotification = onSchedule(
  * 50 staff to read this?") answers itself for a timetable every member will be asked about.
  */
 const TIMETABLE_CHANGE = Object.freeze({ year: 2026, month: 11, day: 13 });   // Sunday 13 December 2026 (month 0-based)
+// The words the push carries come from the constant (v24.96): "13 December" was typed beside it, so
+// moving the one constant would have moved the guard and not the sentence. documents-endpoints.test.mjs
+// also holds this date equal to trains-data.js's CHANGE_DATE, and to a Sunday (the headline says so).
+const MONTH_WORDS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const TIMETABLE_CHANGE_WORDS = `${TIMETABLE_CHANGE.day} ${MONTH_WORDS[TIMETABLE_CHANGE.month]}`;
 const sendTimetableReminder = onSchedule(
     {
         schedule:  '0 18 * * *',
@@ -664,7 +669,7 @@ const sendTimetableReminder = onSchedule(
             setupWebPush(VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY);
             await fanOutPush(buildPushPayload({
                 feature: 'timetable',
-                body:    'Chiltern’s times change on 13 December. Tap to see what changes at Marylebone.',
+                body:    `Chiltern’s times change on ${TIMETABLE_CHANGE_WORDS}. Tap to see what changes at Marylebone.`,
                 baseUrl: STAFF_SITE_URL,
                 url:     `${STAFF_SITE_URL}/trains.html`,
             }), '[timetable]');

@@ -133,6 +133,7 @@ mock.module('./login-overlay.js', {
 
 mock.module('./session.js', {
     namedExports: {
+        ACCESS_DECISION_BUDGET_MS: 6500,   // the real constant lives in session.js since v24.96
         getSession: () => sessionValue,
         clearSession: () => { ops.push('clearSession'); sessionValue = null; },
         reconcileExpiredIdentity: async (opts) => {

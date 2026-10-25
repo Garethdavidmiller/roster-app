@@ -1051,6 +1051,9 @@ describe('a stalled apt mirror costs a retry, not the job (23–24 Oct 2026)', (
         test('takes the package list from Playwright, and falls back to the plain command if that output moves', () => {
             assert.match(script, /npx playwright install-deps --dry-run "\$BROWSER"/, 'the list must be Playwright\'s own, not a copy kept here');
             assert.match(script, /exec timeout -k \d+ "[^"]+" npx playwright install-deps "\$BROWSER"/, 'the fallback is the plain command, still bounded');
+            // …and as ROOT where there is a sudo to go through: the plain command spawns `sudo apt-get`
+            // itself, and a clock started by the runner's user could not kill that apt (23 Oct 2026).
+            assert.match(script, /exec sudo -n env "PATH=\$PATH" timeout -k \d+ "[^"]+" npx playwright install-deps "\$BROWSER"/, 'the fallback\'s clock must run as root too');
         });
 
         test('the clock runs as root around apt, and only the download phase is bounded', () => {
@@ -1075,9 +1078,10 @@ describe('a stalled apt mirror costs a retry, not the job (23–24 Oct 2026)', (
             assert.ok(attempts > 1 && perAttempt > 0 && update > 0, `the defaults must be readable (attempts ${attempts}, per attempt ${perAttempt}s, update ${update}s)`);
             assert.equal(scriptAttempts, attempts, 'action.yml and install.sh must agree on the attempts');
             assert.equal(scriptPer, perAttempt, 'action.yml and install.sh must agree on the seconds per attempt');
-            // Every attempt at both phases stalling, each cut off plus its 3 s pause, then the install
-            // from cache (measured at 15–30 s; allowed 60).
-            const worst = attempts * (update + perAttempt + 6) + 60;
+            // Every attempt at both phases stalling: each cut-off costs its cap, up to 5 s of kill grace
+            // (`timeout -k 5`) and the 3 s pause; then Playwright's dry run and the apt.conf write
+            // (~15 s), and the install from cache (measured at 15–30 s; allowed 60).
+            const worst = attempts * (update + perAttempt + 8) + 15 + 60;
             assert.ok(worst <= MAX_MINUTES * 60,
                 `worst case ${worst}s does not fit inside the calling step's ${MAX_MINUTES} minutes — shrink the attempts, not the step's limit`);
         });

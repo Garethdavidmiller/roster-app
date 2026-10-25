@@ -1088,9 +1088,12 @@ Two reminders run themselves in the week before the change, and nobody presses a
   ONE broadcast push to every subscribed device: "🚆 New timetable from Sunday", landing on the Trains
   page. It is a DAILY schedule with a one-date guard, so on every other evening it logs "Not the
   evening before the change — skipping" and does nothing. To confirm it went: the function's log on
-  the 13th says "Timetable reminder sent". To stop it beforehand: delete `sendTimetableReminder` from
-  the builder's return in documents.js and from `functions-surface.test.mjs`, and deploy. The next
-  timetable change moves `TIMETABLE_CHANGE` there; until then the function is harmless.
+  the 13th says "Timetable reminder sent". To stop it beforehand, the reversible way: in the GCP console, Cloud Scheduler → the job
+  Firebase created for it (named after the function) → Pause; the next Functions deploy re-creates the
+  schedule enabled, so pause it again after any deploy before the 12th. The permanent way: delete
+  `sendTimetableReminder` from the builder's return in documents.js and from `functions-surface.test.mjs`,
+  and deploy. The next timetable change moves `TIMETABLE_CHANGE` there — the body's date follows it
+  (v24.96), the headline's "from Sunday" is held to a Sunday by the test; until then the function is harmless.
 - **6 to 12 December** — the Calendar notice `timetable-soon-2026` (calendar-notices.js) is offered to
   signed-in members, once each, and retires itself on the 13th. A member who sees the push and the
   notice sees the same message twice, which is the intent: the push reaches the phones with

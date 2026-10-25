@@ -617,7 +617,8 @@ test('a viewer opens Trains from the drawer and reads it, still unlocked when it
     await page.locator('#navPanel .nav-panel-pill--trains').click();
 
     await expect(page).toHaveURL(/trains\.html/);
-    await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
+    // The caveat line is on every view and in every phase; the changes headline is not — from 11 Jan 2027 the page opens on Stations (v24.96).
+    await expect(page.locator('#trCaveat')).toBeVisible();
     await expect(page.locator('#loginOverlay')).toHaveCount(0);
     // The drawer is the station's, not a member's: the PIN's label and Lock, and no Sign out.
     await page.locator('#navMenuBtn').click();
@@ -638,7 +639,8 @@ test('Lock on the Trains page locks the station: the PIN card, and Trains asks f
     await enterPin(page, '1234');
     await expect(page.locator('#calendarDisplay')).toBeVisible();
     await page.goto('/trains.html');
-    await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
+    // The caveat line is on every view and in every phase; the changes headline is not — from 11 Jan 2027 the page opens on Stations (v24.96).
+    await expect(page.locator('#trCaveat')).toBeVisible();
 
     await page.locator('#navMenuBtn').click();
     await page.locator('#navLockCalendarBtn').click();
@@ -1108,6 +1110,7 @@ async function heldSessionWithReset(page, resetAgoMs) {
         localStorage.setItem('myb_notice_timetable_2026_done', '1');
         localStorage.setItem('myb_notice_ytd_figures_2026_done', '1');
         localStorage.setItem('myb_notice_install_app_2026_done', '1');
+        localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 6–12 Dec 2026 (v24.96)
         window.__E2E = Object.assign(window.__E2E || {}, { signInEstablishes: true });
     });
     await page.route('https://firestore.googleapis.com/**/documents/passwordStatus/**', route => route.fulfill(resetAgoMs

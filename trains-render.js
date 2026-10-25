@@ -253,7 +253,7 @@ export function renderGrid(nowGrid, decGrid, mode, stations, { focus = null, ban
     const rowsOrder = orderStations([nowGrid.stations, grid.stations]).filter(s => want.has(s) && inFocus(s));
     const on = (/** @type {number} */ i) => col === i ? ' class="tr-col-on"' : '';
     const head = '<tr><th scope="col" class="tr-grid-st">Station</th>' + grid.columns.map((c, i) =>
-        `<th scope="col"${on(i)}><button type="button" class="tr-grid-colbtn" data-col="${i}" aria-pressed="${col === i}">`
+        `<th scope="col" class="tr-grid-colhead${col === i ? ' tr-col-on' : ''}"><button type="button" class="tr-grid-colbtn" data-col="${i}" aria-pressed="${col === i}">`
         + `<span class="tr-grid-min">:${String(c.minute).padStart(2, '0')}</span>`
         + `<span class="tr-grid-end">${esc(SHORT[c.end] ?? stations[c.end] ?? c.end)}</span>`
         // Two Aylesbury columns look alike until the route is named; the dots below agree with it.
@@ -389,8 +389,14 @@ export function renderLookup({ at, day, nowRows, decRows, started, labels, chang
         const far = t.kind === 'same' && a && b ? serviceMinutes(b) - serviceMinutes(a) : 0;
         if (!started) {
             const when = t.kind === 'earlier' || t.kind === 'later' ? ` (${t.dec})` : '';
+            const stops = stopsWords(n, d);
+            const label = changeLabel(far ? { ...t, farShift: far } : t, stations, 'dep');
+            // "No change. From 13 December it also stops at Kings Sutton." contradicted itself in one
+            // breath, while the Kings Sutton card called the same train "Will stop here": with a stop
+            // changed, the TIME is what has not (v24.96, the 72-hour review).
+            const head = label === 'No change' && stops ? 'Same time' : label;
             return `<p class="tr-answer"><strong>The ${esc(at)} to ${esc(named(r, t.nowTo))}${days ? ` (${esc(days)})` : ''}:</strong> `
-                + `${esc(changeLabel(far ? { ...t, farShift: far } : t, stations, 'dep'))}${esc(when)}.${esc(stopsWords(n, d))}</p>`;
+                + `${esc(head)}${esc(when)}.${esc(stops)}</p>`;
         }
         // From the change, the same pairing read the other way: what the running train used to be.
         const on = days ? ` on ${days === 'Mon and Fri only' ? 'Mondays and Fridays' : days === 'Tue to Thu only' ? 'Tuesdays to Thursdays' : 'Wednesdays'}` : '';
@@ -417,12 +423,16 @@ export function renderLookup({ at, day, nowRows, decRows, started, labels, chang
         }
         return esc(routeName(stations, st, via));
     };
-    // The same train on both sides is the same time, end, route and days. Two identical lists are
-    // shown ONCE and said to be the same — a member was comparing them by eye to learn that — and
-    // where they differ, a row only one side has is marked (v24.94).
+    // A train's IDENTITY is its time, end and route; the days it runs are not part of it. December's
+    // rows carry no weekday exception, so the Tue–Thu 17:33 to Snow Hill and its December self, which
+    // runs every weekday, are one train — v24.94 keyed on the days too and marked that train "only in
+    // this timetable" on BOTH sides (v24.96, the 72-hour review). Two identical lists — days included —
+    // are shown ONCE and said to be the same, which a member was comparing them by eye to learn; where
+    // they differ, a row whose identity the other side lacks is marked.
+    const ident = (/** @type {TrainRow} */ r) => r.slice(0, 3).join('|');
     const key = (/** @type {TrainRow} */ r) => r.slice(0, 4).join('|');
     const onlyIn = (/** @type {TrainRow[]} */ rows, /** @type {TrainRow[]} */ other) =>
-        new Set(rows.filter(r => !other.some(o => key(o) === key(r))).map(key));
+        new Set(rows.filter(r => !other.some(o => ident(o) === ident(r))).map(key));
     const same = near.now.length === near.dec.length && near.now.every((r, i) => key(r) === key(near.dec[i]));
     const list = (/** @type {TrainRow[]} */ rows, /** @type {Set<string>} */ only = new Set()) => rows.length
         ? `<ul class="tr-near">${rows.map((r) => { const [t, st, via, days] = r; const mark = only.has(key(r));

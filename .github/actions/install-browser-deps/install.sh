@@ -13,12 +13,12 @@ set -uo pipefail
 
 BROWSER="${BROWSER:?BROWSER is required (chromium or webkit)}"
 ATTEMPTS="${ATTEMPTS:-3}"
-ATTEMPT_SECONDS="${ATTEMPT_SECONDS:-100}"   # one download attempt
+ATTEMPT_SECONDS="${ATTEMPT_SECONDS:-90}"    # one download attempt
 UPDATE_SECONDS="${UPDATE_SECONDS:-30}"      # one `apt-get update` attempt (1–7 s on a healthy mirror)
 
 case "$BROWSER" in
-    chromium|webkit|firefox) ;;
-    *) echo "::error title=install-browser-deps::unknown browser '$BROWSER' (chromium, webkit or firefox)"; exit 2 ;;
+    chromium|webkit) ;;
+    *) echo "::error title=install-browser-deps::unknown browser '$BROWSER' (chromium or webkit)"; exit 2 ;;
 esac
 
 # Root already (a container, or a self-hosted runner) needs no sudo; a GitHub runner has it passwordless.
@@ -29,7 +29,11 @@ dry=$(npx playwright install-deps --dry-run "$BROWSER" 2>/dev/null || true)
 pkgs=$(printf '%s\n' "$dry" | sed -n 's/.*--no-install-recommends \([^"]*\)".*/\1/p' | head -n 1)
 if [ -z "$pkgs" ] || ! [[ "$pkgs" =~ ^[A-Za-z0-9.+\ -]+$ ]]; then
     echo "::warning title=install-browser-deps::could not read the package list from 'npx playwright install-deps --dry-run $BROWSER' (Playwright changed its output?). Falling back to the plain command, bounded."
-    exec timeout -k 10 "$(( ATTEMPT_SECONDS * ATTEMPTS ))" npx playwright install-deps "$BROWSER"
+    # As ROOT, so the clock can kill what it started: the plain command spawns `sudo apt-get` itself,
+    # and a timeout begun by the runner's user could not reach that root apt (23 Oct). Run as root,
+    # Playwright calls apt directly, inside the timed process group.
+    if [ "$(id -u)" = "0" ]; then exec timeout -k 10 "$(( ATTEMPT_SECONDS * ATTEMPTS ))" npx playwright install-deps "$BROWSER"; fi
+    exec sudo -n env "PATH=$PATH" timeout -k 10 "$(( ATTEMPT_SECONDS * ATTEMPTS ))" npx playwright install-deps "$BROWSER"
 fi
 echo "install-browser-deps: $(printf '%s\n' "$pkgs" | wc -w) packages for $BROWSER, from Playwright's own list"
 

@@ -189,6 +189,11 @@ export function yieldToInstallNotice() {
 /** The member has answered the install notice, so the strip does not ask again on this device. */
 export function retireInstallStrip() { lsSet(DISMISSED_KEY, '1'); }
 
+/** Whether the install notice has taken this visit's one ask (yieldToInstallNotice). The strip's own
+ *  show() checks it; the Calendar's notification ask does too since v24.96, so neither can land after
+ *  the yield and sit beside the notice. @returns {boolean} */
+export function installNoticeHasTheVisit() { return _yielded; }
+
 /**
  * Show the install strip when it is both possible and appropriate.
  *

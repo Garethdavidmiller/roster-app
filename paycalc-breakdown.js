@@ -227,13 +227,16 @@ export function buildActualCheck(actual, estimated, used = {}) {
     const gap = `${fmt(ad)} ${dir} than this estimate.`;
     const knowsCode = typeof used.taxCode === 'string';
     const plainCode = knowsCode && /^[A-Z0-9]{1,12}$/.test(used.taxCode ?? '') ? used.taxCode : null;
+    // Shown as a payslip prints it: the emergency suffix is a separate word there ("1257L M1", not
+    // the engine's "1257LM1"), and this sentence asks the member to compare the two (v24.96).
+    const shownCode = plainCode ? plainCode.replace(/(W1|M1|X)$/, ' $1') : null;
     // A payday label the app wrote ("25 Sep"); anything else is left out rather than quoted.
     const ytdFrom = typeof used.ytdFrom === 'string' && /^[0-9]{1,2} [A-Z][a-z]{2}( [0-9]{4})?$/.test(used.ytdFrom) ? used.ytdFrom : '';
     // Each sentence is written out whole, so the words on screen can be found in this file.
     if (knowsCode && used.recognised === false) {
         const zeroNotO = plainCode?.includes('O') ? ' — 0T and D0 are written with a zero, not the letter O' : '';
         const notKnown = plainCode
-            ? `The tax code in Your Settings, <strong>${plainCode}</strong>, isn't one the calculator recognises, so this estimate uses the standard allowance instead. Check it against the Tax Code on your payslip${zeroNotO}.`
+            ? `The tax code in Your Settings, <strong>${shownCode}</strong>, isn't one the calculator recognises, so this estimate uses the standard allowance instead. Check it against the Tax Code on your payslip${zeroNotO}.`
             : "The tax code in Your Settings isn't one the calculator recognises, so this estimate uses the standard allowance instead. Check it against the Tax Code on your payslip.";
         if (ad <= 25)
             return `<div class="check-actual-line check-near">Close — your payslip pays ${gap} ${notKnown}</div>`;
@@ -246,7 +249,7 @@ export function buildActualCheck(actual, estimated, used = {}) {
         if (!knowsCode)
             return `<div class="check-actual-line check-near">Close — your payslip pays ${gap} Small gaps usually come from tax adjustments; entering your Year to Date figures sharpens the next estimate.</div>`;
         const codeCheck = plainCode
-            ? `First check that this estimate's tax code, <strong>${plainCode}</strong>, matches the Tax Code on your payslip — you can change it in Your Settings.`
+            ? `First check that this estimate's tax code, <strong>${shownCode}</strong>, matches the Tax Code on your payslip — you can change it in Your Settings.`
             : 'First check that the tax code in Your Settings matches the Tax Code on your payslip.';
         if (ytdFrom)
             return `<div class="check-actual-line check-near">Close — your payslip pays ${gap} ${codeCheck} If it does, small gaps usually come from tax adjustments.</div>`;
@@ -256,7 +259,7 @@ export function buildActualCheck(actual, estimated, used = {}) {
     const lookFurther = "this payslip's hours are complete, and look for absence, back pay, a payroll correction, or a student loan deduction that isn't on the payslip.";
     if (!knowsCode || typeof pension !== 'number' || !Number.isFinite(pension))
         return `<div class="check-actual-line check-near">Your payslip pays ${gap} Check ${lookFurther}</div>`;
-    const code = plainCode ? `tax code <strong>${plainCode}</strong>` : 'the tax code in Your Settings';
+    const code = plainCode ? `tax code <strong>${shownCode}</strong>` : 'the tax code in Your Settings';
     const pensionUsed = pension > 0 ? `a pension of <strong>${fmt(pension)}</strong>` : '<strong>no pension</strong>';
     if (ytdFrom)
         return `<div class="check-actual-line check-near">Your payslip pays ${gap} Check two settings first: this estimate uses ${code} and ${pensionUsed}. Compare them with the Tax Code and the "Smart RPS CR Scheme" line on your payslip, and correct them in Your Settings. It also counts your Year to Date figures as copied from your <strong>${ytdFrom}</strong> payslip — if they came from a later one, choose that payslip in the Year to Date Figures card. If all of that matches, check ${lookFurther}</div>`;

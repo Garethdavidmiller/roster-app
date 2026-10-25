@@ -41,6 +41,7 @@ function btn() {
 globalThis.document = /** @type {any} */ ({ getElementById: (/** @type {string} */ id) => els[id] ?? null });
 globalThis.Notification = /** @type {any} */ ({ permission: 'default', requestPermission: async () => 'denied' });
 
+mock.module('./install-prompt.js', { namedExports: { installNoticeHasTheVisit: () => false } });   // v24.96: the strip's yield, not under test here
 const { initNotifPrompt } = await import('./calendar-notif-prompt.js');
 const { NOTIF_PROMPT_DONE } = await import('./storage-keys.js');
 

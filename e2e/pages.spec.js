@@ -7776,6 +7776,26 @@ test('operations: Skip all takes back a "Swapped — record it" answer, so Save 
     expect(theirs, 'a skipped person is written nothing — the swap included').toEqual([]);
 });
 
+// A person whose ONLY row asks the swap question had no Skip all: the button followed the count of
+// pending rows, and a guarded row is not one — yet "Swapped — record it" made Save write for them, so
+// the answer could be taken back only by finding the row again. The button now follows what Save
+// could WRITE; the count badge still follows the pending rows, so this person wears no "0" (v24.96).
+test('operations: a person whose only row asks the swap question gets a Skip all, and no count (v24.96)', async ({ page }) => {
+    const other = secondReviewMember();
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, { ...ROSTER_REVIEW_PARSE, choices: {}, parsed: [ROSTER_REVIEW_PARSE.parsed[0],
+        { memberName: other.name, shifts: { ...other.base, [other.rest]: 'SICK' } }] });
+    const section = page.locator(`.roster-person-section[data-member="${other.name}"]`);
+    const guarded = section.locator('.roster-change-row.roster-change-guarded');
+    await expect(guarded).toHaveCount(1);
+    await expect(section.locator('.roster-change-badge'), 'nothing is pending, so no count').toHaveCount(0);
+    await expect(section.locator('.roster-skip-all-btn'), 'an answer could be written, so it can be taken back').toHaveCount(1);
+    await guarded.locator('[data-swap="yes"]').click();
+    await expect(guarded.locator('.roster-act')).toHaveText('Will record');
+    await section.locator('.roster-skip-all-btn').click();
+    await expect(guarded.locator('.roster-act'), 'the answer is taken back').toHaveText('Not recorded');
+});
+
 // ── ANSWERING AN UNREADABLE CELL IN PLACE (v22.17) ────────────────────────────────────────────
 //
 // The composition rule is unit-tested in override-utils.test.mjs. What only a browser answers is
@@ -8203,7 +8223,7 @@ test('operations: App speed states the stored-copy share against the versions th
     await page.goto('/operations.html');
     const speed = page.locator('#pageSpeedContent');
     await expect(speed).toContainText('Before the sign-in check');
-    await expect(speed).toContainText('60% of Calendar opens since the app began counting it');
+    await expect(speed).toContainText(/60% of (this|last) month’s Calendar opens, on versions that count it/);
     await expect(speed, 'the all-version divisor — the figure this fixes').not.toContainText('19%');
     // The ladder names the block, because it is there.
     await expect(speed).toContainText('timed under “Before the sign-in check” below');

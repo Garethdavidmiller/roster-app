@@ -32,9 +32,16 @@ description: >
 #   * apt is also told to give a DEAD connection 30 s rather than its default 120, and to retry it.
 #
 # The budget fits inside the calling step's `timeout-minutes: 8`, which stays as the backstop:
-# three attempts of 30 s at the index and three of 100 s at the download, plus the install from
-# cache, is under 8 minutes even when every attempt stalls. workflow-hygiene.test.mjs holds the
-# calling steps to that limit and this action to that budget.
+# three attempts of 30 s at the index and three of 90 s at the download, each cut-off costing up to
+# 8 s more (the kill grace and the pause), plus the dry run and the install from cache, is under 8
+# minutes even when every attempt stalls. workflow-hygiene.test.mjs holds the calling steps to that
+# limit and this action to that budget.
+#
+# Two trades worth knowing. The index phase's 30 s cannot finish a FULL set of package lists at the
+# measured 85 KB/s trickle (about 12 MB on a stale image) — three such attempts fail by name in about
+# two minutes, which is the intended answer to a mirror that slow, not a retry that waits it out. And
+# the apt drop-in this writes (/etc/apt/apt.conf.d/99-ci-mirror-timeouts) stays for the rest of the
+# job, so a later apt step inherits the 30 s / 3 retries; benign on a hosted runner, which is discarded.
 
 inputs:
   browser:
@@ -47,7 +54,7 @@ inputs:
   attempt-seconds:
     description: 'The cap on ONE download attempt, in seconds. The defaults fit inside the calling step limit of 8 minutes.'
     required: false
-    default: '100'
+    default: '90'
 
 runs:
   using: composite
