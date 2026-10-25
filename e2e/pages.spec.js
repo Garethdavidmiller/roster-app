@@ -2096,9 +2096,18 @@ test('admin: a week-grid time box formats as typed, moves on, and flags an impos
 // the drawer's scrim); the logo goes through the same banner as every other exit on the page.
 test('admin: a drawer pill or the logo asks before leaving staged edits', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
-    await seedSession(page, 'G. Miller');
+    // The MEMBER seeder (it signs the stubbed identity in), because the last step lands on the
+    // Calendar, whose gate shows a sign-in card to a session with no identity behind it.
+    await seedMemberSession(page, 'G. Miller');
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
+    // A FUTURE month, so the last step below also proves the pill names it: the Calendar drops a
+    // stored future month, and only the pill's ?date= gets it there (whole-app review, B3).
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2026-12-07';       // Monday
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Dec 2026');
     const row = page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="shift"]:not([disabled])') }).first();
     await clickInView(row.locator('.type-pill-btn[data-type="shift"]'));
     await row.locator('.day-start').fill('06:00');
@@ -2123,7 +2132,10 @@ test('admin: a drawer pill or the logo asks before leaving staged edits', async 
     await page.locator('#navMenuBtn').click();
     await page.locator('.nav-panel-pill--calendar').click();
     await page.getByRole('button', { name: 'Leave', exact: true }).click();
-    await expect(page).not.toHaveURL(/admin\.html/);
+    // Wait for the Calendar to ARRIVE, not merely for the address to change: ending on the first
+    // frame of the navigation tore the page down under a request still in flight, and failed a run.
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('.month-year').first()).toContainText('December');
 });
 
 // ── THE BANNER DESCRIBES THE YEAR THE READER IS LOOKING AT (v22.82) ──────────────────────────
