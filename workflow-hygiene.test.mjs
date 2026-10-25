@@ -606,6 +606,32 @@ describe('the version guard exempts only what cannot go stale', () => {
         }
     });
 
+    test('and so does EVERY file the service worker precaches, read from the worker itself', () => {
+        // The list above is a sample, and a sample proves only itself (whole-app review, I5):
+        // appending `|[.]png$|[.]woff2$` to the exclusion passed every assertion in this block,
+        // while the icons and the font are precached into the version cache — a changed icon
+        // shipped without a bump stays the OLD icon on every device that already has this version.
+        // So the corpus is the warm-up's own arrays, derived the way sw-asset-check derives them:
+        // from the fetchInBatches calls, not from array names typed here.
+        const sw = readFileSync('service-worker.js', 'utf8');
+        const arrayOf = (/** @type {string} */ n) =>
+            sw.match(new RegExp(`const ${n}\\s*=\\s*\\[([\\s\\S]*?)\\];`))?.[1] ?? '';
+        const warmed = [...sw.matchAll(/fetchInBatches\(([\s\S]*?),\s*\w+\s*=>/g)]
+            .flatMap(m => [...m[1].matchAll(/([A-Z_]+_ASSETS)/g)].map(x => x[1]));
+        const served = warmed
+            .flatMap(n => arrayOf(n).split('\n').filter(l => !l.trim().startsWith('//')))
+            .flatMap(l => [...l.matchAll(/['"]\.\/([^'"]+)['"]/g)].map(m => m[1]));
+        assert.ok(served.length > 100,
+            `only ${served.length} precached files found — the warm-up scan has stopped matching`);
+        for (const ext of ['.js', '.css', '.html', '.png', '.woff2', '.json']) {
+            assert.ok(served.some(f => f.endsWith(ext)), `the precache scan found no ${ext} file`);
+        }
+        const exempt = served.filter(f => !needsBump(f));
+        assert.deepEqual(exempt, [],
+            `the version guard exempts files the service worker precaches: ${exempt.join(', ')}. `
+            + 'A change to one of these reaches devices only through a new version cache.');
+    });
+
     test('and the guard still fails the branch rather than warning', () => {
         // A guard that prints and exits 0 is a comment. This one is the reason the v22.29 duplicate
         // could not happen again, and only a non-zero exit delivers that.

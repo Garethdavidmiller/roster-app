@@ -29,7 +29,7 @@ import { initDocUploadCard, isPdfFile, isDocxFile } from './doc-upload.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initDatePickers } from './date-picker.js';
 import { initSelectSheets, enhanceSelect } from './select-sheet.js';
-import { isFetchTimeout } from './fetch-timeout.js';
+import { isFetchTimeout, serverRefusal } from './fetch-timeout.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, ensureNamedSession, sessionReady, resolveSession, getFirebaseAuthError, reconcileExpiredIdentity } from './session.js';
@@ -549,8 +549,10 @@ export function init() {
                     }).catch(() => {});
                     return;
                 }
-                // Only a genuine RESET failure gets the Retry affordance.
-                btn.disabled = false; btn.textContent = 'Retry';
+                // A REFUSAL (4xx) names its reason and offers no Retry — retrying cannot change the answer (whole-app review).
+                const refused = serverRefusal(e);
+                btn.disabled = false; btn.textContent = refused ? 'Reset' : 'Retry';
+                if (refused) confirmDialog({ title: 'The reset was refused', message: refused.reason, confirmLabel: 'OK' }).catch(() => {});
                 return;
             }
             // PARTIAL SUCCESS. The endpoint reports each stage separately (v21.86) because the
@@ -611,7 +613,8 @@ export function init() {
             try {
                 const fresh = await withClaimRetry(getAllPasswordStatus);
                 statusMap = new Map(fresh.map(/** @param {any} s */ s => [s.memberName, s]));
-                renderForGrade(filterSelect.value);   // the row re-renders → Reset drops off (now surname)
+                renderForGrade(filterSelect.value);   // re-rendered — and a row on its default looks just as it did, so it says so (whole-app review)
+                [...listEl.querySelectorAll('.acct-row')].find(r => /** @type {HTMLElement} */ (r).dataset.member === name)?.querySelector('.btn-acct-reset')?.replaceChildren('Reset ✓');
             } catch (e) {
                 console.warn('[Operations] status refresh after reset failed (reset itself succeeded):', e);
                 btn.textContent = 'Reset ✓';
@@ -766,6 +769,7 @@ export function init() {
             // Clear the chip: leaving the previous count above an error panel told the admin "5
             // outstanding" while showing no list (v18.94).
             if (chip) chip.textContent = '';
+            attention.withdraw('resets');   // the strip's count is as stale as the chip's was (whole-app review)
             _cardLoadError(content, 'Couldn’t load the password reset requests — check your connection.', () => initResetRequests());
         } finally {
             _rrLoading = false;
@@ -896,7 +900,7 @@ export function init() {
                 title: 'Staff Login Accounts',
                 sections: [{ items: [
                     { icon: '🔐', html: 'Creates an app login for every active staff member so the app knows who is saving changes' },
-                    { icon: '✅', html: 'Safe to run any time — existing accounts are kept as they are, and only new joiners get an account added' },
+                    { icon: '✅', html: 'Safe to run any time — new joiners get an account, and an account registered outside the app is taken back and reset to the surname default (the result names them, so you can tell them)' },
                     { icon: '👤', html: 'Run this whenever someone <strong>joins</strong> the roster to give them access' },
                     { icon: '🚪', html: 'Tick <strong>“Disable accounts for anyone no longer on the roster”</strong> and run it when someone <strong>leaves</strong> — their account is disabled so they can no longer sign in' },
                 ]}],
@@ -980,7 +984,7 @@ export function init() {
                 sections: [
                     { heading: 'What it captures', items: [
                         { icon: '🐛', html: 'Errors the app ran into on <strong>any page across the app</strong> (calendar, pay calculator, admin, operations, settings, links, overtime) — across all staff, not just you' },
-                        { icon: '⎘', html: 'Tap <strong>⎘ Copy details</strong> on any error to copy it formatted for diagnosis — the message, the page, the app version, the device, the time, and <strong>the name of the member it happened to</strong>. Unlike the two cards above, this one is not anonymous' },
+                        { icon: '⎘', html: 'Tap <strong>⎘ Copy details</strong> on any error to copy it formatted for diagnosis — the message, the page, the app version, the device, the time, and <strong>the name of the member it happened to</strong>. Unlike the Usage and App Speed cards, this one is not anonymous' },
                     ]},
                     { heading: 'Resolving errors', items: [
                         { icon: '✓', html: 'Tapping <strong>Resolve</strong> marks an error as reviewed. It <strong>stays in the list</strong>, dimmed and below the unresolved ones, so you can see what you have already been through — up to 30 of them. It is not deleted immediately either: resolved errors are kept for 90 days, then pruned automatically' },

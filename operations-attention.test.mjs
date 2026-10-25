@@ -96,3 +96,18 @@ test('report(): an unknown id THROWS — a typo cannot report into the void', as
     strip.report('resets', 0);
     assert.equal(container.hidden, true, 'back to clean → back to absent');
 });
+
+// A FAILED RELOAD TAKES ITS COUNT BACK (whole-app review, Oct 2026). The reset queue cleared its own
+// chip when a refresh failed and left the strip claiming the old number, over a card showing an error.
+test('withdraw(): a card whose reload failed takes its count back, to unknown rather than zero', async (t) => {
+    const doc = fakeDocument();
+    const container = doc._el('section');
+    globalThis.document = /** @type {any} */ (doc);
+    t.after(() => { delete (/** @type {any} */ (globalThis)).document; });
+    const { createAttentionStrip } = await import('./operations-attention.js');
+    const strip = createAttentionStrip({ container: /** @type {any} */ (container) });
+    strip.report('resets', 3);
+    assert.equal(container.hidden, false);
+    strip.withdraw('resets');
+    assert.equal(container.hidden, true, 'the stale 3 must not outlive the failed reload');
+});

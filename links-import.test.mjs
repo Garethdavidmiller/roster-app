@@ -190,6 +190,21 @@ describe('the app\'s own JSON', () => {
         assert.equal(r.patterns['1'].tue, 'SPARE');
     });
 
+    // Whole-app review, Oct 2026: a night start or a past-midnight finish imported silently, and the
+    // paint bar then offered it as an "early" chip. CEAs do not work nights.
+    test('a night or past-midnight duty imports with a WARNING before Save, in both shapes', () => {
+        const night = { patterns: { 1: { sun: 'RD', mon: '22:00-06:00', tue: '15:00-00:30', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' } } };
+        const r = parseDesignImport(JSON.stringify(night));
+        assert.equal(r.ok, true, r.ok ? '' : r.error);
+        const w = (r.warnings || []).find(x => /night/.test(x));
+        assert.ok(w, `no night warning in ${JSON.stringify(r.warnings)}`);
+        assert.match(String(w), /15:00-00:30, 22:00-06:00/);
+        const g = parseGrid(line('RD', '22:00-06:00', 'RD', 'RD', 'RD', 'RD', 'RD'));
+        assert.ok(g.ok && g.warnings.some(x => /CEAs do not work nights/.test(x)));
+        const fine = parseDesignImport(JSON.stringify(good));
+        assert.ok(fine.ok && !fine.warnings.some(x => /night/.test(x)), 'an ordinary design carries no night warning');
+    });
+
     test('JSON that parses but is not a design is refused AS JSON', () => {
         // Falling through to the grid parser would report "not a time" about a line of JSON — an
         // accurate sentence sending the reader to entirely the wrong place.

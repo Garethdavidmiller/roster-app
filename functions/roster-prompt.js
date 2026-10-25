@@ -44,8 +44,11 @@
 
 'use strict';
 
-const { BLANK_CELL_TOKEN } = require('./roster-parse-helpers');
+const { BLANK_CELL_TOKEN, normaliseShift } = require('./roster-parse-helpers');
 const { matchGeometryRow } = require('./roster-geometry');
+const {
+    isPhysicallyBlank, isNotAvailable, isNotAvailableSunday, notAvailableMeaning, notAvailableSundayMeaning,
+} = require('./cell-day-rules');
 
 /** Sunday-first, matching `dates` everywhere in the import. `headerToDayIndex` accepts these. */
 const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -253,10 +256,89 @@ OUTPUT FORMAT — return exactly this structure:
 }`;
 }
 
+/**
+ * Does this printed cell say the day is a REST day? Asked the same way the reply's own values are
+ * resolved — `NA`/`NS` by the day (cell-day-rules.js), everything else through `normaliseShift` —
+ * so a cell is judged by the rules that would have read it.
+ * @param {string} text  @param {number} dayIndex  0 = Sunday
+ */
+function cellSaysRest(text, dayIndex) {
+    if (isNotAvailable(text)) return notAvailableMeaning(dayIndex) === 'RD';
+    if (isNotAvailableSunday(text)) return notAvailableSundayMeaning(dayIndex) === 'RD';
+    const v = normaliseShift(text);
+    return v === 'RD' || v === 'OFF';
+}
+
+/**
+ * A day the model reported EMPTY, in a cell the grid shows holding a shift or a code, goes to the
+ * review naming what the cell holds (whole-app review, H3). Geometry path only; modifies
+ * `safeEntries` in place, after `buildSafeEntries`.
+ *
+ * `buildSafeEntries` resolves an empty read by the DAY — a rest day on Sunday, a question Mon–Sat —
+ * which is right when nobody knows what the cell held. On this path somebody does: the cell table is
+ * the PDF's own text for that member and day. So a Sunday read as BLANK over a cell holding a shift
+ * became `RD`, compared equal to the base Sunday, and was never shown — a worked Sunday dropped in
+ * silence. The witness could not see it: it refuses claims landing in EMPTY cells, and `RD` is not a
+ * claim. This needs no reading of the text beyond "is it a rest marker", which is why it is not
+ * phase 3.
+ *
+ * A cell that SAYS rest (`RD`, `OFF`, `SN`, a Sunday `NA`/`NS`) is left alone: an empty read of it
+ * changes nothing. Mon–Sat this only improves the review's wording — the day was already a question.
+ * Not counted as a witness refusal: one missed cell is not evidence the row is a day out, and it
+ * must not feed the drift breaker.
+ *
+ * @param {Array<{ memberName: string, shifts: Record<string, string> }>} safeEntries
+ * @param {any[]} parsedMembers   the model's raw `parsed` rows
+ * @param {Array<{ memberName: string, cells: string[] }>} cellRows   `buildCellTable(...).rows`
+ * @param {string[]} dates   7 ISO dates, Sunday first
+ * @returns {Array<{ memberName: string, dates: string[] }>} the cells sent to review
+ */
+function reviewBlankReadsOfFilledCells(safeEntries, parsedMembers, cellRows, dates) {
+    /** @type {Array<{ memberName: string, dates: string[] }>} */
+    const sent = [];
+    if (!Array.isArray(dates) || dates.length < 7) return sent;
+    /** @type {Map<string, any>} */
+    const replyFor = new Map();
+    for (const e of parsedMembers || []) {
+        if (!e || typeof e !== 'object' || typeof e.memberName !== 'string') continue;
+        const name = e.memberName.trim();
+        if (!replyFor.has(name)) replyFor.set(name, e);   // buildSafeEntries keeps the first, too
+    }
+    const cellsFor = new Map((cellRows || []).map(r => [r.memberName, r.cells]));
+    for (const entry of safeEntries) {
+        const reply = replyFor.get(entry.memberName);
+        const cells = cellsFor.get(entry.memberName);
+        if (!reply || !Array.isArray(cells)) continue;
+        // The same tolerant day lookup buildSafeEntries uses, so the two cannot disagree about
+        // which value the model gave for a day.
+        /** @type {Record<string, any>} */
+        const byDay = {};
+        for (const k of Object.keys(reply)) {
+            const kk = String(k).trim().toLowerCase().slice(0, 3);
+            if (!(kk in byDay)) byDay[kk] = reply[k];
+        }
+        /** @type {string[]} */
+        const days = [];
+        for (let i = 0; i < 7; i++) {
+            const text = String(cells[i] == null ? '' : cells[i]).trim();
+            if (!text || cellSaysRest(text, i)) continue;
+            const label = DAY_LABELS[i];
+            const raw = reply[label] !== undefined ? reply[label] : byDay[label.slice(0, 3).toLowerCase()];
+            if (!isPhysicallyBlank(raw)) continue;
+            console.warn(`[parseRosterPDF] ${entry.memberName} ${dates[i]}: the ${label} cell holds "${text}" but was read as empty — sent to review`);
+            entry.shifts[dates[i]] = `UNKNOWN|the PDF has "${text}" in this cell, but it was read as empty — check the PDF`;
+            days.push(dates[i]);
+        }
+        if (days.length) sent.push({ memberName: entry.memberName, dates: days });
+    }
+    return sent;
+}
+
 module.exports = {
     DAY_LABELS,
     SHIFT_VOCABULARY,
     buildCellTable,
     renderCellTable,
     buildCellPrompt,
+    reviewBlankReadsOfFilledCells,
 };

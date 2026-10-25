@@ -9,6 +9,7 @@ import { ROTATING_LINES } from '../links-design.js';
 import { SUNDAY_FORBIDDEN_TYPES } from '../override-utils.js';
 import { describeSetList } from '../links-target-sets.js';
 import { teamMembers, getBaseShift } from '../roster-data.js';
+import { APP_PAGES as APP_PAGES_LIST } from '../scripts/app-pages.mjs';
 
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
 
@@ -1226,6 +1227,30 @@ test('links: every paint chip is a shift the design actually contains', async ({
     expect(r.chips.filter(c => !design.has(c)), 'chips painting a shift this design does not use').toEqual([]);
     expect(r.inDesign.filter(t => !r.chips.includes(t)), 'times in the design with no chip to paint them').toEqual([]);
     expect(r.chips.length).toBeGreaterThan(0);
+});
+
+// A night duty that reached a design by import was offered on the bar as an "early" chip, one tap
+// from painting more of them (whole-app review, Oct 2026). CEAs do not work nights, so the bar never
+// offers one — the "both directions" relation above holds for every duty a CEA can work.
+test('links: a night duty in a design is never offered as a paint chip', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const patterns = /** @type {any} */ ({});
+        for (let i = 1; i <= 26; i++) {
+            patterns[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20',
+                wed: '06:20-14:20', thu: '14:00-22:00', fri: 'RD', sat: 'RD' };
+        }
+        patterns['3'].fri = '22:00-06:00';
+        const w = /** @type {any} */ (window);
+        w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'd1', name: 'Design A', patterns, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' }];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#brushBar .brush-chip').first()).toBeVisible();
+    await expect(page.locator('#brushBar .brush-chip[data-shift="06:20-14:20"]'), 'an ordinary duty still has its chip').toHaveCount(1);
+    await expect(page.locator('#brushBar .brush-chip[data-shift="22:00-06:00"]')).toHaveCount(0);
 });
 
 test('links: the coverage card carries a demand row per day class, in the same table', async ({ page }) => {
@@ -3402,6 +3427,43 @@ test('admin: selecting a pill with hours causes no horizontal blowout (touch lay
         .toBeLessThanOrEqual(m.innerW + 2);
 });
 
+// The Other submenu opens only on demand, so the all-pages tap-target gate (which scans pages as they
+// load) never measured it — and its flavour chips and RDW tick were ~20px tall on a phone.
+test('admin: the Other submenu\'s chips and tick clear the 24px tap floor on touch @a11y', async ({ page }, info) => {
+    test.skip(info.project.name !== 'mobile-chrome', 'a thumb, not a mouse');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedSession(page);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const row = page.locator('.day-row').filter({ has: page.locator('.pill-other:not([disabled])') }).first();
+    // A row's pills are offered once its day is ticked.
+    await row.locator('.day-cb').check();
+    await row.locator('.pill-other').click();
+    const targets = row.locator('.other-opts .other-flavour-btn, .other-opts .other-rdw-label');
+    await expect(targets.first()).toBeVisible();
+    const heights = await targets.evaluateAll(els => els.map(e => [e.textContent.trim(), e.getBoundingClientRect().height]));
+    expect(heights.length).toBeGreaterThan(1);
+    for (const [label, h] of heights) expect(h, `"${label}" is ${h}px tall`).toBeGreaterThanOrEqual(24);
+});
+
+// A SIGNED-OUT VISIT STILL TAKES AN UPDATE (whole-app review, Oct 2026). Pay, Trains and Overtime
+// registered the service worker only after their sign-in gate, so a release landing while somebody
+// sat on the sign-in screen left them working on the old release under the new worker. Operations
+// and Links had the rule since v16.21; this asks it of every app page, so the next one cannot miss it.
+test('every app page registers its service worker on a signed-out visit', async ({ page }) => {
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__swRegisters = 0;
+        if (!navigator.serviceWorker) return;
+        navigator.serviceWorker.getRegistration = async () => undefined;
+        navigator.serviceWorker.register = () => { w.__swRegisters++; return new Promise(() => {}); };
+    });
+    for (const { file } of APP_PAGES_LIST) {
+        await page.goto('/' + file);
+        await expect.poll(() => page.evaluate(() => /** @type {any} */ (window).__swRegisters),
+            { message: `${file} registered no service worker while signed out` }).toBe(1);
+    }
+});
+
 // The two document guides have no JS to set a scroll margin (railcard/fip/rangers measure theirs),
 // so a cross-guide search hit landed its heading UNDER the sticky header. guide-shell.css's static
 // margin is what keeps it in view — at 375px and at 320px, where the subtitle wraps the header.
@@ -3478,6 +3540,21 @@ test('fip: the country finder filters cards, shows a no-match, and clears', asyn
     await expect(page.locator('#countryNoMatch')).toBeHidden();
     await expect(search).toHaveValue('');
     expect(errors, `fatal errors: ${errors.join('; ')}`).toEqual([]);
+});
+
+// Whole-app review, Oct 2026: the finder only lower-cased, so an operator typed on a UK keyboard
+// ("obb" for ÖBB, "krakow" for Kraków) found nothing, and "cie" matched inside "Société".
+test('fip: the country finder folds accents and matches the start of a word', async ({ page }) => {
+    await page.goto('/fip-guide.html');
+    const search = page.locator('#countrySearch');
+    await search.fill('obb');
+    await expect(page.locator('#country-at')).toBeVisible();
+    await expect(page.locator('#countryNoMatch')).toBeHidden();
+    await search.fill('cie');
+    await expect(page.locator('#country-ie')).toBeVisible();
+    await expect(page.locator('#country-ch'), 'no longer found inside "Société"').toBeHidden();
+    await search.fill('ÖBB');
+    await expect(page.locator('#country-at'), 'the accented spelling still works').toBeVisible();
 });
 
 test('fip: the section chip-bar jumps to a section and marks it current', async ({ page }) => {
@@ -4089,6 +4166,50 @@ test('operations attention: a retry after a failed load still reaches the strip'
     await expect(page.locator('#errorLogCountChip')).toHaveText('2');
     // The false all-clear: the card lists errors and the strip did not exist at all.
     await expect(page.locator('#attentionStrip')).toContainText('Unresolved errors');
+});
+
+// ── A REFUSED RESET SAYS WHY, AND OFFERS NO RETRY (whole-app review, Oct 2026) ──────────────────
+// A 404 "run Set up accounts first", a 409 "linked to the shared PIN" or a 403 all became a bare
+// "Retry" that could never succeed, with the server's sentence only in the console.
+test('operations: a refused reset names the server\'s reason and offers no Retry', async ({ page }) => {
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
+    });
+    await page.route('**/resetMemberPassword', route => route.fulfill({
+        status: 404, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ error: 'No Firebase account for "B. Toth" — run Set up accounts first' }),
+    }));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    const row = page.locator('.acct-row').first();
+    await row.locator('.btn-acct-reset').click();
+    await page.locator('.dialog-btn-confirm').click();
+    const dialog = page.locator('.lb-overlay.open');
+    await expect(dialog).toContainText('The reset was refused');
+    await expect(dialog).toContainText('run Set up accounts first');
+    await expect(row.locator('.btn-acct-reset')).toHaveText('Reset');
+});
+
+// A FULLY SUCCESSFUL RESET SAYS SO (whole-app review, Oct 2026). The row re-renders, and a member
+// already on the default looks exactly as before — so a reset that worked gave no sign it had run.
+test('operations: a fully successful reset leaves a receipt on the row', async ({ page }) => {
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { authUser: true, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
+    });
+    await page.route('**/resetMemberPassword', route => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ revoked: true, stamped: true, notified: true }),
+    }));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    const row = page.locator('.acct-row').first();
+    await row.locator('.btn-acct-reset').click();
+    await page.locator('.dialog-btn-confirm').click();
+    await expect(row.locator('.btn-acct-reset')).toHaveText('Reset ✓');
 });
 
 // ── A reset that timed out did not necessarily fail (v23.36) ────────────────────────────────────
@@ -5296,6 +5417,35 @@ test('links: the shortlisted proposals open read-only, and saving one makes a na
     await expect(designOptions(page)).toHaveCount(1);
 });
 
+// A first save was keyed on the design OBJECT, and a window edit replaces the object — so editing the
+// window mid-save re-enabled Save, and a second press created a second design (whole-app review).
+test('links: a window edit during a first save does not re-arm Save for a second create', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.goto('/links.html');
+    await page.locator('#linksEmptyProposals').click();
+    await proposalOptions(page).filter({ hasText: 'Second Edition' }).click();
+    await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });
+    await page.locator('#linksSaveBtnTop').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#linksSaveBtnTop')).toBeDisabled();
+
+    await page.locator('#winMonSatStart').fill('05:00');
+    await page.locator('#winMonSatStart').dispatchEvent('change');
+    await expect(page.locator('#linksSaveBtnTop'), 'Save stays held while the first save is in flight').toBeDisabled();
+
+    await page.evaluate(() => { const w = /** @type {any} */ (window); w.__E2E.addDocHold = false; w.__E2E.releaseAddDoc?.(); });
+    await expect(page.locator('#designEyebrow')).toHaveText('Editing');
+    const creates = await page.evaluate(() => (/** @type {any} */ (window).__E2E.setWrites || []).filter((/** @type {any} */ w) => w.added).length);
+    expect(creates, 'exactly one design was created').toBe(1);
+});
+
 // ── THE 24-LINE DESIGNS GO TO THE BIN (v24.47, owner) ───────────────────────────────────────────
 // The rule is unit-tested (isPre26Design). What only the page can show: the designs move to the bin
 // on open, the move is a SOFT delete written for real, a 26-line design and a blank one are left
@@ -6092,7 +6242,11 @@ test('links: the generator card lines up on one left edge at desktop width', asy
 test('links: the generator header is sticky on desktop, and provably not on mobile', async ({ page }, info) => {
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
-    await page.setViewportSize(info.project.name === 'mobile-chrome' ? { width: 390, height: 844 } : { width: 1280, height: 900 });
+    // EVERY touch project takes the phone branch (whole-app review, I10): this said 'mobile-chrome',
+    // so under mobile-safari the test forced a desktop viewport and the phone assertion below never
+    // once ran on Safari's engine — one engine, reading as covering touch.
+    const phone = isTouchProject(info);
+    await page.setViewportSize(phone ? { width: 390, height: 844 } : { width: 1280, height: 900 });
     await page.goto('/links.html');
     await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
     await page.waitForTimeout(250);
@@ -6105,7 +6259,7 @@ test('links: the generator header is sticky on desktop, and provably not on mobi
     });
     expect(m.pos, 'the sticky declaration must be present at every width').toBe('sticky');
 
-    if (info.project.name === 'mobile-chrome') {
+    if (phone) {
         // The wrapper scrolls horizontally, which forces the vertical axis too — this is WHY the
         // header cannot stick to the page here.
         expect(m.ox, 'the narrow wrapper scrolls the table horizontally').toBe('auto');
@@ -7584,6 +7738,11 @@ test('operations: a row the PDF\'s own grid refused starts unticked, and says so
     await expect(page.locator('.roster-tick:not(.off)')).toHaveCount(0);
     // The withheld count names the outcome, as it does for a base-roster drift.
     await expect(page.locator('#rosterOutcome')).toContainText('held back');
+    // …and only while the row IS held back (whole-app review, Oct 2026): ticked after checking the
+    // PDF, it is counted as saving, and the same day must not also read as withheld.
+    await page.locator('.roster-tick').first().click();
+    await expect(page.locator('#rosterOutcome')).toContainText('will be updated');
+    await expect(page.locator('#rosterOutcome')).not.toContainText('held back');
 });
 
 test('operations: three rows the PDF\'s own grid refused REFUSE the read, without claiming a direction', async ({ page }) => {
@@ -8584,6 +8743,38 @@ test('operations: a fully provisioned roster says so, and still adds no strip it
     await expect(page.locator('#attentionStrip')).toBeHidden();
 });
 
+// CONFIRMING THE LEAVER DISABLE KEEPS THE FIRST RUN'S REPORT (whole-app review, Oct 2026). The
+// confirm re-rendered the result box, wiping the "taken back — tell them" names that only the admin
+// can act on. The confirm's own outcome is APPENDED, without the re-run's whole-roster "already
+// existed" list.
+test('operations: confirming the leaver disable keeps the first run\'s report', async ({ page }) => {
+    await seedSession(page);
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+    await page.route(GAPS_URL, route => route.fulfill({
+        status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify({ setUp: [], leavers: ['B. Khalil'] }),
+    }));
+    let calls = 0;
+    await page.route('**/setupRosterAuth', route => {
+        calls++;
+        const body = calls === 1
+            ? { skipped: ['G. Miller'], reclaimed: ['S. Silva'], orphanDryRun: true, orphansToDisable: ['B. Khalil'] }
+            : { skipped: ['G. Miller', 'S. Silva'], disabled: ['B. Khalil'] };
+        return route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(body) });
+    });
+    await page.goto('/operations.html');
+    await page.locator('#authSetupToggleHeader').click();
+    await page.locator('#authSetupOrphans').check();
+    await page.locator('#authSetupBtn').click();
+    const result = page.locator('#authSetupResult');
+    await expect(result).toContainText('Taken back and reset to the default password (1): S. Silva');
+    await page.locator('#authConfirmOrphans').click();
+    await expect(result).toContainText('Disabled leavers (1): B. Khalil');
+    await expect(result, 'the names only the admin can act on must survive the confirm').toContainText('S. Silva — tell them their password is their surname');
+    await expect(result.locator('text=Already existed'), 'the re-run lists the whole roster again; it is not appended').toHaveCount(1);
+    await expect(page.locator('#authConfirmOrphans')).toHaveCount(0);
+});
+
 // The day panel's "View leave dates" points INSIDE a card, at a box with a fold of its own. Both
 // have to open or the link scrolls to something folded away and reads as a button that does
 // nothing — which is what it did before v22.91, silently.
@@ -9177,7 +9368,12 @@ test('admin: AL on a rest day asks whether it was a swap, and will not save unan
     for (let i = 0; i < p.monthsAhead; i++) { await page.locator('#alRpNext').click(); await page.waitForTimeout(60); }
 
     await page.locator(`#alRpGrid .rp-day[data-iso="${p.work}"]`).click();
-    await page.locator(`#alRpGrid .rp-day[data-iso="${p.rest}"]`).click();
+    // BY KEYBOARD, and focus must survive it (whole-app review, Oct 2026): every pick rebuilds the
+    // grid, which used to destroy the focused day and drop focus to <body>.
+    const restCell = page.locator(`#alRpGrid .rp-day[data-iso="${p.rest}"]`);
+    await restCell.focus();
+    await page.keyboard.press('Enter');
+    await expect(restCell, 'the picked day keeps keyboard focus').toBeFocused();
 
     const ask  = page.locator('#alPreview .swapday-ask');
     const save = page.locator('#alSaveBtn');
@@ -9187,8 +9383,11 @@ test('admin: AL on a rest day asks whether it was a swap, and will not save unan
     // holding Save is the unanswered question.
     await expect(save, 'unanswered means unsaveable — no default').toBeDisabled();
 
-    await page.locator(`.swapday-opt[data-answer="no"][data-date="${p.rest}"]`).click();
-    await expect(page.locator(`.swapday-opt[data-answer="no"][data-date="${p.rest}"]`)).toHaveAttribute('aria-pressed', 'true');
+    const freeBtn = page.locator(`.swapday-opt[data-answer="no"][data-date="${p.rest}"]`);
+    await freeBtn.focus();
+    await page.keyboard.press('Enter');
+    await expect(freeBtn).toHaveAttribute('aria-pressed', 'true');
+    await expect(freeBtn, 'the answer keeps keyboard focus through the rebuild').toBeFocused();
     await expect(save, 'answered — the working day is recordable').toBeEnabled();
 
     // The other answer, and the pressed state moving with it.

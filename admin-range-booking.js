@@ -279,6 +279,10 @@ export function createRangeBookingSection(cfg) {
         // anyway" would book the new answers unchecked (review A19; the week grid's v16.69 rule).
         cfg.beforePreview?.();
         updatePreview();
+        // The preview was rebuilt under the pressed button, which took a keyboard user's focus to
+        // <body> (whole-app review, Oct 2026) — hand it to the same answer in the new block.
+        /** @type {HTMLElement|null} */ (previewEl.querySelector(
+            `.swapday-opt[data-date="${date}"][data-answer="${btn.dataset.answer}"]`))?.focus({ preventScroll: true });
     });
 
     function onDateChange() {

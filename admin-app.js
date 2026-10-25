@@ -1679,6 +1679,8 @@ export function init() {
                     const d = parseISODate(fieldDate.value);
                     lsSet(VIEWED_MONTH, d.getMonth());     // 0-indexed, matches app.js
                     lsSet(VIEWED_YEAR,  d.getFullYear());
+                    // …and NAMED in the link, because the Calendar drops a stored FUTURE month (whole-app review).
+                    calPill.setAttribute('href', `./?date=${fieldDate.value}`);
                 }
                 // Let the <a> navigate normally
             });

@@ -231,9 +231,15 @@ test('the FIP per-country print is guarded the same way @print', async ({ page }
     await page.addInitScript(IOS27_STANDALONE);
     await page.goto('/fip-guide.html');
     await page.locator('#country-fr > summary').click();
+    const closed = () => page.locator('details:not([open])').count();
+    const before = await closed();
     await page.locator('#country-fr .btn-print-country').click();
     await expect(page.locator('#printUnavailable')).toBeVisible();
     expect(await page.evaluate(() => /** @type {any} */ (window).__prints)).toBe(0);
+    // No print is coming, so nothing else would close what the prepare opened (whole-app review).
+    expect(await closed(), 'the cards the prepare opened are closed again').toBe(before);
+    await page.locator('.btn-print').click();
+    expect(await closed(), 'and for the header button too').toBe(before);
 });
 test('the same iPhone in a Safari TAB still prints — the guard is about the shell, not the engine @print', async ({ page }) => {
     await page.addInitScript(() => {

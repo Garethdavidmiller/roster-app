@@ -79,6 +79,7 @@ jobs:
           browser: chromium
 
       - name: Open the live site on both origins
+        id: site
         run: npm run test:live
         env:
           CI: true
@@ -93,8 +94,13 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
+      # ONLY WHEN THE SITE CHECK ITSELF FAILED (whole-app review, Oct 2026). `failure()` alone also
+      # fired when an INSTALL step died — a runner that could not fetch a library posted "The live
+      # site failed its health check" on the thread staff-facing outages are reported on, about a
+      # site nobody had opened. A check that could not run is a red run, which GitHub already
+      # emails; it is not a finding about the site.
       - name: Say so, once, in an issue
-        if: failure()
+        if: failure() && steps.site.outcome == 'failure'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

@@ -13,7 +13,7 @@
  */
 
 import { enhanceSelect } from './select-sheet.js';
-import { CONFIG, MONTH_NAMES, computeEaster, teamMembers } from './roster-data.js';
+import { CONFIG, MONTH_NAMES, computeEaster, teamMembers, resolveMemberRoster } from './roster-data.js';
 import { formatClock, printedStamp } from './date-format.js';
 import { authReady, authBootstrap } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
@@ -306,6 +306,7 @@ const legend = createLegend({
     getDisplayYear,
     getDisplayMonth,
     computeEaster,
+    resolveMemberRoster,
     displayVerdict: () => decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth()))),
     isTeamViewMode: () => teamView.isTeamViewMode(),
 });

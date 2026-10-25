@@ -405,6 +405,27 @@ export function buildCalendarContainer(month, year, opts = {}) {
         note.textContent = 'Checking for changes…';
         calendarContainer.appendChild(note);
     }
+    // A MONTH ANSWERED FROM THIS DEVICE'S CACHE IS LABELLED (whole-app review, Oct 2026). `stale`
+    // promises "labelled as possibly out of date, with a retry" (calendar-data-state.js), and for a
+    // month the first load did not cover nothing said so — the sync chip was the only label, and it
+    // belongs to the first load. Where that chip is on screen it speaks alone (index.css).
+    if (_display === 'stale' && !snapshot) {
+        const note = document.createElement('div');
+        note.className = 'calendar-stale-note';
+        const words = document.createElement('span');
+        words.setAttribute('role', 'status');
+        words.textContent = 'Saved copy — couldn\'t check for changes';
+        note.appendChild(words);
+        if (onRetryMonth) {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'calendar-stale-retry';
+            btn.textContent = 'Try again';
+            btn.addEventListener('click', () => onRetryMonth(year, month));
+            note.appendChild(btn);
+        }
+        calendarContainer.appendChild(note);
+    }
     if (_display === 'loading' || _display === 'unavailable') {
         calendarContainer.appendChild(buildGridPlaceholder(_display,
             // Wrapped only when there IS one — an always-defined arrow would make the panel
@@ -525,6 +546,8 @@ export function buildCalendarContainer(month, year, opts = {}) {
         dayCell.dataset.tooltip = ttParts.join(' · ');
         // Structured pieces for the tap-to-view day-detail lightbox (touch devices).
         dayCell.dataset.detailDay   = `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${MONTH_NAMES[month]} ${year}`;
+        // The year on its own, for the panel's "Leave dates" link — never parsed back out of the words.
+        dayCell.dataset.detailYear  = String(currentDate.getFullYear());
         // The roster week this date falls in — see `weekContext`, which also owns the one case
         // that must stay silent (a fixed line has no rotating week to state).
         const weekLabel = weekContext(member, currentDate);

@@ -61,9 +61,11 @@ describe('a touch-only test runs on every touch engine', () => {
         for (const f of SPECS) {
             const src = readFileSync(`${SPEC_DIR}/${f}`, 'utf8');
             src.split('\n').forEach((line, i) => {
-                // Only SKIP gates: an `if (name === 'mobile-chrome')` branch inside a test is
-                // choosing a viewport or an expectation, not deciding whether the test runs.
-                if (!/test\.skip\(/.test(line)) return;
+                // Skip gates AND branches (whole-app review, I10). This read only `test.skip(` lines
+                // on the reasoning that a branch chooses a viewport, not whether the test runs — but
+                // a branch can decide whether an ASSERTION runs: the Links sticky-header test keyed
+                // its phone viewport and its phone expectations on 'mobile-chrome', so under
+                // mobile-safari it took the desktop branch and the phone half never ran on WebKit.
                 if (!/project\.name\s*[!=]==\s*'mobile-(chrome|safari)'/.test(line)) return;
                 if (SINGLE_PROJECT_EXEMPT.some(e => e.file === f && line.includes(e.match))) return;
                 offenders.push(`${f}:${i + 1}  ${line.trim()}`);

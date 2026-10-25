@@ -403,8 +403,24 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
             // an overnight period at all.
             cur.nextDay = !!(cur.start && cur.end && cur.end < cur.start);
             paintCustomHint(date);
+            retintDay(date);
             updateSubmitState();
         }));
+    }
+
+    /**
+     * Re-apply one day's state tint IN PLACE. Every other control here repaints, because the tint is
+     * computed at paint time — but a repaint rebuilds the very time box being typed in, so this one
+     * did nothing, and an edited saved range kept its green "recorded" tint while holding an unsaved
+     * change (whole-app review, Oct 2026). Same `dayState`, so the two cannot disagree.
+     * @param {string} date
+     */
+    function retintDay(date) {
+        const row = daysHost.querySelector(`.ot-day[data-day="${date}"]`);
+        if (!row) return;
+        row.classList.remove('ot-day--set', 'ot-day--changed', 'ot-day--saved');
+        const state = dayState(answers[date], date);
+        if (state) row.classList.add(`ot-day--${state}`);
     }
 
     /**

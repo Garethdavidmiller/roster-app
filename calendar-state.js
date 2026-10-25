@@ -17,10 +17,22 @@ let _month = new Date().getMonth();
 /** @type {number} */
 let _year  = new Date().getFullYear();
 
-// Restore last-viewed month from localStorage (if valid, within app bounds,
-// and not a future month — staff should open on today's roster, not a month
-// they previously browsed ahead to).
+// Restore last-viewed month: a `?date=` the link named first, else localStorage (if valid, within app
+// bounds, and not a future month — staff should open on today's roster, not a month they previously
+// browsed ahead to).
 (function restoreViewedMonth() {
+    // A LINK THAT NAMES A DATE WINS, a future month included (whole-app review, Oct 2026): the Pay
+    // Calculator's "View these dates in your roster calendar" and Admin's Calendar pill both say which
+    // month they mean, and nothing read it — Admin's hand-off went through the stored month, which the
+    // future-month rule below then dropped. Honoured ONCE: the parameter is taken off the address, so a
+    // reload opens where the member has navigated since.
+    const loc = /** @type {any} */ (globalThis).location;
+    const asked = /^(\d{4})-(\d{2})-\d{2}$/.exec(loc ? new URLSearchParams(loc.search).get('date') ?? '' : '');
+    if (asked) {
+        const y = Number(asked[1]), m = Number(asked[2]) - 1;
+        try { const u = new URL(loc.href); u.searchParams.delete('date'); history.replaceState(history.state, '', u); } catch { /* address left as it is */ }
+        if (y >= CONFIG.MIN_YEAR && y <= CONFIG.MAX_YEAR && m >= 0 && m <= 11) { _month = m; _year = y; return; }
+    }
     const m = parseInt(lsGet(VIEWED_MONTH) ?? '', 10);
     const y = parseInt(lsGet(VIEWED_YEAR)  ?? '', 10);
     if (!isNaN(m) && !isNaN(y) && y >= CONFIG.MIN_YEAR && y <= CONFIG.MAX_YEAR && m >= 0 && m <= 11) {

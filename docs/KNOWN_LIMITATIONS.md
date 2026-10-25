@@ -492,47 +492,6 @@ from a real-network run — read every `blockedURI` from the CI `csp` job (or a 
 header on a live network), not a proxied dev run — then list exactly those hosts in `firebase.json` AND
 every served page's `<meta>` CSP, and confirm the CI `csp` job (not just local) goes green.
 
-### `script-src`/`frame-src` must allow Firebase Auth's Google-API iframe — `apis.google.com` (fixed v17.82; SUPERSEDED Oct 2026)
-> **Superseded.** Since v24.65 Auth is created with `initializeAuth` and no popup resolver, so the
-> gapi script and the authDomain iframe are never loaded, and the next release took `apis.google.com`
-> and the `firebaseapp.com` frame OUT of every policy (`frame-src 'self'`). `csp-hygiene.test.mjs` now
-> refuses them and `e2e/csp.spec.js` ignores no beacon at all — a refusal of either URL means
-> something has started loading that iframe again. The history below is kept because it explains
-> why the hosts were there.
-
-Firebase Auth (`firebase-auth.js`, loaded from gstatic) pulls in the Google API client
-**`https://apis.google.com/js/api.js`** and opens an auth-helper iframe on the **authDomain**
-(`myb-roster.firebaseapp.com`). `apis.google.com` is a **different domain** from the
-`*.googleapis.com` `connect-src` wildcard, so it was never covered — the CI `csp` job failed on the
-three app pages that initialise Auth with `Refused to load the script 'https://apis.google.com/js/api.js'`
-(directive `script-src-elem`). It only surfaced on CI: behind the dev-container proxy `www.gstatic.com`
-is tunnel-blocked, so the SDK never loads and never makes the call (the documented **false pass** — a
-local `npm run test:csp` stays green while CI is red). Fix: `script-src` now includes
-`https://apis.google.com`; `frame-src` (was `'none'`) now allows
-`https://myb-roster.firebaseapp.com https://apis.google.com` for the auth iframe — the standard
-Firebase-Auth-under-CSP requirement. **Second layer (v17.96):** once the gapi script could load, it
-began pinging its own telemetry endpoint (`apis.google.com/js/gen_204`) — a `connect-src` violation
-(the `*.googleapis.com` wildcard does NOT cover `apis.google.com`). `connect-src` now includes
-`https://apis.google.com` too. Lesson: allowing a third-party script means allowing what it then
-CONNECTS to — check the CI csp job after each layer, not just the first. Applied to the `firebase.json` header AND every served page's `<meta>` CSP
-(csp-meta-parity), with `apis.google.com` added to `csp-hygiene.test.mjs`'s `DYNAMIC_HOSTS` (it's
-requested by the gstatic SDK, not built in our source).
-
-**Third layer — the beacons we deliberately keep blocked (v18.90).** Once the iframe was allowed to
-load and connect, it started firing two fire-and-forget telemetry requests the app does not need:
-`www.google.com/images/cleardot.gif` (a 1×1 tracking pixel) and `apis.google.com/js/gen_204`
-(Google's logging beacon). These are **correctly refused** — `www.google.com` is in no directive, and
-`apis.google.com` is allowed to CONNECT but not to serve images. The problem was the *test*, not the
-policy: `e2e/csp.spec.js` asserted zero violations of any kind, so a deliberately-blocked third-party
-beacon failed the run. Worse, it only failed *sometimes* — the beacons fire only if the iframe reaches
-that state before the spec ends — which is why the `csp` job failed on three unrelated PRs in one day
-(#1070/#1078/#1080) while the parallel run of the same commit passed. `IGNORED_BLOCKS` now names those
-two URIs, gated by `BEACON_DIRECTIVES` so the waiver applies **only** to `img-src`/`connect-src`
-refusals: if `apis.google.com` is ever refused for a `script-src` or `frame-src` load — the v17.82
-outage — it still fails. (A live Chromium probe under the Hosting emulator confirmed the `gen_204`
-beacon is refused by `img-src`, so the two directives named are the two that can legitimately fire.) **Do not widen the policy to make a beacon pass;** blocking third-party
-telemetry is the intended behaviour.
-
 ### GitHub Pages mirror — CSP via `<meta>`, with two residual header-only gaps (v17.63)
 The staff mirror at `garethdavidmiller.github.io/roster-app/` is served by GitHub Pages, which
 **cannot serve custom HTTP response headers at all** (no `_headers` support). So the `firebase.json`
@@ -1330,7 +1289,12 @@ refute it — distinguishing a printed RD from an empty cell from a printed duty
 text, which is phase 3 of the ROADMAP's plan. Nor can the phase-1 witness see a shifted row whose week is fully
 occupied (nothing empty to contradict); since v24.04/v24.12 the geometry path (phase 2) assigns days
 by coordinate so such a row cannot shift, and `assessRosterAlignment` covers the legacy fallback path. Both limits are
-stated in the module header and pinned by its tests rather than left to be discovered.
+stated in the module header and pinned by its tests rather than left to be discovered. **One case of
+the first limit is closed on the geometry path** (whole-app review, Oct 2026): a cell the model reports
+EMPTY while the grid holds text in it goes to the review naming that text
+(`reviewBlankReadsOfFilledCells`, `functions/roster-prompt.js`) — before, a worked Sunday read that way
+became a rest day and was never shown. A cell the model reads as `RD` when it prints a duty is still
+phase 3.
 
 ### Cloud Function payday constant duplicated from `roster-data.js`
 `functions/roster-parse-helpers.js` contains its own `FIRST_PAYDAY_MS` and `INTERVAL_DAYS`
@@ -1854,7 +1818,7 @@ taken on 19 Sep 2026 (`LATENCY.md` → THE CLOSING READ) and the file is closed,
 use for the App Speed card. A regression there would not look like an error — it would look like a
 thinner sample that still reads as data.
 
-`page-contract-parity.test.mjs` now pins all seven coordinators: each calls all three, and each call
+`page-contract-parity.test.mjs` now pins every page's coordinator (eight since the Trains page): each calls all three, and each call
 sits inside that page's declared auth barrier rather than at module scope. All seven were correctly
 wired when the guard was written, so this closes no defect — it protects a rule that was obeyed
 everywhere and checked nowhere. Verified by four mutations (a deleted call; a call kept but hoisted
@@ -1971,7 +1935,7 @@ appear in DevTools and the Operations Error Log.
 
 What is over there: the **2027/28 paycalc rollover** (hard deadline 6 Apr 2027, warning Feb 2027 —
 the period selector runs out at ≈ P62 and does not warn, it simply stops offering periods),
-**`MAX_YEAR` 2030 → 2032** (end 2028, lunar/bank-holiday data first), the **override-count archive
+**`MAX_YEAR` 2030 → 2032** (end 2028, lunar/bank-holiday data first, then `npm run generate:roster-members`), the **override-count archive
 trigger** (design at ~4,000, must land before ~5,000), the recurring guide and pay-threshold source
 reviews, and the **after-every-new-starter** checks — including the work email, which since v19.30
 nothing prompts for.

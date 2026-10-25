@@ -104,7 +104,6 @@ function _showUnsupportedRole(member) {
         canOpenOvertime: canOpenOvertime(member?.name ?? ''),
         onSignOut: () => signOutAndLeave({ to: './' }),
     });
-    registerServiceWorker();
     markPageReady();
     recordUsage('paycalc', member?.name || null);
 }
@@ -116,6 +115,7 @@ export function init() {
     // such guard until v24.52; it is now page-session.js's, every protected page installs it, and
     // it runs FIRST so no early return below (sign-in, unsupported role) can skip it.
     reloadIfRestoredForSomeoneElse();
+    registerServiceWorker();   // BEFORE the sign-in gate, as Operations/Links: a signed-out view must still take an update (whole-app review)
     // Tear down a lingering privileged Firebase identity whose local app session has expired, so a
     // direct deep-link to this page can't keep an old credential live (review item 7 / Finding #9).
     // Runs BEFORE the session-guard early-return below (the expired-session path is exactly where a
@@ -231,7 +231,7 @@ export function init() {
      */
     function autoDecimalHours(hId, mId) {
       const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId)).value;
-      if (!raw.includes('.')) return;
+      if (!/[.,]/.test(raw)) return;   // a decimal comma too — hmPair (paycalc-inputs.js)
       const hm = decimalToHM(parseSmartFloat(raw));
       if (!hm) return;
       /** @type {HTMLInputElement} */ (document.getElementById(hId)).value = String(hm.h);
@@ -1529,13 +1529,13 @@ export function init() {
       }
     });   // (closes the wireIosTap action)
 
-    // Remove roster-suggested highlight and refresh comparison state as user edits hours
-    document.querySelectorAll(HM_PAIRS.flatMap(p => ['#' + p.hId, '#' + p.mId]).join(',')).forEach(el => {
-      el.addEventListener('input', () => {
-        el.classList.remove('roster-suggested');
-        updateRosterHint();
-      });
-    });
+    // An edit makes the whole PAIR the member's (one pair, one author — _suggestIfBlank), so both boxes lose the highlight — in the CAPTURE phase, before the field's own autosave → calculate() reads the class for the "Hours from calendar" chip (it outlived the edit — whole-app review).
+    document.getElementById('hoursCard')?.addEventListener('input', e => {
+      const pair = HM_PAIRS.find(p => p.hId === /** @type {HTMLElement} */ (e.target).id || p.mId === /** @type {HTMLElement} */ (e.target).id);
+      if (!pair) return;
+      for (const id of [pair.hId, pair.mId]) document.getElementById(id)?.classList.remove('roster-suggested');
+      updateRosterHint();
+    }, true);
 
     // Tax year tab listeners are attached when the tabs are generated (see INIT).
 
@@ -1742,14 +1742,9 @@ export function init() {
     // open handle so the nav-panel drawer logo can open the same panel.
     const { openAboutLightbox, showYtdNotice } = initPaycalcLightboxes();
 
-    // ── SW UPDATE AUTO-ACTIVATION ─────────────────────────────────────────────────
-    // Handled by the shared registerServiceWorker() call below (see "SERVICE WORKER").
-    // A hand-rolled duplicate of that lifecycle used to live here; it was removed at
-    // v12.96 because running both registered two controllerchange listeners and two
-    // hourly update() timers, which could fire the post-update reload twice.
-
-    // ── SERVICE WORKER ────────────────────────────────────────────────────────────
-    registerServiceWorker();
+    // ── SERVICE WORKER — registered at the top of init(), before the sign-in gate (whole-app review).
+    // A hand-rolled duplicate of that lifecycle was removed at v12.96 (two controllerchange listeners
+    // and two hourly update() timers, which could fire the post-update reload twice).
 
     // Establish the Firebase Auth session BEFORE starting error reporting. A valid
     // 60-day localStorage session can outlive the Firebase Auth session (cleared or

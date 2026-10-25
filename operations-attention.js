@@ -98,12 +98,12 @@ export function buildAttentionItems(reports) {
  * Wire the strip. Renders into `container` (kept `hidden` until an item exists).
  *
  * @param {{container: HTMLElement|null, onJump?: (hash: string) => void}} cfg
- * @returns {{report: (id: string, count: number, extra?: {truncated?: boolean}) => void}}
+ * @returns {{report: (id: string, count: number, extra?: {truncated?: boolean}) => void, withdraw: (id: string) => void}}
  */
 export function createAttentionStrip({ container, onJump }) {
     /** @type {Record<string, {count: number, truncated?: boolean}>} */
     const reports = {};
-    if (!container) return { report: () => {} };
+    if (!container) return { report: () => {}, withdraw: () => {} };
     // Re-bound after the guard so the closures below see a non-null type (narrowing does not
     // survive into a nested function).
     const host = container;
@@ -163,6 +163,16 @@ export function createAttentionStrip({ container, onJump }) {
                 throw new Error(`[attention] unknown id "${id}" — add it to ATTENTION_CATALOGUE`);
             }
             reports[id] = { count, truncated: !!extra.truncated };
+            render();
+        },
+        /**
+         * Back to UNKNOWN (whole-app review, Oct 2026): a card whose RELOAD failed withdraws what it
+         * reported before, rather than leaving a count it can no longer stand behind. Not a zero —
+         * the header's rule is that a failed load claims nothing either way.
+         * @param {string} id
+         */
+        withdraw(id) {
+            delete reports[id];
             render();
         },
     };

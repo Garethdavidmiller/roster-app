@@ -45,7 +45,8 @@ cannot open their own roster on their last week.
 
 - [ ] **5 · Disable the login.** Operations → Staff Login Accounts → tick *"Disable accounts for
       anyone no longer on the roster (leavers)"* → **Set up accounts** → read the dry-run preview → **Confirm**. Until this runs
-      their account still works and their surname default is still a valid password for it.
+      their account still works, their surname default is still a valid password for it, and their
+      phone still receives the staff notifications — the confirm also removes their push records.
 
 - [ ] **6 · Verify — do not skip this.** The block above that button should read **"Everyone on the
       roster has a login, and no leaver still has one."** If the leaver is still enabled it names

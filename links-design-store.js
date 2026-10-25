@@ -367,8 +367,13 @@ export function createDesignStore(deps) {
          * @param {string} id @param {string} by
          */
         async softDelete(id, by) {
-            await withClaimRetry(() => setDoc(refFor(id),
-                { deletedAt: serverTimestamp(), deletedBy: by }, { merge: true }));
+            const write = () => setDoc(refFor(id), { deletedAt: serverTimestamp(), deletedBy: by }, { merge: true });
+            // RULE 4, for the delete too (whole-app review, Oct 2026). Awaited offline, it held until
+            // the signal came back: nothing changed on screen, the designer kept editing, and the late
+            // landing then switched the page away and dropped those edits unasked. Queued, it shows now.
+            if (offlineNow()) { queueWrite(write); return { queued: true }; }
+            await withClaimRetry(write);
+            return { queued: false };
         },
 
         /**

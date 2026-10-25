@@ -745,6 +745,20 @@ describe('a queued write does not wait for a server that is not there', () => {
         assert.equal(/** @type {any} */ (res).baseline.loadedRevision, 1);
     });
 
+    test('soft delete (whole-app review, Oct 2026)', async () => {
+        // Awaited offline, the delete appeared to do nothing — and landed later, after the designer
+        // had gone on editing, switching the page away from those edits.
+        const { api } = makeDb({ initial: { name: 'A', revision: 2 } });
+        api.isOnline = () => false;
+        /** @type {any} */ let wrote = null;
+        api.setDoc = (_ref, payload, opts) => { wrote = { payload, opts }; return neverResolves(); };
+        const res = await Promise.race([createDesignStore(api).softDelete(ID, ME), hang()]);
+        assert.notEqual(res, 'hung');
+        assert.equal(/** @type {any} */ (res).queued, true);
+        assert.equal(wrote?.payload.deletedBy, ME, 'the queued delete was still issued');
+        assert.equal(wrote?.opts?.merge, true, 'and is still a merge');
+    });
+
     test('rename', async () => {
         const { api } = makeDb({ initial: { name: 'A', updatedAt: ts(1000), updatedBy: ME, revision: 2 },
             failTx: { code: 'unavailable', message: 'client is offline' } });

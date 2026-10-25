@@ -385,3 +385,17 @@ describe('railwayToday', () => {
         assert.equal(now.getDate(), 24);
     });
 });
+
+// The `?` panels are built once, at import, with no phase — so a sentence true on one side of the
+// change only went on saying it for the four months after (whole-app review, Oct 2026). The caveat
+// beneath the tabs is the phase-aware one; the panels must name columns and dates, never "today".
+describe('the Trains tips hold on both sides of the change', () => {
+    test('no tip says something only true before (or only after) the timetable changes', async () => {
+        const { CARD_TIPS } = await import('./trains-tips.js');
+        const all = Object.values(CARD_TIPS).flatMap(c => c.sections.flatMap(s => s.items.map(i => i.html)));
+        assert.ok(all.length > 10, 'the panels were read');
+        for (const html of all) {
+            assert.doesNotMatch(html, /can still change|says it will|today beside|today['’]s .*timetable|starts on/i, html);
+        }
+    });
+});

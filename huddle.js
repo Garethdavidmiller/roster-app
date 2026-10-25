@@ -61,7 +61,9 @@ export function initHuddleNotifications({ onState } = {}) {
         if (statusMsg) statusMsg.textContent = !isIOS() || installed
             ? 'Push notifications are not supported on this device or browser.'
             : onMirror
-                ? 'On iPhone or iPad, notifications only work once the app is on your Home Screen. Tap your browser’s Share button, then Add to Home Screen.'
+                // NOT "add THIS page" (whole-app review, Oct 2026): installing the mirror is what the
+                // install notice and the guide tell staff not to do — the install belongs to web.app.
+                ? 'On iPhone or iPad, notifications only work in the app on your Home Screen. Open myb-roster.web.app and add it to your Home Screen from there.'
                 : 'On iPhone or iPad, notifications only work once the app is on your Home Screen — see “Install on this device” below.';
         if (enableBtn)  enableBtn.style.display  = 'none';
         if (disableBtn) disableBtn.style.display = 'none';
@@ -108,7 +110,9 @@ export function initHuddleNotifications({ onState } = {}) {
         } else if (state === 'denied') {
             _statusMsg.textContent   = 'Notifications are blocked. To re-enable, check your browser or device settings.';
             if (isIOS()) {
-                _deniedMsg.textContent = 'On iPhone/iPad: Settings → Chrome or Safari → Notifications → Allow.';
+                // An installed web app's permission lives in iOS Settings under the app's OWN name,
+                // not under a browser (whole-app review, Oct 2026).
+                _deniedMsg.textContent = 'On iPhone or iPad: open Settings → Notifications, find this app by its Home Screen name, and turn on Allow Notifications.';
             } else if (/Android/i.test(navigator.userAgent)) {
                 _deniedMsg.textContent = 'On Android: tap the padlock in Chrome → Site settings → Notifications → Allow.';
             } else {
@@ -131,6 +135,8 @@ export function initHuddleNotifications({ onState } = {}) {
     }
 
     const safeRefresh = () => refreshUI().catch(err => console.warn('[Notifications] Refresh error:', err));
+    // Another control changed the setting — the drawer's bell, or a prompt (whole-app review, Oct 2026).
+    document.addEventListener('myb:notif-changed', safeRefresh);
 
     _enableBtn.addEventListener('click', async () => {
         _enableBtn.disabled = true;

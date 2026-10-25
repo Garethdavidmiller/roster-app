@@ -603,7 +603,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             for (const st of cellStates.values()) {
                 if      (st.state === 'DIFF')          { if (st.chosen !== false) updates++; }
                 else if (st.state === 'REMOVE_IMPORT') { if (st.chosen !== false) clears++; }
-                else if (st.state === 'GUARDED')       { if (guardedWrites(st, '', '').length) updates++; }
+                // "Rest day — leave it" over an old import DELETES it: a clear, not a shift updated (whole-app review).
+                else if (st.state === 'GUARDED')       { const gw = guardedWrites(st, '', ''); if (gw.length) { if (gw[0].deleteOnly) clears++; else updates++; } }
                 else if (st.state === 'CONFLICT')      { conflictsTotal++; if (st.chosen === 'pdf') { conflictsSwitched++; updates++; } }
                 else if (st.state === 'UNREADABLE')    {
                     // A resolved one is an update, not an outstanding "couldn't read" — otherwise the
@@ -636,8 +637,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // they contribute to no count above — and the summary went silent about the one thing
             // that had changed. A withheld row is an outcome; "nothing will happen to these" is
             // exactly what the admin needs to read before they scroll past them.
+            // Only rows STILL unticked are held back: one the admin has checked and ticked is counted
+            // above, and counting it here too said the same day was both saving and withheld.
             const heldBack = [...cellStates.values()].filter(st =>
-                st.drift && (st.state === 'DIFF' || st.state === 'REMOVE_IMPORT')).length;
+                st.drift && (st.state === 'DIFF' || st.state === 'REMOVE_IMPORT') && st.chosen === false).length;
             if (heldBack > 0)
                 lines.push(`<div class="ro-line ro-read"><span class="ro-k">⚠</span><span><strong>${heldBack}</strong> `
                     + `day${heldBack !== 1 ? 's' : ''} held back — the week may be a day out, so nothing there is selected</span></div>`);

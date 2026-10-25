@@ -35,6 +35,15 @@ export function _resetForTest() { _registered = false; _controllerListenerAttach
 let _updateClaimed = false;
 
 /**
+ * Has a newer release taken control of this page and not yet reloaded it? The About panel's "Update
+ * ready" reads this (whole-app review, Oct 2026): it checked `registration.waiting` alone, which this
+ * worker never leaves set — it `skipWaiting()`s at install — so while the Calendar held a release's
+ * reload, or a busy page waited for a quiet moment, the panel showed the OLD version as "Up to date".
+ * @returns {boolean}
+ */
+export function hasPendingUpdate() { return _updateClaimed; }
+
+/**
  * Run a lazy `import()`. If it fails AFTER a newer release has claimed the page, reload onto that
  * release instead of leaving the control that asked for it dead; either way the rejection still
  * reaches the caller, which keeps its own fallback. Only for pages where a reload loses nothing

@@ -51,7 +51,7 @@ export const MONTHS_AFTER  = 3;
 const RESTAMP_AFTER_MS = 86_400_000;
 
 /**
- * @typedef {{ type: string, value: string, source?: string, changedBy?: string }} SnapshotRecord
+ * @typedef {{ type: string, value: string, source?: string, changedBy?: string, replacedType?: string }} SnapshotRecord
  * @typedef {{ savedAt: number, days: Record<string, SnapshotRecord> }} SnapshotMonth
  * @typedef {{ v: number, member: string, months: Record<string, SnapshotMonth> }} Snapshot
  */
@@ -70,12 +70,18 @@ export function inWindow(/** @type {string} */ key, /** @type {number} */ now) {
     return Number.isFinite(there) && there >= here - MONTHS_BEFORE && there <= here + MONTHS_AFTER;
 }
 
-/** The fields of a cache record a paint needs, and no more. @param {any} r @returns {SnapshotRecord} */
+/**
+ * The fields of a cache record a paint needs, and no more. `replacedType` IS one (whole-app review,
+ * Oct 2026): an absence on a day swapped in from a rest day is shown only because it carries it
+ * (`isOverrideDisplaySuppressed`), so without it the stored copy painted Rest over a real absence.
+ * @param {any} r @returns {SnapshotRecord}
+ */
 function trim(r) {
     /** @type {SnapshotRecord} */
     const out = { type: String(r.type), value: String(r.value) };
     if (r.source) out.source = String(r.source);
     if (r.changedBy) out.changedBy = String(r.changedBy);
+    if (r.replacedType) out.replacedType = String(r.replacedType);
     return out;
 }
 

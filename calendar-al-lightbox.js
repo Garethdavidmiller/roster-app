@@ -421,7 +421,13 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     // exactly the days that show the 🏖️ badge, and cannot drift from them. It is an ordinary link
     // with a real href, not a scripted navigation: a member may want it in a new tab, and the
     // destination is a page, not an action.
-    if (leaveBtn) leaveBtn.hidden = !personal || d.detailShiftValue !== 'AL';
+    if (leaveBtn) {
+      leaveBtn.hidden = !personal || d.detailShiftValue !== 'AL';
+      // THE YEAR OF THE DAY TAPPED (whole-app review, Oct 2026), as the leave panel's own link
+      // already carries — without it, leave tapped in next January opened this year's list.
+      leaveBtn.href = /^\d{4}$/.test(d.detailYear || '')
+        ? `admin.html?alYear=${d.detailYear}#alBookedBox` : 'admin.html#alBookedBox';
+    }
     // Pay-marked day (payday or cut-off): offer an explicit route to the calculator. Touch has no
     // hover, so tapping such a day used to teleport to paycalc unexpectedly — now the jump is a
     // deliberate button inside the detail. A cut-off day resolves to its own payday.

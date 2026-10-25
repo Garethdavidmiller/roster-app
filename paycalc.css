@@ -147,6 +147,15 @@
        (the date range, "Tax year 2026/27", "No entries saved for this period"), which read as an
        accident rather than a choice. */
     .period-hint   { margin: 4px 0 0; font-size: var(--type-micro); color: var(--text-faint); }
+    /* A deep link to a payslip the calculator does not carry (whole-app review, Oct 2026) — a STATUS
+       line in the navy info voice of .rate-step-note, never an error colour: nothing is wrong. */
+    .period-link-note {
+      width: 100%; margin: 0;
+      font-size: var(--type-small); color: var(--text-mid); line-height: 1.5;
+      border-left: 3px solid var(--primary-blue); padding: 8px 10px;
+      background: var(--bg-faint); border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
+    }
+    .period-link-note[hidden] { display: none; }
     .period-meta   { display: flex; flex-direction: column; gap: 3px; width: 100%; }
     .pm-range      { font-size: var(--type-label); font-weight: 600; color: var(--text-dark); }
     .pm-sub        { display: flex; justify-content: space-between; align-items: center; gap: 6px; }

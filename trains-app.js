@@ -109,6 +109,7 @@ const BANDS = stationBands(Object.values(TIMETABLES).flatMap(t => Object.values(
 /** Coordinator body, invoked by trains-boot.js. Exported so a test can import without running. */
 export function init() {
     reloadIfRestoredForSomeoneElse();
+    registerServiceWorker();   // BEFORE the sign-in gate, as Operations/Links: a signed-out view must still take an update (whole-app review)
     const currentUser = getSession()?.name ?? null;
 
     // Decided from the LOCAL session, as Operations and Overtime do — the auth store is often still
@@ -145,7 +146,6 @@ export function init() {
 function start(member) {
     document.body.classList.add('auth-ready');   // the cards show; the boot placeholder goes (trains.html, v24.96)
     dismissLoginOverlay();
-    registerServiceWorker();
     if (member) {
         const established = ensureNamedSession(member);
         resolveSession(established);

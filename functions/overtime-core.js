@@ -921,13 +921,16 @@ function reminderDue(milestones, reminderSentAtMs, nowMs) {
  */
 function londonDeadlineLabel(ms) {
     const d = new Date(ms);
-    const date = new Intl.DateTimeFormat('en-GB', {
-        timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'short',
-    }).format(d);
+    // The MONTH from our own list, never Intl's short month: Node's en-GB data spells September
+    // "Sept", which the client's `deadlineLabel` was rewritten to avoid — so the asked notice said
+    // "1 Sept" above a form saying "1 Sep" (whole-app review, Oct 2026). The reminder already used it.
+    const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/London', weekday: 'short', day: 'numeric', month: 'numeric',
+    }).formatToParts(d).map(p => [p.type, p.value]));
     const time = new Intl.DateTimeFormat('en-GB', {
         timeZone: 'Europe/London', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     }).format(d);
-    return `${date.replace(',', '')} · ${time}`;
+    return `${parts.weekday} ${Number(parts.day)} ${MONTH_ABB_EN[Number(parts.month) - 1]} · ${time}`;
 }
 
 /**

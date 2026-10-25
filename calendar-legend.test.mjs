@@ -32,8 +32,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { legendVisibility, legendShown } from './calendar-legend.js';
-import { computeEaster } from './roster-data.js';
+import { legendVisibility, legendShown, onDispatcherRosterIn } from './calendar-legend.js';
+import { computeEaster, resolveMemberRoster } from './roster-data.js';
 
 /** Every conditional item the legend owns, so a case can assert the whole shape. */
 const ROW_TWO = ['legend-spare', 'legend-rdw', 'legend-al', 'legend-sick', 'legend-other'];
@@ -106,6 +106,21 @@ describe('a symbol with no explanation', () => {
     test('nights are a Dispatcher key, and nobody else gets one', () => {
         assert.equal(at({ isDispatcher: true })['legend-night'], true);
         assert.equal(at({ isDispatcher: false })['legend-night'], false);
+    });
+
+    // Whole-app review, Oct 2026: the base `rosterType` decided it, so a scheduled move onto or off
+    // Dispatch left the key wrong for every month after the move.
+    test('a scheduled roster move decides the Night key month by month, through the REAL resolver', () => {
+        const mover = { name: 'Fixture', rosterType: 'main', currentWeek: 1,
+            rosterChanges: [{ from: new Date(2026, 6, 15), rosterType: 'dispatcher', currentWeek: 1 }] };
+        assert.equal(onDispatcherRosterIn(mover, 2026, 5, resolveMemberRoster), false, 'June: still on main');
+        assert.equal(onDispatcherRosterIn(mover, 2026, 6, resolveMemberRoster), true, 'July: moves mid-month');
+        assert.equal(onDispatcherRosterIn(mover, 2026, 7, resolveMemberRoster), true, 'August: on Dispatch');
+        const leaver = { name: 'Fixture', rosterType: 'dispatcher', currentWeek: 1,
+            rosterChanges: [{ from: new Date(2026, 0, 1), rosterType: 'main', currentWeek: 1 }] };
+        assert.equal(onDispatcherRosterIn(leaver, 2026, 2, resolveMemberRoster), false,
+            'a move AWAY from Dispatch must take the key down');
+        assert.equal(onDispatcherRosterIn(null, 2026, 2, resolveMemberRoster), false);
     });
 
     test('Christmas is December and only December', () => {

@@ -977,11 +977,18 @@ export function parseSmartFloat(v) {
  *  parseFloat stops at the first comma, silently turning "23,456.78" into 23, badly corrupting
  *  YTD-based cumulative PAYE). @param {any} v */
 function _cleanNumericString(v) {
-    return String(v)
+    const s = String(v)
         .replace(/[‐-―−−]/g, '-')
         .replace(/[‘’]/g, "'")
-        .replace(/[,£]/g, '')
+        .replace(/£/g, '')
         .trim();
+    // A comma before one or two FINAL digits is a decimal comma — a thousands group is always three
+    // digits, so this cannot be one. A phone set to a decimal-comma region offers "," on the decimal
+    // keypad, and stripping it turned "21758,94" into £2,175,894 (whole-app review, Oct 2026). Dots
+    // before such a comma are then the thousands separators ("1.234,56").
+    const dec = /^(-?[\d.]*\d),(\d{1,2})$/.exec(s);
+    if (dec) return `${dec[1].replace(/\./g, '')}.${dec[2]}`;
+    return s.replace(/,/g, '');
 }
 
 /**

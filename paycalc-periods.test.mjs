@@ -105,6 +105,7 @@ const {
     _setSelectPeriod, prevPeriod, nextPeriod,
     computeEarliestVisiblePNum, setEarliestVisiblePeriod, getEarliestVisiblePNum,
     visiblePeriods, isTaxYearVisible, ytdAutoSource, ytdSourceOffered, payslipMayBeInHand,
+    periodLinkMissNote,
 } = await import('./paycalc-periods.js');
 
 const {
@@ -229,6 +230,20 @@ describe('getPeriods', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // paycalc-periods.js — payslipPeriodNum (printed payslip number: weeks-into-year, ×4, resets April)
 // ─────────────────────────────────────────────────────────────────────────────
+// Whole-app review, Oct 2026: a deep link to a payday the calculator does not carry opened the
+// current payslip and said nothing, so its figures read as the ones the member had asked for.
+describe('periodLinkMissNote', () => {
+    const periods = [{ payday: new Date(2025, 3, 11, 12) }, { payday: new Date(2027, 2, 12, 12) }];
+    test('names what was asked for and the range on offer', () => {
+        assert.equal(periodLinkMissNote('9 Apr 2027', periods),
+            "There's no payslip for 9 Apr 2027 in the calculator — it covers payslips paid 11 Apr 2025 to 12 Mar 2027.");
+    });
+    test('says nothing when the link matched, or when there is no list', () => {
+        assert.equal(periodLinkMissNote('', periods), '');
+        assert.equal(periodLinkMissNote('9 Apr 2027', []), '');
+    });
+});
+
 describe('payslipPeriodNum', () => {
     const printedFor = num => payslipPeriodNum({ num });
 

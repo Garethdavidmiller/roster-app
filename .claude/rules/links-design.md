@@ -1369,7 +1369,7 @@ The grid flags an all-rest line with an amber line-number cell (`.row-unfilled`)
 1. **A read a write depends on happens INSIDE the write's transaction** — not before it — so the decision is true at commit.
 2. **No weaker fallback while online.** Only a failure `isOfflineFailure` recognises may take the queued `setDoc` path (after consulting the cached doc for a deletion or conflict); an online transaction failure is reported and the unsaved state is kept.
 3. **The baseline (`revision`) only advances to a revision the store verified.** Anything else leaves `baselineUnknown` set, so the next save prompts.
-4. **A queued (offline) write is started, not awaited, and never stamps a revision a colleague's online save could also produce** (`queueWrite`, `queuedRevision`). That covers a save, a rename and — since the Sep 2026 re-review — a CREATE: `addDoc` resolves only on the server's ack, so an offline first save now names its document with an auto-id `doc(col)` and queues the `setDoc`, still as revision 1 (exact: nobody else can write a document whose id only this device holds).
+4. **A queued (offline) write is started, not awaited, and never stamps a revision a colleague's online save could also produce** (`queueWrite`, `queuedRevision`). That covers a save, a rename and — since the Sep 2026 re-review — a CREATE: `addDoc` resolves only on the server's ack, so an offline first save now names its document with an auto-id `doc(col)` and queues the `setDoc`, still as revision 1 (exact: nobody else can write a document whose id only this device holds). And — since the whole-app review, Oct 2026 — a SOFT DELETE, which awaited offline appeared to do nothing and then, landing later, switched the page away from edits made in the meantime.
 
 A conflict comes back as `{ status: 'conflict', conflict }` and `links-app.js` decides whether to ask, overwrite or fork — the store never asks. A design deleted elsewhere (binned, or gone entirely) comes back as `deleted-elsewhere`; a save never recreates it. The pure comparison rules (`conflictOf`, the baseline helpers) are `links-concurrency.js`. A failed load sets `loadFailed` — empty state shows an error.
 
@@ -1385,8 +1385,10 @@ once instead of hanging on "Saving…" until the connection comes back; and `sav
 window and revision included, clearing `dirty` only if nothing was edited while it was in flight.
 
 Three workspace invariants on top (Sep 2026 re-review), in `saveChanges`:
-- **"Saving" is PER DESIGN** (`savingKeys` — by id, or by the working copy before a first save). A
-  write that cannot finish must never lock every other design's Save with it.
+- **"Saving" is PER DESIGN** (`savingKeys` — by id, or `'unsaved'` for any first save). A write that
+  cannot finish must never lock every other design's Save with it. A first save is NOT keyed on the
+  design object (whole-app review, Oct 2026): a window edit or a generator apply replaces the object
+  mid-save, which re-enabled Save and let a second press create a second design.
 - **A queued save does not say "✓ Saved".** It says *Saved on this device — it will upload when
   you're back online*, without the success colour. It still clears `dirty`: the write is in the
   device's persistent Firestore queue, a re-save would only queue a duplicate, and a leave-page

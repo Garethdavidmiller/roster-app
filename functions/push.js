@@ -192,6 +192,25 @@ async function sendTargetedPush(payload, ownerUids, logTag) {
     return accepted;
 }
 
+/**
+ * Delete every push record this account OWNS — the leaver sweep's last step (whole-app review, H4).
+ *
+ * A member who simply stopped opening the app never ran Sign out, so their record kept its owner,
+ * and `fanOutPush` (which reads every record and consults no owner) went on sending the daily
+ * Huddle, the documents and the pay reminders to an ex-colleague's phone indefinitely. Disabling
+ * the account stops a sign-in; only this stops the broadcasts. A record with no owner (written
+ * before v17.76) cannot be attributed and is left to the push service's eventual 410.
+ *
+ * @param {string} uid
+ * @returns {Promise<number>} how many records were deleted
+ */
+async function releasePushForOwner(uid) {
+    if (typeof uid !== 'string' || !uid) return 0;
+    const snap = await getFirestore().collection('pushSubscriptions').where('owner', '==', uid).get();
+    await Promise.all(snap.docs.map(d => d.ref.delete()));
+    return snap.docs.length;
+}
+
 async function fanOutPush(payload, logTag) {
     const snapshot = await getFirestore().collection('pushSubscriptions').get();
     if (snapshot.empty) {
@@ -225,4 +244,4 @@ async function fanOutPush(payload, logTag) {
 }
 
 
-module.exports = { getWebPush, setupWebPush, sendTargetedPush, fanOutPush, pushSendOptions, PUSH_TTL_BY_TAG };
+module.exports = { getWebPush, setupWebPush, sendTargetedPush, fanOutPush, releasePushForOwner, pushSendOptions, PUSH_TTL_BY_TAG };

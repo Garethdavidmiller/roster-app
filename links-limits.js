@@ -282,7 +282,10 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
     // yet, so the figure could only RISE, and a "within the ceiling" on a half-built design would be
     // the same unearned pass rule 2 forbids for the run limit. And only at the link's OWN length —
     // it is a rule of the December link, and a shorter test rotation has no such rule to break.
-    if (lines === ROTATING_LINES) {
+    // `unfilled` is asked HERE as well (whole-app review, Oct 2026): the early return above covers
+    // only a design with no run breach, so a part-built design that breaks the run limit fell
+    // through and got a green "within the 219" on lines nobody had drawn.
+    if (lines === ROTATING_LINES && unfilled.size === 0) {
         const days = Math.round(contractedDaysPerYear(patterns, lines) * 10) / 10;
         const over = days > CONTRACTED_DAYS_CEILING;
         checks.push({
@@ -301,5 +304,5 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
         });
     }
 
-    return { checks, breaches: checks.filter(c => c.status === 'breach').length, assessable: true };
+    return { checks, breaches: checks.filter(c => c.status === 'breach').length, assessable: unfilled.size === 0 };
 }

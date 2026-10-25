@@ -524,6 +524,15 @@ export function busiestStations(rows, n = 8) {
     return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, n).map(([crs]) => crs);
 }
 
+/**
+ * Other names a station goes by, searched as well as the printed one, which stays the name shown.
+ * National Rail and the Rangers guide call STY "Stratford-upon-Avon Parkway", and typing that found
+ * nothing, because the timetable book prints "Stratford Parkway" (whole-app review, Oct 2026).
+ */
+const ALSO_KNOWN_AS = /** @type {Readonly<Record<string, readonly string[]>>} */ ({
+    STY: ['Stratford-upon-Avon Parkway'],
+});
+
 /** Short forms people type for a word in a station's name, each standing for the printed word. */
 const SHORT_FORMS = /** @type {Readonly<Record<string, readonly string[]>>} */ ({
     birmingham: ['bham', 'brum'], cross: ['x'], parkway: ['pkwy', 'pway'], junction: ['jn', 'jct'],
@@ -556,8 +565,8 @@ export function matchStations(stations, typed, n = 6, prefer = []) {
     const compact = q.replace(/[^a-z]/g, '');
     /** @type {{ crs: string, name: string, rank: number, whole: boolean }[]} */
     const hits = [];
-    for (const [crs, name] of Object.entries(stations)) {
-        if (crs === 'MYB') continue;
+    /** How well one spelling of a station's name matches — the ladder below, or -1. */
+    const rankOf = (/** @type {string} */ crs, /** @type {string} */ name) => {
         const tokens = words(name).map(w => [w, ...(SHORT_FORMS[w] ?? [])]);
         let at = 0, first = -1;
         const inOrder = qWords.every((qw) => {
@@ -578,7 +587,22 @@ export function matchStations(stations, typed, n = 6, prefer = []) {
             : compact.length >= 4 && runTogether.some(f => f.includes(compact)) ? 4
             : q.length >= 3 && words(name).join(' ').includes(q) ? 4      // "hw" is in SmetHWick; a fragment needs three letters
             : -1;
-        if (rank >= 0) hits.push({ crs, name, rank, whole: words(name).join(' ') === qWords.join(' ') });
+        return rank;
+    };
+    for (const [crs, name] of Object.entries(stations)) {
+        if (crs === 'MYB') continue;
+        // The printed name and any other name the station goes by; the printed one is what is SHOWN.
+        let rank = -1, whole = false;
+        for (const known of [name, ...(ALSO_KNOWN_AS[crs] ?? [])]) {
+            // Half a step behind the same match on a PRINTED name, so "stratford-on-avon" offers the
+            // town before the Parkway that is also known by it, rather than the alphabet deciding.
+            const found = rankOf(crs, known);
+            if (found < 0) continue;
+            const r = found + (known === name ? 0 : 0.5);
+            if (rank < 0 || r < rank) rank = r;
+            if (words(known).join(' ') === qWords.join(' ')) whole = true;
+        }
+        if (rank >= 0) hits.push({ crs, name, rank, whole });
     }
     const order = new Map(prefer.map((c, i) => [c, i]));
     const busy = (/** @type {string} */ crs) => order.get(crs) ?? prefer.length;

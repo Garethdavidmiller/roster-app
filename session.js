@@ -70,13 +70,19 @@ function _syncAuthTerminal(/** @type {string} */ name) {
  * slow network signed people out. `TRANSIENT` reads as `degraded` and the policy as `pending`, so
  * the page keeps the session, shows its sign-in WITHOUT clearing, and reloads into the identity if
  * it lands late — the Calendar's shape. A genuine refusal (wrong password, no account, a disabled
- * login) is still `NONE`.
+ * login) is still `NONE`; a failure that could not reach an answer is `TRANSIENT` too (below).
  * @param {{ named: boolean, stalled: boolean, error: string|null }} r
  * @returns {{ type: 'NAMED' } | { type: 'TRANSIENT', error: string } | { type: 'NONE', error: string|null }}
  */
 export function terminalAuthEvent({ named, stalled, error }) {
     if (named)   return { type: 'NAMED' };
     if (stalled) return { type: 'TRANSIENT', error: error ?? 'auth/timeout' };
+    // NOR IS A FAILURE THAT NEVER REACHED AN ANSWER (whole-app review, Oct 2026). A network error, an
+    // unreachable reset check, Firebase's own internal error or a rate limit says nothing about the
+    // member either — and as `NONE` they cleared the 60-day session on every write page after three
+    // retries on a weak connection, against invariant 23's "destroys nothing". The same codes the
+    // retry treats as transient, so the two cannot disagree about what a blip is.
+    if (isTransientAuthError(error ?? undefined)) return { type: 'TRANSIENT', error: /** @type {string} */ (error) };
     return { type: 'NONE', error };
 }
 
@@ -482,6 +488,9 @@ export async function ensureFirebaseSession(name, _gen, password) {
             if (resetAt !== 'credential' && sessionPredatesReset(_sessionCreatedMs(), resetAt)) {
                 lsDel(AUTH_KEY);
                 lsDel(CALENDAR_SNAPSHOT);
+                // The device the reset was meant to sign out stops receiving that member's notices too.
+                // No identity is current here, so the release drops the browser subscription instead.
+                releasePushForEndingHold();
                 console.warn('[Auth] silent sign-in refused — this device signed in before the last password reset');
                 return commit('none', false);
             }
@@ -867,11 +876,34 @@ export async function reconcileExpiredIdentity({ preserveCalendarViewer = false 
     if (gen !== _authGen) return;                    // a login/logout now owns the identity — stand down
     if (!u || u.isAnonymous || getSession()) return; // no lingering NAMED identity, or a valid session exists
     if (preserveCalendarViewer && isViewerUser(u)) return;   // the staff PIN, on a page that admits it — see the JSDoc
+    // Release this device's push record FIRST, while the expired member is still the identity — the
+    // delete is theirs to make, and after the sign-out nobody can (whole-app review, Oct 2026).
+    await releasePushForEndingHold();
+    if (gen !== _authGen || getSession()) return;    // a login landed while the release ran
     try {
         await firebaseSignOut(auth);
         console.warn('[Auth] Signed out a Firebase identity whose local session had expired (Finding #9).');
     } catch (err) {
         console.warn('[Auth] expired-identity signOut failed:', /** @type {any} */ (err)?.message);
+    }
+}
+
+/**
+ * Release this device's push record for a member whose hold on it is ending WITHOUT a sign-out — an
+ * expired session's lingering identity, or a session the last password reset refused (whole-app
+ * review, Oct 2026). Only the drawer's Sign out and the PIN hand-over released it, so on a station PC
+ * left on the staff PIN the departed member's targeted notices — a reset request naming a colleague,
+ * for the admin — went on arriving there indefinitely; the documented remedy, the NEXT member's
+ * takeover, never comes on a device nobody signs in to. Loaded on demand, so the session module does
+ * not carry the Web Push code; `releaseDevicePush` bounds its own wait and never throws.
+ * @returns {Promise<void>}
+ */
+async function releasePushForEndingHold() {
+    try {
+        const { releaseDevicePush } = await import('./notif.js');
+        await releaseDevicePush();
+    } catch (err) {
+        console.warn('[Auth] could not release this device\'s push record:', /** @type {any} */ (err)?.message);
     }
 }
 

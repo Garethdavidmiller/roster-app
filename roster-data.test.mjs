@@ -1105,6 +1105,20 @@ test('parseSmartFloat: strips thousands separators and £ sign (payslip figures 
     assert.equal(parseSmartFloat('1,000'), 1000);
 });
 
+// A decimal-comma keypad (whole-app review, Oct 2026): stripping every comma read "21758,94" in the
+// Year to Date box as £2,175,894. A comma before one or two FINAL digits cannot be a thousands
+// separator — a thousands group is three digits — so it is the decimal point.
+test('parseSmartFloat: a decimal COMMA is the point, and a thousands comma is unchanged', () => {
+    assert.equal(parseSmartFloat('21758,94'), 21758.94);
+    assert.equal(parseSmartFloat('2534,85'), 2534.85);
+    assert.equal(parseSmartFloat('7,5'), 7.5);
+    assert.equal(parseSmartFloat('-5,50'), -5.5);
+    assert.equal(parseSmartFloat('1.234,56'), 1234.56, 'dots before a decimal comma are thousands');
+    assert.equal(parseSmartFloat('21,758'), 21758, 'three digits after a comma is a thousands group');
+    assert.equal(parseSmartFloat('£21,758.94'), 21758.94);
+    assert.equal(parseSmartFloatOrNull('21758,94'), 21758.94);
+});
+
 test('parseSmartFloat: iOS smart minus is normalised so parseFloat succeeds', () => {
     // U+2212 MINUS SIGN — raw parseFloat('−5') returns NaN; the strip fixes it.
     assert.equal(parseSmartFloat('−5'), -5);

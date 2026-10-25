@@ -1714,6 +1714,18 @@ for (const width of [768, 1024, 1280, 1440]) {
 }
 
 // ─── THE MONTH HEADING ROW IS ONE LINE, AND THE MONTH NAME NEVER SPLITS (v22.86 → v22.87) ────────
+// A LINK THAT NAMES A DATE OPENS ITS MONTH, a future one included (whole-app review, Oct 2026). The
+// Pay Calculator's "View these dates in your roster calendar" passed ?date= and nothing read it.
+test('calendar: ?date= opens the month it names, once', async ({ page }) => {
+    await seedMember(page);
+    await seedMemberSession(page);
+    await page.clock.setFixedTime(new Date('2026-09-03T10:00:00Z'));
+    await page.goto('/?date=2026-12-14');
+    await page.waitForSelector('.calendar-day');
+    await expect(page.locator('.month-year').first()).toContainText('December');
+    await expect(page, 'honoured once: the parameter comes off the address').not.toHaveURL(/date=/);
+});
+
 // "September 2026" is the longest heading the year produces. v22.86 stopped it splitting as
 // "September / 2026▾" by wrapping the row — and on the owner's phone that put the week note on a
 // second line where it had always shared the first. So the row is made cheaper instead (a smaller
@@ -2067,8 +2079,11 @@ test('day detail: an annual-leave day offers the leave dates, and no other day d
     const leave = page.locator('#dayDetailLeaveBtn');
     await expect(leave).toBeVisible();
     await expect(leave).toHaveText(/leave dates/i);
-    // It must NAME its destination, and reach the list rather than the page it sits on.
-    await expect(leave).toHaveAttribute('href', /admin\.html#alBookedBox/);
+    // It must NAME its destination, and reach the list rather than the page it sits on — for the
+    // YEAR of the day tapped, or leave in next January opens this year's list (whole-app review).
+    const alYear = await page.locator('.calendar-day:not(.other-month)').nth(alIdx).getAttribute('data-detail-year');
+    expect(alYear).toMatch(/^\d{4}$/);
+    await expect(leave).toHaveAttribute('href', `admin.html?alYear=${alYear}#alBookedBox`);
     // THE ROW IS A ROW (v22.98). Stacked, the pair was the tallest group on the panel; the label
     // shortening is what let them share a line, so a reverted label silently reverts the layout.
     await expect(page.locator('#dayDetailActions')).toHaveCSS('display', 'flex');
@@ -2461,6 +2476,38 @@ test('calendar: a cache MISS stamps NOTHING — it has no such moment', async ({
     ).toBeGreaterThan(0);
     const marks = await page.evaluate((m) => performance.getEntriesByName(m).length, CACHED_MARK);
     expect(marks, 'a boot with no saved copy must not be given a time').toBe(0);
+});
+
+// ── A MONTH ANSWERED FROM THE CACHE, OUTSIDE THE FIRST LOAD (whole-app review, Oct 2026) ─────────
+// `stale` is the grid "labelled as possibly out of date, with a retry". The first load's months have
+// the sync chip for that; a month reached later had nothing, so a member offline in November read a
+// cached grid as current. November is outside the boot window of a 16 Sep clock (Aug–Oct).
+test('calendar: a later month answered from the cache says so, and Try again re-checks it', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await seedMemberSession(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'nov', memberName: 'G. Miller', date: '2026-11-11',
+            type: 'annual_leave', value: 'AL', note: '' }];
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('.calendar-stale-note')).toHaveCount(0);
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = true; });
+    await page.locator('#nextMonth').click();
+    await page.locator('#nextMonth').click();
+    await expect(page.locator('.month-year').first()).toContainText('November');
+    const note = page.locator('.calendar-stale-note');
+    await expect(note).toBeVisible();
+    await expect(note).toContainText('Saved copy');
+    await expect(page.locator('.sync-chip'), 'one message at a time').toHaveCount(0);
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsFromCache = false; });
+    await note.getByRole('button', { name: 'Try again' }).click();
+    await expect(page.locator('.calendar-stale-note')).toHaveCount(0);
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
 });
 
 // ── THE TEAM WEEK JUMP (v23.64) ───────────────────────────────────────────────

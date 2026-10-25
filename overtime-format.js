@@ -34,7 +34,8 @@
 // for the three lines in this file that still print a deadline.
 import { deadlineLabel } from './overtime-phase.js';
 export { deadlineLabel, phaseCopy, phaseChip, phaseTone, deadlineLines } from './overtime-phase.js';
-import { getShiftBadge, formatISO } from './roster-data.js';
+import { getShiftBadge, formatISO, isSunday } from './roster-data.js';
+import { releaseRequestLine } from './overtime-sunday-release.js';
 import { printedStamp, londonDate, londonClock } from './date-format.js';
 
 // THE CLOCK LEFT THIS MODULE at v23.69 — the six decisions a member's own clock may make about a
@@ -829,6 +830,9 @@ export function weekSummary(days) {
     return `Available on ${available} of ${values.length} days`;
 }
 
+/** The reviewer's flag, worded once — `releaseRequestLine` owns it, so the copy and the screen match. */
+const RELEASE_LABEL = releaseRequestLine({ releaseRequested: true });
+
 /**
  * The reviewer's clipboard summary — the whole week or one day, as PLAIN TEXT for the rostering
  * conversation the clerk is about to have somewhere else (email, the rostering system, a phone
@@ -839,6 +843,12 @@ export function weekSummary(days) {
  * THE THREE SECTIONS ARE ALWAYS NAMED, EMPTY OR NOT. "No response" absent from a summary reads as
  * "nobody outstanding" — the exact merge the whole feature forbids (see the module's three-answer
  * rule). An empty section says "nobody", in words.
+ *
+ * A REQUEST TO COME OFF A SUNDAY IS A FOURTH LINE, NEVER FOLDED INTO THE ANSWER (whole-app review,
+ * Oct 2026). The screen flags it beside the member's answer; the copy left it out, so the one
+ * request on the page that is about CONTRACTED work vanished on the way to the conversation where it
+ * is decided. Its own line, because it is a second thing said about the day (invariant 1). Named on
+ * every Sunday — "nobody" in words, by the rule above — and on any other day only if somebody asked.
  *
  * @param {{ weekEnding: string, dates: string[], participants: any[],
  *   submissions: Map<string, any>, day?: string }} arg  `day` narrows to one date ('ALL' = week)
@@ -864,6 +874,12 @@ export function weekAvailabilitySummary({ weekEnding, dates, participants, submi
             `  Available: ${avail.length ? avail.join(' · ') : 'nobody'}`,
             `  Not available: ${unavail.length ? unavail.join(' · ') : 'nobody'}`,
             `  No response: ${none.length ? none.join(' · ') : 'nobody'}`);
+        const askedOff = participants
+            .filter(p => releaseRequestLine(submissions.get(p.memberName)?.days?.[date]))
+            .map(p => p.memberName);
+        if (askedOff.length || isSunday(date)) {
+            lines.push(`  ${RELEASE_LABEL}: ${askedOff.length ? askedOff.join(' · ') : 'nobody'}`);
+        }
     }
     return lines.join('\n');
 }

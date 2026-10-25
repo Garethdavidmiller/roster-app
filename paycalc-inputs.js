@@ -54,7 +54,9 @@ export function intVal(id)    { return Math.max(0, parseInt(/** @type {HTMLInput
  */
 export function hmPair(hId, mId) {
   const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId))?.value ?? '';
-  if (raw.includes('.')) {
+  // A decimal COMMA is a decimal point too: a decimal-comma region's keypad offers "," and "7,5"
+  // priced 7h (whole-app review, Oct 2026). parseSmartFloat reads ",5" as the fraction.
+  if (/[.,]/.test(raw)) {
     const hm = decimalToHM(Math.max(0, parseSmartFloat(raw)));
     if (hm) return hm;
   }
@@ -104,7 +106,7 @@ export function _decHintEl(hId, make) {
 export function decPreview(hId) {
   const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId)).value;
   const val = parseSmartFloat(raw);
-  const hm = raw.includes('.') ? decimalToHM(val) : null;
+  const hm = /[.,]/.test(raw) ? decimalToHM(val) : null;   // a decimal comma too — see hmPair
   if (hm) {
     const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, true));
     if (hint) { hint.textContent = `= ${hm.h}h ${String(hm.m).padStart(2, '0')}m`; hint.hidden = false; }

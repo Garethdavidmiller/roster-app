@@ -382,3 +382,25 @@ describe('releaseDevicePush', () => {
         assert.ok(Date.now() - t0 < 1000, 'sign-out waited on a service worker that will never answer');
     });
 });
+
+// ── TURNING OFF NEVER WAITS ON THE NETWORK, AND EVERY TOGGLE IS ANNOUNCED (whole-app review) ────────
+describe('disable is prompt offline, and both toggles tell the rest of the page', () => {
+    test('a server delete that never answers does not hold the control on "Disabling…"', async () => {
+        setupEnv({ permission: 'granted', hasSub: true });
+        _deleteHangs = true;
+        const result = await Promise.race([disableNotifications(), new Promise(r => setTimeout(() => r('HUNG'), 200))]);
+        assert.equal(result, 'off-default', 'offline, the Firestore delete waits for a server that is not there');
+        assert.equal(_deleteCalls, 1, 'the record is still asked to go — started, not awaited');
+    });
+    test('enable and disable each dispatch myb:notif-changed, so the drawer bell and the Settings card agree', async () => {
+        /** @type {string[]} */ const seen = [];
+        /** @type {any} */ (global).document = { dispatchEvent: (/** @type {any} */ e) => { seen.push(`${e.type}:${e.detail.state}`); return true; } };
+        try {
+            setupEnv({ permission: 'granted', hasSub: true });
+            await disableNotifications();
+            setupEnv({ permission: 'granted', hasSub: false });
+            await enableNotifications();
+        } finally { delete /** @type {any} */ (global).document; }
+        assert.deepEqual(seen, ['myb:notif-changed:off-default', 'myb:notif-changed:on']);
+    });
+});

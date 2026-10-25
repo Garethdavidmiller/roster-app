@@ -89,6 +89,12 @@ function makeEl(/** @type {string} */ id) {
         appendChild(/** @type {any} */ c) { if (c) kids.push(c); return c; },
         insertAdjacentHTML(/** @type {string} */ _where, /** @type {string} */ html) { this.innerHTML += html; },
         scrollIntoView() {},
+        /** Every element handed focus through `querySelector(...)?.focus()`, with the selector that
+         *  found it — so a test can see a focus HAND-BACK after the block under it was rebuilt. */
+        /** @type {{sel: string, opts: any}[]} */ _focused: [],
+        querySelector(/** @type {string} */ sel) {
+            return { focus: (/** @type {any} */ opts) => { node._focused.push({ sel, opts }); } };
+        },
         ownerDocument: /** @type {any} */ (null),
     };
     node.ownerDocument = /** @type {any} */ (fakeDocument);
@@ -553,6 +559,16 @@ describe('the swap answers', () => {
         setRange(section, REST, REST);
         answer(REST, 'yes');
         assert.equal(dismissed, 1);
+    });
+
+    test('an answer hands keyboard focus to the same answer in the rebuilt block (whole-app review)', () => {
+        // The preview is rebuilt under the pressed button, which dropped a keyboard user's focus to
+        // <body>. The hand-back must find the SAME day and the SAME answer, and must not scroll.
+        const { section } = wire({ cfg: { swapQuestion: () => [REST] } });
+        setRange(section, REST, REST);
+        answer(REST, 'no');
+        assert.deepEqual(el('alPreview')._focused,
+            [{ sel: `.swapday-opt[data-date="${REST}"][data-answer="no"]`, opts: { preventScroll: true } }]);
     });
 
     test('Save stays off when every day resolves to nothing written (review A2)', () => {

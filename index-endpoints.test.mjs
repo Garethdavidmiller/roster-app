@@ -119,7 +119,7 @@ stub(require.resolve('@anthropic-ai/sdk', { paths: [fnDir] }), {
 // NOTHING else is: the handler, its validation, `buildSafeEntries`, the cross-checks and the witness
 // all run for real. `GEO.usable` is flipped per test and restored in a `finally`.
 const REAL_ROSTER_PROMPT = require('./functions/roster-prompt.js');
-const GEO = { usable: false, real: false };
+const GEO = { usable: false, real: false, /** @type {any} */ row: null };
 const GEO_ROW = {
     memberName: 'L. Springer',
     cells: ['', '05:30-11:30', 'RD', 'RD', '05:30-11:30', 'RD', 'RD'],
@@ -133,7 +133,7 @@ stub(require.resolve('./roster-prompt', { paths: [fnDir] }), {
     buildCellTable: (geometry, memberNames) => (GEO.real
         ? REAL_ROSTER_PROMPT.buildCellTable(geometry, memberNames)
         : GEO.usable
-            ? { usable: true, rows: [GEO_ROW], unmatched: [], reason: '' }
+            ? { usable: true, rows: [GEO.row || GEO_ROW], unmatched: [], reason: '' }
             : { usable: false, rows: [], unmatched: ['forced'], reason: 'forced off for the legacy-path cases' }),
 });
 
@@ -911,6 +911,45 @@ describe('parseRosterPDF — the geometry path', () => {
         // one path where the PDF's own grid placed each of them.
         const out = await onGeometryPath();
         assert.equal(out.body.crossCheck, 'not-applicable');
+    });
+
+    // Whole-app review, Oct 2026. The cell prompt asks for neither scan, and both repairs MOVE a cell
+    // to another day. A model that volunteered them anyway had the right-shift repair realign a week
+    // whose days the grid had already placed — the drift this path exists to remove. The reply is
+    // the legacy-path DRIFTED shape (which the Sunday repair below DOES realign), so a geometry path
+    // that still read the keys would move the Sunday duty onto Monday.
+    test('a scan the model VOLUNTEERS is ignored — the grid placed the days, nothing re-places them', async () => {
+        const out = await onGeometryPath({ aiReply: JSON.stringify({
+            parsed: [{ memberName: 'L. Springer', Sunday: '05:30-11:30', Monday: 'RD', Tuesday: 'RD',
+                Wednesday: '05:30-11:30', Thursday: 'RD', Friday: 'RD', Saturday: 'BLANK' }],
+            columnHeaders: DAY_HEADERS,
+            columnScan: { Sun: { 'L. Springer': 'BLANK' }, Mon: { 'L. Springer': '05:30-11:30' },
+                Tue: { 'L. Springer': 'RD' }, Wed: { 'L. Springer': 'RD' }, Thu: { 'L. Springer': '05:30-11:30' },
+                Fri: { 'L. Springer': 'RD' }, Sat: { 'L. Springer': 'RD' } },
+            sundayScan: { 'L. Springer': 'BLANK' },
+        }) });
+        assert.equal(out.code, 200);
+        const s = out.body.parsed[0].shifts;
+        assert.equal(s['2026-08-30'], '05:30-11:30', 'the grid put the duty on Sunday; a volunteered scan moved it');
+        assert.equal(s['2026-08-31'], 'RD', 'Monday was a rest day in its own cell');
+        assert.equal(s['2026-09-02'], '05:30-11:30', 'Wednesday keeps its own duty');
+    });
+
+    // Whole-app review, H3. On this path the server holds what every cell says, so a Sunday the
+    // model reported BLANK over a cell holding a shift must not become the rest day a blank Sunday
+    // otherwise is — that matched the base Sunday and the worked day vanished from the review.
+    test('a worked Sunday read as BLANK reaches the review as a question, not as a rest day', async () => {
+        GEO.row = { memberName: 'L. Springer', cells: ['08:00-16:00 | CEA 3', ...GEO_ROW.cells.slice(1)] };
+        try {
+            const out = await onGeometryPath();
+            assert.equal(out.code, 200);
+            const sunday = out.body.parsed[0].shifts['2026-08-30'];
+            assert.ok(String(sunday).startsWith('UNKNOWN|'), `the worked Sunday came back as ${sunday}`);
+            assert.match(sunday, /08:00-16:00/, 'the review must say what the PDF cell holds');
+            assert.equal(out.body.parsed[0].shifts['2026-08-31'], '05:30-11:30', 'Monday is untouched');
+        } finally {
+            GEO.row = null;
+        }
     });
 
     test('the LEGACY path still requires columnHeaders — the guard was narrowed, not removed', async () => {

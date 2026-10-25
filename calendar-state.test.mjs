@@ -105,6 +105,24 @@ describe('restoreViewedMonth', () => {
             'a month the member was last looking at was thrown away');
     });
 
+    // A LINK THAT NAMES A DATE WINS, future months included (whole-app review, Oct 2026). The Pay
+    // Calculator's "View these dates in your roster calendar" and Admin's Calendar pill both pass
+    // ?date=, and nothing read it. Honoured once: the parameter comes off the address.
+    test('?date= opens that month, a future one included, and is taken off the address', async () => {
+        const replaced = /** @type {string[]} */ ([]);
+        /** @type {any} */ (globalThis).location = { search: '?date=2029-03-10', href: 'https://x.test/?date=2029-03-10#huddle' };
+        /** @type {any} */ (globalThis).history = { state: null, replaceState: (/** @type {any} */ _s, /** @type {any} */ _t, /** @type {any} */ u) => { replaced.push(String(u)); } };
+        try {
+            const m = await import('./calendar-state.js?restore=date-param');
+            assert.deepEqual({ month: m.getDisplayMonth(), year: m.getDisplayYear() }, { month: 2, year: 2029 },
+                'the month the link named must open, even though it is in the future');
+            assert.deepEqual(replaced, ['https://x.test/#huddle'], 'the parameter is honoured once, and only it is removed');
+        } finally {
+            delete /** @type {any} */ (globalThis).location;
+            delete /** @type {any} */ (globalThis).history;
+        }
+    });
+
     test('a year outside MIN_YEAR..MAX_YEAR is dropped whichever side it falls', async () => {
         const today = new Date();
         const belowMin = await restoreWith(5, 2023, 'below-min');   // MIN_YEAR is 2024 here

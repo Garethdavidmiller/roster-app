@@ -168,6 +168,10 @@ export function _restoreRosterSuggested(pNum) {
     const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
     const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
     if (!elH || !elM) continue;
+    // A 0/0 pair is the calendar suggesting NOTHING, and the snapshot stores one for every category
+    // it had no hours for — so a blank minutes box matched it and came back gold on every reload,
+    // with "📅 Hours from calendar" under hand-typed hours (whole-app review, Oct 2026; since v24.35).
+    if (!(+hVal > 0) && !(+mVal > 0)) continue;
     // `hVal != null` (not `hVal ||`): a snapped value of 0 is a REAL roster suggestion (e.g. the
     // hours half of a 0h30m fill) — coercing it to '' dropped the gold highlight on reload and made
     // the field read as hand-edited, blocking future re-fills (review finding).

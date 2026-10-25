@@ -635,6 +635,13 @@ Hiding them removes them from `activeMembers`, which is the server-owned list `s
 trusts — but that governs PROVISIONING, not revocation. The Firebase Auth account keeps working until
 this is run, and the surname default is still a valid password for it (`ARCHITECTURE.md` → EXC-005).
 
+**It also stops their notifications** (whole-app review, Oct 2026). A leaver who never pressed Sign
+out — the normal case: they simply stop opening the app — keeps a push record stamped with their
+account, and the staff broadcasts (the Huddle, the documents, pay reminders) go to every record, so
+their phone went on receiving them indefinitely. The confirmed sweep now deletes the records the
+disabled account owns (`releasePushForOwner`, `functions/push.js`). A record older than v17.76 has no
+owner and cannot be attributed; it goes when the push service retires it.
+
 **4. Check it actually took** (v22.53).
 
 The Staff Login Accounts card now states its own condition, above the button: a read-only audit

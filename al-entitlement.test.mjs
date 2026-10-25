@@ -53,7 +53,7 @@ describe('counting too many — the shipped defect', () => {
     test('a Sunday AL document does not consume a day', () => {
         // 2026-03-01 is a Sunday. Sundays are uncontracted, so a legacy document saying otherwise
         // must not spend entitlement — the write paths refuse one, this stops an old one counting.
-        assert.equal(parseISODate('2026-03-01').getUTCDay(), 0, 'fixture date must be a Sunday');
+        assert.equal(isSunday('2026-03-01'), true, 'fixture date must be a Sunday');
         const got = countedAlDates({
             overrides: [al('2026-03-01'), al(WORKED[0])], member: MEMBER, year: 2026,
         });
