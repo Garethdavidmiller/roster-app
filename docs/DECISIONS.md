@@ -102,6 +102,22 @@ shown that yet.
 
 ## Decisions taken — recorded so they are not re-raised
 
+- **The App Speed card answers live questions only** (owner, 25 Oct 2026 — choosing the App Speed
+  review's recommendation, "Do it all in the order of work"; v24.98) · **Trigger to revisit: a new
+  latency question that needs a reading the card no longer takes — rebuild that instrument then, its
+  writes and its card block in one release.** "Why some are slower" was about two thirds of the card and
+  answered the sign-in speed investigation `LATENCY.md` closed on 19 Sep 2026. It was TRIMMED to what
+  still has a question behind it — the stored copy before the sign-in check, the wait after a release,
+  and Usable by app version and by how the page was opened — rather than folded behind a "Details"
+  control, because a folded block still costs every open its samples. The boot stages, the start
+  ladder, the saved-copy/server split, the retired fast path and the worker's file count went WITH their
+  writes: write-only telemetry is the state the worker count sat in for six releases, and nobody could
+  see it. The connection comparisons left the CARD only — the connection class is one part of every
+  sample's key (`perfSampleKey`), not a write of its own, so it is still recorded and nothing reads
+  it. It does multiply the keys, so dropping it is the cheapest cure if the record ever nears full. In
+  the same decision the month's record stopped being indexed and the card began stating how full it
+  is (KNOWN_LIMITATIONS.md).
+
 - **The Trains page is every member's** (owner, 20 Oct 2026 — "make the trains page live for
   everyone"; v24.81) **— and the station PIN's** (owner, 22 Oct 2026 — "the station pin staff should be
   able to view the trains page"; v24.84) · **Trigger to revisit: the page showing anything that is

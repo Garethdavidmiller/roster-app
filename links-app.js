@@ -23,7 +23,7 @@ import { createDesignHeader, proposeNewDesignName, lastSaveTime } from './links-
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './links-tips.js';
-import { registerServiceWorker } from './sw-register.js';
+import { registerServiceWorker, reloadForUpdate } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
@@ -96,7 +96,7 @@ export function init() {
                 message: 'Reload to apply the update? Unsaved changes will be lost.',
                 confirmLabel: 'Reload',
             })) {
-                window.location.reload();
+                reloadForUpdate();   // not a bare reload: it notes a release caused the next load
             }
         },
     });

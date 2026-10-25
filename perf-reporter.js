@@ -1,31 +1,58 @@
 // @ts-check
 /**
  * perf-reporter.js — records anonymous page-load latency to Firestore (Project 0 instrumentation).
- * The performance analogue of usage-reporter.js: a thin layer that reads the browser's Navigation
- * Timing, buckets the durations, and lets firebase-client.js do the I/O. Fire-and-forget — it must
+ * The performance analogue of usage-reporter.js: a thin layer that reads the browser's timing
+ * entries, buckets the durations, and lets firebase-client.js do the I/O. Fire-and-forget — it must
  * never throw and never block rendering.
  *
- * v1 metrics (both from the PerformanceNavigationTiming entry, so they cost nothing and are NOT
- * confounded by the in-place-login flow — they measure DOCUMENT/shell load, not "time to signed-in"):
- *   ttfb     — responseStart             (server + network to first byte received)
- *   domReady — domContentLoadedEventEnd  (document parsed + deferred modules' first tick)
- * Login-to-usable timing (myb:login-* marks) is a separate, later metric — it belongs with the
- * in-place-login validation (the reload-after-sign-in path it once had to span was retired at v24.32).
+ * What it records, per page load (the App Speed card reads every one of these, and nothing else):
+ *   fcp            — first-contentful-paint: something first appears (on the Calendar, the splash)
+ *   domReady       — domContentLoadedEventEnd: the app's code has loaded
+ *   ready          — `markPageReady`: the page's own content is on screen and usable
+ *   readyUpdate    — the same moment on a load a RELEASE caused, timed as the wait a person had
+ *   rosterSnapshot — the Calendar painting a member's own stored roster before the sign-in check
+ *   loginTotal     — from pressing "Sign in" until the page was usable (page id 'login')
+ *
+ * ── A SAMPLE IS TIME SOMEBODY SPENT WAITING, AND NOTHING ELSE (whole App Speed review, Oct 2026) ─
+ *
+ * Two kinds of time reached the figures that are not the app being slow, and the review measured
+ * both in the code:
+ *
+ *   · TIME NOBODY WAS WATCHING. The Calendar's release reload runs while the page is hidden — that
+ *     is its whole design (sw-register.js, `deferWhileVisible`) — and about one Calendar open in
+ *     seven in September was that reload. A hidden page is slowed or frozen by the phone, so its
+ *     timings partly measured how long the member was away. So a reading counts only if the page
+ *     had been watched from the start of the load up to it (`_watched`), and a load that STARTED
+ *     hidden records none of the ordinary metrics. A Chrome prerender starts hidden, so it is left
+ *     out by the same rule.
+ *   · TIME A PERSON SPENT TYPING. The staff PIN unlocks the Calendar without a reload, and every
+ *     page signs in on the page itself, so `ready` used to include reading the card and typing the
+ *     PIN or password. A sign-in has its own figure (`loginTotal`), so `ready` is now dropped once
+ *     the page has started waiting for a person (`markAwaitingInput`, called when the sign-in form
+ *     or a Calendar lock card appears). `fcp` and `domReady` cannot include typing, so they are kept.
+ *
+ * A release reload that ran while hidden is not thrown away: `readyUpdate` times what the member
+ * actually waited for — from coming back to the page until it was usable, or a token instant if it
+ * was ready before they came back.
  *
  * Privacy: NO member identity is ever recorded — only coarse dimensions (version, page, metric,
  * duration BUCKET, PWA display mode, connection class). Call once per page from the coordinator at
  * the same point recordUsage() runs (after the Firebase Auth session is being established) so the
  * write satisfies the analytics rule (`isKnownIdentity` — a member, the admin or the PIN viewer, v24.56).
+ *
+ * Retired at the same review, writes and all, because the card stopped reading them: the boot
+ * phases, the start ladder's other rungs, the saved-copy/server split, `ttfb`, and the service
+ * worker's fetch count. LATENCY.md holds what they found.
  */
 
 import { recordPerfSample } from './firebase-client.js';
-import { bucketDuration, loginDurationBucket, bootPhases, bucketSwrCount, SWR_HEAVY_BUCKET } from './perf-stats.js';
+import { bucketDuration, loginDurationBucket } from './perf-stats.js';
 import { CONFIG } from './roster-data.js';
 import { SW_UPDATE_RELOAD as SW_RELOAD_KEY } from './storage-keys.js';
 
 // Sign-in timing marker: a wall-clock timestamp stored at the "Sign in" click (login-overlay.js),
 // read once on the destination page (recordPageLatency below) to record login-to-usable time. Stored
-// in sessionStorage so it survives the post-login reload (same tab); cleared on read, on a failed
+// in sessionStorage so it survives a post-login reload (same tab); cleared on read, on a failed
 // sign-in, and recency-guarded so an abandoned attempt can't log a bogus time. (iOS private mode
 // throws on sessionStorage — all access is wrapped.)
 const LOGIN_T0_KEY = 'myb_perf_login_t0';
@@ -35,116 +62,132 @@ export function markLoginStart() {
     try { sessionStorage.setItem(LOGIN_T0_KEY, String(Date.now())); } catch { /* sessionStorage unavailable */ }
 }
 
-/** Clear the sign-in marker — call on a FAILED sign-in so a later page load can't record a stale time. */
+/** Clear the sign-in marker — call on a FAILED sign-in, or a sign-in that leads to no page, so a
+ *  later page load can't record a stale time. */
 export function clearLoginStart() {
     try { sessionStorage.removeItem(LOGIN_T0_KEY); } catch { /* sessionStorage unavailable */ }
 }
 
 // The marker `sw-register.js` writes immediately before an update-triggered reload, read once on the
-// load that follows it (recordPageLatency below) to record `readyUpdate`. Its module header has why
-// it is a timestamp; this side owns the bound, because the bound protects the METRIC.
-//
-// A minute is generous against every legitimate delay — the Calendar's beforeReload waits 500ms, the
-// default path reloads at once — and short against the one that must not be honoured: a member who
-// declined links' confirm and navigated somewhere else later. Erring long would attribute an
-// ordinary open to a release; erring short only DROPS an update open. Those costs are not equal, so
-// the bound is set where the wrong answer is a miss rather than a false positive.
+// load that follows it. It is compared with WHEN THIS LOAD STARTED, not with when the reading is
+// taken (whole App Speed review, Oct 2026): a hidden reload can stay frozen for minutes before its
+// reading runs, and the old "within a minute of now" check then dropped the label from exactly the
+// loads it was for. The marker is written in the same task that calls `reload()`, so the load starts
+// within moments of it; ten seconds is generous, and a second of slack absorbs the two clocks.
 // The KEY is `storage-keys.js`'s (one spelling, two modules); the BOUND is this side's, because
 // the bound protects the metric.
-const SW_RELOAD_MAX_MS = 60 * 1000;
+const SW_RELOAD_WINDOW_MS = 10 * 1000;
+const SW_RELOAD_SKEW_MS = 1000;
 
 /** The mark `markPageReady` writes and `recordPageLatency` reads. */
 export const PAGE_READY_MARK = 'myb-page-ready';
 
 /**
- * Resolves with the `ready` timestamp the moment `markPageReady` runs — the fix for a metric that
+ * Resolves with the `ready` timestamp the moment `markPageReady` stamps — the fix for a metric that
  * was silently sampling a fifth of its own population (v21.16).
  *
- * ── WHY A PROMISE AND NOT JUST THE MARK ─────────────────────────────────────────────────────────
- *
- * `recordPageLatency` reads the mark table at the instant it is called, and records `ready` only if
- * the mark is already there. On the Calendar those two things sit on COMPLETELY SEPARATE promise
- * chains: `markPageReady()` fires after the first grid render (downstream of the access decision and
- * the initial fetch), while `recordPageLatency` fires off `calendarAuthReady`. Nothing orders them.
- *
- * So whether a load contributed a `usable` sample was decided by which of two unrelated async chains
- * happened to finish first. Measured against a real month: three pages mark themselves ready and
- * took 1,044 opens between them; 218 `ready` samples were recorded. Four out of five loads were
- * dropped — and because the dropped ones are those where the render lost the race, the survivors are
- * not a random sample of anything. The figure could not be read in either direction.
- *
- * Overtime already got this right by hand, sequencing its `recordPageLatency` into a `.finally()`
- * after the load; that works for a page with one linear load chain and does not generalise.
- *
- * ── IT DEFERS THE ONE SAMPLE, NOT THE WHOLE CALL ────────────────────────────────────────────────
- *
- * The obvious fix — make `recordPageLatency` await the mark — is worse: on a page that never becomes
- * ready (a locked Calendar, a hard failure) it would hold back `ttfb`/`fcp`/`domReady` too, and lose
- * them entirely if the member navigated away. Those are recorded exactly as before; only `ready`
- * waits, and only when it is not already available.
- *
- * Deliberately unbounded. A page that never becomes ready never resolves this, which is the honest
- * outcome — no sample, rather than a fabricated one at some arbitrary cut-off — and an unsettled
- * promise costs nothing on a page that is about to be unloaded.
+ * `recordPageLatency` used to read the mark table at the instant it was called, and recorded `ready`
+ * only if the mark was already there. On the Calendar those two sit on separate promise chains, so
+ * whether a load contributed a sample was decided by which chain finished first: measured against
+ * a real month, four loads in five were dropped, and not at random. Only `ready` waits; the other
+ * metrics are recorded as before. Deliberately unbounded — a page that never becomes ready gives no
+ * sample, rather than a fabricated one at some arbitrary cut-off.
  */
 /** @type {(t: number) => void} */
 let _resolveReady = () => {};
 /** @type {Promise<number>} */
 const _pageReady = new Promise((resolve) => { _resolveReady = resolve; });
 
-// ── THE REST OF THE START LADDER (v21.29, external latency review) ──────────────────────────────
+// ── WHEN NOBODY WAS LOOKING ─────────────────────────────────────────────────────────────────────
 //
-// `ready` had this machinery to itself. The other three milestones need exactly the same thing —
-// a mark, and a promise so `recordPageLatency` can record one that has not happened yet — so it is
-// generalised rather than copied three times. Each keeps its own deferred promise for the reason
-// spelled out above `_pageReady`: reading the mark table at one arbitrary instant sampled a fifth
-// of its own population, and not at random.
-//
-// The DEFERRED half is what makes these usable at all. `access` fires early and would usually be
-// present, but `rosterLive` waits on Firestore — the very case worth measuring is the one where it
-// lands after `recordPageLatency` has run.
-// ── HOW MUCH BACKGROUND WORK THE SERVICE WORKER DID DURING THIS BOOT (v22.94) ───────────────────
-//
-// The external calendar-latency review's second suggested measurement. Its service-worker
-// hypothesis — that a warm cache still issues a full sweep of conditional requests while the member
-// waits on `accounts:lookup` — has a MECHANISM confirmed in code and a VOLUME measured locally (53
-// requests on the first open after the worker wakes, against 2 when it is already awake), and no
-// field evidence at all. This is the field evidence.
-//
-// Asked, not counted here: the worker already keeps the set that makes the refresh once-only, so
-// this reads its size over a MessageChannel. A COUNT and never a URL — which files a device fetched
-// is browsing information, and the number answers the question by itself.
-//
-// **Every failure answers `null`, never 0.** No controller, no reply, a worker too old to know the
-// message, or a browser with no service worker at all — none of those is "this boot did no
-// revalidation", and recording them as zero would manufacture the reassuring half of the very
-// finding this is here to test. The timeout exists because a MessageChannel reply that never comes
-// would otherwise hold the promise for the life of the page.
-const SWR_COUNT_TIMEOUT_MS = 1500;
+// Times are `performance.now()` values — milliseconds since this load started, the same clock every
+// mark and timing entry uses — so a reading is compared with them directly.
+/** The first moment this page was hidden. 0 when it loaded hidden; Infinity while never. */
+let _firstHiddenAt = Infinity;
+/** The first moment it was hidden AFTER somebody had seen it (a page that loaded hidden, then shown). */
+let _hiddenAgainAt = Infinity;
+/** The first moment it was visible: 0 when it loaded visible; null until then. */
+let _firstVisibleAt = /** @type {number|null} */ (null);
+/** @type {(t: number) => void} */
+let _resolveVisible = () => {};
+/** Resolves when the page is first visible. @type {Promise<number>} */
+const _visible = new Promise((resolve) => { _resolveVisible = resolve; });
 
-/** Ask the controlling service worker how many revalidations it has started since it woke.
- *  @returns {Promise<number|null>} the count, or null when it cannot be known. */
-function askSwrCount() {
-    return new Promise((resolve) => {
-        let done = false;
-        const finish = (/** @type {number|null} */ v) => { if (!done) { done = true; resolve(v); } };
-        try {
-            const ctrl = navigator.serviceWorker && navigator.serviceWorker.controller;
-            if (!ctrl) { finish(null); return; }
-            const ch = new MessageChannel();
-            ch.port1.onmessage = (e) => finish(typeof e.data?.count === 'number' ? e.data.count : null);
-            ctrl.postMessage({ type: 'REVALIDATION_COUNT' }, [ch.port2]);
-            setTimeout(() => finish(null), SWR_COUNT_TIMEOUT_MS);
-        } catch { finish(null); }   // no MessageChannel, a detached controller, a throwing postMessage
-    });
+(function watchVisibility() {
+    /** @param {number} t */
+    const seen = (t) => { if (_firstVisibleAt === null) { _firstVisibleAt = t; _resolveVisible(t); } };
+    try {
+        const doc = /** @type {any} */ (globalThis).document;
+        // No document at all (a test, a worker): nothing can hide it, so it is watched throughout.
+        if (!doc) { seen(0); return; }
+        // A prerendered page reports itself hidden until it is shown; the flag is checked as well
+        // because the two are separate properties and an engine may set one without the other.
+        const hiddenNow = doc.visibilityState === 'hidden' || doc.prerendering === true;
+        if (hiddenNow) _firstHiddenAt = 0;
+        else {
+            // A hide BEFORE this module ran — between the navigation and the first script — is read
+            // back from the browser's own visibility timeline where it keeps one (Chrome 115+).
+            let earlier;
+            try { earlier = performance.getEntriesByType?.('visibility-state')?.find((e) => e.name === 'hidden')?.startTime; }
+            catch { /* no timeline — the listener below covers everything from here on */ }
+            if (typeof earlier === 'number') _firstHiddenAt = earlier;
+            seen(0);
+        }
+        doc.addEventListener('visibilitychange', () => {
+            let now = 0;
+            try { now = performance.now(); } catch { /* no clock */ }
+            if (doc.visibilityState === 'hidden') {
+                if (_firstHiddenAt === Infinity) _firstHiddenAt = now;
+                if (_firstVisibleAt !== null && _hiddenAgainAt === Infinity) _hiddenAgainAt = now;
+            } else {
+                seen(now);
+            }
+        });
+    } catch { /* best-effort — a page we cannot observe is treated as watched */ }
+})();
+
+/** A reading taken `t` ms into the load counts only if the page had been watched until then.
+ *  @param {number} t */
+function _watched(t) { return t < _firstHiddenAt; }
+
+// ── WHEN THE PAGE WAS WAITING FOR A PERSON ──────────────────────────────────────────────────────
+/** When the page first asked somebody to type. null while it never has. @type {number|null} */
+let _awaitingInputAt = null;
+
+/**
+ * Note that the page is now waiting for a person — a sign-in form or a Calendar lock card has
+ * appeared. Everything that page reaches AFTER this includes their reading and typing, so `ready`
+ * (and `rosterSnapshot`) are not recorded past it. Idempotent: the first call wins. Never throws.
+ *
+ * Called by login-overlay.js when it mounts, and by calendar-app.js through the lock cards'
+ * `onAwaitingInput` — those modules decide who may see the Calendar and import no telemetry.
+ * @returns {void}
+ */
+export function markAwaitingInput() {
+    try { if (_awaitingInputAt === null) _awaitingInputAt = performance.now(); } catch { /* no clock */ }
+}
+
+/** @param {number} t */
+function _beforeTyping(t) { return _awaitingInputAt === null || t < _awaitingInputAt; }
+
+/** Epoch ms at which this load started. `timeOrigin` where the browser has it; otherwise derived.
+ *  @returns {number} */
+function _loadStartEpoch() {
+    try {
+        const o = /** @type {any} */ (performance).timeOrigin;
+        if (typeof o === 'number' && o > 0) return o;
+        return Date.now() - (typeof performance.now === 'function' ? performance.now() : 0);
+    } catch { return Date.now(); }
 }
 
 /** milestone id → performance.mark name. `rosterSnapshot` (v24.85) is the Calendar painting a member's
  *  own stored roster before the sign-in check answers (calendar-snapshot.js) — the moment they first
- *  SEE their shifts, which no other rung times: "Shifts shown" is the grid after the check. Like
- *  `rosterCached` it reports only when it happened, so an open with no stored copy gives it no time.
+ *  SEE their shifts, which `ready` does not time: that is the grid after the check. It reports only
+ *  when it happened, so an open with no stored copy gives it no time. The other rungs it shared this
+ *  table with (`authBoot`, `access`, `rosterCached`, `rosterLive`) were retired with the card blocks
+ *  that read them (Oct 2026).
  *  @type {Record<string, string>} */
-const MILESTONE_MARKS = { authBoot: 'myb-auth-boot', access: 'myb-access', rosterCached: 'myb-roster-cached', rosterLive: 'myb-roster-live', rosterSnapshot: 'myb-roster-snapshot' };
+const MILESTONE_MARKS = { rosterSnapshot: 'myb-roster-snapshot' };
 /** @type {Record<string, (t: number) => void>} */
 const _resolveMilestone = {};
 /** @type {Record<string, Promise<number>>} */
@@ -154,9 +197,9 @@ for (const id of Object.keys(MILESTONE_MARKS)) {
 }
 
 /**
- * Mark one of the start-ladder milestones. Idempotent, silent on any platform without the
- * Performance API, and — like `markPageReady` — it must never be able to break the page it times.
- * @param {'authBoot'|'access'|'rosterCached'|'rosterLive'|'rosterSnapshot'} id
+ * Mark a milestone. Idempotent, silent on any platform without the Performance API, and — like
+ * `markPageReady` — it must never be able to break the page it times.
+ * @param {'rosterSnapshot'} id
  * @returns {void}
  */
 export function markMilestone(id) {
@@ -170,76 +213,51 @@ export function markMilestone(id) {
     } catch { /* Performance API unavailable — the metric is simply absent */ }
 }
 
+/** Set by the first `markPageReady` call; later calls do nothing. */
+let _readyRequested = false;
+
 /**
- * Mark the instant this page's MAIN CONTENT is actually on screen.
+ * Mark the instant this page's MAIN CONTENT is on screen and usable.
  *
  * ── WHY THIS EXISTS (v20.80) ────────────────────────────────────────────────────────────────────
  *
- * Until now the card's two page milestones were `fcp` ("first appears") and `domReady` ("fully
- * ready"), and the v20.12 access gate quietly made both of them stop describing the thing an admin
- * reads them as.
+ * `fcp` is the first pixel painted, which on the Calendar is the SPLASH, and `domReady` fires when
+ * the module scripts finish, while the Calendar can still be blank (measured with the auth restore
+ * held at 2s: fcp 512ms, domReady 669ms, roster on screen 2630ms). So a page calls this once, at the
+ * moment its own content is genuinely usable — the Calendar's first grid render, and the pages whose
+ * `.container` is hidden until `body.auth-ready`.
  *
- *   · `fcp` is the first pixel painted, which on the Calendar is the SPLASH — inline markup in
- *     index.html. It has never measured the roster and cannot.
- *   · `domReady` is DOMContentLoaded, i.e. the module scripts finishing. `initCalendarAccess` is
- *     async, so DCL now fires while the Calendar is still blank. MEASURED with the auth restore
- *     held at 2s: fcp 512ms, domReady 669ms, roster on screen **2630ms**. The card would have
- *     called that load "fully ready in 669ms".
+ * ── STAMPED AFTER THE FRAME THAT SHOWS IT (Oct 2026) ────────────────────────────────────────────
  *
- * So this is the milestone the other two cannot be. A page calls it once, at the moment its own
- * content is genuinely usable — the Calendar's first grid render, and the three pages whose
- * `.container` is hidden until `body.auth-ready`. Everything before it is a page the member is
- * looking at and cannot use.
- *
- * Idempotent (the first call wins — `performance.mark` would otherwise record a second entry and
- * `getEntriesByName()[0]` would still read the first, but a re-render must not even try). Silent on
- * any platform without the Performance API: the metric is simply absent, which the card handles.
- *
- * ── WHAT SERVED THE FIRST GRID (v21.99) ─────────────────────────────────────────────────────────
- *
- * `source` says whether the grid the member is now looking at came from the LOCAL CACHE or from the
- * authoritative server read. It exists to make one decision decidable and no other: `LATENCY.md`
- * Phase 2 proposes narrowing that server read, and its entire value rests on how many loads reach a
- * grid THROUGH it. A cache-served load never touches the network on this path, so narrowing the read
- * cannot move it by a millisecond — while a cache MISS waits for the whole three-month, whole-team
- * query, which the card says has never once finished inside a second.
- *
- * Nothing about `ready` changes: it is still written for every load and its history stays
- * continuous. The split is recorded as two ADDITIONAL metrics, because the sample key is a fixed
- * six-part format that `parsePerfSampleKey` splits positionally — a seventh field would invalidate
- * every sample already stored, and the analytics document's rules constrain its shape but not the
- * names inside `samples`, so a new metric needs no rules deploy and carries no ordering hazard.
- *
- * A page that does not know its source simply omits it and reports `ready` alone, which is the same
- * honesty rule the milestones follow: a thing that was not established is not given a value.
- *
- * `readyProvisional` (v23.69) is NO LONGER WRITTEN. It counted opens served by the Calendar's
- * provisional paint, which was retired on 26 Sep 2026 once that metric had answered its question:
- * the path fired on about 1 open in 800 and could not beat Auth start-up. Stored months keep their
- * rows, and the Speed card still reads them (`summariseProvisionalOpens` tolerates their absence).
- *
- * @param {'cached'|'fetched'} [source] what put this grid on screen, where the caller knows
+ * Callers mark at the end of their own setup, and on four pages synchronous work still followed in
+ * the same task, so the mark landed before the screen did. The stamp now waits for the next frame
+ * and then one more turn (`requestAnimationFrame` then `setTimeout`), which is when that frame has
+ * been presented. A hidden page draws no frames, so it stamps at once — and its reading is left out
+ * anyway (above). The first call wins; a re-render must not even try.
  * @returns {void}
  */
-export function markPageReady(source) {
+export function markPageReady() {
+    if (_readyRequested) return;
+    _readyRequested = true;
+    const stamp = () => {
+        try {
+            if (performance.getEntriesByName?.(PAGE_READY_MARK)?.length) return;
+            performance.mark(PAGE_READY_MARK);
+            // Read back rather than trusted from the return value: `performance.mark()` returns the
+            // entry in modern browsers and nothing in older ones.
+            const t = performance.getEntriesByName?.(PAGE_READY_MARK)?.[0]?.startTime;
+            if (typeof t === 'number') _resolveReady(t);
+        } catch { /* Performance API unavailable — the metric is skipped, nothing else changes */ }
+    };
     try {
-        if (performance.getEntriesByName?.(PAGE_READY_MARK)?.length) return;
-        // Captured on the FIRST call only, alongside the mark it describes. A later re-render can
-        // reach a better-known state — cached becomes authoritative the moment phase 2 lands — and
-        // attributing the FIRST grid's timing to the SECOND grid's source would report the whole
-        // population as fetch-served and answer the question backwards.
-        if (source === 'cached' || source === 'fetched') _readySource = source;
-        performance.mark(PAGE_READY_MARK);
-        // Announce it as well as record it. `performance.mark()` returns the entry in modern
-        // browsers and nothing in older ones, so the timestamp is read back the same way
-        // `recordPageLatency` reads it rather than trusted from the return value.
-        const t = performance.getEntriesByName?.(PAGE_READY_MARK)?.[0]?.startTime;
-        if (typeof t === 'number') _resolveReady(t);
-    } catch { /* Performance API unavailable — the metric is skipped, nothing else changes */ }
+        const doc = /** @type {any} */ (globalThis).document;
+        if (typeof requestAnimationFrame === 'function' && doc && doc.visibilityState === 'visible') {
+            requestAnimationFrame(() => setTimeout(stamp, 0));
+            return;
+        }
+    } catch { /* fall through and stamp now */ }
+    stamp();
 }
-
-/** What served the first grid, when the page knew. @type {'cached'|'fetched'|null} */
-let _readySource = null;
 
 /** Read non-identifying environment dimensions (PWA display mode + connection class). */
 function envContext() {
@@ -254,116 +272,116 @@ function envContext() {
 }
 
 /**
- * Record this page's navigation-timing latency (bucketed), anonymously. Best-effort and silent: any
- * missing API or error simply records nothing.
- * @param {string} page - stable page id: 'calendar' | 'admin' | 'paycalc' | 'operations' | 'settings' | 'links'
- * @param {string|null} [identity] - the active member's name; if it is an admin (the developer), this
- *        session is the developer testing the app, so NOTHING is recorded — the figures must reflect
- *        real staff, not test loads. Pass the signed-in member, or the calendar's selected member.
+ * Run `cb` with the navigation entry once its DOMContentLoaded END is known. Called from inside a
+ * page's own boot, this can run BEFORE that field is written (it reads 0 until the event's handlers
+ * have finished), and a 0 is dropped — which removed `domReady` from the fastest opens of all
+ * (statistics review, Oct 2026: the Calendar's `ready` count exceeded its `domReady` count). So a 0
+ * waits for the event and one more turn, then reads again; a page already past it reads at once.
+ * @param {(nav: any) => void} cb
+ */
+function _whenDomReadyKnown(cb) {
+    const read = () => /** @type {any} */ (performance.getEntriesByType?.('navigation')?.[0]);
+    const nav = read();
+    if (!nav) return;   // Navigation Timing L2 unsupported (old Safari) — skip silently
+    if (nav.domContentLoadedEventEnd > 0) { cb(nav); return; }
+    try {
+        const doc = /** @type {any} */ (globalThis).document;
+        const again = () => setTimeout(() => { const n = read(); if (n && n.domContentLoadedEventEnd > 0) cb(n); }, 0);
+        if (doc && doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', again, { once: true });
+        else again();
+    } catch { /* no document — nothing more to wait for */ }
+}
+
+/**
+ * Record this page's latency (bucketed), anonymously. Best-effort and silent: any missing API or
+ * error simply records nothing.
+ * @param {string} page - stable page id: 'calendar' | 'admin' | 'paycalc' | 'operations' | 'settings' | 'links' | …
+ * @param {string|null} [identity] - the signed-in member's name; if it is an admin (the developer),
+ *        this session is the developer testing the app, so NOTHING is recorded — the figures must
+ *        reflect real staff, not test loads.
  * @returns {void}
  */
 export function recordPageLatency(page, identity = null) {
     try {
         // Exclude the developer/admin's own sessions (CONFIG.ADMIN_NAMES) so speed figures reflect real
-        // staff — but still CONSUME the one-shot login marker below, so an excluded sign-in can't leave a
-        // stale marker that mis-times a later load.
+        // staff — but still CONSUME both one-shot markers below, so an excluded load can't leave a
+        // stale marker that mis-times or mis-labels a later staff load.
         const excluded = !!(identity && CONFIG.ADMIN_NAMES.includes(identity));
         const { mode, conn } = envContext();
 
-        // Login-to-usable: if a sign-in started this session, record how long until the page became
-        // usable. Attributed to the synthetic page id 'login' (login speed is ONE number, not split by
-        // destination). One-shot: the marker is ALWAYS cleared (even when excluded); only RECORDED when not.
+        // Sign-in time: from pressing "Sign in" until this page was USABLE (its `ready` mark), which
+        // is what the card says it is. It ended at whenever this function happened to run until
+        // Oct 2026 — on the Calendar that is before the grid appears. Attributed to the synthetic page
+        // id 'login' (sign-in speed is ONE number, not split by destination). The marker is ALWAYS
+        // cleared; the sample is RECORDED only for a real staff load watched until it was usable.
         try {
             const t0 = Number(sessionStorage.getItem(LOGIN_T0_KEY));
             if (t0) {
                 sessionStorage.removeItem(LOGIN_T0_KEY);
                 if (!excluded) {
-                    const bucket = loginDurationBucket(t0, Date.now());
-                    if (bucket) recordPerfSample({ page: 'login', metric: 'loginTotal', bucket, mode, conn });
+                    _pageReady.then((readyAt) => {
+                        if (!_watched(readyAt)) return;
+                        const bucket = loginDurationBucket(t0, _loadStartEpoch() + readyAt);
+                        if (bucket) recordPerfSample({ page: 'login', metric: 'loginTotal', bucket, mode, conn });
+                    }).catch(() => { /* never rejects */ });
                 }
             }
         } catch { /* sessionStorage unavailable — skip login timing */ }
 
-        // Did this load follow a release? One-shot by the SAME rule as the login marker above, and
-        // for the same reason: ALWAYS cleared, RECORDED only when not excluded — a developer's own
-        // reload must not leave a marker that then attributes a member's next open to an update.
-        // Read here, used inside `recordReady` below, which may run much later.
+        // Did this load follow a release? One-shot by the SAME rule as the login marker above.
         let afterUpdate = false;
         try {
             const t = Number(sessionStorage.getItem(SW_RELOAD_KEY));
             if (t) {
                 sessionStorage.removeItem(SW_RELOAD_KEY);
-                afterUpdate = Date.now() - t >= 0 && Date.now() - t < SW_RELOAD_MAX_MS;
+                const gap = _loadStartEpoch() - t;
+                afterUpdate = gap >= -SW_RELOAD_SKEW_MS && gap < SW_RELOAD_WINDOW_MS;
             }
         } catch { /* sessionStorage unavailable — this load simply reports no update attribution */ }
 
         if (excluded) return;   // developer's own session: markers consumed above, nothing else recorded
 
-        // First Contentful Paint (metric 'fcp') — when the user first SEES content, i.e. the page
-        // "appears". From the Paint Timing API, a SEPARATE timeline to Navigation Timing's domReady
-        // ("fully ready") — so record it BEFORE the nav-timing guard below, never gated on it.
+        // First Contentful Paint (metric 'fcp') — when the user first SEES content. From the Paint
+        // Timing API, a separate timeline to Navigation Timing, so recorded independently of it.
         recordFcp(page, mode, conn);
 
         // ── `ready`, WHENEVER IT ARRIVES ────────────────────────────────────────────────────────
-        //
-        // Handled here, ABOVE the Navigation Timing guard, because it depends on neither: it comes
-        // from a `performance.mark` and nothing else. Sitting below that guard would have tied it to
-        // an unrelated capability.
-        //
-        // BOTH cases live here — already marked, and not yet — so the two cannot diverge. Splitting
-        // them across the guard was the first attempt and it reintroduced the same class of bias one
-        // level down: a browser with marks but no Navigation Timing would have kept `ready` on the
-        // loads that were still waiting and dropped it on the ones already finished, i.e. exactly
-        // the fast ones. Caught by a test that stubs marks without navigation entries.
-        const recordReady = (/** @type {number} */ startTime) => {
-            const bucket = bucketDuration(startTime);
-            // Deferring the WRITE is safe: this function is already gated on the page's auth being
-            // established, so the session that carries it exists by now and outlives the wait.
+        // Above the Navigation Timing read, because it depends only on a mark. A load watched until
+        // it was usable, with nobody asked to type first, is recorded; a release reload watched
+        // from its start records `readyUpdate` beside it — a SUBSET, from the same reading.
+        const recordReady = (/** @type {number} */ readyAt) => {
+            if (!_watched(readyAt) || !_beforeTyping(readyAt)) return;
+            const bucket = bucketDuration(readyAt);
             if (!bucket) return;
             recordPerfSample({ page, metric: 'ready', bucket, mode, conn });
-            // The same reading, attributed. Written as a SECOND sample rather than replacing the
-            // first, so `ready` keeps counting every load and the two are comparable against it.
-            if (_readySource) {
-                recordPerfSample({ page, metric: _readySource === 'cached' ? 'readyCached' : 'readyFetched',
-                    bucket, mode, conn });
-            }
-            // The same reading again, for the loads a release caused. A SUBSET of `ready` — not a
-            // split of it, which is the opposite of the two rows above and the thing the card has to
-            // say. Because it is written here, from the same bucket, on the same path, the two
-            // counts divide: `readyUpdate` over `ready` IS the share of opens that followed a
-            // release, which is the question v22.90 left unanswerable.
             if (afterUpdate) recordPerfSample({ page, metric: 'readyUpdate', bucket, mode, conn });
-            // …and how much background work the worker did getting here. Two samples, because the
-            // review asks two questions: how many revalidations a real boot carries (`swrCount`,
-            // in COUNT bands), and whether a boot carrying a full sweep reaches the roster more
-            // slowly than one that does not. The second is the same SUBSET trick as `readyUpdate`
-            // — `readyHeavySwr` is written beside `ready`, from the same bucket, only on the heavy
-            // band — so its distribution is directly comparable with `ready` overall and the key
-            // stays at six components.
-            askSwrCount().then((n) => {
-                const band = bucketSwrCount(/** @type {any} */ (n));
-                if (!band) return;   // unknowable — see askSwrCount; never recorded as zero
-                recordPerfSample({ page, metric: 'swrCount', bucket: band, mode, conn });
-                if (band === SWR_HEAVY_BUCKET) {
-                    recordPerfSample({ page, metric: 'readyHeavySwr', bucket, mode, conn });
-                }
-            }).catch(() => { /* never rejects; here so a future change cannot make it unhandled */ });
         };
         let readyNow;
         try { readyNow = performance.getEntriesByName?.(PAGE_READY_MARK)?.[0]?.startTime; }
         catch { /* no marks — fall through and wait, which on such a platform simply never fires */ }
         if (typeof readyNow === 'number') recordReady(readyNow);
-        // See `_pageReady` for what reading the mark table at one arbitrary instant was costing:
-        // four loads in five, silently, and not at random.
-        else _pageReady.then(recordReady)
-            .catch(() => { /* never rejects; here so a future change cannot make it unhandled */ });
+        else _pageReady.then(recordReady).catch(() => { /* never rejects */ });
 
-        // The other rungs, by exactly the same rule — already marked, or recorded when they
-        // arrive. A page that never reaches one simply never reports it, which is the honest
-        // answer: a milestone that did not happen must not be given a time.
+        // A release reload that ran WHILE HIDDEN — the Calendar's, by design. Nobody waited for the
+        // load itself, so what is timed is the wait the member actually had: from coming back to the
+        // page until it was usable, and a token instant (the fastest band) if it was ready first. If
+        // they leave again before it is ready, or have to type, there is no wait to report.
+        if (afterUpdate && _firstHiddenAt === 0) {
+            Promise.all([_pageReady, _visible]).then(([readyAt, seenAt]) => {
+                if (readyAt > seenAt && readyAt >= _hiddenAgainAt) return;
+                if (!_beforeTyping(readyAt)) return;
+                const bucket = bucketDuration(Math.max(1, readyAt - seenAt));
+                if (bucket) recordPerfSample({ page, metric: 'readyUpdate', bucket, mode, conn });
+            }).catch(() => { /* never rejects */ });
+        }
+
+        // The milestones, by the same rule as `ready` — already marked, or recorded when they arrive.
+        // A page that never reaches one never reports it: a milestone that did not happen must not be
+        // given a time.
         for (const id of Object.keys(MILESTONE_MARKS)) {
-            const write = (/** @type {number} */ startTime) => {
-                const b = bucketDuration(startTime);
+            const write = (/** @type {number} */ t) => {
+                if (!_watched(t) || !_beforeTyping(t)) return;
+                const b = bucketDuration(t);
                 if (b) recordPerfSample({ page, metric: id, bucket: b, mode, conn });
             };
             let now;
@@ -373,40 +391,27 @@ export function recordPageLatency(page, identity = null) {
             else _milestone[id]?.then(write).catch(() => { /* never rejects */ });
         }
 
-        // Navigation-timing metrics for THIS page (every load).
-        const nav = /** @type {any} */ (performance.getEntriesByType?.('navigation')?.[0]);
-        if (!nav) return;   // Navigation Timing L2 unsupported (old Safari) — skip silently
-        /** @type {Record<string, number>} */
-        // responseStart IS time-to-first-byte; responseEnd is the LAST byte (it silently included
-        // the full HTML download on slow connections, inflating the App Speed bands) (v16.23).
-        const metrics = { ttfb: nav.responseStart, domReady: nav.domContentLoadedEventEnd };
-        // Boot phases (v20.33) — where a slow start actually goes: waking the SW cache, reaching the
-        // 'myb-sdk-ready' mark (firebase-client.js), then the app's own modules to DCL. The pure
-        // split lives in perf-stats.bootPhases; an uncomputable phase is NaN and bucketDuration
-        // skips it (no SW on a first visit; no mark where the Performance API is missing).
-        let sdkMark;
-        try { sdkMark = performance.getEntriesByName?.('myb-sdk-ready')?.[0]?.startTime; } catch { /* no marks */ }
-        Object.assign(metrics, bootPhases(nav, sdkMark));
-        // 'ready' is NOT in this map — it is handled above, before the Navigation Timing guard,
-        // because it comes from a mark and depends on neither nav timing nor the order this
-        // function happens to run in. ABSENT on a page that does not mark, and absent is the honest
-        // answer there: a fabricated fallback to domReady would put the exact number this metric
-        // exists to contradict under the label that says it is something else.
-        for (const metric of Object.keys(metrics)) {
-            const bucket = bucketDuration(metrics[metric]);
-            if (bucket) recordPerfSample({ page, metric, bucket, mode, conn });
-        }
+        // The app's code having loaded (DOMContentLoaded). It cannot include typing, so only the
+        // watched rule applies.
+        _whenDomReadyKnown((nav) => {
+            const dcl = nav.domContentLoadedEventEnd;
+            if (!_watched(dcl)) return;
+            const bucket = bucketDuration(dcl);
+            if (bucket) recordPerfSample({ page, metric: 'domReady', bucket, mode, conn });
+        });
     } catch { /* best-effort — latency telemetry must never affect the app */ }
 }
 
 /**
  * Record First Contentful Paint for `page` (bucketed), best-effort. Reads the existing paint entry if
- * present; otherwise observes once for a late paint. Never throws.
+ * present; otherwise observes once for a late paint. A paint after the page was first hidden is not
+ * a load anybody watched, so it is not recorded. Never throws.
  * @param {string} page @param {string} mode @param {string} conn
  */
 function recordFcp(page, mode, conn) {
     try {
         const report = (/** @type {number} */ startTime) => {
+            if (!_watched(startTime)) return;
             const bucket = bucketDuration(startTime);
             if (bucket) recordPerfSample({ page, metric: 'fcp', bucket, mode, conn });
         };

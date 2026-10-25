@@ -1055,6 +1055,35 @@ test('a cached, slow-restoring open writes `ready` — and no `readyProvisional`
     expect((await sampleKeys()).filter(k => k.includes('|rosterSnapshot|'))).toEqual([]);
 });
 
+// TYPING THE PIN IS NOT LOAD TIME (App Speed review, Oct 2026). The PIN unlocks the Calendar without a
+// reload, so "Usable" used to include reading the card and typing. The PIN card tells the recorder the
+// page is waiting for a person (`onAwaitingInput`) — wiring no unit suite runs, because the gate
+// imports no telemetry and the card module is reached only through it.
+//
+// THROUGH THE STATION PC'S BOOKMARK (`#staff-pin`), where the PIN card is the first and only card. From
+// the front door the sign-in card has already said so through the shared sign-in overlay, so a test
+// arriving that way passed with the PIN card's own call deleted (found by mutation).
+test('a PIN unlock writes no "Usable" sample — that wait was typing, not loading', async ({ page }) => {
+    test.setTimeout(60_000);
+    await seedMember(page);
+    await stubPinExchange(page);
+    await page.goto('/index.html#staff-pin');
+    await expect(page.locator('#calLockPin')).toBeVisible();   // the PIN card, with no sign-in card before it
+    await expect(page.locator('#calendarLock')).toBeVisible();
+    await enterPin(page, '1234');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    // The grid is up, so the page HAS marked itself usable; the reading must still leave it out.
+    await expect.poll(() => page.evaluate(() => performance.getEntriesByName('myb-page-ready').length),
+        { timeout: 15_000 }).toBeGreaterThan(0);
+    const sampleKeys = async () => page.evaluate(() => (window.__E2E?.setWrites || [])
+        .filter(w => String(w.path || '').includes('perf_'))
+        .flatMap(w => Object.keys((w.data && w.data.samples) || {})));
+    // The open IS recorded — the station PIN is a staff load, not the developer's — just not as usable.
+    await expect.poll(async () => (await sampleKeys()).some(k => k.includes('|calendar|domReady|')), { timeout: 25_000 }).toBe(true);
+    await page.waitForTimeout(3000);
+    expect((await sampleKeys()).filter(k => k.includes('|calendar|ready|'))).toEqual([]);
+});
+
 // THE MOMENT A MEMBER FIRST SEES THEIR SHIFTS IS TIMED (v24.85). "Shifts shown" is the grid after the
 // sign-in check; the stored copy is on screen before any of it, and until this had no time of its own,
 // so the App Speed card could not say whether it helped. A NON-ADMIN member, as above.

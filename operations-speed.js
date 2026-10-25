@@ -5,12 +5,54 @@
  * One of the three reporting cards split out of operations-reports.js at v21.32 — see that
  * module's header for why. It awaits `sessionReady`, reads Firestore, and renders into its own
  * card by id; it touches no coordinator state and no other card.
+ *
+ * ── WHAT IT SHOWS, AND WHAT IT STOPPED SHOWING (App Speed review, Oct 2026) ──────────────────────
+ *
+ * Three sections: Signing in; Opening pages — three moments, then each page's bars; and a closer
+ * look at the busiest page — the stored copy of a member's own roster, the wait after a release, and
+ * "Usable" by app version and by how the page was opened. Those four have a live question behind
+ * them. Everything else the old "Why some are slower" section carried (the boot stages, the start
+ * ladder, the saved-copy/server split, the retired fast path, the service worker's file count and
+ * the connection comparisons) served the sign-in speed investigation `LATENCY.md` closed on 19
+ * September, and went — with its writes (perf-reporter.js), except the connection class, which is
+ * part of every sample's key rather than a write of its own. It was about two thirds of the card.
+ *
+ * ── FOUR RULES EVERY FIGURE KEEPS ─────────────────────────────────────────────────────────────────
+ *
+ *   · A NUMBER SAYS WHAT IT IS. The big figure on each panel is the share that was QUICK, while its
+ *     colour comes from the slow share — so it carries the word "quick" under it. A red "46%" was
+ *     read as "46% bad", by the author of a review of this card among others.
+ *   · NOTHING IN COLOUR ALONE. The slow segment is striped as well as red (operations.css), and every
+ *     bar's figures are in its label: to red-green colour blindness the green and the red are close.
+ *   · AN EXPLANATION IS ON SCREEN. A row's one-line description is drawn beneath it. Until Oct 2026 it
+ *     went into the screen-reader label alone, and a sighted reader met bare labels.
+ *   · A SHARE NEVER ROUNDS TO A LIE. A real share under 1% reads "<1%", not "0%"; one short of the
+ *     whole reads ">99%", not "100%" (`compactPct`).
  */
 import { sessionReady } from './session.js';
 import { withClaimRetry, getPerfStats } from './firebase-client.js';
-import { SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseBootPhases, summariseStartMilestones, summariseReadySource, summariseEarlyRoster, earlyRosterShare, summariseUpdateOpens, summariseProvisionalOpens, summariseSwrCounts, summariseHeavySwrOpens, THIN_SAMPLE } from './perf-stats.js';
+import {
+    SPEED_GROUPS, perfVerdict, summarisePerfBy, PERF_DIMENSIONS, summariseEarlyRoster, earlyRosterShareLabel,
+    summariseUpdateOpens, UPDATE_OPENS_FROM, CLEAN_TIMINGS_FROM, shareMeasuredBefore, perfRecordFullness,
+    compactPct, THIN_SAMPLE,
+} from './perf-stats.js';
 import { escapeHtml } from './roster-data.js';
 import { PRIVACY_FOOTER, PAGE_META, _cardLoadError, _usageMonthLabel } from './operations-reports.js';
+
+/** @typedef {{ quick: number, ok: number, slow: number, total: number, pctQuick: number, pctOk: number, pctSlow: number }} Bands */
+/** @typedef {Bands & { label: string, sub?: string }} BandRow */
+
+/**
+ * The three moments a page open passes, in the order they happen. "Usable" is the one to read as how
+ * fast the app is: "First appears" is the loading screen painting on the Calendar, and "Code loaded"
+ * fires while the Calendar can still be blank — it waits on the access decision, which is
+ * asynchronous and lands after DOMContentLoaded (v20.80). Each says so in a line under its heading.
+ */
+const MOMENTS = /** @type {const} */ ([
+    { key: 'fcp',   emoji: '✨', label: 'First appears', explain: 'Something is on screen — on the Calendar, the loading screen.' },
+    { key: 'pages', emoji: '📦', label: 'Code loaded',   explain: 'The app’s code has run. The page can still be filling in.' },
+    { key: 'ready', emoji: '✅', label: 'Usable',        explain: 'The page’s own content is on screen and ready to use — the one to read as how fast the app is.' },
+]);
 
 // ── App speed card (Project 0 latency, surfaced in plain language) ──────────────
 async function initPageSpeedCard() {
@@ -20,8 +62,15 @@ async function initPageSpeedCard() {
     // `thin` renders like `none` — neutral, no colour verdict. The percentage is still shown; it
     // is the CLAIM that is withheld, not the number.
     const TONE_CLASS = { good: 'good', ok: 'ok', bad: 'bad', none: 'none', thin: 'none' };
-    /** width:% segments (good/ok/slow) from a {quick,ok,slow,total} band row.
-     *  @param {{quick:number, ok:number, slow:number, total:number}} b */
+
+    /** "46% quick, 40% a moment, 14% slow" — every bar's label, in the card's own words. @param {Bands} b */
+    const bandWords = (b) =>
+        `${compactPct(b.pctQuick, b.quick, b.total)} quick, ${compactPct(b.pctOk, b.ok, b.total)} a moment, ${compactPct(b.pctSlow, b.slow, b.total)} slow`;
+
+    /** The share over a second — the complement of quick, so every column reads bad-when-high. @param {Bands} b */
+    const over1s = (b) => compactPct(100 - b.pctQuick, b.ok + b.slow, b.total);
+
+    /** width:% segments (good/ok/slow) from a band row. @param {Bands} b */
     const segs = (b) => {
         if (!b.total) return '';
         const w = (/** @type {number} */ n) => (n / b.total) * 100;
@@ -29,27 +78,53 @@ async function initPageSpeedCard() {
                `<span class="speed-seg speed-seg--ok"   style="width:${w(b.ok)}%"></span>` +
                `<span class="speed-seg speed-seg--bad"  style="width:${w(b.slow)}%"></span>`;
     };
-    /** A small "🔑 Signing in" / "📄 Opening pages" section heading. @param {string} emoji @param {string} label */
-    const subhead = (emoji, label, rule = false) => {
+
+    /** A section heading — 🔑 Signing in, 📄 Opening pages, 🔍 A closer look. An `h3` under the card's
+     *  `h2`, so a screen-reader user can move between the sections of a long card; they were
+     *  paragraphs until Oct 2026. `rule` draws a divider above, as the Usage card separates its
+     *  groups. @param {string} emoji @param {string} label trusted HTML @param {boolean} [rule] */
+    const sectionHeading = (emoji, label, rule = false) => {
+        const h = document.createElement('h3');
+        h.className = 'speed-subhead' + (rule ? ' speed-subhead--rule' : '');
+        h.innerHTML = `<span aria-hidden="true">${emoji}</span> ${label}`;
+        return h;
+    };
+    /** A heading one rank down: the three moments and "By page" under Opening pages. One builder for
+     *  this rank on purpose — "By page" spent three releases at the section rank, announcing itself as
+     *  a peer of its own parent, because it was assembled by hand. @param {string} emoji @param {string} label */
+    const subHeading = (emoji, label) => {
+        const h = document.createElement('h4');
+        h.className = 'speed-subhead speed-subhead--sub';
+        h.innerHTML = `<span aria-hidden="true">${emoji}</span> ${label}`;
+        return h;
+    };
+    /** A block's label inside "A closer look" — the same rank as `subHeading`, drawn as an eyebrow.
+     *  @param {string} text */
+    const blockHeading = (text) => {
+        const h = document.createElement('h4');
+        h.className = 'usage-section-label speed-dim-label';
+        h.textContent = text;
+        return h;
+    };
+    /** A small muted framing line. @param {string} text */
+    const noteLine = (text) => {
         const p = document.createElement('p');
-        // `rule` draws a divider above, the way the Usage card separates its bar groups. Without it
-        // the card is one continuous scroll and a new subject has nothing marking where it begins.
-        p.className = 'speed-subhead' + (rule ? ' speed-subhead--rule' : '');
-        p.innerHTML = `<span aria-hidden="true">${emoji}</span> ${label}`;
+        p.className = 'speed-note';
+        p.textContent = text;
         return p;
     };
-    /** A full-width overall band bar (Quick/A moment/Slow) — used for the aggregate login section,
-     *  so it shows the SAME three bands as the per-page bars (not just a single headline %).
-     *  @param {{quick:number, ok:number, slow:number, total:number, pctQuick:number, pctOk:number, pctSlow:number}} b */
+
+    /** A full-width band bar under a headline, so a proportion can be compared as a shape — and so
+     *  the middle band, which no single number states, is visible at all. @param {Bands} b */
     const overallBar = (b) => {
         const wrap = document.createElement('div');
         wrap.className = 'speed-bar speed-bar--overall';
         wrap.setAttribute('role', 'img');
-        wrap.setAttribute('aria-label', `${b.pctQuick}% quick, ${b.pctOk}% a moment, ${b.pctSlow}% slow`);
+        wrap.setAttribute('aria-label', bandWords(b));
         wrap.innerHTML = segs(b);
         return wrap;
     };
-    /** The shared colour key (Quick/A moment/Slow) — explains both the login bar and the page bars. */
+    /** The shared colour key — every bar on the card uses these three bands. */
     const legendEl = () => {
         const legend = document.createElement('div');
         legend.className = 'speed-legend';
@@ -59,101 +134,84 @@ async function initPageSpeedCard() {
         }).join('');
         return legend;
     };
-    /** A toned verdict banner: big % "quick" + plain sentence + a sub line.
+    /** A toned verdict panel: the big quick share, a plain sentence, and all three bands in words.
      *  @param {{tone:'good'|'ok'|'bad'|'none'|'thin', text:string}} verdict
-     *  @param {{pctQuick:number, pctOk:number, pctSlow:number}} overall @param {number} total @param {string} unit
-     *  @param {string} [windowLabel] - "this month" / "last month", for the sub line */
-    const verdictBanner = (verdict, overall, total, unit, windowLabel = 'this month') => {
+     *  @param {Bands} overall @param {number} total @param {string} unit
+     *  @param {string} windowLabel "this month" / "last month" */
+    const verdictBanner = (verdict, overall, total, unit, windowLabel) => {
         const div = document.createElement('div');
         div.className = `speed-verdict speed-verdict--${TONE_CLASS[verdict.tone]}`;
         // NO "(few)" MARKER HERE, deliberately — `perfVerdict` already returns a whole sentence
-        // saying it ("Too few sign-ins yet to read as a trend"), and this line sits directly under
-        // that sentence. v21.16 added one anyway and it was doing nothing twice over: it repeated
-        // the sentence above it, and `.speed-thin` is `--text-mid`/400 against a sub-line that is
-        // ALREADY `--text-mid`/400 — measured identical in colour, weight and size, so it read as
-        // three more words rather than as a mark. The marker earns its place on the breakdown rows
-        // and the per-page table, where the label beside it is `--text-dark` and there is no
-        // sentence; it does not earn it here.
-        // ALL THREE BANDS, not just the headline one (v21.71). The big number is `pctQuick` — the
-        // share within a second — while the banner's COLOUR is driven by `pctSlow` crossing 20%.
-        // Two different measures, and the reader was given only one of them in words: a red panel
-        // over "32%" reads as "32% bad" when it means "32% good, and separately a fifth over three
-        // seconds". Measured on a real reader — the author of this card's own review misread it
-        // exactly that way from the source. Naming the split removes the ambiguity at the point it
-        // arises, which no legend further up the card can do once it has scrolled away.
+        // saying it ("Too few sign-ins to read as a trend"), directly above this line.
+        // ALL THREE BANDS, not just the headline one (v21.71): the panel's COLOUR is driven by the
+        // slow share and its big number by the quick share, so naming the split removes the
+        // ambiguity at the point it arises, which no legend further up the card can do.
         const sub = total
-            ? `${overall.pctQuick}% within a second · ${overall.pctOk}% 1–3s · ${overall.pctSlow}% over 3s`
-              + ` · ${total.toLocaleString('en-GB')} ${unit} ${windowLabel}`
-            : (windowLabel === 'this month'
-                ? 'Fills in as staff use the app over the coming days.'
-                : 'No data recorded last month.');
+            ? `${compactPct(overall.pctQuick, overall.quick, total)} under 1s · ${compactPct(overall.pctOk, overall.ok, total)} 1–3s · `
+              + `${compactPct(overall.pctSlow, overall.slow, total)} over 3s · ${total.toLocaleString('en-GB')} ${unit} ${windowLabel}`
+            : (windowLabel === 'this month' ? 'Fills in as staff use the app over the coming days.' : '');
+        // The WORD under the number (App Speed review, Oct 2026). A red "46%" read as "46% bad"; it
+        // is 46% QUICK, under a panel coloured by how many were slow.
+        const num = total
+            ? `<span class="speed-verdict-figure">${escapeHtml(compactPct(overall.pctQuick, overall.quick, total))}</span>`
+              + '<span class="speed-verdict-cap">quick</span>'
+            : '—';
         div.innerHTML =
-            `<span class="speed-verdict-num">${total ? overall.pctQuick + '%' : '—'}</span>` +
-            `<span class="speed-verdict-text">${verdict.text}<span class="speed-verdict-sub">${sub}</span></span>`;
+            `<span class="speed-verdict-num">${num}</span>` +
+            `<span class="speed-verdict-text">${escapeHtml(verdict.text)}`
+                + (sub ? `<span class="speed-verdict-sub">${escapeHtml(sub)}</span>` : '') + '</span>';
         return div;
     };
 
-    /** A lighter sub-heading for the blocks nested UNDER "📄 Opening pages" — the three milestones,
-     *  and the per-page table that breaks all three down. There is exactly one builder for this rank
-     *  on purpose: "By page" spent three releases at the section rank, announcing itself as a peer
-     *  of its own parent, because it was assembled by hand instead of asking for a rank.
-     *  @param {string} emoji @param {string} label */
-    const subMilestone = (emoji, label) => {
-        const p = document.createElement('p');
-        p.className = 'speed-subhead speed-subhead--sub';
-        p.innerHTML = `<span aria-hidden="true">${emoji}</span> ${label}`;
-        return p;
+    /** A row of column labels over a list. Hidden from screen readers: each figure below carries its
+     *  own words instead, because a header is not associated with the cells under it here.
+     *  @param {string} rowClass @param {string[]} labels '' for an unlabelled column */
+    const columnHead = (rowClass, labels) => {
+        const head = document.createElement('div');
+        head.className = `speed-row ${rowClass} speed-dual-head`;
+        head.setAttribute('aria-hidden', 'true');
+        head.innerHTML = labels.map(l => l ? `<span class="speed-dual-label">${l}</span>` : '<span></span>').join('');
+        return head;
     };
-    /** A small muted framing line. @param {string} text */
-    const noteLine = (text) => {
-        const p = document.createElement('p');
-        p.className = 'speed-note';
-        p.textContent = text;
-        return p;
+
+    /** One row: the label (with "(few)" on a thin one), the bar, the share over a second, how many
+     *  opens it rests on — bold for the finding, muted for the sample size — and, when the row has
+     *  one, its explanation on a line of its own beneath. @param {BandRow} r */
+    const barRow = (r) => {
+        const row = document.createElement('div');
+        row.className = 'speed-row speed-row--why';
+        row.innerHTML =
+            `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
+                + `${r.total < THIN_SAMPLE ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
+            `<span class="speed-bar" role="img" aria-label="${escapeHtml(bandWords(r))}">${segs(r)}</span>` +
+            `<span class="speed-row-count">${escapeHtml(over1s(r))}<span class="visually-hidden"> over a second</span></span>` +
+            `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}<span class="visually-hidden"> opens</span></span>` +
+            (r.sub ? `<span class="speed-row-expl">${escapeHtml(r.sub)}</span>` : '');
+        return row;
     };
-    /** One block of TIMING rows — each a quick / a-moment / slow bar, its share over a second and its
-     *  count — under a small "over 1s · opens" header. Five blocks drew this list by hand, line for
-     *  line the same, until v24.85 needed a sixth: one builder, so a fix to the row reaches all of them.
-     *  @param {Array<{ label: string, sub: string, total: number, quick: number, ok: number, slow: number, pctQuick: number, pctOk: number, pctSlow: number, pctOver1s: number }>} rows */
-    const timingRowList = (rows) => {
+    /** Rows under an "over 1s · opens" header — the complement of the headline, because every other
+     *  number in the section is bad-when-high. @param {BandRow[]} rows */
+    const rowList = (rows) => {
         const list = document.createElement('div');
         list.className = 'speed-rows';
-        const head = document.createElement('div');
-        head.className = 'speed-row speed-row--why speed-dual-head';
-        head.innerHTML = '<span></span><span></span>'
-            + '<span class="speed-dual-label">over 1s</span>'
-            + '<span class="speed-dual-label">opens</span>';
-        list.appendChild(head);
-        rows.forEach(r => {
-            const row = document.createElement('div');
-            row.className = 'speed-row speed-row--why';
-            const thin = r.total < THIN_SAMPLE;
-            row.innerHTML =
-                `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
-                    + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
-                `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
-                `<span class="speed-row-count">${r.pctOver1s}%</span>` +
-                `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
-            list.appendChild(row);
-        });
+        list.appendChild(columnHead('speed-row--why', ['', '', 'over 1s', 'opens']));
+        rows.forEach(r => list.appendChild(barRow(r)));
         return list;
     };
-    /** Per-page rows showing ALL THREE milestones — appears, code loaded, usable — so the same page's
-     *  speeds sit together and one page's stage can be scanned against every other's.
+
+    /** Each page's three moments side by side, so one page's stages scan against every other's
+     *  (v20.80).
      *
-     *  The third column is the point (v20.80). With two columns the second one was labelled "ready"
-     *  and carried `domReady`, which is when the SCRIPTS finished, not when the page was usable — on
-     *  the Calendar those are now different by seconds. A page that never marks the milestone leaves
-     *  its cell EMPTY rather than borrowing another bar, exactly as a page with no paint data does.
+     *  EACH BAR ANSWERS FOR ITSELF (App Speed review, Oct 2026). The row's "(few)" came from the
+     *  code-loaded count, so a Usable bar built from 6 opens beside 500 code-loaded ones wore no
+     *  marker and read as a finding; and a page with no figure for a moment drew an empty track,
+     *  which reads as 0%. Now a thin bar carries "(few)" beneath it and its label names its own
+     *  count, and every missing moment is a dash. The "opens" column is the page's code-loaded
+     *  count: every watched open records that moment.
      *  @param {Array<any>} fcpByPage @param {Array<any>} pagesByPage @param {Array<any>} readyByPage @param {string} month */
-    const dualRows = (fcpByPage, pagesByPage, readyByPage, month) => {
+    const byPageRows = (fcpByPage, pagesByPage, readyByPage, month) => {
         const frag = document.createDocumentFragment();
-        // A CHILD of "Opening pages", and it must read as one (v23.02). It carried the section
-        // label — the rank its own parent uses — so the same table that breaks the three milestones
-        // down by page announced itself as a peer of them. Its three siblings above are ✨ / 📦 / ✅
-        // under the same heading, so it takes their treatment and, like every other heading on
-        // either reporting card, leads with an emoji.
-        frag.appendChild(subMilestone('📑', `By page — ${_usageMonthLabel(month)}`));
+        frag.appendChild(subHeading('📑', `By page — ${_usageMonthLabel(month)}`));
 
         const fcpMap   = new Map(fcpByPage.map(p => [p.page, p]));
         const pagesMap = new Map(pagesByPage.map(p => [p.page, p]));
@@ -163,29 +221,24 @@ async function initPageSpeedCard() {
                          || (fcpMap.get(b)?.total   || 0) - (fcpMap.get(a)?.total   || 0)
                          || a.localeCompare(b));
 
+        /** One moment's cell. @param {any} b @param {string} name */
+        const cell = (b, name) => {
+            if (!b) return `<span class="speed-bar-none" role="img" aria-label="${name}: not reported">—</span>`;
+            const thin = b.total < THIN_SAMPLE;
+            const bar = `<span class="speed-bar" role="img" aria-label="${name}: ${escapeHtml(bandWords(b))}, `
+                + `from ${b.total.toLocaleString('en-GB')} opens${thin ? ', too few to read into' : ''}">${segs(b)}</span>`;
+            return thin ? `<span class="speed-cell">${bar}<span class="speed-cell-few" aria-hidden="true">(few)</span></span>` : bar;
+        };
+
         const rows = document.createElement('div');
         rows.className = 'speed-rows';
-        const head = document.createElement('div');
-        head.className = 'speed-row speed-row--dual speed-dual-head';
-        // The last cell was EMPTY until v21.34, which left the one number in this table as the only
-        // unlabelled figure on the card — every other numeric column here names itself ("over 1s",
-        // "over ½s", "opens").
-        //
-        // ── ONE QUANTITY, ONE WORD (v21.35) ─────────────────────────────────────────────────────
-        // This column said "opens" and the three breakdown blocks below said "loads", for the same
-        // thing: one page being opened once. Two words for one quantity on a single card makes a
-        // reader look for the distinction, and there is none — the prose here has always said
-        // "page opens". They are all "opens" now, including the shared privacy footer. If you add
-        // another count to this card, it is an OPEN.
-        head.innerHTML = '<span></span><span class="speed-dual-label">Appears</span>' +
-                         '<span class="speed-dual-label">Code</span>' +
-                         '<span class="speed-dual-label">Usable</span>' +
-                         '<span class="speed-dual-label">opens</span>';
-        rows.appendChild(head);
-
+        // One quantity, one word: every count on this card is an OPEN (v21.35). And the moments are
+        // named as their headings name them, so "appears" and "First appears" are not two things.
+        rows.appendChild(columnHead('speed-row--dual', ['', 'first appears', 'code loaded', 'usable', 'opens']));
         allPages.forEach(pg => {
             const meta  = PAGE_META[pg];
             const emoji = meta ? meta.emoji : '📄';
+            // escapeHtml: the id is a sample key any signed-in session can write, and this is innerHTML.
             const label = meta ? meta.label : escapeHtml(pg);
             const f = fcpMap.get(pg);
             const r = pagesMap.get(pg);
@@ -194,524 +247,133 @@ async function initPageSpeedCard() {
             const row = document.createElement('div');
             row.className = 'speed-row speed-row--dual';
             row.innerHTML =
-                // A page with three opens can render a full-width RED bar and mean nothing at all.
-                // Same marker, same threshold and same reasoning as the breakdown rows below — it
-                // was simply never applied here, where the bar is at its most emphatic.
-                `<span class="speed-row-label"><span class="speed-row-name">`
-                    + `<span aria-hidden="true">${emoji}</span> ${label}</span>`
-                    + `${count && count < THIN_SAMPLE ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
-                `<span class="speed-bar" role="img" aria-label="appears: ${f ? f.pctQuick : 0}% quick">${f ? segs(f) : ''}</span>` +
-                `<span class="speed-bar" role="img" aria-label="code loaded: ${r ? r.pctQuick : 0}% quick">${r ? segs(r) : ''}</span>` +
-                (u ? `<span class="speed-bar" role="img" aria-label="usable: ${u.pctQuick}% quick">${segs(u)}</span>`
-                   // An EMPTY bar is not the honest mark for "this page does not report the
-                   // milestone" — an unfilled track sitting beside a filled one reads as 0%, which
-                   // is a measurement, and the wrong one. A dash says there is no number.
-                   : '<span class="speed-bar-none" aria-label="usable: not reported">—</span>') +
-                // MUTED, not bold navy (v21.34). It wore `.speed-row-count` — the class that, three
-                // blocks down in this same card, means "the figure you are hunting". Here the only
-                // number in the row is the SAMPLE SIZE, so the emphasis sat on the least
-                // interesting thing on the line and the bars beside it competed with it. The
-                // breakdown rows already got this right: bold for the finding, muted for how many
-                // loads it rests on. Same class, same role, and its 4ch floor also stops the bars
-                // reflowing when a page crosses into five digits.
-                `<span class="speed-row-sub">${count.toLocaleString('en-GB')}</span>`;
+                `<span class="speed-row-label"><span class="speed-row-name"><span aria-hidden="true">${emoji}</span> ${label}</span></span>` +
+                cell(f, 'first appears') + cell(r, 'code loaded') + cell(u, 'usable') +
+                // MUTED, not bold navy (v21.34): the only number in the row is the sample size.
+                `<span class="speed-row-sub">${count.toLocaleString('en-GB')}<span class="visually-hidden"> opens</span></span>`;
             rows.appendChild(row);
         });
         frag.appendChild(rows);
         return frag;
     };
 
-    // The thin-sample threshold now lives in perf-stats.js, so the headline verdict and the per-page
-    // table are governed by the same number as these rows (v21.16). It used to be declared here and
-    // therefore applied only here — which is exactly how a card ends up marking a 10-sample row
-    // "(few)" while making a confident claim from 19 samples two sections above it.
-
-    /** One breakdown block: the busiest page's samples split by a single dimension.
-     *
-     *  `metric` was HARDCODED to `domReady` until v22.28, which mattered more than it looks — see
-     *  `startSignalRows` below. The three blocks it renders still split `domReady`, because that is
-     *  the whole-load figure the per-page table above them reports and a version regression shows up
-     *  there first.
-     *  @param {Record<string, number>} samples @param {string} page
-     *  @param {'conn'|'mode'|'version'} dimension
-     *  @param {string} [metric] @param {string} [label] */
-    const breakdownRows = (samples, page, dimension, metric = 'domReady', label = '') => {
-        const { rows } = summarisePerfBy(samples, { page, metric, dimension, minSamples: THIN_SAMPLE });
-        if (rows.length < 2) return null;   // one group explains nothing — it IS the page total
-        const frag = document.createDocumentFragment();
-        // The SAME class the "By page" group above uses. These are the same kind of thing — a label
-        // over a set of bars — and they were styled three ranks apart: bold dark, bold muted, and
-        // plain muted body text. Two structural ranks, five treatments, was the whole problem.
-        const heading = document.createElement('p');
-        heading.className = 'usage-section-label speed-dim-label';
-        heading.textContent = label || PERF_DIMENSIONS[dimension].label;
-        frag.appendChild(heading);
-
-        const list = document.createElement('div');
-        list.className = 'speed-rows';
-        // A column header, borrowing the idiom the per-page dual rows already established. It is
-        // what lets each row drop the repeated "over 1s" and become a number — three words per row
-        // that never change are noise, and on a 390px screen they were most of the column.
-        const head = document.createElement('div');
-        head.className = 'speed-row speed-row--why speed-dual-head';
-        head.innerHTML = '<span></span><span></span>'
-            + '<span class="speed-dual-label">over 1s</span>'
-            + '<span class="speed-dual-label">opens</span>';
-        list.appendChild(head);
-        rows.forEach(r => {
-            const row = document.createElement('div');
-            row.className = 'speed-row speed-row--why';
-            const thin = r.total < THIN_SAMPLE;
-            // ── WHICH NUMBER GOES HERE ──────────────────────────────────────────────────────
-            //
-            // It said "% slow" first, and the first real data showed that was the wrong band. Every
-            // row read 0–3% slow while its bar carried a wide amber middle: the Calendar's tail is
-            // not "over 3 seconds", it is "over ONE second", which is 13% of opens and the band the
-            // whole card is framed around ("86% within a second"). A number reporting 3% next to a
-            // bar that is visibly a quarter amber makes the reader trust the number and miss the
-            // finding.
-            //
-            // So the row states the complement of the headline — everything NOT under a second —
-            // and the bar keeps showing how that splits. The full three-way breakdown stays in the
-            // aria-label, which is where a screen-reader user gets what sighted users read off the
-            // bar.
-            const overOneSecond = 100 - r.pctQuick;
-            row.innerHTML =
-                `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
-                    + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
-                `<span class="speed-bar" role="img" aria-label="${r.pctQuick}% quick, ${r.pctOk}% a moment, ${r.pctSlow}% slow">${segs(r)}</span>` +
-                `<span class="speed-row-count">${overOneSecond}%</span>` +
-                `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
-            list.appendChild(row);
-        });
-        frag.appendChild(list);
-        return frag;
-    };
-
-    /**
-     * ── DOES THE START TRACK THE NETWORK? (v22.28) ──────────────────────────────────────────────
-     *
-     * `LATENCY.md` has one open owner decision — whether the Calendar may paint before the
-     * `accounts:lookup` round trip returns — and one check gating it: **if the wall is that round
-     * trip, `Recognised` should track connection quality far more strongly than `Getting ready`
-     * does.** A slow network moves a network wall and barely moves a code-parse one.
-     *
-     * The plan called that comparison "a reading, not a build". **It was not readable.** Every
-     * dimensional split on this card ran against `domReady`, so the only milestone anyone could
-     * split by connection was the one the plan's own evidence says is fine (`Getting ready` finishes
-     * inside ½s on 100% of opens). The dimensions have been recorded on the ladder samples since
-     * v21.30 — `mode` and `conn` go onto every milestone write — so this is a read of a month of
-     * data already collected, not new instrumentation.
-     *
-     * **Both rows use the card's normal bands and the same dimension**, one group under the other,
-     * because the finding is the SPREAD WITHIN each group and two blocks on different bands could
-     * not be compared. The reader is told what to compare rather than left to infer it.
-     *
-     * It answers a question and it does not decide anything. A spread here is evidence for the
-     * round-trip finding; its absence means the finding is wrong and the decision should wait.
-     * @param {Record<string, number>} samples @param {string} page
-     */
-    const startSignalRows = (samples, page) => {
-        const groups = [
-            // Just the milestone name: the heading above already says "by connection", and
-            // repeating it in both sub-labels put the same three words on screen four times.
-            { metric: 'authBoot', label: 'Recognised' },
-            { metric: 'appBoot',  label: 'Getting ready' },
-        ].map(g => ({ ...g, block: breakdownRows(samples, page, 'conn', g.metric, g.label) }))
-         .filter(g => g.block);
-        // BOTH or NEITHER. One alone is not the comparison — it is a single row of percentages with
-        // nothing to read them against, and a reader would take it for a finding.
-        if (groups.length < 2) return null;
-        const frag = document.createDocumentFragment();
-        const heading = document.createElement('p');
-        heading.className = 'usage-section-label speed-dim-label';
-        heading.textContent = 'Does the connection slow the start?';
-        frag.appendChild(heading);
-        frag.appendChild(noteLine('Restoring your sign-in talks to the server; loading this page\u2019s code does not. If the first group spreads across connection speeds and the second does not, the wait is the network rather than the app.'));
-        // Each half goes in its own bracket so the pair visibly hang off the question — and so the
-        // reader can see where the comparison ENDS and the next sibling block starts. The heading
-        // inside each is the ordinary breakdown one; `.speed-dim-group` restyles it, which is what
-        // keeps `breakdownRows` free of any idea that it is sometimes nested.
-        groups.forEach(g => {
-            const box = document.createElement('div');
-            box.className = 'speed-dim-group';
-            box.appendChild(/** @type {DocumentFragment} */ (g.block));
-            frag.appendChild(box);
-        });
-        return frag;
-    };
-
-    /** The boot-phase block (v20.33): the busiest page's opens split into the three STAGES of
-     *  starting up, in boot order. Same row grammar as the dimensional blocks — but where those
-     *  split the opens into groups, these rows are contiguous SPANS of every open, so the opens
-     *  column reads near-identical down the rows and each row answers "how often did THIS stage
-     *  run long". The stated number is the share over ½ SECOND — a stage-scaled threshold, named
-     *  in the column header exactly like the dimensional blocks name theirs (the v20.19 rule: a
-     *  number must state its own band): the load-level bands call under-a-second Quick, but one
-     *  STAGE eating 500ms+ is precisely what pushes a whole open into the amber band.
-     *  Renders nothing until updated devices report — no scaffolding for future data.
-     *  @param {Record<string, number>} samples @param {string} page */
-    const phaseRows = (samples, page) => {
-        const { rows } = summariseBootPhases(samples, { page });
-        if (!rows.length) return null;
-        const frag = document.createDocumentFragment();
-        const heading = document.createElement('p');
-        heading.className = 'usage-section-label speed-dim-label';
-        heading.textContent = 'By stage of start-up';
-        frag.appendChild(heading);
-        // This block declares its OWN bands — the one place on the card the top legend does not
-        // apply, so the note must say so or the legend silently lies about these three bars.
-        frag.appendChild(noteLine('Every open passes through all three stages, so these bars use finer bands: green under ½ second, amber to 1 second, red over. One long stage is what makes a slow open slow.'));
-
-        const list = document.createElement('div');
-        list.className = 'speed-rows';
-        const head = document.createElement('div');
-        head.className = 'speed-row speed-row--why speed-dual-head';
-        head.innerHTML = '<span></span><span></span>'
-            + '<span class="speed-dual-label">over ½s</span>'
-            + '<span class="speed-dual-label">opens</span>';
-        list.appendChild(head);
-        rows.forEach(r => {
-            const row = document.createElement('div');
-            row.className = 'speed-row speed-row--why';
-            const thin = r.total < THIN_SAMPLE;
-            // The aria-label states the PHASE bands, because this block's bars do not follow the
-            // card legend — a screen-reader user must not be told "quick/a moment/slow" here.
-            row.innerHTML =
-                `<span class="speed-row-label"><span class="speed-row-name">${escapeHtml(r.label)}</span>`
-                    + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>` +
-                `<span class="speed-bar" role="img" aria-label="${escapeHtml(r.sub)}: ${r.pctQuick}% under half a second, ${r.pctOk}% between half and one second, ${r.pctSlow}% over a second">${segs(r)}</span>` +
-                `<span class="speed-row-count">${r.pctOver500}%</span>` +
-                `<span class="speed-row-sub">${r.total.toLocaleString('en-GB')}</span>`;
-            list.appendChild(row);
-        });
-        frag.appendChild(list);
-        return frag;
-    };
-
-    /** The START LADDER — four cumulative milestones, in order, on the card's NORMAL bands.
-     *
-     *  Sits between the boot stages and the dimensional splits because it answers the question in
-     *  between: the stages say which part of LOADING ran long and stop at DOMContentLoaded, and on
-     *  the Calendar everything expensive happens after that. Before this the card could say a page
-     *  was slow and nothing about where the time went.
-     *
-     *  Read by comparing ADJACENT rows, which is why they are cumulative and why the note says so:
-     *  signed in quickly but unlocked slowly points at the gate, unlocked quickly but shifts slow
-     *  points at Firestore. Subtracting is not asked of the reader — the rows already nest.
-     *
-     *  **THEY STOPPED NESTING FOR EVERY MEMBER AT v22.97**, and the note had to change with them.
-     *  A returning member was shown their own saved roster BEFORE the gate finished deciding (the
-     *  provisional paint, retired 26 Sep 2026 — historic months still carry it), so "Shifts shown" can beat
-     *  "Unlocked". Every figure is still true — each rung is timed from the page opening and
-     *  bucketed on its own, nothing is derived by subtraction — but an unqualified "each step
-     *  includes the ones above it" is now a false sentence on a card whose whole job is to be
-     *  trusted, and a reader meeting the inversion with that note in front of them would rightly
-     *  conclude the card was broken.
-     *
-     *  Renders nothing until updated devices report, and each row appears only when IT has data —
-     *  so a partly-reported ladder shows the rungs it has rather than a row of zeroes.
-     *  @param {Record<string, number>} samples @param {string} page */
-    const ladderRows = (samples, page) => {
-        const { rows } = summariseStartMilestones(samples, { page });
-        if (!rows.length) return null;
-        const frag = document.createDocumentFragment();
-        const heading = document.createElement('p');
-        heading.className = 'usage-section-label speed-dim-label';
-        heading.textContent = 'How far the start gets';
-        frag.appendChild(heading);
-        // The pointer to the block below only when that block will render — it returns nothing for a
-        // window with no copy reported, and "Last month" in the release month is exactly that (v24.89).
-        const early = summariseEarlyRoster(samples, { page }).rows.length
-            ? ' What a member sees before the check is timed under “Before the sign-in check” below.' : '';
-        frag.appendChild(noteLine(`Compare neighbouring rows: a big jump is where the time went. Each step is timed from the page opening, so they run in order: "Shifts shown" is the roster after the sign-in check, so it can never beat "Recognised".${early} Same bands as the rest of the card.`));
-
-        frag.appendChild(timingRowList(rows));
-        return frag;
-    };
-
-    /** WHAT SERVED THE FIRST GRID (v21.99) — the reading `LATENCY.md` Phase 2 turns on.
-     *
-     *  Phase 2 narrows the Calendar's authoritative Firestore read. A load the local cache already
-     *  served never touches the network on that path, so narrowing it cannot move that load by a
-     *  millisecond — which makes "how many loads waited for the read?" the whole question, and it
-     *  was one the card could not answer.
-     *
-     *  The note is load-bearing: **these two do not sum to the row above them.** A page that does
-     *  not know its source reports `ready` alone, so reading them as a partition would understate
-     *  whichever way the remainder fell. Same shape and bands as the ladder, so the two blocks read
-     *  as one idiom.
-     *  @param {Record<string, number>} samples @param {string} page */
-    const readySourceRows = (samples, page) => {
-        const { rows } = summariseReadySource(samples, { page });
-        if (!rows.length) return null;
-        const frag = document.createDocumentFragment();
-        const heading = document.createElement('p');
-        heading.className = 'usage-section-label speed-dim-label';
-        heading.textContent = 'What put the shifts on screen';
-        frag.appendChild(heading);
-        frag.appendChild(noteLine('A grid from the saved copy never waited for the server. Only the Calendar reports this, so the two do not add up to “Shifts shown” above.'));
-
-        frag.appendChild(timingRowList(rows));
-        return frag;
-    };
-
-    /** BEFORE THE SIGN-IN CHECK (v24.85) — when a member first sees their shifts.
-     *
-     *  Since v24.59 the Calendar shows a signed-in member their own roster from the copy kept on their
-     *  phone while the check runs (calendar-snapshot.js), and the card could not see it: every block
-     *  above times the roster AFTER the check, so "Shifts shown" read as the wait to see one. This
-     *  is the row that says whether the copy is doing its job, and its count says how often it had
-     *  the chance — Team View, the station PIN and a first visit have no copy to show.
-     *
-     *  The share is `earlyRosterShare`'s (perf-stats.js): against `ready` on the versions that can
-     *  report a copy, not every version's — which printed 19% for a true 60% in the month it shipped.
-     *  @param {Record<string, number>} samples @param {string} page
-     *  @param {string} [windowLabel] "this month" / "last month" — the share is of ONE window's opens, and said
-     *    "since the app began counting it" until v24.96, which was true for the month it shipped and no other */
-    const earlyRosterRows = (samples, page, windowLabel = 'this month') => {
+    /** BEFORE THE SIGN-IN CHECK (v24.85) — when a member first sees their shifts, from the copy of
+     *  their own roster kept on their phone (calendar-snapshot.js). "Usable" times the grid AFTER the
+     *  check, so it cannot say whether the copy is doing its job; this row can, and the share says how
+     *  often it had the chance. The share is against "Usable" on the versions that can record a copy
+     *  (`earlyRosterShareLabel`) — every version's printed 19% for a true 60% in the month it shipped.
+     *  @param {Record<string, number>} samples @param {string} page @param {string} windowLabel */
+    const earlyRosterRows = (samples, page, windowLabel) => {
         const { rows } = summariseEarlyRoster(samples, { page });
         if (!rows.length) return null;
-        const pct = earlyRosterShare(samples, { page });
+        const share = earlyRosterShareLabel(samples, { page });
         const frag = document.createDocumentFragment();
-        const heading = document.createElement('p');
-        heading.className = 'usage-section-label speed-dim-label';
-        heading.textContent = 'Before the sign-in check';
-        frag.appendChild(heading);
+        frag.appendChild(blockHeading('Before the sign-in check'));
         frag.appendChild(noteLine(
-            `A signed-in member is shown their own roster at once, from the copy kept on their phone, while the check runs — so this does not wait for the server. Counted only on opens that had a copy to show${pct !== null ? ` — ${pct}% of ${windowLabel === 'last month' ? 'last month’s' : 'this month’s'} Calendar opens, on versions that count it` : ''}.`));
-        frag.appendChild(timingRowList(rows));
+            'A signed-in member sees their own roster straight away, from the copy kept on their phone, while the sign-in check runs. Timed only when there was a copy to show'
+            + (share ? ` — ${share} of the opens counted under “Usable” ${windowLabel}, on versions that record it.` : '.')));
+        frag.appendChild(rowList(rows));
         return frag;
     };
 
-    /** OPENS THAT DID NOT WAIT FOR THE IDENTITY CHECK (v23.69) — the reading v22.97 shipped without.
-     *
-     *  HISTORIC SINCE v24.29: the fast path was retired (DECISIONS.md → "The provisional paint"), so
-     *  nothing writes `readyProvisional` any more and the note says so in the past tense. The block
-     *  stays only while devices on older versions still report it; once a month reads empty here it
-     *  renders nothing, and the block and `summariseProvisionalOpens` can be deleted.
-     *
-     *  The fast path shows a returning member their own saved roster while the server is still
-     *  confirming who they are. `LATENCY.md` predicted that would pull "Shifts shown" off
-     *  "Recognised" for cache-served starts; September 2026 showed no movement at all, and the card
-     *  could not say whether that is because the path rarely runs or because it does not help. Those
-     *  have opposite consequences, so the block states BOTH halves — the share in the note, the
-     *  speed in the row — and neither is left to be inferred from the other.
-     *
-     *  A SUBSET of "Shifts shown", exactly like the release block below, and the note says so for
-     *  the same reason: the block immediately above this one is a SPLIT, so a reader arriving in
-     *  order has just been taught the other arithmetic.
-     *  @param {Record<string, number>} samples @param {string} page */
-    const provisionalOpenRows = (samples, page) => {
-        const { rows } = summariseProvisionalOpens(samples, { page });
-        if (!rows.length) return null;
-        // The ladder's own `ready`, as every other subset block on this card does it, so no two
-        // blocks can disagree about what an open is. Absent ⇒ the share sentence is dropped rather
-        // than guessed — a percentage with an invented divisor is the one output worse than none.
-        const readyTotal = summariseStartMilestones(samples, { page }).rows
-            .find(r => r.metric === 'ready')?.total || 0;
-        const frag = document.createDocumentFragment();
-        const heading = document.createElement('p');
-        heading.className = 'usage-section-label speed-dim-label';
-        heading.textContent = 'Opens that did not wait for the sign-in check';
-        frag.appendChild(heading);
-        const share = readyTotal
-            ? ` That is ${Math.round((rows[0].total / readyTotal) * 100)}% of them.`
-            : '';
-        frag.appendChild(noteLine(
-            `Older versions could show a returning member their own saved roster while the server confirmed who they were. That was retired in September 2026 (v24.29) because it almost never got the chance to, so this row only counts devices still on an older version and will empty out. These opens are also counted in “Shifts shown” above, not separately.${share}`));
-
-        frag.appendChild(timingRowList(rows));
-        return frag;
-    };
-
-    /** HOW MUCH THE SERVICE WORKER WAS DOING, and whether it cost the member anything (v23.00).
-     *
-     *  Two blocks because there are two questions, and the second is the one with a decision behind
-     *  it. `swrCount` says how many files the worker rechecked on a boot — a COUNT distribution, not
-     *  a timing one, so it gets plain shares and no quick/moment/slow bar: banding counts on a
-     *  duration scale would read as speed and it is not speed. `readyHeavySwr` then asks whether the
-     *  busiest boots actually arrived later, and IS a timing row — a SUBSET of "Shifts shown", the
-     *  same relation as the release block above, so the note says so rather than leaving a reader to
-     *  subtract.
-     *
-     *  **This existed as writes with no readout from v22.94 until v23.00** — every Calendar load
-     *  paid for a sample nothing could display. Rendering it is what makes the cost worth paying;
-     *  if this block is ever removed, remove the writes in `perf-reporter.js` in the same commit.
-     *  @param {Record<string, number>} samples
-     *  @param {string} page */
-    const swrRows = (samples, page) => {
-        const counts = summariseSwrCounts(samples, { page });
-        const heavy = summariseHeavySwrOpens(samples, { page });
-        if (!counts.total && !heavy.rows.length) return null;
-        const frag = document.createDocumentFragment();
-        const heading = document.createElement('p');
-        heading.className = 'usage-section-label speed-dim-label';
-        heading.textContent = 'What the app’s background worker was doing';
-        frag.appendChild(heading);
-        frag.appendChild(noteLine(
-            'The worker fetches any of the app’s own files it has not stored yet — after a release, or when a phone has cleared its storage. This is how many it was fetching as each page opened — a count, not a speed.'));
-
-        if (counts.total) {
-            const list = document.createElement('div');
-            list.className = 'speed-rows';
-            const head = document.createElement('div');
-            head.className = 'speed-row speed-row--why speed-dual-head';
-            head.innerHTML = '<span></span><span></span>'
-                + '<span class="speed-dual-label">share</span>'
-                + '<span class="speed-dual-label">opens</span>';
-            list.appendChild(head);
-            // Plain words for the bands. NOT derived from `SWR_COUNT_BUCKETS`, and the fallback below
-            // is why that is safe: a band added there without a word here renders as the raw band
-            // ('101+'), which is ugly and true, rather than vanishing from a distribution.
-            /** @type {Record<string, string>} */
-            const WORDS = { '0': 'Nothing to fetch', '1-10': 'A few files', '11-30': 'Some files', '31+': 'A full sweep' };
-            counts.rows.forEach(r => {
-                const row = document.createElement('div');
-                row.className = 'speed-row speed-row--why speed-row--count';
-                const thin = r.count < THIN_SAMPLE;
-                // A COUNT row (aesthetic pass, Oct 2026): the band range sat in the BAR track, which
-                // squeezed the words into the 27% label column ("Nothing to r…", "Some … (few)").
-                // The words now get the widest track, the range drops to a quiet second line under
-                // them, and a short single-colour share bar shows the proportion — deliberately
-                // NOT the quick/moment/slow bar, because this is a count, not a speed.
-                row.innerHTML =
-                    `<span class="speed-count-label"><span class="speed-row-label"><span class="speed-row-name">${escapeHtml(WORDS[r.band] || r.band)}</span>`
-                        + `${thin ? '<span class="speed-thin">(few)</span>' : ''}</span>`
-                        + `<span class="speed-count-band">${escapeHtml(r.band)}</span></span>` +
-                    `<span class="speed-share" role="img" aria-label="${r.pct}% of opens"><span class="speed-share-fill" style="width:${Math.max(0, Math.min(100, r.pct))}%"></span></span>` +
-                    `<span class="speed-row-count">${r.pct}%</span>` +
-                    `<span class="speed-row-sub">${r.count.toLocaleString('en-GB')}</span>`;
-                list.appendChild(row);
-            });
-            frag.appendChild(list);
-        }
-
-        if (heavy.rows.length) {
-            // The divisor is the ladder's own `ready`, exactly as the release block does it, so the
-            // two cannot disagree about what an open is. Absent ⇒ the share sentence is dropped.
-            const readyTotal = summariseStartMilestones(samples, { page }).rows
-                .find(r => r.metric === 'ready')?.total || 0;
-            const share = readyTotal
-                ? ` That is ${Math.round((heavy.rows[0].total / readyTotal) * 100)}% of them.`
-                : '';
-            frag.appendChild(noteLine(
-                `And whether it cost anything: these are the opens where the worker was rechecking a full sweep. They are also counted in “Shifts shown” above, not separately.${share} If this row is no slower than that one, the worker is not what staff are waiting for.`));
-            frag.appendChild(timingRowList(heavy.rows));
-        }
-        return frag;
-    };
-
-    /** OPENS A RELEASE CAUSED (v22.92) — the reading v22.90 shipped without.
-     *
-     *  That release stopped an update reload interrupting a member mid-read, and could not say how
-     *  often the path runs or what the following load costs: the instrumentation is blind to it,
-     *  because a reload arrives as one more ordinary open.
-     *
-     *  Two things the note must carry, and both are corrections to a reading the card otherwise
-     *  invites. **This row is a SUBSET of "Shifts shown", not a split of it** — the opposite relation
-     *  to the block above, so a reader who met that one first would subtract. And on the Calendar the
-     *  deferred reload runs while the page is HIDDEN, so a slow figure here is a background load
-     *  finishing at its leisure, not a member waiting; read the other way it would condemn the fix
-     *  for working.
-     *
-     *  The share is stated rather than left to be computed: the divisor is a number in a different
-     *  block, and asking a reader to hold it is how a card gets read wrong.
+    /** AFTER A RELEASE (v22.92; the WAIT since Oct 2026). The Calendar reloads onto an update while
+     *  nobody is looking, so the load itself kept nobody waiting; what is timed is the wait somebody
+     *  then had (perf-reporter.js). Older versions timed the background load, so the block reads only
+     *  from UPDATE_OPENS_FROM (`summariseUpdateOpens`) and says so. No share of the opens above: a
+     *  reload nobody watched is not in "Usable", so the two counts are different populations.
      *  @param {Record<string, number>} samples @param {string} page */
     const updateOpenRows = (samples, page) => {
         const { rows } = summariseUpdateOpens(samples, { page });
         if (!rows.length) return null;
-        // The divisor comes from the ladder's own summary, so the two blocks cannot disagree about
-        // what `ready` counts. Absent (a device reporting `readyUpdate` but no `ready` cannot exist,
-        // but nothing here should depend on that) ⇒ the share sentence is dropped, not guessed.
-        const readyTotal = summariseStartMilestones(samples, { page }).rows
-            .find(r => r.metric === 'ready')?.total || 0;
         const frag = document.createDocumentFragment();
-        const heading = document.createElement('p');
-        heading.className = 'usage-section-label speed-dim-label';
-        heading.textContent = 'Opens that followed a release';
-        frag.appendChild(heading);
-        const share = readyTotal
-            ? ` That is ${Math.round((rows[0].total / readyTotal) * 100)}% of them.`
-            : '';
+        frag.appendChild(blockHeading('After a release'));
         frag.appendChild(noteLine(
-            `An update installs and the page reloads onto it. These opens are also counted in “Shifts shown” above, not separately.${share} On the calendar the reload waits until the page is hidden, so a slow figure here is a background load, not somebody waiting.`));
-
-        frag.appendChild(timingRowList(rows));
+            `When an update installs, the page reloads onto it — on the Calendar while nobody is looking, so nobody is interrupted mid-read. Counted from v${UPDATE_OPENS_FROM}.`));
+        frag.appendChild(rowList(rows));
         return frag;
     };
 
-    /** The whole "why" section, for the page with the most samples.
-     *
-     *  Deliberately NOT hardcoded to the Calendar, even though the Calendar is what prompted it and
-     *  is ~74% of all opens: pinning a page id here would leave the section quietly answering about
-     *  the wrong page the first time that changes. The busiest page is the one whose distribution
-     *  drives the headline figure, which is the same reason the Calendar is the interesting one now.
-     *  @param {Record<string, number>} samples @param {Array<any>} byPage */
-    const whySection = (samples, byPage, windowLabel = 'this month') => {
+    /** One page's "Usable" opens split by app version or by how the page was opened. Usable, not
+     *  "Code loaded", since Oct 2026: the splits ran on code loading while their readers took them
+     *  for the whole load, and LATENCY.md read "newer versions are slower" off rows that measured only
+     *  the app's code arriving — which the fresh download after every update explains on its own.
+     *  @param {Record<string, number>} samples @param {string} page @param {'mode'|'version'} dimension */
+    const breakdownRows = (samples, page, dimension) => {
+        const { rows } = summarisePerfBy(samples, { page, metric: 'ready', dimension, minSamples: THIN_SAMPLE, splitAt: CLEAN_TIMINGS_FROM });
+        if (rows.length < 2) return null;   // one group explains nothing — it IS the page total
+        const frag = document.createDocumentFragment();
+        frag.appendChild(blockHeading(`${PERF_DIMENSIONS[dimension].label} — Usable`));
+        // A version row never mixes the two ways of timing (`_bucketVersions`), but the rows either
+        // side of the change still differ by method as well as by release, so the note says which.
+        if (dimension === 'version' && rows.some(r => r.afterSplit) && rows.some(r => !r.afterSplit)) {
+            frag.appendChild(noteLine(
+                `From v${CLEAN_TIMINGS_FROM} the app leaves out loads nobody was watching and time spent typing, so those versions read faster for that reason as well. No row mixes the two.`));
+        }
+        frag.appendChild(rowList(rows));
+        return frag;
+    };
+
+    /** A CLOSER LOOK at the page with the most opens — not hardcoded to the Calendar, which is what
+     *  it is today: pinning an id would leave the section answering about the wrong page the first
+     *  time that changes. Four readings, each with a live question (see the header); nothing renders
+     *  when none has data. @param {Record<string, number>} samples @param {Array<any>} byPage @param {string} windowLabel */
+    const closerLook = (samples, byPage, windowLabel) => {
         const busiest = byPage[0];
         if (!busiest || !busiest.total) return null;
+        const blocks = [
+            earlyRosterRows(samples, busiest.page, windowLabel),
+            updateOpenRows(samples, busiest.page),
+            breakdownRows(samples, busiest.page, 'version'),
+            breakdownRows(samples, busiest.page, 'mode'),
+        ].filter(Boolean);
+        if (!blocks.length) return null;
         const meta = PAGE_META[busiest.page];
         const frag = document.createDocumentFragment();
-        // A top-level SECTION, at the same rank as "Signing in" and "Opening pages" — it answers a
-        // question of its own. It was rendered at milestone rank (the "First appears" tier), which
-        // put the card's third subject one level below the two it sits beside.
-        // escapeHtml: the id is a sample key any signed-in session can write, and subhead() is innerHTML.
-        frag.appendChild(subhead('🔍', `Why some are slower — ${meta ? meta.emoji + ' ' + meta.label : escapeHtml(busiest.page)}`, true));
-        frag.appendChild(noteLine(
-            `The busiest page (${busiest.total.toLocaleString('en-GB')} opens), split by what was already being recorded with each one.`));
-        let any = false;
-        // Boot stages FIRST — "which part of starting up ran long" is the question the dimensional
-        // splits below can only gesture at, so when the data exists it leads.
-        const phases = phaseRows(samples, busiest.page);
-        if (phases) { frag.appendChild(phases); any = true; }
-        // Then how far the START had got — the stages above stop at DOMContentLoaded, and on the
-        // Calendar the auth restore, the access decision and Firestore all happen after it.
-        const ladder = ladderRows(samples, busiest.page);
-        if (ladder) { frag.appendChild(ladder); any = true; }
-        // Immediately after the ladder, because it splits ONE of its rungs — "Shifts shown" — and
-        // reading it anywhere else would leave the reader to remember which row it belonged to.
-        const source = readySourceRows(samples, busiest.page);
-        if (source) { frag.appendChild(source); any = true; }
-        // Then what a member saw BEFORE all of that (v24.85) — the copy of their own roster painted
-        // while the check runs. Straight after the two blocks about "Shifts shown", because it is the
-        // answer that figure cannot give: how soon the shifts were on screen at all.
-        const early = earlyRosterRows(samples, busiest.page, windowLabel);
-        if (early) { frag.appendChild(early); any = true; }
-        // Then the OTHER subset of that same rung — the opens a release caused. Beside the block
-        // above because both split "Shifts shown", and after it because this one is rarer: it
-        // renders only once updated devices have actually been reloaded by a release.
-        // Then the OTHER thing that can put a grid up early — the fast path, which paints before the
-        // identity is confirmed. Next to the source split because the two answer the same question
-        // from opposite sides: that one says WHAT served the grid, this one says whether the gate had
-        // finished when it did.
-        const fastPath = provisionalOpenRows(samples, busiest.page);
-        if (fastPath) { frag.appendChild(fastPath); any = true; }
-        const updates = updateOpenRows(samples, busiest.page);
-        if (updates) { frag.appendChild(updates); any = true; }
-        // Then what the WORKER was doing while all that happened. After the release block because
-        // it is the same subject seen one layer down — a release is what gives the worker files to
-        // recheck — and its heavy-boot row is a subset of the same `ready` rung those two split.
-        const swr = swrRows(samples, busiest.page);
-        if (swr) { frag.appendChild(swr); any = true; }
-        // Then the ladder's FIRST rung against the network, beside the stage that does not touch it
-        // — the comparison `LATENCY.md` gates its open decision on. It sits here because both
-        // halves are milestones the two blocks above have just named.
-        const signal = startSignalRows(samples, busiest.page);
-        if (signal) { frag.appendChild(signal); any = true; }
-        for (const dim of /** @type {Array<'conn'|'mode'|'version'>} */ (['conn', 'mode', 'version'])) {
-            // `conn` is the ONE dimension now used twice on this card — the block above splits two
-            // milestones by it — so this one has to say which figure it is splitting or a reader
-            // meets a third "By connection" and cannot tell. The other two need no such help,
-            // and giving it to them anyway would be four words of noise apiece.
-            // …and it keeps its siblings' "By …" opening rather than leading with the figure: the
-            // three read as one group, and the qualifier is what distinguishes this one. The e2e
-            // guard asserts on "By connection", so leading with anything else silently drops it.
-            const block = breakdownRows(samples, busiest.page, dim, 'domReady',
-                dim === 'conn' ? 'By connection — whole load' : '');
-            if (block) { frag.appendChild(block); any = true; }
-        }
-        return any ? frag : null;
+        // escapeHtml: the id is a sample key any signed-in session can write, and the heading is innerHTML.
+        frag.appendChild(sectionHeading('🔍', `A closer look — ${meta ? meta.emoji + ' ' + meta.label : escapeHtml(busiest.page)}`, true));
+        frag.appendChild(noteLine(`The busiest page, with ${busiest.total.toLocaleString('en-GB')} opens ${windowLabel}.`));
+        blocks.forEach(b => frag.appendChild(/** @type {DocumentFragment} */ (b)));
+        return frag;
+    };
+
+    /** THE MONTH THE MEASUREMENT CHANGED. From CLEAN_TIMINGS_FROM a load nobody watched and time spent
+     *  typing are left out (perf-reporter.js); older versions counted both. A month timed wholly or
+     *  partly the older way says so, rather than letting the change read as the app getting faster.
+     *  A month with under 5% of its opens from older versions is not marked.
+     *  @param {Record<string, number>} samples @param {string} windowLabel */
+    const timingNote = (samples, windowLabel) => {
+        const before = shareMeasuredBefore(samples, CLEAN_TIMINGS_FROM);
+        if (before < 0.05) return null;
+        const p = document.createElement('p');
+        p.className = 'speed-note speed-note--transition';
+        p.innerHTML = before >= 0.95
+            ? `<strong>Timed the older way.</strong> Before v${CLEAN_TIMINGS_FROM} the app also counted loads nobody was watching, and time spent typing a password or the staff PIN. Later figures leave both out, so they will read faster for that reason alone.`
+            : `<strong>Two ways of timing ${windowLabel}.</strong> From v${CLEAN_TIMINGS_FROM} the app leaves out loads nobody was watching and time spent typing a password or the staff PIN. ${Math.round(before * 100)}% of these opens were timed the older way, which counted both, so the figures read slower than the app now is.`;
+        return p;
+    };
+
+    /** How full this month's record is (`perfRecordFullness`): once full, every later write that
+     *  month is refused and the card simply stops changing, which nothing else would show.
+     *  @param {Record<string, number>} samples */
+    const recordLine = (samples) => {
+        const full = perfRecordFullness(samples);
+        const p = document.createElement('p');
+        p.className = 'usage-note' + (full >= 0.75 ? ' speed-note--warn' : '');
+        p.textContent = full >= 1
+            ? 'This month’s speed record is full, so these figures have stopped changing. They start again next month.'
+            : `This month’s speed record is ${full < 0.01 ? 'under 1%' : `${Math.floor(full * 100)}%`} full. Each release adds to it, and once it is full these figures stop changing until next month.`;
+        return p;
+    };
+
+    /** The card's closing note. "(few)" is one token and must not break across a line. */
+    const footer = () => {
+        const note = document.createElement('p');
+        note.className = 'usage-note';
+        const few = document.createElement('span');
+        few.className = 'speed-token';
+        few.textContent = '“(few)”';
+        note.append('Speeds are how long the app took to respond. Groups marked ', few, ` have too few opens to read into. ${PRIVACY_FOOTER}`);
+        return note;
     };
 
     try {
@@ -729,58 +391,45 @@ async function initPageSpeedCard() {
 
         /** Render the body for the active window. */
         const render = () => {
-            const w = stats[/** @type {'thisMonth'|'lastMonth'} */ (active)];   // { month, login, fcp, pages }
+            const w = stats[/** @type {'thisMonth'|'lastMonth'} */ (active)];   // { month, login, fcp, pages, ready, samples }
             const windowLabel = active === 'thisMonth' ? 'this month' : 'last month';
+            const samples = w.samples || {};
             body.innerHTML = '';
 
-            // The colour key belongs to the WHOLE card — every bar in it uses these three bands. It
-            // used to sit after the sign-in bar, which was ambiguous and became wrong the moment
-            // section dividers arrived: it read as part of "Signing in" rather than as the key to
-            // everything below it. First position, before any bars, is the only place it is
-            // unambiguous.
-            if (w.login.total || w.fcp.total || w.pages.total) body.appendChild(legendEl());
+            // The colour key belongs to the WHOLE card, so it comes before any bar.
+            if (w.login.total || w.fcp.total || w.pages.total || w.ready.total) body.appendChild(legendEl());
+            const transition = timingNote(samples, windowLabel);
+            if (transition) body.appendChild(transition);
 
             // Section 1 — Signing in (a distinct journey).
-            body.appendChild(subhead('🔑', 'Signing in'));
-            body.appendChild(noteLine('Only fresh sign-ins are timed — normally fewer than the accounts on the Usage card, since a saved session opens the app without signing in again.'));
+            body.appendChild(sectionHeading('🔑', 'Signing in'));
+            body.appendChild(noteLine('Timed from pressing “Sign in” until the page is usable. Only fresh sign-ins count — normally fewer than the accounts on the Usage card, since a saved session opens the app without signing in again.'));
             body.appendChild(verdictBanner(perfVerdict(w.login.overall, 'login'), w.login.overall, w.login.total, 'sign-ins', windowLabel));
             if (w.login.total) body.appendChild(overallBar(w.login.overall));
 
-            // Section 2 — Opening a page: two milestones in timeline order (appears → ready).
-            body.appendChild(subhead('📄', 'Opening pages', true));
-            body.appendChild(noteLine('Three moments when a page opens — when something first appears, when the app’s code has loaded, and when the page is actually usable.'));
-            body.appendChild(subMilestone('✨', 'First appears'));
-            body.appendChild(verdictBanner(perfVerdict(w.fcp.overall, 'fcp'), w.fcp.overall, w.fcp.total, 'page opens', windowLabel));
-            if (w.fcp.total) body.appendChild(overallBar(w.fcp.overall));
-            body.appendChild(subMilestone('📦', 'Code loaded'));
-            body.appendChild(verdictBanner(perfVerdict(w.pages.overall, 'pages'), w.pages.overall, w.pages.total, 'page opens', windowLabel));
-            if (w.pages.total) body.appendChild(overallBar(w.pages.overall));
-            // The one an admin should read as "how fast is the app". The two above are stages of
-            // getting there and neither is the answer: "appears" is the splash painting, and "code
-            // loaded" fires while the Calendar can still be blank — it waits on the access decision,
-            // which is asynchronous and happens after DOMContentLoaded (v20.80).
-            body.appendChild(subMilestone('✅', 'Usable'));
-            body.appendChild(verdictBanner(perfVerdict(w.ready.overall, 'ready'), w.ready.overall, w.ready.total, 'page opens', windowLabel));
-            // The bar belongs under EVERY headline, not only the login one it started on (v21.71):
-            // the three page milestones are the numbers a reader compares, and a proportion is far
-            // easier to compare as a shape than as a percentage read against a legend that is by
-            // now several screens up. It also shows the middle band, which no number on the panel
-            // states — the 1-to-3-second majority was invisible.
-            if (w.ready.total) body.appendChild(overallBar(w.ready.overall));
-            body.appendChild(noteLine('“Usable” is counted only on pages that report it, so its total is smaller than the two above — it is not a sign of fewer opens.'));
-
+            // Section 2 — Opening pages: three moments, in the order they happen, then each page.
+            body.appendChild(sectionHeading('📄', 'Opening pages', true));
+            for (const m of MOMENTS) {
+                const s = /** @type {any} */ (w)[m.key];
+                body.appendChild(subHeading(m.emoji, m.label));
+                body.appendChild(noteLine(m.explain));
+                body.appendChild(verdictBanner(perfVerdict(s.overall, m.key), s.overall, s.total, 'page opens', windowLabel));
+                if (s.total) body.appendChild(overallBar(s.overall));
+            }
+            // Only beside a figure it explains: with no "Usable" opens there is no smaller total.
+            if (w.ready.total) {
+                body.appendChild(noteLine('“Usable” leaves out pages that do not report it, and opens where somebody had to sign in or type the staff PIN first, so its total is smaller than the two above.'));
+            }
             if (w.fcp.total || w.pages.total || w.ready.total) {
-                body.appendChild(dualRows(w.fcp.byPage, w.pages.byPage, w.ready.byPage, w.month));
+                body.appendChild(byPageRows(w.fcp.byPage, w.pages.byPage, w.ready.byPage, w.month));
             }
 
-            // Section 3 — WHY. The per-page rows above say which page is slow; this says for whom.
-            const why = whySection(w.samples || {}, w.pages.byPage, windowLabel);
-            if (why) body.appendChild(why);
+            // Section 3 — a closer look at the busiest page.
+            const closer = closerLook(samples, w.pages.byPage, windowLabel);
+            if (closer) body.appendChild(closer);
 
-            const note = document.createElement('p');
-            note.className = 'usage-note';
-            note.textContent = 'Speeds are how long the app took to respond. Groups marked "(few)" have too few opens to read into. ' + PRIVACY_FOOTER;
-            body.appendChild(note);
+            if (active === 'thisMonth') body.appendChild(recordLine(samples));
+            body.appendChild(footer());
         };
 
         [['thisMonth', 'This month'], ['lastMonth', 'Last month']].forEach(([key, label]) => {

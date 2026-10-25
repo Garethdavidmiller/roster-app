@@ -550,62 +550,49 @@ test('operations: App speed card renders both sections + empty-state verdict (no
     await expect(page.locator('#pageSpeedContent')).toContainText('Signing in');
     await expect(page.locator('#pageSpeedContent')).toContainText('Opening pages');
     await expect(page.locator('#pageSpeedContent')).toContainText('No sign-ins recorded'); // login empty state (month-neutral copy, v16.22)
-    await expect(page.locator('#pageSpeedContent')).toContainText('Not enough data yet');       // pages empty state
+    await expect(page.locator('#pageSpeedContent')).toContainText('No page opens recorded for this period.'); // pages empty state, month-neutral too
+    // The note explaining why "Usable" is smaller than the two above has nothing to explain here.
+    await expect(page.locator('#pageSpeedContent')).not.toContainText('its total is smaller');
 });
 
-// ── "Why some are slower" (v20.19) ──────────────────────────────────────────────────────────────
-// The card recorded connection, install mode and app version with every load and threw all three
-// away at render time, so it could say the Calendar was the slowest page and nothing about why.
-// The maths is unit-tested; only a browser proves the section is REACHED and populated — it hangs
-// off `w.samples`, a field that did not previously survive `getPerfStats`, so a wiring slip here
-// leaves every unit test green and the section simply absent.
-test('operations: App speed breaks the busiest page down by connection, install mode and version', async ({ page }) => {
+// ── "A closer look" (Oct 2026; "Why some are slower" from v20.19) ───────────────────────────────
+// The card recorded install mode and app version with every load and once threw both away at render
+// time. The maths is unit-tested; only a browser proves the section is REACHED — it hangs off
+// `w.samples`, a field a wiring slip would drop with every unit test green. Since the App Speed
+// review the splits run on USABLE rather than code loading: their readers took them for the whole
+// load, and read "newer versions are slower" off rows that measured only the code arriving.
+test('operations: App speed splits the busiest page’s Usable opens by app version and by how it was opened', async ({ page }) => {
     await page.addInitScript(() => {
-        // A shape with a finding in it: fine on 4G, bad on 3G, and one tiny group that must be
-        // MARKED rather than presented as though it meant something.
         window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
-            '20_18|calendar|domReady|lt500ms|standalone|4g': 300,
-            '20_18|calendar|domReady|over8s|standalone|3g': 80,
-            '20_18|calendar|domReady|1-3s|browser|4g': 90,
-            '20_18|calendar|domReady|over8s|browser|slow-2g': 3,
-            // A second version, because a single-value dimension is suppressed by design (one row
-            // is the page total restated). Also the realistic case: staff straggle on an old
-            // release for days, and "is it worse since the last deploy" is the question that
-            // dimension exists to answer.
-            '20_9|calendar|domReady|1-3s|standalone|4g': 40,
-            '20_18|paycalc|domReady|lt500ms|standalone|4g': 20,
+            // Usable: quick in the installed app, slow in a browser tab (and few of those), and a
+            // straggling older release whose every open took over a second.
+            '24_96|calendar|ready|lt500ms|standalone|4g': 300,
+            '24_96|calendar|ready|over8s|browser|3g': 3,
+            '24_9|calendar|ready|1-3s|standalone|4g': 40,
+            // Code loaded — the busiest page, and deliberately the OPPOSITE shape, every open quick:
+            // a split read from it instead of from Usable would print 0% on every row.
+            '24_96|calendar|domReady|lt500ms|standalone|4g': 343,
+            '24_96|paycalc|domReady|lt500ms|standalone|4g': 20,
         } } };
     });
     await seedSession(page, 'G. Miller');
     await page.goto('/operations.html');
     const speed = page.locator('#pageSpeedContent');
-    await expect(speed).toContainText('Why some are slower');
-    // The BUSIEST page, named — not a hardcoded id. Calendar (473) outranks paycalc (20).
-    await expect(speed).toContainText('Calendar');
-    // All three dimensions rendered, in plain English rather than raw tokens.
-    await expect(speed).toContainText('By connection');
-    await expect(speed).toContainText('By how it was opened');
-    await expect(speed).toContainText('By app version');
-    await expect(speed).toContainText('Installed app');
-    await expect(speed).toContainText('3G-like');
-    await expect(speed).toContainText('v20.18');
-    // Newest first, and NUMERICALLY: a string sort would put v20.9 above v20.18 and send a
-    // regression hunt to the wrong release.
-    const versions = await speed.locator('.speed-row--why .speed-row-label').allTextContents();
-    const vs = versions.filter(t => t.startsWith('v'));
-    expect(vs[0]).toBe('v20.18');
-    // Both seeded versions clear the roll-up threshold on their own, so they stay separate rows.
-    expect(vs.some(t => t.includes('20.9'))).toBe(true);
-    // The figure the card states is the complement of the headline — everything NOT within a
-    // second — and since v20.21 it is its own column under an "over 1s" header, so the row reads
-    // as a bare number rather than repeating three words it never changes.
-    await expect(speed).toContainText('over 1s');
-    const conn3g = speed.locator('.speed-row--why', { hasText: '3G-like' }).first();
-    await expect(conn3g.locator('.speed-row-count')).toHaveText('100%');
-    await expect(conn3g.locator('.speed-row-sub')).toHaveText('80');
-    // And the honesty marker on the three-sample group, without which that row reads exactly as
-    // confidently as the 380-sample one next to it.
-    await expect(speed).toContainText('(few)');
+    await expect(speed.locator('h3', { hasText: 'A closer look' })).toContainText('Calendar');   // the BUSIEST page, named
+    await expect(speed).toContainText('By app version — Usable');
+    await expect(speed).toContainText('By how it was opened — Usable');
+    await expect(speed, 'the connection comparison went with the investigation it served').not.toContainText('By connection');
+    await expect(speed).not.toContainText('Why some are slower');
+    // Newest first, and NUMERICALLY: a string sort would put v24.9 above v24.96.
+    const vs = (await speed.locator('.speed-row--why .speed-row-name').allTextContents()).filter(t => t.startsWith('v'));
+    expect(vs).toEqual(['v24.96', 'v24.9']);
+    // The USABLE figure: the older release's 40 opens were all 1–3s, so 100% over a second, where
+    // code loaded would say 0%.
+    const older = speed.locator('.speed-row--why', { hasText: 'v24.9' }).filter({ hasNotText: 'v24.96' }).first();
+    await expect(older.locator('.speed-row-count')).toHaveText(/^100%/);
+    await expect(older.locator('.speed-row-sub')).toHaveText(/^40\b/);
+    // And the honesty marker on the three-open group, without which it reads as confidently as the 340.
+    await expect(speed.locator('.speed-row--why', { hasText: 'Browser tab' }).first()).toContainText('(few)');
 });
 
 // ── The THIRD milestone (v20.80) ────────────────────────────────────────────────────────────────
@@ -653,6 +640,9 @@ test('operations: App speed shows THREE milestones, and a page with no ready dat
     const payRow = speed.locator('.speed-row--dual', { hasText: 'Pay' }).first();
     await expect(payRow.locator('.speed-bar')).toHaveCount(2);
     await expect(payRow.locator('.speed-bar-none')).toHaveText('—');
+    // …and a screen reader is told the same: an aria-label on a bare span is not reliably read.
+    await expect(payRow.locator('.speed-bar-none')).toHaveAttribute('role', 'img');
+    await expect(payRow.locator('.speed-bar-none')).toHaveAttribute('aria-label', 'usable: not reported');
 
     // The grid really is three columns — a collapsed one would still pass every count above.
     // OPEN the card first. It is collapsed by default, so every assertion above passes on markup
@@ -667,65 +657,197 @@ test('operations: App speed shows THREE milestones, and a page with no ready dat
     expect(widths.slice(1, 4).every(w => w > 30)).toBe(true);
 });
 
-// ── "By stage of start-up" (v20.33) ─────────────────────────────────────────────────────────────
-// The boot phases exist because every explanation of the amber second was inference until now — and
-// the last inference (installed vs browser cold start) was backwards until data arrived. The split
-// maths is unit-tested; only a browser proves the block renders inside the why-section, leads it,
-// states its OWN threshold (½s, not the load rows' 1s), and stays absent while no phase samples
-// exist (every pre-v20.33 client).
-test('operations: App speed shows where the wait goes, by boot stage', async ({ page }) => {
+// ── The retired blocks stay retired (App Speed review, Oct 2026) ─────────────────────────────────
+// Every month before Oct 2026 carries the boot phases, the start ladder's rungs, the saved-copy split,
+// the fast path and the worker's file count. The card must read past them, not resurrect a block for
+// a question `LATENCY.md` closed on 19 September.
+test('operations: a month still holding the retired metrics renders none of their blocks', async ({ page }) => {
     await page.addInitScript(() => {
-        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
-            // The shape the instrumentation was built to expose: SW wake fine, the engine span
-            // carrying the amber, the app's own code fine.
-            '20_33|calendar|domReady|lt500ms|standalone|4g': 300,
-            '20_33|calendar|domReady|1-3s|standalone|4g': 60,
-            '20_33|calendar|swBoot|lt500ms|standalone|4g': 350,
-            '20_33|calendar|swBoot|500ms-1s|standalone|4g': 10,
-            '20_33|calendar|sdkLoad|lt500ms|standalone|4g': 216,
-            '20_33|calendar|sdkLoad|500ms-1s|standalone|4g': 90,
-            '20_33|calendar|sdkLoad|1-3s|standalone|4g': 54,
-            '20_33|calendar|appBoot|lt500ms|standalone|4g': 340,
-            '20_33|calendar|appBoot|500ms-1s|standalone|4g': 20,
-        } } };
+        const k = (m, b, n, mode = 'standalone', conn = '4g') => [`24_80|calendar|${m}|${b}|${mode}|${conn}`, n];
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: Object.fromEntries([
+            k('domReady', 'lt500ms', 300), k('domReady', '1-3s', 90, 'browser', '3g'),
+            k('ready', 'lt500ms', 250), k('ready', '1-3s', 60, 'browser'),
+            k('swBoot', 'lt500ms', 300), k('sdkLoad', '500ms-1s', 300), k('appBoot', 'lt500ms', 300), k('ttfb', 'lt500ms', 300),
+            k('authBoot', '1-3s', 300), k('access', 'lt500ms', 300), k('rosterCached', 'lt500ms', 280), k('rosterLive', '1-3s', 290),
+            k('readyCached', 'lt500ms', 240), k('readyFetched', '1-3s', 60), k('readyProvisional', 'lt500ms', 30),
+            k('swrCount', '31+', 200), k('swrCount', '0', 90), k('readyHeavySwr', '1-3s', 40),
+        ]) } };
     });
     await seedSession(page, 'G. Miller');
     await page.goto('/operations.html');
     const speed = page.locator('#pageSpeedContent');
-    await expect(speed).toContainText('By stage of start-up');
-    // All three stages, in boot order, in the plain-language labels (never the metric ids).
-    const labels = await speed.locator('.speed-row--why .speed-row-label').allTextContents();
-    const stageIdx = ['Waking up', 'Loading code', 'Getting ready']
-        .map(l => labels.findIndex(t => t.includes(l)));
-    expect(stageIdx.every(i => i >= 0)).toBe(true);
-    expect(stageIdx[0]).toBeLessThan(stageIdx[1]);
-    expect(stageIdx[1]).toBeLessThan(stageIdx[2]);
-    // The stages LEAD the section — the dimensional splits gesture at a cause, the stages name it.
-    const dimIdx = labels.findIndex(t => t.includes('4G-like'));
-    if (dimIdx >= 0) expect(stageIdx[2]).toBeLessThan(dimIdx);
-    // The block states its own band. 40% of sdkLoad samples sit over ½s (144 of 360) — the row
-    // must say 40% under an "over ½s" header, not borrow the load rows' 1s band (the v20.19 rule:
-    // a number reporting the wrong band is trusted over the bar beside it).
-    await expect(speed).toContainText('over ½s');
-    const engine = speed.locator('.speed-row--why', { hasText: 'Loading code' }).first();
-    await expect(engine.locator('.speed-row-count')).toHaveText('40%');
-    await expect(engine.locator('.speed-row-sub')).toHaveText('360');
+    // The closer look DID render (its mode split has two rows), so the absences below mean something.
+    await expect(speed).toContainText('By how it was opened — Usable');
+    for (const gone of ['By stage of start-up', 'How far the start gets', 'What put the shifts on screen',
+        'did not wait for the sign-in check', 'background worker', 'Does the connection slow the start?', 'By connection']) {
+        await expect(speed, `retired: ${gone}`).not.toContainText(gone);
+    }
 });
 
-// The stages must stay ABSENT while nothing records them: every device on a pre-v20.33 build. An
-// empty scaffold saying 0% would read as "boot is instant", which is not a finding, it is a gap.
-test('operations: no boot-phase samples → no "By stage of start-up" block', async ({ page }) => {
+// ── This month / Last month (App Speed review, Oct 2026) ─────────────────────────────────────────
+// No test had ever pressed Last month, and every fixture served the same samples for both months —
+// so the switch could have shown this month's figures under "Last month" with every suite green.
+test('operations: App speed’s month switch shows each month’s own figures', async ({ page }, testInfo) => {
+    await stubPerfReads(page, { lastMonth: {
+        'v24.80|login|loginTotal|1-3s|standalone|4g': 33,
+        'v24.80|calendar|domReady|lt500ms|standalone|4g': 50,
+        'v24.80|calendar|ready|1-3s|standalone|4g': 41,
+    } });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#pageSpeedCard')).toBeVisible({ timeout: 10000 });
+    await page.evaluate(() => {
+        const b = document.getElementById('pageSpeedBody');
+        if (b && !b.classList.contains('open')) document.getElementById('pageSpeedToggleHeader')?.click();
+    });
+    const speed = page.locator('#pageSpeedContent');
+    const thisBtn = speed.getByRole('button', { name: 'This month' });
+    const lastBtn = speed.getByRole('button', { name: 'Last month' });
+    await expect(thisBtn).toHaveAttribute('aria-pressed', 'true');
+    await expect(lastBtn).toHaveAttribute('aria-pressed', 'false');
+    await expect(speed).toContainText('71 sign-ins this month');
+    await expect(speed).toContainText('By page — August 2026');
+    await expect(speed).toContainText('Two ways of timing this month.');
+    await expect(speed, 'the record-size line belongs to the month still being written').toContainText(/This month’s speed record is .+ full/);
+
+    await lastBtn.click();
+    await expect(lastBtn).toHaveAttribute('aria-pressed', 'true');
+    await expect(thisBtn).toHaveAttribute('aria-pressed', 'false');
+    await expect(speed).toContainText('33 sign-ins last month');
+    await expect(speed).not.toContainText('71 sign-ins');
+    await expect(speed).toContainText('By page — July 2026');
+    await expect(speed).toContainText('Timed the older way.');          // all of July predates v24.98
+    await expect(speed).not.toContainText('speed record');
+
+    await thisBtn.click();
+    await expect(speed).toContainText('71 sign-ins this month');
+    // A touch target on a coarse pointer, not a 26px pill: the app's compact 36px tier.
+    if (isTouchProject(testInfo)) {
+        expect(await thisBtn.evaluate(el => el.getBoundingClientRect().height)).toBeGreaterThanOrEqual(36);
+    }
+});
+
+// ── The big number says what it is (App Speed review, Oct 2026) ─────────────────────────────────
+// It is the share that was QUICK, and the panel's colour comes from the share that was SLOW — so a
+// red "30%" read as "30% bad". The word under it is the fix; the sub-line still names all three.
+test('operations: App speed’s headline number says it is the quick share', async ({ page }) => {
     await page.addInitScript(() => {
         window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
-            '20_18|calendar|domReady|lt500ms|standalone|4g': 300,
-            '20_18|calendar|domReady|1-3s|browser|4g': 90,
+            'v24.98|login|loginTotal|lt500ms|standalone|4g': 30,
+            'v24.98|login|loginTotal|1-3s|standalone|4g': 20,
+            'v24.98|login|loginTotal|3-8s|standalone|4g': 50,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const login = page.locator('#pageSpeedContent .speed-verdict').first();
+    await expect(login).toHaveClass(/speed-verdict--bad/);
+    await expect(login.locator('.speed-verdict-figure')).toHaveText('30%');
+    await expect(login.locator('.speed-verdict-cap')).toHaveText('quick');
+    await expect(login).toContainText('30% under 1s · 20% 1–3s · 50% over 3s');
+    // Every sample here is from v24.98 on, so there is no older timing to warn about.
+    await expect(page.locator('#pageSpeedContent .speed-note--transition')).toHaveCount(0);
+    // And the bar beneath is DRAWN at those widths — the review found a bar at the wrong widths
+    // passed everything, the screenshot lane included, which only reports and tolerates small drift.
+    await page.evaluate(() => {
+        const b = document.getElementById('pageSpeedBody');
+        if (b && !b.classList.contains('open')) document.getElementById('pageSpeedToggleHeader')?.click();
+    });
+    const bar = page.locator('#pageSpeedContent .speed-bar--overall').first();
+    await expect(bar).toBeVisible();
+    const shares = await bar.evaluate(el => {
+        const total = el.getBoundingClientRect().width - 2;           // inside its 1px border
+        return [...el.querySelectorAll('.speed-seg')].map(seg => seg.getBoundingClientRect().width / total);
+    });
+    expect(shares.map(x => Math.round(x * 100))).toEqual([30, 20, 50]);
+});
+
+// ── Explanations on screen, sections as headings, colour not alone (App Speed review, Oct 2026) ───
+// Every row had a one-line explanation in the code that only a screen reader heard; the sections were
+// paragraphs a screen reader could not jump between; and the slow band was red alone.
+test('operations: App speed explains each moment and row on screen, under real headings', async ({ page }) => {
+    await stubPerfReads(page);
+    await page.setViewportSize({ width: 1280, height: 2400 });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#pageSpeedCard')).toBeVisible({ timeout: 10000 });
+    await page.evaluate(() => {
+        const b = document.getElementById('pageSpeedBody');
+        if (b && !b.classList.contains('open')) document.getElementById('pageSpeedToggleHeader')?.click();
+    });
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed.locator('h3')).toHaveText([/Signing in/, /Opening pages/, /A closer look/]);
+    await expect(speed.locator('h4.speed-subhead--sub')).toHaveText([/First appears/, /Code loaded/, /Usable/, /By page/]);
+    for (const line of ['Something is on screen', 'The app’s code has run', 'ready to use']) {
+        await expect(speed.getByText(line, { exact: false }).first()).toBeVisible();
+    }
+    const own = speed.locator('.speed-row--why', { hasText: 'Own roster' });
+    await expect(own.locator('.speed-row-expl')).toBeVisible();
+    await expect(own.locator('.speed-row-expl')).toContainText('from opening the Calendar');
+    await expect(speed.locator('.speed-row--why', { hasText: 'Until usable' }).locator('.speed-row-expl')).toBeVisible();
+    // Striped as well as red — a computed-style fact that no screenshot tolerance would notice.
+    for (const sel of ['.speed-seg--bad', '.speed-dot--bad']) {
+        const bg = await speed.locator(sel).first().evaluate(el => getComputedStyle(el).backgroundImage);
+        expect(bg, sel).toContain('repeating-linear-gradient');
+    }
+});
+
+// ── Each "By page" bar answers for its own count (App Speed review, Oct 2026) ─────────────────────
+// The row's "(few)" came from the code-loaded count, so a Usable bar built from 6 opens beside 500
+// code-loaded ones wore no marker and read like a finding.
+test('operations: a thin Usable bar beside a full code-loaded one wears its own "(few)"', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            'v24.98|calendar|fcp|lt500ms|standalone|4g': 500,
+            'v24.98|calendar|domReady|lt500ms|standalone|4g': 500,
+            'v24.98|calendar|ready|3-8s|standalone|4g': 6,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const calRow = page.locator('#pageSpeedContent .speed-row--dual', { hasText: 'Calendar' }).first();
+    const cells = calRow.locator(':scope > *');
+    await expect(cells.nth(3).locator('.speed-cell-few'), 'the Usable cell').toHaveText('(few)');
+    await expect(cells.nth(2).locator('.speed-cell-few'), 'the code-loaded cell').toHaveCount(0);
+    await expect(cells.nth(3).locator('.speed-bar')).toHaveAttribute('aria-label', /^usable: .*from 6 opens, too few to read into$/);
+    await expect(calRow.locator('.speed-row-label')).not.toContainText('(few)');
+});
+
+// ── A share never rounds to a lie (App Speed review, Oct 2026) ───────────────────────────────────
+test('operations: a share that rounds to nothing reads "<1%", and one short of all ">99%"', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            '24_96|calendar|ready|lt500ms|standalone|4g': 399,
+            '24_96|calendar|ready|1-3s|standalone|4g': 1,
+            '24_95|calendar|ready|lt500ms|standalone|4g': 50,
+            '24_96|calendar|domReady|lt500ms|standalone|4g': 450,
         } } };
     });
     await seedSession(page, 'G. Miller');
     await page.goto('/operations.html');
     const speed = page.locator('#pageSpeedContent');
-    await expect(speed).toContainText('Why some are slower');
-    await expect(speed).not.toContainText('By stage of start-up');
+    const newer = speed.locator('.speed-row--why', { hasText: 'v24.96' }).first();
+    await expect(newer.locator('.speed-row-count'), '1 of 400 over a second is not "0%"').toHaveText(/^<1%/);
+    await expect(speed.locator('.speed-row--why', { hasText: 'v24.95' }).first().locator('.speed-row-count')).toHaveText(/^0%/);
+    const usable = speed.locator('.speed-verdict').nth(3);
+    await expect(usable.locator('.speed-verdict-figure'), '449 of 450 is not "100%"').toHaveText('>99%');
+    await expect(usable).toContainText('<1% 1–3s');
+});
+
+// ── The month the measurement changed (App Speed review, Oct 2026) ───────────────────────────────
+test('operations: App speed says when a month mixes two ways of timing', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
+            '24_97|calendar|domReady|lt500ms|standalone|4g': 100,
+            '24_98|calendar|domReady|lt500ms|standalone|4g': 100,
+        } } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    const note = page.locator('#pageSpeedContent .speed-note--transition');
+    await expect(note).toContainText('Two ways of timing this month.');
+    await expect(note).toContainText('From v24.98');
+    await expect(note).toContainText('50% of these opens were timed the older way');
 });
 
 // Account-status email rows must not overflow the card on a narrow phone (merged card, v18.65).
@@ -7326,9 +7448,9 @@ test('operations: no App Speed row label is truncated at phone width', async ({ 
      * was complete and only the pixels were wrong — which is exactly what the account-status guard
      * says about its own defect, so the card that learned the lesson was not the card that needed it.
      *
-     * Both label kinds are checked. `.speed-row-name` is deliberately the ellipsising element (the
-     * "(few)" marker beside it must never be the part that goes), so measuring it is measuring the
-     * thing that can actually be lost.
+     * Both label kinds are checked. Since the App Speed review (Oct 2026) a name WRAPS rather than
+     * ellipsising — "Shifts s…" at 375px was a label that could not be read — so this now guards the
+     * wrap: a name that cannot wrap and overflows its box is still caught.
      */
     // SEEDED, because an empty card is not a passing truncation test — it is no test. The fixture is
     // the visual baseline's own, shared through helpers.js so the guard and the picture cannot end
@@ -7343,9 +7465,8 @@ test('operations: no App Speed row label is truncated at phone width', async ({ 
         const b = document.getElementById('pageSpeedBody');
         if (b && !b.classList.contains('open')) document.getElementById('pageSpeedToggleHeader')?.click();
     });
-    await expect(page.locator('#pageSpeedCard')).toContainText('What put the shifts on screen');
-    // The ROW, not the words: the ladder's note names this block too, so a text match passed with
-    // the block deleted (v24.85, found by mutation).
+    await expect(page.locator('#pageSpeedCard')).toContainText('Before the sign-in check');
+    // The ROW, not the words: a text match passed with the block deleted once (v24.85, found by mutation).
     await expect(page.locator('#pageSpeedCard .speed-row-name', { hasText: /^Own roster$/ })).toHaveCount(1);
     const names = page.locator('#pageSpeedCard .speed-row-name');
     expect(await names.count(), 'the fixture did not reach the card — nothing is being measured')
@@ -8439,64 +8560,13 @@ test('huddle: a table too wide to fit scrolls itself, not the page', async ({ pa
         + 'without it the tables render unwrapped and the page scrolls sideways again').toBe(true);
 });
 
-// ── The one comparison LATENCY.md's open decision is gated on (v22.28) ──────────────────────
-//
-// The plan called it "a reading, not a build", and it was not readable: every dimensional split on
-// this card ran against `domReady`, so the milestone the plan's own evidence names as the wall
-// (`Recognised`) could not be split by connection at all. This drives the real card against samples
-// with the signature in them — `Recognised` spread across connection classes, `Getting ready` flat —
-// and asserts BOTH groups render, because one alone is a row of percentages with nothing to read
-// them against.
-test('operations: App speed can split Recognised by connection, beside Getting ready', async ({ page }) => {
-    await page.addInitScript(() => {
-        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
-            // Recognised: fine on the fast class, bad on the slow one — a network wall's signature.
-            '22_28|calendar|authBoot|lt500ms|standalone|4g':   400,
-            '22_28|calendar|authBoot|over8s|standalone|3g':    120,
-            // Getting ready: the SAME connection classes, and flat across them. This is the half
-            // that makes the block a comparison rather than an observation.
-            '22_28|calendar|appBoot|lt500ms|standalone|4g':    400,
-            '22_28|calendar|appBoot|lt500ms|standalone|3g':    120,
-            // Enough domReady for the Calendar to be the busiest page the block renders for.
-            '22_28|calendar|domReady|lt500ms|standalone|4g':   400,
-            '22_28|calendar|domReady|1-3s|standalone|3g':      120,
-        } } };
-    });
-    await seedSession(page, 'G. Miller');
-    await page.goto('/operations.html');
-    const speed = page.locator('#pageSpeedContent');
-    await expect(speed).toContainText('Does the connection slow the start?');
-    await expect(speed).toContainText('Recognised');
-    await expect(speed).toContainText('Getting ready');
-    // The generic connection block must name its own figure now that three blocks split by conn —
-    // an unlabelled third one reads as a third milestone.
-    await expect(speed).toContainText('By connection — whole load');
-
-    // …and the two groups must say DIFFERENT things, or the block has rendered one metric twice.
-    // Reading the "over 1s" figures directly is what separates "both headings appeared" from "the
-    // metric argument actually reached summarisePerfBy" — the whole defect being fixed.
-    const pcts = await speed.evaluate(() => {
-        const label = [...document.querySelectorAll('.speed-dim-label')]
-            .find(el => el.textContent === 'Recognised');
-        const readGroup = (el) => [...el.nextElementSibling.querySelectorAll('.speed-row--why')]
-            .map(r => r.querySelector('.speed-row-count')?.textContent).filter(Boolean);
-        const authRows = readGroup(label);
-        const appLabel = [...document.querySelectorAll('.speed-dim-label')]
-            .find(el => el.textContent === 'Getting ready');
-        return { authRows, appRows: readGroup(appLabel) };
-    });
-    // Recognised spreads (one class slow, one fast); Getting ready is flat at 0% on both.
-    expect(pcts.authRows.sort()).toEqual(['0%', '100%']);
-    expect(pcts.appRows).toEqual(['0%', '0%']);
-});
-
 test('operations: App speed states the stored-copy share against the versions that can count it', async ({ page }) => {
     /*
-     * THE WIRING for the v24.89 fix (the 48-hour review). `earlyRosterShare` is pinned in
-     * perf-stats.test.mjs; what it cannot see is the card using it. The card used to divide by the
-     * ladder's `ready` across EVERY version, so in the month the copy began to be counted, three weeks
-     * of opens from versions that cannot report one sat under it: 360 copies over 1,900 opens printed
-     * 19%, when the 600 opens that could have reported one make it 60%.
+     * THE WIRING for the v24.89 fix (the 48-hour review). The share is pinned in perf-stats.test.mjs;
+     * what it cannot see is the card using it. The card used to divide by `ready` across EVERY
+     * version, so in the month the copy began to be counted, three weeks of opens from versions that
+     * cannot report one sat under it: 360 copies over 1,900 opens printed 19%, when the 600 opens
+     * that could have reported one make it 60%.
      */
     await page.addInitScript(() => {
         window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
@@ -8511,196 +8581,59 @@ test('operations: App speed states the stored-copy share against the versions th
     await page.goto('/operations.html');
     const speed = page.locator('#pageSpeedContent');
     await expect(speed).toContainText('Before the sign-in check');
-    await expect(speed).toContainText(/60% of (this|last) month’s Calendar opens, on versions that count it/);
+    // It names the group it divides by — "Usable" opens on the versions that record a copy — which it
+    // got wrong ("Calendar opens") until the App Speed review.
+    await expect(speed).toContainText(/60% of the opens counted under “Usable” (this|last) month, on versions that record it/);
     await expect(speed, 'the all-version divisor — the figure this fixes').not.toContainText('19%');
-    // The ladder names the block, because it is there.
-    await expect(speed).toContainText('timed under “Before the sign-in check” below');
 });
 
-test('operations: App speed points at the stored-copy block only when it renders', async ({ page }) => {
-    /*
-     * The ladder's note said "timed under “Before the sign-in check” below" on EVERY window — and the
-     * block returns nothing for one with no copy reported, which "Last month" in the release month
-     * always is. A pointer to a heading that is not on the card (the 48-hour review, v24.89).
-     */
+test('operations: App speed shows no stored-copy block when no copy was shown', async ({ page }) => {
     await page.addInitScript(() => {
         window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
-            '24_84|calendar|authBoot|lt500ms|standalone|4g': 600,
-            '24_84|calendar|ready|lt500ms|standalone|4g':    600,
-            '24_84|calendar|domReady|lt500ms|standalone|4g': 600,
+            '24_84|calendar|ready|lt500ms|standalone|4g':  600,
+            '24_84|calendar|ready|1-3s|browser|4g':         60,
+            '24_84|calendar|domReady|lt500ms|standalone|4g': 660,
         } } };
     });
     await seedSession(page, 'G. Miller');
     await page.goto('/operations.html');
     const speed = page.locator('#pageSpeedContent');
-    await expect(speed).toContainText('How far the start gets');
-    await expect(speed).toContainText('Compare neighbouring rows');
+    await expect(speed).toContainText('By how it was opened — Usable');   // the closer look rendered
     await expect(speed).not.toContainText('Before the sign-in check');
 });
 
-test('operations: App speed reports the opens a release caused, as a SHARE of all opens', async ({ page }) => {
+test('operations: App speed times the wait after a release, from the version that times it', async ({ page }) => {
     /*
-     * THE RULE TESTED, THE WIRING NOT — this is the wiring.
+     * THE RULE TESTED, THE WIRING NOT — this is the wiring. The recorder's half is pinned in
+     * perf-reporter.test.mjs and the version floor in perf-stats.test.mjs; what neither sees is the
+     * card reading THIS page's waits, from the version that times a wait, and saying so.
      *
-     * `summariseUpdateOpens` is pinned next door and the marker's two halves in
-     * sw-register.test.mjs / perf-reporter.test.mjs. None of that can see the thing that makes the
-     * block worth having: the SHARE, which the card computes by dividing this block's count by a
-     * total that lives in a DIFFERENT block's summary. A divisor read from the wrong page, the wrong
-     * metric, or a second summary that disagreed with the first would all render a perfectly
-     * plausible percentage, and every unit test would stay green.
-     *
-     * So the numbers are chosen to make a wrong divisor visible: 30 update opens against 600 `ready`
-     * is 5%, and every near-miss divisor on this fixture gives a different answer — the paycalc
-     * `ready` (300) gives 10%, the calendar's `readyCached` (200) gives 15%, and this block's own
-     * total gives 100%.
+     * The numbers make a wrong read visible: the row must count 36 — not 436 (the older version's
+     * background loads folded in), and not 186 (paycalc's added). And it states NO share of the
+     * opens above any more: a reload nobody watched is not in "Usable", so the ratio meant nothing.
      */
     await page.addInitScript(() => {
         window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
-            '22_91|calendar|ready|lt500ms|standalone|4g':       400,
-            '22_91|calendar|ready|1-3s|standalone|4g':          200,
-            '22_91|calendar|readyUpdate|1-3s|standalone|4g':     30,
-            // Decoys, each of which is a divisor a plausible mistake would reach for.
-            '22_91|calendar|readyCached|lt500ms|standalone|4g': 200,
-            '22_91|paycalc|ready|lt500ms|standalone|4g':        300,
-            '22_91|paycalc|readyUpdate|1-3s|standalone|4g':     150,
-            // Calendar is the busiest page, so it is the one the "why" section describes.
-            '22_91|calendar|domReady|lt500ms|standalone|4g':    600,
-            '22_91|paycalc|domReady|lt500ms|standalone|4g':     300,
+            '24_97|calendar|readyUpdate|3-8s|standalone|4g':     400,
+            '24_98|calendar|readyUpdate|lt500ms|standalone|4g':   30,
+            '24_98|calendar|readyUpdate|1-3s|standalone|4g':       6,
+            '24_98|paycalc|readyUpdate|1-3s|standalone|4g':      150,
+            '24_98|calendar|ready|lt500ms|standalone|4g':        600,
+            '24_98|calendar|domReady|lt500ms|standalone|4g':     600,
+            '24_98|paycalc|domReady|lt500ms|standalone|4g':      300,
         } } };
     });
     await seedSession(page, 'G. Miller');
     await page.goto('/operations.html');
     const speed = page.locator('#pageSpeedContent');
-    await expect(speed).toContainText('Opens that followed a release');
     await expect(speed).toContainText('After a release');
-    await expect(speed, 'the share is stated, not left for the reader to divide across two blocks')
-        .toContainText('That is 5% of them');
-
-    // The subset relation, in the words the reader gets. Without it the block sits under a partition
-    // that does not add up and invites exactly the wrong arithmetic.
-    await expect(speed).toContainText('also counted in');
-
-    // And the row counts THIS page's update opens — not paycalc's 150, which would read as 25%.
-    const total = await speed.evaluate(() => {
-        const label = [...document.querySelectorAll('.speed-dim-label')]
-            .find(el => el.textContent === 'Opens that followed a release');
-        return label.nextElementSibling.nextElementSibling
-            .querySelector('.speed-row--why:not(.speed-dual-head) .speed-row-sub')?.textContent;
-    });
-    expect(total).toBe('30');
-});
-
-test('operations: App speed reports the fast-path opens, as a SHARE of all opens', async ({ page }) => {
-    /*
-     * THE WIRING for the block that decides whether v22.97 worked.
-     *
-     * `summariseProvisionalOpens` is pinned next door and the write in perf-reporter.test.mjs. What
-     * neither sees is the SHARE, which the card computes by dividing this block's count by a total
-     * that lives in a DIFFERENT block's summary — and the share is the whole reading: a small one
-     * means September's flat figure was diluted and says nothing, a large one with no speed gain
-     * falsifies `LATENCY.md`'s central finding. A wrong divisor renders a plausible percentage and
-     * every unit test stays green.
-     *
-     * The decoys are chosen so each plausible mistake gives a DIFFERENT answer: 120 against the
-     * calendar's 600 `ready` is 20%; the calendar's `readyCached` (150) gives 80%, paycalc's `ready`
-     * (300) gives 40%, and this block's own total gives 100%. `readyCached` is the dangerous one —
-     * it is the row directly above and shares this population almost exactly.
-     */
-    await page.addInitScript(() => {
-        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
-            '23_69|calendar|ready|lt500ms|standalone|4g':            400,
-            '23_69|calendar|ready|1-3s|standalone|4g':               200,
-            '23_69|calendar|readyProvisional|lt500ms|standalone|4g': 120,
-            // Decoys — each a divisor a plausible mistake reaches for.
-            '23_69|calendar|readyCached|lt500ms|standalone|4g':      150,
-            '23_69|paycalc|ready|lt500ms|standalone|4g':             300,
-            '23_69|paycalc|readyProvisional|1-3s|standalone|4g':      90,
-            '23_69|calendar|domReady|lt500ms|standalone|4g':         600,
-            '23_69|paycalc|domReady|lt500ms|standalone|4g':          300,
-        } } };
-    });
-    await seedSession(page, 'G. Miller');
-    await page.goto('/operations.html');
-    const speed = page.locator('#pageSpeedContent');
-    await expect(speed).toContainText('Opens that did not wait for the sign-in check');
-    await expect(speed).toContainText('Shown early');
-    await expect(speed, 'the share is stated, not left for the reader to divide across two blocks')
-        .toContainText('That is 20% of them');
-
-    // The SUBSET relation in words. The block immediately above is a SPLIT, so a reader arriving in
-    // order has just been taught the other arithmetic and would subtract this one.
-    await expect(speed).toContainText('also counted in');
-    // The fast path was RETIRED at v24.29, so the note must speak of it in the past tense and say
-    // why the row exists at all — it used to describe the feature as live, a month after it went.
-    await expect(speed).toContainText('That was retired in September 2026');
-    await expect(speed).not.toContainText('is now shown their saved roster');
-
-    // This page's fast-path opens, not paycalc's 90 — which would read as 15%.
-    const total = await speed.evaluate(() => {
-        const label = [...document.querySelectorAll('.speed-dim-label')]
-            .find(el => el.textContent === 'Opens that did not wait for the sign-in check');
-        return label.nextElementSibling.nextElementSibling
-            .querySelector('.speed-row--why:not(.speed-dual-head) .speed-row-sub')?.textContent;
-    });
-    expect(total).toBe('120');
-});
-
-test('operations: App speed shows what the background worker was doing, and whether it cost anything', async ({ page }) => {
-    /*
-     * THE WIRING, and this block is the reason the rule exists.
-     *
-     * `swrCount` and `readyHeavySwr` were WRITTEN from v22.94 and rendered by nothing until v23.00 —
-     * no summariser, no card row — so every Calendar load paid a MessageChannel round trip and a
-     * Firestore increment for a sample no surface could show, and the whole estate stayed green.
-     * A unit test on the summarisers would not have caught that: they did not exist either. Only a
-     * test that loads the real page and looks for the words can.
-     *
-     * The fixture separates the two shapes, which is the thing most likely to be "tidied" into one:
-     *   · `swrCount` is a COUNT distribution — 80 boots rechecking nothing against 20 doing a full
-     *     sweep is 80%/20%, and neither number is a duration.
-     *   · `readyHeavySwr` is a SUBSET of `ready` banded by time — 20 against 400 is 5% of opens.
-     * A summariser that read the count bands through the duration bander would drop the first block
-     * entirely; one that read the heavy row as a distribution would state 100%.
-     */
-    await page.addInitScript(() => {
-        window.__E2E = { ...(window.__E2E || {}), getDocData: { samples: {
-            '22_91|calendar|ready|lt500ms|standalone|4g':          380,
-            '22_91|calendar|ready|1-3s|standalone|4g':              20,
-            '22_91|calendar|swrCount|0|standalone|4g':              80,
-            '22_91|calendar|swrCount|31+|standalone|4g':            20,
-            '22_91|calendar|readyHeavySwr|1-3s|standalone|4g':      20,
-            // Decoys: another page's worker figures, which must not reach this page's rows.
-            '22_91|paycalc|swrCount|0|standalone|4g':              999,
-            '22_91|paycalc|readyHeavySwr|1-3s|standalone|4g':      999,
-            '22_91|calendar|domReady|lt500ms|standalone|4g':       600,
-            '22_91|paycalc|domReady|lt500ms|standalone|4g':        300,
-        } } };
-    });
-    await seedSession(page, 'G. Miller');
-    await page.goto('/operations.html');
-    const speed = page.locator('#pageSpeedContent');
-    await expect(speed).toContainText('What the app’s background worker was doing');
-
-    // The COUNT distribution, in words rather than band strings, and as shares.
-    await expect(speed).toContainText('Nothing to fetch');
-    await expect(speed).toContainText('A full sweep');
-    await expect(speed, 'counts are stated as a share of boots, not as a speed').toContainText('80%');
-
-    // The SUBSET row, and the sentence that stops a reader subtracting it from "Shifts shown".
-    await expect(speed).toContainText('Worker busy');
-    await expect(speed).toContainText('also counted in');
-    await expect(speed, '20 heavy opens against 400 ready is 5% — a wrong divisor gives a different number')
-        .toContainText('That is 5% of them');
-
-    // And it is THIS page's data: paycalc's 999s must not appear anywhere in the block.
-    const text = await speed.evaluate(() => {
-        const label = [...document.querySelectorAll('.speed-dim-label')]
-            .find(el => el.textContent === 'What the app\u2019s background worker was doing');
-        let n = label, out = '';
-        while ((n = n.nextElementSibling) && !n.classList.contains('speed-dim-label')) out += n.textContent;
-        return out;
-    });
-    expect(text).not.toContain('999');
+    await expect(speed).toContainText('Counted from v24.98');
+    await expect(speed).not.toContainText('That is');
+    await expect(speed).not.toContainText('also counted in');
+    const row = speed.locator('.speed-row--why', { hasText: 'Until usable' }).first();
+    await expect(row.locator('.speed-row-sub')).toHaveText(/^36\b/);
+    await expect(row.locator('.speed-row-count')).toHaveText(/^17%/);       // 6 of 36 over a second
+    await expect(row.locator('.speed-row-expl')).toContainText('from coming back to the page');
 });
 
 // ── Staff Login Accounts: the provisioning audit (v22.53) ───────────────────────────────────────

@@ -43,7 +43,7 @@ import { DAYTIME } from './trains-render.js';
  */
 const PAGES = [
     { js: 'admin-app.js',      html: 'admin.html' },
-    { js: 'operations-app.js', html: 'operations.html' },
+    { js: 'operations-tips.js', html: 'operations.html' },
     { js: 'settings-app.js',   html: 'settings.html' },
     { js: 'links-tips.js',     html: 'links.html', scope: { ROTATING_LINES, DEFAULT_MAX_RUN } },
     { js: 'overtime-tips.js',  html: 'overtime.html' },

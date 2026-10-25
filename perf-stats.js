@@ -14,41 +14,6 @@
 export const PERF_BUCKETS = ['lt500ms', '500ms-1s', '1-3s', '3-8s', 'over8s'];
 
 /**
- * HOW MUCH BACKGROUND WORK THE SERVICE WORKER DID DURING A BOOT (v22.94).
- *
- * A COUNT vocabulary, and deliberately not a duration one. The external calendar-latency review
- * asked for exactly these bands — "0 / 1–10 / 11–30 / 31+" — because the question is whether a boot
- * carrying a full revalidation sweep is materially slower than one carrying none, and the interesting
- * shape is the two ENDS: a worker already awake does almost none, a worker that just woke does the
- * lot.
- *
- * **These strings live in the same `bucket` slot of `perfSampleKey` as the duration bands**, which
- * keeps the key at six components — a seventh would invalidate every sample stored since v21.30.
- * The cost is that the duration summarisers would band these nonsensically if pointed at them, so
- * they never are: every summariser filters by METRIC first, and no duration row names `swrCount`.
- */
-export const SWR_COUNT_BUCKETS = ['0', '1-10', '11-30', '31+'];
-
-/**
- * Bucket a revalidation COUNT. Returns null for anything that is not a finite count, so a browser
- * that could not answer (no controller, no reply, an older worker that does not know the message)
- * records nothing rather than a fabricated zero — the two are different, and "no service worker
- * revalidations happened" is the finding this exists to test.
- * @param {number} n
- * @returns {string|null}
- */
-export function bucketSwrCount(n) {
-    if (typeof n !== 'number' || !isFinite(n) || n < 0) return null;
-    if (n === 0) return '0';
-    if (n <= 10) return '1-10';
-    if (n <= 30) return '11-30';
-    return '31+';
-}
-
-/** The band from which a boot counts as carrying a FULL sweep — the review's "31+". */
-export const SWR_HEAVY_BUCKET = '31+';
-
-/**
  * Bucket a duration in milliseconds into one of PERF_BUCKETS. Returns null for a non-finite or
  * negative value (e.g. a timing field the browser never populated) so the caller skips it.
  * @param {number} ms
@@ -115,15 +80,42 @@ const _BUCKET_GROUP = (() => {
     return m;
 })();
 
-/** @param {{quick:number, ok:number, slow:number}} g → adds total + integer percentages. */
+/**
+ * Add the total and three whole percentages that ALWAYS SUM TO 100 (App Speed review, Oct 2026).
+ * Rounding each band on its own printed 34 + 34 + 33 = 101 for an even split, on the one line that
+ * states all three. Largest remainder instead: floor every band, then hand the points left over to
+ * the bands that lost most to the floor (ties to the faster band, so the order is stable).
+ * @param {{quick:number, ok:number, slow:number}} g */
 function _withPct(g) {
     const total = g.quick + g.ok + g.slow;
-    const pct = (/** @type {number} */ n) => (total ? Math.round((n / total) * 100) : 0);
-    return { quick: g.quick, ok: g.ok, slow: g.slow, total, pctQuick: pct(g.quick), pctOk: pct(g.ok), pctSlow: pct(g.slow) };
+    const pcts = [0, 0, 0];
+    if (total) {
+        const exact = [g.quick, g.ok, g.slow].map(n => (n / total) * 100);
+        exact.forEach((x, i) => { pcts[i] = Math.floor(x); });
+        const left = 100 - pcts[0] - pcts[1] - pcts[2];
+        const order = exact.map((x, i) => [x - Math.floor(x), i]).sort((a, b) => (b[0] - a[0]) || (a[1] - b[1]));
+        for (let k = 0; k < left; k++) pcts[order[k][1]] += 1;
+    }
+    return { quick: g.quick, ok: g.ok, slow: g.slow, total, pctQuick: pcts[0], pctOk: pcts[1], pctSlow: pcts[2] };
 }
 
 /** What a written page id looks like — see `summarisePerf`. */
 const PAGE_ID_TOKEN = /^[a-z][a-z0-9-]{0,39}$/;
+
+/** No real month holds more opens than this under ONE key (one version, page, timing, band, mode and
+ *  connection) at one depot — the busiest key measured is a few thousand. */
+const PERF_COUNT_MAX = 1_000_000;
+
+/**
+ * A stored count, or 0 for anything a real counter could not hold. The sample VALUES are written by
+ * any signed-in session and the rules cannot check them (firestore.rules → perf_), and `Number()`
+ * read `true` as 1, `"7"` as 7 and 1e308 as a count — two of the last summed to Infinity and the card
+ * printed "∞ page opens" (App Speed review, Oct 2026). A counter only ever holds a whole number.
+ * @param {unknown} raw @returns {number}
+ */
+function _count(raw) {
+    return typeof raw === 'number' && Number.isInteger(raw) && raw > 0 && raw <= PERF_COUNT_MAX ? raw : 0;
+}
 
 /**
  * Roll the raw `analytics/perf_<month>.samples` map up into the three speed bands — overall and
@@ -139,8 +131,8 @@ export function summarisePerf(samples, { metric = 'domReady' } = {}) {
     const pages = {};
     let total = 0;
     for (const [key, raw] of Object.entries(samples || {})) {
-        const n = Number(raw);
-        if (!Number.isFinite(n) || n <= 0) continue;
+        const n = _count(raw);
+        if (!n) continue;
         const { page, metric: mtr, bucket } = parsePerfSampleKey(key);
         if (mtr !== metric) continue;
         const group = _BUCKET_GROUP[bucket];
@@ -212,18 +204,18 @@ export const PERF_DIMENSIONS = {
  * present that with exactly the confidence of a real finding.
  *
  * @param {Record<string, number>} samples raw `analytics/perf_<month>.samples`
- * @param {{ page: string, metric?: string, dimension?: 'conn'|'mode'|'version', minSamples?: number }} opts
- *   `minSamples` only affects `version` — see `_bucketVersions`.
- * @returns {{ total: number, rows: Array<{ value: string, label: string } & ReturnType<typeof _withPct>> }}
+ * @param {{ page: string, metric?: string, dimension?: 'conn'|'mode'|'version', minSamples?: number, splitAt?: string }} opts
+ *   `minSamples` and `splitAt` only affect `version` — see `_bucketVersions`.
+ * @returns {{ total: number, rows: Array<{ value: string, label: string, afterSplit?: boolean } & ReturnType<typeof _withPct>> }}
  */
-export function summarisePerfBy(samples, { page, metric = 'domReady', dimension = 'conn', minSamples = 0 }) {
+export function summarisePerfBy(samples, { page, metric = 'domReady', dimension = 'conn', minSamples = 0, splitAt = '' }) {
     const dim = PERF_DIMENSIONS[dimension];
     /** @type {Record<string, {quick:number, ok:number, slow:number}>} */
     const groups = {};
     let total = 0;
     for (const [key, raw] of Object.entries(samples || {})) {
-        const n = Number(raw);
-        if (!Number.isFinite(n) || n <= 0) continue;
+        const n = _count(raw);
+        if (!n) continue;
         const parsed = parsePerfSampleKey(key);
         if (parsed.page !== page || parsed.metric !== metric) continue;
         const group = _BUCKET_GROUP[parsed.bucket];
@@ -236,7 +228,7 @@ export function summarisePerfBy(samples, { page, metric = 'domReady', dimension 
         total += n;
     }
     // Versions get ROLLED UP rather than listed. See `_bucketVersions`.
-    if (dimension === 'version') return { total, rows: _bucketVersions(groups, minSamples) };
+    if (dimension === 'version') return { total, rows: _bucketVersions(groups, minSamples, splitAt) };
 
     const keys = Object.keys(groups);
     const order = /** @type {string[]|null} */ (dim.order);
@@ -274,16 +266,25 @@ export function summarisePerfBy(samples, { page, metric = 'domReady', dimension 
  * trailing "(few)" row is exactly what this exists to remove. Unless it is the only bucket, in
  * which case it is shown as-is: a month with barely any data should look like one.
  *
+ * NO ROW CROSSES `splitAt` (App Speed review, Oct 2026). From that version the timings are taken a
+ * different way (CLEAN_TIMINGS_FROM), and a row holding versions from both sides would average two
+ * measurements into a figure that is neither. So a bucket closes at the split even when thin, and
+ * the remainder is never merged across it; each row then says which side it is on (`afterSplit`).
+ *
  * @param {Record<string, {quick:number, ok:number, slow:number}>} groups
  * @param {number} minSamples
+ * @param {string} [splitAt] a version; '' for none
  */
-function _bucketVersions(groups, minSamples) {
+function _bucketVersions(groups, minSamples, splitAt = '') {
     const versions = Object.keys(groups).sort(_compareVersionsDesc);
+    const floor = splitAt ? _versionNum(splitAt) : 0;
+    const after = (/** @type {string} */ ver) => floor > 0 && _versionNum(ver) >= floor;
     /** @type {Array<{ newest: string, oldest: string, quick: number, ok: number, slow: number }>} */
     const buckets = [];
     /** @type {{ newest: string, oldest: string, quick: number, ok: number, slow: number }|null} */
     let cur = null;
     for (const v of versions) {
+        if (cur && after(v) !== after(cur.newest)) { buckets.push(cur); cur = null; }
         if (!cur) cur = { newest: v, oldest: v, quick: 0, ok: 0, slow: 0 };
         cur.oldest = v;
         cur.quick += groups[v].quick; cur.ok += groups[v].ok; cur.slow += groups[v].slow;
@@ -291,25 +292,32 @@ function _bucketVersions(groups, minSamples) {
     }
     if (cur) {
         const last = buckets[buckets.length - 1];
-        if (last) {
+        if (last && after(last.newest) === after(cur.newest)) {
             last.oldest = cur.oldest;
             last.quick += cur.quick; last.ok += cur.ok; last.slow += cur.slow;
         } else {
             buckets.push(cur);
         }
     }
-    const v = (/** @type {string} */ x) => 'v' + String(x).replace(/_/g, '.');
     return buckets.map(b => ({
         value: b.newest,
-        label: b.newest === b.oldest ? v(b.newest) : `${v(b.oldest)}–${v(b.newest)}`,
+        label: b.newest === b.oldest ? _versionText(b.newest) : `${_versionText(b.oldest)}–${_versionText(b.newest)}`,
+        ...(floor > 0 ? { afterSplit: after(b.newest) } : {}),
         ..._withPct(b),
     }));
 }
 
-/** Versions are stored dot-swapped (`20_18`) because a `.` is a Firestore field-path hazard.
- *  @param {string} value @param {string} dimension */
+/** A stored version as the card prints it: `20_18` → `v20.18`. Versions are stored dot-swapped because
+ *  a `.` is a Firestore field-path hazard; a leading `v` is dropped first, because a key any session
+ *  can write may carry one and the card printed "vv24.98" for it (App Speed review, Oct 2026).
+ *  @param {string} value */
+function _versionText(value) {
+    return 'v' + String(value).replace(/^v/i, '').replace(/_/g, '.');
+}
+
+/** @param {string} value @param {string} dimension */
 function _versionLabel(value, dimension) {
-    return dimension === 'version' ? 'v' + String(value).replace(/_/g, '.') : String(value);
+    return dimension === 'version' ? _versionText(value) : String(value);
 }
 
 /** Newest version first. Numeric per segment, so `20_9` sorts below `20_18` (string sort does not).
@@ -321,140 +329,20 @@ function _compareVersionsDesc(a, b) {
     return (bMaj - aMaj) || (bMin - aMin) || String(b).localeCompare(String(a));
 }
 
-// ── WHERE the wait goes — the boot phases (v20.33) ──────────────────────────────────────────────
-//
-// The dimensional breakdown above told us WHO is slow (installed app, budget devices) and the
-// metrics told us HOW OFTEN — but every explanation of WHERE the amber second goes was inference:
-// "probably SW wake, probably module parse". The last time this card ran on inference it was wrong
-// (the cold-start hypothesis had installed vs browser-tab backwards until the data arrived), so
-// before optimising anything the boot is split into measured phases:
-//
-//   swBoot  — workerStart → responseStart: waking the service worker and serving from its cache.
-//   sdkLoad — responseStart → the 'myb-sdk-ready' mark: HTML parse + fetching the module graph up
-//             through the Firebase SDK finishing execution (the mark fires as firebase-client.js's
-//             body starts, which by ES module semantics is the moment its SDK imports have run).
-//   appBoot — that mark → domContentLoadedEventEnd: the app's own modules executing after the SDK.
-//
-// The three are CONTIGUOUS SPANS of the same load, so each buckets independently with the ordinary
-// PERF_BUCKETS — and that coarseness is the point, not a compromise: a phase under 500ms is never
-// the reason a load went over a second, so `lt500ms` is exactly the "not the culprit" band. The
-// card then asks one question per phase: what fraction of loads had THIS phase run long?
-
-/** The boot-phase metric ids, in boot order, with their staff-facing labels (the Operations card is
- *  read by a non-technical admin — "SDK" and "service worker" stay out of the copy). Labels are
- *  parallel gerunds kept ≤13 chars, MEASURED not assumed: the why-rows' label column is
- *  minmax(76px, 27%) ≈ 89px at 375px, "Waking the app" (14) fit and "Loading the engine" (18)
- *  ellipsised — a truncated label in one block only would break the rows' shared rhythm. The `sub`
- *  carries the precision the short label gives up, and reaches readers via the bar's aria-label. */
-/**
- * The Calendar's START LADDER — four cumulative milestones from the moment the page began.
- *
- * ── WHY CUMULATIVE, WHERE BOOT_PHASES ARE SPANS ─────────────────────────────────────────────────
- *
- * `BOOT_PHASES` answers "which STAGE ran long" and stops at DOMContentLoaded. Everything expensive
- * on the Calendar happens AFTER that: the auth restore, the access decision, then Firestore. Those
- * are not stages of loading code, they are things the page waits for, and each one only makes sense
- * as "how far into the start had we got when this happened". So they share the card's normal bands
- * rather than the phase bands — the reader is asking the same question they ask of a page open.
- *
- * ── THE ONE QUESTION THIS EXISTS TO ANSWER ──────────────────────────────────────────────────────
- *
- * Before it, a slow Calendar was a single number and the card could not say WHERE it went. The
- * ladder separates the three candidates, and because each milestone contains the ones above it, a
- * reader compares adjacent rows rather than doing arithmetic: signed in fast but access slow means
- * the gate; access fast but roster slow means Firestore.
- *
- * `ready` is deliberately the fourth rung and NOT the last. It fires on a cached grid as readily as
- * an authoritative one, which is right — that is a roster the member can read — but it would flatter
- * the figure if it were the end of the story, because a device can show yesterday's roster instantly
- * and take another two seconds to confirm it. `rosterLive` is that confirmation.
- */
-export const START_MILESTONES = /** @type {const} */ ([
-    // "Recognised", NOT "Signed in" — the card's FIRST section is "🔑 Signing in" and means an
-    // actual credential sign-in, which is a different event with a different distribution. Two
-    // near-identical names for two different things in one card is the kind of collision a reader
-    // resolves silently and wrongly. This rung is the saved session being restored, no typing.
-    { metric: 'authBoot',   label: 'Recognised',   sub: 'your saved sign-in being restored' },
-    // **THE LADDER IS NO LONGER MONOTONIC FOR EVERY MEMBER, AND THE INVERSION IS THE POINT
-    // (v22.97).** Each rung is measured from navigation start and bucketed on its own, so none is
-    // derived by subtracting another and every figure below stays true — but a returning member on
-    // v22.97 until its retirement (26 Sep 2026) could take the PROVISIONAL PAINT, which put
-    // `rosterCached` and `ready` on screen BEFORE this rung resolved. Months that include those
-    // releases can therefore show `Shifts shown` faster than `Unlocked`; that is not a broken card.
-    // Do not "fix" it by marking access at the paint — a paint is not a grant.
-    { metric: 'access',     label: 'Unlocked',     sub: 'the Calendar deciding you may see it' },
-    // THE RUNG THAT SPLITS THE GAP NOBODY COULD SEE (v22.95). The field read of 5 Sep 2026 put
-    // Unlocked at 58% over a second and Shifts shown at 78% — about eighteen points appearing
-    // between deciding a member may look and actually painting their roster, with no rung in
-    // between to say where. This is the device's own saved copy coming back out of storage, which
-    // is what 98% of attributed starts are served from.
-    //
-    // It reports ONLY when the cache produced something. A device with no saved copy has no such
-    // moment, and giving it one would put a first-visit boot into a distribution about how quickly
-    // storage answers — the same rule every other rung here follows.
-    { metric: 'rosterCached', label: 'Roster found', sub: 'your own saved copy, back from this device' },
-    { metric: 'ready',      label: 'Shifts shown', sub: 'a roster on screen, saved or current' },
-    { metric: 'rosterLive', label: 'Confirmed',    sub: 'those shifts checked against the server' },
-]);
-
-/**
- * Roll the start ladder up for one page, in ladder order, on the card's standard bands. Same shape
- * as `summariseBootPhases` so the card renders both blocks through one idiom. A milestone nothing
- * has reported yet is simply absent — no scaffolding for data that does not exist.
- * @param {Record<string, number>} samples raw `analytics/perf_<month>.samples`
- * @param {{ page: string }} opts
- * @returns {{ total: number, rows: Array<{ metric: string, label: string, sub: string, total: number,
- *   quick: number, ok: number, slow: number, pctQuick: number, pctOk: number, pctSlow: number,
- *   pctOver1s: number }> }}
- */
-export function summariseStartMilestones(samples, { page }) {
-    return _summariseMetricRows(samples, page, START_MILESTONES);
-}
-
-/**
- * WHAT SERVED THE FIRST GRID — the split that decides `LATENCY.md` Phase 2 (v21.99).
- *
- * Phase 2 narrows the Calendar's authoritative Firestore read, and its whole value rests on how many
- * loads reach a grid THROUGH that read rather than from the local cache. A cache-served load never
- * touches the network on this path, so narrowing the read cannot move it — and the card could not
- * tell the two apart, so the phase could only be argued.
- *
- * **The two rows do NOT sum to `ready`**, and the note beside them has to say so: a page that does
- * not know its source (the three whose container unhides on `auth-ready`) reports `ready` alone.
- * Reading these as a partition of the whole would understate whichever way the remainder fell.
- */
-// SHORT LABELS, because the column they sit in is `minmax(76px, 27%)` and the bar beside them is
-// what the row is for. "From the saved copy" ellipsised to "From the save…" at 390px — the label
-// that named the whole distinction, truncated on the width most staff read the card at. The heading
-// above carries the question, so the rows only have to name the two answers; the fuller wording
-// survives in `sub`, which is the bar's accessible description.
-export const READY_SOURCES = /** @type {const} */ ([
-    { metric: 'readyCached',  label: 'Saved copy', sub: 'a grid the device already held' },
-    { metric: 'readyFetched', label: 'The server', sub: 'a grid that waited for the read' },
-]);
-
-/** @param {Record<string, number>} samples @param {{page: string}} opts */
-export function summariseReadySource(samples, { page }) {
-    return _summariseMetricRows(samples, page, READY_SOURCES);
-}
-
 /**
  * WHAT A MEMBER SEES BEFORE THE SIGN-IN CHECK (v24.85) — the moment their shifts first appear.
  *
  * Since v24.59 the Calendar paints a signed-in member's own roster from the copy kept on their phone
- * (calendar-snapshot.js) before the check answers, and nothing timed it. Every rung of the ladder
- * above comes after that check, so "Shifts shown" reported the wait for the CONFIRMED roster as
- * though it were the wait to see one, and the card could not say whether the stored copy was doing
- * its job.
- *
- * Not a rung, deliberately: it is a different path, not a later step on the same one, and on the
- * ladder it would sit above "Recognised" while the ladder's note says its rows run in order. It is
- * reported only when the copy was painted — the member's own calendar, signed in, a copy under 14
- * days old; Team View, the station PIN and a first visit have none — so its count is also how often
- * the copy got the chance.
+ * (calendar-snapshot.js) before the check answers, and nothing timed it: "Usable" times the grid
+ * AFTER that check, so it reported the wait for the confirmed roster as though it were the wait to
+ * see one, and the card could not say whether the stored copy was doing its job. It is reported only
+ * when the copy was painted — the member's own calendar, signed in, a copy under 14 days old; Team
+ * View, the station PIN and a first visit have none — so its count is also how often the copy got
+ * the chance. One of the four readings the App Speed card kept when it was trimmed (Oct 2026): the
+ * copy is new, and this is its only instrument.
  */
 export const EARLY_ROSTER = /** @type {const} */ ([
-    { metric: 'rosterSnapshot', label: 'Own roster', sub: 'a member\u2019s own roster, from the copy on their phone' },
+    { metric: 'rosterSnapshot', label: 'Own roster', sub: 'from opening the Calendar until the stored copy was on screen' },
 ]);
 
 /** @param {Record<string, number>} samples @param {{page: string}} opts */
@@ -465,153 +353,162 @@ export function summariseEarlyRoster(samples, { page }) {
 /** The first app version that reports `rosterSnapshot`. Opens on an older version cannot. */
 export const EARLY_ROSTER_FROM = '24.85';
 
-/**
- * How often a member was shown the stored copy: `rosterSnapshot` over `ready`, BOTH counted only on
- * versions at or after EARLY_ROSTER_FROM — a whole percent, or null with nothing to divide or over
- * 100% (the two are counted on different paths). Every version's `ready` was the divisor until v24.89
- * (the 48-hour review), so the month the metric shipped printed 19% for a true 60%.
- * @param {Record<string, number>} samples @param {{ page: string }} opts @returns {number|null}
- */
-export function earlyRosterShare(samples, { page }) {
-    // '24_85', 'v24.85' and '24.85' all read 2485; an unreadable version reads 0, below every release.
-    const num = (/** @type {string|undefined} */ v) => { const m = /^v?(\d+)[._](\d+)/i.exec(String(v ?? '')); return m ? Number(m[1]) * 100 + Number(m[2]) : 0; };
-    const counted = Object.fromEntries(Object.entries(samples || {}).filter(([k]) => num(parsePerfSampleKey(k).version) >= num(EARLY_ROSTER_FROM)));
-    const shown = summariseEarlyRoster(counted, { page }).rows[0]?.total || 0;
-    const ready = summariseStartMilestones(counted, { page }).rows.find(r => r.metric === 'ready')?.total || 0;
-    // The rows beside this figure wear "(few)" below THIN_SAMPLE; the share said "33%" over 3 opens
-    // until v24.96. No share until there are enough opens to make a claim.
-    const pct = shown && ready >= THIN_SAMPLE ? Math.round((shown / ready) * 100) : null;
-    return pct !== null && pct <= 100 ? pct : null;
+/** A stored version as one comparable number: '24_85', 'v24.85' and '24.85' all read 2485; an
+ *  unreadable one reads 0, below every release. @param {string|undefined} v */
+function _versionNum(v) {
+    const m = /^v?(\d+)[._](\d+)/i.exec(String(v ?? ''));
+    return m ? Number(m[1]) * 100 + Number(m[2]) : 0;
+}
+
+/** The samples written by app versions at or after `from`.
+ *  @param {Record<string, number>} samples @param {string} from @returns {Record<string, number>} */
+function _fromVersion(samples, from) {
+    const floor = _versionNum(from);
+    return Object.fromEntries(Object.entries(samples || {}).filter(([k]) => _versionNum(parsePerfSampleKey(k).version) >= floor));
+}
+
+/** How many valid samples one page holds for one metric. @param {Record<string, number>} samples
+ *  @param {string} page @param {string} metric */
+function _metricTotal(samples, page, metric) {
+    let n = 0;
+    for (const [key, raw] of Object.entries(samples || {})) {
+        const c = _count(raw);
+        if (!c) continue;
+        const p = parsePerfSampleKey(key);
+        if (p.page === page && p.metric === metric && _BUCKET_GROUP[p.bucket]) n += c;
+    }
+    return n;
 }
 
 /**
- * OPENS A RELEASE CAUSED (v22.92) — the reading v22.90 shipped without.
+ * A share in words: "under 1%" for one that is real but rounds to nothing (it printed "0%" beside a
+ * row of 1 open), "over 99%" for one that rounds up to a whole it is not, otherwise the whole percent.
+ * Null with nothing to divide, or a part LARGER than its whole — judged on the raw counts, because the
+ * old check ran on the rounded figure and let 251 of 250 through as "100%".
+ * @param {number} part @param {number} whole @returns {string|null}
+ */
+export function shareLabel(part, whole) {
+    if (!(part > 0) || !(whole > 0) || part > whole) return null;
+    const pct = (part / whole) * 100;
+    if (pct < 1) return 'under 1%';
+    if (pct > 99 && part < whole) return 'over 99%';
+    return `${Math.round(pct)}%`;
+}
+
+/**
+ * A band's whole percentage as a narrow column prints it — `shareLabel`'s rule in three characters.
+ * The rounded figure alone lies at both ends: 1 open in 400 rounds to "0%", which reads as none at
+ * all, and 399 in 400 to "100%", which reads as every one (App Speed review, Oct 2026).
+ * @param {number} pct the rounded percentage @param {number} count the opens in the band
+ * @param {number} total @returns {string}
+ */
+export function compactPct(pct, count, total) {
+    if (count > 0 && pct === 0) return '<1%';
+    if (count < total && pct === 100) return '>99%';
+    return `${pct}%`;
+}
+
+/**
+ * How often a member was shown the stored copy, in words: `rosterSnapshot` over `ready`, BOTH counted
+ * only on versions at or after EARLY_ROSTER_FROM, and only once there are enough opens to make a
+ * claim (THIN_SAMPLE — the share said "33%" over 3 opens until v24.96). Every version's `ready` was
+ * the divisor until v24.89, so the month the metric shipped printed 19% for a true 60%.
+ * @param {Record<string, number>} samples @param {{ page: string }} opts @returns {string|null}
+ */
+export function earlyRosterShareLabel(samples, { page }) {
+    const counted = _fromVersion(samples, EARLY_ROSTER_FROM);
+    const ready = _metricTotal(counted, page, 'ready');
+    if (ready < THIN_SAMPLE) return null;
+    return shareLabel(_metricTotal(counted, page, 'rosterSnapshot'), ready);
+}
+
+/**
+ * AFTER A RELEASE — how long a person waited for a page an update had just reloaded (v22.92; timed
+ * as the WAIT since Oct 2026).
  *
- * Deferring the update reload until the member looks away removed a cost nobody could size. This is
- * how it gets sized: `readyUpdate` is written beside `ready`, from the same bucket on the same path,
- * whenever the load followed an update.
+ * The Calendar reloads onto an update while nobody is looking (sw-register.js, `deferWhileVisible`),
+ * so the load itself kept nobody waiting and its full time was a background figure. From
+ * UPDATE_OPENS_FROM such a reload is timed as the wait the member actually had — from coming back to
+ * the page until it was usable. A release reload somebody watched from its start (a page that asked
+ * first, or reloaded while idle in view) is timed from the start, as any open is, so it is counted in
+ * "Usable" too. Older versions timed the background load itself, so the block reads only from this
+ * version on: two different measurements in one bar would be neither.
  *
- * **It is a SUBSET of `ready`, not a split of it** — the opposite relation to `READY_SOURCES` above,
- * and the card must say which it is or the reader will apply the wrong arithmetic to whichever block
- * they met second. Because it is a subset, the counts divide cleanly: this row's total over the
- * ladder's `ready` total is the share of opens that followed a release.
- *
- * ONE ROW, deliberately. The complement ("opens no release caused") would be a second sample on
- * every load, on every page, to carry a number `ready` already holds — writes bought for a
- * subtraction. And it is not rendered next to a re-drawn `ready` bar either: the ladder above
- * already draws that one, and the same figure twice on one card is how a card comes to state it two
- * ways.
+ * No share of all opens any more: a background reload is not in `ready` (nobody was watching it),
+ * so the two counts are different populations and their ratio would mean nothing.
  */
 export const UPDATE_OPENS = /** @type {const} */ ([
-    { metric: 'readyUpdate', label: 'After a release', sub: 'the open that followed an update installing' },
+    { metric: 'readyUpdate', label: 'Until usable', sub: 'from coming back to the page, or from the reload if somebody watched it' },
 ]);
+
+/** The first app version that times `readyUpdate` as the wait. MUST be the release that ships the
+ *  recorder change (perf-reporter.js); an earlier figure would mix two measurements. */
+export const UPDATE_OPENS_FROM = '24.98';
 
 /** @param {Record<string, number>} samples @param {{page: string}} opts */
 export function summariseUpdateOpens(samples, { page }) {
-    return _summariseMetricRows(samples, page, UPDATE_OPENS);
+    return _summariseMetricRows(_fromVersion(samples, UPDATE_OPENS_FROM), page, UPDATE_OPENS);
 }
 
 /**
- * OPENS THAT DID NOT WAIT FOR THE IDENTITY CHECK (v23.69) — the reading v22.97 shipped without.
- *
- * **HISTORIC SINCE 26 SEP 2026.** The fast path it measured was retired that day (DECISIONS.md →
- * "The provisional paint"), and nothing writes `readyProvisional` now; this summary reads the months
- * that already hold it, and returns no rows — so the card renders no block — once none do.
- *
- * The fast path showed a returning member their own cached roster while `accounts:lookup` was still
- * in flight. `LATENCY.md` predicted that
- * would pull `Shifts shown` off `Recognised` for cache-served starts, and the September 2026 card
- * showed no such movement — 78% over a second before, 77% after.
- *
- * **That reading cannot be acted on, because two incompatible explanations fit it exactly.** Either
- * the path rarely fires (most opens are on a version that does not have it, or are PIN unlocks and
- * colleagues' rosters, which it refuses by design) — in which case the identity finding stands and
- * nothing is wrong; or it fires constantly and buys nothing — in which case the finding this plan
- * spent a month establishing is wrong. A month more of the same aggregate cannot separate them.
- *
- * This row does, and it is the only thing that does: **its TOTAL answers how often, its
- * DISTRIBUTION answers whether it helped.** A SUBSET of `ready` in the `UPDATE_OPENS` mould — same
- * bucket, same code path, same load — so the counts divide and the speeds compare directly.
- *
- * ONE ROW, like the release block and for the same reason: the complement is `ready` minus this,
- * and buying a second sample on every load to save a subtraction is the trade that block already
- * refused.
+ * THE MONTH THE MEASUREMENT CHANGED (Oct 2026). From CLEAN_TIMINGS_FROM a load nobody watched, and
+ * time somebody spent typing, are left out of every page timing (perf-reporter.js); older versions
+ * counted both. A month holding enough opens from older versions mixes the two, and the card says
+ * so rather than presenting the improvement as the app getting faster.
  */
-// A SHORT label, by `READY_SOURCES`' rule above and its measured lesson: the label column is
-// `minmax(76px, 27%)`, and "Shown before the check" ellipsises at 390px to something that names
-// nothing. The HEADING carries the question; the row only has to name the answer, and `sub` — the
-// bar's accessible description — carries the full sentence.
-export const PROVISIONAL_OPENS = /** @type {const} */ ([
-    { metric: 'readyProvisional', label: 'Shown early', sub: 'a saved roster up before the sign-in was confirmed' },
-]);
-
-/** @param {Record<string, number>} samples @param {{page: string}} opts */
-export function summariseProvisionalOpens(samples, { page }) {
-    return _summariseMetricRows(samples, page, PROVISIONAL_OPENS);
-}
-
-// ── HOW MUCH THE SERVICE WORKER WAS DOING (v23.00) ──────────────────────────────────────────────
-//
-// `swrCount` and `readyHeavySwr` were written from v22.94 and read by NOTHING until this block:
-// every Calendar load asked the worker for its revalidation count and wrote the answer to
-// Firestore, and no surface could show it. That is the worst of the three states an instrument can
-// be in — it kept costing writes and could not answer the question it was built for. Found by an
-// external review of the release that added it.
-//
-// TWO METRICS, TWO DIFFERENT SHAPES, and this is the thing not to tidy into one:
-//   · `swrCount` is a DISTRIBUTION OVER COUNT BANDS — how many revalidations a boot carried. Its
-//     buckets are `SWR_COUNT_BUCKETS`, not durations, so `_summariseMetricRows` cannot read it:
-//     that function bands through `_BUCKET_GROUP`, which knows only quick/ok/slow, and every row
-//     would silently total zero and be dropped. Hence its own summariser below.
-//   · `readyHeavySwr` is a SUBSET OF `ready`, banded by DURATION exactly like `readyUpdate` — so it
-//     uses the shared body and is directly comparable with the ladder's own `Shifts shown` row.
-//
-// Together they answer the demoted-but-open hypothesis in LATENCY.md: does a boot carrying a
-// full revalidation sweep reach the roster more slowly than one that does not?
-export const HEAVY_SWR_OPENS = /** @type {const} */ ([
-    { metric: 'readyHeavySwr', label: 'Worker busy', sub: 'the open where the worker was rechecking 31+ files' },
-]);
-
-/** @param {Record<string, number>} samples @param {{page: string}} opts */
-export function summariseHeavySwrOpens(samples, { page }) {
-    return _summariseMetricRows(samples, page, HEAVY_SWR_OPENS);
-}
+export const CLEAN_TIMINGS_FROM = '24.98';
 
 /**
- * The `swrCount` distribution for one page, in `SWR_COUNT_BUCKETS` order.
- *
- * A band with no samples is OMITTED rather than rendered as zero — the same rule the rest of this
- * file follows, and it matters most here: `'0'` means "the worker rechecked nothing", which is a
- * real and reassuring answer, so a manufactured zero would be indistinguishable from the finding.
- * `askSwrCount` never records a band it could not establish, so anything absent is genuinely
- * unobserved rather than observed-as-none.
- *
- * @param {Record<string, number>} samples
- * @param {{page: string}} opts
- * @returns {{ total: number, rows: Array<{ band: string, count: number, pct: number }> }}
+ * The share of a month's code-loaded opens (`domReady` — recorded on every watched open, on every
+ * page) written by versions BEFORE `from`. 0 when there is nothing to divide.
+ * @param {Record<string, number>} samples @param {string} [from] @returns {number}
  */
-export function summariseSwrCounts(samples, { page }) {
-    /** @type {Record<string, number>} */
-    const perBand = {};
+export function shareMeasuredBefore(samples, from = CLEAN_TIMINGS_FROM) {
+    const floor = _versionNum(from);
+    let before = 0, all = 0;
     for (const [key, raw] of Object.entries(samples || {})) {
-        const n = Number(raw);
-        if (!Number.isFinite(n) || n <= 0) continue;
-        const parsed = parsePerfSampleKey(key);
-        if (parsed.page !== page || parsed.metric !== 'swrCount') continue;
-        if (!SWR_COUNT_BUCKETS.includes(parsed.bucket)) continue;   // an unknown band is not a band
-        perBand[parsed.bucket] = (perBand[parsed.bucket] || 0) + n;
+        const n = _count(raw);
+        if (!n) continue;
+        const p = parsePerfSampleKey(key);
+        if (p.metric !== 'domReady' || !_BUCKET_GROUP[p.bucket]) continue;
+        all += n;
+        if (_versionNum(p.version) < floor) before += n;
     }
-    const total = Object.values(perBand).reduce((a, b) => a + b, 0);
-    const rows = SWR_COUNT_BUCKETS
-        .filter(b => perBand[b])
-        .map(b => ({ band: b, count: perBand[b], pct: total ? Math.round((perBand[b] / total) * 100) : 0 }));
-    return { total, rows };
+    return all ? before / all : 0;
+}
+
+/** Firestore refuses a document over 1 MiB, or with more than 20,000 fields — every entry of a map
+ *  is a field. */
+const PERF_RECORD_LIMIT_BYTES = 1024 * 1024;
+const PERF_RECORD_LIMIT_FIELDS = 20000;
+
+/**
+ * How full the month's record is, as a fraction of whichever Firestore limit is nearer (1 = full).
+ *
+ * Every release adds keys, because the version is part of each one — September shipped about a
+ * hundred versions — and once the record is full the merged write that adds to it is refused, the
+ * app swallows the error as it must, and the card simply stops changing for the rest of the month.
+ * Nothing else would show that, so the card states the figure (App Speed review, Oct 2026).
+ *
+ * Bytes by Firestore's own sizing rules: a field name is its UTF-8 length plus one, a count is 8
+ * bytes, and the document's name, its `month` field and the `samples` map itself come to under 128.
+ * Unindexing the counters (firestore.indexes.json) lifted the 40,000-index-entry ceiling, which was
+ * the nearest; these two are what is left.
+ * @param {Record<string, number>} samples @returns {number}
+ */
+export function perfRecordFullness(samples) {
+    const keys = Object.keys(samples || {});
+    const encoder = new TextEncoder();
+    let bytes = 128;
+    for (const key of keys) bytes += encoder.encode(key).length + 1 + 8;
+    // +2 fields: `month`, and the `samples` map itself.
+    return Math.max(bytes / PERF_RECORD_LIMIT_BYTES, (keys.length + 2) / PERF_RECORD_LIMIT_FIELDS);
 }
 
 /**
- * The shared body. Extracted rather than copied when the ready-source split arrived: the bucket
- * banding, the thin-sample total and the deliberately-inverted `pctOver1s` are one reading, and two
- * copies of them is how a card comes to state the same figure two ways.
+ * The shared body of the closer-look rows. One function, not one per block: the bucket banding, the
+ * thin-sample total and the deliberately-inverted `pctOver1s` are one reading, and two copies of them
+ * is how a card comes to state the same figure two ways.
  * @param {Record<string, number>} samples @param {string} page
  * @param {ReadonlyArray<{metric: string, label: string, sub: string}>} wanted
  */
@@ -619,8 +516,8 @@ function _summariseMetricRows(samples, page, wanted) {
     /** @type {Record<string, Record<string, number>>} */
     const perMilestone = {};
     for (const [key, raw] of Object.entries(samples || {})) {
-        const n = Number(raw);
-        if (!Number.isFinite(n) || n <= 0) continue;
+        const n = _count(raw);
+        if (!n) continue;
         const parsed = parsePerfSampleKey(key);
         if (parsed.page !== page) continue;
         if (!wanted.some(m => m.metric === parsed.metric)) continue;
@@ -641,106 +538,13 @@ function _summariseMetricRows(samples, page, wanted) {
         if (!p.total) continue;
         rows.push({
             metric: milestone.metric, label: milestone.label, sub: milestone.sub,
-            // The share OVER a second — the complement of pctQuick, and deliberately that way round.
-            // Every other block in this section states a bad-when-high number ("over ½s", "over 1s"),
-            // so a good-when-high column here would flip the reading direction halfway down one
-            // section with nothing but the header to say so. Same band as the neighbouring splits.
-            pctOver1s: p.total ? Math.round(((p.ok + p.slow) / p.total) * 100) : 0,
-            ...p,
-        });
-        grand = Math.max(grand, p.total);
-    }
-    return { total: grand, rows };
-}
-
-export const BOOT_PHASES = /** @type {const} */ ([
-    { metric: 'swBoot',  label: 'Waking up',     sub: 'the saved offline copy starting' },
-    { metric: 'sdkLoad', label: 'Loading code',  sub: 'the shared code every page needs' },
-    { metric: 'appBoot', label: 'Getting ready', sub: 'this page’s own code' },
-]);
-
-/**
- * Compute the three boot-phase durations (ms) from a PerformanceNavigationTiming entry and the
- * 'myb-sdk-ready' mark time. PURE — the reporter passes the raw numbers in. Any phase that cannot
- * be computed honestly is NaN, which bucketDuration then skips:
- *   - no service worker on this load (workerStart 0 — e.g. the very first visit) → no swBoot;
- *   - no SDK mark (Performance API unavailable, or a page that never loads firebase-client) → no
- *     sdkLoad/appBoot rather than a mislabelled span.
- * Negative spans (clock weirdness, an unpopulated field) also come out NaN-safe via the <= 0 guard
- * in bucketDuration — never clamped to a fake fast sample.
- * @param {{ workerStart?: number, responseStart?: number, domContentLoadedEventEnd?: number }} nav
- * @param {number|undefined} sdkMarkMs  the mark's startTime (ms from timeOrigin), if present
- * @returns {{ swBoot: number, sdkLoad: number, appBoot: number }}
- */
-export function bootPhases(nav, sdkMarkMs) {
-    const n = nav || {};
-    const worker   = Number(n.workerStart);
-    const response = Number(n.responseStart);
-    const dcl      = Number(n.domContentLoadedEventEnd);
-    const mark     = Number(sdkMarkMs);
-    return {
-        swBoot:  worker > 0 && response > 0 ? response - worker : NaN,
-        sdkLoad: mark > 0 && response > 0   ? mark - response   : NaN,
-        appBoot: mark > 0 && dcl > 0        ? dcl - mark        : NaN,
-    };
-}
-
-/**
- * Summarise the boot-phase samples for ONE page: per phase, how many loads there were and what
- * fraction ran long.
- *
- * **The bands here are PHASE-scaled, deliberately finer than the card's load bands** — green under
- * ½s, amber ½–1s, red over 1s — because a single PHASE eating 500ms+ is precisely what pushes a
- * whole open into the load-level amber, while the load bands would paint an 800ms stage green and
- * make the block deny its own finding. The first render proved this the v20.19 way, mirrored: the
- * stated number (40% over ½s) sat beside a load-banded bar showing 15% non-green, and a number
- * disagreeing with the bar next to it is the exact defect that rule exists for. So the number IS
- * the complement of the bar's green — same grammar as every other row on the card — and the block
- * states its own bands rather than borrowing the card legend's.
- *
- * The three band shares are exposed as `pctQuick`/`pctOk`/`pctSlow` — the same property names every
- * other row uses — so the card's one bar builder renders these rows unchanged. The MEANING of each
- * band differs (declared in the block's note + each bar's aria-label); the names are kept because a
- * second bar builder for one block is how render code drifts.
- *
- * Phases with no samples are omitted (a pre-v20.33 client records none — the card must not render
- * empty scaffolding for them).
- * @param {Record<string, number>} samples raw `analytics/perf_<month>.samples`
- * @param {{ page: string }} opts
- * @returns {{ total: number, rows: Array<{ metric: string, label: string, sub: string, total: number,
- *   quick: number, ok: number, slow: number, pctQuick: number, pctOk: number, pctSlow: number,
- *   pctOver500: number }> }}
- */
-export function summariseBootPhases(samples, { page }) {
-    /** @type {Record<string, Record<string, number>>} */
-    const perPhase = {};
-    for (const [key, raw] of Object.entries(samples || {})) {
-        const n = Number(raw);
-        if (!Number.isFinite(n) || n <= 0) continue;
-        const parsed = parsePerfSampleKey(key);
-        if (parsed.page !== page) continue;
-        if (!BOOT_PHASES.some(p => p.metric === parsed.metric)) continue;
-        (perPhase[parsed.metric] || (perPhase[parsed.metric] = {}))[parsed.bucket] =
-            (perPhase[parsed.metric]?.[parsed.bucket] || 0) + n;
-    }
-    const rows = [];
-    let grand = 0;
-    for (const phase of BOOT_PHASES) {
-        const buckets = perPhase[phase.metric];
-        if (!buckets) continue;
-        // Phase bands: under ½s / ½–1s / 1s+. The stored buckets split exactly there (lt500ms,
-        // 500ms-1s, then everything from 1-3s up), so no information is invented.
-        const g = { quick: 0, ok: 0, slow: 0 };
-        for (const [bucket, n] of Object.entries(buckets)) {
-            if (!PERF_BUCKETS.includes(bucket)) continue;
-            const band = bucket === 'lt500ms' ? 'quick' : bucket === '500ms-1s' ? 'ok' : 'slow';
-            g[band] += n;
-        }
-        const p = _withPct(g);
-        if (!p.total) continue;
-        rows.push({
-            metric: phase.metric, label: phase.label, sub: phase.sub,
-            pctOver500: p.total ? Math.round(((p.total - p.quick) / p.total) * 100) : 0,
+            // The share OVER a second — the complement of pctQuick, and deliberately that way round:
+            // every column in the section states a bad-when-high number. Derived from the DISPLAYED
+            // pctQuick, as the breakdown rows do, so the same split never reads 87% in one block and
+            // 88% in another (it was rounded separately until Oct 2026). `over1s` is the count behind
+            // it, which is what tells a real "under 1%" from a true zero.
+            pctOver1s: 100 - p.pctQuick,
+            over1s: p.ok + p.slow,
             ...p,
         });
         grand = Math.max(grand, p.total);
@@ -753,11 +557,15 @@ export function summariseBootPhases(samples, { page }) {
  *   'login' = signing in · 'fcp' = a page first appearing on screen · 'pages' = the page's CODE
  *   finishing (DOMContentLoaded) · 'ready' = the page's own content actually on screen.
  *
- * `ok` is a wide band — under a fifth slow and under four fifths quick — so it carries TWO sentences,
- * chosen by which band is larger (v24.85). With one, a month of 8% quick, 79% "a moment" and 13%
- * slow read "Signing in mostly feels quick" directly beside its own 8%. `moment` is the other one,
- * worded "most often" because the larger band can be anything above 40%; `momentSlow` adds the tail
- * only when something actually was slow, so a sentence never mentions slower loads there were none of.
+ * `ok` is a wide band — under a fifth slow and not green — so it carries several sentences, chosen by
+ * which band is larger and whether quick is a majority (`perfVerdict`; v24.85, v24.96, Oct 2026). With
+ * one, a month of 8% quick, 79% "a moment" and 13% slow read "Signing in mostly feels quick" directly
+ * beside its own 8%. `mixed` is quick as the largest band without being half; `moment` is worded "most
+ * often" because the larger band can be anything above 40%; `momentSlow` adds the tail only when
+ * something actually was slow, so a sentence never mentions slower loads there were none of.
+ *
+ * `none` and `thin` name no month (Oct 2026): the headline renders in the Last-month view too, where
+ * "not enough data yet — this builds up as staff use the app" described a month that was over.
  *
  * `pages` and `ready` used to be the same claim and are not (v20.80). DCL fires when the module
  * scripts finish; the Calendar's access decision is asynchronous, so it can land while the page is
@@ -771,8 +579,9 @@ const VERDICT_TEXT = {
         moment:     'The app\u2019s code most often takes a moment to load.',
         momentSlow: 'The app\u2019s code most often takes a moment to load, and sometimes longer.',
         bad:  'The app\u2019s code is taking too long to load for some staff.',
-        none: 'Not enough data yet — this builds up as staff use the app.',
-        thin: 'Too few page opens yet to read as a trend.',
+        mixed:      'The app\u2019s code loads quickly on under half of opens; the rest take a moment or longer.',
+        none: 'No page opens recorded for this period.',
+        thin: 'Too few page opens to read as a trend.',
     },
     ready: {
         good: 'Pages become usable quickly for staff.',
@@ -780,8 +589,9 @@ const VERDICT_TEXT = {
         moment:     'Pages most often take a moment to become usable.',
         momentSlow: 'Pages most often take a moment to become usable, and some take longer.',
         bad:  'Some staff are waiting too long before a page is usable.',
-        none: 'Not enough data yet — only pages that report this milestone are counted.',
-        thin: 'Too few page opens yet to read as a trend.',
+        mixed:      'Pages are usable quickly on under half of opens; the rest take a moment or longer.',
+        none: 'No usable-page timings for this period \u2014 only pages that report this moment are counted.',
+        thin: 'Too few page opens to read as a trend.',
     },
     fcp: {
         good: 'Pages appear on screen almost instantly.',
@@ -789,8 +599,9 @@ const VERDICT_TEXT = {
         moment:     'Pages most often take a moment to appear.',
         momentSlow: 'Pages most often take a moment to appear, and some take longer.',
         bad:  'Some staff wait too long before anything appears on screen.',
-        none: 'Not enough data yet — this builds up as staff use the app.',
-        thin: 'Too few page opens yet to read as a trend.',
+        mixed:      'Pages appear quickly on under half of opens; the rest take a moment or longer.',
+        none: 'No page opens recorded for this period.',
+        thin: 'Too few page opens to read as a trend.',
     },
     login: {
         good: 'Signing in is quick for staff.',
@@ -798,8 +609,9 @@ const VERDICT_TEXT = {
         moment:     'Sign-ins most often take a moment.',
         momentSlow: 'Sign-ins most often take a moment, and some take longer.',
         bad:  'Signing in is taking too long for some staff.',
+        mixed:      'Under half of sign-ins are quick; the rest take a moment or longer.',
         none: 'No sign-ins recorded for this period.',   // month-neutral: this headline also renders in the Last-month view (v16.22)
-        thin: 'Too few sign-ins yet to read as a trend.',
+        thin: 'Too few sign-ins to read as a trend.',
     },
 };
 
@@ -820,11 +632,18 @@ export const THIN_SAMPLE = 20;
 
 /**
  * One-line plain-English verdict for the overall speed, with a status tone for colour. Thresholds:
- * ≥20% slow → bad; else ≥80% quick → good; else ok — whose sentence says "mostly quick" only when
- * quick is a MAJORITY of the opens (v24.96: v24.85 made it the larger band, and at 41% quick / 40% a
- * moment / 19% slow — 59% over a second — it still read "mostly feels quick"; raw counts, because the
- * rounded percentages tie at 99 / 100 / 1), and "most often a moment" otherwise. Empty → a "still
- * building up" message.
+ * ≥20% slow → bad; else ≥80% quick AND under 10% slow → good; else ok, with one of THREE sentences:
+ *   · `ok` ("mostly quick") only when quick is the larger band AND at least half (v24.96 — at
+ *     41 / 40 / 19 it read "mostly feels quick" over 59% of opens taking longer than a second);
+ *   · `mixed` when quick is the larger band but under half (Oct 2026 — those fell to "most often take
+ *     a moment", so 124 / 100 / 26 and 50 / 40 / 10 showed the same 50% · 40% · 10% under two
+ *     different sentences, the first of them false);
+ *   · `moment` when "a moment" is at least as common as quick.
+ * Raw counts decide the bands, because rounded percentages can tie (99 / 100 / 1).
+ *
+ * GREEN NEEDS THE TAIL SMALL TOO (Oct 2026): 81 / 0 / 19 was "quick for staff" in green while 80 / 0
+ * / 20 was red — one point between the two ends of the scale, with nearly a fifth of opens over three
+ * seconds under the green one. Empty → `none`.
  *
  * A total below `THIN_SAMPLE` short-circuits to `thin` BEFORE any of those, because a verdict is a
  * claim and there is not enough here to make one. The percentage is still shown beside it — the
@@ -837,9 +656,10 @@ export function perfVerdict(overall, kind = 'pages') {
     const text = VERDICT_TEXT[kind] || VERDICT_TEXT.pages;
     if (!overall || !overall.total) return { tone: 'none', text: text.none };
     if (overall.total < THIN_SAMPLE) return { tone: 'thin', text: text.thin };
-    if (overall.pctSlow >= 20)  return { tone: 'bad',  text: text.bad };
-    if (overall.pctQuick >= 80) return { tone: 'good', text: text.good };
+    if (overall.pctSlow >= 20) return { tone: 'bad', text: text.bad };
+    if (overall.pctQuick >= 80 && overall.pctSlow < 10) return { tone: 'good', text: text.good };
     if (overall.quick > overall.ok && overall.quick * 2 >= overall.total) return { tone: 'ok', text: text.ok };
+    if (overall.quick > overall.ok) return { tone: 'ok', text: text.mixed };
     return { tone: 'ok', text: overall.pctSlow ? text.momentSlow : text.moment };
 }
 

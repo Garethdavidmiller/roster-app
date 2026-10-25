@@ -796,6 +796,10 @@ are architecture/App-Check territory or inherent platform behaviour, not bugs to
   The rules already validate
   SHAPE + block key-removal (the destructive wipe); per-value integrity is **App Check territory**
   (see below) on non-sensitive, admin-only aggregate counts. The `pv_` counts *are* int-checked.
+  **The App Speed card now refuses what cannot be a count** (Oct 2026): a value is read only when it is
+  a whole number under a million (`perf-stats.js`), so `true`, `"7"` or 1e308 no longer reach the card
+  as opens — two of the last printed "∞ page opens". A forged but PLAUSIBLE count is still
+  indistinguishable from a real one; that half remains App Check territory.
 - **~~A late-resolving sign-in can briefly strand a privileged Firebase identity~~ — CLOSED at
   v24.38.** A `signInWithEmailAndPassword` that resolves *after* an 8 s login timeout / `clearSession`
   used to leave `auth.currentUser` signed in until the next launch — Firebase sign-in is not
@@ -813,6 +817,19 @@ are architecture/App-Check territory or inherent platform behaviour, not bugs to
   injection is far lower-risk than script (which is fully locked down, no `'unsafe-inline'`). And the
   `connect-src` `firebasestorage.googleapis.com` entry is redundant under the `*.googleapis.com`
   wildcard but kept for explicit readability (harmless; the hygiene test tolerates it).
+
+### The App Speed record can fill in a month of many releases — shown, not prevented (Oct 2026)
+
+Each month's speed counters live in ONE Firestore document, keyed by app version among other things,
+so every release adds keys — September 2026 shipped about a hundred versions. Firestore refuses a
+document over 1 MiB or 20,000 fields, and the write that would cross either is refused; the app
+swallows that error, as best-effort analytics must, so the card would simply stop changing for the rest
+of the month. Two things changed: the counters are exempt from indexing (`firestore.indexes.json`),
+which removed the nearer 40,000-index-entry ceiling, and the card states how full this month's record
+is (`perfRecordFullness`), in amber from three quarters. **Not built: a cure** — the cheapest is to stop
+recording the connection class, which every key carries and nothing has read since the card stopped
+comparing connections (v24.98); the others are sharding the record by week, or folding old versions
+into one key. Nothing yet says the limit is near; the line is how anyone would find out.
 
 ### The App Speed card's "First appears" cannot mean the roster (v20.80) — inherent
 
@@ -833,9 +850,10 @@ What remains inherent:
 - **"First appears" is still the splash.** Kept because it is genuinely useful — it is the
   difference between a slow network and a slow app — but it is not "the member can see their
   roster", and reading it as that is the trap this note exists to close.
-- **"Usable" can be a smaller population.** All seven pages mark it now (`markPageReady`); Overtime
-  skips the mark when its own state read fails, so its cell can still show a dash rather than a
-  number. The smaller total is not fewer opens.
+- **"Usable" is a smaller population.** Every page marks it (`markPageReady`), but from v24.98 an
+  open where somebody had to sign in or type the staff PIN first records no "Usable" (its sign-in is
+  the figure), and Overtime skips the mark when its own state read fails, so its cell can still show
+  a dash rather than a number. The smaller total is not fewer opens.
 - **Historic data cannot be backfilled.** The metric starts at v20.80, so a month-over-month
   comparison across that line has no "Usable" figure on the earlier side.
 

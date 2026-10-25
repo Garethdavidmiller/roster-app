@@ -56,7 +56,7 @@ import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady } from './perf-reporter.js';
+import { recordPageLatency, markPageReady, clearLoginStart } from './perf-reporter.js';
 import { SK, pcPrefix, periodKey, hppEstKey, hppActualKey, hppIncKey, ytdSrcKey, runMigrations, readPayslipActuals, isActualsDev, parseSavedPeriod } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fdLong, fmt, decimalToHM, minutesFieldText } from './paycalc-format.js';
@@ -167,6 +167,9 @@ export function init() {
     // bare `myb_pc_` namespace, i.e. the shared legacy keys of everyone on the device.
     const _roleMember = getLoggedMember();
     if (!_roleMember || !gradeForRole(_roleMember.role)) {
+      // No calculator follows, so nothing will read the sign-in timer: drop it, or the next page
+      // opened within two minutes would count this visit as its sign-in time (App Speed review).
+      clearLoginStart();
       _showUnsupportedRole(_roleMember ?? { name: getSession()?.name });
       return;
     }

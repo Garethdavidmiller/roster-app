@@ -68,11 +68,13 @@ export async function lazyImport(load) {
 // looks like two unremarkable opens. `perf-reporter.js` reads this marker on the NEXT load and
 // records a `readyUpdate` sample beside the ordinary `ready` one.
 //
-// A TIMESTAMP, not a flag, and the reason is the same one `LOGIN_T0_KEY` carries: the reload is not
-// certain when this is written. `run()` serves both paths, and a `beforeReload` may decline — links'
-// confirm offers Cancel. A bare flag would then sit in sessionStorage and mis-attribute whatever
-// that tab navigated to next. A timestamp lets the reader refuse a stale one, and the recency bound
-// lives THERE, beside the metric it protects, not here.
+// WRITTEN WHERE THE RELOAD ACTUALLY HAPPENS, AND NOWHERE ELSE (whole App Speed review, Oct 2026).
+// `run()` used to stamp it at controllerchange, before asking `beforeReload` — and a `beforeReload`
+// may decline (links' confirm offers Cancel) or hold the reload while the page is busy, so the
+// marker then sat in sessionStorage and labelled whatever that tab opened next. Every reload path
+// now stamps immediately before its own `reload()`: `reloadForUpdate`, `reloadWhileHidden`,
+// `reloadWhenNotBusy` and `lazyImport`. A TIMESTAMP still, not a flag: the reader compares it with
+// when its own load STARTED, so a marker that outlived its reload is refused there.
 //
 // sessionStorage, so it dies with the tab and never reaches another one. iOS private mode throws on
 // any access, hence the wrapper — and a failure here must never stop the reload, which is why this
@@ -100,8 +102,8 @@ let _hiddenReloadArmed = false;
  * @param {() => void} [reload]
  */
 export function reloadWhileHidden(reload = () => window.location.reload()) {
-    // Re-stamp the update marker as the reload actually runs: `run()` stamped at controllerchange,
-    // and on the re-armed path that can be hours earlier — past perf-reporter's 60s recency bound.
+    // Stamped as the reload actually runs (the marker's note, above): on the re-armed path that can be
+    // hours after the update arrived, and perf-reporter compares it with when the next load started.
     if (document.visibilityState === 'hidden') { markUpdateReload(); reload(); return; }
     if (_hiddenReloadArmed) return;   // one reload serves every update that arrives while they read
     _hiddenReloadArmed = true;
@@ -142,6 +144,17 @@ let _busyReloadArmed = false;
 /** Note that the reload about to happen was caused by an update. Best-effort; never throws. */
 function markUpdateReload() {
     try { sessionStorage.setItem(SW_RELOAD_KEY, String(Date.now())); } catch { /* sessionStorage unavailable */ }
+}
+
+/**
+ * Reload now, onto the update that has just claimed this page — and say so first, so the next load's
+ * speed sample knows a release caused it. For a `beforeReload` that reloads directly once it has its
+ * answer (links' confirm), and for the default path below.
+ * @param {() => void} [reload]
+ */
+export function reloadForUpdate(reload = () => window.location.reload()) {
+    markUpdateReload();
+    reload();
 }
 
 /**
@@ -240,11 +253,12 @@ export function registerServiceWorker({ beforeReload, bfcache = false, deferWhil
                     if (suppressNextClaim) { suppressNextClaim = false; return; }
                     _updateClaimed = true;
                     const run = () => {
-                        markUpdateReload();
+                        // NOT stamped here: a `beforeReload` may decline or wait, and each one stamps
+                        // where it actually reloads (the marker's note, above).
                         if (beforeReload) { beforeReload(); return; }
                         if (reloadFired) return;
                         reloadFired = true;
-                        window.location.reload();
+                        reloadForUpdate();
                     };
                     // ── A RELEASE MUST NOT TAKE THE PAGE AWAY WHILE SOMEBODY IS READING IT ──────
                     //

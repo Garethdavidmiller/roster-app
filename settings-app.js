@@ -174,10 +174,6 @@ export function init() {
     } else {
         initAuthorised();
     }
-    // Usable from here (v21.71) — either the cards are wired (initAuthorised) or the sign-in
-    // overlay is up, and BOTH are a page the member can act on. Marking only the signed-in branch
-    // would silently exclude every first visit, which is the slowest one there is.
-    markPageReady();
     // Hold a release's reload while a save is on its way (v24.61): the contact card's writes are
     // counted by slow-save, the password card's two-step write by the flag above.
     registerServiceWorker({ beforeReload: () => reloadWhenNotBusy(() => writesInFlight() > 0 || _passwordSaving), isBusy: () => writesInFlight() > 0 || _passwordSaving });
@@ -215,6 +211,12 @@ export function init() {
         guardNamedSession({ page: 'settings', pageLabel: 'Settings', member: currentUser, established: _setAuth });
         initApp();
         wireNavPanel();   // deduped by initNavPanel's navPanelInit guard if the nav was already wired above
+        // Usable from here: the cards are wired. On the sign-in path that is AFTER the sign-in, which
+        // is where the sign-in timing ends (perf-reporter.js). It was marked when the sign-in FORM
+        // appeared from v21.71 until the App Speed review (Oct 2026) — a second meaning of "usable"
+        // in one figure, and a mark before "Sign in" was pressed would leave that sign-in untimed. A
+        // load that asked somebody to type records no "usable" either way; its sign-in is the figure.
+        markPageReady();
     }
 
     // ── Main app init (runs when authenticated) ───────────────────────────────────

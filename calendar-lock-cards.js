@@ -77,6 +77,9 @@ export { PIN_FIRST_HASH };
  * @param {() => string} deps.getAccessType  Asked LIVE, never captured — see rule 2 in the header.
  * @param {(hidden: boolean) => void} deps.setWorkspaceHidden  The gate's own workspace switch.
  * @param {string} deps.unlockUrl  Warmed with a bare GET while the member types (see below).
+ * @param {() => void} [deps.onAwaitingInput]  Told when a card that asks somebody to type appears,
+ *   so the speed figures leave the typing out (perf-reporter.js `markAwaitingInput`). Injected, so
+ *   this module imports no telemetry.
  */
 export function initLockCards(deps) { _deps = deps; }
 
@@ -117,6 +120,7 @@ export function showLockPanel() {
     hideLockPanel();   // replace, never stack — see showMemberPanel
     document.body.classList.add('calendar-locked');
     _deps.setWorkspaceHidden(true);
+    _deps.onAwaitingInput?.();   // the page now waits for a person to type the PIN (perf-reporter.js)
 
     // ── Warm the exchange while the member is still typing (v20.45) ─────────────────────────────
     //
@@ -328,6 +332,7 @@ export function showMemberPanel(name, why = 'This device needs to sign you in ag
     hideLockPanel();
     document.body.classList.add('calendar-locked');
     _deps.setWorkspaceHidden(true);
+    _deps.onAwaitingInput?.();   // the page now waits for the member to sign in again (perf-reporter.js)
 
     // Same card, same ids for the button and the message channel, so both wear the styling the PIN
     // card already established — including `#calLockSubmit:disabled`, which is exactly the resting

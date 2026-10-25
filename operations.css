@@ -942,9 +942,6 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
        every row below stopped at 540px, so the card had two right edges ~80px apart and the rows
        read as unfinished. One measure, one edge. */
     .speed-verdict, .speed-bar--overall, .speed-legend { max-width: 540px; }
-    /* The connection group's rows sit inside a 2px rule + 12px indent; their own cap comes off by
-       the same 14px so the group's figures end on the card's one edge too. */
-    .speed-dim-group .speed-rows { max-width: calc(540px - 14px); }
     /* Header spans both columns */
     .app-header { grid-column: 1 / -1; }
 
@@ -1666,6 +1663,10 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     --speed-good: var(--success-green);
     --speed-ok:   color-mix(in oklch, var(--warning-amber) 42%, var(--accent-gold));
     --speed-bad:  var(--error-red);
+    /* NOT COLOUR ALONE (App Speed review, Oct 2026). To red-green colour blindness the green and the
+       red bands are close to one colour, and the "By page" bars carry no numbers at all — so the slow
+       band is STRIPED as well as red, in the bars and in the legend's key alike. */
+    --speed-bad-fill: repeating-linear-gradient(135deg, var(--speed-bad) 0 3px, color-mix(in oklch, var(--speed-bad) 55%, white) 3px 5px);
 }
 .speed-subhead {
     display: flex;
@@ -1687,10 +1688,25 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     margin-bottom: 14px;
 }
 .speed-verdict-num {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     font-size: var(--type-xl);
     font-weight: 800;
     line-height: 1;
     flex: none;
+}
+/* WHAT THE BIG NUMBER IS, in a word under it (App Speed review, Oct 2026). It is the share that was
+   QUICK, while the panel's colour comes from the share that was SLOW — so a red "46%" was read as
+   "46% bad". Muted, not the tone colour: at this size the tone colours are not all clear of AA on
+   their own tints, and the word is a caption, not a second figure. */
+.speed-verdict-cap {
+    font-size: var(--type-micro);
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-mid);
+    margin-top: 4px;
 }
 .speed-verdict-text { font-size: var(--type-small); line-height: 1.4; color: var(--text-dark); }
 .speed-verdict-sub  { display: block; color: var(--text-mid); margin-top: 2px; }
@@ -1716,35 +1732,46 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 .speed-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
 .speed-dot--good { background: var(--speed-good); }
 .speed-dot--ok   { background: var(--speed-ok); }
-.speed-dot--bad  { background: var(--speed-bad); }
+.speed-dot--bad  { background: var(--speed-bad-fill); }
 
 .speed-rows { display: flex; flex-direction: column; gap: 8px; }
 .speed-row {
     display: grid;
     grid-template-columns: minmax(90px, 38%) 1fr auto;
     align-items: center;
-    gap: 10px;
+    /* 2px between grid ROWS — the only second row is a row's explanation (`.speed-row-expl`), which
+       belongs to the line above it. */
+    gap: 2px 10px;
 }
-/* The NAME ellipsises; the "(few)" marker does not (v21.34).
-   Both were one nowrap-ellipsis span, so at 390px — the width this app is primarily used at —
-   "Settings (few)" truncated to "Settings (f…". The marker is the row's honesty caveat: it is
-   exactly the part that must survive, because a row reading "Settings" beside a confident full-green
-   bar is the claim the marker exists to withdraw. Flex with a shrinkable name and a fixed marker,
-   so the truncation lands on the part that can afford it. */
+/* The NAME WRAPS; the "(few)" marker never splits (v21.34; wrapping since Oct 2026).
+   Both were one nowrap-ellipsis span, so at 390px "Settings (few)" truncated to "Settings (f…" —
+   and the marker is the row's honesty caveat, the part that must survive. v21.34 made the name the
+   part that ellipsised instead, and that still cut "Shifts s…" at 375px and five labels at 320px,
+   which is a label that cannot be read. So the name wraps onto a second line, and the marker drops
+   beneath it whole when the two do not fit side by side. */
 .speed-row-label {
     font-size: var(--type-small);
     color: var(--text-dark);
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: 4px;
+    column-gap: 4px;
     min-width: 0;
 }
 .speed-row-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    min-width: 0;
+    overflow-wrap: break-word;
 }
-.speed-row-label > .speed-thin { flex: none; }
+.speed-row-label > .speed-thin { flex: none; white-space: nowrap; }
+/* A row's one-line explanation, under the whole row (App Speed review, Oct 2026). It went to screen
+   readers alone until then, so a sighted reader met bare labels. Full width rather than under the
+   label: the label track is ~27% of a phone's card, and a sentence there would run five lines. */
+.speed-row-expl {
+    grid-column: 1 / -1;
+    font-size: var(--type-micro);
+    color: var(--text-mid);
+    line-height: 1.35;
+}
 .speed-bar {
     display: flex;
     height: var(--report-bar-h);
@@ -1762,7 +1789,10 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 .speed-seg { height: 100%; }
 .speed-seg--good { background: var(--speed-good); }
 .speed-seg--ok   { background: var(--speed-ok); }
-.speed-seg--bad  { background: var(--speed-bad); }
+.speed-seg--bad  { background: var(--speed-bad-fill); }
+/* A hairline between bands, so two that meet are two shapes even where their colours are close. An
+   inset shadow, not a border: a band of width 0 draws nothing, where a border would draw 1px. */
+.speed-seg + .speed-seg { box-shadow: inset 1px 0 0 var(--surface); }
 .speed-row-count {
     font-size: var(--type-small);
     font-weight: 700;
@@ -1797,34 +1827,12 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 }
 .speed-thin { color: var(--text-mid); font-weight: 400; }
 
-/* A COUNT row — the background worker's recheck bands (aesthetic pass, Oct 2026). Same four tracks
-   as `.speed-row--why`, so "share" and "opens" sit in the columns the rows around it use; only the
-   bar is different. A single quiet fill, never the green/amber/red split: this is how many files,
-   not how fast, and a speed-coloured bar would say otherwise. */
-.speed-row--count { grid-template-columns: minmax(0, 1fr) minmax(40px, 24%) minmax(5ch, auto) minmax(5ch, auto); }
-.speed-count-label { display: flex; flex-direction: column; min-width: 0; }
-.speed-count-band {
-    color: var(--text-light);
-    font-size: var(--type-micro);
-    font-variant-numeric: tabular-nums;
-    line-height: 1.2;
-}
-.speed-count-band::after { content: ' files'; }
-.speed-share {
-    display: block;
-    height: var(--report-bar-h);
-    border-radius: var(--radius-pill);
-    overflow: hidden;
-    background: var(--surface-sunken);
-    border: 1px solid var(--border-light);
-}
-.speed-share-fill { display: block; height: 100%; background: var(--primary-blue); opacity: 0.55; }
 /* A note that FOLLOWS a table needs air above it; flush, it read as the last row's caption. */
 .speed-rows + .speed-note { margin-top: 12px; }
 
 /* A divider above a section that starts a NEW subject, mirroring `.usage-section-label--sub` on the
-   Usage card. Without it the whole card is one continuous scroll: "Opening pages" and "Why some are
-   slower" are separate questions and nothing marked where either began. */
+   Usage card. Without it the whole card is one continuous scroll: "Opening pages" and "A closer look"
+   are separate questions and nothing marked where either began. */
 .speed-subhead--rule {
     /* The same 18/14 as `.usage-section-label--sub`, which draws the identical rule on the Usage
        card directly above this one. It was 20/16 for no reason anyone recorded. */
@@ -1856,8 +1864,8 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     color: white;
 }
 
-/* The two "opening a page" milestones (✨ First appears / ✅ Fully ready) — lighter, indented
-   under the "Opening pages" section heading so the hierarchy reads as section → milestone. */
+/* The three "opening a page" moments (✨ First appears / 📦 Code loaded / ✅ Usable) and "By page" —
+   lighter, under the "Opening pages" heading, so the hierarchy reads as section → moment. */
 .speed-subhead--sub {
     margin: 10px 0 6px;
     font-weight: 600;
@@ -1873,18 +1881,16 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
    it was opened" reads as that row's label rather than the start of a new group.
    MUST stay after `.usage-section-label` — same specificity, and that rule's `margin` SHORTHAND
    resets margin-top, so declared earlier this silently does nothing. */
-/* AND THEY ARE NESTED, so they must not look like the section above them (v22.00). Every block
-   inside "Why some are slower" — the boot stages, the start ladder, what served the grid, and the
-   three dimensional splits — carried the SAME style as "By page", which is not their parent but
-   their parent's sibling. Five children rendered as peers of their own uncle, and the flattening
-   got worse each time a block was added. Subordinated by TREATMENT rather than by size: an
-   uppercase eyebrow reads as a label under a heading, where 10px would have been a heading too
-   small to read comfortably at the width most of this card is read on.
+/* AND THEY ARE NESTED, so they must not look like the section above them (v22.00). The blocks
+   inside "A closer look" (it was "Why some are slower" until Oct 2026) carried the SAME style as
+   "By page", which is not their parent but their parent's sibling — children rendered as peers of
+   their own uncle. Subordinated by TREATMENT rather than by size: an uppercase eyebrow reads as a
+   label under a heading, where 10px would have been a heading too small to read comfortably at the
+   width most of this card is read on.
 
-   THE RULE, NOT A COUNT: this class marks a block nested inside "Why some are slower" and nothing
-   else, so no wrapper element is needed to scope it. It said "exactly those five" and listed six,
-   and three more blocks have been added since — a number written down beside the list it counts is
-   the one thing here guaranteed to go stale. */
+   THE RULE, NOT A COUNT: this class marks a block nested inside "A closer look" and nothing else, so
+   no wrapper element is needed to scope it. A number written down beside the list it counts is the
+   one thing here guaranteed to go stale. */
 .speed-dim-label {
     margin-top: 18px;
     text-transform: uppercase;
@@ -1892,32 +1898,17 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     color: var(--text-mid);
 }
 
-/* …AND ONE OF THOSE BLOCKS HAS CHILDREN OF ITS OWN, which is the same flattening one level deeper
-   (v23.02). "Does the connection slow the start?" poses a comparison and renders its two halves —
-   "Recognised" and "Getting ready" — through the ordinary breakdown renderer, so parent and child
-   carried the identical eyebrow. Three uppercase labels in a row, and nothing said the last two
-   were the answer to the first; nor where the comparison ended and the next sibling block began.
-   Subordinated the same way its parent was: by TREATMENT, not by size. The child drops the
-   uppercase (an eyebrow under an eyebrow is not a rank) and the pair hang off a hairline, which is
-   what marks the group's extent — the thing a label alone cannot do. */
-.speed-dim-group {
+/* The month's caveat when it was timed wholly or partly the older way (`timingNote`). A hairline,
+   not a box: it qualifies every figure below it, and a filled panel would read as one more figure. */
+.speed-note--transition {
     border-left: 2px solid var(--border-light);
-    padding-left: 12px;
-    margin-top: 10px;
+    padding-left: 10px;
 }
-.speed-dim-group + .speed-dim-group { margin-top: 14px; }
-/* THE BARS STAY IN ONE COLUMN (aesthetic pass, Oct 2026). The label track is a PERCENTAGE of the
-   row, and inside this indent the row is 14px narrower and 14px further right — so every bar in the
-   group started ~10px right of the bars above and below it, and the bar column zig-zagged. Taking
-   the indent back off the label track (27% of the outer width ≈ 27% of the inner, less 10px) puts
-   the bars back on the same line as their siblings, at 390px and on the desktop card alike. */
-.speed-dim-group .speed-row--why { grid-template-columns: minmax(62px, calc(27% - 10px)) minmax(0, 1fr) minmax(5ch, auto) minmax(5ch, auto); }
-.speed-dim-group .speed-dim-label {
-    margin-top: 0;
-    text-transform: none;
-    letter-spacing: 0;
-    color: var(--text-dark);
-}
+/* The record-size line once the month's record is three quarters full — the one note on the card
+   that asks for something to be done. */
+.speed-note--warn { color: var(--warning-amber); font-weight: 600; }
+/* One token, never two lines: the footer's “(few)”. */
+.speed-token { white-space: nowrap; }
 
 /* Per-page milestone bars: label | appears | code loaded | usable | count (v20.80 — the third bar
    was added when "ready" was split into the scripts finishing and the page actually being usable).
@@ -1935,6 +1926,15 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     .speed-row--dual { grid-template-columns: minmax(88px, 36%) 1fr 1fr 1fr minmax(5ch, auto); }
 }
 .speed-dual-head { margin-bottom: -2px; }
+/* A "By page" bar with too few opens behind it, "(few)" beneath — each bar answers for its own count,
+   because a page's three moments rest on three different totals (App Speed review, Oct 2026). */
+.speed-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.speed-cell-few {
+    font-size: var(--type-micro);
+    color: var(--text-mid);
+    text-align: center;
+    line-height: 1;
+}
 /* "This page does not report that milestone" — see the dash in dualRows. Centred in the track it
    replaces so the column still scans as a column. */
 .speed-bar-none {
@@ -1956,6 +1956,8 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 }
 
 /* ═══ TOUCH TARGETS (polish pass) ═════════════════════════════════════════════════════════════════
+   (The App Speed card's This month / Last month switch takes the same 36px floor: it measured about
+   26px tall, App Speed review, Oct 2026.)
    Account status carries two small buttons on every one of ~50 rows — Reset (destructive) and Set
    email / Edit / Remove — and on a coarse pointer they measured 23px tall, under the 24px WCAG 2.2
    floor and well under the app's 36px compact touch tier. The rows are dense on purpose, so the
@@ -1969,4 +1971,5 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 @media (pointer: coarse) {
     .btn-acct-reset::after, .email-set-btn::after { content: ''; position: absolute; inset: -6.5px -2px; }
     .btn-rr-clear { min-height: 36px; }
+    .speed-toggle-btn { min-height: 36px; }
 }

@@ -20,9 +20,11 @@ import { nameToEmail } from './auth-identity.js';
 import { buildOverrideWrite } from './override-utils.js';
 import { manualOverrideId } from './override-id.js';
 import { teamMembers } from './roster-member-data.js';
+import { buildAnalyticsClient } from './analytics-client.js';
 import {
     setDoc, getDoc, addDoc, deleteDoc, updateDoc, getDocs,
     collection, doc, serverTimestamp, increment, Timestamp,
+    query, where, limit, deleteField, FieldPath,
 } from 'firebase/firestore';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
@@ -1670,6 +1672,39 @@ describe('analytics', () => {
 
     test('auth can write a perf-latency doc (Project 0)', async () => {
         await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'perf_2026-06'), VALID_PERF()));
+    });
+
+    // ── THE REAL WRITER, NOT A HAND-WRITTEN EXAMPLE (App Speed review, Oct 2026) ──────────────────
+    // Every case here writes a literal. A field the client added would pass all of them and then be
+    // refused in production — and the client SWALLOWS that refusal (analytics is best-effort), so the
+    // App Speed card would simply stop changing, with nothing anywhere to say why. This drives the
+    // real `recordPerfSample` → batcher → merged `setDoc`, with the real SDK, against the emulator: a
+    // first write, and a merge onto it, which is the write every later open of the month makes.
+    test('the real speed-sample writer is accepted — a first write and the merge onto it', async () => {
+        /** @type {Promise<unknown>[]} */ const writes = [];
+        const client = buildAnalyticsClient({
+            db: memberDb(),
+            collections: { clientErrors: 'clientErrors', analytics: 'analytics' },
+            fs: {
+                doc, getDoc, getDocs, addDoc, deleteDoc, updateDoc, collection, query, where, limit,
+                serverTimestamp, increment, deleteField, FieldPath,
+                setDoc: (/** @type {any[]} */ ...a) => { const p = /** @type {any} */ (setDoc)(...a); writes.push(p); return p; },
+            },
+            writeWithClaimRetry: (/** @type {any} */ fn) => fn(),
+            appVersion: '24.98',
+        });
+        const flushed = async (/** @type {number} */ n) => {
+            for (let i = 0; i < 60 && writes.length < n; i++) await new Promise(r => setTimeout(r, 100));
+            assert.equal(writes.length, n, 'the batcher wrote');
+        };
+        // The shapes perf-reporter.js writes: a page metric, and sign-in time under the page id `login`.
+        client.recordPerfSample({ page: 'calendar', metric: 'ready', bucket: 'lt500ms', mode: 'standalone', conn: '4g' });
+        client.recordPerfSample({ page: 'login', metric: 'loginTotal', bucket: '1-3s', mode: 'browser', conn: 'unknown' });
+        await flushed(1);
+        await assertSucceeds(writes[0]);
+        client.recordPerfSample({ page: 'calendar', metric: 'readyUpdate', bucket: 'lt500ms', mode: 'standalone', conn: '4g' });
+        await flushed(2);
+        await assertSucceeds(writes[1]);
     });
 
     // ── B4: anti-wipe guard — a non-admin overwrite may not REMOVE existing keys (destructive wipe),

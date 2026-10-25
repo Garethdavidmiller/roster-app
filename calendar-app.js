@@ -15,7 +15,7 @@
 import { enhanceSelect } from './select-sheet.js';
 import { CONFIG, MONTH_NAMES, computeEaster, teamMembers, resolveMemberRoster } from './roster-data.js';
 import { formatClock, printedStamp } from './date-format.js';
-import { authReady, authBootstrap } from './firebase-client.js';
+import { authReady } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { getSession, ensureNamedSession, refreshClaimsIfStale } from './session.js';   // reconcileExpiredIdentity now runs inside calendar-access.js
 import { initPasswordForce } from './password-force.js';
@@ -30,7 +30,7 @@ import { initCalendarNotices } from './calendar-notices.js';
 import { registerServiceWorker, reloadWhileHidden } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter.js';
+import { recordPageLatency, markPageReady, markMilestone, markAwaitingInput } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress, setOverrideAccess, hasOverrideAccess, setOverrideAccessLostHandler, monthKey, clearFetchedMonth } from './calendar-overrides.js';
@@ -107,51 +107,20 @@ function _markReadyIfGridShown() {
         // month here would time the wrong thing in both directions. Each surface computes its own
         // answer; what COUNTS as a roster is `showsRoster`, beside the states it reads.
         if (_teamView?.isTeamViewMode()) {
-            // `isGridConfirmed()` is Team View's own word for authoritative, so it answers the same
-            // question `display` answers below: did the network serve this grid, or the cache?
-            if (_teamView.isGridShown()) markPageReady(_teamView.isGridConfirmed() ? 'fetched' : 'cached');
-            // BOTH RUNGS, NOT JUST THE FIRST (v21.37, external review). This branch used to return
-            // here, so a launch that restored straight into Team View was counted at "Shifts shown"
-            // and never at "Confirmed" — the surface simply dropped out of the ladder at the far
-            // end. Harmless for the roster (the grid was right either way) and NOT harmless for the
-            // decision the ladder exists to inform: LATENCY.md reads the gap between those two
-            // rungs to decide whether narrower Firestore reads are worth doing, and a whole surface
-            // missing from one end widens that gap for free.
-            if (_teamView.isGridConfirmed()) markMilestone('rosterLive');
+            if (_teamView.isGridShown()) markPageReady();
             return;
         }
+        // Which read served the grid, and when the server confirmed it, were their own milestones
+        // until the App Speed review (Oct 2026) retired the card blocks that read them; LATENCY.md
+        // holds what they found.
         const display = decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth())));
-        // WHAT SERVED IT, not merely that something did (v21.99). The two display states that count
-        // as a roster already carry the answer — `render` means the authoritative read landed,
-        // `stale` means the local cache did and phase 2 has not returned. That distinction is the
-        // whole of `LATENCY.md` Phase 2's value: narrowing the server read cannot move a load
-        // the cache already served. Derived here rather than tracked separately, so it can never
-        // disagree with the grid it describes.
-        if (showsRoster(display)) markPageReady(display === 'render' ? 'fetched' : 'cached');
-        // The LAST rung, and the reason `ready` is not the end of the ladder: a device can put
-        // yesterday's roster up instantly and take another two seconds to confirm it. Without this
-        // the card would call that load fast, which for a member checking whether their shift
-        // changed is the one question the cached grid cannot answer.
-        if (display === 'render') markMilestone('rosterLive');
+        if (showsRoster(display)) markPageReady();
     } catch { /* the metric must never be able to break the boot */ }
 }
 
 /** True once the boot has rendered EITHER the Calendar or Team View, so the ready metric knows
  *  which surface it is measuring. See `_markReadyIfGridShown`. */
 let _bootSurfaceDecided = false;
-
-// ── THE FIRST TWO RUNGS OF THE START LADDER (v21.29) ────────────────────────────────────────────
-//
-// Marked HERE rather than inside the modules that own these events, and that is deliberate: both
-// would otherwise need `perf-reporter.js`, which imports `firebase-client.js` — so marking inside
-// `firebase-client` would be an import cycle, and marking inside `calendar-access` would put
-// telemetry in the one module whose job is to decide whether this browser may see anything at all.
-// Observed from outside, the instants are the same to within a microtask.
-//
-// Deliberately NOT awaited by anything. A milestone is a record of when something happened; it must
-// never become a thing the boot waits for.
-authBootstrap.then(() => markMilestone('authBoot')).catch(() => { /* never rejects */ });
-calendarAccessReady.then(() => markMilestone('access')).catch(() => { /* never rejects */ });
 
 /** Set once `initTeamView` has run. Module-scope because `_markReadyIfGridShown` is declared above
  *  the coordinator's init block and must not close over a `teamView` that does not exist yet.
@@ -743,25 +712,6 @@ try {
         // Bounded, and short. A cache MISS resolves false immediately, a slow read falls through at
         // the deadline, and either way the old behaviour follows — so nothing waits on a device that
         // has nothing to show. This is the one place in the boot where waiting is the faster answer.
-        // WHEN THE DEVICE'S OWN SAVED COPY BECAME AVAILABLE (v22.95) — the ladder rung that splits
-        // the Unlocked → Shifts shown gap. The 5 Sep 2026 field read put Unlocked at 58% over a
-        // second and Shifts shown at 78%, with no rung between them to say where the eighteen
-        // points went, and 98% of attributed starts are served from this very cache.
-        //
-        // MARKED HERE, in the coordinator, and not inside `calendar-initial-fetch.js` — the same
-        // rule as the three rungs above: the modules that own these events do not carry telemetry.
-        // It is not only tidiness. Importing `perf-reporter.js` into that module pulls the gstatic
-        // Firebase graph into it, and its test suite stops loading at all; the first cut did
-        // exactly that and `calendar-initial-fetch.test.mjs` refused to build.
-        //
-        // Only on a real hit: a device with no saved copy has no such moment, and giving it one
-        // would put first-visit boots into a distribution about how quickly storage answers.
-        // Attached BEFORE the race so a cache that settles fast is still marked — the race's own
-        // timeout branch discards which promise won, and this must not depend on that.
-        _initialFetch.cacheSettled
-            .then(painted => { if (painted) markMilestone('rosterCached'); })
-            .catch(() => { /* never rejects; here so a future change cannot make it unhandled */ });
-
         const _cachePainted = await Promise.race([
             _initialFetch.cacheSettled,
             new Promise(r => setTimeout(r, CACHE_FIRST_PAINT_MS)),
@@ -1104,7 +1054,11 @@ calendarAuthReady.finally(() => {
     // exclude every fresh visitor from both the usage counts and the migration metric.
     const _calIdentity = getSession()?.name || (isFirstRun() ? null : getCurrentMember()?.name) || null;
     recordUsage('calendar', _calIdentity);
-    recordPageLatency('calendar', _calIdentity);
+    // SPEED TAKES THE SESSION ONLY (App Speed review, Oct 2026). Its identity does one job — leaving
+    // the admin's own opens out — and the SELECTED member is not who is using a station PC: one left
+    // on G. Miller dropped every staff open on it from the speed figures. The usage counts above keep
+    // the fallback, because there the name is also the dedup key for people who never sign in.
+    recordPageLatency('calendar', getSession()?.name || null);
 });
 
 const _calendarSession = getSession();
@@ -1240,6 +1194,9 @@ function _saveOwnSnapshot() {
 
 initCalendarAccess({
     paintBeforeDecision: _paintSnapshotBeforeGrant,
+    // A PIN or come-back card means a person is about to type: the speed sample stops there
+    // (perf-reporter.js → "A sample is time somebody spent waiting"). The sign-in card says so itself.
+    onAwaitingInput: markAwaitingInput,
     // EVERY grant, not just the first (v20.41). Both of these are things the access-lost path turns
     // OFF, so both have to come back on when access returns — which is precisely what re-entering
     // the PIN after a rotation is. Left in the one-shot below, a re-unlocked Calendar came back with
