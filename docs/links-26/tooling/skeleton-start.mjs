@@ -5,6 +5,14 @@
 // duties on one late line working Monday to Friday with Sunday off (FF19), and the Sunday 09:00 on an early line with
 // Monday off. The rest is dealt by seed; space-polish.mjs does the rest.
 //   [TABLE=results/<x>-table.json] node skeleton-start.mjs <skeleton.json> <start.json> [seed]
+// THREE SETTINGS FOR A TABLE THAT IS NOT SECOND NATURE'S (26 Oct 2026, the today's-times design), all off by default so
+// every earlier start rebuilds exactly:
+//   · a row with a count for a named weekday ('mon'…'fri') gives that day its own duties, as anneal.mjs reads it;
+//   · NOON=<time> is the late line's single weekday duty (default 12:00-20:00), and NOON_SAT=off asks for a noon line
+//     with Saturday off as well — an 11:00 start is more than two hours from every Saturday late, so FF19 forbids one
+//     beside it (12:00 → 14:00 is exactly two hours, which is why Second Nature's line could work a Saturday 14:00);
+//   · SUN_EXTRA=<time> is the Sunday early that is not a 07:15 (default 09:00-18:00), placed on an early line with
+//     Monday off where there is one.
 import { readFileSync, writeFileSync } from 'node:fs';
 const [SK, OUT, SEED_] = process.argv.slice(2);
 // TABLE=<table.json> lays another duty table onto the skeleton (3 Oct 2026, for Second Gear's); Second Nature's by default
@@ -36,15 +44,17 @@ for (const { k, opts } of demands) { let pick = null, best = 1e9; for (const o o
   for (const d of pick) { used[d]++; need[k].add(d); if (used[d] > cap[d]) console.error(`${d}: more 07:00/08:00 duties needed than exist`); } }
 const p = {}; for (let k = 1; k <= L; k++) { p[k] = {}; for (const d of DAYS) p[k][d] = COVER.has(k) ? 'SPARE' : 'RD'; }
 // the 12:00 line: a late line working Monday to Friday with Sunday off (and Saturday off or a 14:00 start)
-const noonLine = WORK.find(k => fam[k] === 'L' && !on[k].sun && ['mon', 'tue', 'wed', 'thu', 'fri'].every(d => on[k][d]));
-for (const d of DAYS) { const col = d === 'sat' ? 'sat' : d === 'sun' ? 'sun' : 'weekday';
+const NOON = process.env.NOON ?? '12:00-20:00', NOON_SAT_OFF = process.env.NOON_SAT === 'off', SUN_EXTRA = process.env.SUN_EXTRA ?? '09:00-18:00';
+const noonLine = WORK.find(k => fam[k] === 'L' && !on[k].sun && (!NOON_SAT_OFF || !on[k].sat) && ['mon', 'tue', 'wed', 'thu', 'fri'].every(d => on[k][d]));
+const ownCol = d => T.some(r => d in r) ? d : null;   // a weekday with its own column (anneal.mjs's reading)
+for (const d of DAYS) { const col = d === 'sat' ? 'sat' : d === 'sun' ? 'sun' : (ownCol(d) ?? 'weekday');
   const duties = T.flatMap(r => Array(r[col]).fill(r.time));
   const lines = WORK.filter(k => on[k][d]); const eL = lines.filter(k => famOn(k, d) === 'E'), lL = lines.filter(k => famOn(k, d) === 'L');
   if (eL.length !== duties.filter(t => famOf(t) === 'E').length) throw new Error(`${d}: ${eL.length} E lines for ${duties.filter(t => famOf(t) === 'E').length} early duties`);
   let E = duties.filter(t => famOf(t) === 'E'), Lt = duties.filter(t => famOf(t) === 'L');
   if (eL.length !== E.length || lL.length !== Lt.length) throw new Error(`${d}: ${eL.length} E lines for ${E.length} early duties, ${lL.length} L for ${Lt.length}`);
   // earlies: the lines that need a non-06:20 get one first
-  if (d === 'sun') { const nineLine = eL.find(k => !on[k].mon); if (nineLine) { const i = E.indexOf('09:00-18:00'); if (i >= 0) { p[nineLine][d] = E.splice(i, 1)[0]; eL.splice(eL.indexOf(nineLine), 1); } } }
+  if (d === 'sun') { const nineLine = eL.find(k => !on[k].mon); if (nineLine) { const i = E.indexOf(SUN_EXTRA); if (i >= 0) { p[nineLine][d] = E.splice(i, 1)[0]; eL.splice(eL.indexOf(nineLine), 1); } } }
   const must = eL.filter(k => need[k].has(d)), rest = eL.filter(k => !need[k].has(d));
   const ne = shuffle(E.filter(nonEarly)), e6 = shuffle(E.filter(t => !nonEarly(t)));
   for (const k of must) p[k][d] = ne.length ? ne.pop() : e6.pop();
@@ -55,6 +65,6 @@ for (const d of DAYS) { const col = d === 'sat' ? 'sat' : d === 'sun' ? 'sun' : 
   for (const k of [...firsts, ...others]) p[k][d] = ne.length ? ne.pop() : e6.pop();
   // lates: the 12:00 duty to the noon line, the Saturday 14:00 beside it, the rest at random
   const lrest = [...lL]; let lt = [...Lt];
-  if (noonLine && lrest.includes(noonLine)) { const want = d === 'sat' ? '14:00-22:30' : '12:00-20:00'; const i = lt.indexOf(want); if (i >= 0) { p[noonLine][d] = lt.splice(i, 1)[0]; lrest.splice(lrest.indexOf(noonLine), 1); } }
+  if (noonLine && lrest.includes(noonLine)) { const want = d === 'sat' ? '14:00-22:30' : NOON; const i = lt.indexOf(want); if (i >= 0) { p[noonLine][d] = lt.splice(i, 1)[0]; lrest.splice(lrest.indexOf(noonLine), 1); } }
   lt = shuffle(lt); lrest.forEach((k, i) => { p[k][d] = lt[i]; }); }
 writeFileSync(OUT, JSON.stringify({ patterns: p }, null, 1)); console.log('built', OUT, 'noon line', noonLine ?? 'none');
