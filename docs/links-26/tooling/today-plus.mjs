@@ -37,7 +37,9 @@ const len = s => en(s) - st(s);
 const TODAY_TIMES = [...new Set(EXIST.flatMap(k => DAYS.map(d => T[k][d])).filter(timed))].sort();
 const MONSAT = TODAY_TIMES.filter(s => st(s) >= 6 * 60 + 20 && en(s) <= 23 * 60 + 55);
 const SUNDAY = TODAY_TIMES.filter(s => st(s) >= 7 * 60 + 15 && en(s) <= 23 * 60 + 25 && len(s) >= 8 * 60 && len(s) <= 9 * 60);
-const TODAY_HEAVIEST = Math.max(...EXIST.filter(k => !isCoverRow(T[k])).map(k => DAYS.slice(1).reduce((a, d) => a + (timed(T[k][d]) ? len(T[k][d]) : 0), 0)));
+const weekMinutes = r => DAYS.slice(1).reduce((a, d) => a + (timed(r[d]) ? len(r[d]) : 0), 0);
+const TODAY_HEAVIEST = Math.max(...EXIST.filter(k => !isCoverRow(T[k])).map(k => weekMinutes(T[k])));
+const TODAY_LIGHTEST = Math.min(...EXIST.filter(k => !isCoverRow(T[k])).map(k => weekMinutes(T[k])));
 // which times today's link works on which kind of day — a time is familiar where it is already worked
 const clsOfDay = d => d === 'sun' ? 'sun' : d === 'sat' ? 'sat' : 'wk';
 const WORKED_ON = { wk: new Set(), sat: new Set(), sun: new Set() };
@@ -47,7 +49,13 @@ for (const k of EXIST) for (const d of DAYS) if (timed(T[k][d])) WORKED_ON[clsOf
 // question, and the two weightings show what one costs in the other.
 const MODE = process.env.MODE ?? 'staff';
 const W = MODE === 'tidy' ? { rule: 4000, short: 400 } : { rule: 30000, short: 3000 };
-const FEEL = { isolated: 2000, weekend: 3000, hybrid: 1500, extraTime: 600, unfamiliar: 400, sixDay: 800, heavyPerMin: 10 };
+const FEEL = MODE === 'tidy'
+  ? { isolated: 2500, weekend: 3000, hybrid: 10000, extraTime: 4000, unfamiliar: 2500, sixDay: 4000, heavyPerMin: 50, lightPerMin: 50 }
+  : { isolated: 2000, weekend: 3000, hybrid: 4000, extraTime: 1500, unfamiliar: 1000, sixDay: 2000, heavyPerMin: 20, lightPerMin: 20 };
+// the familiar times by kind of day and kind of turn, for the whole-week moves
+const famOf = s => st(s) < 660 ? 'E' : 'L';
+const BY = { wk: { E: [], L: [] }, sat: { E: [], L: [] }, sun: { E: [], L: [] } };
+for (const c of ['wk', 'sat', 'sun']) for (const s of WORKED_ON[c]) if (c !== 'sun' || SUNDAY.includes(s)) BY[c][famOf(s)].push(s);
 
 // ── every place the six new weeks can go ───────────────────────────────────────────────────────────────────────────
 // Today's twenty in their order (any starting point round the cycle), the new cover week on a cover line, the five new
@@ -150,7 +158,7 @@ function cost(si, N) {
   const seq = []; for (let i = 1; i <= L; i++) for (const d of DAYS) seq.push(p[String(i)][d]);
   let isolated = 0; for (let i = 0; i < seq.length; i++) if (seq[i] === 'RD' && seq[(i + seq.length - 1) % seq.length] !== 'RD' && seq[(i + 1) % seq.length] !== 'RD') isolated++;
   let feel = FEEL.isolated * isolated - FEEL.weekend * (checks.weekendsOff ?? 0);
-  for (const m of weeks) if (m > TODAY_HEAVIEST) feel += FEEL.heavyPerMin * (m - TODAY_HEAVIEST);
+  for (const m of weeks) { if (m > TODAY_HEAVIEST) feel += FEEL.heavyPerMin * (m - TODAY_HEAVIEST); if (m < TODAY_LIGHTEST) feel += FEEL.lightPerMin * (TODAY_LIGHTEST - m); }
   for (const w of N) {
     const ts = new Set(DAYS.slice(1, 6).map(d => w[d]).filter(timed)); feel += FEEL.extraTime * Math.max(0, ts.size - 1);
     const fam = new Set(DAYS.map(d => w[d]).filter(timed).map(s => st(s) < 660 ? 'E' : 'L')); if (fam.size > 1) feel += FEEL.hybrid;
@@ -176,9 +184,26 @@ function repair(M) {
   const cells = []; for (const w of M) for (const d of DAYS.slice(1)) if (timed(w[d])) { const want = len(w[d]) + gap, fits = MONSAT.filter(s => len(s) === want); if (fits.length) cells.push([w, d, fits]); }
   if (cells.length) { const [w, d, fits] = pick(cells); w[d] = pick(fits); }
 }
+// WHOLE-WEEK MOVES. One cell at a time, turning a week from one shift time to another passes through untidy weeks the
+// cost pushes back from, so the search stalls on scrappy ones. These redraw a week in one step, the way today's link is
+// drawn: one familiar time on a run of weekdays, and a Saturday or Sunday of the same kind of turn if it has one.
+function retime(w) {
+  const f = rnd() < 0.5 ? 'E' : 'L', t = pick(BY.wk[f]);
+  for (const d of ['mon', 'tue', 'wed', 'thu', 'fri']) if (timed(w[d])) w[d] = t;
+  if (timed(w.sat)) w.sat = BY.sat[f].length ? pick(BY.sat[f]) : w.sat;
+  if (timed(w.sun)) w.sun = BY.sun[f].length ? pick(BY.sun[f]) : 'RD';
+}
+function reblock(w) {
+  const f = rnd() < 0.5 ? 'E' : 'L', t = pick(BY.wk[f]), k = 3 + Math.floor(rnd() * 3), s = Math.floor(rnd() * (6 - k));
+  ['mon', 'tue', 'wed', 'thu', 'fri'].forEach((d, i) => { w[d] = i >= s && i < s + k ? t : 'RD'; });
+  w.sat = rnd() < 0.4 && BY.sat[f].length ? pick(BY.sat[f]) : 'RD';
+  w.sun = rnd() < 0.25 && BY.sun[f].length ? pick(BY.sun[f]) : 'RD';
+}
 function neighbour(si, N) {
   const M = N.map(w => ({ ...w })); let s2 = si; const r = rnd();
   if (r < 0.05) repair(M);
+  else if (r < 0.10) retime(pick(M));
+  else if (r < 0.15) { reblock(pick(M)); if (rnd() < 0.5) repair(M); }
   else if (r < 0.40) { const w = pick(M), d = pick(DAYS); w[d] = pick(options(d)); }
   else if (r < 0.60) { const a = pick(M), b = pick(M), d = pick(DAYS); [a[d], b[d]] = [b[d], a[d]]; }
   else if (r < 0.75) { const w = pick(M), i = 1 + Math.floor(rnd() * 5), j = i + 1; const d = DAYS[i], e = DAYS[j]; if (rnd() < 0.5) w[e] = w[d]; else w[d] = w[e]; if (e === 'sun' || d === 'sun') { /* never */ } }
