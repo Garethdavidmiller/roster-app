@@ -1082,7 +1082,8 @@ found and the fewest it could rule out.
 | The flexible rules; fatigue ignored | **36, proven** | 33.2 |
 | No fatigue factor; not the flexible rules (most 16:25 closers kept) | 39 (at least 25) | 49.4 |
 | The flexible rules, no fatigue factor — ***Often Enough*** | **42, proven** | 50.8 |
-| … and today's weekends, rest days and heaviest week — ***Fair Enough*** | 65 (at least 32) | 63.8 |
+| … and today's weekends, rest days and heaviest week | 65 (at least 32) | 63.8 |
+| … and 14 weeks on one turn, with nothing worse than at 65 — ***Fair Enough*** | 77 (at least 39) | 74.3 |
 | … and the shortlist's, with 16 weeks on one turn | 93 (at least 32) | 77.7 |
 | The shortlisted designs, turned to start on the same line | 126–131 | 87.2–88.5 |
 
@@ -1097,8 +1098,9 @@ Five things the trade says:
 - **Keeping the 16:25 closers saves at least three cells and buys nothing.** The 39-change version keeps eleven, but
   pays for them with five 14:45–23:55 closers of 9h 10m. Inside the ceiling a short shift is bought with a long one.
 - **Compliance is not the same as better to work.** *Often Enough* is still a design of scattered rest days, with one
-  full weekend off in the 26 weeks. In the best found, today's weekends and rest days take 23 more cells, and the
-  shortlist's 51 more. At 93 cells it is still below the shortlist, on fit to the trains and new shift times.
+  full weekend off in the 26 weeks. In the best found, today's weekends and rest days take 23 more cells; with 14 weeks
+  on one turn as well, 35 more; the shortlist's, 51 more. At 93 cells it is still below the shortlist, on fit to the
+  trains and new shift times.
 - **Little and Often cannot keep its shape and be the best roster.** The shortlist differs from it in 126–131 of 147
   cells.
 
@@ -1136,23 +1138,41 @@ found, keeping both takes 43 cells, and three weekends, as the 45-change version
 the 45-change version, this one follows the trains more closely on a weekday and a Saturday (36.7 and 41.5, against 37.1
 and 80.4) and less closely on a Sunday (98.5 against 75.0).
 
-***Fair Enough*** (`FE-26-M65 · 7dbe854a`, `tooling/results/fair-enough.json`). The same rules, and at least today's
+***Fair Enough*** (`FE-26-M77 · 2032218a`, `tooling/results/fair-enough.json`). The same rules, and at least today's
 link on what the rules do not govern:
 - five full weekends off in the 26 weeks (ten a year);
 - never more than seven weeks apart;
 - no more than five single rest days;
 - no week over 43h 50m.
 
+The fewest changes found for that are 65, with 6 of the 21 working weeks on one turn. That grid was found from Second
+Edition, turned to start on the same line and walked back towards *Little and Often* for 15 minutes.
+
+It was then polished for more weeks on one turn (owner, 26 Oct 2026), with nothing allowed to get worse than at 65:
+- its weekends, single rest days and heaviest week;
+- its fit to the trains on a weekday, a Saturday and a Sunday, each;
+- its early finishes before 14:00 and its late finishes at 23:00 or later;
+- its six-day weeks, its shortest rest and its new shift times.
+
 It comes to:
+- 14 of the 21 working weeks on one turn, against 6;
 - 12 full weekends a year, never more than six weeks apart;
 - 5 single rest days and one six-day week;
-- a heaviest week of 42h 30m;
-- 20 early finishes before 14:00 a year.
+- a heaviest week of 42h 30m, and a lightest of 29h 00m, against 24h 30m;
+- 20 early finishes before 14:00 and 46 late finishes a year each, as at 65;
+- a shortest rest of 14h 15m, against 13h 35m;
+- the trains followed more closely than in *Little and Often* on all three days: 32.0, 11.2 and 42.4, against 34.7,
+  51.4 and 74.1.
 
-It is the version to take forward if *Little and Often* stays in the running. It was found from Second Edition, turned to
-start on the same line and walked back towards *Little and Often* for 15 minutes. It follows the trains a little less
-closely than *Little and Often* on a weekday (37.1 against 34.7) and more closely on a Saturday (37.0 against 51.4); its
-Sunday is the weakest of the three (81.3).
+The polish cost 12 more cells. The tie-break ran four stages of eight minutes each: the most weeks on one turn, then the
+fewest changes, the closest fit to the trains and the smallest retimes. None is proven. It is the version to take forward
+if *Little and Often* stays in the running.
+
+**Why not 16 weeks on one turn.** In the best found, two more need something else to give way. It is the trade the
+early finishes face: inside the 35 hours, a short early is paid for with a long late.
+- **Early finishes free: 86 cells.** They halve, to 10 a year, and the weekday fit slips to 45.8.
+- **Early finishes held: 87 cells.** Late finishes rise to 50 a year, the shortest rest falls to 13h 15m, and a second
+  six-day week appears.
 
 | | Today | Little and Often | Often Enough | Fair Enough | Short Run |
 |---|---|---|---|---|---|
@@ -1161,15 +1181,15 @@ Sunday is the weakest of the three (81.3).
 | Fatigue warnings, fixed duties (up to) | 4 (5) | 2 (6) | 0 (0) | 0 (0) | 0 (0) |
 | Full weekends off a year (longest wait) | 10 (7 weeks) | 4 (16) | 2 (26) | 12 (6) | 14 (5) |
 | Most days in a row, fixed (cover week badly) | 7 (9) | 6 (9) | 6 (8) | 6 (6) | 5 (6) |
-| Shortest rest | 12h 30m | 13h 50m | 14h 20m | 13h 35m | 14h 20m |
-| Single rest days · weeks on one turn | 4 · 7 of 16 | 18 · 8 of 21 | 16 · 7 | 5 · 6 | 4 · 18 |
+| Shortest rest | 12h 30m | 13h 50m | 14h 20m | 14h 15m | 14h 20m |
+| Single rest days · weeks on one turn | 4 · 7 of 16 | 18 · 8 of 21 | 16 · 7 | 5 · 14 | 4 · 18 |
 | Six-day weeks, Sunday included | 1 | 5 | 4 | 1 | 0 |
 | Heaviest week, Monday to Saturday | 43h 50m | 45h 30m | 48h 50m | 42h 30m | 42h 30m |
 | Finishing at 23:00 or later, a year each | 39 | 46 | 44 | 46 | 42 |
 | Earlies finishing before 14:00, a year each | 26 | 26 | 18 | 20 | 0 |
 | Shift times · new ones to learn | 18 · — | 20 · 11 | 18 · 8 | 18 · 8 | 15 · 6 |
-| Fit to the trains, weekday · Sat · Sun (lower is closer) | 52.0 · 65.9 · 71.7 | 34.7 · 51.4 · 74.1 | 36.7 · 41.5 · 98.5 | 37.1 · 37.0 · 81.3 | 29.1 · 12.7 · 29.0 |
-| Weighted league | 23.3 | 12.3 | 50.8 | 63.8 | 87.7 |
+| Fit to the trains, weekday · Sat · Sun (lower is closer) | 52.0 · 65.9 · 71.7 | 34.7 · 51.4 · 74.1 | 36.7 · 41.5 · 98.5 | 32.0 · 11.2 · 42.4 | 29.1 · 12.7 · 29.0 |
+| Weighted league | 23.3 | 12.3 | 50.8 | 74.3 | 87.7 |
 
 **How the answer is trusted.** The solver (Google OR-Tools CP-SAT) is given every rule as a constraint, written the way
 the sheets' code measures it. `check_model.py` pins it to test grids and asks it, rule by rule and factor by factor,
@@ -1187,11 +1207,14 @@ A proof is only as good as the model it is proven in. The 42 says that no grid m
 cells, and the 62 grids above are what say the model's rules are the sheets'.
 
 **Not in the pack**, like Same Again and Little and Often. Each sheet renders with `supplied.mjs` and runs to nine pages.
-A one-page grid of each repair's changed cells was made for the owner, and is not committed. The other three rows'
-grids are in `tooling/results/`:
+A one-page grid of each repair's changed cells was made for the owner, and is not committed. The other rows' grids, and
+the two 16-week versions, are in `tooling/results/`:
 - `little-and-often-rules-only.json`;
 - `little-and-often-closers-kept.json`;
-- `little-and-often-shortlist-floors.json`.
+- `little-and-often-today-floors.json` (Fair Enough at 65, before its polish);
+- `little-and-often-shortlist-floors.json`;
+- `little-and-often-one-turn.json` (16 weeks, early finishes free: 86);
+- `little-and-often-one-turn-early-kept.json` (16 weeks, early finishes held: 87).
 
 From `tooling/exact/` (`pip install ortools`; with four solver threads, a grid chosen among ties can differ from run to
 run, so the grids in `results/` are the record):
@@ -1205,8 +1228,17 @@ python3 tiebreak.py ../results/little-and-often.json /tmp/oe.json /tmp/oe-tb.jso
 python3 quality.py ../results/little-and-often.json /tmp/oe-wk3.json --flex --min-wk 3 --time 600 \
   --hint /tmp/oe45.json                                   # 44 with three full weekends; --min-wk 2: 43, with two
 python3 fewest.py ../results/little-and-often.json /tmp/any.json --flex --fmax 99 --time 600   # 36, proven
-python3 quality.py ../results/little-and-often.json /tmp/fe.json --flex --min-wk 5 --max-gap 7 --max-iso 5 \
+python3 quality.py ../results/little-and-often.json /tmp/fe65.json --flex --min-wk 5 --max-gap 7 --max-iso 5 \
   --max-heavy 2630 --time 900 --hint <Second Edition turned six lines>                       # 65, at least 32
+H="--flex --min-wk 6 --max-gap 6 --max-iso 5 --max-heavy 2550 --hold-fit /tmp/fe65.json"       # held where 65 has them
+python3 tiebreak.py ../results/little-and-often.json /tmp/fe65.json /tmp/fe.json 100 $H --hold-fit-each --min-e14 10 \
+  --max-late 23 --max-six 1 --min-rest 815 --max-new 8 --stages one,changes,fit,size --time 480   # 14 weeks on one turn, 77
+python3 tiebreak.py ../results/little-and-often.json /tmp/fe65.json /tmp/early.json 100 $H --hold-fit-each --min-e14 10 \
+  --stages one,changes,fit,size --time 480                                     # 16 weeks, early finishes held, 87
+python3 quality.py ../results/little-and-often.json /tmp/one16.json --flex --min-wk 6 --max-gap 6 --max-iso 5 \
+  --max-heavy 2550 --min-one 16 --time 600 --hint ../results/little-and-often-shortlist-floors.json        # 89, a start
+python3 tiebreak.py ../results/little-and-often.json /tmp/one16.json /tmp/free.json 89 $H \
+  --stages one,changes,fit,size --time 420                                     # 16 weeks, early finishes free, 86
 ```
 
 ## Notes for the whole set
