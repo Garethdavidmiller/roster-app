@@ -79,6 +79,7 @@ def build(base, parts=ALLPARTS, flex=False, fmax=None, cmax=None, fix=None, forb
         if 'office' in parts or 'floorhand' in parts: m.AddExactlyOne(sel.values())
         return sel
     selE = selectors(SE); selL = selectors(SL)
+    m._selE, m._selL = selE, selL   # Sunday's office pair, for fit_terms()
     used = {}
     for d in DAYS:
         for v in dom(d):
@@ -262,6 +263,72 @@ def quality_terms(m, x, base, WORK):
         for i in range(LINES):
             m.Add(sum(wk[(i + t) % LINES] for t in range(g)) >= 1).OnlyEnforceIf(ok)
     return {'wk': sum(wk), 'gap': gapv, 'iso': sum(iso), 'heavy': H, 'one': sum(one), 'size': size}
+
+# THE FIT TO THE TRAINS, as a linear stand-in the solver can hold (Fair Enough's polish, 26 Oct 2026). The sheets' measure
+# (report-data.mjs dayFit on officeSplit's floor cover) is the squared distance between each hour's share of the trains
+# and its share of the floor cover, x10^4 — not linear, because the cover's share divides by its own total. This is the
+# same comparison in absolute terms: for each hour, |trains_h x cover - all trains x cover_h|, summed, with the office
+# taken out exactly as officeSplit takes it (its pairs, less the helpers on the floor at the quiet ends; on a Sunday the
+# pair the design rosters). Weekday = the five weekdays' cover summed (the sheets fit the average weekday). Each class is
+# scaled by its trains and a reference cover so the three weigh alike, as the league's (weekday + Sat + Sun) / 3 does.
+# A stand-in, not the measure: every grid it helps choose is re-judged by the sheets' own code.
+DEMAND = {'wk': {6: 53, 7: 107, 8: 127, 9: 122, 10: 95, 11: 85, 12: 75, 13: 84, 14: 79, 15: 87, 16: 105, 17: 140, 18: 138, 19: 107, 20: 90, 21: 73, 22: 75, 23: 55},
+          'sat': {6: 24, 7: 58, 8: 75, 9: 81, 10: 92, 11: 88, 12: 77, 13: 64, 14: 68, 15: 72, 16: 84, 17: 82, 18: 67, 19: 64, 20: 79, 21: 78, 22: 62, 23: 36},
+          'sun': {7: 15, 8: 45, 9: 65, 10: 71, 11: 74, 12: 71, 13: 61, 14: 55, 15: 64, 16: 69, 17: 78, 18: 73, 19: 75, 20: 52, 21: 71, 22: 65, 23: 26}}   # links-demand.js DEC_2026_MOVEMENTS, carriages per hour inside the staffed window
+def mm(a, b, h):
+    """Minutes of [a, b) inside hour h (a day's end clipped at midnight, as minuteCover clips it)."""
+    return max(0, min(b, 1440, (h + 1) * 60) - max(a, h * 60))
+def office_minutes(c, h, sel=None):
+    """The office's minutes in hour h, less its helpers on the floor (officeSplit / officeHelpers, plan model)."""
+    if c == 'wk':
+        return 2 * mm(380, 860, h) + 2 * mm(840, 1350, h) - mm(380, 480, h) - mm(1170, 1350, h)
+    if c == 'sat':
+        return 2 * mm(380, 890, h) + 2 * mm(870, 1320, h) - mm(380, 480, h) - mm(1170, 1320, h)
+    selE, selL = sel
+    out = 0
+    for e, var in selE.items():
+        out += var * (2 * mm(st(e), en(e), h) - mm(st(e), min(en(e), 540), h))
+    for l, var in selL.items():
+        k = 2 * mm(st(l), en(l), h) - mm(max(st(l), 1080), en(l), h) - (2 * mm(st(l), 900, h) if st(l) < 900 else 0)
+        out += var * k
+    return out
+def fit_terms(m, x, WORK, ref=None):
+    """Per class, sum over the hours of |trains_h * C - trains * cover_h|, and a weighted total ('fit') to minimise."""
+    days = {'wk': WD, 'sat': ['sat'], 'sun': ['sun']}
+    out = {}
+    for c, ds in days.items():
+        q = DEMAND[c]; Q = sum(q.values())
+        cov = {h: sum(var * mm(st(v), en(v), h) for (k, d, v), var in x.items() if d in ds and v != 'RD')
+                  - sum(office_minutes(c, h, (m._selE, m._selL) if c == 'sun' else None) for _ in ds) for h in q}
+        C = sum(cov.values())
+        dev = []
+        for h in q:
+            e = m.NewIntVar(0, 10 ** 9, f'fit{c}{h}'); m.Add(e >= q[h] * C - Q * cov[h]); m.Add(e >= Q * cov[h] - q[h] * C); dev.append(e)
+        out[c] = sum(dev); out[c + '_C'] = C
+        out[c + '_scale'] = Q * ((ref or {}).get(c) or (40000 if c == 'wk' else 6000 if c == 'sat' else 4500))
+    out['fit'] = sum(out[c] * int(round(10 ** 10 / out[c + '_scale'])) for c in days)
+    return out
+
+def grid_cover(p, c):
+    """A fixed grid's hourly floor cover for class c, and its total — the numbers fit_terms() builds as solver terms."""
+    from collections import Counter
+    days = {'wk': WD, 'sat': ['sat'], 'sun': ['sun']}[c]; q = DEMAND[c]
+    sel = None
+    if c == 'sun':
+        cnt = Counter(p[k]['sun'] for k in p if p[k]['sun'] not in ('RD', 'SPARE'))
+        e = sorted([t for t in cnt if st(t) == 435 and cnt[t] >= 2], key=lambda t: -en(t))
+        l = sorted([t for t in cnt if en(t) == 1350 and cnt[t] >= 2], key=lambda t: st(t))
+        sel = ({e[0]: 1} if e else {}, {l[0]: 1} if l else {})
+    cov = {h: sum(mm(st(v), en(v), h) for k in p for d in days for v in [p[k][d]] if v not in ('RD', 'SPARE')) - len(days) * office_minutes(c, h, sel) for h in q}
+    return cov, sum(cov.values())
+def fit_reference(p):
+    """The per-class cover totals of a reference grid (fit_terms' scales), that grid's weighted fit, and its per-class
+    deviation (fit_terms' out[c] for that grid) — so a hold can say "each of weekday, Saturday and Sunday no worse"."""
+    ref, dev = {}, {}
+    for c in ('wk', 'sat', 'sun'):
+        q = DEMAND[c]; Q = sum(q.values()); cov, C = grid_cover(p, c)
+        ref[c] = C; dev[c] = sum(abs(q[h] * C - Q * cov[h]) for h in q)
+    return ref, sum(dev[c] * int(round(10 ** 10 / (sum(DEMAND[c].values()) * ref[c]))) for c in ref), dev
 
 def extract(solver, x, WORK, base):
     p = {k: (dict(base[k]) if k in WORK else {d: 'SPARE' for d in DAYS}) for k in base}
