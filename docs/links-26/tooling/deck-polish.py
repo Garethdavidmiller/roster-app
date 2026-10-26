@@ -6,7 +6,10 @@
 #   · days a year is 218.6 against 219.0, and days a week 4.19 against 4.20, never a rounded "219 | 219";
 #   · the one-turn row says what it counts; the fit slide says what its score is;
 #   · slide 10 becomes a picture of the 26 weeks (rota-strip.mjs) instead of three prose cards;
-#   · the manager "Why" slide separates what every link in the pack gives, what this one adds and what it costs.
+#   · the manager "Why" slide separates what every link in the pack gives, what this one adds and what it costs;
+#   · the early finishes are said plainly (26 Oct 2026, owner: "will it be easy to sell … when we are losing the 13.35 and
+#     13.45 finishes"): slide 6 asked "Will my shifts be longer?" and answered only with the closers, and the trade-offs
+#     slide did not list them, so the first person to notice 13:35 and 13:45 missing from slide 8 would read it as hidden.
 # Every figure comes from `deck-check.mjs --print` (the sheets' own counts) or is computed from the grid here; shapes are
 # found by their text, so a template change fails loudly. From the repository root, after the builders:
 #   python3 docs/links-26/tooling/deck-polish.py && node docs/links-26/tooling/deck-check.mjs
@@ -14,7 +17,7 @@ import importlib.util, json, os, re, shutil, struct, subprocess, tempfile, zipfi
 
 TOOL = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(TOOL, '..', 'presentations')
 spec = importlib.util.spec_from_file_location('snd', os.path.join(TOOL, 'second-nature-decks.py')); snd = importlib.util.module_from_spec(spec); spec.loader.exec_module(snd)
-Slide, spans, runs_of, escape, GREEN, NAVY = snd.Slide, snd.spans, snd.runs_of, snd.escape, snd.GREEN, snd.NAVY
+Slide, spans, runs_of, escape, GREEN, AMBER, NAVY = snd.Slide, snd.spans, snd.runs_of, snd.escape, snd.GREEN, snd.AMBER, snd.NAVY
 FIG = json.loads(subprocess.check_output(['node', os.path.join(TOOL, 'deck-check.mjs'), '--print'], text=True))
 T = FIG['today']
 DESIGNS = {'Second Edition': 'second-edition.json', 'Short Run': 'short-run.json', 'Even Keel': 'even-keel.json'}
@@ -118,6 +121,48 @@ def strip_slide(d, name, grid, F):
     snd.notes(d, 10, 'Earlies here means', f'Read the strip left to right; week 27 is week 1 again. A cover week has no fixed shifts of its own — its four duties are placed later to cover leave and sickness, which is why it is drawn empty. Earlies here means a start before 11:00. A weekday has 7 earlies and 8 lates; a Saturday 7 and 7; a Sunday 5 and 5. Sundays stay overtime, {F["sun"]} a year each (today {T["sun"]}), and still finish at 23:25. Who starts on which week is decided after the link is chosen.')
     notes_append(d, 10, notes_after_10)
 
+def dash(t): return t.replace('-', '–')
+def mins(t): return int(t[:2]) * 60 + int(t[3:5])
+
+def keep_1345(F):
+    """What one 06:20–13:45 a weekday would cost in this design, from deck-check's figures: the floor's earliest-ending
+    06:20 early becomes 13:45, and the minutes that frees go on the shortest floor late of the same day — the office pair
+    and the closers are fixed by the rules and the week's total by the contract. Returns (early, late, late as it would
+    be, how much longer it gets). docs/links-26/README.md → "Keeping a 13:45" tests the result on each rota
+    (tooling/keep-early.mjs)."""
+    early, late = F['floorEarly'].split(' · ')[0], F['floorLate']
+    freed = mins(early) - mins('13:45'); start = mins(late) - freed
+    longer = f'{freed} minutes' if freed < 60 else f'{freed // 60}h {freed % 60:02d}m'
+    return f'06:20–{early}', dash(late), f'{start // 60:02d}:{start % 60:02d}–{late[6:]}', longer
+
+# What the rota tests found (README → "Keeping a 13:45"). Prose about a test, so it is written here once, by design.
+KEEP_TESTED = {
+    'Short Run': 'Tested on this rota: two a weekday — today’s number — still meet every rule, with no fatigue warning and the same weekends; the cost is those lates and one more shift time.',
+    'Second Edition': 'Tested on this rota: one a weekday still meets every rule with no fatigue warning, at the cost of a 43h 00m heaviest week and two more shift times; two a weekday would add a backward-rotation warning (FF17).',
+    'Even Keel': 'Tested on this rota: nothing else on the sheet gets worse.',
+}
+
+def early_finishes(d, name, F):
+    """Slides 2, 6 and 13: say the early finishes as plainly as the closers. The total is fixed, so the minutes taken off
+    the lates go on the earlies — and in all three designs the 13:35 and 13:45 are gone."""
+    S = lambda n: Slide(f'{d}/ppt/slides/slide{n}.xml')
+    early, late, late_then, longer = keep_1345(F)
+    s = S(6)
+    put(s, 'Every closing shift gets shorter — the average goes up about two minutes', 'Closers get shorter, earlies longer — the average goes up about two minutes')
+    # the row this replaces said the longest shift; slide 14 still does, and the banner says nothing runs over 9 hours
+    i = shape_of(s, 'Longest shift anywhere'); vals = [runs_of(s.x[slice(*spans(s.x)[i + k])]) for k in (1, 2)]
+    assert vals == [[T['longest']], [F['longest']]], f'{s.path}: the longest-shift row is not label, today, proposal: {vals}'
+    set_shape(s, i, 'Weekday 06:20 early on the floor ends')
+    set_shape(s, i + 1, T['floorEarly']); set_shape(s, i + 2, F['floorEarly'], AMBER)
+    s.save()
+    notes_append(d, 6, f'Then say the cost before anyone asks: the 13:35 and 13:45 finishes go. On a weekday the 06:20 early on the floor ends at {F["floorEarly"].replace(" · ", " or ")}; today about {T["before1400"]} earlies a year each finish before 14:00, here {"none" if F["before1400"] == "0" else F["before1400"]}. The week’s total is fixed, so the minutes taken off the lates go on the earlies: earlies average {F["avgEarly"]} (today {T["avgEarly"]}), lates {F["avgLate"]} (today {T["avgLate"]}), and the longest early turn goes from {T["longestEarly"]} to {F["longestEarly"]}. Everyone works every line in turn, so the people who lose the early finishes are the people whose lates get shorter. Asked whether a 13:45 can come back: only if a late gets longer — each {early} made 06:20–13:45 turns one {late} into {late_then} the same day. {KEEP_TESTED[name]}')
+    s = S(13)
+    put(s, 'Shifts about 2 minutes longer on average', 'The 13:35 and 13:45 finishes go')
+    put(s, 'That is what keeps days at work to 219 a year or fewer on the same 35 hours.', f'No weekday 06:20 ends before {F["early0620"]}. Each 13:45 back makes a late {longer} longer.')   # two lines: a third runs out of the box (measured — the figures are wider than letters); the times are in the notes
+    s.save()
+    notes_append(d, 13, 'The early finishes are the cost most people will raise first, so this slide names them; the full sheet lists 06:20–13:35 and 06:20–13:45 as dropped (page 4). The two minutes on the average shift are on slide 6.')
+    notes_append(d, 2, f'And the early finishes, as plainly as the closers: the 13:35 and 13:45 go, and a weekday 06:20 early on the floor ends at {F["floorEarly"].replace(" · ", " or ")} — slide 6 says why.')
+
 def colleagues(d, name, grid, F):
     S = lambda n: Slide(f'{d}/ppt/slides/slide{n}.xml')
     s = S(2)
@@ -136,7 +181,8 @@ def colleagues(d, name, grid, F):
     set_shape(s, both[0], T['daysYear']); set_shape(s, both[1], F['daysYear'], NAVY)
     put(s, 'No. Exactly the same 35-hour week — and no more contracted days than today.', f'No. The same 35-hour week on average and no more days; weeks run from {F["light"]} to {F["heavy"]} (today {T["light"]} to {T["heavy"]}), and two more of the days fall on a Saturday.')
     s.save()
-    replace_in_run(f'{d}/ppt/slides/slide6.xml', 'Every closing shift is 30 to 45 minutes shorter, and nothing runs over 9 hours.', f'Every closing shift is 30 to 45 minutes shorter; the longest early turn goes from {T["longestEarly"]} to {F["longestEarly"]}, and nothing runs over 9 hours.')
+    replace_in_run(f'{d}/ppt/slides/slide6.xml', 'Every closing shift is 30 to 45 minutes shorter, and nothing runs over 9 hours.', 'The same 35 hours, moved from the lates to the earlies: every closing shift is 30 to 45 minutes shorter, and nothing runs over 9 hours.')
+    early_finishes(d, name, F)
     s = S(7)
     put(s, f'A little — about {F["late23"]} a year each, against {T["late23"]} today', f'{int(F["late23"]) - int(T["late23"])} more a year after 23:00 ({F["late23"]}, today {T["late23"]}); {int(F["late22"]) - int(T["late22"])} more at 22:00 or later ({F["late22"]}, today {T["late22"]})')
     s.save()

@@ -15,7 +15,7 @@
 // below before this script can vouch for it. Run it after any change to a rota or to a deck, before the decks go out.
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { assess, folderStats, today, sheetRules, h55Worst, endMinutes, startMinutes } from './report-data.mjs';
+import { assess, folderStats, today, sheetRules, h55Worst, endMinutes, startMinutes, OFFICE } from './report-data.mjs';
 import { personal } from './plain.mjs';
 import { LINES } from './link.mjs';
 import { leave } from './leave.mjs';
@@ -35,6 +35,41 @@ const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const wk = o => { const v = DAYS.slice(0, 5).map(d => o[d]); const lo = Math.min(...v), hi = Math.max(...v); return lo === hi ? `${lo}` : `${lo}–${hi}`; };
 const trio = o => `${wk(o)} · ${o.sat} · ${o.sun}`;
 const timed = s => /^\d\d:\d\d-\d\d:\d\d$/.test(s);
+const dur = s => (endMinutes(s) - startMinutes(s) + 1440) % 1440;
+const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+
+/** When the weekday 06:20 earlies ON THE FLOOR finish (26 Oct 2026, owner: "losing the 13.35 and 13.45 finishes").
+ *  The ticket office's own 06:20 pair is set aside, a day at a time: it is the same 06:20–14:20 today and on every
+ *  design (rule S5), so leaving it in would put 14:20 in both columns and say nothing. Today's floor openers are the
+ *  13:35 and 13:45. */
+function floorEarlyEnds(patterns, model) {
+  const [office, posts] = OFFICE[model].weekday[0], ends = new Set();
+  for (const d of DAYS.slice(0, 5)) {
+    let left = posts;
+    for (const r of Object.values(patterns)) {
+      const s = r[d]; if (!timed(s) || startMinutes(s) !== 6 * 60 + 20) continue;
+      if (s === office && left > 0) { left--; continue; }
+      ends.add(s.slice(6));
+    }
+  }
+  return [...ends].sort().join(' · ');
+}
+
+/** The shortest weekday late that is neither the office's nor a closer: where the minutes would have to go if a floor
+ *  early were made shorter, because the office pair (S5) and the 15:45 closers (F3) are fixed and the week's total is
+ *  fixed by the contract. deck-polish.py prices "keep a 13:45" from this and floorEarlyEnds. */
+function shortestFloorLate(patterns, model) {
+  const [office, posts] = OFFICE[model].weekday[1], lates = [];
+  for (const d of DAYS.slice(0, 5)) {
+    let left = posts;
+    for (const r of Object.values(patterns)) {
+      const s = r[d]; if (!timed(s) || startMinutes(s) < 11 * 60 || endMinutes(s) === 23 * 60 + 55) continue;
+      if (s === office && left > 0) { left--; continue; }
+      lates.push(s);
+    }
+  }
+  return lates.sort((a, b) => dur(a) - dur(b) || a.localeCompare(b))[0] ?? '';
+}
 
 /** Everything a deck row can quote, for one rota — from the functions the sheets themselves use. */
 function figures(patterns, lines, T) {
@@ -49,6 +84,7 @@ function figures(patterns, lines, T) {
   const up = (fixed, worst) => `${fixed}${worst !== fixed ? ` (up to ${worst})` : ''}`;
   const todaysTimes = new Set((T ? T.tableRows : A.tableRows).map(r => r.time));
   const shared = A.tableRows.filter(r => todaysTimes.has(r.time)).length;
+  const monSat = Object.values(patterns).flatMap(r => DAYS.slice(0, 6).map(d => r[d]).filter(timed)), isEarly = s => startMinutes(s) < 11 * 60;
   return {
     people: `${L}`, hours: '35h', daysWeek: dpw.toFixed(2), daysYear: pp.daysYear.toFixed(1),   // one decimal: 218.6 against 219.0 (3 Oct 2026 — the rounded 219 | 219 read as "no change")
     sat: `${Math.round(pp.sat)}`, sun: `${Math.round(pp.sun)}`, late23: `${Math.round(pp.late23)}`,
@@ -60,6 +96,11 @@ function figures(patterns, lines, T) {
     weekendsShort: `${A.checks.weekendsOff} in ${L}`, weekendsYear: `${Math.round(A.checks.weekendsOff * 52 / L)}`,   // per year, the owner's 2 Oct ruling for the sheets, now the decks too
     heavy: hm(Math.max(...wkMins)), light: hm(Math.min(...wkMins)), fitWk: A.office.wkFit.toFixed(1),
     longestEarly: hm(Math.max(...Object.values(patterns).flatMap(r => DAYS.map(d => r[d]).filter(s => timed(s) && startMinutes(s) < 11 * 60).map(s => (endMinutes(s) - startMinutes(s) + 1440) % 1440)))),
+    // where the hours sit, Monday to Saturday: the total is fixed, so minutes off the lates go on the earlies
+    floorEarly: floorEarlyEnds(patterns, lines === 20 ? 'today' : 'plan'), floorLate: shortestFloorLate(patterns, lines === 20 ? 'today' : 'plan'),
+    early0620: Object.values(patterns).flatMap(r => DAYS.slice(0, 5).map(d => r[d])).filter(s => timed(s) && startMinutes(s) === 6 * 60 + 20).map(s => s.slice(6)).sort()[0] ?? '',
+    avgEarly: hm(mean(monSat.filter(isEarly).map(dur))), avgLate: hm(mean(monSat.filter(s => !isEarly(s)).map(dur))),
+    before1400: `${Math.round(monSat.filter(s => isEarly(s) && endMinutes(s) < 14 * 60).length * 52 / L)}`,
     sunHours: hm(Object.values(patterns).reduce((s, r) => s + (timed(r.sun) ? (endMinutes(r.sun) - startMinutes(r.sun) + 1440) % 1440 : 0), 0)),
     run: up(A.fixed.run, A.checks.longestStretch), ff: up(A.fixed.present, worstFF),
     times: T ? `${A.feel.distinctTimes} (${shared} you know)` : `${A.feel.distinctTimes}`,
@@ -92,6 +133,7 @@ const ROWS = {
   'Fewest rostered on the floor': ['floor', 'floorMin'], 'Cover weeks (for leave and sickness)': 'cover',
   'People needed each Sunday (overtime)': 'sundayPeople', 'Rest-day breaks of two days or more': 'breaks',
   'Weeks on one turn, Monday to Friday': 'oneTurn', 'Weeks on one turn, no early–late switch': 'oneTurn', 'Longest shift anywhere': 'longest', 'Average shift': 'avg',
+  'Weekday 06:20 early on the floor ends': 'floorEarly',
   'Days off in a row — best place to book': 'leaveBest', 'Days off in a row — on average': 'leaveAvg',
   'Days off in a row — worst place': 'leaveWorst', 'Leave for four full weeks off, at best': 'leaveFour',
 };

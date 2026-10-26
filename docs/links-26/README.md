@@ -220,7 +220,8 @@ against 219.0, the one-turn row and the fit slide saying what they count, slide 
 one adds and what it costs. A second pass the same day (owner: "are they missing anything?") made the late-finish slide
 say the rise after 22:00 as well as after 23:00, the shift-length slide name the early turns that get longer, the
 "Will I work more?" slide give the weekly range, and the manager deck carry the Sunday overtime hours and the two open
-points. Every builder and the polish refuse if a slide no longer holds the text they expect, and every deck compares
+points. **On 26 Oct 2026 the colleague decks gained the early finishes** — slide 6 and the trade-offs slide now say the
+13:35 and 13:45 go, and what keeping one would cost; see "The early finishes" below. Every builder and the polish refuse if a slide no longer holds the text they expect, and every deck compares
 only with today's link.
 - **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts.
   `tooling/leave.mjs` gives the four leave figures (all three shortlisted designs: 14 days' leave buys 28 days off at
@@ -771,6 +772,81 @@ which broke the pack's own "5 (up to 6)" convention for days in a row. **The sho
 print a page whose content runs into its footer** — their pages are a fixed height, so an over-full page was HIDDEN, not
 pushed onto a third page, and this change first hid the shortlist's last choice-guide row and closing line. The guard
 measures at the print width under print media; measured at screen width it passed the broken page.
+
+## The early finishes, and what keeping one costs (26 Oct 2026)
+
+Owner: "Do you think it will be easy to sell to the others when we are losing the 13.35 and 13.45 finishes. It is just
+this was needed to shorten the lates." **All three shortlisted designs lose them.** Today's two weekday floor openers,
+06:20–13:35 and 06:20–13:45 (about 26 a year each), become 06:20–14:50 in Second Edition and Short Run, and 06:20–14:00
+or 14:50 in Even Keel. That is arithmetic, not one design's choice. The contract fixes the week's total (44,100
+minutes) and the 219-day ceiling fixes the number of shifts, so the average shift is at least 8h 16m (today 8h 14m),
+and the time taken off the lates has to go on the earlies:
+
+| Monday to Saturday | Today | Second Edition, Short Run | Even Keel |
+|---|---|---|---|
+| Average early | 7h 59m | 8h 26m | 8h 19m |
+| Average late | 8h 29m | 8h 06m | 8h 12m |
+| Weekday 06:20 floor early ends | 13:35 · 13:45 | 14:50 | 14:00 · 14:50 |
+| Earlies finishing before 14:00, each a year | 26 | 0 | 0 |
+
+**The decks now say so; until now they did not.** Slide 6 ("Will my shifts be longer?") answered with the closers only,
+and the trade-offs slide did not list the early finishes. So the first colleague to notice 13:35 and 13:45 missing from
+slide 8 would read it as hidden, beside a banner saying "None of these is hidden". In all three colleague decks,
+`deck-polish.py` (`early_finishes`) now changes:
+- **slide 6:** the subtitle reads "Closers get shorter, earlies longer". The "Longest shift anywhere" row (also on slide
+  14) becomes "Weekday 06:20 early on the floor ends": today 13:35 · 13:45, the design's in amber. The banner says the
+  same 35 hours move from the lates to the earlies. The notes give the averages, the longest early and the price of
+  keeping a 13:45.
+- **slide 13:** the "Shifts about 2 minutes longer on average" box becomes "The 13:35 and 13:45 finishes go"; the
+  2-minute point stays on slide 6. The box gives the earliest weekday 06:20 finish and, in one line, the price: "Each
+  13:45 back makes a late 1h 05m longer" (Even Keel: 15 minutes). A third line ran out of the box, measured on the
+  render, so the exact times are in the notes.
+- **notes 2 and 13:** say it with the pitch, and point at page 4 of the sheet, which already listed both times as dropped.
+
+`deck-check.mjs` vouches for the new row with `floorEarly`. It sets aside the ticket office's own 06:20–14:20 pair, a
+day at a time, from `OFFICE` in `report-data.mjs`. Removing that set-aside makes all three decks fail (`scripts/mutate.mjs`:
+3 disagree). The price is computed from the grid (`keep_1345`, from `floorEarly` and `floorLate`). The floor's
+earliest-ending 06:20 early becomes 13:45, and the minutes that frees go on the same day's shortest late that is neither
+the office's nor a closer. The manager decks are unchanged.
+
+**What keeping one costs, tested** (`tooling/keep-early.mjs`). Each 13:45 is paid for the same day, minute for minute, so
+the week's total and the number of shifts do not move:
+- **Second Edition and Short Run:** a 06:20–14:50 becomes 06:20–13:45, and a 15:00–22:30 becomes 13:55–22:30, 65 minutes
+  each way. 13:55 is off the quarter-hour grid the table searches used, but it is the only start that balances to the
+  minute. The on-grid alternative is 06:20–13:35 with a 13:45–22:30 late; tested for one a weekday on Short Run, it
+  gives the same figures as one 13:45.
+- **Even Keel:** its 06:20–14:00 becomes 06:20–13:45, and a 14:45–22:30 becomes 14:30–22:30.
+
+The script tries every placement on the rota and scores each with the sheet's own functions:
+
+| Kept | Rules | Fatigue warnings | One-turn weeks | Shift times | Heaviest week | Average early · late | Before 14:00, a year each |
+|---|---|---|---|---|---|---|---|
+| Short Run as it is | 9/9 · 3/3 | 0 | 18 of 21 | 15 | 42h 30m | 8h 26m · 8h 06m | 0 |
+| Short Run, one 13:45 a weekday | 9/9 · 3/3 | 0 | 17 | 17 | 41h 50m | 8h 19m · 8h 13m | 10 |
+| Short Run, two a weekday (today's number) | 9/9 · 3/3 | 0, in all 243 placements | 18 | 16 | 42h 30m | 8h 11m · 8h 20m | 20 |
+| Second Edition, one a weekday | 9/9 · 3/3 | 0 | 18 | 17 | 43h 00m | 8h 19m · 8h 13m | 10 |
+| Second Edition, two a weekday | 9/9 · 3/3 | 1 (FF17, backward rotation) in every one of the 243 placements | – | – | – | – | – |
+| Even Keel, its 14:00 made 13:45 | 9/9 · 3/3 | 0 | 18 | 15 | 41h 30m | 8h 17m · 8h 14m | 10 |
+
+Everything else holds in each row: the hard limits, the weekends (7 in 26, at most five apart), the runs, the shortest
+rest, 218.6 days a year, the late finishes and the fit. **So the price of the early finishes is exactly the lates that
+pay for them.** In Short Run, two 13:45s a weekday (today's number) cost three things:
+- both 15:00–22:30 lates become 13:55–22:30;
+- lates average 8h 20m, still 9 minutes under today's;
+- one more shift time.
+
+Nothing else on the sheet changes. This is a choice to put to colleagues, not a change made here. The shortlisted grids,
+their sheets and the built-in proposals are untouched. The four kept grids are in `tooling/results/keep-1345-*.json`.
+
+From `tooling/` (one per weekday is searched within one extra mixed week, two per weekday in full):
+
+```
+node keep-early.mjs short-run.json 06:20-14:50 06:20-13:45 15:00-22:30 13:55-22:30 1 1 results/keep-1345-short-run-x1.json
+node keep-early.mjs short-run.json 06:20-14:50 06:20-13:45 15:00-22:30 13:55-22:30 2 9 results/keep-1345-short-run-x2.json
+node keep-early.mjs second-edition.json 06:20-14:50 06:20-13:45 15:00-22:30 13:55-22:30 1 1 results/keep-1345-second-edition-x1.json
+node keep-early.mjs second-edition.json 06:20-14:50 06:20-13:45 15:00-22:30 13:55-22:30 2 9    # every placement: FF17
+node keep-early.mjs even-keel.json 06:20-14:00 06:20-13:45 14:45-22:30 14:30-22:30 1 9 results/keep-1345-even-keel-x1.json
+```
 
 ## Notes for the whole set
 
