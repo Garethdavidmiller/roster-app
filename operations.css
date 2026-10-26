@@ -942,6 +942,9 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
        every row below stopped at 540px, so the card had two right edges ~80px apart and the rows
        read as unfinished. One measure, one edge. */
     .speed-verdict, .speed-bar--overall, .speed-legend { max-width: 540px; }
+    /* The Usage card's figure boxes too (v25.00): they ran to the card's edge, 64px past the bars
+       beneath them — the two-right-edges fault the App Speed pass fixed on its own card. */
+    .usage-stats { max-width: 540px; }
     /* Header spans both columns */
     .app-header { grid-column: 1 / -1; }
 
@@ -1514,42 +1517,27 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     font-size: var(--type-small);
     color: var(--text-mid);
     margin-top: 4px;
+    /* Three boxes share a phone row, so a label can wrap: "never / signed in", never "never signed / in". */
+    text-wrap: balance;
 }
+/* Last month's full figure, beside this month's (v25.00). A box like its neighbours, so the row keeps
+   one rhythm, but its number is quiet: it is the yardstick for the figure next to it, not a third
+   measure to read across. Colour, never opacity (css-tokens.md → "opacity on a group"). */
+.usage-stat--context .usage-stat-num { color: var(--text-mid); }
+/* The App Speed card's block eyebrow ("BY APP VERSION") still wears this class — `.speed-dim-label`
+   restyles it, and depends on the weight and the bottom margin set here. The Usage card's own
+   sections are `h3.speed-subhead` since v25.00 (`_sectionHeading`), so the two reporting cards share
+   one heading rank and one look rather than two that looked alike until somebody tuned one. */
 .usage-section-label {
     font-size: var(--type-small);
     font-weight: 700;
     color: var(--text-mid);
     margin: 0 0 8px;
 }
-/* Second group ("Documents & guides — opens") — a clear divider so the two bar
-   groups don't read as one continuous list. */
-.usage-section-label--sub {
-    margin-top: 18px;
-    padding-top: 14px;
-    border-top: 1px solid var(--border-light);
-}
-/* Exact unique-account sign-in counts (v18.96). A divider, not a new visual language: it reuses
-   .usage-stats / .usage-section-label / .usage-note wholesale so it reads as another section of the
-   same card, while the rule makes clear it answers a DIFFERENT question from the trend above it. */
-.usage-signin:not(:empty) {
-    margin-top: 18px;
-    /* Bottom margin as well as top: the Page-popularity toggle follows immediately, and without it
-       this section's closing note sat hard against the buttons. */
-    margin-bottom: 20px;
-    padding-top: 14px;
-    border-top: 1px solid var(--border-light);
-}
-/* Which address staff are on (v19.24). Same treatment as .usage-signin — a rule top AND bottom, so
-   it reads as its own section of the same card. The BOTTOM rule is load-bearing: the Page-popularity
-   toggle follows immediately and its own heading sits below it, so without a divider the toggle
-   reads as filtering the addresses. */
-.usage-origins {
-    margin: 18px 0 20px;
-    padding: 14px 0 16px;
-    border-top: 1px solid var(--border-light);
-    border-bottom: 1px solid var(--border-light);
-}
-.usage-origins .usage-note { margin-bottom: 0; }
+/* The Usage card's sections — the sign-in counts (v18.96) and the addresses (v19.24) — are
+   wrappers with no rule of their own since v25.00: each opens on a heading that draws the divider
+   ABOVE it (`.speed-subhead--rule`), as App Speed's sections do. They used to draw it themselves,
+   top AND bottom, which put two rules between two sections wherever they met. */
 
 
 /* Stacked fill: the outer band is the share of accounts on this address, the solid inner band the
@@ -1567,25 +1555,34 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     background: var(--primary-blue);
     border-radius: var(--radius-pill);
 }
+/* The App Speed legend's size and spacing (v25.00): a key to the bars above it is read before the
+   notes beneath it, so it is not set in the notes' smaller type. */
 .usage-origin-legend {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px 14px;
-    font-size: var(--type-micro);
+    gap: 6px 16px;
+    font-size: var(--type-small);
     color: var(--text-mid);
     margin: 10px 0 0;
 }
 .usage-origin-key {
-    display: inline-block;
+    flex: none;
     width: 14px;
     height: 8px;
     border-radius: var(--radius-pill);
-    margin-right: 4px;
-    vertical-align: -1px;
 }
 .usage-origin-key--installed { background: var(--primary-blue); }
 .usage-origin-key--browser   { background: color-mix(in oklch, var(--primary-blue) 28%, white); }
+/* The installed figure as numbers, in bar order (v25.00) — the stacked bar shows the share, and the
+   count is what says how many people a retired address would strand. */
+.usage-origin-installed-count {
+    font-size: var(--type-micro);
+    color: var(--text-mid);
+    margin: 6px 0 0;
+    max-width: 64ch;
+    font-variant-numeric: tabular-nums;
+}
 
 /* The address key (v19.29). The bar labels are short so the three bar groups keep one shared label
    column, which means the full address has to be stated somewhere the reader can actually see it —
@@ -1605,6 +1602,9 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 
 .usage-signin .usage-stats { margin-bottom: 8px; }
 .usage-signin .usage-note  { margin-bottom: 0; }
+/* The figures are not in yet (v25.00 — the section holds its place from the start). Dimmed by
+   COLOUR, never opacity: a fade multiplies contrast (css-tokens.md → "opacity on a group"). */
+.usage-signin[aria-busy="true"] .usage-stat-num { color: var(--text-light); }
 
 .usage-bars {
     display: flex;
@@ -1654,6 +1654,22 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     font-size: var(--type-micro);
     color: var(--text-mid);
     margin: 12px 0 0;
+    /* The reading measure at EVERY width (v25.00), as `.speed-note` has had since the App Speed polish:
+       on a tablet the card is the page's full width and a note ran to ~120 characters a line. It
+       cannot bind on a phone. Both cards close on this class, so both footers keep the measure. */
+    max-width: 64ch;
+    text-wrap: pretty;
+}
+/* A section with nothing to show yet says so in ONE voice (v25.00). The two empty states were a 13px
+   description and a 10px footnote — the same message at two sizes, a section apart. A footnote's size
+   is too small for the only thing a section holds, and the description's was louder than the section
+   headings above it. */
+.usage-empty {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    margin: 0;
+    max-width: 64ch;
+    text-wrap: pretty;
 }
 
 /* ── App speed card (Project 0 latency, plain-language) ───────────────────────── */
@@ -1681,7 +1697,10 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     color: var(--text-dark);
     margin: 16px 0 8px;
 }
-.speed-subhead:first-child { margin-top: 2px; }
+/* A card's opening heading sits near the top — but one that draws a divider keeps the divider's
+   spacing even when it is the first thing in its wrapper (the Usage card's sections, v25.00), or the
+   rule lands hard against the text above it. */
+.speed-subhead:first-child:not(.speed-subhead--rule) { margin-top: 2px; }
 .speed-verdict {
     display: flex;
     align-items: center;
@@ -1859,12 +1878,13 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 /* A note that FOLLOWS a table needs air above it; flush, it read as the last row's caption. */
 .speed-rows + .speed-note { margin-top: 12px; }
 
-/* A divider above a section that starts a NEW subject, mirroring `.usage-section-label--sub` on the
-   Usage card. Without it the whole card is one continuous scroll: "Opening pages" and "A closer look"
-   are separate questions and nothing marked where either began. */
+/* A divider above a section that starts a NEW subject. Without it the whole card is one continuous
+   scroll: "Opening pages" and "A closer look" are separate questions and nothing marked where either
+   began. */
 .speed-subhead--rule {
-    /* The same 18/14 as `.usage-section-label--sub`, which draws the identical rule on the Usage
-       card directly above this one. It was 20/16 for no reason anyone recorded. */
+    /* The divider above a section, on both reporting cards — the Usage card's sections wear this
+       class too since v25.00. 18/14, the value the Usage card's own rules always used; this was
+       20/16 for no reason anyone recorded. */
     margin-top: 18px;
     padding-top: 14px;
     border-top: 1px solid var(--border-light);
@@ -1901,6 +1921,10 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     font-weight: 600;
     color: var(--text-mid);
 }
+/* A sub-heading that opens a new list under the same section (the Usage card's "Documents & guides
+   — opens", which shares Page popularity's month and scale) keeps the section rule's spacing.
+   Two classes, so it wins over `--sub`'s margin shorthand whatever order the rules sit in. */
+.speed-subhead--sub.speed-subhead--rule { margin-top: 18px; }
 /* The reading measure at EVERY width, not only from 1024px: on a tablet the card is the full page
    width and a note ran to ~115 characters a line (polish pass, Oct 2026). It cannot bind on a phone. */
 .speed-note {

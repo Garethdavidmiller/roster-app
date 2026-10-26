@@ -228,7 +228,7 @@ part of its work done here.
 - **Doc viewer** — `await` inside `openDoc()` before the fetch; the existing loading state covers it.
 - **nav-panel** — add `authReady` to the `initNavPanel({…})` options bag (default `Promise.resolve()`),
   each page passing its own: `calendarAuthReady` on the calendar, `sessionReady` on the five authenticated
-  pages. Follows the existing per-page injection precedent (`isAdmin`, `onLogoClick`, `usageIdentity`).
+  pages. Follows the existing per-page injection precedent (`isAdmin`, `onLogoClick`).
 
 **The guards (written first, both teeth-verified):**
 

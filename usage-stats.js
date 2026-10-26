@@ -50,17 +50,40 @@ export function shouldCountMonth(lastCountedMonth, now) {
 }
 
 /**
- * Should this account be counted toward the rolling window again? Each account
- * self-suppresses for the whole window, so summing the per-day buckets over the
- * window counts each account at most once PER DEVICE AND ADDRESS — not a true headcount (v19.86):
- * one person on two devices counts twice, and somebody using both addresses appears in both.
- * @param {number} lastCountedMs - epoch ms last recorded for this account on this device (NaN/0 if never)
+ * Where this account-device's ONE rolling-window count should sit after an open now (v25.00).
+ *
+ * Each account-device holds a single +1 in the daily buckets, so summing the buckets over the window
+ * counts it at most once — once PER DEVICE AND ADDRESS, never a headcount (v19.86): one person on two
+ * devices counts twice, and somebody using both addresses appears in both.
+ *
+ * ── WHY THE COUNT MOVES (v25.00) ─────────────────────────────────────────────────────────────────
+ * Until v25.00 the +1 was placed on the day an account-device was first seen and then frozen for 30
+ * days (`shouldCountRolling`). The window therefore summed the days accounts were FIRST seen, not the
+ * days they were last active, and anyone whose +1 had just aged out while they kept using the app was
+ * missed until their next open after day 30 placed a new one. Simulated over a year of habits, that
+ * missed about 1 in 30 daily users, 1 in 6 weekly ones and 1 in 5 monthly ones — and it under-read
+ * the very figure that decides when the old address can be retired. Now every open on a new day
+ * MOVES the +1 to today, so the window holds each account-device once, on its LATEST active day,
+ * which is what "active in the last 30 days" says.
+ *
+ * At most one write per account-device per day: an open on a day already holding the count moves
+ * nothing. The device flag keeps its old meaning (when the count was last placed), so a flag written
+ * by the old code is read correctly — the day it names is the day its +1 sits on.
+ *
+ * @param {number} lastCountedMs - epoch ms the count was last placed on this device (NaN/0 if never)
  * @param {Date} now
  * @param {number} [windowDays]
+ * @returns {{ add: string, remove: string|null }|null} null when today already holds the count.
+ *   `remove` is the day to take it back from — only while that day is INSIDE the window: a day that
+ *   has left it no longer counts toward the figure, and may already have been pruned, where a
+ *   decrement would recreate the key at -1.
  */
-export function shouldCountRolling(lastCountedMs, now, windowDays = ROLLING_WINDOW_DAYS) {
-    if (!lastCountedMs || Number.isNaN(lastCountedMs)) return true;
-    return (now.getTime() - lastCountedMs) > windowDays * 86400000;
+export function rollingMove(lastCountedMs, now, windowDays = ROLLING_WINDOW_DAYS) {
+    const add = dayKey(now);
+    if (!lastCountedMs || Number.isNaN(lastCountedMs)) return { add, remove: null };
+    const last = dayKey(new Date(lastCountedMs));
+    if (last === add) return null;
+    return { add, remove: recentDayKeys(now, windowDays).includes(last) ? last : null };
 }
 
 /**
@@ -83,12 +106,17 @@ export function recentDayKeys(now, days = ROLLING_WINDOW_DAYS) {
 /**
  * Sum of the daily counters over the rolling window — the "active accounts in the
  * last N days" figure.
+ *
+ * Never below zero (v25.00). A count MOVES by a -1 on its old day and a +1 on today (`rollingMove`),
+ * and if the original +1 was ever lost — a write refused or dropped — the -1 lands on a day that never
+ * had it. The total then reads one short until that day leaves the window, which is the right
+ * direction to fail in; a negative total is not a figure at all.
  * @param {Record<string, any>} daily
  * @param {Date} now
  * @param {number} [days]
  */
 export function sumDailyWindow(daily, now, days = ROLLING_WINDOW_DAYS) {
-    return recentDayKeys(now, days).reduce((sum, k) => sum + (Number(daily[k]) || 0), 0);
+    return Math.max(0, recentDayKeys(now, days).reduce((sum, k) => sum + (Number(daily[k]) || 0), 0));
 }
 
 /**
@@ -169,11 +197,15 @@ export function parseOriginKey(key) {
 /**
  * Roll the per-day origin counters up into the migration picture for the rolling window.
  *
- * `accounts` is an account-DEVICE signal, not a headcount (each account self-suppresses for the window per device+address, so summing the
- * days cannot double-count). `installed` is deduped separately and is therefore a subset — but a
- * LOWER BOUND, not an exact one: an account whose only opens in the window were browser tabs is
- * counted in `accounts` and not in `installed`, which is correct, while one that installed midway
- * through the window is picked up from that point.
+ * `accounts` is an account-DEVICE signal, not a headcount (each account-device holds ONE +1 per
+ * address, on its latest active day — `rollingMove` — so summing the days cannot double-count).
+ * `installed` is the same rule applied to opens of the INSTALLED app, so it is a subset: an
+ * account-device whose only opens in the window were browser tabs is in `accounts` and not in
+ * `installed`, which is correct.
+ *
+ * Each row is clamped (v25.00): never below zero, and `installed` never above `accounts` — a count
+ * that moves by -1/+1 can leave a lost write's -1 behind for a while (`sumDailyWindow` says why), and
+ * a bar is not drawn from a negative share. A row with nobody left on it is dropped.
  *
  * @param {Record<string, any>} daily the `analytics/origins` daily map
  * @param {Date} now
@@ -190,7 +222,13 @@ export function summariseOrigins(daily, now, days = ROLLING_WINDOW_DAYS) {
         const row = out[p.origin] || (out[p.origin] = { origin: p.origin, accounts: 0, installed: 0 });
         row[p.installed ? 'installed' : 'accounts'] += Number(value) || 0;
     }
-    return Object.values(out).sort((a, b) => b.accounts - a.accounts || a.origin.localeCompare(b.origin));
+    return Object.values(out)
+        .map(r => {
+            const accounts = Math.max(0, r.accounts);
+            return { origin: r.origin, accounts, installed: Math.min(accounts, Math.max(0, r.installed)) };
+        })
+        .filter(r => r.accounts > 0)
+        .sort((a, b) => b.accounts - a.accounts || a.origin.localeCompare(b.origin));
 }
 
 /**

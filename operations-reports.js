@@ -34,7 +34,10 @@ import { formatDayMonth, formatClock } from './date-format.js';
  * appears reads as approximate. Exclusion first, anonymity last, so both cards close on the
  * stronger claim.
  */
-const PRIVACY_FOOTER = 'Your own (admin) opens are excluded. Anonymous — we never record who.';
+// "while signed in as admin" since v25.00: both cards now leave out only a SIGNED-IN admin. A device
+// nobody is signed in to (the station PC) counts whichever row is selected — excluding on that
+// dropped real staff opens — so "your own opens" would have promised more than either card does.
+const PRIVACY_FOOTER = 'Your own opens while signed in as admin are excluded. Anonymous — we never record who.';
 
 /**
  * Emoji + label for each page id — shared by the Usage and App Speed cards (was defined

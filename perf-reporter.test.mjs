@@ -462,6 +462,29 @@ describe('after a release — the wait somebody had (App Speed review, Oct 2026)
         mod.recordPageLatency('calendar', 'S. Silva');
         assert.equal(_ss.has(SW_KEY), false, 'consumed by the load it labels');
     });
+
+    test('the answer is SHARED: the usage counter asking first does not take the label from App Speed (v25.00)', async () => {
+        // recordUsage runs before recordPageLatency on every page, and since v25.00 it asks too — it
+        // does not count a release reload as a page view. The marker can be consumed once; the answer
+        // has to survive for the second reader, or every release reload loses its `readyUpdate`.
+        const mod = await load('rel-shared');
+        _ss.set(SW_KEY, String(T - 100));
+        assert.equal(mod.loadFollowedRelease(), true, 'the usage counter asks first');
+        assert.equal(_ss.has(SW_KEY), false, 'and the marker is gone');
+        assert.equal(mod.loadFollowedRelease(), true, 'the answer is remembered for the load');
+        mod.recordPageLatency('calendar', 'S. Silva');
+        clock.now = 900;
+        mod.markPageReady();
+        await settle();
+        assert.ok(metrics().includes('readyUpdate'), 'App Speed still labels the release');
+    });
+
+    test('no marker: neither reader sees a release', async () => {
+        const mod = await load('rel-shared-none');
+        assert.equal(mod.loadFollowedRelease(), false);
+        _ss.set(SW_KEY, String(T - 100));   // written AFTER the answer was settled — a later load's
+        assert.equal(mod.loadFollowedRelease(), false, 'settled once per load');
+    });
 });
 
 describe('the stored-copy paint (`rosterSnapshot`, v24.85)', () => {

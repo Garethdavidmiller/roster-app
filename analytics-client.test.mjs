@@ -119,6 +119,23 @@ describe('no identity in a counter', () => {
         assert.match(keys[0], /\|pwa$/);
     });
 
+    test('a MOVED rolling count is one merged write: +1 on today, -1 on the day it left (v25.00)', async () => {
+        // One write, not two: two could land half-way, leaving a member counted twice or not at all.
+        const { client, writes } = harness();
+        client.recordActiveAccount({ day: '2026-10-09', fromDay: '2026-10-01' });
+        client.recordActiveAccount({ day: '2026-10-09', fromDay: '2026-10-09' });   // never a -1 on today
+        client.recordOriginUse({ day: '2026-10-09', origin: 'web', countVisit: true, fromDay: '2026-10-01',
+            installed: true, fromPwaDay: '2026-10-02' });
+        await new Promise(r => setTimeout(r, 0));
+        assert.deepEqual(writes[0].data, { daily: { '2026-10-09': { inc: 1 }, '2026-10-01': { inc: -1 } } });
+        assert.deepEqual(writes[1].data, { daily: { '2026-10-09': { inc: 1 } } });
+        assert.deepEqual(writes[2].data, { daily: {
+            '2026-10-09|web': { inc: 1 }, '2026-10-01|web': { inc: -1 },
+            '2026-10-09|web|pwa': { inc: 1 }, '2026-10-02|web|pwa': { inc: -1 },
+        } });
+        assert.ok(writes.every(w => w.merge), 'merged, so the other counters in the document stay');
+    });
+
     test('a page view is one merged increment in the month\'s document, keyed by page only', async () => {
         const { client, writes } = harness();
         client.recordPageView('paycalc');

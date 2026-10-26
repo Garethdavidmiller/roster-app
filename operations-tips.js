@@ -96,23 +96,23 @@ export const CARD_TIPS = {
         title: 'Usage',
         sections: [
             { heading: 'What it shows', items: [
-                { icon: '👥', html: '<strong>Roster in use</strong> — how many <strong>member-and-device pairs</strong> opened the app this calendar month and over the last 30 days. Simply opening the app counts, <strong>including just looking at the roster without signing in</strong>. Two things are never counted: <strong>your own visits as admin</strong>, and a brand-new device before anybody has picked a member on it' },
-                { icon: '🧮', html: 'It is not a headcount of people, which is why it is no longer labelled "accounts". One person on a phone <em>and</em> a laptop counts <strong>twice</strong>; on a shared device it follows <strong>whichever member is selected</strong>, who need not be the person holding it. For the exact count of distinct accounts, see the block below' },
-                { icon: '📈', html: 'That last part changed in <strong>August 2026</strong>. Before then this counted only people who opened a page you must sign in for, so it missed anyone who just reads their shifts — most of the staff. Expect a <strong>step up</strong> from that point; figures either side of it aren\'t comparable' },
+                { icon: '👥', html: '<strong>Roster in use</strong> — how many <strong>member-and-device pairs</strong> opened the app this calendar month (with last month\'s full figure beside it) and on any of the last 30 days. Simply opening the app counts, <strong>including just looking at the roster without signing in</strong>' },
+                { icon: '🧮', html: 'It is not a headcount of people, which is why it is not labelled "accounts". One person on a phone <em>and</em> a laptop counts <strong>twice</strong>; on a shared device it follows <strong>whichever member is selected</strong>, who need not be the person holding it. For the exact count of distinct accounts, see the block below' },
+                { icon: '🚫', html: 'Never counted: <strong>your own visits while signed in as admin</strong>, a brand-new device before anybody has picked a member on it, and the <strong>reload the app does by itself</strong> after an update. On a device nobody is signed in to — the station PC — a visit always counts as a page view, but a member-device only when a staff member\'s row is selected' },
                 { icon: '📊', html: '<strong>Page popularity</strong> — how many times each page has been opened, and how many times each document and guide has been opened. <strong>This month / Last month</strong> switches the window' },
             ]},
             { heading: 'Which address staff are on', items: [
-                { icon: '\u{1F6A6}', html: 'While the app is served from <strong>two addresses</strong>, this shows how far the move has got — <strong>account-device signals</strong> on each over the last 30 days, directional rather than a headcount, and how many opened the <strong>installed</strong> app rather than a browser tab' },
+                { icon: '\u{1F6A6}', html: 'While the app is served from <strong>two addresses</strong>, this shows how far the move has got — <strong>member-devices</strong> on each over the last 30 days, a direction rather than a headcount, and how many of them opened the <strong>installed</strong> app rather than a browser tab' },
                 { icon: '\u{1F4CD}', html: 'Someone using <strong>both</strong> addresses counts on each — that is what half-migrated looks like. An install nobody has <em>opened</em> in 30 days is invisible here, so treat it as a floor' },
             ]},
             { heading: 'Sign-ins vs opens', items: [
                 { icon: '\u{1F511}', html: '<strong>Accounts that have signed in</strong> is the exact unique count, from Firebase Auth itself. It counts <strong>sign-ins, not opens</strong> — a session lasts up to 60 days, so someone can sign in once and use the app daily for two months without ever appearing here again' },
                 { icon: '\u{1F423}', html: '<strong>Never signed in</strong> is the actionable one: accounts set up that have never been used' },
-                { icon: '\u{1F50D}', html: 'The <strong>gap</strong> between the two blocks is now readable: roughly the staff who use the roster but have <strong>never held an account session</strong>. They can\'t be reached by anything that happens at sign-in — a password prompt, for one' },
+                { icon: '\u{1F50D}', html: 'The <strong>gap</strong> between the two blocks is readable: roughly the staff who use the roster but have <strong>never held an account session</strong>. They can\'t be reached by anything that happens at sign-in — a password prompt, for one' },
             ]},
             { heading: 'Privacy', items: [
                 { icon: '🔒', html: 'Completely <strong>anonymous</strong> — it counts <em>how many</em> accounts and visits, never <em>which</em> account did what. No names, no per-person history is stored' },
-                { icon: '📱', html: 'Counts are per account-device, so someone using both a phone and a laptop may count twice — treat the numbers as a usage trend, not an exact headcount' },
+                { icon: '📱', html: 'Counts are per member and device, so someone using both a phone and a laptop may count twice — treat the numbers as a usage trend, not an exact headcount' },
             ]},
         ],
     },

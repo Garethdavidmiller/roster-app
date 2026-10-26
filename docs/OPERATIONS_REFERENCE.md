@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: October 2026 — v24.90 · Updated every 0.10 version*
+*Last updated: October 2026 — v25.00 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -514,16 +514,19 @@ the last sign-in is stored. `neverSignedIn` is the actionable figure.
 ### Which address staff are on (v19.23, key added v19.29)
 
 While the app is served from BOTH `myb-roster.web.app` and the GitHub Pages mirror, the Usage card's
-**Which address staff are on** section is the only record of how far the move has got. Unique accounts
-per address over the last 30 days, with the share that opened the **installed app** rather than a
-browser tab nested inside each bar. Each row names its full address underneath — the labels alone are
+**Which address staff are on** section is the only record of how far the move has got. Member-devices
+per address over the last 30 days — each counted on its latest active day since v25.00 — with the share
+that opened the **installed app** rather than a browser tab nested inside each bar, and stated as a
+number beneath it (v25.00: "9 of 24 on GitHub Pages" is the figure a retirement decision needs, and a
+bar's share alone did not give it). Each row names its full address underneath — the labels alone are
 too short to identify (v19.29, after the labels were shortened for column alignment and the addresses
 were left in a hover tooltip no phone can reach).
 
 **Read it knowing what it cannot see.** It counts OPENS, so an install nobody has opened in 30 days is
 invisible — and those are exactly the people a migration strands. Someone using both addresses counts
-on each, which is what half-migrated looks like. Admin loads are excluded, like every other figure on
-the card.
+on each, which is what half-migrated looks like. A signed-in admin's loads are excluded, like every
+other figure on the card; the station PC's are counted (v25.00 — KNOWN_LIMITATIONS.md → "The Usage
+counts are a trend" has what changed at that release, and why the figures step up after it).
 
 **Why it matters operationally:** an installed PWA keeps launching from its own service-worker cache,
 so it will not drift onto the new address by itself. Anyone who does move loses their pay calculator

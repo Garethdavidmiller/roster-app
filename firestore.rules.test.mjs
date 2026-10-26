@@ -1863,6 +1863,24 @@ describe('analytics', () => {
             { merge: true },
         ));
     });
+
+    // v25.00: a rolling count MOVES to the latest active day (usage-stats.rollingMove) — +1 on today
+    // and -1 on the day it left, in ONE merged write. The rules never enforced increment-only, so
+    // this needs no rules change; what it must not do is trip the anti-wipe guard (it removes no
+    // key), and it has to work for the PIN viewer too, because the station PC records usage.
+    test('real MOVED-count write (+1 today, -1 on the old day) is allowed for a member and the PIN viewer', async () => {
+        await testEnv.withSecurityRulesDisabled(async ctx => {
+            await setDoc(doc(ctx.firestore(), 'analytics', 'activeAccounts'), { months: { '2026-06': 3 }, daily: { '2026-06-20': 2 } });
+            await setDoc(doc(ctx.firestore(), 'analytics', 'origins'), { daily: { '2026-06-20|web': 2, '2026-06-20|web|pwa': 1 } });
+        });
+        for (const db of [memberDb(), viewerDb()]) {
+            await assertSucceeds(setDoc(doc(db, 'analytics', 'activeAccounts'),
+                { daily: { '2026-06-25': increment(1), '2026-06-20': increment(-1) } }, { merge: true }));
+            await assertSucceeds(setDoc(doc(db, 'analytics', 'origins'),
+                { daily: { '2026-06-25|web': increment(1), '2026-06-20|web': increment(-1),
+                           '2026-06-25|web|pwa': increment(1), '2026-06-20|web|pwa': increment(-1) } }, { merge: true }));
+        }
+    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

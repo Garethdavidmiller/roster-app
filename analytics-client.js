@@ -145,14 +145,20 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
     /**
      * Increment the anonymous active-account counters. The caller (usage-reporter.js) has
      * already decided, from client-side dedup, whether this account is new this month
-     * and/or new within the rolling window — pass the bucket key for each that should tick.
-     * @param {{ month?: string|null, day?: string|null }} buckets
+     * and/or has a rolling-window count to place today — pass the bucket key for each that
+     * should tick. `fromDay` is the day that count is MOVING from (v25.00, `rollingMove`): it
+     * takes a -1 in the same write, so the window holds each account-device once, on its latest
+     * day. A merge with two increments can never fail halfway, which two writes could.
+     * @param {{ month?: string|null, day?: string|null, fromDay?: string|null }} buckets
      */
-    function recordActiveAccount({ month = null, day = null } = {}) {
+    function recordActiveAccount({ month = null, day = null, fromDay = null } = {}) {
         /** @type {Record<string, any>} */
         const data = {};
         if (month) data.months = { [month]: increment(1) };
-        if (day)   data.daily  = { [day]:   increment(1) };
+        if (day) {
+            data.daily = { [day]: increment(1) };
+            if (fromDay && fromDay !== day) data.daily[fromDay] = increment(-1);
+        }
         if (!month && !day) return;
         setDoc(doc(db, collections.analytics, 'activeAccounts'), data, { merge: true })
             .catch(() => {/* best-effort analytics */});
@@ -172,18 +178,25 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
      * real. Here, a rules lag costs only the new metric.
      *
      * The two counters are gated INDEPENDENTLY by the caller: `countVisit` false with `installed` true
-     * is the real case where an account already counted as a visit this window has now opened the
-     * installed app for the first time. Incrementing the visit again there would break the "unique
-     * accounts" guarantee the whole metric rests on.
+     * is the real case where an account whose visit is already on today has now opened the installed
+     * app. Incrementing the visit again there would break the "unique accounts" guarantee the whole
+     * metric rests on. Each counter MOVES (v25.00): `fromDay` / `fromPwaDay` is the day its count
+     * leaves, taking a -1 in the same write — see `recordActiveAccount`.
      *
-     * @param {{ day: string, origin: string, installed?: boolean, countVisit?: boolean }} o
+     * @param {{ day: string, origin: string, installed?: boolean, countVisit?: boolean, fromDay?: string|null, fromPwaDay?: string|null }} o
      */
-    function recordOriginUse({ day, origin, installed = false, countVisit = true }) {
+    function recordOriginUse({ day, origin, installed = false, countVisit = true, fromDay = null, fromPwaDay = null }) {
         if (!day || !origin) return;
         /** @type {Record<string, any>} */
         const daily = {};
-        if (countVisit) daily[originKey(day, origin)] = increment(1);
-        if (installed)  daily[originKey(day, origin, true)] = increment(1);
+        if (countVisit) {
+            daily[originKey(day, origin)] = increment(1);
+            if (fromDay && fromDay !== day) daily[originKey(fromDay, origin)] = increment(-1);
+        }
+        if (installed) {
+            daily[originKey(day, origin, true)] = increment(1);
+            if (fromPwaDay && fromPwaDay !== day) daily[originKey(fromPwaDay, origin, true)] = increment(-1);
+        }
         if (!Object.keys(daily).length) return;
         setDoc(doc(db, collections.analytics, 'origins'), { daily }, { merge: true })
             .catch(() => {/* best-effort analytics */});

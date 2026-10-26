@@ -983,3 +983,28 @@ describe('9 · every notice key is pre-dismissed by the browser suites\' session
         });
     }
 });
+
+describe('10 · every section a notice archives under has its colour in App Notices (v25.00)', () => {
+    // The drawer's App Notices list colours each notice's section chip from `SECTION_MODS`
+    // (nav-panel.js). A section missing there falls back to the neutral grey — which is how both
+    // Trains notices, the first of their section, arrived uncoloured. Read from every page that
+    // archives a notice, so the next page's first notice joins this contract by existing.
+    const here = new URL('.', import.meta.url);
+    const ARCHIVERS = ['calendar-notices.js', 'paycalc-lightboxes.js', 'links-app.js'];
+    const sections = new Set(ARCHIVERS.flatMap(f =>
+        [...readFileSync(new URL(`./${f}`, here), 'utf8').matchAll(/archiveNotice\(\{[^}]*?section:\s*'([^']+)'/gs)].map(m => m[1])));
+    const nav = readFileSync(new URL('./nav-panel.js', here), 'utf8');
+    const mods = /const SECTION_MODS = \{([^}]*)\}/.exec(nav)?.[1] ?? '';
+    const css = readFileSync(new URL('./shared.css', here), 'utf8');
+    test('the scan is reading real sections', () => {
+        assert.ok(sections.has('Trains') && sections.has('Pay'), [...sections].join(', '));
+        assert.match(mods, /Pay:/);
+    });
+    test('each one (bar "General", deliberately neutral) has a SECTION_MODS entry and a colour', () => {
+        const missing = [...sections].filter(s => s !== 'General').filter(s => {
+            const mod = new RegExp(`\\b${s}:\\s*'([a-z]+)'`).exec(mods)?.[1];
+            return !mod || !new RegExp(`\\.notices-item-section--${mod}\\s*\\{[^}]*color:`).test(css);
+        });
+        assert.deepEqual(missing, [], `App Notices would show ${missing.join(', ')} in the neutral grey`);
+    });
+});
