@@ -11,11 +11,15 @@
 #   fit    the closest fit to the trains (fit_terms' stand-in; needs --hold-fit)
 #   python tiebreak.py <base.json> <start.json> <out.json> <max changes> [--flex] [--fmax 0] [--stages wk,gap,iso,heavy,one,size] [--time 300]
 #                      [--min-wk N] [--max-gap N] [--max-iso N] [--max-heavy MINUTES] [--min-one N] [--min-e14 N]
-#                      [--hold-fit <grid.json> [--hold-fit-each]]
+#                      [--hold-fit <grid.json> [--hold-fit-each]] [--max-late N] [--max-six N] [--min-rest MINUTES] [--max-new N]
 # The floors hold a design's existing figures while one is improved (Fair Enough's polish, 26 Oct 2026: more weeks on one
 # turn, with its weekends, rest days and heaviest week held where they were). --min-e14 holds the early finishes: earlies
 # (starting before 11:00) that finish before 14:00, Monday to Saturday, counted in the rotation as the sheets count them.
 # --hold-fit-each holds weekday, Saturday and Sunday separately: a better weekend fit can otherwise pay for a worse weekday.
+# The rest hold what a short early is paid for with (inside the 35 hours, a short shift is bought with a long one):
+# --max-late duties finishing at 23:00 or later, any day; --max-six lines with six duties or more, Sunday included;
+# --min-rest the shortest rest between two duties; --max-new shift times that are not in today's link. Each is counted in
+# the rotation as the sheets count it (plain.mjs personal(), report-data.mjs assess()).
 # Every value printed is the best found in the time given; a stage says PROVEN only when the solver closed its bound.
 import sys, json, time, argparse
 sys.path.insert(0, __import__('os').path.dirname(__import__('os').path.abspath(__file__)))
@@ -29,6 +33,7 @@ ap.add_argument('--workers', type=int, default=4)
 # --hold-fit <grid.json>: follow the trains no worse than that grid does (fit_terms' stand-in, in total over weekday,
 # Saturday and Sunday, as the league averages them); also enables the 'fit' stage
 ap.add_argument('--hold-fit'); ap.add_argument('--hold-fit-each', action='store_true'); ap.add_argument('--min-e14', type=int)
+for f in ('max-late', 'max-six', 'min-rest', 'max-new'): ap.add_argument('--' + f, type=int)
 a = ap.parse_args()
 base = load(a.base); start = load(a.start)
 m, x, z, changes, factors, WORK = build(base, flex=a.flex, fmax=a.fmax, cmax=a.cmax)
@@ -40,6 +45,33 @@ if a.max_heavy is not None: m.Add(Q['heavy'] <= a.max_heavy)
 if a.min_one is not None: m.Add(Q['one'] >= a.min_one)
 if a.min_e14 is not None:
     m.Add(sum(var for (k, d, v), var in x.items() if d != 'sun' and v != 'RD' and st(v) < 660 and en(v) < 840) >= a.min_e14)
+timed = lambda v: v != 'RD'
+if a.max_late is not None:
+    m.Add(sum(var for (k, d, v), var in x.items() if timed(v) and en(v) >= 23 * 60) <= a.max_late)
+if a.max_six is not None:
+    six = []
+    for k in WORK:
+        b = m.NewBoolVar(f'six{k}'); m.Add(2 * b >= sum(1 - x[k, d, 'RD'] for d in DAYS) - 5); six.append(b)
+    m.Add(sum(six) <= a.max_six)
+if a.min_rest is not None:
+    # the 12-hour rule's own form (model.py), at a longer threshold: no pair of consecutive duties closer than this.
+    # Consecutive runs line by line, Sunday to Saturday, then on to the next line's Sunday; cover weeks hold no duty.
+    V = {}
+    for (k, d, v) in x: V.setdefault((k, d), []).append(v)
+    seq = [(str(k), d) for k in range(1, LINES + 1) for d in DAYS]
+    for i, p1 in enumerate(seq):
+        p2 = seq[(i + 1) % len(seq)]
+        if p1 not in V or p2 not in V: continue
+        for v in filter(timed, V[p1]):
+            bad = [w for w in V[p2] if timed(w) and (1440 - en(v)) + st(w) < a.min_rest]
+            if bad: m.Add(x[p1 + (v,)] + sum(x[p2 + (w,)] for w in bad) <= 1)
+if a.max_new is not None:
+    new = {}
+    for (k, d, v), var in x.items():
+        if timed(v) and v not in TODAY:
+            if v not in new: new[v] = m.NewBoolVar('new' + v)
+            m.AddImplication(var, new[v])
+    m.Add(sum(new.values()) <= a.max_new)
 if a.hold_fit:
     REF, FITMAX, DEV = fit_reference(load(a.hold_fit)); FT = fit_terms(m, x, WORK, REF); m.Add(FT['fit'] <= FITMAX); Q['fit'] = FT['fit']
     # each class's deviation per unit of cover no worse than the grid's: FT[c] / C <= DEV[c] / REF[c], cross-multiplied
