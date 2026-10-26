@@ -66,9 +66,11 @@ export function parsePerfSampleKey(key) {
 /** @typedef {{ label: string, sub: string, tone: 'good'|'ok'|'bad', buckets: string[] }} SpeedGroup */
 /** @type {Record<'quick'|'ok'|'slow', SpeedGroup>} */
 export const SPEED_GROUPS = {
-    quick: { label: 'Quick',    sub: 'under 1 second', tone: 'good', buckets: ['lt500ms', '500ms-1s'] },
-    ok:    { label: 'A moment', sub: '1 to 3 seconds', tone: 'ok',   buckets: ['1-3s'] },
-    slow:  { label: 'Slow',     sub: 'over 3 seconds', tone: 'bad',  buckets: ['3-8s', 'over8s'] },
+    // `sub` is written the way every panel's figures are ("56% under 1s · 31% 1–3s · 13% over 3s"), so
+    // the key and the line it decodes use one notation — and it fits a phone in two lines, not three.
+    quick: { label: 'Quick',    sub: 'under 1s', tone: 'good', buckets: ['lt500ms', '500ms-1s'] },
+    ok:    { label: 'A moment', sub: '1–3s',     tone: 'ok',   buckets: ['1-3s'] },
+    slow:  { label: 'Slow',     sub: 'over 3s',  tone: 'bad',  buckets: ['3-8s', 'over8s'] },
 };
 
 /** bucket id → speed group id ('quick'|'ok'|'slow'). */
@@ -590,7 +592,8 @@ const VERDICT_TEXT = {
         momentSlow: 'Pages most often take a moment to become usable, and some take longer.',
         bad:  'Some staff are waiting too long before a page is usable.',
         mixed:      'Pages are usable quickly on under half of opens; the rest take a moment or longer.',
-        none: 'No usable-page timings for this period \u2014 only pages that report this moment are counted.',
+        // A no-break space before the dash, so a phone never starts a line with it (polish pass).
+        none: 'No usable-page timings for this period\u00a0\u2014 only pages that report this moment are counted.',
         thin: 'Too few page opens to read as a trend.',
     },
     fcp: {

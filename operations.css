@@ -1668,11 +1668,15 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
        band is STRIPED as well as red, in the bars and in the legend's key alike. */
     --speed-bad-fill: repeating-linear-gradient(135deg, var(--speed-bad) 0 3px, color-mix(in oklch, var(--speed-bad) 55%, white) 3px 5px);
 }
+/* ONE STEP PER RANK (polish pass, Oct 2026): section 13px → moment 12px → closer-look eyebrow 11px.
+   All three were 12px and told apart by weight and colour alone, so the uppercase eyebrows inside
+   "A closer look" read LOUDER than the section heading above them — capitals at the same size are
+   simply bigger letters. The card's own title is 13px too; it keeps its rank by its navy and its strip. */
 .speed-subhead {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: var(--type-small);
+    font-size: var(--type-label);
     font-weight: 700;
     color: var(--text-dark);
     margin: 16px 0 8px;
@@ -1687,12 +1691,21 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     border: 1.5px solid var(--border-light);
     margin-bottom: 14px;
 }
+/* ONE LEFT EDGE FOR EVERY PANEL'S SENTENCE (polish pass, Oct 2026). The column was as wide as its own
+   figure, so the sentences down the card started 1–3px apart — and 41px for "8%", 70px for "100%" or a
+   bare dash would have moved them further. Tabular digits make every two-digit figure one width (57px,
+   measured), and the floor — a touch over it, for an engine that measures a hair wider — holds that
+   width for one digit and for the empty dash. Only a three-character figure ("100%", ">99%") is wider,
+   and that is rare: sizing every panel for it would take 15px from the sentence beside it on a 320px
+   phone. */
 .speed-verdict-num {
     display: flex;
     flex-direction: column;
     align-items: center;
+    min-width: 58px;
     font-size: var(--type-xl);
     font-weight: 800;
+    font-variant-numeric: tabular-nums;
     line-height: 1;
     flex: none;
 }
@@ -1708,8 +1721,18 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     color: var(--text-mid);
     margin-top: 4px;
 }
-.speed-verdict-text { font-size: var(--type-small); line-height: 1.4; color: var(--text-dark); }
+/* `text-wrap: pretty` here, on `.speed-note` and on `.speed-row-expl`: no sentence on the card ends on a
+   lone word ("longer.", "app is.", "watched it" were each a line of their own). An engine without it
+   wraps as before. */
+.speed-verdict-text { font-size: var(--type-small); line-height: 1.4; color: var(--text-dark); text-wrap: pretty; }
 .speed-verdict-sub  { display: block; color: var(--text-mid); margin-top: 2px; }
+/* Each figure in the panel's line wraps WHOLE, and below 480px the count takes its own line (see
+   `verdictBanner`): a phone used to start a line with "· 1,859 page opens", or split "this / month". */
+.speed-nowrap { white-space: nowrap; }
+@media (max-width: 480px) {
+    .speed-verdict-count { display: block; }
+    .speed-verdict-count > .speed-sep { display: none; }
+}
 /* Tone tints — green good / amber ok / red bad / neutral none. */
 .speed-verdict--good { background: var(--success-green-bg);                              border-color: var(--success-green-border); }
 .speed-verdict--good .speed-verdict-num { color: var(--success-green); }
@@ -1771,6 +1794,7 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     font-size: var(--type-micro);
     color: var(--text-mid);
     line-height: 1.35;
+    text-wrap: pretty;
 }
 .speed-bar {
     display: flex;
@@ -1780,8 +1804,13 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
     background: var(--surface-sunken);
     border: 1px solid var(--border-light);
 }
-/* The aggregate login bar: full-width, a touch taller than the per-page bars. */
-.speed-bar--overall { width: 100%; height: 14px; margin: -4px 0 2px; }
+/* The aggregate login bar: full-width, a touch taller than the per-page bars.
+   IT BELONGS TO THE PANEL ABOVE IT, so it sits closer to that panel than to anything below (polish
+   pass, Oct 2026). It was 10px under the panel and 10px over the next heading — measured — so each
+   bar floated between two moments and belonged to neither. Now 6px up (14px panel margin, -8px
+   here), and the heading that follows takes 18px, the gap the card already keeps before a section. */
+.speed-bar--overall { width: 100%; height: 14px; margin: -8px 0 0; }
+.speed-bar--overall + .speed-subhead { margin-top: 18px; }
 /* The one place a note follows the bar directly ("Usable" is counted only on…): with the bar's
    2px and the note's zero top margin the sentence sat on the bar (polish pass). 10px is the gap the
    same bar keeps above the next subhead. */
@@ -1868,14 +1897,19 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
    lighter, under the "Opening pages" heading, so the hierarchy reads as section → moment. */
 .speed-subhead--sub {
     margin: 10px 0 6px;
+    font-size: var(--type-small);
     font-weight: 600;
     color: var(--text-mid);
 }
+/* The reading measure at EVERY width, not only from 1024px: on a tablet the card is the full page
+   width and a note ran to ~115 characters a line (polish pass, Oct 2026). It cannot bind on a phone. */
 .speed-note {
     font-size: var(--type-small);
     color: var(--text-mid);
     line-height: 1.4;
     margin: 0 0 10px;
+    max-width: 64ch;
+    text-wrap: pretty;
 }
 /* Each dimension heading needs air ABOVE it: flush under the previous dimension's last row, "By how
    it was opened" reads as that row's label rather than the start of a new group.
@@ -1893,6 +1927,7 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
    one thing here guaranteed to go stale. */
 .speed-dim-label {
     margin-top: 18px;
+    font-size: var(--type-badge);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--text-mid);
@@ -1925,7 +1960,14 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 @media (max-width: 480px) {
     .speed-row--dual { grid-template-columns: minmax(88px, 36%) 1fr 1fr 1fr minmax(5ch, auto); }
 }
-.speed-dual-head { margin-bottom: -2px; }
+/* A header label sits where its column's values sit (polish pass, Oct 2026). The numbers are
+   right-aligned and their labels were centred, so "opens" stood ~20px left of the column it names
+   — the same fault as css-tokens.md's "a header shares its rows' template", one level down. And the
+   labels share a bottom line: "first appears" wraps to two lines on a phone and "usable" does not,
+   so centring them vertically put the one-line labels between the other two's lines. */
+.speed-dual-head { margin-bottom: -2px; align-items: end; }
+.speed-row--why.speed-dual-head > .speed-dual-label,
+.speed-row--dual.speed-dual-head > .speed-dual-label:last-child { text-align: right; }
 /* A "By page" bar with too few opens behind it, "(few)" beneath — each bar answers for its own count,
    because a page's three moments rest on three different totals (App Speed review, Oct 2026). */
 .speed-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
