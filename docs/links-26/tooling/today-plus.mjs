@@ -38,6 +38,16 @@ const TODAY_TIMES = [...new Set(EXIST.flatMap(k => DAYS.map(d => T[k][d])).filte
 const MONSAT = TODAY_TIMES.filter(s => st(s) >= 6 * 60 + 20 && en(s) <= 23 * 60 + 55);
 const SUNDAY = TODAY_TIMES.filter(s => st(s) >= 7 * 60 + 15 && en(s) <= 23 * 60 + 25 && len(s) >= 8 * 60 && len(s) <= 9 * 60);
 const TODAY_HEAVIEST = Math.max(...EXIST.filter(k => !isCoverRow(T[k])).map(k => DAYS.slice(1).reduce((a, d) => a + (timed(T[k][d]) ? len(T[k][d]) : 0), 0)));
+// which times today's link works on which kind of day — a time is familiar where it is already worked
+const clsOfDay = d => d === 'sun' ? 'sun' : d === 'sat' ? 'sat' : 'wk';
+const WORKED_ON = { wk: new Set(), sat: new Set(), sun: new Set() };
+for (const k of EXIST) for (const d of DAYS) if (timed(T[k][d])) WORKED_ON[clsOfDay(d)].add(T[k][d]);
+// MODE=staff (the December staffing rules outrank the shape of the week) or MODE=tidy (the shape of the week can
+// outweigh a staffing rule) — the owner asked for staffing "where it costs no fatigue"; the week's shape is the next
+// question, and the two weightings show what one costs in the other.
+const MODE = process.env.MODE ?? 'staff';
+const W = MODE === 'tidy' ? { rule: 4000, short: 400 } : { rule: 30000, short: 3000 };
+const FEEL = { isolated: 2000, weekend: 3000, hybrid: 1500, extraTime: 600, unfamiliar: 400, sixDay: 800, heavyPerMin: 10 };
 
 // ── every place the six new weeks can go ───────────────────────────────────────────────────────────────────────────
 // Today's twenty in their order (any starting point round the cycle), the new cover week on a cover line, the five new
@@ -133,15 +143,23 @@ function cost(si, N) {
   for (const w of N) { let m = 0; for (const d of DAYS.slice(1)) if (timed(w[d])) { m += len(w[d]); duties++; } monSat += m; weeks.push(m); }
   const contract = Math.abs(monSat - NEW_MINUTES), over = Math.max(0, duties - NEW_DUTIES_MAX);
   const checks = runDesignChecks(p, L), hard = assessHardLimits(p, L).breaches + (checks.turnarounds?.short ?? checks.turnarounds?.length ?? 0);
-  const inst = instances(p, newLines), fixed = assessFatigue(fixedOf(p), L).present;
+  const inst = instances(p, newLines), fixed = assessFatigue(fixedOf(p), L).present, worst = assessFatigue(p, L).present;
   const sf = staffing(p);
-  let feel = 0;
-  for (const m of weeks) if (m > TODAY_HEAVIEST) feel += (m - TODAY_HEAVIEST);           // no new week heavier than today's heaviest
-  for (const w of N) { const ts = new Set(DAYS.slice(1, 6).map(d => w[d]).filter(timed)); feel += 40 * Math.max(0, ts.size - 1);
-    const fam = new Set([...ts].map(s => st(s) < 660 ? 'E' : 'L')); if (fam.size > 1) feel += 150; }
-  feel -= 25 * (checks.weekendsOff ?? 0);
-  const total = 1e9 * hard + 2e6 * contract + 1e8 * over + 1e6 * inst.fresh + 3e5 * fixed + 3e4 * inst.all + 3e3 * sf.failed + 300 * sf.short + feel;
-  return { total, hard, contract, over, fresh: inst.fresh, all: inst.all, fixed, failed: sf.failed, short: sf.short, feel, weekends: checks.weekendsOff, duties, monSat };
+  // the week's shape, as the sheets count it (report-data.mjs feel()): single rest days anywhere, full weekends off
+  // anywhere, and in each new week one turn, one kind, familiar times, no six-day week, no week over today's heaviest
+  const seq = []; for (let i = 1; i <= L; i++) for (const d of DAYS) seq.push(p[String(i)][d]);
+  let isolated = 0; for (let i = 0; i < seq.length; i++) if (seq[i] === 'RD' && seq[(i + seq.length - 1) % seq.length] !== 'RD' && seq[(i + 1) % seq.length] !== 'RD') isolated++;
+  let feel = FEEL.isolated * isolated - FEEL.weekend * (checks.weekendsOff ?? 0);
+  for (const m of weeks) if (m > TODAY_HEAVIEST) feel += FEEL.heavyPerMin * (m - TODAY_HEAVIEST);
+  for (const w of N) {
+    const ts = new Set(DAYS.slice(1, 6).map(d => w[d]).filter(timed)); feel += FEEL.extraTime * Math.max(0, ts.size - 1);
+    const fam = new Set(DAYS.map(d => w[d]).filter(timed).map(s => st(s) < 660 ? 'E' : 'L')); if (fam.size > 1) feel += FEEL.hybrid;
+    for (const d of DAYS) if (timed(w[d]) && !WORKED_ON[clsOfDay(d)].has(w[d])) feel += FEEL.unfamiliar;
+    feel += FEEL.sixDay * Math.max(0, DAYS.filter(d => timed(w[d])).length - 5);
+  }
+  const total = 1e9 * hard + 2e6 * contract + 1e8 * over + 1e6 * inst.fresh + 3e5 * fixed + 1e5 * Math.max(0, worst - 5) + 3e4 * inst.all + 1e4 * worst
+    + W.rule * sf.failed + W.short * sf.short + feel;
+  return { total, hard, contract, over, fresh: inst.fresh, all: inst.all, fixed, worst, failed: sf.failed, short: sf.short, isolated, weekends: checks.weekendsOff, feel, duties, monSat };
 }
 
 // ── moves ────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -150,9 +168,18 @@ function randomWeek() {   // a 4-day week of one time, early or late, as a start
   const w = Object.fromEntries(DAYS.map(d => [d, 'RD'])); const t = pick(MONSAT);
   const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].sort(() => rnd() - 0.5).slice(0, 4); for (const d of days) w[d] = t; return w;
 }
+// The contract to the minute: swap one duty for a time of today's whose length closes the gap exactly. Without it a
+// search can settle five minutes short (a 13:35 where a 13:40 would balance), where no single move is downhill.
+function repair(M) {
+  let gap = NEW_MINUTES; for (const w of M) for (const d of DAYS.slice(1)) if (timed(w[d])) gap -= len(w[d]);
+  if (!gap) return;
+  const cells = []; for (const w of M) for (const d of DAYS.slice(1)) if (timed(w[d])) { const want = len(w[d]) + gap, fits = MONSAT.filter(s => len(s) === want); if (fits.length) cells.push([w, d, fits]); }
+  if (cells.length) { const [w, d, fits] = pick(cells); w[d] = pick(fits); }
+}
 function neighbour(si, N) {
   const M = N.map(w => ({ ...w })); let s2 = si; const r = rnd();
-  if (r < 0.40) { const w = pick(M), d = pick(DAYS); w[d] = pick(options(d)); }
+  if (r < 0.05) repair(M);
+  else if (r < 0.40) { const w = pick(M), d = pick(DAYS); w[d] = pick(options(d)); }
   else if (r < 0.60) { const a = pick(M), b = pick(M), d = pick(DAYS); [a[d], b[d]] = [b[d], a[d]]; }
   else if (r < 0.75) { const w = pick(M), i = 1 + Math.floor(rnd() * 5), j = i + 1; const d = DAYS[i], e = DAYS[j]; if (rnd() < 0.5) w[e] = w[d]; else w[d] = w[e]; if (e === 'sun' || d === 'sun') { /* never */ } }
   else if (r < 0.85) { const w = pick(M), d = pick(DAYS.slice(1)), e = pick(DAYS.slice(1)); [w[d], w[e]] = [w[e], w[d]]; }
