@@ -5,6 +5,7 @@
 //   REF_IN_RANGE=1 node league.mjs       today's link and Familiar Nine inside the range, still unranked (the usual table)
 //   DROP=fam node league.mjs             leave factors out (comma-separated keys below) and rescale to 100
 //   RUN_FIXED=1 node league.mjs          score the run on the fixed rota instead of the worst case with a cover week
+//   JSON=<file> node league.mjs          also write the whole table as JSON (weights, points, raw values, totals)
 import fs from 'fs';
 const R = new URL('../../', import.meta.url).pathname;   // docs/
 const M24 = await import(R + 'links-24/tooling/report-data.mjs'), M26 = await import(R + 'links-26/tooling/report-data.mjs');
@@ -33,8 +34,10 @@ const LABEL = { met: 'December rules met', fit: 'Fit to the trains', fat: 'Fatig
 // DROP=k,k: leave factors out and rescale the rest to 100, so a score is still out of 100
 for (const k of (process.env.DROP ?? '').split(',').filter(Boolean)) delete W[k];
 const SUM = Object.values(W).reduce((a, b) => a + b); for (const k in W) W[k] = W[k] * 100 / SUM;
-const P = [['Second Nature','SN-26-F2'],['Second Wind','SW-26-F1'],['Second Sight','SS-26-F1'],['Second Look','SL-26-G3'],['Second Gear','SG-26-H1'],['Second Edition','SE-26-F1'],['Fine Tune','FT-26-H1'],['Even Keel','EK-26-H1'],['Short Run','SR-26-F1'],['Long Break','LB-26-F1']]
-  .map(([n, c]) => stat(M26, n, load(`links-26/proposals/${n.replace(' ', '-')}-${c}.json`), 26, false));
+// The proposals are regenerate.mjs's SUPPLIED list, READ rather than typed (26 Oct 2026): the typed list stopped at the ten
+// of 3 Oct, so every later design would have been left out of the league without a word. pack.py reads it the same way.
+const SUPPLIED = [...fs.readFileSync(new URL('./regenerate.mjs', import.meta.url), 'utf8').matchAll(/name: '([^']+)',\s*code: '([^']+)'/g)].map(m => [m[1], m[2]]);
+const P = SUPPLIED.map(([n, c]) => stat(M26, n, load(`links-26/proposals/${n.replace(/ /g, '-')}-${c}.json`), 26, false));
 P.push(stat(M24, 'Familiar Nine (24)', load('links-24/proposals/Familiar-Nine-F9-24-K31s.json'), 24, false));
 const today = stat(M26, "Today's link", M26.today().patterns, 20, true);
 const fmt = (k, v) => k === 'fit' || k === 'late' || k === 'days' ? v.toFixed(1) : k === 'rest' || k === 'step' ? `${Math.floor(v / 60)}h${String(Math.round(v % 60)).padStart(2, '0')}` : k === 'heavy' ? `${Math.floor(v)}h${String(Math.round(v % 1 * 60)).padStart(2, '0')}` : ['wkends','iso','mixed','one','fam'].includes(k) ? `${Math.round(v * 100)}%` : String(v);
@@ -45,7 +48,14 @@ const REF = P.filter(r => r.name.startsWith('Familiar Nine')).concat([today]), P
   const N = Object.fromEntries(Object.keys(W).map(k => { const v = range.map(r => r[k]), lo = Math.min(...v), hi = Math.max(...v);
     return [k, r => hi === lo ? ((HI[k] ? r[k] >= lo : r[k] <= lo) ? 100 : 0) : Math.max(0, Math.min(100, 100 * (HI[k] ? (r[k] - lo) / (hi - lo) : (hi - r[k]) / (hi - lo))))]; }));
   const score = r => ({ r, total: Object.keys(W).reduce((a, k) => a + W[k] * N[k](r) / 100, 0), pts: Object.fromEntries(Object.keys(W).map(k => [k, W[k] * N[k](r) / 100])) });
-  console.log('\n## proposals'); for (const x of PROPS.map(score).sort((a, b) => b.total - a.total)) console.log(x.r.name.padEnd(20), x.total.toFixed(1).padStart(5), ' ', Object.keys(W).map(k => `${k} ${x.pts[k].toFixed(1)}`).join(' · '));
+  const ranked = PROPS.map(score).sort((a, b) => b.total - a.total);
+  // JSON=<file> (26 Oct 2026): the whole table — weights, each factor's points and raw value, totals — for a page or a
+  // check to read, so the figures are never copied out of this console output by hand
+  if (process.env.JSON) fs.writeFileSync(process.env.JSON, JSON.stringify({ refInRange: !!process.env.REF_IN_RANGE, runFixed: process.env.RUN_FIXED === '1',
+    dropped: (process.env.DROP ?? '').split(',').filter(Boolean), weights: W, labels: LABEL, higherIsBetter: HI,
+    proposals: ranked.map(x => ({ name: x.r.name, total: x.total, pts: x.pts, raw: Object.fromEntries(Object.keys(W).map(k => [k, x.r[k]])) })),
+    reference: REF.map(score).map(x => ({ name: x.r.name, total: x.total, pts: x.pts, raw: Object.fromEntries(Object.keys(W).map(k => [k, x.r[k]])) })) }, null, 1));
+  console.log('\n## proposals'); for (const x of ranked) console.log(x.r.name.padEnd(20), x.total.toFixed(1).padStart(5), ' ', Object.keys(W).map(k => `${k} ${x.pts[k].toFixed(1)}`).join(' · '));
   console.log('\n## reference only'); for (const x of REF.map(score)) console.log(x.r.name.padEnd(20), x.total.toFixed(1).padStart(5), ' ', Object.keys(W).map(k => `${k} ${x.pts[k].toFixed(1)}`).join(' · '));
 }
 console.log('\n## raw'); console.log('factor (weight)'.padEnd(36), [...P, today].map(r => r.name.slice(0, 12).padStart(13)).join(''));

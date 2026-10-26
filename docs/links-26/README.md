@@ -701,8 +701,9 @@ block's last line).
 lightest 24h 30m. **The gains:** four full weeks off for **14** days' leave (Second Edition 15, today 14), and the best
 14-day stretch **29** days off (28; today 30); the worst stays 20 and the average is 23.5 (23.4). **The costs:** **five** single
 rest days (four), **16 of 21** weeks on one shift time (18), and a week-to-week step of **1h 44m** (1h 01m). In the
-weighted league (`node tooling/league.mjs`) it sits fourth, under Second Edition, Short Run and Even Keel and above Fine Tune — the leave gain is
-worth three points there and the one-turn, step and single-rest-day costs take back four.
+weighted league of that day (`node tooling/league.mjs`, ten designs) it sat fourth, under Second Edition, Short Run and Even Keel and above Fine Tune — the leave gain was
+worth three points there and the one-turn, step and single-rest-day costs took back four. With the three designs of
+26 Oct in the league it is seventh, the ten keeping their order among themselves.
 
 **How to rebuild it** (from `tooling/`; the solver needs `pip install pulp`):
 
@@ -878,6 +879,14 @@ week-to-week change (1h 20m to 1h 40m against 1h 13m; a last polish asked for Sh
 held and kept nothing). Sunday keeps today's times bar the closer, so its fit (48.6) is far better than today's but not
 Short Run's, which adds two Sunday times nobody works today (09:00–18:00, 14:30–22:30). The 15:45 closer, the flexible
 rule the brief replaces, is the one flexible rule all three miss; a proposal sheet does not show flexible rules.
+
+**In the weighted league** (`REF_IN_RANGE=1 node league.mjs`, which now reads every design in `regenerate.mjs` instead
+of a typed list of ten — the list had not been kept up, so none of the three would have been in it) Closing Time is
+third on 86.0, Both Ways fifth on 85.8 and Home Grown sixth on 85.5, behind Second Edition (87.2) and Short Run (86.5);
+the original ten keep their order among themselves. Against Short Run each loses most on fit to the trains, 2.0 to 2.7
+points (the league averages weekday, Saturday and Sunday, and most of the gap is their Sunday, which keeps today's
+times), and 1.1 on weeks on one shift time; each gains most on familiar shift times, 1.4 to 2.8, and Closing Time and
+Both Ways on the heaviest week. `JSON=<file>` (new) writes the whole table, which is how it was published as a page.
 
 **How they were built.** Home Grown's table was laid on Short Run's rest-day skeleton (`results/skeleton-run5.json`)
 by `skeleton-start.mjs`, with three settings added for these tables: a weekday with a column of its own, the late
