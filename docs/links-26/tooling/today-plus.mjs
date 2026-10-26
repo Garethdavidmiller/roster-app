@@ -48,8 +48,10 @@ for (const k of EXIST) for (const d of DAYS) if (timed(T[k][d])) WORKED_ON[clsOf
 // outweigh a staffing rule) — the owner asked for staffing "where it costs no fatigue"; the week's shape is the next
 // question, and the two weightings show what one costs in the other.
 const MODE = process.env.MODE ?? 'staff';
+// MODE=both: the staffing rules as heavy as `staff`, the week's shape as heavy as `tidy` — for polishing a result
+// that already meets the rules into tidier weeks without giving one up.
 const W = MODE === 'tidy' ? { rule: 4000, short: 400 } : { rule: 30000, short: 3000 };
-const FEEL = MODE === 'tidy'
+const FEEL = MODE === 'tidy' || MODE === 'both'
   ? { isolated: 2500, weekend: 3000, hybrid: 10000, extraTime: 4000, unfamiliar: 2500, sixDay: 4000, heavyPerMin: 50, lightPerMin: 50 }
   : { isolated: 2000, weekend: 3000, hybrid: 4000, extraTime: 1500, unfamiliar: 1000, sixDay: 2000, heavyPerMin: 20, lightPerMin: 20 };
 // the familiar times by kind of day and kind of turn, for the whole-week moves
