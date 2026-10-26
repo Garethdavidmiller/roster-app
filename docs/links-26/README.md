@@ -894,6 +894,18 @@ every rule.
 | Most days in a row, fixed (cover week badly) | 7 (9) | 7 (10) | 7 (10) | 5 (6) |
 | Single rest days · weeks on one turn | 4 · 7 of 16 | 5 · 9 of 21 | 7 · 10 of 21 | 4 · 18 of 21 |
 | Fit to the trains, weekday (lower is closer) | 52.0 | 45.3 | 45.4 | 29.1 |
+| Weighted league (`REF_IN_RANGE=1`, both added to the proposals) | 23.3 | 41.2 | 38.9 | 87.7 |
+
+**On the weighted league, Same Again is the better of the two, and both sit far below the shortlist** (owner's
+question, 26 Oct 2026: "What is the best one of these new ones"). The two missed December rules cost Same Again Tidy
+more than its weekends earn back. Against the shortlist, keeping today's twenty weeks keeps today's weaknesses:
+- fit to the trains, weekends above all (68.8 against Short Run's 23.6, lower closer);
+- 4 fatigue warnings in the worst case, where the shortlist has none;
+- a 12h 30m shortest rest;
+- fewer full weekends;
+- a third of the weeks mixing earlies and lates.
+
+Only the familiar shift times and the 14-day four-week leave score better.
 
 **What it buys:**
 - every December staffing rule;
