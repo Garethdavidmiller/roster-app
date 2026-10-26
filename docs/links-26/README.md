@@ -938,6 +938,102 @@ OUT=/tmp/Same-Again.pdf node supplied.mjs results/same-again.json "Same Again" "
 The search is seeded but its rounds were chained by hand from the best results, so the grids in `results/` are the
 record, not a single command.
 
+## Little and Often — a 26-week Word roster, read and compared (26 Oct 2026)
+
+Owner, uploading a 26-week Word roster headed *Customer Experience Ambassador*, with no names on it: "Can you name and
+analyse this against our other examples".
+
+**How it was read.** Cell by cell into the app's shape, with nothing changed and nothing searched:
+- each COVER week is a whole cover week, on lines 1, 7, 12, 17 and 22;
+- every time is as written;
+- every week's Monday-to-Saturday hours match the table's own *Weekly Total* column, and the 26 weeks total 910 hours,
+  35 a week.
+
+The grid is `tooling/results/little-and-often.json`, with a `.meta.json`. The Word file itself is not committed.
+
+**Why the name.** What sets it apart is shorter shifts on more days:
+- it averages 7h 59m a duty, Monday to Saturday, where every other design here averages 8h 14m or 8h 16m;
+- so the contract takes 92 duties in its 21 working weeks, where the ceiling allows 89;
+- that is 224.6 contracted days a year.
+
+Code `LO-26-EXT` (EXT for a supplied design, as in the 24-line set), fingerprint `3318d083`.
+
+**What it does with the times:**
+- weekday closers run 16:25–23:55, 7h 30m, where the proposals start them at 15:45;
+- the 06:20–13:35 and 06:20–13:45 earlies stay: between them 26 a year for each person, as today;
+- it has 20 shift times. Eleven are new: 06:20–14:25, 06:20–14:30, 07:00–14:00, 07:00–15:30, 08:30–17:00, 10:30–19:00,
+  12:00–20:30, 13:30–21:30, 14:20–23:25, 14:30–22:30 and 16:25–23:55;
+- it drops nine of today's, among them both Saturday ticket-office times, 06:20–14:50 and 14:30–22:00.
+
+| | Today | **Little and Often** | Same Again | Short Run | Second Edition | Even Keel | Long Break |
+|---|---|---|---|---|---|---|---|
+| December rules met (· flexible, of 3) | 4 of 9 | **3 of 9 · 1** | 9 of 9 · 2 | 9 of 9 · 3 | 9 of 9 · 3 | 9 of 9 · 3 | 9 of 9 · 3 |
+| Contracted days a year (ceiling 219) | 219.0 | **224.6** | 218.6 | 218.6 | 218.6 | 218.6 | 218.6 |
+| Fatigue warnings, fixed duties (up to) | 4 (5) | **2 (6)** | 3 (5) | 0 (0) | 0 (0) | 0 (0) | 0 (0) |
+| Full weekends off a year (longest wait) | 10 (7 weeks) | **4 (16 weeks)** | 8 (13) | 14 (5) | 14 (5) | 14 (5) | 14 (5) |
+| Most days in a row, fixed (cover week badly) | 7 (9) | **6 (9)** | 7 (10) | 5 (6) | 6 (6) | 5 (6) | 6 (6) |
+| Shortest rest | 12h 30m | **13h 50m** | 12h 30m | 14h 20m | 14h 20m | 14h 35m | 14h 20m |
+| Single rest days · weeks on one turn | 4 · 7 of 16 | **18 · 8 of 21** | 5 · 9 | 4 · 18 | 4 · 18 | 4 · 18 | 5 · 16 |
+| Six-day weeks, Sunday included | 1 | **5** | 2 | 0 | 0 | 0 | 0 |
+| Heaviest week, Monday to Saturday | 43h 50m | **45h 30m** | 43h 50m | 42h 30m | 42h 00m | 41h 30m | 42h 00m |
+| Finishing at 23:00 or later, a year each | 39 | **46** | 48 | 42 | 42 | 44 | 42 |
+| Earlies finishing before 14:00, a year each | 26 | **26** | 26 | 0 | 0 | 0 | 0 |
+| Shift times · new ones to learn | 18 · — | **20 · 11** | 18 · 0 | 15 · 6 | 15 · 6 | 15 · 7 | 15 · 6 |
+| Fit to the trains, weekday · Sat · Sun (lower is closer) | 52.0 · 65.9 · 71.7 | **34.7 · 51.4 · 74.1** | 45.3 · 78.8 · 82.3 | 29.1 · 12.7 · 29.0 | 29.1 · 12.7 · 29.0 | 29.4 · 14.5 · 29.0 | 29.1 · 12.7 · 29.0 |
+| Weighted league (`REF_IN_RANGE=1`, as the Same Again table) | 23.3 | **12.3** | 41.2 | 87.7 | 88.5 | 87.4 | 87.2 |
+
+Little and Often is scored on the range the Same Again table already uses, so no other score moves. That gives it the
+same figure as adding it to the range: where it sets a new worst it scores 0 either way.
+
+**It cannot be run as it stands.** Two hard-limit checks fail, and both are the same fact: 224.6 contracted days a year
+against the 219 ceiling. Getting under it means three fewer duties across the 21 working weeks, so some shifts get
+longer. That is the trade the early finishes face (above): a shorter shift is paid for with a longer one.
+
+**December rules, 3 of 9** (today 4):
+- Sunday opens with three at 07:15, where the rule asks for four, and has four on at 22:00, where it asks for five.
+- The ticket office's identical pairs are rostered on no day; today has them Monday to Saturday.
+- At 14:30 on a Saturday only four are on duty in the whole station. The earlies have gone at 14:25 and 14:30, and the
+  15:15 closers are not yet in. With the ticket office's posts taken out, the sheet counts nobody on the floor.
+- One Sunday duty, 14:20–23:25, is 9h 05m; the most allowed is 9h.
+- 20 shift times, against today's 18.
+
+Of the three flexible rules it meets the cover spread. It has 12 on a Saturday (14 asked) and closers from 16:25
+(15:45 asked).
+
+**Where it beats today:**
+- the weekday and Saturday fit to the trains: 34.7 and 51.4, against 52.0 and 65.9 (Sunday 74.1, against 71.7);
+- two fatigue warnings in the fixed duties, against four;
+- a 13h 50m shortest rest (today 12h 30m), and at most six days in a row (today seven);
+- shorter closing shifts.
+
+**Where it costs most:**
+- 4 full weekends off a year (today 10, the shortlist 14), up to 16 weeks apart;
+- 18 single rest days, where every other design has 4 or 5;
+- 8 of 21 weeks on one turn, against the shortlist's 18;
+- five six-day weeks, and a 45h 30m week (line 9: five 16:25 closers and a Saturday late);
+- 11 new shift times;
+- up to 6 fatigue warnings if a cover week falls badly: five factors and a 55-hour week, against today's 5.
+
+**On the weighted league it comes last, at 12.3:** below today's link (23.3), Same Again (41.2) and the shortlist (87
+to 89). Its gains over today are real but small: the fit, the rest, and fewer weeks mixing earlies and lates. It scores
+nothing on the factors that carry most of the weight: the December rules, the worst-case fatigue warnings, the
+weekends, familiar shift times, weeks on one turn and single rest days. Today's familiar times and weekends are what
+keep today above it.
+
+**Not in the pack.** Like Same Again, it is a design to look at, not a proposal. Its sheet renders with `supplied.mjs`
+(below), but runs to 11 pages, not 8:
+- three pages run over;
+- on one of them, *What changes, in numbers*, the last line sits under the footer.
+
+The template was sized for the shortlist, and this design has more trade-offs and shift times to list. That wants
+fitting before it could join the pack.
+
+From `tooling/`:
+
+```
+OUT=/tmp/Little-and-Often.pdf node supplied.mjs results/little-and-often.json "Little and Often" "<strap>" LO-26-EXT
+```
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
