@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
+import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, perfSamples, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -790,6 +790,88 @@ test('operations: App speed explains each moment and row on screen, under real h
         const bg = await speed.locator(sel).first().evaluate(el => getComputedStyle(el).backgroundImage);
         expect(bg, sel).toContain('repeating-linear-gradient');
     }
+});
+
+// ── The polish pass, measured (Oct 2026) ──────────────────────────────────────────────────────────
+// Every rule here was found by measuring screenshots, and none is something a screenshot tolerance
+// would reliably catch: a column label 20px off its numbers, a bar exactly halfway between two moments,
+// panel sentences 1–3px apart, three ranks of heading all at 12px. At a phone width, where the card
+// is most often read and where the panel's count drops to a line of its own.
+test('operations: App speed labels sit over their numbers, bars stay with their panels, sentences share one edge', async ({ page }) => {
+    // No sign-ins this month, so the first panel is the empty dash beside three with figures — the case
+    // the number column's floor exists for. Two-digit figures alone line up on tabular digits.
+    const noSignIns = Object.fromEntries(Object.entries(perfSamples()).filter(([k]) => !k.includes('|loginTotal|')));
+    await stubPerfReads(page, { thisMonth: noSignIns, lastMonth: noSignIns });
+    await page.setViewportSize({ width: 375, height: 2400 });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#pageSpeedCard')).toBeVisible({ timeout: 10000 });
+    await page.evaluate(() => {
+        const b = document.getElementById('pageSpeedBody');
+        if (b && !b.classList.contains('open')) document.getElementById('pageSpeedToggleHeader')?.click();
+    });
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed.locator('.speed-row-name').first()).toBeVisible();
+    const m = await speed.evaluate((root) => {
+        /** The box of an element's FIRST text node — its visible figure, not a visually-hidden suffix. */
+        const textBox = (/** @type {Element} */ el) => {
+            const r = document.createRange();
+            r.selectNodeContents(/** @type {Node} */ (el.firstChild));
+            return r.getBoundingClientRect();
+        };
+        // Each numeric column label ends where the first value under it ends: "opens", and "over 1s".
+        const labels = [...root.querySelectorAll('.speed-rows')].flatMap(list => {
+            const head = [...list.querySelector('.speed-dual-head').children];
+            const row = [...list.querySelector('.speed-row:not(.speed-dual-head)').children];
+            const cols = list.querySelector('.speed-row--why') ? [head.length - 2, head.length - 1] : [head.length - 1];
+            return cols.map(i => Math.abs(textBox(head[i]).right - textBox(row[i]).right));
+        });
+        // "first appears" wraps on a phone and "usable" does not: the labels share a bottom line.
+        const dual = [...root.querySelector('.speed-row--dual.speed-dual-head').children].filter(c => c.textContent);
+        const bottoms = dual.map(c => Math.round(textBox(c).bottom));
+        // Each bar is nearer its own panel than the heading after it (a note that follows explains the
+        // bar, and is left out).
+        const bars = [...root.querySelectorAll('.speed-bar--overall')]
+            .filter(bar => bar.nextElementSibling?.matches('.speed-subhead'))
+            .map(bar => ({
+                above: bar.getBoundingClientRect().top - /** @type {Element} */ (bar.previousElementSibling).getBoundingClientRect().bottom,
+                below: /** @type {Element} */ (bar.nextElementSibling).getBoundingClientRect().top - bar.getBoundingClientRect().bottom,
+            }));
+        const sentenceLefts = [...root.querySelectorAll('.speed-verdict-text')].map(t => Math.round(t.getBoundingClientRect().left));
+        const counts = [...root.querySelectorAll('.speed-verdict-count')].map(c => getComputedStyle(c).display);
+        const size = (/** @type {string} */ sel) => parseFloat(getComputedStyle(/** @type {Element} */ (root.querySelector(sel))).fontSize);
+        return { labels, bottoms, bars, sentenceLefts, counts,
+            sizes: [size('h3.speed-subhead'), size('h4.speed-subhead--sub'), size('h4.speed-dim-label')] };
+    });
+    for (const gap of m.labels) expect(gap, 'a column label is off the numbers it names').toBeLessThanOrEqual(1);
+    expect(new Set(m.bottoms).size, `column labels end on different lines: ${m.bottoms}`).toBe(1);
+    expect(m.bars.length).toBeGreaterThan(0);
+    for (const { above, below } of m.bars) expect(below, `a bar ${above}px under its panel and ${below}px over the next heading`).toBeGreaterThanOrEqual(2 * above);
+    expect(new Set(m.sentenceLefts).size, `panel sentences start at ${m.sentenceLefts}`).toBe(1);
+    expect(m.sentenceLefts.length).toBe(4);
+    expect(m.counts.length).toBe(3);
+    for (const d of m.counts) expect(d, 'below 480px the count takes a line of its own').toBe('block');
+    // One step per rank: section, then moment, then the closer-look label.
+    expect(m.sizes[0]).toBeGreaterThan(m.sizes[1]);
+    expect(m.sizes[1]).toBeGreaterThan(m.sizes[2]);
+});
+
+// The 1st of a month: four empty panels said "Fills in as staff use the app over the coming days." four
+// times. It is said once, on the first of them.
+test('operations: an empty App speed month says it fills in once, not on every panel', async ({ page }) => {
+    await stubPerfReads(page, { thisMonth: {}, lastMonth: {} });
+    await page.setViewportSize({ width: 375, height: 1600 });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#pageSpeedCard')).toBeVisible({ timeout: 10000 });
+    await page.evaluate(() => {
+        const b = document.getElementById('pageSpeedBody');
+        if (b && !b.classList.contains('open')) document.getElementById('pageSpeedToggleHeader')?.click();
+    });
+    const speed = page.locator('#pageSpeedContent');
+    await expect(speed.locator('.speed-verdict')).toHaveCount(4);
+    await expect(speed.getByText('Fills in as staff use the app over the coming days.')).toHaveCount(1);
+    await expect(speed.locator('.speed-verdict').first()).toContainText('Fills in');
 });
 
 // ── Each "By page" bar answers for its own count (App Speed review, Oct 2026) ─────────────────────

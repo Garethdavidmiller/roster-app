@@ -130,15 +130,17 @@ async function initPageSpeedCard() {
         legend.className = 'speed-legend';
         legend.innerHTML = /** @type {Array<'quick'|'ok'|'slow'>} */ (['quick', 'ok', 'slow']).map(g => {
             const grp = SPEED_GROUPS[g];
-            return `<span class="speed-legend-item"><span class="speed-dot speed-dot--${grp.tone}"></span>${grp.label} <span class="speed-legend-sub">(${grp.sub})</span></span>`;
+            return `<span class="speed-legend-item"><span class="speed-dot speed-dot--${grp.tone}"></span>${grp.label} <span class="speed-legend-sub">${grp.sub}</span></span>`;
         }).join('');
         return legend;
     };
     /** A toned verdict panel: the big quick share, a plain sentence, and all three bands in words.
      *  @param {{tone:'good'|'ok'|'bad'|'none'|'thin', text:string}} verdict
      *  @param {Bands} overall @param {number} total @param {string} unit
-     *  @param {string} windowLabel "this month" / "last month" */
-    const verdictBanner = (verdict, overall, total, unit, windowLabel) => {
+     *  @param {string} windowLabel "this month" / "last month"
+     *  @param {boolean} [fillHint] an empty panel says the month "fills in" — once per card, not on
+     *         every empty panel, which printed the same sentence four times on the 1st of the month */
+    const verdictBanner = (verdict, overall, total, unit, windowLabel, fillHint = false) => {
         const div = document.createElement('div');
         div.className = `speed-verdict speed-verdict--${TONE_CLASS[verdict.tone]}`;
         // NO "(few)" MARKER HERE, deliberately — `perfVerdict` already returns a whole sentence
@@ -146,10 +148,17 @@ async function initPageSpeedCard() {
         // ALL THREE BANDS, not just the headline one (v21.71): the panel's COLOUR is driven by the
         // slow share and its big number by the quick share, so naming the split removes the
         // ambiguity at the point it arises, which no legend further up the card can do.
+        // EACH FIGURE WRAPS WHOLE (polish pass, Oct 2026). On a phone this line ran into a leading
+        // "· 1,859 page opens" and split "this / month" at 320px; each figure now carries its own "·"
+        // and breaks only between figures, and the count takes a line of its own below 480px
+        // (`.speed-verdict-count`), where it is a different kind of number from the split.
+        const nowrap = (/** @type {string} */ t) => `<span class="speed-nowrap">${escapeHtml(t)}</span>`;
         const sub = total
-            ? `${compactPct(overall.pctQuick, overall.quick, total)} under 1s · ${compactPct(overall.pctOk, overall.ok, total)} 1–3s · `
-              + `${compactPct(overall.pctSlow, overall.slow, total)} over 3s · ${total.toLocaleString('en-GB')} ${unit} ${windowLabel}`
-            : (windowLabel === 'this month' ? 'Fills in as staff use the app over the coming days.' : '');
+            ? [`${compactPct(overall.pctQuick, overall.quick, total)} under 1s ·`,
+               `${compactPct(overall.pctOk, overall.ok, total)} 1–3s ·`,
+               `${compactPct(overall.pctSlow, overall.slow, total)} over 3s`].map(nowrap).join(' ')
+              + `<span class="speed-verdict-count"><span class="speed-sep"> · </span>${nowrap(`${total.toLocaleString('en-GB')} ${unit} ${windowLabel}`)}</span>`
+            : (fillHint ? escapeHtml('Fills in as staff use the app over the coming days.') : '');
         // The WORD under the number (App Speed review, Oct 2026). A red "46%" read as "46% bad"; it
         // is 46% QUICK, under a panel coloured by how many were slow.
         const num = total
@@ -159,7 +168,7 @@ async function initPageSpeedCard() {
         div.innerHTML =
             `<span class="speed-verdict-num">${num}</span>` +
             `<span class="speed-verdict-text">${escapeHtml(verdict.text)}`
-                + (sub ? `<span class="speed-verdict-sub">${escapeHtml(sub)}</span>` : '') + '</span>';
+                + (sub ? `<span class="speed-verdict-sub">${sub}</span>` : '') + '</span>';
         return div;
     };
 
@@ -271,7 +280,8 @@ async function initPageSpeedCard() {
         frag.appendChild(blockHeading('Before the sign-in check'));
         frag.appendChild(noteLine(
             'A signed-in member sees their own roster straight away, from the copy kept on their phone, while the sign-in check runs. Timed only when there was a copy to show'
-            + (share ? ` — ${share} of the opens counted under “Usable” ${windowLabel}, on versions that record it.` : '.')));
+            // A no-break space before the dash, so a phone never starts a line with it (polish pass).
+            + (share ? `\u00a0— ${share} of the opens counted under “Usable” ${windowLabel}, on versions that record it.` : '.')));
         frag.appendChild(rowList(rows));
         return frag;
     };
@@ -401,10 +411,19 @@ async function initPageSpeedCard() {
             const transition = timingNote(samples, windowLabel);
             if (transition) body.appendChild(transition);
 
+            // The first empty panel this month says the figures fill in; the rest just say they are empty.
+            let hinted = false;
+            /** @param {any} s a summary @param {'login'|'fcp'|'pages'|'ready'} kind @param {string} unit */
+            const panel = (s, kind, unit) => {
+                const hint = !s.total && active === 'thisMonth' && !hinted;
+                if (hint) hinted = true;
+                return verdictBanner(perfVerdict(s.overall, kind), s.overall, s.total, unit, windowLabel, hint);
+            };
+
             // Section 1 — Signing in (a distinct journey).
             body.appendChild(sectionHeading('🔑', 'Signing in'));
             body.appendChild(noteLine('Timed from pressing “Sign in” until the page is usable. Only fresh sign-ins count — normally fewer than the accounts on the Usage card, since a saved session opens the app without signing in again.'));
-            body.appendChild(verdictBanner(perfVerdict(w.login.overall, 'login'), w.login.overall, w.login.total, 'sign-ins', windowLabel));
+            body.appendChild(panel(w.login, 'login', 'sign-ins'));
             if (w.login.total) body.appendChild(overallBar(w.login.overall));
 
             // Section 2 — Opening pages: three moments, in the order they happen, then each page.
@@ -413,7 +432,7 @@ async function initPageSpeedCard() {
                 const s = /** @type {any} */ (w)[m.key];
                 body.appendChild(subHeading(m.emoji, m.label));
                 body.appendChild(noteLine(m.explain));
-                body.appendChild(verdictBanner(perfVerdict(s.overall, m.key), s.overall, s.total, 'page opens', windowLabel));
+                body.appendChild(panel(s, m.key, 'page opens'));
                 if (s.total) body.appendChild(overallBar(s.overall));
             }
             // Only beside a figure it explains: with no "Usable" opens there is no smaller total.
