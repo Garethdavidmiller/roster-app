@@ -1,0 +1,8 @@
+{
+ "date": "26 October 2026",
+ "identity": {
+  "table": "Today's 20 weeks, every one unchanged and in its order, with five working weeks and one cover week added (today-plus.mjs)",
+  "seed": "MODE=staff, seed 202 (two restarts of 150,000 steps), with whole-week moves; two MODE=both polishes from it found nothing tidier that keeps every rule",
+  "lineage": "The owner asked for today's roster with the extra weeks added and the fatigue factors in those weeks kept as low as possible; then, asked, 26 weeks, no more than 219 days a year, and the December staffing rules met where that costs no fatigue. Today's twenty weeks are kept exactly; the cover weeks sit on lines 1, 6, 11, 16 and 21; the new weeks use only shift times worked today, exactly five times 35 hours Monday to Saturday in 21 duties. The search put no fatigue instance in or beside a new week first, then the December staffing rules, then the shape of the week."
+ }
+}

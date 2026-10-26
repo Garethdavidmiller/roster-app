@@ -848,6 +848,84 @@ node keep-early.mjs second-edition.json 06:20-14:50 06:20-13:45 15:00-22:30 13:5
 node keep-early.mjs even-keel.json 06:20-14:00 06:20-13:45 14:45-22:30 14:30-22:30 1 9 results/keep-1345-even-keel-x1.json
 ```
 
+## Same Again — today's link kept, with six weeks added (26 Oct 2026)
+
+Owner: "Can you take the existing roster and add the extra weeks whilst minimising the fatigue factors in those
+weeks", and then, asked:
+- 26 weeks: five working weeks and one cover week added;
+- no more than 219 days a year;
+- the December staffing rules met where that costs no fatigue.
+
+**Today's twenty weeks are not touched.** Every one keeps its shifts, and they stay in their order round the rotation.
+`tooling/today-plus.mjs` chooses where the six new weeks go and what the five working ones hold:
+- the cover weeks on lines 1, 6, 11, 16 and 21 (gaps 5, 5, 5, 5, 6), which leaves 4,424 ways to place the six;
+- only shift times worked today, so the link keeps today's 18 (rule S9);
+- exactly 5 × 35 hours Monday to Saturday in 21 duties (218.6 days a year).
+
+It minimises, in this order:
+1. hard-limit breaches;
+2. fatigue instances in or touching a new week;
+3. fatigue factors present;
+4. every fatigue instance anywhere (inserting a week can break one of today's);
+5. December rules failed;
+6. the shape of the week: single rest days, full weekends off, one shift time and one kind of turn per new week,
+   each time on the kind of day it is worked today, no week heavier or lighter than today's.
+
+It took four rounds:
+- **Round 1, cell by cell:** 8 of 9 rules, but scrappy weeks with 12 single rest days.
+- **Round 2:** the week's shape added to the cost.
+- **Round 3:** a polish from the best results.
+- **Round 4:** whole-week moves (a week redrawn on one familiar time in one step).
+
+Two weightings show the trade: `MODE=staff`, where the December rules come before the week's shape, and `MODE=tidy`,
+where the shape can outweigh a rule. Two `MODE=both` polishes of the staff result found nothing tidier that keeps
+every rule.
+
+| | Today | **Same Again** (staff) | Same Again Tidy | Short Run |
+|---|---|---|---|---|
+| December rules met | 4 of 9 | **9 of 9** | 7 of 9 | 9 of 9 |
+| Fatigue warnings, fixed duties (up to) | 4 (5) | **3 (5)** | 3 (5) | 0 (0) |
+| Fatigue instances in or touching a new week | — | **0** | 0 | — |
+| Full weekends off a year (longest wait) | 10 (7 weeks) | 8 (13 weeks) | 12 (8 weeks) | 14 (5 weeks) |
+| Finishing at 23:00 or later, a year each | 39 | 48 | 44 | 42 |
+| Earlies finishing before 14:00, a year each | 26 | 26 | 28 | 0 |
+| Shift times · new ones to learn | 18 · — | 18 · 0 | 18 · 0 | 15 · 6 |
+| Four full weeks off | 14 days' leave | 14 | 14 | 15 |
+| Most days in a row, fixed (cover week badly) | 7 (9) | 7 (10) | 7 (10) | 5 (6) |
+| Single rest days · weeks on one turn | 4 · 7 of 16 | 5 · 9 of 21 | 7 · 10 of 21 | 4 · 18 of 21 |
+| Fit to the trains, weekday (lower is closer) | 52.0 | 45.3 | 45.4 | 29.1 |
+
+**What it buys:**
+- every December staffing rule;
+- one fewer fatigue factor than today: the two 55-hour weeks are gone, because new weeks were placed between today's
+  weeks 4 and 5 and 13 and 14;
+- nothing new to learn: the same times, the 13:35 and 13:45 kept, four weeks off still 14 days' leave.
+
+**What it costs:**
+- fewer full weekends off (8 a year against 10, up to 13 weeks apart);
+- nine more late finishes a year each, which is what the third closer every day costs;
+- two six-day weeks;
+- a worst case of 10 days in a row, where today's is 9.
+
+The tidy version shows the other side: two rules short, and every new week reads like one of today's.
+
+**Not in the pack.** These are search results for the owner to look at, not shortlisted proposals. The grids are
+`tooling/results/same-again.json` and `same-again-tidy.json`, each with a `.meta.json`. A sheet renders with
+`supplied.mjs` (`OUT=` sets where; below). On page 5 the closing note spills onto a ninth page; that wants fitting
+before either joins the pack, which would also take an entry in `regenerate.mjs`'s `SUPPLIED`, the summary and
+`pack.py`.
+
+From `tooling/`:
+
+```
+MODE=staff node today-plus.mjs 150000 2 202 /tmp/a.json                      # round 4, the staff search
+MODE=tidy START=<a round-3 result> TEMP=30000 node today-plus.mjs 120000 2 203 /tmp/b.json
+OUT=/tmp/Same-Again.pdf node supplied.mjs results/same-again.json "Same Again" "<strap>" SA-26-S1
+```
+
+The search is seeded but its rounds were chained by hand from the best results, so the grids in `results/` are the
+record, not a single command.
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
