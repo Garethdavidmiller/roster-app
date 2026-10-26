@@ -1090,8 +1090,8 @@ Weighted league as the tables above score it (`REF_IN_RANGE=1`, Same Again and S
 here is scored on that range, so no other score moves. Today's link scores 23.3.
 
 Five things the trade says:
-- **The rules alone cost 36 cells, and leave it more tiring.** That version has six fatigue factors where a cover week
-  falls worst, four even in the fixed duties. *Little and Often* has five and two.
+- **The rules alone cost 36 cells, and leave it more tiring.** That version has four fatigue factors in the fixed
+  duties, where *Little and Often* has two; both reach six where a cover week falls worst.
 - **Clearing every factor costs 9 more at most.** The weekend gap, the rest after early blocks, runs of eight-hour
   shifts and two-hour start-time jumps all go.
 - **Keeping the 16:25 closers saves about six cells and buys nothing.** The 39-change version keeps eleven, but pays
