@@ -14,6 +14,9 @@ import { PRIVACY_FOOTER, PAGE_META, OPEN_META, _cardLoadError, _usageMonthLabel 
 // ============================================
 // USAGE CARD
 // ============================================
+/** The last month whose page views include the reload an update triggers (v25.00 stopped counting it). */
+const RELOADS_COUNTED_UNTIL = '2026-10';
+
 async function initUsageCard() {
     const content = document.getElementById('usageContent');
     if (!content) return;
@@ -39,22 +42,29 @@ async function initUsageCard() {
         // holding it. Every one of those caveats was already written down in the ? panel; what was
         // missing was a label that did not contradict them at a glance. "Accounts" is the word this
         // app uses for a provisioned Firebase identity, which is precisely what this is not counting.
-        const accountsLabel = document.createElement('p');
-        accountsLabel.className = 'usage-section-label';
-        accountsLabel.innerHTML = '<span aria-hidden="true">\u{1F465}</span> Roster in use — by member and device';
-        content.appendChild(accountsLabel);
-
+        //
+        // ── THE UNIT IS IN THE HEADING, AND THE LABELS ARE TIME WINDOWS (v25.00, Usage card review) ──
+        // The two boxes said "member-devices this month" and "active in last 30 days" — one carrying
+        // the unit and the other a different word, so they read as two measures. Both now name only
+        // their window, as the sign-in boxes below already did, under a heading that names the unit
+        // once. Last month's full figure sits beside this month's, named by its month so it cannot be
+        // confused with "last 30 days": early in a month it is the only thing that says whether a
+        // small number is small. Absent when there is no last month on record.
+        content.appendChild(_sectionHeading('\u{1F465}', 'Roster in use — member-devices'));
+        const prevMonthCount = Number((stats.monthsHistory || {})[stats.prevMonth]) || 0;
         const accounts = document.createElement('div');
         accounts.className = 'usage-stats';
-        accounts.innerHTML =
-            `<div class="usage-stat"><span class="usage-stat-num">${stats.accountsThisMonth}</span>` +
-            `<span class="usage-stat-lbl"><span aria-hidden="true">👥</span> member-devices this month</span></div>` +
-            `<div class="usage-stat"><span class="usage-stat-num">${stats.accountsLast30}</span>` +
-            `<span class="usage-stat-lbl"><span aria-hidden="true">📅</span> active in last 30 days</span></div>`;
+        accounts.append(_stat(stats.accountsThisMonth, 'this month'));
+        if (prevMonthCount) {
+            const prev = _stat(prevMonthCount, `in ${_monthName(stats.prevMonth)}`);
+            prev.classList.add('usage-stat--context');
+            accounts.appendChild(prev);
+        }
+        accounts.appendChild(_stat(stats.accountsLast30, 'last 30 days'));
         content.appendChild(accounts);
-        // No note here. "Counted per account-device… a trend, not a headcount" is stated verbatim by
-        // the card's own ? panel (the 📱 tip), and four blocks of dense grey micro-copy was most of
-        // what made this card read as cluttered. The ? exists precisely for the standing caveats.
+        // No note here. "One person on a phone and a laptop counts twice… a trend, not a headcount"
+        // is the card's own ? panel, and four blocks of dense grey micro-copy was most of what made
+        // this card read as cluttered. The ? exists precisely for the standing caveats.
 
         // Exact unique accounts, from Firebase Auth's own lastSignInTime (v18.96). Rendered as its
         // own section, NOT merged into the numbers above, because it measures something different:
@@ -73,8 +83,8 @@ async function initUsageCard() {
         popToggle.className = 'speed-toggle';
         popToggle.setAttribute('role', 'group');
         popToggle.setAttribute('aria-label', 'Time window');
-        const heading = document.createElement('p');
-        heading.className = 'usage-section-label';
+        const heading = _sectionHeading('\u{1F440}', 'Page popularity', true);
+        const headingText = /** @type {HTMLElement} */ (heading.lastElementChild);
         const popBody = document.createElement('div');
 
         /** Build one bar list (page views or opens). Both groups share ONE scale (`max`)
@@ -118,12 +128,11 @@ async function initUsageCard() {
             // pile rather than a sequence.
             // NOT \u{1F4CA} — that is the Usage card's OWN header icon, and a section should not
             // wear its parent's identity. \u{1F440} says what the number is: what gets looked at.
-            heading.innerHTML = '<span aria-hidden="true">\u{1F440}</span> Page popularity — '
-                + _usageMonthLabel(month);
+            headingText.textContent = `Page popularity — ${_usageMonthLabel(month)}`;
             popBody.innerHTML = '';
             if (!counts.length && !opens.length) {
                 const none = document.createElement('p');
-                none.className = 'auth-desc';
+                none.className = 'usage-empty';
                 none.textContent = popActive === 'this'
                     ? 'No page views recorded yet this month.'
                     : 'No page views recorded last month.';
@@ -134,11 +143,21 @@ async function initUsageCard() {
             const scaleMax = Math.max(counts[0]?.count || 0, opens[0]?.count || 0) || 1;
             if (counts.length) popBody.appendChild(_bars(counts, PAGE_META, scaleMax));
             if (opens.length) {
-                const openLbl = document.createElement('p');
-                openLbl.className = 'usage-section-label usage-section-label--sub';
-                openLbl.innerHTML = '<span aria-hidden="true">\u{1F4C4}</span> Documents &amp; guides — opens';
+                // One rank down — the opens share Page popularity's month and its scale.
+                const openLbl = document.createElement('h4');
+                openLbl.className = 'speed-subhead speed-subhead--sub speed-subhead--rule';
+                openLbl.innerHTML = '<span aria-hidden="true">\u{1F4C4}</span> <span>Documents &amp; guides — opens</span>';
                 popBody.appendChild(openLbl);
                 popBody.appendChild(_bars(opens, OPEN_META, scaleMax));
+            }
+            // A month counted the older way says so, and the note retires itself: once both months
+            // the toggle can show are later than the change, nothing here names it any more.
+            if (month <= RELOADS_COUNTED_UNTIL) {
+                const was = document.createElement('p');
+                was.className = 'usage-note';
+                was.textContent = 'Until late October 2026 this also counted the reload the app does by itself after '
+                    + 'an update — about one Calendar open in seven — so these figures run a little higher than they would now.';
+                popBody.appendChild(was);
             }
         };
 
@@ -182,6 +201,53 @@ async function initUsageCard() {
     }
 }
 
+/**
+ * A section heading: an `h3` under the card's `h2`, the same class the App Speed card's sections
+ * wear, so the two reporting cards share one rank and one look. They were `<p>` labels until v25.00,
+ * so a screen-reader user could not move between the sections of the longest card on the page.
+ * The label is its own span, so a heading that changes (the month) can be re-written without
+ * re-parsing HTML.
+ * @param {string} emoji @param {string} label @param {boolean} [rule] a divider above — every section but the first
+ * @returns {HTMLHeadingElement}
+ */
+function _sectionHeading(emoji, label, rule = false) {
+    const h = document.createElement('h3');
+    h.className = 'speed-subhead' + (rule ? ' speed-subhead--rule' : '');
+    const icon = document.createElement('span');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = emoji;
+    const text = document.createElement('span');
+    text.textContent = label;
+    h.append(icon, text);
+    return h;
+}
+
+/**
+ * One figure box. No emoji in the label (v25.00): the section heading already carries one, and two
+ * per box made five small pictures compete with the numbers they sit under.
+ * @param {number|string} num @param {string} label
+ * @returns {HTMLDivElement}
+ */
+function _stat(num, label) {
+    const box = document.createElement('div');
+    box.className = 'usage-stat';
+    const n = document.createElement('span');
+    n.className = 'usage-stat-num';
+    n.textContent = typeof num === 'number' ? num.toLocaleString('en-GB') : num;
+    const l = document.createElement('span');
+    l.className = 'usage-stat-lbl';
+    l.textContent = label;
+    box.append(n, l);
+    return box;
+}
+
+/** "September" for '2026-09' — the month alone, for a line too narrow for the year. @param {string} ym */
+function _monthName(ym) {
+    const [y, m] = String(ym).split('-').map(Number);
+    if (!y || !m) return ym;
+    return new Date(y, m - 1, 1).toLocaleString('en-GB', { month: 'long' });
+}
+
 /** Short labels for the addresses the app is served from, each with the text that says what it
  *  actually IS. `other` is deliberately vague — it is localhost and anything not yet named, and
  *  naming it precisely would imply we know what it is. */
@@ -216,22 +282,19 @@ const ORIGIN_META = {
  * @param {Array<{origin:string,accounts:number,installed:number}>} rows
  */
 function _appendOriginSection(content, rows) {
-    // Its own wrapper with a rule top AND bottom, exactly as `.usage-signin` does. Without the
-    // bottom rule the Page-popularity "This month / Last month" toggle sits directly under this
-    // section's note and reads as though it filters the ADDRESSES — the toggle's own heading is
-    // below it, so nothing else says otherwise.
+    // Its own wrapper, headed like every section after the first: a rule ABOVE the heading (v25.00).
+    // The rule used to be the wrapper's, top and bottom, because the Page-popularity toggle once sat
+    // above its own heading and read as filtering the addresses; that heading now leads its section
+    // with a rule of its own, so one divider between two sections is drawn once, not twice.
     const sec = document.createElement('div');
     sec.className = 'usage-origins';
     content.appendChild(sec);
 
-    const label = document.createElement('p');
-    label.className = 'usage-section-label';
-    label.innerHTML = '<span aria-hidden="true">\u{1F6A6}</span> Which address staff are on';
-    sec.appendChild(label);
+    sec.appendChild(_sectionHeading('\u{1F6A6}', 'Which address staff are on', true));
 
     if (!rows.length) {
         const empty = document.createElement('p');
-        empty.className = 'usage-note';
+        empty.className = 'usage-empty';
         // Says it is a STATE, not a fault, and when to look again. The old wording named the
         // version it shipped in, which is developer-speak in user-facing copy and goes stale —
         // in six months "after v19.23" tells the reader nothing at all.
@@ -277,9 +340,29 @@ function _appendOriginSection(content, rows) {
 
     const legend = document.createElement('p');
     legend.className = 'usage-origin-legend';
-    legend.innerHTML = '<span class="usage-origin-key usage-origin-key--installed"></span> opened from the installed app'
-        + '<span class="usage-origin-key usage-origin-key--browser"></span> browser tab';
+    // Each swatch and its words are ONE item (v25.00), as on the App Speed legend. As loose siblings in
+    // a flex row they were spaced alike, so the browser-tab swatch sat as close to "installed app" as
+    // to its own label, and the eye could pair either way.
+    legend.innerHTML = '<span class="speed-legend-item"><span class="usage-origin-key usage-origin-key--installed"></span>opened from the installed app</span>'
+        + '<span class="speed-legend-item"><span class="usage-origin-key usage-origin-key--browser"></span>browser tab</span>';
     sec.appendChild(legend);
+
+    // THE INSTALLED FIGURE AS A NUMBER (v25.00). The stacked bar shows the share and nothing else,
+    // and "how many have installed it on the old address" is the question this section exists for —
+    // those are the people a retired address strands. One line, in bar order, so the count column
+    // stays as narrow as every other bar group's.
+    const inst = document.createElement('p');
+    inst.className = 'usage-origin-installed-count';
+    inst.append('From the installed app: ');
+    rows.forEach(({ origin, accounts, installed }, i) => {
+        const meta = ORIGIN_META[origin] || ORIGIN_META.other;
+        const part = document.createElement('span');
+        part.className = 'speed-nowrap';
+        const where = meta === ORIGIN_META.other ? meta.label : `on ${meta.label}`;
+        part.textContent = `${installed} of ${accounts} ${where}${i < rows.length - 1 ? ',' : ''}`;
+        inst.append(part, i < rows.length - 1 ? ' ' : '');
+    });
+    sec.appendChild(inst);
 
     // The KEY (v19.29). Built from the rows actually SHOWN, in bar order, one line each — so it
     // never names an address nobody is on, and the eye can map each line back onto its bar. A
@@ -309,7 +392,7 @@ function _appendOriginSection(content, rows) {
     // somebody using both addresses appears in both bars — which is what half-migrated looks like
     // and is exactly why the figure must not claim to be a headcount. The EXACT unique count is a
     // different measure altogether and sits in its own section below, from Firebase Auth.
-    note.textContent = 'Account-device signals over the last 30 days — directional, not an exact headcount. '
+    note.textContent = 'Member-devices over the last 30 days — a direction, not a headcount. '
         + 'One person can count on more than one device or address.';
     sec.appendChild(note);
 }
@@ -333,30 +416,36 @@ function _appendOriginSection(content, rows) {
 function _appendSignInSection(content) {
     const wrap = document.createElement('div');
     wrap.className = 'usage-signin';
+    // A PLACEHOLDER, NOT A HOLE (v25.00). The section used to appear only when the Cloud Function
+    // answered — a second or more on a cold start — and arrive ABOVE two sections the admin may
+    // already be reading, pushing them down the screen. It now holds its place from the start:
+    // the heading and three boxes with a dash, and the figures land in them. A failure still
+    // removes the whole section, which is rare and is the jump this cannot avoid.
+    wrap.setAttribute('aria-busy', 'true');
+    wrap.appendChild(_sectionHeading('\u{1F511}', 'Accounts that have signed in', true));
+    const nums = document.createElement('div');
+    nums.className = 'usage-stats';
+    // Labels are terse ("last 30 days", not "in the last 30 days") because three stats share the
+    // row: at 375px the longer form wrapped to three lines and left the boxes cramped. The section
+    // heading above already supplies the verb.
+    const boxes = [_stat('—', 'last 30 days'), _stat('—', 'last 7 days'), _stat('—', 'never signed in')];
+    nums.append(...boxes);
+    const note = document.createElement('p');
+    note.className = 'usage-note';
+    // Close in length to the sentence that replaces it, so the section does not change height when
+    // the figures land; the dashes and `aria-busy` are what say it is still loading.
+    note.textContent = 'Exact count from Firebase — counts sign-ins, not opens.';
+    wrap.append(nums, note);
     content.appendChild(wrap);
 
     getSignInStats().then(s => {
         // Guard against a re-render finishing first (retry, or a second initUsageCard): if this
         // wrapper is no longer in the document, its card has been replaced — drop the result.
         if (!wrap.isConnected) return;
-        const label = document.createElement('p');
-        label.className = 'usage-section-label';
-        label.innerHTML = '<span aria-hidden="true">\u{1F511}</span> Accounts that have signed in';
-        const nums = document.createElement('div');
-        nums.className = 'usage-stats';
-        // Labels are terse ("last 30 days", not "in the last 30 days") because three stats share the
-        // row: at 375px the longer form wrapped to three lines and left the boxes cramped. The
-        // section heading above already supplies the verb. 💤 for never-signed-in reads as dormant
-        // and stays legible at 12px — 🕳️ was tried first and renders as an illegible dark smudge.
-        nums.innerHTML =
-            `<div class="usage-stat"><span class="usage-stat-num">${s.last30}</span>` +
-            `<span class="usage-stat-lbl"><span aria-hidden="true">🔑</span> last 30 days</span></div>` +
-            `<div class="usage-stat"><span class="usage-stat-num">${s.last7}</span>` +
-            `<span class="usage-stat-lbl"><span aria-hidden="true">📆</span> last 7 days</span></div>` +
-            `<div class="usage-stat"><span class="usage-stat-num">${s.neverSignedIn}</span>` +
-            `<span class="usage-stat-lbl"><span aria-hidden="true">💤</span> never signed in</span></div>`;
-        const note = document.createElement('p');
-        note.className = 'usage-note';
+        [s.last30, s.last7, s.neverSignedIn].forEach((v, i) => {
+            const n = boxes[i].querySelector('.usage-stat-num');
+            if (n) n.textContent = Number(v).toLocaleString('en-GB');
+        });
         // State the caveats rather than let the number be read as "active staff". Until v20.47 there
         // was a tidy relationship to lean on: sessions capped at 30 days, so a live session REQUIRED
         // a sign-in inside 30 days and this figure was a slight OVER-count of active people. **That
@@ -372,7 +461,7 @@ function _appendSignInSection(content) {
         // different numbers appear to measure the same thing.
         note.textContent =
             `Exact count across ${s.total} staff accounts — counts sign-ins, not opens.`;
-        wrap.append(label, nums, note);
+        wrap.removeAttribute('aria-busy');
     }).catch(e => {
         // Silent by design — see the docstring. Logged for the developer only.
         console.error('[Usage] sign-in stats', e);

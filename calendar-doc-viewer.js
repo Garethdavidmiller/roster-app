@@ -21,7 +21,7 @@
 import { createLightbox } from './overlay.js';
 import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl } from './firebase-client.js';
 import { recordOpen } from './usage-reporter.js';
-import { getCurrentMember, isFirstRun } from './calendar-member.js';
+import { getSession } from './session.js';
 
 /**
  * Per-document config. The emoji matches each feature's in-app icon (nav drawer /
@@ -204,9 +204,10 @@ export function initDocViewer({ authReady = /** @type {Promise<any>} */ (Promise
                 // Counted here (not on viewer open) so the count means the document was actually
                 // opened — mirroring the nav-drawer path (v18.20; admin-excluded, anonymous).
                 btn.addEventListener('click', () => {
-                    // Identity: null on a first-run device — the DEFAULT selection is the
-                    // developer, and excluding on it would drop fresh visitors' opens (v18.22).
-                    recordOpen(key, isFirstRun() ? null : getCurrentMember()?.name ?? null);
+                    // Identity: the SIGNED-IN member, never the selected one (v25.00). On the station
+                    // PC the selection is whichever row was picked last — the default is the admin —
+                    // so excluding on it dropped staff opens there and counted the admin's own.
+                    recordOpen(key, getSession()?.name ?? null);
                     // Resolved AT THE TAP (v24.23), synchronously so the gesture survives: the
                     // signed url was minted when the viewer opened, and a member who locked the
                     // phone and came back twenty minutes later was handed a lapsed link. A url near

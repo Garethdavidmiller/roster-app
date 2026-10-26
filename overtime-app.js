@@ -135,7 +135,6 @@ export function init() {
             beforeSignOut: currentUser ? askBeforeSignOut(() => !!currentForm?.isDirty()) : null,
             onSignOut: currentUser ? () => signOutAndLeave() : null,
             onLogoClick: () => openAboutLightbox?.(),
-            usageIdentity: currentUser,
         });
     }
 

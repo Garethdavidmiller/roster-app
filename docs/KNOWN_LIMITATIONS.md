@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: October 2026 — v24.90 · Updated every 0.10 version*
+*Last updated: October 2026 — v25.00 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -830,6 +830,29 @@ is (`perfRecordFullness`), in amber from three quarters. **Not built: a cure** �
 recording the connection class, which every key carries and nothing has read since the card stopped
 comparing connections (v24.98); the others are sharding the record by week, or folding old versions
 into one key. Nothing yet says the limit is near; the line is how anyone would find out.
+
+### The Usage counts are a trend, and not comparable across v25.00 — accepted (Oct 2026)
+
+The Usage card review (v25.00) changed what three of its figures count, so a month either side of the
+release is not the same measure:
+
+- **Page views** stopped counting the reload the app does by itself after an update — about one
+  Calendar open in seven in September. October and earlier read higher for that reason alone; the card
+  says so under Page popularity while either window it can show predates the change, and stops saying it
+  by itself once both are later.
+- **"Last 30 days"** now counts each member-device on its LATEST active day. It used to freeze the count
+  on the first day for 30 days, which missed roughly 1 in 30 daily users, 1 in 6 weekly and 1 in 5
+  monthly (simulated). Expect it, and the address bars, to step up as devices update — not growth.
+- **The station PC counts.** A device nobody is signed in to used to drop every open while its selected
+  row was the admin's (the default selection is the admin); it now records the page view, and a
+  member-device only for a staff member's row.
+
+What stays inherent: a moved count is a `+1` on today and a `-1` on the day it left, in one write. If the
+original `+1` was ever lost (a write refused or dropped offline), the `-1` lands on a day that never had
+it and the window reads one short until that day leaves the window — so a negative day bucket in the
+`activeAccounts` or `origins` document is that, not corruption, and the card clamps every sum at zero.
+Device-level dedup also means one person on two devices counts twice, and clearing browser data counts
+again; these were always true and the card's ? panel says so.
 
 ### The App Speed card's "First appears" cannot mean the roster (v20.80) — inherent
 

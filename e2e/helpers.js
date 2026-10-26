@@ -640,6 +640,44 @@ export function stubPerfReads(page, { thisMonth = perfSamples(), lastMonth = thi
     });
 }
 
+/** The Usage card's data as `getUsageStats` returns it — a populated month with an address picture. */
+export function usageStats(overrides = {}) {
+    return {
+        month: '2026-11', prevMonth: '2026-10',
+        pageCounts: [{ page: 'calendar', count: 1284 }, { page: 'paycalc', count: 412 }, { page: 'huddle', count: 341 }],
+        prevPageCounts: [{ page: 'calendar', count: 1100 }, { page: 'huddle', count: 290 }],
+        accountsThisMonth: 31, accountsLast30: 34,
+        monthsHistory: { '2026-10': 29, '2026-11': 31 },
+        origins: [{ origin: 'pages', accounts: 24, installed: 9 }, { origin: 'web', accounts: 22, installed: 17 },
+                  { origin: 'other', accounts: 1, installed: 0 }],
+        ...overrides,
+    };
+}
+
+/**
+ * Serve the Usage card's two reads with fixed data: `getUsageStats` (analytics-client.js) and
+ * `getSignInStats` (firebase-client.js). LOUD on a missing anchor, as `stubPerfReads` is: a silent
+ * no-op would render the empty card and every assertion after it would be about nothing.
+ * `holdSignIn` keeps the sign-in read pending until the page calls `window.__landSignIn()`, so a test
+ * can look at the card while that section is still loading.
+ * @param {import('@playwright/test').Page} page
+ * @param {{ usage?: any, signIn?: any, holdSignIn?: boolean }} [o]
+ */
+export async function stubUsageReads(page, { usage = usageStats(), signIn = { last30: 28, last7: 19, total: 41, neverSignedIn: 5 }, holdSignIn = false } = {}) {
+    /** @param {string} file @param {string} anchor @param {string} inject */
+    const patch = (file, anchor, inject) => page.route(`**/${file}`, async route => {
+        const res = await route.fetch();
+        const src = await res.text();
+        if (!src.includes(anchor)) throw new Error(`usage fixture anchor no longer matches — "${anchor}" in ${file}. `
+            + 'Update it, or the card silently renders empty.');
+        await route.fulfill({ response: res, body: src.replace(anchor, anchor + inject), contentType: 'text/javascript' });
+    });
+    await patch('analytics-client.js', '    async function getUsageStats() {', ` return ${JSON.stringify(usage)};`);
+    await patch('firebase-client.js', 'export async function getSignInStats() {', holdSignIn
+        ? ` return new Promise(r => { window.__landSignIn = () => r(${JSON.stringify(signIn)}); });`
+        : ` return ${JSON.stringify(signIn)};`);
+}
+
 /**
  * THE PROJECTS WITH A REAL COARSE POINTER — re-exported so every spec keeps importing it from here.
  *

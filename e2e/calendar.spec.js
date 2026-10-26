@@ -997,10 +997,10 @@ test('guide: an off-allowlist ?from= leaves the back arrow untouched', async ({ 
 // This has to drive real page INIT. The unit tests call `recordUsage` directly with an identity
 // handed to them, so they can prove the reporter's rules and can never notice the call site passing
 // the wrong thing — which is precisely how this survived.
-test('calendar: origin telemetry gets the selected member when nobody is signed in', async ({ page }) => {
-    // Rewrite usage-reporter.js so recordUsage records its arguments. A missing anchor THROWS: a
-    // silent no-op here would leave a green test that had stopped testing the wiring.
-    const ANCHOR = 'export function recordUsage(page, identity = null) {';
+/** Rewrite usage-reporter.js so recordUsage records its arguments. A missing anchor THROWS: a silent
+ *  no-op here would leave a green test that had stopped testing the wiring. @param {import('@playwright/test').Page} page */
+async function recordUsageCalls(page) {
+    const ANCHOR = 'export function recordUsage(page, signedIn = null, selected = null) {';
     await page.route('**/usage-reporter.js', async route => {
         const res = await route.fetch();
         const src = await res.text();
@@ -1008,9 +1008,13 @@ test('calendar: origin telemetry gets the selected member when nobody is signed 
             throw new Error(`calendar: recordUsage anchor no longer matches — "${ANCHOR}". Re-point it.`);
         }
         const body = src.replace(ANCHOR, ANCHOR
-            + '\n    (window.__E2E ||= {}).usageCalls = [...(window.__E2E.usageCalls || []), { page, identity }];');
+            + '\n    (window.__E2E ||= {}).usageCalls = [...(window.__E2E.usageCalls || []), { page, signedIn, selected }];');
         await route.fulfill({ response: res, body, contentType: 'text/javascript' });
     });
+}
+
+test('calendar: origin telemetry gets the selected member when nobody is signed in', async ({ page }) => {
+    await recordUsageCalls(page);
 
     // A returning, signed-OUT visitor: a member has been chosen, so this is not first run.
     await seedMember(page, 'S. Silva');
@@ -1021,34 +1025,41 @@ test('calendar: origin telemetry gets the selected member when nobody is signed 
         .toBeGreaterThan(0);
     const call = await page.evaluate(() => window.__E2E.usageCalls.find(c => c.page === 'calendar'));
     expect(call, 'the calendar must report a page view').toBeTruthy();
-    expect(call.identity, 'the selected member is the dedup key for both the origin and account metrics')
+    // TWO ARGUMENTS SINCE v25.00. The selection is the dedup key for the origin and account metrics,
+    // and it is passed SECOND, where it can never exclude: a station PC left on the admin's row used
+    // to drop every staff open on it, because one argument did both jobs. Nobody is signed in here,
+    // so the identity that excludes is empty.
+    expect(call.selected, 'the selected member is the dedup key for both the origin and account metrics')
         .toBe('S. Silva');
-    // Since v19.95 that ONE identity also counts the visit as an active account. The spec used to
-    // assert a second `member` argument was null here, documenting the gap: a member who only reads
-    // the roster signs in nowhere, so "accounts active" excluded most of the staff.
+    expect(call.signedIn, 'nobody is signed in, so nothing here may exclude the visit').toBe(null);
+});
+
+test('calendar: an admin row left selected on a signed-out device is handed over as a selection, never as the session', async ({ page }) => {
+    // The station-PC case the v25.00 review found. The reporter decides what an admin SELECTION may
+    // record (the page view, no member-device — usage-reporter.test.mjs); this proves the page hands
+    // it over in the argument that cannot exclude.
+    await recordUsageCalls(page);
+    await seedMember(page, 'G. Miller');
+    await page.goto('/');
+    await expect(page.locator('#calendarDisplay')).toBeVisible();
+    await expect.poll(async () => (await page.evaluate(() => window.__E2E?.usageCalls?.length)) || 0)
+        .toBeGreaterThan(0);
+    const call = await page.evaluate(() => window.__E2E.usageCalls.find(c => c.page === 'calendar'));
+    expect(call).toEqual({ page: 'calendar', signedIn: null, selected: 'G. Miller' });
 });
 
 test('calendar: a FIRST-RUN device reports no identity, so the default admin cannot exclude it', async ({ page }) => {
     // The guard that makes the fallback above safe. Before anyone picks a name the "selection" is
     // only CONFIG.DEFAULT_MEMBER_NAME — an admin — so keying on it unguarded would silently drop
-    // every fresh visitor from the usage counts AND from the migration metric.
-    const ANCHOR = 'export function recordUsage(page, identity = null) {';
-    await page.route('**/usage-reporter.js', async route => {
-        const res = await route.fetch();
-        const src = await res.text();
-        if (!src.includes(ANCHOR)) throw new Error(`calendar: recordUsage anchor no longer matches — "${ANCHOR}".`);
-        await route.fulfill({
-            response: res, contentType: 'text/javascript',
-            body: src.replace(ANCHOR, ANCHOR
-                + '\n    (window.__E2E ||= {}).usageCalls = [...(window.__E2E.usageCalls || []), { page, identity }];'),
-        });
-    });
+    // every fresh visitor from the member-device counts AND from the migration metric.
+    await recordUsageCalls(page);
 
     await page.goto('/');                       // no seeded member — first run
     await expect.poll(async () => (await page.evaluate(() => window.__E2E?.usageCalls?.length)) || 0)
         .toBeGreaterThan(0);
     const call = await page.evaluate(() => window.__E2E.usageCalls.find(c => c.page === 'calendar'));
-    expect(call.identity, 'a first-run device must not be keyed on the default member').toBe(null);
+    expect(call.selected, 'a first-run device must not be keyed on the default member').toBe(null);
+    expect(call.signedIn).toBe(null);
 });
 
 
@@ -1064,7 +1075,7 @@ test('calendar: a FIRST-RUN device reports no identity, so the default admin can
 // the Staff Guide — two plausible-looking bars, one of them wrong, on a card nobody cross-checks.
 // So this drives the real drawer and reads back what each tap actually emitted.
 test('nav: each guide records its OWN open id', async ({ page }) => {
-    const ANCHOR = 'export function recordOpen(itemId, identity = null) {';
+    const ANCHOR = 'export function recordOpen(itemId, signedIn = null) {';
     await page.route('**/usage-reporter.js', async route => {
         const res = await route.fetch();
         const src = await res.text();

@@ -290,7 +290,7 @@ export function resetNavPanel() {
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime'|'trains', memberName?: string|null, onSignOut?: (() => void)|null, beforeSignOut?: (() => boolean|Promise<boolean>)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, onLogoClick?: (() => void)|null, usageIdentity?: string|null, authReady?: Promise<any>, canReadDocuments?: () => boolean, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links'|'overtime'|'trains', memberName?: string|null, onSignOut?: (() => void)|null, beforeSignOut?: (() => boolean|Promise<boolean>)|null, isAdmin?: boolean, isLinksDesigner?: boolean, canOpenOvertime?: boolean, onLogoClick?: (() => void)|null, authReady?: Promise<any>, canReadDocuments?: () => boolean, onLockCalendar?: { isViewer: () => boolean, lock: () => void }|null }} opts
  *   onLockCalendar (v20.12; the Calendar, and Trains since v24.84) — the shared-PIN viewer's way to lock the roster before
  *   walking away from a shared office PC. `isViewer` is a THUNK read at drawer-open time, never at
  *   init: Calendar access resolves asynchronously and is still `none` when this function runs.
@@ -302,11 +302,13 @@ export function resetNavPanel() {
  *   drawer logo is tapped. The header logo on sub-pages is now a back button,
  *   so About lives on the drawer logo instead.
  */
-export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, beforeSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, onLogoClick = null, usageIdentity = null, authReady = Promise.resolve(), onLockCalendar = null, canReadDocuments = () => true } = {}) {
-    // Identity for the anonymous open-counters' admin-exclusion (v18.20): the signed-in name by
-    // default; the calendar passes its SELECTED member (its session is optional — same precedent
-    // as recordUsage's identity there). Never stored — only compared against CONFIG.ADMIN_NAMES.
-    const _usageId = usageIdentity ?? memberName;
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, beforeSignOut = null, isAdmin = false, isLinksDesigner = false, canOpenOvertime = false, onLogoClick = null, authReady = Promise.resolve(), onLockCalendar = null, canReadDocuments = () => true } = {}) {
+    // Identity for the anonymous open-counters' admin-exclusion (v18.20): the SIGNED-IN name, on
+    // every page. Never stored — only compared against CONFIG.ADMIN_NAMES. The Calendar used to pass
+    // its SELECTED member through a `usageIdentity` option, which on the station PC is whichever row
+    // was picked last; a selection left on the admin dropped every staff open there (v25.00 — the
+    // option went with it; usage-reporter.js has the reasoning).
+    const _usageId = memberName;
     const burger = /** @type {HTMLElement} */ (document.getElementById('navMenuBtn'));
     if (!burger) return;
     if (burger.dataset.navPanelInit) return;
@@ -964,7 +966,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // Array.isArray guard like archiveNotice: a valid-JSON NON-array (e.g. `{}` from corruption)
         // would pass JSON.parse, then notices.forEach throws a TypeError and breaks the panel (v16.21).
         try { const p = JSON.parse(lsGet(NOTICES_KEY) || '[]'); notices = Array.isArray(p) ? p : []; } catch (_) {}
-        const SECTION_MODS = { Pay: 'pay', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar' };
+        // One entry per section a notice can archive under, or its chip falls back to the neutral
+        // grey: Trains had none for its first two notices (v25.00). `calendar-notices.test.mjs` fails
+        // on an archived section with no entry here, so the next page's notice cannot repeat that.
+        const SECTION_MODS = { Pay: 'pay', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar', Trains: 'trains' };
         if (list) {
             list.innerHTML = '';
             notices.forEach(/** @param {any} n */ n => {

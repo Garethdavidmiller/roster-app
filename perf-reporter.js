@@ -79,6 +79,32 @@ export function clearLoginStart() {
 const SW_RELOAD_WINDOW_MS = 10 * 1000;
 const SW_RELOAD_SKEW_MS = 1000;
 
+/** @type {boolean|null} this load's answer, once read — the marker is one-shot, the answer is not */
+let _followedRelease = null;
+
+/**
+ * Did a RELEASE cause this page load? Read once per load and remembered, because two reporters need
+ * the answer and the marker can only be consumed once: App Speed labels the load's wait `readyUpdate`,
+ * and the Usage card does not count it as a page view at all (v25.00) — a reload the app did to itself
+ * is not somebody opening a page, and in September it was about one Calendar open in seven.
+ * `recordUsage` runs before `recordPageLatency` on every page, so before this was shared the first
+ * reader would have taken the marker from the second. Best-effort; never throws.
+ * @returns {boolean}
+ */
+export function loadFollowedRelease() {
+    if (_followedRelease !== null) return _followedRelease;
+    _followedRelease = false;
+    try {
+        const t = Number(sessionStorage.getItem(SW_RELOAD_KEY));
+        if (t) {
+            sessionStorage.removeItem(SW_RELOAD_KEY);
+            const gap = _loadStartEpoch() - t;
+            _followedRelease = gap >= -SW_RELOAD_SKEW_MS && gap < SW_RELOAD_WINDOW_MS;
+        }
+    } catch { /* sessionStorage unavailable — this load simply reports no release */ }
+    return _followedRelease;
+}
+
 /** The mark `markPageReady` writes and `recordPageLatency` reads. */
 export const PAGE_READY_MARK = 'myb-page-ready';
 
@@ -328,16 +354,9 @@ export function recordPageLatency(page, identity = null) {
             }
         } catch { /* sessionStorage unavailable — skip login timing */ }
 
-        // Did this load follow a release? One-shot by the SAME rule as the login marker above.
-        let afterUpdate = false;
-        try {
-            const t = Number(sessionStorage.getItem(SW_RELOAD_KEY));
-            if (t) {
-                sessionStorage.removeItem(SW_RELOAD_KEY);
-                const gap = _loadStartEpoch() - t;
-                afterUpdate = gap >= -SW_RELOAD_SKEW_MS && gap < SW_RELOAD_WINDOW_MS;
-            }
-        } catch { /* sessionStorage unavailable — this load simply reports no update attribution */ }
+        // Did this load follow a release? One-shot by the SAME rule as the login marker above, and
+        // read through the shared answer — the usage counter has usually asked first.
+        const afterUpdate = loadFollowedRelease();
 
         if (excluded) return;   // developer's own session: markers consumed above, nothing else recorded
 

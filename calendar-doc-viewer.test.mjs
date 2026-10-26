@@ -46,10 +46,13 @@ mock.module('./firebase-client.js', {
         resolveDocumentOpenUrl: realResolveDocumentOpenUrl,
     },
 });
-mock.module('./usage-reporter.js', { namedExports: { recordOpen: () => {} } });
-mock.module('./calendar-member.js', {
-    namedExports: { getCurrentMember: () => ({ name: 'G. Miller' }), isFirstRun: () => false },
-});
+/** @type {any[][]} every recordOpen call, so the open counter's IDENTITY can be asserted (v25.00) */
+const _opens = [];
+mock.module('./usage-reporter.js', { namedExports: { recordOpen: (...a) => { _opens.push(a); } } });
+// The SESSION, not the Calendar's selected member, is the open counter's identity (v25.00): on the
+// station PC the selection is whichever row was picked last, and excluding on it dropped staff opens.
+let _session = null;
+mock.module('./session.js', { namedExports: { getSession: () => _session } });
 
 const { initDocViewer } = await import('./calendar-doc-viewer.js');
 
@@ -388,6 +391,20 @@ describe('doc viewer — which URL the member actually opens (v24.19)', () => {
         _circularImpl = () => Promise.resolve({ storageUrl: STORED, fileType: 'pdf' });
         _signedImpl   = () => Promise.resolve(null);
         assert.equal(await openedUrl(), STORED);
+    });
+
+    test('the open is counted against the SIGNED-IN member, never the selected one (v25.00)', async () => {
+        // Nobody signed in (the station PC on the PIN): counted, whatever row is selected — an
+        // admin's included, which is exactly the case that used to drop every staff open there.
+        _circularImpl = () => Promise.resolve({ storageUrl: STORED, fileType: 'pdf' });
+        _opens.length = 0; _session = null;
+        await openedUrl();
+        assert.deepEqual(_opens, [['circular', null]]);
+        // The admin signed in: the reporter is handed the admin's name, and leaves the open out.
+        _opens.length = 0; _session = { name: 'G. Miller' };
+        await openedUrl();
+        assert.deepEqual(_opens, [['circular', 'G. Miller']]);
+        _session = null;
     });
 
     test('the fetch is asked for the right KIND', async () => {

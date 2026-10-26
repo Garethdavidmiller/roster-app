@@ -43,7 +43,7 @@
 // e2e responsive/calendar specs; the calendar's pixels are still locked at desktop width below.
 
 import { test, expect } from './fixtures.js';
-import { seedSession, seedMember, openRosterReview, openReference, stubPerfReads, openPinCard, sheetAction } from './helpers.js';
+import { seedSession, seedMember, openRosterReview, openReference, stubPerfReads, stubUsageReads, usageStats, openPinCard, sheetAction } from './helpers.js';
 import { FIXED_TIME, dismissOneTimeOverlays, prep, settle } from './visual-harness.js';
 import { ROTATING_LINES } from '../links-design.js';
 
@@ -197,39 +197,22 @@ test('settings — mobile 390 (signed in)', async ({ page }) => {
 // EMPTY, and the next person to regenerate baselines locks that in — leaving a green test that
 // stopped testing anything and nothing to say so. So a missing anchor throws, and the test asserts
 // the fixture actually reached the DOM before it captures.
-const USAGE_FIXTURE = `
-    return {
-        month: '2026-07', prevMonth: '2026-06',
-        pageCounts: [{page:'calendar',count:1284},{page:'paycalc',count:412},{page:'admin',count:203},
-                     {page:'settings',count:96},{page:'operations',count:31},{page:'huddle',count:341},
-                     {page:'circular',count:58},{page:'guide-fip',count:12}],
-        prevPageCounts: [{page:'calendar',count:1100},{page:'paycalc',count:388}],
-        accountsThisMonth: 31, accountsLast30: 34,
-        monthsHistory: {'2026-06':29,'2026-07':31},
-        origins: [{origin:'web',accounts:22,installed:17},
-                  {origin:'pages',accounts:9,installed:9},
-                  {origin:'other',accounts:1,installed:0}],
-    };`;
-
-/** Serve a firebase-client.js whose usage/sign-in reads return fixed data. Throws if either anchor
- *  is missing, so the fixture can never silently stop applying. @param {import('@playwright/test').Page} page */
-async function stubUsageReads(page) {
-    /** Patch one served module at one anchor, loudly. @param {string} file @param {string} anchor @param {string} inject */
-    const patch = (file, anchor, inject) => page.route(`**/${file}`, async route => {
-        const res = await route.fetch();
-        const src = await res.text();
-        if (!src.includes(anchor)) throw new Error(`visual: usage fixture anchor no longer matches — "${anchor}" in ${file}. `
-            + 'Update it, or this baseline silently degrades to the empty state.');
-        await route.fulfill({ response: res, body: src.replace(anchor, anchor + inject), contentType: 'text/javascript' });
-    });
-    // The usage read moved to analytics-client.js at v24.64; the sign-in read stayed.
-    await patch('analytics-client.js', '    async function getUsageStats() {', USAGE_FIXTURE);
-    await patch('firebase-client.js', 'export async function getSignInStats() {',
-        ' return { last30: 28, last7: 19, last90: 33, total: 41, neverSignedIn: 5 };');
-}
+// The fixture and the stub are `e2e/helpers.js`'s (`usageStats`, `stubUsageReads`) since v25.00, shared
+// with the card's behaviour tests in pages.spec.js. July 2026 is deliberately a month counted before
+// the release-reload change, so the baseline also holds the note that says so.
+const USAGE_FIXTURE = usageStats({
+    month: '2026-07', prevMonth: '2026-06',
+    pageCounts: [{ page: 'calendar', count: 1284 }, { page: 'paycalc', count: 412 }, { page: 'admin', count: 203 },
+                 { page: 'settings', count: 96 }, { page: 'operations', count: 31 }, { page: 'huddle', count: 341 },
+                 { page: 'circular', count: 58 }, { page: 'guide-fip', count: 12 }],
+    prevPageCounts: [{ page: 'calendar', count: 1100 }, { page: 'paycalc', count: 388 }],
+    monthsHistory: { '2026-06': 29, '2026-07': 31 },
+    origins: [{ origin: 'web', accounts: 22, installed: 17 }, { origin: 'pages', accounts: 9, installed: 9 },
+              { origin: 'other', accounts: 1, installed: 0 }],
+});
 
 test('operations — Usage card, populated (desktop 1280)', async ({ page }) => {
-    await stubUsageReads(page);
+    await stubUsageReads(page, { usage: USAGE_FIXTURE });
     await prep(page, { width: 1280, height: 1400 });
     await page.goto('/operations.html');
     await settle(page, '#usageCard');
@@ -245,6 +228,8 @@ test('operations — Usage card, populated (desktop 1280)', async ({ page }) => 
     // copy — so: a distinctive fixture NUMBER, plus the row COUNT, both of which survive rewording.
     await expect(card).toContainText('1,284');
     await expect(card.locator('.usage-origins .usage-bar-row')).toHaveCount(3);
+    // The sign-in figures land in a placeholder (v25.00) — capture them landed, never the dashes.
+    await expect(card.locator('.usage-signin')).not.toHaveAttribute('aria-busy', 'true');
     await page.waitForTimeout(400);          // collapse transition + bar widths settle
     await expect(card).toHaveScreenshot('operations-usage-card.png');
 });

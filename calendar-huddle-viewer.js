@@ -40,7 +40,7 @@ function _loadPurify() {
 import { subscribeToLatestHuddle, resolveDocumentOpenUrl, fetchSignedDocumentUrl } from './firebase-client.js';
 import { lockBodyScroll, _pushOverlayState, dismissOverlay, trapFocus, _isTopOverlay } from './overlay.js';
 import { recordOpen } from './usage-reporter.js';
-import { getCurrentMember, isFirstRun } from './calendar-member.js';
+import { getSession } from './session.js';
 import { firstColumnMask } from './huddle-table-grid.js';
 
 // Module-level state — set once at startup and survives the page lifetime.
@@ -362,13 +362,13 @@ export function initHuddleViewer({ authReady = Promise.resolve(), docAccess = { 
         _autoOpened = true;
         try {
             // Anonymous open-counter — consumed once per gesture (see _openCountPending above).
-            // Identity for the admin exclusion: the selected member, EXCEPT on a first-run device
-            // where the selection is only the DEFAULT member (the developer) — excluding on that
-            // would silently drop every fresh visitor's opens (the same trap the recordUsage call
-            // site documents; v18.22 review fix).
+            // Identity for the admin exclusion: the SIGNED-IN member only (v25.00). It was the
+            // selected member, and on the station PC that is whichever row was picked last — so a
+            // selection left on the admin dropped every staff open there, while the admin's own
+            // opens counted whenever another row was picked (usage-reporter.js header).
             if (_openCountPending) {
                 _openCountPending = false;
-                recordOpen('huddle', isFirstRun() ? null : getCurrentMember()?.name ?? null);
+                recordOpen('huddle', getSession()?.name ?? null);
             }
             if (huddle.htmlContent) {
                 // DOCX converted to HTML server-side — render inline.

@@ -1052,8 +1052,11 @@ calendarAuthReady.finally(() => {
     // panel's open counters use ten lines below. Before a member picks anyone the "selection" is
     // only CONFIG.DEFAULT_MEMBER_NAME — an admin — so keying on it unguarded would silently
     // exclude every fresh visitor from both the usage counts and the migration metric.
-    const _calIdentity = getSession()?.name || (isFirstRun() ? null : getCurrentMember()?.name) || null;
-    recordUsage('calendar', _calIdentity);
+    //
+    // TWO ARGUMENTS SINCE v25.00 (Usage card review): the session, which alone can exclude, and the
+    // selection, which is only a dedup key. One argument doing both meant a station PC left on the
+    // admin's row dropped every staff open on it — the same trap the speed call below was fixed for.
+    recordUsage('calendar', getSession()?.name || null, isFirstRun() ? null : getCurrentMember()?.name || null);
     // SPEED TAKES THE SESSION ONLY (App Speed review, Oct 2026). Its identity does one job — leaving
     // the admin's own opens out — and the SELECTED member is not who is using a station PC: one left
     // on G. Miller dropped every staff open on it from the speed figures. The usage counts above keep
@@ -1074,12 +1077,10 @@ initNavPanel({
     // so it needs the AUTH promise, not the access one (v20.22).
     authReady: calendarAuthReady,
     currentPage: 'calendar',
+    // Also the drawer's open-counter exclusion identity: the SESSION only, never the selected member
+    // (v25.00). A selection left on the admin's row on the station PC dropped every staff open there —
+    // usage-reporter.js has the reasoning.
     memberName:  _calendarSession?.name || null,
-    // Open-counter exclusion identity: the session name, else the SELECTED member — but null on
-    // a first-run device, where the "selection" is only the DEFAULT member (the developer) and
-    // excluding on it would silently drop every fresh visitor's opens (v18.22 review fix — the
-    // same trap the recordUsage call below documents avoiding).
-    usageIdentity: _calendarSession?.name || (isFirstRun() ? null : getCurrentMember()?.name) || null,
     isAdmin:         CONFIG.ADMIN_NAMES.includes(_calendarSession?.name),
     isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(_calendarSession?.name),
     canOpenOvertime: canOpenOvertime(_calendarSession?.name),

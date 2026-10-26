@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, perfSamples, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
+import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openRosterReview, openGuideLink, seedContractTargets, clickInView, clickDialogConfirm, stubPerfReads, perfSamples, stubUsageReads, usageStats, designOptions, activeDesignName, openDesignSheet, openDesignPicker, sheetAction, switchToDesign, proposalOptions, seedMemberSession, ROSTER_REVIEW_DATES, ROSTER_REVIEW_PARSE, isTouchProject } from './helpers.js';
 // The rotation length. Fixtures below build their patterns INSIDE the page (`addInitScript`), where
 // a module import is not available, so those loops carry the literal 22 — and `links: the rotation
 // length the in-page fixtures assume` ties it back to this constant. Without that tie a shrunk
@@ -4254,6 +4254,110 @@ test('operations usage: the section is absent (not broken) when there is no Fire
     await page.goto('/operations.html');
     await expect(page.locator('#usageContent')).toContainText('Page popularity');
     await expect(page.locator('.usage-signin')).toHaveCount(0);
+});
+
+// ── OPERATIONS: the Usage card review's card changes (v25.00) ───────────────────────────────────
+/** Open the Usage card on Operations at a phone width, with fixed data. @param {import('@playwright/test').Page} page @param {any} [o] */
+async function openUsageCard(page, o = {}) {
+    await stubUsageReads(page, o);
+    await page.setViewportSize({ width: 375, height: 2400 });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page.locator('#usageCard')).toBeVisible({ timeout: 10000 });
+    await page.evaluate(() => {
+        const b = document.getElementById('usageBody');
+        if (b && !b.classList.contains('open')) document.getElementById('usageToggleHeader')?.click();
+    });
+    const card = page.locator('#usageContent');
+    await expect(card).toContainText('1,284');
+    return card;
+}
+
+test('operations usage: every section is a heading one rank under the card, at App Speed\'s sizes', async ({ page }) => {
+    // They were <p> labels, so a screen-reader user could not move between the sections of the
+    // longest card on the page — and at 12px they sat a step below App Speed's 13px section heads.
+    const card = await openUsageCard(page);
+    await expect(card.locator('.usage-signin')).not.toHaveAttribute('aria-busy', 'true');
+    const h3 = await card.locator('h3').allTextContents();
+    expect(h3.map(t => t.replace(/^\P{L}+/u, ''))).toEqual([
+        'Roster in use — member-devices', 'Accounts that have signed in', 'Which address staff are on',
+        'Page popularity — November 2026']);
+    await expect(card.locator('h4')).toHaveText(/Documents & guides — opens/);
+    await expect(card.locator('p.usage-section-label')).toHaveCount(0);
+    const size = (/** @type {string} */ sel) => card.locator(sel).first().evaluate(el => parseFloat(getComputedStyle(el).fontSize));
+    expect(await size('h3')).toBe(13);
+    expect(await size('h4')).toBe(12);
+    // One divider between two sections, drawn by the heading — never a second one by a wrapper, and
+    // never hard against the text above it.
+    const gaps = await card.evaluate(root => [...root.querySelectorAll('h3.speed-subhead--rule')].map(h => {
+        const prev = /** @type {Element} */ (h.previousElementSibling || h.parentElement?.previousElementSibling);
+        return h.getBoundingClientRect().top - prev.getBoundingClientRect().bottom;
+    }));
+    expect(gaps.length).toBe(3);
+    for (const g of gaps) expect(g).toBeGreaterThanOrEqual(16);
+    const wrappers = await card.evaluate(root => [...root.querySelectorAll('.usage-signin, .usage-origins')]
+        .map(w => getComputedStyle(w).borderTopWidth + ' ' + getComputedStyle(w).borderBottomWidth));
+    expect(wrappers).toEqual(['0px 0px', '0px 0px']);
+});
+
+test('operations usage: last month\'s figure sits beside this month\'s, named by its month', async ({ page }) => {
+    const card = await openUsageCard(page);
+    const boxes = card.locator('.usage-stats').first().locator('.usage-stat');
+    await expect(boxes).toHaveCount(3);
+    await expect(boxes.nth(1)).toHaveText(/29\s*in October/);
+    await expect(boxes.nth(1)).toHaveClass(/usage-stat--context/);
+    await expect(boxes.nth(2)).toHaveText(/34\s*last 30 days/);
+    // No emoji in a box any more — the section heading carries the one.
+    expect(await card.locator('.usage-stat-lbl span[aria-hidden]').count()).toBe(0);
+});
+
+test('operations usage: with no last month on record, the row is this month and the last 30 days', async ({ page }) => {
+    const card = await openUsageCard(page, { usage: usageStats({ monthsHistory: {} }) });
+    await expect(card.locator('.usage-stats').first().locator('.usage-stat')).toHaveCount(2);
+    await expect(card.locator('.usage-stat--context')).toHaveCount(0);
+});
+
+test('operations usage: the installed app is a number per address, and each legend swatch keeps its own label', async ({ page }) => {
+    const card = await openUsageCard(page);
+    await expect(card.locator('.usage-origin-installed-count'))
+        .toHaveText('From the installed app: 9 of 24 on GitHub Pages, 17 of 22 on web.app, 0 of 1 elsewhere');
+    const items = card.locator('.usage-origin-legend > .speed-legend-item');
+    await expect(items).toHaveCount(2);
+    for (const i of [0, 1]) await expect(items.nth(i).locator('.usage-origin-key')).toHaveCount(1);
+    // The swatch sits nearer its own words than the previous item's — the pairing the loose siblings lost.
+    const [own, toPrev] = await card.locator('.usage-origin-legend').evaluate(lg => {
+        const [a, b] = [...lg.querySelectorAll('.speed-legend-item')];
+        const key = /** @type {Element} */ (b.querySelector('.usage-origin-key')).getBoundingClientRect();
+        const r = document.createRange(); r.selectNodeContents(b); r.setStartAfter(/** @type {Node} */ (b.firstChild));
+        return [r.getBoundingClientRect().left - key.right, a.getBoundingClientRect().top === b.getBoundingClientRect().top
+            ? key.left - a.getBoundingClientRect().right : Infinity];
+    });
+    expect(own).toBeLessThan(toPrev);
+});
+
+test('operations usage: the sign-in section holds its place while the figures load', async ({ page }) => {
+    // It used to arrive a second or more after the rest of the card, ABOVE two sections the admin may
+    // already be reading, and push them down the screen.
+    const card = await openUsageCard(page, { holdSignIn: true });
+    const signin = card.locator('.usage-signin');
+    await expect(signin).toHaveAttribute('aria-busy', 'true');
+    await expect(signin.locator('.usage-stat-num')).toHaveText(['—', '—', '—']);
+    const before = await card.locator('.usage-origins h3').boundingBox();
+    await page.evaluate(() => /** @type {any} */ (window).__landSignIn());
+    await expect(signin).not.toHaveAttribute('aria-busy', 'true');
+    await expect(signin.locator('.usage-stat-num')).toHaveText(['28', '19', '5']);
+    await expect(signin).toContainText('41 staff accounts');
+    const after = await card.locator('.usage-origins h3').boundingBox();
+    expect(Math.abs((after?.y ?? 0) - (before?.y ?? 0))).toBeLessThanOrEqual(1);
+});
+
+test('operations usage: the release-reload note names the months it qualifies and retires itself', async ({ page }) => {
+    // November is counted the new way; October (the month the reload stopped counting) the old way.
+    const card = await openUsageCard(page);
+    await expect(card).not.toContainText('Until late October 2026');
+    await card.locator('.speed-toggle-btn', { hasText: 'Last month' }).click();
+    await expect(card.locator('h3').last()).toHaveText(/October 2026/);
+    await expect(card).toContainText('Until late October 2026 this also counted the reload');
 });
 
 // ── Reset requests: a Clear during an in-flight load must not leave a ghost (v18.97) ────────────

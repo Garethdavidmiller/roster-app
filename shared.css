@@ -2807,6 +2807,9 @@ button.nav-panel-link--notices {
 .notices-item-section--settings { color: oklch(72% 0.14 272.0deg); }
 .notices-item-section--ops      { color: var(--orange); }
 .notices-item-section--calendar { color: var(--accent-gold); }
+/* The Trains pill's raspberry, lifted to the same 72% lightness as the three above so it reads on the
+   navy archive panel — the pill's own L51% is a FILL under white text, too dark to be text here. */
+.notices-item-section--trains   { color: oklch(72% 0.14 357.0deg); }
 .notices-item-date {
     font-size: var(--type-badge);
     color: rgba(255, 255, 255, 0.65); /* raised from 0.35 (2.79:1) to clear WCAG AA */

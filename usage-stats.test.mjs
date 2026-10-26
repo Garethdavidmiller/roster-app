@@ -6,7 +6,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    monthKey, prevMonthKey, dayKey, shouldCountMonth, shouldCountRolling,
+    monthKey, prevMonthKey, dayKey, shouldCountMonth, rollingMove,
     recentDayKeys, sumDailyWindow, orderPageCounts, staleDailyKeys,
     ROLLING_WINDOW_DAYS,
     originLabel, originKey, parseOriginKey, summariseOrigins, staleOriginKeys,
@@ -56,20 +56,46 @@ describe('shouldCountMonth', () => {
     });
 });
 
-describe('shouldCountRolling', () => {
-    const now = new Date(2026, 5, 15, 12, 0, 0);
-    test('true when never counted (0/NaN)', () => {
-        assert.equal(shouldCountRolling(0, now), true);
-        assert.equal(shouldCountRolling(NaN, now), true);
+describe('rollingMove — the count sits on the latest active day (v25.00)', () => {
+    const now = new Date(2026, 5, 15, 12, 0, 0);   // 15 Jun 2026, local
+    test('never counted (0/NaN): place it on today, take nothing back', () => {
+        assert.deepEqual(rollingMove(0, now), { add: '2026-06-15', remove: null });
+        assert.deepEqual(rollingMove(NaN, now), { add: '2026-06-15', remove: null });
     });
-    test('false when counted within the window', () => {
-        assert.equal(shouldCountRolling(now.getTime() - 10 * DAY, now), false);
+    test('already on today: nothing to move — at most one write a day', () => {
+        assert.equal(rollingMove(new Date(2026, 5, 15, 6, 0).getTime(), now), null);
+        assert.equal(rollingMove(new Date(2026, 5, 15, 23, 59).getTime(), now), null);
     });
-    test('true when last count is older than the window', () => {
-        assert.equal(shouldCountRolling(now.getTime() - 31 * DAY, now), true);
+    test('on an earlier day INSIDE the window: move it, taking it back from that day', () => {
+        // The case the old frozen rule got wrong — it said "already counted" and left the count on
+        // the day it was first placed, so it aged out of the window while the member kept going.
+        assert.deepEqual(rollingMove(now.getTime() - 10 * DAY, now), { add: '2026-06-15', remove: '2026-06-05' });
+        assert.deepEqual(rollingMove(now.getTime() - DAY, now), { add: '2026-06-15', remove: '2026-06-14' });
     });
-    test('boundary: exactly the window is NOT yet re-counted (strict >)', () => {
-        assert.equal(shouldCountRolling(now.getTime() - ROLLING_WINDOW_DAYS * DAY, now), false);
+    test('the window\'s oldest day is still inside it — its count is taken back', () => {
+        assert.deepEqual(rollingMove(now.getTime() - (ROLLING_WINDOW_DAYS - 1) * DAY, now),
+            { add: '2026-06-15', remove: '2026-05-17' });
+    });
+    test('a day that has LEFT the window is not taken back — it no longer counts, and may be pruned', () => {
+        assert.deepEqual(rollingMove(now.getTime() - ROLLING_WINDOW_DAYS * DAY, now), { add: '2026-06-15', remove: null });
+        assert.deepEqual(rollingMove(now.getTime() - 90 * DAY, now), { add: '2026-06-15', remove: null });
+    });
+    test('a flag from the FUTURE (a clock put back) takes nothing back: that day is not in the window', () => {
+        assert.deepEqual(rollingMove(now.getTime() + 3 * DAY, now), { add: '2026-06-15', remove: null });
+    });
+    test('summing the moves keeps one count per account-device, on its latest day', () => {
+        // Play a weekly member through two months: whatever day it is, the window holds exactly one.
+        /** @type {Record<string, number>} */
+        const daily = {};
+        let flag = 0;
+        for (let d = 0; d < 63; d += 7) {
+            const at = new Date(2026, 4, 1 + d, 9);
+            const m = rollingMove(flag, at);
+            if (m) { daily[m.add] = (daily[m.add] || 0) + 1; if (m.remove) daily[m.remove] -= 1; flag = at.getTime(); }
+            assert.equal(sumDailyWindow(daily, at), 1, `day ${d}`);
+            // …and still one on every day until 30 days after the last open.
+            assert.equal(sumDailyWindow(daily, new Date(2026, 4, 1 + d + 6, 9)), 1, `day ${d + 6}`);
+        }
     });
 });
 
@@ -100,6 +126,10 @@ describe('sumDailyWindow', () => {
     });
     test('empty map sums to 0', () => {
         assert.equal(sumDailyWindow({}, now), 0);
+    });
+    test('never below zero — a moved count whose +1 was lost leaves only its -1 behind', () => {
+        assert.equal(sumDailyWindow({ '2026-06-20': -1 }, now), 0);
+        assert.equal(sumDailyWindow({ '2026-06-20': -1, '2026-06-29': 3 }, now), 2);
     });
 });
 
@@ -205,6 +235,17 @@ describe('summarising the migration picture', () => {
     test('empty and missing input are the empty picture, not a crash', () => {
         assert.deepEqual(summariseOrigins({}, NOW), []);
         assert.deepEqual(summariseOrigins(undefined, NOW), []);
+    });
+    test('a moved count\'s stray -1 never draws a negative bar or an installed share above its accounts', () => {
+        const rows = summariseOrigins({
+            '2026-07-20|web': -1, '2026-07-29|web': 3, '2026-07-29|web|pwa': 4,   // installed 4 of 3
+            '2026-07-21|pages': -1,                                                // nobody left
+            '2026-07-22|fb|pwa': -2, '2026-07-29|fb': 1,
+        }, NOW);
+        assert.deepEqual(rows, [
+            { origin: 'web', accounts: 2, installed: 2 },
+            { origin: 'fb',  accounts: 1, installed: 0 },
+        ]);
     });
 });
 
