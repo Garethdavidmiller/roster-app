@@ -1,0 +1,9 @@
+{
+ "date": "26 October 2026",
+ "parent": { "file": "results/little-and-often.json", "name": "Little and Often", "code": "LO-26-EXT" },
+ "identity": {
+  "table": "Little and Often's own cells, with 65 changed: the fewest the exact solver found that meet every rule and today's link's weekends, rest days and heaviest week (tooling/exact)",
+  "seed": "CP-SAT, 15 minutes from Second Edition turned to start on the same line, walking back towards Little and Often",
+  "lineage": "The owner asked how Little and Often could be improved to meet the rules. Often Enough meets them in 45 changes but is no better to work than the original, so this asks the same solver for every rule, no fatigue factor, and at least today's link on the things the rules do not govern: five full weekends off in the 26 weeks (ten a year), never more than seven weeks apart, no more than five single rest days and no week over 43h 50m. The fewest changes found: 65 (the solver could not rule out fewer than 32). The cover weeks stay where the author put them, and every shift time is one already in Little and Often, today's link, the plan's office and closer, or the shortlist."
+ }
+}

@@ -1034,6 +1034,162 @@ From `tooling/`:
 OUT=/tmp/Little-and-Often.pdf node supplied.mjs results/little-and-often.json "Little and Often" "<strap>" LO-26-EXT
 ```
 
+## Often Enough and Fair Enough — Little and Often, repaired to meet the rules (26 Oct 2026)
+
+Owner: "How would you improve this roster to meet the rules. Deep think it".
+
+The 24-line *Just Enough* and *All Clear* method (`../links-24/README.md`), brought to the 26-line rules in
+`tooling/exact/`. It finds the fewest cells of *Little and Often* to change so that every rule is met.
+
+**What counts as a change.** One cell — one line on one day — that differs from *Little and Often* (`LO-26-EXT`):
+- a retimed duty counts one;
+- so does a duty becoming a rest day, or a rest day becoming a duty;
+- the cover weeks stay where the author put them (they already meet the spread rule);
+- the shift times allowed are 39: *Little and Often*'s own, today's, the plan's ticket-office pairs and 15:45 closer,
+  and the shortlist's. Nothing appears that nobody has seen.
+
+**Why it fails, and what that forces.** Four causes in the design, each costing cells:
+1. **More, shorter shifts than the ceiling allows.** It averages 7h 59m a duty, so the contract takes 92
+   Monday-to-Saturday duties, where the 219-day ceiling allows 89. Three must go and their hours land on the others:
+   the average has to rise to 8h 15½m. Every short duty kept is paid for by a longer one, the trade the early finishes
+   face (above).
+2. **No ticket office.** The office is rostered as identical pairs every day: Monday to Friday two 06:20–14:20 and two
+   14:00–22:30, Saturday two 06:20–14:50 and two 14:30–22:00, Sunday two 07:15 earlies and two lates to 22:30. It has
+   the weekday lates, but only one 06:20–14:20 on Monday, Tuesday and Wednesday, none of Saturday's, and no Sunday
+   late to 22:30.
+3. **The ends of the day.**
+   - Sunday opens with three, where the rule asks for four.
+   - It has four on at 22:00, where it asks for five.
+   - One Sunday duty runs 9h 05m.
+   - At 14:30 on a Saturday four people hold the whole station.
+4. **Its own extra times and closers.** 20 shift times against today's 18, and every weekday closer at 16:25 where the
+   flexible rule asks for 15:45.
+
+A hand count already reaches about 31 forced cells:
+- 16 closers;
+- 3 weekday office earlies;
+- 4 on Saturday: its office pairs, and 14 on duty;
+- 3 on Sunday;
+- 5 weekday duties made rest days.
+
+**The trade.** The fewest cells changed (of the 147 on working lines) for each thing asked, every row from the solver
+and judged by the sheets' own code. *Proven* means the solver closed its bound; otherwise the row gives the best it
+found and the fewest it could rule out.
+
+| Must meet, besides every hard limit and all nine December rules | Fewest cells changed | Weighted league |
+|---|---|---|
+| *Little and Often* as drawn: 3 of 9 rules, over the ceiling | — | 12.3 |
+| The flexible rules; fatigue ignored | **36, proven** | 33.2 |
+| No fatigue factor; not the flexible rules (most 16:25 closers kept) | 39 (at least 25) | 49.4 |
+| The flexible rules, no fatigue factor — ***Often Enough*** | **45 (at least 38)** | 47.4 |
+| … and today's weekends, rest days and heaviest week — ***Fair Enough*** | 65 (at least 32) | 63.8 |
+| … and the shortlist's, with 16 weeks on one turn | 93 (at least 32) | 77.7 |
+| The shortlisted designs, turned to start on the same line | 126–131 | 87.2–88.5 |
+
+Weighted league as the tables above score it (`REF_IN_RANGE=1`, Same Again and Same Again Tidy in the range); each row
+here is scored on that range, so no other score moves. Today's link scores 23.3.
+
+Five things the trade says:
+- **The rules alone cost 36 cells, and leave it more tiring.** That version has six fatigue factors where a cover week
+  falls worst, four even in the fixed duties. *Little and Often* has five and two.
+- **Clearing every factor costs 9 more at most.** The weekend gap, the rest after early blocks, runs of eight-hour
+  shifts and two-hour start-time jumps all go.
+- **Keeping the 16:25 closers saves about six cells and buys nothing.** The 39-change version keeps eleven, but pays
+  for them with five 14:45–23:55 closers of 9h 10m. Inside the ceiling a short shift is bought with a long one.
+- **Compliance is not the same as better to work.** *Often Enough* is still a design of scattered rest days. In the best
+  found, today's weekends and rest days take 20 more cells, and the shortlist's 48 more. At 93 cells it is still below the shortlist,
+  on fit to the trains and new shift times.
+- **Little and Often cannot keep its shape and be the best roster.** The shortlist differs from it in 126–131 of 147
+  cells.
+
+***Often Enough*** (`OE-26-M45 · 0ca9bf1a`, `tooling/results/often-enough.json`). The answer to the question as asked:
+every rule, no fatigue factor, in the fewest changes the solver found. What the 45 are:
+
+| Changes | What |
+|---|---|
+| 14 | weekday closers 16:25 → 15:45 (the other two 16:25s became other duties) |
+| 8 | the ticket office's pairs, Monday to Saturday |
+| 4 | Sunday: a fourth opener at 07:15, the office's lates to 22:30, nothing over 9 hours |
+| 5 · 2 | duties made rest days · rest days made duties (92 → 89 Monday to Saturday, Saturday 12 → 14) |
+| 12 | retimes, for the 35 hours, the rests and the fatigue checks |
+
+Among the 45-change versions it is the one chosen, a stage at a time, for:
+- the most full weekends off: 3 in the 26 weeks, against 2;
+- the shortest wait between them: 16 weeks;
+- the fewest single rest days: 15, against 18;
+- the lightest heaviest week: 47h 40m (line 9, six closers in a row, as drawn but at 15:45);
+- the most weeks on one turn: 6;
+- the smallest retimes.
+
+Each stage ran three minutes, and none is proven. Eighteen of the 21 working lines change somewhere.
+
+***Fair Enough*** (`FE-26-M65 · 7dbe854a`, `tooling/results/fair-enough.json`). The same rules, and at least today's
+link on what the rules do not govern:
+- five full weekends off in the 26 weeks (ten a year);
+- never more than seven weeks apart;
+- no more than five single rest days;
+- no week over 43h 50m.
+
+It comes to:
+- 12 full weekends a year, never more than six weeks apart;
+- 5 single rest days and one six-day week;
+- a heaviest week of 42h 30m;
+- 20 early finishes before 14:00 a year.
+
+It is the version to take forward if *Little and Often* stays in the running. It was found from Second Edition, turned to
+start on the same line and walked back towards *Little and Often* for 15 minutes. It follows the trains a little less
+closely than *Little and Often* on a weekday (37.1 against 34.7) and more closely on a Saturday (37.0 against 51.4); its
+Sunday is the weakest of the three (81.3).
+
+| | Today | Little and Often | Often Enough | Fair Enough | Short Run |
+|---|---|---|---|---|---|
+| December rules met (· flexible) | 4 of 9 | 3 of 9 · 1/3 | 9 of 9 · 3/3 | 9 of 9 · 3/3 | 9 of 9 · 3/3 |
+| Contracted days a year (ceiling 219) | 219.0 | 224.6 | 218.6 | 218.6 | 218.6 |
+| Fatigue warnings, fixed duties (up to) | 4 (5) | 2 (6) | 0 (0) | 0 (0) | 0 (0) |
+| Full weekends off a year (longest wait) | 10 (7 weeks) | 4 (16) | 6 (16) | 12 (6) | 14 (5) |
+| Most days in a row, fixed (cover week badly) | 7 (9) | 6 (9) | 6 (8) | 6 (6) | 5 (6) |
+| Shortest rest | 12h 30m | 13h 50m | 14h 00m | 13h 35m | 14h 20m |
+| Single rest days · weeks on one turn | 4 · 7 of 16 | 18 · 8 of 21 | 15 · 6 | 5 · 6 | 4 · 18 |
+| Six-day weeks, Sunday included | 1 | 5 | 3 | 1 | 0 |
+| Heaviest week, Monday to Saturday | 43h 50m | 45h 30m | 47h 40m | 42h 30m | 42h 30m |
+| Finishing at 23:00 or later, a year each | 39 | 46 | 44 | 46 | 42 |
+| Earlies finishing before 14:00, a year each | 26 | 26 | 16 | 20 | 0 |
+| Shift times · new ones to learn | 18 · — | 20 · 11 | 18 · 8 | 18 · 8 | 15 · 6 |
+| Fit to the trains, weekday · Sat · Sun (lower is closer) | 52.0 · 65.9 · 71.7 | 34.7 · 51.4 · 74.1 | 37.1 · 80.4 · 75.0 | 37.1 · 37.0 · 81.3 | 29.1 · 12.7 · 29.0 |
+| Weighted league | 23.3 | 12.3 | 47.4 | 63.8 | 87.7 |
+
+**How the answer is trusted.** The solver (Google OR-Tools CP-SAT) is given every rule as a constraint, written the way
+the sheets' code measures it. `check_model.py` pins it to test grids and asks it, rule by rule and factor by factor,
+whether each passes; `judge.mjs` asks the sheets' own code the same questions:
+- 62 grids: random edits of *Little and Often* and of two repairs, Sundays short, runs filled to 12–16 days, and weeks
+  stepping backwards;
+- 0 disagreements;
+- every rule and every factor seen both passing and failing.
+
+The first pass found one disagreement: the 55-hour row at its worst also counts weeks with no cover day in them, which
+the model had left to the plain 55-hour row. It now counts both. Every grid named here was re-judged by the sheets' own
+code before it was used.
+
+**Not in the pack**, like Same Again and Little and Often. Each sheet renders with `supplied.mjs` and runs to nine pages.
+A one-page grid of each repair's changed cells was made for the owner, and is not committed. The other three rows'
+grids are in `tooling/results/`:
+- `little-and-often-rules-only.json`;
+- `little-and-often-closers-kept.json`;
+- `little-and-often-shortlist-floors.json`.
+
+From `tooling/exact/` (`pip install ortools`; with four solver threads, a grid chosen among ties can differ from run to
+run, so the grids in `results/` are the record):
+
+```
+python3 check_model.py ../results/little-and-often.json ../results/often-enough.json 12 ../results/fair-enough.json
+python3 fewest.py ../results/little-and-often.json /tmp/oe5.json --flex --time 300             # 49, a start
+python3 fewest.py ../results/little-and-often.json /tmp/oe.json --flex --time 1800 --hint /tmp/oe5.json   # 45, at least 38
+python3 tiebreak.py ../results/little-and-often.json /tmp/oe.json /tmp/oe-tb.json 45 --flex --time 180
+python3 fewest.py ../results/little-and-often.json /tmp/any.json --flex --fmax 99 --time 600   # 36, proven
+python3 quality.py ../results/little-and-often.json /tmp/fe.json --flex --min-wk 5 --max-gap 7 --max-iso 5 \
+  --max-heavy 2630 --time 900 --hint <Second Edition turned six lines>                       # 65, at least 32
+```
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
