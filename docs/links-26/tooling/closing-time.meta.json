@@ -1,0 +1,8 @@
+{
+ "date": "26 October 2026",
+ "identity": {
+  "table": "T2 — today's shift times with every closer at 16:00 Monday to Saturday, today's 13:30-22:00 half an hour longer, and a 13:45 every weekday and on Saturday (results/closing-time-table.json)",
+  "seed": "Home Grown's weeks (skeleton-from.mjs on home-grown.json), 1 (skeleton-start.mjs), then 62 (space-polish with the rest days locked)",
+  "lineage": "The owner asked for today's 20-line link on 26 lines with five cover weeks, a 16:00 closing shift, a 13:35 or 13:45 finish every weekday, every rule met and Short Run's fatigue factors matched or improved. Today's week order carries four fatigue factors and a run of seven days, so its shift times were kept and its weeks rebuilt: the table was laid on Home Grown's weeks — Short Run's rest-day skeleton as Home Grown's search left it (skeleton-from.mjs, skeleton-start.mjs) — and its times searched with the rest days held (space-polish.mjs) to Short Run's floors — the shortest rest 14h 20m, leave 28 · 20 · 15, no run over five on the fixed duties — with every fatigue factor's own value Short Run's or better (factors-like.mjs). Of every way of paying the contract with a short finish every weekday (short-earlies.mjs), this is the one with a 16:00 closer every day and the fewest new shift times: one, 13:30-22:30, three times a weekday."
+ }
+}

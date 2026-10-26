@@ -35,6 +35,8 @@ missing = [s for s, _ in files if not os.path.exists(s)]
 if missing: raise SystemExit(f'pack: missing {missing}')
 
 names = ', '.join(n for n, _, _ in proposals)
+# the count is the SUPPLIED list's, never typed: "Ten candidate links" stayed ten for three designs (26 Oct 2026)
+WORDS = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split()
 with_decks = [n for n, _, _ in proposals if os.path.exists(f"{ROOT}/presentations/{n.replace(' ', '-')}-for-colleagues.pptx")]
 # THE READ-ME IS WRAPPED BY CODE (4 Oct 2026, outside review): it opens in Notepad, so every line is at most 78
 # columns, both lists hang at the same column, and a paragraph edited later cannot come out ragged.
@@ -48,13 +50,17 @@ readme = '\n'.join([
     'DECEMBER 2026 LINK PROPOSALS - 26 LINES',
     'Marylebone CEA link, December 2026 timetable - 26 weeks, from 1 October 2026',
     '',
-    para('Ten candidate links, three shortlisted (Second Edition, Short Run, Even Keel), one recommended (Short Run). '
+    para(f'{WORDS[len(proposals)].capitalize()} candidate links, three shortlisted (Second Edition, Short Run, Even Keel), one recommended (Short Run). '
          'Asked of managers: which of the three goes to colleagues. Asked of colleagues: look at page 3 of the chosen '
          'sheet and say what worries you.'),
     item('Ten minutes:', '1 Summary/links-26-shortlist.pdf', 18),
     item('Twenty minutes:', 'add 3 Presentations/Short-Run-for-managers.pdf', 18),
     para('The rest is the evidence behind them.'),
     '',
+    *([para('Home Grown, Closing Time and Both Ways (26 October 2026) answer a later question, not on the shortlist: '
+            'today\'s link on 26 lines, keeping its shift times, a 13:35 or 13:45 finish every weekday and the weekday '
+            'closer at 16:00. Each pays for the short finishes a different way; the technical notes compare them.'), '']
+      if {'Home Grown', 'Closing Time', 'Both Ways'} <= {n for n, _, _ in proposals} else []),
     para('Still moving: the staffing levels and Sunday cover behind the rules were confirmed verbally, not in writing; '
          'the written source of the 13-day limit is to be confirmed; and the reading of one fatigue factor (FF19, marked '
          '"definition to confirm" on the rules page) is open. The figures are computed from the rotas and will not move '

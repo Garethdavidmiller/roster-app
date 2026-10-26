@@ -69,6 +69,17 @@ export const SUPPLIED = [
     // 26-line design needs 15; its best leave stretch is 29 days. The price: five single rest days (not four), 16 of 21
     // weeks on one shift time (not 18) and a week-to-week step of 1h 44m. README.md → "Long Break".
     { file: 'long-break.json',             name: 'Long Break',     code: 'LB-26-F1',   fp: 'c193b37e', strap: 'Four weeks off for 14 days’ leave, as today, with weekends never more than five weeks apart and no mixed week' },
+    // Home Grown, Closing Time and Both Ways (26 Oct 2026): the owner's brief — today's 20-line link on 26 lines, five cover
+    // weeks, a 16:00 closing shift, a 13:35 or 13:45 finish every weekday, every rule met and Short Run's fatigue factors
+    // matched or improved. Today's week order carries four fatigue factors, so its shift TIMES were kept and the weeks
+    // rebuilt: Home Grown on Short Run's skeleton, the other two on Home Grown's weeks (skeleton-from.mjs), so all three
+    // have the same rest days and differ only in their shift times. Each is the best week for one way of paying for the short finishes
+    // (short-earlies.mjs): Home Grown keeps Saturday's 14:45 closers, Closing Time adds 13:30-22:30, Both Ways adds that
+    // and 07:00-16:00 to keep a 13:35 AND a 13:45 every weekday. Every fatigue factor's value is Short Run's or better
+    // (factors-like.mjs). README.md → "Today's link on 26 lines".
+    { file: 'home-grown.json',             name: 'Home Grown',     code: 'HG-26-T1',   fp: '7d41fafb', strap: 'Today’s shift times with a 16:00 weekday closer and a 13:35 finish every weekday, and Saturday closing as today' },
+    { file: 'closing-time.json',           name: 'Closing Time',   code: 'CT-26-T2',   fp: '57429cc4', strap: 'A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and only 11 shift times' },
+    { file: 'both-ways.json',              name: 'Both Ways',      code: 'BW-26-T3',   fp: '7a513d87', strap: 'A 16:00 closer every day from Monday to Saturday, and a 13:35 and a 13:45 finish every weekday, as today' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

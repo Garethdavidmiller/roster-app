@@ -82,6 +82,8 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 | league | `league.mjs` | the weighted league on every factor the sheets compare (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`) — the owner's weights, a judgement not a measurement |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
+| options | `short-earlies.mjs` | every way to keep a 13:35 or 13:45 every weekday with today's times and a 16:00 closer: 2,250 `final-table.mjs` searches (`SCAN=1`; their results are committed, `results/short-earlies-scan.txt`) and every whole week paying the contract (see "Today's link on 26 lines") |
+| fatigue values | `factors-like.mjs` | every fatigue factor's own value, on the fixed duties and in the worst case, against a reference grid; exits 1 if any is worse (`space-polish.mjs`'s `FACTORS_LIKE` holds a search to the same comparison) |
 
 **Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
 - **No 24-line default leaks through.** The app functions that default to 24 lines (`runDesignChecks`, `assessFatigue`,
@@ -771,6 +773,152 @@ which broke the pack's own "5 (up to 6)" convention for days in a row. **The sho
 print a page whose content runs into its footer** — their pages are a fixed height, so an over-full page was HIDDEN, not
 pushed onto a third page, and this change first hid the shortlist's last choice-guide row and closing line. The guard
 measures at the print width under print media; measured at screen width it passed the broken page.
+
+## Today's link on 26 lines — every way to keep a 13:35 or 13:45 every weekday (26 Oct 2026)
+
+**The brief** (owner, 26 Oct 2026): "Can you take the original 20 link roster. Keep either the 13.35 or 13.45 finish
+or both. Expand it to 26 lines, 5 cover weeks, 1600 closing shift start, meet all the rules and match or improve on the
+fatigue factors in short run." Then: "Check every possibility. We need to maintain at least one weekday 13.35 or 13.45
+finish per day."
+
+**How it was read**, so each reading can be overruled:
+- **Today's shift TIMES, not today's week order.** Today's 20 weeks carry four fatigue factors on the fixed duties
+  (FF8b, FF15, the 55-hour week at 60h 48m, six FF19 start-time jumps) and a run of seven days; matching Short Run's
+  none meant rebuilding the weeks, so today's times were kept and its order was not. Every duty below is one of today's
+  18 times unless it says otherwise.
+- **"1600 closing shift start"**: every weekday closer is 16:00–23:55 (today 15:15–23:55), in place of the flexible
+  rule's 15:45. Whether Saturday's closer moves too (today 14:45–23:55) is the one open question, so both answers are built.
+  Sunday cannot: the close is 23:25 and a Sunday duty must be 8 to 9 hours, so its closers start at 15:15, the latest
+  quarter hour that allows (today 14:30).
+- **"All the rules"**: the three hard limits and the 219-day ceiling, the nine December rules, and the flexible rules
+  bar the 15:45 closer, which the brief replaces.
+- **"Match or improve on the fatigue factors in Short Run"**: no factor present on the fixed duties or in the worst
+  case, and every factor's own value no worse than Short Run's (`factors-like.mjs`, below, prints them side by side).
+
+**The arithmetic.** With today's times, a 16:00 closer and nothing else finishing after 22:30, a weekday pays at most
+7,485 minutes (the four ticket-office duties, three closers at 7h 55m, and eight more at 8h 30m) and a Saturday 6,855:
+5 × 7,485 + 6,855 = 44,280, **180 minutes over the 44,100 the contract needs**. A 13:45 costs 65 minutes against the
+8h 30m early it replaces on a weekday (the 8-hour 06:20–14:20s are the ticket office, fixed), a 13:35 75; a Saturday
+can take up to three at 35, 35 and 65 (measured: the best Saturday with one, two or three pays 6,820, 6,785 and
+6,720). So the week holds **at most three, and at most one of them on a weekday**, where today's has ten. **One on
+every weekday leaves the week 145 minutes short** (5 × 7,420 + 6,855 = 43,955). Every way of keeping them is a way of
+finding those 145 minutes.
+
+**Every possibility.** `final-table.mjs` built the best-fitting day table at every total, 5 minutes apart, under each
+way of finding the minutes — 2,250 searches, each exhaustive (`REQUIRE` and `LATE_MAX`, added for this, make a weekday
+carry a 13:35 or 13:45 and count its late finishes) — and every whole week of five weekday tables (up to three
+different ones) and a Saturday paying exactly 44,100 was scored: 5.66 million weeks, 5.12 million inside the 18-time
+rule. The ways, with the best week found for each:
+
+| Way of finding the 145 minutes | Saturday closers | Times nobody works today¹ | 13:35/13:45 a week | Finishes after 23:00 a year² | Demand fit, weekday · Saturday³ |
+|---|---|---|---|---|---|
+| Saturday's closers stay at today's 14:45 | 14:45 ×3 | none | 5 (a 13:35 each weekday) | 42 | 37.1 · 17.4 |
+| Saturday's closers at 15:15, today's weekday closer, four of them | 15:15 ×4 | none | 5 | 44 | 37.8 · 14.2 |
+| 16:00 every day, and seven more 23:25 finishes a week (today's Sunday 14:30–23:25, on weekdays and Saturday) | 16:00 ×3 | none | 5 | 56 | 32.7 · 12.3 |
+| 16:00 every day, and today's 13:30–22:00 half an hour longer | 16:00 ×3 | 13:30–22:30 | 6 | 42 | 36.7 · 9.7 |
+| 16:00 every day, and today's 07:15–15:45 and 13:30–22:00 each half an hour longer | 16:00 ×3 | 07:15–16:15, 13:30–22:30 | **10 — a 13:35 and a 13:45 every weekday, as today** | 42 | 31.2 · 12.1 |
+| mixtures of these: Saturday closers at two times, a few 23:25s beside a longer duty, a different table on different weekdays | | | | | they trade between the rows above |
+
+¹ Beyond the 16:00 weekday closer (the brief) and the Sunday 15:15 (above), which every row has. ² Per person, closers
+included (Short Run 42, today 39). ³ Lower is closer to the December demand; this is the day-table search's own figure
+(`short-earlies.mjs`), and the sheets measure a whole rota slightly differently, so the built designs' figures below are
+the sheets'.
+
+**Three of them built**, the Home Grown family — the first row, which keeps every one of today's times, and the two
+16:00-every-day rows that add no late finish. Each uses one table on all five weekdays, so Monday to Friday work the
+same duties and a week can sit on one shift time (a different table on different weekdays buys under two points of fit,
+for more shift times). **All three work the same weeks** — Home Grown's rest days, weekends and leave, with Closing
+Time's and Both Ways' duties laid on them (below) — so they differ only in their shift times. Their duties
+(`results/home-grown-table.json`, `closing-time-table.json`, `both-ways-table.json`), Sunday the same in all three:
+today's times bar the 15:15 closer, 07:15–15:45 ×4, 08:00–16:30, 14:00–22:30 ×2, 15:15–23:25 ×3.
+
+| | Monday to Friday, each day | Saturday |
+|---|---|---|
+| **Home Grown** `HG-26-T1` · `7d41fafb` | 06:20–13:35 · 06:20–14:20 ×2 · 06:20–14:50 ×2 · 07:15–15:45 ×2 · 11:00–19:30 · 13:30–22:00 ×2 · 14:00–22:30 ×2 · 16:00–23:55 ×3 | 06:20–14:20 ×3 · 06:20–14:50 ×2 · 07:15–15:45 · 08:00–16:30 · 14:00–22:30 ×2 · 14:30–22:00 ×2 · 14:45–23:55 ×3 |
+| **Closing Time** `CT-26-T2` · `57429cc4` | 06:20–13:45 · 06:20–14:00 · 06:20–14:20 ×2 · 06:20–14:50 · 07:15–15:45 ×2 · 13:30–22:30 ×3 · 14:00–22:30 ×2 · 16:00–23:55 ×3 | 06:20–13:45 · 06:20–14:00 · 06:20–14:50 ×2 · 07:15–15:45 · 08:00–16:30 ×2 · 14:00–22:30 ×2 · 14:30–22:00 ×2 · 16:00–23:55 ×3 |
+| **Both Ways** `BW-26-T3` · `7a513d87` | 06:20–13:35 · 06:20–13:45 · 06:20–14:20 ×2 · 06:20–14:50 · 07:00–16:00 ×2 · 12:00–20:00 · 13:30–22:30 ×2 · 14:00–22:30 ×2 · 16:00–23:55 ×3 | 06:20–14:00 · 06:20–14:20 · 06:20–14:50 ×2 · 07:00–16:00 ×3 · 14:00–22:30 ×2 · 14:30–22:00 ×2 · 16:00–23:55 ×3 |
+
+**Both Ways uses 07:00–16:00, not the 07:15–16:15 of its row above.** The same nine hours, but a 07:15–16:15 followed
+the next morning by a 06:20 leaves 14h 05m, and an early run needs its 07:00-or-later duties placed among the 06:20s
+(a block of 06:20s must end in two rest days, FF8b), so the first rotas kept three such gaps however they were
+searched. 07:00–16:00 is Short Run's own duty, leaves exactly 14h 20m, and is not an early start in the ORR's sense
+(05:00–06:59). It fits the weekday better (30.5 against 31.2) and the Saturday worse (16.2 against 12.1).
+
+| | Home Grown | Closing Time | Both Ways | Short Run | Today's link (20 weeks) |
+|---|---|---|---|---|---|
+| Saturday's closers | 14:45 ×3, as today | 16:00 ×3 | 16:00 ×3 | 15:15 ×3 | 14:45 ×2 |
+| 13:35 or 13:45 finishes a week | 5, a 13:35 every weekday | 6, a 13:45 every weekday and Saturday | 10, a 13:35 and a 13:45 every weekday | none | 10 |
+| Shift times (new) | 12 (2) | 11 (3) | 14 (4) | 15 (6) | 18 |
+| December rules met | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 4 of 9 |
+| Hard limits and the contract | met | met | met | met | met |
+| Contracted days a year (ceiling 219) | 218.6 | 218.6 | 218.6 | 218.6 | 219.0 |
+| Fatigue factors present, fixed duties · worst case | 0 · 0 | 0 · 0 | 0 · 0 | 0 · 0 | 4 · 5 |
+| Every factor's value against Short Run's (`factors-like.mjs`) | none worse | none worse | none worse | — | — |
+| Most hours in any 7 days | 50h 30m | 51h 30m | 50h 18m | 51h 42m | 60h 48m |
+| Most days in a row | 5 (up to 6) | 5 (up to 6) | 5 (up to 6) | 5 (up to 6) | 7 (up to 9) |
+| Shortest rest between shifts | 14h 35m | 14h 35m | 14h 20m | 14h 20m | 12h 30m |
+| Full weekends off | 7 in 26, at most 5 weeks apart | same | same | same | 4 in 20, up to 7 apart |
+| Single rest days · weeks mixing earlies and lates | 4 · 0 | 4 · 0 | 4 · 0 | 4 · 0 | 4 · 7 |
+| Weeks on one shift time | 16 of 21 | 16 of 21 | 16 of 21 | 18 of 21 | 7 of 16 |
+| Longest block of earlies or lates | 5 (up to 7) | 5 (up to 7) | 5 (up to 7) | 5 (up to 7) | 2 (up to 3) |
+| Heaviest · lightest week, Monday to Saturday | 42h 30m · 24h 55m | 41h 30m · 27h 00m | 40h 55m · 24h 00m | 42h 30m · 24h 30m | 43h 50m · 25h 10m |
+| Week-to-week change of start | 1h 25m | 1h 20m | 1h 40m | 1h 13m | 4h 00m |
+| 14 days' leave: best · average · worst · four full weeks | 28 · 23.4 · 20 · 15 | same | same | same | 30 · 23.4 · 19 · 14 |
+| Finishes after 23:00, each a year | 42 | 42 | 42 | 42 | 39 |
+| Fit to the trains, weekday · Saturday · Sunday | 36.8 · 15.5 · 48.6 | 36.4 · 8.7 · 48.6 | 30.2 · 15.2 · 48.6 | 29.1 · 12.7 · 29.0 | 52.0 · 65.9 · 71.7 |
+
+**What that says.** All three meet the brief: every rule, every hard limit, no fatigue factor on the fixed duties or
+in the worst case, and on each factor's own value — the longest run without a 48-hour break, the most hours in seven
+days, backward against forward steps, the rest — Short Run's figure or better; the busiest seven days are lighter in
+all three. They also match Short Run on the run, the weekends, the single rest days, the mixed weeks, the blocks of
+earlies and lates, the leave and the late finishes, and Home Grown and Closing Time give a longer shortest rest.
+**What keeping the short finishes costs**: two fewer weeks on one shift time (16 against 18), because a single 13:35 a
+day cannot be one person's for the week — five 06:20 starts in a row is itself a fatigue factor (FF15) — and a larger
+week-to-week change (1h 20m to 1h 40m against 1h 13m; a last polish asked for Short Run's figure with everything else
+held and kept nothing). Sunday keeps today's times bar the closer, so its fit (48.6) is far better than today's but not
+Short Run's, which adds two Sunday times nobody works today (09:00–18:00, 14:30–22:30). The 15:45 closer, the flexible
+rule the brief replaces, is the one flexible rule all three miss; a proposal sheet does not show flexible rules.
+
+**How they were built.** Home Grown's table was laid on Short Run's rest-day skeleton (`results/skeleton-run5.json`)
+by `skeleton-start.mjs`, with three settings added for these tables: a weekday with a column of its own, the late
+line's single weekday duty (`NOON` — Home Grown's 11:00, Both Ways' 12:00) with Saturday off where a Saturday late
+would be a start-time jump of more than two hours, and the Sunday early that is not a 07:15 (`SUN_EXTRA`). Its times
+were searched by `space-polish.mjs` in two passes: fatigue as a cost with Short Run's floors a little lowered, then
+Short Run's floors — the shortest rest 14h 20m, leave 28 · 20 · 15, no run over five on the fixed duties, seven
+weekends at most five apart, four single rest days, no mixed week. **Closing Time and Both Ways were then laid on
+Home Grown's weeks** — `skeleton-from.mjs` (new) reads a finished rota's rest days and families back as a skeleton —
+and only their times searched, the rest days held (`LOCK_REST=1`), with two settings new to `space-polish.mjs`:
+**`FACTORS_LIKE=short-run.json`**, every fatigue factor's value no worse than Short Run's on both views, and
+**`REST_SLOPE=1`**, every gap under the 14h 20m floor a cost, not only the tightest (with six gaps of 14h 05m, mending
+five of them used to score nothing). Laid on Short Run's skeleton directly, as Home Grown was, both came through
+every floor too, but with a block of late weeks running to 11 or 12 with the cover weeks beside it; on Home Grown's
+weeks all three have Short Run's 5 (up to 7). Home Grown met every factor value without the setting, which
+`factors-like.mjs` (new) confirms for all three. Second Edition's skeleton came through the first pass for all three
+tables and kept nothing at Short Run's floors; Long Break's has a run of six by design.
+
+**How to rebuild them** (from `tooling/`; each chain is deterministic, and each was re-run from these commands to the
+same fingerprint):
+
+```
+A="REST_MIN=815 WKENDS_MIN=7 GAP_MAX=5 ISO_MAX=4 MIXED_MAX=0 LEAVE_WORST_MIN=19 LEAVE_FOUR_MAX=15 ISO_W=1e5 MIX_W=4e4 FIXED_RUN_MAX=5 FATIGUE_SOFT=1 HEAVY_MAX=42.5"
+B="REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ISO_MAX=4 MIXED_MAX=0 LEAVE_WORST_MIN=20 LEAVE_BEST_MIN=28 LEAVE_FOUR_MAX=15 ISO_W=1e5 MIX_W=4e4 FIXED_RUN_MAX=5 HEAVY_MAX=42.5 STEP_MAX=121 FATIGUE_SOFT=1"
+L="$B REST_SLOPE=1 FACTORS_LIKE=short-run.json LOCK_REST=1 ONE_MIN=0"
+# Home Grown
+TABLE=results/home-grown-table.json NOON=11:00-19:30 NOON_SAT=off SUN_EXTRA=08:00-16:30 node skeleton-start.mjs results/skeleton-run5.json /tmp/hg0.json 1
+env $A node space-polish.mjs /tmp/hg0.json /tmp/hg1.json 11 300000
+env $B node space-polish.mjs /tmp/hg1.json /tmp/hg2.json 21 500000                 # = home-grown.json (7d41fafb)
+# Closing Time and Both Ways, on Home Grown's weeks
+node skeleton-from.mjs home-grown.json /tmp/hg-weeks.json
+TABLE=results/closing-time-table.json SUN_EXTRA=08:00-16:30 node skeleton-start.mjs /tmp/hg-weeks.json /tmp/ct0.json 1
+env $L node space-polish.mjs /tmp/ct0.json /tmp/ct1.json 62 400000                # = closing-time.json (57429cc4)
+TABLE=results/both-ways-table.json NOON=12:00-20:00 SUN_EXTRA=08:00-16:30 node skeleton-start.mjs /tmp/hg-weeks.json /tmp/bw0.json 1
+env $L node space-polish.mjs /tmp/bw0.json /tmp/bw1.json 71 400000                # = both-ways.json (7a513d87)
+node factors-like.mjs short-run.json home-grown.json closing-time.json both-ways.json   # every value Short Run's or better
+node short-earlies.mjs                                                                    # the possibilities table above
+```
+
+`skeleton-start.mjs` warns once for Home Grown's weeks ("an early run ending at a single rest day", line 2): its own
+supply rule cannot read a run the polish made legal another way, and the search clears it.
 
 ## Notes for the whole set
 
