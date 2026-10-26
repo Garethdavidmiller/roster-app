@@ -244,7 +244,7 @@ export function buildAnalyticsClient({ db, collections, fs, writeWithClaimRetry,
                 // its `total` is legitimately smaller and the card says so rather than hiding the bar.
                 ready: summarisePerf(samples, { metric: 'ready' }),
                 // The RAW map, carried through so the card can break the busiest page down by
-                // connection / install mode / version (`summarisePerfBy`). Summarising every dimension
+                // app version / install mode (`summarisePerfBy`). Summarising every dimension
                 // here instead would mean deciding in the data layer which page the admin is asking
                 // about, and re-reading the document to change that answer. The map is a few hundred
                 // small integer counters and is already in memory.

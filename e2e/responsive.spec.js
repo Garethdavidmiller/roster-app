@@ -227,17 +227,15 @@ test('admin week label fits at 375px for every week across 13 months', async ({ 
         .toEqual([]);
 });
 
-// ── Team View must reach BOTH ends of the boot ladder (v21.37, external review) ────────────────
-// "Shifts shown" and "Confirmed" are the ladder's two far rungs, and LATENCY.md decides
-// whether narrower Firestore reads are worth doing from the GAP between them. Team View recorded
-// the first and never the second, so every launch spent there widened that gap for free.
+// ── Team View counts as a usable open (v21.37; App Speed review, Oct 2026) ──────────────────────
+// Team View is a BOOT surface for anybody who left the app on it, and its opens belong in "Usable"
+// like the Calendar's. It once recorded only part of the start ladder; the ladder is retired, and
+// what is left to pin is the `ready` mark itself.
 //
-// IT MUST BE A RESTORE, NOT A CLICK. The first version of this asserted after clicking into Team
-// View from the Calendar — and passed with the bug fully present, because the Calendar had already
-// marked `rosterLive` on its own render before the click. Three mutations all survived it. Seeding
-// `myb_team_view` makes Team View the BOOT surface, so the Calendar never renders and the mark can
-// only come from the path under test.
-test('team view restored at boot records the roster-live milestone, not just page-ready', async ({ page }) => {
+// IT MUST BE A RESTORE, NOT A CLICK. Clicking into Team View from the Calendar passes on the
+// Calendar's own mark. Seeding `myb_team_view` makes Team View the boot surface, so the Calendar
+// never renders and the mark can only come from the path under test.
+test('team view restored at boot marks the page usable', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await seedMember(page);
     await page.addInitScript(() => localStorage.setItem('myb_team_view', '1'));
@@ -246,8 +244,8 @@ test('team view restored at boot records the roster-live milestone, not just pag
 
     await expect.poll(async () => page.evaluate(() =>
         performance.getEntriesByType('mark').map(m => m.name)
-    ), { message: 'a Team View boot must record the roster-live mark once its grid is authoritative' })
-        .toContain('myb-roster-live');
+    ), { message: 'a Team View boot must record the ready mark once its grid is on screen' })
+        .toContain('myb-page-ready');
 });
 
 // ── THE RECORDED-DATES ROW KEEPS ITS CONTROLS (v23.72) ────────────────────────────────────────

@@ -571,85 +571,55 @@ export async function clickDialogConfirm(page, selector = '.dialog-btn-confirm')
 // Shared for the same reason `openRosterReview` is: the surface only exists once real analytics have
 // arrived, so BOTH the opt-in visual baseline and the CI truncation guard need the same seed, and
 // two copies of it would drift into testing two different cards. The shape is deliberately UNEVEN —
-// a fast Calendar, a slow paycalc, a thin page, a lopsided cache/server split — because a uniform
+// a fast Calendar, a slow paycalc, a thin page, a page that reports no "Usable" — because a uniform
 // fixture makes every bar the same width and locks in a picture that cannot show a layout fault.
+//
+// Trimmed with the card (App Speed review, Oct 2026): the retired blocks' metrics are gone, and what
+// is seeded is what "A closer look" reads — the stored copy, the wait after a release, and Usable by
+// app version and by how it was opened. Versions sit on BOTH sides of the measurement change, so the
+// card's two-ways-of-timing note and the version split's own note both render.
 export function perfSamples() {
     const out = {};
-    const add = (page, metric, bucket, n, conn = '4g', mode = 'standalone', ver = 'v21.29') => {
+    // Versions as the app writes them — dot-swapped, no `v` (perf-stats.perfSampleKey).
+    const add = (page, metric, bucket, n, conn = '4g', mode = 'standalone', ver = '24_97') => {
         out[[ver, page, metric, bucket, mode, conn].join('|')] = n;
     };
     for (const [m, quick, ok, slow] of [['fcp', 900, 180, 40], ['domReady', 700, 300, 120], ['ready', 520, 260, 180]]) {
         add('calendar', m, 'lt500ms', quick); add('calendar', m, '1-3s', ok); add('calendar', m, '3-8s', slow);
         add('paycalc',  m, 'lt500ms', 120);   add('paycalc',  m, '1-3s', 210); add('paycalc', m, '3-8s', 95);
-        add('settings', m, 'lt500ms', 4);     // thin — must wear the "(few)" marker, not a confident bar
+        add('settings', m, 'lt500ms', 4);     // thin — each of its bars must wear "(few)", not read as a finding
     }
+    // A page that reports no "Usable": its cell is a dash, never an empty track that reads as 0%.
+    add('admin', 'fcp', 'lt500ms', 60); add('admin', 'domReady', 'lt500ms', 55); add('admin', 'domReady', '1-3s', 8);
     add('login', 'loginTotal', 'lt500ms', 40); add('login', 'loginTotal', '1-3s', 22); add('login', 'loginTotal', '3-8s', 9);
-    // Boot stages — contiguous spans, finer bands.
-    add('calendar', 'swBoot',  'lt500ms', 900); add('calendar', 'swBoot',  '500ms-1s', 60);
-    add('calendar', 'sdkLoad', 'lt500ms', 700); add('calendar', 'sdkLoad', '500ms-1s', 220); add('calendar', 'sdkLoad', '1-3s', 40);
-    add('calendar', 'appBoot', 'lt500ms', 820); add('calendar', 'appBoot', '500ms-1s', 120);
-    // The start ladder — the point of the fixture. Signed in and Unlocked are quick; the roster is
-    // where the time goes, which is the shape the block exists to make visible at a glance.
-    add('calendar', 'authBoot',   'lt500ms', 940); add('calendar', 'authBoot',   '1-3s', 30);
-    add('calendar', 'access',     'lt500ms', 900); add('calendar', 'access',     '1-3s', 70);
-    add('calendar', 'rosterLive', 'lt500ms', 300); add('calendar', 'rosterLive', '1-3s', 420); add('calendar', 'rosterLive', '3-8s', 240);
-    // What SERVED the first grid (v21.99). Deliberately lopsided — most opens come from the saved
-    // copy and are quick, a minority wait for the server and are slow — because that IS the shape
-    // the block exists to reveal, and a 50/50 fixture would hide a layout fault in either row.
-    add('calendar', 'readyCached',  'lt500ms', 480); add('calendar', 'readyCached',  '1-3s', 60);
-    add('calendar', 'readyFetched', '1-3s', 140);    add('calendar', 'readyFetched', '3-8s', 110);
-    // BEFORE THE SIGN-IN CHECK (v24.85) — a member's own stored roster, painted while the check runs.
-    // Seeded so the block renders and the truncation guard measures its label; quick-weighted, which
-    // is the shape it exists to show, and a share of `ready` well under 100% so its sentence prints.
-    // The share divides only by opens on versions that can report a copy (v24.89), so the copy and
-    // the quick `ready` opens carry such a version — MOVED there, not added, so every total on the
-    // card is what it was. On the fixture's own version alone the share sentence would never print.
-    add('calendar', 'rosterSnapshot', 'lt500ms', 330, '4g', 'standalone', 'v24.85');
-    add('calendar', 'rosterSnapshot', '500ms-1s', 40, '4g', 'standalone', 'v24.85');
-    add('calendar', 'rosterSnapshot', '1-3s', 20, '4g', 'standalone', 'v24.85');
-    const quickReady = 'v21.29|calendar|ready|lt500ms|standalone|4g';
-    add('calendar', 'ready', 'lt500ms', out[quickReady], '4g', 'standalone', 'v24.85');
-    delete out[quickReady];
-    // OPENS A RELEASE CAUSED (v22.92) — a small share, deliberately, because that is the shape the
-    // row has to stay readable in. A `readyUpdate` count anywhere near `ready` would be a fixture
-    // asserting the finding rather than exercising the layout, and it would hide the case the block
-    // is most likely to render badly: a two-digit count and a single-digit percentage beside a bar
-    // built from four figures. It must stay a SUBSET of the `ready` seeded above, or the card's
-    // share sentence would print a percentage over 100 and nothing would fail.
-    add('calendar', 'readyUpdate', '1-3s', 26); add('calendar', 'readyUpdate', '3-8s', 14);
-    // OPENS THAT DID NOT WAIT FOR THE SIGN-IN CHECK (v23.69) — the other subset of the same rung,
-    // and it must be SEEDED or the block never renders, which would leave the 390px truncation
-    // guard measuring a card the new label is not on. Same subset constraint as `readyUpdate`
-    // above: it has to stay inside the `ready` seeded at the top, or the share sentence prints a
-    // percentage over 100 and nothing fails. Deliberately QUICK-weighted — the fast path exists to
-    // put a grid up early, so that is the shape the row has to render legibly.
-    add('calendar', 'readyProvisional', 'lt500ms', 210); add('calendar', 'readyProvisional', '1-3s', 40);
-    // Second connection class, so the "Why some are slower" splits have something to split.
-    add('calendar', 'domReady', '1-3s', 160, '3g'); add('calendar', 'domReady', '3-8s', 90, '3g');
-    add('calendar', 'domReady', '1-3s', 60, '4g', 'browser');
-    // …and the same for the two LADDER metrics the connection-signal block compares (v22.28). It
-    // needs two groups in BOTH, and had them in neither, so the block rendered nothing at all —
-    // silently, because "no second group" is also how it correctly declines a real thin month.
-    //
-    // The shape is the signature the block exists to show, not an arbitrary second row: `authBoot`
-    // (talks to the server) degrades badly on the slow class, `appBoot` (does not) stays flat. A
-    // fixture where both spread, or neither, would baseline a picture that reads as no finding.
-    add('calendar', 'authBoot', '1-3s', 90, '3g');  add('calendar', 'authBoot', '3-8s', 70, '3g');
-    add('calendar', 'appBoot',  'lt500ms', 140, '3g'); add('calendar', 'appBoot', '500ms-1s', 20, '3g');
-    // THE BACKGROUND WORKER BLOCK (Oct 2026). It had no seed, so no baseline ever drew it — and it
-    // shipped with its names truncated at 390px ("Nothing to r…"), found on a phone. A thin band is
-    // included on purpose: the "(few)" marker is what squeezed the label hardest.
-    add('calendar', 'swrCount', '0', 60); add('calendar', 'swrCount', '1-10', 31);
-    add('calendar', 'swrCount', '11-30', 3); add('calendar', 'swrCount', '31+', 287);
-    add('calendar', 'readyHeavySwr', 'lt500ms', 20); add('calendar', 'readyHeavySwr', '1-3s', 160); add('calendar', 'readyHeavySwr', '3-8s', 107);
+    // The newer release — timed the cleaner way, and quicker for it.
+    add('calendar', 'domReady', 'lt500ms', 300, '4g', 'standalone', '24_98');
+    add('calendar', 'domReady', '1-3s', 60, '4g', 'standalone', '24_98');
+    add('calendar', 'ready', 'lt500ms', 260, '4g', 'standalone', '24_98');
+    add('calendar', 'ready', '1-3s', 90, '4g', 'standalone', '24_98');
+    add('calendar', 'ready', '3-8s', 20, '4g', 'standalone', '24_98');
+    // Browser-tab opens, so "By how it was opened" has two rows to compare.
+    add('calendar', 'ready', '1-3s', 70, '4g', 'browser'); add('calendar', 'ready', '3-8s', 30, '4g', 'browser');
+    // BEFORE THE SIGN-IN CHECK — a member's own stored roster, quick-weighted, which is the shape the
+    // block exists to show, and a share of "Usable" well under 100% so its sentence prints.
+    add('calendar', 'rosterSnapshot', 'lt500ms', 180, '4g', 'standalone', '24_98');
+    add('calendar', 'rosterSnapshot', '500ms-1s', 30, '4g', 'standalone', '24_98');
+    add('calendar', 'rosterSnapshot', '1-3s', 12, '4g', 'standalone', '24_98');
+    // AFTER A RELEASE — the wait, on the version that times it as one. A two-digit count beside a bar
+    // built from two figures is the case the row is likeliest to render badly in.
+    add('calendar', 'readyUpdate', 'lt500ms', 30, '4g', 'standalone', '24_98');
+    add('calendar', 'readyUpdate', '1-3s', 9, '4g', 'standalone', '24_98');
     return out;
 }
 
 /** Serve an analytics-client.js whose perf read returns the fixture (the read moved there from
  *  firebase-client.js at v24.64 — and this anchor's loud failure is how that move was caught).
  *  Loud on a missing anchor, for the same reason as the Usage stub: a silent no-op would baseline
- *  the EMPTY card. @param {import('@playwright/test').Page} page */
-export function stubPerfReads(page) {
+ *  the EMPTY card. `lastMonth` defaults to this month's samples; a test of the month switch passes a
+ *  different set, because with one fixture for both the switch could show the wrong month unnoticed.
+ *  @param {import('@playwright/test').Page} page
+ *  @param {{ thisMonth?: Record<string, number>, lastMonth?: Record<string, number> }} [months] */
+export function stubPerfReads(page, { thisMonth = perfSamples(), lastMonth = thisMonth } = {}) {
     return page.route('**/analytics-client.js', async route => {
         const res = await route.fetch();
         const src = await res.text();
@@ -658,14 +628,13 @@ export function stubPerfReads(page) {
             + 'Update it, or this baseline silently degrades to the empty state.');
         const fixture = `
     {
-        const _s = ${JSON.stringify(perfSamples())};
-        const _w = (month) => ({ month,
+        const _w = (month, _s) => ({ month,
             login: summarisePerf(_s, { metric: 'loginTotal' }),
             fcp:   summarisePerf(_s, { metric: 'fcp' }),
             pages: summarisePerf(_s, { metric: 'domReady' }),
             ready: summarisePerf(_s, { metric: 'ready' }),
             samples: _s });
-        return { thisMonth: _w('2026-08'), lastMonth: _w('2026-07') };
+        return { thisMonth: _w('2026-08', ${JSON.stringify(thisMonth)}), lastMonth: _w('2026-07', ${JSON.stringify(lastMonth)}) };
     }`;
         await route.fulfill({ response: res, body: src.replace(anchor, anchor + fixture), contentType: 'text/javascript' });
     });

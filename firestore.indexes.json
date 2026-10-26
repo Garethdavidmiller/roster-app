@@ -9,5 +9,12 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "analytics",
+      "fieldPath": "samples",
+      "ttl": false,
+      "indexes": []
+    }
+  ]
 }

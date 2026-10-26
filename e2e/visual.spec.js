@@ -250,15 +250,15 @@ test('operations — Usage card, populated (desktop 1280)', async ({ page }) => 
 });
 
 // ── Operations App Speed card ─────────────────────────────────────────────────────────────────
-// The card had NO pixel coverage until v21.29 — the release that gave it a fourth block. It is the
-// densest read-only surface in the app after the roster review: two journeys, a stacked legend, a
-// per-page table with two bars each, and now three stacked breakdown blocks under "Why some are
-// slower". Composition that layered is exactly what drifts without anyone noticing, and the empty
-// state (which is all a plain load produces) says nothing about any of it.
+// The card had NO pixel coverage until v21.29. It is one of the densest read-only surfaces in the
+// app: two journeys, a legend, three verdict panels with their bars, a per-page table with three bars
+// each, and "A closer look" beneath (trimmed from "Why some are slower" by the App Speed review, Oct
+// 2026). Composition that layered is exactly what drifts without anyone noticing, and the empty state
+// (which is all a plain load produces) says nothing about any of it.
 //
-// The fixture is deliberately UNEVEN — a fast Calendar, a slow paycalc, a thin page, and a start
-// ladder whose big jump is between "Unlocked" and "Shifts up". A uniform fixture would make every
-// bar the same width and lock in a picture that could not show a layout fault.
+// The fixture is deliberately UNEVEN — a fast Calendar, a slow paycalc, a thin page, a page with no
+// "Usable" figure. A uniform fixture would make every bar the same width and lock in a picture that
+// could not show a layout fault.
 test('operations — App Speed card, populated (desktop 1280)', async ({ page }) => {
     await stubPerfReads(page);
     await prep(page, { width: 1280, height: 1800 });
@@ -269,11 +269,10 @@ test('operations — App Speed card, populated (desktop 1280)', async ({ page })
         if (b && !b.classList.contains('open')) document.getElementById('pageSpeedToggleHeader')?.click();
     });
     const card = page.locator('#pageSpeedCard');
-    // Same sentinel discipline as the Usage card: prove the DATA arrived and the new block rendered,
-    // rather than policing copy. Four ladder rows is the claim — a partly-wired ladder would show
-    // fewer and the capture would lock that in.
-    await expect(card).toContainText('How far the start gets');
-    await expect(card).toContainText('What put the shifts on screen');
+    // Same sentinel discipline as the Usage card: prove the DATA arrived and every closer-look block
+    // rendered — a COUNT of rows, which survives rewording, rather than policing copy. Ten names:
+    // four pages, the stored copy, the wait after a release, two versions and two ways of opening.
+    await expect(card.locator('.speed-row-name')).toHaveCount(10);
     await page.waitForTimeout(400);
     await expect(card).toHaveScreenshot('operations-speed-card.png');
 });

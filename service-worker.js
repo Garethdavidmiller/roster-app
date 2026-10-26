@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '24.97';
+const APP_VERSION = '24.98';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -50,14 +50,6 @@ function unredirect(res) {
         ? new Response(res.body, { status: res.status, statusText: res.statusText, headers: res.headers })
         : res;
 }
-
-// Managed JS/CSS files this worker process has fetched from the network — cache MISSES since
-// Oct 2026, when a hit stopped being re-fetched (see that branch). Resets when the SW restarts.
-const _revalidated = new Set();
-
-// The count `perf-reporter.js` asks for (v22.94). NAMED so sw-internals.test.mjs runs the real code
-// — inline in the listener below, a mutation to a constant went undetected.
-function _revalidationCount() { return _revalidated.size; }
 
 // Cross-version fallback selector (v16.86 — mixed-version window mitigation). When an asset
 // misses the CURRENT version's cache and can't be fetched (offline / a mid-deploy hosting
@@ -129,7 +121,7 @@ const NETWORK_FIRST_FILES = [
     'admin-app.js', 'admin-boot.js', 'huddle.js', 'doc-upload.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'nav-guide-search.js', 'guide-search.js', 'guide-index.js', 'install-prompt.js', 'calendar-notif-prompt.js', 'calendar-doc-access.js', 'calendar-lock-slot.js', 'calendar-snapshot.js', 'text-scale.js', 'notif.js',
     'admin-roster-upload.js', 'roster-alignment.js', 'roster-cell-rules.js', 'roster-review-states.js', 'admin-period-dates.js', 'roster-entry-control.js', 'admin-overrides.js', 'admin-override-store.js', 'admin-override-coverage.js', 'override-id.js', 'admin-shift-types.js', 'admin-week-editor.js', 'admin-saved-changes.js', 'admin-shift-rules.js', 'admin-save-receipt.js', 'slow-save.js', 'admin-rangepicker.js', 'admin-deep-link.js',
     'admin-al.js', 'admin-al-projection.js', 'admin-al-week-save.js', 'al-entitlement.js', 'admin-al-year.js', 'admin-al-spare-note.js', 'al-swapped-days.js', 'admin-booked-periods.js', 'admin-sick.js', 'admin-range-booking.js', 'admin-week-swipe.js', 'admin-week-row-state.js', 'admin-time-inputs.js',
-    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'operations-errors.js', 'operations-usage.js', 'operations-speed.js', 'operations-attention.js', 'settings-app.js', 'settings-boot.js', 'overtime-app.js', 'overtime-boot.js', 'overtime-data.js', 'overtime-format.js', 'overtime-phase.js', 'overtime-answer.js', 'overtime-sunday-release.js', 'overtime-clock.js', 'overtime-tips.js', 'overtime-form.js', 'overtime-roster.js', 'overtime-manager.js', 'overtime-review-controller.js', 'trains-app.js', 'trains-boot.js', 'trains-change.js', 'trains-data.js', 'trains-tips.js', 'trains-stations.js', 'trains-render.js', 'trains-grid-mirror.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-seed.js', 'links-default-targets.js', 'links-target-sets.js', 'links-target-sets-store.js', 'links-target-hours.js', 'links-tips.js', 'links-design-doc.js',
+    'operations-app.js', 'operations-boot.js', 'operations-reports.js', 'operations-errors.js', 'operations-usage.js', 'operations-speed.js', 'operations-attention.js', 'operations-tips.js', 'settings-app.js', 'settings-boot.js', 'overtime-app.js', 'overtime-boot.js', 'overtime-data.js', 'overtime-format.js', 'overtime-phase.js', 'overtime-answer.js', 'overtime-sunday-release.js', 'overtime-clock.js', 'overtime-tips.js', 'overtime-form.js', 'overtime-roster.js', 'overtime-manager.js', 'overtime-review-controller.js', 'trains-app.js', 'trains-boot.js', 'trains-change.js', 'trains-data.js', 'trains-tips.js', 'trains-stations.js', 'trains-render.js', 'trains-grid-mirror.js', 'password-force.js', 'links-app.js', 'links-boot.js', 'links-design.js', 'links-seed.js', 'links-default-targets.js', 'links-target-sets.js', 'links-target-sets-store.js', 'links-target-hours.js', 'links-tips.js', 'links-design-doc.js',
     'links-design-naming.js', 'links-design-header.js', 'links-proposals.js', 'links-generator-targets.js', 'links-design-store.js', 'links-design-library.js', 'links-import.js', 'links-concurrency.js', 'links-deletion.js', 'links-fatigue.js', 'links-compare-analysis.js', 'links-limits.js', 'links-window.js', 'links-demand.js', 'links-adjacency.js', 'links-analysis.js', 'links-compare.js',
     'overlay.js', 'select-sheet.js', 'session.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js', 'fetch-timeout.js', 'splash-watchdog.js',
     'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
@@ -268,6 +260,7 @@ const CORE_ASSETS = [
     "./admin-week-swipe.js",
     "./operations-app.js",
     "./operations-attention.js",
+    "./operations-tips.js",
     "./operations-boot.js",
     "./operations-reports.js",
     "./operations-errors.js",
@@ -865,7 +858,6 @@ self.addEventListener("fetch", event => {
             // mode passed that way (CLAUDE.md → SW new Request(url) fetch pattern).
             let network = null;
             if (!cached) {
-                _revalidated.add(relPath);   // what `_revalidationCount` reports: network fetches this process
                 network = fetch(new Request(event.request.url, {
                     cache:       'no-cache',
                     credentials: event.request.credentials,
@@ -936,7 +928,7 @@ self.addEventListener("fetch", event => {
 });
 
 // ============================================
-// MESSAGE — SKIP_WAITING, and the revalidation count
+// MESSAGE — SKIP_WAITING
 // ============================================
 // SKIP_WAITING: sent by the app if it detects a waiting SW. skipWaiting() already fires on install,
 // so this covers the rare case where auto-activation did not occur (multiple tabs, older Chrome).
@@ -945,13 +937,9 @@ self.addEventListener("message", event => {
         console.log(`[SW ${APP_VERSION}] SKIP_WAITING received — activating`);
         self.skipWaiting();
     }
-    // Revalidations since this worker woke (v22.94) — the SWR hypothesis's field half; why and the
-    // bands are in ROADMAP.md/AI_MAP. Keep two rules: a COUNT never a URL (file names are browsing
-    // information), and READ-ONLY (any script on the origin can send this).
-    if (event.data && event.data.type === "REVALIDATION_COUNT") {
-        const port = event.ports && event.ports[0];   // no port ⇒ no answer; the reader records nothing
-        if (port) port.postMessage({ count: _revalidationCount() });
-    }
+    // The App Speed card's worker-count question (v22.94) was retired in Oct 2026, and with it the
+    // REVALIDATION_COUNT reply: the count was the PROCESS's, not one page's, so it could not answer
+    // it. An older page that still asks gets no reply and records nothing, which is its rule anyway.
 });
 
 // ============================================

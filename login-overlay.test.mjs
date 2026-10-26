@@ -36,7 +36,7 @@ mock.module('./overlay.js', { namedExports: { lockBodyScroll: () => {}, unlockBo
 // parity suite (the wiring) and e2e/auth.spec.js (a real click on a real row, which is the only
 // place the z-index defect this shipped with could ever have been seen).
 mock.module('./select-sheet.js', { namedExports: { enhanceSelect: () => () => {} } });
-mock.module('./perf-reporter.js', { namedExports: { markLoginStart: () => {}, clearLoginStart: () => {}, recordPageLatency: () => {} } });
+mock.module('./perf-reporter.js', { namedExports: { markLoginStart: () => {}, clearLoginStart: () => {}, recordPageLatency: () => {}, markAwaitingInput: () => {} } });
 
 const { runNamedSignIn } = await import('./login-overlay.js');
 

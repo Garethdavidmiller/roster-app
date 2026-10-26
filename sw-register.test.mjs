@@ -20,7 +20,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { registerServiceWorker, reloadWhileHidden, reloadWhenNotBusy, lazyImport, hasPendingUpdate, _resetForTest } = await import('./sw-register.js');
+const { registerServiceWorker, reloadWhileHidden, reloadWhenNotBusy, reloadForUpdate, lazyImport, hasPendingUpdate, _resetForTest } = await import('./sw-register.js');
 import { readFileSync } from 'node:fs';
 
 const _realSetInterval   = globalThis.setInterval;
@@ -385,7 +385,11 @@ describe('deferWhileVisible — the update waits for the member to look away', (
 // The rule tested, the WIRING not — that is this repo's named blind spot, and it is exactly the
 // shape here: `markUpdateReload` could be perfect and record nothing, because the line that calls it
 // sits on one branch of a path with four ways through. So these cases assert the marker is written
-// on the paths a member actually takes, and NOT on the one that is not an update at all.
+// on the paths a member actually takes, and NOT on the ones that are not a reload at all.
+//
+// WRITTEN WHERE THE RELOAD HAPPENS (App Speed review, Oct 2026). `run()` stamped at controllerchange,
+// before a `beforeReload` that may DECLINE (links' confirm offers Cancel) — and the marker then sat
+// in sessionStorage and labelled whatever that tab opened next as an update open.
 describe('the update-reload marker', () => {
     const KEY = 'myb_perf_sw_reload';
 
@@ -401,18 +405,46 @@ describe('the update-reload marker', () => {
         } finally { h.restore(); }
     });
 
-    test('a beforeReload page writes it too — the reload it does is still an update', async () => {
-        // The branch a naive placement misses. `run()` returns early into beforeReload, so a marker
-        // written after that call would never be reached on admin, operations, links OR the calendar
-        // — i.e. on every page that has one, which is every page the figure is about.
+    test('a beforeReload that DECLINES writes nothing — the declined-confirm case', async () => {
         const h = makeHarness({ hasRegistration: true, controlled: true });
         try {
             registerServiceWorker({ beforeReload: () => {} });
             await h.flush();
             h.fireControllerChange();
-            assert.equal(h.state.reloads, 0, 'the page owns the reload');
-            assert.ok(h.store.has(KEY), 'and it is still an update-caused load when it happens');
+            assert.equal(h.state.reloads, 0, 'the page owns the reload, and did not do it');
+            assert.equal(h.store.has(KEY), false, 'no reload, so nothing may claim the next load followed one');
         } finally { h.restore(); }
+    });
+
+    test('a beforeReload that reloads through reloadForUpdate writes it as it reloads', async () => {
+        // The branch a naive placement misses: every page with a beforeReload owns its reload, so the
+        // marker is written by whichever helper it reloads through — here, links' confirm path.
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            registerServiceWorker({ beforeReload: () => reloadForUpdate() });
+            await h.flush();
+            h.fireControllerChange();
+            assert.equal(h.state.reloads, 1);
+            assert.ok(h.store.has(KEY), 'an update-caused load when it happens');
+        } finally { h.restore(); }
+    });
+
+    test('reloadForUpdate writes the marker BEFORE it reloads', () => {
+        const h = makeHarness({ hasRegistration: true, controlled: true });
+        try {
+            /** @type {boolean|null} */ let stampedFirst = null;
+            reloadForUpdate(() => { stampedFirst = h.store.has(KEY); });
+            assert.equal(stampedFirst, true, 'the reload is the last thing the page does — the stamp cannot come after it');
+        } finally { h.restore(); }
+    });
+
+    test('Links reloads through reloadForUpdate, never a bare reload', () => {
+        // The helper can be perfect and the page still reload around it — the same shape as the
+        // Calendar's pinned call below.
+        const src = readFileSync(new URL('./links-app.js', import.meta.url), 'utf8');
+        const call = src.match(/registerServiceWorker\(\{[\s\S]*?\n {4}\}\);/)?.[0] ?? '';
+        assert.match(call, /reloadForUpdate\(\)/, 'the confirmed reload must say a release caused it');
+        assert.doesNotMatch(call, /location\.reload/, 'a bare reload loses the label');
     });
 
     test('a DEFERRED reload writes it when it finally runs, not when it was held', async () => {
@@ -560,9 +592,9 @@ describe('reloadWhileHidden — decided when the reload happens, not when the up
     });
 
     test('a re-armed reload re-stamps the update marker when it finally runs', async () => {
-        // `run()` stamps at controllerchange; on this path the reload can land hours later, and
-        // perf-reporter refuses a marker older than 60s — so the load that follows was filed as an
-        // ordinary one. The stamp has to be as late as the reload it describes.
+        // On this path the reload can land hours after the update arrived, and perf-reporter compares
+        // the marker with when the NEXT load started, refusing one more than ten seconds older — so
+        // the stamp has to be as late as the reload it describes.
         const KEY = 'myb_perf_sw_reload';
         const h = makeHarness({ hasRegistration: true, controlled: true });
         /** @type {Function[]} */ const timers = [];

@@ -23,7 +23,7 @@ import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSess
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { assertDeletable, DELETE_REFUSED } from './admin-override-store.js';
-import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, whenOverridesReady, isOverrideCacheLoaded, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
+import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 import { initSelectSheets } from './select-sheet.js';
@@ -44,7 +44,7 @@ import { alFigureYear } from './admin-al-year.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady, markMilestone } from './perf-reporter.js';
+import { recordPageLatency, markPageReady } from './perf-reporter.js';
 
 
 import { setStatus } from './status-text.js';
@@ -1608,13 +1608,9 @@ export function init() {
             markChanged,
             onEditRow: handleEdit,
         });
-        // Loads the SELECTED MEMBER only (v21.38) — see admin-override-coverage.js. `rosterLive` is
-        // the ladder's last rung and, on this page, the moment writes are safe: `ready` above fires
-        // when the working surface appears, which is BEFORE the override cache exists, so a card
-        // reading `ready` alone would report Admin fully ready while Saved Changes was still a
-        // skeleton and every save was still being refused. Only a SUCCESSFUL load qualifies — a
-        // failed one leaves the page visible and unusable, which is the opposite of the claim.
-        loadOverrides().then(() => { if (isOverrideCacheLoaded()) markMilestone('rosterLive'); });
+        // Loads the SELECTED MEMBER only (v21.38) — see admin-override-coverage.js. (It also marked the
+        // speed ladder's `rosterLive` rung until the App Speed review retired the ladder, Oct 2026.)
+        loadOverrides();
 
         // WHERE A HASH LANDS is `admin-deep-link.js`'s decision — which folds to open (a nested
         // target needs its card AND its own), and what to scroll to. This opens and scrolls, and

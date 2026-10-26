@@ -2,7 +2,7 @@
 // Run with: node --test perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, BOOT_PHASES, bootPhases, summariseBootPhases, START_MILESTONES, summariseStartMilestones, READY_SOURCES, summariseReadySource, EARLY_ROSTER, summariseEarlyRoster, EARLY_ROSTER_FROM, earlyRosterShare, UPDATE_OPENS, summariseUpdateOpens, PROVISIONAL_OPENS, summariseProvisionalOpens, SWR_COUNT_BUCKETS, bucketSwrCount, SWR_HEAVY_BUCKET, createPerfBatcher } from './perf-stats.js';
+import { THIN_SAMPLE, PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, summarisePerfBy, PERF_DIMENSIONS, perfVerdict, loginDurationBucket, LOGIN_MAX_MS, EARLY_ROSTER, summariseEarlyRoster, EARLY_ROSTER_FROM, earlyRosterShareLabel, shareLabel, compactPct, UPDATE_OPENS, UPDATE_OPENS_FROM, summariseUpdateOpens, CLEAN_TIMINGS_FROM, shareMeasuredBefore, perfRecordFullness, createPerfBatcher } from './perf-stats.js';
 
 /** Build a samples map from [page, metric, bucket, count] rows (version/mode/conn fixed). */
 function samplesFrom(rows) {
@@ -328,7 +328,7 @@ describe('perfVerdict', () => {
     // thin verdict before any tone threshold is reached. These tests are about the THRESHOLDS, so
     // they need enough samples for a threshold to apply at all; scaling by ten preserves 30% slow,
     // 90% quick and 50/50 exactly. The thin behaviour itself is pinned in its own block above.
-    test('empty → "still building up" (tone none)', () => {
+    test('empty → none', () => {
         assert.equal(perfVerdict(summarisePerf({}).overall).tone, 'none');
     });
     test('≥20% slow → bad', () => {
@@ -385,86 +385,6 @@ describe('perfVerdict', () => {
     });
 });
 
-describe('bootPhases — where a cold start goes (v20.33)', () => {
-    // A realistic slow installed-app open: SW woke at 40ms, served at 220ms, SDK executed by
-    // 1100ms, DCL at 1600ms. The three spans must be contiguous slices of that timeline.
-    const nav = { workerStart: 40, responseStart: 220, domContentLoadedEventEnd: 1600 };
-
-    test('splits a load into three contiguous spans', () => {
-        const p = bootPhases(nav, 1100);
-        assert.equal(p.swBoot, 180);    // 220 − 40
-        assert.equal(p.sdkLoad, 880);   // 1100 − 220
-        assert.equal(p.appBoot, 500);   // 1600 − 1100
-        // Contiguity is the property the card's allocation depends on: the spans plus the
-        // pre-worker time must reconstruct the load, or the phases would double-count.
-        assert.equal(nav.workerStart + p.swBoot + p.sdkLoad + p.appBoot, nav.domContentLoadedEventEnd);
-    });
-
-    test('no service worker on this load (workerStart 0) → swBoot is not invented', () => {
-        const p = bootPhases({ ...nav, workerStart: 0 }, 1100);
-        assert.ok(Number.isNaN(p.swBoot), 'a first visit has no SW to wake — recording 220ms of network as "SW wake" would be a lie');
-        assert.equal(p.sdkLoad, 880);   // the mark-based spans are unaffected
-    });
-
-    test('no SDK mark → both mark-based spans are dropped, not mislabelled', () => {
-        const p = bootPhases(nav, undefined);
-        assert.ok(Number.isNaN(p.sdkLoad));
-        assert.ok(Number.isNaN(p.appBoot));
-        assert.equal(p.swBoot, 180);    // the nav-only span survives
-    });
-
-    test('a negative span never becomes a fake fast sample', () => {
-        // A mark that reads BEFORE responseStart (bfcache restore / clock weirdness): sdkLoad is
-        // negative, and bucketDuration's <=0 guard must drop it — asserted end-to-end here because
-        // the failure mode is silent (a phantom lt500ms count that flatters the phase).
-        const p = bootPhases(nav, 100);
-        assert.equal(bucketDuration(p.sdkLoad), null);
-        assert.equal(bucketDuration(p.appBoot), '1-3s');   // 1600−100 = 1500ms — still honest on its own span
-    });
-});
-
-describe('summariseBootPhases — the "By stage of start-up" rows', () => {
-    test('rows come out in boot order with the ½s share computed from the bucket split', () => {
-        const samples = samplesFrom([
-            // swBoot: 90 fast, 10 in 500ms-1s → 10% over ½s
-            ['calendar', 'swBoot', 'lt500ms', 90], ['calendar', 'swBoot', '500ms-1s', 10],
-            // sdkLoad: 60 fast, 30 in 500ms-1s, 10 in 1-3s → 40% over ½s
-            ['calendar', 'sdkLoad', 'lt500ms', 60], ['calendar', 'sdkLoad', '500ms-1s', 30], ['calendar', 'sdkLoad', '1-3s', 10],
-            // appBoot: all fast
-            ['calendar', 'appBoot', 'lt500ms', 100],
-            // noise that must not leak in: another page, and a non-phase metric on this page
-            ['admin', 'sdkLoad', '1-3s', 50], ['calendar', 'domReady', '1-3s', 50],
-        ]);
-        const { total, rows } = summariseBootPhases(samples, { page: 'calendar' });
-        assert.equal(rows.length, 3);
-        assert.deepEqual(rows.map(r => r.metric), BOOT_PHASES.map(p => p.metric), 'boot order, always');
-        assert.equal(rows[0].pctOver500, 10);
-        assert.equal(rows[1].pctOver500, 40);
-        assert.equal(rows[2].pctOver500, 0);
-        assert.equal(total, 100, 'the section total is loads, not phase-samples summed thrice');
-        // The bands are PHASE-scaled: green is lt500ms ALONE (the load bands put 500ms-1s in green
-        // too, which made the stated 40% disagree with a bar showing 15% non-green — the v20.19
-        // defect class, mirrored). The number must be the complement of the bar's green.
-        assert.equal(rows[1].pctQuick, 60, 'green = under ½s only');
-        assert.equal(rows[1].pctOk, 30, 'amber = ½–1s');
-        assert.equal(rows[1].pctSlow, 10, 'red = everything over 1s');
-        assert.equal(rows[1].pctOver500, 100 - rows[1].pctQuick, 'the stated % is the bar’s non-green share');
-        // The label set is the staff-facing one — jargon staying out of the card is a contract here,
-        // not a style preference (the card states its reader is non-technical).
-        for (const r of rows) assert.doesNotMatch(r.label + r.sub, /SDK|service worker|worker|DCL/i);
-    });
-
-    test('a phase nobody has recorded yet is omitted — no scaffolding rows', () => {
-        const { rows } = summariseBootPhases(samplesFrom([['calendar', 'swBoot', 'lt500ms', 5]]), { page: 'calendar' });
-        assert.deepEqual(rows.map(r => r.metric), ['swBoot'],
-            'pre-v20.33 clients record no phases; the card must not render empty rows for them');
-    });
-
-    test('empty samples → no rows, zero total', () => {
-        assert.deepEqual(summariseBootPhases({}, { page: 'calendar' }), { total: 0, rows: [] });
-    });
-});
-
 describe('loginDurationBucket', () => {
     test('buckets a plausible recent span', () => {
         assert.equal(loginDurationBucket(1000, 1000 + 300), 'lt500ms');
@@ -479,101 +399,10 @@ describe('loginDurationBucket', () => {
     });
 });
 
-// ── summariseStartMilestones — "How far the start had got" ─────────────────────────────────────
-//
-// The rows are CUMULATIVE, which is the whole reason the block is readable: a reader compares
-// neighbours instead of subtracting. Two things therefore have to hold and neither is visible in
-// the output — ladder ORDER, and that a rung with no data is ABSENT rather than zero. A zero row
-// in a cumulative ladder reads as "nothing ever got this far", which is a much stronger claim than
-// "nobody has reported it yet", and it is the claim a partly-rolled-out release would make.
-
 const mk = (page, metric, bucket, n) => [perfSampleKey({ version: 'v21.29', page, metric, bucket, mode: 'standalone', conn: '4g' }), n];
+/** The same, at a chosen version — the summaries that read only from one release on need it. */
+const mkAt = (version, page, metric, bucket, n) => [perfSampleKey({ version, page, metric, bucket, mode: 'standalone', conn: '4g' }), n];
 
-describe('summariseStartMilestones', () => {
-    test('rows come back in LADDER order, not sample order', () => {
-        // Fed deliberately backwards. Insertion order would put "Confirmed" above "Signed in",
-        // which inverts the one relationship the block asks the reader to use.
-        const samples = Object.fromEntries([
-            mk('calendar', 'rosterLive', '1-3s', 5),
-            mk('calendar', 'ready', 'lt500ms', 5),
-            mk('calendar', 'rosterCached', 'lt500ms', 5),
-            mk('calendar', 'access', 'lt500ms', 5),
-            mk('calendar', 'authBoot', 'lt500ms', 5),
-        ]);
-        const { rows } = summariseStartMilestones(samples, { page: 'calendar' });
-        assert.deepEqual(rows.map(r => r.metric), START_MILESTONES.map(m => m.metric));
-    });
-
-    test('a rung nobody has reported is ABSENT, not a zero row', () => {
-        const samples = Object.fromEntries([mk('calendar', 'authBoot', 'lt500ms', 3)]);
-        const { rows } = summariseStartMilestones(samples, { page: 'calendar' });
-        assert.deepEqual(rows.map(r => r.metric), ['authBoot']);
-    });
-
-    test('another page\'s samples never leak in', () => {
-        const samples = Object.fromEntries([
-            mk('calendar', 'access', 'lt500ms', 4),
-            mk('paycalc',  'access', 'over8s', 90),
-        ]);
-        const { rows } = summariseStartMilestones(samples, { page: 'calendar' });
-        assert.equal(rows.length, 1);
-        assert.equal(rows[0].total, 4, 'the other page\'s 90 slow loads must not be counted here');
-        assert.equal(rows[0].pctQuick, 100);
-    });
-
-    test('bands are the CARD\'S bands, not the boot-phase bands', () => {
-        // The distinction matters: boot phases call 500ms slow, the card calls under a second
-        // quick. A milestone landing at 700ms is quick here and would be amber there.
-        const samples = Object.fromEntries([mk('calendar', 'ready', '500ms-1s', 10)]);
-        const { rows } = summariseStartMilestones(samples, { page: 'calendar' });
-        assert.equal(rows[0].pctQuick, 100);
-    });
-
-    test('an unknown bucket is dropped rather than counted into a band', () => {
-        const samples = Object.fromEntries([
-            mk('calendar', 'ready', 'lt500ms', 2),
-            mk('calendar', 'ready', 'nonsense', 99),
-        ]);
-        const { rows } = summariseStartMilestones(samples, { page: 'calendar' });
-        assert.equal(rows[0].total, 2);
-    });
-
-    test('the saved-copy rung sits BETWEEN unlocking and painting', () => {
-        // Its whole purpose is splitting that gap — the field read of 5 Sep 2026 put Unlocked at
-        // 58% over a second and Shifts shown at 78%, with nothing in between to say where the
-        // eighteen points went. Ordered after `ready` it would read as time spent AFTER the roster
-        // was on screen, which is the opposite claim.
-        const ids = START_MILESTONES.map(m => m.metric);
-        assert.ok(ids.indexOf('rosterCached') > ids.indexOf('access'), 'must come after Unlocked');
-        assert.ok(ids.indexOf('rosterCached') < ids.indexOf('ready'), 'must come before Shifts shown');
-    });
-
-    test('its label does not collide with the ready-source block on the same card', () => {
-        // Both answer "the saved copy", one as a TIME and one as a SOURCE, and they render within a
-        // couple of blocks of each other. Identical labels would read as the same figure twice.
-        const ladder = START_MILESTONES.map(m => m.label);
-        for (const src of READY_SOURCES) {
-            assert.ok(!ladder.includes(/** @type {any} */ (src.label)),
-                `"${src.label}" is used by both blocks on one card`);
-        }
-    });
-
-    test('every milestone has a label and a distinct id', () => {
-        const ids = START_MILESTONES.map(m => m.metric);
-        assert.equal(new Set(ids).size, ids.length, 'duplicate milestone ids would merge two rungs');
-        for (const m of START_MILESTONES) {
-            assert.ok(m.label && m.label.length <= 13, `${m.metric}: label must fit the row column`);
-            assert.ok(m.sub && m.sub.length > 0, `${m.metric}: the sub carries what the label gives up`);
-        }
-    });
-});
-
-// ── summariseEarlyRoster — what a member sees before the sign-in check (v24.85) ─────────────────
-//
-// The Calendar paints a member's own stored roster before the check answers, and until this nothing
-// timed it, so the card reported the wait for the confirmed roster as the wait to see one. The rule
-// that matters is the honest one: it reports what was PAINTED and nothing else — not the ladder's
-// rungs, not `ready`, and nothing for a page that never painted a copy.
 describe('summariseEarlyRoster', () => {
     test('the stored copy\'s paint is its own row, on the card\'s usual bands', () => {
         const samples = Object.fromEntries([
@@ -588,7 +417,7 @@ describe('summariseEarlyRoster', () => {
         assert.equal(rows[0].pctOver1s, 10, 'only the 1–3s four are over a second');
     });
 
-    test('it counts nothing but the paint — not `ready`, not a rung, not another page', () => {
+    test('it counts nothing but the paint — not `ready`, not another page', () => {
         const samples = Object.fromEntries([
             mk('calendar', 'ready', 'lt500ms', 900),
             mk('calendar', 'authBoot', '1-3s', 400),
@@ -598,137 +427,76 @@ describe('summariseEarlyRoster', () => {
             'no paint reported ⇒ no row: a zero here would claim the copy never helped');
     });
 
-    test('it is not a rung of the ladder, whose note says its rows run in order', () => {
-        assert.ok(!START_MILESTONES.some(m => m.metric === 'rosterSnapshot'));
-    });
 });
 
-// ── earlyRosterShare — how often the copy had the chance (v24.89, the 48-hour review) ────────────
+// ── earlyRosterShareLabel — how often the copy had the chance (v24.89, the 48-hour review) ───────
 //
 // The share was divided by every version's `ready`, so in the month the metric shipped the opens of
 // versions that CANNOT report a copy sat under it. This is the reviewer's case, to the percent.
-describe('earlyRosterShare', () => {
+describe('earlyRosterShareLabel', () => {
     const at = (version, metric, n, page = 'calendar') =>
         [perfSampleKey({ version, page, metric, bucket: 'lt500ms', mode: 'standalone', conn: '4g' }), n];
+    const label = (rows) => earlyRosterShareLabel(Object.fromEntries(rows), { page: 'calendar' });
 
     test('only versions that can report a copy are divided — 60%, not the 19% mixed versions printed', () => {
-        const samples = Object.fromEntries([
+        assert.equal(label([
             at('v24.84', 'ready', 1300),          // three weeks before the metric existed
             at('v24.85', 'ready', 600),
             at('v24.85', 'rosterSnapshot', 360),
-        ]);
-        assert.equal(earlyRosterShare(samples, { page: 'calendar' }), 60);
+        ]), '60%');
         assert.equal(Math.round(360 / 1900 * 100), 19, 'the old divisor — what the card used to print');
     });
 
     test('a version counts by its number, written with or without a v, and a later major counts', () => {
-        const samples = Object.fromEntries([
+        assert.equal(label([
             at('24.86', 'ready', 100), at('24.86', 'rosterSnapshot', 50),
             at('v25.01', 'ready', 100), at('v25.01', 'rosterSnapshot', 50),
             at('v24.9', 'ready', 800),            // reads as 24.9, which is BELOW 24.85 — not 24.90
             at('nonsense', 'ready', 800),         // unreadable ⇒ below every release, so not divided
-        ]);
-        assert.equal(earlyRosterShare(samples, { page: 'calendar' }), 50);
+        ]), '50%');
         assert.equal(EARLY_ROSTER_FROM, '24.85', 'the release that began reporting the copy');
     });
 
-    test('nothing to state ⇒ null: no copy shown, no counted opens, or a figure over 100%', () => {
-        assert.equal(earlyRosterShare({}, { page: 'calendar' }), null);
-        assert.equal(earlyRosterShare(Object.fromEntries([at('v24.85', 'ready', 400)]), { page: 'calendar' }), null,
+    test('nothing to state ⇒ null: no copy shown, no counted opens, or more copies than opens', () => {
+        assert.equal(label([]), null);
+        assert.equal(label([at('v24.85', 'ready', 400)]), null,
             'no paint reported is not 0% — the block itself does not render');
-        assert.equal(earlyRosterShare(Object.fromEntries([
-            at('v24.84', 'ready', 400), at('v24.85', 'rosterSnapshot', 40),
-        ]), { page: 'calendar' }), null, 'a copy but no counted opens to divide by');
-        assert.equal(earlyRosterShare(Object.fromEntries([
-            at('v24.85', 'ready', 10), at('v24.85', 'rosterSnapshot', 12),
-        ]), { page: 'calendar' }), null, 'counted on different paths, so over 100% is dropped, not printed');
+        assert.equal(label([at('v24.84', 'ready', 400), at('v24.85', 'rosterSnapshot', 40)]), null,
+            'a copy but no counted opens to divide by');
+        assert.equal(label([at('v24.85', 'ready', 250), at('v24.85', 'rosterSnapshot', 251)]), null,
+            'judged on the RAW counts: 251 of 250 rounded to "100%" under the old check');
+    });
+
+    test('a share that rounds to nothing or to everything says so', () => {
+        assert.equal(label([at('v24.85', 'ready', 400), at('v24.85', 'rosterSnapshot', 1)]), 'under 1%',
+            'it printed "0%" beside a row of 1 open');
+        assert.equal(label([at('v24.85', 'ready', 400), at('v24.85', 'rosterSnapshot', 399)]), 'over 99%');
+        assert.equal(label([at('v24.85', 'ready', 400), at('v24.85', 'rosterSnapshot', 400)]), '100%');
     });
 
     test('another page\'s opens are not divided', () => {
-        const samples = Object.fromEntries([
+        assert.equal(label([
             at('v24.85', 'ready', 100), at('v24.85', 'rosterSnapshot', 25),
             at('v24.85', 'ready', 900, 'paycalc'),
-        ]);
-        assert.equal(earlyRosterShare(samples, { page: 'calendar' }), 25);
+        ]), '25%');
+    });
+
+    test('below THIN_SAMPLE counted opens there is no share, as the rows beside it say "(few)" (v24.96)', () => {
+        assert.equal(label([at('v24.90', 'ready', 3), at('v24.90', 'rosterSnapshot', 1)]), null,
+            '3 opens, 1 copy painted: "33%" is not a finding');
+        assert.equal(label([at('v24.90', 'ready', THIN_SAMPLE), at('v24.90', 'rosterSnapshot', 12)]), '60%');
     });
 });
 
-// ── summariseReadySource — what put the shifts on screen ────────────────────────────────────────
-//
-// This block exists to decide ONE thing: `LATENCY.md` Phase 2 narrows the Calendar's
-// authoritative Firestore read, and a load the local cache already served never touches the network
-// on that path. So "how many loads waited for the read?" is the whole question, and the card could
-// not answer it.
-//
-// The dangerous misreading is treating the two rows as a PARTITION of "Shifts shown". They are not:
-// a page that cannot tell its source reports `ready` alone, so the remainder is real and invisible.
-// A reader who assumes they add up over-states whichever row they are looking at.
-describe('summariseReadySource', () => {
-    test('the two sources are separated, and neither absorbs the other', () => {
-        const samples = Object.fromEntries([
-            mk('calendar', 'readyCached', 'lt500ms', 40),
-            mk('calendar', 'readyFetched', '1-3s', 10),
-        ]);
-        const { rows } = summariseReadySource(samples, { page: 'calendar' });
-        assert.deepEqual(rows.map(r => r.metric), READY_SOURCES.map(m => m.metric));
-        assert.equal(rows[0].total, 40);
-        assert.equal(rows[1].total, 10);
-        assert.equal(rows[0].pctOver1s, 0, 'a cache hit under half a second is not over one second');
-        assert.equal(rows[1].pctOver1s, 100);
-    });
-
-    test('it does NOT count plain `ready`, which is the row it splits', () => {
-        // Folding `ready` in would double-count every attributed load and make the cache share look
-        // like whatever fraction of the population happened to report a source.
-        const samples = Object.fromEntries([
-            mk('calendar', 'ready', 'lt500ms', 900),
-            mk('calendar', 'readyCached', 'lt500ms', 40),
-        ]);
-        const { rows } = summariseReadySource(samples, { page: 'calendar' });
-        assert.equal(rows.length, 1);
-        assert.equal(rows[0].total, 40);
-    });
-
-    test('a source nobody has reported is ABSENT, not a zero row', () => {
-        // Same rule as the ladder, and for a stronger reason here: a zero against "From the server"
-        // reads as "no load has ever waited for the read", which is the Phase 2 answer itself. A
-        // partly-rolled-out release would be making that claim on no evidence at all.
-        const samples = Object.fromEntries([mk('calendar', 'readyCached', 'lt500ms', 12)]);
-        const { rows } = summariseReadySource(samples, { page: 'calendar' });
-        assert.equal(rows.length, 1);
-        assert.equal(rows[0].metric, 'readyCached');
-    });
-
-    test('another page’s samples are not mixed in', () => {
-        const samples = Object.fromEntries([
-            mk('calendar', 'readyCached', 'lt500ms', 5),
-            mk('paycalc', 'readyCached', '3-8s', 500),
-        ]);
-        const { rows } = summariseReadySource(samples, { page: 'calendar' });
-        assert.equal(rows[0].total, 5);
-    });
-});
-
-// ── summariseUpdateOpens — opens a RELEASE caused ────────────────────────────────────────────────
-//
-// Organised by what a wrong answer costs, and the two directions are not symmetrical.
-//
-// The expensive one is the SHARE coming out wrong, because the share is the whole point: v22.90
-// deferred the update reload on the argument that releases interrupt members often, and this row is
-// the only thing that can size that. A share that reads high on data that does not support it
-// justifies work nobody needed; one that reads low retires a real cost as imaginary. And the share
-// is a DIVISION between two blocks, which is exactly where a subset silently becomes a partition.
-//
-// The cheap one is the row being absent when it should be present — a missing row on a card, which
-// somebody notices.
 describe('summariseUpdateOpens', () => {
-    test('it counts only the update opens, and does NOT absorb the `ready` it is a subset of', () => {
-        // The relation this whole feature rests on: `readyUpdate` is written BESIDE `ready`, never
-        // instead of it, so both counts exist and the division is meaningful. Folding `ready` in
-        // here would make the row report every open and the share read 100%.
+    // From UPDATE_OPENS_FROM `readyUpdate` is the wait a member had after a release reload; older
+    // versions timed the background load itself, so the block reads only from that version on.
+    const AT = 'v' + UPDATE_OPENS_FROM;
+
+    test('it counts only the update opens, and does NOT absorb `ready`', () => {
         const samples = Object.fromEntries([
-            mk('calendar', 'ready', 'lt500ms', 900),
-            mk('calendar', 'readyUpdate', '1-3s', 30),
+            mkAt(AT, 'calendar', 'ready', 'lt500ms', 900),
+            mkAt(AT, 'calendar', 'readyUpdate', '1-3s', 30),
         ]);
         const { rows } = summariseUpdateOpens(samples, { page: 'calendar' });
         assert.equal(rows.length, 1);
@@ -736,206 +504,35 @@ describe('summariseUpdateOpens', () => {
         assert.equal(rows[0].total, 30, 'the 900 ordinary opens are not this row');
     });
 
-    test('the count divides against `ready` to give the share — the two summaries agree', () => {
-        // The card computes the share from TWO summaries, so this asserts they see the same
-        // population. Driven through both real functions rather than restating either.
+    test('older versions are not counted — they timed a load nobody was waiting for', () => {
         const samples = Object.fromEntries([
-            mk('calendar', 'ready', 'lt500ms', 160),
-            mk('calendar', 'ready', '1-3s', 40),
-            mk('calendar', 'readyUpdate', '1-3s', 20),
-        ]);
-        const readyTotal = summariseStartMilestones(samples, { page: 'calendar' }).rows
-            .find(r => r.metric === 'ready').total;
-        const { rows } = summariseUpdateOpens(samples, { page: 'calendar' });
-        assert.equal(readyTotal, 200);
-        assert.equal(Math.round((rows[0].total / readyTotal) * 100), 10);
-    });
-
-    test('the other ready variants are not swept in', () => {
-        // `readyCached`/`readyFetched` split the same rung and sit in the block above. Counting one
-        // here would inflate the share with loads no release caused — the expensive direction.
-        const samples = Object.fromEntries([
-            mk('calendar', 'readyCached', 'lt500ms', 300),
-            mk('calendar', 'readyFetched', '1-3s', 100),
-            mk('calendar', 'readyUpdate', '1-3s', 7),
+            mkAt('v24.97', 'calendar', 'readyUpdate', '3-8s', 400),
+            mkAt(AT, 'calendar', 'readyUpdate', 'lt500ms', 30),
         ]);
         const { rows } = summariseUpdateOpens(samples, { page: 'calendar' });
-        assert.equal(rows.length, 1);
-        assert.equal(rows[0].total, 7);
+        assert.equal(rows[0].total, 30);
+        assert.equal(rows[0].pctSlow, 0, 'the 400 slow background loads are not this row');
+        assert.equal(UPDATE_OPENS_FROM, CLEAN_TIMINGS_FROM, 'the same release changed both');
     });
 
     test('no update open reported ⇒ NO row, never a zero', () => {
         // A zero here would state "no release has ever reloaded anybody", which is the finding
-        // itself — asserted on an empty collection. Same rule as the ladder and the source split.
-        const samples = Object.fromEntries([mk('calendar', 'ready', 'lt500ms', 500)]);
+        // itself — asserted on an empty collection.
+        const samples = Object.fromEntries([mkAt(AT, 'calendar', 'ready', 'lt500ms', 500)]);
         assert.equal(summariseUpdateOpens(samples, { page: 'calendar' }).rows.length, 0);
     });
 
     test('another page’s update opens are not mixed in', () => {
         const samples = Object.fromEntries([
-            mk('calendar', 'readyUpdate', 'lt500ms', 4),
-            mk('paycalc', 'readyUpdate', '3-8s', 400),
+            mkAt(AT, 'calendar', 'readyUpdate', 'lt500ms', 4),
+            mkAt(AT, 'paycalc', 'readyUpdate', '3-8s', 400),
         ]);
         assert.equal(summariseUpdateOpens(samples, { page: 'calendar' }).rows[0].total, 4);
     });
 
-    test('the row set is the one the card renders', () => {
+    test('the row set is the one the card renders, and each row says what it times', () => {
         assert.deepEqual(UPDATE_OPENS.map(m => m.metric), ['readyUpdate']);
-    });
-});
-
-// ── summariseProvisionalOpens — the opens that did not wait for the identity check ───────────────
-//
-// Organised by what a wrong answer costs, and here the two directions are not merely unequal — they
-// point at OPPOSITE conclusions, which is why this row exists at all.
-//
-// September 2026 showed the v22.97 fast path buying nothing: cache-served starts 78% over a second
-// before it, 77% after. Two explanations fit that identically. If the path rarely fires, the
-// identity finding stands and there is nothing to fix. If it fires on most opens and they are no
-// faster, `LATENCY.md`'s central finding — that the wall is one `accounts:lookup` — is wrong, and a
-// month of work rests on it. **The number that separates them is this row's SHARE**, so a share
-// that reads too high is the expensive error: it would falsify a correct finding.
-//
-// A share that reads too low is the mirror, and only slightly cheaper: it excuses a fast path that
-// is not working by making it look unused.
-describe('summariseProvisionalOpens', () => {
-    test('it counts only the fast-path opens, and does NOT absorb the `ready` it is a subset of', () => {
-        // The relation the share rests on: `readyProvisional` is written BESIDE `ready`. Folding
-        // `ready` in would report every open as fast-path and read 100% — the falsifying direction.
-        const samples = Object.fromEntries([
-            mk('calendar', 'ready', 'lt500ms', 900),
-            mk('calendar', 'readyProvisional', '1-3s', 120),
-        ]);
-        const { rows } = summariseProvisionalOpens(samples, { page: 'calendar' });
-        assert.equal(rows.length, 1);
-        assert.equal(rows[0].metric, 'readyProvisional');
-        assert.equal(rows[0].total, 120, 'the 900 ordinary opens are not this row');
-    });
-
-    test('the count divides against `ready` to give the share — the two summaries agree', () => {
-        // Driven through BOTH real summaries, because the card computes the share across them and a
-        // restatement here would agree with itself while disagreeing with the card.
-        const samples = Object.fromEntries([
-            mk('calendar', 'ready', 'lt500ms', 150),
-            mk('calendar', 'ready', '1-3s', 50),
-            mk('calendar', 'readyProvisional', 'lt500ms', 60),
-        ]);
-        const readyTotal = summariseStartMilestones(samples, { page: 'calendar' }).rows
-            .find(r => r.metric === 'ready').total;
-        const { rows } = summariseProvisionalOpens(samples, { page: 'calendar' });
-        assert.equal(readyTotal, 200);
-        assert.equal(Math.round((rows[0].total / readyTotal) * 100), 30);
-    });
-
-    test('the SPEED is reported separately from the share, and both halves are needed', () => {
-        // The two questions this row answers are independent, and a summary that got one right and
-        // the other wrong would read as a finding. A fast path firing on 40% of opens that are all
-        // slow is the falsifying case; the same share all quick is the confirming one. So the
-        // distribution is asserted, not just the total.
-        const slow = Object.fromEntries([
-            mk('calendar', 'ready', 'lt500ms', 200),
-            mk('calendar', 'readyProvisional', '3-8s', 80),
-        ]);
-        const quick = Object.fromEntries([
-            mk('calendar', 'ready', 'lt500ms', 200),
-            mk('calendar', 'readyProvisional', 'lt500ms', 80),
-        ]);
-        assert.equal(summariseProvisionalOpens(slow, { page: 'calendar' }).rows[0].pctOver1s, 100);
-        assert.equal(summariseProvisionalOpens(quick, { page: 'calendar' }).rows[0].pctOver1s, 0);
-    });
-
-    test('the other ready variants are not swept in', () => {
-        // `readyCached` is the row DIRECTLY ABOVE this one on the card and shares its population
-        // almost exactly — every fast-path open is cache-served — so absorbing it is the realistic
-        // mistake, and it would put the share at or near 100% on data that says nothing of the kind.
-        const samples = Object.fromEntries([
-            mk('calendar', 'readyCached', 'lt500ms', 400),
-            mk('calendar', 'readyFetched', '1-3s', 10),
-            mk('calendar', 'readyUpdate', '1-3s', 50),
-            mk('calendar', 'readyProvisional', 'lt500ms', 9),
-        ]);
-        const { rows } = summariseProvisionalOpens(samples, { page: 'calendar' });
-        assert.equal(rows.length, 1);
-        assert.equal(rows[0].total, 9);
-    });
-
-    test('no fast-path open reported ⇒ NO row, never a zero', () => {
-        // A rendered zero would state "the fast path never fires", which is one of the two
-        // conclusions this row exists to choose between — asserted from an absence of data. Every
-        // other block on this card follows the same rule.
-        const samples = Object.fromEntries([mk('calendar', 'ready', 'lt500ms', 500)]);
-        assert.equal(summariseProvisionalOpens(samples, { page: 'calendar' }).rows.length, 0);
-    });
-
-    test('another page’s samples are not mixed in', () => {
-        // Only the Calendar has a fast path, so a cross-page leak here could only ever inflate.
-        //
-        // THE BUCKET NAME IS LOAD-BEARING IN A TEST LIKE THIS. `'3s+'` is not in `PERF_BUCKETS`
-        // (`'3-8s'` and `'over8s'` are), and `_summariseMetricRows` silently drops a sample whose
-        // bucket it does not recognise — so the two cross-page tests in this file written with
-        // `'3s+'` were passing whether or not the page filter worked at all. Fixed in the same pass
-        // that added this block; if you write a new one, spell the bucket from `PERF_BUCKETS`.
-        const samples = Object.fromEntries([
-            mk('calendar', 'readyProvisional', 'lt500ms', 4),
-            mk('paycalc', 'readyProvisional', '3-8s', 400),
-        ]);
-        assert.equal(summariseProvisionalOpens(samples, { page: 'calendar' }).rows[0].total, 4);
-    });
-
-    test('the row set is the one the card renders', () => {
-        assert.deepEqual(PROVISIONAL_OPENS.map(m => m.metric), ['readyProvisional']);
-    });
-});
-
-
-// ── bucketSwrCount — how much background work a boot carried ────────────────────────────────────
-//
-// Organised by what a wrong answer COSTS, and the directions are not symmetrical.
-//
-// The expensive one is a FABRICATED ZERO. This exists to test one claim — that a warm Calendar open
-// still issues a full sweep of conditional requests while the member waits on auth — and a browser
-// that could not answer, recorded as "0", is that claim being refuted by its own instrument. It
-// would read as the reassuring finding and end the investigation.
-//
-// The cheap one is a real count refused: one boot missing from a distribution.
-describe('bucketSwrCount', () => {
-    test('unknowable is null, and null is NOT the zero band', () => {
-        // Every one of these is "we could not find out", and each has a real cause: no service
-        // worker, no controller, a worker too old to know the message, a reply that never came.
-        for (const v of [null, undefined, NaN, Infinity, -1, 'x', {}, [], false]) {
-            assert.equal(bucketSwrCount(/** @type {any} */ (v)), null, `${String(v)} must not band`);
-        }
-        // …and a genuine zero IS a finding, so it must still band.
-        assert.equal(bucketSwrCount(0), '0');
-    });
-
-    test('the bands are the ones the review asked for, at their exact boundaries', () => {
-        // Boundaries, not midpoints: an off-by-one here moves whole boots between "did almost
-        // nothing" and "did a sweep", which is the comparison the metric exists to support.
-        assert.equal(bucketSwrCount(1), '1-10');
-        assert.equal(bucketSwrCount(10), '1-10');
-        assert.equal(bucketSwrCount(11), '11-30');
-        assert.equal(bucketSwrCount(30), '11-30');
-        assert.equal(bucketSwrCount(31), '31+');
-        assert.equal(bucketSwrCount(53), '31+', 'the count measured locally lands in the heavy band');
-    });
-
-    test('every band it can return is declared, and the heavy one is a member', () => {
-        // The card and the summarisers read the declared list; a band returned but not declared
-        // would be counted and never rendered — a silent hole in the distribution.
-        const produced = new Set([0, 1, 10, 11, 30, 31, 999].map(n => bucketSwrCount(n)));
-        for (const b of produced) assert.ok(SWR_COUNT_BUCKETS.includes(/** @type {any} */ (b)), `${b} undeclared`);
-        assert.ok(SWR_COUNT_BUCKETS.includes(SWR_HEAVY_BUCKET));
-        assert.equal(SWR_HEAVY_BUCKET, '31+');
-    });
-
-    test('the count bands cannot be confused with the duration bands', () => {
-        // They share the `bucket` slot of perfSampleKey, which is what keeps the key at six
-        // components. Overlapping vocabularies would let a duration summariser silently absorb
-        // these samples if one were ever pointed at the metric.
-        for (const b of SWR_COUNT_BUCKETS) {
-            assert.ok(!PERF_BUCKETS.includes(/** @type {any} */ (b)), `${b} collides with a duration band`);
-        }
+        for (const m of [...UPDATE_OPENS, ...EARLY_ROSTER]) assert.ok(m.sub.length > 20, `${m.metric} explains itself`);
     });
 });
 
@@ -1001,9 +598,11 @@ describe('perfVerdict — "mostly quick" is a MAJORITY claim (v24.96, the 72-hou
         return { quick, ok, slow, total, pctQuick: pct(quick), pctOk: pct(ok), pctSlow: pct(slow) };
     };
     test('a plurality of quick opens is not "mostly quick"', () => {
-        assert.match(perfVerdict(of(41, 40, 19), 'login').text, /most often/, '41% quick, 59% over a second');
+        // Since Oct 2026 a quick PLURALITY says exactly that (`mixed`); before, it fell to "most often
+        // take a moment", which was false — see the block on the mixed sentence below.
+        assert.match(perfVerdict(of(41, 40, 19), 'login').text, /Under half of sign-ins are quick/, '41% quick, 59% over a second');
         assert.match(perfVerdict(of(99, 100, 1), 'login').text, /most often/, 'the rounded percentages tie; the counts do not');
-        assert.match(perfVerdict(of(45, 36, 19), 'login').text, /most often/);
+        assert.match(perfVerdict(of(45, 36, 19), 'login').text, /Under half/);
     });
     test('a majority is', () => {
         assert.match(perfVerdict(of(60, 30, 10), 'login').text, /mostly feels quick/);
@@ -1012,15 +611,251 @@ describe('perfVerdict — "mostly quick" is a MAJORITY claim (v24.96, the 72-hou
     });
 });
 
-describe('earlyRosterShare — no share from a handful of opens (v24.96)', () => {
-    const key = (/** @type {string} */ metric, /** @type {string} */ bucket) =>
-        perfSampleKey({ version: 'v24.90', page: 'calendar', metric, bucket, mode: 'standalone', conn: '4g' });
-    test('below THIN_SAMPLE ready opens the share is withheld, as the rows beside it say "(few)"', () => {
-        const thin = { [key('ready', 'lt500ms')]: 3, [key('rosterSnapshot', 'lt500ms')]: 1 };
-        assert.equal(earlyRosterShare(thin, { page: 'calendar' }), null, '3 opens, 1 copy painted: "33%" is not a finding');
+// ════ THE APP SPEED REVIEW (Oct 2026) — the maths a reader was shown wrong ════════════════════════
+
+describe('the three percentages always add to 100 (largest remainder)', () => {
+    const bands = (q, o, sl) => summarisePerf(samplesFrom([
+        ['admin', 'domReady', 'lt500ms', q], ['admin', 'domReady', '1-3s', o], ['admin', 'domReady', '3-8s', sl]])).overall;
+
+    test('an even three-way split prints 34 + 33 + 33, not 34 + 34 + 33', () => {
+        const r = bands(1, 1, 1);
+        assert.deepEqual([r.pctQuick, r.pctOk, r.pctSlow], [34, 33, 33], 'the spare point goes to the faster band on a tie');
     });
-    test('from THIN_SAMPLE opens it is reported', () => {
-        const enough = { [key('ready', 'lt500ms')]: THIN_SAMPLE, [key('rosterSnapshot', 'lt500ms')]: 12 };
-        assert.equal(earlyRosterShare(enough, { page: 'calendar' }), 60);
+
+    test('every split of up to 60 opens sums to exactly 100, each band within a point of its share', () => {
+        for (let q = 0; q <= 20; q++) for (let o = 0; o <= 20; o++) for (let sl = 0; sl <= 20; sl++) {
+            const total = q + o + sl;
+            if (!total) continue;
+            const r = bands(q, o, sl);
+            assert.equal(r.pctQuick + r.pctOk + r.pctSlow, 100, `${q}/${o}/${sl}`);
+            for (const [pct, n] of [[r.pctQuick, q], [r.pctOk, o], [r.pctSlow, sl]]) {
+                assert.ok(Math.abs(pct - (n / total) * 100) < 1, `${q}/${o}/${sl}: ${pct} for ${n}`);
+            }
+        }
+    });
+
+    test('nothing to divide gives zeros, not NaN', () => {
+        const r = bands(0, 0, 0);
+        assert.deepEqual([r.total, r.pctQuick, r.pctOk, r.pctSlow], [0, 0, 0, 0]);
+    });
+});
+
+describe('the share over a second is the complement of the quick share shown', () => {
+    test('two blocks can no longer print 87% and 88% for one split', () => {
+        // 87.5% quick: rounded on its own the over-a-second share was 13, beside a quick 88 — 101.
+        const samples = Object.fromEntries([
+            mkAt('v' + UPDATE_OPENS_FROM, 'calendar', 'readyUpdate', 'lt500ms', 175),
+            mkAt('v' + UPDATE_OPENS_FROM, 'calendar', 'readyUpdate', '1-3s', 25),
+        ]);
+        const [row] = summariseUpdateOpens(samples, { page: 'calendar' }).rows;
+        assert.equal(row.pctQuick, 88);
+        assert.equal(row.pctOver1s, 12, 'derived from the shown quick share, not rounded separately');
+        assert.equal(row.pctQuick + row.pctOver1s, 100);
+        assert.equal(row.over1s, 25, 'the count behind it');
+    });
+});
+
+describe('compactPct — a share never rounds to a lie', () => {
+    test('a real share that rounds to nothing reads <1%, not 0%', () => {
+        assert.equal(compactPct(0, 1, 400), '<1%');
+    });
+    test('one short of the whole reads >99%, not 100%', () => {
+        assert.equal(compactPct(100, 399, 400), '>99%');
+    });
+    test('a true zero, a true whole and everything between read as themselves', () => {
+        assert.equal(compactPct(0, 0, 400), '0%');
+        assert.equal(compactPct(100, 400, 400), '100%');
+        assert.equal(compactPct(46, 184, 400), '46%');
+    });
+});
+
+describe('shareLabel', () => {
+    test('words at both ends, a whole percent between', () => {
+        assert.equal(shareLabel(1, 400), 'under 1%');
+        assert.equal(shareLabel(399, 400), 'over 99%');
+        assert.equal(shareLabel(400, 400), '100%');
+        assert.equal(shareLabel(3, 5), '60%');
+    });
+    test('nothing to state ⇒ null — and a part larger than its whole is judged on the raw counts', () => {
+        assert.equal(shareLabel(0, 400), null);
+        assert.equal(shareLabel(5, 0), null);
+        assert.equal(shareLabel(251, 250), null, 'it rounded to "100%" under the old check');
+    });
+});
+
+describe('shareMeasuredBefore — the month the measurement changed', () => {
+    const at = (version, metric, n, page = 'calendar') =>
+        [perfSampleKey({ version, page, metric, bucket: 'lt500ms', mode: 'browser', conn: '4g' }), n];
+
+    test('the share of code-loaded opens timed by versions before the change', () => {
+        const samples = Object.fromEntries([at('v24.97', 'domReady', 300), at('v24.98', 'domReady', 60), at('v24.99', 'domReady', 40, 'paycalc')]);
+        assert.equal(shareMeasuredBefore(samples, '24.98'), 0.75);
+        assert.equal(shareMeasuredBefore(samples), 0.75, 'CLEAN_TIMINGS_FROM by default');
+        assert.equal(CLEAN_TIMINGS_FROM, '24.98', 'the release that stopped counting unwatched loads and typing');
+    });
+
+    test('only `domReady` is counted — every watched open records it, on every page', () => {
+        const samples = Object.fromEntries([at('v24.97', 'ready', 900), at('v24.97', 'fcp', 900), at('v24.98', 'domReady', 10)]);
+        assert.equal(shareMeasuredBefore(samples, '24.98'), 0);
+    });
+
+    test('nothing to divide gives 0', () => {
+        assert.equal(shareMeasuredBefore({}, '24.98'), 0);
+    });
+});
+
+describe('perfRecordFullness — how close the month\'s record is to Firestore\'s limits', () => {
+    test('an empty record is all but empty', () => {
+        assert.ok(perfRecordFullness({}) < 0.001);
+    });
+
+    test('long keys reach the byte limit first', () => {
+        // 100-character keys cost 109 bytes each (name + 1, count 8): 9,619 of them and the
+        // document's own 128 come to just over 1 MiB, at under half the field limit.
+        const long = (i) => String(i).padStart(100, 'k');
+        const n = 9619;
+        const samples = Object.fromEntries(Array.from({ length: n }, (_, i) => [long(i), 1]));
+        assert.ok(perfRecordFullness(samples) >= 1, 'full by bytes');
+        const fewer = Object.fromEntries(Array.from({ length: n - 2 }, (_, i) => [long(i), 1]));
+        assert.ok(perfRecordFullness(fewer) < 1, 'two keys fewer is not');
+    });
+
+    test('short keys reach the field limit first — every map entry is a field', () => {
+        const samples = Object.fromEntries(Array.from({ length: 19998 }, (_, i) => [`k${i}`, 1]));
+        assert.equal(perfRecordFullness(samples), 1, '19,998 entries + `month` + the map itself = 20,000 fields');
+    });
+
+    test('it grows with every key, as every release adds keys', () => {
+        const one = { [perfSampleKey({ version: '24.98', page: 'calendar', metric: 'ready', bucket: 'lt500ms', mode: 'standalone', conn: '4g' })]: 3 };
+        const two = { ...one, [perfSampleKey({ version: '24.99', page: 'calendar', metric: 'ready', bucket: 'lt500ms', mode: 'standalone', conn: '4g' })]: 1 };
+        assert.ok(perfRecordFullness(two) > perfRecordFullness(one));
+    });
+});
+
+describe('a stored count must be a count — sample values are written by any signed-in session', () => {
+    const key = (bucket, metric = 'domReady') =>
+        perfSampleKey({ version: '24.98', page: 'calendar', metric, bucket, mode: 'browser', conn: '4g' });
+
+    test('true, "7", a fraction, a negative and an absurd number are not opens', () => {
+        const samples = { [key('lt500ms')]: true, [key('500ms-1s')]: '7', [key('1-3s')]: 2.5, [key('3-8s')]: -3, [key('over8s')]: 1e308 };
+        assert.equal(summarisePerf(/** @type {any} */ (samples)).total, 0);
+        assert.equal(summarisePerfBy(/** @type {any} */ (samples), { page: 'calendar', dimension: 'mode' }).total, 0);
+        assert.equal(shareMeasuredBefore(/** @type {any} */ (samples)), 0);
+    });
+
+    test('two absurd values can no longer sum to "∞ page opens"', () => {
+        const samples = { [key('lt500ms')]: 1e308, [key('1-3s')]: 1e308 };
+        assert.ok(Number.isFinite(summarisePerf(samples).total));
+        assert.equal(summarisePerf(samples).total, 0);
+    });
+
+    test('a real count still counts', () => {
+        assert.equal(summarisePerf({ [key('lt500ms')]: 41, [key('1-3s')]: 9 }).total, 50);
+    });
+});
+
+describe('summarisePerfBy — no version row crosses the change in how pages are timed', () => {
+    const at = (version, bucket, n) =>
+        [perfSampleKey({ version, page: 'calendar', metric: 'ready', bucket, mode: 'browser', conn: '4g' }), n];
+    const rows = (entries, splitAt) => summarisePerfBy(Object.fromEntries(entries),
+        { page: 'calendar', metric: 'ready', dimension: 'version', minSamples: 20, splitAt }).rows;
+
+    test('a bucket closes at the split even when thin, and the remainder is never merged across it', () => {
+        const r = rows([
+            at('24.99', 'lt500ms', 5), at('24.98', '1-3s', 10),          // after: 15, thin
+            at('24.97', 'lt500ms', 100), at('24.96', '3-8s', 100), at('24.95', 'lt500ms', 3),
+        ], '24.98');
+        assert.deepEqual(r.map(x => [x.label, x.total, x.afterSplit]), [
+            ['v24.98–v24.99', 15, true],
+            ['v24.97', 100, false],
+            ['v24.95–v24.96', 103, false],                                 // the thin remainder merged, on its own side
+        ]);
+    });
+
+    test('a thin remainder on the near side of the split stays its own row', () => {
+        const r = rows([at('24.99', 'lt500ms', 100), at('24.97', 'lt500ms', 4)], '24.98');
+        assert.deepEqual(r.map(x => [x.label, x.total]), [['v24.99', 100], ['v24.97', 4]]);
+    });
+
+    test('without a split nothing changes, and no row claims a side', () => {
+        const r = rows([at('24.99', 'lt500ms', 5), at('24.98', '1-3s', 10), at('24.97', 'lt500ms', 100)], '');
+        assert.deepEqual(r.map(x => [x.label, x.total]), [['v24.97–v24.99', 115]]);
+        assert.ok(r.every(x => !('afterSplit' in x)));
+    });
+});
+
+describe('perfVerdict — green needs the slow tail small too', () => {
+    const of = (quick, ok, slow) => summarisePerf(samplesFrom([
+        ['admin', 'domReady', 'lt500ms', quick], ['admin', 'domReady', '1-3s', ok], ['admin', 'domReady', '3-8s', slow]])).overall;
+
+    test('81 / 0 / 19 is not green — it was, one point from 80 / 0 / 20 being red', () => {
+        assert.equal(perfVerdict(of(81, 0, 19)).tone, 'ok');
+        assert.equal(perfVerdict(of(80, 0, 20)).tone, 'bad');
+    });
+    test('under 10% slow with 80% quick still is', () => {
+        assert.equal(perfVerdict(of(85, 6, 9)).tone, 'good');
+        assert.equal(perfVerdict(of(85, 5, 10)).tone, 'ok', 'at 10% slow it is not');
+    });
+});
+
+describe('perfVerdict — quick the largest band but under half has its own sentence', () => {
+    const login = (quick, ok, slow) => perfVerdict(summarisePerf(samplesFrom([
+        ['login', 'loginTotal', 'lt500ms', quick], ['login', 'loginTotal', '1-3s', ok], ['login', 'loginTotal', '3-8s', slow]]),
+        { metric: 'loginTotal' }).overall, 'login');
+
+    test('the review\'s pair: identical percentages, one sentence', () => {
+        // Both show 50% · 40% · 10%. The first read "most often take a moment" — false: quick was
+        // the largest band — and the second "mostly feels quick".
+        const first = login(124, 100, 26);
+        assert.equal(first.text, 'Under half of sign-ins are quick; the rest take a moment or longer.');
+        assert.doesNotMatch(first.text, /most often/);
+        assert.equal(login(50, 40, 10).text, 'Signing in mostly feels quick, with some slower sign-ins.');
+    });
+
+    test('every journey has the sentence, so none borrows another\'s', () => {
+        const overall = summarisePerf(samplesFrom([['admin', 'domReady', 'lt500ms', 45], ['admin', 'domReady', '1-3s', 40], ['admin', 'domReady', '3-8s', 15]])).overall;
+        for (const kind of /** @type {const} */ (['pages', 'login', 'fcp', 'ready'])) {
+            const v = perfVerdict(overall, kind);
+            assert.match(v.text, /under half/i, kind);
+            assert.ok(!/undefined/.test(v.text), kind);
+        }
+    });
+});
+
+describe('perfVerdict — the empty and thin sentences name no month', () => {
+    // The headline renders under "Last month" too, where "not enough data yet — this builds up as
+    // staff use the app" described a month that was over.
+    test('none and thin are true of any period', () => {
+        for (const kind of /** @type {const} */ (['pages', 'login', 'fcp', 'ready'])) {
+            const none = perfVerdict(summarisePerf({}).overall, kind).text;
+            const thin = perfVerdict(summarisePerf(samplesFrom([['admin', 'domReady', 'lt500ms', 3]])).overall, kind).text;
+            for (const t of [none, thin]) assert.doesNotMatch(t, /\byet\b|builds up|this month/i, `${kind}: ${t}`);
+        }
+    });
+});
+
+describe('a version label never doubles its "v"', () => {
+    test('a key carrying a leading v prints once, as the dot-swapped form does', () => {
+        const at = (version, n) => [perfSampleKey({ version, page: 'calendar', metric: 'ready', bucket: 'lt500ms', mode: 'browser', conn: '4g' }), n];
+        const rows = summarisePerfBy(Object.fromEntries([at('v24.98', 30), at('24.97', 30)]),
+            { page: 'calendar', metric: 'ready', dimension: 'version', minSamples: 20 }).rows;
+        assert.deepEqual(rows.map(r => r.label), ['v24.98', 'v24.97'], 'it printed "vv24.98"');
+    });
+});
+
+describe('the version constants name a release the app has reached', () => {
+    // CLEAN_TIMINGS_FROM and UPDATE_OPENS_FROM must be the release that ships the recorder change. One
+    // AHEAD of the app would file every current sample as timed "the older way" and hide the wait
+    // after a release entirely. (The other mistake — a release shipped under a later number than
+    // these say — no test can see: re-check both when re-bumping a branch against main.)
+    test('neither is ahead of APP_VERSION', async () => {
+        const { readFileSync } = await import('node:fs');
+        const src = readFileSync(new URL('./roster-data.js', import.meta.url), 'utf8');
+        const m = /APP_VERSION = '(\d+)\.(\d+)'/.exec(src);
+        assert.ok(m, 'APP_VERSION found');
+        const n = (/** @type {string} */ v) => { const [a, b] = v.split('.').map(Number); return a * 100 + b; };
+        const app = Number(m[1]) * 100 + Number(m[2]);
+        assert.ok(n(CLEAN_TIMINGS_FROM) <= app, `CLEAN_TIMINGS_FROM ${CLEAN_TIMINGS_FROM} is ahead of the app`);
+        assert.ok(n(UPDATE_OPENS_FROM) <= app, `UPDATE_OPENS_FROM ${UPDATE_OPENS_FROM} is ahead of the app`);
     });
 });

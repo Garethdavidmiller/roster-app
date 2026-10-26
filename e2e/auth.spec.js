@@ -199,6 +199,24 @@ test('in-place sign-in: operations initialises without a reload', async ({ page 
         'login timer marker is consumed once the page is usable').toBeNull();
 });
 
+// ── A sign-in on the page is TYPING, not loading (App Speed review, Oct 2026) ────────────────────
+// The recorder drops "Usable" once a page asked somebody to type, and times the sign-in as its own
+// figure, ending when the page is usable. Settings used to mark itself usable when its sign-in FORM
+// appeared — before "Sign in" was pressed — which would have left every Settings sign-in untimed under
+// the new rule. A non-admin, because the developer's own loads record nothing at all.
+test('in-place sign-in on Settings is timed as a sign-in, and writes no "Usable" for that load', async ({ page }) => {
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'S. Silva');
+    await expect(page.locator('#loginOverlay')).toHaveCount(0);
+    const sampleKeys = async () => page.evaluate(() => (window.__E2E?.setWrites || [])
+        .filter(w => String(w.path || '').includes('perf_'))
+        .flatMap(w => Object.keys((w.data && w.data.samples) || {})));
+    await expect.poll(async () => (await sampleKeys()).some(k => k.includes('|login|loginTotal|')),
+        { timeout: 25_000, message: 'the sign-in is timed, ending when the page is usable' }).toBe(true);
+    await page.waitForTimeout(3000);   // a "Usable" sample, if one were written, would follow within a batch
+    expect((await sampleKeys()).filter(k => k.includes('|settings|ready|'))).toEqual([]);
+});
+
 test('in-place sign-in: links initialises without a reload', async ({ page }) => {
     await page.goto('/links.html');
     await page.evaluate(() => { window.__noReload = 1; });

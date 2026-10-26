@@ -1,15 +1,21 @@
 /**
- * Unit tests for perf-reporter.js — the WRITE-TIME ADMIN EXCLUSION and the one-shot login marker,
- * which keep the developer's own loads out of the App Speed figures while still consuming the login
- * marker (so an excluded sign-in can't mis-time a later staff load). The pure bucketing maths lives
- * in perf-stats.test.mjs; the reporter's decision layer was untested.
+ * Unit tests for perf-reporter.js — what a page open records, and above all what it must NOT.
+ *
+ * The App Speed review (Oct 2026) found two kinds of time in the figures that were nobody waiting
+ * for the app: loads nobody was watching (the Calendar's release reload runs while the page is
+ * hidden, by design) and time a person spent typing a password or the staff PIN. Both are excluded
+ * now, and both exclusions are the kind of rule a later edit breaks without any figure looking wrong
+ * — a hidden load still produces a perfectly plausible bucket. So most cases below drive the real
+ * production path with a page that hides, loads hidden, or waits for typing, and assert ABSENCE.
+ *
+ * The pure bucketing maths lives in perf-stats.test.mjs.
  *
  * Run: node --experimental-test-module-mocks --test perf-reporter.test.mjs
  */
-import { test, describe, beforeEach, mock } from 'node:test';
+import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
-/** @type {any[]} */ let _samples = [];
+/** @type {any[]} */ const _samples = [];
 const _ss = new Map();
 
 mock.module('./firebase-client.js', {
@@ -19,36 +25,79 @@ mock.module('./roster-data.js', {
     namedExports: { CONFIG: { ADMIN_NAMES: ['G. Miller'] } },
 });
 
-// Minimal browser stubs. No navigation/paint entries → only the login sample can be recorded, which
-// isolates exactly the admin-exclusion + one-shot-marker behaviour under test.
 global.sessionStorage = /** @type {any} */ ({
     getItem: k => _ss.has(k) ? _ss.get(k) : null,
     setItem: (k, v) => { _ss.set(k, String(v)); },
     removeItem: k => { _ss.delete(k); },
 });
-global.window = /** @type {any} */ ({ matchMedia: () => ({ matches: false }) });
-// global.navigator is a read-only getter in modern Node — define it instead of assigning.
-Object.defineProperty(global, 'navigator', { value: /** @type {any} */ ({}), configurable: true });
-// A working MARK table (v21.16): `markPageReady` writes here and the deferred `ready` recorder reads
-// it back. Still no navigation/paint entries, which is deliberate — it proves the `ready` path does
-// not depend on Navigation Timing, the guard it used to sit behind.
-/** @type {Map<string, any>} */
-const _marks = new Map();
-global.performance = /** @type {any} */ ({
-    getEntriesByType: () => [],
-    getEntriesByName: (/** @type {string} */ n) => (_marks.has(n) ? [_marks.get(n)] : []),
-    mark: (/** @type {string} */ n) => { _marks.set(n, { name: n, startTime: 640 }); },
-});
-// PerformanceObserver intentionally left undefined → recordFcp skips cleanly.
 
-const { recordPageLatency, markLoginStart, clearLoginStart, markPageReady, PAGE_READY_MARK } =
-    await import('./perf-reporter.js');
 const LOGIN_KEY = 'myb_perf_login_t0';
+const SW_KEY = 'myb_perf_sw_reload';
+/** Epoch ms at which every simulated load starts (`performance.timeOrigin`). */
+const T = 1_790_000_000_000;
 
-beforeEach(() => { _samples = []; _ss.clear(); });
+/** The simulated `performance.now()` — milliseconds into the load. */
+const clock = { now: 0 };
+/** @type {Map<string, any>} */ const _marks = new Map();
+/** @type {Record<string, Function[]>} */ let _docListeners = {};
+/** @type {Function[]} */ let _rafQueue = [];
+/** @type {any} */ let doc = null;
+
+/**
+ * A FRESH MODULE INSTANCE per case, with the page's environment in place BEFORE it is imported. The
+ * visibility watcher reads `document` at import, and `ready`, the first-visible moment and the typing
+ * gate are one-shot module state — right in a browser, where one instance serves one page load, and
+ * fatal to tests sharing one. The `mock.module` stubs are keyed on the dependency's resolved URL, so
+ * every instance gets them.
+ * @param {string} tag
+ * @param {{ hidden?: boolean, prerendering?: boolean, nav?: any, paint?: number|null, visTimeline?: any[]|null,
+ *           raf?: boolean, standalone?: boolean, conn?: string, readyState?: string }} [env]
+ */
+async function load(tag, env = {}) {
+    const { hidden = false, prerendering = false, nav = null, paint = null, visTimeline = null,
+        raf = false, standalone = false, conn, readyState = 'complete' } = env;
+    _samples.length = 0; _ss.clear(); _marks.clear(); _docListeners = {}; _rafQueue = [];
+    clock.now = 0;
+    global.performance = /** @type {any} */ ({
+        timeOrigin: T,
+        now: () => clock.now,
+        getEntriesByType: (/** @type {string} */ t) => {
+            if (t === 'navigation') return nav ? [nav] : [];
+            if (t === 'paint') return paint != null ? [{ name: 'first-contentful-paint', startTime: paint }] : [];
+            if (t === 'visibility-state') return visTimeline || [];
+            return [];
+        },
+        getEntriesByName: (/** @type {string} */ n) => (_marks.has(n) ? [_marks.get(n)] : []),
+        mark: (/** @type {string} */ n) => { _marks.set(n, { name: n, startTime: clock.now }); },
+    });
+    doc = {
+        visibilityState: hidden ? 'hidden' : 'visible',
+        prerendering,
+        readyState,
+        addEventListener: (/** @type {string} */ type, /** @type {Function} */ fn) => { (_docListeners[type] ||= []).push(fn); },
+    };
+    global.document = doc;
+    global.window = /** @type {any} */ ({ matchMedia: () => ({ matches: standalone }), navigator: {} });
+    Object.defineProperty(global, 'navigator', { value: conn ? { connection: { effectiveType: conn } } : {}, configurable: true });
+    if (raf) global.requestAnimationFrame = /** @type {any} */ ((/** @type {Function} */ cb) => { _rafQueue.push(cb); return 1; });
+    else delete global.requestAnimationFrame;
+    return import(`./perf-reporter.js?case=${tag}`);
+}
+
+/** The page becomes hidden or visible `at` ms into the load. @param {'hidden'|'visible'} state @param {number} at */
+function setVisibility(state, at) {
+    clock.now = at;
+    doc.visibilityState = state;
+    (_docListeners.visibilitychange || []).forEach(f => f());
+}
+/** Let every deferred recorder run (promise chains, the DCL re-read, the frame wait). */
+const settle = () => new Promise(r => setTimeout(r, 0));
+const metrics = () => _samples.map(s => s.metric);
+const sample = (/** @type {string} */ m) => _samples.find(s => s.metric === m);
 
 describe('markLoginStart / clearLoginStart', () => {
-    test('markLoginStart stamps the session marker; clearLoginStart removes it', () => {
+    test('markLoginStart stamps the session marker; clearLoginStart removes it', async () => {
+        const { markLoginStart, clearLoginStart } = await load('login-marker');
         markLoginStart();
         assert.equal(_ss.has(LOGIN_KEY), true);
         clearLoginStart();
@@ -56,644 +105,432 @@ describe('markLoginStart / clearLoginStart', () => {
     });
 });
 
-describe('recordPageLatency — admin exclusion + one-shot login marker', () => {
-    test('an ADMIN session records NOTHING but STILL consumes the login marker', () => {
-        _ss.set(LOGIN_KEY, String(Date.now() - 1000));  // a sign-in happened this session
-        recordPageLatency('paycalc', 'G. Miller');
-        assert.deepEqual(_samples, [], 'developer session records no perf samples');
-        assert.equal(_ss.has(LOGIN_KEY), false, 'marker consumed so it cannot mis-time a later staff load');
+describe('the developer\'s own loads are excluded at every point', () => {
+    test('an ADMIN load records NOTHING, yet still consumes both one-shot markers', async () => {
+        const { recordPageLatency, markPageReady, markMilestone } = await load('admin', { nav: { domContentLoadedEventEnd: 700 }, paint: 300 });
+        _ss.set(LOGIN_KEY, String(T - 1000));
+        _ss.set(SW_KEY, String(T - 200));
+        clock.now = 800;
+        markMilestone('rosterSnapshot');
+        recordPageLatency('calendar', 'G. Miller');
+        clock.now = 2000;
+        markPageReady();
+        await settle();
+        assert.deepEqual(_samples, [], 'no sample of any kind');
+        assert.equal(_ss.has(LOGIN_KEY), false, 'so it cannot mis-time a later staff load');
+        assert.equal(_ss.has(SW_KEY), false, 'so it cannot mis-label a later staff load');
     });
 
-    test('a real staff member records the login-total sample and clears the marker', () => {
-        _ss.set(LOGIN_KEY, String(Date.now() - 1200));
-        recordPageLatency('paycalc', 'S. Silva');
-        const login = _samples.find(s => s.page === 'login');
-        assert.ok(login, 'login timing recorded for a real staff sign-in');
-        assert.equal(login.metric, 'loginTotal');
-        assert.equal(_ss.has(LOGIN_KEY), false, 'one-shot: marker cleared after recording');
-    });
-
-    test('no login marker → no login sample (and no throw with no nav/paint timing)', () => {
-        recordPageLatency('calendar', 'S. Silva');
-        assert.equal(_samples.find(s => s.page === 'login'), undefined);
-    });
-
-    test('a null identity (anonymous) is NOT excluded — it would record if timing existed', () => {
-        _ss.set(LOGIN_KEY, String(Date.now() - 800));
+    test('a load with no name (the staff PIN) is a staff load, not the developer\'s', async () => {
+        const { recordPageLatency, markPageReady } = await load('pin');
         recordPageLatency('calendar', null);
-        assert.ok(_samples.find(s => s.page === 'login'), 'anonymous is a real session, not the developer');
+        clock.now = 900;
+        markPageReady();
+        await settle();
+        assert.ok(sample('ready'));
     });
 });
 
-describe('recordPageLatency — boot phases (v20.33)', () => {
-    // Swap in a performance stub carrying a navigation entry and (optionally) the SDK-ready mark.
-    // The phase SPLIT itself is pure and tested in perf-stats.test.mjs; what's under test here is
-    // the reporter's WIRING — that the mark is read, the spans reach recordPerfSample as their own
-    // metrics, and an absent mark or SW degrades to fewer samples rather than wrong ones.
-    const nav = { responseStart: 220, domContentLoadedEventEnd: 1600, workerStart: 40 };
-    /** @param {any} navEntry @param {number|null} markMs @param {number|null} [readyMs] */
-    function stubPerformance(navEntry, markMs, readyMs = null) {
-        global.performance = /** @type {any} */ ({
-            getEntriesByType: (/** @type {string} */ t) => t === 'navigation' && navEntry ? [navEntry] : [],
-            getEntriesByName: (/** @type {string} */ n) => {
-                if (n === 'myb-sdk-ready' && markMs != null) return [{ startTime: markMs }];
-                if (n === PAGE_READY_MARK && readyMs != null) return [{ startTime: readyMs }];
-                return [];
-            },
-        });
-    }
-
-    test('records all three phase spans alongside ttfb/domReady', () => {
-        stubPerformance(nav, 1100);
+describe('`ready` — the page usable, timed from the start of the load', () => {
+    test('it is its own metric, and it is NOT domReady', async () => {
+        // The real shape: the code loaded at 700ms, the roster on screen at 2630ms. A fallback to
+        // domReady would republish the very number this metric exists to contradict.
+        const { recordPageLatency, markPageReady } = await load('ready-own', { nav: { domContentLoadedEventEnd: 700 } });
         recordPageLatency('calendar', 'S. Silva');
-        const byMetric = Object.fromEntries(_samples.map(s => [s.metric, s]));
-        assert.equal(byMetric.swBoot?.bucket,  'lt500ms');   // 180ms
-        assert.equal(byMetric.sdkLoad?.bucket, '500ms-1s');  // 880ms
-        assert.equal(byMetric.appBoot?.bucket, '500ms-1s');  // 500ms
-        assert.equal(byMetric.swBoot?.page, 'calendar', 'phases carry the page dimension like every metric');
-        assert.ok(byMetric.ttfb && byMetric.domReady, 'the existing metrics still record beside the phases');
+        clock.now = 2630;
+        markPageReady();
+        await settle();
+        assert.equal(sample('ready')?.bucket, '1-3s');
+        assert.equal(sample('domReady')?.bucket, '500ms-1s');
+        assert.equal(sample('ready')?.page, 'calendar');
     });
 
-    test('no SDK mark → nav-only metrics record, mark-based phases are absent', () => {
-        stubPerformance(nav, null);
+    test('a mark that arrives AFTER the reading still records (v21.16)', async () => {
+        const { recordPageLatency, markPageReady } = await load('ready-late');
         recordPageLatency('calendar', 'S. Silva');
-        const metrics = _samples.map(s => s.metric);
-        assert.ok(metrics.includes('swBoot'), 'the SW span needs no mark');
-        assert.ok(!metrics.includes('sdkLoad') && !metrics.includes('appBoot'),
-            'a missing mark must drop the spans it defines — recording them from garbage would be worse than a gap');
+        await settle();
+        assert.equal(sample('ready'), undefined, 'nothing to record yet');
+        clock.now = 640;
+        markPageReady();
+        await settle();
+        assert.equal(sample('ready')?.bucket, '500ms-1s', 'bucketed from the mark, not from when it was noticed');
     });
 
-    test('no service worker (workerStart 0) → no swBoot sample', () => {
-        stubPerformance({ ...nav, workerStart: 0 }, 1100);
-        recordPageLatency('calendar', 'S. Silva');
-        assert.ok(!_samples.some(s => s.metric === 'swBoot'),
-            'a first visit has no SW wake to measure — a fabricated span would flatter or smear it');
-        assert.ok(_samples.some(s => s.metric === 'sdkLoad'), 'mark-based spans unaffected');
-    });
-
-    test('admin exclusion covers the phases too', () => {
-        stubPerformance(nav, 1100);
-        recordPageLatency('calendar', 'G. Miller');
-        assert.deepEqual(_samples, [], 'the developer’s own boot phases must not pollute the diagnosis');
-    });
-});
-
-
-describe('the READY milestone (v20.80)', () => {
-    // ── WHY THIS METRIC EXISTS, AND WHY THE TESTS ARE SHAPED LIKE THIS ──────────────────────────
-    //
-    // The card's two page metrics stopped describing what their labels claim the moment the v20.12
-    // access gate landed: `fcp` is the splash painting, and `domReady` fires while the Calendar can
-    // still be blank (measured — fcp 512ms, domReady 669ms, roster on screen 2630ms). So the ONE
-    // thing worth pinning is that `ready` is genuinely INDEPENDENT of `domReady`: a fabricated
-    // fallback would put the very number this metric exists to contradict under its label, and no
-    // assertion about buckets or wiring would notice.
-    const nav = { responseStart: 220, domContentLoadedEventEnd: 700, workerStart: 40 };
-    /** @param {any} navEntry @param {number|null} markMs @param {number|null} readyMs */
-    function stubPerformance(navEntry, markMs, readyMs) {
-        global.performance = /** @type {any} */ ({
-            getEntriesByType: (/** @type {string} */ t) => t === 'navigation' && navEntry ? [navEntry] : [],
-            getEntriesByName: (/** @type {string} */ n) => {
-                if (n === 'myb-sdk-ready' && markMs != null) return [{ startTime: markMs }];
-                if (n === PAGE_READY_MARK && readyMs != null) return [{ startTime: readyMs }];
-                return [];
-            },
-        });
-    }
-
-    test('a page that never marks records NO ready sample — absent, never borrowed from domReady', () => {
-        stubPerformance(nav, 500, null);
+    test('a page that never marks records no `ready` — a gap, never a borrowed figure', async () => {
+        const { recordPageLatency } = await load('ready-none', { nav: { domContentLoadedEventEnd: 700 } });
         recordPageLatency('paycalc', 'S. Silva');
-        const metrics = _samples.map(s => s.metric);
-        assert.ok(metrics.includes('domReady'), 'the existing metrics are unaffected');
-        assert.ok(!metrics.includes('ready'),
-            'a missing milestone must be a GAP — falling back to domReady would republish the exact ' +
-            'number this metric exists to contradict, under a label that says it is something else');
+        await settle();
+        assert.ok(metrics().includes('domReady'));
+        assert.ok(!metrics().includes('ready'));
     });
 
-    test('the mark is recorded as its own metric, and it is NOT domReady', () => {
-        // The real shape: DCL at 700ms while the roster arrives at 2630ms. Different metric,
-        // different BUCKET — a test where the two agreed would pass on a fallback implementation.
-        stubPerformance(nav, 500, 2630);
+    test('markPageReady is idempotent, and a re-render cannot re-time the page', async () => {
+        const { recordPageLatency, markPageReady } = await load('ready-once');
+        clock.now = 500;
+        markPageReady();
+        clock.now = 4000;
+        markPageReady();
         recordPageLatency('calendar', 'S. Silva');
-        const byMetric = Object.fromEntries(_samples.map(s => [s.metric, s]));
-        assert.equal(byMetric.ready?.bucket, '1-3s');
-        assert.equal(byMetric.domReady?.bucket, '500ms-1s');
-        assert.equal(byMetric.ready?.page, 'calendar', 'it carries the page dimension like every metric');
+        await settle();
+        assert.equal(_samples.filter(s => s.metric === 'ready').length, 1);
+        assert.equal(sample('ready').bucket, '500ms-1s', 'the FIRST call decided it');
     });
 
-    test('an ADMIN session records no ready sample either', () => {
-        stubPerformance(nav, 500, 2630);
-        recordPageLatency('calendar', 'G. Miller');
-        assert.deepEqual(_samples, []);
-    });
-
-    test('markPageReady is idempotent — a re-render must not re-time the page', () => {
-        /** @type {string[]} */ const marked = [];
-        global.performance = /** @type {any} */ ({
-            getEntriesByType: () => [],
-            getEntriesByName: (/** @type {string} */ n) =>
-                n === PAGE_READY_MARK ? marked.map(() => ({ startTime: 1 })) : [],
-            mark: (/** @type {string} */ n) => { marked.push(n); },
-        });
-        markPageReady();
-        markPageReady();
-        assert.deepEqual(marked, [PAGE_READY_MARK]);
-    });
-
-    test('markPageReady is silent where the Performance API is missing', () => {
+    test('markPageReady is silent where the Performance API is missing', async () => {
+        const { markPageReady } = await load('ready-noapi');
         global.performance = /** @type {any} */ ({});
         assert.doesNotThrow(() => markPageReady());
     });
-});
 
-describe('the `usable` milestone survives losing the race (v21.16)', async () => {
-    // A FRESH MODULE INSTANCE, deliberately. The "page is ready" signal is a one-shot promise scoped
-    // to the module — exactly right in a browser, where one instance serves one page load, and fatal
-    // to a test that shares a process with the idempotency test above, which marks the page and
-    // resolves it first. Importing under a distinct specifier gives this block its own unresolved
-    // signal, so these tests do not depend on where they sit in the file. The `mock.module` stubs
-    // are keyed on the DEPENDENCY specifier, which resolves identically from either instance.
-    const fresh = await import('./perf-reporter.js?fresh=usable');
-    const { recordPageLatency, markPageReady } = fresh;
-
-    // Earlier tests swap `global.performance` for their own stubs (one replaces it with `{}` to
-    // prove the reporter is silent without the API), so reinstall the mark table here rather than
-    // trusting whatever the previous test left behind.
-    beforeEach(() => {
-        _marks.clear();
-        global.performance = /** @type {any} */ ({
-            getEntriesByType: () => [],
-            getEntriesByName: (/** @type {string} */ n) => (_marks.has(n) ? [_marks.get(n)] : []),
-            mark: (/** @type {string} */ n) => { _marks.set(n, { name: n, startTime: 640 }); },
-        });
-    });
-
-    // ── WHAT THIS PINS ──────────────────────────────────────────────────────────────────────────
-    //
-    // `recordPageLatency` reads the mark table at the instant it is called. On the Calendar the mark
-    // is written by a DIFFERENT promise chain — the first grid render — and nothing orders the two,
-    // so whether a load contributed a `usable` sample was decided by which chain finished first.
-    //
-    // Measured on a real month: three pages mark themselves ready and took 1,044 opens between them;
-    // 218 `ready` samples were recorded. Four loads in five were dropped, and the survivors were
-    // whichever ones happened to win a race — so the figure could not be read in either direction.
-    //
-    // The order below is the one that used to lose. `markPageReady` is called AFTER
-    // `recordPageLatency` has already returned, which is the whole point.
-    test('a mark that arrives AFTER the reading still records', async () => {
-        _marks.clear();
-        recordPageLatency('calendar', 'S. Silva');
-        assert.equal(_samples.find(s => s.metric === 'ready'), undefined,
-            'nothing to record yet — the page is not ready');
-
+    test('it stamps after the frame that SHOWS the page, not before it is drawn', async () => {
+        // Four pages marked ready with synchronous work still to run in the same task, so the mark
+        // landed before the screen did. A visible page now waits for a frame and one more turn.
+        const { markPageReady } = await load('ready-frame', { raf: true });
+        clock.now = 300;
         markPageReady();
-        await Promise.resolve();   // let the deferred recorder run
-
-        const ready = _samples.find(s => s.metric === 'ready');
-        assert.ok(ready, 'the load contributes its `usable` sample once the page IS ready');
-        assert.equal(ready.page, 'calendar', 'attributed to the page that was loading');
-        assert.equal(ready.bucket, '500ms-1s', 'bucketed from the mark, not from when it was noticed');
+        assert.equal(_marks.size, 0, 'nothing stamped while the frame is pending');
+        clock.now = 316;
+        _rafQueue.forEach(cb => cb());
+        await settle();
+        assert.equal(_marks.get('myb-page-ready')?.startTime, 316);
     });
 
-    test('and it is recorded ONCE, not once per waiting page', async () => {
-        // The mark is process-wide and resolves a single promise. A second `recordPageLatency` on
-        // the same load must not produce a second sample from the same mark — that would inflate the
-        // very metric this fix exists to make readable.
-        markPageReady();                       // the page is ALREADY ready before the reading
-        recordPageLatency('calendar', 'S. Silva');
-        await Promise.resolve();
-        assert.equal(_samples.filter(s => s.metric === 'ready').length, 1,
-            'the mark already existed, so it is read inline — not deferred a second time');
-    });
-
-    test('an ADMIN load records no `ready`, deferred or otherwise', async () => {
-        // The write-time developer exclusion has to survive the deferral. Recording it late would be
-        // a hole in an exclusion that every other metric on this card honours.
-        _samples.length = 0;
-        recordPageLatency('calendar', 'G. Miller');
+    test('a hidden page draws no frames, so it stamps at once', async () => {
+        const { markPageReady } = await load('ready-hidden-stamp', { raf: true, hidden: true });
+        clock.now = 300;
         markPageReady();
-        await Promise.resolve();
-        assert.deepEqual(_samples, [], 'the developer\'s own load is excluded at every point');
+        assert.equal(_marks.get('myb-page-ready')?.startTime, 300);
     });
 });
 
-// ── WHAT SERVED THE FIRST GRID (v21.99) ─────────────────────────────────────────────────────────
-//
-// This split exists to make ONE decision decidable: `LATENCY.md` Phase 2 narrows the Calendar's
-// authoritative Firestore read, and its whole value rests on how many loads reach a grid THROUGH
-// that read rather than from the local cache. A cache-served load never touches the network on this
-// path, so narrowing the read cannot move it at all.
-//
-// Organised by the two ways the attribution can lie. Reporting a cache-served load as fetch-served
-// makes Phase 2 look worth doing on evidence about loads it cannot help — the expensive mistake,
-// because the work is a rewrite of the read path with a documented eviction trap. Losing the
-// attribution entirely leaves the plan where it already was, arguing.
-describe('the `ready` sample says what served the grid', () => {
-    // ONE MODULE INSTANCE PER CASE, and that is not ceremony. The source is module state written by
-    // the first `markPageReady` and deliberately never rewritten — a later render reaching a
-    // better-known state must not re-attribute the FIRST grid's timing. Sharing an instance would
-    // therefore carry the previous test's source into the next one, and the two cases below that
-    // assert an ABSENCE would pass or fail on where they sit in the file.
-    const load = async (/** @type {string} */ tag) => {
-        _marks.clear();
-        _samples.length = 0;
-        global.performance = /** @type {any} */ ({
-            getEntriesByType: () => [],
-            getEntriesByName: (/** @type {string} */ n) => (_marks.has(n) ? [_marks.get(n)] : []),
-            mark: (/** @type {string} */ n) => { _marks.set(n, { name: n, startTime: 640 }); },
-        });
-        return import(`./perf-reporter.js?fresh=rs-${tag}`);
-    };
-
-    test('a cache-served grid is attributed to the cache, and still counted in `ready`', async () => {
-        const { recordPageLatency, markPageReady } = await load('cached');
-        recordPageLatency('calendar', 'S. Silva');
-        markPageReady('cached');
-        await Promise.resolve();
-        const metrics = _samples.map(s => s.metric);
-        assert.ok(metrics.includes('ready'), '`ready` must keep counting every load — its history is continuous');
-        assert.ok(metrics.includes('readyCached'));
-        assert.ok(!metrics.includes('readyFetched'), 'a cache hit is not a fetch');
-    });
-
-    test('both samples carry the SAME bucket — one reading, two names', async () => {
-        // If they could differ, the split would not be a split: the card would be comparing two
-        // different measurements and calling the difference a cache effect.
-        const { recordPageLatency, markPageReady } = await load('bucket');
-        recordPageLatency('calendar', 'S. Silva');
-        markPageReady('fetched');
-        await Promise.resolve();
-        const ready = _samples.find(s => s.metric === 'ready');
-        const attributed = _samples.find(s => s.metric === 'readyFetched');
-        assert.ok(ready && attributed);
-        assert.equal(attributed.bucket, ready.bucket);
-        assert.equal(attributed.page, ready.page);
-    });
-
-    test('a page that does not know its source reports `ready` alone', async () => {
-        // The three pages whose `.container` unhides on `auth-ready` call `markPageReady()` with no
-        // argument. Inventing a source for them would put loads with no cache path at all into a
-        // cache-versus-network comparison.
-        const { recordPageLatency, markPageReady } = await load('none');
-        recordPageLatency('settings', 'S. Silva');
-        markPageReady();
-        await Promise.resolve();
-        const metrics = _samples.map(s => s.metric);
-        assert.ok(metrics.includes('ready'));
-        assert.ok(!metrics.some(m => m.startsWith('readyC') || m.startsWith('readyF')),
-            'an unknown source must not be guessed at');
-    });
-
-    test('a nonsense source is ignored rather than stored', async () => {
-        const { recordPageLatency, markPageReady } = await load('junk');
-        recordPageLatency('calendar', 'S. Silva');
-        markPageReady(/** @type {any} */ ('probably-cached'));
-        await Promise.resolve();
-        assert.ok(_samples.some(s => s.metric === 'ready'));
-        assert.ok(!_samples.some(s => /^ready[CF]/.test(s.metric)));
-    });
-
-    test('the FIRST grid decides the source, not a later re-render', async () => {
-        // The Calendar renders again the moment phase 2 lands, and that render is authoritative. If
-        // the later call could overwrite the source, every cache-served load would end up filed as
-        // fetch-served — which is the answer this whole split exists to avoid getting backwards, and
-        // it would make Phase 2 look worth doing on evidence about loads it cannot help.
-        const { recordPageLatency, markPageReady } = await load('first-wins');
-        recordPageLatency('calendar', 'S. Silva');
-        markPageReady('cached');
-        markPageReady('fetched');
-        await Promise.resolve();
-        assert.ok(_samples.some(s2 => s2.metric === 'readyCached'));
-        assert.ok(!_samples.some(s2 => s2.metric === 'readyFetched'));
-    });
-});
-
-// ── OPENS A RELEASE CAUSED (v22.92) ─────────────────────────────────────────────────────────────
-//
-// v22.90 deferred the update reload so a release stops interrupting a member mid-read. It shipped
-// with the cost it removes UNMEASURED, and this marker is the measurement.
-//
-// Organised by what a wrong answer costs, and the directions are not equal. A FALSE POSITIVE — an
-// ordinary open filed as an update open — inflates the one number the fix is judged on, using
-// somebody's slow morning as evidence for work that was already done. It is also the reachable one,
-// because the marker is written before the reload is certain: links' confirm offers Cancel, and a
-// flag left behind would attribute whatever that tab loaded next. A MISS only under-reports, and
-// under-reporting a cost that has already been removed costs nothing but the argument.
-//
-// The one-shot rule is the same as the login marker's, and it exists for the same reason in reverse:
-// the marker is ALWAYS cleared, and recorded only when the session is not the developer's.
-describe('the `ready` sample says whether a release caused the open', () => {
-    const SW_KEY = 'myb_perf_sw_reload';
-    // Fresh instance per case, for the same reason the block above needs one: `_readySource` is
-    // module state, and these cases drive `markPageReady` too.
-    const load = async (/** @type {string} */ tag) => {
-        _marks.clear();
-        _samples.length = 0;
-        _ss.clear();
-        global.performance = /** @type {any} */ ({
-            getEntriesByType: () => [],
-            getEntriesByName: (/** @type {string} */ n) => (_marks.has(n) ? [_marks.get(n)] : []),
-            mark: (/** @type {string} */ n) => { _marks.set(n, { name: n, startTime: 640 }); },
-        });
-        return import(`./perf-reporter.js?fresh=up-${tag}`);
-    };
-
-    test('a fresh marker records `readyUpdate` BESIDE `ready`, never instead of it', async () => {
-        // Beside, because the share is a division: `ready` has to keep counting every open or the
-        // denominator moves with the numerator and the percentage is meaningless.
-        const { recordPageLatency, markPageReady } = await load('fresh');
-        _ss.set(SW_KEY, String(Date.now() - 300));
-        recordPageLatency('calendar', 'S. Silva');
-        markPageReady('cached');
-        await Promise.resolve();
-        const metrics = _samples.map(s => s.metric);
-        assert.ok(metrics.includes('ready'), '`ready` still counts this open');
-        assert.ok(metrics.includes('readyUpdate'));
-    });
-
-    test('both samples carry the SAME bucket and page — one reading, two names', async () => {
-        // If they could differ, the row would be comparing a different measurement to the one it is
-        // presented as a subset of, and the card's share sentence would be arithmetic over two
-        // populations.
-        const { recordPageLatency, markPageReady } = await load('bucket');
-        _ss.set(SW_KEY, String(Date.now() - 300));
-        recordPageLatency('calendar', 'S. Silva');
-        markPageReady('fetched');
-        await Promise.resolve();
-        const ready = _samples.find(s => s.metric === 'ready');
-        const upd = _samples.find(s => s.metric === 'readyUpdate');
-        assert.ok(ready && upd);
-        assert.equal(upd.bucket, ready.bucket);
-        assert.equal(upd.page, ready.page);
-        assert.equal(upd.conn, ready.conn);
-        assert.equal(upd.mode, ready.mode);
-    });
-
-    test('an ordinary open — no marker — is NOT an update open', async () => {
-        const { recordPageLatency, markPageReady } = await load('none');
-        recordPageLatency('calendar', 'S. Silva');
-        markPageReady('cached');
-        await Promise.resolve();
-        assert.ok(_samples.some(s => s.metric === 'ready'));
-        assert.ok(!_samples.some(s => s.metric === 'readyUpdate'),
-            'nothing said a release caused this, so nothing may claim one did');
-    });
-
-    test('a STALE marker is refused — the declined-confirm case', async () => {
-        // The reachable false positive. sw-register writes the marker before calling beforeReload,
-        // and links' beforeReload can be declined; the marker then survives until that tab navigates
-        // somewhere else, minutes or hours later. Refusing it is the whole reason it is a timestamp
-        // and not a flag.
-        const { recordPageLatency, markPageReady } = await load('stale');
-        _ss.set(SW_KEY, String(Date.now() - 10 * 60 * 1000));
-        recordPageLatency('calendar', 'S. Silva');
-        markPageReady('cached');
-        await Promise.resolve();
-        assert.ok(_samples.some(s => s.metric === 'ready'));
-        assert.ok(!_samples.some(s => s.metric === 'readyUpdate'));
-        assert.equal(_ss.has(SW_KEY), false, 'and it is cleared, not left to go on being refused');
-    });
-
-    test('a marker from the FUTURE is refused rather than treated as instant', async () => {
-        // A device whose clock jumped back between the write and the read. `now - t` is then
-        // negative, which is smaller than the bound — so a naive one-sided comparison accepts it.
-        const { recordPageLatency, markPageReady } = await load('future');
-        _ss.set(SW_KEY, String(Date.now() + 5 * 60 * 1000));
-        recordPageLatency('calendar', 'S. Silva');
-        markPageReady('cached');
-        await Promise.resolve();
-        assert.ok(!_samples.some(s => s.metric === 'readyUpdate'));
-    });
-
-    test('the marker is ONE-SHOT: the open after the update open is ordinary', async () => {
-        // Left in place it would mark every subsequent open in that tab, and the share would climb
-        // towards 100% on a device that simply never closed the app.
-        const { recordPageLatency, markPageReady } = await load('oneshot');
-        _ss.set(SW_KEY, String(Date.now() - 300));
-        recordPageLatency('calendar', 'S. Silva');
-        markPageReady('cached');
-        await Promise.resolve();
-        assert.equal(_ss.has(SW_KEY), false);
-        _samples.length = 0;
-        const next = await load('oneshot-2');
-        next.recordPageLatency('calendar', 'S. Silva');
-        next.markPageReady('cached');
-        await Promise.resolve();
-        assert.ok(!_samples.some(s => s.metric === 'readyUpdate'));
-    });
-
-    test('an ADMIN reload records nothing but STILL consumes the marker', async () => {
-        // Exactly the login marker's rule, and it bites harder here: the developer is the one person
-        // who reloads onto a release constantly. A marker left behind by an excluded load would
-        // attribute the next STAFF open on that device to an update that was never theirs.
-        const { recordPageLatency, markPageReady } = await load('admin');
-        _ss.set(SW_KEY, String(Date.now() - 300));
-        recordPageLatency('calendar', 'G. Miller');
-        markPageReady('cached');
-        await Promise.resolve();
-        assert.deepEqual(_samples, []);
-        assert.equal(_ss.has(SW_KEY), false, 'consumed, so it cannot mis-attribute a later staff load');
-    });
-});
-
-
-// ── `readyProvisional` IS RETIRED (26 Sep 2026) ────────────────────────────────────────────────
-//
-// It counted opens served by the Calendar's provisional paint (v23.69), which was retired once the
-// metric had answered its question. Nothing may write it now: the Speed card divides its total by
-// `ready`'s, so a stray write would report a fast path that no longer exists. Driven through the real
-// production path — the same one that used to write it.
-describe('`readyProvisional` is no longer written', () => {
-    test('a cached Calendar open records `ready` and its source, and no fast-path row', async () => {
-        _marks.clear(); _samples.length = 0; _ss.clear();
-        global.performance = /** @type {any} */ ({
-            getEntriesByType: () => [],
-            getEntriesByName: (/** @type {string} */ n) => (_marks.has(n) ? [_marks.get(n)] : []),
-            mark: (/** @type {string} */ n) => { _marks.set(n, { name: n, startTime: 410 }); },
-        });
-        const mod = await import('./perf-reporter.js?fresh=prov-retired');
-        assert.equal(/** @type {any} */ (mod).noteProvisionalPaint, undefined, 'the setter is gone with the paint');
-        mod.recordPageLatency('calendar', 'S. Silva');
-        mod.markPageReady('cached');
-        await Promise.resolve();
-        const metrics = _samples.map(s => s.metric);
-        assert.ok(metrics.includes('ready') && metrics.includes('readyCached'), 'guard: the open was recorded');
-        assert.ok(!metrics.includes('readyProvisional'));
-    });
-});
-
-// ── HOW MUCH BACKGROUND WORK THE WORKER DID (v22.94) ────────────────────────────────────────────
-//
-// The rule is pinned next door; this is the WIRING, which is where this class of metric goes wrong.
-// `askSwrCount` talks to a service worker over a MessageChannel — four things can go quiet (no
-// worker, no controller, a worker too old to know the message, a reply that never arrives) and
-// every one of them must answer "unknowable", never "zero".
-//
-// That asymmetry is the whole point. This exists to test the claim that a warm Calendar open still
-// issues a full sweep of conditional requests while the member waits on auth. A silent browser
-// recorded as 0 refutes that claim with its own instrument, reads as the reassuring answer, and
-// ends the investigation.
-describe('the boot records how much the service worker was doing', () => {
-    const load = async (/** @type {string} */ tag) => {
-        _marks.clear(); _samples.length = 0; _ss.clear();
-        global.performance = /** @type {any} */ ({
-            getEntriesByType: () => [],
-            getEntriesByName: (/** @type {string} */ n) => (_marks.has(n) ? [_marks.get(n)] : []),
-            mark: (/** @type {string} */ n) => { _marks.set(n, { name: n, startTime: 640 }); },
-        });
-        return import(`./perf-reporter.js?fresh=swr-${tag}`);
-    };
-    /** Install a fake controller that answers `count` down the port, or stays silent for null. */
-    const withWorker = (/** @type {number|null} */ count) => {
-        Object.defineProperty(global, 'navigator', {
-            value: /** @type {any} */ ({ serviceWorker: { controller: count === null ? null : {
-                postMessage: (/** @type {any} */ _m, /** @type {any[]} */ ports) => {
-                    if (ports && ports[0]) ports[0].postMessage({ count });
-                },
-            } } }), configurable: true,
-        });
-    };
-    // A minimal MessageChannel: port2 is what the worker replies on, port1 what we listen on.
-    global.MessageChannel = /** @type {any} */ (class {
-        constructor() {
-            /** @type {any} */ const p1 = { onmessage: null };
-            this.port1 = p1;
-            this.port2 = { postMessage: (/** @type {any} */ d) => p1.onmessage && p1.onmessage({ data: d }) };
-        }
-    });
-
-    test('a heavy boot records the COUNT and the ready SUBSET beside `ready`', async () => {
-        // Both halves of the review's question: how many revalidations this boot carried, and
-        // whether a boot carrying a full sweep reached the roster more slowly.
-        withWorker(53);
-        const { recordPageLatency, markPageReady } = await load('heavy');
-        recordPageLatency('calendar', 'S. Silva');
-        markPageReady('cached');
-        await new Promise(r => setTimeout(r, 0));
-        const byMetric = Object.fromEntries(_samples.map(s => [s.metric, s]));
-        assert.ok(byMetric.ready, '`ready` still counts every open');
-        assert.equal(byMetric.swrCount?.bucket, '31+');
-        assert.ok(byMetric.readyHeavySwr, 'a heavy boot is comparable against `ready`');
-        assert.equal(byMetric.readyHeavySwr.bucket, byMetric.ready.bucket, 'one reading, two names');
-    });
-
-    test('a LIGHT boot records the count but NOT the ready subset', async () => {
-        // The subset is the heavy band only. Recording it for every boot would make it a copy of
-        // `ready` and the comparison meaningless.
-        withWorker(2);
-        const { recordPageLatency, markPageReady } = await load('light');
-        recordPageLatency('calendar', 'S. Silva');
-        markPageReady('cached');
-        await new Promise(r => setTimeout(r, 0));
-        const metrics = _samples.map(s => s.metric);
-        assert.ok(metrics.includes('swrCount'));
-        assert.equal(_samples.find(s => s.metric === 'swrCount').bucket, '1-10');
-        assert.ok(!metrics.includes('readyHeavySwr'));
-    });
-
-    test('NO CONTROLLER records nothing — not a zero', async () => {
-        // The expensive direction. A browser with no controlling worker did not "do no
-        // revalidation"; nobody knows what it did.
-        withWorker(null);
-        const { recordPageLatency, markPageReady } = await load('nosw');
-        recordPageLatency('calendar', 'S. Silva');
-        markPageReady('cached');
-        await new Promise(r => setTimeout(r, 0));
-        assert.ok(_samples.some(s => s.metric === 'ready'), 'the ordinary sample is unaffected');
-        assert.ok(!_samples.some(s => s.metric === 'swrCount'), 'unknowable must not become 0');
-        assert.ok(!_samples.some(s => s.metric === 'readyHeavySwr'));
-    });
-
-    test('a worker that answers NONSENSE records nothing', async () => {
-        // An older worker that does not know the message replies with something else, or nothing
-        // useful. Same rule: unknowable, not zero.
-        Object.defineProperty(global, 'navigator', {
-            value: /** @type {any} */ ({ serviceWorker: { controller: {
-                postMessage: (/** @type {any} */ _m, /** @type {any[]} */ ports) => {
-                    if (ports && ports[0]) ports[0].postMessage({ notACount: true });
-                },
-            } } }), configurable: true,
-        });
-        const { recordPageLatency, markPageReady } = await load('junk');
-        recordPageLatency('calendar', 'S. Silva');
-        markPageReady('cached');
-        await new Promise(r => setTimeout(r, 0));
-        assert.ok(!_samples.some(s => s.metric === 'swrCount'));
-    });
-
-    test('a genuine ZERO is a finding, and IS recorded', async () => {
-        // The other side of the same rule: a worker that really did nothing is exactly the
-        // evidence that would refute the hypothesis, so it must not be thrown away with the
-        // unknowables.
-        withWorker(0);
-        const { recordPageLatency, markPageReady } = await load('zero');
-        recordPageLatency('calendar', 'S. Silva');
-        markPageReady('cached');
-        await new Promise(r => setTimeout(r, 0));
-        assert.equal(_samples.find(s => s.metric === 'swrCount')?.bucket, '0');
-    });
-
-    test('an ADMIN load records nothing at all', async () => {
-        // The developer reloads onto releases constantly, so their boots are exactly the ones that
-        // would be heavy — and they must not colour the staff figures.
-        withWorker(53);
-        const { recordPageLatency, markPageReady } = await load('admin');
-        recordPageLatency('calendar', 'G. Miller');
-        markPageReady('cached');
-        await new Promise(r => setTimeout(r, 0));
-        assert.deepEqual(_samples, []);
-    });
-});
-
-
-// ── THE SAVED-COPY RUNG (v22.95) ────────────────────────────────────────────────────────────────
-//
-// It reports only when the device's own cache actually produced something. That is the honesty
-// rule, and it is the one an edit would break: a first visit, or a phone whose storage has been
-// evicted, has no moment at which its saved copy became available. Giving it one would put boots
-// with no cache into a distribution about how quickly storage answers, and the figure exists
-// precisely to price a change for the people who DO have a cache.
-describe('the `rosterCached` milestone', () => {
-    test('a marked cache hit is recorded on the ladder', async () => {
-        _samples.length = 0; _marks.clear(); _ss.clear();
-        const { recordPageLatency, markMilestone } = await import('./perf-reporter.js?fresh=rc-hit');
-        recordPageLatency('calendar', 'S. Silva');
-        markMilestone('rosterCached');
-        await new Promise(r => setTimeout(r, 0));
-        assert.ok(_samples.some(s => s.metric === 'rosterCached'), 'a real cache hit reports');
-    });
-
-    test('an UNMARKED boot reports nothing — a cache miss has no such moment', async () => {
-        _samples.length = 0; _marks.clear(); _ss.clear();
-        const { recordPageLatency } = await import('./perf-reporter.js?fresh=rc-miss');
-        recordPageLatency('calendar', 'S. Silva');
-        await new Promise(r => setTimeout(r, 0));
-        assert.ok(!_samples.some(s => s.metric === 'rosterCached'),
-            'a boot with no saved copy must not be given a time');
-    });
-});
-
-// ── THE MOMENT A MEMBER FIRST SEES THEIR SHIFTS (v24.85) ────────────────────────────────────────
-//
-// The Calendar's paint of a member's own stored roster, before the sign-in check. Same honesty rule
-// as the rung above, for the same reason: an open with no stored copy has no such moment.
-describe('the `rosterSnapshot` milestone', () => {
-    test('a marked paint is recorded — including one marked before recordPageLatency ran', async () => {
-        _samples.length = 0; _marks.clear(); _ss.clear();
-        const { recordPageLatency, markMilestone } = await import('./perf-reporter.js?fresh=rs-hit');
-        // The real order: the copy is painted at boot, the reading runs only after the grant.
+describe('a load nobody was watching records no timings (App Speed review, Oct 2026)', () => {
+    test('a page that LOADED hidden — the Calendar\'s release reload — records none of the ordinary metrics', async () => {
+        const { recordPageLatency, markPageReady, markMilestone } = await load('hidden-load',
+            { hidden: true, nav: { domContentLoadedEventEnd: 900 }, paint: 400 });
+        clock.now = 1200;
         markMilestone('rosterSnapshot');
         recordPageLatency('calendar', 'S. Silva');
-        await new Promise(r => setTimeout(r, 0));
-        assert.ok(_samples.some(s => s.metric === 'rosterSnapshot' && s.page === 'calendar'), 'a painted copy reports');
+        clock.now = 2500;
+        markPageReady();
+        await settle();
+        assert.deepEqual(metrics(), [], 'a hidden page is slowed or frozen by the phone — its times measure the absence');
     });
 
-    test('an UNMARKED boot reports nothing — no copy, no moment', async () => {
-        _samples.length = 0; _marks.clear(); _ss.clear();
-        const { recordPageLatency } = await import('./perf-reporter.js?fresh=rs-miss');
+    test('a page hidden part-way records what came before, and nothing after', async () => {
+        const { recordPageLatency, markPageReady } = await load('hidden-mid',
+            { nav: { domContentLoadedEventEnd: 700 }, paint: 300 });
         recordPageLatency('calendar', 'S. Silva');
-        await new Promise(r => setTimeout(r, 0));
-        assert.ok(!_samples.some(s => s.metric === 'rosterSnapshot'), 'an open with no copy must not be given a time');
+        setVisibility('hidden', 1000);
+        clock.now = 9000;
+        markPageReady();                        // stamped while hidden
+        setVisibility('visible', 9500);
+        await settle();
+        assert.ok(metrics().includes('fcp') && metrics().includes('domReady'), 'both landed while somebody watched');
+        assert.ok(!metrics().includes('ready'), 'usable came after the page was hidden');
+    });
+
+    test('a hide BEFORE the module ran is read back from the browser\'s visibility timeline', async () => {
+        const { recordPageLatency, markPageReady } = await load('hidden-early', {
+            paint: 30, nav: { domContentLoadedEventEnd: 600 },
+            visTimeline: [{ name: 'visible', startTime: 0 }, { name: 'hidden', startTime: 50 }],
+        });
+        recordPageLatency('calendar', 'S. Silva');
+        clock.now = 800;
+        markPageReady();
+        await settle();
+        assert.deepEqual(metrics(), ['fcp'], 'only the paint at 30ms came before the hide at 50ms');
+    });
+
+    test('a Chrome PRERENDER is left out by the same rule', async () => {
+        const { recordPageLatency, markPageReady } = await load('prerender',
+            { prerendering: true, nav: { domContentLoadedEventEnd: 600 }, paint: 200 });
+        recordPageLatency('calendar', 'S. Silva');
+        clock.now = 900;
+        markPageReady();
+        await settle();
+        assert.deepEqual(metrics(), []);
+    });
+});
+
+describe('time spent typing is not load time (App Speed review, Oct 2026)', () => {
+    test('a page that asked somebody to type before it was usable records no `ready`', async () => {
+        // The staff PIN unlocks the Calendar without a reload, and six pages sign in on the page:
+        // `ready` used to include reading the card and typing.
+        const { recordPageLatency, markPageReady, markAwaitingInput } = await load('typed',
+            { nav: { domContentLoadedEventEnd: 700 }, paint: 300 });
+        recordPageLatency('calendar', null);
+        clock.now = 900;
+        markAwaitingInput();
+        clock.now = 14000;
+        markPageReady();
+        await settle();
+        assert.ok(!metrics().includes('ready'));
+        assert.ok(metrics().includes('fcp') && metrics().includes('domReady'), 'neither can include typing, so both are kept');
+    });
+
+    test('a sign-in form that appears AFTER the page was usable does not drop it', async () => {
+        const { recordPageLatency, markPageReady, markAwaitingInput } = await load('typed-after');
+        recordPageLatency('settings', 'S. Silva');
+        clock.now = 700;
+        markPageReady();
+        clock.now = 900;
+        markAwaitingInput();
+        await settle();
+        assert.equal(sample('ready')?.bucket, '500ms-1s');
+    });
+
+    test('the FIRST request to type is the one that counts', async () => {
+        const { recordPageLatency, markPageReady, markAwaitingInput } = await load('typed-first');
+        recordPageLatency('calendar', null);
+        clock.now = 400;
+        markAwaitingInput();
+        clock.now = 5000;
+        markAwaitingInput();                    // a second card later must not move the gate
+        clock.now = 2000;
+        markPageReady();
+        await settle();
+        assert.ok(!metrics().includes('ready'), 'usable at 2s came after the first card at 400ms');
+    });
+
+    test('the stored-copy paint is held to the same rule', async () => {
+        const { recordPageLatency, markMilestone, markAwaitingInput } = await load('typed-snapshot');
+        recordPageLatency('calendar', null);
+        clock.now = 300;
+        markAwaitingInput();
+        clock.now = 600;
+        markMilestone('rosterSnapshot');
+        await settle();
+        assert.ok(!metrics().includes('rosterSnapshot'));
+    });
+});
+
+describe('sign-in time ends when the page is USABLE, not when the reading runs', () => {
+    test('timed from pressing "Sign in" to the `ready` mark', async () => {
+        // Pressed 300ms into the load, usable at 2.6s: 2.3s. Ending at the call (500ms in) would
+        // have read 200ms — "quick" for a sign-in that kept somebody waiting over two seconds.
+        const { recordPageLatency, markPageReady } = await load('login-ready');
+        _ss.set(LOGIN_KEY, String(T + 300));
+        clock.now = 500;
+        recordPageLatency('admin', 'S. Silva');
+        await settle();
+        assert.equal(sample('loginTotal'), undefined, 'nothing until the page is usable');
+        assert.equal(_ss.has(LOGIN_KEY), false, 'the marker is consumed at once regardless');
+        clock.now = 2600;
+        markPageReady();
+        await settle();
+        const login = sample('loginTotal');
+        assert.equal(login?.bucket, '1-3s');
+        assert.equal(login?.page, 'login', 'one number, not split by destination');
+    });
+
+    test('a sign-in whose page was hidden before it was usable is not timed', async () => {
+        const { recordPageLatency, markPageReady } = await load('login-hidden');
+        _ss.set(LOGIN_KEY, String(T - 200));
+        recordPageLatency('admin', 'S. Silva');
+        setVisibility('hidden', 1000);
+        clock.now = 30000;
+        markPageReady();
+        await settle();
+        assert.equal(sample('loginTotal'), undefined);
+    });
+
+    test('an abandoned marker over two minutes old is ignored', async () => {
+        const { recordPageLatency, markPageReady } = await load('login-stale');
+        _ss.set(LOGIN_KEY, String(T - 3 * 60 * 1000));
+        recordPageLatency('admin', 'S. Silva');
+        clock.now = 800;
+        markPageReady();
+        await settle();
+        assert.equal(sample('loginTotal'), undefined);
+    });
+
+    test('no marker, no sign-in sample', async () => {
+        const { recordPageLatency, markPageReady } = await load('login-none');
+        recordPageLatency('calendar', 'S. Silva');
+        clock.now = 800;
+        markPageReady();
+        await settle();
+        assert.equal(sample('loginTotal'), undefined);
+    });
+});
+
+describe('after a release — the wait somebody had (App Speed review, Oct 2026)', () => {
+    test('a reload watched from its start records `readyUpdate` BESIDE `ready`, from the same reading', async () => {
+        const { recordPageLatency, markPageReady } = await load('rel-visible', { standalone: true, conn: '3g' });
+        _ss.set(SW_KEY, String(T - 150));
+        recordPageLatency('admin', 'S. Silva');
+        clock.now = 1800;
+        markPageReady();
+        await settle();
+        const ready = sample('ready'), upd = sample('readyUpdate');
+        assert.ok(ready && upd);
+        for (const k of ['bucket', 'page', 'mode', 'conn']) assert.equal(upd[k], ready[k], k);
+        assert.equal(upd.mode, 'standalone');
+        assert.equal(upd.conn, '3g');
+    });
+
+    test('a reload that ran while HIDDEN is timed from the member coming back — minutes later', async () => {
+        // The marker is compared with when the load STARTED. The old "within a minute of the reading"
+        // check dropped the label from exactly these loads, which stay frozen until the member returns.
+        const { recordPageLatency, markPageReady } = await load('rel-hidden', { hidden: true });
+        _ss.set(SW_KEY, String(T - 200));
+        recordPageLatency('calendar', 'S. Silva');
+        setVisibility('visible', 300000);       // five minutes away
+        clock.now = 300400;
+        markPageReady();
+        await settle();
+        assert.equal(sample('readyUpdate')?.bucket, 'lt500ms', '400ms after they came back');
+        assert.equal(sample('ready'), undefined, 'not an ordinary open: nobody watched it load');
+    });
+
+    test('ready before they came back is a token instant — the fastest band', async () => {
+        const { recordPageLatency, markPageReady } = await load('rel-hidden-ready', { hidden: true });
+        _ss.set(SW_KEY, String(T - 100));
+        recordPageLatency('calendar', 'S. Silva');
+        clock.now = 2000;
+        markPageReady();                        // stamped while hidden
+        setVisibility('visible', 120000);
+        await settle();
+        assert.equal(sample('readyUpdate')?.bucket, 'lt500ms');
+    });
+
+    test('leaving again before it was usable leaves no wait to report', async () => {
+        const { recordPageLatency, markPageReady } = await load('rel-left', { hidden: true });
+        _ss.set(SW_KEY, String(T - 100));
+        recordPageLatency('calendar', 'S. Silva');
+        setVisibility('visible', 1000);
+        setVisibility('hidden', 1500);
+        clock.now = 3000;
+        markPageReady();
+        await settle();
+        assert.equal(sample('readyUpdate'), undefined);
+    });
+
+    test('typing before it was usable leaves no wait to report either', async () => {
+        const { recordPageLatency, markPageReady, markAwaitingInput } = await load('rel-typed', { hidden: true });
+        _ss.set(SW_KEY, String(T - 100));
+        recordPageLatency('calendar', null);
+        setVisibility('visible', 1000);
+        clock.now = 1100;
+        markAwaitingInput();
+        clock.now = 9000;
+        markPageReady();
+        await settle();
+        assert.equal(sample('readyUpdate'), undefined);
+    });
+
+    test('a marker written well before this load started is refused — the declined-confirm case', async () => {
+        const { recordPageLatency, markPageReady } = await load('rel-stale');
+        _ss.set(SW_KEY, String(T - 11 * 1000));
+        recordPageLatency('calendar', 'S. Silva');
+        clock.now = 900;
+        markPageReady();
+        await settle();
+        assert.ok(metrics().includes('ready'));
+        assert.ok(!metrics().includes('readyUpdate'));
+        assert.equal(_ss.has(SW_KEY), false, 'cleared, not left to go on being refused');
+    });
+
+    test('a marker from AFTER the load started is refused, beyond a second of clock slack', async () => {
+        let mod = await load('rel-future');
+        _ss.set(SW_KEY, String(T + 5000));
+        mod.recordPageLatency('calendar', 'S. Silva');
+        clock.now = 900;
+        mod.markPageReady();
+        await settle();
+        assert.ok(!metrics().includes('readyUpdate'));
+
+        mod = await load('rel-skew');
+        _ss.set(SW_KEY, String(T + 500));
+        mod.recordPageLatency('calendar', 'S. Silva');
+        clock.now = 900;
+        mod.markPageReady();
+        await settle();
+        assert.ok(metrics().includes('readyUpdate'), 'half a second of skew between the two clocks is allowed');
+    });
+
+    test('no marker, no `readyUpdate`; and the marker is one-shot', async () => {
+        const { recordPageLatency, markPageReady } = await load('rel-none');
+        recordPageLatency('calendar', 'S. Silva');
+        clock.now = 900;
+        markPageReady();
+        await settle();
+        assert.ok(!metrics().includes('readyUpdate'));
+
+        const mod = await load('rel-oneshot');
+        _ss.set(SW_KEY, String(T - 100));
+        mod.recordPageLatency('calendar', 'S. Silva');
+        assert.equal(_ss.has(SW_KEY), false, 'consumed by the load it labels');
+    });
+});
+
+describe('the stored-copy paint (`rosterSnapshot`, v24.85)', () => {
+    test('a paint marked before the reading ran is recorded', async () => {
+        const { recordPageLatency, markMilestone } = await load('snap-hit');
+        clock.now = 350;
+        markMilestone('rosterSnapshot');
+        recordPageLatency('calendar', 'S. Silva');
+        await settle();
+        assert.equal(sample('rosterSnapshot')?.bucket, 'lt500ms');
+    });
+
+    test('an open with no stored copy has no such moment', async () => {
+        const { recordPageLatency } = await load('snap-miss');
+        recordPageLatency('calendar', 'S. Silva');
+        await settle();
+        assert.ok(!metrics().includes('rosterSnapshot'));
+    });
+
+    test('the retired rungs cannot be marked any more', async () => {
+        const { recordPageLatency, markMilestone } = await load('snap-retired');
+        recordPageLatency('calendar', 'S. Silva');
+        for (const id of ['authBoot', 'access', 'rosterCached', 'rosterLive']) markMilestone(/** @type {any} */ (id));
+        await settle();
+        assert.deepEqual(metrics(), []);
+    });
+});
+
+describe('code loaded and first paint', () => {
+    test('`domReady` read too early waits for the event rather than being dropped', async () => {
+        // The fastest opens of all lost the metric: called from inside the boot, the field still read 0.
+        const nav = { domContentLoadedEventEnd: 0 };
+        const { recordPageLatency } = await load('dcl-wait', { nav, readyState: 'loading' });
+        recordPageLatency('calendar', 'S. Silva');
+        await settle();
+        assert.ok(!metrics().includes('domReady'));
+        nav.domContentLoadedEventEnd = 420;
+        (_docListeners.DOMContentLoaded || []).forEach(f => f());
+        await settle();
+        assert.equal(sample('domReady')?.bucket, 'lt500ms');
+    });
+
+    test('a first paint after the page was hidden is not recorded', async () => {
+        const { recordPageLatency } = await load('fcp-hidden', {
+            paint: 900, visTimeline: [{ name: 'hidden', startTime: 400 }],
+        });
+        recordPageLatency('calendar', 'S. Silva');
+        await settle();
+        assert.ok(!metrics().includes('fcp'));
+    });
+});
+
+describe('the retired metrics are never written (App Speed review, Oct 2026)', () => {
+    test('a full Calendar open writes only the six the card reads', async () => {
+        // Navigation Timing carrying everything the boot phases and ttfb were read from, a source
+        // passed to markPageReady the old way, and a release marker: none of the retired names may come back.
+        const { recordPageLatency, markPageReady, markMilestone } = await load('retired', {
+            nav: { responseStart: 220, domContentLoadedEventEnd: 700, workerStart: 40 }, paint: 300,
+        });
+        _ss.set(LOGIN_KEY, String(T + 100));
+        _ss.set(SW_KEY, String(T - 50));
+        _marks.set('myb-sdk-ready', { name: 'myb-sdk-ready', startTime: 500 });
+        clock.now = 600;
+        markMilestone('rosterSnapshot');
+        recordPageLatency('calendar', 'S. Silva');
+        clock.now = 1500;
+        /** @type {any} */ (markPageReady)('cached');
+        await settle();
+        assert.deepEqual([...new Set(metrics())].sort(),
+            ['domReady', 'fcp', 'loginTotal', 'ready', 'readyUpdate', 'rosterSnapshot']);
     });
 });

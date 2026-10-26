@@ -49,7 +49,7 @@ import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
 import { recordUsage } from './usage-reporter.js';
-import { recordPageLatency, markPageReady } from './perf-reporter.js';
+import { recordPageLatency, markPageReady, clearLoginStart } from './perf-reporter.js';
 import * as OTD from './overtime-data.js';
 import {
     weekLabel, weekSpan, deadlineLabel, shouldResyncClock,
@@ -172,6 +172,9 @@ export function init() {
                 wireNavPanel();
                 // The gate above ran signed OUT — re-decide for whoever actually signed in.
                 if (requirePage({ status: 'named', member: currentUser }, 'overtime').decision === 'forbidden') {
+                    // No page follows, so nothing will read the sign-in timer: drop it, or the next
+                    // page opened within two minutes would count this visit as its sign-in time.
+                    clearLoginStart();
                     renderUnavailable();
                     resolveSession(false);
                     return;

@@ -99,6 +99,9 @@ let _resolveAccess = null;
 let _onGranted = null;
 /** Runs on EVERY grant, where `_onGranted` runs once. @type {(() => void)|null} */
 let _onEveryGrant = null;
+/** Told when a lock card that needs somebody to type is up (calendar-app.js → the speed recorder,
+ *  which this module does not import). @type {(() => void)|null} */
+let _onAwaitingInput = null;
 /** @type {(() => void)|null} */
 let _resolveAuth = null;
 
@@ -424,7 +427,7 @@ function setWorkspaceHidden(hidden) {
 //
 // Wired at module scope, so a card can never be shown before its collaborators exist. All four are
 // function declarations or an exported function in this file, so hoisting makes this safe here.
-initLockCards({ unlockWithPin, getAccessType, setWorkspaceHidden, unlockUrl: UNLOCK_URL });
+initLockCards({ unlockWithPin, getAccessType, setWorkspaceHidden, unlockUrl: UNLOCK_URL, onAwaitingInput: () => _onAwaitingInput?.() });
 
 /** How long the decision may take before the page has to say something. Long enough that a normal
  *  boot — where access resolves in the same tick the workspace would have rendered — never flashes
@@ -512,7 +515,7 @@ export function handleAccessLost() {
 /**
  * Decide access and either start the Calendar or show the unlock panel.
  *
- * @param {{ onGranted: () => void, onEveryGrant?: (() => void)|null, paintBeforeDecision?: (() => boolean)|null }} deps
+ * @param {{ onGranted: () => void, onEveryGrant?: (() => void)|null, paintBeforeDecision?: (() => boolean)|null, onAwaitingInput?: (() => void)|null }} deps
  *   onGranted runs ONCE, the first time access is granted. It is how `calendar-app.js` defers every
  *   piece of Calendar initialisation — the member dropdown, the render, the fetch, the swipe handler
  *   — so that none of it exists while locked. Running it twice would duplicate all of that.
@@ -523,11 +526,15 @@ export function handleAccessLost() {
  *   decision runs, and says whether it did. It is NOT a grant: no override read opens, `onGranted`
  *   is not spent, and any card the decision puts up replaces it (the slot never stacks). Not called
  *   on a `#staff-pin` open, which has asked for the PIN.
+ *   onAwaitingInput (Oct 2026) is told when a card that needs somebody to TYPE goes up — the PIN
+ *   card or the member's come-back card — so the page's speed sample stops there. Telemetry stays
+ *   in calendar-app.js; this module only says when.
  * @returns {Promise<'named'|'viewer'|'none'>}
  */
-export async function initCalendarAccess({ onGranted, onEveryGrant = null, paintBeforeDecision = null }) {
+export async function initCalendarAccess({ onGranted, onEveryGrant = null, paintBeforeDecision = null, onAwaitingInput = null }) {
     _onGranted = onGranted;
     _onEveryGrant = onEveryGrant;
+    _onAwaitingInput = onAwaitingInput;
     // Hide the workspace SYNCHRONOUSLY, before any await. The decision below is asynchronous, and
     // between here and there the browser paints — so leaving the workspace visible would flash an
     // empty Calendar shell at a member who is about to be shown their roster, and worse, would show

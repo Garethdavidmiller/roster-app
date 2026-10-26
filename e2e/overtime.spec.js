@@ -75,11 +75,14 @@ test.describe('member surface', () => {
         await stubOvertime(page, { windows: [openWindow()] });
         await page.goto('/overtime.html');
         await expect(page.locator('.ot-day')).toHaveCount(7);
+        // Polled: the mark is stamped after the frame that shows the form (perf-reporter.js), so it
+        // can land a moment after the form is in the DOM.
+        await expect.poll(() => page.evaluate(() => performance.getEntriesByName('myb-page-ready').length),
+            { message: 'no mark means the App Speed card prints "—" for this page' }).toBeGreaterThan(0);
         const t = await page.evaluate(() => ({
             ready: performance.getEntriesByName('myb-page-ready')[0]?.startTime ?? null,
             dcl:   performance.getEntriesByType('navigation')[0]?.domContentLoadedEventEnd ?? null,
         }));
-        expect(t.ready, 'no mark means the App Speed card prints "—" for this page').not.toBeNull();
         expect(t.ready).toBeGreaterThan(t.dcl);
     });
 
@@ -1580,11 +1583,12 @@ test.describe('freshness and exit guards (v21.48, external review)', () => {
         });
         await page.goto('/overtime.html');
         await expect(page.locator('#otWeekContent')).toContainText('T. Bibi');
+        await expect.poll(() => page.evaluate(() => performance.getEntriesByName('myb-page-ready').length),
+            { message: 'a reviewer load must still produce the mark' }).toBeGreaterThan(0);
         const t = await page.evaluate(() => ({
             ready: performance.getEntriesByName('myb-page-ready')[0]?.startTime ?? null,
             dcl:   performance.getEntriesByType('navigation')[0]?.domContentLoadedEventEnd ?? null,
         }));
-        expect(t.ready, 'a reviewer load must still produce the mark').not.toBeNull();
         expect(t.ready, 'the mark must wait for the workspace the reads were still building')
             .toBeGreaterThan(t.dcl + 400);
     });

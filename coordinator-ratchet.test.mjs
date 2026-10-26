@@ -319,7 +319,12 @@ const CAPS = {
     // shipping a keyboard trap. **The extraction the note above asks for is now OVERDUE and has a
     // name:** the Account-status card is ~330 lines of this file, owns its own reads, its own
     // filter, its own row rendering and the reset break-glass, and is the obvious next seam.
-    'operations-app.js':       1020,
+    // 1020 → 920 in Oct 2026, a LOWER: the App Speed review needed four lines of help text in a file
+    // at its cap to the line, and the answer was EXTRACT — the help panels are content, and moved to
+    // operations-tips.js as Links, Overtime and Trains had done (−152). The ceiling comes down with
+    // them, to the usual headroom over 875, rather than banking the saving. The Account-status seam
+    // above is still the next one.
+    'operations-app.js':        920,
     // Crossed the 900 uncapped-file threshold at v22.03 (914 measured): the Needs-attention strip
     // added ~14 lines of pure WIRING — the strip module owns every rule, the coordinator only
     // creates it and feeds it from the loads the cards already run. Capped as the ratchet asks
@@ -408,7 +413,10 @@ const CAPS = {
     // which can import nothing, so there is nowhere for them to go; the prose that could leave was
     // moved to AI_MAP and notifications.md before this number moved. Headroom stays below the
     // convention, as the paragraph above asks.
-    'service-worker.js':       1100,
+    // 1100 → 1095 in Oct 2026, a LOWER, as asked: the App Speed review retired the revalidation
+    // count and its message reply (the count was the worker process's, not one page's), and 13 lines
+    // left. The cap follows them down rather than keeping their room for the next addition.
+    'service-worker.js':       1095,
     // Crossed 900 at v21.62 (measured 910), when the silent re-establishment moved from behind the
     // member card to behind the boot skeleton — the growth is the boot ORDERING and the argument
     // for it, which is this module's one subject: what to show while access is being decided. The

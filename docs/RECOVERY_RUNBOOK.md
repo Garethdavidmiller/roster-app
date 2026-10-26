@@ -558,7 +558,7 @@ as the record of how the release ran rather than as work still to do.
    > breaks, which is the wrong direction for a go/no-go number to be wrong in.
    >
    > **Pre-flight, in this order:**
-   > 1. **Operations → App Speed → "Why some are slower" → by version.** The share of real loads
+   > 1. **Operations → App Speed → "A closer look" → By app version** ("Why some are slower" until Oct 2026). The share of real loads
    >    still on a **pre-v20.51** client. This is the number that decides go/no-go; a trickle is fine.
    >    (Versions roll up into ranges, so BOTH `v20.40–v20.49` and `v20.50–v20.59` straddle the
    >    cutover. Neither settles it alone — treat the whole of the first as at-risk, and read the

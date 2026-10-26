@@ -347,11 +347,14 @@ jobs:
     needs: guard
     if: ${{ !cancelled() && needs.guard.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
-    # 15 → 20 (4 Sep 2026), matching the webkit sibling. The suite itself takes ~10 minutes; the
-    # old budget left no room for a slow install, and a 7-minute `npm ci` cancelled it mid-run —
-    # which reads as `cancelled`, not `failure`, so it looks like somebody stopped it rather than
-    # like the job outgrowing its box. Still bounded; the point is a bound with margin.
-    timeout-minutes: 20
+    # 15 → 20 (4 Sep 2026), when a 7-minute `npm ci` cancelled the suite mid-run. 20 → 30 (25 Oct
+    # 2026): the suite took ~10 minutes when 20 was set and takes 16–19½ now — the six green runs
+    # before v24.98 spent 16m15s–18m48s in the tests, and v24.98's first PR run passed all 1,601 in
+    # 19m23s and was cancelled a second later by the 20-minute limit. A job that outgrows its box
+    # reads as `cancelled`, not `failure`, as though somebody had stopped it. 30 holds the slowest
+    # suite seen with the libraries' own 8-minute ceiling on top; the webkit sibling, sharded, has
+    # 35. Still bounded; the point is a bound with margin. Past ~25 minutes, shard it as webkit is.
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:

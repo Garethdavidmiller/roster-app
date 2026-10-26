@@ -41,7 +41,7 @@ import { lsGet, lsSet } from './ls.js';
 import { PW_FORCE_PENDING_PREFIX } from './storage-keys.js';
 import { lockBodyScroll, unlockBodyScroll, trapFocus, createLightbox } from './overlay.js';
 import { enhanceSelect } from './select-sheet.js';
-import { markLoginStart, clearLoginStart } from './perf-reporter.js';
+import { markLoginStart, clearLoginStart, markAwaitingInput } from './perf-reporter.js';
 
 import { setStatus } from './status-text.js';
 // Full grade order — Management last. The login lists every grade; per-page ACCESS control
@@ -254,6 +254,10 @@ export function initLoginOverlay({ pageLabel, onSuccess, host = null, alternativ
         const h = overlay.querySelector('#loginAlternativeHint'); if (h && alternative.hint) h.textContent = alternative.hint;
     }
     (inline ? /** @type {HTMLElement} */ (host) : document.body).appendChild(overlay);
+    // From here the page is waiting for a person, so its speed sample must stop (perf-reporter.js →
+    // "A sample is time somebody spent waiting"): reading this card and typing a password is not the
+    // app being slow, and the sign-in has a figure of its own.
+    markAwaitingInput();
     // The notice is written AFTER the card is in the document, not before: it is a `role="status"`
     // live region, and a live region only announces CHANGES made while it is in the accessibility
     // tree — text it was created with is read by nobody. The staff-PIN card's message channel

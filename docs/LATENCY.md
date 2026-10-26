@@ -540,6 +540,59 @@ week or more against the ~19% band:
   and the identity-loss watcher (v24.37–v24.38). That would be a NEW question with its own file, not
   a reopening of this one.
 
+## THE CARD WAS TRIMMED, AND THE TIMINGS CHANGED — 25 October 2026 (v24.98)
+
+A full review of the App Speed card (owner request) found two kinds of time in its figures that were
+nobody waiting for the app, and a section two thirds of the card long answering a question this file
+closed on 19 September. **Nothing here reopens the file**; what changed is the instrument, so every
+reading above has to be compared with what follows knowing that.
+
+**From v24.98 a sample is time somebody spent waiting** (`perf-reporter.js`):
+
+- **A load nobody watched records nothing.** The Calendar's release reload runs while the page is
+  hidden — that is its design (v22.90) — and it was about one Calendar open in seven in September,
+  timed as if a member had opened the page, with the phone slowing or freezing it meanwhile.
+- **Typing is not load time.** The staff PIN unlocks the Calendar without a reload, and every page
+  signs in on the page itself, so `Usable` included reading the card and typing. It is now dropped once the
+  page asked somebody to type; a sign-in has its own figure.
+- **The wait after a release is timed as a wait** — from the member coming back to the page until it
+  was usable — and **sign-in time ends at Usable**, where it ended whenever the reading ran (on the
+  Calendar, before the grid). The `Usable` mark itself is stamped after the frame that shows the page.
+
+**So figures from v24.98 read faster for reasons that are measurement, not the app.** October mixes
+the two ways of timing; the card says so on any month with 5% or more of its opens from older
+versions, and no version row mixes them. **The "14% of opens follow a release" readings above were an
+undercount** for two reasons the review found: the label was checked against the moment the reading
+ran, so a hidden reload frozen for over a minute lost it, and the share divided by every version's
+opens.
+
+**What the card no longer shows, writes and all:** the boot stages, the start ladder (Recognised,
+Unlocked, Roster found, Shifts shown, Confirmed), the saved-copy/server split, the fast path and the
+worker's file count. The connection comparisons went from the card only: the connection class is part
+of every sample's key, so it is still recorded. Their last readings are the September month-end
+table above. Months up to October 2026 still hold their samples in Firestore; nothing reads them, and
+a reopened question would need its instrument rebuilt, writes and card block in one release (the
+decision, with its trigger, is in DECISIONS.md).
+
+### The October check now reads on Usable
+
+The section above asked the October read to compare long-lived versions against the ~19% band on the
+**By app version** rows, calling them "whole load". **They were code loading** (`domReady`), not the
+whole load — the card's label said so for the connection split only — and the fresh download after
+every update slows code loading directly, which is the release-pace explanation in its plainest form.
+
+The card's version split now runs on **Usable**, so the check changes shape. In the 1 November read
+("Last month" = October), on **A closer look → By app version — Usable**:
+
+- Versions before v24.98 were timed the older way, which counted the hidden release reload (67% over
+  1s in September). A short-lived version carries more of those, so it reads slower for that reason
+  alone. **Compare a version that stayed live a week or more with its short-lived neighbours:** if it
+  reads clearly better, it was the release pace — record that here and close the item. If it reads
+  the same, something in v24.29+ costs time before `Usable`; the pointers above still apply, and it is
+  a new question with its own file.
+- **From v24.98 the release pace cannot inflate a row at all**: the hidden reload is not an open
+  anybody watched. November's rows are the clean comparison.
+
 ## Phase 2 — CLOSED on its own decision rule (5 Sep 2026)
 
 **The rule below fires, and it fires clearly.** Of the starts that could be attributed, **454 came
