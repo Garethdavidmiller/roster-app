@@ -79,7 +79,7 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
 | | `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` | the rules reference (`../links-26-rules.pdf`), the one-page summary (`../links-26-summary.pdf`) and the two-page shortlist sheet (`../links-26-shortlist.pdf`) |
 | 4 · decks and pack | `second-nature-decks.py` → `second-edition-decks.py`, `even-keel-decks.py`, `short-run-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the zip |
-| league | `league.mjs` | the weighted league on every factor the sheets compare (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`) — the owner's weights, a judgement not a measurement |
+| league | `league.mjs` | the weighted league on every factor the sheets compare (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league) — the owner's weights, a judgement not a measurement |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
 | options | `short-earlies.mjs` | every way to keep a 13:35 or 13:45 every weekday with today's times and a 16:00 closer: 2,250 `final-table.mjs` searches (`SCAN=1`; their results are committed, `results/short-earlies-scan.txt`) and every whole week paying the contract (see "Today's link on 26 lines") |
@@ -887,6 +887,28 @@ the original ten keep their order among themselves. Against Short Run each loses
 points (the league averages weekday, Saturday and Sunday, and most of the gap is their Sunday, which keeps today's
 times), and 1.1 on weeks on one shift time; each gains most on familiar shift times, 1.4 to 2.8, and Closing Time and
 Both Ways on the heaviest week. `JSON=<file>` (new) writes the whole table, which is how it was published as a page.
+
+**In every version of the league** (27 Oct 2026, owner: "give me all versions marking which designs are new"): the
+usual table; the proposals alone setting each factor's best and worst (no `REF_IN_RANGE`); familiar shift times left
+out (`DROP=fam`); the run read on the fixed rota (`RUN_FIXED=1`); and the 24-line work's six-factor league
+(`WEIGHTS=met:35,fat:20,fit:20,wkends:10,fam:10,run:5` — new — with the proposals setting the scale, as it was used there):
+
+| | Usual | Proposals set the scale | Without familiar times | Run on the fixed rota | Six-factor |
+|---|---|---|---|---|---|
+| Closing Time | 3rd · 86.0 | 4th · 83.1 | 7th · 88.6 | 2nd · 86.0 | 11th · 81.2 |
+| Both Ways | 5th · 85.8 | 10th · 79.4 | 8th · 88.5 | 4th · 85.8 | 12th · 80.6 |
+| Home Grown | 6th · 85.5 | 7th · 81.2 | 10th · 86.7 | 6th · 85.5 | 13th · 80.0 |
+| first | Second Edition 87.2 | Second Edition 89.7 | Second Edition 91.5 | Short Run 86.5 | six tied on 92.2 |
+
+Two factors move them. Their fit to the trains is the worst of the thirteen (31.2 to 33.6, against 23.6 to 24.4) and
+their familiar shift times the best (71% to 83% of their times are today's, against 53% to 60%). With today's link in
+the range, as usual, the fit gap is a fifth to a quarter of a range today's link stretches to 63.2, and costs 2 to 3
+points; with the proposals alone setting it, Home Grown's fit is the bottom of the range and the gap costs 8.4 to all
+11. Leaving familiarity out takes away the one factor they lead on. Reading the run on the fixed rota lifts them, because their longest run there is five, where six
+of the other ten have six. The six-factor league barely separates the 26-line proposals: all thirteen meet every rule,
+carry no fatigue warning, have the same share of full weekends and a worst-case run of six, so fit (20) and
+familiarity (10) decide it alone, and the six on Second Nature's duty table (Second Nature, Second Wind, Second Sight,
+Second Edition, Short Run, Long Break — the same duties every day, checked) tie on 92.2.
 
 **How they were built.** Home Grown's table was laid on Short Run's rest-day skeleton (`results/skeleton-run5.json`)
 by `skeleton-start.mjs`, with three settings added for these tables: a weekday with a column of its own, the late

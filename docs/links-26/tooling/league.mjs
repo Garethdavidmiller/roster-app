@@ -6,6 +6,7 @@
 //   DROP=fam node league.mjs             leave factors out (comma-separated keys below) and rescale to 100
 //   RUN_FIXED=1 node league.mjs          score the run on the fixed rota instead of the worst case with a cover week
 //   JSON=<file> node league.mjs          also write the whole table as JSON (weights, points, raw values, totals)
+//   WEIGHTS=met:35,fat:20,… node league.mjs   other weights, only the factors named (the 24-line standing league, below)
 import fs from 'fs';
 const R = new URL('../../', import.meta.url).pathname;   // docs/
 const M24 = await import(R + 'links-24/tooling/report-data.mjs'), M26 = await import(R + 'links-26/tooling/report-data.mjs');
@@ -31,6 +32,12 @@ function stat(M, name, p, L, isToday) {
 const W = { met: 25, fit: 11, fat: 11, rest: 3, run: 3, wkends: 7, gap: 5, iso: 4, mixed: 4, one: 5, step: 3, heavy: 3, late: 5, fam: 6, lvBest: 1, lvWorst: 1, lvFour: 1, days: 2 };
 const HI = { met: 1, fit: 0, fat: 0, rest: 1, run: 0, wkends: 1, gap: 0, iso: 0, mixed: 0, one: 1, step: 0, heavy: 0, late: 0, fam: 1, lvBest: 1, lvWorst: 1, lvFour: 0, days: 0 };
 const LABEL = { met: 'December rules met', fit: 'Fit to the trains', fat: 'Fatigue warnings (worst case)', rest: 'Shortest rest', run: 'Longest run (worst case)', wkends: 'Full weekends, share of weeks', gap: 'Longest wait between weekends', iso: 'Single rest days, per working week', mixed: 'Mixed weeks, share', one: 'One-turn weeks, share', step: 'Start-time change, week to week', heavy: 'Heaviest week', late: 'Late finishes a year', fam: 'Familiar shift times, share', lvBest: 'Leave: best stretch', lvWorst: 'Leave: worst stretch', lvFour: 'Leave for four weeks off', days: 'Contracted days a year' };
+// WEIGHTS=k:v,… (27 Oct 2026): these factors at these weights instead, every other left out. The 24-line work's standing
+// league is WEIGHTS=met:35,fat:20,fit:20,wkends:10,fam:10,run:5 with the proposals alone setting the range (links-24
+// README → Silva Lining); its published scores come back to within 0.1 that way, fatigue and the run read at the worst case
+if (process.env.WEIGHTS) { const pairs = process.env.WEIGHTS.split(',').filter(Boolean).map(x => x.split(':'));
+  for (const [k] of pairs) if (!(k in W)) { console.error(`WEIGHTS: no factor "${k}" (factors: ${Object.keys(W).join(', ')})`); process.exit(2); }
+  for (const k of Object.keys(W)) delete W[k]; for (const [k, v] of pairs) W[k] = Number(v); }
 // DROP=k,k: leave factors out and rescale the rest to 100, so a score is still out of 100
 for (const k of (process.env.DROP ?? '').split(',').filter(Boolean)) delete W[k];
 const SUM = Object.values(W).reduce((a, b) => a + b); for (const k in W) W[k] = W[k] * 100 / SUM;
@@ -52,7 +59,7 @@ const REF = P.filter(r => r.name.startsWith('Familiar Nine')).concat([today]), P
   // JSON=<file> (26 Oct 2026): the whole table — weights, each factor's points and raw value, totals — for a page or a
   // check to read, so the figures are never copied out of this console output by hand
   if (process.env.JSON) fs.writeFileSync(process.env.JSON, JSON.stringify({ refInRange: !!process.env.REF_IN_RANGE, runFixed: process.env.RUN_FIXED === '1',
-    dropped: (process.env.DROP ?? '').split(',').filter(Boolean), weights: W, labels: LABEL, higherIsBetter: HI,
+    dropped: (process.env.DROP ?? '').split(',').filter(Boolean), weightsGiven: process.env.WEIGHTS ?? null, weights: W, labels: LABEL, higherIsBetter: HI,
     proposals: ranked.map(x => ({ name: x.r.name, total: x.total, pts: x.pts, raw: Object.fromEntries(Object.keys(W).map(k => [k, x.r[k]])) })),
     reference: REF.map(score).map(x => ({ name: x.r.name, total: x.total, pts: x.pts, raw: Object.fromEntries(Object.keys(W).map(k => [k, x.r[k]])) })) }, null, 1));
   console.log('\n## proposals'); for (const x of ranked) console.log(x.r.name.padEnd(20), x.total.toFixed(1).padStart(5), ' ', Object.keys(W).map(k => `${k} ${x.pts[k].toFixed(1)}`).join(' · '));
