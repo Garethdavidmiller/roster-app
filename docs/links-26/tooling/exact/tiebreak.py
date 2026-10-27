@@ -12,8 +12,8 @@
 #   python tiebreak.py <base.json> <start.json> <out.json> <max changes> [--flex] [--fmax 0] [--stages wk,gap,iso,heavy,one,size] [--time 300]
 #                      [--min-wk N] [--max-gap N] [--max-iso N] [--max-heavy MINUTES] [--min-one N] [--min-e14 N]
 #                      [--hold-fit <grid.json> [--hold-fit-each]] [--max-late N] [--max-six N] [--min-rest MINUTES] [--max-new N]
-# The floors hold a design's existing figures while one is improved (Fair Enough's polish, 26 Oct 2026: more weeks on one
-# turn, with its weekends, rest days and heaviest week held where they were). --min-e14 holds the early finishes: earlies
+# The floors hold a design's existing figures while one is improved (26 Oct 2026: more weeks on one turn, with the
+# weekends, rest days and heaviest week held where they were). --min-e14 holds the early finishes: earlies
 # (starting before 11:00) that finish before 14:00, Monday to Saturday, counted in the rotation as the sheets count them.
 # --hold-fit-each holds weekday, Saturday and Sunday separately: a better weekend fit can otherwise pay for a worse weekday.
 # The rest hold what a short early is paid for with (inside the 35 hours, a short shift is bought with a long one):

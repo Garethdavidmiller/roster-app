@@ -1,9 +1,0 @@
-{
- "date": "26 October 2026",
- "parent": { "file": "results/little-and-often.json", "name": "Little and Often", "code": "LO-26-EXT" },
- "identity": {
-  "table": "Little and Often's own cells, with 42 changed: the fewest that meet every rule, and proven the fewest (tooling/exact)",
-  "seed": "CP-SAT: 30 minutes from a 49-change start found 45; 32 minutes more from that grid, with the solver's workers set to raising the lower bound, found 42 and proved that no fewer can do it; then six tie-break stages of five minutes each",
-  "lineage": "The owner asked how Little and Often could be improved to meet the rules, then whether the 45 changes first found were the fewest. Every hard limit, all nine December rules and the three flexible ones, with no fatigue factor even where a cover week falls worst: 42 cells is the fewest, and the solver proved it. Among the 42-change versions it then chose the most full weekends off, the shortest wait between them, the fewest single rest days, the lightest heaviest week, the most weeks on one turn and the smallest retimes, in that order. The cover weeks stay where the author put them, and every shift time is one already in Little and Often, today's link, the plan's office and closer, or the shortlist."
- }
-}

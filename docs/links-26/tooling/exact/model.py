@@ -264,7 +264,7 @@ def quality_terms(m, x, base, WORK):
             m.Add(sum(wk[(i + t) % LINES] for t in range(g)) >= 1).OnlyEnforceIf(ok)
     return {'wk': sum(wk), 'gap': gapv, 'iso': sum(iso), 'heavy': H, 'one': sum(one), 'size': size}
 
-# THE FIT TO THE TRAINS, as a linear stand-in the solver can hold (Fair Enough's polish, 26 Oct 2026). The sheets' measure
+# THE FIT TO THE TRAINS, as a linear stand-in the solver can hold (26 Oct 2026). The sheets' measure
 # (report-data.mjs dayFit on officeSplit's floor cover) is the squared distance between each hour's share of the trains
 # and its share of the floor cover, x10^4 — not linear, because the cover's share divides by its own total. This is the
 # same comparison in absolute terms: for each hour, |trains_h x cover - all trains x cover_h|, summed, with the office

@@ -1,9 +1,0 @@
-{
- "date": "26 October 2026",
- "parent": { "file": "results/little-and-often.json", "name": "Little and Often", "code": "LO-26-EXT" },
- "identity": {
-  "table": "Little and Often's own cells, with 77 changed: every rule, today's link's weekends, rest days and heaviest week, and 14 of 21 weeks on one turn with nothing else worse than the 65-change version (tooling/exact)",
-  "seed": "CP-SAT: 15 minutes from Second Edition turned to start on the same line found 65 changes; from that grid, four tie-break stages of eight minutes each: the most weeks on one turn, then the fewest changes, the closest fit to the trains and the smallest retimes",
-  "lineage": "The owner asked how Little and Often could be improved to meet the rules, then for Fair Enough to be polished for more weeks on one turn. The first Fair Enough met every rule with no fatigue factor and at least today's link on what the rules do not govern (five full weekends off in the 26 weeks, never more than seven weeks apart, no more than five single rest days, no week over 43h 50m) in 65 changes, with 6 of its 21 working weeks on one turn. The polish asked for more weeks on one turn with nothing worse than that version: its weekends, rest days and heaviest week; its fit to the trains on a weekday, a Saturday and a Sunday; its early finishes before 14:00 and late finishes at 23:00 or later; its six-day weeks, its shortest rest and its new shift times. It found 14 weeks on one turn in 77 changes. The cover weeks stay where the author put them, and every shift time is one already in Little and Often, today's link, the plan's office and closer, or the shortlist."
- }
-}
