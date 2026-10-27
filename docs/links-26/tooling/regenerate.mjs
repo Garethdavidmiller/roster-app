@@ -78,7 +78,7 @@ export const SUPPLIED = [
     // and 07:00-16:00 to keep a 13:35 AND a 13:45 every weekday. Every fatigue factor's value is Short Run's or better
     // (factors-like.mjs). README.md → "Today's link on 26 lines".
     { file: 'home-grown.json',             name: 'Home Grown',     code: 'HG-26-T1',   fp: '7d41fafb', strap: 'Today’s shift times with a 16:00 weekday closer and a 13:35 finish every weekday, and Saturday closing as today' },
-    { file: 'closing-time.json',           name: 'Closing Time',   code: 'CT-26-T2',   fp: '57429cc4', strap: 'A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and only 11 shift times' },
+    { file: 'closing-time.json',           name: 'Closing Time',   code: 'CT-26-T2',   fp: '78e18900', strap: 'A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and nine of its twelve shift times worked today' },
     { file: 'both-ways.json',              name: 'Both Ways',      code: 'BW-26-T3',   fp: '7a513d87', strap: 'A 16:00 closer every day from Monday to Saturday, and a 13:35 and a 13:45 finish every weekday, as today' },
 ];
 

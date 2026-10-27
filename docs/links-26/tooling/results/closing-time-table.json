@@ -1,5 +1,5 @@
 {
- "note": "26 lines from today's 20-line link: today's shift times and one more (13:30-22:30), closers 16:00-23:55 Monday to Saturday, Sunday closers 15:15-23:25; a 13:45 every weekday and on Saturday",
+ "note": "26 lines from today's 20-line link: today's shift times and one more (13:30-22:30), closers 16:00-23:55 Monday to Saturday, Sunday closers 15:15-23:25; a 13:45 every weekday and on Saturday. Sunday's early that is not a 07:15 is today's 08:30-16:30 (27 Oct 2026; was 08:00-16:30): the best-fitting Sunday from today's times",
  "slots": [
   {
    "time": "06:20-13:45",
@@ -35,6 +35,12 @@
    "time": "08:00-16:30",
    "weekday": 0,
    "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "08:30-16:30",
+   "weekday": 0,
+   "sat": 0,
    "sun": 1
   },
   {

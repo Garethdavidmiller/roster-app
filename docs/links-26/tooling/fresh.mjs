@@ -35,7 +35,7 @@ export const STRAPS = {
   'LB-26-F1': ['Four weeks off for 14 days’ leave, as today, with weekends never more than five weeks apart and no mixed week', 'search'],
   // 26 Oct 2026: today's link on 26 lines (README.md → "Today's link on 26 lines")
   'HG-26-T1': ['Today’s shift times with a 16:00 weekday closer and a 13:35 finish every weekday, and Saturday closing as today', 'search'],
-  'CT-26-T2': ['A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and only 11 shift times', 'search'],
+  'CT-26-T2': ['A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and nine of its twelve shift times worked today', 'search'],
   'BW-26-T3': ['A 16:00 closer every day from Monday to Saturday, and a 13:35 and a 13:45 finish every weekday, as today', 'search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
