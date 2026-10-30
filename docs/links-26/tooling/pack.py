@@ -35,6 +35,10 @@ missing = [s for s, _ in files if not os.path.exists(s)]
 if missing: raise SystemExit(f'pack: missing {missing}')
 
 names = ', '.join(n for n, _, _ in proposals)
+# the shortlist is fresh.mjs's, read rather than restated (four since 30 Oct 2026): this read-me said "three shortlisted"
+# in its own words, so it would have gone on saying so after the sheets, the summary and the decks moved to four
+SHORTLIST = re.findall(r"'([^']+)'", re.search(r'export const SHORTLIST = \[([^\]]*)\]', open(f'{ROOT}/tooling/fresh.mjs', encoding='utf-8').read()).group(1))
+if not SHORTLIST or any(s not in names.split(', ') for s in SHORTLIST): raise SystemExit(f'pack: shortlist {SHORTLIST} is not all in the pack')
 # the count is the SUPPLIED list's, never typed: "Ten candidate links" stayed ten for three designs (26 Oct 2026)
 WORDS = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split()
 with_decks = [n for n, _, _ in proposals if os.path.exists(f"{ROOT}/presentations/{n.replace(' ', '-')}-for-colleagues.pptx")]
@@ -50,17 +54,17 @@ readme = '\n'.join([
     'DECEMBER 2026 LINK PROPOSALS - 26 LINES',
     'Marylebone CEA link, December 2026 timetable - 26 weeks, from 1 October 2026',
     '',
-    para(f'{WORDS[len(proposals)].capitalize()} candidate links, three shortlisted (Second Edition, Short Run, Even Keel), one recommended (Short Run). '
-         'Asked of managers: which of the three goes to colleagues. Asked of colleagues: look at page 3 of the chosen '
+    para(f'{WORDS[len(proposals)].capitalize()} candidate links, {WORDS[len(SHORTLIST)]} shortlisted ({", ".join(SHORTLIST[:-1])} and {SHORTLIST[-1]}), one recommended (Short Run). '
+         f'Asked of managers: which of the {WORDS[len(SHORTLIST)]} goes to colleagues. Asked of colleagues: look at page 3 of the chosen '
          'sheet and say what worries you.'),
     item('Ten minutes:', '1 Summary/links-26-shortlist.pdf', 18),
     item('Twenty minutes:', 'add 3 Presentations/Short-Run-for-managers.pdf', 18),
     para('The rest is the evidence behind them.'),
     '',
-    *([para('Home Grown, Closing Time and Both Ways (26 October 2026) answer a later question, not on the shortlist: '
-            'today\'s link on 26 lines, keeping its shift times, a 13:35 or 13:45 finish every weekday and the weekday '
-            'closer at 16:00. Each pays for the short finishes a different way; the technical notes compare them.'
-            + (' Closing Time, improved on 27 and 30 October, has presentations too.' if 'Closing Time' in with_decks else '')), '']
+    *([para('Home Grown, Closing Time and Both Ways (26 October 2026) answer a later question: today\'s link on 26 lines, '
+            'keeping its shift times, a 13:35 or 13:45 finish every weekday and the weekday closer at 16:00. Each pays for '
+            'the short finishes a different way; the technical notes compare them. Closing Time, improved on 27 and 30 '
+            'October, joined the shortlist on 30 October; the other two are not on it.'), '']
       if {'Home Grown', 'Closing Time', 'Both Ways'} <= {n for n, _, _ in proposals} else []),
     para('Still moving: the staffing levels and Sunday cover behind the rules were confirmed verbally, not in writing; '
          'the written source of the 13-day limit is to be confirmed; and the reading of one fatigue factor (FF19, marked '
@@ -71,8 +75,8 @@ readme = '\n'.join([
     para(f'Proposals in this pack: {names}.'),
     '',
     'START WITH THESE',
-    item('1 Summary', 'One page: every proposal against today\'s link; and the two-page shortlist sheet - the three '
-         'recommended designs against each other and today, with a recommendation. Start there.'),
+    item('1 Summary', f'One page: every proposal against today\'s link; and the two-page shortlist sheet - the '
+         f'{WORDS[len(SHORTLIST)]} shortlisted designs against each other and today, with a recommendation. Start there.'),
     item('2 Rules', 'The three tiers of rule, two pages: the hard limits (three, and the ceiling of 219 contracted days '
          'a year, which is hard too), the nine December 2026 rules scored on every sheet, and three flexible rules '
          'aimed for when designing (14 on a Saturday, five cover weeks as evenly spaced as 26 weeks allow, 15:45 '
@@ -92,8 +96,9 @@ readme = '\n'.join([
     item('', 'The code and eight-character fingerprint in each file name identify the exact rota, so a printout can '
          'never be mixed up with a variant.'),
     item('5 Import files', 'Each proposal as text for the Links page (Import), which lays out 26 lines since app version '
-         '24.47 (3 October 2026) and re-runs every check in this pack on whatever is pasted in. The three shortlisted '
-         'designs are already in the app\'s Links designer as examples, for reference.'),
+         '24.47 (3 October 2026) and re-runs every check in this pack on whatever is pasted in. The '
+         f'{WORDS[len(SHORTLIST)]} shortlisted designs are built into the app\'s Links designer as examples, for reference '
+         '(Closing Time from app version 25.01).'),
     item('6 Technical notes', 'The 26-line rules with what changed from 24, and how the proposals were built and '
          'checked. Written for the technical record, not for reading out.'),
     '',

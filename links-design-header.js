@@ -387,7 +387,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
                 if (!saved && open && !isProposal) {
                     els.pickList.appendChild(pickRow({ name: 'Untitled design', meta: 'Not saved yet', current: true }));
                 }
-                // THE SHORTLIST FIRST (v24.47): the three designs everything is measured against,
+                // THE SHORTLIST FIRST (v24.47; four since v25.01): the designs everything is measured against,
                 // built in and read-only. A group of their own, so they cannot be mistaken for
                 // somebody's saved work — "Last saved by" would be a claim about nobody.
                 if (proposals.length) {

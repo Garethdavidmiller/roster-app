@@ -14,8 +14,8 @@ The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, o
 |---|---|
 | `links-NN-proposals.zip` | everything for sharing, in one download |
 | `links-NN-rules.pdf` | the rules every proposal is judged against |
-| `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted three marked ★ |
-| `links-26-shortlist.pdf` | the three shortlisted designs against each other and today, with a recommendation, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
+| `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted ones marked ★ |
+| `links-26-shortlist.pdf` | the shortlisted designs (four since 30 Oct 2026) against each other and today, with a recommendation, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
 | `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf` |
 | `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs |
@@ -205,8 +205,8 @@ is the best of the four.
 **The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"; **cut to the
 shortlist 3 Oct 2026**, owner: "only keep the shortlist's presentations, delete the rest"): `presentations/` holds a
 colleague deck (15 slides) and a manager deck (10), as PowerPoint and PDF, for **Second Edition, Even Keel and Short
-Run**, and since 30 Oct 2026 for **Closing Time**, which is not on the shortlist (owner: "create the manager and
-colleague presentations"; below, under Closing Time). They are the Familiar Nine decks, the template Right Away's were
+Run**, and since 30 Oct 2026 for **Closing Time**, which joined the shortlist the same day (owner: "create the manager
+and colleague presentations"; below, under Closing Time). They are the Familiar Nine decks, the template Right Away's were
 made from too, with every word and figure that was Familiar Nine's replaced and the design untouched. Unlike the 24-line
 decks, they are BUILT here, in two steps: `tooling/second-nature-decks.py` makes Second Nature's decks from the Familiar
 Nine files into `tooling/deck-template/` (gitignored — Second Nature's decks are the template every shipped deck is
@@ -229,7 +229,7 @@ I work more?" slide give the weekly range, and the manager deck carry the Sunday
 Every builder and the polish refuse if a slide no longer holds the text they expect, and every deck compares only with
 today's link.
 - **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts. `tooling/leave.mjs`
-  gives the four leave figures (all three shortlisted designs: 14 days' leave buys 28 days off at best, 23.4 on average,
+  gives the four leave figures (all four shortlisted designs: 14 days' leave buys 28 days off at best, 23.4 on average,
   20 at worst, and four full weeks off takes 15; today 30 · 23.4 · 19 · 14). It is the 24-line decks' leave method as
   code, and `--check` shows it reproduces their published figures for today and Familiar Nine exactly.
 - **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. Every table row across the eight decks
@@ -250,7 +250,7 @@ sheet does not show directly:
 - **Late finishes:** 42 a year is the minimum, because only the three closers the rules require finish after 23:00.
 - **Weekends off:** every shipped deck's design has them never more than five weeks apart, and says so; today's are up
   to seven apart.
-- **Finishes at 22:00 or later, per person:** 104 a year in Closing Time, 94 in the shortlisted three, 78 today. The
+- **Finishes at 22:00 or later, per person:** 104 a year in Closing Time, 94 in the other three shortlisted, 78 today. The
   sheet shows who is still on at 22:00 instead (Closing Time 8 · 5 · 5), so a deck slide that says its figures are all
   on the sheet quotes that one.
 
@@ -1059,12 +1059,15 @@ the two Sunday office lates moved from 14:00 to **14:30–22:30**. `CT-26-T2` ·
 | Shift times (new) | 13 (5) — 09:00–18:00 and 14:30–22:30 are Short Run's | 12 (3) | 15 (6) |
 | Everything else | as on 27 Oct: 17 of 21 weeks on one shift time, rest 14h 35m, 41h 30m · 27h 00m, every rule, no fatigue factor and every value Short Run's or better | | |
 
-Searches from it (`exact-rota.py OBJ=both`, ten minutes, and the same from the 09:00–18:00 alone) found nothing more.
-In the league it is first in three of the five versions and second in a fourth — the table under "In every version of
-the league" — where the 27 Oct version was first in two. Against Short Run it is better or equal on everything but the
-weekday fit (one more on the floor from 20:00 to 22:00, when it is quiet; the peaks are covered alike) and one week on
-one shift time (17 against 18). The 09:00–18:00 alone was tried first: Sunday 36.8 and 87.1 in the usual league, a time
-nobody works today costing as much as the fit it bought, until the 14:30 lates took the Sunday the rest of the way.
+Searches from it (`exact-rota.py OBJ=both`, ten minutes, and the same from the 09:00–18:00 alone) found nothing more. In
+the league it is first in three of the five versions and second in a fourth — the table under "In every version of the
+league" — where the 27 Oct version was first in two. Against Short Run it is better or equal on every factor the league
+scores but the weekday fit (one more on the floor from 20:00 to 22:00, when it is quiet; the peaks are covered alike)
+and one week on one shift time (17 against 18). **Outside the league it pays twice** (30 Oct review — this sentence said
+"everything"): ten more finishes a year at 22:00 or later (104 against 94; three weekday 13:30 lates run to 22:30), and
+four at the Saturday open rather than five, the rule's minimum. The 09:00–18:00 alone was tried first: Sunday 36.8 and
+87.1 in the usual league, a time nobody works today costing as much as the fit it bought, until the 14:30 lates took the
+Sunday the rest of the way.
 
 ```
 node -e 'const f=require("fs"),j=JSON.parse(f.readFileSync("/tmp/ct5.json","utf8")),p=j.patterns;p["7"].sun="09:00-18:00";p["2"].sun="07:15-15:45";for(const k in p)if(p[k].sun==="14:00-22:30")p[k].sun="14:30-22:30";f.writeFileSync("/tmp/ct6.json",JSON.stringify(j))'
@@ -1080,21 +1083,65 @@ decks, which share Closing Time's weeks in everything the decks say about them: 
 breaks, the leave, the 42 finishes after 23:00 and the Sunday. What they say differently: the 16:00 closer Monday to
 Saturday (7h 55m; today 8h 40m and 9h 10m), 13 shift times with 8 worked today, the weekday 13:30 late running to 22:30
 (104 finishes a year at 22:00 or later; today 78, Short Run 94), rest 14h 35m, weeks of 27h 00m to 41h 30m, 17 weeks on
-one shift time, four at the Saturday open, and the fit chart (36.4 · 8.7 · 29.0). Its manager "Why" slide says what it
-shares with the shortlist rather than counting itself among the three, and its notes say it meets two of the three
-flexible rules: its brief moved the 15:45 closer to 16:00. **Checked:** `deck-check.mjs` reads its 51 table rows back
-against the sheets (204 across the eight decks, none disagreeing); the validator passes both; and the shortlisted
-designs' decks, rebuilt through the changed polish, are identical in every slide (only the strip's anti-aliasing and the
-chart workbook's timestamps differ, so they were not re-committed). **The review changed four things.** The 13:30–22:30
-is how the week keeps a 13:45 every weekday as well as the 16:00 closer, not what pays for the closer alone (with
-today's times and a 16:00 closer the week has 180 minutes to spare; the 13:45s make it 145 short). The weekday fit gap
-left is the morning and evening peaks as well as 20:00 to 22:00, not "mostly the evening". The trade-offs slide quotes
-only figures the sheet prints, because it says it does. And two banners and a card were reworded so no line breaks
-inside a duration ("8h | 30m") or a time, checked by wrapping every text box with Inter's metrics at full width and
-three per cent narrower. **The proposal sheet** was reviewed page by page and left as it is: what could be tidier (a
-part-filled row of new-time cards on page 4, page 1's two staff panels of different heights, the closing-shift row
-filling its cells on page 2) belongs to the shared renderer, and changing it would stamp all thirteen sheets
-"re-rendered".
+one shift time, four at the Saturday open, and the fit chart (36.4 · 8.7 · 29.0). It joined the shortlist the same day
+(below), so its manager "Why" slide is the shortlist's own, and its notes say it meets two of the three flexible rules:
+its brief moved the 15:45 closer to 16:00. **Checked:** `deck-check.mjs` reads its 51 table rows back against the sheets
+(204 across the eight decks, none disagreeing); the validator passes both; and the shortlisted designs' decks, rebuilt
+through the changed polish, are identical in every slide (only the strip's anti-aliasing and the chart workbook's
+timestamps differ, so they were not re-committed). **The review changed four things.** The 13:30–22:30 is how the week
+keeps a 13:45 every weekday as well as the 16:00 closer, not what pays for the closer alone (with today's times and a
+16:00 closer the week has 180 minutes to spare; the 13:45s make it 145 short). The weekday fit gap left is the morning
+and evening peaks as well as 20:00 to 22:00, not "mostly the evening". The trade-offs slide quotes only figures the
+sheet prints, because it says it does. And two banners and a card were reworded so no line breaks inside a duration ("8h
+| 30m") or a time, checked by wrapping every text box with Inter's metrics at full width and three per cent narrower.
+**The proposal sheet** was reviewed page by page and left for the owner's word: what could be tidier (a part-filled row
+of new-time cards on page 4, page 1's two staff panels of different heights, the closing-shift row filling its cells on
+page 2) belongs to the shared renderer, and changing it re-renders all thirteen sheets, which then carry the new date
+(this said they would be stamped "re-rendered"; a sheet in this folder says "Prepared" and the day it was rendered). Two
+were changed the same day, below.
+
+**Closing Time joins the shortlist (30 Oct 2026**, owner: "Can we add closing time to the shortlist? And do the
+necessary work"). The shortlist is `SHORTLIST` in `tooling/fresh.mjs`, and everything else now reads it from there — the
+summary's ★ and its count, the shortlist sheet, the decks' polish and the pack's read-me (the last two parse it, being
+Python; each used to say "three" in its own words). **The recommendation stays Short Run**: the owner shortlisted
+Closing Time and did not move the recommendation, and the shortlist sheet's own priorities — days in a row, weekends,
+one shift time a week, late finishes — favour Short Run narrowly (one more week on one turn, ten fewer finishes a year
+at 22:00 or later), where the weighted league favours Closing Time narrowly (87.2 against 86.5); the sheet says both.
+**The shortlist sheet was rewritten for four, and every sentence it rests on is now asserted** (`shared`, `claim` in
+`shortlist-sheet.mjs`): Closing Time broke two that had been true of three — all three flexible rules, every closer 30
+to 45 minutes shorter — and both had been read off Second Edition alone, so they would have gone on printing for all
+four. The same checks found two claims that were already wrong with three: Second Look's fourteen shift times were its
+"specific advantage", and Closing Time has thirteen; and "the rest give something up for nothing the three lack" missed
+Second Look, Second Nature, Second Sight and Second Wind keeping blocks of earlies or lates a week shorter. The page-2
+paragraph now names what each other design keeps, and the sheet refuses to print if a design's list changes. Even Keel's
+edge became a fourth person to the Saturday close (its lightest heaviest week and most rest are Closing Time's too); the
+comparison table gained the weekday and Saturday closers and the 22:00 finishes, and lost the worst-case run and
+Sunday's closer and fit, now shared lines, which with five value columns squeezed the labels to a word a line. **The
+decks:** every manager "Why" slide now says what all four give, and its first line drops the flexible rules, since
+Closing Time's brief swapped one; the colleague decks' leave notes say all four are worse than today on four weeks off.
+The six shortlisted decks were rebuilt and re-exported with them. **The app:** Closing Time is built into the Links
+designer beside the other three from v25.01 (`links-proposals.js`, copied cell for cell from `proposals/`).
+
+**The sheets tidied (30 Oct 2026**, owner: "do the necessary work and sheet tidy ups"). Two of the three were changed in
+`plain.mjs`, with a third found on the way, and all thirteen sheets and the rules sheet re-rendered; `regenerate.mjs
+--check` passes, so no fingerprint moved. **Page 4:** the new times to learn fill every row they start — up to three in
+a row, four as two pairs, five or six three to a row, more four to a row, the last row's cards sharing its width. The
+fixed grid (three columns, four for seven or eight times) had left one card beside two empty cells (Both Ways) or an
+empty cell at the end (Home Grown, Closing Time and the three seven-time designs), and four across wrapped "weekdays and
+Saturdays" in half of Both Ways' cards. **Page 2:** today's closing-shift triple (8h 40m · 9h 10m · 8h 55m) ran 5px into
+its cell's padding on every sheet. The columns are now 27 · 18.2 · 20.3 · 34.5% (were 28 · 17 · 20 · 35), measured on
+all thirteen: both triples sit about 3px inside the padding, no row re-wraps, and the floor above the footer is 26px
+against the 24px minimum (34.5% is the narrowest the words column can be; at 34% Second Nature's weekends row wraps).
+**Page 6, and the rules sheet:** the ticket-office rule broke "14:00–" from "22:30" at a line end on every sheet, and
+the rules sheet "06:20–" from "14:20". A clock range is now one unit on both, held in a no-wrap span — not the invisible
+word joiner the fractions use, which would sit inside every range a reader searches for or copies (tried first: Short
+Run's PDF text carried 47 of them). A scan of every range on every page finds none broken. **The shortlist sheet**,
+found in the review: its footer, four designs and a date, broke inside a name ("Closing | Time") and inside the date,
+and now breaks only between its items; and its fit row, ranked on weekday plus Saturday, went bold as a whole for Second
+Edition and Short Run, whose Saturday (12.7) is not the best of the four — each figure is now marked on its own, Closing
+Time's 8.7 included. **Page 1 was left as it is.** Its two staff panels, and the four tiles above them, end where their
+own content does by a decision of 4 October ("a card is as tall as its own content", `plain.mjs`): stretched to match,
+the shorter list would carry an empty band, which reads as something missing.
 
 ## Notes for the whole set
 
@@ -1124,8 +1171,8 @@ if a file is missing. The 24-line pack was zipped by hand, so it went stale afte
 running `python3 docs/links-26/tooling/pack.py` after any re-render.
 
 **26 in the app since v24.47 (3 Oct 2026).** `ROTATING_LINES = 26` in `links-design.js`: the Links page lays out 26
-lines, so the import files in the pack paste straight in and the page re-runs every check on them; the three shortlisted
-designs are built into that page as examples, copied cell for cell from `proposals/` (`links-proposals.js` says so, and
+lines, so the import files in the pack paste straight in and the page re-runs every check on them; the shortlisted
+designs are built into that page as examples (three from v24.47, Closing Time from v25.01), copied cell for cell from `proposals/` (`links-proposals.js` says so, and
 says to re-copy if one changes). The tooling still
 passes 26 to every app function explicitly — harmless now, and it keeps the sheets' line count stated in one place
 (`tooling/link.mjs`) rather than inherited. Until that release the page was on 24 lines and refused the files; the

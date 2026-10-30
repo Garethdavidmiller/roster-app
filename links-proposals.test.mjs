@@ -12,12 +12,18 @@ import { PROPOSALS, PROPOSAL_PREFIX, isProposalId, proposalById, proposalCopyNam
 import { ROTATING_LINES, DAYS, normalisePatterns, weeklyHours, CONTRACTED_HOURS_PER_WEEK } from './links-design.js';
 import { assessHardLimits, contractedDaysPerYear } from './links-limits.js';
 
-const SOURCES = { 'SE-26-F1': 'Second-Edition-SE-26-F1', 'EK-26-H1': 'Even-Keel-EK-26-H1', 'SR-26-F1': 'Short-Run-SR-26-F1' };
+const SOURCES = { 'SE-26-F1': 'Second-Edition-SE-26-F1', 'EK-26-H1': 'Even-Keel-EK-26-H1', 'SR-26-F1': 'Short-Run-SR-26-F1', 'CT-26-T2': 'Closing-Time-CT-26-T2' };
 
-describe('the shortlist as the owner chose it (3 Oct 2026)', () => {
-    test('three designs: Second Edition, Even Keel, Short Run — in that order', () => {
-        assert.deepEqual(PROPOSALS.map(p => p.code), ['SE-26-F1', 'EK-26-H1', 'SR-26-F1']);
-        assert.deepEqual(PROPOSALS.map(p => p.name.split(' — ')[0]), ['Second Edition', 'Even Keel', 'Short Run']);
+describe('the shortlist as the owner chose it (3 Oct 2026, and Closing Time on 30 Oct)', () => {
+    test('four designs: Second Edition, Even Keel, Short Run, Closing Time — in that order', () => {
+        assert.deepEqual(PROPOSALS.map(p => p.code), ['SE-26-F1', 'EK-26-H1', 'SR-26-F1', 'CT-26-T2']);
+        assert.deepEqual(PROPOSALS.map(p => p.name.split(' — ')[0]), ['Second Edition', 'Even Keel', 'Short Run', 'Closing Time']);
+    });
+
+    test('every shortlisted design has a source grid named here', () => {
+        // a design added to PROPOSALS without a SOURCES entry would make its faithful-copy test read
+        // `docs/links-26/proposals/undefined.json`, find nothing, and SKIP — passing while checking nothing
+        assert.deepEqual(Object.keys(SOURCES).sort(), PROPOSALS.map(p => p.code).sort());
     });
 
     for (const p of PROPOSALS) {

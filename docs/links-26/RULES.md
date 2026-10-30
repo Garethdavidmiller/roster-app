@@ -113,5 +113,5 @@ The tooling in `tooling/` applies all of this (set up 1 Oct 2026; see `README.md
 - **No 24-line waiver or named office** is carried over.
 
 The Links page itself (`ROTATING_LINES` in `links-design.js`) moved to 26 lines in v24.47 on 3 October 2026, with the
-three shortlisted designs built in as examples; until then the tooling passed 26 to every app function explicitly, and
-it still does.
+three shortlisted designs built in as examples (Closing Time, shortlisted on 30 October, joined them in v25.01); until
+then the tooling passed 26 to every app function explicitly, and it still does.

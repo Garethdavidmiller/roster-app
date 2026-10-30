@@ -16,10 +16,11 @@
  * From 1 Oct 2026 the December link is 26 lines with FIVE cover weeks (owner), so 21 working lines
  * and a contract of 21 × 35h = 44,100 Monday-to-Saturday minutes. The rules every 26-line design is
  * judged against are `docs/links-26/RULES.md`, set by the owner — and this table is not invented
- * here any more. It is the duty table of **Second Edition (SE-26-F1)**, one of the three designs the
- * owner shortlisted on 3 Oct 2026; Even Keel and Short Run run the same day totals. A default that
- * the owner's own shortlist already satisfies is a better starting point than a fourth table the app
- * designed by itself, which is what the 24-line default was (v21.00–v21.13).
+ * here any more. It is the duty table of **Second Edition (SE-26-F1)**, one of the designs the owner
+ * shortlisted (three on 3 Oct 2026, Closing Time on 30 Oct); Even Keel, Short Run and Closing Time
+ * staff the same number of duties each day. A default that the owner's own shortlist already
+ * satisfies is a better starting point than a table the app designed by itself, which is what
+ * the 24-line default was (v21.00–v21.13).
  *
  *     Mon–Fri   15 duties   7,440 min/day  ×5 = 37,200
  *     Saturday  14 duties                       6,900

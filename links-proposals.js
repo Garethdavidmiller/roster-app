@@ -4,8 +4,9 @@
  *
  * ── WHAT THESE ARE ─────────────────────────────────────────────────────────────────────────────
  *
- * The three designs the owner shortlisted for the December 2026 link on 3 Oct 2026 — Second
- * Edition, Even Keel and Short Run — copied cell for cell from `docs/links-26/proposals/<Name>.json`.
+ * The designs the owner shortlisted for the December 2026 link — Second Edition, Even Keel and Short
+ * Run on 3 Oct 2026, and Closing Time on 30 Oct 2026 (v25.01) — copied cell for cell from
+ * `docs/links-26/proposals/<Name>.json`.
  * The printed sheet names each one "<name> (<ref>)" — `ref` is the design code and the fingerprint
  * of its grid. They are held apart here because the name is a TITLE, and a title carrying a hash
  * truncated to "Even Keel — Dec 2026 (EK-..." on a phone; the ref is shown beside it instead (the
@@ -16,9 +17,9 @@
  *
  * Owner decision (3 Oct 2026): read-only proposals in the picker, not documents in `linkDesigns`.
  * A saved design can be edited, renamed, deleted and overwritten by any designer — which is right
- * for work in progress and wrong for the three designs everything else is measured against. Built
+ * for work in progress and wrong for the designs everything else is measured against. Built
  * in, they cannot be changed or binned by accident, there is no first-open write that two designers
- * could race into duplicates, and every designer sees the same three. Opening one gives a WORKING
+ * could race into duplicates, and every designer sees the same shortlist. Opening one gives a WORKING
  * COPY that has never been saved: edit it freely, and the first save asks for a name and creates a
  * new design — the proposal itself is untouched.
  *
@@ -143,6 +144,38 @@ export const PROPOSALS = Object.freeze([
             ["14:30-22:30", "RD", "RD", "15:45-23:55", "15:45-23:55", "15:45-23:55", "RD"],
             ["RD", "15:45-23:55", "15:45-23:55", "15:45-23:55", "15:45-23:55", "RD", "14:00-22:30"],
             ["14:30-22:30", "15:45-23:55", "15:45-23:55", "RD", "RD", "15:45-23:55", "15:15-23:55"],
+        ]),
+    }),
+    Object.freeze({
+        id: PROPOSAL_PREFIX + 'CT-26-T2', code: 'CT-26-T2',
+        name: "Closing Time — Dec 2026", ref: "CT-26-T2 · 77a235bc",
+        patterns: grid([
+            ["SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE"],
+            ["07:15-15:45", "07:15-15:45", "RD", "RD", "07:15-15:45", "07:15-15:45", "08:00-16:30"],
+            ["RD", "RD", "13:30-22:30", "13:30-22:30", "13:30-22:30", "13:30-22:30", "RD"],
+            ["RD", "13:30-22:30", "14:00-22:30", "14:00-22:30", "16:00-23:55", "RD", "14:30-22:00"],
+            ["14:30-22:30", "13:30-22:30", "13:30-22:30", "RD", "RD", "13:30-22:30", "14:00-22:30"],
+            ["SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE"],
+            ["09:00-18:00", "RD", "06:20-14:20", "06:20-14:20", "06:20-14:20", "06:20-14:20", "RD"],
+            ["RD", "06:20-14:50", "07:15-15:45", "06:20-13:45", "07:15-15:45", "07:15-15:45", "RD"],
+            ["RD", "07:15-15:45", "07:15-15:45", "07:15-15:45", "RD", "RD", "06:20-14:50"],
+            ["07:15-15:45", "06:20-14:20", "06:20-14:20", "06:20-14:20", "RD", "RD", "08:00-16:30"],
+            ["SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE"],
+            ["07:15-15:45", "06:20-13:45", "RD", "RD", "06:20-13:45", "06:20-13:45", "06:20-14:50"],
+            ["RD", "RD", "16:00-23:55", "16:00-23:55", "16:00-23:55", "16:00-23:55", "RD"],
+            ["RD", "16:00-23:55", "16:00-23:55", "16:00-23:55", "16:00-23:55", "16:00-23:55", "RD"],
+            ["RD", "16:00-23:55", "16:00-23:55", "16:00-23:55", "RD", "16:00-23:55", "16:00-23:55"],
+            ["SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE"],
+            ["07:15-15:45", "06:20-14:20", "RD", "RD", "06:20-14:20", "06:20-14:20", "06:20-14:00"],
+            ["RD", "RD", "06:20-13:45", "07:15-15:45", "06:20-14:00", "06:20-14:00", "06:20-13:45"],
+            ["RD", "RD", "06:20-14:50", "06:20-14:50", "06:20-14:50", "06:20-14:50", "RD"],
+            ["RD", "06:20-14:00", "06:20-14:00", "06:20-14:00", "RD", "RD", "07:15-15:45"],
+            ["SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE"],
+            ["15:15-23:25", "14:00-22:30", "RD", "RD", "14:00-22:30", "14:00-22:30", "16:00-23:55"],
+            ["15:15-23:25", "16:00-23:55", "RD", "RD", "13:30-22:30", "14:00-22:30", "14:00-22:30"],
+            ["15:15-23:25", "RD", "RD", "13:30-22:30", "13:30-22:30", "13:30-22:30", "RD"],
+            ["RD", "14:00-22:30", "14:00-22:30", "14:00-22:30", "14:00-22:30", "RD", "14:30-22:00"],
+            ["14:30-22:30", "13:30-22:30", "13:30-22:30", "13:30-22:30", "RD", "RD", "16:00-23:55"],
         ]),
     }),
 ].map(p => /** @type {Readonly<Proposal>} */ (p)));

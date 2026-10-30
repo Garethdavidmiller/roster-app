@@ -95,6 +95,7 @@ const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><tit
 <style>
 @page { size: A4; margin: 11mm 11mm 13mm; }
 html, body { background: white !important; color: var(--text-dark); padding: 0 !important; margin: 0; font-family: var(--font-sans); font-size: 10.5px; line-height: 1.36; }
+.rng { white-space: nowrap; }
 .page { page-break-after: always; position: relative; height: 273mm; box-sizing: border-box; }   /* the printable height: the footer sits at the same place on both pages */
 .page:last-child { page-break-after: auto; }
 .mast { background: var(--primary-blue); color: white; padding: 12px 20px 11px; border-bottom: 4px solid var(--accent-gold); border-radius: var(--radius); display: flex; gap: 16px; align-items: center; }
@@ -217,8 +218,10 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 </body></html>`;
 
 const htmlOut = new URL('December-2026-Rules.html', import.meta.url).pathname;
-// a label never ends on a lone word: the last space of a plain-text cell becomes a no-break space
-const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace(/ (\S+)$/, '\u00a0$1')}</td>`);
+// a label never ends on a lone word: the last space of a plain-text cell becomes a no-break space; and a clock range is one
+// unit, as on the proposal sheets (plain.mjs, which says why it is a span): text only, never in the stylesheet or title
+const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace(/ (\S+)$/, '\u00a0$1')}</td>`)
+    .replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|>([^<]+)</g, (m, keep, txt) => keep ?? `>${txt.replace(/\b\d\d:\d\d–\d\d:\d\d\b/g, '<span class="rng">$&</span>')}<`);
 writeFileSync(htmlOut, tidy(html));
 const b = await chromium.launch(); const pg = await b.newPage();
 await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
