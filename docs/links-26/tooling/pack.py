@@ -59,7 +59,8 @@ readme = '\n'.join([
     '',
     *([para('Home Grown, Closing Time and Both Ways (26 October 2026) answer a later question, not on the shortlist: '
             'today\'s link on 26 lines, keeping its shift times, a 13:35 or 13:45 finish every weekday and the weekday '
-            'closer at 16:00. Each pays for the short finishes a different way; the technical notes compare them.'), '']
+            'closer at 16:00. Each pays for the short finishes a different way; the technical notes compare them.'
+            + (' Closing Time, improved on 27 and 30 October, has presentations too.' if 'Closing Time' in with_decks else '')), '']
       if {'Home Grown', 'Closing Time', 'Both Ways'} <= {n for n, _, _ in proposals} else []),
     para('Still moving: the staffing levels and Sunday cover behind the rules were confirmed verbally, not in writing; '
          'the written source of the 13-day limit is to be confirmed; and the reading of one fatigue factor (FF19, marked '

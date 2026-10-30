@@ -78,7 +78,7 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 | check | `check.mjs` | the self-check: settings agree, the test rota recounts independently, and each 26-line rule fails when its condition is broken (`node tooling/check.mjs`) |
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
 | | `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` | the rules reference (`../links-26-rules.pdf`), the one-page summary (`../links-26-summary.pdf`) and the two-page shortlist sheet (`../links-26-shortlist.pdf`) |
-| 4 · decks and pack | `second-nature-decks.py` → `second-edition-decks.py`, `even-keel-decks.py`, `short-run-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the zip |
+| 4 · decks and pack | `second-nature-decks.py` → `second-edition-decks.py`, `even-keel-decks.py`, `short-run-decks.py`, `closing-time-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the zip |
 | league | `league.mjs` | the weighted league on every factor the sheets compare (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league) — the owner's weights, a judgement not a measurement |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
@@ -202,49 +202,57 @@ node regenerate.mjs                     # the sheet; --check confirms the finger
 It was chosen for the balance. Four more weeks on one turn are worth one more single rest day, and the shortest rest
 is the best of the four.
 
-**The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"; **cut to
-the shortlist 3 Oct 2026**, owner: "only keep the shortlist's presentations, delete the rest"): `presentations/` holds a
+**The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"; **cut to the
+shortlist 3 Oct 2026**, owner: "only keep the shortlist's presentations, delete the rest"): `presentations/` holds a
 colleague deck (15 slides) and a manager deck (10), as PowerPoint and PDF, for **Second Edition, Even Keel and Short
-Run** only. They are the Familiar Nine decks, the template Right Away's were made from too, with every word and figure
-that was Familiar Nine's replaced and the design untouched. Unlike the 24-line decks, they are BUILT here, in two steps:
-`tooling/second-nature-decks.py` makes Second Nature's decks from the Familiar Nine files into `tooling/deck-template/`
-(gitignored — Second Nature's decks are the template every shipped deck is built from, and since 3 Oct are not shipped
-themselves; Second Wind's and Second Sight's decks and their builders were deleted the same day); then
-`tooling/second-edition-decks.py` makes Second Edition's from that template, changing only what differs (the weekend
-spacing, no week mixing earlies and lates, the rest-day breaks, the one-turn weeks, the weekly hours — its leave figures
-are Second Nature's exactly); `tooling/even-keel-decks.py` makes Even Keel's, which change more because it sits on
-Second Gear's table (the shift-time list, 44 late finishes with four to the close on a Saturday, the run, the rest and
-the fit chart); and `tooling/short-run-decks.py` makes Short Run's by applying Second Edition's edits and then its own
-— the run (5 on the fixed rota, up to 6 when a cover week falls badly, said both ways), the weekly hours and the pitch
-lines. **Then `tooling/deck-polish.py` runs over the six shipped decks** (3 Oct 2026, the reader's critique): the
-four-weeks-off leave cost said early and on the trade-offs slide, full weekends off per year first, days a year as 218.6
-against 219.0, the one-turn row and the fit slide saying what they count, slide 10 turned into a picture of the 26 weeks
+Run**, and since 30 Oct 2026 for **Closing Time**, which is not on the shortlist (owner: "create the manager and
+colleague presentations"; below, under Closing Time). They are the Familiar Nine decks, the template Right Away's were
+made from too, with every word and figure that was Familiar Nine's replaced and the design untouched. Unlike the 24-line
+decks, they are BUILT here, in two steps: `tooling/second-nature-decks.py` makes Second Nature's decks from the Familiar
+Nine files into `tooling/deck-template/` (gitignored — Second Nature's decks are the template every shipped deck is
+built from, and since 3 Oct are not shipped themselves; Second Wind's and Second Sight's decks and their builders were
+deleted the same day); then `tooling/second-edition-decks.py` makes Second Edition's from that template, changing only
+what differs (the weekend spacing, no week mixing earlies and lates, the rest-day breaks, the one-turn weeks, the weekly
+hours — its leave figures are Second Nature's exactly); `tooling/even-keel-decks.py` makes Even Keel's, which change
+more because it sits on Second Gear's table (the shift-time list, 44 late finishes with four to the close on a Saturday,
+the run, the rest and the fit chart); and `tooling/short-run-decks.py` makes Short Run's by applying Second Edition's
+edits and then its own — the run (5 on the fixed rota, up to 6 when a cover week falls badly, said both ways), the
+weekly hours and the pitch lines; `tooling/closing-time-decks.py` makes Closing Time's by applying Second Edition's and
+Short Run's edits and then its own, refusing if any Short Run fact that is not Closing Time's survives. **Then
+`tooling/deck-polish.py` runs over every shipped deck** (3 Oct 2026, the reader's critique): the four-weeks-off leave
+cost said early and on the trade-offs slide, full weekends off per year first, days a year as 218.6 against 219.0, the
+one-turn row and the fit slide saying what they count, slide 10 turned into a picture of the 26 weeks
 (`tooling/rota-strip.mjs`, from the grid), and the manager "Why" slide split into what every link here gives, what this
 one adds and what it costs. A second pass the same day (owner: "are they missing anything?") made the late-finish slide
-say the rise after 22:00 as well as after 23:00, the shift-length slide name the early turns that get longer, the
-"Will I work more?" slide give the weekly range, and the manager deck carry the Sunday overtime hours and the two open
-points. Every builder and the polish refuse if a slide no longer holds the text they expect, and every deck compares
-only with today's link.
-- **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts.
-  `tooling/leave.mjs` gives the four leave figures (all three shortlisted designs: 14 days' leave buys 28 days off at
-  best, 23.4 on average, 20 at worst, and four full weeks off takes 15; today 30 · 23.4 · 19 · 14). It is the 24-line
-  decks' leave method as code, and `--check` shows it reproduces their published figures for today and Familiar Nine
-  exactly.
-- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. Every table row across the six decks agrees
-  with the sheets and the leave model, and none is left unchecked (it prints the count).
+say the rise after 22:00 as well as after 23:00, the shift-length slide name the early turns that get longer, the "Will
+I work more?" slide give the weekly range, and the manager deck carry the Sunday overtime hours and the two open points.
+Every builder and the polish refuse if a slide no longer holds the text they expect, and every deck compares only with
+today's link.
+- **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts. `tooling/leave.mjs`
+  gives the four leave figures (all three shortlisted designs: 14 days' leave buys 28 days off at best, 23.4 on average,
+  20 at worst, and four full weeks off takes 15; today 30 · 23.4 · 19 · 14). It is the 24-line decks' leave method as
+  code, and `--check` shows it reproduces their published figures for today and Familiar Nine exactly.
+- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. Every table row across the eight decks
+  agrees with the sheets and the leave model, and none is left unchecked (it prints the count).
 
 Rebuild after any change to the rota:
 
 ```
 python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/second-edition-decks.py \
   && python3 docs/links-26/tooling/even-keel-decks.py && python3 docs/links-26/tooling/short-run-decks.py \
+  && python3 docs/links-26/tooling/closing-time-decks.py \
   && python3 docs/links-26/tooling/deck-polish.py && node docs/links-26/tooling/deck-check.mjs
 ```
 
-Then export the PDFs (LibreOffice). Two things the decks say that the sheet does not show directly:
+`deck-polish.py` polishes every design's decks, and refuses a deck it has already polished; `deck-polish.py "Closing
+Time"` polishes one design's freshly built pair. Then export the PDFs (LibreOffice). Three things the decks say that the
+sheet does not show directly:
 - **Late finishes:** 42 a year is the minimum, because only the three closers the rules require finish after 23:00.
-- **Weekends off:** every shipped deck's design has them never more than five weeks apart, and says so; today's are
-  up to seven apart.
+- **Weekends off:** every shipped deck's design has them never more than five weeks apart, and says so; today's are up
+  to seven apart.
+- **Finishes at 22:00 or later, per person:** 104 a year in Closing Time, 94 in the shortlisted three, 78 today. The
+  sheet shows who is still on at 22:00 instead (Closing Time 8 · 5 · 5), so a deck slide that says its figures are all
+  on the sheet quotes that one.
 
 ## Second Wind — Second Nature with the weekends spread (2 Oct 2026)
 
@@ -1064,6 +1072,29 @@ node -e 'const f=require("fs"),j=JSON.parse(f.readFileSync("/tmp/ct5.json","utf8
 FIX=closing-time.json python3 exact-rota.py results/closing-time-table.json /tmp/check.json 60     # the committed grid against the model
 node factors-like.mjs short-run.json closing-time.json                                                # every value Short Run's or better
 ```
+
+**Presentations (30 Oct 2026**, owner: "create the manager and colleague presentations, compare them to existing designs
+and then deep review them, then run aesthetic polish over the proposal and the presentations").
+`presentations/Closing-Time-for-colleagues` and `-for-managers`, built by `tooling/closing-time-decks.py` on Short Run's
+decks, which share Closing Time's weeks in everything the decks say about them: the run, the weekends, the rest-day
+breaks, the leave, the 42 finishes after 23:00 and the Sunday. What they say differently: the 16:00 closer Monday to
+Saturday (7h 55m; today 8h 40m and 9h 10m), 13 shift times with 8 worked today, the weekday 13:30 late running to 22:30
+(104 finishes a year at 22:00 or later; today 78, Short Run 94), rest 14h 35m, weeks of 27h 00m to 41h 30m, 17 weeks on
+one shift time, four at the Saturday open, and the fit chart (36.4 · 8.7 · 29.0). Its manager "Why" slide says what it
+shares with the shortlist rather than counting itself among the three, and its notes say it meets two of the three
+flexible rules: its brief moved the 15:45 closer to 16:00. **Checked:** `deck-check.mjs` reads its 51 table rows back
+against the sheets (204 across the eight decks, none disagreeing); the validator passes both; and the shortlisted
+designs' decks, rebuilt through the changed polish, are identical in every slide (only the strip's anti-aliasing and the
+chart workbook's timestamps differ, so they were not re-committed). **The review changed four things.** The 13:30–22:30
+is how the week keeps a 13:45 every weekday as well as the 16:00 closer, not what pays for the closer alone (with
+today's times and a 16:00 closer the week has 180 minutes to spare; the 13:45s make it 145 short). The weekday fit gap
+left is the morning and evening peaks as well as 20:00 to 22:00, not "mostly the evening". The trade-offs slide quotes
+only figures the sheet prints, because it says it does. And two banners and a card were reworded so no line breaks
+inside a duration ("8h | 30m") or a time, checked by wrapping every text box with Inter's metrics at full width and
+three per cent narrower. **The proposal sheet** was reviewed page by page and left as it is: what could be tidier (a
+part-filled row of new-time cards on page 4, page 1's two staff panels of different heights, the closing-shift row
+filling its cells on page 2) belongs to the shared renderer, and changing it would stamp all thirteen sheets
+"re-rendered".
 
 ## Notes for the whole set
 
