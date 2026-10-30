@@ -22,7 +22,8 @@ on:
 
 jobs:
   offline:
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not -latest: Playwright 1.56.1 cannot install its libraries on 26.04 (e2e.yml's smoke job says why)
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
