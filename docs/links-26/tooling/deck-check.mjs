@@ -16,7 +16,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { assess, folderStats, today, sheetRules, h55Worst, endMinutes, startMinutes } from './report-data.mjs';
-import { personal } from './plain.mjs';
+import { personal, weekendGap } from './plain.mjs';
 import { LINES } from './link.mjs';
 import { leave } from './leave.mjs';
 import { kindBlocks } from './blocks.mjs';
@@ -76,6 +76,9 @@ function figures(patterns, lines, T) {
     ...(lv => ({ leaveBest: `${lv.best}`, leaveAvg: lv.avg.toFixed(1), leaveWorst: `${lv.worst}`, leaveFour: `${lv.fourWeeks}` }))(leave(patterns)),
     // the week-to-week step: the average change in a week's mean start time (plain.mjs's definition; the shortlist's figure)
     step: hm(scoreOrder(patterns, Object.keys(patterns), { maxRunTarget: 6 }).gentleMean),
+    // what deck-polish.py's "all four shortlisted" lines rest on (30 Oct 2026 review): the rules met, and the longest wait
+    // between full weekends, each the sheets' own figure
+    met: `${R.met}`, weekendGap: `${weekendGap(patterns)}`,
   };
 }
 

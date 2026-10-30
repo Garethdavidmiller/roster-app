@@ -40,6 +40,14 @@ names = ', '.join(n for n, _, _ in proposals)
 SHORTLIST = re.findall(r"'([^']+)'", re.search(r'export const SHORTLIST = \[([^\]]*)\]', open(f'{ROOT}/tooling/fresh.mjs', encoding='utf-8').read()).group(1))
 if not SHORTLIST or any(s not in names.split(', ') for s in SHORTLIST): raise SystemExit(f'pack: shortlist {SHORTLIST} is not all in the pack')
 # the count is the SUPPLIED list's, never typed: "Ten candidate links" stayed ten for three designs (26 Oct 2026)
+# TWO SENTENCES BELOW NAME MEMBERS, AND ARE CHECKED (30 Oct 2026 review): the 26 Oct paragraph says Closing Time is on the
+# shortlist and Home Grown and Both Ways are not, and item 5 says every shortlisted design is built into the app. Each read
+# the names it was typed with, so a change to SHORTLIST would have left the read-me contradicting its own first line.
+if 'Closing Time' not in SHORTLIST or {'Home Grown', 'Both Ways'} & set(SHORTLIST):
+    raise SystemExit(f'pack: the read-me says Closing Time alone of the 26 Oct three is shortlisted; SHORTLIST is {SHORTLIST}')
+built_in = open('links-proposals.js', encoding='utf-8').read()
+missing = [n for n, c, _ in proposals if n in SHORTLIST and f"code: '{c}'" not in built_in]
+if missing: raise SystemExit(f'pack: the read-me says every shortlisted design is built into the app; links-proposals.js lacks {missing}')
 WORDS = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split()
 with_decks = [n for n, _, _ in proposals if os.path.exists(f"{ROOT}/presentations/{n.replace(' ', '-')}-for-colleagues.pptx")]
 # THE READ-ME IS WRAPPED BY CODE (4 Oct 2026, outside review): it opens in Notepad, so every line is at most 78

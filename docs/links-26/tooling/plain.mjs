@@ -37,7 +37,7 @@ const everyN = share => share <= 0 ? 'never' : `one in ${Math.round(1 / share)}`
 // gives the COUNT ("6 in 24") and the longest gap between two of them. Counted the way checkLinkConstraints counts the
 // weekends (Saturday of one line and Sunday of the next both off, a cover week's days never off), so the two cannot
 // disagree; null when there is no weekend off at all.
-const weekendGap = p => { const L = Object.keys(p).length, off = s => !timed(s) && s !== 'SPARE';
+export const weekendGap = p => { const L = Object.keys(p).length, off = s => !timed(s) && s !== 'SPARE';   // deck-check.mjs quotes it too
   const at = []; for (let k = 1; k <= L; k++) if (off(p[String(k)].sat) && off(p[String(k % L + 1)].sun)) at.push(k);
   return at.length ? Math.max(...at.map((k, i) => i < at.length - 1 ? at[i + 1] - k : at[0] + L - k)) : null; };
 

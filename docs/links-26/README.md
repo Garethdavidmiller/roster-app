@@ -731,17 +731,18 @@ after the lay, so the skeleton is where the search started.
 
 ## The shortlist sheet (3 Oct 2026)
 
-Owner: "a two page analysis sheet comparing the three — snappy but evidence led, choose one if you like one, compare
-to the existing roster too." `links-26-shortlist.pdf`, built by `tooling/shortlist-sheet.mjs`: what Second Edition,
-Short Run and Even Keel share, where they differ (the best of the three on each line marked), each one's edge, the
-same three against today's link, the costs all three carry against today, and a recommendation — Short Run, with the
-reasons and with the two conditions under which the other two are the better choice; since 4 Oct 2026 page 1 ends with a
-four-row choice guide (priority → design, Long Break included as the leave-first option outside the shortlist) in place of
-the account of how the designs were found, which is this README's job. **Every figure is computed by the
-same functions the proposal sheets use** (`assess`, `personal`, `leave`, `scoreOrder`); the prose is the judgement
-this README records under each design. Rebuild with `node tooling/shortlist-sheet.mjs` after any change to the three
-grids, and read it again — a sentence that names a figure ("a half hour on one week") is computed too, but one that
-names a reason is not.
+Owner: "a two page analysis sheet comparing the three — snappy but evidence led, choose one if you like one, compare to
+the existing roster too." `links-26-shortlist.pdf`, built by `tooling/shortlist-sheet.mjs`: what Second Edition, Short
+Run and Even Keel share, where they differ (the best of the three on each line marked), each one's edge, the same three
+against today's link, the costs all three carry against today, and a recommendation — Short Run, with the reasons and
+with the two conditions under which the other two are the better choice; since 4 Oct 2026 page 1 ends with a four-row
+choice guide (priority → design, Long Break included as the leave-first option outside the shortlist) in place of the
+account of how the designs were found, which is this README's job. **Every figure is computed by the same functions the
+proposal sheets use** (`assess`, `personal`, `leave`, `scoreOrder`); the prose is the judgement this README records
+under each design. (Since 30 Oct 2026 it compares four, with a five-row guide, and asserts every sentence that compares
+them — below.) Rebuild with `node tooling/shortlist-sheet.mjs` after any change to any grid, since it reads every design
+and the league, and read it again — a sentence that names a figure ("a half hour on one week") is computed too, but one
+that names a reason is not.
 
 **A second outside review of the pack (4 Oct 2026), six points, all taken:** the leave cost joins page 1 of every
 proposal sheet (a concern, "Four full weeks off, Sunday to Saturday, needs 15 days' leave (today 14)", and a row in the
@@ -839,7 +840,8 @@ the sheets'.
 same duties and a week can sit on one shift time (a different table on different weekdays buys under two points of fit,
 for more shift times). **All three work the same weeks** — Home Grown's rest days, weekends and leave, with Closing
 Time's and Both Ways' duties laid on them (below) — so they differ only in their shift times. Their duties
-(`results/home-grown-table.json`, `closing-time-table.json`, `both-ways-table.json`), Sunday the same in all three:
+(`results/home-grown-table.json`, `closing-time-26oct-table.json`, `both-ways-table.json`; `closing-time-table.json` holds
+Closing Time's current table), Sunday the same in all three:
 today's times bar the 15:15 closer, 07:15–15:45 ×4, 08:00–16:30, 14:00–22:30 ×2, 15:15–23:25 ×3. (Closing Time's
 08:00–16:30 became today's 08:30–16:30 on 27 Oct and its weeks were searched again, and on 30 Oct it took Short Run's
 Sunday: "Closing Time, improved", below.
@@ -1004,7 +1006,7 @@ Second Edition (87.2) and Short Run (86.5); every version is in the table under 
 |---|---|---|
 | The weekday and Saturday duties | `short-earlies.mjs`'s scan, which is exhaustive: Closing Time's way of finding the minutes (16:00 every day, 13:30–22:30 the only new time, no extra late finish, one table Monday to Friday) holds exactly three whole weeks | Closing Time's fits best. The other two were built: **B** (a 13:35 every weekday and Saturday, an 11:00–19:30) reaches 18 one-turn weeks with every rule, but at a 2h 40m step, and every B rota found has a 42h 30m week — 85.0 to 85.3 in the league; **C** (a 13:45 with the 11:00–19:30) kept a mixed week and a fatigue factor on Home Grown's weeks, and the exact model found no rota for it from scratch |
 | The Sunday, today's times | `final-table.mjs`, every Sunday from today's times and the 15:15 closer — 29 tables | **08:30–16:30** for 08:00–16:30: 47.6 against 50.9 on the search's own measure, 45.3 against 48.6 on the sheets'. Kept to Closing Time's own eleven times, the best is 50.2 |
-| The Sunday, new times allowed | the same search, every quarter hour | one new time 36.8, two (Short Run's Sunday: 09:00–18:00, 14:30–22:30) 29.0, three 26.4 — each costs as much in familiar times as it gains in fit — measured on the 16-week rota, where the swap is clean: 86.6, 86.7 and 86.4 against its 86.8 — so none is taken; it is the owner's call if fit matters more — and on 30 Oct the owner took Short Run's, below. (On the 17-week rota the Sunday early's line works the Monday, so a 09:00–18:00 there would need a fresh search: it leaves 13h 15m before a 07:15) |
+| The Sunday, new times allowed | the same search, every quarter hour | one new time 36.8, two (Short Run's Sunday: 09:00–18:00, 14:30–22:30) 29.0, three 26.4 — each costs as much in familiar times as it gains in fit — measured on the 16-week rota, where the swap is clean: 86.6, 86.7 and 86.4 against its 86.8 — so none is taken; it is the owner's call if fit matters more — and on 30 Oct the owner took Short Run's, below. (On the 17-week rota the Sunday early's line, line 2, works the Monday: a 09:00–18:00 there leaves 13h 15m before its 07:15, under the rota's 14h 35m, so it would need a fresh search. On 30 Oct it went on line 7, whose Monday is a rest day, by hand) |
 | The weeks: order, rest days and times | `space-polish.mjs` with the rest days free (four seeds asking for a 17th one-turn week; one each for the step, the leave and the heaviest week), then `exact-rota.py` | the polishes: a 1h 17m step and nothing else. The exact model: **17 one-turn weeks and 1h 11m** (1h 08m if it stays at 16) |
 | An 18th week on one shift time | `exact-rota.py`, every rule, from the 17-week rota: 20 minutes on two cores, then 40 on four | not found; the most the solver could rule out was a 21st |
 | One visible early/late switch | `exact-rota.py OBJ=chg`, climbing from the 17-week rota, then again allowing 16 weeks — Closing Time has two switches between working weeks, and each costs the step about half an hour | not found: it stays at two |
@@ -1142,6 +1144,27 @@ Edition and Short Run, whose Saturday (12.7) is not the best of the four — eac
 Time's 8.7 included. **Page 1 was left as it is.** Its two staff panels, and the four tiles above them, end where their
 own content does by a decision of 4 October ("a card is as tall as its own content", `plain.mjs`): stretched to match,
 the shorter list would carry an empty band, which reads as something missing.
+
+**The review (30 Oct 2026**, owner: "review all work done in the last 24 hours"). Three independent reviews read the
+day's work: the app change, every figure and claim against the data, and the tooling code. Every table figure in the
+sheets and decks recomputed exactly, and so did every league score; what they found was in the prose, and in guards that
+did not check what they said. **Fixed:** the shortlist sheet's page 1 called leave "the one exception" where page 2
+lists four shared costs; two dozen of its comparing sentences were unasserted, despite its header, and several numbers
+in them were typed ("two", "a seventh") — all are now asserted or read, a difference printed as a length must be
+positive, and a range of closers is refused; Even Keel's and Short Run's manager decks said each "adds" something
+another shortlisted design has (Even Keel's heaviest week and rest are Closing Time's too), so each line now names the
+design's own edge, as the shortlist sheet does, and is refused if another design shares it; `deck-polish.py` checks its
+three "all four" lines against every design's figures (`deck-check.mjs --print` now gives the rules met and the weekend
+gap); `closing-time-decks.py` checks its typed shift-time lists and figures against the grid, and refuses another
+design's name before its rename, where it used to scan for names after the rename had removed them; slide 12 of every
+colleague deck said more people at the open and the close, which no shortlisted design has at the Sunday close, and
+slide 13 quoted leave stretches the sheet does not print under a banner saying it does; the renderers' stylesheet
+exclusion consumed the bracket it needed to see; `pack.py` checks the two read-me sentences that name shortlist members;
+the app's proposal test could skip, and four doc lines were stale. **Left for the owner:** Closing Time's own sheet
+names its late finishes after 23:00 (42, the rules' minimum) but not its 104 at 22:00 or later — every sheet counts a
+late finish from 23:00, and the shortlist sheet and decks give the 22:00 figure; and the sheets word the fit as a
+fraction from a fixed list ("about two-thirds" for Closing Time's 0.70, "a tenth" for 0.13) where the decks' notes say
+"seven-tenths" and "an eighth" — changing the list re-renders all thirteen sheets.
 
 ## Notes for the whole set
 

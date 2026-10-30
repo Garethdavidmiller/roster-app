@@ -16,7 +16,7 @@
 #   python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/closing-time-decks.py \
 #     && python3 docs/links-26/tooling/deck-polish.py "Closing Time" && node docs/links-26/tooling/deck-check.mjs
 # Every edit refuses if the shape does not hold the text it expects; shapes are found by their text, as in Short Run's.
-import importlib.util, os, re, shutil, tempfile, zipfile
+import importlib.util, json, os, re, shutil, subprocess, tempfile, zipfile
 import openpyxl
 
 def load(name):
@@ -31,9 +31,11 @@ TEMPLATE = 'docs/links-26/tooling/deck-template'   # Second Nature's decks, buil
 NAME, CODE = 'Closing Time', 'CT-26-T2'
 
 # What Short Run's decks say that is not true of Closing Time. Searched in the text a reader sees (slide and notes
-# runs, chart values), never in raw XML, where a number can be an attribute.
+# runs, chart values), never in raw XML, where a number can be an attribute. The design names are NOT here (30 Oct 2026
+# review): this scan runs after the rename, so they could never match. Another design's name is refused before the rename
+# instead (OTHER_NAMES, in build).
 SHORT_RUN_ONLY = re.compile(
-    r'Second Nature|Second Edition|Short Run|SN-26|SE-26|SR-26|10 weeks apart|ten weeks apart|43h 40m|25h 30m|42h 00m|42h 30m|24h 30m'
+    r'10 weeks apart|ten weeks apart|43h 40m|25h 30m|42h 00m|42h 30m|24h 30m'
     r'|six days in a row|6 days in a row|14h 20m|18 of 21|18 of the 21|9 of 15|9 of the 15|9 of its 15|[Nn]ine of (the|its) fifteen'
     r'|\(15, not 18\)|15 shift times|[Ss]ix new|6 new|30 to 45|30–45|30 minutes|15:45–23:55|15:00–22:30|07:00–16:00|12:00–20:00'
     r'|^94$|from 78 to 94|nothing new on a Saturday|none on a Saturday is new|^29\.1$|^12\.7$|1h 13m|5 · 5 · 4|7 · 5 · 5'
@@ -56,9 +58,17 @@ def rename(d):
                 if cell.value in ('Second Nature', 'Second Edition', 'Short Run'): cell.value = NAME; hit = True
         if hit: wb.save(xp)
 
+# BEFORE THE RENAME (30 Oct 2026 review), the template's own name — Second Nature — is the only design a slide or a note
+# names: Second Edition's and Short Run's edits name none. Another design's name at that point is a sentence ABOUT that
+# design, carried over, which the rename would quietly turn into a sentence about this one. It is refused instead.
+OTHER_NAMES = re.compile(r'Second Edition|Short Run|SE-26-F1|SR-26-F1')
+
 def build(src, out, edits):
     d = tempfile.mkdtemp(); zipfile.ZipFile(src).extractall(d)
     for e in edits: e(d)
+    carried = [f'{f}: {t[:90]!r}' for r, _, fs in os.walk(d) for f in fs if f.endswith('.xml')
+               for t in re.findall(r'<a:t>([^<]*)</a:t>', open(os.path.join(r, f), encoding='utf-8').read()) if OTHER_NAMES.search(t)]
+    if carried: raise SystemExit(f'{out}: another design named before the rename —\n  ' + '\n  '.join(carried))
     rename(d)
     left = []
     for r, _, fs in os.walk(d):
@@ -176,7 +186,38 @@ def managers(d):
     s.save()
     notes(d, 8, 'Days at work stay', 'Days at work stay at 219 a year (218.6 exactly; Monday to Saturday; Sunday is overtime), under the ceiling agreed on 1 October 2026. The late finish colleagues will notice is 22:00 or later, about 26 more a year each: partly the December staffing, which wants five still on after 22:00, and partly the weekday’s three 13:30 lates, which now run to 22:30 — how the week keeps a 13:45 every weekday as well as the 16:00 closer. Finishes at 23:00 or later go up about three a year, all from the December staffing — three to the close every day, where today’s weekdays have two — so no link meeting the same rules on 26 weeks could have fewer. Full weekends off are seven in 26 and never more than five weeks apart; nobody works more than five days in a row on the fixed rota; no week mixes earlies and lates, and 17 of the 21 working weeks keep one shift time. Weekly hours run from 27h 00m to 41h 30m (today 25h 10m to 43h 50m); only the average is the contract. The average shift is about two minutes longer.')
 
+def check_typed():
+    """THE TYPED FIGURES, CHECKED (30 Oct 2026 review). The slides' shift-time lists, tiles and labels are typed in this file,
+    and deck-check.mjs reads only table rows, so nothing read them: the Sunday change of 30 Oct needed these bullets edited
+    by hand. Each is compared here with the grid and with deck-check.mjs's figures before a deck is built."""
+    tool = os.path.dirname(os.path.abspath(__file__))
+    fig = json.loads(subprocess.check_output(['node', os.path.join(tool, 'deck-check.mjs'), '--print'], text=True)); F, T = fig[NAME], fig['today']
+    today = json.loads(subprocess.check_output(['node', '-e', "import('./report-data.mjs').then(m => process.stdout.write(JSON.stringify(m.today().patterns)))"], cwd=tool, text=True))
+    ct = json.load(open(os.path.join(tool, '..', 'proposals', f'{NAME.replace(" ", "-")}-{CODE}.json'), encoding='utf-8')); ct = ct.get('patterns', ct)
+    timed = lambda v: bool(re.fullmatch(r'\d\d:\d\d-\d\d:\d\d', v or ''))
+    WK, ALLD = ('mon', 'tue', 'wed', 'thu', 'fri'), ('sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat')
+    times = lambda p, days: {r[d] for r in p.values() for d in days if timed(r[d])}
+    starts = lambda p, days, end: sorted({r[d][:5] for r in p.values() for d in days if timed(r[d]) and r[d][6:] == end})
+    dash = lambda v: sorted(t.replace('-', '–') for t in v)
+    ctT, toT = times(ct, ALLD), times(today, ALLD); known, new = ctT & toT, ctT - toT
+    checks = [   # (what the slides say, what the data says, what is typed)
+        ('the times worked today, slide 8', dash(known), sorted(KNOWN)),
+        ('13 shift times, 8 worked today, 5 new; today 18', [len(ctT), len(known), len(new), len(toT)], [13, 8, 5, 18]),
+        ('the new weekday times, slide 8', dash(new & times(ct, WK)), ['13:30–22:30', '16:00–23:55']),
+        ('the new Saturday time, slide 8', dash(new & times(ct, ('sat',))), ['16:00–23:55']),
+        ('the new Sunday times, slide 8', dash(new & times(ct, ('sun',))), ['09:00–18:00', '14:30–22:30', '15:15–23:25']),
+        ('closers from 16:00, today 15:15 and 14:45, slides 6 and 8', [starts(ct, WK, '23:55'), starts(ct, ('sat',), '23:55'), starts(today, WK, '23:55'), starts(today, ('sat',), '23:55')],
+         [['16:00'], ['16:00'], ['15:15'], ['14:45']]),
+        ('the Sunday closer from 15:15, today 14:30, slide 8', [starts(ct, ('sun',), '23:25'), starts(today, ('sun',), '23:25')], [['15:15'], ['14:30']]),
+        ('the figures on slides 2, 6, 7, 9, 13 and 14, and the manager slides',
+         [F['late22'], T['late22'], F['open0620'], F['rest'], F['oneTurn'], T['oneTurn'], F['times'], F['late23'], F['at22'], T['at22'].split(' · ')[0], F['open'], F['closers'], T['closerWk'], T['closerSat']],
+         ['104', '78', '58', '14h 35m', '17 of 21', '7 of 16', '13 (8 you know)', '42', '8 · 5 · 5', '4', '5 · 4 · 4', '7h 55m · 7h 55m · 8h 10m', '8h 40m', '9h 10m']),
+    ]
+    bad = [f'{what}: the data says {got}, the slides say {typed}' for what, got, typed in checks if got != typed]
+    if bad: raise SystemExit('closing-time-decks: a typed figure no longer matches the rota —\n  ' + '\n  '.join(bad))
+
 if __name__ == '__main__':
+    check_typed()
     build(f'{TEMPLATE}/Second-Nature-for-colleagues.pptx', f'{OUT}/Closing-Time-for-colleagues.pptx', [sed.colleagues, srd.colleagues, colleagues])
     build(f'{TEMPLATE}/Second-Nature-for-managers.pptx', f'{OUT}/Closing-Time-for-managers.pptx', [sed.managers, srd.managers, managers])
     print('wrote', OUT)
