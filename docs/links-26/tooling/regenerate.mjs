@@ -80,6 +80,11 @@ export const SUPPLIED = [
     { file: 'home-grown.json',             name: 'Home Grown',     code: 'HG-26-T1',   fp: '7d41fafb', strap: 'Today’s shift times with a 16:00 weekday closer and a 13:35 finish every weekday, and Saturday closing as today' },
     { file: 'closing-time.json',           name: 'Closing Time',   code: 'CT-26-T2',   fp: '77a235bc', strap: 'A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between shifts' },
     { file: 'both-ways.json',              name: 'Both Ways',      code: 'BW-26-T3',   fp: '7a513d87', strap: 'A 16:00 closer every day from Monday to Saturday, and a 13:35 and a 13:45 finish every weekday, as today' },
+    // In Step (30 Oct 2026): the owner asked whether Closing Time could be improved to fix the Saturday open or fit the trains
+    // better on a weekday, and to give the answer a new name. Closing Time's rest days and early and late weeks, held while
+    // exact-rota.py chose every time from a table with 15:45 closers, five at every opening Monday to Saturday and two new
+    // early times that finish by 15:45, so its 14h 35m rest holds. README.md → "In Step".
+    { file: 'in-step.json',                name: 'In Step',        code: 'IS-26-T4',   fp: '8d9239f3', strap: 'Five on at every opening from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between shifts' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

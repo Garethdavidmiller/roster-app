@@ -31,6 +31,8 @@ its grid, and FIX= checks that grid against the model.
   python3 exact-rota.py <table.json> <out.json> [seconds]
   env: OBJ=one|step|both|chg|heavy|four|best|rest  ONE_MIN= STEP= LIGHT= MAXCHG= (at most n early/late switches the step can see)
        HINT=<rota.json> (start from it)  FIX=<rota.json> (check a rota against the model)  WORKERS=4  LOG=1
+       SKELETON=<rota.json> (hold its rest days; FAMILY=1 holds its early and late weeks too: 30 Oct 2026, for a new table
+       on a rota whose day headcounts and early/late split it shares — the solver then chooses only the times)
   e.g. HINT=closing-time.json ONE_MIN=17 LIGHT=1620 OBJ=step WORKERS=2 python3 exact-rota.py results/closing-time-table.json /tmp/ct.json 1200"""
 import sys, json, os
 from ortools.sat.python import cp_model
@@ -189,6 +191,13 @@ def rota(fn):
 if os.environ.get('FIX'):
     F = rota(os.environ['FIX'])
     for (k, d, t), v in x.items(): M.Add(v == (1 if F[str(k)][d] == t else 0))
+if os.environ.get('SKELETON'):   # hold that rota's rest days (and, with FAMILY=1, its early and late weeks); choose only the times
+    F = rota(os.environ['SKELETON'])
+    for k in WORK:
+        for d in DAYS: M.Add(on[(k, d)] == (0 if F[str(k)][d] == 'RD' else 1))
+        if os.environ.get('FAMILY') == '1':
+            fam = {early(F[str(k)][d]) for d in DAYS if F[str(k)][d] not in ('RD', 'SPARE')}
+            if len(fam) == 1: M.Add(f[k] == (1 if fam.pop() else 0))
 if os.environ.get('HINT'):
     F = rota(os.environ['HINT'])
     for (k, d, t), v in x.items(): M.AddHint(v, 1 if F[str(k)][d] == t else 0)

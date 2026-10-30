@@ -66,7 +66,7 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 
 | Stage | Script | What it does |
 |---|---|---|
-| 1 · duty table | `final-table.mjs` | the best table for one day, by fit to the trains, under every rule; a proof unless `ANNEAL=1` |
+| 1 · duty table | `final-table.mjs` | the best table for one day, by fit to the trains, under every rule; a proof unless `ANNEAL=1`; `OPENERS_MIN=` and `FIXED_FREE=1` (a third duty on a ticket-office time) since "In Step" |
 | | `assemble-table.mjs` | three days' tables into one duty table (weekday · Saturday · Sunday) |
 | 2 · rota | `anneal.mjs` | arranges a table on the 26 lines; `TABLE=<table.json>`, `MODE=rules` for fatigue first |
 | | `carry-order.mjs` | lays a table onto an existing rota's week structure (how Familiar Nine borrowed Right Away's) |
@@ -84,7 +84,7 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
 | options | `short-earlies.mjs` | every way to keep a 13:35 or 13:45 every weekday with today's times and a 16:00 closer: 2,250 `final-table.mjs` searches (`SCAN=1`; their results are committed, `results/short-earlies-scan.txt`) and every whole week paying the contract (see "Today's link on 26 lines") |
 | fatigue values | `factors-like.mjs` | every fatigue factor's own value, on the fixed duties and in the worst case, against a reference grid; exits 1 if any is worse (`space-polish.mjs`'s `FACTORS_LIKE` holds a search to the same comparison) |
-| whole rota, exact | `exact-rota.py` | the whole rota — which line works which duty on which day — as one model for OR-Tools CP-SAT (`pip install ortools`), every rule the sheets apply counted as the app counts it; `OBJ=` what to improve, `HINT=` a valid rota to start from, `FIX=` checks a rota against the model (see "Closing Time, improved") |
+| whole rota, exact | `exact-rota.py` | the whole rota — which line works which duty on which day — as one model for OR-Tools CP-SAT (`pip install ortools`), every rule the sheets apply counted as the app counts it; `OBJ=` what to improve, `HINT=` a valid rota to start from, `FIX=` checks a rota against the model, `SKELETON=` (and `FAMILY=1`) holds a rota's rest days (and its early and late weeks) so only the times are chosen (see "Closing Time, improved" and "In Step") |
 
 **Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
 - **No 24-line default leaks through.** The app functions that default to 24 lines (`runDesignChecks`, `assessFatigue`,
@@ -1165,6 +1165,111 @@ names its late finishes after 23:00 (42, the rules' minimum) but not its 104 at 
 late finish from 23:00, and the shortlist sheet and decks give the 22:00 figure; and the sheets word the fit as a
 fraction from a fixed list ("about two-thirds" for Closing Time's 0.70, "a tenth" for 0.13) where the decks' notes say
 "seven-tenths" and "an eighth" — changing the list re-renders all thirteen sheets.
+
+## In Step — Closing Time's weeks, five at every opening and a closer fit to the trains (30 Oct 2026)
+
+**The question** (owner, 30 Oct 2026): "Closing time can't be improved to fix the Saturday open or fit the trains better
+on a weekday?" — and, once the answer turned out to be a different set of times: "Best to give this option a new name
+to avoid confusion". So Closing Time is unchanged, and the answer is a design of its own: **In Step** (`IS-26-T4` ·
+**`8d9239f3`**). It keeps Closing Time's weeks — the same rest days, and every week still all earlies or all lates — and
+searches the times again. Five people are on at every opening from Monday to Saturday, the weekday fit to the trains is
+Short Run's within a whisker, and every figure Closing Time had holds or improves except the six small ones listed
+below under "What it costs".
+
+| | In Step | Closing Time | Short Run |
+|---|---|---|---|
+| Fit to the trains, weekday · Saturday · Sunday | **29.8** · 9.6 · 29.0 | 36.4 · **8.7** · 29.0 | 29.1 · 12.7 · 29.0 |
+| On at the open, weekday · Saturday · Sunday | **5 · 5 · 4** | 5 · 4 · 4 | 5 · 5 · 4 |
+| Still on at 22:00, weekday · Saturday · Sunday | 7 · 5 · 5 | 8 · 5 · 5 | 7 · 5 · 5 |
+| The closer, Monday to Saturday | 15:45, 8h 10m | **16:00, 7h 55m** | 15:45 weekdays, 15:15 Saturday (8h 40m) |
+| A short finish | 13:45 every weekday, 13:35 Saturday | 13:45 every weekday and Saturday | none |
+| Weeks on one shift time | **18 of 21** | 17 of 21 | 18 of 21 |
+| Week-to-week change of start | 1h 13m | **1h 10m** | 1h 13m |
+| Heaviest · lightest week | **41h 05m** · 25h 30m | 41h 30m · **27h 00m** | 42h 30m · 24h 30m |
+| Most hours in any seven days | **50h 00m** | 51h 00m | 51h 42m |
+| Shortest rest | 14h 35m | 14h 35m | 14h 20m |
+| Shift times (new) | 15 (6) | **13 (5)** | 15 (6) |
+| A year each: finishes 22:01–22:59 · hours on duty after 20:00 | **48 · 290** | 58 · 315 | 48 · 290 |
+| Everything else on the sheet | the same as Closing Time: 9 of 9 rules, no fatigue factor fixed or worst case, 5 days in a row (up to 6), 7 weekends at most 5 weeks apart, 4 single rest days, no mixed week, leave 28 · 20 · 15, 42 finishes after 23:00, 218.6 days | | |
+
+**Why Closing Time could not do it with its own times.** Its weakness on a weekday is an extra person on the quiet
+20:00–22:00 floor, and those three 13:30–22:30s are where it found its minutes: with a 16:00 closer, today's times pay
+the contract with only 180 minutes a week to spare, and a 13:45 every weekday leaves the week 145 short (the arithmetic
+under "Today's link on 26 lines"). The owner had already set the closer's start aside ("whether it is 1545 or 1600
+doesn't matter"). A 15:45 closer is 45 minutes a day longer across the three closers, 270 a week, which pays for the
+13:45 without the nine-hour lates. Kept at 16:00, the closers allow as close a weekday (29.8) on Closing Time's weeks
+only by giving up the 13:45 and adding two more new shift times; with a 13:45 the weekday is 31.0 at best.
+
+**Why five at the Saturday open had never come up.** `final-table.mjs` read the owner's "keep 06:20–14:50 x2" as
+exactly two, so a third 06:20–14:50 on the floor beside the ticket office's pair was never offered, though today's
+Saturday works exactly that. `FIXED_FREE=1` now allows it, and `OPENERS_MIN=5` asks for five at the open; both are off
+by default, so every earlier table rebuilds as it was. Closing Time itself can have five at the Saturday open by
+swapping two Saturday duties (line 2's 08:00–16:30 for an 06:20–14:50, line 20's 07:15–15:45 for the 08:00–16:30), for
+2.2 points of Saturday fit (8.7 to 10.9); it would score 86.9 that way, and is not changed.
+
+**What shaped the times.** Two of Closing Time's rules decide which tables can be worked on its weeks, and each
+removed a time the plain search wanted:
+- **the 14h 35m shortest rest**: an early finishing after 15:45 cannot be followed by an 06:20 start the next morning,
+  so Short Run's 07:00–16:00 (14h 20m to an 06:20) became **07:00–15:45** and the longer opener **06:20–15:15**, both new;
+- **no start more than two hours from the day before's (FF19)**: today's 11:00–19:30 is more than two hours from every
+  other late start, so whoever works it must work it every day of a block that rest days close off, and Closing Time's
+  rest days have no such blocks to give; today's **12:00–20:00**, two hours from 14:00, takes its place.
+
+**How it was found.** `final-table.mjs` built the best weekday and Saturday table, exhaustively, on a pool of 35 shift
+times (today's, the closer, and the candidates the faster `ANNEAL=1` search kept choosing), for every weekday total from
+7,440 to 7,480 minutes with the Saturday paying the rest, at several rates of the familiarity penalty, with 15:45 and with
+16:00 closers. Each pair of tables was laid on Closing Time's rest days and early and late weeks by `exact-rota.py`
+(`SKELETON=`, `FAMILY=1`, new), which proves in seconds whether a table can be worked there and how many weeks it can
+keep on one shift time. The best that can be laid is the one in the table above (7,455 a weekday, 6,825 on Saturday).
+Then, with Closing Time's figures held — its FF17 margin of three, 51 hours in any seven days, its heaviest week — the
+model gave it 18 weeks on one shift time, proven the most those weeks allow, and then the smallest step with those 18,
+also proven:
+
+```
+POOL=06:20-13:35,06:20-13:45,06:20-14:00,06:20-14:20,06:20-14:50,07:15-15:45,08:00-16:30,08:30-16:30,12:00-20:00,13:00-21:00,13:30-21:00,13:30-22:00,14:00-22:30,14:30-22:00,14:30-23:25,13:30-22:30,13:45-22:30,14:30-22:30,14:15-22:30,14:45-22:30,06:20-15:15,06:20-15:20,13:00-22:00,12:00-21:00,06:20-14:30,15:00-22:30,07:00-15:45,07:00-15:30,07:00-15:15,06:20-14:15,12:30-20:15,12:45-20:15,12:30-20:30,12:30-21:00,15:45-23:55
+COMMON="TODAY=1 AT22_STRICT=1 MID_END_MAX=1350 HI=540 NEWPEN=1 OPENERS_MIN=5"
+env $COMMON CLS=weekday WK_CLOSER=15:45-23:55 CLOSERS_MAX=3 TOTAL=7455 POOL_ONLY=$POOL node final-table.mjs   # fit 30.1 on its own measure
+env $COMMON CLS=sat FIXED_FREE=1 TOTAL=6825 POOL_ONLY=$POOL node final-table.mjs                             # fit 11.6 on its own measure
+T=results/in-step-table.json   # the two tables, with Short Run's Sunday
+LIGHT=1530 FF17=-3 H7=3060 SKELETON=closing-time.json FAMILY=1 OBJ=one python3 exact-rota.py $T /tmp/is1.json 60                       # 18, proven
+ONE_MIN=18 LIGHT=1530 FF17=-3 H7=3060 SKELETON=closing-time.json FAMILY=1 HINT=/tmp/is1.json OBJ=step python3 exact-rota.py $T /tmp/is2.json 300   # 1h 13m, proven: the grid (8d9239f3)
+```
+
+As with Closing Time, CP-SAT's parallel search is not reproducible, so the grid is committed (`tooling/in-step.json`)
+and `FIX=in-step.json` checks it against the model. Of the sheets' fatigue figures (`factors-like.mjs`) only FF2 is
+above Closing Time's: 30 early starts in the rotation where it has 29 — Short Run's figure, and what a fifth person at
+the Saturday open costs; FF2 is a standing factor, recorded and not counted.
+
+**What it costs against Closing Time:** a Saturday fit of 9.6 against 8.7, the price of the fifth person at the open
+(Short Run's is 12.7); FF2's standing count of 30 against 29, for the same reason; a sixth new shift time (15 times,
+6 new, against 13 and 5 — familiar share 60% against 62%); a week-to-week change of 1h 13m against 1h 10m; a lightest
+week of 25h 30m against 27h 00m, because Closing Time's rest days have a late week of three duties and the table has no
+nine-hour late; and the closer starts at 15:45, a quarter of an hour longer than Closing Time's.
+
+**What else was tried:**
+
+| What | How | What came of it |
+|---|---|---|
+| Laying the new tables without Closing Time's weeks | `exact-rota.py` from Closing Time's grid as a hint, rest days free, 12 minutes each on two tables | no rota at all: a hint that does not fit the table leaves the solver to build a first rota alone |
+| Short Run's 07:00–16:00, or today's 11:00–19:30 | the same tables on Closing Time's weeks | cannot be worked there (the rest and FF19, above) |
+| 16:00 closers kept | the same searches with `WK_CLOSER=16:00-23:55`, with and without a 13:35 or 13:45 required (`REQUIRE=`) | a 29.8 weekday only with no short finish and eight new shift times (three-day fit 23.2); with a 13:45, a weekday of 31.0 and a three-day fit of 23.6 at best — In Step's is 22.8 |
+| 19 weeks on one shift time | `FF17=-1` | possible only with Closing Time's FF17 margin given up, and not with the 25h 30m lightest week held |
+| 17 weeks on one shift time | `ONE_MIN=17 OBJ=step` | a 1h 09m step; 87.9 in the usual league against 88.4 for 18 and 1h 13m |
+| The rest days freed | `exact-rota.py` from In Step without `SKELETON`, 10 minutes each for the weeks on one turn and the step | neither moved |
+
+**In the league** In Step is first in every version (usual 88.4 · proposals setting the scale 93.1 · without familiar
+times 92.8 · run on the fixed rota 88.4 · six-factor 92.2). With it in the range, the usual
+league reads Closing Time 87.2, Second Edition 87.1, Short Run 86.4, Even Keel 85.8: its fit is a new best, which
+widens that factor's range and takes 0.05 to 0.06 off every other score, and changes no other design's place. Against the
+four shortlisted designs it keeps two things none of them has, the closest fit to the trains and the lightest heaviest
+week, and is worse than all four on nothing: the only design outside the shortlist that is. The shortlist sheet says so
+in one sentence (asserted, as its others are). In Step is not on the shortlist, which is the owner's call, and the
+recommendation is unchanged; it has no presentations and is not built into the app.
+
+**Two tooling fixes it needed.** The one-page summary did not fit fourteen proposals: the footer went to a second
+sheet. It now prints, counts its pages and steps the scale down a point at a time until it prints on one (93% at
+fourteen), and refuses to ship two. And the pack's read-me gains a paragraph for In Step, refused if In Step is ever
+shortlisted, since the paragraph says it is not.
 
 ## Notes for the whole set
 

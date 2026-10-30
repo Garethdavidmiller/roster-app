@@ -74,6 +74,19 @@ ${rows.map(r=>tr(r)).join('\n')}
 <p class="foot">* Monday to Saturday, with a cover week counted as 4 days (Sundays are overtime and left out). † Each person, on average across the whole link, Sundays included; cover-week duties are not known yet and are left out. “Shift times” counts different start–finish times; “new” means nobody works that time today. “Weeks on one turn” means one shift time Monday to Friday, all earlies or all lates; beneath it, the longest block of weeks in a row on one kind, “up to” if the cover weeks beside it go the same way. The week-to-week change is the average move of the start time from one week to the next. § On the duties the rota fixes, the cover weeks left out for the proposal and today alike; “up to” is the worst place a cover week’s four duties could fall. Avoidable fatigue warnings come from the ORR’s good-practice list plus rail-industry checks, leaving out the two that come with every weekly link — reported, never pass or fail.${rows.some(r => r.waived) ? ` ‡ A rule the owner set aside for that proposal (${rows.filter(r => r.waived).map(r => `${r.name}: the ${WAIVERS[r.code].keys.map(waiveShort).join(' and ')}, ${WAIVERS[r.code].date.replace(/ (\w{3})\w+ /, ' $1 ')}`).join('; ')}).` : ''} Full detail for each proposal is in its own eight-page sheet; the rules themselves are in <span style="white-space:nowrap">links-26-rules.pdf</span>.</p>
 <p class="pfoot"><span>One page — every proposal against today’s link</span><span><b>December 2026 link proposals</b> · Marylebone Roster — Links designer · every figure computed from the rotas · ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span></p>
 </body></html>`;
+// ONE PAGE, WHATEVER THE COUNT (30 Oct 2026). The fourteenth proposal, In Step, pushed the footer onto a second sheet:
+// the type was sized for thirteen rows and nothing said so. So the page is printed, its pages counted, and the scale
+// stepped down a point at a time until it prints on one. The PRINTED page decides, not a measurement of the screen:
+// measured in the browser the table came out some 30px taller than Chromium paginates it, and fitting to that shrank
+// the page to 93% with a strip left empty at the foot. Below 80% it stops, rather than print what nobody can read.
+const OUT = new URL('../links-26-summary.pdf', DIR).pathname;
+const pagesIn = buf => (buf.toString('latin1').match(/\/Type\s*\/Page(?!s)/g) ?? []).length;
 const b = await chromium.launch(); const pg = await b.newPage(); await pg.setContent(html, { waitUntil: 'load' });
-await pg.pdf({ path: new URL('../links-26-summary.pdf', DIR).pathname, format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
-await b.close(); console.log(`wrote links-26-summary.pdf — ${rows.length} proposals, today meets ${todayRow.met} of ${todayRow.of}`);
+let scale = 1, pdf;
+for (;;) { pdf = await pg.pdf({ format: 'A4', landscape: true, printBackground: true, preferCSSPageSize: true });
+  if (pagesIn(pdf) === 1 || scale <= 0.8) break;
+  scale = Math.round((scale - 0.01) * 100) / 100; await pg.evaluate(z => { document.body.style.zoom = String(z); }, scale); }
+await b.close();
+if (pagesIn(pdf) !== 1) { console.error(`summary-sheet: ${pagesIn(pdf)} pages at ${Math.round(scale * 100)}% — the summary must fit one`); process.exit(1); }
+fs.writeFileSync(OUT, pdf);
+console.log(`wrote links-26-summary.pdf — ${rows.length} proposals, today meets ${todayRow.met} of ${todayRow.of}${scale < 1 ? `, scaled to ${Math.round(scale * 100)}% to fit one page` : ''}`);

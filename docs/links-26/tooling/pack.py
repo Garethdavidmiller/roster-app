@@ -45,6 +45,8 @@ if not SHORTLIST or any(s not in names.split(', ') for s in SHORTLIST): raise Sy
 # the names it was typed with, so a change to SHORTLIST would have left the read-me contradicting its own first line.
 if 'Closing Time' not in SHORTLIST or {'Home Grown', 'Both Ways'} & set(SHORTLIST):
     raise SystemExit(f'pack: the read-me says Closing Time alone of the 26 Oct three is shortlisted; SHORTLIST is {SHORTLIST}')
+if 'In Step' in SHORTLIST:   # the 30 Oct paragraph below says it is not on the shortlist
+    raise SystemExit(f'pack: the read-me says In Step is not shortlisted; SHORTLIST is {SHORTLIST}')
 built_in = open('links-proposals.js', encoding='utf-8').read()
 missing = [n for n, c, _ in proposals if n in SHORTLIST and f"code: '{c}'" not in built_in]
 if missing: raise SystemExit(f'pack: the read-me says every shortlisted design is built into the app; links-proposals.js lacks {missing}')
@@ -74,6 +76,10 @@ readme = '\n'.join([
             'the short finishes a different way; the technical notes compare them. Closing Time, improved on 27 and 30 '
             'October, joined the shortlist on 30 October; the other two are not on it.'), '']
       if {'Home Grown', 'Closing Time', 'Both Ways'} <= {n for n, _, _ in proposals} else []),
+    *([para('In Step (30 October 2026) answers the next question: whether Closing Time could have five on at the Saturday '
+            'open and follow the weekday trains more closely. It keeps Closing Time\'s weeks and a 13:45 finish every '
+            'weekday, with the closer at 15:45 instead of 16:00. It is not on the shortlist.'), '']
+      if 'In Step' in {n for n, _, _ in proposals} else []),
     para('Still moving: the staffing levels and Sunday cover behind the rules were confirmed verbally, not in writing; '
          'the written source of the 13-day limit is to be confirmed; and the reading of one fatigue factor (FF19, marked '
          '"definition to confirm" on the rules page) is open. The figures are computed from the rotas and will not move '
