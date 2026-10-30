@@ -643,8 +643,8 @@ p.pnext { font-size: 9.4px; color: var(--text-mid); margin: 10px 0 0; } p.pnext 
 .p4n { background: var(--surface-sunken); border-radius: 8px; padding: 9px 12px; box-shadow: inset 0 3px 0 color-mix(in srgb, var(--primary-blue) 35%, white); }
 .p4n b { display: block; font-size: 24px; line-height: 1.05; color: var(--primary-blue); } .p4n span { font-size: 10px; color: var(--text-mid); }
 .p4n-new { box-shadow: inset 0 3px 0 var(--primary-blue); } .p4n-new b { color: var(--primary-blue); }
-/* the new times to learn: up to three in a row, four as two pairs, five or six three to a row, more four to a row — and the
-   last row's cards share its width. A fixed three-column grid left one card alone beside two empty cells (four times) or a
+/* the new times to learn: up to three in a row, four as two pairs, five or six three to a row, more four to a row (three
+   for nine, five for thirteen, so no card is left alone; 30 Oct 2026 review) — and the last row's cards share its width. A fixed three-column grid left one card alone beside two empty cells (four times) or a
    gap at the end (two, five or seven); four across wrapped "weekdays and Saturdays" in half the cards (Both Ways, measured).
    --n, set where the cards are built, is the cards a full row holds; border-box so the padding is inside the share */
 .p4new { display: flex; flex-wrap: wrap; gap: 5px 10px; margin: 4px 0 6px; }
@@ -887,7 +887,7 @@ function shiftPage(s, { T, P }) {
     <div class="p4n p4n-new"><b>${fresh.length}</b><span>${fresh.length === 1 ? 'is' : 'are'} new — nobody works ${fresh.length === 1 ? 'it' : 'them'} today</span></div>
   </div>
   ${fresh.length ? `<h2>The new ${fresh.length === 1 ? 'time' : 'times'} to learn</h2>
-  <div class="p4new" style="--n:${fresh.length <= 3 ? fresh.length : fresh.length === 4 ? 2 : fresh.length <= 6 ? 3 : 4}">${fresh.map(r => `<div class="p4t"><span class="tt">${r.time}</span><span>${len(r.minutes)} · ${kind(r)} · ${when(r)}</span></div>`).join('')}</div>` : '<p class="p4none">Every shift time in this link is one somebody already works today.</p>'}
+  <div class="p4new" style="--n:${fresh.length <= 3 ? fresh.length : fresh.length === 4 ? 2 : fresh.length <= 6 ? 3 : [4, 3, 5].find(c => fresh.length % c !== 1) ?? 4}">${fresh.map(r => `<div class="p4t"><span class="tt">${r.time}</span><span>${len(r.minutes)} · ${kind(r)} · ${when(r)}</span></div>`).join('')}</div>` : '<p class="p4none">Every shift time in this link is one somebody already works today.</p>'}
   ${gone.length ? `<p class="p4gone"><b>No longer used:</b> ${gone.length} of today’s ${T.tableRows.length} shift times — ${gone.map(r => `<span class="tt">${r.time}</span>`).join(', ')}.</p>` : ''}`;
   s = must(s, /<div class="stack">[\s\S]*?<\/div>\s*<\/div>\s*(?=<h2>The duty table)/, `${learn}\n  `, 'the two tables above the duty table');
   // THE SHAPE OF A WEEK — restored (30 Sep 2026, "no important insight must be lost"). v2 moved four of the old table's
@@ -1063,13 +1063,17 @@ export function plainEdition(html, ctx) {
   // ONE WAY OF WRITING A LENGTH OF TIME (owner, 30 Sep 2026). Page 2 wrote "13h35" and page 6 "13h 35m" for the same
   // figure, and "13h35" also reads as a clock time. Every duration on every page is "13h 35m"; clock times keep their
   // colon (13:35), so the two can no longer be confused. Text only — never inside a tag or the stylesheet.
-  out = out.replace(/(<style[\s\S]*?<\/style>)|>([^<]+)</g, (m, st, txt) => st ?? `>${txt.replace(/\b(\d{1,3})h(\d{2})\b(?!m)/g, '$1h&nbsp;$2m')
+  // THE BRACKETS ARE LOOKED AT, NOT TAKEN (30 Oct 2026 review). The text alternative used to consume the "<" that closes a
+  // text node, so ">\n<style>" was read as text and the "<style" never seen: the whole stylesheet went through this pass as
+  // one text node (25 no-break spaces in the sheets' CSS comments, harmless only because no live rule held a dot or a dash).
+  // A ">" inside an attribute value would still be read as the end of a tag; none of these pages has one.
+  out = out.replace(/(<style[\s\S]*?<\/style>)|(?<=>)([^<]+)(?=<)/g, (m, st, txt) => st ?? `${txt.replace(/\b(\d{1,3})h(\d{2})\b(?!m)/g, '$1h&nbsp;$2m')
     // POLISH (1 Oct 2026): a separator dot stays at the END of a line, never the start of the next; and a clock range is
     // written one way on every page — page 4 wrote 06:20-14:25 where pages 2 and 5 wrote 06:20–14:25
     .replace(/ · /g, '&nbsp;· ').replace(/\b(\d\d:\d\d)-(\d\d:\d\d)\b/g, '$1–$2')
     // THIRD POLISH PASS (4 Oct 2026): a dash, like a dot, ends a line and never starts one; a fraction in words ("two-fifths")
     // keeps its hyphen on one line (a word joiner — invisible, and no glyph for the font to lack)
-    .replace(/ — /g, '&nbsp;— ').replace(/\b(two|three|four|nine)-(fifths|thirds|quarters|tenths)\b/g, '$1-\u2060$2')}<`);
+    .replace(/ — /g, '&nbsp;— ').replace(/\b(two|three|four|nine)-(fifths|thirds|quarters|tenths)\b/g, '$1-\u2060$2')}`);
   // ORPHANS (4 Oct 2026): a plain-text table cell or list item — no tags inside it, and long enough to wrap — never ends on a
   // lone short word ("to Friday", "— people", "(today 7)"): its last space is a no-break space. A cell with markup is left alone.
   out = out.replace(/<(td|li)(\s[^>]*)?>([^<]{25,})<\/\1>/g, (m, tag, attrs, txt) => { const i = txt.lastIndexOf(' ');
@@ -1078,6 +1082,6 @@ export function plainEdition(html, ctx) {
   // sheet. Each range sits in a no-wrap span — not a word joiner, as the fractions have, because a range is what a reader
   // searches for or copies, and an invisible character inside it would stop "06:20–14:20" matching. Text only, after the
   // orphan pass above (which leaves a cell with markup alone), and never in the stylesheet or the title.
-  out = out.replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|>([^<]+)</g, (m, keep, txt) => keep ?? `>${txt.replace(/\b\d\d:\d\d–\d\d:\d\d\b/g, '<span class="rng">$&</span>')}<`);
+  out = out.replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (m, keep, txt) => keep ?? txt.replace(/\b\d\d:\d\d–\d\d:\d\d\b/g, '<span class="rng">$&</span>'));
   return out;
 }

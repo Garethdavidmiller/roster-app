@@ -221,7 +221,7 @@ const htmlOut = new URL('December-2026-Rules.html', import.meta.url).pathname;
 // a label never ends on a lone word: the last space of a plain-text cell becomes a no-break space; and a clock range is one
 // unit, as on the proposal sheets (plain.mjs, which says why it is a span): text only, never in the stylesheet or title
 const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace(/ (\S+)$/, '\u00a0$1')}</td>`)
-    .replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|>([^<]+)</g, (m, keep, txt) => keep ?? `>${txt.replace(/\b\d\d:\d\d–\d\d:\d\d\b/g, '<span class="rng">$&</span>')}<`);
+    .replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (m, keep, txt) => keep ?? txt.replace(/\b\d\d:\d\d–\d\d:\d\d\b/g, '<span class="rng">$&</span>'));   // the brackets looked at, not taken: plain.mjs says why
 writeFileSync(htmlOut, tidy(html));
 const b = await chromium.launch(); const pg = await b.newPage();
 await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
