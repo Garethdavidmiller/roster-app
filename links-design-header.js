@@ -437,7 +437,7 @@ export function createDesignHeader(els, handlers, extra = {}) {
                 }
             }
         }
-        // With the shortlist above them, "0 saved designs" over three rows you can open reads as wrong.
+        // With the shortlist above them, "0 saved designs" over rows you can open reads as wrong.
         if (els.pickerSub) els.pickerSub.textContent = (proposals.length ? `${proposals.length} shortlisted · ` : '')
             + (designs.length === 1 ? '1 saved design' : `${designs.length} saved designs`);
         if (els.pickerButton) els.pickerButton.disabled = designs.length === 0 && !open && !proposals.length;

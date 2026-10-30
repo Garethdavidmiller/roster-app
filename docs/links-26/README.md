@@ -1119,7 +1119,7 @@ comparison table gained the weekday and Saturday closers and the 22:00 finishes,
 Sunday's closer and fit, now shared lines, which with five value columns squeezed the labels to a word a line. **The
 decks:** every manager "Why" slide now says what all four give, and its first line drops the flexible rules, since
 Closing Time's brief swapped one; the colleague decks' leave notes say all four are worse than today on four weeks off.
-The six shortlisted decks were rebuilt and re-exported with them. **The app:** Closing Time is built into the Links
+All eight decks — two for each shortlisted design — were rebuilt and re-exported with them. **The app:** Closing Time is built into the Links
 designer beside the other three from v25.01 (`links-proposals.js`, copied cell for cell from `proposals/`).
 
 **The sheets tidied (30 Oct 2026**, owner: "do the necessary work and sheet tidy ups"). Two of the three were changed in

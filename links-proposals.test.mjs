@@ -3,8 +3,8 @@
 // Three things are pinned, and each fails for its own reason. The designs must be what the
 // owner shortlisted — 26 lines, five cover weeks, the contract paid, inside every hard limit — because
 // they are what every other design on the page is measured against. They must be FAITHFUL copies of
-// the grids in docs/links-26/proposals, once those files are in the checkout, so the screen and the
-// printed sheet agree. And no proposal may ever look like something Firestore could hold.
+// the grids in docs/links-26/proposals, so the screen and the printed sheet agree. And no proposal may
+// ever look like something Firestore could hold.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
@@ -20,10 +20,12 @@ describe('the shortlist as the owner chose it (3 Oct 2026, and Closing Time on 3
         assert.deepEqual(PROPOSALS.map(p => p.name.split(' — ')[0]), ['Second Edition', 'Even Keel', 'Short Run', 'Closing Time']);
     });
 
-    test('every shortlisted design has a source grid named here', () => {
-        // a design added to PROPOSALS without a SOURCES entry would make its faithful-copy test read
-        // `docs/links-26/proposals/undefined.json`, find nothing, and SKIP — passing while checking nothing
+    test('every shortlisted design has a source grid named here, and the file is there', () => {
+        // The faithful-copy test below used to SKIP when its grid was absent — right for the one PR this test landed
+        // ahead of the grids (3 Oct 2026), and since then a way to pass while checking nothing: a design added without a
+        // SOURCES entry, or a SOURCES name that matches no file, skipped. The grids are tracked, so both now fail here.
         assert.deepEqual(Object.keys(SOURCES).sort(), PROPOSALS.map(p => p.code).sort());
+        for (const f of Object.values(SOURCES)) assert.ok(existsSync(new URL(`./docs/links-26/proposals/${f}.json`, import.meta.url)), `no source grid: ${f}.json`);
     });
 
     for (const p of PROPOSALS) {
@@ -50,9 +52,8 @@ describe('the shortlist as the owner chose it (3 Oct 2026, and Closing Time on 3
                 assert.equal(contractedDaysPerYear(p.patterns, ROTATING_LINES).toFixed(1), '218.6');
             });
 
-            test('a faithful copy of its docs/links-26 grid, whenever that file is in the checkout', (t) => {
+            test('a faithful copy of its docs/links-26 grid', () => {
                 const file = new URL(`./docs/links-26/proposals/${SOURCES[/** @type {'SE-26-F1'} */ (p.code)]}.json`, import.meta.url);
-                if (!existsSync(file)) { t.skip('source grid not in this checkout yet'); return; }
                 const src = JSON.parse(readFileSync(file, 'utf8'));
                 assert.equal(src.name, `${p.name} (${p.ref})`, 'the printed name — title and ref, as on the sheet');
                 assert.deepEqual(normalisePatterns(src.patterns), p.patterns, 'the grid');
