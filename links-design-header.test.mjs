@@ -465,8 +465,8 @@ describe('lastSaveTime — the display reading of a save time', () => {
 // not then describe it as "Untitled design · Not saved" — and that its own group, not a designer's,
 // is where it is listed.
 describe('render — a built-in proposal', () => {
-    const PROPS = [{ id: 'proposal:SE-26-F1', name: 'Second Edition — Dec 2026', ref: 'SE-26-F1 · dea6417f' },
-                   { id: 'proposal:EK-26-H1', name: 'Even Keel — Dec 2026', ref: 'EK-26-H1 · 8e9a1bcf' }];
+    const PROPS = [{ id: 'proposal:IS-26-T4', name: 'In Step — Dec 2026', ref: 'IS-26-T4 · 8d9239f3' },
+                   { id: 'proposal:SR-26-F1', name: 'Short Run — Dec 2026', ref: 'SR-26-F1 · 618348d6' }];
     const open = (/** @type {boolean} */ dirty) => {
         const { els, h } = harness();
         h.render({ designs: DESIGNS, activeId: null, design: { name: PROPS[0].name }, dirty, currentUser: ME, now: NOW,
@@ -481,7 +481,7 @@ describe('render — a built-in proposal', () => {
         assert.equal(els.status.className, 'dm-status dm-status--proposal');
         assert.equal(els.statusLong.textContent, 'Read-only');
         assert.equal(els.whoName.textContent, 'Shortlisted');
-        assert.equal(els.whoRole.textContent, 'SE-26-F1 · dea6417f', 'the ref that matches the printed sheet');
+        assert.equal(els.whoRole.textContent, 'IS-26-T4 · 8d9239f3', 'the ref that matches the printed sheet');
         assert.equal(els.avatar.textContent, '★', 'a mark, not the initials of a person who does not exist');
         assert.ok(!els.masthead.classList.contains('is-unnamed'), 'a proposal has a name');
         assert.ok(els.masthead.classList.contains('is-proposal'));
@@ -506,7 +506,7 @@ describe('render — a built-in proposal', () => {
             ['Shortlisted proposals', 'Last saved by you', 'Last saved by S. Silva']);
         const rows = allRows(els.pickList);
         assert.equal(rows[0].dataset.id, PROPS[0].id);
-        assert.equal(rowMeta(rows[0]), 'SE-26-F1 · dea6417f · read-only');
+        assert.equal(rowMeta(rows[0]), 'IS-26-T4 · 8d9239f3 · read-only');
         assert.deepEqual(tickedRows(els.pickList).map((/** @type {any} */ r) => r.dataset.id), [PROPS[0].id]);
         assert.ok(!rows.some((/** @type {any} */ r) => rowName(r) === 'Untitled design'));
         assert.equal(els.pickerSub.textContent, '2 shortlisted · 2 saved designs', 'both counts, neither folded into the other');

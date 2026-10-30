@@ -86,7 +86,7 @@ def managers(d):
     put(s, 'One shift time in 18 of 21 weeks, and the fewest late finishes the rules allow', 'No run over five days on the fixed rota, and the fewest late finishes the rules allow')
     put(s, 'Never more than 6 days in a row — today 7', 'Never more than 5 days in a row on the fixed rota — today 7')
     s.save()
-    notes(d, 7, 'This is the case in one slide', 'This is the case in one slide. It meets every December staffing rule and keeps the shift times people already work wherever that cost little — nine of its fifteen are worked today, and none on a Saturday is new. Nobody works more than five days in a row on the fixed rota, where today it is seven; a cover week placed badly can make it six, never more. Every working week is all earlies or all lates, and 18 of the 21 keep one shift time Monday to Friday, where today it is seven weeks in 16. Its seven full weekends off in 26 weeks are never more than five weeks apart, which is as close as the five cover weeks allow; today it is four in 20, up to seven weeks apart. The honest cost is late finishes, and it is the smallest one possible: the December staffing needs three to the close every day, and only those three finish after 23:00, so finishes at 23:00 or later go from about 39 to 42 a year each. Its heaviest week is 42h 30m, against today’s 43h 50m. Every closing shift is 30 to 45 minutes shorter. Six shift times are new.')
+    notes(d, 7, 'This is the case in one slide', 'This is the case in one slide. It meets every December staffing rule and keeps the shift times people already work wherever that cost little — nine of its fifteen are worked today, and none on a Saturday is new. Nobody works more than five days in a row on the fixed rota, where today it is seven; a cover week placed badly can make it six, never more. Every working week is all earlies or all lates, and 18 of the 21 keep one shift time Monday to Friday, where today it is seven weeks in 16. Its seven full weekends off in 26 weeks are never more than five weeks apart, which is as close as the five cover weeks allow; today it is four in 20, up to seven weeks apart. The honest costs: its new weekday early, 07:00–16:00, is 9 hours, about 20 a year each, where today no early is over 8h 30m; and late finishes, the smallest rise possible — the December staffing needs three to the close every day, and only those three finish after 23:00, so finishes at 23:00 or later go from about 39 to 42 a year each. Its heaviest week is 42h 30m, against today’s 43h 50m. Every closing shift is 30 to 45 minutes shorter. Six shift times are new. It is on the shortlist with In Step (30 October 2026), and against it has the same run, weekends, weeks on one shift time, late finishes and leave. What it has that In Step has not: fewer long days (its weekday earlies over 8h 30m, all 9h 00m, come about 20 times a year each, against In Step’s 40 at 8h 45m and 8h 55m), the closer weekday fit (29.1 against 29.8) and no new Saturday time. What it gives up: today’s 13:45, a Saturday closer of 8h 40m against In Step’s 8h 10m, and heavier, less even weeks (24h 30m to 42h 30m, against 25h\u00a030m to 41h 05m).')
 
     s = S(8)
     s.runs(5, ['7 weekends off, at most 5 weeks apart', 'One turn in 18 of 21 weeks (today 7 of 16)', 'Every closing shift 30–45 minutes shorter', '9 of the 15 shift times already worked', 'Shortest rest 14h 20m (today 12h 30m)'],
@@ -94,7 +94,33 @@ def managers(d):
     s.save()
     notes(d, 8, 'Days at work stay', 'Days at work stay at 219 a year (218.6 exactly; Monday to Saturday; Sunday is overtime), under the ceiling agreed on 1 October 2026. Late finishes average about three more a year each, all of them from the December staffing — three to the close every day, where today’s weekdays have two — so no link meeting the same rules on 26 weeks could have fewer. Full weekends off are seven in 26 and never more than five weeks apart; nobody works more than five days in a row on the fixed rota; no week mixes earlies and lates, and 18 of the 21 working weeks keep one shift time. Weekly hours run from 24h 30m to 42h 30m (today 25h 10m to 43h 50m); only the average is the contract. The average shift is about two minutes longer.')
 
+def check_typed():
+    """THE NOTES 7 FIGURES, CHECKED (30 Oct 2026). The managers' notes 7 set Short Run beside In Step, its partner on the
+    shortlist, and name its 9-hour weekday early as a cost against today; the figures are typed above, so each is compared
+    here with the grids and deck-check.mjs's figures first."""
+    import json, subprocess
+    tool = os.path.dirname(os.path.abspath(__file__))
+    fig = json.loads(subprocess.check_output(['node', os.path.join(tool, 'deck-check.mjs'), '--print'], text=True)); S, I = fig['Short Run'], fig['In Step']
+    load = lambda f: (lambda j: j.get('patterns', j))(json.load(open(os.path.join(tool, f), encoding='utf-8')))
+    sr, ins = load('short-run.json'), load('in-step.json')
+    timed = lambda v: bool(re.fullmatch(r'\d\d:\d\d-\d\d:\d\d', v or ''))
+    mins = lambda v: (int(v[6:8]) * 60 + int(v[9:]) - int(v[:2]) * 60 - int(v[3:5])) % 1440
+    WK = ('mon', 'tue', 'wed', 'thu', 'fri')
+    long_wk = lambda p: [mins(r[d]) for r in p.values() for d in WK if timed(r[d]) and int(r[d][:2]) < 11 and mins(r[d]) > 510]
+    long_wk_times = lambda p: sorted({r[d] for r in p.values() for d in WK if timed(r[d]) and int(r[d][:2]) < 11 and mins(r[d]) > 510})
+    k1345 = lambda p: all(any(r[d] == '06:20-13:45' for r in p.values()) for d in WK)   # In Step: on every weekday
+    any1345 = lambda p: any(r[d] == '06:20-13:45' for r in p.values() for d in WK)     # Short Run: on none ("gives up today’s 13:45")
+    today = json.loads(subprocess.check_output(['node', '-e', "import('./report-data.mjs').then(m => process.stdout.write(JSON.stringify(m.today().patterns)))"], cwd=tool, text=True))
+    tt = {r[d] for r in today.values() for d in r if timed(r[d])}
+    sat_new = lambda p: {r['sat'] for r in p.values() if timed(r['sat'])} - tt
+    got = [[S[k] == I[k] for k in ('run', 'weekends', 'weekendGap', 'oneTurn', 'late23', 'late22', 'leaveBest', 'leaveAvg', 'leaveWorst', 'leaveFour')],
+           round(len(long_wk(sr)) * 52 / len(sr)), sorted(set(long_wk(sr))), round(len(long_wk(ins)) * 52 / len(ins)), sorted(set(long_wk(ins))),
+           S['fitWk'], I['fitWk'], len(sat_new(sr)), len(sat_new(ins)), any1345(sr), k1345(ins), long_wk_times(sr), fig['today']['longestEarly'], S['closerSat'], I['closerSat'], S['light'], S['heavy'], I['light'], I['heavy']]
+    want = [[True] * 10, 20, [540], 40, [525, 535], '29.1', '29.8', 0, 1, False, True, ['07:00-16:00'], '8h 30m', '8h 40m', '8h 10m', '24h 30m', '42h 30m', '25h 30m', '41h 05m']
+    if got != want: raise SystemExit(f'short-run-decks: the notes on In Step no longer match the rota —\n  the data says {got}\n  the notes say {want}')
+
 if __name__ == '__main__':
+    check_typed()
     build(f'{TEMPLATE}/Second-Nature-for-colleagues.pptx', f'{OUT}/Short-Run-for-colleagues.pptx', [sed.colleagues, colleagues])
     build(f'{TEMPLATE}/Second-Nature-for-managers.pptx', f'{OUT}/Short-Run-for-managers.pptx', [sed.managers, managers])
     print('wrote', OUT)

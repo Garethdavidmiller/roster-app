@@ -44,9 +44,15 @@ export const STRAPS = {
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
 // Second Nature's weeks were grown from Silva Lining's (README.md); the 26-line family is named after Second Nature,
 // as the 24-line Right Away family was after the design its members came from.
-/** The designs taken forward: three on 3 Oct 2026, and Closing Time on 30 Oct 2026 (owner: "Can we add closing time to the
- *  shortlist?"). Marked on the summary and compared on the shortlist sheet; the decks and the pack read their own copy. */
-export const SHORTLIST = ['Second Edition', 'Short Run', 'Even Keel', 'Closing Time'];
+/** The designs taken forward. Three on 3 Oct 2026 (Second Edition, Short Run, Even Keel), Closing Time added on 30 Oct 2026
+ *  (owner: "Can we add closing time to the shortlist?"), and the same day cut to two (owner: "Only do the shortlist for
+ *  instep and short run"). Marked on the summary and compared on the shortlist sheet; the decks and the pack read it here. */
+export const SHORTLIST = ['In Step', 'Short Run'];
+/** The one the shortlist sheet recommends. Short Run from 3 Oct 2026; In Step from 30 Oct 2026, when the owner asked for "a
+ *  deep think from all angles about which to recommend" (README.md → "The shortlist cut to two"). The sheet's page 2 argues
+ *  for it in prose, so the sheet refuses a value its prose was not written for. */
+export const RECOMMENDED = 'In Step';
+if (!SHORTLIST.includes(RECOMMENDED)) throw new Error(`the recommendation ${RECOMMENDED} is not on the shortlist`);
 // The Home Grown family (26 Oct 2026) starts from today's own link — its shift times, not Second Nature's duty table.
 export const FAMILY = { SN: 'Second Nature', SW: 'Second Nature', SS: 'Second Nature', SL: 'Second Nature', SG: 'Second Nature', SE: 'Second Nature', FT: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', BW: 'Home Grown', IS: 'Home Grown' };
 export const FIRST = { 'SN-26-F2': '1 Oct 2026', 'SW-26-F1': '2 Oct 2026', 'SS-26-F1': '2 Oct 2026', 'SL-26-G3': '2 Oct 2026', 'SG-26-H1': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'FT-26-H1': '3 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'BW-26-T3': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026' };

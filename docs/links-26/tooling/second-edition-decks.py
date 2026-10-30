@@ -1,46 +1,20 @@
+# A LIBRARY SINCE 30 OCT 2026, WHEN SECOND EDITION LEFT THE SHORTLIST: its decks were removed under the owner's 3 Oct rule
+# ("only keep the shortlist's presentations, delete the rest") and are in git history, and running this file builds none.
+# short-run-decks.py still applies its `colleagues` and `managers` edits before its own, since Short Run is Second
+# Edition's duty table, so the edits stay and are exercised on every Short Run (and so In Step) build.
+#
 # THE SECOND EDITION PRESENTATIONS (2 Oct 2026). Second Edition is Second Nature's duty table with its weeks built from a
 # rest-day skeleton — the same duties every day — so its decks are Second Nature's with only what differs changed: the
 # weekend spacing, no week mixing earlies and lates, the rest-day breaks, the one-turn weeks and the weekly hours. The
 # leave figures are Second Nature's exactly, so slides 11 and 13 stand. Everything else (rules, shift times, late
 # finishes, staffing, fatigue) is the same rota fact and stays. Like every deck, they compare only with TODAY's link.
-# Built from the Second Nature decks, so run second-nature-decks.py first. From the repository root:
-#   python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/second-edition-decks.py \
-#     && node docs/links-26/tooling/deck-check.mjs
+# Built from the Second Nature decks, so second-nature-decks.py runs first (see short-run-decks.py for the chain).
 # Every edit refuses if the shape does not hold the text it expects (Slide, from second-nature-decks.py).
-import importlib.util, os, re, shutil, tempfile, zipfile
+import importlib.util, os
 
 spec = importlib.util.spec_from_file_location('snd', os.path.join(os.path.dirname(__file__), 'second-nature-decks.py'))
 snd = importlib.util.module_from_spec(spec); spec.loader.exec_module(snd)
 Slide, notes, GREEN, AMBER = snd.Slide, snd.notes, snd.GREEN, snd.AMBER
-
-OUT = 'docs/links-26/presentations'
-TEMPLATE = 'docs/links-26/tooling/deck-template'   # Second Nature's decks, built by second-nature-decks.py, not shipped
-NAME, CODE = 'Second Edition', 'SE-26-F1'
-
-def rename(d):
-    for root, _, files in os.walk(d):
-        for f in files:
-            if not f.endswith('.xml'): continue
-            p = os.path.join(root, f); x = open(p, encoding='utf-8').read()
-            y = x.replace('Second Nature', NAME).replace('SN-26-F2', CODE)
-            if y != x: open(p, 'w', encoding='utf-8').write(y)
-    xp = f'{d}/ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx'   # the manager deck's chart workbook: its series is still headed "Second Nature"
-    if os.path.exists(xp):
-        import openpyxl; wb = openpyxl.load_workbook(xp); ws = wb.active; hit = False
-        for row in ws.iter_rows():
-            for cell in row:
-                if cell.value in ('Second Nature', 'Second Edition'): cell.value = NAME; hit = True
-        if hit: wb.save(xp)
-
-def build(src, out, edit):
-    d = tempfile.mkdtemp(); zipfile.ZipFile(src).extractall(d)
-    edit(d); rename(d)
-    left = [f for r, _, fs in os.walk(d) for f in fs if f.endswith('.xml') and re.search(r'Second Nature|SN-26|10 weeks apart|ten weeks apart|43h 40m', open(os.path.join(r, f), encoding='utf-8').read())]
-    if left: raise SystemExit(f'{out}: Second Nature text left in {left}')
-    if os.path.exists(out): os.remove(out)
-    with zipfile.ZipFile(src) as zs, zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
-        for n in zs.namelist(): z.write(os.path.join(d, n), n)
-    shutil.rmtree(d)
 
 def colleagues(d):
     S = lambda n: Slide(f'{d}/ppt/slides/slide{n}.xml')
@@ -75,6 +49,5 @@ def managers(d):
     notes(d, 8, 'Days at work stay', 'Days at work stay at 219 a year (218.6 exactly; Monday to Saturday; Sunday is overtime), under the ceiling agreed on 1 October 2026. Late finishes average about three more a year each, all of them from the December staffing — three to the close every day, where today’s weekdays have two — so no link meeting the same rules on 26 weeks could have fewer. Full weekends off are seven in 26 and never more than five weeks apart; no week mixes earlies and lates, and 18 of the 21 working weeks keep one shift time. The average shift is about two minutes longer.')
 
 if __name__ == '__main__':
-    build(f'{TEMPLATE}/Second-Nature-for-colleagues.pptx', f'{OUT}/Second-Edition-for-colleagues.pptx', colleagues)
-    build(f'{TEMPLATE}/Second-Nature-for-managers.pptx', f'{OUT}/Second-Edition-for-managers.pptx', managers)
-    print('wrote', OUT)
+    raise SystemExit('second-edition-decks.py builds no decks since 30 Oct 2026: Second Edition is not on the shortlist, and only '
+                     'the shortlist has presentations. Its edits are applied by short-run-decks.py.')
