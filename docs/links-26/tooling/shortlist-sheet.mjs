@@ -24,7 +24,7 @@ import { readFileSync, writeFileSync, readdirSync, mkdtempSync, rmSync } from 'n
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
-import { LINES } from './link.mjs';
+import { LINES, DAYS_CEILING } from './link.mjs';
 import { assess, today, folderStats, sheetRules, flexibleRules } from './report-data.mjs';
 import { personal } from './plain.mjs';
 import { leave } from './leave.mjs';
@@ -68,7 +68,7 @@ function figures(p, L, TA) {
     heavy: Math.max(...wk), light: Math.min(...wk), heavyWeeks: wk.filter(x => x === Math.max(...wk)).length, maxGap: Math.max(...gaps), gaps,
     satDuties: Object.values(p).filter(r => timed(r.sat)).length,
     step: scoreOrder(p, keys, { maxRunTarget: 6 }).gentleMean, times: A.feel.distinctTimes, shared,
-    newT: A.feel.distinctTimes - shared, fixedRun: A.fixed.run, worstRun: A.checks.longestStretch,
+    newT: A.feel.distinctTimes - shared, fixedRun: A.fixed.run, worstRun: A.checks.longestStretch, of: R.of,
     fit: [A.office.wkFit, A.office.fits.sat, A.office.fits.sun], block: kindBlocks(p),
     closers: ['wk', 'sat', 'sun'].map(k => span(pp.closerSpan[k])), late22: Math.round(f22 * 52 / L), late23: Math.round(pp.late23) };
 }
@@ -128,21 +128,37 @@ claim('no week mixing earlies and lates, where today has some', mixed === 0 && T
 claim('five days in a row at most on the fixed rota, six with a cover week placed badly; today more of both', run === 5 && worstRun === 6 && TF.fixedRun > run && TF.worstRun > worstRun);
 
 // the others: what each keeps that neither of the two has, and what it pays — asserted, measure by measure
-const DIR = { fixedRun: -1, worstRun: -1, heavy: -1, light: 1, rest: 1, one: 1, mixed: -1, block: -1, step: -1, late23: -1, late22: -1, newT: -1, times: -1, fit: -1, closers: -1, lvBest: 1, lvWorst: 1, lvFour: -1, iso: -1 };
-const measure = F => ({ fixedRun: F.fixedRun, worstRun: F.worstRun, heavy: F.heavy, light: F.light, rest: F.A.rest.minutes, one: F.A.feel.oneTurn, mixed: F.A.feel.hybrid, block: F.block.worst,
-  step: Math.round(F.step), late23: F.late23, late22: F.late22, newT: F.newT, times: F.times, fit: F.fit[0] + F.fit[1] + F.fit[2], closers: F.closers[0] + F.closers[1] + F.closers[2],
-  lvBest: F.lv.best, lvWorst: F.lv.worst, lvFour: F.lv.fourWeeks, iso: F.A.feel.isolatedRest });
+// THE MEASURES EVERY "KEEPS" AND "PAYS" IS READ ON: every row of page 1's table, weekends included, and the fit and the
+// closers day by day as the table reads them (30 Oct 2026, the accuracy check). The long-day, early-finish and Saturday rows
+// had been added to the table and not here, so the paragraph said Even Keel and Second Gear kept "nothing the two lack" while
+// the table showed them with fewer long days than either.
+const DIR = { fixedRun: -1, worstRun: -1, wkOff: 1, gap: -1, heavy: -1, light: 1, rest: 1, one: 1, mixed: -1, block: -1, step: -1, late23: -1, late22: -1, newT: -1, times: -1,
+  fitWk: -1, fitSat: -1, fitSun: -1, closerWk: -1, closerSat: -1, closerSun: -1, lvBest: 1, lvWorst: 1, lvFour: -1, iso: -1, longEarly: -1, longShift: -1, earlyOff: 1, satNew: -1 };
+const fitP = x => Math.round(x * 10) / 10;   // the fit as the sheet prints it
+const measure = F => ({ fixedRun: F.fixedRun, worstRun: F.worstRun, wkOff: F.A.checks.weekendsOff, gap: F.maxGap, heavy: F.heavy, light: F.light, rest: F.A.rest.minutes,
+  one: F.A.feel.oneTurn, mixed: F.A.feel.hybrid, block: F.block.worst, step: Math.round(F.step), late23: F.late23, late22: F.late22, newT: F.newT, times: F.times,
+  fitWk: fitP(F.fit[0]), fitSat: fitP(F.fit[1]), fitSun: fitP(F.fit[2]), closerWk: F.closers[0], closerSat: F.closers[1], closerSun: F.closers[2],
+  lvBest: F.lv.best, lvWorst: F.lv.worst, lvFour: F.lv.fourWeeks, iso: F.A.feel.isolatedRest, longEarly: longEarly(F), longShift: longShift(F), earlyOff: earlyOff(F), satNew: satNew(F) });
 const keeps = d => { const x = measure(d.F); return Object.keys(DIR).filter(k => D.every(s => DIR[k] * (x[k] - measure(s.F)[k]) > 0)).sort(); };
 const loses = d => { const x = measure(d.F); return Object.keys(DIR).filter(k => D.every(s => DIR[k] * (x[k] - measure(s.F)[k]) < 0)); };
 const O = Object.fromEntries(others.map(d => [d.name, d])), K = Object.fromEntries(others.map(d => [d.name, keeps(d).join()]));
-const NAMED = { 'Both Ways': 'closers,heavy,newT,times', 'Closing Time': 'closers,light,newT,step,times', 'Even Keel': '', 'Fine Tune': 'step', 'Home Grown': 'newT,times',
-  'Long Break': 'lvBest,lvFour', 'Second Edition': 'step', 'Second Gear': '', 'Second Look': 'block,times', 'Second Nature': 'block', 'Second Sight': 'block', 'Second Wind': 'block' };
+const NAMED = { 'Both Ways': 'closerSat,closerWk,earlyOff,heavy,newT,times', 'Closing Time': 'closerSat,closerWk,fitSat,light,longEarly,newT,step,times',
+  'Even Keel': 'longEarly,longShift', 'Fine Tune': 'longEarly,longShift,step', 'Home Grown': 'closerWk,longEarly,longShift,newT,times', 'Long Break': 'lvBest,lvFour',
+  'Second Edition': 'step', 'Second Gear': 'longEarly,longShift', 'Second Look': 'block,times', 'Second Nature': 'block', 'Second Sight': 'block', 'Second Wind': 'block' };
 claim('the paragraph names every other design, and what it keeps', Object.keys(NAMED).sort().join() === Object.keys(O).sort().join() && Object.entries(NAMED).every(([n, k]) => K[n] === k));
 const pays = (n, ...ks) => claim(`${n} pays with ${ks.join(', ')}`, ks.every(k => loses(O[n]).includes(k)));
-pays('Closing Time', 'fit', 'one', 'late22'); pays('Both Ways', 'fit', 'one'); pays('Second Edition', 'fixedRun'); pays('Fine Tune', 'late23', 'mixed');
-pays('Home Grown', 'fit'); pays('Long Break', 'iso', 'one', 'step');
+// what each pays, on the five priorities the paragraph names wherever it pays on them (days in a row, weekends, one turn,
+// late finishes, the closing shift), and its main other cost
+pays('Closing Time', 'fitWk', 'one', 'late22'); pays('Both Ways', 'fitWk', 'one', 'longShift'); pays('Home Grown', 'closerSat', 'one', 'fitWk', 'fitSat', 'fitSun');
+const ekfg = ['Even Keel', 'Fine Tune', 'Second Gear']; ekfg.forEach(n => pays(n, 'late23', 'mixed', 'block', 'fitSat')); pays('Fine Tune', 'one'); pays('Second Gear', 'one');
+pays('Second Edition', 'fixedRun'); pays('Long Break', 'fixedRun', 'iso', 'one', 'step');
 const LB = O['Long Break'].F, sec = ['Second Look', 'Second Nature', 'Second Sight', 'Second Wind'];
-sec.forEach(n => pays(n, 'fixedRun', 'one'));
+sec.forEach(n => pays(n, 'fixedRun', 'one', 'step')); pays('Second Nature', 'gap');
+const PACK = [...D, ...others], CT = O['Closing Time'].F, HG = O['Home Grown'].F;
+claim('Closing Time: the best Saturday fit of all, and few long earlies', PACK.every(d => d.name === 'Closing Time' || d.F.fit[1] > CT.fit[1]) && longEarly(CT) > 0 && longEarly(CT) < 5);
+claim('Home Grown: the fewest long days of all, no early over 8h 30m', PACK.every(d => d.name === 'Home Grown' || longShift(d.F) > longShift(HG)) && longEarly(HG) === 0);
+claim('Home Grown: today’s Saturday closer', HG.closers[1] === TF.closers[1]);
+claim('Even Keel, Fine Tune and Second Gear: four to the Saturday close, where the two have three', ekfg.every(n => O[n].F.A.heads.close.sat === 4) && D.every(d => d.F.A.heads.close.sat === 3));
 claim('the four Second designs: blocks a week shorter', sec.every(n => O[n].F.block.worst === lowest(F => F.block.worst) - 1));
 claim('Closing Time: more even weeks', (O['Closing Time'].F.heavy - O['Closing Time'].F.light) < lowest(F => F.heavy - F.light));
 claim('Home Grown: the fewest new times of all', others.every(d => d.name === 'Home Grown' || d.F.newT > O['Home Grown'].F.newT) && O['Home Grown'].F.newT < lowest(F => F.newT));
@@ -151,9 +167,6 @@ claim('Long Break: a fifth single rest day', LB.A.feel.isolatedRest === iso + 1)
 // page 1, the two cards and the guide
 const IF = IS.F, SF = SR.F, range = F => F.heavy - F.light;
 claim('In Step: one closer length Monday to Saturday, shorter than Short Run’s Saturday one', IF.closers[0] === IF.closers[1] && SF.closers[1] > IF.closers[1] && SF.closers[0] === IF.closers[0]);
-claim('In Step: Closing Time’s weeks — the same rest days, and the same earlies and lates', Object.keys(IF.p).every(k => MS.every(d => timed(IF.p[k][d]) === timed(O['Closing Time'].F.p[k][d])
-  && (!timed(IF.p[k][d]) || isEarly(IF.p[k][d]) === isEarly(O['Closing Time'].F.p[k][d])))));
-claim('In Step: five on at every opening Monday to Saturday', MS.every(d => IF.A.heads.open[d] === 5));
 claim('In Step: lighter heaviest week, more rest, the better Saturday fit, more even weeks', IF.heavy < SF.heavy && IF.A.rest.minutes > SF.A.rest.minutes && IF.fit[1] < SF.fit[1] && range(IF) < range(SF));
 claim('In Step: today’s 13:45 every weekday; Short Run has none', k1345(IF) && !MS.some(d => Object.values(SF.p).some(r => r[d] === '06:20-13:45')));
 claim('In Step: more long earlies, and a weekday fit a shade behind', longEarly(IF) > longEarly(SF) && IF.fit[0] > SF.fit[0] && IF.fit[0] - SF.fit[0] < 1);
@@ -175,6 +188,9 @@ const LJ = JSON.parse(readFileSync(`${tmp}/league.json`, 'utf8')); rmSync(tmp, {
 const LGall = LJ.proposals, LG = LGall.filter(r => SHORTLIST.includes(r.name)), total = name => LGall.find(r => r.name === name).total;
 claim('the league scores both shortlisted designs', LG.length === D.length);
 const lead = total('In Step') - total('Short Run');
+const rankOf = name => [...LGall].sort((a, b) => b.total - a.total).findIndex(r => r.name === name) + 1;
+claim('the league: In Step first, Short Run fourth, and neither the closing shift nor long earlies among its factors', rankOf('In Step') === 1 && rankOf('Short Run') === 4
+  && LGall.length === stats.length && !Object.keys(LJ.weights).some(k => /clos|early|long/i.test(k)));
 claim('In Step first in the league, Short Run behind it by about two points', LGall.every(r => r.total <= total('In Step')) && Math.abs(lead - 2) < 0.25);
 const F9 = JSON.parse(readFileSync(new URL('../../links-24/proposals/Familiar-Nine-F9-24-K31s.json', import.meta.url), 'utf8')), F9p = F9.patterns ?? F9;
 const le = p => perYear(p, s => isEarly(s) && mins(s) > 510), leAll = [...stats.map(s => le(design(s.name).F.p)), le(T0.patterns), le(F9p)];
@@ -192,7 +208,7 @@ claim('the steadiest start times: Second Edition', allD.every(d => d.name === 'S
 claim('four weeks off for today’s 14 days: Long Break alone', allD.filter(d => d.F.lv.fourWeeks <= TF.lv.fourWeeks).map(d => d.name).join() === 'Long Break' && TF.lv.fourWeeks === 14);
 
 // page 2, the honest costs both share
-claim('three or more to the close every day, where today’s weekdays have two', D.every(d => Object.values(d.F.A.heads.close).every(x => x >= 3)) && TF.A.heads.close.mon === 2);
+claim('three or more to the close every day, where today has two Monday to Saturday', D.every(d => Object.values(d.F.A.heads.close).every(x => x >= 3)) && MS.every(dd => TF.A.heads.close[dd] === 2));
 claim('no design here meeting all 9 rules has fewer finishes at 23:00 or later', allD.filter(d => d.F.met === 9).every(d => d.F.late23 >= late23));
 claim('the worst leave stretch a day better than today’s', shared('worst leave stretch', F => F.lv.worst) === TF.lv.worst + 1);
 claim('worse than today: late finishes, leave, Saturdays, new times', late23 > TF.late23 && late22 > TF.late22 && shared('leave for four weeks', F => F.lv.fourWeeks) > TF.lv.fourWeeks
@@ -202,9 +218,9 @@ claim('the new times: shorter versions of today’s lates, and longer weekday ea
 // the comparison rows: only where the two differ (what they share is listed above them), and the measures the sheets
 // otherwise lack. label, how to read each design, which direction is better (1 higher, -1 lower), format
 const ROWS = [
-  ['Heaviest week', F => F.heavy, -1, hm],
-  ['Lightest week', F => F.light, 1, hm],
-  ['Shortest rest between shifts', F => F.A.rest.minutes, 1, hm],
+  ['Heaviest week, Mon–Sat', F => F.heavy, -1, hm],
+  ['Lightest week, Mon–Sat', F => F.light, 1, hm],
+  ['Shortest rest, fixed duties', F => F.A.rest.minutes, 1, hm],
   ['Closing shift, Saturday', F => F.closers[1], -1, hm],
   ['Earlies over 8h 30m, each a year', longEarly, -1, v => `${v}`],
   ['Any shift over 8h 30m, each a year', longShift, -1, v => `${v}`],
@@ -213,11 +229,19 @@ const ROWS = [
   [`Fit to the trains, weekday · Sat (0 = exact; Sunday ${sunFit} on ${both}, today ${TF.fit[2].toFixed(1)})`, F => F.fit[0] + F.fit[1], -1, (v, F) => F.fit.slice(0, 2).map(x => x.toFixed(1)).join(' · '), 'fit', F => F.fit.slice(0, 2)],
 ];
 claim('every “where they differ” row differs', ROWS.every(([, get]) => get(IF) !== get(SF)));
+const isoYear = F => Math.round(F.A.feel.isolatedRest * 52 / Object.keys(F.p).length);   // single rest days a year each
+claim('the same single rest days as today in the rotation, fewer a year', iso === TF.A.feel.isolatedRest && D.every(d => isoYear(d.F) < isoYear(TF)));
+const satTimes = F => [...new Set(Object.values(F.p).map(r => r.sat).filter(timed))], todaysSat = new Set(Object.values(T0.patterns).map(r => r.sat).filter(timed));
+claim('Short Run: every Saturday time worked today, some on a Saturday and some only on other days', satTimes(SF).every(t => todaysTimes.has(t))
+  && satTimes(SF).filter(t => todaysSat.has(t)).length > 0 && satTimes(SF).some(t => !todaysSat.has(t)));
+claim('both add a 9-hour Sunday early, 09:00–18:00, new to the link', D.every(d => newTimes(d.F).has('09:00-18:00') && Object.values(d.F.p).some(r => r.sun === '09:00-18:00')
+  && !Object.values(d.F.p).some(r => MS.some(dd => r[dd] === '09:00-18:00'))) && mins('09:00-18:00') === 540);
+claim('long days, against today: both have earlies over 8h 30m and fewer early finishes, where today has none and more', longEarly(TF) === 0 && D.every(d => longEarly(d.F) > 0 && earlyOff(d.F) < earlyOff(TF)));
 // THE RECOMMENDATION GIVES EVERY FIGURE WHERE THEY DIFFER, ON ITS SIDE (30 Oct 2026, the accuracy check). It said In Step was
 // "better or level on everything else this sheet compares" and that its costs lay "outside those measures" — true of the
 // four-design sheet, whose table had no long-day rows, and false of this one, whose table compares them four lines above.
 // Each row (each figure of the fit row) is read here as the paragraph and the cards read it: 1 In Step's, -1 Short Run's.
-const SIDE = { 'Heaviest week': 1, 'Lightest week': 1, 'Shortest rest between shifts': 1, 'Closing shift, Saturday': 1,
+const SIDE = { 'Heaviest week, Mon–Sat': 1, 'Lightest week, Mon–Sat': 1, 'Shortest rest, fixed duties': 1, 'Closing shift, Saturday': 1,
   'Earlies over 8h 30m, each a year': -1, 'Any shift over 8h 30m, each a year': -1, 'Earlies finishing before 14:00, each a year': 1,
   'New shift times on a Saturday': -1, 'Fit to the trains, weekday': -1, 'Fit to the trains, Saturday': 1 };
 const sides = Object.fromEntries(ROWS.flatMap(([label, get, dir, , , parts]) => parts
@@ -236,11 +260,10 @@ const rowsHtml = ROWS.map(([label, get, dir, fmt, cls = '', parts]) => { const b
 
 // against today: the rows a colleague feels, the designs sharing one column where they agree
 const same = get => { const v = D.map(d => get(d.F)); return v.every(x => x === v[0]) ? v[0] : null; };
+// the weekends in the rotation, the longest wait between them and the days a year are page 1's shared lines, with today's
+// beside them, so they are not said again here (30 Oct 2026: the room went to the long days and the others' costs)
 const TODAY_ROWS = [
-  ['Full weekends off, in the rotation', F => `${F.A.checks.weekendsOff} in ${F.pp.L}`],
   ['Full weekends off, about a year', F => `${Math.round(F.A.checks.weekendsOff * 52 / F.pp.L)}`],
-  ['Longest wait between full weekends', F => `${F.maxGap} weeks`],
-  ['Contracted days at work a year', F => F.pp.daysYear.toFixed(1)],
   ['Saturdays a year, each', F => `${Math.round(F.pp.sat)}`],
   ['Sunday overtime duties a year, each', F => `${Math.round(F.pp.sun)}`],
   ['Starting at 06:20, each a year', F => `${Math.round(F.pp.open0620)}`],
@@ -301,13 +324,13 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <h2>What ${both} share</h2>
   <p class="lead">${Word(stats.length)} designs are in the pack; these ${N} balance best what weighs most here. Everything below holds for ${both}, each line better than or level with today; what they share that is worse than today is on page 2.</p>
   <div class="shared">
-    <div>All <b>${met} of 9</b> December staffing rules (today ${TF.met}), and all three flexible ones: 14 on a Saturday, evenly spaced cover weeks, 15:45 weekday closers</div>
+    <div>All <b>${met} of ${shared('rules scored', F => F.of)}</b> December staffing rules (today ${TF.met}), and all three flexible ones: 14 on a Saturday, evenly spaced cover weeks, 15:45 weekday closers</div>
     <div><b>No avoidable fatigue warning</b>; never more than <b>${word(run)} days in a row</b> on the fixed rota, ${word(worstRun)} if a cover week falls badly (today ${TF.A.fixed.present} warnings, up to ${TF.A.fatigue.present}; ${word(TF.fixedRun)} days, up to ${word(TF.worstRun)})</div>
-    <div><b>${wkOff} full weekends off in 26</b>, never more than ${gap} weeks apart (today ${TF.A.checks.weekendsOff} in 20, up to ${TF.maxGap} apart)</div>
-    <div>The same <b>35-hour</b> week and <b>${days} days</b> a year, under the ceiling of 219 (today ${TF.pp.daysYear.toFixed(1)})</div>
+    <div><b>${wkOff} full weekends off in ${LINES}</b>, never more than ${gap} weeks apart (today ${TF.A.checks.weekendsOff} in ${TF.pp.L}, up to ${TF.maxGap} apart)</div>
+    <div>The same <b>35-hour</b> week and <b>${days} days</b> a year, under the ceiling of ${DAYS_CEILING} (today ${TF.pp.daysYear.toFixed(1)})</div>
     <div>Every closing shift <b>shorter, by ${dur(Math.min(...cuts))} to ${dur(Math.max(...cuts))}</b> — the weekday’s and Sunday’s ${hm(wkCloser)} on ${both} (today ${hm(TF.closers[0])} and ${hm(TF.closers[2])}); no shift over ${hm(longest)}</div>
     <div><b>One shift time Monday to Friday in ${one} of ${wl} weeks</b>, and no week mixing earlies and lates (today ${TF.A.feel.oneTurn} of ${TF.A.feel.workingLines}, with ${TF.A.feel.hybrid} mixing)</div>
-    <div><b>${iso} single rest days</b>, as today; rest days otherwise in pairs or longer (${paired} breaks, today ${TF.A.feel.pairedRest} of ${TF.A.feel.restIslands})</div>
+    <div><b>${iso} single rest days</b> in the rotation, as today — about ${isoYear(IF)} a year each, today ${isoYear(TF)}; rest days otherwise in pairs or longer (${paired} breaks, today ${TF.A.feel.pairedRest} of ${TF.A.feel.restIslands})</div>
     <div>The same <b>${hm(step)} week-to-week change</b> of start time (today ${hm(TF.step)}), and the same Sunday</div>
   </div>
 
@@ -316,13 +339,14 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
 
   <h2>Each one’s edge</h2>
   <div class="cards">
-    <div class="card"><span class="head"><b class="k">In Step</b><span class="code">${IS.code} · ${IS.fp}</span></span><b class="edge">The shorter closers and the lighter weeks.</b>Closing Time’s weeks, with five on at every opening Monday to Saturday: every closer Monday to Saturday ${hm(IF.closers[0])} (Short Run’s Saturday one ${hm(SF.closers[1])}), no week over ${hm(IF.heavy)} (Short Run ${hm(SF.heavy)}), ${hm(IF.A.rest.minutes)} the shortest rest, a Saturday fit of ${f1(IF.fit[1])} against ${f1(SF.fit[1])}, and today’s 13:45 kept every weekday. Its cost is the earlies — ${longEarly(IF)} a year each over 8h&nbsp;30m (Short Run ${longEarly(SF)}) — with a weekday fit a shade behind (${f1(IF.fit[0])} against ${f1(SF.fit[0])}) and a new time on a Saturday, its closer.</div>
-    <div class="card"><span class="head"><b class="k">Short Run</b><span class="code">${SR.code} · ${SR.fp}</span></span><b class="edge">Fewer long days.</b>${longShift(SF)} shifts a year each over 8h&nbsp;30m, fewer than today’s ${longShift(TF)} and In Step’s ${longShift(IF)}; the closer fit to the weekday trains (${f1(SF.fit[0])} against ${f1(IF.fit[0])}); and nothing new on a Saturday, where every time is worked today. Its cost: ${an(hm(SF.closers[1]))} Saturday closer, ${an(hm(SF.heavy))} heaviest week, ${hm(SF.A.rest.minutes)} the shortest rest, a Saturday fit of ${f1(SF.fit[1])}, and no early finish before 14:00 (today ${earlyOff(TF)} a year each).</div>
+    <div class="card"><span class="head"><b class="k">In Step</b><span class="code">${IS.code} · ${IS.fp}</span></span><b class="edge">The shorter closers and the more even weeks.</b>Every closer Monday to Saturday ${hm(IF.closers[0])} (Short Run’s Saturday one ${hm(SF.closers[1])}), no Mon–Sat week over ${hm(IF.heavy)} (Short Run ${hm(SF.heavy)}), ${hm(IF.A.rest.minutes)} the shortest rest, a Saturday fit of ${f1(IF.fit[1])} against ${f1(SF.fit[1])}, and today’s 13:45 kept every weekday. Its cost is the earlies — ${longEarly(IF)} a year each over 8h&nbsp;30m (Short Run ${longEarly(SF)}) — with a weekday fit a shade behind (${f1(IF.fit[0])} against ${f1(SF.fit[0])}) and a new time on a Saturday, its closer.</div>
+    <div class="card"><span class="head"><b class="k">Short Run</b><span class="code">${SR.code} · ${SR.fp}</span></span><b class="edge">Fewer long days.</b>${longShift(SF)} shifts a year each over 8h&nbsp;30m, fewer than today’s ${longShift(TF)} and In Step’s ${longShift(IF)}; the closer fit to the weekday trains (${f1(SF.fit[0])} against ${f1(IF.fit[0])}); and nothing new on a Saturday: all ${word(satTimes(SF).length)} of its times there are worked today, ${word(satTimes(SF).filter(t => todaysSat.has(t)).length)} of them on a Saturday. Its cost: ${an(hm(SF.closers[1]))} Saturday closer, ${an(hm(SF.heavy))} heaviest Mon–Sat week, ${hm(SF.A.rest.minutes)} the shortest rest, a Saturday fit of ${f1(SF.fit[1])}, and no early finish before 14:00 (today ${earlyOff(TF)} a year each).</div>
   </div>
   <h2>Which one, by what matters most</h2>
   <table class="t guide"><thead><tr><th>If the main priority is</th><th>Choose</th></tr></thead><tbody>
-    <tr><td>Shorter closers and lighter, more even weeks, with today’s 13:45 kept</td><td><b>In Step</b></td></tr>
-    <tr><td>Fewer long days, the closer weekday fit, and nothing new on a Saturday</td><td><b>Short Run</b></td></tr>
+    <tr><td>Of these two, the shorter closers and more even weeks, with today’s 13:45 kept</td><td><b>In Step</b></td></tr>
+    <tr><td>Of these two, fewer long days, the closer weekday fit, and nothing new on a Saturday</td><td><b>Short Run</b></td></tr>
+    <tr><td>The fewest long days of all: no early over 8h&nbsp;30m</td><td><b>Home Grown</b> <span class="muted">· outside the shortlist</span></td></tr>
     <tr><td>The shortest closers of all: 16:00 Monday to Saturday</td><td><b>Closing Time</b> <span class="muted">· outside the shortlist, as is Both Ways</span></td></tr>
     <tr><td>A fourth person to the Saturday close</td><td><b>Even Keel</b> <span class="muted">· outside the shortlist, as are Fine Tune and Second Gear</span></td></tr>
     <tr><td>The steadiest start times from week to week</td><td><b>Second Edition</b> <span class="muted">· outside the shortlist</span></td></tr>
@@ -337,25 +361,26 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
 
   <h2>Against today’s link</h2>
   <table class="t"><thead><tr><th>Measure</th><th class="num">Today</th>${D.map(d => `<th class="num">${esc(d.name)}</th>`).join('')}</tr></thead><tbody>${todayHtml}</tbody></table>
-  <p class="muted">Per year: the rotation’s count scaled to 52 weeks. Days a year are Monday to Saturday, a cover week counting four.</p>
+  <p class="muted">Per year: the rotation’s count scaled to 52 weeks; days a year, Monday to Saturday with a cover week as four, over 365 days.</p>
 
   <h2>Why these ${N} and not the other ${word(others.length)}</h2>
-  <p>These ${N} balance best what weighs most here — days in a row, weekends, one shift time a week, late finishes and the closing shift. Each of the others keeps something neither has, or nothing, at a price. Closing Time and Both Ways have shorter closers and fewer shift times to learn — Closing Time with more even weeks and a gentler week-to-week step, Both Ways with a lighter heaviest week — for a weaker fit to the trains and fewer weeks on one turn, and on Closing Time more finishes at 22:00 or later. Second Edition and Fine Tune have a gentler step: Second Edition for ${word(O['Second Edition'].F.fixedRun)} days in a row, Fine Tune for more late finishes and a week mixing earlies and lates. Home Grown has the fewest new times, ${word(O['Home Grown'].F.newT)}, for a weaker fit. Long Break gives four weeks off for ${LB.lv.fourWeeks} days’ leave and a ${LB.lv.best}-day best stretch, for a ${ord(LB.A.feel.isolatedRest)} single rest day, fewer weeks on one turn and a ${hm(LB.step)} step. Second Look, Second Nature, Second Sight and Second Wind have blocks of earlies or lates a week shorter (Second Look fewer shift times too), for six days in a row and fewer weeks on one turn. Even Keel’s fourth person to the Saturday close is not among these measures; on them it and Second Gear keep nothing the ${N} lack.</p>
+  <p>These ${N} balance best what weighs most here — days in a row, weekends, one shift time a week, late finishes and the closing shift. Each of the others keeps something neither has, and pays for it. Closing Time and Both Ways have shorter closers and fewer shift times to learn — Closing Time also more even weeks, a gentler step, the best Saturday fit and ${longEarly(CT)} long earlies a year, Both Ways a lighter heaviest week and more early finishes — for a weaker weekday fit and fewer weeks on one turn, with more finishes at 22:00 or later on Closing Time and more long shifts on Both Ways. Home Grown has the fewest long days of all and the fewest new times, ${word(HG.newT)}, with a shorter weekday closer, for today’s ${hm(HG.closers[1])} Saturday closer, fewer weeks on one turn and a weaker fit. Even Keel, Fine Tune and Second Gear have fewer long days and a fourth person to the Saturday close (Fine Tune a gentler step too), for more late finishes, weeks mixing earlies and lates, longer blocks of earlies or lates and a weaker Saturday fit, and on Fine Tune and Second Gear fewer weeks on one turn. Second Edition has the gentlest step, for ${word(O['Second Edition'].F.fixedRun)} days in a row. Long Break gives four weeks off for ${LB.lv.fourWeeks} days’ leave and a ${LB.lv.best}-day best stretch, for ${word(LB.fixedRun)} days in a row, a ${ord(LB.A.feel.isolatedRest)} single rest day, fewer weeks on one turn and a ${hm(LB.step)} step. Second Look, Second Nature, Second Sight and Second Wind have blocks of earlies or lates a week shorter (Second Look fewer shift times too), for six days in a row, fewer weeks on one turn and a bigger step — and on Second Nature, weekends up to ${word(O['Second Nature'].F.maxGap)} weeks apart.</p>
 
   <h2>The honest costs, shared by ${both}</h2>
   <ul class="list">
-    <li><b>Late finishes.</b> ${late23} a year each at 23:00 or later (today ${TF.late23}) and ${late22} at 22:00 or later (today ${TF.late22}) on ${both}. Three to the close every day, where today’s weekdays have two, means no link meeting the rules has fewer than ${late23} at 23:00 or later.</li>
+    <li><b>Late finishes.</b> ${late23} a year each at 23:00 or later (today ${TF.late23}) and ${late22} at 22:00 or later (today ${TF.late22}) on ${both}. Three to the close every day, where today has two Monday to Saturday, means no link meeting the rules has fewer than ${late23} at 23:00 or later.</li>
+    <li><b>Long days.</b> Earlies over 8h&nbsp;30m, where today has none — ${longEarly(IF)} a year each on In Step, ${longEarly(SF)} on Short Run — and fewer early finishes before 14:00 (${earlyOff(IF)} and none; today ${earlyOff(TF)}).</li>
     <li><b>Leave.</b> The best 14-day stretch is ${shared('best leave stretch', F => F.lv.best)} days off, not today’s ${TF.lv.best}; four full weeks off, Sunday to Saturday, takes ${shared('leave for four weeks', F => F.lv.fourWeeks)} days’ leave, not ${TF.lv.fourWeeks}. The worst stretch is a day better. ${Both} are worse than today here, on something people plan a year around; Long Break alone keeps the ${TF.lv.fourWeeks}.</li>
-    <li><b>Saturdays.</b> About ${shared('Saturdays a year', F => Math.round(F.pp.sat)) - Math.round(TF.pp.sat)} more a year each (${Math.round(SF.pp.sat)}, today ${Math.round(TF.pp.sat)}) — ${word(shared('Saturday duties', F => F.satDuties))} on a Saturday, the flexible rule, shared across ${LINES} lines (today ${word(TF.satDuties)} across 20).</li>
-    <li><b>New times.</b> ${newT} of ${times} shift times are new on ${both} (${known} are worked today). On Short Run ${word(shorterLates(SF))} of the new ones are shorter versions of today’s lates and ${word(longerEarlies(SF))} a longer weekday early; on In Step ${word(shorterLates(IF))}, and ${word(longerEarlies(IF))} longer weekday earlies.</li>
+    <li><b>Saturdays.</b> About ${shared('Saturdays a year', F => Math.round(F.pp.sat)) - Math.round(TF.pp.sat)} more a year (${Math.round(SF.pp.sat)}, today ${Math.round(TF.pp.sat)}): ${word(shared('Saturday duties', F => F.satDuties))} on a Saturday, the flexible rule, across ${LINES} lines (today ${word(TF.satDuties)} across ${TF.pp.L}).</li>
+    <li><b>New times.</b> ${newT} of ${times} shift times are new on ${both} (${known} are worked today). On Short Run ${word(shorterLates(SF))} of the new ones are shorter versions of today’s lates and ${word(longerEarlies(SF))} a longer weekday early; on In Step ${word(shorterLates(IF))}, and ${word(longerEarlies(IF))} longer weekday earlies. ${Both} add a 9-hour Sunday early, 09:00–18:00.</li>
   </ul>
 
   <h2>Recommendation</h2>
-  <div class="callout pick"><b>In Step.</b> On what weighs most here it equals Short Run — days in a row, weekends, weeks on one shift time and late finishes, and the leave too — and is ahead on the closing shift: every closer Monday to Saturday ${hm(IF.closers[0])}, where Short Run’s Saturday one is ${hm(SF.closers[1])}. It also has the lighter, more even weeks (${hm(IF.light)} to ${hm(IF.heavy)} against ${hm(SF.light)} to ${hm(SF.heavy)}), the longer shortest rest (${hm(IF.A.rest.minutes)} against ${hm(SF.A.rest.minutes)}), the better Saturday fit (${f1(IF.fit[1])} against ${f1(SF.fit[1])}) and today’s 13:45 kept every weekday. Its cost is long days: ${longEarly(IF)}&nbsp;earlies a year each over 8h&nbsp;30m against Short Run’s ${longEarly(SF)} — In Step’s mostly 8h&nbsp;45m and 8h&nbsp;55m, Short Run’s all 9h&nbsp;00m — so ${longShift(IF)}&nbsp;shifts over 8h&nbsp;30m against ${longShift(SF)}, with a new time on a Saturday and a weekday fit a shade behind (${f1(IF.fit[0])} against ${f1(SF.fit[0])}). Counting each day of a week once, the two fit the trains alike (${f1(fit7(IF))} and ${f1(fit7(SF))}).</div>
-  <p class="lead" style="margin-top:8px"><b>But it is close.</b> On the app’s weighted league In Step leads by ${word(Math.round(lead))} points (${f1(total('In Step'))} against ${f1(total('Short Run'))}), and the league does not count long earlies, where In Step has the most of any design here: counted as heavily as it counts late finishes, they would put Short Run ahead; any lighter than it counts single rest days, and In Step stays ahead. So choose by what matters here:</p>
+  <div class="callout pick"><b>In Step.</b> On what weighs most here it equals Short Run — days in a row, weekends, weeks on one shift time and late finishes, and the leave too — and is ahead on the closing shift: every closer Monday to Saturday ${hm(IF.closers[0])}, where Short Run’s Saturday one is ${hm(SF.closers[1])}. It also has more even weeks, Monday to Saturday (${hm(IF.light)} to ${hm(IF.heavy)} against ${hm(SF.light)} to ${hm(SF.heavy)}), the longer shortest rest (${hm(IF.A.rest.minutes)} against ${hm(SF.A.rest.minutes)}), the better Saturday fit (${f1(IF.fit[1])} against ${f1(SF.fit[1])}) and today’s 13:45 kept every weekday. Its cost is long days: ${longEarly(IF)}&nbsp;earlies a year each over 8h&nbsp;30m against Short Run’s ${longEarly(SF)} — In Step’s mostly 8h&nbsp;45m and 8h&nbsp;55m, Short Run’s all 9h&nbsp;00m — so ${longShift(IF)}&nbsp;shifts over 8h&nbsp;30m against ${longShift(SF)}, with a new time on a Saturday and a weekday fit a shade behind (${f1(IF.fit[0])} against ${f1(SF.fit[0])}). Counting each day of a week once, the two fit the trains alike (${f1(fit7(IF))} and ${f1(fit7(SF))}).</div>
+  <p class="lead" style="margin-top:8px"><b>But it is close.</b> On the pack’s weighted league (the owner’s weights, a judgement) In Step is ${ord(rankOf('In Step'))} of the ${word(LGall.length)} and Short Run ${ord(rankOf('Short Run'))}, ${word(Math.round(lead))} points behind (${f1(total('In Step'))} against ${f1(total('Short Run'))}). The league scores neither the closing shift nor long earlies, and In Step has the most long earlies of any design here: counted as heavily as the league counts late finishes, they would put Short Run ahead of In Step; any lighter than it counts single rest days, and In Step stays ahead of it. So choose by what matters here:</p>
   <ul class="list">
-    <li><b>Choose In Step</b> if the closing shift and steady weeks matter most, and colleagues value today’s 13:45.</li>
-    <li><b>Choose Short Run</b> if long days matter more: ${longEarly(SF)} long earlies a year each instead of ${longEarly(IF)}, the closer weekday fit and nothing new on a Saturday — for ${an(hm(SF.closers[1]))} Saturday closer and ${an(hm(SF.heavy))} week.</li>
+    <li><b>Choose In Step</b> if the closing shift and more even weekly hours matter most, and colleagues value today’s 13:45.</li>
+    <li><b>Choose Short Run</b> if long days matter more: ${longEarly(SF)} long earlies a year each instead of ${longEarly(IF)}, the closer weekday fit and nothing new on a Saturday — for ${an(hm(SF.closers[1]))} Saturday closer and ${an(hm(SF.heavy))} Mon–Sat week.</li>
   </ul>
   <div class="foot"><span>Page 2 of 2 — Against today, the shared costs, the recommendation</span><span><b>The shortlist</b> · ${D.map(d => `<span class="nw">${esc(d.name)} ${d.code}</span>`).join(' · ')} · <span class="nw">30 Oct 2026</span></span></div>
 </section>

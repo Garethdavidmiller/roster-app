@@ -27,18 +27,18 @@ export const STRAPS = {
   'SW-26-F1': ['No duty over nine hours, and seven full weekends off never more than five weeks apart', 'search'],
   'SS-26-F1': ['No duty over nine hours, weekends never more than five weeks apart, and no week mixing earlies and lates', 'search'],
   'SL-26-G3': ['Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates', 'search'],
-  'SG-26-H1': ['Weekends never more than five weeks apart, no week over 41h 30m, and a week-to-week change of 1h 25m', 'search'],
+  'SG-26-H1': ['Weekends never more than five weeks apart, no Mon–Sat week over 41h 30m, and a week-to-week change of 1h 25m', 'search'],
   'SE-26-F1': ['Weekends never more than five weeks apart, every week all earlies or all lates, and 18 of 21 weeks on one shift time', 'search'],
-  'FT-26-H1': ['No week over 41h 30m, one week mixing earlies and lates, and a week-to-week change of 1h 09m', 'search'],
-  'EK-26-H1': ['18 of 21 weeks on one shift time, no week over 41h 30m, and never less than 14h 35m between shifts', 'search'],
+  'FT-26-H1': ['No Mon–Sat week over 41h 30m, one week mixing earlies and lates, and a week-to-week change of 1h 09m', 'search'],
+  'EK-26-H1': ['18 of 21 weeks on one shift time, no Mon–Sat week over 41h 30m, and never less than 14h 35m between fixed duties', 'search'],
   'SR-26-F1': ['No run over five days on the fixed rota, weekends never more than five weeks apart, and 18 of 21 weeks on one shift time', 'search'],
   'LB-26-F1': ['Four weeks off for 14 days’ leave, as today, with weekends never more than five weeks apart and no mixed week', 'search'],
   // 26 Oct 2026: today's link on 26 lines (README.md → "Today's link on 26 lines")
-  'HG-26-T1': ['Today’s shift times with a 16:00 weekday closer and a 13:35 finish every weekday, and Saturday closing as today', 'search'],
-  'CT-26-T2': ['A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between shifts', 'search'],
+  'HG-26-T1': ['Today’s shift times but two new closers, 16:00 on a weekday and 15:15 on a Sunday, a 13:35 finish every weekday, and Saturday closing as today', 'search'],
+  'CT-26-T2': ['A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties', 'search'],
   'BW-26-T3': ['A 16:00 closer every day from Monday to Saturday, and a 13:35 and a 13:45 finish every weekday, as today', 'search'],
   // 30 Oct 2026: Closing Time's weeks with the times searched again (README.md → "In Step")
-  'IS-26-T4': ['Five on at every opening from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between shifts', 'search'],
+  'IS-26-T4': ['Five on at every opening from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties', 'search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */

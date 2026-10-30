@@ -15,7 +15,7 @@ import importlib.util, json, os, re, shutil, struct, subprocess, tempfile, zipfi
 
 TOOL = os.path.dirname(os.path.abspath(__file__)); OUT = os.path.join(TOOL, '..', 'presentations')
 spec = importlib.util.spec_from_file_location('snd', os.path.join(TOOL, 'second-nature-decks.py')); snd = importlib.util.module_from_spec(spec); spec.loader.exec_module(snd)
-Slide, spans, runs_of, escape, GREEN, NAVY = snd.Slide, snd.spans, snd.runs_of, snd.escape, snd.GREEN, snd.NAVY
+Slide, spans, runs_of, escape, GREEN, NAVY, AMBER = snd.Slide, snd.spans, snd.runs_of, snd.escape, snd.GREEN, snd.NAVY, snd.AMBER
 FIG = json.loads(subprocess.check_output(['node', os.path.join(TOOL, 'deck-check.mjs'), '--print'], text=True))
 T = FIG['today']
 # Only the shortlist's decks are shipped (owner, 3 Oct 2026): since 30 Oct 2026 that is In Step and Short Run (owner: "Only do
@@ -225,9 +225,12 @@ def colleagues(d, name, grid, F):
     s.save()
     if int(F['late23']) - int(T['late23']) != 3: raise SystemExit(f'deck-polish: slide 7 says three more after 23:00; {name} has {F["late23"]}, today {T["late23"]}')
     replace_run(f'{d}/ppt/slides/slide7.xml', 'Three more late finishes a year — the fewest the rules allow — and every closer is shorter.', 'More people stay on after 22:00 under the December staffing; the three more after 23:00 are the fewest the rules allow.')
+    # NOT AVERAGES ON 26 WEEKS (the deck review, 30 Oct 2026): a year is exactly two turns of the link, so the yearly figures
+    # are everyone's, whichever line they start on. Slide 5's notes say so and already leave the cover weeks out; slide 7's
+    # gain the line the slide drops.
     for n in (5, 7):
         s = S(n); drop_shape(s, 'Yearly figures are averages from the fixed rota; cover-week duties are not included.'); s.save()
-        notes_append(d, n, 'The yearly figures are averages from the fixed rota; a cover week’s duties are not known yet and are left out.')
+    notes_append(d, 7, 'The yearly figures are the fixed rota’s, which everyone works through twice a year; a cover week’s duties are not known yet and are left out.')
     s = S(9)
     put(s, 'Full weekends off', 'Full weekends off, about a year'); put(s, '4 in 20', T['weekendsYear']); put(s, '7 in 26', F['weekendsYear'], GREEN)
     put(s, 'Weeks on one turn, Monday to Friday', 'Weeks on one turn, no early–late switch')
@@ -239,6 +242,12 @@ def colleagues(d, name, grid, F):
     s.save()
     plainly = f'{ALL} shortlisted links are worse than today here' if name in SHORTLIST else f'{name} and {ALL} shortlisted links are worse than today here'
     notes_edit(d, 11, 'The exact averages depend on where you count a booking as starting, so quote them as “about the same”.', f'Say the four-weeks figure plainly: {plainly} (Long Break, the leave-first design in the pack, keeps the 14), and people plan a year around it. The averages depend on where you count a booking as starting, so quote those as “about the same”.')
+    # SLIDE 3'S STAFFING CARD said "more at the open and the close": the rules raise the open only on a Sunday (four; today
+    # three), the close Monday to Saturday (three; today two) and the 22:00 headcount every day (five) — the deck review
+    nums = lambda v: [int(n) for n in v.split(' · ')]
+    if not (nums(T['open'])[:2] == [4, 4] and max(nums(T['close'])[:2]) < 3 and max(nums(T['at22'])) < 5):
+        raise SystemExit(f'deck-polish: slide 3 says the rules add people at the close and at 22:00, not the open; today reads {T["open"]}, {T["close"]}, {T["at22"]}')
+    s = S(3); put(s, 'At least 10 on a Sunday, and more at the open and the close. We also aim for 14 on a Saturday.', 'At least 10 on a Sunday, and more at the close and at 22:00. We also aim for 14 on a Saturday.'); s.save()
     s = S(12); put(s, 'More people rostered every day, at the open and the close', 'More people rostered every day, and more at the open and the close on most days'); s.save()   # checked above, for every design
     s = S(13)
     put(s, 'Best leave stretch: 28 days, not 30', f'Four weeks off: {F["leaveFour"]} days’ leave, not {T["leaveFour"]}')
@@ -261,10 +270,14 @@ def managers(d, name, grid, F):
     tile(s, 16, ['people on the link'], 'people\non the link')
     s.save()
     s = S(6); drop_shape(s, 'Early starts and a weekly rotation come with every link, so are not counted. The written source of the 13-day limit is still to be confirmed.'); s.save()
-    notes_append(d, 6, 'Early starts and a weekly rotation come with every link, so they are not counted. The written source of the 13-day limit is still to be confirmed.')
+    # the dropped line's first half the notes already say ("come with every weekly link … not counted"), so only the second
+    # goes on; and the FF19 sentence says what its reading is and what the stricter one would mean (the deck review)
+    notes_append(d, 6, 'The written source of the 13-day limit is still to be confirmed.')
+    notes_edit(d, 6, 'is counted on our reading and should be confirmed by whoever assesses it.',
+               'is counted on our reading, in which a rest day breaks the run, and whoever assesses it should confirm that: on the stricter reading every link has it (FF19 on the rules sheet).')
     s = S(4)
     drop_shape(s, 'A measure of the day’s shape only — not a staffing requirement or a passenger forecast.')
-    notes_append(d, 4, 'The score is a measure of the day’s shape only — not a staffing requirement or a passenger forecast.')
+    notes_edit(d, 4, 'It is a guide to shape, not a staffing requirement —', 'It is a guide to shape, not a staffing requirement or a passenger forecast —')   # the dropped line, without saying "not a staffing requirement" twice
     # "much closer" on weekdays only where the weekday score is under about 60% of today's (Short Run's 56%, In Step's 57%; Closing Time's was 70%)
     closer = 'Closer to the December pattern every day, much closer at the weekend.' if float(F['fitWk']) > 0.6 * float(T['fitWk']) else 'Much closer to the December pattern every day.'
     put(s, 'Much closer to the December pattern on weekdays, Saturday and Sunday.', f'{closer} The score: hour by hour, how far staffing sits from the trains; 0 would track them exactly.')
@@ -306,6 +319,9 @@ def managers(d, name, grid, F):
               adds, times_line, costs]
     for i, (t, lab) in enumerate(zip(ticks, labels)): set_shape(s, t + 1, lab)
     set_shape(s, ticks[-1], '–')
+    ell = ticks[-1] - 1   # the circle behind the dash is amber, as the worries on slide 8 are: a cost is not a benefit (the deck review)
+    if 'prst="ellipse"' not in s.x[slice(*spans(s.x)[ell])]: raise SystemExit('deck-polish: no circle behind the costs line')
+    s.sub(ell, GREEN, AMBER, 2)
     bars = [i for i, (a, b) in enumerate(spans(s.x)) if runs_of(s.x[a:b]) and runs_of(s.x[a:b])[0].startswith('The trade-off')]; assert len(bars) == 1
     if int(F['late23']) != 42: raise SystemExit(f'deck-polish: the bar says 42 is the rules’ minimum; {name} has {F["late23"]}')
     set_shape(s, bars[0], f'Late finishes: {F["late23"]} a year each (today {T["late23"]}) — the rules’ minimum. The colleague deck shows every cost openly.')

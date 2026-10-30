@@ -72,7 +72,7 @@ def item(label, text, hang=21):
 decks = (', '.join(with_decks[:-1]) + ' and ' + with_decks[-1]) if len(with_decks) > 1 else (with_decks[0] if with_decks else 'None yet')
 readme = '\n'.join([
     'DECEMBER 2026 LINK PROPOSALS - 26 LINES',
-    'Marylebone CEA link, December 2026 timetable - 26 weeks, from 1 October 2026',
+    'Marylebone CEA link, December 2026 timetable - 26 weeks, set on 1 October 2026',
     '',
     para(f'{WORDS[len(proposals)].capitalize()} candidate links, {WORDS[len(SHORTLIST)]} shortlisted ({", ".join(SHORTLIST[:-1])} and {SHORTLIST[-1]}), one recommended ({RECOMMENDED}). '
          f'Asked of managers: which of the {WORDS[len(SHORTLIST)]} goes to colleagues. Asked of colleagues: look at page 3 of the chosen '
@@ -82,15 +82,16 @@ readme = '\n'.join([
     para('The rest is the evidence behind them.'),
     '',
     *([para('Home Grown, Closing Time and Both Ways (26 October 2026) answer a later question: today\'s link on 26 lines, '
-            'keeping its shift times, a 13:35 or 13:45 finish every weekday and the weekday closer at 16:00. Each pays for '
+            'keeping as many of its shift times as it can, with a 13:35 or 13:45 finish every weekday and the weekday closer at 16:00. Each pays for '
             'the short finishes a different way; the technical notes compare them. Closing Time, improved on 27 and 30 '
             'October, was shortlisted on 30 October until the shortlist was cut to two the same day; the other two '
             'were never on it.'), '']
       if {'Home Grown', 'Closing Time', 'Both Ways'} <= {n for n, _, _ in proposals} else []),
     *([para('In Step (30 October 2026) answers the next question: whether Closing Time could have five on at the Saturday '
             'open and follow the weekday trains more closely. It keeps Closing Time\'s weeks and a 13:45 finish every '
-            'weekday, with the closer at 15:45 instead of 16:00. It joined the shortlist the same day, with Short Run, '
-            'and is the one recommended: the shortlist sheet sets out why, and how close it is.'), '']
+            'weekday, with the closer at 15:45 instead of 16:00. The same day the shortlist was cut to two: In Step, and '
+            'Short Run, on it since 3 October (Second Edition, Even Keel and Closing Time left it). In Step is the one '
+            'recommended; the shortlist sheet sets out why, and how close it is.'), '']
       if 'In Step' in {n for n, _, _ in proposals} else []),
     para('Still moving: the staffing levels and Sunday cover behind the rules were confirmed verbally, not in writing; '
          'the written source of the 13-day limit is to be confirmed; and the reading of one fatigue factor (FF19, marked '
@@ -122,14 +123,14 @@ readme = '\n'.join([
     item('', 'The code and eight-character fingerprint in each file name identify the exact rota, so a printout can '
          'never be mixed up with a variant.'),
     item('5 Import files', 'Each proposal as text for the Links page (Import), which lays out 26 lines since app version '
-         '24.47 (3 October 2026) and re-runs every check in this pack on whatever is pasted in. The '
+         '24.47 (3 October 2026) and re-runs the hard limits, the fatigue checks, the weekends, the hours and the hour-by-hour staffing on whatever is pasted in; the December rules and the yearly figures are the sheets\' own. The '
          f'{WORDS[len(SHORTLIST)]} shortlisted designs are built into the app\'s Links designer as examples, for reference '
          '(these two since app version 25.02).'),
     item('6 Technical notes', 'The 26-line rules with what changed from 24, and how the proposals were built and '
          'checked. Written for the technical record, not for reading out.'),
     '',
     para('Every figure in the summary, the shortlist sheet, the rules sheet and the proposal sheets was worked out from '
-         'the rotas by the Marylebone Roster app; none was typed in by hand. The presentations are built from the '
+         'the rotas, by the Marylebone Roster app\'s own checks and the tooling beside them; what is typed by hand is the rules\' own numbers and the one-line description under each design\'s name. The presentations are built from the '
          'Familiar Nine decks by scripts, through a Second Nature template that is not shipped, and every figure in '
          'their tables is checked against those counts by another (docs/links-26/tooling/deck-check.mjs in the '
          'repository).'),

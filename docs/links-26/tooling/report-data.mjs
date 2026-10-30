@@ -235,7 +235,7 @@ const hmm = m => `${Math.floor(m/60)}h ${String(m%60).padStart(2,'0')}m`;
  *  · HARD limits — 12 hours' rest, 13 days in a row, the exact contract. Met, or the rota cannot be run.
  *  · SOFT rules — the nine December 2026 staffing rules (sheetRules). Each met or not, and stated and scored on every
  *    proposal sheet, the summary and the rules sheet.
- *  · FLEXIBLE rules — fourteen on a Saturday, four evenly spread cover weeks, a 15:45 start for every weekday closer
+ *  · FLEXIBLE rules — fourteen on a Saturday, five cover weeks as evenly spread as 26 allow, a 15:45 start for every weekday closer
  *    (flexibleRules). "They should stay in the background": every search, solver and judge designs to them (they stay
  *    in currentRules, which all eleven are), a PRESENTATION may mention them, and a PROPOSAL SHEET never does. The
  *    rules sheet names them as their own tier.
