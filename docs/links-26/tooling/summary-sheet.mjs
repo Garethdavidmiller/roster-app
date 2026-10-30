@@ -50,23 +50,23 @@ const tr = (r, cls='') => `<tr class="${cls}"><td class="n">${SHORTLIST.includes
 const html = `<!doctype html><html><head><meta charset="utf-8"><title>December 2026 link proposals — summary</title><style>
 @page{size:A4 landscape;margin:8mm 10mm}
 body{font-family:Inter,Arial,sans-serif;color:#1B2533;margin:0;font-size:9pt}
-h1{color:#001E3C;font-size:20pt;margin:0 0 4px} .lead{color:#5B6778;margin:0 0 12px;font-size:10.5pt;line-height:1.4;max-width:none}
+h1{color:#001E3C;font-size:20pt;margin:0 0 4px} .lead{color:#5B6778;margin:0 0 8px;font-size:10.5pt;line-height:1.4;max-width:none}
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
-th{background:#001E3C;color:#fff;font-weight:600;font-size:9pt;padding:6px 5px;text-align:center;vertical-align:bottom}
+th{background:#001E3C;color:#fff;font-weight:600;font-size:9pt;padding:5px 5px;text-align:center;vertical-align:bottom}
 th:first-child{text-align:left}
-td{white-space:nowrap;border-bottom:1px solid #DDE3EA;padding:4px 5px;text-align:center;font-size:10pt}
-td.n{text-align:left} td.n span{color:#5B6778;font-size:8.5pt;margin-left:6px} td .wv{display:block;color:#5B6778;font-size:8pt}
+td{white-space:nowrap;border-bottom:1px solid #DDE3EA;padding:1px 5px;text-align:center;font-size:9.5pt}
+td.n{text-align:left} td.n span{color:#5B6778;font-size:8pt;margin-left:6px} td .wv{display:block;color:#5B6778;font-size:7.5pt}
 tr.today td{background:#FFF4C2;border-bottom:2px solid #F5C800}
 td.n em.sl{display:block;font-style:normal;color:#1E7B4B;font-size:8pt;font-weight:700;letter-spacing:.2px}
 td.good{color:#1E7B4B;font-weight:700} td.bad{color:#B3261E;font-weight:700} td.n em.hl{display:block;font-style:normal;color:#B3261E;font-size:8pt;font-weight:600}
-.foot{margin-top:10px;color:#5B6778;font-size:9pt;line-height:1.45}
+.foot{margin-top:6px;color:#5B6778;font-size:8.5pt;line-height:1.4}
 /* POLISH (1 Oct 2026): an "up to" note is a caveat, so it is never coloured as the good figure above it */
 td.good .wv { color: #5B6778; font-weight: 400; }
 .lead, .foot { text-wrap: pretty; }
-.pfoot{margin-top:8px;padding-top:4px;border-top:1px solid #DDE3EA;color:#8A96A3;font-size:8pt;display:flex;justify-content:space-between} .pfoot b{color:#001E3C}
+.pfoot{margin-top:6px;padding-top:4px;border-top:1px solid #DDE3EA;color:#8A96A3;font-size:8pt;display:flex;justify-content:space-between} .pfoot b{color:#001E3C}
 </style></head><body>
 <h1>December 2026 link proposals — at a glance</h1>
-<p class="lead">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the three shortlisted ones marked ★ — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota by the Marylebone Roster app. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</p>
+<p class="lead">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${['no', 'one', 'two', 'three', 'four', 'five', 'six'][SHORTLIST.length] ?? SHORTLIST.length} shortlisted ones marked ★ — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota by the Marylebone Roster app. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</p>
 <table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Avoidable fatigue warnings§</th><th>Most days in a row§</th><th>Full weekends off</th><th>Shortest fixed-duty rest</th><th>Shift times</th><th>Days a year*</th><th>Heaviest week, Mon–Sat</th><th>Weeks on one turn</th><th>Weeks mixing earlies and lates</th><th>Week-to-week change of start</th><th>Finishes 23:00+ a year†</th></tr></thead><tbody>
 ${tr(todayRow,'today')}
 ${rows.map(r=>tr(r)).join('\n')}

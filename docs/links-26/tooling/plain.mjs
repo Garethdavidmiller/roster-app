@@ -37,7 +37,7 @@ const everyN = share => share <= 0 ? 'never' : `one in ${Math.round(1 / share)}`
 // gives the COUNT ("6 in 24") and the longest gap between two of them. Counted the way checkLinkConstraints counts the
 // weekends (Saturday of one line and Sunday of the next both off, a cover week's days never off), so the two cannot
 // disagree; null when there is no weekend off at all.
-const weekendGap = p => { const L = Object.keys(p).length, off = s => !timed(s) && s !== 'SPARE';
+export const weekendGap = p => { const L = Object.keys(p).length, off = s => !timed(s) && s !== 'SPARE';   // deck-check.mjs quotes it too
   const at = []; for (let k = 1; k <= L; k++) if (off(p[String(k)].sat) && off(p[String(k % L + 1)].sun)) at.push(k);
   return at.length ? Math.max(...at.map((k, i) => i < at.length - 1 ? at[i + 1] - k : at[0] + L - k)) : null; };
 
@@ -643,7 +643,12 @@ p.pnext { font-size: 9.4px; color: var(--text-mid); margin: 10px 0 0; } p.pnext 
 .p4n { background: var(--surface-sunken); border-radius: 8px; padding: 9px 12px; box-shadow: inset 0 3px 0 color-mix(in srgb, var(--primary-blue) 35%, white); }
 .p4n b { display: block; font-size: 24px; line-height: 1.05; color: var(--primary-blue); } .p4n span { font-size: 10px; color: var(--text-mid); }
 .p4n-new { box-shadow: inset 0 3px 0 var(--primary-blue); } .p4n-new b { color: var(--primary-blue); }
-.p4new { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px 10px; margin: 4px 0 6px; }
+/* the new times to learn: up to three in a row, four as two pairs, five or six three to a row, more four to a row (three
+   for nine, five for thirteen, so no card is left alone; 30 Oct 2026 review) — and the last row's cards share its width. A fixed three-column grid left one card alone beside two empty cells (four times) or a
+   gap at the end (two, five or seven); four across wrapped "weekdays and Saturdays" in half the cards (Both Ways, measured).
+   --n, set where the cards are built, is the cards a full row holds; border-box so the padding is inside the share */
+.p4new { display: flex; flex-wrap: wrap; gap: 5px 10px; margin: 4px 0 6px; }
+.p4new > .p4t { box-sizing: border-box; flex: 1 1 calc((100% - (var(--n, 3) - 1) * 10px) / var(--n, 3)); }
 .p4t { background: color-mix(in srgb, var(--primary-blue) 6%, white); border-radius: 6px; padding: 5px 9px; font-size: 9.4px; line-height: 1.35; color: var(--text-mid); }
 .p4t .tt { display: block; font-size: 11.5px; font-weight: 800; color: var(--primary-blue); }
 p.p4gone, p.p4none { font-size: 9.6px; color: var(--text-mid); margin: 4px 0 8px; } p.p4gone .tt { color: var(--text-dark, #1a1a2e); }
@@ -734,16 +739,19 @@ table.p5t { width: 100%; margin: 0; }
 /* page 1: a card is as tall as its own content — a two-line tile beside a four-line one, a three-item list beside a six */
 .cover.plain .tiles.head4 { align-items: start; } .cover.plain .pcols { align-items: start; }
 /* page 2: the longest page — the mast's sub-line is two lines (worded for it), the closing-shift triples are one unit each,
-   and the two figure columns are a touch wider for them. The floor between the last row and the footer is 24px. */
-table.pcmp th:nth-child(1) { width: 28%; } table.pcmp th:nth-child(2) { width: 17%; } table.pcmp th:nth-child(3) { width: 20%; } table.pcmp th:nth-child(4) { width: 35%; }
+   and the two figure columns are a touch wider for them. The floor between the last row and the footer is 24px.
+   MEASURED ON ALL THIRTEEN SHEETS (30 Oct 2026): at 17% today's triple ran 5px into its cell's padding and all but touched
+   the border. These widths leave both triples about 3px inside the padding, and 34.5% is the narrowest words column that
+   keeps every row of every sheet on the lines it had (at 34% Second Nature's weekends row wraps and its floor drops to 14). */
+table.pcmp th:nth-child(1) { width: 27%; } table.pcmp th:nth-child(2) { width: 18.2%; } table.pcmp th:nth-child(3) { width: 20.3%; } table.pcmp th:nth-child(4) { width: 34.5%; }
 table.pcmp .trio { white-space: nowrap; font-size: 9px; }
+.rng { white-space: nowrap; }
 table.pcmp td { padding-top: 1.5px; padding-bottom: 1.5px; }
 p.pnext { margin-top: 7px; }
 /* page 3: the stat strip wraps between its figures if it must, never off the page (that overflow shrank four sheets) */
 .p3sum { white-space: normal; line-height: 1.5; font-size: 9.2px; padding: 4px 10px; } .p3sum .bit { white-space: nowrap; } .p3sum .dot { margin: 0 2px; }
-/* page 4: seven or eight new times fill two rows of four rather than leave one alone on a third; the right-hand column is
-   two cards — the notes, then the shape of the week — so it runs the height of the duty table */
-.p4new--4 { grid-template-columns: repeat(4, 1fr); }
+/* page 4: the right-hand column is two cards — the notes, then the shape of the week — so it runs the height of the duty
+   table. (Seven or eight new times went four to a row here; .p4new's --n now decides every count.) */
 .cols.duty > div.p4side { background: none; padding: 0; }
 .p4side .p4note { background: var(--surface-sunken); border-radius: 8px; padding: 9px 11px; } .p4side .p4note p { margin: 0 0 6px; } .p4side .p4note p:last-child { margin: 0; }
 .p4shape2 { margin-top: 10px; background: var(--surface-sunken); border-radius: 8px; padding: 8px 11px 9px; } .p4shape2 h3 { margin: 0 0 4px; font-size: 11.5px; }
@@ -879,7 +887,7 @@ function shiftPage(s, { T, P }) {
     <div class="p4n p4n-new"><b>${fresh.length}</b><span>${fresh.length === 1 ? 'is' : 'are'} new — nobody works ${fresh.length === 1 ? 'it' : 'them'} today</span></div>
   </div>
   ${fresh.length ? `<h2>The new ${fresh.length === 1 ? 'time' : 'times'} to learn</h2>
-  <div class="p4new${fresh.length === 7 || fresh.length === 8 ? ' p4new--4' : ''}">${fresh.map(r => `<div class="p4t"><span class="tt">${r.time}</span><span>${len(r.minutes)} · ${kind(r)} · ${when(r)}</span></div>`).join('')}</div>` : '<p class="p4none">Every shift time in this link is one somebody already works today.</p>'}
+  <div class="p4new" style="--n:${fresh.length <= 3 ? fresh.length : fresh.length === 4 ? 2 : fresh.length <= 6 ? 3 : [4, 3, 5].find(c => fresh.length % c !== 1) ?? 4}">${fresh.map(r => `<div class="p4t"><span class="tt">${r.time}</span><span>${len(r.minutes)} · ${kind(r)} · ${when(r)}</span></div>`).join('')}</div>` : '<p class="p4none">Every shift time in this link is one somebody already works today.</p>'}
   ${gone.length ? `<p class="p4gone"><b>No longer used:</b> ${gone.length} of today’s ${T.tableRows.length} shift times — ${gone.map(r => `<span class="tt">${r.time}</span>`).join(', ')}.</p>` : ''}`;
   s = must(s, /<div class="stack">[\s\S]*?<\/div>\s*<\/div>\s*(?=<h2>The duty table)/, `${learn}\n  `, 'the two tables above the duty table');
   // THE SHAPE OF A WEEK — restored (30 Sep 2026, "no important insight must be lost"). v2 moved four of the old table's
@@ -1055,16 +1063,25 @@ export function plainEdition(html, ctx) {
   // ONE WAY OF WRITING A LENGTH OF TIME (owner, 30 Sep 2026). Page 2 wrote "13h35" and page 6 "13h 35m" for the same
   // figure, and "13h35" also reads as a clock time. Every duration on every page is "13h 35m"; clock times keep their
   // colon (13:35), so the two can no longer be confused. Text only — never inside a tag or the stylesheet.
-  out = out.replace(/(<style[\s\S]*?<\/style>)|>([^<]+)</g, (m, st, txt) => st ?? `>${txt.replace(/\b(\d{1,3})h(\d{2})\b(?!m)/g, '$1h&nbsp;$2m')
+  // THE BRACKETS ARE LOOKED AT, NOT TAKEN (30 Oct 2026 review). The text alternative used to consume the "<" that closes a
+  // text node, so ">\n<style>" was read as text and the "<style" never seen: the whole stylesheet went through this pass as
+  // one text node (25 no-break spaces in the sheets' CSS comments, harmless only because no live rule held a dot or a dash).
+  // A ">" inside an attribute value would still be read as the end of a tag; none of these pages has one.
+  out = out.replace(/(<style[\s\S]*?<\/style>)|(?<=>)([^<]+)(?=<)/g, (m, st, txt) => st ?? `${txt.replace(/\b(\d{1,3})h(\d{2})\b(?!m)/g, '$1h&nbsp;$2m')
     // POLISH (1 Oct 2026): a separator dot stays at the END of a line, never the start of the next; and a clock range is
     // written one way on every page — page 4 wrote 06:20-14:25 where pages 2 and 5 wrote 06:20–14:25
     .replace(/ · /g, '&nbsp;· ').replace(/\b(\d\d:\d\d)-(\d\d:\d\d)\b/g, '$1–$2')
     // THIRD POLISH PASS (4 Oct 2026): a dash, like a dot, ends a line and never starts one; a fraction in words ("two-fifths")
     // keeps its hyphen on one line (a word joiner — invisible, and no glyph for the font to lack)
-    .replace(/ — /g, '&nbsp;— ').replace(/\b(two|three|four|nine)-(fifths|thirds|quarters|tenths)\b/g, '$1-\u2060$2')}<`);
+    .replace(/ — /g, '&nbsp;— ').replace(/\b(two|three|four|nine)-(fifths|thirds|quarters|tenths)\b/g, '$1-\u2060$2')}`);
   // ORPHANS (4 Oct 2026): a plain-text table cell or list item — no tags inside it, and long enough to wrap — never ends on a
   // lone short word ("to Friday", "— people", "(today 7)"): its last space is a no-break space. A cell with markup is left alone.
   out = out.replace(/<(td|li)(\s[^>]*)?>([^<]{25,})<\/\1>/g, (m, tag, attrs, txt) => { const i = txt.lastIndexOf(' ');
     if (i < 0 || txt.length - i > 16) return m; return `<${tag}${attrs ?? ''}>${txt.slice(0, i)}&nbsp;${txt.slice(i + 1)}</${tag}>`; });
+  // A CLOCK RANGE IS ONE UNIT (30 Oct 2026). Page 6's ticket-office rule broke "14:00–" from "22:30" at a line end on every
+  // sheet. Each range sits in a no-wrap span — not a word joiner, as the fractions have, because a range is what a reader
+  // searches for or copies, and an invisible character inside it would stop "06:20–14:20" matching. Text only, after the
+  // orphan pass above (which leaves a cell with markup alone), and never in the stylesheet or the title.
+  out = out.replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (m, keep, txt) => keep ?? txt.replace(/\b\d\d:\d\d–\d\d:\d\d\b/g, '<span class="rng">$&</span>'));
   return out;
 }

@@ -6,6 +6,7 @@ import { collectFatalErrors, seedSession, seedSessionOnce, seedMember, pickFirst
 // rotation would leave every fixture over-length: the grid ignores the surplus rows, so the specs
 // would still pass while quietly testing the legacy-design path rather than the normal one.
 import { ROTATING_LINES } from '../links-design.js';
+import { PROPOSALS } from '../links-proposals.js';
 import { SUNDAY_FORBIDDEN_TYPES } from '../override-utils.js';
 import { describeSetList } from '../links-target-sets.js';
 import { teamMembers, getBaseShift } from '../roster-data.js';
@@ -5717,7 +5718,7 @@ test('links: Generate works on a card nobody has touched', async ({ page }) => {
     await expect(page.locator('#linksSummary')).toContainText('35h');
 });
 
-// ── THE SHORTLIST, BUILT IN (v24.47; owner decision 3 Oct 2026) ─────────────────────────────────
+// ── THE SHORTLIST, BUILT IN (v24.47; owner decision 3 Oct 2026; Closing Time joined in v25.01) ──
 // The unit tests pin the data and the masthead's words. What only the page can prove: the picker
 // REACHES them, opening one is read-only in the ways that matter (no rename, no delete, a Save that
 // makes a copy), and the copy that save writes is the proposal's own 26-line grid under a new name.
@@ -5733,7 +5734,7 @@ test('links: the shortlisted proposals open read-only, and saving one makes a na
     await expect(page.locator('#linksEmptyProposals')).toBeVisible();
     await page.locator('#linksEmptyProposals').click();
     await expect(page.locator('#designPickerLb.visible')).toBeVisible();
-    await expect(proposalOptions(page)).toHaveCount(3);
+    await expect(proposalOptions(page)).toHaveCount(PROPOSALS.length);   // every shortlisted design, however many (four since v25.01)
     await expect(designOptions(page)).toHaveCount(0);
     await proposalOptions(page).filter({ hasText: 'Second Edition' }).click();
 
@@ -5763,7 +5764,7 @@ test('links: the shortlisted proposals open read-only, and saving one makes a na
     expect(writes.some((/** @type {any} */ w) => String(w.path).includes('proposal')), 'a proposal id never reaches Firestore').toBe(false);
     // And the shortlist itself is untouched, still offered, still read-only.
     await openDesignPicker(page);
-    await expect(proposalOptions(page)).toHaveCount(3);
+    await expect(proposalOptions(page)).toHaveCount(PROPOSALS.length);
     await expect(designOptions(page)).toHaveCount(1);
 });
 

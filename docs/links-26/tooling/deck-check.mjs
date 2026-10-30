@@ -16,7 +16,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { assess, folderStats, today, sheetRules, h55Worst, endMinutes, startMinutes } from './report-data.mjs';
-import { personal } from './plain.mjs';
+import { personal, weekendGap } from './plain.mjs';
 import { LINES } from './link.mjs';
 import { leave } from './leave.mjs';
 import { kindBlocks } from './blocks.mjs';
@@ -24,9 +24,12 @@ import { scoreOrder } from '../../../links-adjacency.js';
 
 const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url).pathname;   // DECK_DIR: check a copy
 // Only the shortlist's decks are shipped (owner, 3 Oct 2026): Second Nature's, Second Wind's and Second Sight's were deleted.
+// Closing Time's joined them on 30 Oct 2026 (owner: "create the manager and colleague presentations"), and it joined the
+// shortlist the same day.
 const DECKS = [['Second-Edition-for-colleagues.pptx', 'Second Edition'], ['Second-Edition-for-managers.pptx', 'Second Edition'],
   ['Even-Keel-for-colleagues.pptx', 'Even Keel'], ['Even-Keel-for-managers.pptx', 'Even Keel'],
-  ['Short-Run-for-colleagues.pptx', 'Short Run'], ['Short-Run-for-managers.pptx', 'Short Run']];
+  ['Short-Run-for-colleagues.pptx', 'Short Run'], ['Short-Run-for-managers.pptx', 'Short Run'],
+  ['Closing-Time-for-colleagues.pptx', 'Closing Time'], ['Closing-Time-for-managers.pptx', 'Closing Time']];
 
 const hm = m => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}m`;
 const span = s => String(s).replace(/(\d+)h(\d\d)(?!m)/g, '$1h $2m');                 // plain.mjs's "8h40" → the decks' "8h 40m"
@@ -73,6 +76,9 @@ function figures(patterns, lines, T) {
     ...(lv => ({ leaveBest: `${lv.best}`, leaveAvg: lv.avg.toFixed(1), leaveWorst: `${lv.worst}`, leaveFour: `${lv.fourWeeks}` }))(leave(patterns)),
     // the week-to-week step: the average change in a week's mean start time (plain.mjs's definition; the shortlist's figure)
     step: hm(scoreOrder(patterns, Object.keys(patterns), { maxRunTarget: 6 }).gentleMean),
+    // what deck-polish.py's "all four shortlisted" lines rest on (30 Oct 2026 review): the rules met, and the longest wait
+    // between full weekends, each the sheets' own figure
+    met: `${R.met}`, weekendGap: `${weekendGap(patterns)}`,
   };
 }
 

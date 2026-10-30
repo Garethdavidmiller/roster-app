@@ -1,0 +1,89 @@
+{
+ "note": "26 lines from today's 20-line link: a 13:35 and a 13:45 every weekday as today, closers 16:00-23:55 Monday to Saturday, today's 13:30-22:00 half an hour longer (13:30-22:30) and Short Run's 07:00-16:00 (a 07:15-16:15 would leave 14h 05m before a 06:20), Sunday closers 15:15-23:25",
+ "slots": [
+  {
+   "time": "06:20-13:35",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "06:20-13:45",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:00",
+   "weekday": 0,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:20",
+   "weekday": 2,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:50",
+   "weekday": 1,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "07:00-16:00",
+   "weekday": 2,
+   "sat": 3,
+   "sun": 0
+  },
+  {
+   "time": "07:15-15:45",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 4
+  },
+  {
+   "time": "08:00-16:30",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 1
+  },
+  {
+   "time": "12:00-20:00",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "13:30-22:30",
+   "weekday": 2,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "14:00-22:30",
+   "weekday": 2,
+   "sat": 2,
+   "sun": 2
+  },
+  {
+   "time": "14:30-22:00",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "15:15-23:25",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 3
+  },
+  {
+   "time": "16:00-23:55",
+   "weekday": 3,
+   "sat": 3,
+   "sun": 0
+  }
+ ]
+}

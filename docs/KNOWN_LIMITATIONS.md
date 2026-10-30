@@ -239,6 +239,24 @@ reports every safe-area inset as zero, so a landscape baseline would prove nothi
 Island insets the audit's B11 added, and the smoke suite's layout assertions are written for
 portrait. A real iPhone in landscape is on the device checklist in the audit, not in CI.
 
+### Every browser job is pinned to Ubuntu 24.04 until Playwright moves on (30 Oct 2026, v25.01)
+
+GitHub's `ubuntu-latest` became **Ubuntu 26.04** in the last week of October 2026, and Playwright 1.56.1 supports
+nothing newer than 24.04. On the new image `npx playwright install-deps` prints "Cannot install dependencies for
+ubuntu26.04-x64" and **exits 0**, so the libraries step passed, and every WebKit test then failed at browser launch
+(408 of 409 in one shard) — while Chromium happened to launch, and both visual lanes, drawn on 24.04, reported drift.
+The nine jobs that start a browser now say `runs-on: ubuntu-24.04` (e2e.yml's smoke, webkit, csp, visual and
+visual-webkit; the deploy gate in deploy-hosting.yml; live-health, offline and warm-browser-cache); the reason is
+written once, on e2e.yml's smoke job.
+
+**Deferred:**
+- When a Playwright release supports 26.04, upgrade it and move all nine back together. One job left on 24.04 would
+  test a browser the others do not, and the WebKit and visual baselines would need regenerating on the new image anyway.
+- `install-browser-deps` still reports success when Playwright declines to install. Its fallback `exec`s the plain
+  command, whose exit status is 0 here; a check that the browser launches would name the failure at the step that
+  caused it, rather than four hundred tests later. `workflow-hygiene.test.mjs` pins the fallback's shape, so that is a
+  change to the test as well.
+
 ### Playwright's WebKit crashes when a page leaves after two history entries and a Back (measured Oct 2026, v24.97)
 
 The WebKit that Playwright 1.56.1 runs here (build 2215, "Safari 26.0") **crashes its web process**

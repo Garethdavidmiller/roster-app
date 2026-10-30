@@ -1,0 +1,83 @@
+{
+ "note": "26 lines from today's 20-line link: today's shift times and one more (13:30-22:30), closers 16:00-23:55 Monday to Saturday, Sunday closers 15:15-23:25; a 13:45 every weekday and on Saturday. Sunday is Short Run's from 30 Oct 2026 (owner): 07:15-15:45 x4, 09:00-18:00, the ticket office lates at 14:30-22:30, the 15:15 closers (was 08:30-16:30 and 14:00-22:30 on 27 Oct, 08:00-16:30 and 14:00-22:30 on 26 Oct)",
+ "slots": [
+  {
+   "time": "06:20-13:45",
+   "weekday": 1,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:00",
+   "weekday": 1,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:20",
+   "weekday": 2,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:50",
+   "weekday": 1,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "07:15-15:45",
+   "weekday": 2,
+   "sat": 1,
+   "sun": 4
+  },
+  {
+   "time": "08:00-16:30",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "09:00-18:00",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 1
+  },
+  {
+   "time": "13:30-22:30",
+   "weekday": 3,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "14:00-22:30",
+   "weekday": 2,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "14:30-22:00",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "14:30-22:30",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 2
+  },
+  {
+   "time": "15:15-23:25",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 3
+  },
+  {
+   "time": "16:00-23:55",
+   "weekday": 3,
+   "sat": 3,
+   "sun": 0
+  }
+ ]
+}

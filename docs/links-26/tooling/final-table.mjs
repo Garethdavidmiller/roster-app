@@ -87,6 +87,16 @@ const OPENER_HANDOVER = CLS === 'sun' && process.env.OPENER_HANDOVER !== '0';
 // Saturday pairs already do, to the minute (14:00/14:20, 14:30/14:50); on a Sunday it is enforced here.
 const TO_HANDOVER = Number(process.env.TO_HANDOVER ?? 20);
 const MID_END_MAX = Number(process.env.MID_END_MAX ?? CLOSE - 15);
+// TWO SWITCHES ADDED 26 OCT 2026 (the today's-times designs, short-earlies.mjs), both off by default so every earlier
+// table rebuilds exactly:
+//   · REQUIRE=<time>|<time> [REQUIRE_N=<n>, default 1] — at least n duties among the named times (owner: "at least one
+//     weekday 13.35 or 13.45 finish per day"). The count is its own variable because every time carries a colon. A fixed
+//     (FIXED=) duty of a named time counts like any other.
+//   · LATE_MAX=<n> — at most n duties that are NOT closers finishing at or after 23:00 (the late finishes a sheet counts),
+//     so a table that buys minutes with late finishes says how many it bought.
+const REQUIRE = process.env.REQUIRE ? { times: new Set(process.env.REQUIRE.split('|')), n: Number(process.env.REQUIRE_N ?? 1) } : null;
+if (REQUIRE && !(REQUIRE.n >= 1)) { console.error(`REQUIRE_N must be a whole number of at least 1 (got ${process.env.REQUIRE_N})`); process.exit(2); }
+const LATE_MAX = process.env.LATE_MAX !== undefined ? Number(process.env.LATE_MAX) : Infinity;
 const MAX_TURNS = Number(process.env.MAX_TURNS ?? 99);
 const BOUND = process.env.BOUND !== '0';
 // BEST0: a fit no table worse than which is worth finishing — prunes from the first node rather than after the first
@@ -177,6 +187,8 @@ function evaluate(counts, cov, total, floorMin, floorSlots, fixedCounts) {
     n += k; turns++; starts.add(p.s); ends.add(p.e); if (p.s === OPEN) nO += k; if (p.e === CLOSE) nC += k; }
   if (n !== N || nO < OPENERS_MIN || nO > OPENERS_MAX || nC < CLOSERS_MIN || nC > CLOSERS_MAX || turns > MAX_TURNS) return null;
   if (!handoverOk(counts, fixedCounts)) return null;
+  if (REQUIRE) { let k = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && REQUIRE.times.has(POOL[i].t)) k += counts[i]; if (k < REQUIRE.n) return null; }
+  if (LATE_MAX < Infinity) { let k = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && POOL[i].e !== CLOSE && POOL[i].e >= 1380) k += counts[i]; if (k > LATE_MAX) return null; }
   if (process.env.AT22_STRICT === '1') { let at22 = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && POOL[i].s <= 1320 && POOL[i].e > 1320) at22 += counts[i]; if (at22 < 5) return null; }   // five on AFTER 22:00, counted as currentRules counts them
   let thin = Infinity; for (let k = SLOT0; k < SLOT1; k++) if (floorSlots[k] < thin) thin = floorSlots[k]; if (thin < FLOOR_MIN) return null;
   const fit = fitOf(cov, floorMin / 60);
