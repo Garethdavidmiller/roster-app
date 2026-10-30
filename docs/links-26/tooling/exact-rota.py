@@ -11,7 +11,8 @@ from the same rota, it found 17 inside ten on every variant. A floor the HINT do
 its first rota alone, which is the hard part. The same holds for every figure: OBJ=heavy, four, best and rest climb.
 
 The rules, each counted the way the app's own module counts it, so a rota the sheets accept is a rota this accepts —
-checked with FIX= on Closing Time (78e18900, and 57429cc4 with its Sunday made 08:30) and Short Run, each feasible with its own figures:
+checked with FIX= on Closing Time (77a235bc and 78e18900, and 57429cc4 with its Sunday made 08:30) and Short Run, each
+feasible with its own figures:
   the day's duties exactly (the table), 4 or 5 duties a week, no week mixing earlies and lates, the rest between duties
   (REST, minutes) and FF19 (no start more than two hours from the day before's in a working block), FF8b and FF15 in
   both views (a cover day read as rest, and as a worked day with no time), no run over 5 on the fixed duties or 6 with a

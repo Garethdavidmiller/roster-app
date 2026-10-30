@@ -833,13 +833,14 @@ for more shift times). **All three work the same weeks** — Home Grown's rest d
 Time's and Both Ways' duties laid on them (below) — so they differ only in their shift times. Their duties
 (`results/home-grown-table.json`, `closing-time-table.json`, `both-ways-table.json`), Sunday the same in all three:
 today's times bar the 15:15 closer, 07:15–15:45 ×4, 08:00–16:30, 14:00–22:30 ×2, 15:15–23:25 ×3. (Closing Time's
-08:00–16:30 became today's 08:30–16:30 on 27 Oct, and its weeks were searched again: "Closing Time, improved", below.
+08:00–16:30 became today's 08:30–16:30 on 27 Oct and its weeks were searched again, and on 30 Oct it took Short Run's
+Sunday: "Closing Time, improved", below.
 This section records the three as built on 26 Oct.)
 
 | | Monday to Friday, each day | Saturday |
 |---|---|---|
 | **Home Grown** `HG-26-T1` · `7d41fafb` | 06:20–13:35 · 06:20–14:20 ×2 · 06:20–14:50 ×2 · 07:15–15:45 ×2 · 11:00–19:30 · 13:30–22:00 ×2 · 14:00–22:30 ×2 · 16:00–23:55 ×3 | 06:20–14:20 ×3 · 06:20–14:50 ×2 · 07:15–15:45 · 08:00–16:30 · 14:00–22:30 ×2 · 14:30–22:00 ×2 · 14:45–23:55 ×3 |
-| **Closing Time** `CT-26-T2` · `57429cc4` (`78e18900` since 27 Oct) | 06:20–13:45 · 06:20–14:00 · 06:20–14:20 ×2 · 06:20–14:50 · 07:15–15:45 ×2 · 13:30–22:30 ×3 · 14:00–22:30 ×2 · 16:00–23:55 ×3 | 06:20–13:45 · 06:20–14:00 · 06:20–14:50 ×2 · 07:15–15:45 · 08:00–16:30 ×2 · 14:00–22:30 ×2 · 14:30–22:00 ×2 · 16:00–23:55 ×3 |
+| **Closing Time** `CT-26-T2` · `57429cc4` (`77a235bc` since 30 Oct) | 06:20–13:45 · 06:20–14:00 · 06:20–14:20 ×2 · 06:20–14:50 · 07:15–15:45 ×2 · 13:30–22:30 ×3 · 14:00–22:30 ×2 · 16:00–23:55 ×3 | 06:20–13:45 · 06:20–14:00 · 06:20–14:50 ×2 · 07:15–15:45 · 08:00–16:30 ×2 · 14:00–22:30 ×2 · 14:30–22:00 ×2 · 16:00–23:55 ×3 |
 | **Both Ways** `BW-26-T3` · `7a513d87` | 06:20–13:35 · 06:20–13:45 · 06:20–14:20 ×2 · 06:20–14:50 · 07:00–16:00 ×2 · 12:00–20:00 · 13:30–22:30 ×2 · 14:00–22:30 ×2 · 16:00–23:55 ×3 | 06:20–14:00 · 06:20–14:20 · 06:20–14:50 ×2 · 07:00–16:00 ×3 · 14:00–22:30 ×2 · 14:30–22:00 ×2 · 16:00–23:55 ×3 |
 
 **Both Ways uses 07:00–16:00, not the 07:15–16:15 of its row above.** The same nine hours, but a 07:15–16:15 followed
@@ -848,7 +849,7 @@ the next morning by a 06:20 leaves 14h 05m, and an early run needs its 07:00-or-
 searched. 07:00–16:00 is Short Run's own duty, leaves exactly 14h 20m, and is not an early start in the ORR's sense
 (05:00–06:59). It fits the weekday better (30.5 against 31.2) and the Saturday worse (16.2 against 12.1).
 
-| | Home Grown | Closing Time, 26 Oct (`57429cc4`; 27 Oct below) | Both Ways | Short Run | Today's link (20 weeks) |
+| | Home Grown | Closing Time, 26 Oct (`57429cc4`; later versions below) | Both Ways | Short Run | Today's link (20 weeks) |
 |---|---|---|---|---|---|
 | Saturday's closers | 14:45 ×3, as today | 16:00 ×3 | 16:00 ×3 | 15:15 ×3 | 14:45 ×2 |
 | 13:35 or 13:45 finishes a week | 5, a 13:35 every weekday | 6, a 13:45 every weekday and Saturday | 10, a 13:35 and a 13:45 every weekday | none | 10 |
@@ -892,7 +893,7 @@ the original ten keep their order among themselves. Against Short Run each loses
 points (the league averages weekday, Saturday and Sunday, and most of the gap is their Sunday, which keeps today's
 times), and 1.1 on weeks on one shift time; each gains most on familiar shift times, 1.4 to 2.8, and Closing Time and
 Both Ways on the heaviest week. `JSON=<file>` (new) writes the whole table, which is how it was published as a page.
-(Those are the 26 Oct figures. Improved on 27 Oct, Closing Time is first on 87.3 — below.)
+(Those are the 26 Oct figures. Improved on 27 and 30 Oct, Closing Time is first — below.)
 
 **In every version of the league** (27 Oct 2026, owner: "give me all versions marking which designs are new"): the
 usual table; the proposals alone setting each factor's best and worst (no `REF_IN_RANGE`); familiar shift times left
@@ -901,23 +902,28 @@ out (`DROP=fam`); the run read on the fixed rota (`RUN_FIXED=1`); and the 24-lin
 
 | | Usual | Proposals set the scale | Without familiar times | Run on the fixed rota | Six-factor |
 |---|---|---|---|---|---|
-| Closing Time, improved (27 Oct, below) | **1st · 87.3** | 3rd · 86.9 | 5th · 89.7 | **1st · 87.3** | 11th · 84.2 |
+| Closing Time with Short Run's Sunday (30 Oct, below) | **1st · 87.2** | **1st · 90.2** | 2nd · 91.3 | **1st · 87.2** | 7th · 90.5 |
+| Closing Time, 27 Oct | 1st · 87.3 | 3rd · 86.9 | 5th · 89.7 | 1st · 87.3 | 11th · 84.2 |
 | Closing Time as built (26 Oct) | 3rd · 86.0 | 4th · 83.1 | 7th · 88.6 | 2nd · 86.0 | 11th · 81.2 |
 | Both Ways | 5th · 85.8 | 10th · 79.4 | 8th · 88.5 | 4th · 85.8 | 12th · 80.6 |
 | Home Grown | 6th · 85.5 | 7th · 81.2 | 10th · 86.7 | 6th · 85.5 | 13th · 80.0 |
-| first, without the improved Closing Time | Second Edition 87.2 | Second Edition 89.7 | Second Edition 91.5 | Short Run 86.5 | six tied on 92.2 |
+| first, without the improved Closing Times | Second Edition 87.2 | Second Edition 89.7 | Second Edition 91.5 | Short Run 86.5 | six tied on 92.2 |
 
-(The improved Closing Time moves no other design's score: its figures sit inside every factor's range, so it only
-moves the others' places.) Two factors move them. Their fit to the trains is the worst of the thirteen (30.1 to 33.6,
-against 23.6 to 24.4) and
-their familiar shift times the best (71% to 83% of their times are today's, against 53% to 60%). With today's link in
-the range, as usual, the fit gap is a fifth to a quarter of a range today's link stretches to 63.2, and costs 2 to 3
-points; with the proposals alone setting it, Home Grown's fit is the bottom of the range and the gap costs 8.4 to all
-11. Leaving familiarity out takes away the one factor they lead on. Reading the run on the fixed rota lifts them, because their longest run there is five, where six
-of the other ten have six. The six-factor league barely separates the 26-line proposals: all thirteen meet every rule,
-carry no fatigue warning, have the same share of full weekends and a worst-case run of six, so fit (20) and
-familiarity (10) decide it alone, and the six on Second Nature's duty table (Second Nature, Second Wind, Second Sight,
-Second Edition, Short Run, Long Break — the same duties every day, checked) tie on 92.2.
+(Neither improved Closing Time moves another design's score: their figures sit inside every factor's range, so they
+only move the others' places. On 30 Oct Closing Time's 87.22 leads Second Edition's 87.18 by a whisker.)
+
+Two factors moved the three of them. As built on 26 Oct their fit to the trains was the weakest of the thirteen (31.2
+to 33.6, against 23.6 to 24.4) and their familiar shift times the best (71% to 83% of their times today's, against 53%
+to 60%). With today's link in the range, as usual, that fit gap is a fifth to a quarter of a range today's link
+stretches to 63.2, and costs 2 to 3 points; with the proposals alone setting it, Home Grown's fit is the bottom of the
+range and the gap costs 8.4 to all 11. Leaving familiarity out takes away the one factor they led on. Closing Time has
+since closed most of its gap — 24.7 on 30 Oct, with Short Run's Sunday, at 62% familiar — which is why it now leads
+the version where the proposals set the scale and is second without familiar times. Reading the run on the fixed rota
+lifts all three, because their longest run there is five, where six of the other ten have six. The six-factor league
+barely separates the 26-line proposals: all thirteen meet every rule, carry no fatigue warning, have the same share of
+full weekends and a worst-case run of six, so fit (20) and familiarity (10) decide it alone, and the six on Second
+Nature's duty table (Second Nature, Second Wind, Second Sight, Second Edition, Short Run, Long Break — the same duties
+every day, checked) tie on 92.2.
 
 **How they were built.** Home Grown's table was laid on Short Run's rest-day skeleton (`results/skeleton-run5.json`)
 by `skeleton-start.mjs`, with three settings added for these tables: a weekday with a column of its own, the late
@@ -975,7 +981,7 @@ The last two came from a new exact model of the whole rota (`tooling/exact-rota.
 46 of the 99 duties a week changed time. In the usual league Closing Time goes from third (86.0) to **first (87.3)**, above
 Second Edition (87.2) and Short Run (86.5); every version is in the table under "In every version of the league".
 
-| | Closing Time now | Closing Time, 26 Oct | Short Run |
+| | Closing Time, 27 Oct | Closing Time, 26 Oct | Short Run |
 |---|---|---|---|
 | Weeks on one shift time | **17 of 21** | 16 of 21 | 18 of 21 |
 | Week-to-week change of start | **1h 11m** | 1h 20m | 1h 13m |
@@ -990,7 +996,7 @@ Second Edition (87.2) and Short Run (86.5); every version is in the table under 
 |---|---|---|
 | The weekday and Saturday duties | `short-earlies.mjs`'s scan, which is exhaustive: Closing Time's way of finding the minutes (16:00 every day, 13:30–22:30 the only new time, no extra late finish, one table Monday to Friday) holds exactly three whole weeks | Closing Time's fits best. The other two were built: **B** (a 13:35 every weekday and Saturday, an 11:00–19:30) reaches 18 one-turn weeks with every rule, but at a 2h 40m step, and every B rota found has a 42h 30m week — 85.0 to 85.3 in the league; **C** (a 13:45 with the 11:00–19:30) kept a mixed week and a fatigue factor on Home Grown's weeks, and the exact model found no rota for it from scratch |
 | The Sunday, today's times | `final-table.mjs`, every Sunday from today's times and the 15:15 closer — 29 tables | **08:30–16:30** for 08:00–16:30: 47.6 against 50.9 on the search's own measure, 45.3 against 48.6 on the sheets'. Kept to Closing Time's own eleven times, the best is 50.2 |
-| The Sunday, new times allowed | the same search, every quarter hour | one new time 36.8, two (Short Run's Sunday: 09:00–18:00, 14:30–22:30) 29.0, three 26.4 — each costs as much in familiar times as it gains in fit — measured on the 16-week rota, where the swap is clean: 86.6, 86.7 and 86.4 against its 86.8 — so none is taken; it is the owner's call if fit matters more. (On the 17-week rota the Sunday early's line works the Monday, so a 09:00–18:00 there would need a fresh search: it leaves 13h 15m before a 07:15) |
+| The Sunday, new times allowed | the same search, every quarter hour | one new time 36.8, two (Short Run's Sunday: 09:00–18:00, 14:30–22:30) 29.0, three 26.4 — each costs as much in familiar times as it gains in fit — measured on the 16-week rota, where the swap is clean: 86.6, 86.7 and 86.4 against its 86.8 — so none is taken; it is the owner's call if fit matters more — and on 30 Oct the owner took Short Run's, below. (On the 17-week rota the Sunday early's line works the Monday, so a 09:00–18:00 there would need a fresh search: it leaves 13h 15m before a 07:15) |
 | The weeks: order, rest days and times | `space-polish.mjs` with the rest days free (four seeds asking for a 17th one-turn week; one each for the step, the leave and the heaviest week), then `exact-rota.py` | the polishes: a 1h 17m step and nothing else. The exact model: **17 one-turn weeks and 1h 11m** (1h 08m if it stays at 16) |
 | An 18th week on one shift time | `exact-rota.py`, every rule, from the 17-week rota: 20 minutes on two cores, then 40 on four | not found; the most the solver could rule out was a 21st |
 | One visible early/late switch | `exact-rota.py OBJ=chg`, climbing from the 17-week rota, then again allowing 16 weeks — Closing Time has two switches between working weeks, and each costs the step about half an hour | not found: it stays at two |
@@ -1017,17 +1023,47 @@ the commands below are how it was found, not a byte-for-byte rebuild.
 
 ```
 node -e 'const f=require("fs"),j=JSON.parse(f.readFileSync("/tmp/ct1.json","utf8"));for(const k in j.patterns)if(j.patterns[k].sun==="08:00-16:30")j.patterns[k].sun="08:30-16:30";f.writeFileSync("/tmp/ct2.json",JSON.stringify(j))'
-T=results/closing-time-table.json
+T=results/closing-time-27oct-table.json
 HINT=/tmp/ct2.json ONE_MIN=16 LIGHT=1620 OBJ=step python3 exact-rota.py $T /tmp/ct3.json 600              # 16 one-turn weeks, step 1h 08m
 HINT=/tmp/ct3.json OBJ=one WORKERS=2 python3 exact-rota.py $T /tmp/ct4.json 600                           # 17, step 1h 11m
-HINT=/tmp/ct4.json ONE_MIN=17 LIGHT=1620 OBJ=step WORKERS=2 python3 exact-rota.py $T /tmp/ct5.json 1200   # 17, 1h 11m = closing-time.json (78e18900)
-FIX=closing-time.json python3 exact-rota.py $T /tmp/check.json 60                                         # the committed grid against the model
-node factors-like.mjs short-run.json closing-time.json                                                      # every value Short Run's or better
+HINT=/tmp/ct4.json ONE_MIN=17 LIGHT=1620 OBJ=step WORKERS=2 python3 exact-rota.py $T /tmp/ct5.json 1200   # 17, 1h 11m: the 27 Oct grid (78e18900)
 ```
 
 `LIGHT=1620` holds the lightest Monday-to-Saturday week at 27h 00m, Closing Time's own: the first step search, without
-it, reached 1h 12m by letting one week fall to 25h 30m. The same Sunday change would lift Home Grown (85.5 to 86.0) and
+it, reached 1h 12m by letting one week fall to 25h 30m. The 08:30 Sunday would have lifted Home Grown (85.5 to 86.0) and
 Both Ways (85.8 to 86.1) as they stand; neither is changed here.
+
+**Short Run's Sunday (30 Oct 2026).** Asked which design was best with the 13:45 finish and the closer's start time set
+aside (owner: "the closer being shorter is what matters, whether it is 1545 or 1600 doesn't matter"), the answer was
+Closing Time by a whisker, with one real weakness: its Sunday. Hour by hour against the trains, all of the Sunday gap
+to Short Run sat in three hours — five on the floor at 14:00, when the ticket office's 14:00 lates help out until 15:00
+and the trains want four; three at 17:00, the busiest Sunday hour, once the 08:30–16:30 had gone home; and a little too
+much at 08:00. Short Run's two Sunday times answer exactly those, so they were laid on (owner: "make the changes to
+closing time"), by hand, no search needed: line 7's Sunday 07:15–15:45 became the **09:00–18:00** (its Monday is a rest
+day and its Saturday a cover week, so nothing either side of it moves), line 2's 08:30–16:30 became a 07:15–15:45, and
+the two Sunday office lates moved from 14:00 to **14:30–22:30**. `CT-26-T2` · **`77a235bc`**:
+
+| | Closing Time now | Closing Time, 27 Oct | Short Run |
+|---|---|---|---|
+| Fit to the trains, weekday · Saturday · Sunday | 36.4 · 8.7 · **29.0** | 36.4 · 8.7 · 45.3 | 29.1 · 12.7 · 29.0 |
+| Most hours in any seven days | **51h 00m** | 51h 30m | 51h 42m |
+| Week-to-week change of start | **1h 10m** | 1h 11m | 1h 13m |
+| Shift times (new) | 13 (5) — 09:00–18:00 and 14:30–22:30 are Short Run's | 12 (3) | 15 (6) |
+| Everything else | as on 27 Oct: 17 of 21 weeks on one shift time, rest 14h 35m, 41h 30m · 27h 00m, every rule, no fatigue factor and every value Short Run's or better | | |
+
+Searches from it (`exact-rota.py OBJ=both`, ten minutes, and the same from the 09:00–18:00 alone) found nothing more.
+In the league it is first in three of the five versions and second in a fourth — the table under "In every version of
+the league" — where the 27 Oct version was first in two. Against Short Run it is better or equal on everything but the
+weekday fit (one more on the floor from 20:00 to 22:00, when it is quiet; the peaks are covered alike) and one week on
+one shift time (17 against 18). The 09:00–18:00 alone was tried first: Sunday 36.8 and 87.1 in the usual league, a time
+nobody works today costing as much as the fit it bought, until the 14:30 lates took the Sunday the rest of the way.
+
+```
+node -e 'const f=require("fs"),j=JSON.parse(f.readFileSync("/tmp/ct5.json","utf8")),p=j.patterns;p["7"].sun="09:00-18:00";p["2"].sun="07:15-15:45";for(const k in p)if(p[k].sun==="14:00-22:30")p[k].sun="14:30-22:30";f.writeFileSync("/tmp/ct6.json",JSON.stringify(j))'
+#   = closing-time.json (77a235bc), from the committed 27 Oct grid as well as from /tmp/ct5.json
+FIX=closing-time.json python3 exact-rota.py results/closing-time-table.json /tmp/check.json 60     # the committed grid against the model
+node factors-like.mjs short-run.json closing-time.json                                                # every value Short Run's or better
+```
 
 ## Notes for the whole set
 
