@@ -1,7 +1,7 @@
 # THE DECK POLISH (3 Oct 2026, from the reader's critique of the pack; owner: "do all of your suggestions"). Runs AFTER the
-# design builders and edits the shipped decks in place (Closing Time's joined the shortlist's six on 30 Oct 2026; a design's
-# name on the command line polishes only its pair), so the cross-cutting changes live here once instead of threaded
-# through every builder's expected text:
+# design builders and edits the shipped decks in place (Closing Time's joined the shortlist's six on 30 Oct 2026, and In
+# Step's, off the shortlist, the same evening; a design's name on the command line polishes only its pair), so the
+# cross-cutting changes live here once instead of threaded through every builder's expected text:
 #   · the four-weeks-off leave cost is said early (notes 2), on the leave slide's takeaway and on the trade-offs slide;
 #   · full weekends off are per year first, as the sheets say them (owner, 2 Oct 2026), with the rotation count beside;
 #   · days a year is 218.6 against 219.0, and days a week 4.19 against 4.20, never a rounded "219 | 219";
@@ -18,13 +18,20 @@ spec = importlib.util.spec_from_file_location('snd', os.path.join(TOOL, 'second-
 Slide, spans, runs_of, escape, GREEN, NAVY = snd.Slide, snd.spans, snd.runs_of, snd.escape, snd.GREEN, snd.NAVY
 FIG = json.loads(subprocess.check_output(['node', os.path.join(TOOL, 'deck-check.mjs'), '--print'], text=True))
 T = FIG['today']
-DESIGNS = {'Second Edition': 'second-edition.json', 'Short Run': 'short-run.json', 'Even Keel': 'even-keel.json', 'Closing Time': 'closing-time.json'}
+DESIGNS = {'Second Edition': 'second-edition.json', 'Short Run': 'short-run.json', 'Even Keel': 'even-keel.json', 'Closing Time': 'closing-time.json',
+           'In Step': 'in-step.json'}
 # the shortlist is fresh.mjs's, read rather than restated (four since 30 Oct 2026, when Closing Time joined): every deck's
 # manager "Why" slide and leave notes say what ALL of them share, so a copy here that fell behind would put a claim on
 # a slide about a design it was never checked against
 SHORTLIST = tuple(re.findall(r"'([^']+)'", re.search(r'export const SHORTLIST = \[([^\]]*)\]', open(os.path.join(TOOL, 'fresh.mjs'), encoding='utf-8').read()).group(1)))
 ALL = f"all {'zero one two three four five six'.split()[len(SHORTLIST)]}"   # "all four"
-assert set(DESIGNS) == set(SHORTLIST), f'decks are built for {sorted(DESIGNS)} but the shortlist is {sorted(SHORTLIST)}'
+# DECKS FOR A DESIGN OFF THE SHORTLIST, made because the owner asked (30 Oct 2026: "Create presentations for instep"). Its
+# manager "Why" slide says what it shares with the shortlisted links instead of speaking as one of them, and every line it
+# shares is checked against it too. A design that joins the shortlist leaves this list in the same change, or the
+# assertion stops the polish: its slide would go on speaking from outside the shortlist it had joined.
+OFF_SHORTLIST = ('In Step',)
+assert set(DESIGNS) == set(SHORTLIST) | set(OFF_SHORTLIST) and not set(SHORTLIST) & set(OFF_SHORTLIST), \
+    f'decks are built for {sorted(DESIGNS)} but the shortlist is {sorted(SHORTLIST)} and the designs off it {sorted(OFF_SHORTLIST)}'
 if len(SHORTLIST) != len(set(SHORTLIST)): raise SystemExit(f'a name twice in the shortlist: {SHORTLIST}')   # the set comparison passes it; "all five" would not
 DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
 WORDS = 'zero one two three four five six seven eight nine ten'.split(); ORDS = 'zeroth first second third fourth fifth sixth'.split()
@@ -35,7 +42,7 @@ WORDS = 'zero one two three four five six seven eight nine ten'.split(); ORDS = 
 # every design's own figures (deck-check.mjs --print, the sheets' counts); a check that fails stops the polish.
 H = lambda v: int(v.split('h')[0]) * 60 + int(v.split('h')[1].strip().rstrip('m'))   # "8h 10m" → 490
 first = lambda v: int(v.split(' ')[0])                                             # "5 (up to 6)", "18 of 21" → the first figure
-SL = {n: FIG[n] for n in SHORTLIST}
+SL = {n: FIG[n] for n in (*SHORTLIST, *OFF_SHORTLIST)}   # an off-shortlist deck prints these lines as shared, so they must be its too
 def every(what, ok):
     bad = [n for n, f in SL.items() if not ok(f)]
     if bad: raise SystemExit(f'deck-polish: "{what}" is printed for {ALL} shortlisted, and is not true of {", ".join(bad)}')
@@ -48,6 +55,7 @@ every('no avoidable fatigue warning', lambda f: f['ff'] == '0')
 same('full weekends off a year', 'weekendsYear'); GAP = max(int(f['weekendGap']) for f in SL.values())
 every('no shift over 9 hours', lambda f: H(f['longest']) <= 9 * 60)
 every('every closing shift shorter', lambda f: all(H(f[k]) < H(T[k]) for k in ('closerWk', 'closerSat', 'closerSun')))
+every('four weeks off takes more leave than today', lambda f: int(f['leaveFour']) > int(T['leaveFour']))   # the leave notes on slide 11
 # slide 12's subtitle (colleagues): more on duty every day, and more at the open and the close on most days — "most" because
 # no shortlisted design has more than today's 3 at the Sunday close, and Closing Time has today's 4 at the Saturday open
 lo_hi = lambda v: [(min(x), max(x)) for x in ([int(n) for n in part.split('–')] for part in v.split(' · '))]   # "11–12 · 10 · 8"
@@ -167,7 +175,9 @@ def colleagues(d, name, grid, F):
     tile(s, 12, ['full weekends off'], 'full weekends\noff a year'); tile(s, 13, ['at most 5 weeks apart'], f'today {T["weekendsYear"]} · {F["weekendsShort"]}')
     tile(s, 16, ['shift times you already work'], 'shift times you\nalready work')
     tile(s, 20, ['shorter on every closing shift'], 'off every\nclosing shift')
-    sub = runs_of(s.x[slice(*spans(s.x)[21])])[0]; tile(s, 21, ['45 min on a Sunday', '1h 15m on a Saturday'], {'45 min on a Sunday': 'Sundays: 45 min', '1h 15m on a Saturday': 'Saturdays: 1h 15m'}.get(sub, sub))
+    sub = runs_of(s.x[slice(*spans(s.x)[21])])[0]
+    tile(s, 21, ['45 min on a Sunday', '1h 15m on a Saturday', '1 hour on a Saturday'],
+         {'45 min on a Sunday': 'Sundays: 45 min', '1h 15m on a Saturday': 'Saturdays: 1h 15m', '1 hour on a Saturday': 'Saturdays: 1 hour'}.get(sub, sub))
     s.save()
     notes_append(d, 2, f'Say the leave cost here too, before anyone asks: four full weeks off, Sunday to Saturday, takes {F["leaveFour"]} days’ leave rather than {T["leaveFour"]}, and the best 14-day stretch is {F["leaveBest"]} days off rather than {T["leaveBest"]}; the average is the same and the worst a day better. A cover week is one of the five weeks in 26 with no fixed shifts: its four duties are placed later to cover leave and sickness; the fixed rota is the other 21 weeks, whose shifts are set.')
     s = S(4)
@@ -200,7 +210,7 @@ def colleagues(d, name, grid, F):
     s = S(11)
     put(s, 'About the same. A cover week still counts as at most 4 days of leave, as now.', f'Best stretch {F["leaveBest"]} days, not {T["leaveBest"]}; four full weeks off, Sunday to Saturday, costs {F["leaveFour"]} days’ leave, not {T["leaveFour"]}. Average the same, worst a day better.')
     s.save()
-    plainly = f'{ALL} shortlisted links are worse than today here'
+    plainly = f'{ALL} shortlisted links are worse than today here' if name in SHORTLIST else f'{name} and {ALL} shortlisted links are worse than today here'
     notes_edit(d, 11, 'The exact averages depend on where you count a booking as starting, so quote them as “about the same”.', f'Say the four-weeks figure plainly: {plainly} (Long Break, the leave-first design in the pack, keeps the 14), and people plan a year around it. The averages depend on where you count a booking as starting, so quote those as “about the same”.')
     s = S(12); put(s, 'More people rostered every day, at the open and the close', 'More people rostered every day, and more at the open and the close on most days'); s.save()   # checked above, for every design
     s = S(13)
@@ -244,34 +254,42 @@ def managers(d, name, grid, F):
     close = lambda f: [int(x) for x in f['close'].split(' · ')]
     P = (lambda j: j.get('patterns', j))(json.load(open(os.path.join(TOOL, grid), encoding='utf-8')))   # `grid` is the design's file
     starts = sorted({P[k][d][:5] for k in P for d in DAYS[1:] if re.fullmatch(r'\d\d:\d\d-23:55', P[k][d] or '')})   # Monday to Saturday closers
+    fit3 = lambda f: float(f['fitWk']) + float(f['fitSat']) + float(f['fitSun'])   # the three days together: Short Run's weekday alone is closer than In Step's
     edge = {'Second Edition': H(F['step']) < min(H(o['step']) for o in others),
             'Short Run': not any(first(o['run']) <= first(F['run']) and first(o['oneTurn']) >= first(F['oneTurn']) and int(o['late23']) <= int(F['late23'])
                                  and int(o['late22']) <= int(F['late22']) for o in others),
             'Even Keel': close(F)[1] > max(close(o)[1] for o in others),
-            'Closing Time': starts == ['16:00'] and F['closerWk'] == F['closerSat'] and H(F['closerWk']) < min(min(H(o['closerWk']), H(o['closerSat'])) for o in others)}[name]
+            'Closing Time': starts == ['16:00'] and F['closerWk'] == F['closerSat'] and H(F['closerWk']) < min(min(H(o['closerWk']), H(o['closerSat'])) for o in others),
+            'In Step': fit3(F) < min(fit3(o) for o in others) and H(F['heavy']) < min(H(o['heavy']) for o in others)}[name]
     if not edge: raise SystemExit(f'deck-polish: {name}’s "This one adds" line is no longer its own among the shortlist')
     adds = {'Second Edition': f'This one adds: the steadiest starts of the {ALL[4:]}, {F["step"]} week to week (today {T["step"].replace(" 00m", "")})',
             'Short Run': f'This one adds: {WORDS[first(F["run"])]}-day runs, the most weeks on one turn, the fewest late finishes',   # one line: "with … and" wrapped
             'Even Keel': f'This one adds: a {ORDS[close(F)[1]]} person to the Saturday close (the others {max(close(o)[1] for o in others)}, today {close(T)[1]})',
-            'Closing Time': f'This one adds: a {starts[0]} closer Monday to Saturday, {F["closerWk"]} (today up to {T["closerSat"]})'}[name]
+            'Closing Time': f'This one adds: a {starts[0]} closer Monday to Saturday, {F["closerWk"]} (today up to {T["closerSat"]})',
+            'In Step': f'This one adds: the closest fit to the trains overall, and no week over {F["heavy"]}'}[name]   # "overall": Short Run's weekday alone is closer
     costs = {'Second Edition': f'Costs: {F["run"]} days in a row on the fixed rota (today {T["run"].split(" ")[0]}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}',
              'Short Run': f'Costs: one {F["heavy"]} week (today up to {T["heavy"]}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}',
              'Even Keel': f'Costs: {F["late23"]} late finishes (today {T["late23"]}), a mixed week, four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}',
-             'Closing Time': f'Costs: {F["late22"]} finishes at 22:00 or later (today {T["late22"]}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}'}[name]
-    times_line = {'Closing Time': f'{n_known} of {n_times} shift times worked today, {n_new} new; today’s 13:45 finish kept every weekday'}.get(
-        name, f'{n_known} of {n_times} shift times worked today; {n_new} new, several shorter versions of today’s lates')
+             'Closing Time': f'Costs: {F["late22"]} finishes at 22:00 or later (today {T["late22"]}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}',
+             'In Step': f'Costs: {F["late22"]} finishes at 22:00 or later (today {T["late22"]}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}'}[name]
+    kept = f'{n_known} of {n_times} shift times worked today, {n_new} new; today’s 13:45 finish kept every weekday'
+    times_line = {'Closing Time': kept, 'In Step': kept}.get(name, f'{n_known} of {n_times} shift times worked today; {n_new} new, several shorter versions of today’s lates')
+    if times_line == kept and not all(any(P[k][d] == '06:20-13:45' for k in P) for d in DAYS[1:6]):
+        raise SystemExit(f'deck-polish: {name}’s slide says today’s 13:45 is kept every weekday, and its grid does not have it')
     # true of every shortlisted design, or it would not be on every deck: the flexible rules are not here because
     # Closing Time's brief swapped one (the 15:45 closer, for 16:00), which its own notes say
-    labels = [f'{ALL.capitalize()} shortlisted: all 9 December rules and no avoidable fatigue warning',
-              f'{ALL.capitalize()} shortlisted: about {F["weekendsYear"]} full weekends off a year (today {T["weekendsYear"]}), at most {GAP} apart',
-              f'{ALL.capitalize()} shortlisted: no shift over 9 hours, and every closing shift shorter',
+    lead = f'{ALL.capitalize()} shortlisted' if name in SHORTLIST else f'Like {ALL} shortlisted'   # an off-shortlist design shares them
+    labels = [f'{lead}: all 9 December rules and no avoidable fatigue warning',
+              f'{lead}: about {F["weekendsYear"]} full weekends off a year (today {T["weekendsYear"]}), at most {GAP} apart',
+              f'{lead}: no shift over 9 hours, and every closing shift shorter',
               adds, times_line, costs]
     for i, (t, lab) in enumerate(zip(ticks, labels)): set_shape(s, t + 1, lab)
     set_shape(s, ticks[-1], '–')
     bars = [i for i, (a, b) in enumerate(spans(s.x)) if runs_of(s.x[a:b]) and runs_of(s.x[a:b])[0].startswith('The trade-off')]; assert len(bars) == 1
     minimum = int(F['late23']) == 42
     set_shape(s, bars[0], f'Late finishes: {F["late23"]} a year each (today {T["late23"]}){" — the rules’ minimum" if minimum else " — two above the rules’ minimum, buying a fourth person to the Saturday close"}. The colleague deck shows every cost openly.')
-    set_shape(s, 1, f'What {ALL} shortlisted links give, what this one adds, and what it costs')
+    set_shape(s, 1, f'What {ALL} shortlisted links give, what this one adds, and what it costs' if name in SHORTLIST
+              else f'What it shares with the {ALL[4:]} shortlisted links, what it adds, and what it costs')
     s.save()
     if name == 'Second Edition':
         notes_append(d, 7, f'The week-to-week figure is the average, round the rotation, of how far a week’s mean start time moves from the week before — Sundays included, cover weeks left out: {F["step"]} here, against {T["step"]} on today’s link.')

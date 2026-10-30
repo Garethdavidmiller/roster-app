@@ -78,7 +78,7 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 | check | `check.mjs` | the self-check: settings agree, the test rota recounts independently, and each 26-line rule fails when its condition is broken (`node tooling/check.mjs`) |
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
 | | `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` | the rules reference (`../links-26-rules.pdf`), the one-page summary (`../links-26-summary.pdf`) and the two-page shortlist sheet (`../links-26-shortlist.pdf`) |
-| 4 · decks and pack | `second-nature-decks.py` → `second-edition-decks.py`, `even-keel-decks.py`, `short-run-decks.py`, `closing-time-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the zip |
+| 4 · decks and pack | `second-nature-decks.py` → `second-edition-decks.py`, `even-keel-decks.py`, `short-run-decks.py`, `closing-time-decks.py`, `in-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the zip |
 | league | `league.mjs` | the weighted league on every factor the sheets compare (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league) — the owner's weights, a judgement not a measurement |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
@@ -206,7 +206,8 @@ is the best of the four.
 shortlist 3 Oct 2026**, owner: "only keep the shortlist's presentations, delete the rest"): `presentations/` holds a
 colleague deck (15 slides) and a manager deck (10), as PowerPoint and PDF, for **Second Edition, Even Keel and Short
 Run**, and since 30 Oct 2026 for **Closing Time**, which joined the shortlist the same day (owner: "create the manager
-and colleague presentations"; below, under Closing Time). They are the Familiar Nine decks, the template Right Away's were
+and colleague presentations"; below, under Closing Time), and for **In Step**, which is not on the shortlist (owner,
+the same evening: "Create presentations for instep"; below, under In Step). They are the Familiar Nine decks, the template Right Away's were
 made from too, with every word and figure that was Familiar Nine's replaced and the design untouched. Unlike the 24-line
 decks, they are BUILT here, in two steps: `tooling/second-nature-decks.py` makes Second Nature's decks from the Familiar
 Nine files into `tooling/deck-template/` (gitignored — Second Nature's decks are the template every shipped deck is
@@ -218,7 +219,8 @@ more because it sits on Second Gear's table (the shift-time list, 44 late finish
 the run, the rest and the fit chart); and `tooling/short-run-decks.py` makes Short Run's by applying Second Edition's
 edits and then its own — the run (5 on the fixed rota, up to 6 when a cover week falls badly, said both ways), the
 weekly hours and the pitch lines; `tooling/closing-time-decks.py` makes Closing Time's by applying Second Edition's and
-Short Run's edits and then its own, refusing if any Short Run fact that is not Closing Time's survives. **Then
+Short Run's edits and then its own, refusing if any Short Run fact that is not Closing Time's survives, and
+`tooling/in-step-decks.py` makes In Step's the same way. **Then
 `tooling/deck-polish.py` runs over every shipped deck** (3 Oct 2026, the reader's critique): the four-weeks-off leave
 cost said early and on the trade-offs slide, full weekends off per year first, days a year as 218.6 against 219.0, the
 one-turn row and the fit slide saying what they count, slide 10 turned into a picture of the 26 weeks
@@ -232,7 +234,7 @@ today's link.
   gives the four leave figures (all four shortlisted designs: 14 days' leave buys 28 days off at best, 23.4 on average,
   20 at worst, and four full weeks off takes 15; today 30 · 23.4 · 19 · 14). It is the 24-line decks' leave method as
   code, and `--check` shows it reproduces their published figures for today and Familiar Nine exactly.
-- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. Every table row across the eight decks
+- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. Every table row across the ten decks
   agrees with the sheets and the leave model, and none is left unchecked (it prints the count).
 
 Rebuild after any change to the rota:
@@ -240,7 +242,7 @@ Rebuild after any change to the rota:
 ```
 python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/second-edition-decks.py \
   && python3 docs/links-26/tooling/even-keel-decks.py && python3 docs/links-26/tooling/short-run-decks.py \
-  && python3 docs/links-26/tooling/closing-time-decks.py \
+  && python3 docs/links-26/tooling/closing-time-decks.py && python3 docs/links-26/tooling/in-step-decks.py \
   && python3 docs/links-26/tooling/deck-polish.py && node docs/links-26/tooling/deck-check.mjs
 ```
 
@@ -250,9 +252,9 @@ sheet does not show directly:
 - **Late finishes:** 42 a year is the minimum, because only the three closers the rules require finish after 23:00.
 - **Weekends off:** every shipped deck's design has them never more than five weeks apart, and says so; today's are up
   to seven apart.
-- **Finishes at 22:00 or later, per person:** 104 a year in Closing Time, 94 in the other three shortlisted, 78 today. The
-  sheet shows who is still on at 22:00 instead (Closing Time 8 · 5 · 5), so a deck slide that says its figures are all
-  on the sheet quotes that one.
+- **Finishes at 22:00 or later, per person:** 104 a year in Closing Time, 94 in the other three shortlisted designs and
+  In Step, 78 today. The sheet shows who is still on at 22:00 instead (Closing Time 8 · 5 · 5), so a deck slide that
+  says its figures are all on the sheet quotes that one.
 
 ## Second Wind — Second Nature with the weekends spread (2 Oct 2026)
 
@@ -1264,12 +1266,39 @@ widens that factor's range and takes 0.05 to 0.06 off every other score, and cha
 four shortlisted designs it keeps two things none of them has, the closest fit to the trains and the lightest heaviest
 week, and is worse than all four on nothing: the only design outside the shortlist that is. The shortlist sheet says so
 in one sentence (asserted, as its others are). In Step is not on the shortlist, which is the owner's call, and the
-recommendation is unchanged; it has no presentations and is not built into the app.
+recommendation is unchanged; it is not built into the app. Its presentations followed the same evening (below).
 
 **Two tooling fixes it needed.** The one-page summary did not fit fourteen proposals: the footer went to a second
 sheet. It now prints, counts its pages and steps the scale down a point at a time until it prints on one (93% at
 fourteen), and refuses to ship two. And the pack's read-me gains a paragraph for In Step, refused if In Step is ever
 shortlisted, since the paragraph says it is not.
+
+**Presentations (30 Oct 2026**, owner: "Create presentations for instep. Deep review after completion. Compare the
+presentation to the one for short run, don't miss anything. Then deep aesthetic polish using screenshots").
+`presentations/In-Step-for-colleagues` and `-for-managers`, built by `tooling/in-step-decks.py` on Short Run's decks.
+In everything the decks say, In Step is Short Run but for five things, and only those were changed: the Saturday closer
+starts at 15:45 like the weekday's (8h 10m, today 9h 10m), so every closing shift is 30 to 60 minutes shorter; the
+shift times are as many (15, 9 worked today) but not the same — today's 13:45 kept every weekday, today's 13:35 on a
+Saturday, two new weekday earlies (06:20–15:15 and 07:00–15:45, longer than any early today, which slide 6's notes now
+say); the rest is 14h 35m; the weeks run from 25h 30m to 41h 05m; and the fit chart reads 29.8 · 9.6 · 29.0. In Step
+is not on the shortlist, so its manager "Why" slide says what it shares with the four shortlisted links, what it adds
+(the closest fit to the trains overall — "overall" because Short Run's weekday alone is closer — and no week over
+41h 05m, both checked against all four) and what it costs. `deck-polish.py` lists it in `OFF_SHORTLIST` and refuses a
+deck for a design that is neither shortlisted nor listed there; `deck-check.mjs --print` gains the Saturday and Sunday
+fit, which that check needs.
+
+**Compared with Short Run's, part by part:** the same 107 and 80 parts, the same layout, sizes and colours on every
+slide, the 26-week strip byte-for-byte Closing Time's (the same weeks), and every difference in the words one of the
+five, or a sentence reworded because it read wrongly with the new name ("today or in In Step"). The first build had
+dropped three things of Short Run's that are true of In Step too — slide 8's "the full list is on the slide", the reason
+late finishes cannot go lower, and today's heaviest week beside In Step's — and they were put back. **Checked:**
+`deck-check.mjs` reads In Step's 51 table rows back (255 across the ten decks, none disagreeing); `in-step-decks.py`
+checks its typed time lists, figures and fit fractions against the grid before it builds, and refuses Short Run text,
+another design's name and any "in In Step"; eight mutations, one per new guard, each stopped the build; the shortlisted
+decks rebuilt through the changed polish are identical in every slide, note and chart (only their chart workbooks'
+timestamps moved, so they were not re-committed); the validator passes both. **Polish:** every
+slide was rendered beside Short Run's. Nothing In Step adds sits near an edge; the five lines the wrap check flags at
+three per cent narrower are the template's, the same in every deck, and each breaks where it should in the render.
 
 ## Notes for the whole set
 
