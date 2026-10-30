@@ -1263,8 +1263,11 @@ nine-hour late; and the closer starts at 15:45, a quarter of an hour longer than
 times 92.8 · run on the fixed rota 88.4 · six-factor 92.2). With it in the range, the usual
 league reads Closing Time 87.2, Second Edition 87.1, Short Run 86.4, Even Keel 85.8: its fit is a new best, which
 widens that factor's range and takes 0.05 to 0.06 off every other score, and changes no other design's place. Against the
-four shortlisted designs it keeps two things none of them has, the closest fit to the trains and the lightest heaviest
-week, and is worse than all four on nothing: the only design outside the shortlist that is. The shortlist sheet says so
+four shortlisted designs it keeps two things none of them has, the closest fit to the trains (the three days' scores
+added together) and the lightest heaviest week, and is worse than all four on nothing the shortlist sheet compares: the
+only design outside the shortlist that is. Two qualifications came out of the presentations' review (below): weighted by
+the days of a week, Short Run's and Second Edition's fit are a shade closer (26.7 against 26.8); and In Step has more
+weekday earlies over 8h 30m than any design here, a measure the sheet does not compare. The shortlist sheet says so
 in one sentence (asserted, as its others are). In Step is not on the shortlist, which is the owner's call, and the
 recommendation is unchanged; it is not built into the app. Its presentations followed the same evening (below).
 
@@ -1275,17 +1278,17 @@ shortlisted, since the paragraph says it is not.
 
 **Presentations (30 Oct 2026**, owner: "Create presentations for instep. Deep review after completion. Compare the
 presentation to the one for short run, don't miss anything. Then deep aesthetic polish using screenshots").
-`presentations/In-Step-for-colleagues` and `-for-managers`, built by `tooling/in-step-decks.py` on Short Run's decks.
-In everything the decks say, In Step is Short Run but for five things, and only those were changed: the Saturday closer
-starts at 15:45 like the weekday's (8h 10m, today 9h 10m), so every closing shift is 30 to 60 minutes shorter; the
-shift times are as many (15, 9 worked today) but not the same — today's 13:45 kept every weekday, today's 13:35 on a
+`presentations/In-Step-for-colleagues` and `-for-managers`, built by `tooling/in-step-decks.py` on Short Run's decks. In
+everything the decks say, In Step is Short Run but for five things, and the first build changed only those: the Saturday
+closer starts at 15:45 like the weekday's (8h 10m, today 9h 10m), so every closing shift is 30 to 60 minutes shorter;
+the shift times are as many (15, 9 worked today) but not the same — today's 13:45 kept every weekday, today's 13:35 on a
 Saturday, two new weekday earlies (06:20–15:15 and 07:00–15:45, longer than any early today, which slide 6's notes now
-say); the rest is 14h 35m; the weeks run from 25h 30m to 41h 05m; and the fit chart reads 29.8 · 9.6 · 29.0. In Step
-is not on the shortlist, so its manager "Why" slide says what it shares with the four shortlisted links, what it adds
-(the closest fit to the trains overall — "overall" because Short Run's weekday alone is closer — and no week over
-41h 05m, both checked against all four) and what it costs. `deck-polish.py` lists it in `OFF_SHORTLIST` and refuses a
-deck for a design that is neither shortlisted nor listed there; `deck-check.mjs --print` gains the Saturday and Sunday
-fit, which that check needs.
+say); the rest is 14h 35m; the weeks run from 25h 30m to 41h 05m; and the fit chart reads 29.8 · 9.6 · 29.0. In Step is
+not on the shortlist, so its manager "Why" slide says what it shares with the four shortlisted links, what it adds
+(today's 13:45 with five at the Saturday open, and no week over 41h 05m, both checked against all four) and what it
+costs (its weekday earlies, to 8h 55m). `deck-polish.py` lists it in `OFF_SHORTLIST` and refuses a deck for a design
+that is neither shortlisted nor listed there; `deck-check.mjs --print` gains the Saturday and Sunday fit, which that
+check needs.
 
 **Compared with Short Run's, part by part:** the same 107 and 80 parts, the same layout, sizes and colours on every
 slide, the 26-week strip byte-for-byte Closing Time's (the same weeks), and every difference in the words one of the
@@ -1296,9 +1299,27 @@ late finishes cannot go lower, and today's heaviest week beside In Step's — an
 checks its typed time lists, figures and fit fractions against the grid before it builds, and refuses Short Run text,
 another design's name and any "in In Step"; eight mutations, one per new guard, each stopped the build; the shortlisted
 decks rebuilt through the changed polish are identical in every slide, note and chart (only their chart workbooks'
-timestamps moved, so they were not re-committed); the validator passes both. **Polish:** every
-slide was rendered beside Short Run's. Nothing In Step adds sits near an edge; the five lines the wrap check flags at
-three per cent narrower are the template's, the same in every deck, and each breaks where it should in the render.
+timestamps moved, so they were not re-committed); the validator passes both. **Reviewed** by a second reader working
+from the grids, who found nine things. Seven were In Step's own and are fixed. The "Why" slide had claimed "the closest
+fit to the trains overall", which holds only with the three days' scores added together — weighted by the days of a
+week, Short Run's and Second Edition's are a shade closer (26.7 against 26.8), and on weekdays alone three of the four
+are — so the slide now gives what is In Step's alone among the five, and the notes give the fit all three ways. Its
+costs line had been Closing Time's (94 finishes at 22:00 or later is three of the four's too); In Step's own cost is its
+longer weekday earlies — 06:20–15:15 and 07:00–15:45, about 40 a year each, where today none is over 8h 30m and no
+shortlisted link has more than 20 — which now leads that line, the managers' worry list, the colleagues' trade-offs card
+on new times and slide 6's notes. The times line counts the new times that shorten one of today's lates (three,
+computed: "several" hid that the rest are earlies). Slide 2's "Saturdays: 1 hour" read as though Sunday's cut were the
+tile's 30 minutes (it is 45), so it says "up to 1 hour"; slide 8, which lists eight lines for six new times, says where
+a time recurs; and the managers' notes say In Step is not on the shortlist and what it gives up against Closing Time
+(closers a quarter of an hour longer, a sixth new time, a Saturday fit of 9.6 against 8.7, a lightest week of 25h 30m
+against 27h 00m). Four new checks guard those sentences, and each stopped the build when broken. The other two are not
+the decks' alone. Three small points are the template's, in every deck, and were left: "about two minutes longer" is 1.4
+minutes Monday to Saturday; the "weeks on one turn" label does not say what a turn is; and the managers' fatigue notes
+say one sentence twice. And the sheets word In Step's fit as "three-fifths" and "a tenth" of today's where the decks say
+"a little over half" and "about a seventh" (0.57 and 0.15): the fraction-list difference already left for the owner's
+word. **Polish:** every slide was rendered beside Short Run's. Nothing In Step adds sits near an edge; the five lines
+the wrap check flags at three per cent narrower are the template's, the same in every deck, and each breaks where it
+should in the render.
 
 ## Notes for the whole set
 

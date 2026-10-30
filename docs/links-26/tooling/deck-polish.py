@@ -104,6 +104,21 @@ def notes_append(d, n, extra):
     p = f'{d}/ppt/notesSlides/notesSlide{n}.xml'; x = open(p, encoding='utf-8').read(); r = max(runs_of(x), key=len)
     open(p, 'w', encoding='utf-8').write(x.replace(f'<a:t>{r}</a:t>', f'<a:t>{r} {escape(extra)}</a:t>', 1))
 
+TODAY_P = json.loads(subprocess.check_output(['node', '-e', "import('./report-data.mjs').then(m => process.stdout.write(JSON.stringify(m.today().patterns)))"], cwd=TOOL, text=True))
+_timed = lambda s: re.match(r'^\d\d:\d\d-\d\d:\d\d$', s or '') is not None
+_len = lambda s: (int(s[6:8]) * 60 + int(s[9:]) - int(s[:2]) * 60 - int(s[3:5])) % 1440
+def wk_early(p):
+    """The longest early (a start before 11:00) Monday to Friday, as the decks write a duration: "8h 55m"."""
+    m = max(_len(p[k][d]) for k in p for d in DAYS[1:6] if _timed(p[k][d]) and int(p[k][d][:2]) < 11)
+    return f'{m // 60}h {m % 60:02d}m'
+def shorter_lates(p):
+    """How many of a design's NEW times are shorter versions of one of today's lates: a late (from 11:00) that today does
+    not work, sharing its start or its end with a time today works and shorter than it — In Step's 15:45 and 15:15 closers
+    and its 22:30 office late."""
+    today = {TODAY_P[k][d] for k in TODAY_P for d in DAYS if _timed(TODAY_P[k][d])}
+    new = {p[k][d] for k in p for d in DAYS if _timed(p[k][d])} - today
+    return sum(1 for t in new if int(t[:2]) >= 11 and any((u[:5] == t[:5] or u[6:] == t[6:]) and _len(u) > _len(t) for u in today))
+
 def grid_facts(grid):
     p = json.load(open(os.path.join(TOOL, grid)))['patterns']; L = len(p)
     timed = lambda s: re.match(r'^\d\d:\d\d-\d\d:\d\d$', s or '') is not None
@@ -176,8 +191,8 @@ def colleagues(d, name, grid, F):
     tile(s, 16, ['shift times you already work'], 'shift times you\nalready work')
     tile(s, 20, ['shorter on every closing shift'], 'off every\nclosing shift')
     sub = runs_of(s.x[slice(*spans(s.x)[21])])[0]
-    tile(s, 21, ['45 min on a Sunday', '1h 15m on a Saturday', '1 hour on a Saturday'],
-         {'45 min on a Sunday': 'Sundays: 45 min', '1h 15m on a Saturday': 'Saturdays: 1h 15m', '1 hour on a Saturday': 'Saturdays: 1 hour'}.get(sub, sub))
+    tile(s, 21, ['45 min on a Sunday', '1h 15m on a Saturday', 'up to 1 hour'],
+         {'45 min on a Sunday': 'Sundays: 45 min', '1h 15m on a Saturday': 'Saturdays: 1h 15m'}.get(sub, sub))
     s.save()
     notes_append(d, 2, f'Say the leave cost here too, before anyone asks: four full weeks off, Sunday to Saturday, takes {F["leaveFour"]} days’ leave rather than {T["leaveFour"]}, and the best 14-day stretch is {F["leaveBest"]} days off rather than {T["leaveBest"]}; the average is the same and the worst a day better. A cover week is one of the five weeks in 26 with no fixed shifts: its four duties are placed later to cover leave and sickness; the fixed rota is the other 21 weeks, whose shifts are set.')
     s = S(4)
@@ -254,27 +269,37 @@ def managers(d, name, grid, F):
     close = lambda f: [int(x) for x in f['close'].split(' · ')]
     P = (lambda j: j.get('patterns', j))(json.load(open(os.path.join(TOOL, grid), encoding='utf-8')))   # `grid` is the design's file
     starts = sorted({P[k][d][:5] for k in P for d in DAYS[1:] if re.fullmatch(r'\d\d:\d\d-23:55', P[k][d] or '')})   # Monday to Saturday closers
-    fit3 = lambda f: float(f['fitWk']) + float(f['fitSat']) + float(f['fitSun'])   # the three days together: Short Run's weekday alone is closer than In Step's
+    # In Step's edge is NOT the fit (30 Oct 2026 review): its three days added together are the closest, but weighted by the
+    # days of a week Short Run's and Second Edition's are a shade closer, so "the closest fit" depends on a choice the slide
+    # cannot show. What is its own among the four: today's 13:45 every weekday WITH five at the Saturday open, and the
+    # lightest heaviest week.
+    grid_of = lambda n: (lambda j: j.get('patterns', j))(json.load(open(os.path.join(TOOL, DESIGNS[n]), encoding='utf-8')))
+    k1345 = lambda g: all(any(g[k][d] == '06:20-13:45' for k in g) for d in DAYS[1:6])
+    sat_open = lambda f: int(f['open'].split(' · ')[1])
     edge = {'Second Edition': H(F['step']) < min(H(o['step']) for o in others),
             'Short Run': not any(first(o['run']) <= first(F['run']) and first(o['oneTurn']) >= first(F['oneTurn']) and int(o['late23']) <= int(F['late23'])
                                  and int(o['late22']) <= int(F['late22']) for o in others),
             'Even Keel': close(F)[1] > max(close(o)[1] for o in others),
             'Closing Time': starts == ['16:00'] and F['closerWk'] == F['closerSat'] and H(F['closerWk']) < min(min(H(o['closerWk']), H(o['closerSat'])) for o in others),
-            'In Step': fit3(F) < min(fit3(o) for o in others) and H(F['heavy']) < min(H(o['heavy']) for o in others)}[name]
+            'In Step': k1345(P) and sat_open(F) >= 5 and H(F['heavy']) < min(H(o['heavy']) for o in others)
+                       and not any(k1345(grid_of(n)) and sat_open(FIG[n]) >= 5 for n in SHORTLIST if n != name)}[name]
     if not edge: raise SystemExit(f'deck-polish: {name}’s "This one adds" line is no longer its own among the shortlist')
     adds = {'Second Edition': f'This one adds: the steadiest starts of the {ALL[4:]}, {F["step"]} week to week (today {T["step"].replace(" 00m", "")})',
             'Short Run': f'This one adds: {WORDS[first(F["run"])]}-day runs, the most weeks on one turn, the fewest late finishes',   # one line: "with … and" wrapped
             'Even Keel': f'This one adds: a {ORDS[close(F)[1]]} person to the Saturday close (the others {max(close(o)[1] for o in others)}, today {close(T)[1]})',
             'Closing Time': f'This one adds: a {starts[0]} closer Monday to Saturday, {F["closerWk"]} (today up to {T["closerSat"]})',
-            'In Step': f'This one adds: the closest fit to the trains overall, and no week over {F["heavy"]}'}[name]   # "overall": Short Run's weekday alone is closer
+            'In Step': f'This one adds: today’s 13:45, {WORDS[sat_open(F)]} at the Saturday open, no week over {F["heavy"]}'}[name]
     costs = {'Second Edition': f'Costs: {F["run"]} days in a row on the fixed rota (today {T["run"].split(" ")[0]}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}',
              'Short Run': f'Costs: one {F["heavy"]} week (today up to {T["heavy"]}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}',
              'Even Keel': f'Costs: {F["late23"]} late finishes (today {T["late23"]}), a mixed week, four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}',
              'Closing Time': f'Costs: {F["late22"]} finishes at 22:00 or later (today {T["late22"]}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}',
-             'In Step': f'Costs: {F["late22"]} finishes at 22:00 or later (today {T["late22"]}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}'}[name]
+             'In Step': f'Costs: weekday earlies to {wk_early(P)} (today {wk_early(TODAY_P)}); four weeks off {F["leaveFour"]} days, not {T["leaveFour"]}'}[name]
     kept = f'{n_known} of {n_times} shift times worked today, {n_new} new; today’s 13:45 finish kept every weekday'
-    times_line = {'Closing Time': kept, 'In Step': kept}.get(name, f'{n_known} of {n_times} shift times worked today; {n_new} new, several shorter versions of today’s lates')
-    if times_line == kept and not all(any(P[k][d] == '06:20-13:45' for k in P) for d in DAYS[1:6]):
+    # In Step's 13:45 is on its "adds" line, so its times line counts the new times that are shorter versions of today's
+    # lates — three of its six, the rest earlies (30 Oct 2026 review: "several" hid that half are not)
+    times_line = {'Closing Time': kept, 'In Step': f'{n_known} of {n_times} shift times worked today; {n_new} new, {WORDS[shorter_lates(P)]} shorter versions of today’s lates'}.get(
+        name, f'{n_known} of {n_times} shift times worked today; {n_new} new, several shorter versions of today’s lates')
+    if times_line == kept and not k1345(P):
         raise SystemExit(f'deck-polish: {name}’s slide says today’s 13:45 is kept every weekday, and its grid does not have it')
     # true of every shortlisted design, or it would not be on every deck: the flexible rules are not here because
     # Closing Time's brief swapped one (the 15:45 closer, for 16:00), which its own notes say
