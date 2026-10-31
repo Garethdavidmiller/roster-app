@@ -1786,6 +1786,83 @@ row, the dates on Even Step's league paragraph); the pack, rebuilt. No proposal 
 league, so none changed; the scores in earlier sections are the weighting they were written with, and
 `OLD_READINGS=1` rebuilds them.
 
+## The accuracy and consistency review — sheets, shortlist and decks (31 Oct 2026)
+
+Owner: *"look at all the proposals and presentations and check for accuracy and consistency, using screenshots for
+aesthetic polish on all"*, and *"redo the shortlist and comparison sheet"*. Four independent reviews read the fifteen
+sheets, the shortlist, the rules and the six decks against the grids. Everything below was fixed at its source, and
+every new figure is computed or asserted, never typed.
+
+**The proposal sheets (all fifteen re-rendered).**
+- Page 2 gains **"Shifts over 8h 30m, Mon–Sat"** under *Each person's year* (Even Step 0, today 31). It was the measure
+  that separates the shortlist, and it appeared only in a hand-typed description. Page 1 names it as a gain or a concern.
+  A gain ranks just after the closing shifts: page 1 shows five positives, two of them pinned (the shortest rest and the
+  fatigue count, owner), so it takes the last open place only where the closers do not. A concern is never capped.
+- Wording: "four complete weeks **in a row**", "(today **up to** 7)" for the weekend gap, the cover-week run row, the
+  55-hour row's 8-hour-duty assumption, and the fingerprint described as worked out.
+- Three wrapped rows were tightened so page 2 fits every sheet. The renderer still refuses a page that spills.
+- Second Nature's one-line description says "three to the close", not "the closing rule".
+- `regenerate.mjs`'s straps had drifted from the printed ones (fresh.mjs `STRAPS`) in six places. They now match, and a
+  drifted one fails the run (mutated: it does).
+
+**The shortlist sheet, redone.** Page 1's shared list now holds only what is level with or better than today. The longer
+blocks (5 weeks, up to 7; today 2, up to 3) and the lost three- and four-day breaks (today five of 17, about 13 a year
+each) moved to page 2's shared costs, each asserted. Even Step's edge is "no long days, **Monday to Saturday**", since its
+Sunday early is 9 hours. The Leave cost says what 14 days buys and carries the three figures the "against today" table
+used to repeat. Short Run's new times are spelled out, Second Sight's fifth single rest day is named and asserted, and
+the choice guide gives Short Run's long earlies as "20 a year each over 8h 30m".
+
+**The decks (all six rebuilt).**
+- **Pay, slide 5.** The takeaway said "plus about two more Saturdays at time and a quarter" and nothing about the Sundays.
+  It now gives both, computed from the grids with the Pay Calculator's own rate and premiums (`paycalc-calc.js`). The
+  line is refused unless the Sundays outweigh the Saturdays (mutated: it is). The notes show the sum, each figure to one
+  decimal so the subtraction on the page checks:
+
+  | Each person, a year | Saturday hours | Sunday hours | Saturday premium | Sunday overtime | Net, full share of Sundays |
+  |---|---|---|---|---|---|
+  | Today | 213.2 | 177.4 | | | |
+  | Even Step | 228.3 | 167.0 | +3.8 h | −15.7 h | −11.9 h, about £250 |
+  | In Step | 227.5 | 167.0 | +3.6 h | −15.7 h | −12.1 h, about £250 |
+  | Short Run | 230.0 | 167.0 | +4.2 h | −15.7 h | −11.5 h, about £250 |
+
+- **Notes.** Slide 3 names all nine rules (the handovers and the 8–9-hour Sundays were missing). Slide 8 says which
+  known times move day, generated for In Step and Short Run; Even Step's typed sentence is checked against the same
+  computation (mutated: it fails). Slide 9 says the breaks as they are: two days and four single days, none longer; today
+  five of three or four days. It also gives today's one-shift-time count beside the design's.
+- **Slide 9's row** is "Weeks on one shift time, Monday to Friday". "No early–late switch" was true of all 21 weeks, not
+  the 18 counted.
+- **Slide 10's strip** draws one bar per full weekend, with a gap where two meet (`rota-strip.mjs`). The 4 Oct merge
+  showed seven weekends as fewer bars, and the note admitting that is gone.
+- **Slide 13's new-times card** names every new time, including the Sunday 09:00–18:00. A new time of no named kind
+  stops the build.
+- **Managers' decks.**
+  - Slide 3's notes describe the Sunday office as the model has it (`OFFICE_HELP_TEXT`, read and checked).
+  - Slide 7 says In Step's edge is "no **Mon–Sat** week over 41h 05m".
+  - The weekly hours in notes 7 and 8 are said to be Monday to Saturday.
+  - Short Run's notes 7 add its 14h 20m shortest rest.
+  - In Step's notes 7 no longer say Even Step has "none over 8h 30m", and introduce Closing Time as another design in the
+    pack.
+  - Slide 8 says "four weeks off **in a row**".
+
+**Other fixes.** `RULES.md` gave four changes; it has five (F3, the weekday closers, added 31 Oct), and the app builds in
+the three shortlisted designs. This README's Even Step section gave three places where its factors differ from In Step's;
+there are four (FF18's step). The pack read-me now asks colleagues to read pages 1 and 2 before the rota.
+
+**Left as it is, on purpose.**
+- "The 55-hour week" is the name the whole pack gives that guideline, on the sheets, the shortlist and the decks. The
+  hours (56.3 to 56.8) are on page 7, and renaming it in one place would only make the pack disagree with itself.
+- The five-positive cap on page 1 is unchanged.
+
+**Checked:** `deck-check.mjs` 153 rows agree, none unchecked; `regenerate.mjs --check` and `check.mjs` pass; every
+changed slide and page was screenshotted. That screenshot pass caught three things, each fixed: In Step's card running
+out of its box, "8h | 15m" breaking across a line, and a lone "14" on the managers' slide 8.
+
+**Changed:**
+- tooling: `plain.mjs`, `fresh.mjs`, `render.mjs`, `regenerate.mjs`, `shortlist-sheet.mjs`, `pack.py`,
+  `deck-polish.py`, `deck-check.mjs`, `rota-strip.mjs`
+- outputs: the fifteen sheets, the shortlist, the six decks and their PDFs, the pack
+- docs: `RULES.md` and this README
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so

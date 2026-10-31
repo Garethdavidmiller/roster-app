@@ -102,7 +102,7 @@ const ROWS = {
   'At the open (06:20, Sunday 07:15)': 'open', 'Still on after 22:00': 'at22', 'Through to the close': 'close',
   'Fewest rostered on the floor': ['floor', 'floorMin'], 'Cover weeks (for leave and sickness)': 'cover',
   'People needed each Sunday (overtime)': 'sundayPeople', 'Rest-day breaks of two days or more': 'breaks',
-  'Weeks on one turn, Monday to Friday': 'oneTurn', 'Weeks on one turn, no early–late switch': 'oneTurn', 'Longest shift anywhere': 'longest', 'Average shift': 'avg',
+  'Weeks on one turn, Monday to Friday': 'oneTurn', 'Weeks on one shift time, Monday to Friday': 'oneTurn', 'Longest shift anywhere': 'longest', 'Average shift': 'avg',
   'Days off in a row — best place to book': 'leaveBest', 'Days off in a row — on average': 'leaveAvg',
   'Days off in a row — worst place': 'leaveWorst', 'Leave for four full weeks off, at best': 'leaveFour',
 };
