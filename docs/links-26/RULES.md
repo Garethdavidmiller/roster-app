@@ -24,7 +24,9 @@ be 26. So it is worth getting the levels below in writing before a design is put
 2. **▲ CHANGED — The link.** **26 lines** are worked in turn, one week each, Sunday to Saturday. A person on line 26
    moves to line 1.
 3. **▲ CHANGED — Cover weeks.** **Five** of the 26 lines are cover weeks. A cover week is a line with no fixed shifts:
-   four duties that week, placed by the roster clerk to cover leave and sickness.
+   four duties that week, placed by the roster clerk to cover leave and sickness. **The four are contracted days, Monday
+   to Saturday; the Sunday can be worked as overtime on top, as any Sunday can** (owner, 31 Oct 2026: "The 4 days can
+   only be the contractual days which are Monday to Saturday"). Every worst case counts that Sunday as worked.
 4. **Early and late.** A shift starting before 11:00 is an early; from 11:00 it is a late.
 5. **The floor.** The floor is everyone on duty except the four ticket-office staff.
    - **Monday to Saturday:** one of each ticket-office pair helps on the floor at the quiet ends, the morning one until
@@ -39,7 +41,7 @@ be 26. So it is worth getting the levels below in writing before a design is put
 | | Limit |
 |---|---|
 | H1 | **At least 12 hours between duties,** anywhere in the rotation. This includes Saturday into Sunday, and the last line into line 1. |
-| H2 | **No more than 13 days worked in a row,** taken at its worst case: a cover week's four duties placed as badly as they can be. This is Chiltern's limit; its written source is still to be confirmed. |
+| H2 | **No more than 13 days worked in a row,** taken at its worst case: a cover week's four duties placed as badly as they can be, and its Sunday worked as overtime. This is Chiltern's limit; its written source is still to be confirmed. |
 | H3 | **The contracted week, exactly:** 35 hours a week on average, Monday to Saturday, across every line, with a cover week counting as a contracted week. Sunday duties are paid on top as rest-day working. With 21 working lines that is **44,100 minutes** of Monday-to-Saturday duty a week (21 × 35 h). |
 
 ## The December 2026 staffing rules — scored on every sheet
@@ -97,7 +99,8 @@ has more duties than any of them, and longer ones on average than all but Famili
 - **The fatigue factors** stay advisory, never pass or fail: 21 from the ORR's *Fatigue Factors* and 4 rail-industry
   (MRSF) checks. FF2 and FF18 are standing factors, recorded but not counted.
 - **How the sheets count:**
-  - runs and fatigue on the fixed duties, with the worst cover-week placement shown as "up to";
+  - runs and fatigue on the fixed duties, with the worst cover-week placement shown as "up to" (its Sunday worked as
+    overtime, since 31 Oct 2026);
   - hard limits tested at the worst case;
   - the match to the trains scored hour by hour against the December service, weighted by train length.
 - **Waivers are per design,** by owner decision. None is carried into 26 lines yet.

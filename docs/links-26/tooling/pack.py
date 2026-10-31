@@ -116,7 +116,7 @@ readme = '\n'.join([
     item('4 Proposal sheets', 'One eight-page PDF per proposal, compared only with today\'s link: pages 1-2 are the '
          'plain-English comparison, the rest the evidence managers can inspect. The marks mean the same on every page:'),
     item('', 'green tick - meets a rule, or better than today on something the rules, the limits or the fatigue '
-         'guidance aim for', 24),
+         'guidance aim for, or on a plain gain such as full weekends off', 24),
     item('', 'amber - worse than today on one of those', 24),
     item('', 'red cross - a rule or limit broken', 24),
     item('', 'no colour - a matter of preference', 24),

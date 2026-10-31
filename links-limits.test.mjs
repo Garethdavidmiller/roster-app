@@ -94,27 +94,29 @@ describe('the 13-consecutive-day limit', () => {
 });
 
 describe('the answer is the worst case, which is what makes it a hard-limit check', () => {
-    test('a spare week is counted at four duties, not seven', () => {
+    test('a spare week is counted at four duties and its Sunday, not seven', () => {
         // 7 worked + a spare week. At 7/7 the spare week bridges and the answer would be 14 (breach);
-        // four duties cannot fill a week, so the real ceiling is 7 + 4 = 11.
+        // four duties on Monday to Saturday cannot fill a week, so the real ceiling is 7 + the
+        // Sunday's overtime + 4 = 12 (11 until v25.03, when the four could include the Sunday).
         // Line 3 carries one isolated duty so the design is complete — an all-rest line is undesigned,
         // and a part-built design is `unknown` rather than `ok`.
         const c = only(design(wk(W, W, W, W, W, W, W), wk(S, S, S, S, S, S, S), wk(R, R, R, W, R, R, R)), 3);
-        assert.equal(c.value, 11);
+        assert.equal(c.value, 12);
         assert.equal(c.status, 'ok');
     });
 
-    test('a design that only SOMETIMES reaches 14 still breaches — the link permits it', () => {
-        // 10 worked days running into a spare week. Most placements of that week's four duties keep
-        // the run under 13; the placement that puts all four at the start of the week gives 14. The
-        // roster clerk chooses week by week, so the link allows a breach and must say so.
+    test('a design that only SOMETIMES goes past 13 still breaches — the link permits it', () => {
+        // 10 worked days running into a spare week. Most arrangements of that week keep the run at
+        // 13 or under — any that leaves its Sunday off ends it at 10 — but the Sunday's overtime and
+        // the four from the Monday give 15. The roster clerk chooses week by week, so the link
+        // allows a breach and must say so.
         const c = only(design(
             wk(R, R, R, R, W, W, W),
             wk(W, W, W, W, W, W, W),
             wk(S, S, S, S, S, S, S),
             wk(R, R, R, R, R, R, R),
         ), 4);
-        assert.equal(c.value, 14);
+        assert.equal(c.value, 15);
         assert.equal(c.status, 'breach');
     });
 
@@ -131,10 +133,11 @@ describe('the live rosters', () => {
     test('both are within the 13-day limit, and the figures are the corrected ones', () => {
         // These read 15 and 14 before v19.79, when a spare week counted as seven worked days — i.e.
         // the tool reported a breach on the roster people are actually working. Pinned here so
-        // that cannot come back silently.
+        // that cannot come back silently. The bilingual figure was 8 until v25.03: its two cover
+        // weeks wrap into each other, and the second's Sunday is now overtime on top of its four.
         assert.deepEqual(
             [only(weeklyRoster, 20).value, only(bilingualRoster, 8).value],
-            [9, 8],
+            [9, 9],
         );
         assert.equal(only(weeklyRoster, 20).status, 'ok');
         assert.equal(only(bilingualRoster, 8).status, 'ok');

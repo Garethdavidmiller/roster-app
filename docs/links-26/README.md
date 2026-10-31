@@ -6,6 +6,11 @@ grids unchanged, the sheets re-rendered once (2 Oct 2026, for the per-year weeke
 The 24-line work is not wasted. The rules, the duty tables, the tooling and the designs all carry over. What has to
 change is the arithmetic that depends on the number of lines.
 
+**Worst cases dated before 31 Oct 2026 put a cover week's Sunday inside its four duties.** The owner settled that day
+that the four are Monday to Saturday and the Sunday is overtime on top, which put a day on most worst cases — "5 (up to
+6)" days in a row became "5 (up to 7)". The sections below keep the figures they were written with; the sheets, the
+decks and the last section have the current ones (*A cover week's four are Monday to Saturday*).
+
 ## What is in this folder
 
 The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, owner: "consistent naming"):
@@ -1347,7 +1352,7 @@ from all angles about which to recommend". `SHORTLIST` in `tooling/fresh.mjs` is
 recommendation that is not on the shortlist.
 
 **Why In Step, and why only narrowly.** The two are one design in most of what a colleague feels: five days in a row on
-the fixed rota (up to six when a cover week falls badly), seven full weekends off in 26 never more than five weeks
+the fixed rota (up to seven when a cover week falls badly — six until the 31 Oct ruling), seven full weekends off in 26 never more than five weeks
 apart, 18 of 21 weeks on one shift time, 42 finishes a year each at 23:00 or later and 94 at 22:00 or later, the same
 leave (28 · 23.4 · 20 · 15), the same 1h 13m week-to-week step, fifteen shift times with nine worked today, all nine
 December rules and all three flexible ones, and the same Sunday. Where they differ, In Step has every closer Monday to
@@ -1361,8 +1366,10 @@ against 29.8); and nothing new on a Saturday, where In Step's closer is a new ti
 two fit the trains alike (26.7 and 26.8).
 
 On the priorities the shortlist sheet names — days in a row, weekends, one shift time a week, late finishes and the
-closing shift — the first four are level and the fifth is In Step's. In Step also leads every version of the weighted
-league (usual 88.4), where Short Run is fourth on 86.4, behind Closing Time (87.2) and Second Edition (87.1). But the
+closing shift — the first four are level and the fifth is In Step's. In Step also leads the weighted league (usual
+87.4), where Short Run is fourth on 85.4, behind Closing Time (86.2) and Second Edition (86.1) — figures since the 31 Oct
+ruling, which took a point off every design but Second Look and moved none of these four; before it they were 88.4,
+86.4, 87.2 and 87.1, and In Step led all five versions, where it now leads four (the last section). But the
 league scores neither the closing shift nor long earlies, and In Step has the most long earlies of any design here:
 weighted above about 4.3 — between the 4 the league gives single rest days and the 5 it gives late finishes — they would
 put Short Run ahead of In Step (computed over the range the league itself uses: the proposals, today's link and Familiar
@@ -1423,12 +1430,72 @@ the number down" the search scripts disprove, a "24-line sheets left as they sto
 current (the league placements before In Step, the four-design shortlist sheet, Closing Time's decks). Each now says
 what is true or points on.
 
-**Left for the owner, not changed.** The proposal sheets shade full weekends off and the fit to the trains green —
-"better than today on something the rules, the hard limits or the fatigue guidance aim for" — while the rules sheet
-lists both as preferences "for staff to say, not the app"; one of the two should change. And the worst-case run lets one
-of a cover week's four duties fall on its Sunday, where days a year and leave count a cover week's four as Monday to
-Saturday; read the second way, with a Sunday overtime duty on top, the worst case is seven days in a row rather than six
-on thirteen of the fourteen designs, both shortlisted ones among them — inside the 13-day limit either way.
+**Left for the owner — settled 31 Oct 2026.** Two questions were left here: whether full weekends off and the fit to
+the trains should be shaded green while the rules sheet called them preferences "for staff to say, not the app", and
+whether a cover week's Sunday is one of its four duties. The owner answered both the next day; the next section says
+how, and what moved.
+
+## A cover week's four are Monday to Saturday — the owner's two answers (31 Oct 2026)
+
+Asked the two questions above, the owner answered: *"1. They are both positives aren't they? 2. Although people could be
+rostered for rdw on a Sunday cover week. The 4 days can only be the contractual days which are Monday to saturday."*
+
+**1 · Full weekends off and the fit to the trains are gains, so the green stays.** It was the rules sheet's wording
+that was wrong. Its Preferences now say they are not rules and not scored, that the first two and the last — fewer days
+in a row, more full weekends off, a closer fit to the trains — are gains a proposal sheet marks green where a design
+beats today's link, and that how much each matters is for staff to say. Page 2's colour key now counts "a plain gain
+such as full weekends off or the fit to the trains" among what green means (the read-me's, short of room, "a plain gain
+such as full weekends off"), which is what those rows — and the leave and closing-shift rows — were already shaded
+for. No shading changed.
+
+**2 · The four are contracted days, Monday to Saturday; the Sunday is overtime on top.** The app's own rules said so
+already (`.claude/rules/links-design.md`: "a spare week's four days come from Mon–Sat"); its run checks did not, and let
+one of the four fall on the Sunday. They now count a cover week's Sunday as worked in the worst case without spending the
+four (`spareDrawsOnFour`, app v25.03), FF11 included, and the cover-placement reading here follows: the four as a block
+from Monday, Tuesday or Wednesday, the Sunday worked at worst and left off at best. What moved, all computed and no
+fingerprint among them:
+
+- **Most days in a row at worst: 6 → 7 on thirteen of the fourteen designs, both shortlisted ones included.** A line
+ending on two worked days, then the Sunday's overtime and the four from the Monday. Second Look alone stays at 6. The
+fixed rota is unchanged (In Step and Short Run 5), today's link stays at 9, and the 13-day limit is met everywhere.
+- **FF11, the longest stretch without a two-day break: one more everywhere** — 12 on the designs (Second Nature 11), 13 on
+today's link; clear throughout, the factor being *more than* 13. The two MRSF run rows move by one too (13 designs on the
+12-day row, ten on the 8-hour one) and stay clear.
+- **The 55-hour row's worst case crosses 55 on thirteen designs** (55.7–57.5; In Step 56.3, Short Run 56.8), with the
+four and the Sunday's overtime worked as 8-hour duties after a busy line; before, none passed 53.5. Those sheets now say
+avoidable fatigue warnings are 0 on the fixed rota, **up to 1** if a cover week falls badly. Second Look stays at 52.2.
+- **Where the clerk places the four, and whether the Sunday is worked, moves FF11 from 9 to 12** on both shortlisted
+designs: worked together with the Sunday off gives the 9. Page 7 and page 8 used to set "worked together" (9) against
+"spread out" (11); with the Sunday worked the four together reach the app's 12 as well, so the sheets now give the worst
+and say what the best takes.
+- **The league:** usual In Step 87.4, Closing Time 86.2, Second Edition 86.1, Short Run 85.4 — each loses one point on the
+run, as does every design but Second Look, so the order holds except that Second Look and Second Wind swap 12th and 13th.
+The other versions: proposals setting the scale, In Step first (90.0); without familiar times, first (91.7); run on the
+fixed rota, unchanged and first (88.4). **In the six-factor league Second Look is now first, 88.3 to In Step's 87.2**: it
+gives the run 5 points scored across the proposals alone, and Second Look's six is now nobody else's. So In Step leads
+four of the five versions, not all five. The long-early weights at which the order would turn are unchanged, since In
+Step, Short Run and Closing Time each lost the same point, and **the recommendation stands**.
+- **The live rosters in the app:** the main cycle stays at 9 days in a row and FF11 goes 12 → 13; the bilingual goes 8 → 9,
+its two cover weeks wrapping into each other through the second's Sunday.
+- **In the app**, the shortlisted proposals' Design checks now read 7 consecutive days at worst, over the 6-day design
+target, so that row is amber where it was green — an aim, not a limit, as the row itself says.
+
+**Found on the way, and fixed.** The cover-placement reading turned a placed cover week into typed sentinel duties,
+which the app's scanners could not tell from real ones — so a cover week alone could make a run, against the app's own
+rule that it may extend a run but not create one. While the four could include the Sunday that run was four, which no
+threshold here exceeds; with the Sunday worked it is five early starts, over FF15's four, on designs whose early starts
+never run past four. A placement now keeps its worked days SPARE and the app's own `requireMatch` applies.
+
+**What changed.** The app: `links-design.js` (`spareDrawsOnFour`, used by `runLengthsWhere`), `links-fatigue.js` (FF11,
+and one shared sentence for what a cover week adds), `links-limits.js` and `links-analysis.js` (what a cover week is,
+in words), the tests (two new, four mutations each caught) and the rules file. The tooling: `cover-placement.mjs`,
+`report-data.mjs` (`h55Worst`, which `fresh.mjs` now calls rather than keeping a copy), `fresh.mjs`, `render.mjs`,
+`plain.mjs`, `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` (its run claim, Second Look's new edge, and a
+worst-case fatigue count that now includes the 55-hour week, as every other sheet's "up to" does — it had said "no
+avoidable fatigue warning" beside the summary's "up to 1"), the two deck builders, `deck-polish.py` and `deck-check.mjs`
+(the decks' fatigue cells now read "0 (up to 1)", the managers' "Why" line says "no avoidable fatigue warning, fixed
+rota", and the notes to the fatigue slides say what the 1 is, refused if it is ever anything but the 55-hour week) and
+`pack.py`; every sheet, all four decks and the pack re-rendered.
 
 ## Notes for the whole set
 

@@ -42,7 +42,7 @@ function figures(patterns, lines, T) {
   const A = assess(patterns, lines), pp = personal(patterns), tA = T ?? A;
   const R = sheetRules({ patterns, ...A }, tA, lines === 20 ? 'today' : 'plan');
   const fl = /fewest (\d+) · (\d+) · (\d+)/.exec(R.rows.find(r => r.key === 'floor').value).slice(1).map(Number);
-  const worstFF = A.fatigue.present + (h55Worst(patterns, lines)?.adds ? 1 : 0);
+  const h55 = h55Worst(patterns, lines), worstFF = A.fatigue.present + (h55?.adds ? 1 : 0);
   let fin22 = 0, dx = 0;
   for (const r of Object.values(patterns)) for (const d of DAYS) { const s = r[d]; if (!timed(s)) continue; if (endMinutes(s) >= 22 * 60) fin22++; if (d !== 'sun') dx++; }
   const cover = pp.cover, L = pp.L, dpw = (dx + 4 * cover) / L;
@@ -66,6 +66,8 @@ function figures(patterns, lines, T) {
     longestEarly: hm(Math.max(...Object.values(patterns).flatMap(r => DAYS.map(d => r[d]).filter(s => timed(s) && startMinutes(s) < 11 * 60).map(s => (endMinutes(s) - startMinutes(s) + 1440) % 1440)))),
     sunHours: hm(Object.values(patterns).reduce((s, r) => s + (timed(r.sun) ? (endMinutes(r.sun) - startMinutes(r.sun) + 1440) % 1440 : 0), 0)),
     run: up(A.fixed.run, A.checks.longestStretch), ff: up(A.fixed.present, worstFF),
+    // the 55-hour week a cover week can make, when that is what the "up to" in `ff` counts (31 Oct 2026) — for the notes
+    h55: h55?.adds ? h55.hi.toFixed(1) : '',
     times: T ? `${A.feel.distinctTimes} (${shared} you know)` : `${A.feel.distinctTimes}`,
     daily: trio(A.daily), dailyWk: wk(A.daily), dailyWeekend: `${A.daily.sat} / ${A.daily.sun}`,
     open: trio(A.heads.open), at22: trio(A.heads.at22), close: trio(A.heads.close),

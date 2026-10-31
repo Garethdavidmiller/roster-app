@@ -52,8 +52,15 @@ def same(what, key):
     vals = {f[key] for f in SL.values()}
     if len(vals) != 1: raise SystemExit(f'deck-polish: "{what}" is printed as shared, and is not: ' + ', '.join(f'{n} {f[key]}' for n, f in SL.items()))
     return vals.pop()
+def explain_h55(name, f):
+    """Is the fatigue worst case the 55-hour week the notes explain? Refused if it is anything else (31 Oct 2026)."""
+    if f['ff'] == '0': return False
+    if f['ff'] == '0 (up to 1)' and f['h55']: return True
+    raise SystemExit(f'deck-polish: {name}’s fatigue worst case is {f["ff"]}, not the 55-hour week the notes explain')
 every('all 9 December rules', lambda f: f['met'] == '9')
-every('no avoidable fatigue warning', lambda f: f['ff'] == '0')
+# on the FIXED rota (31 Oct 2026): a cover week worked with its Sunday as overtime can make a 55-hour week, so the worst
+# case is "0 (up to 1)" on both — the line says what holds of the fixed rota, and the tables carry the rest
+every('no avoidable fatigue warning on the fixed rota', lambda f: first(f['ff']) == 0)
 same('full weekends off a year', 'weekendsYear'); GAP = max(int(f['weekendGap']) for f in SL.values())
 every('no shift over 9 hours', lambda f: H(f['longest']) <= 9 * 60)
 every('every closing shift shorter', lambda f: all(H(f[k]) < H(T[k]) for k in ('closerWk', 'closerSat', 'closerSun')))
@@ -260,6 +267,10 @@ def colleagues(d, name, grid, F):
     p14 = f'{d}/ppt/slides/slide14.xml'
     replace_run(p14, '219', T['daysYear'], after='Contracted days at work a year'); replace_run(p14, '219', F['daysYear'], after='Contracted days at work a year')
     replace_run(p14, '4 in 20', T['weekendsYear'], after='Full weekends off'); replace_run(p14, '7 in 26', F['weekendsYear'], after='Full weekends off'); replace_run(p14, 'Full weekends off', 'Full weekends off, about a year')
+    # THE FATIGUE CELLS CARRY THE WORST CASE (31 Oct 2026), as today's "4 (up to 5)" beside them does: with a cover week's
+    # Sunday worked as overtime the four can make a 55-hour week, which the sheets give as "0 (up to 1)"
+    for n in (12, 14): replace_run(f'{d}/ppt/slides/slide{n}.xml', '0', F['ff'], after='Avoidable fatigue warnings in the fixed rota')
+    if explain_h55(name, F): notes_append(d, 12, f'The “up to 1” beside the fatigue warnings is a 55-hour week. If a cover week’s four duties come straight after a busy week, and its Sunday is worked as overtime too, those seven days can come to {F["h55"]} hours, which the rail industry’s guidance flags. Where the four fall, and whether the Sunday is worked, is for the roster office.')
 
 def managers(d, name, grid, F):
     S = lambda n: Slide(f'{d}/ppt/slides/slide{n}.xml')
@@ -270,6 +281,8 @@ def managers(d, name, grid, F):
     tile(s, 16, ['people on the link'], 'people\non the link')
     s.save()
     s = S(6); drop_shape(s, 'Early starts and a weekly rotation come with every link, so are not counted. The written source of the 13-day limit is still to be confirmed.'); s.save()
+    replace_run(f'{d}/ppt/slides/slide6.xml', '0', F['ff'], after='Avoidable fatigue warnings, fixed rota')   # the worst case too, as on the colleagues' slides
+    if explain_h55(name, F): notes_append(d, 6, f'The “up to 1” beside the fatigue warnings is the rail industry’s 55-hour guideline: worked as four 8-hour duties straight after a busy line, with its Sunday as overtime too, a cover week can make {F["h55"]} hours in seven days. Where the four fall, and whether the Sunday is worked, is for the roster office.')
     # the dropped line's first half the notes already say ("come with every weekly link … not counted"), so only the second
     # goes on; and the FF19 sentence says what its reading is and what the stricter one would mean (the deck review)
     notes_append(d, 6, 'The written source of the 13-day limit is still to be confirmed.')
@@ -313,7 +326,7 @@ def managers(d, name, grid, F):
     # true of every shortlisted design, or it would not be on every deck: the flexible rules are left out, as the ticks have no
     # room for them; both meet all three, which the managers' notes 2 and 3 say
     lead = f'{ALL.capitalize()} shortlisted' if name in SHORTLIST else f'Like {ALL} shortlisted'   # an off-shortlist design shares them
-    labels = [f'{lead}: all 9 December rules and no avoidable fatigue warning',
+    labels = [f'{lead}: all 9 December rules; no avoidable fatigue warning, fixed rota',   # one line: "on the fixed rota" wrapped
               f'{lead}: about {F["weekendsYear"]} full weekends off a year (today {T["weekendsYear"]}), at most {GAP} apart',
               f'{lead}: no shift over 9 hours, and every closing shift shorter',
               adds, times_line, costs]
