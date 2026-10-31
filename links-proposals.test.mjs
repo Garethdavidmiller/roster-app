@@ -12,17 +12,26 @@ import { PROPOSALS, PROPOSAL_PREFIX, isProposalId, proposalById, proposalCopyNam
 import { ROTATING_LINES, DAYS, normalisePatterns, weeklyHours, CONTRACTED_HOURS_PER_WEEK } from './links-design.js';
 import { assessHardLimits, contractedDaysPerYear } from './links-limits.js';
 
-const SOURCES = { 'IS-26-T4': 'In-Step-IS-26-T4', 'SR-26-F1': 'Short-Run-SR-26-F1' };
+const SOURCES = { 'ES-26-T5': 'Even-Step-ES-26-T5', 'IS-26-T4': 'In-Step-IS-26-T4', 'SR-26-F1': 'Short-Run-SR-26-F1' };
 
-describe('the shortlist as the owner chose it (cut to two on 30 Oct 2026)', () => {
-    test('two designs: In Step, the recommendation, then Short Run', () => {
-        assert.deepEqual(PROPOSALS.map(p => p.code), ['IS-26-T4', 'SR-26-F1']);
-        assert.deepEqual(PROPOSALS.map(p => p.name.split(' — ')[0]), ['In Step', 'Short Run']);
+describe('the shortlist as the owner chose it (three since 31 Oct 2026)', () => {
+    test('three designs: Even Step, the recommendation, then In Step and Short Run', () => {
+        assert.deepEqual(PROPOSALS.map(p => p.code), ['ES-26-T5', 'IS-26-T4', 'SR-26-F1']);
+        assert.deepEqual(PROPOSALS.map(p => p.name.split(' — ')[0]), ['Even Step', 'In Step', 'Short Run']);
+    });
+
+    test('the recommendation comes first, as the pack names it', () => {
+        // fresh.mjs's RECOMMENDED drives the shortlist sheet's green card and the pack's twenty-minute read; the picker
+        // lists the same design first, so the order on screen is the order on paper.
+        const src = readFileSync(new URL('./docs/links-26/tooling/fresh.mjs', import.meta.url), 'utf8');
+        const m = src.match(/export const RECOMMENDED = '([^']+)'/);
+        assert.ok(m, 'fresh.mjs no longer declares RECOMMENDED on one line');
+        assert.equal(PROPOSALS[0].name.split(' — ')[0], m[1]);
     });
 
     test('the same shortlist, in the same order, as the pack the owner hands round', () => {
-        // The app and docs/links-26 are two copies of one decision, and the shortlist has changed three times in a
-        // month (three designs, then four, then two). fresh.mjs's SHORTLIST drives the printed sheet, the summary
+        // The app and docs/links-26 are two copies of one decision, and the shortlist has changed four times in a
+        // month (three designs, then four, then two, then three). fresh.mjs's SHORTLIST drives the printed sheet, the summary
         // and the presentations, so the designs built in here must be exactly those — read from its source text,
         // as the deck builders do, rather than imported (it is tooling, not an app module).
         const src = readFileSync(new URL('./docs/links-26/tooling/fresh.mjs', import.meta.url), 'utf8');
@@ -64,7 +73,7 @@ describe('the shortlist as the owner chose it (cut to two on 30 Oct 2026)', () =
             });
 
             test('a faithful copy of its docs/links-26 grid', () => {
-                const file = new URL(`./docs/links-26/proposals/${SOURCES[/** @type {'IS-26-T4'} */ (p.code)]}.json`, import.meta.url);
+                const file = new URL(`./docs/links-26/proposals/${SOURCES[/** @type {keyof typeof SOURCES} */ (p.code)]}.json`, import.meta.url);
                 const src = JSON.parse(readFileSync(file, 'utf8'));
                 assert.equal(src.name, `${p.name} (${p.ref})`, 'the printed name — title and ref, as on the sheet');
                 assert.deepEqual(normalisePatterns(src.patterns), p.patterns, 'the grid');
@@ -87,9 +96,9 @@ describe('a proposal can never be mistaken for a saved design', () => {
     });
 
     test('the first save suggests "<Name> — copy", without the sheet\'s fingerprint, numbered if taken', () => {
-        const is = PROPOSALS[0];
-        assert.equal(proposalCopyName(is, []), 'In Step — copy');
-        assert.equal(proposalCopyName(is, [{ name: 'in step — COPY' }]), 'In Step — copy 2');
-        assert.doesNotMatch(proposalCopyName(is, []), /IS-26|·/);
+        const es = PROPOSALS[0];
+        assert.equal(proposalCopyName(es, []), 'Even Step — copy');
+        assert.equal(proposalCopyName(es, [{ name: 'even step — COPY' }]), 'Even Step — copy 2');
+        assert.doesNotMatch(proposalCopyName(es, []), /ES-26|·/);
     });
 });

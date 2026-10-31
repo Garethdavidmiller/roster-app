@@ -7,6 +7,26 @@
 //   RUN_FIXED=1 node league.mjs          score the run on the fixed rota instead of the worst case with a cover week
 //   JSON=<file> node league.mjs          also write the whole table as JSON (weights, points, raw values, totals)
 //   WEIGHTS=met:35,fat:20,… node league.mjs   other weights, only the factors named (the 24-line standing league, below)
+//   OLD_READINGS=1 node league.mjs       the league as it was weighted before 31 Oct 2026, kept as the alternative (below):
+//                                        no long earlies or closing shift, the fit averaged over the three day types, the
+//                                        55-hour cover week left out. It combines with every switch above
+//
+// THE MAIN LEAGUE SINCE 31 OCT 2026 IS THE REWEIGHTED ONE (owner: "Use your weights and fix the league", after asking "Are
+// we weighting correctly in the tables?"; then "Keep the old leagues as alternatives, but this should now be the main
+// one"). Weighted as before, 74 of the 100 points were the same for all three shortlisted designs, and the two things the
+// owner had said decide between them scored nothing, so the order turned on margins under a point. Four changes:
+//   · LONG EARLIES (lerl, weight 5, the same as late finishes): earlies over 8h 30m Monday to Saturday, a year each — the
+//     owner's worry about In Step ("the length of the main early shift"). Earlies, not every long shift: today's long
+//     shifts are its 8h 45m closers, which every design shortens and the closing-shift factor already scores;
+//   · THE CLOSING SHIFT (close, weight 3): the average length of the Monday-to-Saturday closing duties, weighted by how
+//     many are worked — the shortlist sheet's own priority, and the shifts the colleague decks call the ones people dislike
+//     most;
+//   · THE FIT BY DAYS: the weekday's fit counts five times, as five days of the week — it was the mean of the three day
+//     types, so one Saturday counted as much as five weekdays;
+//   · THE 55-HOUR COVER WEEK in the fatigue worst case: the sheets and decks say "up to 1" for it (h55Worst, report-data.mjs)
+//     and the league scored 0, under a label that says worst case.
+// The other weights are unchanged; with the two new ones every weight is rescaled to 100, as DROP= does. The JSON says
+// which weighting it holds (`oldReadings`), so a page or a check reading it can refuse the wrong one.
 import fs from 'fs';
 const R = new URL('../../', import.meta.url).pathname;   // docs/
 const M24 = await import(R + 'links-24/tooling/report-data.mjs'), M26 = await import(R + 'links-26/tooling/report-data.mjs');
@@ -14,6 +34,7 @@ const { scoreOrder } = await import(new URL('../../../links-adjacency.js', impor
 const { leave } = await import(R + 'links-26/tooling/leave.mjs');
 const { daysAYear } = await import(R + 'links-26/tooling/link.mjs');
 const load = f => { const j = JSON.parse(fs.readFileSync(R + f)); return j.patterns ?? j; };
+const OLD = process.env.OLD_READINGS === '1';
 const t = s => /^\d/.test(s), restish = s => !t(s) && s !== 'SPARE', DAYS = ['sun','mon','tue','wed','thu','fri','sat'];
 const gapOf = p => { const L = Object.keys(p).length, at = []; for (let k = 1; k <= L; k++) if (restish(p[k].sat) && restish(p[k % L + 1].sun)) at.push(k); return Math.max(...at.map((k, i) => i < at.length - 1 ? at[i + 1] - k : at[0] + L - k)); };
 const m = s => +s.slice(0, 2) * 60 + +s.slice(3, 5), mins = s => (m(s.slice(6)) - m(s) + 1440) % 1440;
@@ -24,17 +45,24 @@ function stat(M, name, p, L, isToday) {
   const wkHours = work.map(k => ['mon','tue','wed','thu','fri','sat'].reduce((s, d) => s + (t(p[k][d]) ? mins(p[k][d]) : 0), 0) / 60);
   let late = 0; for (const k of work) for (const d of DAYS) { const s = p[k][d]; if (t(s) && (m(s.slice(6)) >= 1380 || m(s.slice(6)) < m(s))) late++; }
   const lv = leave(p), a = scoreOrder(p, Object.keys(p), { maxRunTarget: 6 });
-  return { name, met: R2.met, fit: (A.office.wkFit + A.office.fits.sat + A.office.fits.sun) / 3, fat: A.fatigue.present, rest: A.rest.minutes, run: process.env.RUN_FIXED === '1' ? A.fixed.run : A.checks.longestStretch,
+  const MS = ['mon','tue','wed','thu','fri','sat'], h55 = M26.h55Worst(p, L);   // one 55-hour reading for every link, today's included
+  const lerl = Object.values(p).reduce((s, r) => s + MS.filter(d => t(r[d]) && m(r[d]) < 11 * 60 && mins(r[d]) > 510).length, 0) * 52 / L;
+  const closing = Object.values(p).flatMap(r => MS.map(d => r[d]).filter(s => t(s) && s.endsWith('-23:55')).map(mins));
+  return { name, lerl, close: closing.reduce((a, b) => a + b, 0) / closing.length,
+    met: R2.met, fit: OLD ? (A.office.wkFit + A.office.fits.sat + A.office.fits.sun) / 3 : (5 * A.office.wkFit + A.office.fits.sat + A.office.fits.sun) / 7,
+    fat: A.fatigue.present + (!OLD && h55?.adds ? 1 : 0), rest: A.rest.minutes, run: process.env.RUN_FIXED === '1' ? A.fixed.run : A.checks.longestStretch,
     wkends: A.checks.weekendsOff / L, gap: gapOf(p), iso: fe.isolatedRest / W, mixed: fe.hybrid / W, one: fe.oneTurn / W, step: a.gentleMean, heavy: Math.max(...wkHours),
     late: late * 52 / L, fam: isToday ? 1 : (fe.distinctTimes - A.tableRows.filter(r => !todays.has(r.time)).length) / fe.distinctTimes,
     lvBest: lv.best, lvWorst: lv.worst, lvFour: lv.fourWeeks, days: daysAYear(p) };
 }
-const W = { met: 25, fit: 11, fat: 11, rest: 3, run: 3, wkends: 7, gap: 5, iso: 4, mixed: 4, one: 5, step: 3, heavy: 3, late: 5, fam: 6, lvBest: 1, lvWorst: 1, lvFour: 1, days: 2 };
-const HI = { met: 1, fit: 0, fat: 0, rest: 1, run: 0, wkends: 1, gap: 0, iso: 0, mixed: 0, one: 1, step: 0, heavy: 0, late: 0, fam: 1, lvBest: 1, lvWorst: 1, lvFour: 0, days: 0 };
-const LABEL = { met: 'December rules met', fit: 'Fit to the trains', fat: 'Fatigue warnings (worst case)', rest: 'Shortest rest', run: 'Longest run (worst case)', wkends: 'Full weekends, share of weeks', gap: 'Longest wait between weekends', iso: 'Single rest days, per working week', mixed: 'Mixed weeks, share', one: 'One-turn weeks, share', step: 'Start-time change, week to week', heavy: 'Heaviest week', late: 'Late finishes a year', fam: 'Familiar shift times, share', lvBest: 'Leave: best stretch', lvWorst: 'Leave: worst stretch', lvFour: 'Leave for four weeks off', days: 'Contracted days a year' };
+const W = { met: 25, fit: 11, fat: 11, rest: 3, run: 3, wkends: 7, gap: 5, iso: 4, mixed: 4, one: 5, step: 3, heavy: 3, late: 5, fam: 6, lvBest: 1, lvWorst: 1, lvFour: 1, days: 2, lerl: 5, close: 3 };
+if (OLD) { delete W.lerl; delete W.close; }
+const HI = { lerl: 0, close: 0, met: 1, fit: 0, fat: 0, rest: 1, run: 0, wkends: 1, gap: 0, iso: 0, mixed: 0, one: 1, step: 0, heavy: 0, late: 0, fam: 1, lvBest: 1, lvWorst: 1, lvFour: 0, days: 0 };
+const LABEL = { met: 'December rules met', fit: OLD ? 'Fit to the trains' : 'Fit to the trains, by days', fat: 'Fatigue warnings (worst case)', rest: 'Shortest rest', run: 'Longest run (worst case)', wkends: 'Full weekends, share of weeks', gap: 'Longest wait between weekends', iso: 'Single rest days, per working week', mixed: 'Mixed weeks, share', one: 'One-turn weeks, share', step: 'Start-time change, week to week', heavy: 'Heaviest week', late: 'Late finishes a year', fam: 'Familiar shift times, share', lvBest: 'Leave: best stretch', lvWorst: 'Leave: worst stretch', lvFour: 'Leave for four weeks off', days: 'Contracted days a year', lerl: 'Earlies over 8h30, Mon–Sat, a year', close: 'Closing shift, Mon–Sat average' };
 // WEIGHTS=k:v,… (27 Oct 2026): these factors at these weights instead, every other left out. The 24-line work's standing
 // league is WEIGHTS=met:35,fat:20,fit:20,wkends:10,fam:10,run:5 with the proposals alone setting the range (links-24
-// README → Silva Lining); its published scores come back to within 0.1 that way, fatigue and the run read at the worst case
+// README → Silva Lining); its published scores come back to within 0.1 that way with OLD_READINGS=1 (the fit and fatigue as
+// they were read then), fatigue and the run read at the worst case
 if (process.env.WEIGHTS) { const pairs = process.env.WEIGHTS.split(',').filter(Boolean).map(x => x.split(':'));
   for (const [k] of pairs) if (!(k in W)) { console.error(`WEIGHTS: no factor "${k}" (factors: ${Object.keys(W).join(', ')})`); process.exit(2); }
   for (const k of Object.keys(W)) delete W[k]; for (const [k, v] of pairs) W[k] = Number(v); }
@@ -47,7 +75,7 @@ const SUPPLIED = [...fs.readFileSync(new URL('./regenerate.mjs', import.meta.url
 const P = SUPPLIED.map(([n, c]) => stat(M26, n, load(`links-26/proposals/${n.replace(/ /g, '-')}-${c}.json`), 26, false));
 P.push(stat(M24, 'Familiar Nine (24)', load('links-24/proposals/Familiar-Nine-F9-24-K31s.json'), 24, false));
 const today = stat(M26, "Today's link", M26.today().patterns, 20, true);
-const fmt = (k, v) => k === 'fit' || k === 'late' || k === 'days' ? v.toFixed(1) : k === 'rest' || k === 'step' ? `${Math.floor(v / 60)}h${String(Math.round(v % 60)).padStart(2, '0')}` : k === 'heavy' ? `${Math.floor(v)}h${String(Math.round(v % 1 * 60)).padStart(2, '0')}` : ['wkends','iso','mixed','one','fam'].includes(k) ? `${Math.round(v * 100)}%` : String(v);
+const fmt = (k, v) => k === 'fit' || k === 'late' || k === 'days' || k === 'lerl' ? v.toFixed(1) : k === 'rest' || k === 'step' || k === 'close' ? `${Math.floor(v / 60)}h${String(Math.round(v % 60)).padStart(2, '0')}` : k === 'heavy' ? `${Math.floor(v)}h${String(Math.round(v % 1 * 60)).padStart(2, '0')}` : ['wkends','iso','mixed','one','fam'].includes(k) ? `${Math.round(v * 100)}%` : String(v);
 // REFERENCE ONLY (owner, 3 Oct 2026): today's link and Familiar Nine are scored against the PROPOSALS' range, clamped
 // to 0-100, and listed apart, unranked; they never widen or move the range the proposals are judged on.
 const REF = P.filter(r => r.name.startsWith('Familiar Nine')).concat([today]), PROPS = P.filter(r => !REF.includes(r));
@@ -58,10 +86,11 @@ const REF = P.filter(r => r.name.startsWith('Familiar Nine')).concat([today]), P
   const ranked = PROPS.map(score).sort((a, b) => b.total - a.total);
   // JSON=<file> (26 Oct 2026): the whole table — weights, each factor's points and raw value, totals — for a page or a
   // check to read, so the figures are never copied out of this console output by hand
-  if (process.env.JSON) fs.writeFileSync(process.env.JSON, JSON.stringify({ refInRange: !!process.env.REF_IN_RANGE, runFixed: process.env.RUN_FIXED === '1',
+  if (process.env.JSON) fs.writeFileSync(process.env.JSON, JSON.stringify({ oldReadings: OLD, refInRange: !!process.env.REF_IN_RANGE, runFixed: process.env.RUN_FIXED === '1',
     dropped: (process.env.DROP ?? '').split(',').filter(Boolean), weightsGiven: process.env.WEIGHTS ?? null, weights: W, labels: LABEL, higherIsBetter: HI,
     proposals: ranked.map(x => ({ name: x.r.name, total: x.total, pts: x.pts, raw: Object.fromEntries(Object.keys(W).map(k => [k, x.r[k]])) })),
     reference: REF.map(score).map(x => ({ name: x.r.name, total: x.total, pts: x.pts, raw: Object.fromEntries(Object.keys(W).map(k => [k, x.r[k]])) })) }, null, 1));
+  console.log(OLD ? '# the league as weighted before 31 Oct 2026 (OLD_READINGS=1), the alternative' : '# the main league, weighted since 31 Oct 2026 (OLD_READINGS=1 for the one before)');
   console.log('\n## proposals'); for (const x of ranked) console.log(x.r.name.padEnd(20), x.total.toFixed(1).padStart(5), ' ', Object.keys(W).map(k => `${k} ${x.pts[k].toFixed(1)}`).join(' · '));
   console.log('\n## reference only'); for (const x of REF.map(score)) console.log(x.r.name.padEnd(20), x.total.toFixed(1).padStart(5), ' ', Object.keys(W).map(k => `${k} ${x.pts[k].toFixed(1)}`).join(' · '));
 }

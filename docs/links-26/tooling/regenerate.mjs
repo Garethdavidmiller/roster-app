@@ -18,6 +18,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync, readdirSync, copyFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { DAYS } from '../../../links-design.js';
+import { STRAPS } from './fresh.mjs';
 
 const fingerprint = p => createHash('sha256')
     .update(JSON.stringify(Object.keys(p).sort((a, b) => a - b).map(k => DAYS.map(d => p[k][d]))))
@@ -30,7 +31,7 @@ export const SUPPLIED = [
     // Second Nature (1 Oct 2026): the first 26-line design, built the Familiar Nine way — a duty table chosen from the
     // final-table.mjs sweep (results/second-nature-*.json), Silva Lining's week structure grown to 26 lines, then searched
     // and polished. README.md → "Second Nature" has every step and command.
-    { file: 'second-nature.json',          name: 'Second Nature',  code: 'SN-26-F2',   fp: 'a52d0f20', strap: 'No duty over nine hours, seven full weekends off, and only the late finishes the closing rule needs' },
+    { file: 'second-nature.json',          name: 'Second Nature',  code: 'SN-26-F2',   fp: 'a52d0f20', strap: 'No duty over nine hours, seven full weekends off, and no more late finishes than three to the close needs' },
     // Second Wind (2 Oct 2026): Second Nature with its weeks reordered so the full weekends are never more than five weeks
     // apart, after an external review (README.md → "The review"). Same duty table, so same rules, times and late finishes.
     { file: 'second-wind.json',            name: 'Second Wind',    code: 'SW-26-F1',   fp: '4bec8d8e', strap: 'No duty over nine hours, and seven full weekends off never more than five weeks apart' },
@@ -43,7 +44,7 @@ export const SUPPLIED = [
     // to 07:15-15:45) keeps the 42 late finishes; Second Gear (table H1) has the lightest weeks and costs two more a year.
     // README.md → "Second Look and Second Gear".
     { file: 'second-look.json',            name: 'Second Look',    code: 'SL-26-G3',   fp: '7095fdda', strap: 'Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates' },
-    { file: 'second-gear.json',            name: 'Second Gear',    code: 'SG-26-H1',   fp: '8d61e5c3', strap: 'Weekends never more than five weeks apart, no week over 41h 30m, and a week-to-week change of 1h 25m' },
+    { file: 'second-gear.json',            name: 'Second Gear',    code: 'SG-26-H1',   fp: '8d61e5c3', strap: 'Weekends never more than five weeks apart, no Mon–Sat week over 41h 30m, and a week-to-week change of 1h 25m' },
     // Second Edition (2 Oct 2026): the owner asked for a roster stronger than any so far, at 219 days. Same duty table as
     // Second Nature; the weeks were built from a rest-day SKELETON (skeleton.mjs) that carries every rule a finished rota
     // must meet, then the times were searched. Weekends at most five apart, four single rest days, no mixed week, 18 of 21
@@ -53,11 +54,11 @@ export const SUPPLIED = [
     // Fine Tune (3 Oct 2026): Second Gear with its weeks reordered by an outside reviewer (their candidate SGR-26-C1, with
     // its own search and recount in external/second-gear-refined/). The same duties every day, so the same table figures;
     // one mixed week instead of two and a smaller week-to-week step. Checked here by the app's own code before shipping.
-    { file: 'fine-tune.json',              name: 'Fine Tune',      code: 'FT-26-H1',   fp: '9a7393d3', strap: 'No week over 41h 30m, one week mixing earlies and lates, and a week-to-week change of 1h 09m' },
+    { file: 'fine-tune.json',              name: 'Fine Tune',      code: 'FT-26-H1',   fp: '9a7393d3', strap: 'No Mon–Sat week over 41h 30m, one week mixing earlies and lates, and a week-to-week change of 1h 09m' },
     // Even Keel (3 Oct 2026): a second reordering of Second Gear by the same outside reviewer (their SGR-26-C2, with its
     // recount in external/roster-search-results-2/). Same duties every day; 18 of 21 weeks on one shift time. Checked
     // here by the app's own code. Their other candidate, Five-Day Flow, was NOT shipped: README.md → "Even Keel".
-    { file: 'even-keel.json',              name: 'Even Keel',      code: 'EK-26-H1',   fp: '8e9a1bcf', strap: '18 of 21 weeks on one shift time, no week over 41h 30m, and never less than 14h 35m between shifts' },
+    { file: 'even-keel.json',              name: 'Even Keel',      code: 'EK-26-H1',   fp: '8e9a1bcf', strap: '18 of 21 weeks on one shift time, no Mon–Sat week over 41h 30m, and never less than 14h 35m between fixed duties' },
     // Short Run (3 Oct 2026): the final targeted search's one find. Second Edition's duty table on a rest-day skeleton
     // the EXACT solver produced (exact-skeletons.py: no run over FIVE days, no mixed week, four single rest days — a
     // layout the annealing skeleton search never reached in 16 seeds), then the same soft → hard polish chain. Equal to
@@ -77,14 +78,18 @@ export const SUPPLIED = [
     // (short-earlies.mjs): Home Grown keeps Saturday's 14:45 closers, Closing Time adds 13:30-22:30, Both Ways adds that
     // and 07:00-16:00 to keep a 13:35 AND a 13:45 every weekday. Every fatigue factor's value is Short Run's or better
     // (factors-like.mjs). README.md → "Today's link on 26 lines".
-    { file: 'home-grown.json',             name: 'Home Grown',     code: 'HG-26-T1',   fp: '7d41fafb', strap: 'Today’s shift times with a 16:00 weekday closer and a 13:35 finish every weekday, and Saturday closing as today' },
-    { file: 'closing-time.json',           name: 'Closing Time',   code: 'CT-26-T2',   fp: '77a235bc', strap: 'A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between shifts' },
+    { file: 'home-grown.json',             name: 'Home Grown',     code: 'HG-26-T1',   fp: '7d41fafb', strap: 'Today’s shift times but two new closers, 16:00 on a weekday and 15:15 on a Sunday, a 13:35 finish every weekday, and Saturday closing as today' },
+    { file: 'closing-time.json',           name: 'Closing Time',   code: 'CT-26-T2',   fp: '77a235bc', strap: 'A 16:00 closer every day from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties' },
     { file: 'both-ways.json',              name: 'Both Ways',      code: 'BW-26-T3',   fp: '7a513d87', strap: 'A 16:00 closer every day from Monday to Saturday, and a 13:35 and a 13:45 finish every weekday, as today' },
     // In Step (30 Oct 2026): the owner asked whether Closing Time could be improved to fix the Saturday open or fit the trains
     // better on a weekday, and to give the answer a new name. Closing Time's rest days and early and late weeks, held while
     // exact-rota.py chose every time from a table with 15:45 closers, five at every opening Monday to Saturday and two new
     // early times that finish by 15:45, so its 14h 35m rest holds. README.md → "In Step".
-    { file: 'in-step.json',                name: 'In Step',        code: 'IS-26-T4',   fp: '8d9239f3', strap: 'Five on at every opening from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between shifts' },
+    { file: 'in-step.json',                name: 'In Step',        code: 'IS-26-T4',   fp: '8d9239f3', strap: 'Five on at every opening from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties' },
+    // Even Step (31 Oct 2026): the owner's one reservation about In Step was the length of its main early shift. The same
+    // weeks (Closing Time's rest days and early and late weeks) with every duty Monday to Saturday 8h 30m or less, every
+    // early one of today's times and every closer still 15:45; the lates take the half hour. README.md → "Even Step".
+    { file: 'even-step.json',              name: 'Even Step',      code: 'ES-26-T5',   fp: 'd1921b7a', strap: 'No shift over 8h 30m and every early one of today’s times, Monday to Saturday, with a 13:45 finish every weekday' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
@@ -134,6 +139,9 @@ for (const s of SUPPLIED) {
     const j = JSON.parse(readFileSync(s.file, 'utf8'));
     const got = fingerprint(j.patterns ?? j);
     if (got !== s.fp) { console.log(`FAIL ${s.code}: ${s.file} fingerprints ${got}, expected ${s.fp}`); failed++; continue; }
+    // ONE STRAP (31 Oct 2026 review): the sheet prints fresh.mjs's STRAPS, so a strap here is only ever passed along. Six of them
+    // had drifted from the printed ones ("no week over 41h 30m" against "no Mon–Sat week"); a reader of this list was misled
+    if (STRAPS[s.code]?.[0] !== s.strap) { console.log(`FAIL ${s.code}: its strap here is not fresh.mjs's, which the sheet prints`); failed++; continue; }
     if (checkOnly) { if (checkShipped(s.code, s.fp)) { console.log(`ok   ${s.code}  ${got} (source grid and shipped JSON)`); done++; } continue; }
     process.stdout.write(`render ${s.code} … `);
     execFileSync('node', ['supplied.mjs', s.file, s.name, s.strap, s.code], { stdio: 'inherit' });

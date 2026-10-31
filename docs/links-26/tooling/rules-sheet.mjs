@@ -65,7 +65,7 @@ const ASKS = {
   sunday: 'Ten people working on a Sunday, counted as duties rostered that day.',
   saturday: 'Fourteen people working on a Saturday, counted as duties rostered that day.',
   cover: `${['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][COVER_WEEKS]} cover weeks in the ${LINES} lines, spread as evenly as ${LINES} allows: the gaps between them differ by one line at most — e.g. lines ${COVER_LINES.slice(0, -1).join(', ')} and ${COVER_LINES.at(-1)} (gaps of ${COVER_LINES.map((l, i, a) => i < a.length - 1 ? a[i + 1] - l : a[0] + LINES - l).sort((x, y) => x - y).join(', ')}).`,
-  closer: 'Every Monday-to-Friday shift that works to the 23:55 close starts at 15:45.',
+  closer: 'Every Monday-to-Friday shift that works to the 23:55 close starts at 15:45 or later; 15:30 is too close to today’s 15:15.',
   office: `Two identical early and two identical late shifts for the ticket office: Mon–Fri ${OFFICE.plan.weekday.map(([t]) => t.replace('-', '–')).join(' and ')}; Sat ${OFFICE.plan.sat.map(([t]) => t.replace('-', '–')).join(' and ')}; Sun two starting 07:15 and two finishing 22:30.`,
   floor: 'At least two people on the station floor at every moment the station is open, checked every five minutes. Ticket-office staff count only while they help on the floor, and only as a whole person: one of each pair at the quiet ends Monday to Saturday; on a Sunday one early until 09:00, both lates until 15:00 and one from 18:00.',
   handover: 'Each closer overlaps someone already on duty by 15 minutes; the two ticket-office shifts overlap by 20 (on a Sunday 30, from 15:00). On a Sunday each opener also stays until 15 minutes after the last closer arrives.',
@@ -102,7 +102,7 @@ html, body { background: white !important; color: var(--text-dark); padding: 0 !
 .mast img { width: 44px; height: 44px; border-radius: 10px; }
 .mast .eyebrow { color: var(--accent-gold); font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
 .mast h1 { margin: 2px 0; font-size: 22px; font-weight: 800; color: white; letter-spacing: -.2px; }
-.mast .sub { color: rgba(255,255,255,.78); font-size: 11.5px; }
+.mast .sub { color: rgba(255,255,255,.78); font-size: 11.5px; text-wrap: balance; }
 .mast .meta { color: rgba(255,255,255,.55); font-size: 9.5px; margin-top: 4px; }
 h2 { font-size: 13.5px; color: var(--primary-blue); margin: 9px 0 3px; font-weight: 800; }
 h2 .tag { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; padding: 1px 7px; border-radius: 8px; margin-left: 8px; vertical-align: 2px; }

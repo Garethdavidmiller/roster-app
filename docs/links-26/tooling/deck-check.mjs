@@ -25,8 +25,10 @@ import { scoreOrder } from '../../../links-adjacency.js';
 const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url).pathname;   // DECK_DIR: check a copy
 // Only the shortlist's decks are shipped (owner, 3 Oct 2026): Second Nature's, Second Wind's and Second Sight's were deleted.
 // The shortlist became In Step and Short Run on 30 Oct 2026 (owner: "Only do the shortlist for instep and short run"), and
-// Second Edition's, Even Keel's and Closing Time's decks went the same way; their builders are in git.
-const DECKS = [['In-Step-for-colleagues.pptx', 'In Step'], ['In-Step-for-managers.pptx', 'In Step'],
+// Second Edition's, Even Keel's and Closing Time's decks went the same way; their builders are in git. Even Step joined it on
+// 31 Oct 2026, recommended (owner: "Yes, keep all three").
+const DECKS = [['Even-Step-for-colleagues.pptx', 'Even Step'], ['Even-Step-for-managers.pptx', 'Even Step'],
+  ['In-Step-for-colleagues.pptx', 'In Step'], ['In-Step-for-managers.pptx', 'In Step'],
   ['Short-Run-for-colleagues.pptx', 'Short Run'], ['Short-Run-for-managers.pptx', 'Short Run']];
 
 const hm = m => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}m`;
@@ -95,12 +97,12 @@ const ROWS = {
   'Average shift · longest shift': 'avgLongest', 'Closing shift: weekday · Saturday · Sunday': 'closers',
   'Full weekends off': ['weekends', 'weekendsShort'], 'Full weekends off, about a year': 'weekendsYear', 'Most days worked in a row': 'run', 'Most days in a row (limit 13)': 'run', 'Most days in a row (limit 13, source to confirm)': 'run',
   'Avoidable fatigue warnings in the fixed rota': 'ff', 'Avoidable fatigue warnings, fixed rota': 'ff',
-  'Different shift times': 'times', 'On duty weekday · Saturday · Sunday': 'daily', 'On duty during the day': 'daily',
+  'Different shift times': 'times', 'On duty weekday · Saturday · Sunday': 'daily', 'On duty each day': 'daily',
   'On duty on a weekday': 'dailyWk', 'On duty on a Saturday / Sunday': 'dailyWeekend',
   'At the open (06:20, Sunday 07:15)': 'open', 'Still on after 22:00': 'at22', 'Through to the close': 'close',
   'Fewest rostered on the floor': ['floor', 'floorMin'], 'Cover weeks (for leave and sickness)': 'cover',
   'People needed each Sunday (overtime)': 'sundayPeople', 'Rest-day breaks of two days or more': 'breaks',
-  'Weeks on one turn, Monday to Friday': 'oneTurn', 'Weeks on one turn, no early–late switch': 'oneTurn', 'Longest shift anywhere': 'longest', 'Average shift': 'avg',
+  'Weeks on one turn, Monday to Friday': 'oneTurn', 'Weeks on one shift time, Monday to Friday': 'oneTurn', 'Longest shift anywhere': 'longest', 'Average shift': 'avg',
   'Days off in a row — best place to book': 'leaveBest', 'Days off in a row — on average': 'leaveAvg',
   'Days off in a row — worst place': 'leaveWorst', 'Leave for four full weeks off, at best': 'leaveFour',
 };

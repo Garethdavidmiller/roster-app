@@ -21,7 +21,7 @@ import { dutyMinutes, startMinutes, endMinutesAbs } from '../../../links-design.
 // 26 LINES (1 Oct 2026; nine designs by 3 Oct): a design's one-line description and how it was made go here, by code,
 // exactly as the 24-line sheets' did (../../links-24/tooling/fresh.mjs keeps theirs).
 export const STRAPS = {
-  'SN-26-F2': ['No duty over nine hours, seven full weekends off, and only the late finishes the closing rule needs', 'search'],
+  'SN-26-F2': ['No duty over nine hours, seven full weekends off, and no more late finishes than three to the close needs', 'search'],
   'SW-26-F1': ['No duty over nine hours, and seven full weekends off never more than five weeks apart', 'search'],
   'SS-26-F1': ['No duty over nine hours, weekends never more than five weeks apart, and no week mixing earlies and lates', 'search'],
   'SL-26-G3': ['Weekends never more than five weeks apart, four single rest days, and one week mixing earlies and lates', 'search'],
@@ -37,6 +37,8 @@ export const STRAPS = {
   'BW-26-T3': ['A 16:00 closer every day from Monday to Saturday, and a 13:35 and a 13:45 finish every weekday, as today', 'search'],
   // 30 Oct 2026: Closing Time's weeks with the times searched again (README.md → "In Step")
   'IS-26-T4': ['Five on at every opening from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties', 'search'],
+  // 31 Oct 2026: In Step's weeks with no duty over 8h 30m from Monday to Saturday (README.md → "Even Step")
+  'ES-26-T5': ['No shift over 8h 30m and every early one of today’s times, Monday to Saturday, with a 13:45 finish every weekday', 'search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
@@ -44,16 +46,20 @@ export const STRAPS = {
 // as the 24-line Right Away family was after the design its members came from.
 /** The designs taken forward. Three on 3 Oct 2026 (Second Edition, Short Run, Even Keel), Closing Time added on 30 Oct 2026
  *  (owner: "Can we add closing time to the shortlist?"), and the same day cut to two (owner: "Only do the shortlist for
- *  instep and short run"). Marked on the summary and compared on the shortlist sheet; the decks and the pack read it here. */
-export const SHORTLIST = ['In Step', 'Short Run'];
+ *  instep and short run"). Even Step joined on 31 Oct 2026 (owner, asked whether Short Run should stay: "Yes, keep all
+ *  three"). Marked on the summary and compared on the shortlist sheet; the decks and the pack read it here. The
+ *  recommendation comes first. */
+export const SHORTLIST = ['Even Step', 'In Step', 'Short Run'];
 /** The one the shortlist sheet recommends. Short Run from 3 Oct 2026; In Step from 30 Oct 2026, when the owner asked for "a
- *  deep think from all angles about which to recommend" (README.md → "The shortlist cut to two"). The sheet's page 2 argues
- *  for it in prose, so the sheet refuses a value its prose was not written for. */
-export const RECOMMENDED = 'In Step';
+ *  deep think from all angles about which to recommend" (README.md → "The shortlist cut to two"); Even Step from 31 Oct
+ *  2026, In Step's weeks without its long earlies, after the owner found those the one thing about In Step that would be
+ *  hard to sell (README.md → "Even Step"). The sheet's page 2 argues for it in prose, so the sheet refuses a value its
+ *  prose was not written for. */
+export const RECOMMENDED = 'Even Step';
 if (!SHORTLIST.includes(RECOMMENDED)) throw new Error(`the recommendation ${RECOMMENDED} is not on the shortlist`);
 // The Home Grown family (26 Oct 2026) starts from today's own link — its shift times, not Second Nature's duty table.
-export const FAMILY = { SN: 'Second Nature', SW: 'Second Nature', SS: 'Second Nature', SL: 'Second Nature', SG: 'Second Nature', SE: 'Second Nature', FT: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', BW: 'Home Grown', IS: 'Home Grown' };
-export const FIRST = { 'SN-26-F2': '1 Oct 2026', 'SW-26-F1': '2 Oct 2026', 'SS-26-F1': '2 Oct 2026', 'SL-26-G3': '2 Oct 2026', 'SG-26-H1': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'FT-26-H1': '3 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'BW-26-T3': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026' };
+export const FAMILY = { SN: 'Second Nature', SW: 'Second Nature', SS: 'Second Nature', SL: 'Second Nature', SG: 'Second Nature', SE: 'Second Nature', FT: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', BW: 'Home Grown', IS: 'Home Grown', ES: 'Home Grown' };
+export const FIRST = { 'SN-26-F2': '1 Oct 2026', 'SW-26-F1': '2 Oct 2026', 'SS-26-F1': '2 Oct 2026', 'SL-26-G3': '2 Oct 2026', 'SG-26-H1': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'FT-26-H1': '3 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'BW-26-T3': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026', 'ES-26-T5': '31 Oct 2026' };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
  *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a
@@ -138,7 +144,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
   // 55 where the table says clear. Said on pages 3 and 8; the table keeps the app's own figure. h55Worst is the one
   // calculation (report-data.mjs); this sheet kept a copy of it until 31 Oct 2026.
   const h55 = h55Worst(P.patterns, Object.keys(P.patterns).length);
-  const h55Txt = h55 && h55.hi > h55.table ? `the 55-hour row, which counts a cover week as no hours: ${f1(h55.lo)}–${f1(h55.hi)} if the four, and a Sunday’s overtime, are worked as 8-hour duties${h55.hi > 55 && h55.table <= 55 ? ', which would make it present' : ''}` : '';
+  const h55Txt = h55 && h55.hi > h55.table ? `the 55-hour row, which counts a cover week as no hours: ${f1(h55.lo)} placed well with no Sunday worked to ${f1(h55.hi)} placed badly with it, as 8-hour duties${h55.hi > 55 && h55.table <= 55 ? ', which would make it present' : ''}` : '';
   const p8Moves = [
     runSame ? '' : `the most days worked in a row (${cd.best} if placed well, with no Sunday overtime)`,
     moved('eightPlus', 'the run of 8-hour shifts'), moved('early', 'the run of early starts, FF15'), moved('twelvePlus', 'the run of shifts over 12 hours'),
@@ -214,7 +220,7 @@ export function freshMeta({ T, P, meta, folder, rendered }) {
     if (newLines.length) return `${newLines.length === w ? `Every working line` : `${newLines.length} of the ${w} working lines`} (${newLines.length === w ? 'all of them' : `lines ${andList(newLines.map(String))}`}) ${newLines.length === 1 || newLines.length === w ? 'holds' : 'hold'} at least one shift time nobody works today. On a rotating link everyone works every line in turn, so staff read those weeks first and say in one line each what they would change.`;
     return `The longest duty (${hmR(longest)}) is on ${longLines.length === 1 ? 'line' : 'lines'} ${andList(longLines.map(String))}; staff read those weeks first and say in one line each what they would change.`;
   })();
-  const p8Note = `Design-specific findings: ${P.fatigue.present} (today ${T.fatigue.present}). <b>Standing factors (●) are recorded for information, not counted.</b> FF2 comes with the station’s 06:20 open, and FF18 — the ORR’s concern with a rotation that changes shift type about once a week (Managing rail staff fatigue, 7.68) — comes with every weekly link, which moves everyone one line a week by construction; its week-to-week step is shown as information. <b>How to read the table.</b> ${process.env.TECH ? 'The figure beside each mark is the worst case found, for today’s link as for the proposal, except where a row counts only the duties the rota fixes: the 55-hour row counts a cover week as no hours, and FF8b counts none of its days as early. “As rostered” under FF11 is the worst of the places a cover week’s four duties could fall when worked together, which is usual, with its Sunday worked as overtime.' : 'Each mark and figure is for the duties the rota fixes, with the cover weeks left out because their duties are not known yet — for today’s link as for the proposal. Where a cover week’s four duties could make a row worse, “up to” beneath it gives the worst place they could fall.'} The MRSF rows are extra checks from the rail industry’s guidance on managing staff fatigue, listed beside the ORR’s own. FF2 and FF15 use the ORR’s early — a start from 05:00 up to 06:59, not the 11:00 used elsewhere on this sheet; the station opens at 06:20, so every link has FF2. FF11 counts shifts between two-day breaks, so a single rest day does not reset it — that is why it can be longer than the most days worked in a row. <b>Cover weeks.</b> ${p8Moves.length ? `A cover week’s four duties can fall on Monday to Saturday in different ways, and its Sunday can be worked as overtime on top; on this design that moves ${andList(p8Moves)}. Both are for the roster office.` : `On this design, where the roster clerk places a cover week’s four duties, and whether its Sunday is worked, does not change the runs, FF11 or the 55-hour row.`} This page is an aid to discussion, not a fatigue risk assessment.`;
+  const p8Note = `Design-specific findings: ${P.fatigue.present} (today ${T.fatigue.present}). <b>Standing factors (●) are recorded for information, not counted.</b> FF2 comes with the station’s 06:20 open, and FF18 — the ORR’s concern with a rotation that changes shift type about once a week (Managing rail staff fatigue, 7.68) — comes with every weekly link, which moves everyone one line a week by construction; its week-to-week step is shown as information. <b>How to read the table.</b> ${process.env.TECH ? 'The figure beside each mark is the worst case found, for today’s link as for the proposal, except where a row counts only the duties the rota fixes: the 55-hour row counts a cover week as no hours, and FF8b counts none of its days as early. “As rostered” under FF11 is the worst of the places a cover week’s four duties could fall when worked together, which is usual, with its Sunday worked as overtime.' : 'Each mark and figure is for the duties the rota fixes, with the cover weeks left out because their duties are not known yet — for today’s link as for the proposal. Where a cover week’s four duties could make a row worse, “up to” beneath it gives the worst place they could fall.'} The MRSF rows are extra checks from the rail industry’s guidance on managing staff fatigue, listed beside the ORR’s own. FF2 and FF15 use the ORR’s early — a start from 05:00 up to 06:59, not the 11:00 used elsewhere on this sheet; the station opens at 06:20, so every link has FF2. FF11 counts shifts between two-day breaks, so a single rest day does not reset it — that is why it can be longer than the most days worked in a row. <b>Cover weeks.</b> ${p8Moves.length ? `A cover week’s four duties can fall on Monday to Saturday in different ways, and its Sunday can be worked as overtime on top; on this design that moves ${andList(p8Moves)}. Where the four fall, and whether the Sunday is worked, are for the roster office.` : `On this design, where the roster clerk places a cover week’s four duties, and whether its Sunday is worked, does not change the runs, FF11 or the 55-hour row.`} This page is an aid to discussion, not a fatigue risk assessment.`;
 
   return {
     identity: { ...meta.identity, strap },

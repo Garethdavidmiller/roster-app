@@ -4,11 +4,13 @@
  *
  * ── WHAT THESE ARE ─────────────────────────────────────────────────────────────────────────────
  *
- * The designs the owner shortlisted for the December 2026 link — In Step and Short Run, since 30 Oct
- * 2026 (v25.02) — copied cell for cell from `docs/links-26/proposals/<Name>.json`. The shortlist was
- * Second Edition, Even Keel and Short Run on 3 Oct 2026, and Closing Time joined it on 30 Oct
- * (v25.01); the same day it was cut to two, with In Step the recommendation. The designs that left
- * it are still in the pack and can still be imported — they are just no longer built in.
+ * The designs the owner shortlisted for the December 2026 link — Even Step, In Step and Short Run,
+ * since 31 Oct 2026 (v25.04) — copied cell for cell from `docs/links-26/proposals/<Name>.json`. The
+ * shortlist was Second Edition, Even Keel and Short Run on 3 Oct 2026, and Closing Time joined it on
+ * 30 Oct (v25.01); the same day it was cut to two, with In Step the recommendation (v25.02). Even
+ * Step — In Step's weeks with nothing over 8h 30m Monday to Saturday — joined on 31 Oct as the
+ * recommendation, so it is listed first. The designs that left it are still in the pack and can
+ * still be imported — they are just no longer built in.
  * The printed sheet names each one "<name> (<ref>)" — `ref` is the design code and the fingerprint
  * of its grid. They are held apart here because the name is a TITLE, and a title carrying a hash
  * truncated to "Even Keel — Dec 2026 (EK-..." on a phone (it was on the shortlist then); the ref
@@ -52,6 +54,38 @@ export const PROPOSAL_PREFIX = 'proposal:';
 
 /** @type {ReadonlyArray<Readonly<Proposal>>} */
 export const PROPOSALS = Object.freeze([
+    Object.freeze({
+        id: PROPOSAL_PREFIX + 'ES-26-T5', code: 'ES-26-T5',
+        name: "Even Step — Dec 2026", ref: "ES-26-T5 · d1921b7a",
+        patterns: grid([
+            ["SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE"],
+            ["07:15-15:45", "07:15-15:45", "RD", "RD", "07:15-15:45", "07:15-15:45", "06:20-14:50"],
+            ["RD", "RD", "14:00-22:30", "14:00-22:30", "14:00-22:30", "14:00-22:30", "RD"],
+            ["RD", "14:00-22:30", "14:00-22:30", "14:00-22:30", "14:00-22:30", "RD", "14:30-22:00"],
+            ["15:15-23:25", "14:00-22:30", "14:00-22:30", "RD", "RD", "14:00-22:30", "15:45-23:55"],
+            ["SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE"],
+            ["09:00-18:00", "RD", "06:20-14:50", "06:20-14:50", "06:20-14:50", "06:20-14:50", "RD"],
+            ["RD", "06:20-13:45", "07:15-15:45", "06:20-14:20", "07:15-15:45", "07:15-15:45", "RD"],
+            ["RD", "07:15-15:45", "07:15-15:45", "07:15-15:45", "RD", "RD", "06:20-14:00"],
+            ["07:15-15:45", "06:20-14:50", "06:20-14:50", "06:20-14:50", "RD", "RD", "08:00-16:30"],
+            ["SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE"],
+            ["07:15-15:45", "06:20-14:50", "RD", "RD", "06:20-14:50", "06:20-14:50", "06:20-14:50"],
+            ["RD", "RD", "15:45-23:55", "15:45-23:55", "15:45-23:55", "15:45-23:55", "RD"],
+            ["RD", "15:45-23:55", "15:45-23:55", "15:45-23:55", "15:45-23:55", "15:45-23:55", "RD"],
+            ["RD", "12:15-20:30", "12:15-20:30", "12:15-20:30", "RD", "12:15-20:30", "14:00-22:30"],
+            ["SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE"],
+            ["07:15-15:45", "06:20-14:20", "RD", "RD", "06:20-14:20", "06:20-14:20", "06:20-14:20"],
+            ["RD", "RD", "06:20-14:20", "07:15-15:45", "06:20-14:20", "06:20-14:20", "06:20-14:20"],
+            ["RD", "RD", "06:20-13:45", "06:20-13:45", "06:20-13:45", "06:20-13:45", "RD"],
+            ["RD", "06:20-14:20", "06:20-14:20", "06:20-14:20", "RD", "RD", "08:00-16:30"],
+            ["SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE", "SPARE"],
+            ["14:30-22:30", "15:45-23:55", "RD", "RD", "15:45-23:55", "15:45-23:55", "15:45-23:55"],
+            ["15:15-23:25", "14:00-22:30", "RD", "RD", "12:15-20:30", "14:00-22:30", "14:00-22:30"],
+            ["14:30-22:30", "RD", "RD", "14:00-22:30", "14:00-22:30", "14:00-22:30", "RD"],
+            ["RD", "14:00-22:30", "14:00-22:30", "14:00-22:30", "14:00-22:30", "RD", "14:30-22:00"],
+            ["15:15-23:25", "15:45-23:55", "15:45-23:55", "15:45-23:55", "RD", "RD", "15:45-23:55"],
+        ]),
+    }),
     Object.freeze({
         id: PROPOSAL_PREFIX + 'IS-26-T4', code: 'IS-26-T4',
         name: "In Step — Dec 2026", ref: "IS-26-T4 · 8d9239f3",

@@ -5718,7 +5718,7 @@ test('links: Generate works on a card nobody has touched', async ({ page }) => {
     await expect(page.locator('#linksSummary')).toContainText('35h');
 });
 
-// ── THE SHORTLIST, BUILT IN (v24.47; owner decision 3 Oct 2026; In Step and Short Run since v25.02) ──
+// ── THE SHORTLIST, BUILT IN (v24.47; owner decision 3 Oct 2026; Even Step, In Step and Short Run since v25.04) ──
 // The unit tests pin the data and the masthead's words. What only the page can prove: the picker
 // REACHES them, opening one is read-only in the ways that matter (no rename, no delete, a Save that
 // makes a copy), and the copy that save writes is the proposal's own 26-line grid under a new name.
@@ -5734,12 +5734,12 @@ test('links: the shortlisted proposals open read-only, and saving one makes a na
     await expect(page.locator('#linksEmptyProposals')).toBeVisible();
     await page.locator('#linksEmptyProposals').click();
     await expect(page.locator('#designPickerLb.visible')).toBeVisible();
-    await expect(proposalOptions(page)).toHaveCount(PROPOSALS.length);   // every shortlisted design, however many (two since v25.02)
+    await expect(proposalOptions(page)).toHaveCount(PROPOSALS.length);   // every shortlisted design, however many (three since v25.04)
     await expect(designOptions(page)).toHaveCount(0);
-    await proposalOptions(page).filter({ hasText: 'In Step' }).click();
+    await proposalOptions(page).filter({ hasText: 'Even Step' }).click();   // the recommendation, listed first
 
-    await expect(activeDesignName(page)).toHaveText('In Step — Dec 2026');
-    await expect(page.locator('#designWhoRole')).toHaveText('IS-26-T4 · 8d9239f3');   // the printed sheet's ref
+    await expect(activeDesignName(page)).toHaveText('Even Step — Dec 2026');
+    await expect(page.locator('#designWhoRole')).toHaveText('ES-26-T5 · d1921b7a');   // the printed sheet's ref
     await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');
@@ -5751,13 +5751,13 @@ test('links: the shortlisted proposals open read-only, and saving one makes a na
 
     await page.locator('#linksSaveBtnTop').click();
     const input = page.locator('.dialog-overlay .dialog-input');
-    await expect(input).toHaveValue('In Step — copy');
+    await expect(input).toHaveValue('Even Step — copy');
     await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
     await expect(page.locator('#designEyebrow')).toHaveText('Editing');
-    await expect(activeDesignName(page)).toHaveText('In Step — copy');
+    await expect(activeDesignName(page)).toHaveText('Even Step — copy');
 
     const writes = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites || []);
-    const copy = writes.find((/** @type {any} */ w) => w.data?.name === 'In Step — copy');
+    const copy = writes.find((/** @type {any} */ w) => w.data?.name === 'Even Step — copy');
     expect(copy, 'the first save CREATES a design').toBeTruthy();
     expect(Object.keys(copy.data.patterns)).toHaveLength(ROTATING_LINES);
     expect(copy.data.patterns['1'].mon, 'the proposal\'s own grid — line 1 is a cover week').toBe('SPARE');
