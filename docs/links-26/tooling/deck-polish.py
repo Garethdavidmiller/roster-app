@@ -255,7 +255,13 @@ def colleagues(d, name, grid, F):
     if ms_longest <= H(T['longestEarly']):
         replace_in_run(f'{d}/ppt/slides/slide6.xml', ' shorter, and nothing runs over 9 hours.', f' shorter; nothing Monday to Saturday runs over {ms_longest // 60}h\u00a0{ms_longest % 60:02d}m, and nothing at all over 9 hours.')   # no-break: "8h" ended a line
     else:
-        replace_in_run(f'{d}/ppt/slides/slide6.xml', ' shorter, and nothing runs over 9 hours.', f' shorter; the longest early turn goes from {T["longestEarly"]} to {F["longestEarly"]}, and nothing runs over 9 hours.')
+        # MONDAY TO SATURDAY HERE TOO (31 Oct 2026 review): "the longest early turn goes from 8h 30m to 9h 00m" was the Sunday
+        # 09:00–18:00 all three share, so on In Step's deck it hid the 8h 55m weekday earlies that are its cost. The figure is
+        # now the longest early Monday to Saturday, against today's
+        ms_early = lambda g: max(_len(g[k][dd]) for k in g for dd in DAYS[1:] if _timed(g[k][dd]) and int(g[k][dd][:2]) < 11)
+        me, te = ms_early(P6), ms_early(TODAY_P)
+        if not me > te: raise SystemExit(f'deck-polish: {name}’s slide 6 says its longest early Monday to Saturday is longer than today’s; it is {me}, today {te}')
+        replace_in_run(f'{d}/ppt/slides/slide6.xml', ' shorter, and nothing runs over 9 hours.', f' shorter; the longest early Monday to Saturday goes from {te // 60}h\u00a0{te % 60:02d}m to {me // 60}h\u00a0{me % 60:02d}m, and nothing runs over 9 hours.')
     s = S(7)
     put(s, f'A little — about {F["late23"]} a year each, against {T["late23"]} today', f'{int(F["late23"]) - int(T["late23"])} more a year at 23:00 or later ({F["late23"]}, today {T["late23"]}); {int(F["late22"]) - int(T["late22"])} more at 22:00 or later ({F["late22"]}, today {T["late22"]})')
     s.save()
