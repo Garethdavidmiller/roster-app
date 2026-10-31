@@ -71,7 +71,7 @@ const mm = t => +t.slice(0, 2) * 60 + +t.slice(3);
 const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const WIN = { weekday: [380, 1435], sat: [380, 1435], sun: [435, 1405] }; const [OPEN, CLOSE] = WIN[CLS];
 // 26 LINES (1 Oct 2026): the headcounts are link.mjs's (15 a weekday, 14 on a Saturday, 10 on a Sunday), and N= overrides
-const N = Number(process.env.N ?? HEADS[CLS]), OPENERS_MIN = 4, OPENERS_MAX = Number(process.env.OPENERS_MAX ?? 5);
+const N = Number(process.env.N ?? HEADS[CLS]), OPENERS_MIN = Number(process.env.OPENERS_MIN ?? 4), OPENERS_MAX = Number(process.env.OPENERS_MAX ?? 5);
 const CLOSERS_MIN = 3, CLOSERS_MAX = Number(process.env.CLOSERS_MAX ?? 4);
 const LO = Number(process.env.LO ?? (CLS === 'sun' ? 480 : 420)), HI = Number(process.env.HI ?? (CLS === 'sun' ? 540 : 570)), MAX_PER = 4;
 const FLOOR_MIN = Number(process.env.FLOOR_MIN ?? 2);
@@ -98,6 +98,13 @@ const REQUIRE = process.env.REQUIRE ? { times: new Set(process.env.REQUIRE.split
 if (REQUIRE && !(REQUIRE.n >= 1)) { console.error(`REQUIRE_N must be a whole number of at least 1 (got ${process.env.REQUIRE_N})`); process.exit(2); }
 const LATE_MAX = process.env.LATE_MAX !== undefined ? Number(process.env.LATE_MAX) : Infinity;
 const MAX_TURNS = Number(process.env.MAX_TURNS ?? 99);
+// TWO MORE, 30 OCT 2026 (the owner: can Closing Time have five at the Saturday open? README.md → "In Step"), both off by
+// default:
+//   · OPENERS_MIN=<n> — at least n on at the open (default 4, the December rule S1). Five is Short Run's Saturday.
+//   · FIXED_FREE=1 — a free duty may also work a fixed time. The fixed count stays the ticket office's own two; a third
+//     on the same times is floor cover. Today's Saturday works three 06:20–14:50s, so the exact-count reading above
+//     shut out a table today's link already works.
+const FIXED_FREE = process.env.FIXED_FREE === '1';
 const BOUND = process.env.BOUND !== '0';
 // BEST0: a fit no table worse than which is worth finishing — prunes from the first node rather than after the first
 // incumbent. It can only hide tables WORSE than it, so a run that returns a table is still proven optimal; one that
@@ -300,9 +307,9 @@ function annealSolve(fixed, total, exclude) {
 
 const t0 = Date.now();
 if (CLS !== 'sun' && process.env.ANNEAL === '1') {
-  annealSolve(FIXED, TOTAL, FIXED.map(([t]) => t));
+  annealSolve(FIXED, TOTAL, FIXED_FREE ? [] : FIXED.map(([t]) => t));
 } else if (CLS !== 'sun') {
-  solve(FIXED, TOTAL, FIXED.map(([t]) => t));
+  solve(FIXED, TOTAL, FIXED_FREE ? [] : FIXED.map(([t]) => t));
 } else {
   // The ticket office: 07:15–X x2 (two of the four openers) and Y–22:30 x2, with X ≥ Y. Every such pair, and every
   // Sunday total in the range, is enumerated.

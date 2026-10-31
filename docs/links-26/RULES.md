@@ -88,8 +88,9 @@ minutes are split into, and so the shortest average duty.
 So a 26-line design has **at most 89 Monday-to-Saturday duties, averaging at least about 8h 16m.** With fourteen on a
 Saturday (F1), that leaves at most 75 for Monday to Friday, about **15 a weekday**.
 
-For comparison, the 24-line designs placed 85 duties at 8h 14m. Each day gains about one person, and the duties
-cannot get any shorter on average.
+For comparison, the 24-line proposals placed 84 to 88 Monday-to-Saturday duties, averaging 7h 58m to 8h 20m — Silva
+Lining, which Second Nature grew from, 85 at 8h 14m, and Familiar Nine and Right Away 84 at 8h 20m. So the 26-line link
+has more duties than any of them, and longer ones on average than all but Familiar Nine and Right Away.
 
 ## Unchanged from 24 lines
 
@@ -105,7 +106,9 @@ cannot get any shorter on average.
 ## Where the code follows
 
 The tooling in `tooling/` applies all of this (set up 1 Oct 2026; see `README.md`):
-- **`tooling/link.mjs`** states the line count, the cover weeks, the contract, the ceiling and the headcounts once.
+- **`tooling/link.mjs`** states the line count, the cover weeks, the contract, the ceiling and the headcounts for the
+  sheets, the decks and the checks. The search and solver scripts (`skeleton.mjs`, `skeleton-start.mjs`, `exact-*.py`,
+  `short-earlies.mjs`) carry their own copy of the link's shape, so a change of length is that edit and theirs.
 - **The cover rule** checks five cover weeks with gaps differing by one at most (`coverSpread`), for every design.
   Today's link, with four, does not meet it.
 - **The days ceiling** is added to the hard-limit checks in `assess()` (`tooling/report-data.mjs`). Page 1 counts it,
@@ -114,4 +117,5 @@ The tooling in `tooling/` applies all of this (set up 1 Oct 2026; see `README.md
 
 The Links page itself (`ROTATING_LINES` in `links-design.js`) moved to 26 lines in v24.47 on 3 October 2026; until then
 the tooling passed 26 to every app function explicitly, and it still does. The three shortlisted designs were built in
-as examples in the same release, and Closing Time, shortlisted on 30 October, joined them in v25.01.
+as examples in the same release, and Closing Time, shortlisted on 30 October, joined them in v25.01. Since v25.02 the
+app builds in only the two on the shortlist now, In Step and Short Run.

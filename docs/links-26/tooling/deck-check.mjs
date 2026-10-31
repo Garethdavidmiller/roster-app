@@ -24,12 +24,10 @@ import { scoreOrder } from '../../../links-adjacency.js';
 
 const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url).pathname;   // DECK_DIR: check a copy
 // Only the shortlist's decks are shipped (owner, 3 Oct 2026): Second Nature's, Second Wind's and Second Sight's were deleted.
-// Closing Time's joined them on 30 Oct 2026 (owner: "create the manager and colleague presentations"), and it joined the
-// shortlist the same day.
-const DECKS = [['Second-Edition-for-colleagues.pptx', 'Second Edition'], ['Second-Edition-for-managers.pptx', 'Second Edition'],
-  ['Even-Keel-for-colleagues.pptx', 'Even Keel'], ['Even-Keel-for-managers.pptx', 'Even Keel'],
-  ['Short-Run-for-colleagues.pptx', 'Short Run'], ['Short-Run-for-managers.pptx', 'Short Run'],
-  ['Closing-Time-for-colleagues.pptx', 'Closing Time'], ['Closing-Time-for-managers.pptx', 'Closing Time']];
+// The shortlist became In Step and Short Run on 30 Oct 2026 (owner: "Only do the shortlist for instep and short run"), and
+// Second Edition's, Even Keel's and Closing Time's decks went the same way; their builders are in git.
+const DECKS = [['In-Step-for-colleagues.pptx', 'In Step'], ['In-Step-for-managers.pptx', 'In Step'],
+  ['Short-Run-for-colleagues.pptx', 'Short Run'], ['Short-Run-for-managers.pptx', 'Short Run']];
 
 const hm = m => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}m`;
 const span = s => String(s).replace(/(\d+)h(\d\d)(?!m)/g, '$1h $2m');                 // plain.mjs's "8h40" → the decks' "8h 40m"
@@ -62,6 +60,9 @@ function figures(patterns, lines, T) {
     weekends: `${A.checks.weekendsOff} in ${L} (one in ${WORD[Math.round(L / A.checks.weekendsOff)] ?? Math.round(L / A.checks.weekendsOff)})`,
     weekendsShort: `${A.checks.weekendsOff} in ${L}`, weekendsYear: `${Math.round(A.checks.weekendsOff * 52 / L)}`,   // per year, the owner's 2 Oct ruling for the sheets, now the decks too
     heavy: hm(Math.max(...wkMins)), light: hm(Math.min(...wkMins)), fitWk: A.office.wkFit.toFixed(1),
+    // the Saturday and Sunday fit, as the manager deck's chart plots them (30 Oct 2026, In Step: its "closest fit" is the
+    // three days' together, which the weekday figure alone cannot show — Short Run's weekday is closer)
+    fitSat: A.office.fits.sat.toFixed(1), fitSun: A.office.fits.sun.toFixed(1),
     longestEarly: hm(Math.max(...Object.values(patterns).flatMap(r => DAYS.map(d => r[d]).filter(s => timed(s) && startMinutes(s) < 11 * 60).map(s => (endMinutes(s) - startMinutes(s) + 1440) % 1440)))),
     sunHours: hm(Object.values(patterns).reduce((s, r) => s + (timed(r.sun) ? (endMinutes(r.sun) - startMinutes(r.sun) + 1440) % 1440 : 0), 0)),
     run: up(A.fixed.run, A.checks.longestStretch), ff: up(A.fixed.present, worstFF),

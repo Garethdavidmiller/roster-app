@@ -12,12 +12,23 @@ import { PROPOSALS, PROPOSAL_PREFIX, isProposalId, proposalById, proposalCopyNam
 import { ROTATING_LINES, DAYS, normalisePatterns, weeklyHours, CONTRACTED_HOURS_PER_WEEK } from './links-design.js';
 import { assessHardLimits, contractedDaysPerYear } from './links-limits.js';
 
-const SOURCES = { 'SE-26-F1': 'Second-Edition-SE-26-F1', 'EK-26-H1': 'Even-Keel-EK-26-H1', 'SR-26-F1': 'Short-Run-SR-26-F1', 'CT-26-T2': 'Closing-Time-CT-26-T2' };
+const SOURCES = { 'IS-26-T4': 'In-Step-IS-26-T4', 'SR-26-F1': 'Short-Run-SR-26-F1' };
 
-describe('the shortlist as the owner chose it (3 Oct 2026, and Closing Time on 30 Oct)', () => {
-    test('four designs: Second Edition, Even Keel, Short Run, Closing Time — in that order', () => {
-        assert.deepEqual(PROPOSALS.map(p => p.code), ['SE-26-F1', 'EK-26-H1', 'SR-26-F1', 'CT-26-T2']);
-        assert.deepEqual(PROPOSALS.map(p => p.name.split(' — ')[0]), ['Second Edition', 'Even Keel', 'Short Run', 'Closing Time']);
+describe('the shortlist as the owner chose it (cut to two on 30 Oct 2026)', () => {
+    test('two designs: In Step, the recommendation, then Short Run', () => {
+        assert.deepEqual(PROPOSALS.map(p => p.code), ['IS-26-T4', 'SR-26-F1']);
+        assert.deepEqual(PROPOSALS.map(p => p.name.split(' — ')[0]), ['In Step', 'Short Run']);
+    });
+
+    test('the same shortlist, in the same order, as the pack the owner hands round', () => {
+        // The app and docs/links-26 are two copies of one decision, and the shortlist has changed three times in a
+        // month (three designs, then four, then two). fresh.mjs's SHORTLIST drives the printed sheet, the summary
+        // and the presentations, so the designs built in here must be exactly those — read from its source text,
+        // as the deck builders do, rather than imported (it is tooling, not an app module).
+        const src = readFileSync(new URL('./docs/links-26/tooling/fresh.mjs', import.meta.url), 'utf8');
+        const m = src.match(/export const SHORTLIST = \[([^\]]*)\]/);
+        assert.ok(m, 'fresh.mjs no longer declares SHORTLIST on one line');
+        assert.deepEqual([...m[1].matchAll(/'([^']+)'/g)].map(x => x[1]), PROPOSALS.map(p => p.name.split(' — ')[0]));
     });
 
     test('every shortlisted design has a source grid named here, and the file is there', () => {
@@ -53,7 +64,7 @@ describe('the shortlist as the owner chose it (3 Oct 2026, and Closing Time on 3
             });
 
             test('a faithful copy of its docs/links-26 grid', () => {
-                const file = new URL(`./docs/links-26/proposals/${SOURCES[/** @type {'SE-26-F1'} */ (p.code)]}.json`, import.meta.url);
+                const file = new URL(`./docs/links-26/proposals/${SOURCES[/** @type {'IS-26-T4'} */ (p.code)]}.json`, import.meta.url);
                 const src = JSON.parse(readFileSync(file, 'utf8'));
                 assert.equal(src.name, `${p.name} (${p.ref})`, 'the printed name — title and ref, as on the sheet');
                 assert.deepEqual(normalisePatterns(src.patterns), p.patterns, 'the grid');
@@ -76,9 +87,9 @@ describe('a proposal can never be mistaken for a saved design', () => {
     });
 
     test('the first save suggests "<Name> — copy", without the sheet\'s fingerprint, numbered if taken', () => {
-        const se = PROPOSALS[0];
-        assert.equal(proposalCopyName(se, []), 'Second Edition — copy');
-        assert.equal(proposalCopyName(se, [{ name: 'second edition — COPY' }]), 'Second Edition — copy 2');
-        assert.doesNotMatch(proposalCopyName(se, []), /SE-26|·/);
+        const is = PROPOSALS[0];
+        assert.equal(proposalCopyName(is, []), 'In Step — copy');
+        assert.equal(proposalCopyName(is, [{ name: 'in step — COPY' }]), 'In Step — copy 2');
+        assert.doesNotMatch(proposalCopyName(is, []), /IS-26|·/);
     });
 });

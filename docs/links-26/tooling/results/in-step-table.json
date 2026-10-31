@@ -1,0 +1,95 @@
+{
+ "note": "26 lines on Closing Time's weeks with the times searched again (In Step, 30 Oct 2026): closers 15:45-23:55 Monday to Saturday; five on at every opening Monday to Saturday (on Saturday a third 06:20 floor opener beside the ticket office's pair); a 13:45 every weekday and a 13:35 on Saturday; two new early times that finish by 15:45 (06:20-15:15, 07:00-15:45), so the 14h 35m rest before a 06:20 start holds; and Short Run's Sunday as Closing Time has it: 07:15-15:45 x4, 09:00-18:00, the ticket office lates at 14:30-22:30, the 15:15 closers. Weekday 7455 minutes, Saturday 6825 (5 x 7455 + 6825 = 44100); each is final-table.mjs's exhaustive best on the pool in README.md, In Step",
+ "slots": [
+  {
+   "time": "06:20-13:35",
+   "weekday": 0,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "06:20-13:45",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:20",
+   "weekday": 2,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:50",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "06:20-15:15",
+   "weekday": 2,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "07:00-15:45",
+   "weekday": 2,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "07:15-15:45",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 4
+  },
+  {
+   "time": "08:00-16:30",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "09:00-18:00",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 1
+  },
+  {
+   "time": "12:00-20:00",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "14:00-22:30",
+   "weekday": 2,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "14:30-22:00",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "14:30-22:30",
+   "weekday": 2,
+   "sat": 0,
+   "sun": 2
+  },
+  {
+   "time": "15:15-23:25",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 3
+  },
+  {
+   "time": "15:45-23:55",
+   "weekday": 3,
+   "sat": 3,
+   "sun": 0
+  }
+ ]
+}

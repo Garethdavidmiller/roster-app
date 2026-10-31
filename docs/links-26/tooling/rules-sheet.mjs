@@ -67,7 +67,7 @@ const ASKS = {
   cover: `${['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][COVER_WEEKS]} cover weeks in the ${LINES} lines, spread as evenly as ${LINES} allows: the gaps between them differ by one line at most — e.g. lines ${COVER_LINES.slice(0, -1).join(', ')} and ${COVER_LINES.at(-1)} (gaps of ${COVER_LINES.map((l, i, a) => i < a.length - 1 ? a[i + 1] - l : a[0] + LINES - l).sort((x, y) => x - y).join(', ')}).`,
   closer: 'Every Monday-to-Friday shift that works to the 23:55 close starts at 15:45.',
   office: `Two identical early and two identical late shifts for the ticket office: Mon–Fri ${OFFICE.plan.weekday.map(([t]) => t.replace('-', '–')).join(' and ')}; Sat ${OFFICE.plan.sat.map(([t]) => t.replace('-', '–')).join(' and ')}; Sun two starting 07:15 and two finishing 22:30.`,
-  floor: 'At least two people on the station floor at every moment the station is open, checked every five minutes. Ticket-office staff count only while the second of a pair helps on the floor at the quiet ends, and only as a whole person.',
+  floor: 'At least two people on the station floor at every moment the station is open, checked every five minutes. Ticket-office staff count only while they help on the floor, and only as a whole person: one of each pair at the quiet ends Monday to Saturday; on a Sunday one early until 09:00, both lates until 15:00 and one from 18:00.',
   handover: 'Each closer overlaps someone already on duty by 15 minutes; the two ticket-office shifts overlap by 20 (on a Sunday 30, from 15:00). On a Sunday each opener also stays until 15 minutes after the last closer arrives.',
   sunlen: 'Every Sunday duty is between 8 and 9 hours long.',
   times: `No more different shift times in the week than today’s link has (${TA.feel.distinctTimes}).`,
@@ -147,7 +147,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <div class="meta">Prepared ${RENDERED} · the rules and every figure below are read from the same code that writes the proposal sheets, not typed</div></div></div>
 
   <div class="tiers">
-    <div class="tier"><b class="k">Hard limits</b>A design must meet these or it cannot be run. Three, and the ceiling of 219 contracted days a year, which is hard too.</div>
+    <div class="tier"><b class="k">Hard limits</b>A design must meet these or it cannot be run. Three, and the ceiling of ${DAYS_CEILING} contracted days a year, which is hard too.</div>
     <div class="tier"><b class="k">Soft rules</b>The December 2026 staffing rules. ${['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven'][RT.of]} of them, each met or not, and scored on every proposal sheet.</div>
     <div class="tier"><b class="k">Flexible rules</b>Three more aimed for when designing. Not scored on the proposal sheets; a presentation may mention them. Page 2.</div>
     <div class="tier"><b class="k">Fatigue factors</b>Patterns that tend to tire people. Advisory only: “present” means worth a look, never a breach.</div>

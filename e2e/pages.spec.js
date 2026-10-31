@@ -5718,7 +5718,7 @@ test('links: Generate works on a card nobody has touched', async ({ page }) => {
     await expect(page.locator('#linksSummary')).toContainText('35h');
 });
 
-// ── THE SHORTLIST, BUILT IN (v24.47; owner decision 3 Oct 2026; Closing Time joined in v25.01) ──
+// ── THE SHORTLIST, BUILT IN (v24.47; owner decision 3 Oct 2026; In Step and Short Run since v25.02) ──
 // The unit tests pin the data and the masthead's words. What only the page can prove: the picker
 // REACHES them, opening one is read-only in the ways that matter (no rename, no delete, a Save that
 // makes a copy), and the copy that save writes is the proposal's own 26-line grid under a new name.
@@ -5734,12 +5734,12 @@ test('links: the shortlisted proposals open read-only, and saving one makes a na
     await expect(page.locator('#linksEmptyProposals')).toBeVisible();
     await page.locator('#linksEmptyProposals').click();
     await expect(page.locator('#designPickerLb.visible')).toBeVisible();
-    await expect(proposalOptions(page)).toHaveCount(PROPOSALS.length);   // every shortlisted design, however many (four since v25.01)
+    await expect(proposalOptions(page)).toHaveCount(PROPOSALS.length);   // every shortlisted design, however many (two since v25.02)
     await expect(designOptions(page)).toHaveCount(0);
-    await proposalOptions(page).filter({ hasText: 'Second Edition' }).click();
+    await proposalOptions(page).filter({ hasText: 'In Step' }).click();
 
-    await expect(activeDesignName(page)).toHaveText('Second Edition — Dec 2026');
-    await expect(page.locator('#designWhoRole')).toHaveText('SE-26-F1 · dea6417f');   // the printed sheet's ref
+    await expect(activeDesignName(page)).toHaveText('In Step — Dec 2026');
+    await expect(page.locator('#designWhoRole')).toHaveText('IS-26-T4 · 8d9239f3');   // the printed sheet's ref
     await expect(page.locator('#designEyebrow')).toHaveText('Shortlisted proposal');
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
     await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');
@@ -5751,13 +5751,13 @@ test('links: the shortlisted proposals open read-only, and saving one makes a na
 
     await page.locator('#linksSaveBtnTop').click();
     const input = page.locator('.dialog-overlay .dialog-input');
-    await expect(input).toHaveValue('Second Edition — copy');
+    await expect(input).toHaveValue('In Step — copy');
     await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
     await expect(page.locator('#designEyebrow')).toHaveText('Editing');
-    await expect(activeDesignName(page)).toHaveText('Second Edition — copy');
+    await expect(activeDesignName(page)).toHaveText('In Step — copy');
 
     const writes = await page.evaluate(() => /** @type {any} */ (window).__E2E.setWrites || []);
-    const copy = writes.find((/** @type {any} */ w) => w.data?.name === 'Second Edition — copy');
+    const copy = writes.find((/** @type {any} */ w) => w.data?.name === 'In Step — copy');
     expect(copy, 'the first save CREATES a design').toBeTruthy();
     expect(Object.keys(copy.data.patterns)).toHaveLength(ROTATING_LINES);
     expect(copy.data.patterns['1'].mon, 'the proposal\'s own grid — line 1 is a cover week').toBe('SPARE');
@@ -5779,7 +5779,7 @@ test('links: a window edit during a first save does not re-arm Save for a second
     });
     await page.goto('/links.html');
     await page.locator('#linksEmptyProposals').click();
-    await proposalOptions(page).filter({ hasText: 'Second Edition' }).click();
+    await proposalOptions(page).filter({ hasText: 'In Step' }).click();
     await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');
 
     await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });
