@@ -102,7 +102,7 @@ html, body { background: white !important; color: var(--text-dark); padding: 0 !
 .mast img { width: 44px; height: 44px; border-radius: 10px; }
 .mast .eyebrow { color: var(--accent-gold); font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
 .mast h1 { margin: 2px 0; font-size: 22px; font-weight: 800; color: white; letter-spacing: -.2px; }
-.mast .sub { color: rgba(255,255,255,.78); font-size: 11.5px; }
+.mast .sub { color: rgba(255,255,255,.78); font-size: 11.5px; text-wrap: balance; }
 .mast .meta { color: rgba(255,255,255,.55); font-size: 9.5px; margin-top: 4px; }
 h2 { font-size: 13.5px; color: var(--primary-blue); margin: 9px 0 3px; font-weight: 800; }
 h2 .tag { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; padding: 1px 7px; border-radius: 8px; margin-left: 8px; vertical-align: 2px; }

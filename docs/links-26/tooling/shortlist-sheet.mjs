@@ -353,7 +353,7 @@ html, body { background: white !important; color: var(--text-dark); padding: 0 !
 .mast img { width: 44px; height: 44px; border-radius: 10px; }
 .mast .eyebrow { color: var(--accent-gold); font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
 .mast h1 { margin: 2px 0; font-size: 22px; font-weight: 800; color: white; letter-spacing: -.2px; }
-.mast .sub { color: rgba(255,255,255,.78); font-size: 11.5px; }
+.mast .sub { color: rgba(255,255,255,.78); font-size: 11.5px; text-wrap: balance; }
 h2 { font-size: 14.5px; color: var(--primary-blue); margin: 8px 0 3px; font-weight: 800; } h2 .note { font-size: 10.4px; font-weight: 400; color: var(--text-mid); margin-left: 6px; }
 p { margin: 3px 0 6px; } .muted { color: var(--text-mid); } .lead { font-size: 11.6px; }
 table.t { border-collapse: collapse; width: 100%; font-size: 10.2px; line-height: 1.32; }
@@ -386,7 +386,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
 </style></head><body>
 <section class="page">
   <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · December 2026 link · the shortlist</div><h1>${Word(D.length)} good links, one edge each</h1>
-  <div class="sub">${esc(list(D.map(d => d.name)))}, against each other and against today’s link</div></div></div>
+  <div class="sub">${esc(list(D.map(d => d.name)))}, against each other and against today’s link · every figure computed from the rotas</div></div></div>
 
   <h2>What ${both} share</h2>
   <p class="lead">${Word(stats.length)} designs are in the pack; these ${N} balance best what weighs most here. Everything below holds for ${both}, each line better than or level with today; what they share that is worse than today is on page 2.</p>
@@ -421,7 +421,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <tr><td>The steadiest start times from week to week</td><td><b>Second Edition</b> <span class="muted">· outside the shortlist</span></td></tr>
     <tr><td>Four weeks off for 14 days’ leave, as today</td><td><b>Long Break</b> <span class="muted">· outside the shortlist</span></td></tr>
   </tbody></table>
-  <div class="foot"><span>Page 1 of 2 — what they share, where they differ, which to choose · every figure computed from the rotas</span><span><b>The shortlist</b> · ${D.map(d => `<span class="nw">${esc(d.name)} ${d.code}</span>`).join(' · ')} · <span class="nw">${DATE}</span></span></div>
+  <div class="foot"><span>Page 1 of 2 — what they share, where they differ, which to choose</span><span><b>The shortlist</b> · ${D.map(d => `<span class="nw">${esc(d.name)} ${d.code}</span>`).join(' · ')} · <span class="nw">${DATE}</span></span></div>
 </section>
 
 <section class="page">
@@ -452,7 +452,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <li><b>Choose In Step</b> if, on the same weeks, short lates matter more than short earlies — for ${longEarlyMS(IF)} earlies a year each over 8h&nbsp;30m.</li>
     <li><b>Choose Short Run</b> if the weekday fit and short weekday lates matter most — for ${an(hm(SF.closers[1]))} Saturday closer, ${an(hm(SF.heavy))} Mon–Sat week, no 13:45 and ${longEarlyMS(SF)} long earlies a year.</li>
   </ul>
-  <div class="foot"><span>Page 2 of 2 — Against today, the shared costs, the recommendation</span><span><b>The shortlist</b> · ${D.map(d => `<span class="nw">${esc(d.name)} ${d.code}</span>`).join(' · ')} · <span class="nw">${DATE}</span></span></div>
+  <div class="foot"><span>Page 2 of 2 — against today, the shared costs, the recommendation</span><span><b>The shortlist</b> · ${D.map(d => `<span class="nw">${esc(d.name)} ${d.code}</span>`).join(' · ')} · <span class="nw">${DATE}</span></span></div>
 </section>
 </body></html>`;
 // a label never ends on a lone word: the last space of a plain-text cell becomes a no-break space
