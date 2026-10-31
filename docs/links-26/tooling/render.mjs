@@ -782,6 +782,15 @@ ${meta.page9 ?? `<section class="page">
     // so. A page here is exactly 273mm (1,032px at the print width); one taller than that has spilled. Refuse to print it.
     const spilled = await pg.evaluate(() => [...document.querySelectorAll('section.page')].map((s, i) => [i + 1, Math.round(s.getBoundingClientRect().height)]).filter(([, h]) => h > 1033));
     if (spilled.length) throw new Error(`${out}: page runs onto another sheet (page, px tall; 1032 fits): ${JSON.stringify(spilled)}`);
+    // NOR UNDER ITS OWN FOOTER (31 Oct 2026, the external review's rewording). A page is a fixed 273mm and its footer is pinned
+    // to the bottom, so a line that grows by one runs UNDER the footer while the page stays exactly 1,032px: the check above
+    // passed thirteen sheets whose page 2 ended 6px into the footer rule. Measured after every pass above has had its say.
+    const under = await pg.evaluate(() => [...document.querySelectorAll('section.page')].map((s, i) => {
+      const foot = s.querySelector(':scope > .foot'); if (!foot) return null;
+      const kids = [...s.children].filter(e => e !== foot && getComputedStyle(e).position !== 'absolute');
+      return [i + 1, Math.round(Math.max(...kids.map(e => e.getBoundingClientRect().bottom)) - foot.getBoundingClientRect().top)];
+    }).filter(x => x && x[1] > 0));
+    if (under.length) throw new Error(`${out}: text runs into the page's footer (page, px under it): ${JSON.stringify(under)}`);
   }
   await pg.pdf({ path: out, format: 'A4', printBackground: true, preferCSSPageSize: true });
   await b.close();

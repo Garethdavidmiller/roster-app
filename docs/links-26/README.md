@@ -1849,8 +1849,8 @@ the three shortlisted designs. This README's Even Step section gave three places
 there are four (FF18's step). The pack read-me now asks colleagues to read pages 1 and 2 before the rota.
 
 **Left as it is, on purpose.**
-- "The 55-hour week" is the name the whole pack gives that guideline, on the sheets, the shortlist and the decks. The
-  hours (56.3 to 56.8) are on page 7, and renaming it in one place would only make the pack disagree with itself.
+- "The 55-hour week" was kept here as the pack's name for the guideline. The external review below asked for the
+  precise wording, and it was changed everywhere at once, which was the reason given for keeping it.
 - The five-positive cap on page 1 is unchanged.
 
 **Checked:** `deck-check.mjs` 153 rows agree, none unchecked; `regenerate.mjs --check` and `check.mjs` pass; every
@@ -1862,6 +1862,46 @@ out of its box, "8h | 15m" breaking across a line, and a lone "14" on the manage
   `deck-polish.py`, `deck-check.mjs`, `rota-strip.mjs`
 - outputs: the fifteen sheets, the shortlist, the six decks and their PDFs, the pack
 - docs: `RULES.md` and this README
+
+## An external review: four wording changes, no figure changed (31 Oct 2026)
+
+An outside reviewer checked the pack independently and prefers Even Step overall: "the best balance for colleagues", then
+In Step, then Short Run. They found "no material numerical discrepancy". Their own recounts agree with the pack:
+- all 2,730 printed roster cells match their import files, and all 15 fingerprints match;
+- every proposal totals 44,100 Monday–Saturday duty minutes;
+- the staffing counts, office pairs, floor minimums, handovers and Sunday duty lengths meet the stated rules;
+- the rest gaps, days in a row, weekends, shift lengths, weekly hours and leave figures agree;
+- the six PowerPoints match their PDFs in visible text, and the pay arithmetic supports "about £250 a year less".
+
+They asked for four statements to be more precise. Each is now said as asked, everywhere it appeared:
+- **"A year is exactly two turns"** becomes **"52 weeks are exactly two turns"**: two turns are 364 days. This is on
+  sheet page 8, and in the colleagues' notes for slides 5 and 7.
+- **"A 55-hour week"** becomes **"more than 55 hours in seven days"**, and the factor is named **"more than 55 hours in
+  any seven-day period"**. That is the app's own title for it (`links-fatigue.js`, MRSF): a rolling seven days, not a
+  calendar week. Changed on sheet pages 1, 2 and 7, the shortlist's page 1, and the colleagues' notes 12 and managers'
+  notes 6. The 8-hour-duty assumption behind 56.3 to 56.8 hours was already disclosed and stays.
+- **Managers' slide 9** says the December rules and the Sunday cover were **"confirmed verbally"**. The 26 people come
+  from the 26-week link, which was **"set 1 October"**. Its notes add that the verbal confirmations are worth having in
+  writing before a link is chosen.
+- **Slide 5's pay line** now says it is premium and overtime pay, and gross: "No: basic pay stays the same. Premium and
+  overtime pay come to about £250 a year less, gross, if you work your share of Sundays." Its notes give the three
+  assumptions: the CEA rate of £21.49, a full share of the Sunday overtime, and the fixed duties only.
+
+The fifth point, the distinction between no counted avoidable warnings and an approved fatigue assessment, is already
+made on page 7 ("guidance, not a pass or fail") and in the managers' notes 6 ("this is not a fatigue risk assessment").
+It stays as it is. The confirmations the reviewer lists as outstanding are the ones the pack already lists as open: the
+staffing assumptions in writing, the 13-day rule's written source, and the FF19 reading.
+
+**Found while checking it.** The longer fatigue wording made page 2's last row three lines. On thirteen sheets, "The
+workings" line then ran 6px under the footer rule. The page stayed exactly 1,032px, so the renderer's height check passed
+it, and only a screenshot showed it. The row now reads "up to 1 (today 5) if a cover week falls badly: over 55 hours in
+seven days — guidance, page 7", two lines again. `render.mjs` also refuses any page whose text runs under its footer,
+measured after its own tightening passes. Mutated: putting back the three-line wording, the render stops at "page 2,
+6px".
+
+**Changed:**
+- tooling: `plain.mjs`, `render.mjs`, `shortlist-sheet.mjs`, `deck-polish.py`
+- outputs: the fifteen sheets, the shortlist, the six decks and their PDFs, the pack
 
 ## Notes for the whole set
 

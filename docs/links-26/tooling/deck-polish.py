@@ -326,9 +326,9 @@ def colleagues(d, name, grid, F):
         raise SystemExit(f'deck-polish: slide 5 says the Saturdays add less than the Sundays take away; for {name} they add {prem_sat:.1f} and take {-prem_sun:.1f} hours')
     s = S(5)
     put(s, 'No. The same 35-hour week — plus about two more Saturdays at time and a quarter.',
-        f'No: the same 35 hours. {WORDS[int(F["sat"]) - int(T["sat"])].capitalize()} more Saturdays at time and a quarter, less Sunday overtime: about £{pounds} a year less if you work your share of Sundays.')
+        f'No: basic pay stays the same. Premium and overtime pay come to about £{pounds} a year less, gross, if you work your share of Sundays.')   # gross, and what it is (external review, 31 Oct 2026); the table above gives the Saturdays and Sundays
     s.save()
-    snd.notes(d, 5, 'Basic pay follows the 35-hour week', f'Basic pay follows the 35-hour week, which does not change. What moves is the premium pay. Saturdays in the contract are paid at time and a quarter, and each person is rostered about {F["sat"]} a year instead of {T["sat"]} — about {round(sat_p - sat_t)} more Saturday hours a year, worth {ps:.1f} hours’ pay. Sundays stay overtime, paid at time and a half: {F["sundayPeople"]} a week shared among {F["people"]} people instead of {T["sundayPeople"]} among {T["people"]}, so about {F["sun"]} each a year against {T["sun"]}, and a little shorter — about {round(sun_p)} Sunday hours a year each against {round(sun_t)}, worth {pu:.1f} hours’ pay less. Together, someone who works their full share of Sundays is {pu - ps:.1f} hours’ pay a year worse off, roughly £{pounds} at the CEA rate of £{PAY["rate"]:.2f}; someone who works no Sunday overtime is {ps:.1f} hours’ pay better off. The Saturday and Sunday counts are the link’s fixed duties and leave out anything later given in a cover week. The rostered Saturdays are everyone’s, whichever line you start on: a year is exactly two turns of the 26 weeks, so everyone works each week twice — today’s, on 20 weeks, are averages. How much Sunday overtime each person works is up to them, as now. None of this is a payslip; the Pay Calculator in the app does that.')
+    snd.notes(d, 5, 'Basic pay follows the 35-hour week', f'Basic pay follows the 35-hour week, which does not change. What moves is the premium and overtime pay. Every figure here is for 52 weeks, which is exactly two turns of the 26, so on this link they are everyone’s, whichever line you start on; today’s, on 20 weeks, are averages. Saturdays in the contract are paid at time and a quarter, and each person is rostered about {F["sat"]} a year instead of {T["sat"]} — about {round(sat_p - sat_t)} more Saturday hours, worth {ps:.1f} hours’ pay. Sundays stay overtime, paid at time and a half: {F["sundayPeople"]} a week shared among {F["people"]} people instead of {T["sundayPeople"]} among {T["people"]}, so about {F["sun"]} each a year against {T["sun"]}, and a little shorter — about {round(sun_p)} Sunday hours a year each against {round(sun_t)}, worth {pu:.1f} hours’ pay less. Together, someone who works their full share of Sundays gets {pu - ps:.1f} hours’ pay less a year: roughly £{pounds} gross, before tax, at the CEA rate of £{PAY["rate"]:.2f}. That estimate assumes the rate, a full share of the Sunday overtime and the fixed duties only — anything later given in a cover week is left out. Someone who works no Sunday overtime is {ps:.1f} hours’ pay better off. How much Sunday overtime each person works is up to them, as now. None of this is a payslip; the Pay Calculator in the app does that.')
     # SLIDE 3'S NOTES NAME ALL NINE RULES (31 Oct 2026 review): the handovers and the 8–9-hour Sundays were left out of the list
     notes_edit(d, 3, 'with the ticket office’s pairs and the cap on shift times they are the nine December rules', 'with the ticket office’s pairs, the handovers, Sunday duties of 8 to 9 hours and the cap on shift times they are the nine December rules')
     # SLIDE 8'S NOTES SAY WHICH KNOWN TIMES MOVE DAY (31 Oct 2026 review): "you work these today" is true of a time worked today
@@ -364,12 +364,12 @@ def colleagues(d, name, grid, F):
     replace_run(f'{d}/ppt/slides/slide7.xml', 'Three more late finishes a year — the fewest the rules allow — and every closer is shorter.', 'More people stay on after 22:00 under the December staffing; the three more at 23:00 or later are the fewest the rules allow.')
     # the shortest gap is the FIXED duties' (the review, 31 Oct 2026): a cover week's duties are placed later, within the limits
     notes_edit(d, 7, 'nobody finishes late and starts early the next morning', 'nobody on the fixed rota finishes late and starts early the next morning')
-    # NOT AVERAGES ON 26 WEEKS (the deck review, 30 Oct 2026): a year is exactly two turns of the link, so the yearly figures
+    # NOT AVERAGES ON 26 WEEKS (the deck review, 30 Oct 2026): 52 weeks are exactly two turns of the link, so the yearly figures
     # are everyone's, whichever line they start on. Slide 5's notes say so and already leave the cover weeks out; slide 7's
     # gain the line the slide drops.
     for n in (5, 7):
         s = S(n); drop_shape(s, 'Yearly figures are averages from the fixed rota; cover-week duties are not included.'); s.save()
-    notes_append(d, 7, 'The yearly figures are the fixed rota’s, which everyone works through twice a year; a cover week’s duties are not known yet and are left out.')
+    notes_append(d, 7, 'The yearly figures are the fixed rota’s over 52 weeks, which is exactly two turns of the link, so they are everyone’s; a cover week’s duties are not known yet and are left out.')   # not "twice a year": two turns are 364 days (external review)
     s = S(9)
     put(s, 'Full weekends off', 'Full weekends off, about a year'); put(s, '4 in 20', T['weekendsYear']); put(s, '7 in 26', F['weekendsYear'], GREEN)
     # ONE SHIFT TIME, AS THE SHEETS SAY IT (31 Oct 2026 review): "no early–late switch" is true of all 21 weeks, not the 18 the row
@@ -439,7 +439,7 @@ def colleagues(d, name, grid, F):
     # THE FATIGUE CELLS CARRY THE WORST CASE (31 Oct 2026), as today's "4 (up to 5)" beside them does: with a cover week's
     # Sunday worked as overtime the four can make a 55-hour week, which the sheets give as "0 (up to 1)"
     for n in (12, 14): replace_run(f'{d}/ppt/slides/slide{n}.xml', '0', F['ff'], after='Avoidable fatigue warnings in the fixed rota')
-    if explain_h55(name, F): notes_append(d, 12, f'The “up to 1” beside the fatigue warnings is a 55-hour week. If a cover week’s four duties come straight after a busy week, and its Sunday is worked as overtime too, those seven days can come to {F["h55"]} hours with 8-hour duties, and more with longer ones, which the rail industry’s guidance flags. Where the four fall, and whether the Sunday is worked, is for the roster office.')
+    if explain_h55(name, F): notes_append(d, 12, f'The “up to 1” beside the fatigue warnings is more than 55 hours in seven days. If a cover week’s four duties come straight after a busy week, and its Sunday is worked as overtime too, those seven days can come to {F["h55"]} hours with 8-hour duties, and more with longer ones, which the rail industry’s guidance flags. Where the four fall, and whether the Sunday is worked, is for the roster office.')
 
 def managers(d, name, grid, F):
     S = lambda n: Slide(f'{d}/ppt/slides/slide{n}.xml')
@@ -461,7 +461,7 @@ def managers(d, name, grid, F):
     notes_edit(d, 3, 'except its second person at the quiet ends of the day.', 'except at the quiet ends of the day, when one of each pair helps on the floor — on a Sunday one early until 09:00, and both lates until 15:00, one of them again from 18:00.')
     s = S(6); drop_shape(s, 'Early starts and a weekly rotation come with every link, so are not counted. The written source of the 13-day limit is still to be confirmed.'); s.save()
     replace_run(f'{d}/ppt/slides/slide6.xml', '0', F['ff'], after='Avoidable fatigue warnings, fixed rota')   # the worst case too, as on the colleagues' slides
-    if explain_h55(name, F): notes_append(d, 6, f'The “up to 1” beside the fatigue warnings is the rail industry’s 55-hour guideline: worked as four 8-hour duties straight after a busy line, with its Sunday as overtime too, a cover week can make {F["h55"]} hours in seven days. Where the four fall, and whether the Sunday is worked, is for the roster office.')
+    if explain_h55(name, F): notes_append(d, 6, f'The “up to 1” beside the fatigue warnings is the rail industry’s guideline of no more than 55 hours in any seven-day period: worked as four 8-hour duties straight after a busy line, with its Sunday as overtime too, a cover week can make {F["h55"]} hours in seven days. Where the four fall, and whether the Sunday is worked, is for the roster office.')
     # the dropped line's first half the notes already say ("come with every weekly link … not counted"), so only the second
     # goes on; and the FF19 sentence says what its reading is and what the stricter one would mean (the deck review)
     notes_append(d, 6, 'The written source of the 13-day limit is still to be confirmed.')
@@ -561,7 +561,12 @@ def managers(d, name, grid, F):
     s = S(9)
     put(s, 'Three things confirmed verbally (29 Sep and 1 Oct 2026), two decisions left', 'Three things settled, two decisions left, two points still open')   # the 26 lines were set on 1 Oct, not confirmed verbally (31 Oct review)
     put(s, 'Who begins on which week of the link.', 'Who begins on which week. Open: the 13-day limit’s written source; the FF19 reading.')
+    # SAID AS THEY WERE SETTLED (external review, 31 Oct 2026): the rules and the Sunday cover were confirmed VERBALLY, as every
+    # other surface says; the 26 lines were set by the owner on 1 October
+    put(s, 'December rules — confirmed', 'December rules — confirmed verbally'); put(s, 'Sunday cover — confirmed', 'Sunday cover — confirmed verbally')
+    put(s, '26 people on the link — confirmed', '26 people on the link — set 1 October')
     s.save()
+    notes_append(d, 9, 'The December rules and the Sunday cover were confirmed verbally on 29 September 2026, and are worth having in writing before a link is chosen; the 26-week link was set on 1 October 2026.')
     replace_run(f'{d}/ppt/slides/slide8.xml', '7 weekends off, at most 5 weeks apart', f'{F["weekendsYear"]} full weekends off a year (today {T["weekendsYear"]})')
 
 # THE SHORT TABLES FILL THEIR SPACE (31 Oct 2026, owner: "deep review them and aesthetic polish using screenshots"). Every

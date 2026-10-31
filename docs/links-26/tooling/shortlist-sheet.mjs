@@ -151,7 +151,7 @@ const sunCloser = shared('Sunday closer', F => F.closers[2]), wkCloser = shared(
 // THE SAME SUNDAY (31 Oct 2026): it was the step that page 1 printed as shared beside it, and Even Step's step is its own
 const sunDuties = shared('the Sunday’s duties', F => Object.values(F.p).map(r => r.sun).filter(timed).sort().join());
 claim('the weekday’s and Sunday’s closers one length', wkCloser === sunCloser);
-claim('no avoidable fatigue warning on the fixed rota; at worst one, and it is the 55-hour week',
+claim('no avoidable fatigue warning on the fixed rota; at worst one, and it is more than 55 hours in seven days',
   D.every(d => d.F.A.fixed.present === 0 && d.F.A.fatigue.present === 0 && h55Of(d.F)?.adds) && ffW === 1);
 claim('all three flexible rules', D.every(d => d.F.flex === 3));
 const cuts = D.flatMap(d => d.F.closers.map((c, i) => TF.closers[i] - c)); claim('every closing shift shorter', Math.min(...cuts) > 0);
@@ -402,7 +402,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <p class="lead">${Word(stats.length)} designs are in the pack; these ${N} balance best what weighs most here. Everything below holds for ${both}, each line better than or level with today; what they share that is worse than today is on page 2.</p>
   <div class="shared">
     <div>All <b>${met} of ${shared('rules scored', F => F.of)}</b> December staffing rules (today ${TF.met}), and all three flexible ones: 14 on a Saturday, evenly spaced cover weeks, weekday closers from 15:45</div>
-    <div><b>No avoidable fatigue warning</b> on the fixed rota, one if a cover week falls badly — a 55-hour week; never more than <b>${word(run)} days in a row</b> on the fixed rota, ${word(worstRun)} if a cover week falls badly (today ${TF.A.fixed.present} warnings, up to ${TF.A.fatigue.present}; ${word(TF.fixedRun)} days, up to ${word(TF.worstRun)})</div>
+    <div><b>No avoidable fatigue warning</b> on the fixed rota, one if a cover week falls badly — over 55 hours in seven days; never more than <b>${word(run)} days in a row</b> on the fixed rota, ${word(worstRun)} if a cover week falls badly (today ${TF.A.fixed.present} warnings, up to ${TF.A.fatigue.present}; ${word(TF.fixedRun)} days, up to ${word(TF.worstRun)})</div>
     <div><b>About ${Math.round(wkOff * 52 / LINES)} full weekends off a year</b> (today ${Math.round(TF.A.checks.weekendsOff * 52 / TF.pp.L)}), ${wkOff} in ${LINES}, never more than ${gap} weeks apart (today up to ${TF.maxGap} apart)</div>
     <div>The same <b>35-hour</b> week and <b>${days} days</b> a year, under the ceiling of ${DAYS_CEILING} (today ${TF.pp.daysYear.toFixed(1)})</div>
     <div>Every closing shift <b>shorter, by ${dur(Math.min(...cuts))} to ${dur(Math.max(...cuts))}</b> — the weekday’s and Sunday’s ${hm(wkCloser)} on ${both} (today ${hm(TF.closers[0])} and ${hm(TF.closers[2])}); no shift over ${hm(longest)}</div>
