@@ -326,7 +326,7 @@ def managers(d, name, grid, F):
             'Short Run': float(F['fitWk']) < min(float(o['fitWk']) for o in others) and sat_new(P) == 0 < min(sat_new(g) for g in O),
             'In Step': H(F['heavy']) < min(H(o['heavy']) for o in others) and float(F['fitSat']) < min(float(o['fitSat']) for o in others)}[name]
     if not edge: raise SystemExit(f'deck-polish: {name}’s "This one adds" line is no longer its own among the shortlist')
-    adds = {'Even Step': 'This one adds: no shift over 8h 30m Mon–Sat; every early a time worked today',
+    adds = {'Even Step': 'This one adds: Mon–Sat, no shift over 8h 30m and every early a time worked today',
             'Short Run': 'This one adds: the closest weekday fit, and no new Saturday time',
             'In Step': f'This one adds: no week over {F["heavy"]}, and the closest Saturday fit'}[name]
     # WHAT IT COSTS IS AGAINST TODAY, as the bar beneath and the four weeks' leave are (30 Oct 2026). Short Run's line was "one

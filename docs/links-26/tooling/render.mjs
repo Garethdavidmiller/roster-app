@@ -181,8 +181,11 @@ export async function renderPdf(D, out) {
     const val = x => x ? (x.status === 'n/a' ? (FRESH ? '' : '–') : FRESH && /55 hours/i.test(x.title) && typeof x.value === 'number' ? x.value.toFixed(1) : (x.value ?? '')) : '';
     const second = (a, code, have) => { if (PLAIN) { const w = a === P ? r0 : t0, f = a === P ? r : t;
         // the 55-hour row counts a cover week as no hours, so its own worst case cannot show the week four 8-hour
-        // duties would make; h55Cover (fresh.mjs) is that figure (accuracy audit, 1 Oct 2026)
-        if (a === P && /55 hours/i.test(r0.title) && meta.h55Cover) return `<span class="ff-alt ff-present">${icon('present')} up to ${meta.h55Cover.hi.toFixed(1)} if a cover week is worked as four 8-hour duties and a Sunday’s overtime</span>`;
+        // duties would make; h55Cover (fresh.mjs) is that figure (accuracy audit, 1 Oct 2026). It is said as every other
+        // row's worst case is (31 Oct 2026 review): the long form, "if a cover week is worked as four 8-hour duties and a
+        // Sunday's overtime", widened its column, wrapped every pattern title on the page and pushed page 7 onto a ninth
+        // sheet from v25.03; the notes beneath the table say how the 55-hour worst case is made
+        if (a === P && /55 hours/i.test(r0.title) && meta.h55Cover) return `<span class="ff-alt ff-present">${icon('present')} up to ${meta.h55Cover.hi.toFixed(1)} if a cover week falls badly</span>`;
         return !have || !w || !f || (w.status === f.status && String(val(w)) === String(val(f))) ? ''
           : `<span class="ff-alt ff-${w.status}">${icon(w.status)} up to ${esc(val(w))} if a cover week falls badly</span>`; }
       const v = have ? asRos(a, code) : null; return v === null ? ''
@@ -774,6 +777,11 @@ ${meta.page9 ?? `<section class="page">
           td.style.paddingTop = `${parseFloat(cs.paddingTop) + extra / 2}px`; td.style.paddingBottom = `${parseFloat(cs.paddingBottom) + extra / 2}px`; }
       }
     });
+    // NO PAGE SPILLS ONTO ANOTHER SHEET (31 Oct 2026 review). From v25.03 page 7 ran 133px past the A4 page on fourteen of
+    // fifteen sheets, so the "eight-page" sheet printed nine, its footer stranded at the top of the ninth, and nothing said
+    // so. A page here is exactly 273mm (1,032px at the print width); one taller than that has spilled. Refuse to print it.
+    const spilled = await pg.evaluate(() => [...document.querySelectorAll('section.page')].map((s, i) => [i + 1, Math.round(s.getBoundingClientRect().height)]).filter(([, h]) => h > 1033));
+    if (spilled.length) throw new Error(`${out}: page runs onto another sheet (page, px tall; 1032 fits): ${JSON.stringify(spilled)}`);
   }
   await pg.pdf({ path: out, format: 'A4', printBackground: true, preferCSSPageSize: true });
   await b.close();
