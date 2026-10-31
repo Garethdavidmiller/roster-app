@@ -564,7 +564,7 @@ def managers(d, name, grid, F):
     # SAID AS THEY WERE SETTLED (external review, 31 Oct 2026): the rules and the Sunday cover were confirmed VERBALLY, as every
     # other surface says; the 26 lines were set by the owner on 1 October
     put(s, 'December rules — confirmed', 'December rules — confirmed verbally'); put(s, 'Sunday cover — confirmed', 'Sunday cover — confirmed verbally')
-    put(s, '26 people on the link — confirmed', '26 people on the link — set 1 October')
+    put(s, '26 people on the link — confirmed', '26 people on the link — decided')   # no date on the slide (owner: office detail nobody needs); the notes keep it
     s.save()
     notes_append(d, 9, 'The December rules and the Sunday cover were confirmed verbally on 29 September 2026, and are worth having in writing before a link is chosen; the 26-week link was set on 1 October 2026.')
     replace_run(f'{d}/ppt/slides/slide8.xml', '7 weekends off, at most 5 weeks apart', f'{F["weekendsYear"]} full weekends off a year (today {T["weekendsYear"]})')

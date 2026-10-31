@@ -1880,9 +1880,10 @@ They asked for four statements to be more precise. Each is now said as asked, ev
   any seven-day period"**. That is the app's own title for it (`links-fatigue.js`, MRSF): a rolling seven days, not a
   calendar week. Changed on sheet pages 1, 2 and 7, the shortlist's page 1, and the colleagues' notes 12 and managers'
   notes 6. The 8-hour-duty assumption behind 56.3 to 56.8 hours was already disclosed and stays.
-- **Managers' slide 9** says the December rules and the Sunday cover were **"confirmed verbally"**. The 26 people come
-  from the 26-week link, which was **"set 1 October"**. Its notes add that the verbal confirmations are worth having in
-  writing before a link is chosen.
+- **Managers' slide 9** says the December rules and the Sunday cover were **"confirmed verbally"**. The 26 people are
+  **"decided"**: the slide first said "set 1 October", and the owner had the date taken off, as office detail nobody
+  needs on a slide. The notes keep the date, and add that the verbal confirmations are worth having in writing before
+  a link is chosen.
 - **Slide 5's pay line** now says it is premium and overtime pay, and gross: "No: basic pay stays the same. Premium and
   overtime pay come to about £250 a year less, gross, if you work your share of Sundays." Its notes give the three
   assumptions: the CEA rate of £21.49, a full share of the Sunday overtime, and the fixed duties only.
