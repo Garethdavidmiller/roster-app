@@ -25,7 +25,7 @@ import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
 import { LINES, DAYS_CEILING } from './link.mjs';
-import { assess, today, folderStats, sheetRules, flexibleRules } from './report-data.mjs';
+import { assess, today, folderStats, sheetRules, flexibleRules, h55Worst } from './report-data.mjs';
 import { personal } from './plain.mjs';
 import { leave } from './leave.mjs';
 import { scoreOrder } from '../../../links-adjacency.js';
@@ -113,7 +113,11 @@ const k1345 = F => MS.slice(0, 5).every(d => Object.values(F.p).some(r => r[d] =
 const met = shared('December rules met', F => F.met), wkOff = shared('full weekends off', F => F.A.checks.weekendsOff), gap = shared('longest wait between weekends', F => F.maxGap);
 const days = shared('days a year', F => F.pp.daysYear.toFixed(1)), longest = shared('longest shift', F => F.pp.longest);
 const iso = shared('single rest days', F => F.A.feel.isolatedRest), paired = shared('rest-day breaks', F => `${F.A.feel.pairedRest} of ${F.A.feel.restIslands}`);
-shared('fatigue warnings, fixed', F => F.A.fixed.present); shared('fatigue warnings, worst case', F => F.A.fatigue.present);
+// the worst case counts the 55-hour week a cover week can make, as every other sheet's "up to" does (h55Worst): the app's own
+// 55-hour row counts a cover week as no hours, so A.fatigue.present alone said "no warning" beside the summary's "up to 1"
+// once a cover week's Sunday became overtime on top of its four (31 Oct 2026)
+const h55Of = F => h55Worst(F.p, LINES), ffWorst = F => F.A.fatigue.present + (h55Of(F)?.adds ? 1 : 0);
+shared('fatigue warnings, fixed', F => F.A.fixed.present); const ffW = shared('fatigue warnings, worst case', ffWorst);
 const run = shared('most days in a row, fixed rota', F => F.fixedRun), worstRun = shared('worst-case run', F => F.worstRun);
 const one = shared('weeks on one turn', F => F.A.feel.oneTurn), wl = shared('working weeks', F => F.A.feel.workingLines);
 const mixed = shared('weeks mixing earlies and lates', F => F.A.feel.hybrid), step = shared('week-to-week change of start', F => Math.round(F.step));
@@ -121,11 +125,12 @@ const late23 = shared('finishes at 23:00 or later', F => F.late23), late22 = sha
 const newT = shared('new shift times', F => F.newT), times = shared('shift times', F => F.times), known = shared('shift times worked today', F => F.shared);
 const sunCloser = shared('Sunday closer', F => F.closers[2]), wkCloser = shared('weekday closer', F => F.closers[0]), sunFit = shared('Sunday fit', F => F.fit[2].toFixed(1));
 claim('the weekday’s and Sunday’s closers one length', wkCloser === sunCloser);
-claim('no avoidable fatigue warning', IS.F.A.fixed.present === 0 && IS.F.A.fatigue.present === 0);
+claim('no avoidable fatigue warning on the fixed rota; at worst one, and it is the 55-hour week', IS.F.A.fixed.present === 0 && IS.F.A.fatigue.present === 0 && ffW === 1 && D.every(d => h55Of(d.F)?.adds));
 claim('all three flexible rules', D.every(d => d.F.flex === 3));
 const cuts = D.flatMap(d => d.F.closers.map((c, i) => TF.closers[i] - c)); claim('every closing shift shorter', Math.min(...cuts) > 0);
 claim('no week mixing earlies and lates, where today has some', mixed === 0 && TF.A.feel.hybrid > 0);
-claim('five days in a row at most on the fixed rota, six with a cover week placed badly; today more of both', run === 5 && worstRun === 6 && TF.fixedRun > run && TF.worstRun > worstRun);
+// seven since 31 Oct 2026, when a cover week's Sunday became overtime on top of its four (spareDrawsOnFour, links-design.js)
+claim('five days in a row at most on the fixed rota, seven with a cover week placed badly; today more of both', run === 5 && worstRun === 7 && TF.fixedRun > run && TF.worstRun > worstRun);
 
 // the others: what each keeps that neither of the two has, and what it pays — asserted, measure by measure
 // THE MEASURES EVERY "KEEPS" AND "PAYS" IS READ ON: every row of page 1's table, weekends included, and the fit and the
@@ -144,7 +149,7 @@ const loses = d => { const x = measure(d.F); return Object.keys(DIR).filter(k =>
 const O = Object.fromEntries(others.map(d => [d.name, d])), K = Object.fromEntries(others.map(d => [d.name, keeps(d).join()]));
 const NAMED = { 'Both Ways': 'closerSat,closerWk,earlyOff,heavy,newT,times', 'Closing Time': 'closerSat,closerWk,fitSat,light,longEarly,newT,step,times',
   'Even Keel': 'longEarly,longShift', 'Fine Tune': 'longEarly,longShift,step', 'Home Grown': 'closerWk,longEarly,longShift,newT,times', 'Long Break': 'lvBest,lvFour',
-  'Second Edition': 'step', 'Second Gear': 'longEarly,longShift', 'Second Look': 'block,times', 'Second Nature': 'block', 'Second Sight': 'block', 'Second Wind': 'block' };
+  'Second Edition': 'step', 'Second Gear': 'longEarly,longShift', 'Second Look': 'block,times,worstRun', 'Second Nature': 'block', 'Second Sight': 'block', 'Second Wind': 'block' };
 claim('the paragraph names every other design, and what it keeps', Object.keys(NAMED).sort().join() === Object.keys(O).sort().join() && Object.entries(NAMED).every(([n, k]) => K[n] === k));
 const pays = (n, ...ks) => claim(`${n} pays with ${ks.join(', ')}`, ks.every(k => loses(O[n]).includes(k)));
 // what each pays, on the five priorities the paragraph names wherever it pays on them (days in a row, weekends, one turn,
@@ -325,7 +330,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <p class="lead">${Word(stats.length)} designs are in the pack; these ${N} balance best what weighs most here. Everything below holds for ${both}, each line better than or level with today; what they share that is worse than today is on page 2.</p>
   <div class="shared">
     <div>All <b>${met} of ${shared('rules scored', F => F.of)}</b> December staffing rules (today ${TF.met}), and all three flexible ones: 14 on a Saturday, evenly spaced cover weeks, 15:45 weekday closers</div>
-    <div><b>No avoidable fatigue warning</b>; never more than <b>${word(run)} days in a row</b> on the fixed rota, ${word(worstRun)} if a cover week falls badly (today ${TF.A.fixed.present} warnings, up to ${TF.A.fatigue.present}; ${word(TF.fixedRun)} days, up to ${word(TF.worstRun)})</div>
+    <div><b>No avoidable fatigue warning</b> on the fixed rota, one if a cover week falls badly — a 55-hour week; never more than <b>${word(run)} days in a row</b> on the fixed rota, ${word(worstRun)} if a cover week falls badly (today ${TF.A.fixed.present} warnings, up to ${TF.A.fatigue.present}; ${word(TF.fixedRun)} days, up to ${word(TF.worstRun)})</div>
     <div><b>${wkOff} full weekends off in ${LINES}</b>, never more than ${gap} weeks apart (today ${TF.A.checks.weekendsOff} in ${TF.pp.L}, up to ${TF.maxGap} apart)</div>
     <div>The same <b>35-hour</b> week and <b>${days} days</b> a year, under the ceiling of ${DAYS_CEILING} (today ${TF.pp.daysYear.toFixed(1)})</div>
     <div>Every closing shift <b>shorter, by ${dur(Math.min(...cuts))} to ${dur(Math.max(...cuts))}</b> — the weekday’s and Sunday’s ${hm(wkCloser)} on ${both} (today ${hm(TF.closers[0])} and ${hm(TF.closers[2])}); no shift over ${hm(longest)}</div>
@@ -364,7 +369,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <p class="muted">Per year: the rotation’s count scaled to 52 weeks; days a year, Monday to Saturday with a cover week as four, over 365 days.</p>
 
   <h2>Why these ${N} and not the other ${word(others.length)}</h2>
-  <p>These ${N} balance best what weighs most here — days in a row, weekends, one shift time a week, late finishes and the closing shift. Each of the others keeps something neither has, and pays for it. Closing Time and Both Ways have shorter closers and fewer shift times to learn — Closing Time also more even weeks, a gentler step, the best Saturday fit and ${longEarly(CT)} long earlies a year, Both Ways a lighter heaviest week and more early finishes — for a weaker weekday fit and fewer weeks on one turn, with more finishes at 22:00 or later on Closing Time and more long shifts on Both Ways. Home Grown has the fewest long days of all and the fewest new times, ${word(HG.newT)}, with a shorter weekday closer, for today’s ${hm(HG.closers[1])} Saturday closer, fewer weeks on one turn and a weaker fit. Even Keel, Fine Tune and Second Gear have fewer long days and a fourth person to the Saturday close (Fine Tune a gentler step too), for more late finishes, weeks mixing earlies and lates, longer blocks of earlies or lates and a weaker Saturday fit, and on Fine Tune and Second Gear fewer weeks on one turn. Second Edition has the gentlest step, for ${word(O['Second Edition'].F.fixedRun)} days in a row. Long Break gives four weeks off for ${LB.lv.fourWeeks} days’ leave and a ${LB.lv.best}-day best stretch, for ${word(LB.fixedRun)} days in a row, a ${ord(LB.A.feel.isolatedRest)} single rest day, fewer weeks on one turn and a ${hm(LB.step)} step. Second Look, Second Nature, Second Sight and Second Wind have blocks of earlies or lates a week shorter (Second Look fewer shift times too), for six days in a row, fewer weeks on one turn and a bigger step — and on Second Nature, weekends up to ${word(O['Second Nature'].F.maxGap)} weeks apart.</p>
+  <p>These ${N} balance best what weighs most here — days in a row, weekends, one shift time a week, late finishes and the closing shift. Each of the others keeps something neither has, and pays for it. Closing Time and Both Ways have shorter closers and fewer shift times to learn — Closing Time also more even weeks, a gentler step, the best Saturday fit and ${longEarly(CT)} long earlies a year, Both Ways a lighter heaviest week and more early finishes — for a weaker weekday fit and fewer weeks on one turn, with more finishes at 22:00 or later on Closing Time and more long shifts on Both Ways. Home Grown has the fewest long days of all and the fewest new times, ${word(HG.newT)}, with a shorter weekday closer, for today’s ${hm(HG.closers[1])} Saturday closer, fewer weeks on one turn and a weaker fit. Even Keel, Fine Tune and Second Gear have fewer long days and a fourth person to the Saturday close (Fine Tune a gentler step too), for more late finishes, weeks mixing earlies and lates, longer blocks of earlies or lates and a weaker Saturday fit, and on Fine Tune and Second Gear fewer weeks on one turn. Second Edition has the gentlest step, for ${word(O['Second Edition'].F.fixedRun)} days in a row. Long Break gives four weeks off for ${LB.lv.fourWeeks} days’ leave and a ${LB.lv.best}-day best stretch, for ${word(LB.fixedRun)} days in a row, a ${ord(LB.A.feel.isolatedRest)} single rest day, fewer weeks on one turn and a ${hm(LB.step)} step. Second Look, Second Nature, Second Sight and Second Wind have blocks of earlies or lates a week shorter (Second Look also fewer shift times, and ${word(O['Second Look'].F.worstRun)} days in a row at worst where the two have ${word(worstRun)}), for six days in a row on the fixed rota, fewer weeks on one turn and a bigger step — and on Second Nature, weekends up to ${word(O['Second Nature'].F.maxGap)} weeks apart.</p>
 
   <h2>The honest costs, shared by ${both}</h2>
   <ul class="list">

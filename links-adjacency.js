@@ -238,7 +238,7 @@ export function blockExcess(/** @type {number[]} */ runs, /** @type {number} */ 
  * 9, 3, 1, 7, 4, with two spare weeks ADJACENT.
  *
  * That is not cosmetic. Two adjacent spare weeks chain (the first week's four duties at its end, the
- * second's four at its start — `worstCaseWorkedRun` documents exactly this), so the reorder was
+ * second's Sunday and its four from the Monday — `worstCaseWorkedRun` documents exactly this), so the reorder was
  * taking FF11 from **9 to 14** on the generator's own output and pushing it past the threshold the
  * panel reports against. The generator got it right and the optimiser undid it, silently, because
  * the objectives it was given had nothing to say about spare weeks.

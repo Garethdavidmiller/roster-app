@@ -111,9 +111,30 @@ export const MIN_REST_MINUTES = 12 * 60;
 /**
  * A spare WEEK is FOUR worked days of seven (owner, Aug 2026) — you are marked SPARE on all seven
  * because you are available for cover, but four is what you work, unless a Sunday or other RDW is
- * added on top.
+ * added on top. The four are Monday to Saturday — see `spareDrawsOnFour`.
  */
 export const SPARE_WORKED_DAYS = 4;
+
+/**
+ * Does a SPARE day at position `i` of a run sequence draw on its cover week's four duties?
+ *
+ * Monday to Saturday only (owner, 31 Oct 2026): "The 4 days can only be the contractual days which
+ * are Monday to Saturday." Sunday is contracted for no grade here, so a cover week's Sunday is never
+ * one of its four — but it can still be worked, as rest-day working ON TOP of them ("people could be
+ * rostered for RDW on a Sunday cover week"). A worst-case scan therefore counts a spare Sunday as
+ * worked without spending the week's four.
+ *
+ * Until v25.03 the four could fall on any of the seven days, Sunday included. That disagreed with
+ * everything else here that counts a cover week — contracted days a year (`links-limits.js`) count
+ * its four as Monday to Saturday — and it understated every run that enters a cover week by one: the
+ * Sunday's overtime and four duties from the Monday is five days in a row, where four from the
+ * Sunday was four.
+ *
+ * @param {number} i - index into a run sequence, SEVEN PER LINE in `DAYS` order
+ */
+export function spareDrawsOnFour(i) {
+    return DAYS[i % 7] !== 'sun';
+}
 
 /**
  * The most consecutive worked days a link should ask anyone to do — the owner's DESIGN TARGET
@@ -134,15 +155,17 @@ export const DEFAULT_MAX_RUN = 6;
 
 /**
  * The longest run of consecutive worked days a line can be made to carry — the WORST CASE, because
- * a spare week's four duties can be placed anywhere in its seven days and we do not know where.
+ * a spare week's four duties can be placed on any of Monday to Saturday, its Sunday can be worked on
+ * top as overtime (`spareDrawsOnFour`), and we do not know which.
  *
  * THIS REPLACES COUNTING A SPARE WEEK AS SEVEN WORKED DAYS (v19.79), which is what both run checks
  * did, and which the comment justified as "over-reporting is the safe direction for a fatigue
  * check". It is not, and the live roster is the proof: it reported the main cycle at **15** and the
- * bilingual at **14** when the true ceilings are **9** and **8**. The error is not a rounding — a
- * spare week that is 7/7 worked BRIDGES the blocks either side of it and fuses them into one long
- * phantom run. Four duties in seven days cannot bridge anything: there is always a rest day inside
- * the week, so a run can take at most four of its days and must then stop.
+ * bilingual at **14** when the true ceilings were **9** and **8** (9 and 9 since v25.03, when the
+ * Sunday stopped being one of the four). The error is not a rounding — a spare week that is 7/7
+ * worked BRIDGES the blocks either side of it and fuses them into one long phantom run. Four duties
+ * on Monday to Saturday cannot bridge anything: two of those six days are always rest days, so a run
+ * can take at most the Sunday and four of its days and must then stop.
  *
  * Why the direction matters more than the size. 13 consecutive days is Chiltern's roster limit,
  * derived from the post-Clapham Hidden standard (Clapham
@@ -153,9 +176,10 @@ export const DEFAULT_MAX_RUN = 6;
  *
  * The greedy scan is exact for a maximum: each run is free to spend a spare week's four duties
  * however suits IT, because two different runs never need the same week's allocation at once. Two
- * ADJACENT spare weeks legitimately chain to eight (the first week's four at its end, the second's
- * four at its start) — that is the bilingual roster, whose spare weeks are 1 and 8 of 8 and so wrap
- * into each other.
+ * ADJACENT spare weeks legitimately chain to nine (the first week's four at its end, Wednesday to
+ * Saturday; then the second's Sunday as overtime and its four from the Monday) — that is the
+ * bilingual roster, whose spare weeks are 1 and 8 of 8 and so wrap into each other. It was eight
+ * until v25.03, when the four could still include the Sunday (`spareDrawsOnFour`).
  *
  * @param {Array<{shift: any}>} seq - one person's journey, in day order, SEVEN PER LINE
  * @returns {number} the most consecutive worked days any arrangement of the spare weeks can produce
@@ -221,11 +245,15 @@ export function runLengthsWhere(seq, counts, { requireMatch = false } = {}) {
                 // A spare day is an UNKNOWN, not a no — it is a duty whose times are not yet
                 // assigned, so in the worst case it satisfies whatever is being counted. It is
                 // therefore handled here rather than by `counts`, for every predicate: the budget
-                // is per WEEK, not per day, and four is what a cover week actually works.
-                const line = Math.floor(i / 7);
-                const used = spent.get(line) || 0;
-                if (used >= SPARE_WORKED_DAYS) break;
-                spent.set(line, used + 1);
+                // is per WEEK, not per day, and four is what a cover week actually works — on
+                // Monday to Saturday. Its Sunday is overtime on top, so it counts without
+                // spending the four.
+                if (spareDrawsOnFour(i)) {
+                    const line = Math.floor(i / 7);
+                    const used = spent.get(line) || 0;
+                    if (used >= SPARE_WORKED_DAYS) break;
+                    spent.set(line, used + 1);
+                }
                 run++;
             } else if (counts(s)) {
                 run++;

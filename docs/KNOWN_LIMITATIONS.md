@@ -1608,13 +1608,16 @@ never contingent on the beta label, and dropping it does not make any of them go
     *permits*. That is the right question for a hard limit — if any placement reaches 14 the link
     allows a breach — but it means the number is usually higher than what anyone works, and it must
     not be quoted as "our people do 9 days in a row".
-  - **It rests on a spare week being four duties** (owner, Aug 2026). If that ever changes — a
-    different cover model, or a link where spare weeks routinely carry a fifth day — every figure
-    here moves and `SPARE_WORKED_DAYS` has to move with it.
+  - **It rests on a spare week being four duties, Monday to Saturday** (owner, Aug 2026), with its
+    Sunday counted as worked in the worst case, because it can be worked as overtime on top (owner,
+    31 Oct 2026; `spareDrawsOnFour`, v25.03). If that ever changes — a different cover model, or a
+    link where spare weeks routinely carry a fifth contracted day — every figure here moves and
+    `SPARE_WORKED_DAYS` and `spareDrawsOnFour` have to move with it.
 
   **This section previously described a breach that did not exist.** Until v19.79 both run checks
   counted a spare week as SEVEN worked days, which fused the blocks either side of it: the main
-  cycle reported 15 consecutive days and the bilingual 14, against true ceilings of 9 and 8. The
+  cycle reported 15 consecutive days and the bilingual 14, against true ceilings of 9 and 8 (9 and 9
+  since v25.03, when a cover week's Sunday stopped being one of its four duties). The
   comment justifying it said over-reporting was "the safe direction for a fatigue check". It is not,
   once a number has a hard limit under it — a tool that cries breach on the roster people are
   actually working teaches its readers to discount the row, and the next design that genuinely does

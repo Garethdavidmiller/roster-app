@@ -2,7 +2,7 @@
 import { LINES, COVER_WEEKS, COVER_LINES, DAYS_CEILING, daysAYear, coverSpread } from './link.mjs';
 import { readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { asRosteredRuns, materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs';
+import { asRosteredRuns, materialise, coverLines, placementCombos } from './cover-placement.mjs';
 import { runDesignChecks, weeklyHours, lineTotals, calcHourlyCoverage, classifyShift, startMinutes, endMinutes, endMinutesAbs, dutyMinutes, DAYS, hmFromHours } from '../../../links-design.js';
 import { assessFatigue, maxHoursInAny7Days, toSequence } from '../../../links-fatigue.js';
 import { assessHardLimits, MAX_CONSECUTIVE_WORKED_DAYS } from '../../../links-limits.js';
@@ -328,12 +328,14 @@ export function currentRules(P, T, model = 'plan') {
 // folder is 20 lines except today's link, and a caller can say otherwise.
 // THE 55-HOUR ROW AT ITS WORST (accuracy check, 1 Oct 2026): the app counts a cover week's days as no hours, so its
 // figure is a floor. Filled in as four 8-hour duties in every block placement it can cross 55; fresh.mjs states the range
-// on the sheet, and the summary's "up to" adds the row when it would. One function, so the two cannot disagree.
+// on the sheet, and the summary's "up to" adds the row when it would. One function, so the two cannot disagree — and
+// fresh.mjs calls it rather than keeping its own copy (31 Oct 2026). The top of the range works each cover week's Sunday
+// as an 8-hour overtime duty too, the bottom leaves it off (cover-placement.mjs says why that is exact).
 export function h55Worst(p, lines) {
   const table = assessFatigue(p, lines).results.find(r => r.code === 'MRSF' && /55 hours/.test(r.title))?.value; const n = coverLines(p, lines).length;
-  let acc = [[]]; for (let i = 0; i < n; i++) acc = acc.flatMap(c => BLOCK_PLACEMENTS.map((_, j) => [...c, j]));
-  const v = acc.map(c => maxHoursInAny7Days(toSequence(materialise(p, lines, c, '09:00-17:00'), lines)));
-  return table == null ? null : { table, lo: Math.min(...v), hi: Math.max(...v), adds: Math.max(...v) > 55 && table <= 55 };
+  const v = sunday => placementCombos(n).map(c => maxHoursInAny7Days(toSequence(materialise(p, lines, c, '09:00-17:00', sunday), lines)));
+  const lo = Math.min(...v(false)), hi = Math.max(...v(true));
+  return table == null ? null : { table, lo, hi, adds: hi > 55 && table <= 55 };
 }
 // THE FIXED DUTIES (owner, 1 Oct 2026: "you were highlighting worst case on cover-week placement for days in a row — now
 // you are just doing worst possible with cover week. Isn't that misleading?"). A cover week is four duties the roster

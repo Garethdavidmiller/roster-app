@@ -474,7 +474,7 @@ describe('spare spread', () => {
 
 // ── THE RUN CAP (v20.02) ────────────────────────────────────────────────────────────────────────
 describe('maxRun', () => {
-    test('a spare week counts as FOUR worked days, not seven', () => {
+    test('a spare week counts as FOUR worked days and its Sunday, not seven', () => {
         // The single most repeatable mistake in this app — counting 7 reported the live main roster
         // at 15 consecutive days against a true 9. `longestRunFor` delegates to `worstCaseWorkedRun`
         // rather than re-deriving it, and this pins that it still does.
@@ -482,9 +482,9 @@ describe('maxRun', () => {
         const S = { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' };
         const R = { sun: 'RD', mon: 'RD', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
         p['1'] = line(S); p['2'] = line(R);
-        assert.equal(longestRunFor(p, ['1', '2']), 4, 'one cover week alone is four duties');
+        assert.equal(longestRunFor(p, ['1', '2']), 5, 'one cover week alone is its Sunday and four duties');
         p['2'] = line(S);
-        assert.equal(longestRunFor(p, ['1', '2']), 8, 'two adjacent cover weeks legitimately chain');
+        assert.equal(longestRunFor(p, ['1', '2']), 9, 'two adjacent cover weeks legitimately chain');
     });
 
     test('the gradient is SUPERLINEAR in run length — that is what makes it climbable', () => {
