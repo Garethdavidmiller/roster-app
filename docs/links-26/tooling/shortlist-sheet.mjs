@@ -324,10 +324,10 @@ const rowsHtml = ROWS.map(([label, get, dir, fmt, cls = '', parts]) => { const b
 
 // against today: the rows a colleague feels, the designs sharing one column where they agree
 const same = get => { const v = D.map(d => get(d.F)); return v.every(x => x === v[0]) ? v[0] : null; };
-// the weekends in the rotation, the longest wait between them and the days a year are page 1's shared lines, with today's
-// beside them, so they are not said again here (30 Oct 2026: the room went to the long days and the others' costs)
+// full weekends off (a year, then in the rotation), the longest wait between them and the days a year are page 1's shared
+// lines, with today's beside them, so they are not said again here (30 Oct 2026: the room went to the long days and the
+// others' costs; the per-year weekends row joined them on page 1 on 31 Oct)
 const TODAY_ROWS = [
-  ['Full weekends off, about a year', F => `${Math.round(F.A.checks.weekendsOff * 52 / F.pp.L)}`],
   ['Saturdays a year, each', F => `${Math.round(F.pp.sat)}`],
   ['Sunday overtime duties a year, each', F => `${Math.round(F.pp.sun)}`],
   ['Starting at 06:20, each a year', F => `${Math.round(F.pp.open0620)}`],
@@ -337,8 +337,13 @@ const TODAY_ROWS = [
   ['14 days’ leave buys, at worst', F => `${F.lv.worst} days off`],
   ['Leave for four full weeks off', F => `${F.lv.fourWeeks} days`],
 ];
+// ONE COLUMN WHEN ALL THREE AGREE (31 Oct 2026, the redo): every row of this table is shared, so it printed each figure
+// three times over in grey, under a subtitle saying grey means shared; it now prints it once, under "All three". A row
+// that stopped being shared brings back a column each, and the grey for the rows that still are
+const allShared = TODAY_ROWS.every(([, get]) => same(get) !== null);
+const todayHead = `<th>Measure</th><th class="num">Today</th>${allShared ? `<th class="num">${Both}</th>` : D.map(d => `<th class="num">${esc(d.name)}</th>`).join('')}`;
 const todayHtml = TODAY_ROWS.map(([label, get]) => { const s = same(get);
-  return `<tr><td>${esc(label)}</td><td class="num today">${esc(get(TF))}</td>${s !== null ? D.map(() => `<td class="num all">${esc(s)}</td>`).join('') : D.map(d => `<td class="num">${esc(get(d.F))}</td>`).join('')}</tr>`; }).join('');
+  return `<tr><td>${esc(label)}</td><td class="num today">${esc(get(TF))}</td>${allShared ? `<td class="num all3">${esc(s)}</td>` : s !== null ? D.map(() => `<td class="num all">${esc(s)}</td>`).join('') : D.map(d => `<td class="num">${esc(get(d.F))}</td>`).join('')}</tr>`; }).join('');
 const list = a => a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
 const f1 = x => x.toFixed(1);
 const an = s => (/^(8|11|18)/.test(s) ? 'an ' : 'a ') + s;   // "an 8h 40m", "a 42h 30m"
@@ -363,6 +368,7 @@ table.t th.num, table.t td.num { text-align: right; font-variant-numeric: tabula
 table.t td.today { color: var(--text-light); }
 table.t td.best, table.t .bestv { font-weight: 800; color: color-mix(in srgb, var(--success-green) 80%, black); }
 table.t td.all { color: var(--text-mid); }
+table.t.t-today3 td.all3 { font-weight: 700; color: var(--text-dark, #1a1a2e); } table.t.t-today3 th:nth-child(2), table.t.t-today3 th:nth-child(3) { width: 22%; }
 table.t td.fit { font-size: 9px; letter-spacing: -.15px; }
 table.t tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-sunken) 55%, white); }
 /* three cards side by side since 31 Oct 2026: two to a row left the third alone on a row of its own */
@@ -393,7 +399,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
   <div class="shared">
     <div>All <b>${met} of ${shared('rules scored', F => F.of)}</b> December staffing rules (today ${TF.met}), and all three flexible ones: 14 on a Saturday, evenly spaced cover weeks, weekday closers from 15:45</div>
     <div><b>No avoidable fatigue warning</b> on the fixed rota, one if a cover week falls badly — a 55-hour week; never more than <b>${word(run)} days in a row</b> on the fixed rota, ${word(worstRun)} if a cover week falls badly (today ${TF.A.fixed.present} warnings, up to ${TF.A.fatigue.present}; ${word(TF.fixedRun)} days, up to ${word(TF.worstRun)})</div>
-    <div><b>${wkOff} full weekends off in ${LINES}</b>, never more than ${gap} weeks apart (today ${TF.A.checks.weekendsOff} in ${TF.pp.L}, up to ${TF.maxGap} apart)</div>
+    <div><b>About ${Math.round(wkOff * 52 / LINES)} full weekends off a year</b> (today ${Math.round(TF.A.checks.weekendsOff * 52 / TF.pp.L)}), ${wkOff} in ${LINES}, never more than ${gap} weeks apart (today up to ${TF.maxGap} apart)</div>
     <div>The same <b>35-hour</b> week and <b>${days} days</b> a year, under the ceiling of ${DAYS_CEILING} (today ${TF.pp.daysYear.toFixed(1)})</div>
     <div>Every closing shift <b>shorter, by ${dur(Math.min(...cuts))} to ${dur(Math.max(...cuts))}</b> — the weekday’s and Sunday’s ${hm(wkCloser)} on ${both} (today ${hm(TF.closers[0])} and ${hm(TF.closers[2])}); no shift over ${hm(longest)}</div>
     <div><b>One shift time Monday to Friday and no early–late switch in ${one} of ${wl} weeks</b>, no week mixing the two (today ${TF.A.feel.oneTurn} of ${TF.A.feel.workingLines}, with ${TF.A.feel.hybrid} mixing)</div>
@@ -426,11 +432,11 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
 
 <section class="page">
   <div class="mast"><div><div class="eyebrow">The shortlist · continued</div><h1>Against today, and a recommendation</h1>
-  <div class="sub">On most of what a colleague feels the ${N} are the same — a figure in grey is shared by ${both}</div></div></div>
+  <div class="sub">On most of what a colleague feels the ${N} are the same${allShared ? ', so the table gives one figure for all three' : ` — a figure in grey is shared by ${both}`}</div></div></div>
 
   <h2>Against today’s link</h2>
-  <table class="t"><thead><tr><th>Measure</th><th class="num">Today</th>${D.map(d => `<th class="num">${esc(d.name)}</th>`).join('')}</tr></thead><tbody>${todayHtml}</tbody></table>
-  <p class="muted">Per year: the rotation’s count scaled to 52 weeks; days a year, Monday to Saturday with a cover week as four, over 365 days.</p>
+  <table class="t${allShared ? ' t-today3' : ''}"><thead><tr>${todayHead}</tr></thead><tbody>${todayHtml}</tbody></table>
+  <p class="muted">Per year: the rotation’s count scaled to 52 weeks. Days a year, full weekends off and the longest wait between them are on page 1.</p>
 
   <h2>Why these ${N} and not the other ${word(others.length)}</h2>
   <p>These ${N} balance best what weighs most here — days in a row, weekends, one shift time a week, late finishes and the closing shift. Each of the others keeps something none of the ${N} has, and pays for it. Closing Time and Both Ways have shorter closers — Closing Time also more even weeks, a gentler step and the best Saturday fit; Both Ways a lighter heaviest week, more early finishes and fewer new times — for fewer weeks on one turn, and a weaker weekday fit and more finishes at 22:00 or later on Closing Time, more long shifts and a weaker weekend fit on Both Ways. Home Grown has the fewest new times, ${word(HG.newT)}, no early over 8h&nbsp;30m on any day and a shorter weekday closer, for today’s ${hm(HG.closers[1])} Saturday closer, fewer weeks on one turn and a weaker fit. Even Keel, Fine Tune and Second Gear have a fourth person to the Saturday close (Fine Tune a gentler step), for weeks mixing earlies and lates, longer blocks, more late finishes and a weaker Saturday fit, and on Fine Tune and Second Gear fewer weeks on one turn. Second Edition has the gentlest step, for ${word(O['Second Edition'].F.fixedRun)} days in a row. Long Break gives four weeks off for ${LB.lv.fourWeeks} days’ leave and a ${LB.lv.best}-day best stretch, for ${word(LB.fixedRun)} days in a row, a ${ord(LB.A.feel.isolatedRest)} single rest day, fewer weeks on one turn and a ${hm(LB.step)} step. Second Look, Second Nature, Second Sight and Second Wind have blocks a week shorter (Second Look also ${word(O['Second Look'].F.worstRun)} days in a row at worst, not ${word(worstRun)}), for six days in a row on the fixed rota and fewer weeks on one turn — Second Sight and Second Wind a bigger step, Second Nature weekends up to ${word(O['Second Nature'].F.maxGap)} weeks apart.</p>
