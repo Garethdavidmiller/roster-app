@@ -85,6 +85,10 @@ export const SUPPLIED = [
     // exact-rota.py chose every time from a table with 15:45 closers, five at every opening Monday to Saturday and two new
     // early times that finish by 15:45, so its 14h 35m rest holds. README.md → "In Step".
     { file: 'in-step.json',                name: 'In Step',        code: 'IS-26-T4',   fp: '8d9239f3', strap: 'Five on at every opening from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between shifts' },
+    // Even Step (31 Oct 2026): the owner's one reservation about In Step was the length of its main early shift. The same
+    // weeks (Closing Time's rest days and early and late weeks) with every duty Monday to Saturday 8h 30m or less, every
+    // early one of today's times and every closer still 15:45; the lates take the half hour. README.md → "Even Step".
+    { file: 'even-step.json',              name: 'Even Step',      code: 'ES-26-T5',   fp: 'd1921b7a', strap: 'No shift over 8h 30m and every early one of today’s times, Monday to Saturday, with a 13:45 finish every weekday' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */

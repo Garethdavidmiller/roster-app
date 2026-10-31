@@ -16,10 +16,10 @@
  * From 1 Oct 2026 the December link is 26 lines with FIVE cover weeks (owner), so 21 working lines
  * and a contract of 21 × 35h = 44,100 Monday-to-Saturday minutes. The rules every 26-line design is
  * judged against are `docs/links-26/RULES.md`, set by the owner — and this table is not invented
- * here any more. It is the duty table of **Short Run (SR-26-F1)**, one of the two designs on the
- * owner's shortlist since 30 Oct 2026 — chosen on 3 Oct as Second Edition's (SE-26-F1), whose duties
- * Short Run shares exactly; Second Edition has since left the shortlist. In Step, the recommended
- * design, staffs the same number of duties each day at different times. A default that the owner's
+ * here any more. It is the duty table of **Short Run (SR-26-F1)**, one of the three designs on the
+ * owner's shortlist since 31 Oct 2026 — chosen on 3 Oct as Second Edition's (SE-26-F1), whose duties
+ * Short Run shares exactly; Second Edition has since left the shortlist. Even Step, the recommended
+ * design, and In Step staff the same number of duties each day at different times. A default that the owner's
  * own shortlist already satisfies is a better starting point than a table the app designed by
  * itself, which is what the 24-line default was (v21.00–v21.13).
  *

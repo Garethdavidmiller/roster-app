@@ -12,9 +12,10 @@
 # Everything else the decks quote — the run, the weekends, the one-turn weeks, the step, the leave, the late finishes (42
 # after 23:00, 94 at 22:00 or later), 60 starts at 06:20, the staffing, the Sunday, all three flexible rules — is Short
 # Run's figure exactly (deck-check.mjs --print), and stays. Made off the shortlist, In Step joined it the same evening, with
-# Short Run (owner: "Only do the shortlist for instep and short run"), so its manager "Why" slide (deck-polish.py) says what
-# both give, what In Step adds against Short Run and what it costs, and its notes set the two side by side. Like every
-# deck, they compare otherwise only with TODAY's link.
+# Short Run (owner: "Only do the shortlist for instep and short run"), and Even Step, recommended, joined them on 31 Oct 2026
+# (owner: "Yes, keep all three"). So its manager "Why" slide (deck-polish.py) says what all three give, what In Step adds
+# against the other two and what it costs, and its notes set it beside both. Like every deck, they compare otherwise only
+# with TODAY's link.
 # Built from the Second Nature template like every deck, so run second-nature-decks.py first. From the repository root:
 #   python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/in-step-decks.py \
 #     && python3 docs/links-26/tooling/deck-polish.py "In Step" && node docs/links-26/tooling/deck-check.mjs
@@ -68,13 +69,14 @@ def rename(d):
 # Before the rename the template's own name, Second Nature, is the only design a slide or a note may name: another
 # design's name at that point is a sentence ABOUT that design, carried over, which the rename would quietly turn into a
 # sentence about this one (Closing Time's builder, 30 Oct 2026 review; in git). It is refused instead.
-OTHER_NAMES = re.compile(r'Second Edition|Short Run|Closing Time|SE-26-F1|SR-26-F1|CT-26-T2')
+OTHER_NAMES = re.compile(r'Second Edition|Short Run|Closing Time|Even Step|SE-26-F1|SR-26-F1|CT-26-T2|ES-26-T5')
 # The deliberate mentions of another design — the managers' notes say In Step keeps Closing Time's weeks, and set it beside
 # Short Run — are written with a no-break space, as second-nature-decks.py writes Familiar Nine, so the check above passes
 # them and the rename (which turns every "Short Run" of the source decks into "In Step") leaves them alone.
 # Short Run's own figures quoted beside In Step's (its 24h 30m to 42h 30m weeks) carry the same mark, for SHORT_RUN_ONLY's sake.
 CT = 'Closing\u00a0Time'
 SR = 'Short\u00a0Run'   # the notes set In Step beside Short Run; the rename would otherwise make it In Step beside itself
+ES = 'Even\u00a0Step'   # and beside Even Step, the recommended design (31 Oct 2026)
 
 def build(src, out, edits):
     d = tempfile.mkdtemp(); zipfile.ZipFile(src).extractall(d)
@@ -166,7 +168,7 @@ def managers(d):
     s = S(6); put(s, '14h 20m', '14h 35m', GREEN); s.save()
 
     # slide 7's subtitle and six lines are deck-polish.py's; Short Run's pre-polish wording there is true of In Step
-    notes(d, 7, 'This is the case in one slide', f'This is the case in one slide. In Step (30 October 2026) is {CT}’s weeks with the shift times chosen again, to put five on at every opening Monday to Saturday and to follow the weekday trains more closely; it is on the shortlist with {SR}, and this slide sets the two side by side. It meets every December staffing rule and all three flexible ones. Nine of its fifteen shift times are worked today, today’s 13:45 finish among them on every weekday. Nobody works more than five days in a row on the fixed rota, where today it is seven; a cover week placed badly, with its Sunday worked as overtime, can make it seven, never more. Every working week is all earlies or all lates, and 18 of the 21 keep one shift time Monday to Friday; today seven weeks in 16 do both. Its seven full weekends off in 26 weeks are never more than five weeks apart, which is as close as the five cover weeks allow; today it is four in 20, up to seven weeks apart. Its working weeks run from 25h 30m to 41h 05m (today 25h 10m to 43h 50m), and the shortest rest is 14h 35m. Against {SR} it has the same run, weekends, weeks on one shift time, late finishes and leave; it adds today’s 13:45, an 8h 10m Saturday closer ({SR}’s is 8h 40m) and more even weeks ({SR}’s run from 24h\u00a030m to 42h\u00a030m), and its fit to the trains is the closer with the three days’ scores added together, though counted day by day across a week {SR}’s is a shade closer (26.7 against 26.8), as it is on weekdays alone. The honest costs: its two new weekday earlies, 8h 55m and 8h 45m, come round about 20 times a year each, 40 in all, where today no early is over 8h 30m and {SR} has 20, at 9h 00m; its Saturday closer is a new time on a Saturday, where {SR} has none; finishes at 23:00 or later go from about 39 to 42 a year each, the smallest rise possible — the December staffing needs three to the close every day, and only those three finish after 23:00 — and finishes at 22:00 or later from about 78 to 94; and six shift times are new. Every closing shift is 30 to 60 minutes shorter than today’s.')
+    notes(d, 7, 'This is the case in one slide', f'This is the case in one slide. In Step (30 October 2026) is {CT}’s weeks with the shift times chosen again, to put five on at every opening Monday to Saturday and to follow the weekday trains more closely. It is on the shortlist with {ES}, the recommended design, and {SR}, and this slide sets it beside both. It meets every December staffing rule and all three flexible ones. Nine of its fifteen shift times are worked today, today’s 13:45 finish among them on every weekday. Nobody works more than five days in a row on the fixed rota, where today it is seven; a cover week placed badly, with its Sunday worked as overtime, can make it seven, never more. Every working week is all earlies or all lates, and 18 of the 21 keep one shift time Monday to Friday; today seven weeks in 16 do both. Its seven full weekends off in 26 weeks are never more than five weeks apart, which is as close as the five cover weeks allow; today it is four in 20, up to seven weeks apart. Its working weeks run from 25h 30m to 41h 05m (today 25h 10m to 43h 50m), the most even of the three, and the shortest rest is 14h 35m. {ES} is these same weeks with no shift over 8h 30m Monday to Saturday; against it In Step’s weekday lates are shorter (8h 12m on average, closers aside, against 8h 27m), its working day moves less from one week to the next (1h 13m on average, against 1h 31m) and its weekday fit to the trains is closer (29.8 against 32.6), and the price is its two new weekday earlies, 8h 55m and 8h 45m, which come round about 20 times a year each, 40 in all, where {ES} has none over 8h 30m and neither has today. Against {SR} it has the same run, weekends, weeks on one shift time, late finishes and leave; it adds today’s 13:45, an 8h 10m Saturday closer ({SR}’s is 8h 40m) and more even weeks ({SR}’s run from 24h\u00a030m to 42h\u00a030m), and its fit to the trains is the closer with the three days’ scores added together, though counted day by day across a week {SR}’s is a shade closer (26.7 against 26.8), as it is on weekdays alone; {SR} has 20 weekday earlies a year over 8h 30m, at 9h 00m. The other honest costs: its Saturday closer is a new time on a Saturday, where {SR} has none; finishes at 23:00 or later go from about 39 to 42 a year each, the smallest rise possible — the December staffing needs three to the close every day, and only those three finish after 23:00 — and finishes at 22:00 or later from about 78 to 94; and six shift times are new. Every closing shift is 30 to 60 minutes shorter than today’s.')
 
     s = S(8)
     s.runs(next(i for i, (a, b) in enumerate(spans(s.x)) if runs_of(s.x[a:b])[:1] == ['7 weekends off, at most 5 weeks apart']),
@@ -198,8 +200,13 @@ def check_typed():
     fit = lambda r: f'{r[0]} · {r[1]} · {r[2]}'
     frac = lambda a, b: float(a) / float(b)
     SL = re.findall(r"'([^']+)'", re.search(r'export const SHORTLIST = \[([^\]]*)\]', open(os.path.join(tool, 'fresh.mjs'), encoding='utf-8').read()).group(1))
-    G = {'Short Run': (lambda j: j.get('patterns', j))(json.load(open(os.path.join(tool, 'short-run.json'), encoding='utf-8')))}
-    S = fig['Short Run']
+    G = {n: (lambda j: j.get('patterns', j))(json.load(open(os.path.join(tool, f), encoding='utf-8'))) for n, f in (('Short Run', 'short-run.json'), ('Even Step', 'even-step.json'))}
+    S, E = fig['Short Run'], fig['Even Step']
+    REC = re.search(r"export const RECOMMENDED = '([^']+)'", open(os.path.join(tool, 'fresh.mjs'), encoding='utf-8').read()).group(1)
+    H = lambda v: int(v.split('h')[0]) * 60 + int(v.split('h')[1].strip().rstrip('m'))
+    long_ms = lambda p: round(sum(1 for r in p.values() for d in WK + ('sat',) if timed(r[d]) and mins(r[d]) > 510) * 52 / len(p))
+    late_avg = lambda p: (lambda l: round(sum(l) / len(l)))([mins(r[d]) for r in p.values() for d in WK if timed(r[d]) and int(r[d][:2]) >= 11 and r[d][6:] != '23:55'])   # the sheet's lateAvg
+    shape = lambda p: [[('C' if r[d] == 'SPARE' else 'R' if not timed(r[d]) else 'E' if int(r[d][:2]) < 11 else 'L') for d in ALLD] for k, r in sorted(p.items(), key=lambda kv: int(kv[0]))]
     long_lengths = lambda p: sorted({mins(r[d]) for r in p.values() for d in WK if timed(r[d]) and int(r[d][:2]) < 11 and mins(r[d]) > 510})
     long_wk = lambda p: round(sum(1 for r in p.values() for d in WK if timed(r[d]) and int(r[d][:2]) < 11 and mins(r[d]) > 510) * 52 / len(p))
     add3 = lambda f: float(f['fitWk']) + float(f['fitSat']) + float(f['fitSun'])
@@ -233,7 +240,12 @@ def check_typed():
          [[F[k] == S[k] for k in ('run', 'weekends', 'weekendGap', 'oneTurn', 'late23', 'late22', 'leaveBest', 'leaveAvg', 'leaveWorst', 'leaveFour')], k1345(g), k1345(G['Short Run'])],
          [[True] * 10, True, False]),
         ('against Short Run: its Saturday closer and its weeks', [S['closerSat'], S['light'], S['heavy'], F['closerSat']], ['8h 40m', '24h 30m', '42h 30m', '8h 10m']),
-        ('In Step is on the shortlist, with Short Run', sorted(SL), ['In Step', 'Short Run']),
+        ('In Step is on the shortlist, with Even Step (recommended) and Short Run', [sorted(SL), REC], [['Even Step', 'In Step', 'Short Run'], 'Even Step']),
+        # the managers' notes 7 against Even Step (31 Oct 2026): its same weeks, its step, its weekday fit, none of its shifts
+        # Monday to Saturday over 8h 30m, and In Step's weeks the most even of the three
+        ('against Even Step: the same weeks, a smaller step, a closer weekday fit, none of Even Step’s over 8h 30m Monday to Saturday',
+         [shape(g) == shape(G['Even Step']), F['step'], E['step'], F['fitWk'], E['fitWk'], long_ms(G['Even Step']), late_avg(g), late_avg(G['Even Step'])], [True, '1h 13m', '1h 31m', '29.8', '32.6', 0, 492, 507]),
+        ('In Step’s weeks the most even of the three', H(F['heavy']) - H(F['light']) < min(H(o['heavy']) - H(o['light']) for o in (S, E)), True),
         # the notes word the fit against today's as a fraction: "a little over half" (0.5–0.6), "about a seventh" and
         # "about two-fifths" (each within a hundredth or so of 1/7 and 2/5)
         ('the fit as fractions of today’s, manager notes 4',

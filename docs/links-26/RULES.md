@@ -66,7 +66,7 @@ The headcounts are minimums: too few is the problem, never too many. **Unchanged
 |---|---|
 | F1 | **Fourteen on a Saturday.** Unchanged. |
 | F2 | **▲ CHANGED — Five cover weeks, as evenly spread as possible.** 26 does not divide by 5, so "as even as possible" means the gaps between cover weeks differ by **at most one line**: four gaps of 5 and one gap of 6 (for example lines 1, 6, 11, 16 and 21). |
-| F3 | **Every weekday closer starts at 15:45.** Unchanged. |
+| F3 | **▲ CHANGED — Every weekday closer starts at 15:45 or later.** 15:45 is the minimum: 15:30 is too small a change from today's 15:15 (owner, 31 Oct 2026). A 16:00 closer meets it. Saturday's closer is not covered. |
 
 ## The contracted-days ceiling — ▲ CHANGED
 

@@ -95,7 +95,7 @@ the whole of v20. A number written beside the list it describes is a second copy
 | `links-target-sets-store.js` | the Firestore half of those saved sets — reading the collection, and the one guarded write |
 | `links-generator-targets.js` | the numbers the generator runs against, where they came from, and what may replace them |
 | `links-default-targets.js` | the table the generator STARTS from — since v24.47 the duty table of Second Edition, which the shortlisted Short Run shares exactly; not measured from today's roster |
-| `links-proposals.js` | the SHORTLISTED 26-line designs, built in as read-only proposals (v24.47; In Step and Short Run since v25.02) — a proposal id never reaches Firestore |
+| `links-proposals.js` | the SHORTLISTED 26-line designs, built in as read-only proposals (v24.47; Even Step, In Step and Short Run since v25.04) — a proposal id never reaches Firestore |
 | `links-tips.js` | `CARD_TIPS` for the page's `?` panels (pure data) |
 
 > **Three of those rows were missing until v21.63**, and two of them own numbered invariants in the
@@ -1345,10 +1345,11 @@ judged against are `docs/links-26/RULES.md`. Three things came with the length:
   every line is drawn and only at `ROTATING_LINES`, with the same evidence discipline as the run limit
   (measurement, never "cannot be run", while no company policy document backs it).
 - **The shortlist is built in** (`links-proposals.js`; owner decision 3 Oct 2026: read-only proposals,
-  not saved documents). In Step and Short Run — the shortlist since 30 Oct 2026, built in from v25.02,
-  after Second Edition, Even Keel and Short Run (3 Oct) and Closing Time (v25.01) — open from their own
+  not saved documents). Even Step, In Step and Short Run — the shortlist since 31 Oct 2026, built in
+  from v25.04 with Even Step, the recommendation, listed first; after Second Edition, Even Keel and
+  Short Run (3 Oct), Closing Time (v25.01) and In Step and Short Run (v25.02) — open from their own
   group at the top of the picker as an UNSAVED working copy — `activeDesignId` null, `activeProposalId`
-  set — so save, rename and delete all treat one as new; the first save asks for a name ("In Step — copy")
+  set — so save, rename and delete all treat one as new; the first save asks for a name ("Even Step — copy")
   and creates a design. Compare offers them; a workspace with nothing saved keeps its empty state, which
   offers "Open a shortlisted proposal" (nothing is opened for you);
   Generate while one is open builds a NEW unsaved design rather than overwriting it.
