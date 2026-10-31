@@ -1,8 +1,9 @@
 # The rules — December 2026 link, 26 lines
 
 **Set by the owner on 1 Oct 2026.** This is the one list every 26-line design is judged against. It is the 24-line
-rule set (`../links-24/links-24-rules.pdf`, built by `../links-24/tooling/rules-sheet.mjs`) with **four
-changes**, each marked **▲ CHANGED**. The owner reviewed every other rule and kept it as it was.
+rule set (`../links-24/links-24-rules.pdf`, built by `../links-24/tooling/rules-sheet.mjs`) with **five
+changes**, each marked **▲ CHANGED**: four set on 1 Oct, and the weekday-closer rule (F3) added on 31 Oct. The owner
+reviewed every other rule and kept it as it was.
 
 The staffing levels were confirmed **verbally** (29 Sep 2026), as was the 24-person link, which then turned out to
 be 26. So it is worth getting the levels below in writing before a design is put forward.
@@ -16,6 +17,7 @@ be 26. So it is worth getting the levels below in writing before a design is put
 | Working lines (lines less cover weeks) | 20 | **21** |
 | Contracted days a year | aimed at 217–219 | **219 or fewer**: today's figure is the ceiling |
 | Fourteen on a Saturday | flexible rule | flexible rule, **unchanged** |
+| Weekday closers | no rule | **start at 15:45 or later** — a new flexible rule, F3 (31 Oct) |
 
 ## The basics every rule assumes
 
@@ -120,5 +122,6 @@ The tooling in `tooling/` applies all of this (set up 1 Oct 2026; see `README.md
 
 The Links page itself (`ROTATING_LINES` in `links-design.js`) moved to 26 lines in v24.47 on 3 October 2026; until then
 the tooling passed 26 to every app function explicitly, and it still does. The three shortlisted designs were built in
-as examples in the same release, and Closing Time, shortlisted on 30 October, joined them in v25.01. Since v25.02 the
-app builds in only the two on the shortlist now, In Step and Short Run.
+as examples in the same release, and Closing Time, shortlisted on 30 October, joined them in v25.01. v25.02 narrowed
+them to the two then shortlisted, In Step and Short Run; since v25.04 the app builds in the three on the shortlist now,
+Even Step, In Step and Short Run.

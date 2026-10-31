@@ -1563,8 +1563,9 @@ for lates shorter than most earlies (lates are the turns booked around and refus
 | Everything else on the sheet | the same on all three: 9 of 9 rules and all three flexible ones, no fatigue factor on the fixed rota (up to 1 at worst, the 55-hour week), 5 days in a row (up to 7), 7 weekends at most 5 weeks apart, 4 single rest days, no mixed week, 18 of 21 weeks on one shift time, leave 28 · 23.4 · 20 · 15, 42 finishes after 23:00 and 94 at 22:00 or later, 218.6 days | | |
 
 On the fatigue factors (`factors-like.mjs`, In Step as the reference) every finding is In Step's; the figures differ in
-three places: the 55-hour worst case (56.8 against 56.3), the hours in any seven days on the fixed duties (49.7 against
-50.0) and FF17's counts (9 backward and 12 forward against 10 and 13, the same margin of three).
+four places: the 55-hour worst case (56.8 against 56.3), the hours in any seven days on the fixed duties (49.7 against
+50.0), FF17's counts (9 backward and 12 forward against 10 and 13, the same margin of three) and FF18's step, how far
+the start time moves from one week to the next (typically 1h 31m against 1h 13m).
 
 **How it was found.** `final-table.mjs`, exhaustively, on a pool of 45 shift times: In Step's, with every time over 8h 30m
 left out (`HI=510`), no late starting between 11:00 and 11:59 (on these weeks a start there is more than two hours from

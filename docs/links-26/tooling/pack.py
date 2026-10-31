@@ -77,8 +77,8 @@ readme = '\n'.join([
     'Marylebone CEA link, December 2026 timetable - 26 weeks, set on 1 October 2026',
     '',
     para(f'{WORDS[len(proposals)].capitalize()} candidate links, {WORDS[len(SHORTLIST)]} shortlisted ({", ".join(SHORTLIST[:-1])} and {SHORTLIST[-1]}), one recommended ({RECOMMENDED}). '
-         f'Asked of managers: which of the {WORDS[len(SHORTLIST)]} goes to colleagues. Asked of colleagues: look at page 3 of the chosen '
-         'sheet and say what worries you.'),
+         f'Asked of managers: which of the {WORDS[len(SHORTLIST)]} goes to colleagues. Asked of colleagues: read pages 1 and 2 of the chosen '
+         'sheet, look at its rota on page 3 and say what worries you.'),
     item('Ten minutes:', '1 Summary/links-26-shortlist.pdf', 18),
     item('Twenty minutes:', f'add {TWENTY}', 18),
     para('The rest is the evidence behind them.'),
