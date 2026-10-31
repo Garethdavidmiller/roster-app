@@ -198,7 +198,9 @@ def strip_slide(d, name, grid, F):
     put(s, 'Earlies, lates and Sundays', 'Your 26 weeks at a glance')
     put(s, 'The balance you have now stays much the same', 'The green bars are the full weekends off; where you start is decided later')
     upto_banner = f', {F["blockUpTo"]} if the cover weeks go the same way' if int(F["blockUpTo"]) > int(F["block"]) else ''
-    put(s, 'Much the same balance. Sundays stay overtime and still finish at 23:25.', f'{F["weekendsYear"]} full weekends off a year, at most five weeks apart; blocks of earlies or lates up to {F["block"]} weeks{upto_banner}{", and every switch from one kind to the other crosses a cover week" if facts["switches_across_cover"] else ""}.')
+    # LEADS WITH THE BLOCKS (31 Oct 2026, the screenshot pass): it opened with slide 9's own takeaway, word for word, so the
+    # presenter read the same clause on two slides running, and "up to 5" broke from its "weeks" at the line end
+    put(s, 'Much the same balance. Sundays stay overtime and still finish at 23:25.', f'Blocks of earlies or lates up to {F["block"]}\u00a0weeks{upto_banner}{", and every switch from one kind to the other crosses a cover week" if facts["switches_across_cover"] else ""}; a full weekend off comes round at least every {F["weekendGap"]}\u00a0weeks.')
     s.save()
     upto = (f'; because a cover week’s duties are placed later, a block can run to {F["blockUpTo"]} if the cover weeks beside it are given the same kind (today {T["blockUpTo"]})'
             if int(F["blockUpTo"]) > int(F["block"]) else '; the cover weeks cannot lengthen it')
@@ -289,6 +291,7 @@ def managers(d, name, grid, F):
     tile(s, 8, ['contract rostered exactly, on average'], 'contracted hours\na week'); tile(s, 9, ['Monday to Saturday'], 'Mon–Sat average')
     tile(s, 12, ['avoidable fatigue warnings'], 'avoidable\nfatigue warnings'); tile(s, 13, ['in the fixed rota · today 4'], 'fixed rota · today 4')
     tile(s, 16, ['people on the link'], 'people\non the link')
+    tile(s, 5, ['today’s link: 4'], 'today 4'); tile(s, 17, ['today: 20'], 'today 20')   # one form across the row (screenshot pass)
     s.save()
     s = S(6); drop_shape(s, 'Early starts and a weekly rotation come with every link, so are not counted. The written source of the 13-day limit is still to be confirmed.'); s.save()
     replace_run(f'{d}/ppt/slides/slide6.xml', '0', F['ff'], after='Avoidable fatigue warnings, fixed rota')   # the worst case too, as on the colleagues' slides
@@ -342,7 +345,7 @@ def managers(d, name, grid, F):
     else: costs = None
     if not (costs and int(F['leaveFour']) > int(T['leaveFour'])):
         raise SystemExit(f'deck-polish: {name}’s "Costs" line is no longer a cost against today')
-    times_line = f'{n_known} of {n_times} shift times worked today; {n_new} new, {WORDS[shorter_lates(P)]} shorter versions of today’s lates'
+    times_line = f'{n_known} of {n_times} shift times worked today; {n_new} new, {shorter_lates(P)} of them shorter versions of today’s lates'
     # true of every shortlisted design, or it would not be on every deck: the flexible rules are left out, as the ticks have no
     # room for them; every one meets all three, which the managers' notes 2 and 3 say
     lead = f'{ALL.capitalize()} shortlisted' if name in SHORTLIST else f'Like {ALL} shortlisted'   # an off-shortlist design shares them
@@ -371,15 +374,50 @@ def managers(d, name, grid, F):
     s.save()
     replace_run(f'{d}/ppt/slides/slide8.xml', '7 weekends off, at most 5 weeks apart', f'{F["weekendsYear"]} full weekends off a year (today {T["weekendsYear"]})')
 
+# THE SHORT TABLES FILL THEIR SPACE (31 Oct 2026, owner: "deep review them and aesthetic polish using screenshots"). Every
+# comparison table is laid out for five rows, each 0.40 in tall on a 0.48 in pitch from 1.97 in, above a takeaway bar fixed at
+# 4.55 in. Seven slides across the two decks have three or four rows, so the screenshots showed a band of empty slide up to
+# 1.2 in deep between the table and its takeaway — the largest empty area in either deck. Such a table now fills the band a
+# five-row table fills: its rows taller and spread in the same proportion, its text a size larger where there are three, the
+# corner radius kept the same, so every comparison slide ends its table at the same height. Rows are found by their exact
+# geometry, a table is respaced only when its rows sit on the five-row pitch from the top with nothing between them and the
+# bar, and the checker reads rows in shape order, not position, so deck-check.mjs sees no difference.
+ROW_X, ROW_W, ROW_H, ROW_PITCH, ROW_TOP, BAR_TOP = 457200, 8229600, 365760, 438912, 1801368, 4160520
+BAND = 4 * ROW_PITCH + ROW_H                      # the height five rows take
+def balance_tables(d):
+    geo = lambda sp: (lambda m: tuple(map(int, m.groups())) if m else None)(re.search(r'<a:off x="(\d+)" y="(\d+)"/><a:ext cx="(\d+)" cy="(\d+)"/>', sp))
+    sdir = os.path.join(d, 'ppt', 'slides'); moved = []
+    for fn in sorted(os.listdir(sdir), key=lambda n: int(re.sub(r'\D', '', n) or 0)):
+        if not re.fullmatch(r'slide\d+\.xml', fn): continue
+        path = os.path.join(sdir, fn); x = open(path, encoding='utf-8').read()
+        sps = re.findall(r'<p:sp>.*?</p:sp>', x, re.S)
+        rows = sorted(g[1] for sp in sps if (g := geo(sp)) and 'prst="roundRect"' in sp and g[0] == ROW_X and g[2] == ROW_W and g[3] == ROW_H)
+        n = len(rows)
+        if n not in (3, 4) or rows != [ROW_TOP + i * ROW_PITCH for i in range(n)]: continue
+        if any((g := geo(sp)) and rows[-1] + ROW_H <= g[1] < BAR_TOP for sp in sps): continue   # something sits under the table
+        h = round(BAND / (n + 0.2 * (n - 1))); gap = round(0.2 * h); bump = 200 if n == 3 else 0
+        def respace(sp):
+            g = geo(sp)
+            if not g or g[3] != ROW_H or g[1] not in rows: return sp
+            i = rows.index(g[1])
+            sp = sp.replace(f'<a:off x="{g[0]}" y="{g[1]}"/><a:ext cx="{g[2]}" cy="{g[3]}"/>', f'<a:off x="{g[0]}" y="{ROW_TOP + i * (h + gap)}"/><a:ext cx="{g[2]}" cy="{h}"/>', 1)
+            sp = re.sub(r'<a:gd name="adj" fmla="val (\d+)"/>', lambda m: f'<a:gd name="adj" fmla="val {round(int(m.group(1)) * ROW_H / h)}"/>', sp)
+            return re.sub(r' sz="(\d+)"', lambda m: f' sz="{int(m.group(1)) + bump}"', sp) if bump else sp
+        x2 = re.sub(r'<p:sp>.*?</p:sp>', lambda m: respace(m.group(0)), x, flags=re.S)
+        if x2 != x: open(path, 'w', encoding='utf-8').write(x2); moved.append(f'{fn[5:-4]}:{n}')
+    return moved
+
 def polish(path, name, grid, who):
     d = tempfile.mkdtemp(); zipfile.ZipFile(path).extractall(d)
     (colleagues if who == 'colleagues' else managers)(d, name, grid, FIG[name])
+    moved = balance_tables(d)
     names = zipfile.ZipFile(path).namelist()
     extra = [os.path.relpath(os.path.join(r, f), d) for r, _, fs in os.walk(d) for f in fs if os.path.relpath(os.path.join(r, f), d) not in names]
     tmp = path + '.tmp'
     with zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as z:
         for n in names + extra: z.write(os.path.join(d, n), n)
     os.replace(tmp, path); shutil.rmtree(d)
+    return moved
 
 if __name__ == '__main__':
     import sys
@@ -388,5 +426,6 @@ if __name__ == '__main__':
     if bad: raise SystemExit(f'deck-polish: no design {bad}; the designs are {list(DESIGNS)}')
     for name in names:
         for who in ('colleagues', 'managers'):
-            polish(os.path.join(OUT, f'{name.replace(" ", "-")}-for-{who}.pptx'), name, DESIGNS[name], who)
+            moved = polish(os.path.join(OUT, f'{name.replace(" ", "-")}-for-{who}.pptx'), name, DESIGNS[name], who)
+            print(f'{name} for {who}: short tables respaced on slides {", ".join(moved) or "none"} (slide:rows)')
     print('polished', ', '.join(names))
