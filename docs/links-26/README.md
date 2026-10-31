@@ -9,7 +9,12 @@ change is the arithmetic that depends on the number of lines.
 **Worst cases dated before 31 Oct 2026 put a cover week's Sunday inside its four duties.** The owner settled that day
 that the four are Monday to Saturday and the Sunday is overtime on top, which put a day on most worst cases — "5 (up to
 6)" days in a row became "5 (up to 7)". The sections below keep the figures they were written with; the sheets, the
-decks and the last section have the current ones (*A cover week's four are Monday to Saturday*).
+decks and *A cover week's four are Monday to Saturday* have the current ones.
+
+**League scores dated before 31 Oct 2026 are on the weighting the league had then.** The owner reweighted it that day —
+long earlies and the closing shift counted, the fit by days, the 55-hour cover week in the worst case — and made the
+reweighted one the main league, keeping the one before it as the alternative (`OLD_READINGS=1` rebuilds it). The
+sections below keep the scores they were written with; the shortlist sheet and *The league reweighted* have both.
 
 ## What is in this folder
 
@@ -87,7 +92,7 @@ still be rebuilt.
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
 | | `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` | the rules reference (`../links-26-rules.pdf`), the one-page summary (`../links-26-summary.pdf`) and the two-page shortlist sheet (`../links-26-shortlist.pdf`) |
 | 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the zip |
-| league | `league.mjs` | the weighted league on most of the factors the sheets compare — not the block length, nor the shortlist sheet's long days, early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league) — the owner's weights, a judgement not a measurement |
+| league | `league.mjs` | the weighted league on the factors the sheets compare, long earlies and the closing shift among them since 31 Oct 2026 — not the block length, nor the shortlist sheet's early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league; `OLD_READINGS=1` for the weighting before 31 Oct, kept as the alternative, with any of them) — the owner's weights, a judgement not a measurement (see *The league reweighted*) |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
 | options | `short-earlies.mjs` | every way to keep a 13:35 or 13:45 every weekday with today's times and a 16:00 closer: 2,250 `final-table.mjs` searches (`SCAN=1`; their results are committed, `results/short-earlies-scan.txt`) and every whole week paying the contract (see "Today's link on 26 lines") |
@@ -1607,13 +1612,15 @@ sheet and `links-default-targets.test.mjs` (mutated to 15:30 to see it fail) all
 flexible rules. Saturday's closer is not covered, so Short Run's 15:15 Saturday closer stands. The decks' managers' notes
 and the pack's read-me say "15:45 or later" too, and no proposal sheet's figure moved.
 
-**In the league** Even Step is second in four of the five versions: usual 86.6 behind In Step's 87.4; with the
-proposals setting the scale 87.9 against 90.1; without familiar times 90.7 against 91.7; with the run scored on the fixed
-rota 87.6 against 88.4. In the six-factor league it is third, 85.8, behind Second Look (88.3) and In Step (87.2), a
-shade ahead of six designs tied at 85.7, Second Edition and Short Run among them. Adding it moved no other design's score in the usual league. The
-league scores neither the closing shift nor long days, and its weekday fit and step are where Even Step loses its
-point: counted even as lightly as the league's lightest factor, In Step's long earlies would put Even Step first of all
-fifteen (`shortlist-sheet.mjs` computes the weight at which the order turns, from the league's own range).
+**In the league, as it was weighted when Even Step was built** (`OLD_READINGS=1` now; since *The league reweighted*,
+below, Even Step is first in the main league) Even Step is second in four of the five versions: usual 86.6 behind In
+Step's 87.4; with the proposals setting the scale 87.9 against 90.1; without familiar times 90.7 against 91.7; with the
+run scored on the fixed rota 87.6 against 88.4. In the six-factor league it is third, 85.8, behind Second Look (88.3)
+and In Step (87.2), a shade ahead of six designs tied at 85.7, Second Edition and Short Run among them. Adding it moved
+no other design's score in the usual league. That weighting scored neither the closing shift nor long days, and Even
+Step's weekday fit and step were where it lost its point: counted even as lightly as the league's lightest factor, In Step's
+long earlies would put Even Step first of all fifteen (`shortlist-sheet.mjs` computed the weight at which the order
+turns, from the league's own range, until the league counted long earlies itself).
 
 **The shortlist of three, Even Step recommended.** `SHORTLIST` in `tooling/fresh.mjs` is `['Even Step', 'In Step',
 'Short Run']` and `RECOMMENDED` is Even Step. The case, as the shortlist sheet puts it: In Step's weeks without the long
@@ -1631,7 +1638,8 @@ date. *The shortlist sheet* was rewritten for three: the measures where they dif
 average (In Step's card had said "lates from 8h 00m", which made it look the short-lates design while Short Run's are
 shorter, 8h 00m on average with a 7h 30m late; caught in this release's own review, and the card, the guide and the
 choices were corrected, each asserted); each one's edge; the guide; the recommendation, every figure in its place
-(asserted row by row); and the league's turning weight. *The summary* stars three. *The rules sheet* and `RULES.md` carry
+(asserted row by row); and the league's turning weight (since replaced by both weightings' orders, asserted —
+*The league reweighted*). *The summary* stars three. *The rules sheet* and `RULES.md` carry
 the reworded closer rule. *The presentations* (below). *The pack's read-me* gains a paragraph for Even Step, refused unless
 it is shortlisted and recommended, and its twenty-minute read is now `Even-Step-for-managers.pdf`. *The app* (v25.04)
 builds in Even Step first, then In Step and Short Run (`links-proposals.js`), and a test now holds the first to
@@ -1675,6 +1683,107 @@ duties and a Sunday's overtime"), which widened its column and wrapped every pat
 row's worst case does ("if a cover week falls badly"; the notes beneath the table say how it is made), all fifteen print
 eight pages again, and `render.mjs` refuses to print a page taller than the sheet (shown to refuse the long form: page 7,
 1,165px against 1,032).
+
+## The league reweighted — long earlies and the closing shift counted, the old weighting kept (31 Oct 2026)
+
+The owner asked "Are we weighting correctly in the tables?", then "Use your weights and fix the league", and then "Keep
+the old leagues as alternatives, but this should now be the main one". **Why it needed fixing.** Weighted as it was, 74
+of the league's 100 points went to factors on which the three shortlisted designs score exactly the same, and neither of
+the two things that decide between them scored at all: the length of the earlies (the owner's worry about In Step) and
+the closing shift (the shortlist sheet's own priority, and the shift the colleague decks call the one people dislike
+most). The three were ordered by margins under a point on the 26 points left — fit, shortest rest, step, heaviest week,
+familiar times — and the shortlist sheet had to work out, outside the league, the weight at which long earlies would
+turn its order.
+
+**Four changes** (`league.mjs`'s header has the reasoning beside the code):
+
+| | What | Weight |
+|---|---|---|
+| Long earlies | earlies over 8h 30m, Monday to Saturday, a year each — the shortlist sheet's own count, which it asserts equal for all fifteen designs | 5, as late finishes |
+| The closing shift | the average length of the Monday-to-Saturday closing duties, weighted by how many are worked | 3 |
+| The fit by days | the weekday's fit counted five times, as five days of the week. It was the mean of the three day types, so a Saturday counted as much as five weekdays | fit's 11, unchanged |
+| The 55-hour cover week | counted in the fatigue worst case, as every sheet's "up to 1" counts it; the league had scored it as nothing, under a label that says worst case | fatigue's 11, unchanged |
+
+The other weights are unchanged. The two new ones take the total to 108, and every weight is rescaled to 100, as `DROP=`
+does (rules met 25 becomes 23.1, and so on). The league counts long EARLIES, not every long shift: today's long shifts
+are its 8h 45m closers, which every design shortens and the closing-shift factor scores. What the new readings give:
+long earlies a year each, none on Even Step, Closing Time and Home Grown (or today's link), 10 on Even Keel, Fine Tune
+and Second Gear, 20 on the six on Second Nature's duty table and on Second Look, 26 on Both Ways, 32.5 on Familiar Nine
+and 40 on In Step; closing shifts from 7h 55m (Closing Time, Both Ways) to 8h 16m (Even Keel, Fine Tune, Second Gear,
+Familiar Nine), In Step and Even Step 8h 10m, today 8h 45m; and a 55-hour week possible with a cover week placed badly
+on every design but Second Look, whose worst week is 52.2 hours.
+
+**The main league** (`REF_IN_RANGE=1 node league.mjs`), and the same table weighted as before (`OLD_READINGS=1`):
+
+| Design | Main league | Weighted as before |
+|---|---|---|
+| ★ Even Step | **1st · 84.0** | 2nd · 86.6 |
+| Closing Time | 2nd · 83.8 | 3rd · 86.2 |
+| Home Grown | 3rd · 82.5 | 8th · 84.5 |
+| Second Edition | 4th · 81.5 | 4th · 86.1 |
+| Even Keel | 5th · 81.4 | 6th · 84.8 |
+| Both Ways | 6th · 81.3 | 7th · 84.7 |
+| ★ Short Run | 7th · 80.9 | 5th · 85.4 |
+| ★ In Step | 8th · 80.5 | **1st · 87.4** |
+| Fine Tune | 9th · 80.5 | 10th · 83.8 |
+| Long Break | 10th · 79.9 | 9th · 84.3 |
+| Second Gear | 11th · 79.8 | 11th · 83.1 |
+| Second Look | 12th · 79.7 | 13th · 81.9 |
+| Second Sight | 13th · 78.5 | 12th · 82.8 |
+| Second Wind | 14th · 77.2 | 14th · 81.4 |
+| Second Nature | 15th · 72.5 | 15th · 76.4 |
+
+★ shortlisted. In Step's 80.51 and Fine Tune's 80.49 round alike. Unranked, for reference: Familiar Nine 71.9 (77.1
+before), today's link 19.4 (16.0).
+
+**What moved it.** Even Step goes first, a fifth of a point ahead of Closing Time. Of the factors the two differ on, it
+gains 0.8 on the fit by days and 0.5 on weeks on one shift time, and loses 0.8 on the closing shift (Closing Time's
+closers are 7h 55m against its 8h 10m) and 0.3 on the step. In Step goes from first to eighth: with the most long
+earlies of any design, 40 a year each, it scores none of their 4.6 points, which Even Step scores in full and Short Run
+half of. Home Grown, with no long earlies and the shortest closers after Closing Time and Both Ways, rises from eighth to
+third, although its fit by days is the weakest of all fifteen. The recommendation does not change: Even Step was
+recommended for what a colleague feels, before the league counted it, and the league now agrees.
+
+**Every version, both ways** — the versions of *In every version of the league*, above:
+
+| Main league | Usual | Proposals set the scale | Without familiar times | Run on the fixed rota | Six-factor |
+|---|---|---|---|---|---|
+| Even Step | **1st · 84.0** | 2nd · 75.2 | **1st · 87.5** | **1st · 84.9** | 12th · 62.9 |
+| In Step | 8th · 80.5 | 3rd · 74.0 | 8th · 84.1 | 7th · 81.4 | 8th · 67.1 |
+| Short Run | 7th · 80.9 | 6th · 71.5 | 6th · 84.5 | 6th · 81.8 | tied 2nd · 67.2 |
+| first | Even Step 84.0 | Second Look 75.5 | Even Step 87.5 | Even Step 84.9 | Second Look 90.4 |
+
+| Weighted as before | Usual | Proposals set the scale | Without familiar times | Run on the fixed rota | Six-factor |
+|---|---|---|---|---|---|
+| Even Step | 2nd · 86.6 | 2nd · 87.9 | 2nd · 90.7 | 2nd · 87.6 | 3rd · 85.8 |
+| In Step | **1st · 87.4** | **1st · 90.1** | **1st · 91.7** | **1st · 88.4** | 2nd · 87.2 |
+| Short Run | 5th · 85.4 | 5th · 84.7 | 6th · 89.6 | 4th · 86.4 | tied 4th · 85.7 |
+| first | In Step 87.4 | In Step 90.1 | In Step 91.7 | In Step 88.4 | Second Look 88.3 |
+
+**Where Second Look leads, and why.** It is the one design whose worst case has no 55-hour week, and the two versions in
+which only the proposals set the scale have nothing between that one warning and none: Second Look takes the whole
+fatigue weight and every other design nothing. That is 10.2 points where the proposals set the scale — Second Look 75.5,
+Even Step 75.2 — and 20 in the six-factor league, where Second Look scores 90.4 and the next six tie on 67.2 (Second
+Nature, Second Wind, Second Sight, Second Edition, Short Run, Long Break), In Step 67.1 and Even Step 62.9. With today's
+link in the range, as in the usual table, the same difference is worth 2.0. The difference is real — Second Look's
+worst week is 52.2 hours, every other design's 55.7 to 57.5 — but a scale with nothing else in it turns one warning into
+a fifth of the league. The six-factor league weighted as before is how the 24-line work read it: there Second Look is
+first on 88.3, In Step second on 87.2 and Even Step third on 85.8, a shade ahead of six tied on 85.7.
+
+**The shortlist sheet** runs both. Its claims assert the main league's order (Even Step first, under a point ahead of
+Closing Time; Short Run seventh, In Step eighth) and the one before it (In Step first, under a point ahead of Even
+Step), that only the main league counts long earlies and the closing shift, and that its long earlies are the sheet's
+own count for every design; `league.mjs`'s JSON now says which weighting it holds (`oldReadings`), and the sheet refuses
+the wrong one. The turning-weight sum is gone, since the league counts long earlies itself. Its paragraph now reads:
+"In the pack's weighted league (the owner's weights, which count long earlies and the closing shift since 31 October)
+Even Step is first of the fifteen, on 84.0, just ahead of Closing Time (83.8); Short Run is seventh and In Step eighth.
+Weighted as it was before, In Step led, under a point ahead of Even Step (87.4 against 86.6)."
+
+**Changed:** `league.mjs` (the four readings; `OLD_READINGS=1`; `oldReadings` in the JSON; a first line saying which
+weighting is printed); `shortlist-sheet.mjs` and `links-26-shortlist.pdf`; this README (the note at the top, the tooling
+row, the dates on Even Step's league paragraph); the pack, rebuilt. No proposal sheet, deck, summary or app file reads the
+league, so none changed; the scores in earlier sections are the weighting they were written with, and
+`OLD_READINGS=1` rebuilds them.
 
 ## Notes for the whole set
 

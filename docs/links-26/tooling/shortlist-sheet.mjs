@@ -24,8 +24,9 @@
 // and Short Run beside it. Three lines that had been true of both stopped being shared — the week-to-week step, the shift
 // times and new times, and the long days as a shared cost — and moved to "where they differ"; the long-day rows now count
 // Monday to Saturday, because the one long duty all three share is the same Sunday early; the recommendation places Even
-// Step on every row it is compared on (best, between or last); the league's long-day weight is computed for Even Step
-// against In Step. The prose names the three, so any other shortlist stops the sheet.
+// Step on every row it is compared on (best, between or last); the league is read both ways, the main one the owner
+// reweighted the same day and the one before it ("THE LEAGUE, BOTH WEIGHTINGS", below). The prose names the three, so
+// any other shortlist stops the sheet.
 //   node shortlist-sheet.mjs        → ../links-26-shortlist.pdf (the .html stays in tooling/, gitignored)
 import { readFileSync, writeFileSync, readdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -227,28 +228,28 @@ claim('Short Run: an 8h 40m Saturday closer, the heaviest week and the shortest 
 claim('Even Step’s and In Step’s one new Saturday time is the 15:45 closer', [EF, IF].every(F => satNew(F) === 1 && Object.values(F.p).some(r => r.sat === '15:45-23:55')) && !todaysTimes.has('15:45-23:55'));
 claim('the step: In Step and Short Run alike, Even Step’s bigger', Math.round(IF.step) === Math.round(SF.step) && EF.step > IF.step);
 
-// the league: its spread, and what it would say if it counted long earlies — computed over the range league.mjs itself
-// uses (REF_IN_RANGE: the proposals, today's link and Familiar Nine), never typed
-const tmp = mkdtempSync(`${tmpdir()}/league-`);
-execFileSync('node', [new URL('./league.mjs', import.meta.url).pathname], { env: { ...process.env, REF_IN_RANGE: '1', JSON: `${tmp}/league.json` }, stdio: 'ignore' });
-const LJ = JSON.parse(readFileSync(`${tmp}/league.json`, 'utf8')); rmSync(tmp, { recursive: true });
-const LGall = LJ.proposals, LG = LGall.filter(r => SHORTLIST.includes(r.name)), total = name => LGall.find(r => r.name === name).total;
-claim('the league scores all three shortlisted designs', LG.length === D.length);
-const lead = total('In Step') - total('Even Step');
-const rankOf = name => [...LGall].sort((a, b) => b.total - a.total).findIndex(r => r.name === name) + 1;
-claim('the league: In Step first, Even Step second, Short Run fifth, and neither the closing shift nor long days among its factors', rankOf('In Step') === 1 && rankOf('Even Step') === 2 && rankOf('Short Run') === 5
-  && LGall.length === stats.length && !Object.keys(LJ.weights).some(k => /clos|early|long/i.test(k)));
-claim('Even Step second in the league, under a point behind In Step', lead > 0 && lead < 1);
-const F9 = JSON.parse(readFileSync(new URL('../../links-24/proposals/Familiar-Nine-F9-24-K31s.json', import.meta.url), 'utf8')), F9p = F9.patterns ?? F9;
-const le = p => perYear(p, s => isEarly(s) && mins(s) > 510), leAll = [...stats.map(s => le(design(s.name).F.p)), le(T0.patterns), le(F9p)];
-const leLo = Math.min(...leAll), leHi = Math.max(...leAll), leScore = p => 1 - (le(p) - leLo) / (leHi - leLo);
-// THE WEIGHT AT WHICH EVEN STEP DRAWS LEVEL (31 Oct 2026). A factor of weight w joins the league by rescaling every weight
-// by 100 / (100 + w), the same for every design, so the order turns where w × (the long-earlies score between them) makes
-// up the lead: w* = lead ÷ (score difference). The league's lightest factor is each leave figure, at 1.
-const wStar = lead / (leScore(ES.F.p) - leScore(IS.F.p)), lightest = Math.min(...Object.values(LJ.weights));
-const withLong = (name, w) => (100 * total(name) + 100 * w * leScore(design(name).F.p)) / (100 + w);
-claim('counted even as lightly as the league’s lightest factor, long earlies put Even Step first of all', wStar < lightest && lightest === 1
-  && stats.every(s => s.name === 'Even Step' || withLong(s.name, lightest) < withLong('Even Step', lightest)));
+// THE LEAGUE, BOTH WEIGHTINGS (31 Oct 2026, owner: "Use your weights and fix the league", then "Keep the old leagues as
+// alternatives, but this should now be the main one"). The main league counts long earlies and the closing shift, the
+// fit by days and the 55-hour cover week; the one weighted before it is OLD_READINGS=1. Both are run here over the range
+// league.mjs itself uses (REF_IN_RANGE: the proposals, today's link and Familiar Nine), and read, never typed. The
+// turning-weight sum that stood in for the missing long earlies went with them: the main league counts them itself.
+const runLeague = old => { const tmp = mkdtempSync(`${tmpdir()}/league-`);
+  execFileSync('node', [new URL('./league.mjs', import.meta.url).pathname], { env: { ...process.env, REF_IN_RANGE: '1', OLD_READINGS: old ? '1' : '0', JSON: `${tmp}/league.json` }, stdio: 'ignore' });
+  const j = JSON.parse(readFileSync(`${tmp}/league.json`, 'utf8')); rmSync(tmp, { recursive: true });
+  if (j.oldReadings !== old || !j.refInRange) throw new Error(`league.mjs wrote ${j.oldReadings ? 'the old weighting' : 'the main league'}${j.refInRange ? '' : ' without today in the range'}, not what was asked`);
+  return j; };
+const LJ = runLeague(false), LO = runLeague(true);
+const LGall = LJ.proposals, LG = LGall.filter(r => SHORTLIST.includes(r.name));
+const totalIn = (J, name) => J.proposals.find(r => r.name === name).total, total = name => totalIn(LJ, name);
+const rankIn = (J, name) => [...J.proposals].sort((a, b) => b.total - a.total).findIndex(r => r.name === name) + 1, rankOf = name => rankIn(LJ, name);
+claim('the league scores all three shortlisted designs, and every design, both ways', LG.length === D.length && LGall.length === stats.length && LO.proposals.length === stats.length);
+claim('the main league counts long earlies and the closing shift; the one before it neither', ['lerl', 'close'].every(k => k in LJ.weights && !(k in LO.weights)));
+// the league's long earlies are the sheet's own, Monday to Saturday, a year each — one definition, not two
+claim('the league’s long earlies are the sheet’s', PACK.every(d => Math.round(LGall.find(r => r.name === d.name).raw.lerl) === longEarlyMS(d.F)));
+const lead = total('Even Step') - total('Closing Time'), leadOld = totalIn(LO, 'In Step') - totalIn(LO, 'Even Step');
+claim('the main league: Even Step first, under a point ahead of Closing Time; Short Run seventh, In Step eighth', rankOf('Even Step') === 1 && rankOf('Closing Time') === 2
+  && rankOf('Short Run') === 7 && rankOf('In Step') === 8 && lead > 0 && lead < 1);
+claim('weighted as before: In Step first, under a point ahead of Even Step', rankIn(LO, 'In Step') === 1 && rankIn(LO, 'Even Step') === 2 && leadOld > 0 && leadOld < 1);
 claim('In Step has the most long earlies of any design here', stats.every(s => s.name === 'In Step' || longEarly(design(s.name).F) < longEarly(IF)));
 // the guide's rows for designs outside the shortlist: each the strongest in the league of those that have its edge
 const allD = stats.map(s => design(s.name)), strongest = (test) => { const has = allD.filter(d => test(d.F)); return has.sort((a, b) => total(b.name) - total(a.name)).map(d => d.name); };
@@ -445,7 +446,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
 
   <h2>Recommendation</h2>
   <div class="callout pick"><b>Even Step.</b> In Step’s weeks without the long earlies. On what weighs most here it equals both — days in a row, weekends, weeks on one shift time, late finishes and the leave — with In Step’s closers, every one Monday to Saturday ${hm(EF.closers[0])} (Short Run’s Saturday one ${hm(SF.closers[1])}). Monday to Saturday it alone has no shift over 8h&nbsp;30m (In Step ${longMS(IF)} a year each, Short Run ${longMS(SF)}, today ${longMS(TF)}) and every early is one of today’s times; the 13:45 stays every weekday, and it has the fewest shift times of the three, ${EF.times} with ${EF.newT} new. It equals In Step’s lightest week and ${hm(EF.A.rest.minutes)} rest; its heaviest week (${hm(EF.heavy)}), early finishes (${earlyOff(EF)} a year) and Saturday fit (${f1(EF.fit[1])}) sit between the other two. Its costs: the longest weekday lates, ${hm(lateAvg(EF))} on average (In Step’s ${hm(lateAvg(IF))}, Short Run’s ${hm(lateAvg(SF))}), the weakest weekday fit (${f1(EF.fit[0])}, against ${f1(IF.fit[0])} and ${f1(SF.fit[0])}), a ${hm(Math.round(EF.step))} change of start (the others ${hm(Math.round(IF.step))}) and, as on In Step, a new Saturday time, its closer.</div>
-  <p class="lead" style="margin-top:8px"><b>But it is a judgement.</b> In the pack’s weighted league (the owner’s weights) Even Step is ${ord(rankOf('Even Step'))} of the ${word(LGall.length)}, under a point behind In Step (${f1(total('Even Step'))} against ${f1(total('In Step'))}), and Short Run ${ord(rankOf('Short Run'))}. The league scores neither the closing shift nor long days; counted even as lightly as its lightest factor, In Step’s long earlies would put Even Step first of all ${word(LGall.length)}. So choose by what matters here:</p>
+  <p class="lead" style="margin-top:8px"><b>But it is a judgement.</b> In the pack’s weighted league (the owner’s weights, which count long earlies and the closing shift since 31&nbsp;October) Even Step is ${ord(rankOf('Even Step'))} of the ${word(LGall.length)}, on ${f1(total('Even Step'))}, just ahead of Closing Time (${f1(total('Closing Time'))}); Short Run is ${ord(rankOf('Short Run'))} and In Step ${ord(rankOf('In Step'))}. Weighted as it was before, In Step led, under a point ahead of Even Step (${f1(totalIn(LO, 'In Step'))} against ${f1(totalIn(LO, 'Even Step'))}). So choose by what matters here:</p>
   <ul class="list">
     <li><b>Choose Even Step</b> if long days matter most — for lates near today’s ${hm(lateAvg(TF))}, the weakest weekday fit and a ${hm(Math.round(EF.step))} change of start.</li>
     <li><b>Choose In Step</b> if, on the same weeks, short lates matter more than short earlies — for ${longEarlyMS(IF)} earlies a year each over 8h&nbsp;30m.</li>
