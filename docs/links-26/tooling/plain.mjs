@@ -77,7 +77,7 @@ const PLAIN_FATIGUE = [
   [/consecutive early shifts/i, 'long runs of early shifts'],
   [/successive start times varying/i, 'start times that jump by more than two hours'],
   [/less than 12h rest/i, 'less than 12 hours between two shifts'],
-  [/55 hours/i, 'more than 55 hours in a week'],
+  [/55 hours/i, 'more than 55 hours in any seven-day period'],   // the app's own title (MRSF, links-fatigue.js): a rolling seven days, not a calendar week (external review, 31 Oct 2026)
   [/consecutive 8h shifts/i, 'long runs of 8-hour shifts'],
   [/consecutive day shifts/i, 'long runs of day shifts'],
   [/backward rotating/i, 'start times moving earlier through the week'],
@@ -240,7 +240,7 @@ function front({ T, P, meta, pages, coverHead }) {
   add(ffP < ffT, good, 50, ffP ? `Fewer fatigue warnings in the fixed duties — ${ffP} (today ${ffT})` : `No avoidable fatigue warnings in the fixed duties (today ${ffT})`);
   add(ffP > ffT, bad, 50, `More fatigue warnings in the fixed duties — ${ffP} (today ${ffT})`);
   // a concern, not a caveat on a positive (accuracy audit, 1 Oct 2026)
-  add(!!h55c, bad, 53, `A cover week worked with Sunday overtime could make a 55-hour week (page 7)`);
+  add(!!h55c, bad, 53, `A cover week worked with Sunday overtime could mean more than 55 hours in seven days (page 7)`);
   const tFF = r => T.fixed.fatigue.results.find(x => x.code === r.code && x.title === r.title);
   // FF13 (under 12 hours' rest) is ALSO the hard limit: where that is broken the red box says so, and listing it again
   // as a fatigue warning would count one fault twice
@@ -451,7 +451,7 @@ function front({ T, P, meta, pages, coverHead }) {
     row('Saturdays worked', Math.round(tp.sat), Math.round(pp.sat), '', 'a rostered Saturday is paid at time and a quarter; cover weeks not counted'),
     row('Sunday overtime to share', Math.round(tp.sun), Math.round(pp.sun), '', 'Sundays are overtime, as today'),
     grp('Fatigue and the rules'),
-    row('Avoidable fatigue warnings, fixed duties', T.fixed.present, P.fixed.present, cmp(P.fixed.present < T.fixed.present, P.fixed.present === T.fixed.present), `${worstDiffers ? `${upTo}${h55c ? (ffW > 1 ? ', one a 55-hour week' : ' — a 55-hour week') : ''}; guidance only, page 7` : 'guidance, not a pass or fail; early starts and a weekly rotation come with every link — page 7'}`),
+    row('Avoidable fatigue warnings, fixed duties', T.fixed.present, P.fixed.present, cmp(P.fixed.present < T.fixed.present, P.fixed.present === T.fixed.present), `${worstDiffers ? `${upTo}${h55c ? `${ffW > 1 ? ', one' : ':'} over 55 hours in seven days — guidance, page 7` : '; guidance only, page 7'}` : 'guidance, not a pass or fail; early starts and a weekly rotation come with every link — page 7'}`),
     row('December staffing rules met', `${meta.decToday} of ${meta.decOf}`, `${meta.decMet} of ${meta.decOf}`, failed.length ? 'no' : cmp(meta.decMet > meta.decToday, meta.decMet === meta.decToday), `confirmed verbally, 29 Sep 2026${waived.length ? `; ${nWord(waived.length)} more waived for this design` : ''} — page 6`),
   ].join('');
   const page2 = `<section class="page plain">
@@ -479,7 +479,7 @@ function methodPage({ meta, pages }) {
     ['Where the figures come from', 'Every figure is worked out from the rota on page 3, by the Marylebone Roster app’s own checks where it has them and by the tooling beside them for the rest, and the same calculation is run on today’s link. Only the one-line description under the name is written by hand.'],
     ['Cover weeks', 'Marked on all seven days but worked on four, Monday to Saturday, placed by the roster clerk; its Sunday can be worked as overtime on top. A cover week counts as a full contracted week and as four days at work. Their shift times are not known yet, so the runs, rest gaps, yearly counts and fatigue warnings are worked out on the fixed duties — the cover weeks left out, and today’s link the same way. Where a cover week’s four duties could make a figure worse, the worst place they could fall, with its Sunday worked, is given beside it as “up to”, and the hard limits are tested at that worst case. Whatever is later given in a cover week must still be rostered within the normal limits.'],
     ['Sundays', 'Sunday is not in the contract: Sunday duties are overtime, as today. So “days at work” and the 35-hour week are Monday to Saturday. A Sunday off costs no annual leave.'],
-    ['Each person, a year', `Every week’s duties, times 52, shared across everyone on the link — Sunday overtime included. “Days at work a year” is Monday to Saturday only: the days a week × 365 ÷ 7. ${52 % LINES === 0 ? `A year is exactly ${52 / LINES === 2 ? 'two turns' : `${52 / LINES} turns`} of this link, so these are everyone’s figures whichever week they start on; today’s are averages over its 20 weeks.` : 'Somebody’s own year depends on which week they start on.'}`],
+    ['Each person, a year', `Every week’s duties, times 52, shared across everyone on the link — Sunday overtime included. “Days at work a year” is Monday to Saturday only: the days a week × 365 ÷ 7. ${52 % LINES === 0 ? `Fifty-two weeks are exactly ${52 / LINES === 2 ? 'two turns' : `${52 / LINES} turns`} of this link, so these are everyone’s figures whichever week they start on; today’s are averages over its 20 weeks.` : 'Somebody’s own year depends on which week they start on.'}`],
     ['Following the trains', 'For each hour, the share of the day’s floor staff is set against the share of the day’s train service in the December 2026 timetable, each train weighted by its length; the differences are squared — so one big mismatch counts far more than several small ones — added up and multiplied by 10,000. 0 would be a perfect match; lower is closer. The staff share uses the minutes each person spends on the floor, finer than the whole-person counts on page 5, where anyone on for part of an hour counts. It measures the shape of the day, not a staffing level: an extra person in a quiet hour makes it worse although nobody is worse off. The ticket office is taken out first: it is staffed to its opening hours, not to the trains, which is why its rows on page 5 carry no match figure.'],
     ['The ticket office', meta.namedOfficeP8 ?? `In the proposal, two people on every ticket-office shift, not floor cover except at the quiet ends: Monday to Saturday one of each pair is on the floor until 08:00 and from 19:30. On a Sunday one early is on the floor until 09:00; the two lates until 15:00, then both in the office, one back on the floor from 18:00. Today one person keeps the office on a Sunday afternoon and evening.${(meta.pairDays ?? []).length < 7 ? ' This rota does not mark which duties are in the office on every day, so where it does not, the office posts are assumed from its duties — page 5 shows them.' : ''}`],
     ['Rest, runs and weekends', 'The shortest gap is the single tightest one in the fixed duties, Saturday into Sunday and line into line included. The most days in a row counts Sunday overtime too; it is given for the fixed duties, with “up to” where a cover week placed as badly as it can be, its Sunday worked, would make it longer, and the 13-day limit is tested at that worst case. A full weekend off is a Saturday off then a Sunday off. The shortest gap is one gap: a rota with many rests of just over 12 hours reads the same as one with none.'],
@@ -1015,7 +1015,7 @@ function fatiguePage(s, { T, P, meta }) {
     [/^Day shift over 12h/, 'Shifts over 12 hours'], [/^Early shift over 10h/, 'Early shifts over 10 hours'],
     [/rest after a block of early/, 'Too little rest after a run of early starts'], [/13 consecutive shifts without a 48h/, 'Too many shifts without a two-day break'],
     [/4 consecutive 12h day/, 'Runs of 12-hour day shifts'], [/consecutive early shifts/, 'Long runs of early shifts'],
-    [/12 consecutive day shifts/, 'Long runs of day shifts'], [/55 hours/, 'More than 55 hours in a week'],
+    [/12 consecutive day shifts/, 'Long runs of day shifts'], [/55 hours/, 'More than 55 hours in any seven-day period'],
     [/consecutive 8h shifts/, 'Long runs of 8-hour shifts'], [/^Backward rotating/, 'Start times moving earlier through the week'],
     [/^Rotating pattern of about a week/, 'Changing shift type about once a week'], [/^Successive start times varying/, 'Start times that jump by more than two hours'],
     [/^Less than 12h rest/, 'Less than 12 hours between two shifts']];

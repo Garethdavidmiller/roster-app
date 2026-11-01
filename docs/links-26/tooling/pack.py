@@ -81,7 +81,9 @@ readme = '\n'.join([
          'sheet, look at its rota on page 3 and say what worries you.'),
     item('Ten minutes:', '1 Summary/links-26-shortlist.pdf', 18),
     item('Twenty minutes:', f'add {TWENTY}', 18),
-    para('The rest is the evidence behind them.'),
+    para('The rest is the evidence behind them. The summary sheet puts all fifteen side by side, so its '
+         'print is small: read it on screen, zoomed in, or print it at A3. It is a reference, not a page to '
+         'present.'),   # third review, 1 Nov 2026
     '',
     *([para('Home Grown, Closing Time and Both Ways (26 October 2026) answer a later question: today\'s link on 26 lines, '
             'keeping as many of its shift times as it can, with a 13:35 or 13:45 finish every weekday and the weekday closer at 16:00. Each pays for '
