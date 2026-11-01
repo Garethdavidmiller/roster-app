@@ -19,6 +19,7 @@ if not proposals: raise SystemExit('pack: no proposals in regenerate.mjs SUPPLIE
 files = [  # (source, path in the pack)
     (f'{ROOT}/links-26-summary.pdf', '1 Summary/links-26-summary.pdf'),
     (f'{ROOT}/links-26-shortlist.pdf', '1 Summary/links-26-shortlist.pdf'),
+    (f'{ROOT}/links-26-what-it-means.pdf', '1 Summary/links-26-what-it-means.pdf'),   # colleagues: what it means if you… (1 Nov 2026)
     (f'{ROOT}/links-26-rules.pdf', '2 Rules/links-26-rules.pdf'),
 ]
 for name, code, fp in proposals:
@@ -46,6 +47,8 @@ if RECOMMENDED not in SHORTLIST: raise SystemExit(f'pack: the recommendation {RE
 TWENTY = f"3 Presentations/{RECOMMENDED.replace(' ', '-')}-for-managers.pdf"   # the read-me's twenty-minute read
 if not any(dst == TWENTY for _, dst in files): raise SystemExit(f'pack: the read-me points at {TWENTY}, which the pack does not hold')
 COLLEAGUES_FIRST = f"3 Presentations/{RECOMMENDED.replace(' ', '-')}-for-colleagues.pdf"   # where the colleagues' route starts
+WHAT_IT_MEANS = '1 Summary/links-26-what-it-means.pdf'   # and where it ends (1 Nov 2026)
+if not any(dst == WHAT_IT_MEANS for _, dst in files): raise SystemExit(f'pack: the read-me points at {WHAT_IT_MEANS}, which the pack does not hold')
 if not any(dst == COLLEAGUES_FIRST for _, dst in files): raise SystemExit(f'pack: the read-me points at {COLLEAGUES_FIRST}, which the pack does not hold')
 # THE RECOMMENDATION IS THE SHORTLIST SHEET'S, SAID SHORTER (1 Nov 2026). The read-me's first paragraph repeats page 2's
 # case for Even Step, whose figures that sheet checks (claim() in shortlist-sheet.mjs). The read-me types no figure of
@@ -136,6 +139,9 @@ readme = '\n'.join([
     ' ' * 23 + COLLEAGUES_FIRST,
     item('', f'(or the chosen link\'s, if it is not {RECOMMENDED}). Then pages 1 to 3 of its proposal sheet, in '
          '4 Proposal sheets: the detail, and every week of the link on page 3.'),
+    item('', 'And for what it means for you - if you prefer earlies or lates, swap for overtime, work Sundays or '
+         'none, or save leave for long breaks - the one-page sheet,'),
+    ' ' * 23 + WHAT_IT_MEANS,
     '',
     'STILL OPEN',
     para('Where the 13-day limit is written down, and how one fatigue factor (FF19, marked "definition to confirm" on '
@@ -145,8 +151,11 @@ readme = '\n'.join([
     '',
     'WHAT IS IN THE PACK',
     item('1 Summary', f'The two-page shortlist sheet - the {WORDS[len(SHORTLIST)]} shortlisted designs against each other '
-         'and today, with the recommendation. Beside it, one page with every proposal against today\'s link: its print '
-         'is small, so read it on screen, zoomed in, or print it at A3. It is a reference, not a page to present.'),
+         'and today, with the recommendation. A one-page sheet for colleagues, "What it means if you...", on what each '
+         'shortlisted link means for someone who prefers earlies or lates, swaps earlies for lates, works their share '
+         'of Sundays or no overtime, or saves leave for long breaks. And one page with every proposal against today\'s '
+         'link: its print is small, so read it on screen, zoomed in, or print it at A3. It is a reference, not a page '
+         'to present.'),
     item('2 Rules', 'The three tiers of rule, two pages: the hard limits (three, and the ceiling of 219 contracted days '
          'a year, which is hard too), the nine December 2026 rules scored on every sheet, and three flexible rules '
          'aimed for when designing (14 on a Saturday, five cover weeks as evenly spaced as 26 weeks allow, and '
@@ -205,7 +214,7 @@ readme = '\n'.join([
 ])
 assert all(len(l) <= W for l in readme.split('\n')), [l for l in readme.split('\n') if len(l) > W]
 # and no name split across two lines: each file the route names is whole on a line, and no folder's name breaks
-for path in ['1 Summary/links-26-shortlist.pdf', TWENTY, COLLEAGUES_FIRST]:
+for path in ['1 Summary/links-26-shortlist.pdf', TWENTY, COLLEAGUES_FIRST, WHAT_IT_MEANS]:
     if not any(l.strip() == path for l in readme.split('\n')):
         raise SystemExit(f'pack: the read-me does not give {path} a line of its own, so a wrap can split it')
 for f in FOLDERS:
