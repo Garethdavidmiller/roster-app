@@ -77,6 +77,7 @@ const NAV_PAGES = [
     // way Ops and Links are. Hiding it is not the security boundary — the page gates itself and the
     // server refuses everyone else — it is only so ordinary staff are not shown a destination that
     // would turn them away. At full launch the flag comes off and every eligible member sees it.
+    // PAUSED (owner, Nov 2026): `canOpenOvertime` is false for everyone while CONFIG.OVERTIME_ENABLED is off.
     { id: 'overtime',   label: '⏱️ Overtime',      url: './overtime.html',   colorClass: 'nav-panel-pill--overtime',   overtimeAudienceOnly: true },
     // Trains is every member's since v24.81 (owner, 20 Oct 2026); it was an admin preview from v24.71.
     // A gate here and the auth-policy role always move together — page-contract-parity checks it.

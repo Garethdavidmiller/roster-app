@@ -394,7 +394,8 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         // the only state on this page with any structure to get wrong.
         const NOW = Date.parse('2026-08-17T09:00:00Z');
         await seedSession(page, 'G. Miller');
-        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true }; });
+        // Switched on through the seam: Overtime is paused for everyone else (auth-policy.js `overtimeEnabled`).
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, overtimeEnabled: true }; });
         await page.route('**/getMyOvertimeState', r => r.fulfill({
             status: 200, contentType: 'application/json',
             body: JSON.stringify({ ok: true, serverNow: NOW, windows: [{
@@ -439,7 +440,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         const at = Date.parse('2026-08-16T08:00:00Z');
         await seedSession(page, 'H. Croft');
         await page.addInitScript(({ rest, at, dates }) => {
-            window.__E2E = { ...(window.__E2E || {}), authUser: true, docsByPath: {
+            window.__E2E = { ...(window.__E2E || {}), authUser: true, overtimeEnabled: true, docsByPath: {
                 // TWO grades and a mixed answer set on purpose: it is what makes the grade strip,
                 // all three day sections and both answer tones render at once. A single-grade week
                 // draws no grade strip, and an all-answered week draws no "No response".

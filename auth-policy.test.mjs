@@ -5,7 +5,7 @@
  */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { requirePageAuth, requirePage, rolesFor, isOvertimeReviewer, canOpenOvertime, admitsStaffPin,
+import { requirePageAuth, requirePage, rolesFor, isOvertimeReviewer, canOpenOvertime, overtimeEnabled, admitsStaffPin,
     PAGE_POLICIES, DECISIONS } from './auth-policy.js';
 import { CONFIG } from './roster-data.js';
 
@@ -193,8 +193,18 @@ describe('the Overtime beta participant — invited to ANSWER, never to look', (
     const beta = live[0] ?? 'T. Bibi';
     const ordinary = 'A. Nobody';
     const invited = !live.length;
-    before(() => { if (invited) CONFIG.OVERTIME_BETA = [beta]; });
-    after(() => { if (invited) CONFIG.OVERTIME_BETA = live; });
+    // SWITCHED ON for this block (Overtime is paused, Nov 2026): these are the audience rules the
+    // feature returns with, so they are pinned with the switch on, through the same seam the browser
+    // suites use. The pause itself is pinned in its own block below.
+    const seamWas = /** @type {any} */ (globalThis).__E2E;
+    before(() => {
+        if (invited) CONFIG.OVERTIME_BETA = [beta];
+        /** @type {any} */ (globalThis).__E2E = { ...(seamWas || {}), overtimeEnabled: true };
+    });
+    after(() => {
+        if (invited) CONFIG.OVERTIME_BETA = live;
+        /** @type {any} */ (globalThis).__E2E = seamWas;
+    });
 
     test('a beta member may OPEN Overtime', () => {
         assert.ok(beta, 'no beta member to pin');
@@ -239,6 +249,34 @@ describe('the Overtime beta participant — invited to ANSWER, never to look', (
         for (const page of gated) {
             assert.equal(requirePage({ status: 'named', member: beta }, page).decision, 'forbidden', page);
         }
+    });
+});
+
+describe('Overtime paused (owner, Nov 2026) — closed to everyone, the admin included', () => {
+    // CONFIG.OVERTIME_ENABLED is the one switch. While it is false, `canOpenOvertime` is false for
+    // every audience, so the pill leaves every menu; the page asks `overtimeEnabled()` itself.
+    const admin = (CONFIG.ADMIN_NAMES || [])[0];
+    const manager = (CONFIG.MANAGER_NAMES || [])[0];
+    const seamWas = /** @type {any} */ (globalThis).__E2E;
+    after(() => { /** @type {any} */ (globalThis).__E2E = seamWas; });
+
+    test('switched off, nobody can open Overtime — not the admin, not a manager, not an invited member', () => {
+        /** @type {any} */ (globalThis).__E2E = { overtimeEnabled: false };
+        for (const who of [admin, manager, 'T. Bibi', null]) assert.equal(canOpenOvertime(who), false, String(who));
+    });
+
+    test('with no seam, the answer is the committed switch — and only an explicit true is on', () => {
+        // Holds either way the switch sits, so switching Overtime back on needs no test edit here.
+        /** @type {any} */ (globalThis).__E2E = undefined;
+        assert.equal(overtimeEnabled(), CONFIG.OVERTIME_ENABLED === true);
+    });
+
+    test('the test seam switches it on only with a real boolean', () => {
+        /** @type {any} */ (globalThis).__E2E = { overtimeEnabled: true };
+        assert.equal(overtimeEnabled(), true);
+        assert.equal(canOpenOvertime(admin), true, 'switched on, the admin reaches it again by the reviewer route');
+        /** @type {any} */ (globalThis).__E2E = { overtimeEnabled: 'yes' };
+        assert.equal(overtimeEnabled(), false, 'a truthy non-boolean must not switch it on');
     });
 });
 

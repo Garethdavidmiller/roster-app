@@ -509,7 +509,7 @@ all accounts". Migration progress is visible in Operations → Account status.
 **Status update (25 Jul 2026, owner-reported — not independently verified in-repo).** 2 accounts had
 migrated in the first 24 hours, **one of them the owner's**. So the specific exposure this entry is
 about — a guessable *master admin* password, the highest-value target in the app — **is closed in
-practice**. What remains open is the **7 management accounts**, which can write any member's
+practice**. What remains open is the **management accounts**, which can write any member's
 AL/absence/shifts on behalf; a staff account, by contrast, can only write its own overrides (the B3
 isolation rule holds), so its blast radius is one person's roster. Chasing those 7 needs no code —
 it is 7 people opening Settings → Password, and it closes the large majority of what is left.
@@ -709,7 +709,7 @@ will silently fail for users on that domain, with no visible error in the app UI
 > set for everyone by `setupRosterAuth`; the page-load Firebase session is reliably established via
 > `ensureFirebaseSession`, B1). B2 first avoided the original outage by (a) an interim `!('name' in token)`
 > escape so no legacy/anonymous token was hard-rejected, and (b) adding the **`manager` tier** the original
-> lacked — the 7 managers edit staff data on behalf and would otherwise be locked out. B3 (v16.29) then
+> lacked — the managers edit staff data on behalf and would otherwise be locked out. B3 (v16.29) then
 > dropped the escape and went strict, after the CLAIM_EPOCH=2 token sweep + manager re-provision; stale
 > tokens self-heal via `writeWithClaimRetry`, so no mass sign-out was needed. Emulator-tested (tier matrix
 > + delete + date bounding, all green). The historical post-mortem below is retained for context.

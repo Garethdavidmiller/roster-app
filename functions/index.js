@@ -828,7 +828,9 @@ Object.assign(exports, buildAuthEndpoints({
 // copy of who is on the roster and how far ahead a window may be created, and neither may
 // ever come from a request body. WHO IS ASKED is a separate decision, made per audience in
 // overtime-core's `selectParticipants` — see its header for why it does not live here.
-Object.assign(exports, buildOvertimeEndpoints({
+// PAUSED (owner, Nov 2026): while the generated roster says `overtimeEnabled: false` only the purge is exported, so a
+// deploy removes the five endpoints and the creator, and made weeks still age out (OVERTIME_AVAILABILITY.md → "Paused").
+const overtime = buildOvertimeEndpoints({
     ADMIN_FUNCTION_ORIGINS, rosterMembers,
     // The two Overtime notices (v21.47) — "you have been asked" and the deadline-morning reminder —
     // go through sendTargetedPush to resolved member uids, never fanOutPush. The VAPID pair rides
@@ -855,7 +857,8 @@ Object.assign(exports, buildOvertimeEndpoints({
     //
     // Nothing anyone SEES changes either way — both read endpoints already omit expired windows.
     purgeArmed: purgeArmedAt,
-}));
+});
+Object.assign(exports, rosterMembers.overtimeEnabled === false ? { purgeExpiredOvertimeWindows: overtime.purgeExpiredOvertimeWindows } : overtime);
 
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════

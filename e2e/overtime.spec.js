@@ -9,6 +9,13 @@
 import { test, expect } from './fixtures.js';
 import { seedSession, signInThroughOverlay } from './helpers.js';
 
+// Overtime is PAUSED for everyone (CONFIG.OVERTIME_ENABLED, owner, Nov 2026). These tests switch it back on
+// through the test seam (auth-policy.js `overtimeEnabled`), so the real page stays exercised while it waits.
+// The paused page itself is pinned in its own block, which switches the seam back off.
+test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), overtimeEnabled: true }; });
+});
+
 const NOW = Date.parse('2026-08-17T09:00:00Z');
 const W = {
     weekEnding: '2026-09-05', weekStart: '2026-08-30',
@@ -2943,5 +2950,59 @@ test.describe('the form\'s three named rules, wired (v23.34)', () => {
         // The answers are still on screen, and the button is live again — the member can act.
         await expect(page.locator('.ot-day--set')).toHaveCount(7);
         await expect(page.locator('.ot-submit')).toBeEnabled();
+    });
+});
+
+test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
+    // CONFIG.OVERTIME_ENABLED is the one switch. This file's beforeEach turns Overtime back on through
+    // the seam; these tests turn it off again, so they hold whichever way the committed switch sits.
+    const off = (page) => page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), overtimeEnabled: false }; });
+    /** Every request to an Overtime endpoint the page makes — a paused page must make none. */
+    const overtimeCalls = (page) => {
+        const seen = [];
+        page.on('request', r => { if (/Overtime/.test(r.url())) seen.push(r.url()); });
+        return seen;
+    };
+
+    test('the admin gets the paused note, the server is asked nothing, and the drawer has no pill', async ({ page }) => {
+        // The admin, because "including myself" was the owner's instruction: the reviewer route that
+        // used to admit them is behind the same switch.
+        await seedSession(page, 'G. Miller');
+        await off(page);
+        await stubOvertime(page, { windows: [openWindow()], weeks: sixWeeks() });
+        const calls = overtimeCalls(page);
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        await expect(page.locator('#otTabs')).toBeHidden();
+        await expect(page.locator('#otAllPanel')).toBeHidden();
+        await expect(page.locator('.ot-day')).toHaveCount(0);
+        await page.locator('#navMenuBtn').click();
+        await expect(page.locator('.nav-panel-pill--overtime')).toHaveCount(0);
+        expect(calls, 'a paused page must not call an Overtime endpoint').toEqual([]);
+    });
+
+    test('signed out, it is paused too — no sign-in is offered, because there is nothing behind it', async ({ page }) => {
+        await off(page);
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        await expect(page.locator('#loginOverlay')).toHaveCount(0);
+        // The drawer still works, so the visitor can leave.
+        await page.locator('#navMenuBtn').click();
+        await expect(page.locator('.nav-panel-pill--calendar')).toHaveCount(1);
+    });
+
+    test('no other page offers the pill while paused', async ({ page }) => {
+        // The admin sees every other pill, so a drawer that rendered none would fail the guard below
+        // rather than pass the absence check.
+        await seedSession(page, 'G. Miller');
+        await off(page);
+        for (const path of ['/', '/admin.html', '/settings.html', '/operations.html']) {
+            await page.goto(path);
+            const close = page.locator('.lb-overlay.open .lb-close').first();
+            if (await close.count()) await close.click();
+            await page.locator('#navMenuBtn').click();
+            await expect(page.locator('.nav-panel-pill--operations'), `the drawer on ${path} rendered its pills`).toHaveCount(1);
+            await expect(page.locator('.nav-panel-pill--overtime'), `an Overtime pill on ${path}`).toHaveCount(0);
+        }
     });
 });

@@ -40,7 +40,7 @@ import { CONFIG, escapeHtml as esc } from './roster-data.js';   // esc: every in
 import { initNavPanel, resetNavPanel } from './nav-panel.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcileExpiredIdentity } from './session.js';
-import { requirePage, isOvertimeReviewer, canOpenOvertime } from './auth-policy.js';
+import { requirePage, isOvertimeReviewer, canOpenOvertime, overtimeEnabled } from './auth-policy.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
 import { guardNamedSession, askBeforeSignOut, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -137,6 +137,10 @@ export function init() {
             onLogoClick: () => openAboutLightbox?.(),
         });
     }
+
+    // PAUSED (owner, Nov 2026; OVERTIME_AVAILABILITY.md → Paused) — before the gate, so everyone gets the same answer,
+    // signed in or not. Nothing is queried and no sign-in is offered: the endpoints are undeployed while it is off.
+    if (!overtimeEnabled()) { wireNavPanel(); renderUnavailable(true); resolveSession(false); return; }
 
     // ── Access gate ─────────────────────────────────────────────────────────────────────────────
 
@@ -711,7 +715,8 @@ export function init() {
         host.querySelector('.ot-retry')?.addEventListener('click', () => (retry || loadEverything)());
     }
 
-    function renderUnavailable() {
+    /** @param {boolean} [paused] switched off for everyone (owner, Nov 2026), rather than not open to this member */
+    function renderUnavailable(paused = false) {
         const mine = el('otMineContent');
         const tabs = el('otTabs');
         const allPanel = el('otAllPanel');
@@ -720,9 +725,9 @@ export function init() {
         if (mine) {
             mine.innerHTML = `
                 <div class="ot-state">
-                    <span class="ot-state-icon" aria-hidden="true">🔒</span>
-                    Overtime availability isn't open to everyone yet. Your manager will let you know
-                    when it is.
+                    <span class="ot-state-icon" aria-hidden="true">${paused ? '⏸️' : '🔒'}</span>
+                    ${paused ? "Overtime availability is paused and isn't in use at the moment. If it comes back, your manager will let you know."
+                        : "Overtime availability isn't open to everyone yet. Your manager will let you know when it is."}
                 </div>`;
         }
     }

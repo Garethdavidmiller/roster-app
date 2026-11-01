@@ -56,13 +56,23 @@ const DEPLOY_SURFACE = [
     'purgeExpiredOvertimeWindows',
 ];
 
+// OVERTIME IS PAUSED (owner, Nov 2026) while the GENERATED roster says `overtimeEnabled: false`. Then
+// index.js exports only the purge, so a deploy removes these six and the weeks already made still age
+// out; switching it back on brings all seven back. This is the one sanctioned way for the list above to
+// shrink, and it is pinned as its own fact: the pause takes exactly these six, never the purge, and
+// never anything outside Overtime.
+const PAUSED_OUT = ['createOvertimeWindow', 'autoCreateOvertimeWindows', 'getOvertimeManagerOverview',
+    'getMyOvertimeState', 'submitOvertimeAvailability', 'withdrawOvertimeParticipant'];
+const OVERTIME_PAUSED = require('./functions/roster-members.json').overtimeEnabled === false;
+const EXPECTED = OVERTIME_PAUSED ? DEPLOY_SURFACE.filter(n => !PAUSED_OUT.includes(n)) : DEPLOY_SURFACE;
+
 test('functions/index.js exports exactly the deployed function surface', () => {
     // FUNCTIONS_EMULATOR silences the SDK's production-credential probing at load; the module's
     // top level only DEFINES endpoints (no network), so a plain require is safe and fast.
     process.env.FUNCTIONS_EMULATOR = 'true';
     const index = require('./functions/index.js');
     const got = Object.keys(index).sort();
-    assert.deepEqual(got, [...DEPLOY_SURFACE].sort(),
+    assert.deepEqual(got, [...EXPECTED].sort(),
         'functions/index.js exports drifted from the deploy contract. A missing name here is a ' +
         'function DELETED on the next deploy; an extra one is a new deployment nobody reviewed. ' +
         'If the change is intentional, update DEPLOY_SURFACE in the same commit.');
@@ -72,9 +82,36 @@ test('every exported endpoint is a defined function value, not undefined wiring'
     // Object.assign(exports, buildX(deps)) with a builder that returned undefined for a key would
     // still put the KEY on exports — the name check above would pass while the deploy broke.
     const index = require('./functions/index.js');
-    for (const name of DEPLOY_SURFACE) {
+    for (const name of EXPECTED) {
         assert.ok(index[name], `exports.${name} is ${String(index[name])} — the factory wiring lost it`);
     }
+});
+
+/**
+ * The real index.js, loaded fresh with the generated roster's `overtimeEnabled` set — so a test can see
+ * the deploy surface either side of the pause, whichever way the committed switch happens to sit.
+ * @param {boolean} overtimeEnabled
+ */
+function indexWith(overtimeEnabled) {
+    process.env.FUNCTIONS_EMULATOR = 'true';
+    const rosterPath = require.resolve('./functions/roster-members.json');
+    const indexPath = require.resolve('./functions/index.js');
+    const real = require(rosterPath);
+    const put = (/** @type {any} */ exports) => { require.cache[rosterPath] = /** @type {any} */ ({ id: rosterPath, filename: rosterPath, loaded: true, exports }); };
+    delete require.cache[indexPath];
+    put({ ...real, overtimeEnabled });
+    try { return require(indexPath); }
+    finally { put(real); delete require.cache[indexPath]; }
+}
+
+test('the Overtime pause takes the six it names and nothing else, and follows the switch both ways', () => {
+    // Both directions, against the real index.js: a switch that stopped being read — or a pause that
+    // took the purge with it, leaving made weeks in the database for as long as it lasts — fails here
+    // rather than on a deploy.
+    assert.deepEqual(Object.keys(indexWith(true)).sort(), [...DEPLOY_SURFACE].sort(),
+        'switched on, all seven Overtime functions are deployed');
+    assert.deepEqual(Object.keys(indexWith(false)).sort(), DEPLOY_SURFACE.filter(n => !PAUSED_OUT.includes(n)).sort(),
+        'paused, only the purge of the seven remains');
 });
 
 // ── EVERY HANDLER THAT CAN PUSH DECLARES THE VAPID SECRET (Sep 2026 review) ─────────────────────
@@ -88,8 +125,9 @@ test('every exported endpoint is a defined function value, not undefined wiring'
 // metadata the SDK attaches — the thing `firebase deploy` actually reads.
 test('every handler that reaches setupWebPush declares the VAPID_PRIVATE_KEY secret', async () => {
     const { readFileSync, readdirSync } = await import('node:fs');
-    process.env.FUNCTIONS_EMULATOR = 'true';
-    const index = require('./functions/index.js');
+    // Switched ON whatever the committed switch says: the two Overtime pushers are not exported while
+    // it is paused, and this guard must go on holding them for the day they return.
+    const index = indexWith(true);
     // A definition starts at the head of a line indented 0 or 4 (a builder's handlers sit at 4), and
     // runs to the next head indented no deeper than itself — so a column-0 helper keeps the
     // statements its own body declares at 4.

@@ -1029,6 +1029,8 @@ const OT_WINDOW = {
 function stubOvertime(page, { windows = [], weeks = [] } = {}) {
     const now = FIXED_TIME.getTime();
     return Promise.all([
+        // Switched on through the seam: Overtime is paused for everyone else (auth-policy.js `overtimeEnabled`).
+        page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), overtimeEnabled: true }; }),
         page.route('**/getMyOvertimeState', r => r.fulfill({
             status: 200, contentType: 'application/json',
             body: JSON.stringify({ ok: true, serverNow: now, windows }),
