@@ -229,7 +229,10 @@ const htmlOut = new URL('December-2026-Rules.html', import.meta.url).pathname;
 // a label never ends on a lone word: the last space of a plain-text cell becomes a no-break space; and a clock range is one
 // unit, as on the proposal sheets (plain.mjs, which says why it is a span): text only, never in the stylesheet or title
 const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace(/ (\S+)$/, '\u00a0$1')}</td>`)
-    .replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (m, keep, txt) => keep ?? txt.replace(/\b\d\d:\d\d–\d\d:\d\d\b/g, '<span class="rng">$&</span>'));   // the brackets looked at, not taken: plain.mjs says why
+    .replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (m, keep, txt) => keep ?? txt.replace(/\b\d\d:\d\d–\d\d:\d\d\b/g, '<span class="rng">$&</span>')   // the brackets looked at, not taken: plain.mjs says why
+      // and a hyphenated word, and the list of cover-week gaps, are one unit each (pack polish regression check, 1 Nov): the
+      // narrower middle column broke "rest- / day working", "ticket- / office" and "(gaps of 5, / 5, 5, 5, 6)"
+      .replace(/(?<![\w-])[A-Za-z0-9]+(?:-[A-Za-z]+)+(?![\w-])/g, '<span class="rng">$&</span>').replace(/\(gaps of [^)]*\)/g, '<span class="rng">$&</span>'));
 writeFileSync(htmlOut, tidy(html));
 const b = await chromium.launch(); const pg = await b.newPage();
 await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);

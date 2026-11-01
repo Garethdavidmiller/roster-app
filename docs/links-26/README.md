@@ -2188,10 +2188,18 @@ The owner asked for "aesthetic polish and aesthetic consistency polish" of the e
 - Three reviewers worked in parallel: one on the decks, one on the sheets, and one on the summary, shortlist, rules and read-me. That third reviewer also compared the document types against each other.
 - They reported 63 findings, each with a cropped screenshot. Every one was checked against its crop before anything changed.
 - After the fixes, all 200 pages were rendered again and compared pixel for pixel with the first set: 170 changed, none appeared or went.
-- A fourth reviewer then looked only for anything the polish had made worse. On page 6 of every sheet it found each ✓ or ✕ sitting an em left of its figure (below). That was fixed, all fifteen sheets were rendered again, and only their page 6 changed.
+- A fourth reviewer then looked only for anything the polish had made worse. Nothing overflowed, was clipped or touched a footer, but it found nine things, each settled below:
+  - on page 6 of every sheet, each ✓ or ✕ sat an em left of its figure;
+  - six designs' page 1 split "Sat 10.0 / (65.9)", and seven others had split "Sun 29.0 / (71.7)" since before the polish;
+  - page 2's key stranded the ✕ chip from "red:" on eleven sheets, two of them new with the polish;
+  - the rules sheet split "rest- / day", "ticket- / office" and its list of cover-week gaps;
+  - managers' slide 4's chart axis had become too faint to see on a projector;
+  - three side effects of the layout changes, kept with reasons (Declined).
+- After each round of fixes, the pack was rendered again and compared pixel for pixel with the round before. Only the pages meant to change had changed.
 
 **What changed: the proposal sheets** (`plain.mjs`, `render.mjs`; all 15 re-rendered)
 - **Page 1:** the four "Can it work?" tiles, and the two staff boxes, now share their row's height. **This reverses a call made twice before.** The third polish pass (4 Oct) let each card size to its own text, and the 30 Oct review kept that ("Page 1 was left as it is"), because a stretched card's empty band "reads as something missing". Side by side on screenshots of all fifteen, though, four tile bottoms and two box bottoms at different heights were the most visible untidiness in the sheets. That is a row of parallel answers, where one bottom line is the convention. The cost is real and accepted: the first tile, "9 of 9 rules met", is now about two-fifths empty.
+- **Page 1's spacing:** holding every figure whole (Line breaks, below) cost tile 4 a line on thirteen designs, and so the row of tiles it sets. Six designs' staff boxes came to 2 mm off the footer rule. So the two headings now sit 12px below what they follow, not 16, and the boxes 9px under theirs, not 12. Page 1 now ends 4px lower than before on thirteen designs; In Step's ends 11px higher, and Closing Time's where it did.
 - **Page 6:** the limit cards still size to their text. One holds a paragraph and the others a line each, so stretched they would be two-thirds empty.
 - **Page 4:**
   - The new shift times sit three to a row, under the three figures above them. They had been 2-up, 3+2, 4+3 or 3+3, depending on the design.
@@ -2203,6 +2211,8 @@ The owner asked for "aesthetic polish and aesthetic consistency polish" of the e
   - The first try had a fault, which the fourth reviewer found. Indentation is inherited, and the mark is a box of its own, so it took the hang a second time and sat an em to the left of its figure. The mark now resets it, as the rules sheet's mark always has.
   - The space after the mark went too: the mark's box is the gap, and with the space kept, a second line started one space left of the first word.
 - **Colour keys:** the keys in the page 2 and page 7 headers show each mark on a white chip, in its own colour. Before, the marks were white, so the reader was told the colours and never shown them.
+  - A no-break space did not hold a chip to its word, because Chromium breaks after an inline box anyway. Each chip and its word now sit in a no-wrap span.
+  - Red holds "a rule" too, so page 2's key wraps the same way on all fifteen sheets.
 - **Type and colour:**
   - Every section heading is one size.
   - "For discussion, not a decision." is navy, so red means only a broken rule.
@@ -2210,6 +2220,8 @@ The owner asked for "aesthetic polish and aesthetic consistency polish" of the e
   - Words in a figures cell ("one-turn weeks", "3-day") lose tabular figures' wide hyphen.
 - **Line breaks:** a figure keeps what it belongs to, in text only:
   - a label with its figure: "(today 52.0)", "limit 12h";
+  - a figure with the one it is compared with: "Sat 10.0 (65.9)";
+  - a bracketed note, "(definition to confirm)", and "not a breach" in page 7's key;
   - a day with its time: "Fri 07:15–15:45";
   - a range: "30 to 60", "18 of 21";
   - a count with its unit: "44,100 minutes", "46 a year";
@@ -2223,6 +2235,7 @@ The owner asked for "aesthetic polish and aesthetic consistency polish" of the e
 - **Rules** (`rules-sheet.mjs`):
   - Ticks and crosses are the sheets' marks, coloured on the mark alone; the crosses were brown, and coloured the whole value.
   - The rule column is wider, so "No more than 13 days worked in a row" is one line.
+  - A hyphenated word ("rest-day", "ticket-office", "Monday-to-Friday") and the list of cover-week gaps are never split. The narrower middle column had split them.
   - "exactly 35h" is "exactly 35h 00m".
   - Page 2's fatigue column reads from the left, and its sub-lines are the documents' grey, not the decks' blue-grey.
   - The five preferences each open with a bold phrase and a full stop.
@@ -2256,7 +2269,7 @@ The owner asked for "aesthetic polish and aesthetic consistency polish" of the e
 - **Colleagues' slide 13:** the six cards have even 0.125in gutters. They were 0.2in between the columns and 0.08in between the rows.
 - **Managers' slide 2:** the four cards span the margins on the colleagues' 0.15in gutters.
 - **Managers' slide 9:** the circles are 0.4in instead of 0.5in, and each detail sits nearer its own title. The circles had sat 0.1in apart, so a detail line read as belonging to the item below.
-- **Managers' slide 4:** the chart legend uses the deck's slate rather than black, and its axis line the tables' outline grey.
+- **Managers' slide 4:** the chart legend uses the deck's slate rather than black. The axis line was first set to the tables' outline grey, which the regression check found too faint to see on a projector (1.3:1 against white). It is the deck's slate too, darker than the grey it replaced.
 - **Navy slides:** the cover and closing slides use the 0.5in margin of every other slide, the cover's footer sits on the closing slide's line, and both closing lists share one indent.
 
 **Declined, with reasons.**
@@ -2267,17 +2280,26 @@ The owner asked for "aesthetic polish and aesthetic consistency polish" of the e
 - **Other decks findings:** the remaining small spacing and type-size findings were left as they are, because they reflect what each slide holds.
 - **Shortlist page 2:** the "Why" table has no header row, because its heading introduces it and the page has no line to spare.
 - **Brand mark:** the decks keep their flat mark; the documents keep the app icon.
+- **Page 4's grid**, raised by the regression check as a decision rather than a fault: the new times stay three to a row.
+  - Both Ways' four cards sit 3+1 rather than 2+2, and three designs' seven sit 3+3+1 rather than 4+3.
+  - One card width on every sheet, under the three figures above, was the point of the change.
+- **Two page 7 rows** gained a line (Closing Time's FF11 and Second Look's FF19), because the columns now have set widths. Both now wrap as the other designs' do.
 
 **Checks.**
 - **A guard that had been missing.** Chromium prints a page that is wider than the paper shrunk to fit, every page of it. The sheets' stylesheet said so, but nothing checked it.
   - During this pass, a fixed-layout page 7 table let one cell's words run 4px past its column. All eight pages printed slightly smaller, with a stray line under every footer, while every other check stayed green.
   - `render.mjs` now refuses a page wider than the 711px print width. With the fixed layout put back, it stopped the render and named page 7, 4px over.
   - The rules and shortlist guards check width as well as height.
+- **The regression fixes changed only what they meant to.**
+  - Rendered again and compared pixel for pixel with the commit before them, only these changed: pages 1, 2 and 7 of each sheet, both rules pages, and slide 4 of the three managers' decks.
+  - The shortlist and summary were rendered again and match pixel for pixel.
+  - Every page's space above its footer is as it was, except page 1 (above).
 - **Unchanged content.**
   - The re-render changed no fingerprint (`regenerate.mjs --check`).
   - No sheet's JSON or import file changed by a byte.
   - Every sheet is still eight pages.
   - `deck-check.mjs`: 153 rows agree.
+  - `npm test`: 2,278 tests, 0 failures.
 
 **Changed:**
 - tooling: `plain.mjs`, `render.mjs`, `rules-sheet.mjs`, `shortlist-sheet.mjs`, `summary-sheet.mjs`, `deck-polish.py`, `pack.py`

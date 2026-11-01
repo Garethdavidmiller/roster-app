@@ -1037,13 +1037,15 @@ def family_polish(d, who):
         if moved != 20: raise SystemExit(f'deck-polish: slide 9 moved {moved} shapes, not 20')
         s.save()
         # 6. THE CHART'S LEGEND IN THE DECK'S TYPE: it had no colour of its own, so it fell back to black, the one black text
-        #    in either deck; it takes the axis labels' colour and size, and the axis line the tables' outline grey
+        #    in either deck; it takes the axis labels' colour and size, and the axis line the deck's slate. The tables' outline
+        #    grey, tried first, left the bars standing on a line at 1.3:1 against white, which a projector would lose (the
+        #    regression check, 1 Nov); the slate is the deck's own detail colour, and darker than the 888888 it replaces
         cp = f'{d}/ppt/charts/chart1.xml'; x = open(cp, encoding='utf-8').read()
         leg = re.search(r'<c:legend>.*?</c:legend>', x, re.S)
         if not leg or leg.group(0).count('<a:defRPr sz="1200">') != 1 or x.count('<a:srgbClr val="888888"/>') != 2:
             raise SystemExit('deck-polish: the chart’s legend or axis lines have changed')
         x = x[:leg.start()] + leg.group(0).replace('<a:defRPr sz="1200">', '<a:defRPr sz="1300"><a:solidFill><a:srgbClr val="1B2533"/></a:solidFill>') + x[leg.end():]
-        open(cp, 'w', encoding='utf-8').write(x.replace('<a:srgbClr val="888888"/>', '<a:srgbClr val="DDE3EA"/>'))
+        open(cp, 'w', encoding='utf-8').write(x.replace('<a:srgbClr val="888888"/>', '<a:srgbClr val="5B6778"/>'))
 
 def polish(path, name, grid, who):
     d = tempfile.mkdtemp(); zipfile.ZipFile(path).extractall(d)

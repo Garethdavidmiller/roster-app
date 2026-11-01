@@ -819,13 +819,17 @@ table.t.rules td:has(> .mk:first-child) { padding-left: calc(8px + 1.05em); text
 .mk { text-indent: 0; }
 /* and the same hang for the status line under each limit card's figure, which also leads with its mark */
 .hl-l { padding-left: 1.05em; text-indent: -1.05em; }
+/* page 1 gives back 11px. Tile 4 now holds every figure whole ("Sat 10.0 (65.9)", the text pass), which costs it a line
+   in most designs, and the row it sets with it: six designs' staff boxes came to 2mm off the footer rule. The two headings
+   sit 12px below what they follow, not 16, and the staff boxes 9px under theirs, not 12. */
+.cover.plain h2.psec { margin-top: 12px !important; } .cover.plain .pcols { margin-top: 9px; }
 h2.pmh, .p5 h2.p5gtk, h2.p5gtk { font-size: 14px; }
 .cover.plain .pcaveat b { color: var(--primary-blue); }
 table.pcmp td.up, table.pcmp tbody tr:nth-child(even) td.up { background-color: color-mix(in srgb, var(--success-green) 12%, white); }
 table.pcmp td.down, table.pcmp tbody tr:nth-child(even) td.down { background-color: color-mix(in srgb, var(--warning-amber) 16%, white); }
 .cov-sub, .p4shape2 table.p4shape td { font-variant-numeric: normal; }
 /* the colour keys in the navy headers of pages 2 and 7: each mark on a white chip in the colour it names */
-.mast .lgk { display: inline-block; min-width: 1.3em; padding: 0 .12em; border-radius: 4px; background: #fff; text-align: center; font-weight: 800; line-height: 1.3; text-indent: 0; }
+.mast .lgkp { white-space: nowrap; } .mast .lgk { display: inline-block; min-width: 1.3em; padding: 0 .12em; border-radius: 4px; background: #fff; text-align: center; font-weight: 800; line-height: 1.3; text-indent: 0; }
 .mast .lgk-ok { color: var(--success-green); } .mast .lgk-warn { color: var(--warning-amber); } .mast .lgk-no { color: var(--danger-red, #b3261e); } .mast .lgk-st { color: var(--text-mid); }
 /* page 8: the closing note about the import file sat 2mm above the footer rule; the cards and headings give back 10px */
 .tboxes { margin: 8px 0 4px; } .pcard { margin-bottom: 5px; } h2.pmh { margin: 8px 0 4px; }
@@ -1062,7 +1066,8 @@ function fatiguePage(s, { T, P, meta }) {
   s = must(s, /<th>Code<\/th><th>Factor<\/th>/, '<th>Pattern</th>', 'the fatigue table head');
   s = s.replace(/<td class="ff-code">([^<]*)<\/td><td class="ff-title">([^<]*)((?:<span[^>]*>[^<]*<\/span>)*)<\/td>/g, (m, code, title, spans) => {
     const plain = PLAIN_FF.find(([re]) => re.test(title.trim()))?.[1] ?? title.trim();
-    const extra = [...spans.matchAll(/<span[^>]*>([^<]*)<\/span>/g)].map(x => x[1].trim()).filter(Boolean);
+    // a bracketed note is one unit: "(definition to / confirm)" split on every sheet (the regression check, 1 Nov)
+    const extra = [...spans.matchAll(/<span[^>]*>([^<]*)<\/span>/g)].map(x => x[1].trim()).filter(Boolean).map(t => /^\(.*\)$/.test(t) ? t.replace(/ /g, '&nbsp;') : t);
     return `<td class="ff-title"><b class="ff-plain">${plain}</b><span class="ff-orr">${code} · ${title.trim()}${extra.length ? ` · ${extra.join(' · ')}` : ''}</span></td>`;
   });
   if (/class="ff-code"/.test(s)) throw new Error('fatiguePage: a fatigue row kept its code column');
@@ -1115,9 +1120,15 @@ export function plainEdition(html, ctx) {
   // where every mark was white: the reader was told the colours and never shown them. Each mark sits on a small white
   // chip in its own colour, held to its word, and both keys bold the word, not the mark (page 7 bolded the mark alone).
   const KEYS = [['<b>✓ green</b>', '<b><span class="lgk lgk-ok">✓</span>&nbsp;green</b>'], ['<b>▲ amber</b>', '<b><span class="lgk lgk-warn">▲</span>&nbsp;amber</b>'],
-    ['<b>✕ red</b>', '<b><span class="lgk lgk-no">✕</span>&nbsp;red</b>'], ['<b>⚠</b> present', '<span class="lgk lgk-warn">⚠</span>&nbsp;<b>present</b>'],
+    ['<b>✕ red</b>: a rule', '<b><span class="lgk lgk-no">✕</span>&nbsp;red</b>: a&nbsp;rule'], ['<b>⚠</b> present', '<span class="lgk lgk-warn">⚠</span>&nbsp;<b>present</b>'],
     ['<b>✓</b> clear', '<span class="lgk lgk-ok">✓</span>&nbsp;<b>clear</b>'], ['<b>●</b> standing', '<span class="lgk lgk-st">●</span>&nbsp;<b>standing</b>']];
-  for (const [from, to] of KEYS) { if (!out.includes(from)) throw new Error(`plainEdition: the colour key no longer reads ${from}`); out = out.split(from).join(to); }
+  // HELD BY A NO-WRAP SPAN, NOT BY THE NO-BREAK SPACE ALONE (the regression check, 1 Nov): Chromium breaks after an
+  // inline-block chip even before a no-break space, so "[✕] / red: a rule" still split on eleven sheets with the &nbsp; in place.
+  // Red holds "a rule" too: four designs then ended a line on "red: a", where the other eleven start the next with the chip
+  for (const [from, to] of KEYS) { if (!out.includes(from)) throw new Error(`plainEdition: the colour key no longer reads ${from}`); out = out.split(from).join(`<span class="lgkp">${to}</span>`); }
+  // page 7's key: "not a / breach" in every design (found by the same check, there since before the polish)
+  if (!out.includes('worth a look, not a breach · ')) throw new Error('plainEdition: page 7\'s key no longer reads "not a breach"');
+  out = out.replace('worth a look, not a breach · ', 'worth a look, not&nbsp;a&nbsp;breach · ');
   // the rules table's ticks and crosses, in the colour they mean. The space after the mark goes (pack polish): the mark's
   // own 1.05em box is the gap, and a hanging second line starts exactly that far in, under the first word. With the space
   // kept, every wrapped cell started its second line one space to the left of its first.
@@ -1142,6 +1153,9 @@ export function plainEdition(html, ctx) {
     // A short bracket is one unit. Each rule binds two to four words, so no line is left too long to wrap.
     .replace(/\((today|limit)( [^()<]{1,14})\)/g, (m, k, r) => `(${k}${r.replace(/ /g, '&nbsp;')})`)
     .replace(/\b(today|limit|Mon|Tue|Wed|Thu|Fri|Sat|Sun) (?=[\d(])/g, '$1&nbsp;')
+    // and a figure keeps the bracketed figure it is compared with: binding "Sat 10.0" alone pushed "(65.9)" onto a line of
+    // its own in six designs' "Sat 10.0 / (65.9)" (the regression check, 1 Nov)
+    .replace(/\b(\d[\d.,]*) \((?=\d)/g, '$1&nbsp;(')
     .replace(/\b(Mon–Fri|Mon–Sat|Sat|Sun) (yes|no)\b/g, '$1&nbsp;$2')
     .replace(/\b(\d+) (to|in|of) (\d+)\b/g, '$1&nbsp;$2&nbsp;$3')
     // a unit joins its number only where the number stands alone: chained onto a range ("7 in 26 weeks", "30 to 60 minutes")
