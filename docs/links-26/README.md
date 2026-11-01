@@ -1963,8 +1963,9 @@ and the notes no longer give an exact count where a rounded one is said aloud ("
 - Slide 6 keeps its green figures, which mean "better than today". What was misread was the brackets, and the bar now
   explains them.
 - The "Why Even Step?" titles, "code" on slide 1 and slide 4's title stay as they are.
-- The colleague decks are unchanged. This review was of the managers' decks, and every part of the rebuilt colleague
-  decks was compared with the committed ones and found identical.
+- The colleague decks were outside this review, and every part of the rebuilt colleague decks was compared with the
+  committed ones and found identical. The one term they shared with the managers' decks was changed afterwards: see
+  the next section.
 
 **Checks.** `deck-polish.py` refuses to print a claim the grids do not bear out. New checks:
 - each slide-8 worry is a cost against today, and each welcome is a gain;
@@ -1981,6 +1982,36 @@ Four of these were tested with `scripts/mutate.mjs`, and each stopped the build 
 **Changed:**
 - tooling: `deck-polish.py`, `deck-check.mjs`
 - outputs: the three managers' decks and their PDFs, the pack
+
+## "Cover weeks aside" in the colleague decks too (1 Nov 2026)
+
+The colleague decks said "fixed rota" in 12 places each: 5 on slides and 7 in the notes. They defined the term only in
+notes 2, which a PDF does not carry. That is the term the managers' review replaced, because it reads as the station's
+fixed lines, and the app has a roster type called "fixed". The owner agreed to align the colleague decks with the
+managers' decks.
+
+- **On the slides,** slides 2 and 9 now say "never more than five days in a row, cover weeks aside". Slides 12 and 14
+  have the row "Avoidable fatigue warnings, cover weeks aside", the same label as the managers' slide 6.
+- **In the notes,** the term is said the way a presenter would say it aloud. Notes 2 defines it where the presenter
+  first meets it: "When a slide says 'cover weeks aside', it means the other 21 weeks, whose shifts are set." Notes 7
+  says that the yearly figures and the 14h 35m shortest gap leave the cover weeks out.
+- **Slide 9's bar** keeps "five days in a row" together. The line used to break as "in a / row", the same break the
+  old wording had.
+- `deck-polish.py` writes the new wording where it creates these sentences, and rewords the builders' own sentences once
+  each. A deck that still says "fixed rota" is refused. Mutated: with one rewording deleted, the build stops and names
+  the notes page.
+- The managers' decks' content is unchanged; only a timestamp inside an embedded chart differed, so they were not
+  rebuilt into this change.
+
+**Still saying "fixed rota", outside the decks:**
+- the shortlist sheet, twice on page 1 and once on page 2;
+- the one-line description under Short Run's name on its own sheet ("No run over five days on the fixed rota…").
+
+Both are rendered sheets, so changing them means a re-render. They are left as they are until the owner decides.
+
+**Changed:**
+- tooling: `deck-polish.py`, `deck-check.mjs`
+- outputs: the three colleague decks and their PDFs, the pack
 
 ## Notes for the whole set
 

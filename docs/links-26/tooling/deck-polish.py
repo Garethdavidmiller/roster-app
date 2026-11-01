@@ -306,8 +306,8 @@ def strip_slide(d, name, grid, F):
     s.save()
     upto = (f'; because a cover week’s duties are placed later, a block can run to {F["blockUpTo"]} if the cover weeks beside it are given the same kind (today {T["blockUpTo"]})'
             if int(F["blockUpTo"]) > int(F["block"]) else '; the cover weeks cannot lengthen it')
-    notes_after_10 = f'A block is weeks in a row all on earlies or all on lates. On the fixed rota the longest is {F["block"]} weeks (today {T["block"]}){upto}. Fewer switches between earlies and lates, but someone who prefers one kind waits longer for it to come round.'
-    snd.notes(d, 10, 'Earlies here means', f'Read the strip left to right; week 27 is week 1 again. A cover week has no fixed shifts of its own — its four duties are placed later to cover leave and sickness, which is why it is drawn empty. Earlies here means a start before 11:00. A weekday has 7 earlies and 8 lates; a Saturday 7 and 7; a Sunday 5 and 5. Sundays stay overtime, {F["sun"]} a year each (today {T["sun"]}), and still finish at 23:25. Who starts on which week is decided after the link is chosen.')
+    notes_after_10 = f'A block is weeks in a row all on earlies or all on lates. Cover weeks aside, the longest is {F["block"]} weeks (today {T["block"]}){upto}. Fewer switches between earlies and lates, but someone who prefers one kind waits longer for it to come round.'
+    snd.notes(d, 10, 'Earlies here means', f'Read the strip left to right; week 27 is week 1 again. A cover week has no set shifts of its own — its four duties are placed later to cover leave and sickness, which is why it is drawn empty. Earlies here means a start before 11:00. A weekday has 7 earlies and 8 lates; a Saturday 7 and 7; a Sunday 5 and 5. Sundays stay overtime, {F["sun"]} a year each (today {T["sun"]}), and still finish at 23:25. Who starts on which week is decided after the link is chosen.')
     notes_append(d, 10, notes_after_10)
     # ONE BAR A WEEKEND (31 Oct 2026, the deck review): two weekends one after the other used to share one longer bar, and a
     # note here said the bars undercounted; rota-strip.mjs now draws each with a gap where two meet, so the bars count them
@@ -328,7 +328,7 @@ def colleagues(d, name, grid, F):
     tile(s, 21, ['45 min on a Sunday', '1h 15m on a Saturday', 'up to 1 hour'],
          {'45 min on a Sunday': 'Sundays: 45 min', '1h 15m on a Saturday': 'Saturdays: 1h 15m'}.get(sub, sub))
     s.save()
-    notes_append(d, 2, f'Say the leave cost here too, before anyone asks: four full weeks off in a row, Sunday to Saturday, takes {F["leaveFour"]} days’ leave rather than {T["leaveFour"]}, and the best 14-day stretch is {F["leaveBest"]} days off rather than {T["leaveBest"]}; the average is the same and the worst a day better. A cover week is one of the five weeks in 26 with no fixed shifts: its four duties are placed later to cover leave and sickness; the fixed rota is the other 21 weeks, whose shifts are set.')
+    notes_append(d, 2, f'Say the leave cost here too, before anyone asks: four full weeks off in a row, Sunday to Saturday, takes {F["leaveFour"]} days’ leave rather than {T["leaveFour"]}, and the best 14-day stretch is {F["leaveBest"]} days off rather than {T["leaveBest"]}; the average is the same and the worst a day better. A cover week is one of the five weeks in 26 with no set shifts: its four duties are placed later to cover leave and sickness. When a slide says “cover weeks aside”, it means the other 21 weeks, whose shifts are set.')
     s = S(4)
     a, b = shape_of(s, '4.2'), shape_of(s, '4.19'); assert a < b, 'today left of proposal'
     put(s, '4.2', T['daysWeek'])
@@ -386,13 +386,14 @@ def colleagues(d, name, grid, F):
     if int(F['late23']) - int(T['late23']) != 3: raise SystemExit(f'deck-polish: slide 7 says three more after 23:00; {name} has {F["late23"]}, today {T["late23"]}')
     replace_run(f'{d}/ppt/slides/slide7.xml', 'Three more late finishes a year — the fewest the rules allow — and every closer is shorter.', 'More people stay on after 22:00 under the December staffing; the three more at 23:00 or later are the fewest the rules allow.')
     # the shortest gap is the FIXED duties' (the review, 31 Oct 2026): a cover week's duties are placed later, within the limits
-    notes_edit(d, 7, 'nobody finishes late and starts early the next morning', 'nobody on the fixed rota finishes late and starts early the next morning')
+    notes_edit(d, 7, 'And because the shortest gap between two shifts is', 'And outside the cover weeks the shortest gap between two shifts is')
+    notes_edit(d, 7, ', nobody finishes late and starts early the next morning', ', so nobody finishes late and starts early the next morning')
     # NOT AVERAGES ON 26 WEEKS (the deck review, 30 Oct 2026): 52 weeks are exactly two turns of the link, so the yearly figures
     # are everyone's, whichever line they start on. Slide 5's notes say so and already leave the cover weeks out; slide 7's
     # gain the line the slide drops.
     for n in (5, 7):
         s = S(n); drop_shape(s, 'Yearly figures are averages from the fixed rota; cover-week duties are not included.'); s.save()
-    notes_append(d, 7, 'The yearly figures are the fixed rota’s over 52 weeks, which is exactly two turns of the link, so they are everyone’s; a cover week’s duties are not known yet and are left out.')   # not "twice a year": two turns are 364 days (external review)
+    notes_append(d, 7, 'The yearly figures leave the cover weeks aside, as their duties are not known yet. They are worked out over 52 weeks, which is exactly two turns of the link, so they are everyone’s.')   # not "twice a year": two turns are 364 days (external review)
     s = S(9)
     put(s, 'Full weekends off', 'Full weekends off, about a year'); put(s, '4 in 20', T['weekendsYear']); put(s, '7 in 26', F['weekendsYear'], GREEN)
     # ONE SHIFT TIME, AS THE SHEETS SAY IT (31 Oct 2026 review): "no early–late switch" is true of all 21 weeks, not the 18 the row
@@ -461,8 +462,24 @@ def colleagues(d, name, grid, F):
     replace_run(p14, '4 in 20', T['weekendsYear'], after='Full weekends off'); replace_run(p14, '7 in 26', F['weekendsYear'], after='Full weekends off'); replace_run(p14, 'Full weekends off', 'Full weekends off, about a year')
     # THE FATIGUE CELLS CARRY THE WORST CASE (31 Oct 2026), as today's "4 (up to 5)" beside them does: with a cover week's
     # Sunday worked as overtime the four can make a 55-hour week, which the sheets give as "0 (up to 1)"
-    for n in (12, 14): replace_run(f'{d}/ppt/slides/slide{n}.xml', '0', F['ff'], after='Avoidable fatigue warnings in the fixed rota')
+    for n in (12, 14):
+        replace_run(f'{d}/ppt/slides/slide{n}.xml', 'Avoidable fatigue warnings in the fixed rota', 'Avoidable fatigue warnings, cover weeks aside')
+        replace_run(f'{d}/ppt/slides/slide{n}.xml', '0', F['ff'], after='Avoidable fatigue warnings, cover weeks aside')
     if explain_h55(name, F): notes_append(d, 12, f'The “up to 1” beside the fatigue warnings is more than 55 hours in seven days. If a cover week’s four duties come straight after a busy week, and its Sunday is worked as overtime too, those seven days can come to {F["h55"]} hours with 8-hour duties, and more with longer ones, which the rail industry’s guidance flags. Where the four fall, and whether the Sunday is worked, is for the roster office.')
+    # "COVER WEEKS ASIDE", NOT "THE FIXED ROTA" (owner, 1 Nov 2026, after the managers' review): the managers read "fixed rota"
+    # as the station's fixed lines — the app has a roster type called 'fixed' — and these decks used the term on five slides
+    # while defining it only in notes 2, which a PDF does not carry. The sentences above are written in the new words; the
+    # builders' own are reworded here, and polish() refuses a deck that still says it
+    def reword(part, old, new):
+        path = f'{d}/ppt/{part}.xml'; x = open(path, encoding='utf-8').read()
+        if x.count(escape(old)) != 1: raise SystemExit(f'deck-polish: {path} holds {old!r} {x.count(escape(old))} times, not once')
+        open(path, 'w', encoding='utf-8').write(x.replace(escape(old), escape(new)))
+    reword('slides/slide2', ' days in a row on the fixed rota.', ' days in a row, cover weeks aside.')
+    reword('slides/slide9', ' five days in a row on the fixed rota.', ' five\u00a0days\u00a0in\u00a0a\u00a0row, cover weeks aside.')   # kept together: the bar broke "in a / row"
+    reword('slides/slide12', 'no avoidable fatigue warnings in the fixed rota.', 'no avoidable fatigue warnings, cover weeks aside.')
+    reword('notesSlides/notesSlide2', 'Never more than five days in a row on the fixed rota —', 'Never more than five days in a row outside the cover weeks —')
+    reword('notesSlides/notesSlide9', 'Nobody works more than five days in a row on the fixed rota —', 'Outside the cover weeks nobody works more than five days in a row —')
+    reword('notesSlides/notesSlide12', 'shows four of them in the fixed rota (up to five', 'shows four of them, cover weeks aside (up to five')
 
 def managers(d, name, grid, F):
     S = lambda n: Slide(f'{d}/ppt/slides/slide{n}.xml')
@@ -805,6 +822,8 @@ def balance_tables(d):
 def polish(path, name, grid, who):
     d = tempfile.mkdtemp(); zipfile.ZipFile(path).extractall(d)
     (colleagues if who == 'colleagues' else managers)(d, name, grid, FIG[name])
+    said = [f for r, _, fs in os.walk(d) for f in fs if f.endswith('.xml') and 'fixed rota' in open(os.path.join(r, f), encoding='utf-8').read()]
+    if said: raise SystemExit(f'deck-polish: {name} for {who} still says "fixed rota" ({", ".join(sorted(said))}); the decks say "cover weeks aside"')
     moved = balance_tables(d)
     names = zipfile.ZipFile(path).namelist()
     extra = [os.path.relpath(os.path.join(r, f), d) for r, _, fs in os.walk(d) for f in fs if os.path.relpath(os.path.join(r, f), d) not in names]

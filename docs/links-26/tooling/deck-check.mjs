@@ -97,7 +97,7 @@ const ROWS = {
   'Shortest gap between two shifts': 'rest', 'Shortest rest between shifts (limit 12h)': 'rest', 'Longest shift, any day': 'longest',
   'Average shift · longest shift': 'avgLongest', 'Closing shift: weekday · Saturday · Sunday': 'closers',
   'Full weekends off': ['weekends', 'weekendsShort'], 'Full weekends off, about a year': 'weekendsYear', 'Most days worked in a row': 'run', 'Most days in a row (limit 13)': 'run', 'Most days in a row (limit 13, source to confirm)': 'run',
-  'Avoidable fatigue warnings in the fixed rota': 'ff', 'Avoidable fatigue warnings, cover weeks aside': 'ff',
+  'Avoidable fatigue warnings, cover weeks aside': 'ff',
   'Different shift times': 'times', 'On duty weekday · Saturday · Sunday': 'daily', 'On duty each day (Sunday: at least 10)': 'daily',
   'On duty on a weekday': 'dailyWk', 'On duty on a Saturday / Sunday': 'dailyWeekend',
   'At the open, at least 4 (06:20, Sun 07:15)': 'open', 'Still on duty at 22:00, at least 5': 'at22', 'Through to the close, at least 3': 'close',
