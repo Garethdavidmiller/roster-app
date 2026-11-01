@@ -41,7 +41,8 @@ cannot open their own roster on their last week.
 
 - [ ] **4 · Overtime: every already-open week.** A window's participants are frozen when it opens,
       so this does not happen by itself. **Stop asking** beside their name, once per open week. A
-      closed week refuses by design — that is a rule, not a fault.
+      closed week refuses by design — that is a rule, not a fault. **Skip this step while Overtime is
+      paused** (`CONFIG.OVERTIME_ENABLED` false, Nov 2026): the page is closed and no week asks anyone.
 
 - [ ] **5 · Disable the login.** Operations → Staff Login Accounts → tick *"Disable accounts for
       anyone no longer on the roster (leavers)"* → **Set up accounts** → read the dry-run preview → **Confirm**. Until this runs

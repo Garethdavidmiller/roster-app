@@ -85,7 +85,7 @@ const NOW = Date.now();
 const ADMIN    = 'G. Miller';
 const MEMBER   = 'L. Springer';        // on the roster, and not the admin
 const MEMBER2  = 'A. Hared';           // a SECOND ordinary member, for the coalescing cases
-const MANAGER  = 'S. Stewart';         // roles.manager in roster-members.json
+const MANAGER  = 'D. Watts';           // roles.manager in roster-members.json
 const DESIGNER = 'M. Robson';          // roles.designer, and NOT an admin
 const ADMIN_UID = 'uid_admin_gm';
 const emailFor = (n) => `${n[0].toLowerCase()}.${n.split('. ')[1].toLowerCase()}@myb-roster.local`;

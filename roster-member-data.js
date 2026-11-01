@@ -149,7 +149,6 @@ export const teamMembers = [
 
     // Management & clerks — login-only accounts; no roster of their own; hidden from the staff selector.
     // They can view and edit all staff data via admin.html but cannot access upload or auth setup features.
-    { name: 'S. Stewart', currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
     { name: 'D. Watts',   currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
     { name: 'D. Harris',  currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
     { name: 'S. Gumbo',   currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },

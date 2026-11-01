@@ -2,6 +2,9 @@
 
 *Not version-stamped; not a runtime asset. Shipped v20.56–v20.61.*
 
+**PAUSED since v25.05 (owner, Nov 2026).** Nobody can open it, the admin included, and nothing runs but the
+retention purge. Everything below is the design it returns with; [Paused](#paused-owner-nov-2026) says what is off and how to switch it back on.
+
 Staff declare, per day, when they are available for overtime in a future roster week. A reviewer
 (Manager or Master Admin) reads the answers by day and plans cover from them.
 
@@ -23,6 +26,38 @@ release. Everything else is routed the usual way:
 | The reviewer's by-day workspace | `overtime-manager.js` |
 | Server calls, timeout budgets, corrected clock | `overtime-data.js` |
 | Storage shape and read permissions | `firestore.rules` → `overtimeWindows` |
+
+---
+
+## Paused (owner, Nov 2026)
+
+Owner, 1 Nov 2026: the manager who proposed Overtime has gone on a year's secondment, so it is not going into
+operation now — "I love our design, but need to retire it from the app and yet somehow keep the code and ideas
+ready to be returned should it be needed." It is paused with ONE switch rather than removed, because a feature taken
+out of an app moving this fast rarely goes back in cleanly a year later. Left in, with its tests running, every
+change to the code it shares (the menu, sign-in, the rules, the service worker) has to keep it working.
+
+**The switch is `CONFIG.OVERTIME_ENABLED` in `roster-data.js`, now `false`.** With it off:
+
+| Where | What happens |
+|---|---|
+| Every menu | No ⏱️ Overtime pill, for anyone: `canOpenOvertime` (`auth-policy.js`) is false while `overtimeEnabled()` is |
+| `overtime.html` | A calm "paused" note, to everyone, signed in or out. No sign-in is offered and nothing is queried |
+| Cloud Functions | `functions/index.js` exports only `purgeExpiredOvertimeWindows`, read from the generated `overtimeEnabled` in `functions/roster-members.json`. The release that ships the pause REMOVES the five endpoints and the daily creator from production (the deploy runs `--force`); no week is made, nobody is asked, nothing is sent |
+| Data | The purge keeps running, armed from 1 Dec 2026 (Retention, below), so the weeks already made, and anything entered in them, delete themselves 91 days after their Saturday. The last goes by about mid-March 2027 |
+| Tests | All of them still run. The browser suites switch it back on through the `__E2E.overtimeEnabled` seam, so they keep driving the real page; the paused page has tests of its own. `functions-surface.test.mjs` pins both deploy surfaces |
+
+**To bring it back:**
+1. Set `OVERTIME_ENABLED: true` in `roster-data.js`, and run `npm run generate:roster-members` **in the same commit** —
+   the server reads the generated copy, so an un-regenerated switch is a page whose every call 404s.
+2. Bump and release as usual. The deploy re-creates the five endpoints and the 05:00 creator; the creator makes the
+   six-week horizon on its first morning.
+3. Decide the audience: the beta list (`CONFIG.OVERTIME_BETA`, regenerated the same way) or the full launch
+   (`currentAudience()` in `functions/overtime.js`). Until then only the admin is asked, as before the pause.
+4. Read this document's Invariants again before changing anything, and re-check the timetable against the roster
+   office's current week — it was designed in August 2026.
+
+A monthly reminder that this code exists was set up with the pause (owner request), so it is not forgotten.
 
 ---
 
@@ -610,8 +645,9 @@ because none existed before.
 
 One, stated in full in `ARCHITECTURE.md` → §3 and deliberately not re-explained here:
 
-- **`EXC-003`** — participation is a **restricted beta**. The audience ladder is server-owned, so
-  widening it is a one-word edit plus `npm run generate:roster-members`.
+- **`EXC-003`** — the feature is **paused** (Nov 2026; [Paused](#paused-owner-nov-2026), above). When it returns,
+  participation is the **restricted beta** it was: the audience ladder is server-owned, so widening it is a one-word
+  edit plus `npm run generate:roster-members`.
 
 The retention purge's exception **closed on 19 Sep 2026** — it arms itself on a date now, and
 *Retention* above is what it does rather than what it would do.

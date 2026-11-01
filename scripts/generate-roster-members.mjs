@@ -82,6 +82,11 @@ export function buildRosterMembers() {
         // and the only thing that reads it is `selectParticipants`. Filing it beside the claims would
         // invite the next reader to look for an `overtimeBeta` claim that does not exist.
         overtimeBeta: CONFIG.OVERTIME_BETA,
+        // The pause switch (owner, Nov 2026). Explicitly a boolean, and `false` unless CONFIG says
+        // `true`, so a missing setting can never quietly switch a paused feature back on.
+        // `buildOvertimeEndpoints` reads it: `false` → every endpoint answers `paused`, the daily
+        // creator stands down, and only the retention purge still runs.
+        overtimeEnabled: CONFIG.OVERTIME_ENABLED === true,
         // The app's canonical navigable-roster ceiling, mirrored so window creation validates against
         // the SAME horizon the client does. Without it the Functions side would need its own literal,
         // and the two would part company at the next MAX_YEAR bump (already booked in

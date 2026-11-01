@@ -19,7 +19,7 @@ identity); the **emoji carries feature identity**.
 | Weekly Retail Circular | 📰 | Operations card + nav "Weekly Retail Circular" | `circular` | document |
 | Marylebone Newsletter | 🗞️ | Operations card + nav "Marylebone Newsletter" | `newsletter` | document |
 | Pay reminder | 💷 | Pay nav pill / paycalc | `pay-reminder` | event |
-| Overtime availability | ⏱️ | Overtime nav pill / page badge | `overtime` | event |
+| Overtime availability (paused since v25.05: nothing sends) | ⏱️ | Overtime nav pill / page badge | `overtime` | event |
 | Password reset request | 🙋 | Operations "Password Reset Requests" card | `reset-request` | event |
 | Password was reset | 🔑 | Settings "Password" card | `password-reset` | event |
 | Timetable change (one-off, v24.94) | 🚆 | Trains nav pill / page badge | `timetable` | event |
