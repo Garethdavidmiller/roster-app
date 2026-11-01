@@ -2056,6 +2056,58 @@ and notes 14.
 - tooling: `deck-polish.py`, `shortlist-sheet.mjs`, `pack.py`
 - outputs: the six decks and their PDFs, the shortlist sheet, the pack
 
+## A fourth outside review: one pass for simplicity (1 Nov 2026)
+
+The reviewer's follow-up corrected their own earlier verdict. "Essentially finished" had been about accuracy and
+completeness, and was too generous about simplicity. The story was still clear, but a few slides had become more
+complete at the expense of the aim: plain English, low cognitive load, and only the caveats needed on screen. Their
+point was information density, not visual design: "an orderly slide can still contain too much". They asked for one
+focused pass, and for no deck to be rebuilt and no detail removed from the supporting pack. This session agreed. Each
+review had added something true to a slide, and together they had made some slides harder to read.
+
+- **Managers' slide 8: three gains and three costs.** Each is a bold plain-English headline ("More weekends off") with
+  its figure underneath in grey ("14 full weekends a year, not 10"), so the slide can be read from the headlines alone.
+  - Even Step's costs are late finishes, leave and pay. In Step's and Short Run's swap leave for their longer weekday
+    earlies, the cost their colleagues will notice; leave stays in slide 7's bar.
+  - The pay line keeps its Sunday condition.
+  - Notes 8 name everything else.
+- **The bars on managers' slides 5 and 7** now give the message without the figures. "Six more people, the same
+  35-hour week — and Sundays are still worked as overtime." "What all three cost: more late finishes, two more
+  Saturdays a year, a day more leave for four weeks off." The figures moved to notes 5 and 7.
+- **Colleagues' slide 8** keeps the times people already work, which can be taken in at a glance. The new times are
+  now three plain lines: closers start later (by how much, on which days), the new weekday times, and Sundays.
+  - Notes 8 list every new time with what it is, for reference.
+  - A word joiner after each time's dash stops a time breaking across two lines; "15:00– / 22:30" had done so.
+- **Colleagues' slide 14** says its message before the figures: "Same hours and days, shorter closers, more weekends
+  off, fewer days in a row".
+  - The three rows behind that message stay bold, and the rest are set in regular weight, so the eye lands on them first.
+  - The bar used to repeat the message. It now names the costs: "more late finishes and longer runs of earlies or
+    lates".
+- **Caveats** stay only where a claim would mislead without one:
+  - the pay line's Sunday condition;
+  - "cover weeks aside" beside days in a row and the fatigue warnings;
+  - "not a fatigue risk assessment";
+  - what the brackets on slide 6 mean.
+- **Left as they are:**
+  - Managers' slide 3: each row's rule threshold is what that slide is for.
+  - Every other colleague slide: the reviewer found them mostly successful.
+  - The sheets: the full comparison lives there.
+
+**Checks.** Three things now stop the build:
+- colleague slide 8's three lines failing to name every new time (or cover it as a closer) or naming a time that is
+  not new;
+- slide 14's subtitle or bar no longer being true of its design;
+- slide 8's gains and costs no longer being gains and costs against today.
+
+The first two were mutated with `scripts/mutate.mjs`, and each stopped the build with its own message.
+`deck-check.mjs`: 153 rows agree. Only the intended parts changed:
+- managers' decks: slides 5, 7 and 8 and their notes, plus the embedded chart's timestamp;
+- colleague decks: slides 8 and 14 and notes 8.
+
+**Changed:**
+- tooling: `deck-polish.py`
+- outputs: the six decks and their PDFs, the pack
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
