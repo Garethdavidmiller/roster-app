@@ -87,6 +87,9 @@ still be rebuilt.
 | | `anneal-from.mjs` | `anneal.mjs`'s search, started from a given rota rather than at random, so a carried structure is improved, not thrown away |
 | | `rota-polish.mjs`, `order-polish.mjs` | reorder only (same-day and whole-line swaps), never worse than a reference; `ISO_W=` in `rota-polish.mjs` also rewards fewer single rest days |
 | | `exact-floor.py`, `exact-skeletons.py` | the exact solver (`pip install pulp`): the proven floor on single rest days for a rest-day layout, and the same model as a generator of skeletons for `skeleton-start.mjs` (Short Run came from it) |
+| | `today-plus.mjs` | today's link kept week for week, with six weeks added round it (26 Oct; see *Same Again*) |
+| | `keep-early.mjs` | what putting short earlies back into a design costs: every placement of the swaps, each scored with the sheet's own functions (26 Oct; see *The early finishes*) |
+| | `exact/` (`pip install ortools`) | the fewest cells to change in a design so it meets every rule: `fewest.py`, `prove.py` to prove that figure, `tiebreak.py` and `quality.py` to choose among ties or hold a design's own figures, and `check_model.py` with `judge.mjs` to hold the model to the sheets' own code (26 Oct; see *Little and Often*). It predates the 31 Oct ruling on the 55-hour worst case |
 | | `candidates.mjs` | prints each candidate rota's sheet figures on one line, to choose between them |
 | check | `check.mjs` | the self-check: settings agree, the test rota recounts independently, and each 26-line rule fails when its condition is broken (`node tooling/check.mjs`) |
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
@@ -996,6 +999,300 @@ node short-earlies.mjs                                                          
 
 `skeleton-start.mjs` warns once for Home Grown's weeks ("an early run ending at a single rest day", line 2): its own
 supply rule cannot read a run the polish made legal another way, and the search clears it.
+
+## A second session's work of 26–27 Oct, carried into main (1 Nov 2026)
+
+The same day as the section above, a second working session took three questions of its own:
+- what keeping an early finish costs;
+- today's link kept week for week;
+- a 26-week Word roster the owner supplied.
+
+Its work stayed on its own branch, `claude/app-logo-gleam-removal-lxza1q` (last commit `1068533`, 27 Oct). It was
+carried into main on 1 Nov, on the owner's word to keep it as a record. The three sections that follow are its
+write-ups as it left them, corrected only where main has moved on.
+- **Carried over:**
+  - the write-ups;
+  - `tooling/keep-early.mjs`, `tooling/today-plus.mjs`, and the repair solver in `tooling/exact/`;
+  - the ten grids in `tooling/results/` that the write-ups name.
+- **Not carried over:** its changes to three colleague decks, `deck-polish.py`, `deck-check.mjs` and the zip. Main had
+  overtaken them, as the first section says.
+- **Its figures are those of 26–27 Oct.** The 31 Oct rulings came later, and the notes at the top of this file say what
+  they change.
+- **Checked on main, 1 Nov:**
+  - `keep-early.mjs` reproduces its recorded grids exactly;
+  - `today-plus.mjs` runs;
+  - the two research sheets no longer render, because the renderer now refuses a page that runs over;
+  - the solver's own check agrees with main's sheets on everything but the 55-hour worst case (end of *Little and
+    Often*).
+
+## The early finishes, and what keeping one costs (26 Oct 2026)
+
+Owner: "Do you think it will be easy to sell to the others when we are losing the 13.35 and 13.45 finishes. It is just
+this was needed to shorten the lates." **All three designs then shortlisted (Second Edition, Short Run and Even Keel)
+lose them.** Today's two weekday floor openers, 06:20–13:35 and 06:20–13:45 (about 26 a year each), become 06:20–14:50
+in Second Edition and Short Run, and 06:20–14:00 or 14:50 in Even Keel. That is arithmetic, not one design's choice.
+The contract fixes the week's total (44,100
+minutes) and the 219-day ceiling fixes the number of shifts, so the average shift is at least 8h 16m (today 8h 14m),
+and the time taken off the lates has to go on the earlies:
+
+| Monday to Saturday | Today | Second Edition, Short Run | Even Keel |
+|---|---|---|---|
+| Average early | 7h 59m | 8h 26m | 8h 19m |
+| Average late | 8h 29m | 8h 06m | 8h 12m |
+| Weekday 06:20 floor early ends | 13:35 · 13:45 | 14:50 | 14:00 · 14:50 |
+| Earlies finishing before 14:00, each a year | 26 | 0 | 0 |
+
+**The decks were changed to say so, on that session's branch, and the change was not carried into main.** Slide 6 ("Will
+my shifts be longer?") answered with the closers only, and the trade-offs slide did not list the early finishes. So
+slides 6 and 13 of the three colleague decks were rewritten to say the 13:35 and 13:45 go, and what keeping one costs.
+The rewrite was `deck-polish.py`'s `early_finishes`, vouched for by `deck-check.mjs`'s `floorEarly`, in commit
+`1e21df5`. By 1 Nov main had overtaken it:
+- Even Keel's and Second Edition's decks left the pack on 30 Oct;
+- two of today's three shortlisted designs, In Step and Even Step, keep a 13:45 every weekday;
+- Short Run still has none.
+
+**What keeping one costs, tested** (`tooling/keep-early.mjs`). Each 13:45 is paid for the same day, minute for minute, so
+the week's total and the number of shifts do not move:
+- **Second Edition and Short Run:** a 06:20–14:50 becomes 06:20–13:45, and a 15:00–22:30 becomes 13:55–22:30, 65 minutes
+  each way. 13:55 is off the quarter-hour grid the table searches used, but it is the only start that balances to the
+  minute. The on-grid alternative is 06:20–13:35 with a 13:45–22:30 late; tested for one a weekday on Short Run, it
+  gives the same figures as one 13:45.
+- **Even Keel:** its 06:20–14:00 becomes 06:20–13:45, and a 14:45–22:30 becomes 14:30–22:30.
+
+The script tries every placement on the rota and scores each with the sheet's own functions:
+
+| Kept | Rules | Fatigue warnings | One-turn weeks | Shift times | Heaviest week | Average early · late | Before 14:00, a year each |
+|---|---|---|---|---|---|---|---|
+| Short Run as it is | 9/9 · 3/3 | 0 | 18 of 21 | 15 | 42h 30m | 8h 26m · 8h 06m | 0 |
+| Short Run, one 13:45 a weekday | 9/9 · 3/3 | 0 | 17 | 17 | 41h 50m | 8h 19m · 8h 13m | 10 |
+| Short Run, two a weekday (today's number) | 9/9 · 3/3 | 0, in all 243 placements | 18 | 16 | 42h 30m | 8h 11m · 8h 20m | 20 |
+| Second Edition, one a weekday | 9/9 · 3/3 | 0 | 18 | 17 | 43h 00m | 8h 19m · 8h 13m | 10 |
+| Second Edition, two a weekday | 9/9 · 3/3 | 1 (FF17, backward rotation) in every one of the 243 placements | – | – | – | – | – |
+| Even Keel, its 14:00 made 13:45 | 9/9 · 3/3 | 0 | 18 | 15 | 41h 30m | 8h 17m · 8h 14m | 10 |
+
+Everything else holds in each row: the hard limits, the weekends (7 in 26, at most five apart), the runs, the shortest
+rest, 218.6 days a year, the late finishes and the fit. **So the price of the early finishes is exactly the lates that
+pay for them.** In Short Run, two 13:45s a weekday (today's number) cost three things:
+- both 15:00–22:30 lates become 13:55–22:30;
+- lates average 8h 20m, still 9 minutes under today's;
+- one more shift time.
+
+Nothing else on the sheet changes. This is a choice to put to colleagues, not a change made here. The shortlisted grids,
+their sheets and the built-in proposals are untouched. The four kept grids are in `tooling/results/keep-1345-*.json`.
+
+From `tooling/` (one per weekday is searched within one extra mixed week, two per weekday in full):
+
+```
+node keep-early.mjs short-run.json 06:20-14:50 06:20-13:45 15:00-22:30 13:55-22:30 1 1 results/keep-1345-short-run-x1.json
+node keep-early.mjs short-run.json 06:20-14:50 06:20-13:45 15:00-22:30 13:55-22:30 2 9 results/keep-1345-short-run-x2.json
+node keep-early.mjs second-edition.json 06:20-14:50 06:20-13:45 15:00-22:30 13:55-22:30 1 1 results/keep-1345-second-edition-x1.json
+node keep-early.mjs second-edition.json 06:20-14:50 06:20-13:45 15:00-22:30 13:55-22:30 2 9    # every placement: FF17
+node keep-early.mjs even-keel.json 06:20-14:00 06:20-13:45 14:45-22:30 14:30-22:30 1 9 results/keep-1345-even-keel-x1.json
+```
+
+Re-run on main on 1 Nov 2026, the Short Run and Even Keel one-a-weekday commands reproduce their recorded grids exactly.
+
+## Same Again — today's link kept, with six weeks added (26 Oct 2026)
+
+Owner: "Can you take the existing roster and add the extra weeks whilst minimising the fatigue factors in those
+weeks", and then, asked:
+- 26 weeks: five working weeks and one cover week added;
+- no more than 219 days a year;
+- the December staffing rules met where that costs no fatigue.
+
+**Today's twenty weeks are not touched.** Every one keeps its shifts, and they stay in their order round the rotation.
+`tooling/today-plus.mjs` chooses where the six new weeks go and what the five working ones hold:
+- the cover weeks on lines 1, 6, 11, 16 and 21 (gaps 5, 5, 5, 5, 6), which leaves 4,424 ways to place the six;
+- only shift times worked today, so the link keeps today's 18 (rule S9);
+- exactly 5 × 35 hours Monday to Saturday in 21 duties (218.6 days a year).
+
+It minimises, in this order:
+1. hard-limit breaches;
+2. fatigue instances in or touching a new week;
+3. fatigue factors present;
+4. every fatigue instance anywhere (inserting a week can break one of today's);
+5. December rules failed;
+6. the shape of the week: single rest days, full weekends off, one shift time and one kind of turn per new week,
+   each time on the kind of day it is worked today, no week heavier or lighter than today's.
+
+It took four rounds:
+- **Round 1, cell by cell:** 8 of 9 rules, but scrappy weeks with 12 single rest days.
+- **Round 2:** the week's shape added to the cost.
+- **Round 3:** a polish from the best results.
+- **Round 4:** whole-week moves (a week redrawn on one familiar time in one step).
+
+Two weightings show the trade: `MODE=staff`, where the December rules come before the week's shape, and `MODE=tidy`,
+where the shape can outweigh a rule. Two `MODE=both` polishes of the staff result found nothing tidier that keeps
+every rule.
+
+| | Today | **Same Again** (staff) | Same Again Tidy | Short Run |
+|---|---|---|---|---|
+| December rules met | 4 of 9 | **9 of 9** | 7 of 9 | 9 of 9 |
+| Fatigue warnings, fixed duties (up to) | 4 (5) | **3 (5)** | 3 (5) | 0 (0) |
+| Fatigue instances in or touching a new week | — | **0** | 0 | — |
+| Full weekends off a year (longest wait) | 10 (7 weeks) | 8 (13 weeks) | 12 (8 weeks) | 14 (5 weeks) |
+| Finishing at 23:00 or later, a year each | 39 | 48 | 44 | 42 |
+| Earlies finishing before 14:00, a year each | 26 | 26 | 28 | 0 |
+| Shift times · new ones to learn | 18 · — | 18 · 0 | 18 · 0 | 15 · 6 |
+| Four full weeks off | 14 days' leave | 14 | 14 | 15 |
+| Most days in a row, fixed (cover week badly) | 7 (9) | 7 (10) | 7 (10) | 5 (6) |
+| Single rest days · weeks on one turn | 4 · 7 of 16 | 5 · 9 of 21 | 7 · 10 of 21 | 4 · 18 of 21 |
+| Fit to the trains, weekday (lower is closer) | 52.0 | 45.3 | 45.4 | 29.1 |
+| Weighted league (`REF_IN_RANGE=1`, both added to the proposals) | 23.3 | 41.2 | 38.9 | 87.7 |
+
+**On the weighted league, Same Again is the better of the two, and both sit far below the shortlist** (owner's
+question, 26 Oct 2026: "What is the best one of these new ones"). The two missed December rules cost Same Again Tidy
+more than its weekends earn back. Against the shortlist, keeping today's twenty weeks keeps today's weaknesses:
+- fit to the trains, weekends above all (68.8 against Short Run's 23.6, lower closer);
+- 4 fatigue warnings in the worst case, where the shortlist has none;
+- a 12h 30m shortest rest;
+- fewer full weekends;
+- a third of the weeks mixing earlies and lates.
+
+Only the familiar shift times and the 14-day four-week leave score better.
+
+**What it buys:**
+- every December staffing rule;
+- one fewer fatigue factor than today: the two 55-hour weeks are gone, because new weeks were placed between today's
+  weeks 4 and 5 and 13 and 14;
+- nothing new to learn: the same times, the 13:35 and 13:45 kept, four weeks off still 14 days' leave.
+
+**What it costs:**
+- fewer full weekends off (8 a year against 10, up to 13 weeks apart);
+- nine more late finishes a year each, which is what the third closer every day costs;
+- two six-day weeks;
+- a worst case of 10 days in a row, where today's is 9.
+
+The tidy version shows the other side: two rules short, and every new week reads like one of today's.
+
+**Not in the pack.** These are search results for the owner to look at, not shortlisted proposals. The grids are
+`tooling/results/same-again.json` and `same-again-tidy.json`, each with a `.meta.json`. A sheet renders with
+`supplied.mjs` (`OUT=` sets where; below). On page 5 the closing note spills onto a ninth page; that wants fitting
+before either joins the pack, which would also take an entry in `regenerate.mjs`'s `SUPPLIED`, the summary and
+`pack.py`. The renderer now refuses a page that runs onto another sheet. So on main (1 Nov) the sheet command below
+stops at page 5, 1,044px against the 1,032 that fit, instead of printing a ninth page.
+
+From `tooling/`:
+
+```
+MODE=staff node today-plus.mjs 150000 2 202 /tmp/a.json                      # round 4, the staff search
+MODE=tidy START=<a round-3 result> TEMP=30000 node today-plus.mjs 120000 2 203 /tmp/b.json
+OUT=/tmp/Same-Again.pdf node supplied.mjs results/same-again.json "Same Again" "<strap>" SA-26-S1
+```
+
+The search is seeded but its rounds were chained by hand from the best results, so the grids in `results/` are the
+record, not a single command.
+
+## Little and Often — a 26-week Word roster, read and compared (26 Oct 2026)
+
+Owner, uploading a 26-week Word roster headed *Customer Experience Ambassador*, with no names on it: "Can you name and
+analyse this against our other examples".
+
+**How it was read.** Cell by cell into the app's shape, with nothing changed and nothing searched:
+- each COVER week is a whole cover week, on lines 1, 7, 12, 17 and 22;
+- every time is as written;
+- every week's Monday-to-Saturday hours match the table's own *Weekly Total* column, and the 26 weeks total 910 hours,
+  35 a week.
+
+The grid is `tooling/results/little-and-often.json`, with a `.meta.json`. The Word file itself is not committed.
+
+**Why the name.** What sets it apart is shorter shifts on more days:
+- it averages 7h 59m a duty, Monday to Saturday, where every other design here averages 8h 14m or 8h 16m;
+- so the contract takes 92 duties in its 21 working weeks, where the ceiling allows 89;
+- that is 224.6 contracted days a year.
+
+Code `LO-26-EXT` (EXT for a supplied design, as in the 24-line set), fingerprint `3318d083`.
+
+**What it does with the times:**
+- weekday closers run 16:25–23:55, 7h 30m, where the proposals start them at 15:45;
+- the 06:20–13:35 and 06:20–13:45 earlies stay: between them 26 a year for each person, as today;
+- it has 20 shift times. Eleven are new: 06:20–14:25, 06:20–14:30, 07:00–14:00, 07:00–15:30, 08:30–17:00, 10:30–19:00,
+  12:00–20:30, 13:30–21:30, 14:20–23:25, 14:30–22:30 and 16:25–23:55;
+- it drops nine of today's, among them both Saturday ticket-office times, 06:20–14:50 and 14:30–22:00.
+
+| | Today | **Little and Often** | Same Again | Short Run | Second Edition | Even Keel | Long Break |
+|---|---|---|---|---|---|---|---|
+| December rules met (· flexible, of 3) | 4 of 9 | **3 of 9 · 1** | 9 of 9 · 2 | 9 of 9 · 3 | 9 of 9 · 3 | 9 of 9 · 3 | 9 of 9 · 3 |
+| Contracted days a year (ceiling 219) | 219.0 | **224.6** | 218.6 | 218.6 | 218.6 | 218.6 | 218.6 |
+| Fatigue warnings, fixed duties (up to) | 4 (5) | **2 (6)** | 3 (5) | 0 (0) | 0 (0) | 0 (0) | 0 (0) |
+| Full weekends off a year (longest wait) | 10 (7 weeks) | **4 (16 weeks)** | 8 (13) | 14 (5) | 14 (5) | 14 (5) | 14 (5) |
+| Most days in a row, fixed (cover week badly) | 7 (9) | **6 (9)** | 7 (10) | 5 (6) | 6 (6) | 5 (6) | 6 (6) |
+| Shortest rest | 12h 30m | **13h 50m** | 12h 30m | 14h 20m | 14h 20m | 14h 35m | 14h 20m |
+| Single rest days · weeks on one turn | 4 · 7 of 16 | **18 · 8 of 21** | 5 · 9 | 4 · 18 | 4 · 18 | 4 · 18 | 5 · 16 |
+| Six-day weeks, Sunday included | 1 | **5** | 2 | 0 | 0 | 0 | 0 |
+| Heaviest week, Monday to Saturday | 43h 50m | **45h 30m** | 43h 50m | 42h 30m | 42h 00m | 41h 30m | 42h 00m |
+| Finishing at 23:00 or later, a year each | 39 | **46** | 48 | 42 | 42 | 44 | 42 |
+| Earlies finishing before 14:00, a year each | 26 | **26** | 26 | 0 | 0 | 0 | 0 |
+| Shift times · new ones to learn | 18 · — | **20 · 11** | 18 · 0 | 15 · 6 | 15 · 6 | 15 · 7 | 15 · 6 |
+| Fit to the trains, weekday · Sat · Sun (lower is closer) | 52.0 · 65.9 · 71.7 | **34.7 · 51.4 · 74.1** | 45.3 · 78.8 · 82.3 | 29.1 · 12.7 · 29.0 | 29.1 · 12.7 · 29.0 | 29.4 · 14.5 · 29.0 | 29.1 · 12.7 · 29.0 |
+| Weighted league (`REF_IN_RANGE=1`, as the Same Again table) | 23.3 | **12.3** | 41.2 | 87.7 | 88.5 | 87.4 | 87.2 |
+
+Little and Often is scored on the range the Same Again table already uses, so no other score moves. That gives it the
+same figure as adding it to the range: where it sets a new worst it scores 0 either way.
+
+**It cannot be run as it stands.** Two hard-limit checks fail, and both are the same fact: 224.6 contracted days a year
+against the 219 ceiling. Getting under it means three fewer duties across the 21 working weeks, so some shifts get
+longer. That is the trade the early finishes face (above): a shorter shift is paid for with a longer one.
+
+**December rules, 3 of 9** (today 4):
+- Sunday opens with three at 07:15, where the rule asks for four, and has four on at 22:00, where it asks for five.
+- The ticket office's identical pairs are rostered on no day; today has them Monday to Saturday.
+- At 14:30 on a Saturday only four are on duty in the whole station. The earlies have gone at 14:25 and 14:30, and the
+  15:15 closers are not yet in. With the ticket office's posts taken out, the sheet counts nobody on the floor.
+- One Sunday duty, 14:20–23:25, is 9h 05m; the most allowed is 9h.
+- 20 shift times, against today's 18.
+
+Of the three flexible rules it meets the cover spread. It has 12 on a Saturday (14 asked) and closers from 16:25
+(15:45 asked).
+
+**Where it beats today:**
+- the weekday and Saturday fit to the trains: 34.7 and 51.4, against 52.0 and 65.9 (Sunday 74.1, against 71.7);
+- two fatigue warnings in the fixed duties, against four;
+- a 13h 50m shortest rest (today 12h 30m), and at most six days in a row (today seven);
+- shorter closing shifts.
+
+**Where it costs most:**
+- 4 full weekends off a year (today 10, the shortlist 14), up to 16 weeks apart;
+- 18 single rest days, where every other design has 4 or 5;
+- 8 of 21 weeks on one turn, against the shortlist's 18;
+- five six-day weeks, and a 45h 30m week (line 9: five 16:25 closers and a Saturday late);
+- 11 new shift times;
+- up to 6 fatigue warnings if a cover week falls badly: five factors and a 55-hour week, against today's 5.
+
+**On the weighted league it comes last, at 12.3:** below today's link (23.3), Same Again (41.2) and the shortlist (87
+to 89). Its gains over today are real but small: the fit, the rest, and fewer weeks mixing earlies and lates. It scores
+nothing on the factors that carry most of the weight: the December rules, the worst-case fatigue warnings, the
+weekends, familiar shift times, weeks on one turn and single rest days. Today's familiar times and weekends are what
+keep today above it.
+
+**Not in the pack.** Like Same Again, it is a design to look at, not a proposal. Its sheet renders with `supplied.mjs`
+(below), but runs to 11 pages, not 8:
+- three pages run over;
+- on one of them, *What changes, in numbers*, the last line sits under the footer.
+
+The template was sized for the shortlist, and this design has more trade-offs and shift times to list. That wants
+fitting before it could join the pack. On main (1 Nov) the renderer refuses it at the first page that runs over (pages
+1, 4 and 5 are over), so the command below stops rather than print.
+
+From `tooling/`:
+
+```
+OUT=/tmp/Little-and-Often.pdf node supplied.mjs results/little-and-often.json "Little and Often" "<strap>" LO-26-EXT
+```
+
+**Two repairs of it were withdrawn** (owner, 27 Oct 2026). *Often Enough* (the fewest changes that meet every rule: 42,
+proven) and *Fair Enough* (77 changes, with today's weekends and 14 weeks on one turn) were made with `tooling/exact/`
+on 26 Oct. Neither came near the shortlist on the weighted league (50.8 and 74.3). The early finishes Fair Enough kept
+are available in the shortlist itself, as the kept-13:45 versions above show. Both repairs, their grids and their
+working are in that session's branch history at `12a6b20`, which main does not contain.
+
+**The solver after the 31 Oct ruling.** `tooling/exact/` was written against the sheets of 26 Oct. `check_model.py` was
+run on 1 Nov with Little and Often as the base, Often Enough as the solution and 20 test grids:
+- **On that session's own code:** no mismatches.
+- **On main's:** it agrees on every rule and every fatigue factor but one, the 55-hour worst case (H55W). Since 31 Oct
+  the sheets count a cover week's Sunday as worked on top, and the model does not.
+
+So the solver's figures stand as of 26 Oct. Before it is used again, H55W needs adding to `model.py`.
 
 ## Closing Time, improved — every possibility tried (27 Oct 2026)
 
