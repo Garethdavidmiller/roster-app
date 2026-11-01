@@ -1904,6 +1904,84 @@ measured after its own tightening passes. Mutated: putting back the three-line w
 - tooling: `plain.mjs`, `render.mjs`, `shortlist-sheet.mjs`, `deck-polish.py`
 - outputs: the fifteen sheets, the shortlist, the six decks and their PDFs, the pack
 
+## The managers' decks reviewed — clarity, consistency and screenshots (1 Nov 2026)
+
+The owner asked for the three managers' decks to be reviewed for clarity, then for consistency, then polished from
+screenshots. Two independent reviews read the decks against the rotas, the sheets and the colleague decks. Their
+findings were checked before any was taken: every figure they quoted was recomputed. One fact drove most of the changes:
+**a deck's PDF carries the slides and no speaker notes**. So anything a manager must not miss is now on a slide: which
+design is recommended, that this is not a fatigue risk assessment, what the brackets mean, and the costs colleagues will
+be shown.
+
+**On the slides:**
+- **Slide 1.** In Step's and Short Run's decks say "one of three shortlisted" and that Even Step is the recommended
+  design. Even Step's says it is the recommended one.
+- **Slides 2, 6, 7 and 8.** "Fixed rota" becomes **"cover weeks aside"**. "Fixed rota" read as the station's fixed lines.
+  Slide 2's bar now says what each design is for, not the line all three shared.
+- **Slide 3.** Every row now states its rule: "At the open, at least 4", "Still on duty at 22:00, at least 5" (the
+  rule's own name on the rules sheet), and so on.
+- **Slide 4.** The subtitle names the measure ("fit to the trains") that slides 7 and 8 refer to. The bar is now one
+  sentence for all three decks: a threshold had given Even Step a different sentence for a difference the chart shows
+  anyway.
+- **Slide 5.** Cover weeks are shown as a share, **"5 of 26 (19%)" against "4 of 20 (20%)"**, not "1 in 5.2". The
+  Sunday overtime figure is said to be the whole link's.
+- **Slide 6.** The subtitle says **"not a fatigue risk assessment"**. The row is now "Longest shift, any day", because
+  two of the three 9-hour shifts are the Sunday early. The bar says what the brackets are: the worst case, if a cover
+  week falls badly.
+- **Slide 7.** Each "This one adds" and "This one costs" line is checked against the other two designs.
+  - Short Run's cost now names its nine-hour weekday earlies. Seen side by side, only In Step's long earlies were
+    named, though Short Run's are the longer.
+  - In Step's "most early finishes" now says "of the three". Slide 8 lists fewer early finishes than today as a worry,
+    and the two lines must not read as a contradiction.
+  - The shift-times line no longer puts a tick beside the new times.
+  - The shared costs are each said against today.
+- **Slide 8.** The two lists are in one form on all three decks: one line each, with "(today X)" beside every figure.
+  - The worries are the six on the colleague deck's trade-offs slide, plus the pay figure and (In Step and Short Run)
+    the long weekday earlies.
+  - The welcome list gains the longer rest and the floor staffing, as the colleague deck's slides 7 and 12 show them.
+  - The scope is said once, in the subtitle: per person, a year, cover weeks aside.
+- **Slide 9.**
+  - The ask is on the slide: the rules are worth having in writing before a link is chosen, and the proposal has not
+    yet been seen by the roster office or a union rep.
+  - The two open points are said in words, not as "FF19".
+  - The dates are in the notes only.
+- **Slide 10.** The fingerprint is shown beside the code, as on the sheets.
+
+**In the notes.** The notes are rewritten to be read aloud, in the same order on all three decks. The dates and history
+are kept to notes 9. Repeated sentences are gone: the days a year had been said three times. Every figure is computed,
+and the notes no longer give an exact count where a rounded one is said aloud ("44,100 minutes" is gone).
+
+**Found in the screenshots.**
+- At 13pt, slide 8's lists ran off the bottom of their cards. They are now 12pt, start 0.08in higher, and have one line
+  per item. Each item was measured against Inter's own metrics before the rebuild.
+- Four slide-7 lines wrapped onto a second line, and slide 8's bar left "both." alone on its second line.
+- Slide 2's fatigue tile ran to two lines. That broke the rule that every tile's sub-caption is one line, which keeps
+  the four tiles level. It now says "cover weeks aside", next to the hours tile's "Mon–Sat average". Today's 4 is on
+  slide 6, because one line holds the qualifier or the comparison, not both.
+
+**Not taken.**
+- Slide 6 keeps its green figures, which mean "better than today". What was misread was the brackets, and the bar now
+  explains them.
+- The "Why Even Step?" titles, "code" on slide 1 and slide 4's title stay as they are.
+- The colleague decks are unchanged. This review was of the managers' decks, and every part of the rebuilt colleague
+  decks was compared with the committed ones and found identical.
+
+**Checks.** `deck-polish.py` refuses to print a claim the grids do not bear out. New checks:
+- each slide-8 worry is a cost against today, and each welcome is a gain;
+- Short Run's long earlies are all nine hours;
+- the notes say where today's 13:45 is kept every weekday, and it is kept there;
+- Even Step's Sunday 09:00–18:00 is its only shift over 8h 30m;
+- Even Step has the fewest shift times and the furthest week-to-week move;
+- Short Run has the heaviest week;
+- slide 3's levels are met.
+
+Four of these were tested with `scripts/mutate.mjs`, and each stopped the build with its own message.
+`deck-check.mjs` reads the renamed rows: 153 rows agree.
+
+**Changed:**
+- tooling: `deck-polish.py`, `deck-check.mjs`
+- outputs: the three managers' decks and their PDFs, the pack
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so
