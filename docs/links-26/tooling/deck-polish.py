@@ -466,6 +466,79 @@ def colleagues(d, name, grid, F):
         replace_run(f'{d}/ppt/slides/slide{n}.xml', 'Avoidable fatigue warnings in the fixed rota', 'Avoidable fatigue warnings, cover weeks aside')
         replace_run(f'{d}/ppt/slides/slide{n}.xml', '0', F['ff'], after='Avoidable fatigue warnings, cover weeks aside')
     if explain_h55(name, F): notes_append(d, 12, f'The “up to 1” beside the fatigue warnings is more than 55 hours in seven days. If a cover week’s four duties come straight after a busy week, and its Sunday is worked as overtime too, those seven days can come to {F["h55"]} hours with 8-hour duties, and more with longer ones, which the rail industry’s guidance flags. Where the four fall, and whether the Sunday is worked, is for the roster office.')
+    # SLIDE 8, THE TIMES, SET FOR A ROOM (third review, 1 Nov 2026: "the familiar-time list and explanatory annotations are
+    # small for projection. Enlarge the times and shorten annotations. There is spare space within the panels"). The times
+    # people already work go in two columns at 18pt, read down; each new time becomes one row — the day, the time, what it is
+    # — at 13pt, with the day named once for its group. Every note is the builder's own, shortened by a rule below, so a
+    # note no rule knows stops the build rather than reaching a slide unreviewed.
+    # COLUMNS ARE SEPARATE BOXES, NOT TAB STOPS: LibreOffice ignored the paragraphs' own tab stops and used its default grid,
+    # which wrapped "07:15– / 15:45" and ran a note into its time (screenshots, 1 Nov 2026). Boxes with the same size and
+    # spacing, every line one row, align the same way in both programs. Widths measured against Inter: "Weekdays" 0.92in
+    # bold, a time 1.05in at 13pt and 1.46in at 18pt, the longest note 2.50in
+    p8 = f'{d}/ppt/slides/slide8.xml'; x = open(p8, encoding='utf-8').read()
+    TIME = r'\d\d:\d\d–\d\d:\d\d'; IN = 914400
+    text = lambda q: ''.join(re.findall(r'<a:t>([^<]*)</a:t>', q)).replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+    paras = lambda sp: re.findall(r'<a:p>.*?</a:p>', sp, re.S)
+    shapes = re.findall(r'<p:sp>.*?</p:sp>', x, re.S)
+    known = [sp for sp in shapes if len(paras(sp)) >= 6 and all(re.fullmatch(TIME, text(q)) for q in paras(sp))]
+    news = [sp for sp in shapes if paras(sp) and text(paras(sp)[0]) == 'Weekdays']
+    if len(known) != 1 or len(news) != 1: raise SystemExit(f'deck-polish: {name}’s slide 8 lists not found ({len(known)} and {len(news)})')
+    def rpr(sz, color, bold=False):
+        b = ' b="1"' if bold else ''
+        return (f'<a:rPr lang="en-US" sz="{sz}"{b} dirty="0"><a:solidFill><a:srgbClr val="{color}"/></a:solidFill>'
+                '<a:latin typeface="Inter" pitchFamily="34" charset="0"/><a:ea typeface="Inter" pitchFamily="34" charset="-122"/>'
+                '<a:cs typeface="Inter" pitchFamily="34" charset="-120"/></a:rPr>')
+    def para(t, sz, color, after, before=0, bold=False):   # an empty `t` still takes a line of this size, so rows stay level
+        ppr = '<a:pPr marL="0" indent="0">' + (f'<a:spcBef><a:spcPts val="{before}"/></a:spcBef>' if before else '') + f'<a:spcAft><a:spcPts val="{after}"/></a:spcAft><a:buNone/></a:pPr>'
+        return '<a:p>' + ppr + (f'<a:r>{rpr(sz, color, bold)}<a:t>{escape(t)}</a:t></a:r>' if t else '') + f'<a:endParaRPr lang="en-US" sz="{sz}" dirty="0"/></a:p>'
+    ids = [int(v) for v in re.findall(r'<p:cNvPr id="(\d+)"', x)]; nxt = iter(range(max(ids) + 1, max(ids) + 10))
+    def boxes(sp, cols):   # one box per column [(x offset, width, paragraphs)], the first keeping the shape's own id
+        out = []
+        x0, y0, cx0, cy0 = (int(v) for v in re.search(r'<a:off x="(\d+)" y="(\d+)"/><a:ext cx="(\d+)" cy="(\d+)"/>', sp).groups())
+        for k, (dx, w, ps) in enumerate(cols):
+            c = sp if k == 0 else re.sub(r'<p:cNvPr id="\d+" name="([^"]*)"', lambda m: f'<p:cNvPr id="{next(nxt)}" name="{m[1]} {k + 1}"', sp, count=1)
+            c = re.sub(r'<a:off x="\d+" y="\d+"/><a:ext cx="\d+" cy="\d+"/>', f'<a:off x="{x0 + dx}" y="{y0}"/><a:ext cx="{w}" cy="{cy0}"/>', c, count=1)
+            q = paras(c); out.append(c[:c.find(q[0])] + ''.join(ps) + c[c.rfind(q[-1]) + len(q[-1]):])
+        return ''.join(out)
+    # the times worked today: two columns at 18pt, read down
+    ts = [text(q) for q in paras(known[0])]; half = -(-len(ts) // 2)
+    col = lambda items: [para(t, 1800, '1B2533', 600) for t in items]
+    left = boxes(known[0], [(0, int(1.6 * IN), col(ts[:half])), (int(1.65 * IN), int(1.55 * IN), col(ts[half:]))])
+    # the new times: day, time, what it is
+    def short(note):
+        rules = [(r'(?:the |a )?(?:weekday )?closer, (\d+) minutes later than \d\d:\d\d', lambda m: f'closer, starts {m[1]} min later'),
+                 (r'(?:the |a )?(?:weekday )?closer, 1 hour later than \d\d:\d\d', lambda m: 'closer, starts 1 hour later'),
+                 (r'a new late, ending with the ticket office', lambda m: 'new late, ends with the office'),
+                 (r'a new (early|late), (.+)', lambda m: f'new {m[1]}, {m[2]}'),
+                 (r'the ticket-office late(?: \(also a weekday time\))?', lambda m: 'ticket-office late'),
+                 (r'all (\w+) worked today, .+', lambda m: f'all {m[1]} worked today')]
+        for pat, fn in rules:
+            m = re.fullmatch(pat, note)
+            if m: return fn(m)
+        raise SystemExit(f'deck-polish: {name}’s slide 8 has a new-time note no rule shortens: {note!r}')
+    groups = []
+    for q in paras(news[0]):
+        t = text(q)
+        if t in ('Weekdays', 'Saturday', 'Sunday'): groups.append((t, [])); continue
+        times, _, note = t.partition(' — ')
+        if not groups or not note: raise SystemExit(f'deck-polish: {name}’s slide 8 new-time line not understood: {t!r}')
+        found = re.findall(TIME, times)
+        if times == 'nothing new': groups[-1][1].append((times, short(note)))
+        elif ' and ' in times:   # "06:20–15:15 and 07:00–15:45 — new earlies, 8h 55m and 8h 45m": a row each
+            durs = re.findall(r'\d+h[ \u00a0]\d+m', note)
+            if not (note.startswith('new earlies') and len(found) == len(durs) == 2): raise SystemExit(f'deck-polish: {name}’s slide 8 pair not understood: {t!r}')
+            groups[-1][1].extend((tt, f'new early, {dd}') for tt, dd in zip(found, durs))
+        elif found == [times]: groups[-1][1].append((times, short(note)))
+        else: raise SystemExit(f'deck-polish: {name}’s slide 8 new-time line not understood: {t!r}')
+    rows = [(day if k == 0 else '', tm, nt, 600 if k == 0 and g else 0) for g, (day, items) in enumerate(groups) for k, (tm, nt) in enumerate(items)]
+    cell = lambda i, color, bold=False: [para(r[i], 1300, color, 200, r[3], bold) for r in rows]
+    right = boxes(news[0], [(0, int(1.0 * IN), cell(0, '001E3C', True)), (int(1.05 * IN), int(1.15 * IN), cell(1, '1B2533')),
+                            (int(2.25 * IN), int(2.55 * IN), cell(2, '5B6778'))])
+    x = x.replace(known[0], left).replace(news[0], right)
+    open(p8, 'w', encoding='utf-8').write(x)
+    # SLIDE 14 IS A REFERENCE, NOT A READ-THROUGH (third review, 1 Nov 2026)
+    notes_append(d, 14, 'Do not read it row by row. Take the rows people ask about; if nobody asks, three carry the case: the closing shifts, the full weekends off and the days in a row.')
+
     # "COVER WEEKS ASIDE", NOT "THE FIXED ROTA" (owner, 1 Nov 2026, after the managers' review): the managers read "fixed rota"
     # as the station's fixed lines — the app has a roster type called 'fixed' — and these decks used the term on five slides
     # while defining it only in notes 2, which a PDF does not carry. The sentences above are written in the new words; the
@@ -730,41 +803,50 @@ def managers_review(d, name, P, O, others, F, help_):
         'Short Run': f' It has the closest weekday fit to the trains, {F["fitWk"]} ({rest_of("fitWk")}; today {T["fitWk"]}); the shortest weekday lates, {hm(wla)} on average, closers aside; and no new shift time on a Saturday. What it gives up: {long_phrase}, about {long_wk_earlies(P)} a year each, where today no early is over 8h 30m; today’s 13:45, which both others keep every weekday; a Saturday closer of {F["closerSat"]} ({rest_of("closerSat")}); the heaviest week of the three, {F["heavy"]} Monday to Saturday (today {T["heavy"]}); and the shortest rest, {F["rest"]} ({rest_of("rest")}).'}[name]
     notes(7, 'This is the case in one slide.', lead7 + body7 + f' Every closing shift is {min(cuts)} to {max(cuts)} minutes shorter than today’s. The costs all three share are in the bar, and in full on the next slide.')
 
-    # SLIDE 8: the welcome and the worries the colleague presentation shows, in one form on all three decks: every item one
-    # line, "(today X)" beside each figure, the scope once in the subtitle (screenshots, 1 Nov 2026: at 13pt the lists ran off
-    # their cards). The worries are the colleague trade-offs slide's six, its pay slide's figure, and In Step's and Short Run's
-    # long weekday earlies — slide 7's cost, which a manager will be asked about
+    # SLIDE 8: FIVE GOOD POINTS AND SIX WORRIES, AT 13PT (third review, 1 Nov 2026: "16 bullets make it the busiest presentation
+    # slide ... reduce to five or six main points per column and move supporting detail into notes"). The previous pass had
+    # matched the colleague presentation's every cost and shrunk the text to 12pt to fit: complete, and too small to read
+    # across a room. The list is now what a colleague notices first; the rest is in notes 8, said there by name. Each item
+    # keeps "(today X)", its line breaks set with no-break spaces (measured against Inter), and the pay line keeps its
+    # CONDITION — cut once to fit a line, which a reader of the PDF cannot recover from the notes (the review's one accuracy
+    # point). Even Step's sixth worry is its two more Saturdays; In Step's and Short Run's is their long weekday earlies,
+    # slide 7's cost, the Saturdays going to the notes and staying in slide 7's bar
     s = S(8)
     put(s, 'The good and the not so good — the colleague presentation shows both', 'Per person, a year, cover weeks aside — the good and the not so good')
     put(s, 'Expect late finishes to be the first question — the colleague deck answers it openly.', 'Late finishes and leave will come up first — the colleague presentation answers both.')
     s.save()
+    nbs = lambda t: t.replace(' ', '\u00a0')   # a figure and its unit, or "(today X)", never split across lines
     ms_longest = lambda g: max(_len(g[k][dd]) for k in g for dd in DAYS[1:] if _timed(g[k][dd]))
     early_max = lambda g: max(_len(g[k][dd]) for k in g for dd in DAYS[1:6] if _timed(g[k][dd]) and int(g[k][dd][:2]) < 11)
-    if not (H(F['rest']) > H(T['rest']) and int(F['floorMin']) > int(T['floorMin'])): raise SystemExit(f'deck-polish: slide 8 welcomes {name}’s rest and floor staffing as better than today’s, and one is not')
-    # the rest and the floor staffing joined the list as the colleague presentation's slides 7 and 12 show them (screenshots:
-    # the welcome card stood half empty beside nine worries)
-    welcome = [f'{F["weekendsYear"]} full weekends off (today {T["weekendsYear"]})', f'At most {first(F["run"])} days in a row (today {first(T["run"])})',
-               f'Shortest rest: {F["rest"]} (today {T["rest"]})', f'At least {F["floorMin"]} on the floor at all times (today {T["floorMin"]})',
-               f'Weeks on one shift time: {F["oneTurn"]} (today {T["oneTurn"]})']
-    if ms_longest(P) <= 510: welcome.append(f'Longest Mon–Sat shift: {hm(ms_longest(P))} (today {hm(ms_longest(TODAY_P))})')
-    welcome += [f'Every closing shift {min(cuts)}–{max(cuts)} minutes shorter', f'{n_known} of the {n_times} shift times already worked']
+    if not (H(F['rest']) > H(T['rest']) and int(F['floorMin']) > int(T['floorMin'])): raise SystemExit(f'deck-polish: notes 8 welcome {name}’s rest and floor staffing as better than today’s, and one is not')
+    was = lambda v: nbs(f'(today {v})')   # "(today X)", kept on one line
+    welcome = [f'{F["weekendsYear"]} full weekends off a year {was(T["weekendsYear"])}', f'At most {first(F["run"])} days in a row {was(first(T["run"]))}',
+               f'One shift time Mon–Fri in {F["oneTurn"]} weeks {was(T["oneTurn"])}', f'Every closing shift {min(cuts)}–{max(cuts)} minutes shorter']
+    welcome.append(f'Longest Mon–Sat shift {nbs(hm(ms_longest(P)))} {was(hm(ms_longest(TODAY_P)))}' if ms_longest(P) <= 510
+                   else f'{n_known} of the {n_times} shift times already worked')
     if not (int(F['block']) > int(T['block']) and int(F['leaveFour']) > int(T['leaveFour']) and int(F['sat']) > int(T['sat']) and eo < eo_t and pounds >= 50
             and int(F['late22']) > int(T['late22']) and (not longs or early_max(P) > early_max(TODAY_P))):
         raise SystemExit(f'deck-polish: slide 8 lists each worry as a cost against today for {name}, and one is not')
-    worry = [f'Finishing at 23:00 or later: {F["late23"]} (today {T["late23"]})', f'Finishing at 22:00 or later: {F["late22"]} (today {T["late22"]})',
-             f'Finishing before 14:00: {eo or "none"} (today {eo_t})']
-    if longs: worry.append(f'Weekday earlies up to {hm(early_max(P))} (today {hm(early_max(TODAY_P))})')
-    worry += [f'Earlies or lates in runs up to {F["block"]} weeks (today {T["block"]})', f'Four weeks off: {F["leaveFour"]} days’ leave (today {T["leaveFour"]})',
-              f'{WORDS[int(F["sat"]) - int(T["sat"])].capitalize()} more Saturdays: {F["sat"]} (today {T["sat"]})', f'{n_new} new shift times to learn',
-              f'About £{pounds} less premium and overtime, gross']
+    worry = [f'Late finishes: {F["late23"]} at 23:00 or later {was(T["late23"])}, {nbs(F["late22"] + " at 22:00")} or later {was(T["late22"])}',
+             f'Finishing before 14:00: {eo or "none"} {was(eo_t)}']
+    if longs: worry.append(f'Weekday earlies up to {nbs(hm(early_max(P)))} {was(hm(early_max(TODAY_P)))}')
+    worry += [f'Up to {F["block"]} weeks of earlies or lates {was(T["block"])}', f'Four weeks off: {F["leaveFour"]} days’ leave {was(T["leaveFour"])}']
+    if not longs: worry.append(f'{WORDS[int(F["sat"]) - int(T["sat"])].capitalize()} more Saturdays a year: {F["sat"]} {was(T["sat"])}')
+    worry.append(f'Premium and overtime pay: about £{pounds} less, gross, with a full share of Sundays')
+    if len(welcome) > 6 or len(worry) > 6: raise SystemExit(f'deck-polish: slide 8 holds five or six points a column; {name} has {len(welcome)} and {len(worry)}')
     p8 = f'{d}/ppt/slides/slide8.xml'
-    set_list(p8, f'{F["weekendsYear"]} full weekends off a year (today {T["weekendsYear"]})', welcome, space_after=400, size=1200)
-    set_list(p8, f'Late finishes: {F["late23"]} a year at 23:00 or later (today {T["late23"]}), {F["late22"]} at 22:00 or later (today {T["late22"]})', worry, space_after=400, size=1200)
-    s = S(8)   # both lists start a little higher, so nine one-line items sit inside the card
+    set_list(p8, f'{F["weekendsYear"]} full weekends off a year (today {T["weekendsYear"]})', welcome, space_after=400, size=1300)
+    set_list(p8, f'Late finishes: {F["late23"]} a year at 23:00 or later (today {T["late23"]}), {F["late22"]} at 22:00 or later (today {T["late22"]})', worry, space_after=400, size=1300)
+    s = S(8)   # both lists start a little higher, so six items, two or three of them on two lines, sit inside the card
     for first_item in (welcome[0], worry[0]):
         i = next(k for k, (a0, b0) in enumerate(spans(s.x)) if runs_of(s.x[a0:b0])[:1] == [escape(first_item)])
         x0, y0, cx0, cy0 = s.box(i); s.geo(i, y=y0 - 73152, cy=cy0 + 73152)   # 0.08in
     s.save()
+    # what left the slide, said in the notes by name, so the presenter has it to hand
+    off = [f'the shortest rest between shifts is {F["rest"]} (today {T["rest"]})', f'at least {F["floorMin"]} are on the floor at all times (today {T["floorMin"]})']
+    off += [f'{n_new} of the {n_times} shift times are new to learn' if ms_longest(P) <= 510 else f'{n_new} shift times are new to learn']
+    if longs: off.append(f'each person works about {WORDS[int(F["sat"]) - int(T["sat"])]} more Saturdays a year ({F["sat"]}, today {T["sat"]})')
+    off_sentence = ' Not on the slide, but worth having to hand: ' + andl(off) + '.'
     over = lambda g: {(dd, g[k][dd]) for k in g for dd in DAYS if _timed(g[k][dd]) and _len(g[k][dd]) > 510}
     if not all(_len(TODAY_P[k][dd]) <= 510 for k in TODAY_P for dd in DAYS if _timed(TODAY_P[k][dd]) and int(TODAY_P[k][dd][:2]) < 11):
         raise SystemExit('deck-polish: the managers’ notes say no early today is over 8h 30m, and one is')
@@ -774,7 +856,7 @@ def managers_review(d, name, P, O, others, F, help_):
         raise SystemExit(f'deck-polish: {name}’s notes 8 no longer hold')
     tail8 = (f' No shift Monday to Saturday is over 8h 30m; the one longer shift is the Sunday 09:00–18:00, 9 hours.' if ms_longest(P) <= 510
              else f' {long_phrase[0].upper() + long_phrase[1:]}: about {long_wk_earlies(P)} a year each, where today no early is over 8h 30m.')
-    notes(8, 'Days at work stay at 219', f'Figures are per person, a year, with cover weeks aside, as on the slide. Days at work are {F["daysYear"]} a year, Monday to Saturday, just under today’s 219; Sunday is overtime. Finishes at 23:00 or later rise by about three a year each, all from the December staffing: three to the close every day, where today has two Monday to Saturday, so no link meeting the rules could have fewer. Finishes at 22:00 or later rise from about {T["late22"]} to {F["late22"]}, because the rules also want five still on duty at 22:00. Leave is only needed for working days, Monday to Saturday. Today one stretch lets 14 days’ leave buy {T["leaveBest"]} days off; this link spreads rest days more evenly, so its best is {F["leaveBest"]}, and four whole weeks off needs {F["leaveFour"]} days, not {T["leaveFour"]}; on average 14 days goes as far as today, {F["leaveAvg"]} days off. Blocks of earlies or lates run up to {F["block"]} weeks, {F["blockUpTo"]} if the cover weeks beside them go the same way (today {T["block"]}, up to {T["blockUpTo"]}), and no rest-day break is longer than two days, where today {WORDS[long_t]} are three or four days. The two extra Saturdays come from aiming for fourteen on a Saturday. The pay figure is gross premium and overtime pay at the CEA rate of £{PAY["rate"]:.2f}, for someone working their full share of Sundays; basic pay does not change.' + tail8)
+    notes(8, 'Days at work stay at 219', f'Figures are per person, a year, with cover weeks aside, as on the slide. Days at work are {F["daysYear"]} a year, Monday to Saturday, just under today’s 219; Sunday is overtime. Finishes at 23:00 or later rise by about three a year each, all from the December staffing: three to the close every day, where today has two Monday to Saturday, so no link meeting the rules could have fewer. Finishes at 22:00 or later rise from about {T["late22"]} to {F["late22"]}, because the rules also want five still on duty at 22:00. Leave is only needed for working days, Monday to Saturday. Today one stretch lets 14 days’ leave buy {T["leaveBest"]} days off; this link spreads rest days more evenly, so its best is {F["leaveBest"]}, and four whole weeks off needs {F["leaveFour"]} days, not {T["leaveFour"]}; on average 14 days goes as far as today, {F["leaveAvg"]} days off. Blocks of earlies or lates run up to {F["block"]} weeks, {F["blockUpTo"]} if the cover weeks beside them go the same way (today {T["block"]}, up to {T["blockUpTo"]}), and no rest-day break is longer than two days, where today {WORDS[long_t]} are three or four days. The two extra Saturdays come from aiming for fourteen on a Saturday. The pay figure is gross premium and overtime pay at the CEA rate of £{PAY["rate"]:.2f}, for someone working their full share of Sundays; basic pay does not change.' + tail8 + off_sentence)
 
     # SLIDE 9: what the managers are asked to do, on the slide; the dates and the history in the notes alone
     s = S(9)

@@ -2003,15 +2003,58 @@ managers' decks.
 - The managers' decks' content is unchanged; only a timestamp inside an embedded chart differed, so they were not
   rebuilt into this change.
 
-**Still saying "fixed rota", outside the decks:**
-- the shortlist sheet, twice on page 1 and once on page 2;
-- the one-line description under Short Run's name on its own sheet ("No run over five days on the fixed rota…").
-
-Both are rendered sheets, so changing them means a re-render. They are left as they are until the owner decides.
+**Still saying "fixed rota", outside the decks:** the one-line description under Short Run's name on its own sheet
+("No run over five days on the fixed rota…"). Changing it means re-rendering that sheet, so it is left as it is until
+the owner decides. The shortlist sheet used to say it too; it changed in the next section, when it was re-rendered for
+another reason.
 
 **Changed:**
 - tooling: `deck-polish.py`, `deck-check.mjs`
 - outputs: the three colleague decks and their PDFs, the pack
+
+## A third outside review: the pay condition back, and four readability changes (1 Nov 2026)
+
+The reviewer scored the pack 8.5/10 for appearance and found no new numerical discrepancy. They also found no text
+outside a page and no mismatch between a deck and its PDF. They still prefer Even Step. They found one qualification
+missing, and suggested five readability changes. All six were taken, as follows.
+
+- **The pay line on managers' slide 8 had lost its condition.** The previous pass shortened it to fit one line, and it
+  became "About £250 less premium and overtime, gross". The condition, that the person works their full share of
+  Sundays, was left only in the speaker notes, which the PDF does not carry. It now reads "Premium and overtime pay:
+  about £250 less, gross, with a full share of Sundays". That was this session's error, not a calculation error.
+- **Managers' slide 8 was the busiest slide in the pack: 16 points at 12pt.** The previous pass had added every cost on
+  the colleague trade-offs slide, and shrunk the text to make them fit. The slide now has five good points and six
+  worries at 13pt, and notes 8 name the rest.
+  - The five good points: weekends off, days in a row, one shift time a week, shorter closers, and either the longest
+    shift (Even Step) or how many shift times are already worked (In Step, Short Run).
+  - The six worries: late finishes, early finishes, runs of earlies or lates, leave, pay, and either Even Step's two
+    more Saturdays or In Step's and Short Run's long weekday earlies. In those two decks, the Saturdays stay in slide
+    7's bar.
+  - Every two-line item was laid out with no-break spaces, so a line never splits inside "(today 39)" or a duration.
+- **Colleagues' slide 8, the shift times, was small for a room.** The times people already work are now in two columns
+  at 18pt, up from 10.5pt. Each new time is one row at 13pt: the day, the time, and what it is. The notes are the
+  builders' own, shortened by a fixed set of rules, and a note no rule covers stops the build.
+  - The first attempt used tab stops. LibreOffice ignored them and used its own default spacing, which wrapped "07:15–"
+    away from "15:45" and ran a note into its time. The screenshot showed it, and the columns are now separate text
+    boxes, which line up the same way in both programs.
+- **Colleagues' slide 14** stays as a reference to leave on screen. Its notes now say not to read it row by row: take
+  the rows people ask about, or else the three that carry the case.
+- **Shortlist page 2.** The 15-line paragraph on the other twelve designs is now a seven-row table: each design, and its
+  main trade-off. The full detail is on each design's own sheet and on the summary.
+  - A first version kept every detail in three columns, and ran 100px off the page. The sheet's overflow check refused
+    it, and the reviewer's suggested "main trade-off" form is the one that fits.
+  - Page 1's two "fixed rota" phrases became "cover weeks aside" in the same re-render.
+- **The summary** is now described in the pack's read-me as a reference: read it on screen, zoomed in, or print it at A3.
+
+**Checks.** `deck-polish.py` now refuses a managers' slide 8 with more than six points in a column. It also refuses a
+new-time note that no rule shortens. Both were mutated with `scripts/mutate.mjs`, and each stopped the build with its
+own message. `deck-check.mjs`: 153 rows agree. Only the intended parts of each deck changed. In the managers' decks
+that is slide 8 and notes 8, plus a timestamp inside the embedded chart workbook. In the colleague decks it is slide 8
+and notes 14.
+
+**Changed:**
+- tooling: `deck-polish.py`, `shortlist-sheet.mjs`, `pack.py`
+- outputs: the six decks and their PDFs, the shortlist sheet, the pack
 
 ## Notes for the whole set
 
