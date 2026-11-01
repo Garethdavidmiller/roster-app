@@ -206,7 +206,27 @@ export function isOvertimeReviewer(member) {
  * @param {string|null|undefined} member
  */
 export function canOpenOvertime(member) {
-    return isOvertimeReviewer(member) || rolesFor(member).overtimeBeta;
+    return overtimeEnabled() && (isOvertimeReviewer(member) || rolesFor(member).overtimeBeta);
+}
+
+/**
+ * Is Overtime switched on at all? `CONFIG.OVERTIME_ENABLED` (paused, owner, Nov 2026).
+ *
+ * The ONE reading of the switch on the client: `canOpenOvertime` consults it, so the pill leaves
+ * every menu, and overtime.html consults it before its own gate, so the page says it is paused —
+ * to everyone, the admin included, signed in or not. Like the rest of this module it is UX: while
+ * paused, every Overtime endpoint answers `paused` server-side, from the generated copy of the same
+ * switch.
+ *
+ * `__E2E.overtimeEnabled` is a TEST SEAM, the same shape as text-scale.js's: the browser suites set
+ * it so they go on driving the real page while it is paused for everyone else — which is what keeps
+ * the feature ready to return. Nothing in production sets __E2E, and setting it by hand switches on
+ * only a page whose every call the server refuses.
+ * @returns {boolean}
+ */
+export function overtimeEnabled() {
+    const seam = /** @type {any} */ (globalThis).__E2E?.overtimeEnabled;
+    return typeof seam === 'boolean' ? seam : CONFIG.OVERTIME_ENABLED === true;
 }
 
 /**

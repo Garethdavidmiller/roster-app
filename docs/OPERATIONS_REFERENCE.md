@@ -675,6 +675,7 @@ stamped on that account — run Set up accounts again.
 affects weeks created afterwards. They stay outstanding in every already-open week until the horizon
 rolls past. Use **Stop asking** on their row in *Who is being asked*, once per open week — see
 "Somebody who has left, and is being chased every week" below. A closed week refuses it by design.
+Nothing to do here while Overtime is paused (Nov 2026): no week asks anyone.
 
 **Their data stays, and that is deliberate.** Overrides are keyed by name, so their past shifts, AL
 and absences remain an accurate record of what happened. Their `staffContact` work email also
@@ -859,6 +860,9 @@ and the roster come back together.
 ---
 
 ## Overtime Availability (v20.56, restricted beta)
+
+**PAUSED since v25.05 (owner, Nov 2026)** — closed to everyone, and nothing runs but the retention purge, so nothing
+in this section applies until it returns. `OVERTIME_AVAILABILITY.md` → Paused has the switch and the way back.
 
 Staff declare, per day, when they are available for overtime in a future roster week; a Manager or
 Master Admin reads the answers by day and plans cover from them. Full design — the milestone

@@ -94,7 +94,6 @@
         "A. Atkins",
         "K. Yeboah",
         "B. Toth",
-        "S. Stewart",
         "D. Watts",
         "D. Harris",
         "S. Gumbo",
@@ -107,7 +106,6 @@
             "G. Miller"
         ],
         "manager": [
-            "S. Stewart",
             "D. Watts",
             "D. Harris",
             "S. Gumbo",
@@ -499,7 +497,7 @@
             "managerOnly": false
         },
         {
-            "name": "S. Stewart",
+            "name": "D. Watts",
             "grade": "Management",
             "startDate": null,
             "rosterOrder": 47,
@@ -507,7 +505,7 @@
             "managerOnly": true
         },
         {
-            "name": "D. Watts",
+            "name": "D. Harris",
             "grade": "Management",
             "startDate": null,
             "rosterOrder": 48,
@@ -515,7 +513,7 @@
             "managerOnly": true
         },
         {
-            "name": "D. Harris",
+            "name": "S. Gumbo",
             "grade": "Management",
             "startDate": null,
             "rosterOrder": 49,
@@ -523,7 +521,7 @@
             "managerOnly": true
         },
         {
-            "name": "S. Gumbo",
+            "name": "N. Bedingfield",
             "grade": "Management",
             "startDate": null,
             "rosterOrder": 50,
@@ -531,7 +529,7 @@
             "managerOnly": true
         },
         {
-            "name": "N. Bedingfield",
+            "name": "H. Croft",
             "grade": "Management",
             "startDate": null,
             "rosterOrder": 51,
@@ -539,22 +537,15 @@
             "managerOnly": true
         },
         {
-            "name": "H. Croft",
+            "name": "N. Sobers",
             "grade": "Management",
             "startDate": null,
             "rosterOrder": 52,
             "hidden": true,
             "managerOnly": true
-        },
-        {
-            "name": "N. Sobers",
-            "grade": "Management",
-            "startDate": null,
-            "rosterOrder": 53,
-            "hidden": true,
-            "managerOnly": true
         }
     ],
     "overtimeBeta": [],
+    "overtimeEnabled": false,
     "maxRosterYear": 2030
 }

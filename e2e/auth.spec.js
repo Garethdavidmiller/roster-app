@@ -136,6 +136,8 @@ test('B1: overtime clears the session and shows the in-place login on a failed n
     // The one named page that had no follow-up at all: a failed sign-in left the page up under a
     // session the endpoints would refuse, with nothing asking the member to sign in again.
     await armEnforcementWithFailingSignIn(page);
+    // Switched on through the seam: Overtime is paused for everyone else (auth-policy.js `overtimeEnabled`).
+    await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), overtimeEnabled: true }; });
     await page.goto('/overtime.html');
     await expect(page.locator('#loginOverlay')).toBeVisible();
 });

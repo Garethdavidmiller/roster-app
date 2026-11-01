@@ -142,13 +142,13 @@ B2, which recurs in B3/B4. State the tiers once, here:
 | Tier | Source list | Firebase claim they must carry | What they legitimately write |
 |------|-------------|-------------------------------|------------------------------|
 | **Master admin** | `CONFIG.ADMIN_NAMES` (`['G. Miller']`) | `{ admin: true, name, member }` | Everything — overrides for any member, huddle/circular/newsletter, roster upload, auth setup |
-| **Management** | `CONFIG.MANAGER_NAMES` (7 names) | **`{ manager: true, name, member }`** ← set by `setupRosterAuth` since B2 (v14.53); live only on tokens minted after each manager was re-provisioned + refreshed | Overrides (AL/sick/shift) **on behalf of any staff member** — but NOT the master-admin uploads/auth-setup |
+| **Management** | `CONFIG.MANAGER_NAMES` | **`{ manager: true, name, member }`** ← set by `setupRosterAuth` since B2 (v14.53); live only on tokens minted after each manager was re-provisioned + refreshed | Overrides (AL/sick/shift) **on behalf of any staff member** — but NOT the master-admin uploads/auth-setup |
 | **Staff** | everyone else | `{ name, member }` | Only their **own** overrides (`memberName() == memberName` — `memberName()` is the `name` of a verified member, `isMember()`, else null) |
 | *Links designer* | `CONFIG.LINKS_DESIGNERS` (`['G. Miller', 'S. Silva', 'M. Robson']`) | *cross-cuts the above* — S. Silva and M. Robson are **CEAs**, not managers. The `linksDesigner` claim is LIVE (H2, v16.29): `setupRosterAuth` sets it from `CONFIG.LINKS_DESIGNERS` and `linkDesigns` writes are gated on it | `linkDesigns` (designs are **not** member-owned) — write control is the `linksDesigner`/`admin` claim |
 
 Three design points that flow from this and still govern any future rule change:
 
-- The **`manager: true` bypass is load-bearing** — the 7 managers edit staff AL/absence/shifts on behalf
+- The **`manager: true` bypass is load-bearing** — the managers edit staff AL/absence/shifts on behalf
   every day; without it the isolation rule silently locks them out. Equally, the **`admin` bypass** is
   load-bearing (admin writes for others constantly: on-behalf AL/sick, every `source:'roster_import'`
   row). Master-admin-only collections (huddles/circulars/newsletters/roster/auth) stay `admin == true`
@@ -200,10 +200,10 @@ Three design points that flow from this and still govern any future rule change:
   retire surname (C5, irreversible, ≥90% migrated). *(Historic ordering — C3/C4′ shipped first as the
   "C-lite" reshuffle; C2 is deferred behind a mail relay.)*
 
-- **RE-PRIORITISED (v18.88) — migrate the 8 PRIVILEGED accounts first, as their own milestone.**
+- **RE-PRIORITISED (v18.88) — migrate the PRIVILEGED accounts first, as their own milestone.**
   The plan's only migration gate is "≥90% of everyone", which conflates two different goals: *closing
   risk* and *retiring the surname mechanism*. They are not the same size of job, because **risk is
-  concentrated in the 8 privileged accounts, a small fraction of the active roster** (count them
+  concentrated in the privileged accounts, a small fraction of the active roster** (count them
   from `functions/roster-members.json`, the server-owned list — managers carry `hidden: true`,
   which is why a headcount off the visible dropdown reads lower). The roster total is deliberately
   NOT written here: it moves every time somebody joins or leaves, and it did — a new dispatcher at
@@ -221,7 +221,7 @@ Three design points that flow from this and still govern any future rule change:
   table above still stands as the RISK analysis (it is why the 8 mattered most, and why chasing them by
   conversation was worth doing first); it is no longer the sequencing.
 
-  So migrating the admin + 7 managers closes the large majority of the exposure, and it needs **no
+  So migrating the admin and the managers closes the large majority of the exposure, and it needs **no
   code at all** — 8 people opening Settings → Password. The ≥90% gate is about being able to delete
   the surname fallback, which is a tidiness/one-way-door goal, not the risk-closing one.
 
@@ -232,7 +232,7 @@ Three design points that flow from this and still govern any future rule change:
   everyone else is running at roughly one account per day, so **the ≥90% gate is
   unreachable without compulsion** — which is exactly why Phase 2 shipped at v18.92.
 
-  **Recommended next step:** chase the 7 managers directly (a conversation, not a release), and record
+  **Recommended next step:** chase the managers directly (a conversation, not a release), and record
   "all admin + manager accounts migrated" as an explicit milestone here. Only then decide whether the
   Phase 2 forced overlay is worth building for the ~43 staff accounts, whose blast radius is one
   person's own roster.
@@ -482,7 +482,7 @@ surface) — starting E means re-stamping that anti-goal, not violating it silen
   live, and an anti-goal that quietly disappears reads as one nobody thought about.
 - **Do not** drop the `|| token.admin == true` bypass from the isolation rule — admin writes for other
   members are load-bearing (roster import + on-behalf booking).
-- **Do not** drop (or forget to add) the `|| token.manager == true` bypass — the 7 managers write staff
+- **Do not** drop (or forget to add) the `|| token.manager == true` bypass — the managers write staff
   AL/absence/shifts on behalf every day; without it the isolation rule silently locks them out. Equally,
   **do not grant managers `admin: true`** as a shortcut — that reaches the master-admin-only collections
   the tier exists to deny.

@@ -317,6 +317,7 @@ accumulate. There is no bin behind a set the way there is behind a design: delet
 which is why the confirm names it and is marked destructive.
 
 **overtimeWindows** (v20.56) — a TREE, not a flat collection, and the only one no client may write
+*Overtime is paused (v25.05, owner, Nov 2026): no new window is made, and the purge below goes on removing the ones that exist.*
 ```
 overtimeWindows/{weekEnding}                       the window. Doc id = the week-ending Saturday,
                                                    so a duplicate is impossible BY CONSTRUCTION
