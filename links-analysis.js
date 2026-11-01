@@ -557,7 +557,7 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
             // Say what the number is once a spare week can affect it. It is the WORST CASE over
             // every placement of that week's four duties, and a reader who assumes otherwise will
             // read it as a fact about the design rather than a ceiling on it.
-            (hasSpare ? `<div class="check-sub">A spare week is 4 duties of 7 and they can fall anywhere in it, so this is the worst case.</div>` : '') +
+            (hasSpare ? `<div class="check-sub">A spare week is 4 duties on Monday to Saturday, which can fall on any of them, and its Sunday can be worked as overtime on top, so this is the worst case.</div>` : '') +
             `</div></div>`
         );
 

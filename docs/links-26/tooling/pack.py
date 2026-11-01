@@ -35,7 +35,35 @@ missing = [s for s, _ in files if not os.path.exists(s)]
 if missing: raise SystemExit(f'pack: missing {missing}')
 
 names = ', '.join(n for n, _, _ in proposals)
-with_decks = [n for n, _, _ in proposals if os.path.exists(f"{ROOT}/presentations/{n.replace(' ', '-')}-for-colleagues.pptx")]
+# the shortlist and the recommendation are fresh.mjs's, read rather than restated (two on 30 Oct 2026, In Step
+# recommended; three since 31 Oct, Even Step recommended): this read-me said "three shortlisted" and "one recommended (Short Run)" in its own words, so it would have
+# gone on saying both after the sheets, the summary and the decks had moved on
+FRESH = open(f'{ROOT}/tooling/fresh.mjs', encoding='utf-8').read()
+SHORTLIST = re.findall(r"'([^']+)'", re.search(r'export const SHORTLIST = \[([^\]]*)\]', FRESH).group(1))
+RECOMMENDED = re.search(r"export const RECOMMENDED = '([^']+)'", FRESH).group(1)
+if not SHORTLIST or any(s not in names.split(', ') for s in SHORTLIST): raise SystemExit(f'pack: shortlist {SHORTLIST} is not all in the pack')
+if RECOMMENDED not in SHORTLIST: raise SystemExit(f'pack: the recommendation {RECOMMENDED} is not on the shortlist {SHORTLIST}')
+TWENTY = f"3 Presentations/{RECOMMENDED.replace(' ', '-')}-for-managers.pdf"   # the read-me's twenty-minute read
+if not any(dst == TWENTY for _, dst in files): raise SystemExit(f'pack: the read-me points at {TWENTY}, which the pack does not hold')
+# the count is the SUPPLIED list's, never typed: "Ten candidate links" stayed ten for three designs (26 Oct 2026)
+# FOUR SENTENCES BELOW NAME MEMBERS, AND ARE CHECKED (30 Oct 2026 review; Even Step's added 31 Oct): the 26 Oct paragraph
+# says none of its three is on the shortlist, the In Step paragraph that In Step is, the Even Step paragraph that Even Step
+# is and is the recommendation, and item 5 that every shortlisted design is built into the app. Each reads the names it was
+# typed with, so a change to SHORTLIST would otherwise leave the read-me contradicting its own first line.
+if {'Home Grown', 'Closing Time', 'Both Ways'} & set(SHORTLIST):
+    raise SystemExit(f'pack: the read-me says none of the 26 Oct three is shortlisted; SHORTLIST is {SHORTLIST}')
+if 'In Step' not in SHORTLIST:   # the 30 Oct paragraph below says it is
+    raise SystemExit(f'pack: the read-me says In Step is shortlisted; SHORTLIST is {SHORTLIST}')
+if 'Even Step' not in SHORTLIST or RECOMMENDED != 'Even Step':   # the 31 Oct paragraph below says it is both
+    raise SystemExit(f'pack: the read-me says Even Step is shortlisted and recommended; SHORTLIST is {SHORTLIST}, RECOMMENDED {RECOMMENDED}')
+built_in = open('links-proposals.js', encoding='utf-8').read()
+missing = [n for n, c, _ in proposals if n in SHORTLIST and f"code: '{c}'" not in built_in]
+if missing: raise SystemExit(f'pack: the read-me says every shortlisted design is built into the app; links-proposals.js lacks {missing}')
+WORDS = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split()
+with_decks = sorted((n for n, _, _ in proposals if os.path.exists(f"{ROOT}/presentations/{n.replace(' ', '-')}-for-colleagues.pptx")),
+                    key=lambda n: SHORTLIST.index(n) if n in SHORTLIST else len(SHORTLIST))   # the shortlist's order, recommendation first
+if set(with_decks) != set(SHORTLIST):   # owner, 3 Oct 2026: "only keep the shortlist's presentations, delete the rest"
+    raise SystemExit(f'pack: presentations for {with_decks}, shortlist {SHORTLIST}')
 # THE READ-ME IS WRAPPED BY CODE (4 Oct 2026, outside review): it opens in Notepad, so every line is at most 78
 # columns, both lists hang at the same column, and a paragraph edited later cannot come out ragged.
 import textwrap
@@ -46,15 +74,34 @@ def item(label, text, hang=21):
 decks = (', '.join(with_decks[:-1]) + ' and ' + with_decks[-1]) if len(with_decks) > 1 else (with_decks[0] if with_decks else 'None yet')
 readme = '\n'.join([
     'DECEMBER 2026 LINK PROPOSALS - 26 LINES',
-    'Marylebone CEA link, December 2026 timetable - 26 weeks, from 1 October 2026',
+    'Marylebone CEA link, December 2026 timetable - 26 weeks, set on 1 October 2026',
     '',
-    para('Ten candidate links, three shortlisted (Second Edition, Short Run, Even Keel), one recommended (Short Run). '
-         'Asked of managers: which of the three goes to colleagues. Asked of colleagues: look at page 3 of the chosen '
-         'sheet and say what worries you.'),
+    para(f'{WORDS[len(proposals)].capitalize()} candidate links, {WORDS[len(SHORTLIST)]} shortlisted ({", ".join(SHORTLIST[:-1])} and {SHORTLIST[-1]}), one recommended ({RECOMMENDED}). '
+         f'Asked of managers: which of the {WORDS[len(SHORTLIST)]} goes to colleagues. Asked of colleagues: read pages 1 and 2 of the chosen '
+         'sheet, look at its rota on page 3 and say what worries you.'),
     item('Ten minutes:', '1 Summary/links-26-shortlist.pdf', 18),
-    item('Twenty minutes:', 'add 3 Presentations/Short-Run-for-managers.pdf', 18),
-    para('The rest is the evidence behind them.'),
+    item('Twenty minutes:', f'add {TWENTY}', 18),
+    para('The rest is the evidence behind them. The summary sheet puts all fifteen side by side, so its '
+         'print is small: read it on screen, zoomed in, or print it at A3. It is a reference, not a page to '
+         'present.'),   # third review, 1 Nov 2026
     '',
+    *([para('Home Grown, Closing Time and Both Ways (26 October 2026) answer a later question: today\'s link on 26 lines, '
+            'keeping as many of its shift times as it can, with a 13:35 or 13:45 finish every weekday and the weekday closer at 16:00. Each pays for '
+            'the short finishes a different way; the technical notes compare them. Closing Time, improved on 27 and 30 '
+            'October, was shortlisted on 30 October until the shortlist was cut to two the same day; the other two '
+            'were never on it.'), '']
+      if {'Home Grown', 'Closing Time', 'Both Ways'} <= {n for n, _, _ in proposals} else []),
+    *([para('In Step (30 October 2026) answers the next question: whether Closing Time could have five on at the Saturday '
+            'open and follow the weekday trains more closely. It keeps Closing Time\'s weeks and a 13:45 finish every '
+            'weekday, with the closer at 15:45 instead of 16:00. The same day the shortlist was cut to two: In Step, '
+            'recommended then, and Short Run, on it since 3 October (Second Edition, Even Keel and Closing Time left it).'), '']
+      if 'In Step' in {n for n, _, _ in proposals} else []),
+    *([para('Even Step (31 October 2026) answers the one thing about In Step expected to be hard to sell: the length of its '
+            'main weekday earlies, 8h 55m and 8h 45m. It keeps In Step\'s weeks - the same rest days, weekends and early '
+            'and late weeks - with the shift times chosen again so that nothing Monday to Saturday runs over 8h 30m and '
+            'every early Monday to Saturday is a time worked today. It joined the shortlist the same day, beside In Step '
+            'and Short Run, and is the one recommended; the shortlist sheet sets out why, and what it costs.'), '']
+      if 'Even Step' in {n for n, _, _ in proposals} else []),
     para('Still moving: the staffing levels and Sunday cover behind the rules were confirmed verbally, not in writing; '
          'the written source of the 13-day limit is to be confirmed; and the reading of one fatigue factor (FF19, marked '
          '"definition to confirm" on the rules page) is open. The figures are computed from the rotas and will not move '
@@ -64,12 +111,12 @@ readme = '\n'.join([
     para(f'Proposals in this pack: {names}.'),
     '',
     'START WITH THESE',
-    item('1 Summary', 'One page: every proposal against today\'s link; and the two-page shortlist sheet - the three '
-         'recommended designs against each other and today, with a recommendation. Start there.'),
+    item('1 Summary', f'One page: every proposal against today\'s link; and the two-page shortlist sheet - the '
+         f'{WORDS[len(SHORTLIST)]} shortlisted designs against each other and today, with a recommendation. Start there.'),
     item('2 Rules', 'The three tiers of rule, two pages: the hard limits (three, and the ceiling of 219 contracted days '
          'a year, which is hard too), the nine December 2026 rules scored on every sheet, and three flexible rules '
-         'aimed for when designing (14 on a Saturday, five cover weeks as evenly spaced as 26 weeks allow, 15:45 '
-         'weekday closers).'),
+         'aimed for when designing (14 on a Saturday, five cover weeks as evenly spaced as 26 weeks allow, and '
+         'weekday closers starting at 15:45 or later).'),
     item('3 Presentations', f'{decks}: one for colleagues and one for managers{" each" if len(with_decks) > 1 else ""}. '
          'PowerPoint and PDF copies of each. The PowerPoints use the Inter font; if the PC showing them does not have '
          'Inter, present the PDF instead.'),
@@ -78,20 +125,21 @@ readme = '\n'.join([
     item('4 Proposal sheets', 'One eight-page PDF per proposal, compared only with today\'s link: pages 1-2 are the '
          'plain-English comparison, the rest the evidence managers can inspect. The marks mean the same on every page:'),
     item('', 'green tick - meets a rule, or better than today on something the rules, the limits or the fatigue '
-         'guidance aim for', 24),
+         'guidance aim for, or on a plain gain such as full weekends off', 24),
     item('', 'amber - worse than today on one of those', 24),
     item('', 'red cross - a rule or limit broken', 24),
     item('', 'no colour - a matter of preference', 24),
     item('', 'The code and eight-character fingerprint in each file name identify the exact rota, so a printout can '
          'never be mixed up with a variant.'),
     item('5 Import files', 'Each proposal as text for the Links page (Import), which lays out 26 lines since app version '
-         '24.47 (3 October 2026) and re-runs every check in this pack on whatever is pasted in. The three shortlisted '
-         'designs are already in the app\'s Links designer as examples, for reference.'),
+         '24.47 (3 October 2026) and re-runs the hard limits, the fatigue checks, the weekends, the hours and the hour-by-hour staffing on whatever is pasted in; the December rules and the yearly figures are the sheets\' own. The '
+         f'{WORDS[len(SHORTLIST)]} shortlisted designs are built into the app\'s Links designer as examples, for reference '
+         f'(these {WORDS[len(SHORTLIST)]} since app version 25.04).'),
     item('6 Technical notes', 'The 26-line rules with what changed from 24, and how the proposals were built and '
          'checked. Written for the technical record, not for reading out.'),
     '',
     para('Every figure in the summary, the shortlist sheet, the rules sheet and the proposal sheets was worked out from '
-         'the rotas by the Marylebone Roster app; none was typed in by hand. The presentations are built from the '
+         'the rotas, by the Marylebone Roster app\'s own checks and the tooling beside them; what is typed by hand is the rules\' own numbers and the one-line description under each design\'s name. The presentations are built from the '
          'Familiar Nine decks by scripts, through a Second Nature template that is not shipped, and every figure in '
          'their tables is checked against those counts by another (docs/links-26/tooling/deck-check.mjs in the '
          'repository).'),

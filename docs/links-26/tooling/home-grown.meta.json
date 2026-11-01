@@ -1,0 +1,8 @@
+{
+ "date": "26 October 2026",
+ "identity": {
+  "table": "T1 — today's shift times: the weekday closer at 16:00, Saturday's at today's 14:45, and a 13:35 every weekday (results/home-grown-table.json)",
+  "seed": "1 (skeleton-start.mjs on results/skeleton-run5.json), then 11 · 21 (space-polish, two passes)",
+  "lineage": "The owner asked for today's 20-line link on 26 lines with five cover weeks, a 16:00 closing shift, a 13:35 or 13:45 finish every weekday, every rule met and Short Run's fatigue factors matched or improved. Today's week order carries four fatigue factors and a run of seven days, so its shift times were kept and its weeks rebuilt: the table was laid on Short Run's rest-day skeleton (skeleton-start.mjs) and its times searched (space-polish.mjs) to Short Run's floors — the shortest rest 14h 20m, leave 28 · 20 · 15, no run over five on the fixed duties — with every fatigue factor's own value Short Run's or better (factors-like.mjs). Of every way of paying the contract with a short finish every weekday (short-earlies.mjs), this is the one that keeps Saturday's closers at today's 14:45, so the only new shift times are the 16:00 weekday closer and the Sunday 15:15–23:25 closer, which Short Run has too."
+ }
+}

@@ -37,7 +37,7 @@ const everyN = share => share <= 0 ? 'never' : `one in ${Math.round(1 / share)}`
 // gives the COUNT ("6 in 24") and the longest gap between two of them. Counted the way checkLinkConstraints counts the
 // weekends (Saturday of one line and Sunday of the next both off, a cover week's days never off), so the two cannot
 // disagree; null when there is no weekend off at all.
-const weekendGap = p => { const L = Object.keys(p).length, off = s => !timed(s) && s !== 'SPARE';
+export const weekendGap = p => { const L = Object.keys(p).length, off = s => !timed(s) && s !== 'SPARE';   // deck-check.mjs quotes it too
   const at = []; for (let k = 1; k <= L; k++) if (off(p[String(k)].sat) && off(p[String(k % L + 1)].sun)) at.push(k);
   return at.length ? Math.max(...at.map((k, i) => i < at.length - 1 ? at[i + 1] - k : at[0] + L - k)) : null; };
 
@@ -77,7 +77,7 @@ const PLAIN_FATIGUE = [
   [/consecutive early shifts/i, 'long runs of early shifts'],
   [/successive start times varying/i, 'start times that jump by more than two hours'],
   [/less than 12h rest/i, 'less than 12 hours between two shifts'],
-  [/55 hours/i, 'more than 55 hours in a week'],
+  [/55 hours/i, 'more than 55 hours in any seven-day period'],   // the app's own title (MRSF, links-fatigue.js): a rolling seven days, not a calendar week (external review, 31 Oct 2026)
   [/consecutive 8h shifts/i, 'long runs of 8-hour shifts'],
   [/consecutive day shifts/i, 'long runs of day shifts'],
   [/backward rotating/i, 'start times moving earlier through the week'],
@@ -90,7 +90,7 @@ const andList = a => a.length <= 1 ? (a[0] ?? '') : `${a.slice(0, -1).join(', ')
  *  "a score about half of today’s" — never as a distance (accuracy audit, 1 Oct 2026: "half as far off as today" read
  *  as half as many people out of place). The figure is a sum of squared differences, so the ratio of two scores is
  *  honest about the scores and says nothing about headcounts. */
-const FRACS = [[0.1, 'a tenth'], [0.2, 'a fifth'], [0.25, 'a quarter'], [1 / 3, 'a third'], [0.4, 'two-fifths'], [0.5, 'half'], [0.6, 'three-fifths'], [2 / 3, 'two-thirds'], [0.75, 'three-quarters'], [0.8, 'four-fifths'], [0.9, 'nine-tenths']];
+const FRACS = [[0.1, 'a tenth'], [1 / 7, 'a seventh'], [0.2, 'a fifth'], [0.25, 'a quarter'], [1 / 3, 'a third'], [0.4, 'two-fifths'], [0.5, 'half'], [0.6, 'three-fifths'], [2 / 3, 'two-thirds'], [0.75, 'three-quarters'], [0.8, 'four-fifths'], [0.9, 'nine-tenths']];
 const nearest = x => FRACS.reduce((a, b) => Math.abs(b[0] - x) < Math.abs(a[0] - x) ? b : a)[1];
 export const offWords = (p, t) => {
   if (p == null || t == null || !(t > 0)) return null;
@@ -161,8 +161,8 @@ function front({ T, P, meta, pages, coverHead }) {
   // a gap no longer than today's is said as a limit ("never more than 7 weeks apart, as today"); a longer one is said
   // as the cost it is ("though up to 10 weeks apart"), never dressed as reassurance inside a positive
   const gapLonger = pGap != null && tGap != null && pGap > tGap;
-  const gapWords = lead => pGap == null ? '' : gapLonger ? `, ${lead}up to ${pGap} weeks apart (today ${tGap})`
-    : `, never more than ${pGap} weeks apart${pGap === tGap ? ', as today' : tGap == null ? '' : ` (today ${tGap})`}`;
+  const gapWords = lead => pGap == null ? '' : gapLonger ? `, ${lead}up to ${pGap} weeks apart (today up to ${tGap})`
+    : `, never more than ${pGap} weeks apart${pGap === tGap ? ', as today' : tGap == null ? '' : ` (today up to ${tGap})`}`;
   add(weekMoved && pWeekShare > tWeekShare, good, 10, `About ${pWkYear} full weekends off a year (today ${tWkYear}), ${P.checks.weekendsOff} in ${pp.L} weeks${gapWords('though ')}`);
   add(weekMoved && pWeekShare < tWeekShare, bad, 10, `Fewer full weekends off — about ${pWkYear} a year (today ${tWkYear}), ${P.checks.weekendsOff} in ${pp.L} weeks${gapWords('')}`);
   for (const t of meta.thinMoments ?? []) { const m = /(\w+day) (\d\d:\d\d–\d\d:\d\d): only (one person|\d+ people)/.exec(t.replace(/<[^>]+>/g, '')); if (m) add(true, bad, 5, `Only ${m[3]} on duty in the whole station, ${m[1]} ${m[2]}`); }
@@ -205,12 +205,22 @@ function front({ T, P, meta, pages, coverHead }) {
   add(avgDiff <= -3, good, 40, `The average shift ${Math.round(-avgDiff)} minutes shorter`);
   add(pp.longest < tp.longest, good, 41, `No shift longer than ${hm(pp.longest)} (today ${hm(tp.longest)})`);
   add(pp.longest > tp.longest, bad, 41, `Its longest shift is ${hm(pp.longest)} (today ${hm(tp.longest)})`);
-  add(restMin != null && T.rest?.minutes != null && restMin > T.rest.minutes, good, 45, `Shortest rest between shifts ${hm(restMin)} (today ${hm(T.rest.minutes)})`);
+  // SHIFTS OVER 8H 30M, MONDAY TO SATURDAY (31 Oct 2026, the sheets' review): the measure that separates the shortlist —
+  // Even Step none, In Step 40 a year each, today 31 — was on no sheet but in a hand-typed description. The Sunday duties are
+  // overtime and left out, as the days a year are; page 2 has the row. A GAIN ranks after the closing shifts (37), so it takes
+  // page 1's last open place only where the closers do not: the shortest rest and the fatigue count are pinned, and Even Step
+  // states it in its description. A concern is never capped, so it shows wherever it applies
+  const longMS = X => Object.values(X.patterns).reduce((n, r) => n + DAYS.slice(1).filter(d => timed(r[d]) && dutyMinutes(r[d]) > 510).length, 0) * 52 / Object.keys(X.patterns).length;
+  const lP = Math.round(longMS(P)), lT = Math.round(longMS(T));
+  add(lP === 0 && lT > 0, good, 37, `No shift over 8h 30m Monday to Saturday (today ${lT} a year each)`);
+  add(lP > 0 && lP < lT - 1, good, 37, `Fewer shifts over 8h 30m Monday to Saturday — ${lP} a year each (today ${lT})`);
+  add(lP > lT + 1, bad, 32, `More shifts over 8h 30m Monday to Saturday — ${lP} a year each (today ${lT})`);
+  add(restMin != null && T.rest?.minutes != null && restMin > T.rest.minutes, good, 45, `Shortest rest between shifts ${hm(restMin)} in the fixed duties (today ${hm(T.rest.minutes)})`);
   // the shape of the week (page 4): single rest days, six-day weeks, weeks on one shift time
   const iso = X => X.feel?.isolatedRest, six = X => X.feel?.daysHist?.['6'] ?? 0, one = X => X.feel?.oneTurn / X.feel?.workingLines;
   add(iso(P) != null && iso(P) > iso(T) + 2, bad, 22, `More single rest days, which are not a two-day break — ${iso(P)} (today ${iso(T)})`);
-  add(lvP.fourWeeks > lvT.fourWeeks, bad, 23, `Four full weeks off, Sunday to Saturday, needs ${lvP.fourWeeks} days’ leave (today ${lvT.fourWeeks})`);
-  add(lvP.fourWeeks < lvT.fourWeeks, good, 23, `Four full weeks off, Sunday to Saturday, for ${lvP.fourWeeks} days’ leave (today ${lvT.fourWeeks})`);
+  add(lvP.fourWeeks > lvT.fourWeeks, bad, 23, `Four full weeks off in a row, Sunday to Saturday, needs ${lvP.fourWeeks} days’ leave (today ${lvT.fourWeeks})`);
+  add(lvP.fourWeeks < lvT.fourWeeks, good, 23, `Four full weeks off in a row, Sunday to Saturday, for ${lvP.fourWeeks} days’ leave (today ${lvT.fourWeeks})`);
   add(iso(P) != null && iso(P) < iso(T) - 2, good, 22, `Fewer single rest days — ${iso(P)} (today ${iso(T)})`);
   add(six(P) > six(T), bad, 21, `More six-day weeks — ${six(P)} (today ${six(T)})`);
   // the flip side of a week on one shift time: a colleague who prefers one kind waits longer for it to come round
@@ -230,7 +240,7 @@ function front({ T, P, meta, pages, coverHead }) {
   add(ffP < ffT, good, 50, ffP ? `Fewer fatigue warnings in the fixed duties — ${ffP} (today ${ffT})` : `No avoidable fatigue warnings in the fixed duties (today ${ffT})`);
   add(ffP > ffT, bad, 50, `More fatigue warnings in the fixed duties — ${ffP} (today ${ffT})`);
   // a concern, not a caveat on a positive (accuracy audit, 1 Oct 2026)
-  add(!!h55c, bad, 53, `A worked cover week could make a 55-hour week (page 7)`);
+  add(!!h55c, bad, 53, `A cover week worked with Sunday overtime could mean more than 55 hours in seven days (page 7)`);
   const tFF = r => T.fixed.fatigue.results.find(x => x.code === r.code && x.title === r.title);
   // FF13 (under 12 hours' rest) is ALSO the hard limit: where that is broken the red box says so, and listing it again
   // as a fatigue warning would count one fault twice
@@ -258,7 +268,8 @@ function front({ T, P, meta, pages, coverHead }) {
   //     The strip is gone; each figure is printed where it is answered and pointed to from anywhere else.
   //   · ONE MEANING PER COLOUR. Green had meant "better than today" on page 2, "more people" on page 4 and "met" on
   //     page 6. Now, on every page: green ✓ = meets a rule, or better than today on something the rules, the hard
-  //     limits or the fatigue guidance aim for; amber ▲ = worse on one of those; red ✕ = a rule or limit broken;
+  //     limits or the fatigue guidance aim for, or on a plain gain — full weekends off and the fit to the trains are
+  //     "both positives" (owner, 31 Oct 2026), which the rules sheet's Preferences now say too; amber ▲ = worse on one of those; red ✕ = a rule or limit broken;
   //     no colour = a difference for colleagues to weigh (more Saturdays is more pay to one person, a lost weekend to
   //     another). The symbol is always printed beside the colour, because the sheets are printed in black and white.
   //   · A FAILED RULE IS PART OF THE ANSWER. It was filed under "Still to settle"; it is now in the verdict, in red.
@@ -298,11 +309,11 @@ function front({ T, P, meta, pages, coverHead }) {
   // the bottom line keeps each item's headline figure and drops the weekend gap: in a
   // sentence of four items the gloss ran into the next one ("…as today and never more than 6 days…"); both stay in the lists
   // …and the cycle count after a per-year figure ("about 14 full weekends off a year (today 10), 7 in 26 weeks")
-  const brief = t => t.replace(/, (?:though |never more than |up to )[^,]*? weeks apart(?:, as today| \(today \d+\))?/, '').replace(/(\(today \d+\)), \d+ in \d+ weeks/, '$1');
+  const brief = t => t.replace(/, (?:though |never more than |up to )[^,]*? weeks apart(?:, as today| \(today (?:up to )?\d+\))?/, '').replace(/(\(today \d+\)), \d+ in \d+ weeks/, '$1');
   const plus = goodAll.slice(0, 2).map(x => esc(lc(inline(brief(x))))), minus = badAll.slice(0, 2).map(x => esc(lc(inline(brief(x)))));
   const bottom = [lead,
     plus.length ? `For staff, the biggest ${plus.length === 1 ? 'gain is' : 'gains are'} ${andList(plus)}.` : 'Nothing is notably better for staff than today.',
-    minus.length ? `The main ${minus.length === 1 ? 'trade-off is' : 'trade-offs are'} ${andList(minus)}.` : 'Nothing is notably worse than today.'].join(' ');
+    minus.length ? (minus.length === 1 ? `The main trade-off: ${minus[0]}.` : `The main trade-offs: ${minus.slice(0, -1).join('; ')}; and ${minus[minus.length - 1]}.`) : 'Nothing is notably worse than today.'].join(' ');
 
   const foot = (k, title) => `<div class="foot"><span>Page ${k} of ${pages} — ${title}</span><span class="foot-id"><b>${name}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>`;
   const n1f = x => x == null ? '—' : Number(x).toFixed(1);
@@ -342,7 +353,7 @@ function front({ T, P, meta, pages, coverHead }) {
   const ab = x => `<span class="ab">about</span> ${x}`;
   const often = d => Math.abs(d) < 1 ? 'about the same' : `about one ${d > 0 ? 'extra' : 'fewer'} every ${weeksWords(52 / Math.abs(d))} weeks`;
   const feel = [
-    feelTile(`${P.checks.weekendsOff} in ${pp.L}`, 'full weekends off', `today ${T.checks.weekendsOff} in ${tp.L} · never more than ${pGap ?? '—'} weeks apart (today ${tGap ?? '—'})`),
+    feelTile(`${P.checks.weekendsOff} in ${pp.L}`, 'full weekends off', `today ${T.checks.weekendsOff} in ${tp.L} · never more than ${pGap ?? '—'} weeks apart (today up to ${tGap ?? '—'})`),
     feelTile(ab(Math.round(pp.late23)), 'finishes at 23:00 or later, each a year', `today about ${Math.round(tp.late23)} · ${often(lateDiff)}`),
     feelTile(ab(Math.round(pp.open0620)), 'starts at 06:20, the open, each a year', `today about ${Math.round(tp.open0620)} · ${often(openDiff)}`),
     feelTile(newTimes ? `${newTimes} new` : 'None new', `shift ${newTimes === 1 ? 'time' : 'times'} to learn`, `${distinct} shift times in all, ${shared} worked today · ${newTimes ? 'the new ones are listed on page 4' : 'page 4'}`),
@@ -356,9 +367,10 @@ function front({ T, P, meta, pages, coverHead }) {
   const sunMins = X => Object.values(X.patterns).reduce((a, r) => a + (r.sun === 'RD' || r.sun === 'OFF' || r.sun === 'SPARE' ? 0 : dutyMinutes(r.sun)), 0);
   const hmS = m => `${Math.floor(m / 60)}h&nbsp;${String(Math.round(m % 60)).padStart(2, '0')}m`;
   const takes = `<p class="ptakes"><b>What it takes:</b> ${pp.L} people, ${pp.L - tp.L} more than today’s ${tp.L} · ${pp.cover} cover weeks for leave and sickness · ${P.daily.sun} on duty every Sunday (today ${T.daily.sun}; the rules ask for ${SUN_RULE}) — ${hmS(sunMins(P))} of Sunday overtime across the whole link each week (today ${hmS(sunMins(T))}).</p>`;
-  // the masthead's date line also carries the caveat (it was a paragraph of its own; page 8 keeps "not typed in by hand")
+  // the masthead's date line also carries the caveat (it was a paragraph of its own; page 8 says where the figures come
+  // from). The one-line description under the name is typed (STRAPS in fresh.mjs), so it is the exception (30 Oct 2026)
   const head1 = must(coverHead.replace(/\s*<div class="strip">[\s\S]*?<\/div>/, ''), /(<div class="meta">Prepared [^·<]*)·[^<]*<\/div>/,
-    `$1· every figure is calculated from the rota, not entered by hand</div>`, 'the masthead date line');
+    `$1· every figure but the description under the name is calculated from the rota</div>`, 'the masthead date line');
   const page1 = `<section class="page cover plain">
   ${head1}
   <p class="pbottom"><span class="pb-k">In short</span>${bottom}</p>
@@ -413,16 +425,16 @@ function front({ T, P, meta, pages, coverHead }) {
     // a design whose author named its office (NAMED_OFFICE in report-data.mjs) says its own Sunday late in its meta
     row('Ticket office late shift on a Sunday — people', 1, meta.namedOfficeSunLates ?? 2, '', meta.namedOfficeSunWords ?? `the December plan: both in the office 15:00–18:00, then one on the floor; today one 14:30–23:25 closer keeps it until 22:30${(meta.pairDays ?? []).includes('sun') ? '' : ' — this rota does not mark them, so two are assumed from its duties'}`),
     grp('Working pattern'),
-    row('Most days in a row, fixed duties', runFT, runF, run > 13 ? 'no' : cmp(runF < runFT, runF === runFT), `${runW !== runF || runWT !== runFT ? `up to ${runW} (today ${runWT}) if a cover week falls badly; ` : ''}Chiltern’s limit is 13${runW !== runF || runWT !== runFT ? '' : ' (written source to confirm)'}`),
+    row('Most days in a row, fixed duties', runFT, runF, run > 13 ? 'no' : cmp(runF < runFT, runF === runFT), `${runW !== runF ? `up to ${runW} (today ${runWT}) if a cover week falls badly; ` : runWT !== runFT ? `${runW} wherever the cover weeks fall (today up to ${runWT}); ` : ''}Chiltern’s limit is 13${runW !== runF || runWT !== runFT ? '' : ' (written source to confirm)'}`),
     row('Shortest gap between two shifts', hm(T.rest?.minutes), hm(restMin), rests ? 'no' : cmp(restMin > T.rest?.minutes, restMin === T.rest?.minutes), 'in the fixed duties; the limit is 12 hours'),
-    row('Full weekends off, in the rotation', `${T.checks.weekendsOff} in ${tp.L}`, `${P.checks.weekendsOff} in ${pp.L}`, cmp(pWeekShare > tWeekShare, everyN(pWeekShare) === everyN(tWeekShare)), pGap == null ? 'none in the rotation' : `uneven: never more than ${pGap} weeks apart (today ${tGap ?? '—'})`),
-    row('Days at work a year, not counting Sundays', tp.daysYear.toFixed(1), pp.daysYear.toFixed(1), '', 'Sundays are overtime; a cover week counts as 4 days'),
-    row('Weeks on one shift time', ofW(T), ofW(P), '', 'all earlies or all lates, one clock time Monday to Friday'),
+    row('Full weekends off, in the rotation', `${T.checks.weekendsOff} in ${tp.L}`, `${P.checks.weekendsOff} in ${pp.L}`, cmp(pWeekShare > tWeekShare, everyN(pWeekShare) === everyN(tWeekShare)), pGap == null ? 'none in the rotation' : `uneven: ${gapLonger ? 'up to' : 'never more than'} ${pGap} weeks apart (today up to ${tGap ?? '—'})`),
+    row('Days at work a year, Mon–Sat', tp.daysYear.toFixed(1), pp.daysYear.toFixed(1), '', 'Sundays are overtime; a cover week is 4 days'),
+    row('Weeks on one shift time', ofW(T), ofW(P), '', 'all earlies or all lates at one time, Mon–Fri'),
     row('Weeks mixing earlies and lates', `${T.feel.hybrid} of ${T.feel.workingLines}`, `${P.feel.hybrid} of ${P.feel.workingLines}`, '', 'a week with both early and late shifts in it'),
     row('Longest block of earlies or lates', blockText(bkT), blockText(bkP), '', 'weeks in a row on one kind; “up to” with the cover weeks'),
     row('Single rest days', iso(T), iso(P), '', 'a rest day on its own — not a two-day break'),
     row('Six-day weeks', six(T), six(P), '', 'weeks with six days at work, Sundays counted'),
-    row('Leave for four full weeks off', `${lvT.fourWeeks} days`, `${lvP.fourWeeks} days`, cmp(lvP.fourWeeks < lvT.fourWeeks, lvP.fourWeeks === lvT.fourWeeks), 'the least leave for four complete weeks, Sunday to Saturday; rest days and Sundays cost none'),
+    row('Leave for four full weeks off', `${lvT.fourWeeks} days`, `${lvP.fourWeeks} days`, cmp(lvP.fourWeeks < lvT.fourWeeks, lvP.fourWeeks === lvT.fourWeeks), 'the least for four complete weeks in a row, Sun–Sat; rest days and Sundays cost none'),
     grp('Shifts'),
     row('Average shift · longest shift', `${hm(tp.avgShift)} · ${hm(tp.longest)}`, `${hm(pp.avgShift)} · ${hm(pp.longest)}`, '', 'the average is Monday to Saturday; the longest is on any day'),
     row('Early shifts, shortest to longest', tp.earlySpan, pp.earlySpan, '', 'an early starts before 11:00 · any day of the week'),
@@ -435,14 +447,15 @@ function front({ T, P, meta, pages, coverHead }) {
     row('Full weekends off', tWkYear, pWkYear, cmp(pWkYear > tWkYear, pWkYear === tWkYear), `${pct(pWeekShare)} of weeks (today ${pct(tWeekShare)})`),
     row('Finishing at 23:00 or later', Math.round(tp.late23), Math.round(pp.late23), '', Math.abs(lateDiff) < 1 ? 'about the same as today' : `about one ${lateDiff > 0 ? 'extra' : 'fewer'} every ${weeksWords(52 / Math.abs(lateDiff))} weeks`),
     row('Starting at 06:20, the open', Math.round(tp.open0620), Math.round(pp.open0620), '', Math.abs(openDiff) < 1 ? 'about the same as today' : `about one ${openDiff > 0 ? 'extra' : 'fewer'} every ${weeksWords(52 / Math.abs(openDiff))} weeks`),
+    row('Shifts over 8h 30m, Mon–Sat', lT, lP, cmp(lP < lT, lP === lT), 'Sunday duties are overtime, so not counted'),
     row('Saturdays worked', Math.round(tp.sat), Math.round(pp.sat), '', 'a rostered Saturday is paid at time and a quarter; cover weeks not counted'),
     row('Sunday overtime to share', Math.round(tp.sun), Math.round(pp.sun), '', 'Sundays are overtime, as today'),
     grp('Fatigue and the rules'),
-    row('Avoidable fatigue warnings, fixed duties', T.fixed.present, P.fixed.present, cmp(P.fixed.present < T.fixed.present, P.fixed.present === T.fixed.present), `${worstDiffers ? `${upTo}${h55c ? (ffW > 1 ? ', one a 55-hour week' : ' — a 55-hour week') : ''}; guidance only, page 7` : 'guidance, not a pass or fail; early starts and a weekly rotation come with every link — page 7'}`),
+    row('Avoidable fatigue warnings, fixed duties', T.fixed.present, P.fixed.present, cmp(P.fixed.present < T.fixed.present, P.fixed.present === T.fixed.present), `${worstDiffers ? `${upTo}${h55c ? `${ffW > 1 ? ', one' : ':'} over 55 hours in seven days — guidance, page 7` : '; guidance only, page 7'}` : 'guidance, not a pass or fail; early starts and a weekly rotation come with every link — page 7'}`),
     row('December staffing rules met', `${meta.decToday} of ${meta.decOf}`, `${meta.decMet} of ${meta.decOf}`, failed.length ? 'no' : cmp(meta.decMet > meta.decToday, meta.decMet === meta.decToday), `confirmed verbally, 29 Sep 2026${waived.length ? `; ${nWord(waived.length)} more waived for this design` : ''} — page 6`),
   ].join('');
   const page2 = `<section class="page plain">
-  <div class="mast"><div><div class="eyebrow">Against today’s link</div><h1>What changes, in numbers</h1><div class="sub">Today’s 20-week link beside ${name}. <b>✓ green</b>: better than today on something the rules, hard limits or fatigue guidance aim for · <b>▲ amber</b>: worse on one of those · <b>✕ red</b>: a rule or limit broken · <b>unshaded</b>: for colleagues to weigh.</div></div></div>
+  <div class="mast"><div><div class="eyebrow">Against today’s link</div><h1>What changes, in numbers</h1><div class="sub">Today’s 20-week link beside ${name}. <b>✓ green</b>: better than today on something the rules, hard limits or fatigue guidance aim for, or on a plain gain such as full weekends off or the fit to the trains · <b>▲ amber</b>: worse on one of those · <b>✕ red</b>: a rule or limit broken · <b>unshaded</b>: for colleagues to weigh.</div></div></div>
   <table class="t pcmp"><thead><tr><th>Question</th><th class="num">Today</th><th class="num">${name}</th><th>In plain words</th></tr></thead><tbody>${rows2}</tbody></table>
   <p class="pnext"><b>The workings:</b> the rota (page 3) · shift times (4) · staffing through the day (5) · the rules (6) · fatigue checks (7) · can I trust these numbers? (8)</p>
   ${foot(2, 'Against today’s link')}
@@ -459,17 +472,17 @@ function methodPage({ meta, pages }) {
   const box = (cls, h, lead, items) => `<div class="tbox tbox-${cls}"><h3>${h}</h3><p>${lead}</p><ul>${items.map(x => `<li>${x}</li>`).join('')}</ul></div>`;
   const boxes = [
     box('firm', 'Firm', 'Worked out exactly from the rota, and checked again by the app:', ['the rest gaps and the most days in a row', 'the 35-hour contract', 'full weekends off', 'how many people are on duty, hour by hour', 'the shift times and their lengths']),
-    box('guide', 'A guide, not a verdict', 'Useful for comparing, never a pass or a fail:', ['how closely the floor follows the trains', 'the fatigue warnings — guidance from the rail regulator', 'how familiar the shift times are', 'figures “each, a year” — averages over the whole link']),
+    box('guide', 'A guide, not a verdict', 'Useful for comparing, never a pass or a fail:', ['how closely the floor follows the trains', 'the fatigue warnings — guidance from the rail regulator', 'how familiar the shift times are', 'figures “each, a year” — the fixed duties only, the cover weeks left out']),
     box('unknown', 'Not known yet', 'No rota can say these; they are for the people who work it and the managers who roster it:', ['where each cover week’s four duties fall', 'how leave and sickness land', 'whether staff accept the new shift times', 'Wembley event days — the rota follows the trains, not the crowds', 'who starts on which line', 'the written source of the 13-day limit']),
   ].join('');
   const items = [
-    ['Where the figures come from', 'Every figure is worked out from the rota on page 3 by the Marylebone Roster app, and the same calculation is run on today’s link. None is typed in by hand.'],
-    ['Cover weeks', 'Marked on all seven days but worked on four, placed by the roster clerk. A cover week counts as a full contracted week and as four days at work. Their shift times are not known yet, so the runs, rest gaps, yearly counts and fatigue warnings are worked out on the fixed duties — the cover weeks left out, and today’s link the same way. Where a cover week’s four duties could make a figure worse, the worst place they could fall is given beside it as “up to”, and the hard limits are tested at that worst case. Whatever is later given in a cover week must still be rostered within the normal limits.'],
+    ['Where the figures come from', 'Every figure is worked out from the rota on page 3, by the Marylebone Roster app’s own checks where it has them and by the tooling beside them for the rest, and the same calculation is run on today’s link. Only the one-line description under the name is written by hand.'],
+    ['Cover weeks', 'Marked on all seven days but worked on four, Monday to Saturday, placed by the roster clerk; its Sunday can be worked as overtime on top. A cover week counts as a full contracted week and as four days at work. Their shift times are not known yet, so the runs, rest gaps, yearly counts and fatigue warnings are worked out on the fixed duties — the cover weeks left out, and today’s link the same way. Where a cover week’s four duties could make a figure worse, the worst place they could fall, with its Sunday worked, is given beside it as “up to”, and the hard limits are tested at that worst case. Whatever is later given in a cover week must still be rostered within the normal limits.'],
     ['Sundays', 'Sunday is not in the contract: Sunday duties are overtime, as today. So “days at work” and the 35-hour week are Monday to Saturday. A Sunday off costs no annual leave.'],
-    ['Each person, a year', 'Every week’s duties, times 52, shared across everyone on the link — Sunday overtime included. “Days at work a year” is Monday to Saturday only: the days a week × 365 ÷ 7. Somebody’s own year depends on which week they start on.'],
+    ['Each person, a year', `Every week’s duties, times 52, shared across everyone on the link — Sunday overtime included. “Days at work a year” is Monday to Saturday only: the days a week × 365 ÷ 7. ${52 % LINES === 0 ? `Fifty-two weeks are exactly ${52 / LINES === 2 ? 'two turns' : `${52 / LINES} turns`} of this link, so these are everyone’s figures whichever week they start on; today’s are averages over its 20 weeks.` : 'Somebody’s own year depends on which week they start on.'}`],
     ['Following the trains', 'For each hour, the share of the day’s floor staff is set against the share of the day’s train service in the December 2026 timetable, each train weighted by its length; the differences are squared — so one big mismatch counts far more than several small ones — added up and multiplied by 10,000. 0 would be a perfect match; lower is closer. The staff share uses the minutes each person spends on the floor, finer than the whole-person counts on page 5, where anyone on for part of an hour counts. It measures the shape of the day, not a staffing level: an extra person in a quiet hour makes it worse although nobody is worse off. The ticket office is taken out first: it is staffed to its opening hours, not to the trains, which is why its rows on page 5 carry no match figure.'],
     ['The ticket office', meta.namedOfficeP8 ?? `In the proposal, two people on every ticket-office shift, not floor cover except at the quiet ends: Monday to Saturday one of each pair is on the floor until 08:00 and from 19:30. On a Sunday one early is on the floor until 09:00; the two lates until 15:00, then both in the office, one back on the floor from 18:00. Today one person keeps the office on a Sunday afternoon and evening.${(meta.pairDays ?? []).length < 7 ? ' This rota does not mark which duties are in the office on every day, so where it does not, the office posts are assumed from its duties — page 5 shows them.' : ''}`],
-    ['Rest, runs and weekends', 'The shortest gap is the single tightest one in the fixed duties, Saturday into Sunday and line into line included. The most days in a row counts Sunday overtime too; it is given for the fixed duties, with “up to” where a cover week placed as badly as it can be would make it longer, and the 13-day limit is tested at that worst case. A full weekend off is a Saturday off then a Sunday off. The shortest gap is one gap: a rota with many rests of just over 12 hours reads the same as one with none.'],
+    ['Rest, runs and weekends', 'The shortest gap is the single tightest one in the fixed duties, Saturday into Sunday and line into line included. The most days in a row counts Sunday overtime too; it is given for the fixed duties, with “up to” where a cover week placed as badly as it can be, its Sunday worked, would make it longer, and the 13-day limit is tested at that worst case. A full weekend off is a Saturday off then a Sunday off. The shortest gap is one gap: a rota with many rests of just over 12 hours reads the same as one with none.'],
     ['Handover', 'The overlap when one shift takes over from another. The December rules ask for 15 minutes to each closer, and 20 in the ticket office (30 on a Sunday) — page 6.'],
     ['Familiar shift times', 'How many of the shift times somebody already works today — a rough guide to how much there is to learn, not to what staff will accept.'],
     ['Fatigue warnings', 'The Office of Rail and Road’s good-practice list of roster patterns that tend to tire people, with four rail-industry checks. A warning is a question to discuss, not a breach, and this is not a fatigue risk assessment. Early starts at a 06:20 station and a weekly rotation come with every link, today’s included, so they are recorded on page 7 and not counted. In the ORR’s checks an early start is one from 05:00 up to 06:59 and a “block” of earlies is two or more in a row; the start-time rows count how many times a start moves by more than two hours (a count, not hours); the week-to-week move is the average change in a week’s mean start time, Sundays included and cover weeks left out.'],
@@ -480,7 +493,7 @@ function methodPage({ meta, pages }) {
   <div class="tboxes">${boxes}</div>
   <h2 class="pmh">What each figure is based on</h2>
   <div class="pcards">${items.map(([h, t]) => `<div class="pcard"><h4>${h}</h4><p>${t}</p></div>`).join('')}</div>
-  <p class="muted pimport">The rota is supplied beside this PDF as <span class="tt">${esc(meta.identity.name.replace(/ /g, '-'))}-${esc(meta.identity.code)}-import.txt</span>, ready to paste into the Links page (Import), which re-runs every check here. The code <b>${esc(meta.identity.fingerprint)}</b> in every footer is worked out from the ${LINES * 7} days of the rota and nothing else, so a printout always matches the design it came from.</p>
+  <p class="muted pimport">The rota is supplied beside this PDF as <span class="tt">${esc(meta.identity.name.replace(/ /g, '-'))}-${esc(meta.identity.code)}-import.txt</span>, ready to paste into the Links page (Import), which re-runs the hard limits, the fatigue checks, the weekends, the hours and the hour-by-hour staffing on it — giving the runs at their worst case, which pages 2 and 7 give as “up to” — though not the December rules or the yearly figures, which are this sheet’s. The fingerprint <b>${esc(meta.identity.fingerprint)}</b> in every footer is worked out from the ${LINES * 7} days of the rota and nothing else, so a printout always matches the design it came from.</p>
   <div class="foot"><span>Page ${pages} of ${pages} — Can I trust these numbers?</span><span class="foot-id"><b>${name}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>`;
 }
@@ -643,7 +656,12 @@ p.pnext { font-size: 9.4px; color: var(--text-mid); margin: 10px 0 0; } p.pnext 
 .p4n { background: var(--surface-sunken); border-radius: 8px; padding: 9px 12px; box-shadow: inset 0 3px 0 color-mix(in srgb, var(--primary-blue) 35%, white); }
 .p4n b { display: block; font-size: 24px; line-height: 1.05; color: var(--primary-blue); } .p4n span { font-size: 10px; color: var(--text-mid); }
 .p4n-new { box-shadow: inset 0 3px 0 var(--primary-blue); } .p4n-new b { color: var(--primary-blue); }
-.p4new { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px 10px; margin: 4px 0 6px; }
+/* the new times to learn: up to three in a row, four as two pairs, five or six three to a row, more four to a row (three
+   for nine, five for thirteen, so no card is left alone; 30 Oct 2026 review) — and the last row's cards share its width. A fixed three-column grid left one card alone beside two empty cells (four times) or a
+   gap at the end (two, five or seven); four across wrapped "weekdays and Saturdays" in half the cards (Both Ways, measured).
+   --n, set where the cards are built, is the cards a full row holds; border-box so the padding is inside the share */
+.p4new { display: flex; flex-wrap: wrap; gap: 5px 10px; margin: 4px 0 6px; }
+.p4new > .p4t { box-sizing: border-box; flex: 1 1 calc((100% - (var(--n, 3) - 1) * 10px) / var(--n, 3)); }
 .p4t { background: color-mix(in srgb, var(--primary-blue) 6%, white); border-radius: 6px; padding: 5px 9px; font-size: 9.4px; line-height: 1.35; color: var(--text-mid); }
 .p4t .tt { display: block; font-size: 11.5px; font-weight: 800; color: var(--primary-blue); }
 p.p4gone, p.p4none { font-size: 9.6px; color: var(--text-mid); margin: 4px 0 8px; } p.p4gone .tt { color: var(--text-dark, #1a1a2e); }
@@ -734,16 +752,19 @@ table.p5t { width: 100%; margin: 0; }
 /* page 1: a card is as tall as its own content — a two-line tile beside a four-line one, a three-item list beside a six */
 .cover.plain .tiles.head4 { align-items: start; } .cover.plain .pcols { align-items: start; }
 /* page 2: the longest page — the mast's sub-line is two lines (worded for it), the closing-shift triples are one unit each,
-   and the two figure columns are a touch wider for them. The floor between the last row and the footer is 24px. */
-table.pcmp th:nth-child(1) { width: 28%; } table.pcmp th:nth-child(2) { width: 17%; } table.pcmp th:nth-child(3) { width: 20%; } table.pcmp th:nth-child(4) { width: 35%; }
+   and the two figure columns are a touch wider for them. The floor between the last row and the footer is 24px.
+   MEASURED ON ALL THIRTEEN SHEETS (30 Oct 2026): at 17% today's triple ran 5px into its cell's padding and all but touched
+   the border. These widths leave both triples about 3px inside the padding, and 34.5% is the narrowest words column that
+   keeps every row of every sheet on the lines it had (at 34% Second Nature's weekends row wraps and its floor drops to 14). */
+table.pcmp th:nth-child(1) { width: 27%; } table.pcmp th:nth-child(2) { width: 18.2%; } table.pcmp th:nth-child(3) { width: 20.3%; } table.pcmp th:nth-child(4) { width: 34.5%; }
 table.pcmp .trio { white-space: nowrap; font-size: 9px; }
+.rng { white-space: nowrap; }
 table.pcmp td { padding-top: 1.5px; padding-bottom: 1.5px; }
 p.pnext { margin-top: 7px; }
 /* page 3: the stat strip wraps between its figures if it must, never off the page (that overflow shrank four sheets) */
 .p3sum { white-space: normal; line-height: 1.5; font-size: 9.2px; padding: 4px 10px; } .p3sum .bit { white-space: nowrap; } .p3sum .dot { margin: 0 2px; }
-/* page 4: seven or eight new times fill two rows of four rather than leave one alone on a third; the right-hand column is
-   two cards — the notes, then the shape of the week — so it runs the height of the duty table */
-.p4new--4 { grid-template-columns: repeat(4, 1fr); }
+/* page 4: the right-hand column is two cards — the notes, then the shape of the week — so it runs the height of the duty
+   table. (Seven or eight new times went four to a row here; .p4new's --n now decides every count.) */
 .cols.duty > div.p4side { background: none; padding: 0; }
 .p4side .p4note { background: var(--surface-sunken); border-radius: 8px; padding: 9px 11px; } .p4side .p4note p { margin: 0 0 6px; } .p4side .p4note p:last-child { margin: 0; }
 .p4shape2 { margin-top: 10px; background: var(--surface-sunken); border-radius: 8px; padding: 8px 11px 9px; } .p4shape2 h3 { margin: 0 0 4px; font-size: 11.5px; }
@@ -857,7 +878,7 @@ function rotaPage(s, { P }) {
   s = must(s, /<div><b>Handover<\/b> — [^<]*<\/div>/, '', 'the Handover gloss');
   // the glossary spoke to a colleague ("You move down a line"); the sheet is read by managers first
   s = must(s, /You move down a line each week/, 'Everyone moves down a line each week', 'the Line gloss');
-  s = must(s, /You work four duties of the seven days/, 'Whoever is on it works four duties of the seven days', 'the Cover week gloss');
+  s = must(s, /You work four duties, Monday to Saturday/, 'Whoever is on it works four duties, Monday to Saturday', 'the Cover week gloss');
   s = must(s, /<div><b>Match<\/b> — [\s\S]*?<\/div>/, '', 'the Match gloss');
   // each figure is one unbreakable piece; the strip may wrap BETWEEN them, never run off the page (that overflow shrank four sheets)
   return must(s, MAST_END, `$1\n  <div class="p3sum">${bits.map(b => `<span class="bit">${b}</span>`).join(' <span class="dot">·</span> ')}</div>`, 'the rota page head');
@@ -879,7 +900,7 @@ function shiftPage(s, { T, P }) {
     <div class="p4n p4n-new"><b>${fresh.length}</b><span>${fresh.length === 1 ? 'is' : 'are'} new — nobody works ${fresh.length === 1 ? 'it' : 'them'} today</span></div>
   </div>
   ${fresh.length ? `<h2>The new ${fresh.length === 1 ? 'time' : 'times'} to learn</h2>
-  <div class="p4new${fresh.length === 7 || fresh.length === 8 ? ' p4new--4' : ''}">${fresh.map(r => `<div class="p4t"><span class="tt">${r.time}</span><span>${len(r.minutes)} · ${kind(r)} · ${when(r)}</span></div>`).join('')}</div>` : '<p class="p4none">Every shift time in this link is one somebody already works today.</p>'}
+  <div class="p4new" style="--n:${fresh.length <= 3 ? fresh.length : fresh.length === 4 ? 2 : fresh.length <= 6 ? 3 : [4, 3, 5].find(c => fresh.length % c !== 1) ?? 4}">${fresh.map(r => `<div class="p4t"><span class="tt">${r.time}</span><span>${len(r.minutes)} · ${kind(r)} · ${when(r)}</span></div>`).join('')}</div>` : '<p class="p4none">Every shift time in this link is one somebody already works today.</p>'}
   ${gone.length ? `<p class="p4gone"><b>No longer used:</b> ${gone.length} of today’s ${T.tableRows.length} shift times — ${gone.map(r => `<span class="tt">${r.time}</span>`).join(', ')}.</p>` : ''}`;
   s = must(s, /<div class="stack">[\s\S]*?<\/div>\s*<\/div>\s*(?=<h2>The duty table)/, `${learn}\n  `, 'the two tables above the duty table');
   // THE SHAPE OF A WEEK — restored (30 Sep 2026, "no important insight must be lost"). v2 moved four of the old table's
@@ -994,7 +1015,7 @@ function fatiguePage(s, { T, P, meta }) {
     [/^Day shift over 12h/, 'Shifts over 12 hours'], [/^Early shift over 10h/, 'Early shifts over 10 hours'],
     [/rest after a block of early/, 'Too little rest after a run of early starts'], [/13 consecutive shifts without a 48h/, 'Too many shifts without a two-day break'],
     [/4 consecutive 12h day/, 'Runs of 12-hour day shifts'], [/consecutive early shifts/, 'Long runs of early shifts'],
-    [/12 consecutive day shifts/, 'Long runs of day shifts'], [/55 hours/, 'More than 55 hours in a week'],
+    [/12 consecutive day shifts/, 'Long runs of day shifts'], [/55 hours/, 'More than 55 hours in any seven-day period'],
     [/consecutive 8h shifts/, 'Long runs of 8-hour shifts'], [/^Backward rotating/, 'Start times moving earlier through the week'],
     [/^Rotating pattern of about a week/, 'Changing shift type about once a week'], [/^Successive start times varying/, 'Start times that jump by more than two hours'],
     [/^Less than 12h rest/, 'Less than 12 hours between two shifts']];
@@ -1055,16 +1076,25 @@ export function plainEdition(html, ctx) {
   // ONE WAY OF WRITING A LENGTH OF TIME (owner, 30 Sep 2026). Page 2 wrote "13h35" and page 6 "13h 35m" for the same
   // figure, and "13h35" also reads as a clock time. Every duration on every page is "13h 35m"; clock times keep their
   // colon (13:35), so the two can no longer be confused. Text only — never inside a tag or the stylesheet.
-  out = out.replace(/(<style[\s\S]*?<\/style>)|>([^<]+)</g, (m, st, txt) => st ?? `>${txt.replace(/\b(\d{1,3})h(\d{2})\b(?!m)/g, '$1h&nbsp;$2m')
+  // THE BRACKETS ARE LOOKED AT, NOT TAKEN (30 Oct 2026 review). The text alternative used to consume the "<" that closes a
+  // text node, so ">\n<style>" was read as text and the "<style" never seen: the whole stylesheet went through this pass as
+  // one text node (25 no-break spaces in the sheets' CSS comments, harmless only because no live rule held a dot or a dash).
+  // A ">" inside an attribute value would still be read as the end of a tag; none of these pages has one.
+  out = out.replace(/(<style[\s\S]*?<\/style>)|(?<=>)([^<]+)(?=<)/g, (m, st, txt) => st ?? `${txt.replace(/\b(\d{1,3})h(\d{2})\b(?!m)/g, '$1h&nbsp;$2m')
     // POLISH (1 Oct 2026): a separator dot stays at the END of a line, never the start of the next; and a clock range is
     // written one way on every page — page 4 wrote 06:20-14:25 where pages 2 and 5 wrote 06:20–14:25
     .replace(/ · /g, '&nbsp;· ').replace(/\b(\d\d:\d\d)-(\d\d:\d\d)\b/g, '$1–$2')
     // THIRD POLISH PASS (4 Oct 2026): a dash, like a dot, ends a line and never starts one; a fraction in words ("two-fifths")
     // keeps its hyphen on one line (a word joiner — invisible, and no glyph for the font to lack)
-    .replace(/ — /g, '&nbsp;— ').replace(/\b(two|three|four|nine)-(fifths|thirds|quarters|tenths)\b/g, '$1-\u2060$2')}<`);
+    .replace(/ — /g, '&nbsp;— ').replace(/\b(two|three|four|nine)-(fifths|thirds|quarters|tenths)\b/g, '$1-\u2060$2')}`);
   // ORPHANS (4 Oct 2026): a plain-text table cell or list item — no tags inside it, and long enough to wrap — never ends on a
   // lone short word ("to Friday", "— people", "(today 7)"): its last space is a no-break space. A cell with markup is left alone.
   out = out.replace(/<(td|li)(\s[^>]*)?>([^<]{25,})<\/\1>/g, (m, tag, attrs, txt) => { const i = txt.lastIndexOf(' ');
     if (i < 0 || txt.length - i > 16) return m; return `<${tag}${attrs ?? ''}>${txt.slice(0, i)}&nbsp;${txt.slice(i + 1)}</${tag}>`; });
+  // A CLOCK RANGE IS ONE UNIT (30 Oct 2026). Page 6's ticket-office rule broke "14:00–" from "22:30" at a line end on every
+  // sheet. Each range sits in a no-wrap span — not a word joiner, as the fractions have, because a range is what a reader
+  // searches for or copies, and an invisible character inside it would stop "06:20–14:20" matching. Text only, after the
+  // orphan pass above (which leaves a cell with markup alone), and never in the stylesheet or the title.
+  out = out.replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (m, keep, txt) => keep ?? txt.replace(/\b\d\d:\d\d–\d\d:\d\d\b/g, '<span class="rng">$&</span>'));
   return out;
 }

@@ -65,9 +65,9 @@ const ASKS = {
   sunday: 'Ten people working on a Sunday, counted as duties rostered that day.',
   saturday: 'Fourteen people working on a Saturday, counted as duties rostered that day.',
   cover: `${['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][COVER_WEEKS]} cover weeks in the ${LINES} lines, spread as evenly as ${LINES} allows: the gaps between them differ by one line at most — e.g. lines ${COVER_LINES.slice(0, -1).join(', ')} and ${COVER_LINES.at(-1)} (gaps of ${COVER_LINES.map((l, i, a) => i < a.length - 1 ? a[i + 1] - l : a[0] + LINES - l).sort((x, y) => x - y).join(', ')}).`,
-  closer: 'Every Monday-to-Friday shift that works to the 23:55 close starts at 15:45.',
+  closer: 'Every Monday-to-Friday shift that works to the 23:55 close starts at 15:45 or later; 15:30 is too close to today’s 15:15.',
   office: `Two identical early and two identical late shifts for the ticket office: Mon–Fri ${OFFICE.plan.weekday.map(([t]) => t.replace('-', '–')).join(' and ')}; Sat ${OFFICE.plan.sat.map(([t]) => t.replace('-', '–')).join(' and ')}; Sun two starting 07:15 and two finishing 22:30.`,
-  floor: 'At least two people on the station floor at every moment the station is open, checked every five minutes. Ticket-office staff count only while the second of a pair helps on the floor at the quiet ends, and only as a whole person.',
+  floor: 'At least two people on the station floor at every moment the station is open, checked every five minutes. Ticket-office staff count only while they help on the floor, and only as a whole person: one of each pair at the quiet ends Monday to Saturday; on a Sunday one early until 09:00, both lates until 15:00 and one from 18:00.',
   handover: 'Each closer overlaps someone already on duty by 15 minutes; the two ticket-office shifts overlap by 20 (on a Sunday 30, from 15:00). On a Sunday each opener also stays until 15 minutes after the last closer arrives.',
   sunlen: 'Every Sunday duty is between 8 and 9 hours long.',
   times: `No more different shift times in the week than today’s link has (${TA.feel.distinctTimes}).`,
@@ -95,13 +95,14 @@ const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><tit
 <style>
 @page { size: A4; margin: 11mm 11mm 13mm; }
 html, body { background: white !important; color: var(--text-dark); padding: 0 !important; margin: 0; font-family: var(--font-sans); font-size: 10.5px; line-height: 1.36; }
+.rng { white-space: nowrap; }
 .page { page-break-after: always; position: relative; height: 273mm; box-sizing: border-box; }   /* the printable height: the footer sits at the same place on both pages */
 .page:last-child { page-break-after: auto; }
 .mast { background: var(--primary-blue); color: white; padding: 12px 20px 11px; border-bottom: 4px solid var(--accent-gold); border-radius: var(--radius); display: flex; gap: 16px; align-items: center; }
 .mast img { width: 44px; height: 44px; border-radius: 10px; }
 .mast .eyebrow { color: var(--accent-gold); font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
 .mast h1 { margin: 2px 0; font-size: 22px; font-weight: 800; color: white; letter-spacing: -.2px; }
-.mast .sub { color: rgba(255,255,255,.78); font-size: 11.5px; }
+.mast .sub { color: rgba(255,255,255,.78); font-size: 11.5px; text-wrap: balance; }
 .mast .meta { color: rgba(255,255,255,.55); font-size: 9.5px; margin-top: 4px; }
 h2 { font-size: 13.5px; color: var(--primary-blue); margin: 9px 0 3px; font-weight: 800; }
 h2 .tag { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; padding: 1px 7px; border-radius: 8px; margin-left: 8px; vertical-align: 2px; }
@@ -146,7 +147,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <div class="meta">Prepared ${RENDERED} · the rules and every figure below are read from the same code that writes the proposal sheets, not typed</div></div></div>
 
   <div class="tiers">
-    <div class="tier"><b class="k">Hard limits</b>A design must meet these or it cannot be run. Three, and the ceiling of 219 contracted days a year, which is hard too.</div>
+    <div class="tier"><b class="k">Hard limits</b>A design must meet these or it cannot be run. Three, and the ceiling of ${DAYS_CEILING} contracted days a year, which is hard too.</div>
     <div class="tier"><b class="k">Soft rules</b>The December 2026 staffing rules. ${['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven'][RT.of]} of them, each met or not, and scored on every proposal sheet.</div>
     <div class="tier"><b class="k">Flexible rules</b>Three more aimed for when designing. Not scored on the proposal sheets; a presentation may mention them. Page 2.</div>
     <div class="tier"><b class="k">Fatigue factors</b>Patterns that tend to tire people. Advisory only: “present” means worth a look, never a breach.</div>
@@ -156,7 +157,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <div class="basics">
     <div><b>Opening hours.</b> The station opens at 06:20 (07:15 on a Sunday) and closes at 23:55 (23:25 on a Sunday). <b>No duty runs past 23:25 on a Sunday</b> — agreed practice, settled 28 Sep 2026 — although ${sunLate.length} Sunday trains move later, the last at ${clock(sunLate[sunLate.length - 1].t)}.</div>
     <div><b>The link.</b> ${LINES} lines worked in turn, one week each, Sunday to Saturday; a person on the last line moves to line 1; ${COVER_WEEKS} are cover weeks.</div>
-    <div><b>Cover week.</b> A line with no fixed shifts: four duties in the week, placed by the roster clerk to cover leave and sickness.</div>
+    <div><b>Cover week.</b> A line with no fixed shifts: four duties, Monday to Saturday, placed by the roster clerk to cover leave and sickness. Its Sunday can be worked as overtime on top, as any Sunday can (owner, 31 Oct 2026).</div>
     <div><b>Early and late.</b> A shift starting before 11:00 is an early; from 11:00 it is a late.</div>
     <div><b>The floor.</b> Everyone on duty except the four ticket-office staff, who are there for the office’s opening hours, not the trains. ${OFFICE_HELP_TEXT}.</div>
     <div><b>Today’s link.</b> The 20-line link worked now. It is the yardstick, not the target: it meets ${RT.met} of the ${RT.of} December rules.</div>
@@ -165,7 +166,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <h2>Hard limits <span class="tag hard">must be met</span></h2>
   <table class="t hard"><thead><tr><th>Limit</th><th>What it means</th><th>Today’s link</th></tr></thead><tbody>
     <tr><td><b>At least 12 hours between duties</b></td><td>From the end of one duty to the start of the next, anywhere in the rotation — Saturday into Sunday, and the last line into line 1, included.</td><td class="tt ${cls(TA.checks.turnarounds.length === 0)}">${mark(TA.checks.turnarounds.length === 0)} shortest ${todayRest !== null ? hm(todayRest) : '—'}</td></tr>
-    <tr><td><b>No more than ${MAX_CONSECUTIVE_WORKED_DAYS} days worked in a row</b></td><td>Chiltern’s limit, taken at its worst case: a cover week’s four duties placed as badly as they can be. The written source of the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit is still to be confirmed.</td><td class="tt ${cls(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)}">${mark(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)} longest ${TA.checks.longestStretch} days</td></tr>
+    <tr><td><b>No more than ${MAX_CONSECUTIVE_WORKED_DAYS} days worked in a row</b></td><td>Chiltern’s limit, taken at its worst case: a cover week’s four duties placed as badly as they can be, and its Sunday worked as overtime. The written source of the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit is still to be confirmed.</td><td class="tt ${cls(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)}">${mark(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)} longest ${TA.checks.longestStretch} days</td></tr>
     <tr><td><b>The contracted week, exactly</b></td><td>35 hours a week on average, Monday to Saturday, across every line of the link; a cover week counts as a contracted week. Sunday duties are paid on top as rest-day working, as they are today. Individual weeks may be longer or shorter; only the average is the contract.</td><td class="tt ${cls(todayContract)}">${mark(todayContract)} ${todayContract ? 'exactly 35h' : 'not 35h'}</td></tr>
     <tr><td><b>No more than ${DAYS_CEILING} contracted days a year</b></td><td>Today’s figure as a ceiling (set 1 Oct 2026): Monday to Saturday, a cover week as four days. At ${LINES} lines it allows ${Math.floor(DAYS_CEILING * LINES * 7 / 365 - 4 * COVER_WEEKS)} Monday-to-Saturday duties at most.</td><td class="tt ${cls(daysAYear(T0.patterns) <= DAYS_CEILING + 1e-9)}">${mark(daysAYear(T0.patterns) <= DAYS_CEILING + 1e-9)} ${daysAYear(T0.patterns).toFixed(1)}</td></tr>
   </tbody></table>
@@ -180,7 +181,7 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 
 <section class="page">
   <div class="mast"><div><div class="eyebrow">The rules · continued</div><h1>Flexible rules, fatigue factors and open questions</h1>
-  <div class="sub">The rules designs aim for but are not scored on, the advisory list, what is for staff to say rather than the rules, and the questions not yet settled</div></div></div>
+  <div class="sub">The rules designs aim for but are not scored on, the advisory list, the preferences, and the questions not yet settled</div></div></div>
 
   <h2>Flexible rules <span class="tag flex">aimed for, not scored</span></h2>
   <p class="lead">Aimed for when designing, and checked by the searches and solvers. They are <b>not scored on the proposal sheets</b>: a proposal that misses one can still be put forward, and a presentation may say which it meets.</p>
@@ -189,9 +190,10 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <h2>Fatigue factors <span class="tag adv">advisory</span></h2>
   <p>${FZ.length} roster patterns that tend to tire people: ${FZ.filter(r => r.code !== 'MRSF').length} from the Office of Rail and Road’s good-practice guidance, <i>Fatigue Factors</i> (page 3, December 2021), and ${FZ.filter(r => r.code === 'MRSF').length} extra checks from the rail industry’s fatigue guidance (MRSF). The ORR says they are guidance, not limits. So a factor present is a question to discuss, never a pass or a fail, and a design showing none is not thereby approved.</p>
   <table class="t ff"><thead><tr><th>Code</th><th>Factor</th><th>Kind</th><th class="num">Today’s link</th></tr></thead><tbody>${ffRows}</tbody></table>
-  <p class="muted" style="font-size:9px"><b>Not applicable.</b> ${na.length} more factors apply to no rotation here: ${naNight.length} about night shifts (${andList(naNight.map(r => r.code))}), because CEAs do not work nights; ${naOther.map(naWhy).join('; and ')}. <b>“Every link”</b> marks a standing factor — one that comes with the station’s hours or with any weekly link, not with a design’s choices: FF2 because the station opens at 06:20, and FF18 because a weekly link changes shift type about once a week (the ORR prefers two-day or three-week rotation, <i>Managing rail staff fatigue</i> 7.68). <b>Standing factors are recorded on every sheet for information and are not counted</b> in any design’s fatigue findings, since no weekly design can remove them. The <b>early</b> in FF2 and FF15 is the ORR’s — a start from 05:00 to 06:59, since 07:00 is a day shift (Managing Rail Staff Fatigue, Appendix E) — not the 11:00 used everywhere else. The last column is today’s link, on its fixed duties — the cover weeks left out, as on every sheet; “up to” is the worst place a cover week’s four duties could fall.</p>
+  <p class="muted" style="font-size:9px"><b>Not applicable.</b> ${na.length} more factors apply to no rotation here: ${naNight.length} about night shifts (${andList(naNight.map(r => r.code))}), because CEAs do not work nights; ${naOther.map(naWhy).join('; and ')}. <b>“Every link”</b> marks a standing factor — one that comes with the station’s hours or with any weekly link, not with a design’s choices: FF2 because the station opens at 06:20, and FF18 because a weekly link changes shift type about once a week (the ORR prefers two-day or three-week rotation, <i>Managing rail staff fatigue</i> 7.68). <b>Standing factors are recorded on every sheet for information and are not counted</b> in any design’s fatigue findings, since no weekly design can remove them. The <b>early</b> in FF2 and FF15 is the ORR’s — a start from 05:00 to 06:59, since 07:00 is a day shift (Managing Rail Staff Fatigue, Appendix E) — not the 11:00 used everywhere else. The last column is today’s link, on its fixed duties — the cover weeks left out, as on every sheet; “up to” is the worst place a cover week’s four duties could fall, its Sunday worked as overtime.</p>
 
-  <h2>Preferences <span class="tag adv">for staff to say, not the app</span></h2>
+  <h2>Preferences <span class="tag adv">not scored</span></h2>
+  <p class="lead">Not rules, and not scored. The first two and the last are gains, so a proposal sheet marks a design green where it beats today’s link on them; how much each matters is for staff to say.</p>
   <ul class="list">
     <li><b>Days in a row.</b> The Links designer aims for six or fewer, well inside the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit.</li>
     <li><b>Full weekends off</b> — a Saturday off followed by a Sunday off at the start of the next line. Today’s link gives ${TA.checks.weekendsOff} in 20.</li>
@@ -217,8 +219,10 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 </body></html>`;
 
 const htmlOut = new URL('December-2026-Rules.html', import.meta.url).pathname;
-// a label never ends on a lone word: the last space of a plain-text cell becomes a no-break space
-const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace(/ (\S+)$/, '\u00a0$1')}</td>`);
+// a label never ends on a lone word: the last space of a plain-text cell becomes a no-break space; and a clock range is one
+// unit, as on the proposal sheets (plain.mjs, which says why it is a span): text only, never in the stylesheet or title
+const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace(/ (\S+)$/, '\u00a0$1')}</td>`)
+    .replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (m, keep, txt) => keep ?? txt.replace(/\b\d\d:\d\d–\d\d:\d\d\b/g, '<span class="rng">$&</span>'));   // the brackets looked at, not taken: plain.mjs says why
 writeFileSync(htmlOut, tidy(html));
 const b = await chromium.launch(); const pg = await b.newPage();
 await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);

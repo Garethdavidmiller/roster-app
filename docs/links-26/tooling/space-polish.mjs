@@ -16,7 +16,8 @@
 //   REST_MIN (minutes) · ONE_MIN · WKENDS_MIN · HEAVY_MAX (hours) · STEP_MAX (minutes) · ISO_MAX · GAP_MAX · BAD_MAX (0)
 //   MIXED_MAX (weeks with earlies and lates) · LEAVE_WORST_MIN (leave.mjs: days off from 14 days' leave, worst place)
 //   LEAVE_BEST_MIN · LEAVE_FOUR_MAX (the best place, and the leave four full weeks off costs) · FIXED_RUN_MAX (the longest run
-//   in the fixed duties alone) — off unless set
+//   in the fixed duties alone) · FACTORS_LIKE (a grid whose every fatigue factor value is matched or beaten) · REST_SLOPE
+//   (every rest under REST_MIN costs, not only the tightest) — off unless set
 //   GAP_W, ISO_W, MIX_W: how hard to push the weekend gap, the single rest days and the mixed weeks down, beyond their floors.
 // The weekend gap is the sheet's own measure (plain.mjs: weeks from one full weekend to the next, round the wheel).
 // With cover weeks at 1, 6, 11, 16 and 21 only 16 weeks can START a full weekend, and the closest seven of those can be
@@ -25,7 +26,7 @@
 // it starts from come from anneal.mjs with its spacing terms (GAP_W, ISO_X, DAYS_X, HEAVY_W) switched on.
 //   [floors] node space-polish.mjs <start.json> <out.json> <seed> <iterations>
 import { readFileSync, writeFileSync } from 'node:fs';
-import { runDesignChecks, DAYS } from '../../../links-design.js';
+import { runDesignChecks, DAYS, startMinutes, endMinutesAbs } from '../../../links-design.js';
 import { assessFatigue } from '../../../links-fatigue.js';
 import { scoreOrder } from '../../../links-adjacency.js';
 import { feel, dutyMinutes, tightestRest } from './report-data.mjs';
@@ -43,6 +44,27 @@ export function weekendGaps(q) {
   return at.map((k, i) => i < at.length - 1 ? at[i + 1] - k : at[0] + L - k);
 }
 const RUN_MAX = Number(process.env.RUN_MAX ?? 6);   // see the note beside LOCK_REST
+// FACTORS_LIKE=<grid.json> (26 Oct 2026, the today's-times designs — owner: "match or improve on the fatigue factors in
+// short run"): every fatigue factor's VALUE no worse than that grid's, in both views the sheets print — the fixed duties
+// (a cover day read as a day off) and the worst case. A factor present is refused already; this holds the clear ones too
+// (the longest run without a 48-hour break, the most hours in any seven days, backward against forward steps — FF17 is
+// compared as backward minus forward), as a cost while searching and a floor on what is kept. Off unless set, so every
+// earlier chain rebuilds exactly.
+const fixedOf = q => Object.fromEntries(Object.entries(q).map(([k, r]) => [k, Object.fromEntries(DAYS.map(d => [d, r[d] === 'SPARE' ? 'RD' : r[d]]))]));
+const factorNums = res => Object.fromEntries(res.map(r => { const v = r.code === 'FF17' ? (([b, f]) => b - f)(String(r.value).match(/\d+/g)?.map(Number) ?? [0, 0]) : Number(r.value);
+  return [`${r.code}|${r.title}`, Number.isFinite(v) ? v : null]; }));
+const LIKE = process.env.FACTORS_LIKE ? (q => ({ worst: factorNums(assessFatigue(q, L).results), fixed: factorNums(assessFatigue(fixedOf(q), L).results) }))(load(process.env.FACTORS_LIKE)) : null;
+const factorOver = (q, worst) => { if (!LIKE) return 0; let over = 0; const w = factorNums(worst.results), x = factorNums(assessFatigue(fixedOf(q), L).results);
+  for (const [view, got] of [['worst', w], ['fixed', x]]) for (const [k, ref] of Object.entries(LIKE[view])) if (ref !== null && got[k] != null && got[k] > ref) over += got[k] - ref;
+  return over; };
+// REST_SLOPE=1 (26 Oct 2026, Both Ways): the rest shortfall counts EVERY gap under REST_MIN, not only the tightest. With
+// six gaps of 14h 05m against a 14h 20m floor, mending five of them scored nothing, so no search could climb to the floor
+// one swap at a time. Off unless set, so every earlier chain rebuilds exactly.
+const REST_SLOPE = process.env.REST_SLOPE === '1';
+const restsUnder = (q, cap) => { const out = [], seq = []; for (let k = 1; k <= L; k++) for (const d of DAYS) seq.push(q[String(k)][d]);
+  for (let t = 0; t < seq.length; t++) { const end = endMinutesAbs(seq[t]), start = startMinutes(seq[(t + 1) % seq.length]); if (end === null || start === null) continue;
+    const rest = 24 * 60 - end + start; if (rest < cap) out.push(rest); }
+  return out; };
 function measure(q) {
   const c = runDesignChecks(q, L); if (c.turnarounds.length || c.longestStretch > RUN_MAX) return null;
   // FATIGUE_SOFT=1: a fatigue factor present is a cost while searching and a floor on what is kept (never kept), so a
@@ -51,14 +73,14 @@ function measure(q) {
   // the SIZE of what is present, for the soft mode: `present` counts factors, so three FF19 jumps cost the same as one
   // and a run could never climb down to none — summing each present factor's value gives it a slope (2 Oct 2026)
   const fatSum = f.results.filter(r => r.status === 'present').reduce((a, r) => a + (Number(r.value) || 1), 0);
-  const rest = tightestRest(q, L)?.minutes ?? 9999;
+  const rest = tightestRest(q, L)?.minutes ?? 9999, restGaps = REST_SLOPE ? restsUnder(q, 24 * 60) : null;
   const fe = feel(q, L), a = scoreOrder(q, KEYS, { maxRunTarget: 6 });
   const wk = WORK.map(k => ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'].reduce((s, d) => s + (timed(q[k][d]) ? dutyMinutes(q[k][d]) : 0), 0) / 60);
   const badDays = WORK.filter(k => { const n = DAYS.filter(d => q[k][d] !== 'RD').length; return n < 4 || n > 5; }).length;
   // the longest run in the FIXED duties alone (a cover week breaks it), for FIXED_RUN_MAX (3 Oct 2026, off by default)
   let fixedRun = 0; { const seq = []; for (let k = 1; k <= L; k++) for (const d of DAYS) seq.push(timed(q[String(k)][d])); let run = 0; for (let i = 0; i < seq.length * 2; i++) { run = seq[i % seq.length] ? run + 1 : 0; if (run > fixedRun) fixedRun = run; } fixedRun = Math.min(fixedRun, seq.length); }
   const gaps = weekendGaps(q);
-  return { present: f.present, fatSum, rest, fixedRun, wkends: c.weekendsOff, gaps, maxGap: gaps.length ? Math.max(...gaps) : 99, spread: gaps.reduce((s, g) => s + g * g, 0),
+  return { present: f.present, fatSum, likeOver: factorOver(q, f), rest, restGaps, fixedRun, wkends: c.weekendsOff, gaps, maxGap: gaps.length ? Math.max(...gaps) : 99, spread: gaps.reduce((s, g) => s + g * g, 0),
     iso: fe.isolatedRest, one: fe.oneTurn, mixed: fe.hybrid, ...(lv => ({ leaveWorst: lv.worst, leaveBest: lv.best, leaveFour: lv.fourWeeks }))(leave(q)), heavy: Math.max(...wk), light: Math.min(...wk), badDays, step: a.gentleMean, block: a.longestBlock };
 }
 const S0 = measure(p);
@@ -85,19 +107,21 @@ const LOCK_REST = process.env.LOCK_REST === '1';
 // can be — 7 lets the owner weigh 'up to 7 if a cover week falls badly' (today: up to 9) against fewer single rest days
 const keeps = m => !m.present && m.rest >= F.restMin && m.one >= F.oneMin && m.wkends >= F.wkendsMin && m.heavy <= F.heavyMax + 1e-9
   && m.step <= F.stepMax && m.iso <= F.isoMax && m.maxGap <= F.gapMax && m.badDays <= F.badMax && m.mixed <= F.mixedMax && m.leaveWorst >= F.leaveMin
-  && m.leaveBest >= F.leaveBestMin && m.leaveFour <= F.leaveFourMax && m.fixedRun <= F.fixedRunMax;
+  && m.leaveBest >= F.leaveBestMin && m.leaveFour <= F.leaveFourMax && m.fixedRun <= F.fixedRunMax && m.likeOver <= 1e-9;
 const misses = m => [['fatigue', m.present > 0], ['rest', m.rest < F.restMin], ['one-turn', m.one < F.oneMin], ['weekends', m.wkends < F.wkendsMin],
   ['heaviest', m.heavy > F.heavyMax + 1e-9], ['step', m.step > F.stepMax], ['single rest days', m.iso > F.isoMax],
   ['gap', m.maxGap > F.gapMax], ['3/6-day weeks', m.badDays > F.badMax], ['mixed weeks', m.mixed > F.mixedMax], ['leave worst', m.leaveWorst < F.leaveMin],
-  ['leave best', m.leaveBest < F.leaveBestMin], ['leave four weeks', m.leaveFour > F.leaveFourMax], ['fixed run', m.fixedRun > F.fixedRunMax]].filter(([, x]) => x).map(([k]) => k);
+  ['leave best', m.leaveBest < F.leaveBestMin], ['leave four weeks', m.leaveFour > F.leaveFourMax], ['fixed run', m.fixedRun > F.fixedRunMax],
+  ['factor values', m.likeOver > 1e-9]].filter(([, x]) => x).map(([k]) => k);
 let closest = null;   // the rota missing the fewest floors, so a run that keeps nothing still says what stood in its way
 const score = m => {
   if (!m || m.block > S0.block) return null;
-  const short = 3e5 * m.present + 2e4 * m.fatSum + 5e3 * Math.max(0, F.restMin - m.rest) + 2e5 * Math.max(0, F.oneMin - m.one) + 1e6 * Math.max(0, F.wkendsMin - m.wkends)
+  const short = 3e5 * m.present + 2e4 * m.fatSum + 5e3 * (REST_SLOPE ? m.restGaps.reduce((a, g) => a + Math.max(0, F.restMin - g), 0) : Math.max(0, F.restMin - m.rest)) + 2e5 * Math.max(0, F.oneMin - m.one) + 1e6 * Math.max(0, F.wkendsMin - m.wkends)
     + 2e5 * Math.max(0, m.heavy - F.heavyMax) + 2e3 * Math.max(0, m.step - F.stepMax) + 2e5 * Math.max(0, m.iso - F.isoMax)
     + 2e5 * Math.max(0, m.maxGap - F.gapMax) + 3e5 * Math.max(0, m.badDays - F.badMax)
     + 1e5 * Math.max(0, m.mixed - F.mixedMax) + 1e5 * Math.max(0, F.leaveMin - m.leaveWorst)
-    + 1e5 * Math.max(0, F.leaveBestMin - m.leaveBest) + 1e5 * Math.max(0, m.leaveFour - F.leaveFourMax) + 2e5 * Math.max(0, m.fixedRun - F.fixedRunMax);
+    + 1e5 * Math.max(0, F.leaveBestMin - m.leaveBest) + 1e5 * Math.max(0, m.leaveFour - F.leaveFourMax) + 2e5 * Math.max(0, m.fixedRun - F.fixedRunMax)
+    + 2e5 * m.likeOver;
   return short
     + GAP_W * m.maxGap + 2e3 * m.spread                       // 6: spread the weekends
     + ISO_W * m.iso + MIX_W * m.mixed                         // 7: single rest days (and mixed weeks, when asked)
@@ -116,7 +140,7 @@ for (let i = 0; i < ITERS; i++) {
     const ms = misses(m).length; if (!closest || ms < closest.n || (ms === closest.n && s < closest.s)) closest = { m, s, n: ms, p: structuredClone(p) }; }
   else undo();
 }
-const r = m => `run ${m.fixedRun} · mixed ${m.mixed} · leave ${m.leaveBest}/${m.leaveWorst}/${m.leaveFour} · weekends ${m.wkends} · max gap ${m.maxGap} (${m.gaps.join(' ')}) · single rest days ${m.iso} · one-turn ${m.one} · heaviest ${m.heavy.toFixed(2)}h · lightest ${m.light.toFixed(2)}h · rest ${m.rest} · step ${m.step}`;
+const r = m => `run ${m.fixedRun} · mixed ${m.mixed} · leave ${m.leaveBest}/${m.leaveWorst}/${m.leaveFour} · weekends ${m.wkends} · max gap ${m.maxGap} (${m.gaps.join(' ')}) · single rest days ${m.iso} · one-turn ${m.one} · heaviest ${m.heavy.toFixed(2)}h · lightest ${m.light.toFixed(2)}h · rest ${m.rest} · step ${m.step}${LIKE ? ` · factor values over ${+m.likeOver.toFixed(2)}` : ''}`;
 console.log(`start  ${r(S0)}\n${best ? `best   ${r(best.m)}` : `NONE kept — closest missed ${misses(closest.m).join(', ')}: ${r(closest.m)}`}`);
 // With nothing kept, the closest rota is written beside OUT (<out>.closest.json) so a rerun can polish on from it with
 // the floor it missed set where it landed; the run still exits 1, so a pipeline never mistakes it for a kept result.

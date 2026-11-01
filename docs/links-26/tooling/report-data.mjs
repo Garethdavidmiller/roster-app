@@ -2,7 +2,7 @@
 import { LINES, COVER_WEEKS, COVER_LINES, DAYS_CEILING, daysAYear, coverSpread } from './link.mjs';
 import { readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { asRosteredRuns, materialise, coverLines, BLOCK_PLACEMENTS } from './cover-placement.mjs';
+import { asRosteredRuns, materialise, coverLines, placementCombos } from './cover-placement.mjs';
 import { runDesignChecks, weeklyHours, lineTotals, calcHourlyCoverage, classifyShift, startMinutes, endMinutes, endMinutesAbs, dutyMinutes, DAYS, hmFromHours } from '../../../links-design.js';
 import { assessFatigue, maxHoursInAny7Days, toSequence } from '../../../links-fatigue.js';
 import { assessHardLimits, MAX_CONSECUTIVE_WORKED_DAYS } from '../../../links-limits.js';
@@ -235,7 +235,7 @@ const hmm = m => `${Math.floor(m/60)}h ${String(m%60).padStart(2,'0')}m`;
  *  · HARD limits — 12 hours' rest, 13 days in a row, the exact contract. Met, or the rota cannot be run.
  *  · SOFT rules — the nine December 2026 staffing rules (sheetRules). Each met or not, and stated and scored on every
  *    proposal sheet, the summary and the rules sheet.
- *  · FLEXIBLE rules — fourteen on a Saturday, four evenly spread cover weeks, a 15:45 start for every weekday closer
+ *  · FLEXIBLE rules — fourteen on a Saturday, five cover weeks as evenly spread as 26 allow, a 15:45 start for every weekday closer
  *    (flexibleRules). "They should stay in the background": every search, solver and judge designs to them (they stay
  *    in currentRules, which all eleven are), a PRESENTATION may mention them, and a PROPOSAL SHEET never does. The
  *    rules sheet names them as their own tier.
@@ -315,7 +315,10 @@ export function currentRules(P, T, model = 'plan') {
     // (coverSpread, link.mjs). Today's 20-line link, with four, does not meet it — as it did not meet the 24-line rule.
     { key: 'cover', rule: `${['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][COVER_WEEKS]} cover weeks, as evenly spread as possible`, value: `lines ${P.feel.spareLines.join(', ')}`, ok: P.feel.spareLines.length === COVER_WEEKS && coverSpread(P.patterns).even, note: `as even as ${LINES} lines allow: gaps differing by one line at most, e.g. ${COVER_LINES.join(', ')}` },
     { key: 'office', rule: 'The ticket office: two early and two late, identical shifts, every day', value: `Mon–Fri ${wkPairs ? 'yes' : 'no'} · Sat ${satPairs ? 'yes' : 'no'} · Sun ${sunPairs ? 'yes' : 'no'}`, ok: wkPairs && satPairs && sunPairs, note: 'Mon–Fri 06:20–14:20 and 14:00–22:30; Sat 06:20–14:50 and 14:30–22:00; Sun two from 07:15 and two to 22:30' },
-    { key: 'closer', rule: 'Every weekday closer starts at 15:45', value: closerStarts.length ? `closers start at ${andList(closerStarts)}` : 'no weekday closer', ok: wkClosers.length > 0 && wkClosers.every(s => s === '15:45-23:55'), note: '' },
+    // 15:45 IS THE MINIMUM, ON A WEEKDAY ONLY (owner, 31 Oct 2026: "1530 closer is not a big enough change from 1515. 1545
+    // is the minimum" — "Only for weekdays"). It read "starts at 15:45" and accepted exactly that, so the 16:00 closers the
+    // 26 Oct brief asked for ("whether it is 1545 or 1600 doesn't matter", 30 Oct) failed a rule they meet.
+    { key: 'closer', rule: 'Every weekday closer starts at 15:45 or later', value: closerStarts.length ? `closers start at ${andList(closerStarts)}` : 'no weekday closer', ok: wkClosers.length > 0 && wkClosers.every(s => startMinutes(s) >= 15 * 60 + 45), note: '' },
     { key: 'floor', rule: 'At least two on the floor at every moment', value: `fewest ${wkFloor} · ${fm.sat} · ${fm.sun}${floorWhen ? ` — first at ${floorWhen}` : ''}`, ok: ALL.every(d => fm[d] >= 2), note: namedAll ? 'the ticket office counts only while its staff are on the floor — at the quiet ends and once the office has closed, as this design runs it; checked every five minutes' : 'the ticket office counts only while its staff help on the floor — Mon–Sat one of each pair until 08:00 and from 19:30; on a Sunday one early until 09:00, both lates until 15:00 and one from 18:00; checked every five minutes' },
     { key: 'handover', rule: 'Handovers: 15 minutes to each closer, 20 in the ticket office (30 on a Sunday)', value: `floor ${floorHand ? 'met' : 'not met'} · ticket office ${Math.min(...overlaps)} min${assumedDays && model === 'plan' ? ` (${assumedDays === 7 ? 'posts' : `posts on ${assumedDays} day${assumedDays === 1 ? '' : 's'}`} assumed)` : ''}`, ok: floorHand && ALL.every(d => hv[d].overlap >= hv[d].need), note: namedAll ? 'the ticket office overlap is from its first late arriving to its last early leaving, as this design runs it; on a Sunday each opener also stays until 15 minutes after the last closer arrives' : 'the Sunday office handover runs from 15:00, when the lates join it; on a Sunday each opener also stays until 15 minutes after the last closer arrives; where the design does not roster the office pairs, the plan’s posts are assumed' },
     { key: 'sunlen', rule: 'Sunday duties between 8h and 9h', value: sunLens.length ? `${hmm(Math.min(...sunLens))}–${hmm(Math.max(...sunLens))}` : '—', ok: sunLens.length > 0 && sunLens.every(m => m >= 480 && m <= 540), note: 'every Sunday duty, start to finish' },
@@ -328,12 +331,14 @@ export function currentRules(P, T, model = 'plan') {
 // folder is 20 lines except today's link, and a caller can say otherwise.
 // THE 55-HOUR ROW AT ITS WORST (accuracy check, 1 Oct 2026): the app counts a cover week's days as no hours, so its
 // figure is a floor. Filled in as four 8-hour duties in every block placement it can cross 55; fresh.mjs states the range
-// on the sheet, and the summary's "up to" adds the row when it would. One function, so the two cannot disagree.
+// on the sheet, and the summary's "up to" adds the row when it would. One function, so the two cannot disagree — and
+// fresh.mjs calls it rather than keeping its own copy (31 Oct 2026). The top of the range works each cover week's Sunday
+// as an 8-hour overtime duty too, the bottom leaves it off (cover-placement.mjs says why that is exact).
 export function h55Worst(p, lines) {
   const table = assessFatigue(p, lines).results.find(r => r.code === 'MRSF' && /55 hours/.test(r.title))?.value; const n = coverLines(p, lines).length;
-  let acc = [[]]; for (let i = 0; i < n; i++) acc = acc.flatMap(c => BLOCK_PLACEMENTS.map((_, j) => [...c, j]));
-  const v = acc.map(c => maxHoursInAny7Days(toSequence(materialise(p, lines, c, '09:00-17:00'), lines)));
-  return table == null ? null : { table, lo: Math.min(...v), hi: Math.max(...v), adds: Math.max(...v) > 55 && table <= 55 };
+  const v = sunday => placementCombos(n).map(c => maxHoursInAny7Days(toSequence(materialise(p, lines, c, '09:00-17:00', sunday), lines)));
+  const lo = Math.min(...v(false)), hi = Math.max(...v(true));
+  return table == null ? null : { table, lo, hi, adds: hi > 55 && table <= 55 };
 }
 // THE FIXED DUTIES (owner, 1 Oct 2026: "you were highlighting worst case on cover-week placement for days in a row — now
 // you are just doing worst possible with cover week. Isn't that misleading?"). A cover week is four duties the roster

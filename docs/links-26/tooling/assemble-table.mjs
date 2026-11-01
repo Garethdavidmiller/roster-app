@@ -1,5 +1,6 @@
-// Assemble a December duty TABLE from three placed days, in the shape eight-forty-table.json has, so that
-// anneal.mjs (variant G) and final.mjs (family B2) read it exactly as they read Eight Forty's.
+// Assemble a December duty TABLE from three placed days, in the shape the 24-line eight-forty-table.json has, so that
+// anneal.mjs (variant G) reads it exactly as it read Eight Forty's. (eight-forty-table.json, final.mjs and
+// place-structures.mjs are the 24-line tooling's, in ../../links-24/tooling/; they were not copied here.)
 //
 //   node assemble-table.mjs <out.json> <weekday.json> <sat.json> <sun.json>
 //

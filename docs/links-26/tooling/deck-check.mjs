@@ -16,7 +16,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { assess, folderStats, today, sheetRules, h55Worst, endMinutes, startMinutes } from './report-data.mjs';
-import { personal } from './plain.mjs';
+import { personal, weekendGap } from './plain.mjs';
 import { LINES } from './link.mjs';
 import { leave } from './leave.mjs';
 import { kindBlocks } from './blocks.mjs';
@@ -24,8 +24,11 @@ import { scoreOrder } from '../../../links-adjacency.js';
 
 const DIR = process.env.DECK_DIR ?? new URL('../presentations/', import.meta.url).pathname;   // DECK_DIR: check a copy
 // Only the shortlist's decks are shipped (owner, 3 Oct 2026): Second Nature's, Second Wind's and Second Sight's were deleted.
-const DECKS = [['Second-Edition-for-colleagues.pptx', 'Second Edition'], ['Second-Edition-for-managers.pptx', 'Second Edition'],
-  ['Even-Keel-for-colleagues.pptx', 'Even Keel'], ['Even-Keel-for-managers.pptx', 'Even Keel'],
+// The shortlist became In Step and Short Run on 30 Oct 2026 (owner: "Only do the shortlist for instep and short run"), and
+// Second Edition's, Even Keel's and Closing Time's decks went the same way; their builders are in git. Even Step joined it on
+// 31 Oct 2026, recommended (owner: "Yes, keep all three").
+const DECKS = [['Even-Step-for-colleagues.pptx', 'Even Step'], ['Even-Step-for-managers.pptx', 'Even Step'],
+  ['In-Step-for-colleagues.pptx', 'In Step'], ['In-Step-for-managers.pptx', 'In Step'],
   ['Short-Run-for-colleagues.pptx', 'Short Run'], ['Short-Run-for-managers.pptx', 'Short Run']];
 
 const hm = m => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}m`;
@@ -41,7 +44,7 @@ function figures(patterns, lines, T) {
   const A = assess(patterns, lines), pp = personal(patterns), tA = T ?? A;
   const R = sheetRules({ patterns, ...A }, tA, lines === 20 ? 'today' : 'plan');
   const fl = /fewest (\d+) · (\d+) · (\d+)/.exec(R.rows.find(r => r.key === 'floor').value).slice(1).map(Number);
-  const worstFF = A.fatigue.present + (h55Worst(patterns, lines)?.adds ? 1 : 0);
+  const h55 = h55Worst(patterns, lines), worstFF = A.fatigue.present + (h55?.adds ? 1 : 0);
   let fin22 = 0, dx = 0;
   for (const r of Object.values(patterns)) for (const d of DAYS) { const s = r[d]; if (!timed(s)) continue; if (endMinutes(s) >= 22 * 60) fin22++; if (d !== 'sun') dx++; }
   const cover = pp.cover, L = pp.L, dpw = (dx + 4 * cover) / L;
@@ -59,20 +62,29 @@ function figures(patterns, lines, T) {
     weekends: `${A.checks.weekendsOff} in ${L} (one in ${WORD[Math.round(L / A.checks.weekendsOff)] ?? Math.round(L / A.checks.weekendsOff)})`,
     weekendsShort: `${A.checks.weekendsOff} in ${L}`, weekendsYear: `${Math.round(A.checks.weekendsOff * 52 / L)}`,   // per year, the owner's 2 Oct ruling for the sheets, now the decks too
     heavy: hm(Math.max(...wkMins)), light: hm(Math.min(...wkMins)), fitWk: A.office.wkFit.toFixed(1),
+    // the Saturday and Sunday fit, as the manager deck's chart plots them (30 Oct 2026, In Step: its "closest fit" is the
+    // three days' together, which the weekday figure alone cannot show — Short Run's weekday is closer)
+    fitSat: A.office.fits.sat.toFixed(1), fitSun: A.office.fits.sun.toFixed(1),
     longestEarly: hm(Math.max(...Object.values(patterns).flatMap(r => DAYS.map(d => r[d]).filter(s => timed(s) && startMinutes(s) < 11 * 60).map(s => (endMinutes(s) - startMinutes(s) + 1440) % 1440)))),
     sunHours: hm(Object.values(patterns).reduce((s, r) => s + (timed(r.sun) ? (endMinutes(r.sun) - startMinutes(r.sun) + 1440) % 1440 : 0), 0)),
     run: up(A.fixed.run, A.checks.longestStretch), ff: up(A.fixed.present, worstFF),
+    // the 55-hour week a cover week can make, when that is what the "up to" in `ff` counts (31 Oct 2026) — for the notes
+    h55: h55?.adds ? h55.hi.toFixed(1) : '',
     times: T ? `${A.feel.distinctTimes} (${shared} you know)` : `${A.feel.distinctTimes}`,
     daily: trio(A.daily), dailyWk: wk(A.daily), dailyWeekend: `${A.daily.sat} / ${A.daily.sun}`,
     open: trio(A.heads.open), at22: trio(A.heads.at22), close: trio(A.heads.close),
     floor: fl.join(' · '), floorMin: `${Math.min(...fl)}`,
-    cover: `${cover} in ${L} (1 in ${+(L / cover).toFixed(1)})`, sundayPeople: `${A.daily.sun}`,
+    cover: `${cover} of ${L} (${Math.round(100 * cover / L)}%)`,   // the share of the link, "5 of 26 (19%)", not "1 in 5.2" (managers' review, 1 Nov 2026)
+    sundayPeople: `${A.daily.sun}`,
     breaks: `${A.feel.pairedRest} of ${A.feel.restIslands}`, oneTurn: `${A.feel.oneTurn} of ${A.feel.workingLines}`,
     ...(b => ({ block: `${b.fixed}`, blockUpTo: `${b.worst}` }))(kindBlocks(patterns)),
     // 26 lines: the leave figures, from leave.mjs (the 24-line decks' model, reproduced and checked there)
     ...(lv => ({ leaveBest: `${lv.best}`, leaveAvg: lv.avg.toFixed(1), leaveWorst: `${lv.worst}`, leaveFour: `${lv.fourWeeks}` }))(leave(patterns)),
     // the week-to-week step: the average change in a week's mean start time (plain.mjs's definition; the shortlist's figure)
     step: hm(scoreOrder(patterns, Object.keys(patterns), { maxRunTarget: 6 }).gentleMean),
+    // what deck-polish.py's "all four shortlisted" lines rest on (30 Oct 2026 review): the rules met, and the longest wait
+    // between full weekends, each the sheets' own figure
+    met: `${R.met}`, weekendGap: `${weekendGap(patterns)}`,
   };
 }
 
@@ -82,16 +94,16 @@ const ROWS = {
   'Contracted days at work a year': 'daysYear', 'Saturdays a year, at time and a quarter': 'sat',
   'Sunday overtime to share — each, a year': 'sun', 'Finishing at 23:00 or later — each, a year': 'late23',
   'Finishing at 22:00 or later — each, a year': 'late22', 'Starting at 06:20 — each, a year': 'open0620',
-  'Shortest gap between two shifts': 'rest', 'Shortest rest between shifts (limit 12h)': 'rest', 'Longest shift': 'longest',
+  'Shortest gap between two shifts': 'rest', 'Shortest rest between shifts (limit 12h)': 'rest', 'Longest shift, any day': 'longest',
   'Average shift · longest shift': 'avgLongest', 'Closing shift: weekday · Saturday · Sunday': 'closers',
   'Full weekends off': ['weekends', 'weekendsShort'], 'Full weekends off, about a year': 'weekendsYear', 'Most days worked in a row': 'run', 'Most days in a row (limit 13)': 'run', 'Most days in a row (limit 13, source to confirm)': 'run',
-  'Avoidable fatigue warnings in the fixed rota': 'ff', 'Avoidable fatigue warnings, fixed rota': 'ff',
-  'Different shift times': 'times', 'On duty weekday · Saturday · Sunday': 'daily', 'On duty during the day': 'daily',
+  'Avoidable fatigue warnings, cover weeks aside': 'ff',
+  'Different shift times': 'times', 'On duty weekday · Saturday · Sunday': 'daily', 'On duty each day (Sunday: at least 10)': 'daily',
   'On duty on a weekday': 'dailyWk', 'On duty on a Saturday / Sunday': 'dailyWeekend',
-  'At the open (06:20, Sunday 07:15)': 'open', 'Still on after 22:00': 'at22', 'Through to the close': 'close',
-  'Fewest rostered on the floor': ['floor', 'floorMin'], 'Cover weeks (for leave and sickness)': 'cover',
+  'At the open, at least 4 (06:20, Sun 07:15)': 'open', 'Still on duty at 22:00, at least 5': 'at22', 'Through to the close, at least 3': 'close',
+  'Fewest rostered on the floor': ['floor', 'floorMin'], 'Fewest on the floor at any time, at least 2': ['floor', 'floorMin'], 'Cover weeks (for leave and sickness)': 'cover',
   'People needed each Sunday (overtime)': 'sundayPeople', 'Rest-day breaks of two days or more': 'breaks',
-  'Weeks on one turn, Monday to Friday': 'oneTurn', 'Weeks on one turn, no early–late switch': 'oneTurn', 'Longest shift anywhere': 'longest', 'Average shift': 'avg',
+  'Weeks on one turn, Monday to Friday': 'oneTurn', 'Weeks on one shift time, Monday to Friday': 'oneTurn', 'Longest shift anywhere': 'longest', 'Average shift': 'avg',
   'Days off in a row — best place to book': 'leaveBest', 'Days off in a row — on average': 'leaveAvg',
   'Days off in a row — worst place': 'leaveWorst', 'Leave for four full weeks off, at best': 'leaveFour',
 };

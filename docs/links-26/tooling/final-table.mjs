@@ -71,7 +71,7 @@ const mm = t => +t.slice(0, 2) * 60 + +t.slice(3);
 const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 const WIN = { weekday: [380, 1435], sat: [380, 1435], sun: [435, 1405] }; const [OPEN, CLOSE] = WIN[CLS];
 // 26 LINES (1 Oct 2026): the headcounts are link.mjs's (15 a weekday, 14 on a Saturday, 10 on a Sunday), and N= overrides
-const N = Number(process.env.N ?? HEADS[CLS]), OPENERS_MIN = 4, OPENERS_MAX = Number(process.env.OPENERS_MAX ?? 5);
+const N = Number(process.env.N ?? HEADS[CLS]), OPENERS_MIN = Number(process.env.OPENERS_MIN ?? 4), OPENERS_MAX = Number(process.env.OPENERS_MAX ?? 5);
 const CLOSERS_MIN = 3, CLOSERS_MAX = Number(process.env.CLOSERS_MAX ?? 4);
 const LO = Number(process.env.LO ?? (CLS === 'sun' ? 480 : 420)), HI = Number(process.env.HI ?? (CLS === 'sun' ? 540 : 570)), MAX_PER = 4;
 const FLOOR_MIN = Number(process.env.FLOOR_MIN ?? 2);
@@ -87,7 +87,24 @@ const OPENER_HANDOVER = CLS === 'sun' && process.env.OPENER_HANDOVER !== '0';
 // Saturday pairs already do, to the minute (14:00/14:20, 14:30/14:50); on a Sunday it is enforced here.
 const TO_HANDOVER = Number(process.env.TO_HANDOVER ?? 20);
 const MID_END_MAX = Number(process.env.MID_END_MAX ?? CLOSE - 15);
+// TWO SWITCHES ADDED 26 OCT 2026 (the today's-times designs, short-earlies.mjs), both off by default so every earlier
+// table rebuilds exactly:
+//   · REQUIRE=<time>|<time> [REQUIRE_N=<n>, default 1] — at least n duties among the named times (owner: "at least one
+//     weekday 13.35 or 13.45 finish per day"). The count is its own variable because every time carries a colon. A fixed
+//     (FIXED=) duty of a named time counts like any other.
+//   · LATE_MAX=<n> — at most n duties that are NOT closers finishing at or after 23:00 (the late finishes a sheet counts),
+//     so a table that buys minutes with late finishes says how many it bought.
+const REQUIRE = process.env.REQUIRE ? { times: new Set(process.env.REQUIRE.split('|')), n: Number(process.env.REQUIRE_N ?? 1) } : null;
+if (REQUIRE && !(REQUIRE.n >= 1)) { console.error(`REQUIRE_N must be a whole number of at least 1 (got ${process.env.REQUIRE_N})`); process.exit(2); }
+const LATE_MAX = process.env.LATE_MAX !== undefined ? Number(process.env.LATE_MAX) : Infinity;
 const MAX_TURNS = Number(process.env.MAX_TURNS ?? 99);
+// TWO MORE, 30 OCT 2026 (the owner: can Closing Time have five at the Saturday open? README.md → "In Step"), both off by
+// default:
+//   · OPENERS_MIN=<n> — at least n on at the open (default 4, the December rule S1). Five is Short Run's Saturday.
+//   · FIXED_FREE=1 — a free duty may also work a fixed time. The fixed count stays the ticket office's own two; a third
+//     on the same times is floor cover. Today's Saturday works three 06:20–14:50s, so the exact-count reading above
+//     shut out a table today's link already works.
+const FIXED_FREE = process.env.FIXED_FREE === '1';
 const BOUND = process.env.BOUND !== '0';
 // BEST0: a fit no table worse than which is worth finishing — prunes from the first node rather than after the first
 // incumbent. It can only hide tables WORSE than it, so a run that returns a table is still proven optimal; one that
@@ -177,6 +194,8 @@ function evaluate(counts, cov, total, floorMin, floorSlots, fixedCounts) {
     n += k; turns++; starts.add(p.s); ends.add(p.e); if (p.s === OPEN) nO += k; if (p.e === CLOSE) nC += k; }
   if (n !== N || nO < OPENERS_MIN || nO > OPENERS_MAX || nC < CLOSERS_MIN || nC > CLOSERS_MAX || turns > MAX_TURNS) return null;
   if (!handoverOk(counts, fixedCounts)) return null;
+  if (REQUIRE) { let k = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && REQUIRE.times.has(POOL[i].t)) k += counts[i]; if (k < REQUIRE.n) return null; }
+  if (LATE_MAX < Infinity) { let k = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && POOL[i].e !== CLOSE && POOL[i].e >= 1380) k += counts[i]; if (k > LATE_MAX) return null; }
   if (process.env.AT22_STRICT === '1') { let at22 = 0; for (let i = 0; i < POOL.length; i++) if (counts[i] && POOL[i].s <= 1320 && POOL[i].e > 1320) at22 += counts[i]; if (at22 < 5) return null; }   // five on AFTER 22:00, counted as currentRules counts them
   let thin = Infinity; for (let k = SLOT0; k < SLOT1; k++) if (floorSlots[k] < thin) thin = floorSlots[k]; if (thin < FLOOR_MIN) return null;
   const fit = fitOf(cov, floorMin / 60);
@@ -288,9 +307,9 @@ function annealSolve(fixed, total, exclude) {
 
 const t0 = Date.now();
 if (CLS !== 'sun' && process.env.ANNEAL === '1') {
-  annealSolve(FIXED, TOTAL, FIXED.map(([t]) => t));
+  annealSolve(FIXED, TOTAL, FIXED_FREE ? [] : FIXED.map(([t]) => t));
 } else if (CLS !== 'sun') {
-  solve(FIXED, TOTAL, FIXED.map(([t]) => t));
+  solve(FIXED, TOTAL, FIXED_FREE ? [] : FIXED.map(([t]) => t));
 } else {
   // The ticket office: 07:15–X x2 (two of the four openers) and Y–22:30 x2, with X ≥ Y. Every such pair, and every
   // Sunday total in the range, is enumerated.

@@ -1,10 +1,20 @@
 # Links — December 2026, 26 lines
 
-**From 1 Oct 2026 the December 2026 link is 26 lines, not 24.** Everything drawn for 24 lines is kept, unchanged, in
-`../links-24/`, both for reference and in case the 24-line link comes back. This folder is for the work from here on.
+**From 1 Oct 2026 the December 2026 link is 26 lines, not 24.** Everything drawn for 24 lines is kept in `../links-24/` — the
+grids unchanged, the sheets re-rendered once (2 Oct 2026, for the per-year weekends line) — both for reference and in case the 24-line link comes back. This folder is for the work from here on.
 
 The 24-line work is not wasted. The rules, the duty tables, the tooling and the designs all carry over. What has to
 change is the arithmetic that depends on the number of lines.
+
+**Worst cases dated before 31 Oct 2026 put a cover week's Sunday inside its four duties.** The owner settled that day
+that the four are Monday to Saturday and the Sunday is overtime on top, which put a day on most worst cases — "5 (up to
+6)" days in a row became "5 (up to 7)". The sections below keep the figures they were written with; the sheets, the
+decks and *A cover week's four are Monday to Saturday* have the current ones.
+
+**League scores dated before 31 Oct 2026 are on the weighting the league had then.** The owner reweighted it that day —
+long earlies and the closing shift counted, the fit by days, the 55-hour cover week in the worst case — and made the
+reweighted one the main league, keeping the one before it as the alternative (`OLD_READINGS=1` rebuilds it). The
+sections below keep the scores they were written with; the shortlist sheet and *The league reweighted* have both.
 
 ## What is in this folder
 
@@ -14,8 +24,8 @@ The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, o
 |---|---|
 | `links-NN-proposals.zip` | everything for sharing, in one download |
 | `links-NN-rules.pdf` | the rules every proposal is judged against |
-| `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted three marked ★ |
-| `links-26-shortlist.pdf` | the three shortlisted designs against each other and today, with a recommendation, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
+| `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted ones marked ★ |
+| `links-26-shortlist.pdf` | the three shortlisted designs (Even Step, In Step and Short Run, since 31 Oct 2026) against each other and today, with a recommendation, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
 | `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf` |
 | `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs |
@@ -41,9 +51,9 @@ ceiling allows **at most 89 Monday-to-Saturday duties, averaging at least about 
 - **The rules, in their three tiers,** with the changes above: the 3 hard limits (plus the 219-day ceiling, which is hard too), the 9 December staffing rules
   and the 3 flexible rules. See `RULES.md`.
 - **The shift-time sets** of the strongest 24-line designs, as starting points:
-  - **Familiar Nine** (`../links-24/Familiar-Nine-F9-24-K31s.json`): every rule met, 14 of 20 weeks on one turn.
-  - **Right Away** (`../links-24/Right-Away-FR-24-F34s.json`).
-  - **Silva Lining** (`../links-24/Silva-Lining-SL-24-Hs.json`, version H of its series): 14 times, no fatigue warnings, a
+  - **Familiar Nine** (`../links-24/proposals/Familiar-Nine-F9-24-K31s.json`): every rule met, 14 of 20 weeks on one turn.
+  - **Right Away** (`../links-24/proposals/Right-Away-FR-24-F34s.json`).
+  - **Silva Lining** (`../links-24/proposals/Silva-Lining-SL-24-Hs.json`, version H of its series): 14 times, no fatigue warnings, a
     9-hour cap.
 - **The judging.** Every figure comes from the app's own Links modules, which take the line count as a parameter.
 
@@ -51,8 +61,11 @@ ceiling allows **at most 89 Monday-to-Saturday duties, averaging at least about 
 
 The 24-line pipeline, copied and set to 26 lines. **`tooling/link.mjs` states the link once**: 26 lines, 5 cover weeks
 (default lines 1, 6, 11, 16, 21), 21 working lines, the 44,100-minute contract, the 219-day ceiling, and the headcounts the
-tables are built to (15 a weekday, 14 on a Saturday, 10 on a Sunday). Every script reads those from there; none writes
-the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, so that pack can still be rebuilt exactly.
+tables are built to (15 a weekday, 14 on a Saturday, 10 on a Sunday). The sheets, the decks and the checks read those
+from there; the search and solver scripts (`skeleton.mjs`, `skeleton-start.mjs`, `exact-*.py`, `short-earlies.mjs`)
+carry their own copy of the link's shape, so a change of length is that edit and theirs (`link.mjs` says so). The
+24-line tooling is in `../links-24/tooling/`, changed only for the per-year weekends line of 2 Oct 2026, so that pack can
+still be rebuilt.
 
 **What it checks, beyond the 24-line set** (`RULES.md`):
 - **Cover weeks:** five, with gaps differing by one line at most (`coverSpread`). It is a flexible rule, as before.
@@ -66,7 +79,7 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 
 | Stage | Script | What it does |
 |---|---|---|
-| 1 · duty table | `final-table.mjs` | the best table for one day, by fit to the trains, under every rule; a proof unless `ANNEAL=1` |
+| 1 · duty table | `final-table.mjs` | the best table for one day, by fit to the trains, under every rule; a proof unless `ANNEAL=1`; `OPENERS_MIN=` and `FIXED_FREE=1` (a third duty on a ticket-office time) since "In Step" |
 | | `assemble-table.mjs` | three days' tables into one duty table (weekday · Saturday · Sunday) |
 | 2 · rota | `anneal.mjs` | arranges a table on the 26 lines; `TABLE=<table.json>`, `MODE=rules` for fatigue first |
 | | `carry-order.mjs` | lays a table onto an existing rota's week structure (how Familiar Nine borrowed Right Away's) |
@@ -78,10 +91,13 @@ the number down. The 24-line tooling stays untouched in `../links-24/tooling/`, 
 | check | `check.mjs` | the self-check: settings agree, the test rota recounts independently, and each 26-line rule fails when its condition is broken (`node tooling/check.mjs`) |
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
 | | `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` | the rules reference (`../links-26-rules.pdf`), the one-page summary (`../links-26-summary.pdf`) and the two-page shortlist sheet (`../links-26-shortlist.pdf`) |
-| 4 · decks and pack | `second-nature-decks.py` → `second-edition-decks.py`, `even-keel-decks.py`, `short-run-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the zip |
-| league | `league.mjs` | the weighted league on every factor the sheets compare (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`) — the owner's weights, a judgement not a measurement |
+| 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the zip |
+| league | `league.mjs` | the weighted league on the factors the sheets compare, long earlies and the closing shift among them since 31 Oct 2026 — not the block length, nor the shortlist sheet's early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league; `OLD_READINGS=1` for the weighting before 31 Oct, kept as the alternative, with any of them) — the owner's weights, a judgement not a measurement (see *The league reweighted*) |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
+| options | `short-earlies.mjs` | every way to keep a 13:35 or 13:45 every weekday with today's times and a 16:00 closer: 2,250 `final-table.mjs` searches (`SCAN=1`; their results are committed, `results/short-earlies-scan.txt`) and every whole week paying the contract (see "Today's link on 26 lines") |
+| fatigue values | `factors-like.mjs` | every fatigue factor's own value, on the fixed duties and in the worst case, against a reference grid; exits 1 if any is worse (`space-polish.mjs`'s `FACTORS_LIKE` holds a search to the same comparison) |
+| whole rota, exact | `exact-rota.py` | the whole rota — which line works which duty on which day — as one model for OR-Tools CP-SAT (`pip install ortools`), every rule the sheets apply counted as the app counts it; `OBJ=` what to improve, `HINT=` a valid rota to start from, `FIX=` checks a rota against the model, `SKELETON=` (and `FAMILY=1`) holds a rota's rest days (and its early and late weeks) so only the times are chosen (see "Closing Time, improved" and "In Step") |
 
 **Double-checked on 1 Oct 2026** (owner: "double check that the 26 line link tooling is optimal"):
 - **No 24-line default leaks through.** The app functions that default to 24 lines (`runDesignChecks`, `assessFatigue`,
@@ -180,7 +196,7 @@ limit, and has **no avoidable fatigue warnings**, even with a cover week placed 
 **Rebuild it** (from `tooling/`; every step is deterministic, and this reproduces the shipped grid exactly):
 
 ```
-TOP=1 MODE=rules node grow-from-24.mjs results/second-nature-table.json /tmp/sn ../../links-24/Silva-Lining-SL-24-Hs.json
+TOP=1 MODE=rules node grow-from-24.mjs results/second-nature-table.json /tmp/sn ../../links-24/proposals/Silva-Lining-SL-24-Hs.json
 MODE=rules node anneal-from.mjs /tmp/sn-Si0.json /tmp/sn-a.json 5 60000 1500
 MODE=rules node anneal-from.mjs /tmp/sn-a.json /tmp/sn-b.json 1 60000 500
 REST_CAP=1 ISO_W=500 node rota-polish.mjs /tmp/sn-b.json second-nature.json 2 120000 /tmp/sn-b.json
@@ -199,49 +215,59 @@ node regenerate.mjs                     # the sheet; --check confirms the finger
 It was chosen for the balance. Four more weeks on one turn are worth one more single rest day, and the shortest rest
 is the best of the four.
 
-**The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"; **cut to
-the shortlist 3 Oct 2026**, owner: "only keep the shortlist's presentations, delete the rest"): `presentations/` holds a
-colleague deck (15 slides) and a manager deck (10), as PowerPoint and PDF, for **Second Edition, Even Keel and Short
-Run** only. They are the Familiar Nine decks, the template Right Away's were made from too, with every word and figure
-that was Familiar Nine's replaced and the design untouched. Unlike the 24-line decks, they are BUILT here, in two steps:
-`tooling/second-nature-decks.py` makes Second Nature's decks from the Familiar Nine files into `tooling/deck-template/`
-(gitignored — Second Nature's decks are the template every shipped deck is built from, and since 3 Oct are not shipped
-themselves; Second Wind's and Second Sight's decks and their builders were deleted the same day); then
-`tooling/second-edition-decks.py` makes Second Edition's from that template, changing only what differs (the weekend
-spacing, no week mixing earlies and lates, the rest-day breaks, the one-turn weeks, the weekly hours — its leave figures
-are Second Nature's exactly); `tooling/even-keel-decks.py` makes Even Keel's, which change more because it sits on
-Second Gear's table (the shift-time list, 44 late finishes with four to the close on a Saturday, the run, the rest and
-the fit chart); and `tooling/short-run-decks.py` makes Short Run's by applying Second Edition's edits and then its own
-— the run (5 on the fixed rota, up to 6 when a cover week falls badly, said both ways), the weekly hours and the pitch
-lines. **Then `tooling/deck-polish.py` runs over the six shipped decks** (3 Oct 2026, the reader's critique): the
-four-weeks-off leave cost said early and on the trade-offs slide, full weekends off per year first, days a year as 218.6
-against 219.0, the one-turn row and the fit slide saying what they count, slide 10 turned into a picture of the 26 weeks
+**The presentations** (2 Oct 2026, owner: "use the Familiar Nine and Right Away presentations as a basis"; **cut to the
+shortlist 3 Oct 2026**, owner: "only keep the shortlist's presentations, delete the rest"): `presentations/` holds a
+colleague deck (15 slides) and a manager deck (10), as PowerPoint and PDF, for the three shortlisted designs, **Even
+Step, In Step and Short Run**. The shortlist has moved under them: Second Edition, Even Keel and Short Run on 3 Oct;
+Closing Time added on 30 Oct, with its decks; In Step's decks built the same evening while it was off the shortlist; the
+cut to In Step and Short Run later that day, when the decks of Second Edition, Even Keel and Closing Time were removed
+under the 3 Oct rule (they are in git history) and two of their builders with them (below, "The shortlist cut to two");
+and Even Step added on 31 Oct, recommended (below, "Even Step"). They are the
+Familiar Nine decks, the template Right Away's were made from too, with every word and figure that was Familiar Nine's
+replaced and the design untouched. Unlike the 24-line decks, they are BUILT here: `tooling/second-nature-decks.py` makes
+Second Nature's decks from the Familiar Nine files into `tooling/deck-template/` (gitignored — Second Nature's decks are
+the template every shipped deck is built from, and since 3 Oct are not shipped themselves);
+`tooling/second-edition-decks.py` holds Second Edition's edits to that template (the weekend spacing, no week mixing
+earlies and lates, the rest-day breaks, the one-turn weeks, the weekly hours — its leave figures are Second Nature's
+exactly), and since 30 Oct builds no decks of its own; `tooling/short-run-decks.py` makes Short Run's by applying those
+edits and then its own — the run (5 on the fixed rota, up to 6 when a cover week falls badly, said both ways), the
+weekly hours and the pitch lines; `tooling/in-step-decks.py` makes In Step's by applying Second Edition's and Short
+Run's edits and then its own, refusing if any Short Run fact that is not In Step's survives; and
+`tooling/even-step-decks.py` makes Even Step's by applying In Step's whole chain and then its own, refusing if any In
+Step fact that is not Even Step's survives, or any sentence of In Step's builder that names In Step. **Then
+`tooling/deck-polish.py` runs over every shipped deck** (3 Oct 2026, the reader's critique): the four-weeks-off leave
+cost said early and on the trade-offs slide, full weekends off per year first, days a year as 218.6 against 219.0, the
+one-turn row and the fit slide saying what they count, slide 10 turned into a picture of the 26 weeks
 (`tooling/rota-strip.mjs`, from the grid), and the manager "Why" slide split into what every link here gives, what this
 one adds and what it costs. A second pass the same day (owner: "are they missing anything?") made the late-finish slide
-say the rise after 22:00 as well as after 23:00, the shift-length slide name the early turns that get longer, the
-"Will I work more?" slide give the weekly range, and the manager deck carry the Sunday overtime hours and the two open
-points. Every builder and the polish refuse if a slide no longer holds the text they expect, and every deck compares
-only with today's link.
-- **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts.
-  `tooling/leave.mjs` gives the four leave figures (all three shortlisted designs: 14 days' leave buys 28 days off at
-  best, 23.4 on average, 20 at worst, and four full weeks off takes 15; today 30 · 23.4 · 19 · 14). It is the 24-line
-  decks' leave method as code, and `--check` shows it reproduces their published figures for today and Familiar Nine
-  exactly.
-- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. Every table row across the six decks agrees
-  with the sheets and the leave model, and none is left unchecked (it prints the count).
+say the rise after 22:00 as well as after 23:00, the shift-length slide name the early turns that get longer, the "Will
+I work more?" slide give the weekly range, and the manager deck carry the Sunday overtime hours and the two open points.
+Every builder and the polish refuse if a slide no longer holds the text they expect, and every deck compares only with
+today's link.
+- **Figures:** `node tooling/deck-check.mjs --print` gives every figure from the sheets' own counts. `tooling/leave.mjs`
+  gives the four leave figures (all three shortlisted designs: 14 days' leave buys 28 days off at best, 23.4 on average,
+  20 at worst, and four full weeks off takes 15; today 30 · 23.4 · 19 · 14). It is the 24-line decks' leave method as
+  code, and `--check` shows it reproduces their published figures for today and Familiar Nine exactly.
+- **Checked:** `node tooling/deck-check.mjs` reads the finished decks back. Every table row across the six decks
+  agrees with the sheets and the leave model, and none is left unchecked (it prints the count).
 
 Rebuild after any change to the rota:
 
 ```
-python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/second-edition-decks.py \
-  && python3 docs/links-26/tooling/even-keel-decks.py && python3 docs/links-26/tooling/short-run-decks.py \
+python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/tooling/short-run-decks.py \
+  && python3 docs/links-26/tooling/in-step-decks.py && python3 docs/links-26/tooling/even-step-decks.py \
   && python3 docs/links-26/tooling/deck-polish.py && node docs/links-26/tooling/deck-check.mjs
 ```
 
-Then export the PDFs (LibreOffice). Two things the decks say that the sheet does not show directly:
+`deck-polish.py` polishes every design's decks, and refuses a deck it has already polished; `deck-polish.py "In Step"`
+polishes one design's freshly built pair. Then export the PDFs (LibreOffice). Three things the decks say that the
+sheet does not show directly:
 - **Late finishes:** 42 a year is the minimum, because only the three closers the rules require finish after 23:00.
-- **Weekends off:** every shipped deck's design has them never more than five weeks apart, and says so; today's are
-  up to seven apart.
+- **Weekends off:** every shipped deck's design has them never more than five weeks apart, and says so; today's are up
+  to seven apart.
+- **Finishes at 22:00 or later, per person:** 94 a year in all three shortlisted designs, 78 today. The sheet shows who is
+  still on at 22:00 instead (7 · 5 · 5 on all three, today 4 · 2 · 3), so a deck slide that says its figures are all on the
+  sheet quotes that one.
 
 ## Second Wind — Second Nature with the weekends spread (2 Oct 2026)
 
@@ -699,8 +725,9 @@ block's last line).
 lightest 24h 30m. **The gains:** four full weeks off for **14** days' leave (Second Edition 15, today 14), and the best
 14-day stretch **29** days off (28; today 30); the worst stays 20 and the average is 23.5 (23.4). **The costs:** **five** single
 rest days (four), **16 of 21** weeks on one shift time (18), and a week-to-week step of **1h 44m** (1h 01m). In the
-weighted league (`node tooling/league.mjs`) it sits fourth, under Second Edition, Short Run and Even Keel and above Fine Tune — the leave gain is
-worth three points there and the one-turn, step and single-rest-day costs take back four.
+weighted league of that day (`node tooling/league.mjs`, ten designs) it sat fourth, under Second Edition, Short Run and Even Keel and above Fine Tune — the leave gain was
+worth three points there and the one-turn, step and single-rest-day costs took back four. With the three designs of
+26 Oct in the league it is seventh, the ten keeping their order among themselves (eighth since In Step joined it on 30 Oct).
 
 **How to rebuild it** (from `tooling/`; the solver needs `pip install pulp`):
 
@@ -719,17 +746,18 @@ after the lay, so the skeleton is where the search started.
 
 ## The shortlist sheet (3 Oct 2026)
 
-Owner: "a two page analysis sheet comparing the three — snappy but evidence led, choose one if you like one, compare
-to the existing roster too." `links-26-shortlist.pdf`, built by `tooling/shortlist-sheet.mjs`: what Second Edition,
-Short Run and Even Keel share, where they differ (the best of the three on each line marked), each one's edge, the
-same three against today's link, the costs all three carry against today, and a recommendation — Short Run, with the
-reasons and with the two conditions under which the other two are the better choice; since 4 Oct 2026 page 1 ends with a
-four-row choice guide (priority → design, Long Break included as the leave-first option outside the shortlist) in place of
-the account of how the designs were found, which is this README's job. **Every figure is computed by the
-same functions the proposal sheets use** (`assess`, `personal`, `leave`, `scoreOrder`); the prose is the judgement
-this README records under each design. Rebuild with `node tooling/shortlist-sheet.mjs` after any change to the three
-grids, and read it again — a sentence that names a figure ("a half hour on one week") is computed too, but one that
-names a reason is not.
+Owner: "a two page analysis sheet comparing the three — snappy but evidence led, choose one if you like one, compare to
+the existing roster too." `links-26-shortlist.pdf`, built by `tooling/shortlist-sheet.mjs`: what Second Edition, Short
+Run and Even Keel share, where they differ (the best of the three on each line marked), each one's edge, the same three
+against today's link, the costs all three carry against today, and a recommendation — Short Run, with the reasons and
+with the two conditions under which the other two are the better choice; since 4 Oct 2026 page 1 ends with a four-row
+choice guide (priority → design, Long Break included as the leave-first option outside the shortlist) in place of the
+account of how the designs were found, which is this README's job. **Every figure is computed by the same functions the
+proposal sheets use** (`assess`, `personal`, `leave`, `scoreOrder`); the prose is the judgement this README records
+under each design. (On 30 Oct 2026 it was rewritten for four, with a five-row guide and every sentence that compares them asserted
+— below; later that day for two, In Step and Short Run, recommending In Step — "The shortlist cut to two".) Rebuild with `node tooling/shortlist-sheet.mjs` after any change to any grid, since it reads every design
+and the league, and read it again — a sentence that names a figure ("a half hour on one week") is computed too, but one
+that names a reason is not.
 
 **A second outside review of the pack (4 Oct 2026), six points, all taken:** the leave cost joins page 1 of every
 proposal sheet (a concern, "Four full weeks off, Sunday to Saturday, needs 15 days' leave (today 14)", and a row in the
@@ -765,12 +793,1320 @@ week's four duties are placed later: on the fixed rota every design's longest bl
 the cover weeks beside a block are given the same kind it runs to 6 to 9 on most designs (8 on Quiet Friday) and to **12 on Even Keel,
 Fine Tune and Second Gear**, whose two blocks of lates sit either side of one cover week (Long Break 9; today 3).
 `tooling/blocks.mjs` computes it once, and it now appears as a page-2 row and a page-1 concern on every sheet, a row in
-the shortlist's comparison, a line under "Weeks on one turn" in the summary, and in the decks' week-strip banner and
+the shortlist's comparison (since 30 Oct, the two-design sheet's page-2 prose), a line under "Weeks on one turn" in the summary, and in the decks' week-strip banner and
 notes. Until this, the decks quoted only the fixed-rota figure ("the longest run of one kind is 5 weeks of lates"),
 which broke the pack's own "5 (up to 6)" convention for days in a row. **The shortlist and rules sheets now refuse to
 print a page whose content runs into its footer** — their pages are a fixed height, so an over-full page was HIDDEN, not
 pushed onto a third page, and this change first hid the shortlist's last choice-guide row and closing line. The guard
 measures at the print width under print media; measured at screen width it passed the broken page.
+
+## Today's link on 26 lines — every way to keep a 13:35 or 13:45 every weekday (26 Oct 2026)
+
+**The brief** (owner, 26 Oct 2026): "Can you take the original 20 link roster. Keep either the 13.35 or 13.45 finish
+or both. Expand it to 26 lines, 5 cover weeks, 1600 closing shift start, meet all the rules and match or improve on the
+fatigue factors in short run." Then: "Check every possibility. We need to maintain at least one weekday 13.35 or 13.45
+finish per day."
+
+**How it was read**, so each reading can be overruled:
+- **Today's shift TIMES, not today's week order.** Today's 20 weeks carry four fatigue factors on the fixed duties
+  (FF8b, FF15, the 55-hour week at 60h 48m, six FF19 start-time jumps) and a run of seven days; matching Short Run's
+  none meant rebuilding the weeks, so today's times were kept and its order was not. Every duty below is one of today's
+  18 times unless it says otherwise.
+- **"1600 closing shift start"**: every weekday closer is 16:00–23:55 (today 15:15–23:55), in place of the flexible
+  rule's 15:45. Whether Saturday's closer moves too (today 14:45–23:55) is the one open question, so both answers are built.
+  Sunday cannot: the close is 23:25 and a Sunday duty must be 8 to 9 hours, so its closers start at 15:15, the latest
+  quarter hour that allows (today 14:30).
+- **"All the rules"**: the three hard limits and the 219-day ceiling, the nine December rules, and the flexible rules
+  bar the 15:45 closer, which the brief replaces.
+- **"Match or improve on the fatigue factors in Short Run"**: no factor present on the fixed duties or in the worst
+  case, and every factor's own value no worse than Short Run's (`factors-like.mjs`, below, prints them side by side).
+
+**The arithmetic.** With today's times, a 16:00 closer and nothing else finishing after 22:30, a weekday pays at most
+7,485 minutes (the four ticket-office duties, three closers at 7h 55m, and eight more at 8h 30m) and a Saturday 6,855:
+5 × 7,485 + 6,855 = 44,280, **180 minutes over the 44,100 the contract needs**. A 13:45 costs 65 minutes against the
+8h 30m early it replaces on a weekday (the 8-hour 06:20–14:20s are the ticket office, fixed), a 13:35 75; a Saturday
+can take up to three at 35, 35 and 65 (measured: the best Saturday with one, two or three pays 6,820, 6,785 and
+6,720). So the week holds **at most three, and at most one of them on a weekday**, where today's has ten. **One on
+every weekday leaves the week 145 minutes short** (5 × 7,420 + 6,855 = 43,955). Every way of keeping them is a way of
+finding those 145 minutes.
+
+**Every possibility.** `final-table.mjs` built the best-fitting day table at every total, 5 minutes apart, under each
+way of finding the minutes — 2,250 searches, each exhaustive (`REQUIRE` and `LATE_MAX`, added for this, make a weekday
+carry a 13:35 or 13:45 and count its late finishes) — and every whole week of five weekday tables (up to three
+different ones) and a Saturday paying exactly 44,100 was scored: 5.66 million weeks, 5.12 million inside the 18-time
+rule. The ways, with the best week found for each:
+
+| Way of finding the 145 minutes | Saturday closers | Times nobody works today¹ | 13:35/13:45 a week | Finishes after 23:00 a year² | Demand fit, weekday · Saturday³ |
+|---|---|---|---|---|---|
+| Saturday's closers stay at today's 14:45 | 14:45 ×3 | none | 5 (a 13:35 each weekday) | 42 | 37.1 · 17.4 |
+| Saturday's closers at 15:15, today's weekday closer, four of them | 15:15 ×4 | none | 5 | 44 | 37.8 · 14.2 |
+| 16:00 every day, and seven more 23:25 finishes a week (today's Sunday 14:30–23:25, on weekdays and Saturday) | 16:00 ×3 | none | 5 | 56 | 32.7 · 12.3 |
+| 16:00 every day, and today's 13:30–22:00 half an hour longer | 16:00 ×3 | 13:30–22:30 | 6 | 42 | 36.7 · 9.7 |
+| 16:00 every day, and today's 07:15–15:45 and 13:30–22:00 each half an hour longer | 16:00 ×3 | 07:15–16:15, 13:30–22:30 | **10 — a 13:35 and a 13:45 every weekday, as today** | 42 | 31.2 · 12.1 |
+| mixtures of these: Saturday closers at two times, a few 23:25s beside a longer duty, a different table on different weekdays | | | | | they trade between the rows above |
+
+¹ Beyond the 16:00 weekday closer (the brief) and the Sunday 15:15 (above), which every row has. ² Per person, closers
+included (Short Run 42, today 39). ³ Lower is closer to the December demand; this is the day-table search's own figure
+(`short-earlies.mjs`), and the sheets measure a whole rota slightly differently, so the built designs' figures below are
+the sheets'.
+
+**Three of them built**, the Home Grown family — the first row, which keeps every one of today's times, and the two
+16:00-every-day rows that add no late finish. Each uses one table on all five weekdays, so Monday to Friday work the
+same duties and a week can sit on one shift time (a different table on different weekdays buys under two points of fit,
+for more shift times). **All three work the same weeks** — Home Grown's rest days, weekends and leave, with Closing
+Time's and Both Ways' duties laid on them (below) — so they differ only in their shift times. Their duties
+(`results/home-grown-table.json`, `closing-time-26oct-table.json`, `both-ways-table.json`; `closing-time-table.json` holds
+Closing Time's current table), Sunday the same in all three:
+today's times bar the 15:15 closer, 07:15–15:45 ×4, 08:00–16:30, 14:00–22:30 ×2, 15:15–23:25 ×3. (Closing Time's
+08:00–16:30 became today's 08:30–16:30 on 27 Oct and its weeks were searched again, and on 30 Oct it took Short Run's
+Sunday: "Closing Time, improved", below.
+This section records the three as built on 26 Oct.)
+
+| | Monday to Friday, each day | Saturday |
+|---|---|---|
+| **Home Grown** `HG-26-T1` · `7d41fafb` | 06:20–13:35 · 06:20–14:20 ×2 · 06:20–14:50 ×2 · 07:15–15:45 ×2 · 11:00–19:30 · 13:30–22:00 ×2 · 14:00–22:30 ×2 · 16:00–23:55 ×3 | 06:20–14:20 ×3 · 06:20–14:50 ×2 · 07:15–15:45 · 08:00–16:30 · 14:00–22:30 ×2 · 14:30–22:00 ×2 · 14:45–23:55 ×3 |
+| **Closing Time** `CT-26-T2` · `57429cc4` (`77a235bc` since 30 Oct) | 06:20–13:45 · 06:20–14:00 · 06:20–14:20 ×2 · 06:20–14:50 · 07:15–15:45 ×2 · 13:30–22:30 ×3 · 14:00–22:30 ×2 · 16:00–23:55 ×3 | 06:20–13:45 · 06:20–14:00 · 06:20–14:50 ×2 · 07:15–15:45 · 08:00–16:30 ×2 · 14:00–22:30 ×2 · 14:30–22:00 ×2 · 16:00–23:55 ×3 |
+| **Both Ways** `BW-26-T3` · `7a513d87` | 06:20–13:35 · 06:20–13:45 · 06:20–14:20 ×2 · 06:20–14:50 · 07:00–16:00 ×2 · 12:00–20:00 · 13:30–22:30 ×2 · 14:00–22:30 ×2 · 16:00–23:55 ×3 | 06:20–14:00 · 06:20–14:20 · 06:20–14:50 ×2 · 07:00–16:00 ×3 · 14:00–22:30 ×2 · 14:30–22:00 ×2 · 16:00–23:55 ×3 |
+
+**Both Ways uses 07:00–16:00, not the 07:15–16:15 of its row above.** The same nine hours, but a 07:15–16:15 followed
+the next morning by a 06:20 leaves 14h 05m, and an early run needs its 07:00-or-later duties placed among the 06:20s
+(a block of 06:20s must end in two rest days, FF8b), so the first rotas kept three such gaps however they were
+searched. 07:00–16:00 is Short Run's own duty, leaves exactly 14h 20m, and is not an early start in the ORR's sense
+(05:00–06:59). It fits the weekday better (30.5 against 31.2) and the Saturday worse (16.2 against 12.1).
+
+| | Home Grown | Closing Time, 26 Oct (`57429cc4`; later versions below) | Both Ways | Short Run | Today's link (20 weeks) |
+|---|---|---|---|---|---|
+| Saturday's closers | 14:45 ×3, as today | 16:00 ×3 | 16:00 ×3 | 15:15 ×3 | 14:45 ×2 |
+| 13:35 or 13:45 finishes a week | 5, a 13:35 every weekday | 6, a 13:45 every weekday and Saturday | 10, a 13:35 and a 13:45 every weekday | none | 10 |
+| Shift times (new) | 12 (2) | 11 (3) | 14 (4) | 15 (6) | 18 |
+| December rules met | 9 of 9 | 9 of 9 | 9 of 9 | 9 of 9 | 4 of 9 |
+| Hard limits and the contract | met | met | met | met | met |
+| Contracted days a year (ceiling 219) | 218.6 | 218.6 | 218.6 | 218.6 | 219.0 |
+| Fatigue factors present, fixed duties · worst case | 0 · 0 | 0 · 0 | 0 · 0 | 0 · 0 | 4 · 5 |
+| Every factor's value against Short Run's (`factors-like.mjs`) | none worse | none worse | none worse | — | — |
+| Most hours in any 7 days | 50h 30m | 51h 30m | 50h 18m | 51h 42m | 60h 48m |
+| Most days in a row | 5 (up to 6) | 5 (up to 6) | 5 (up to 6) | 5 (up to 6) | 7 (up to 9) |
+| Shortest rest between shifts | 14h 35m | 14h 35m | 14h 20m | 14h 20m | 12h 30m |
+| Full weekends off | 7 in 26, at most 5 weeks apart | same | same | same | 4 in 20, up to 7 apart |
+| Single rest days · weeks mixing earlies and lates | 4 · 0 | 4 · 0 | 4 · 0 | 4 · 0 | 4 · 7 |
+| Weeks on one shift time | 16 of 21 | 16 of 21 | 16 of 21 | 18 of 21 | 7 of 16 |
+| Longest block of earlies or lates | 5 (up to 7) | 5 (up to 7) | 5 (up to 7) | 5 (up to 7) | 2 (up to 3) |
+| Heaviest · lightest week, Monday to Saturday | 42h 30m · 24h 55m | 41h 30m · 27h 00m | 40h 55m · 24h 00m | 42h 30m · 24h 30m | 43h 50m · 25h 10m |
+| Week-to-week change of start | 1h 25m | 1h 20m | 1h 40m | 1h 13m | 4h 00m |
+| 14 days' leave: best · average · worst · four full weeks | 28 · 23.4 · 20 · 15 | same | same | same | 30 · 23.4 · 19 · 14 |
+| Finishes after 23:00, each a year | 42 | 42 | 42 | 42 | 39 |
+| Fit to the trains, weekday · Saturday · Sunday | 36.8 · 15.5 · 48.6 | 36.4 · 8.7 · 48.6 | 30.2 · 15.2 · 48.6 | 29.1 · 12.7 · 29.0 | 52.0 · 65.9 · 71.7 |
+
+**What that says.** All three meet the brief: every rule, every hard limit, no fatigue factor on the fixed duties or
+in the worst case, and on each factor's own value — the longest run without a 48-hour break, the most hours in seven
+days, backward against forward steps, the rest — Short Run's figure or better; the busiest seven days are lighter in
+all three. They also match Short Run on the run, the weekends, the single rest days, the mixed weeks, the blocks of
+earlies and lates, the leave and the late finishes, and Home Grown and Closing Time give a longer shortest rest.
+**What keeping the short finishes costs**: two fewer weeks on one shift time (16 against 18), because a single 13:35 a
+day cannot be one person's for the week — five 06:20 starts in a row is itself a fatigue factor (FF15) — and a larger
+week-to-week change (1h 20m to 1h 40m against 1h 13m; a last polish asked for Short Run's figure with everything else
+held and kept nothing). Both were what the polishes could reach rather than what the rules allow: on 27 Oct an exact
+model of the whole rota took Closing Time to 17 weeks on one shift time and a 1h 11m change (below). Sunday keeps
+today's times bar the closer, so its fit (48.6) is far better than today's but not Short Run's, which adds two Sunday
+times nobody works today (09:00–18:00, 14:30–22:30). The 15:45 closer, the flexible
+rule the brief replaces, is the one flexible rule all three miss; a proposal sheet does not show flexible rules.
+
+**In the weighted league** (`REF_IN_RANGE=1 node league.mjs`, which now reads every design in `regenerate.mjs` instead
+of a typed list of ten — the list had not been kept up, so none of the three would have been in it) Closing Time is
+third on 86.0, Both Ways fifth on 85.8 and Home Grown sixth on 85.5, behind Second Edition (87.2) and Short Run (86.5);
+the original ten keep their order among themselves. Against Short Run each loses most on fit to the trains, 2.0 to 2.7
+points (the league averages weekday, Saturday and Sunday, and most of the gap is their Sunday, which keeps today's
+times), and 1.1 on weeks on one shift time; each gains most on familiar shift times, 1.4 to 2.8, and Closing Time and
+Both Ways on the heaviest week. `JSON=<file>` (new) writes the whole table, which is how it was published as a page.
+(Those are the 26 Oct figures. Improved on 27 and 30 Oct, Closing Time is first — below — until In Step joins the league.)
+
+**In every version of the league** (27 Oct 2026, owner: "give me all versions marking which designs are new"): the
+usual table; the proposals alone setting each factor's best and worst (no `REF_IN_RANGE`); familiar shift times left
+out (`DROP=fam`); the run read on the fixed rota (`RUN_FIXED=1`); and the 24-line work's six-factor league
+(`WEIGHTS=met:35,fat:20,fit:20,wkends:10,fam:10,run:5` — new — with the proposals setting the scale, as it was used there):
+
+| | Usual | Proposals set the scale | Without familiar times | Run on the fixed rota | Six-factor |
+|---|---|---|---|---|---|
+| Closing Time with Short Run's Sunday (30 Oct, below) | **1st · 87.2** | **1st · 90.2** | 2nd · 91.3 | **1st · 87.2** | 7th · 90.5 |
+| Closing Time, 27 Oct | 1st · 87.3 | 3rd · 86.9 | 5th · 89.7 | 1st · 87.3 | 11th · 84.2 |
+| Closing Time as built (26 Oct) | 3rd · 86.0 | 4th · 83.1 | 7th · 88.6 | 2nd · 86.0 | 11th · 81.2 |
+| Both Ways | 5th · 85.8 | 10th · 79.4 | 8th · 88.5 | 4th · 85.8 | 12th · 80.6 |
+| Home Grown | 6th · 85.5 | 7th · 81.2 | 10th · 86.7 | 6th · 85.5 | 13th · 80.0 |
+| first, without the improved Closing Times | Second Edition 87.2 | Second Edition 89.7 | Second Edition 91.5 | Short Run 86.5 | six tied on 92.2 |
+
+(Neither improved Closing Time moves another design's score: their figures sit inside every factor's range, so they
+only move the others' places. On 30 Oct Closing Time's 87.22 leads Second Edition's 87.18 by a whisker.)
+
+*(Superseded later on 30 Oct by In Step, which is first in all five versions. With it in the league Closing Time is
+second in the usual table, where the proposals set the scale and with the run on the fixed rota, third without
+familiar times and eighth in the six-factor league; Long Break is eighth in the usual table; and In Step's closer fit
+widens that factor's range, so the six on Second Nature's duty table tie on 90.75 in the six-factor league, not 92.2 —
+"In Step" and "The shortlist cut to two", below.)*
+
+Two factors moved the three of them. As built on 26 Oct their fit to the trains was the weakest of the thirteen (31.2
+to 33.6, against 23.6 to 24.4) and their familiar shift times the best (71% to 83% of their times today's, against 53%
+to 60%). With today's link in the range, as usual, that fit gap is a fifth to a quarter of a range today's link
+stretches to 63.2, and costs 2 to 3 points; with the proposals alone setting it, Home Grown's fit is the bottom of the
+range and the gap costs 8.4 to all 11. Leaving familiarity out takes away the one factor they led on. Closing Time has
+since closed most of its gap — 24.7 on 30 Oct, with Short Run's Sunday, at 62% familiar — which is why it now leads
+the version where the proposals set the scale and is second without familiar times. Reading the run on the fixed rota
+lifts all three, because their longest run there is five, where six of the other ten have six. The six-factor league
+barely separates the 26-line proposals: all thirteen meet every rule, carry no fatigue warning, have the same share of
+full weekends and a worst-case run of six, so fit (20) and familiarity (10) decide it alone, and the six on Second
+Nature's duty table (Second Nature, Second Wind, Second Sight, Second Edition, Short Run, Long Break — the same duties
+every day, checked) tie on 92.2.
+
+**How they were built.** Home Grown's table was laid on Short Run's rest-day skeleton (`results/skeleton-run5.json`)
+by `skeleton-start.mjs`, with three settings added for these tables: a weekday with a column of its own, the late
+line's single weekday duty (`NOON` — Home Grown's 11:00, Both Ways' 12:00) with Saturday off where a Saturday late
+would be a start-time jump of more than two hours, and the Sunday early that is not a 07:15 (`SUN_EXTRA`). Its times
+were searched by `space-polish.mjs` in two passes: fatigue as a cost with Short Run's floors a little lowered, then
+Short Run's floors — the shortest rest 14h 20m, leave 28 · 20 · 15, no run over five on the fixed duties, seven
+weekends at most five apart, four single rest days, no mixed week. **Closing Time and Both Ways were then laid on
+Home Grown's weeks** — `skeleton-from.mjs` (new) reads a finished rota's rest days and families back as a skeleton —
+and only their times searched, the rest days held (`LOCK_REST=1`), with two settings new to `space-polish.mjs`:
+**`FACTORS_LIKE=short-run.json`**, every fatigue factor's value no worse than Short Run's on both views, and
+**`REST_SLOPE=1`**, every gap under the 14h 20m floor a cost, not only the tightest (with six gaps of 14h 05m, mending
+five of them used to score nothing). Laid on Short Run's skeleton directly, as Home Grown was, both came through
+every floor too, but with a block of late weeks running to 11 or 12 with the cover weeks beside it; on Home Grown's
+weeks all three have Short Run's 5 (up to 7). Home Grown met every factor value without the setting, which
+`factors-like.mjs` (new) confirms for all three. Second Edition's skeleton came through the first pass for all three
+tables and kept nothing at Short Run's floors; Long Break's has a run of six by design.
+
+**How to rebuild them** (from `tooling/`; each chain is deterministic, and each was re-run from these commands to the
+same fingerprint):
+
+```
+A="REST_MIN=815 WKENDS_MIN=7 GAP_MAX=5 ISO_MAX=4 MIXED_MAX=0 LEAVE_WORST_MIN=19 LEAVE_FOUR_MAX=15 ISO_W=1e5 MIX_W=4e4 FIXED_RUN_MAX=5 FATIGUE_SOFT=1 HEAVY_MAX=42.5"
+B="REST_MIN=860 WKENDS_MIN=7 GAP_MAX=5 ISO_MAX=4 MIXED_MAX=0 LEAVE_WORST_MIN=20 LEAVE_BEST_MIN=28 LEAVE_FOUR_MAX=15 ISO_W=1e5 MIX_W=4e4 FIXED_RUN_MAX=5 HEAVY_MAX=42.5 STEP_MAX=121 FATIGUE_SOFT=1"
+L="$B REST_SLOPE=1 FACTORS_LIKE=short-run.json LOCK_REST=1 ONE_MIN=0"
+# Home Grown
+TABLE=results/home-grown-table.json NOON=11:00-19:30 NOON_SAT=off SUN_EXTRA=08:00-16:30 node skeleton-start.mjs results/skeleton-run5.json /tmp/hg0.json 1
+env $A node space-polish.mjs /tmp/hg0.json /tmp/hg1.json 11 300000
+env $B node space-polish.mjs /tmp/hg1.json /tmp/hg2.json 21 500000                 # = home-grown.json (7d41fafb)
+# Closing Time and Both Ways, on Home Grown's weeks
+node skeleton-from.mjs home-grown.json /tmp/hg-weeks.json
+TABLE=results/closing-time-26oct-table.json SUN_EXTRA=08:00-16:30 node skeleton-start.mjs /tmp/hg-weeks.json /tmp/ct0.json 1
+env $L node space-polish.mjs /tmp/ct0.json /tmp/ct1.json 62 400000                # the 26 Oct grid (57429cc4); 27 Oct: "Closing Time, improved"
+TABLE=results/both-ways-table.json NOON=12:00-20:00 SUN_EXTRA=08:00-16:30 node skeleton-start.mjs /tmp/hg-weeks.json /tmp/bw0.json 1
+env $L node space-polish.mjs /tmp/bw0.json /tmp/bw1.json 71 400000                # = both-ways.json (7a513d87)
+node factors-like.mjs short-run.json home-grown.json closing-time.json both-ways.json   # every value Short Run's or better
+node short-earlies.mjs                                                                    # the possibilities table above
+```
+
+`skeleton-start.mjs` warns once for Home Grown's weeks ("an early run ending at a single rest day", line 2): its own
+supply rule cannot read a run the polish made legal another way, and the search clears it.
+
+## Closing Time, improved — every possibility tried (27 Oct 2026)
+
+**The question** (owner, 27 Oct 2026): "closing time can't be improved any further? try every possibility if you
+haven't already". Closing Time keeps its brief — a 16:00 closer Monday to Saturday, a 13:45 every weekday, today's
+times and one more, every rule, every fatigue factor's value Short Run's or better — and nothing it already had was
+allowed to get worse. Three figures improved; nothing else could be found.
+
+**What changed** (`CT-26-T2` · **`78e18900`**, was `57429cc4`):
+- **Sunday's 08:00–16:30 is today's 08:30–16:30** — the best-fitting Sunday from today's times;
+- **17 weeks on one shift time**, where it had 16;
+- **a week-to-week change of 1h 11m**, where it had 1h 20m (Short Run 1h 13m, Second Edition 1h 01m).
+The last two came from a new exact model of the whole rota (`tooling/exact-rota.py`, below): four rest days moved, and
+46 of the 99 duties a week changed time. In the usual league Closing Time goes from third (86.0) to **first (87.3)**, above
+Second Edition (87.2) and Short Run (86.5); every version is in the table under "In every version of the league".
+
+| | Closing Time, 27 Oct | Closing Time, 26 Oct | Short Run |
+|---|---|---|---|
+| Weeks on one shift time | **17 of 21** | 16 of 21 | 18 of 21 |
+| Week-to-week change of start | **1h 11m** | 1h 20m | 1h 13m |
+| Fit to the trains, weekday · Saturday · Sunday | 36.4 · 8.7 · **45.3** | 36.4 · 8.7 · 48.6 | 29.1 · 12.7 · 29.0 |
+| Shift times (new) | 12 (3) — the twelfth is today's 08:30–16:30 | 11 (3) | 15 (6) |
+| Shortest rest · heaviest week · lightest week | 14h 35m · 41h 30m · 27h 00m | the same | 14h 20m · 42h 30m · 24h 30m |
+| Everything else on the sheet | the same as 26 Oct: 9 of 9 rules, no fatigue factor fixed or worst case and every value Short Run's or better (`factors-like.mjs`), 51h 30m in any seven days, 5 days in a row (up to 6), 7 weekends at most 5 weeks apart, 4 single rest days, no mixed week, block 5 (up to 7), leave 28 · 23.4 · 20 · 15, 42 finishes after 23:00, 218.6 days | | |
+
+**What was tried, and what came of it:**
+
+| Where | How | What it found |
+|---|---|---|
+| The weekday and Saturday duties | `short-earlies.mjs`'s scan, which is exhaustive: Closing Time's way of finding the minutes (16:00 every day, 13:30–22:30 the only new time, no extra late finish, one table Monday to Friday) holds exactly three whole weeks | Closing Time's fits best. The other two were built: **B** (a 13:35 every weekday and Saturday, an 11:00–19:30) reaches 18 one-turn weeks with every rule, but at a 2h 40m step, and every B rota found has a 42h 30m week — 85.0 to 85.3 in the league; **C** (a 13:45 with the 11:00–19:30) kept a mixed week and a fatigue factor on Home Grown's weeks, and the exact model found no rota for it from scratch |
+| The Sunday, today's times | `final-table.mjs`, every Sunday from today's times and the 15:15 closer — 29 tables | **08:30–16:30** for 08:00–16:30: 47.6 against 50.9 on the search's own measure, 45.3 against 48.6 on the sheets'. Kept to Closing Time's own eleven times, the best is 50.2 |
+| The Sunday, new times allowed | the same search, every quarter hour | one new time 36.8, two (Short Run's Sunday: 09:00–18:00, 14:30–22:30) 29.0, three 26.4 — each costs as much in familiar times as it gains in fit — measured on the 16-week rota, where the swap is clean: 86.6, 86.7 and 86.4 against its 86.8 — so none is taken; it is the owner's call if fit matters more — and on 30 Oct the owner took Short Run's, below. (On the 17-week rota the Sunday early's line, line 2, works the Monday: a 09:00–18:00 there leaves 13h 15m before its 07:15, under the rota's 14h 35m, so it would need a fresh search. On 30 Oct it went on line 7, whose Monday is a rest day, by hand) |
+| The weeks: order, rest days and times | `space-polish.mjs` with the rest days free (four seeds asking for a 17th one-turn week; one each for the step, the leave and the heaviest week), then `exact-rota.py` | the polishes: a 1h 17m step and nothing else. The exact model: **17 one-turn weeks and 1h 11m** (1h 08m if it stays at 16) |
+| An 18th week on one shift time | `exact-rota.py`, every rule, from the 17-week rota: 20 minutes on two cores, then 40 on four | not found; the most the solver could rule out was a 21st |
+| One visible early/late switch | `exact-rota.py OBJ=chg`, climbing from the 17-week rota, then again allowing 16 weeks — Closing Time has two switches between working weeks, and each costs the step about half an hour | not found: it stays at two |
+| The heaviest week under 41h 30m; four weeks off for 14 days' leave; a best stretch of 29; a shortest rest of 15h | `exact-rota.py`, each as an objective climbing from the 17-week rota with every other figure held (`OBJ=heavy`, `four`, `best`, `rest`), 10 minutes each | none found: the heaviest week stays 41h 30m, four weeks 15 days' leave, the cheapest 29 days 15, and the rests under 15h came down from seven to six but not to none, so the shortest stays 14h 35m. Four weeks for 14 days is the Long Break question: the solver has found it only with a fifth single rest day, which costs more in the league (single rest days weigh 4) than the leave gains (1) |
+
+**Read "not found" as a search that came back empty, not a proof.** The exact model can prove a bound, and proved
+nothing useful here: its upper bound never came below 20 one-turn weeks (21 is every working week). **One lesson cost an hour and is
+worth keeping:** asked to require 17 one-turn weeks outright, from a rota with 16, the solver found nothing in ten
+minutes on every variant tried; asked to maximise them from the same valid rota, it found 17 inside ten minutes on
+every variant. A floor the starting rota does not meet leaves the solver to find its own first rota, which is the hard
+part — so start from a rota that meets every rule and let the objective climb (`HINT=`, `OBJ=`).
+
+**The exact model** (`tooling/exact-rota.py`, `pip install ortools`). It states the whole rota — which line works
+which duty on which day — to Google's CP-SAT solver, with every rule the sheets apply, each counted the way the app's
+own module counts it (the header lists them). `FIX=` checks a rota against it: Closing Time old and new, and Short
+Run, are each feasible with their own figures. It reaches where a polish cannot, because a polish improves by small
+swaps and so finds what is near where it started. Without the rules on backward rotation, FF11, leave and the step it
+finds 18 one-turn weeks for Closing Time in half a minute — and that rota has FF17 present, a 3h 38m step and 16 days'
+leave for four weeks, which is what those rules are there to stop. **CP-SAT's parallel search is not reproducible**:
+two runs of one command differ, and so did two of its "deterministic" interleaved mode, so the grid is committed and
+the commands below are how it was found, not a byte-for-byte rebuild.
+
+**How it was found** (from `tooling/`; the 26 Oct chain above first, which ends at `/tmp/ct1.json` = `57429cc4`):
+
+```
+node -e 'const f=require("fs"),j=JSON.parse(f.readFileSync("/tmp/ct1.json","utf8"));for(const k in j.patterns)if(j.patterns[k].sun==="08:00-16:30")j.patterns[k].sun="08:30-16:30";f.writeFileSync("/tmp/ct2.json",JSON.stringify(j))'
+T=results/closing-time-27oct-table.json
+HINT=/tmp/ct2.json ONE_MIN=16 LIGHT=1620 OBJ=step python3 exact-rota.py $T /tmp/ct3.json 600              # 16 one-turn weeks, step 1h 08m
+HINT=/tmp/ct3.json OBJ=one WORKERS=2 python3 exact-rota.py $T /tmp/ct4.json 600                           # 17, step 1h 11m
+HINT=/tmp/ct4.json ONE_MIN=17 LIGHT=1620 OBJ=step WORKERS=2 python3 exact-rota.py $T /tmp/ct5.json 1200   # 17, 1h 11m: the 27 Oct grid (78e18900)
+```
+
+`LIGHT=1620` holds the lightest Monday-to-Saturday week at 27h 00m, Closing Time's own: the first step search, without
+it, reached 1h 12m by letting one week fall to 25h 30m. The 08:30 Sunday would have lifted Home Grown (85.5 to 86.0) and
+Both Ways (85.8 to 86.1) as they stand; neither is changed here.
+
+**Short Run's Sunday (30 Oct 2026).** Asked which design was best with the 13:45 finish and the closer's start time set
+aside (owner: "the closer being shorter is what matters, whether it is 1545 or 1600 doesn't matter"), the answer was
+Closing Time by a whisker, with one real weakness: its Sunday. Hour by hour against the trains, all of the Sunday gap
+to Short Run sat in three hours — five on the floor at 14:00, when the ticket office's 14:00 lates help out until 15:00
+and the trains want four; three at 17:00, the busiest Sunday hour, once the 08:30–16:30 had gone home; and a little too
+much at 08:00. Short Run's two Sunday times answer exactly those, so they were laid on (owner: "make the changes to
+closing time"), by hand, no search needed: line 7's Sunday 07:15–15:45 became the **09:00–18:00** (its Monday is a rest
+day and its Saturday a cover week, so nothing either side of it moves), line 2's 08:30–16:30 became a 07:15–15:45, and
+the two Sunday office lates moved from 14:00 to **14:30–22:30**. `CT-26-T2` · **`77a235bc`**:
+
+| | Closing Time now | Closing Time, 27 Oct | Short Run |
+|---|---|---|---|
+| Fit to the trains, weekday · Saturday · Sunday | 36.4 · 8.7 · **29.0** | 36.4 · 8.7 · 45.3 | 29.1 · 12.7 · 29.0 |
+| Most hours in any seven days | **51h 00m** | 51h 30m | 51h 42m |
+| Week-to-week change of start | **1h 10m** | 1h 11m | 1h 13m |
+| Shift times (new) | 13 (5) — 09:00–18:00 and 14:30–22:30 are Short Run's | 12 (3) | 15 (6) |
+| Everything else | as on 27 Oct: 17 of 21 weeks on one shift time, rest 14h 35m, 41h 30m · 27h 00m, every rule, no fatigue factor and every value Short Run's or better | | |
+
+Searches from it (`exact-rota.py OBJ=both`, ten minutes, and the same from the 09:00–18:00 alone) found nothing more. In
+the league it is first in three of the five versions and second in a fourth (until In Step, which is first in all five) — the table under "In every version of the
+league" — where the 27 Oct version was first in two. Against Short Run it is better or equal on every factor the league
+scores but the weekday fit (one more on the floor from 20:00 to 22:00, when it is quiet; the peaks are covered alike)
+and one week on one shift time (17 against 18). **Outside the league it pays twice** (30 Oct review — this sentence said
+"everything"): ten more finishes a year at 22:00 or later (104 against 94; three weekday 13:30 lates run to 22:30), and
+four at the Saturday open rather than five, the rule's minimum. The 09:00–18:00 alone was tried first: Sunday 36.8 and
+87.1 in the usual league, a time nobody works today costing as much as the fit it bought, until the 14:30 lates took the
+Sunday the rest of the way.
+
+```
+node -e 'const f=require("fs"),j=JSON.parse(f.readFileSync("/tmp/ct5.json","utf8")),p=j.patterns;p["7"].sun="09:00-18:00";p["2"].sun="07:15-15:45";for(const k in p)if(p[k].sun==="14:00-22:30")p[k].sun="14:30-22:30";f.writeFileSync("/tmp/ct6.json",JSON.stringify(j))'
+#   = closing-time.json (77a235bc), from the committed 27 Oct grid as well as from /tmp/ct5.json
+FIX=closing-time.json python3 exact-rota.py results/closing-time-table.json /tmp/check.json 60     # the committed grid against the model
+node factors-like.mjs short-run.json closing-time.json                                                # every value Short Run's or better
+```
+
+*(Closing Time's decks and `closing-time-decks.py` were removed later on 30 Oct, when the shortlist was cut to two; both are
+in git history. What follows is the record of them.)* **Presentations (30 Oct 2026**, owner: "create the manager and colleague presentations, compare them to existing designs
+and then deep review them, then run aesthetic polish over the proposal and the presentations").
+`presentations/Closing-Time-for-colleagues` and `-for-managers`, built by `tooling/closing-time-decks.py` on Short Run's
+decks, which share Closing Time's weeks in everything the decks say about them: the run, the weekends, the rest-day
+breaks, the leave, the 42 finishes after 23:00 and the Sunday. What they say differently: the 16:00 closer Monday to
+Saturday (7h 55m; today 8h 40m and 9h 10m), 13 shift times with 8 worked today, the weekday 13:30 late running to 22:30
+(104 finishes a year at 22:00 or later; today 78, Short Run 94), rest 14h 35m, weeks of 27h 00m to 41h 30m, 17 weeks on
+one shift time, four at the Saturday open, and the fit chart (36.4 · 8.7 · 29.0). It joined the shortlist the same day
+(below), so its manager "Why" slide is the shortlist's own, and its notes say it meets two of the three flexible rules:
+its brief moved the 15:45 closer to 16:00. **Checked:** `deck-check.mjs` reads its 51 table rows back against the sheets
+(204 across the eight decks, none disagreeing); the validator passes both; and the shortlisted designs' decks, rebuilt
+through the changed polish, are identical in every slide (only the strip's anti-aliasing and the chart workbook's
+timestamps differ, so they were not re-committed). **The review changed four things.** The 13:30–22:30 is how the week
+keeps a 13:45 every weekday as well as the 16:00 closer, not what pays for the closer alone (with today's times and a
+16:00 closer the week has 180 minutes to spare; the 13:45s make it 145 short). The weekday fit gap left is the morning
+and evening peaks as well as 20:00 to 22:00, not "mostly the evening". The trade-offs slide quotes only figures the
+sheet prints, because it says it does. And two banners and a card were reworded so no line breaks inside a duration ("8h
+| 30m") or a time, checked by wrapping every text box with Inter's metrics at full width and three per cent narrower.
+**The proposal sheet** was reviewed page by page and left for the owner's word: what could be tidier (a part-filled row
+of new-time cards on page 4, page 1's two staff panels of different heights, the closing-shift row filling its cells on
+page 2) belongs to the shared renderer, and changing it re-renders all thirteen sheets, which then carry the new date
+(this said they would be stamped "re-rendered"; a sheet in this folder says "Prepared" and the day it was rendered). Two
+were changed the same day, below.
+
+**Closing Time joins the shortlist (30 Oct 2026**, owner: "Can we add closing time to the shortlist? And do the
+necessary work"). The shortlist is `SHORTLIST` in `tooling/fresh.mjs`, and everything else now reads it from there — the
+summary's ★ and its count, the shortlist sheet, the decks' polish and the pack's read-me (the last two parse it, being
+Python; each used to say "three" in its own words). **The recommendation stays Short Run**: the owner shortlisted
+Closing Time and did not move the recommendation, and the shortlist sheet's own priorities — days in a row, weekends,
+one shift time a week, late finishes — favour Short Run narrowly (one more week on one turn, ten fewer finishes a year
+at 22:00 or later), where the weighted league favours Closing Time narrowly (87.2 against 86.5); the sheet says both.
+**The shortlist sheet was rewritten for four, and every sentence it rests on is now asserted** (`shared`, `claim` in
+`shortlist-sheet.mjs`): Closing Time broke two that had been true of three — all three flexible rules, every closer 30
+to 45 minutes shorter — and both had been read off Second Edition alone, so they would have gone on printing for all
+four. The same checks found two claims that were already wrong with three: Second Look's fourteen shift times were its
+"specific advantage", and Closing Time has thirteen; and "the rest give something up for nothing the three lack" missed
+Second Look, Second Nature, Second Sight and Second Wind keeping blocks of earlies or lates a week shorter. The page-2
+paragraph now names what each other design keeps, and the sheet refuses to print if a design's list changes. Even Keel's
+edge became a fourth person to the Saturday close (its lightest heaviest week and most rest are Closing Time's too); the
+comparison table gained the weekday and Saturday closers and the 22:00 finishes, and lost the worst-case run and
+Sunday's closer and fit, now shared lines, which with five value columns squeezed the labels to a word a line. **The
+decks:** every manager "Why" slide now says what all four give, and its first line drops the flexible rules, since
+Closing Time's brief swapped one; the colleague decks' leave notes say all four are worse than today on four weeks off.
+All eight decks — two for each shortlisted design — were rebuilt and re-exported with them. **The app:** Closing Time is built into the Links
+designer beside the other three from v25.01 (`links-proposals.js`, copied cell for cell from `proposals/`). *(Superseded
+later the same day: the shortlist was cut to In Step and Short Run, with In Step recommended — "The shortlist cut to two",
+below.)*
+
+**The sheets tidied (30 Oct 2026**, owner: "do the necessary work and sheet tidy ups"). Two of the three were changed in
+`plain.mjs`, with a third found on the way, and all thirteen sheets and the rules sheet re-rendered; `regenerate.mjs
+--check` passes, so no fingerprint moved. **Page 4:** the new times to learn fill every row they start — up to three in
+a row, four as two pairs, five or six three to a row, more four to a row, the last row's cards sharing its width. The
+fixed grid (three columns, four for seven or eight times) had left one card beside two empty cells (Both Ways) or an
+empty cell at the end (Home Grown, Closing Time and the three seven-time designs), and four across wrapped "weekdays and
+Saturdays" in half of Both Ways' cards. **Page 2:** today's closing-shift triple (8h 40m · 9h 10m · 8h 55m) ran 5px into
+its cell's padding on every sheet. The columns are now 27 · 18.2 · 20.3 · 34.5% (were 28 · 17 · 20 · 35), measured on
+all thirteen: both triples sit about 3px inside the padding, no row re-wraps, and the floor above the footer is 26px
+against the 24px minimum (34.5% is the narrowest the words column can be; at 34% Second Nature's weekends row wraps).
+**Page 6, and the rules sheet:** the ticket-office rule broke "14:00–" from "22:30" at a line end on every sheet, and
+the rules sheet "06:20–" from "14:20". A clock range is now one unit on both, held in a no-wrap span — not the invisible
+word joiner the fractions use, which would sit inside every range a reader searches for or copies (tried first: Short
+Run's PDF text carried 47 of them). A scan of every range on every page finds none broken. **The shortlist sheet**,
+found in the review: its footer, four designs and a date, broke inside a name ("Closing | Time") and inside the date,
+and now breaks only between its items; and its fit row, ranked on weekday plus Saturday, went bold as a whole for Second
+Edition and Short Run, whose Saturday (12.7) is not the best of the four — each figure is now marked on its own, Closing
+Time's 8.7 included. **Page 1 was left as it is.** Its two staff panels, and the four tiles above them, end where their
+own content does by a decision of 4 October ("a card is as tall as its own content", `plain.mjs`): stretched to match,
+the shorter list would carry an empty band, which reads as something missing.
+
+**The review (30 Oct 2026**, owner: "review all work done in the last 24 hours"). Three independent reviews read the
+day's work: the app change, every figure and claim against the data, and the tooling code. Every table figure in the
+sheets and decks recomputed exactly, and so did every league score; what they found was in the prose, and in guards that
+did not check what they said. **Fixed:** the shortlist sheet's page 1 called leave "the one exception" where page 2
+lists four shared costs; two dozen of its comparing sentences were unasserted, despite its header, and several numbers
+in them were typed ("two", "a seventh") — all are now asserted or read, a difference printed as a length must be
+positive, and a range of closers is refused; Even Keel's and Short Run's manager decks said each "adds" something
+another shortlisted design has (Even Keel's heaviest week and rest are Closing Time's too), so each line now names the
+design's own edge, as the shortlist sheet does, and is refused if another design shares it; `deck-polish.py` checks its
+three "all four" lines against every design's figures (`deck-check.mjs --print` now gives the rules met and the weekend
+gap); `closing-time-decks.py` checks its typed shift-time lists and figures against the grid, and refuses another
+design's name before its rename, where it used to scan for names after the rename had removed them; slide 12 of every
+colleague deck said more people at the open and the close, which no shortlisted design has at the Sunday close, and
+slide 13 quoted leave stretches the sheet does not print under a banner saying it does; the renderers' stylesheet
+exclusion consumed the bracket it needed to see; `pack.py` checks the two read-me sentences that name shortlist members;
+the app's proposal test could skip, and four doc lines were stale. **Left for the owner:** Closing Time's own sheet
+names its late finishes after 23:00 (42, the rules' minimum) but not its 104 at 22:00 or later — every sheet counts a
+late finish from 23:00, and the shortlist sheet and decks give the 22:00 figure; and the sheets word the fit as a
+fraction from a fixed list ("about two-thirds" for Closing Time's 0.70, "a tenth" for 0.13) where the decks' notes say
+"seven-tenths" and "an eighth" — changing the list re-renders all thirteen sheets.
+
+## In Step — Closing Time's weeks, five at every opening and a closer fit to the trains (30 Oct 2026)
+
+*(This section records In Step as it was made, off the shortlist. Later the same day the owner cut the shortlist to In
+Step and Short Run and In Step became the recommendation, which changed its read-me paragraph, its "Why" slide and its
+place in `deck-polish.py` — "The shortlist cut to two", below. Its long earlies, which this section's costs list leaves
+out, are counted there too: 42 a year each over 8h 30m, where Closing Time has 2.)*
+
+**The question** (owner, 30 Oct 2026): "Closing time can't be improved to fix the Saturday open or fit the trains better
+on a weekday?" — and, once the answer turned out to be a different set of times: "Best to give this option a new name
+to avoid confusion". So Closing Time is unchanged, and the answer is a design of its own: **In Step** (`IS-26-T4` ·
+**`8d9239f3`**). It keeps Closing Time's weeks — the same rest days, and every week still all earlies or all lates — and
+searches the times again. Five people are on at every opening from Monday to Saturday, the weekday fit to the trains is
+Short Run's within a whisker, and every figure the sheets compared then holds or improves on Closing Time's except
+the six small ones listed below under "What it costs" — but one they did not compare got much worse: earlies over
+8h 30m, 42 a year each against Closing Time's 2 (shifts over 8h 30m, 42 against 32).
+
+| | In Step | Closing Time | Short Run |
+|---|---|---|---|
+| Fit to the trains, weekday · Saturday · Sunday | **29.8** · 9.6 · 29.0 | 36.4 · **8.7** · 29.0 | 29.1 · 12.7 · 29.0 |
+| On at the open, weekday · Saturday · Sunday | **5 · 5 · 4** | 5 · 4 · 4 | 5 · 5 · 4 |
+| Still on at 22:00, weekday · Saturday · Sunday | 7 · 5 · 5 | 8 · 5 · 5 | 7 · 5 · 5 |
+| The closer, Monday to Saturday | 15:45, 8h 10m | **16:00, 7h 55m** | 15:45 weekdays, 15:15 Saturday (8h 40m) |
+| A short finish | 13:45 every weekday, 13:35 Saturday | 13:45 every weekday and Saturday | none |
+| Weeks on one shift time | **18 of 21** | 17 of 21 | 18 of 21 |
+| Week-to-week change of start | 1h 13m | **1h 10m** | 1h 13m |
+| Heaviest · lightest week | **41h 05m** · 25h 30m | 41h 30m · **27h 00m** | 42h 30m · 24h 30m |
+| Most hours in any seven days | **50h 00m** | 51h 00m | 51h 42m |
+| Shortest rest | 14h 35m | 14h 35m | 14h 20m |
+| Shift times (new) | 15 (6) | **13 (5)** | 15 (6) |
+| A year each: finishes 22:01–22:59 · hours on duty after 20:00 | **48 · 290** | 58 · 315 | 48 · 290 |
+| Everything else on the sheet | the same as Closing Time: 9 of 9 rules, no fatigue factor fixed or worst case, 5 days in a row (up to 6), 7 weekends at most 5 weeks apart, 4 single rest days, no mixed week, leave 28 · 20 · 15, 42 finishes after 23:00, 218.6 days | | |
+
+**Why Closing Time could not do it with its own times.** Its weakness on a weekday is an extra person on the quiet
+20:00–22:00 floor, and those three 13:30–22:30s are where it found its minutes: with a 16:00 closer, today's times pay
+the contract with only 180 minutes a week to spare, and a 13:45 every weekday leaves the week 145 short (the arithmetic
+under "Today's link on 26 lines"). The owner had already set the closer's start aside ("whether it is 1545 or 1600
+doesn't matter"). A 15:45 closer is 45 minutes a day longer across the three closers, 270 a week, which pays for the
+13:45 without the nine-hour lates. Kept at 16:00, the closers allow as close a weekday (29.8) on Closing Time's weeks
+only by giving up the 13:45 and adding two more new shift times; with a 13:45 the weekday is 31.0 at best.
+
+**Why five at the Saturday open had never come up.** `final-table.mjs` read the owner's "keep 06:20–14:50 x2" as
+exactly two, so a third 06:20–14:50 on the floor beside the ticket office's pair was never offered, though today's
+Saturday works exactly that. `FIXED_FREE=1` now allows it, and `OPENERS_MIN=5` asks for five at the open; both are off
+by default, so every earlier table rebuilds as it was. Closing Time itself can have five at the Saturday open by
+swapping two Saturday duties (line 2's 08:00–16:30 for an 06:20–14:50, line 20's 07:15–15:45 for the 08:00–16:30), for
+2.2 points of Saturday fit (8.7 to 10.9); it would score 86.9 that way, and is not changed.
+
+**What shaped the times.** Two of Closing Time's rules decide which tables can be worked on its weeks, and each
+removed a time the plain search wanted:
+- **the 14h 35m shortest rest**: an early finishing after 15:45 cannot be followed by an 06:20 start the next morning,
+  so Short Run's 07:00–16:00 (14h 20m to an 06:20) became **07:00–15:45** and the longer opener **06:20–15:15**, both new;
+- **no start more than two hours from the day before's (FF19)**: today's 11:00–19:30 is more than two hours from every
+  other late start, so whoever works it must work it every day of a block that rest days close off, and Closing Time's
+  rest days have no such blocks to give; today's **12:00–20:00**, two hours from 14:00, takes its place.
+
+**How it was found.** `final-table.mjs` built the best weekday and Saturday table, exhaustively, on a pool of 35 shift
+times (today's, the closer, and the candidates the faster `ANNEAL=1` search kept choosing), for every weekday total from
+7,440 to 7,480 minutes with the Saturday paying the rest, at several rates of the familiarity penalty, with 15:45 and with
+16:00 closers. Each pair of tables was laid on Closing Time's rest days and early and late weeks by `exact-rota.py`
+(`SKELETON=`, `FAMILY=1`, new), which proves in seconds whether a table can be worked there and how many weeks it can
+keep on one shift time. The best that can be laid is the one in the table above (7,455 a weekday, 6,825 on Saturday).
+Then, with Closing Time's figures held — its FF17 margin of three, 51 hours in any seven days, its heaviest week — the
+model gave it 18 weeks on one shift time, proven the most those weeks allow, and then the smallest step with those 18,
+also proven:
+
+```
+POOL=06:20-13:35,06:20-13:45,06:20-14:00,06:20-14:20,06:20-14:50,07:15-15:45,08:00-16:30,08:30-16:30,12:00-20:00,13:00-21:00,13:30-21:00,13:30-22:00,14:00-22:30,14:30-22:00,14:30-23:25,13:30-22:30,13:45-22:30,14:30-22:30,14:15-22:30,14:45-22:30,06:20-15:15,06:20-15:20,13:00-22:00,12:00-21:00,06:20-14:30,15:00-22:30,07:00-15:45,07:00-15:30,07:00-15:15,06:20-14:15,12:30-20:15,12:45-20:15,12:30-20:30,12:30-21:00,15:45-23:55
+COMMON="TODAY=1 AT22_STRICT=1 MID_END_MAX=1350 HI=540 NEWPEN=1 OPENERS_MIN=5"
+env $COMMON CLS=weekday WK_CLOSER=15:45-23:55 CLOSERS_MAX=3 TOTAL=7455 POOL_ONLY=$POOL node final-table.mjs   # fit 30.1 on its own measure
+env $COMMON CLS=sat FIXED_FREE=1 TOTAL=6825 POOL_ONLY=$POOL node final-table.mjs                             # fit 11.6 on its own measure
+T=results/in-step-table.json   # the two tables, with Short Run's Sunday
+LIGHT=1530 FF17=-3 H7=3060 SKELETON=closing-time.json FAMILY=1 OBJ=one python3 exact-rota.py $T /tmp/is1.json 60                       # 18, proven
+ONE_MIN=18 LIGHT=1530 FF17=-3 H7=3060 SKELETON=closing-time.json FAMILY=1 HINT=/tmp/is1.json OBJ=step python3 exact-rota.py $T /tmp/is2.json 300   # 1h 13m, proven: the grid (8d9239f3)
+```
+
+As with Closing Time, CP-SAT's parallel search is not reproducible, so the grid is committed (`tooling/in-step.json`)
+and `FIX=in-step.json` checks it against the model. Of the sheets' fatigue figures (`factors-like.mjs`) only FF2 is
+above Closing Time's: 30 early starts in the rotation where it has 29 — Short Run's figure, and what a fifth person at
+the Saturday open costs; FF2 is a standing factor, recorded and not counted.
+
+**What it costs against Closing Time:** a Saturday fit of 9.6 against 8.7, the price of the fifth person at the open
+(Short Run's is 12.7); FF2's standing count of 30 against 29, for the same reason; a sixth new shift time (15 times,
+6 new, against 13 and 5 — familiar share 60% against 62%); a week-to-week change of 1h 13m against 1h 10m; a lightest
+week of 25h 30m against 27h 00m, because Closing Time's rest days have a late week of three duties and the table has no
+nine-hour late; and the closer starts at 15:45, a quarter of an hour longer than Closing Time's.
+
+**What else was tried:**
+
+| What | How | What came of it |
+|---|---|---|
+| Laying the new tables without Closing Time's weeks | `exact-rota.py` from Closing Time's grid as a hint, rest days free, 12 minutes each on two tables | no rota at all: a hint that does not fit the table leaves the solver to build a first rota alone |
+| Short Run's 07:00–16:00, or today's 11:00–19:30 | the same tables on Closing Time's weeks | cannot be worked there (the rest and FF19, above) |
+| 16:00 closers kept | the same searches with `WK_CLOSER=16:00-23:55`, with and without a 13:35 or 13:45 required (`REQUIRE=`) | a 29.8 weekday only with no short finish and eight new shift times (three-day fit 23.2); with a 13:45, a weekday of 31.0 and a three-day fit of 23.6 at best — In Step's is 22.8 |
+| 19 weeks on one shift time | `FF17=-1` | possible only with Closing Time's FF17 margin given up, and not with the 25h 30m lightest week held |
+| 17 weeks on one shift time | `ONE_MIN=17 OBJ=step` | a 1h 09m step; 87.9 in the usual league against 88.4 for 18 and 1h 13m |
+| The rest days freed | `exact-rota.py` from In Step without `SKELETON`, 10 minutes each for the weeks on one turn and the step | neither moved |
+
+**In the league** In Step is first in every version (usual 88.4 · proposals setting the scale 93.1 · without familiar
+times 92.8 · run on the fixed rota 88.4 · six-factor 92.2). With it in the range, the usual
+league reads Closing Time 87.2, Second Edition 87.1, Short Run 86.4, Even Keel 85.8: its fit is a new best, which
+widens that factor's range and takes 0.05 to 0.06 off every other score, and changes no other design's place. Against the
+four shortlisted designs it keeps two things none of them has, the closest fit to the trains (the three days' scores
+added together) and the lightest heaviest week, and is worse than all four on nothing the shortlist sheet compares: the
+only design outside the shortlist that is. Two qualifications came out of the presentations' review (below): weighted by
+the days of a week, Short Run's and Second Edition's fit are a shade closer (26.7 against 26.8); and In Step has more
+weekday earlies over 8h 30m than any design here, a measure the sheet does not compare. The shortlist sheet says so
+in one sentence (asserted, as its others are). In Step is not on the shortlist, which is the owner's call, and the
+recommendation is unchanged; it is not built into the app. Its presentations followed the same evening (below). *(Later
+that evening the owner cut the shortlist to In Step and Short Run, and In Step became the recommendation and was built
+into the app at v25.02 — "The shortlist cut to two", below.)*
+
+**Two tooling fixes it needed.** The one-page summary did not fit fourteen proposals: the footer went to a second
+sheet. It now prints, counts its pages and steps the scale down a point at a time until it prints on one (93% at
+fourteen), and refuses to ship two. And the pack's read-me gains a paragraph for In Step, refused if In Step is ever
+shortlisted, since the paragraph says it is not.
+
+**Presentations (30 Oct 2026**, owner: "Create presentations for instep. Deep review after completion. Compare the
+presentation to the one for short run, don't miss anything. Then deep aesthetic polish using screenshots").
+`presentations/In-Step-for-colleagues` and `-for-managers`, built by `tooling/in-step-decks.py` on Short Run's decks. In
+everything the decks say, In Step is Short Run but for five things, and the first build changed only those: the Saturday
+closer starts at 15:45 like the weekday's (8h 10m, today 9h 10m), so every closing shift is 30 to 60 minutes shorter;
+the shift times are as many (15, 9 worked today) but not the same — today's 13:45 kept every weekday, today's 13:35 on a
+Saturday, two new weekday earlies (06:20–15:15 and 07:00–15:45, longer than any early today, which slide 6's notes now
+say); the rest is 14h 35m; the weeks run from 25h 30m to 41h 05m; and the fit chart reads 29.8 · 9.6 · 29.0. In Step is
+not on the shortlist, so its manager "Why" slide says what it shares with the four shortlisted links, what it adds
+(today's 13:45 with five at the Saturday open, and no week over 41h 05m, both checked against all four) and what it
+costs (its weekday earlies, to 8h 55m). `deck-polish.py` lists it in `OFF_SHORTLIST` and refuses a deck for a design
+that is neither shortlisted nor listed there; `deck-check.mjs --print` gains the Saturday and Sunday fit, which that
+check needs.
+
+**Compared with Short Run's, part by part:** the same 107 and 80 parts, the same layout, sizes and colours on every
+slide, the 26-week strip byte-for-byte Closing Time's (the same weeks), and every difference in the words one of the
+five, or a sentence reworded because it read wrongly with the new name ("today or in In Step"). The first build had
+dropped three things of Short Run's that are true of In Step too — slide 8's "the full list is on the slide", the reason
+late finishes cannot go lower, and today's heaviest week beside In Step's — and they were put back. **Checked:**
+`deck-check.mjs` reads In Step's 51 table rows back (255 across the ten decks, none disagreeing); `in-step-decks.py`
+checks its typed time lists, figures and fit fractions against the grid before it builds, and refuses Short Run text,
+another design's name and any "in In Step"; eight mutations, one per new guard, each stopped the build; the shortlisted
+decks rebuilt through the changed polish are identical in every slide, note and chart (only their chart workbooks'
+timestamps moved, so they were not re-committed); the validator passes both. **Reviewed** by a second reader working
+from the grids, who found nine things. Seven were In Step's own and are fixed. The "Why" slide had claimed "the closest
+fit to the trains overall", which holds only with the three days' scores added together — weighted by the days of a
+week, Short Run's and Second Edition's are a shade closer (26.7 against 26.8), and on weekdays alone three of the four
+are — so the slide now gives what is In Step's alone among the five, and the notes give the fit all three ways. Its
+costs line had been Closing Time's (94 finishes at 22:00 or later is three of the four's too); In Step's own cost is its
+longer weekday earlies — 06:20–15:15 and 07:00–15:45, about 40 a year each, where today none is over 8h 30m and no
+shortlisted link has more than 20 — which now leads that line, the managers' worry list, the colleagues' trade-offs card
+on new times and slide 6's notes. The times line counts the new times that shorten one of today's lates (three,
+computed: "several" hid that the rest are earlies). Slide 2's "Saturdays: 1 hour" read as though Sunday's cut were the
+tile's 30 minutes (it is 45), so it says "up to 1 hour"; slide 8, which lists eight lines for six new times, says where
+a time recurs; and the managers' notes say In Step is not on the shortlist and what it gives up against Closing Time
+(closers a quarter of an hour longer, a sixth new time, a Saturday fit of 9.6 against 8.7, a lightest week of 25h 30m
+against 27h 00m). Four new checks guard those sentences, and each stopped the build when broken. The other two are not
+the decks' alone. Three small points are the template's, in every deck, and were left: "about two minutes longer" is 1.4
+minutes Monday to Saturday; the "weeks on one turn" label does not say what a turn is; and the managers' fatigue notes
+say one sentence twice. And the sheets word In Step's fit as "three-fifths" and "a tenth" of today's where the decks say
+"a little over half" and "about a seventh" (0.57 and 0.15): the fraction-list difference already left for the owner's
+word. **Polish:** every slide was rendered beside Short Run's. Nothing In Step adds sits near an edge; the five lines
+the wrap check flags at three per cent narrower are the template's, the same in every deck, and each breaks where it
+should in the render.
+
+## The shortlist cut to two — In Step recommended (30 Oct 2026)
+
+*(The next day Even Step, In Step's weeks without its long earlies, joined the shortlist and became the recommendation —
+"Even Step", below. This section records the two-design shortlist as it was.)*
+
+Owner, the same evening: "Only do the shortlist for instep and short run. Deep review the links 26 pack to change
+anything", then "accuracy check everything in links 26", and on which to recommend: "I need you to have a deep think
+from all angles about which to recommend". `SHORTLIST` in `tooling/fresh.mjs` is `['In Step', 'Short Run']`, and a new
+`RECOMMENDED` beside it names **In Step**; the shortlist sheet and the pack's read-me read both, and refuse a
+recommendation that is not on the shortlist.
+
+**Why In Step, and why only narrowly.** The two are one design in most of what a colleague feels: five days in a row on
+the fixed rota (up to seven when a cover week falls badly — six until the 31 Oct ruling), seven full weekends off in 26 never more than five weeks
+apart, 18 of 21 weeks on one shift time, 42 finishes a year each at 23:00 or later and 94 at 22:00 or later, the same
+leave (28 · 23.4 · 20 · 15), the same 1h 13m week-to-week step, fifteen shift times with nine worked today, all nine
+December rules and all three flexible ones, and the same Sunday. Where they differ, In Step has every closer Monday to
+Saturday at 8h 10m where Short Run's Saturday one is 8h 40m (today 9h 10m), more even weeks, Monday to Saturday (25h 30m to 41h 05m against 24h 30m to 42h 30m), the longer shortest rest (14h 35m against 14h 20m), the better Saturday fit (9.6
+against 12.7; the three days' scores added, 68.4 against 70.8), and today's 13:45 kept every weekday — 12 early finishes
+before 14:00 a year each, where Short Run has none (today 26). That last is what the 26 Oct brief asked for, and Short
+Run, built before it, does not have. Short Run has the fewer long days: 22 earlies a year each over 8h 30m against In
+Step's 42 (20 against 40 on weekdays), Short Run's all 9h 00m and In Step's mostly 8h 45m and 8h 55m, so about 11.0
+hours a year each beyond 8h 30m against 14.3; 28 shifts over 8h 30m against 42 (today 39); the closer weekday fit (29.1
+against 29.8); and nothing new on a Saturday, where In Step's closer is a new time. Counted day by day across a week the
+two fit the trains alike (26.7 and 26.8).
+
+On the priorities the shortlist sheet names — days in a row, weekends, one shift time a week, late finishes and the
+closing shift — the first four are level and the fifth is In Step's. In Step also leads the weighted league (usual
+87.4), where Short Run is fourth on 85.4, behind Closing Time (86.2) and Second Edition (86.1) — figures since the 31 Oct
+ruling, which took a point off every design but Second Look and moved none of these four; before it they were 88.4,
+86.4, 87.2 and 87.1, and In Step led all five versions, where it now leads four (the last section). But the
+league scores neither the closing shift nor long earlies, and In Step has the most long earlies of any design here:
+weighted above about 4.3 — between the 4 the league gives single rest days and the 5 it gives late finishes — they would
+put Short Run ahead of In Step (computed over the range the league itself uses: the proposals, today's link and Familiar
+Nine). Weighted above about 1.35, a quarter of what late finishes get, they would put Closing Time, which has 2 a year,
+first of all fourteen; it is off the shortlist by the owner's choice. So the recommendation is In Step, and the sheet
+says in the same place that it is close, and which to choose if long days matter more. If the colleagues consulted say
+the 8h 45m and 8h 55m weekday earlies are the thing they mind most, that is the case for Short Run.
+
+**What changed.** *The shortlist sheet* was rewritten for two: what both share (asserted line by line), only the
+measures where they differ — with four the sheets did not compare before: earlies over 8h 30m, any shift over 8h 30m,
+earlies finishing before 14:00 and new times on a Saturday — each one's edge, a guide naming the strongest design
+outside the shortlist for each other priority, then against today, why these two and not the other twelve (what each
+other design keeps that neither has, checked design by design), the costs both share, the recommendation, and the league
+weight at which it would turn, computed. *The summary* stars the two. *The presentations:* Second Edition's, Even Keel's
+and Closing Time's decks (twelve files) were removed under the 3 Oct rule, with `even-keel-decks.py` and
+`closing-time-decks.py`; `second-edition-decks.py` keeps only the edits Short Run's builder applies. Both remaining
+pairs were rebuilt: the managers' "Why" slide says what both give, what this one adds against the other (each line
+refused if the other has it) and what it costs against today; each design's managers' notes set it beside the other,
+with the figures checked against the grids before a deck is built. *The pack's read-me* takes the recommendation from
+`RECOMMENDED`, so its twenty-minute read is now `In-Step-for-managers.pdf`. *The app* (v25.02) builds in In Step and
+Short Run only (`links-proposals.js`), and a test holds that list to `SHORTLIST`, in order; the generator's default
+table is unchanged — it was always Second Edition's duty table, which is Short Run's exactly.
+
+**The accuracy check (30 Oct 2026).** Four reviewers, working read-only and each recomputing one part of the pack from
+the grids with code of their own: the shortlist sheet, summary and read-me; the four decks; this README and RULES.md;
+the fourteen proposal sheets, their import files and the rules sheet. Every figure on the sheets, the summary, the rules
+sheet and the decks recounted exactly, the fit scores and the league totals included, and every import file and
+fingerprint matched its grid. What they found was in the words, and in one comparison in RULES.md:
+
+- **The shortlist sheet** said Even Keel and Second Gear kept "nothing the two lack" while its own table showed them —
+and Fine Tune and Home Grown — with fewer long days than either. Its "keeps" and "pays" are now read on every measure
+the table compares, and the paragraph names each design's costs on the five priorities it states (Long Break's six days
+in a row and Home Grown's 9h 10m Saturday closer were missing). Its recommendation said In Step's costs lay "outside
+those measures" while page 1 compared them; it now names every figure where the two differ, on its side, and refuses to
+print otherwise. The guide gains the fewest long days of all (Home Grown); the shared costs gain the long days; the
+league paragraph says Short Run is fourth and that the league scores neither the closing shift nor long earlies; In
+Step's card no longer claims five at every opening, which Short Run has too; the week figures say Monday to Saturday;
+and "today's weekdays have two" to the close reads Monday to Saturday, as today's Saturday has two as well. Every new
+sentence is asserted, and four of the assertions were each broken once to see the sheet refuse.
+
+- **The decks** said the yearly figures depend on which line you start on — false on 26 weeks, where a year is exactly
+two turns; Short Run's never named its own 9-hour weekday early as a cost; "about 40 a year each" was 20 each, 40 in
+all; the ceiling was "agreed" on 1 October where the rest of the pack says "set"; the managers' notes each left out one
+cost against the other; and two notes said one thing twice. All fixed, the costs circle on the "Why" slide is amber as
+the worries are, and three new build checks were each broken once to see the build refuse.
+
+- **The proposal sheets** said the Links page "re-runs every check here" (it re-runs the limits, the fatigue checks, the
+weekends, the hours and the hourly staffing, not the December rules or the yearly figures) and that "somebody's own year
+depends on which week they start on"; their date line said no figure is typed, though each tagline is; three taglines
+gave Monday-to-Saturday weeks as weeks and three the fixed duties' rest as all rest; Home Grown's hid its second new
+time; Second Nature's 10-week wait between weekends read as reassurance on page 2; and In Step's Saturday fit was "a
+tenth" of today's where it is a seventh. All fourteen sheets were re-rendered and no fingerprint moved. The rules
+sheet's floor rule gained its Sunday arrangement, and the read-me the corrections that apply to it.
+
+- **This README and RULES.md** had moved 24-line paths (the Second Nature rebuild command among them), a "none writes
+the number down" the search scripts disprove, a "24-line sheets left as they stood" the 24-line README contradicts, a
+"85 duties at 8h 14m" that was Silva Lining's alone, RULES.md's app paragraph a release behind, and history that read as
+current (the league placements before In Step, the four-design shortlist sheet, Closing Time's decks). Each now says
+what is true or points on.
+
+**Left for the owner — settled 31 Oct 2026.** Two questions were left here: whether full weekends off and the fit to
+the trains should be shaded green while the rules sheet called them preferences "for staff to say, not the app", and
+whether a cover week's Sunday is one of its four duties. The owner answered both the next day; the next section says
+how, and what moved.
+
+## A cover week's four are Monday to Saturday — the owner's two answers (31 Oct 2026)
+
+Asked the two questions above, the owner answered: *"1. They are both positives aren't they? 2. Although people could be
+rostered for rdw on a Sunday cover week. The 4 days can only be the contractual days which are Monday to saturday."*
+
+**1 · Full weekends off and the fit to the trains are gains, so the green stays.** It was the rules sheet's wording
+that was wrong. Its Preferences now say they are not rules and not scored, that the first two and the last — fewer days
+in a row, more full weekends off, a closer fit to the trains — are gains a proposal sheet marks green where a design
+beats today's link, and that how much each matters is for staff to say. Page 2's colour key now counts "a plain gain
+such as full weekends off or the fit to the trains" among what green means (the read-me's, short of room, "a plain gain
+such as full weekends off"), which is what those rows — and the leave and closing-shift rows — were already shaded
+for. No shading changed.
+
+**2 · The four are contracted days, Monday to Saturday; the Sunday is overtime on top.** The app's own rules said so
+already (`.claude/rules/links-design.md`: "a spare week's four days come from Mon–Sat"); its run checks did not, and let
+one of the four fall on the Sunday. They now count a cover week's Sunday as worked in the worst case without spending the
+four (`spareDrawsOnFour`, app v25.03), FF11 included, and the cover-placement reading here follows: the four as a block
+from Monday, Tuesday or Wednesday, the Sunday worked at worst and left off at best. What moved, all computed and no
+fingerprint among them:
+
+- **Most days in a row at worst: 6 → 7 on thirteen of the fourteen designs, both shortlisted ones included.** A line
+ending on two worked days, then the Sunday's overtime and the four from the Monday. Second Look alone stays at 6. The
+fixed rota is unchanged (In Step and Short Run 5), today's link stays at 9, and the 13-day limit is met everywhere.
+- **FF11, the longest stretch without a two-day break: one more everywhere** — 12 on the designs (Second Nature 11), 13 on
+today's link; clear throughout, the factor being *more than* 13. The two MRSF run rows move by one too (13 designs on the
+12-day row, ten on the 8-hour one) and stay clear.
+- **The 55-hour row's worst case crosses 55 on thirteen designs** (55.7–57.5; In Step 56.3, Short Run 56.8), with the
+four and the Sunday's overtime worked as 8-hour duties after a busy line; before, none passed 53.5. Those sheets now say
+avoidable fatigue warnings are 0 on the fixed rota, **up to 1** if a cover week falls badly. Second Look stays at 52.2.
+- **Where the clerk places the four, and whether the Sunday is worked, moves FF11 from 9 to 12** on both shortlisted
+designs: worked together with the Sunday off gives the 9. Page 7 and page 8 used to set "worked together" (9) against
+"spread out" (11); with the Sunday worked the four together reach the app's 12 as well, so the sheets now give the worst
+and say what the best takes.
+- **The league:** usual In Step 87.4, Closing Time 86.2, Second Edition 86.1, Short Run 85.4 — each loses one point on the
+run, as does every design but Second Look, so the order holds except that Second Look and Second Wind swap 12th and 13th.
+The other versions: proposals setting the scale, In Step first (90.0); without familiar times, first (91.7); run on the
+fixed rota, unchanged and first (88.4). **In the six-factor league Second Look is now first, 88.3 to In Step's 87.2**: it
+gives the run 5 points scored across the proposals alone, and Second Look's six is now nobody else's. So In Step leads
+four of the five versions, not all five. The long-early weights at which the order would turn are unchanged, since In
+Step, Short Run and Closing Time each lost the same point, and **the recommendation stands**.
+- **The live rosters in the app:** the main cycle stays at 9 days in a row and FF11 goes 12 → 13; the bilingual goes 8 → 9,
+its two cover weeks wrapping into each other through the second's Sunday.
+- **In the app**, the shortlisted proposals' Design checks now read 7 consecutive days at worst, over the 6-day design
+target, so that row is amber where it was green — an aim, not a limit, as the row itself says.
+
+**Found on the way, and fixed.** The cover-placement reading turned a placed cover week into typed sentinel duties,
+which the app's scanners could not tell from real ones — so a cover week alone could make a run, against the app's own
+rule that it may extend a run but not create one. While the four could include the Sunday that run was four, which no
+threshold here exceeds; with the Sunday worked it is five early starts, over FF15's four, on designs whose early starts
+never run past four. A placement now keeps its worked days SPARE and the app's own `requireMatch` applies.
+
+**What changed.** The app: `links-design.js` (`spareDrawsOnFour`, used by `runLengthsWhere`), `links-fatigue.js` (FF11,
+and one shared sentence for what a cover week adds), `links-limits.js` and `links-analysis.js` (what a cover week is,
+in words), the tests (two new, four mutations each caught) and the rules file. The tooling: `cover-placement.mjs`,
+`report-data.mjs` (`h55Worst`, which `fresh.mjs` now calls rather than keeping a copy), `fresh.mjs`, `render.mjs`,
+`plain.mjs`, `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` (its run claim, Second Look's new edge, and a
+worst-case fatigue count that now includes the 55-hour week, as every other sheet's "up to" does — it had said "no
+avoidable fatigue warning" beside the summary's "up to 1"), the two deck builders, `deck-polish.py` and `deck-check.mjs`
+(the decks' fatigue cells now read "0 (up to 1)", the managers' "Why" line says "no avoidable fatigue warning, fixed
+rota", and the notes to the fatigue slides say what the 1 is, refused if it is ever anything but the 55-hour week) and
+`pack.py`; every sheet, all four decks and the pack re-rendered.
+
+## Even Step — In Step's weeks, nothing over 8h 30m Monday to Saturday, recommended (31 Oct 2026)
+
+**The question** (owner, 31 Oct 2026): "The only unpopular thing I see about instep is the length of the main early
+shift. I will find that hard to sell to colleagues. What are the possible solutions? Deep think". Three answers were
+tested on In Step's own weeks. Of the third, which brought the closer back to 15:30: "1530 closer is not a big enough
+change from 1515. 1545 is the minimum", and then "Only for weekdays". Of the first: "Do your suggestions", which meant
+build it as In Step was built, recommend it and put it to colleagues next to In Step. The owner named it **Even Step**
+(`ES-26-T5` · **`d1921b7a`**). Asked whether Short Run should stay on the shortlist: "Yes, keep all three".
+
+**Why In Step has long earlies.** The 26-line rules need 44,100 Monday-to-Saturday minutes a week, and the 219-day
+ceiling allows at most 89 duties, so every 26-line design's average duty is 8h 16m (today's link: 8h 14m). The long day
+cannot be removed, only moved between duties. Today it sits on the closers, 8h 40m every weekday and 9h 10m on a
+Saturday: 31 shifts a year each over 8h 30m, and no early over it. In Step moved it to the earlies. Its closers are
+8h 10m, its floor lates 8h 00m and a 13:45 stays every weekday, and four long earlies a day pay for that: 06:20–15:15
+(8h 55m) and 07:00–15:45 (8h 45m), 40 a year each. No rule forced them; the search chose them for a slightly closer fit
+to the trains.
+
+**What it is.** In Step's duty table with five time changes, laid again on In Step's own weeks: the same rest days, cover
+weeks and early and late weeks, line by line (`even-step-decks.py` checks that against the grids before it builds). The
+changes are to the table — what is worked each day; the rota placed the times afresh, so most lines' weeks read
+differently from In Step's (only one of the 21 working lines is unchanged, and 14 of the 21 closers fall on other
+line-days).
+
+| In Step | Even Step | How many |
+|---|---|---|
+| 06:20–15:15 (8h 55m) | 06:20–14:50 (8h 30m) | 2 each weekday |
+| 07:00–15:45 (8h 45m) | 07:15–15:45 (8h 30m) | 2 each weekday |
+| 14:30–22:30 (8h 00m) | 14:00–22:30 (8h 30m), beside the office pair's own two | 2 each weekday |
+| 12:00–20:00 (8h 00m) | 12:15–20:30 (8h 15m) | 1 each weekday |
+| 06:20–13:35, Saturday | 06:20–14:00, Saturday | 1 |
+
+The table's closers and Sunday duties are In Step's exactly. Every early Monday to Saturday is now one of today's times
+(06:20–13:45, 06:20–14:00, 06:20–14:20, 06:20–14:50, 07:15–15:45, 08:00–16:30) — though 06:20–14:50 and 07:15–15:45,
+worked on Even Step's weekdays, are worked today only on a Saturday and a Sunday — and the 13:45 stays every weekday. Five
+times are new: the 15:45 closer, the 12:15–20:30, and the Sunday's three, which all three shortlisted designs share. The
+time In Step put on its earlies (15 and 25 minutes over 8h 30m) is on Even Step's lates instead: they average 8h 27m,
+closers aside, near today's 8h 30m, where In Step's average 8h 12m. That is the trade: for the floor lates it gives up the owner's v21.10 preference
+for lates shorter than most earlies (lates are the turns booked around and refused), which the closers, at 8h 10m, keep.
+
+| | Even Step | In Step | Short Run |
+|---|---|---|---|
+| Shifts over 8h 30m, Monday to Saturday, each a year (today 31) | **0** | 40 | 26 |
+| Earlies over 8h 30m, Monday to Saturday, each a year (today 0) | **0** | 40 | 20 |
+| Weekday lates, closers aside, on average (today 8h 30m) | 8h 27m | 8h 12m | **8h 00m** |
+| Fit to the trains, weekday · Saturday · Sunday | 32.6 · 10.0 · 29.0 | 29.8 · **9.6** · 29.0 | **29.1** · 12.7 · 29.0 |
+| Week-to-week change of start | 1h 31m | **1h 13m** | **1h 13m** |
+| Heaviest · lightest week, Monday to Saturday | 41h 30m · **25h 30m** | **41h 05m** · **25h 30m** | 42h 30m · 24h 30m |
+| Shortest rest | **14h 35m** | **14h 35m** | 14h 20m |
+| The closer, Monday to Saturday | **15:45, 8h 10m** | **15:45, 8h 10m** | 15:45 weekdays, 15:15 Saturday (8h 40m) |
+| Earlies finishing before 14:00, each a year (today 26) | 10 | **12** | 0 |
+| Shift times (new) | **13 (5)** | 15 (6) | 15 (6) |
+| The 55-hour week a badly placed cover week can make | 56.8 | **56.3** | 56.8 |
+| Everything else on the sheet | the same on all three: 9 of 9 rules and all three flexible ones, no fatigue factor on the fixed rota (up to 1 at worst, the 55-hour week), 5 days in a row (up to 7), 7 weekends at most 5 weeks apart, 4 single rest days, no mixed week, 18 of 21 weeks on one shift time, leave 28 · 23.4 · 20 · 15, 42 finishes after 23:00 and 94 at 22:00 or later, 218.6 days | | |
+
+On the fatigue factors (`factors-like.mjs`, In Step as the reference) every finding is In Step's; the figures differ in
+four places: the 55-hour worst case (56.8 against 56.3), the hours in any seven days on the fixed duties (49.7 against
+50.0), FF17's counts (9 backward and 12 forward against 10 and 13, the same margin of three) and FF18's step, how far
+the start time moves from one week to the next (typically 1h 31m against 1h 13m).
+
+**How it was found.** `final-table.mjs`, exhaustively, on a pool of 45 shift times: In Step's, with every time over 8h 30m
+left out (`HI=510`), no late starting between 11:00 and 11:59 (on these weeks a start there is more than two hours from
+the 14:00 lates beside it, FF19, as In Step's section found for 11:00–19:30) and no closer before 15:45. The two tables
+reproduce exactly:
+
+```
+POOL=06:20-13:35,06:20-13:45,06:20-14:00,06:20-14:20,06:20-14:50,07:15-15:45,08:00-16:30,08:30-16:30,12:00-20:00,13:00-21:00,13:30-21:00,13:30-22:00,14:00-22:30,14:30-22:00,14:30-22:30,14:15-22:30,14:45-22:30,06:20-14:30,15:00-22:30,07:00-15:30,07:00-15:15,06:20-14:15,12:30-20:15,12:45-20:15,12:30-20:30,12:30-21:00,15:45-23:55,06:20-14:45,07:00-15:00,07:30-16:00,07:45-16:15,08:00-16:15,12:00-20:15,12:00-20:30,12:15-20:30,12:15-20:45,12:30-20:45,13:00-21:15,13:00-21:30,13:15-21:30,13:15-21:45,13:30-21:45,14:00-22:15,14:15-22:15,16:00-23:55
+COMMON="TODAY=1 AT22_STRICT=1 MID_END_MAX=1350 HI=510 NEWPEN=1 OPENERS_MIN=5"
+env $COMMON CLS=weekday WK_CLOSER=15:45-23:55 CLOSERS_MAX=3 FIXED_FREE=1 REQUIRE='06:20-13:45|06:20-13:35' TOTAL=7450 POOL_ONLY=$POOL node final-table.mjs   # fit 32.9 on its own measure
+env $COMMON CLS=sat FIXED_FREE=1 TOTAL=6850 POOL_ONLY=$POOL node final-table.mjs                                                                       # fit 12 on its own measure
+T=results/even-step-table.json   # the two tables, with In Step's Sunday
+LIGHT=1530 FF17=-3 H7=3060 SKELETON=closing-time.json FAMILY=1 OBJ=one python3 exact-rota.py $T /tmp/es1.json 120                         # 18, proven
+ONE_MIN=18 LIGHT=1530 FF17=-3 H7=3060 SKELETON=closing-time.json FAMILY=1 HINT=/tmp/es1.json OBJ=step python3 exact-rota.py $T /tmp/es2.json 300   # 1h 31m, proven: the grid (d1921b7a)
+```
+
+The weekday totals from 7,400 to 7,500 minutes, in fives, were each searched with the Saturday paying the rest, and the
+tables ranked on the sheets' own fit (`report-data.mjs`'s `officeSplit`, the plan's ticket office), which differs a
+little from `final-table.mjs`'s own. The closest pairs were laid on In Step's weeks (`SKELETON=closing-time.json
+FAMILY=1`, which holds Closing Time's rest days and early and late weeks, In Step's too) under the limits In Step was laid
+under — an FF17 margin of three, at most 51 hours in any seven days (Closing Time's figure; In Step's is 50.0), a lightest
+week of at least 25h 30m. Only 7,450 a weekday with 6,850 on Saturday
+kept In Step's 18 weeks on one shift time (7,435 and 7,445 kept 17, both proven), and with those 18 the smallest step is
+1h 31m, also proven. CP-SAT's parallel search is not
+reproducible, so the grid is committed (`tooling/even-step.json`) and
+`FIX=even-step.json ONE_MIN=18 OBJ=step … exact-rota.py results/even-step-table.json` checks it against the model
+(OPTIMAL, 1h 31m, in under a second).
+
+**What else was tried:**
+
+| What | What came of it |
+|---|---|
+| Halfway: only 06:20–15:15 goes, 07:00–15:45 stays | a closer fit (30.2 · 10.0) and a 1h 15m step, but still 20 long earlies a year each and 17 weeks on one shift time; 86.0 in the usual league |
+| The closer back to 15:30, every day (8h 25m) | the best fit of the three answers (29.3 · 9.9) and 18 weeks on one shift time, with no long earlies, for a 42h 30m heaviest week; ruled out by the owner, 15:30 being too close to today's 15:15 |
+| The first two answers as first built, with a 15:30 Saturday closer | allowed again once the minimum was weekdays only, but they scored lower (85.6 to 85.9) |
+| A smaller step | 1h 10m, smaller than In Step's, with 17 weeks on one shift time; 86.4 against 86.6, not shipped |
+| Moving the minutes to Saturday | each weekday minute costs five Saturday ones: 35 a weekday takes the Saturday fit from 9.6 to 12.6 |
+| More, shorter duties | one more duty a week is two more contracted days a year for everyone, over the 219 ceiling |
+| Four or six cover weeks | the average duty still comes out at about 8h 15m |
+
+**The closer rule, reworded** (F3, `RULES.md`). It read "every weekday closer starts at 15:45", and the check behind it
+accepted exactly 15:45, which flagged Closing Time's 16:00, a closer the owner had already accepted ("whether it is 1545
+or 1600 doesn't matter"). It now reads **15:45 or later, on a weekday**: `report-data.mjs`'s flexible rule, the rules
+sheet and `links-default-targets.test.mjs` (mutated to 15:30 to see it fail) all say so, and Closing Time meets all three
+flexible rules. Saturday's closer is not covered, so Short Run's 15:15 Saturday closer stands. The decks' managers' notes
+and the pack's read-me say "15:45 or later" too, and no proposal sheet's figure moved.
+
+**In the league, as it was weighted when Even Step was built** (`OLD_READINGS=1` now; since *The league reweighted*,
+below, Even Step is first in the main league) Even Step is second in four of the five versions: usual 86.6 behind In
+Step's 87.4; with the proposals setting the scale 87.9 against 90.1; without familiar times 90.7 against 91.7; with the
+run scored on the fixed rota 87.6 against 88.4. In the six-factor league it is third, 85.8, behind Second Look (88.3)
+and In Step (87.2), a shade ahead of six designs tied at 85.7, Second Edition and Short Run among them. Adding it moved
+no other design's score in the usual league. That weighting scored neither the closing shift nor long days, and Even
+Step's weekday fit and step were where it lost its point: counted even as lightly as the league's lightest factor, In Step's
+long earlies would put Even Step first of all fifteen (`shortlist-sheet.mjs` computed the weight at which the order
+turns, from the league's own range, until the league counted long earlies itself).
+
+**The shortlist of three, Even Step recommended.** `SHORTLIST` in `tooling/fresh.mjs` is `['Even Step', 'In Step',
+'Short Run']` and `RECOMMENDED` is Even Step. The case, as the shortlist sheet puts it: In Step's weeks without the long
+earlies. On what weighs most here the three are level (days in a row, weekends, weeks on one shift time, late finishes,
+the leave); Even Step has In Step's closers, and Monday to Saturday no shift over 8h 30m and every early one of today's times,
+and the fewest shift times of the three; its costs are the longest weekday lates of the three, the weakest weekday fit,
+the biggest step and, as on In Step, a new Saturday time (the closer). With the owner's worry being the long earlies, the consultation
+becomes one question about the same weeks: long earlies and short lates, or nothing over 8h 30m? If colleagues say the
+lates are what they mind, In Step stands; Short Run has the shortest weekday lates and the closest weekday fit, for an
+8h 40m Saturday closer and heavier weeks.
+
+**What changed.** *The proposal sheet* (`proposals/Even-Step-ES-26-T5-d1921b7a.pdf`, with its grid and import file),
+from `tooling/even-step.json` and `even-step.meta.json` through `regenerate.mjs`; `fresh.mjs` gives its strap, family and
+date. *The shortlist sheet* was rewritten for three: the measures where they differ now include the weekday lates on
+average (In Step's card had said "lates from 8h 00m", which made it look the short-lates design while Short Run's are
+shorter, 8h 00m on average with a 7h 30m late; caught in this release's own review, and the card, the guide and the
+choices were corrected, each asserted); each one's edge; the guide; the recommendation, every figure in its place
+(asserted row by row); and the league's turning weight (since replaced by both weightings' orders, asserted —
+*The league reweighted*). *The summary* stars three. *The rules sheet* and `RULES.md` carry
+the reworded closer rule. *The presentations* (below). *The pack's read-me* gains a paragraph for Even Step, refused unless
+it is shortlisted and recommended, and its twenty-minute read is now `Even-Step-for-managers.pdf`. *The app* (v25.04)
+builds in Even Step first, then In Step and Short Run (`links-proposals.js`), and a test now holds the first to
+`RECOMMENDED` as well as the list to `SHORTLIST`; the shortlist e2e opens Even Step.
+
+**Presentations (31 Oct 2026).** `presentations/Even-Step-for-colleagues` and `-for-managers`, built by
+`tooling/even-step-decks.py` on In Step's decks (Second Edition's, Short Run's and In Step's edits, then its own). In
+everything the decks say, Even Step is In Step but for: the shift times (13, 8 worked today, 5 new; the lists on slide
+8, the pitch tile, the trade-offs card, the table on slide 14), nothing over 8h 30m Monday to Saturday (the pitch line,
+slide 6's takeaway and notes, the managers' welcome list), the weekly range (to 41h 30m), the fit chart (32.6 · 10.0 ·
+29.0) and the 55-hour worst case (56.8). Its managers' "Why" slide gives what all three give, what Even Step adds — no
+shift over 8h 30m Monday to Saturday and every early one of today's times, checked against both others — and what it
+costs against today (two more Saturdays a year each, and the leave); its notes set it beside both others, the lates
+first. The builder refuses In Step's own facts if any survive (its earlies, its times, its week, its fit) and any
+sentence of In Step's builder that still names In Step, and it checks every typed figure against the grids first,
+including that Even Step's weeks are In Step's, line by line. *In Step's and Short Run's decks* were rebuilt for a
+shortlist of three: "all three shortlisted" on the "Why" slide; each one's "adds" line rewritten for what is still its own
+among three (In Step's today's 13:45 and 8h 10m Saturday closer are Even Step's too, so it now gives its lightest heaviest
+week and its Saturday fit; Short Run's "half the long earlies" is not true beside Even Step's none, so it gives its
+weekday fit and nothing new on a Saturday); each design's managers' notes set it beside both others, the lates included,
+and each builder checks the new figures. `deck-polish.py` now handles a design whose shifts Monday to Saturday all sit
+within today's longest early (slide 6 says so rather than "the longest early turn goes from 8h 30m to 9h 00m", true only
+of the Sunday 09:00–18:00), and a costs line for a design with no long earlies. **Checked:** `deck-check.mjs` reads 153
+table rows back across the six decks, none disagreeing; the validator passes all six; every slide Even Step changes was
+rendered and read, and two takeaways that broke a duration across a line ("8h" / "30m") were fixed with a no-break space
+and a shorter line. In Step's and Short Run's decks differ from the committed ones only in those lines and in the
+template's wording of the closer rule, now "15:45 or later". **Reviewed** by a second reader recomputing from the grids,
+who confirmed the figures and found eleven things in the words, all fixed: a slide-6 note that said nothing else gets
+longer, where the other shifts must (four of seven weekday earlies are 8h 30m, today two of six); "every early is one of
+today's times" without "Monday to Saturday" (the Sunday 09:00–18:00 is a new early); known times that today are worked on
+other days, now named; the shortlist's one-turn line, which set the combined measure (one time and no switch) against
+"one shift time" alone; "the fewest shift times", "the best Saturday fit" and "the shortest lates" without "of the three"
+or "weekday"; In Step's "light weeks", now "steady hours" (its weekly range is the narrowest; its lightest week is not
+the lightest); Short Run's long shifts counted
+with the Sunday where every other figure is Monday to Saturday; "pairs or longer" where every other break is two days;
+and in this section the "five time changes", which are the table's, not the rota's. Each new sentence on the sheet is
+asserted, and each in the decks checked against the grids. It also found one fault that predates this release, from
+v25.03: fourteen of the fifteen proposal sheets printed nine pages, their footers counting eight. Page 7 ran 133px past
+the A4 page because the 55-hour row's worst case had been spelt out in full ("if a cover week is worked as four 8-hour
+duties and a Sunday's overtime"), which widened its column and wrapped every pattern title. It now reads as every other
+row's worst case does ("if a cover week falls badly"; the notes beneath the table say how it is made), all fifteen print
+eight pages again, and `render.mjs` refuses to print a page taller than the sheet (shown to refuse the long form: page 7,
+1,165px against 1,032).
+
+## The league reweighted — long earlies and the closing shift counted, the old weighting kept (31 Oct 2026)
+
+The owner asked "Are we weighting correctly in the tables?", then "Use your weights and fix the league", and then "Keep
+the old leagues as alternatives, but this should now be the main one". **Why it needed fixing.** Weighted as it was, 74
+of the league's 100 points went to factors on which the three shortlisted designs score exactly the same, and neither of
+the two things that decide between them scored at all: the length of the earlies (the owner's worry about In Step) and
+the closing shift (the shortlist sheet's own priority, and the shift the colleague decks call the one people dislike
+most). The three were ordered by margins under a point on the 26 points left — fit, shortest rest, step, heaviest week,
+familiar times — and the shortlist sheet had to work out, outside the league, the weight at which long earlies would
+turn its order.
+
+**Four changes** (`league.mjs`'s header has the reasoning beside the code):
+
+| | What | Weight |
+|---|---|---|
+| Long earlies | earlies over 8h 30m, Monday to Saturday, a year each — the shortlist sheet's own count, which it asserts equal for all fifteen designs | 5, as late finishes |
+| The closing shift | the average length of the Monday-to-Saturday closing duties, weighted by how many are worked | 3 |
+| The fit by days | the weekday's fit counted five times, as five days of the week. It was the mean of the three day types, so a Saturday counted as much as five weekdays | fit's 11, unchanged |
+| The 55-hour cover week | counted in the fatigue worst case, as every sheet's "up to 1" counts it; the league had scored it as nothing, under a label that says worst case | fatigue's 11, unchanged |
+
+The other weights are unchanged. The two new ones take the total to 108, and every weight is rescaled to 100, as `DROP=`
+does (rules met 25 becomes 23.1, and so on). The league counts long EARLIES, not every long shift: today's long shifts
+are its 8h 45m closers, which every design shortens and the closing-shift factor scores. What the new readings give:
+long earlies a year each, none on Even Step, Closing Time and Home Grown (or today's link), 10 on Even Keel, Fine Tune
+and Second Gear, 20 on the six on Second Nature's duty table and on Second Look, 26 on Both Ways, 32.5 on Familiar Nine
+and 40 on In Step; closing shifts from 7h 55m (Closing Time, Both Ways) to 8h 16m (Even Keel, Fine Tune, Second Gear,
+Familiar Nine), In Step and Even Step 8h 10m, today 8h 45m; and a 55-hour week possible with a cover week placed badly
+on every design but Second Look, whose worst week is 52.2 hours.
+
+**The main league** (`REF_IN_RANGE=1 node league.mjs`), and the same table weighted as before (`OLD_READINGS=1`):
+
+| Design | Main league | Weighted as before |
+|---|---|---|
+| ★ Even Step | **1st · 84.0** | 2nd · 86.6 |
+| Closing Time | 2nd · 83.8 | 3rd · 86.2 |
+| Home Grown | 3rd · 82.5 | 8th · 84.5 |
+| Second Edition | 4th · 81.5 | 4th · 86.1 |
+| Even Keel | 5th · 81.4 | 6th · 84.8 |
+| Both Ways | 6th · 81.3 | 7th · 84.7 |
+| ★ Short Run | 7th · 80.9 | 5th · 85.4 |
+| ★ In Step | 8th · 80.5 | **1st · 87.4** |
+| Fine Tune | 9th · 80.5 | 10th · 83.8 |
+| Long Break | 10th · 79.9 | 9th · 84.3 |
+| Second Gear | 11th · 79.8 | 11th · 83.1 |
+| Second Look | 12th · 79.7 | 13th · 81.9 |
+| Second Sight | 13th · 78.5 | 12th · 82.8 |
+| Second Wind | 14th · 77.2 | 14th · 81.4 |
+| Second Nature | 15th · 72.5 | 15th · 76.4 |
+
+★ shortlisted. In Step's 80.51 and Fine Tune's 80.49 round alike. Unranked, for reference: Familiar Nine 71.9 (77.1
+before), today's link 19.4 (16.0).
+
+**What moved it.** Even Step goes first, a fifth of a point ahead of Closing Time. Of the factors the two differ on, it
+gains 0.8 on the fit by days and 0.5 on weeks on one shift time, and loses 0.8 on the closing shift (Closing Time's
+closers are 7h 55m against its 8h 10m) and 0.3 on the step. In Step goes from first to eighth: with the most long
+earlies of any design, 40 a year each, it scores none of their 4.6 points, which Even Step scores in full and Short Run
+half of. Home Grown, with no long earlies and the shortest closers after Closing Time and Both Ways, rises from eighth to
+third, although its fit by days is the weakest of all fifteen. The recommendation does not change: Even Step was
+recommended for what a colleague feels, before the league counted it, and the league now agrees.
+
+**Every version, both ways** — the versions of *In every version of the league*, above:
+
+| Main league | Usual | Proposals set the scale | Without familiar times | Run on the fixed rota | Six-factor |
+|---|---|---|---|---|---|
+| Even Step | **1st · 84.0** | 2nd · 75.2 | **1st · 87.5** | **1st · 84.9** | 12th · 62.9 |
+| In Step | 8th · 80.5 | 3rd · 74.0 | 8th · 84.1 | 7th · 81.4 | 8th · 67.1 |
+| Short Run | 7th · 80.9 | 6th · 71.5 | 6th · 84.5 | 6th · 81.8 | tied 2nd · 67.2 |
+| first | Even Step 84.0 | Second Look 75.5 | Even Step 87.5 | Even Step 84.9 | Second Look 90.4 |
+
+| Weighted as before | Usual | Proposals set the scale | Without familiar times | Run on the fixed rota | Six-factor |
+|---|---|---|---|---|---|
+| Even Step | 2nd · 86.6 | 2nd · 87.9 | 2nd · 90.7 | 2nd · 87.6 | 3rd · 85.8 |
+| In Step | **1st · 87.4** | **1st · 90.1** | **1st · 91.7** | **1st · 88.4** | 2nd · 87.2 |
+| Short Run | 5th · 85.4 | 5th · 84.7 | 6th · 89.6 | 4th · 86.4 | tied 4th · 85.7 |
+| first | In Step 87.4 | In Step 90.1 | In Step 91.7 | In Step 88.4 | Second Look 88.3 |
+
+**Where Second Look leads, and why.** It is the one design whose worst case has no 55-hour week, and the two versions in
+which only the proposals set the scale have nothing between that one warning and none: Second Look takes the whole
+fatigue weight and every other design nothing. That is 10.2 points where the proposals set the scale — Second Look 75.5,
+Even Step 75.2 — and 20 in the six-factor league, where Second Look scores 90.4 and the next six tie on 67.2 (Second
+Nature, Second Wind, Second Sight, Second Edition, Short Run, Long Break), In Step 67.1 and Even Step 62.9. With today's
+link in the range, as in the usual table, the same difference is worth 2.0. The difference is real — Second Look's
+worst week is 52.2 hours, every other design's 55.7 to 57.5 — but a scale with nothing else in it turns one warning into
+a fifth of the league. The six-factor league weighted as before is how the 24-line work read it: there Second Look is
+first on 88.3, In Step second on 87.2 and Even Step third on 85.8, a shade ahead of six tied on 85.7.
+
+**The shortlist sheet** runs both. Its claims assert the main league's order (Even Step first, under a point ahead of
+Closing Time; Short Run seventh, In Step eighth) and the one before it (In Step first, under a point ahead of Even
+Step), that only the main league counts long earlies and the closing shift, and that its long earlies are the sheet's
+own count for every design; `league.mjs`'s JSON now says which weighting it holds (`oldReadings`), and the sheet refuses
+the wrong one. The turning-weight sum is gone, since the league counts long earlies itself. Its paragraph now reads:
+"In the pack's weighted league (the owner's weights, which count long earlies and the closing shift since 31 October)
+Even Step is first of the fifteen, on 84.0, just ahead of Closing Time (83.8); Short Run is seventh and In Step eighth.
+Weighted as it was before, In Step led, under a point ahead of Even Step (87.4 against 86.6)."
+
+**Changed:** `league.mjs` (the four readings; `OLD_READINGS=1`; `oldReadings` in the JSON; a first line saying which
+weighting is printed); `shortlist-sheet.mjs` and `links-26-shortlist.pdf`; this README (the note at the top, the tooling
+row, the dates on Even Step's league paragraph); the pack, rebuilt. No proposal sheet, deck, summary or app file reads the
+league, so none changed; the scores in earlier sections are the weighting they were written with, and
+`OLD_READINGS=1` rebuilds them.
+
+## The accuracy and consistency review — sheets, shortlist and decks (31 Oct 2026)
+
+Owner: *"look at all the proposals and presentations and check for accuracy and consistency, using screenshots for
+aesthetic polish on all"*, and *"redo the shortlist and comparison sheet"*. Four independent reviews read the fifteen
+sheets, the shortlist, the rules and the six decks against the grids. Everything below was fixed at its source, and
+every new figure is computed or asserted, never typed.
+
+**The proposal sheets (all fifteen re-rendered).**
+- Page 2 gains **"Shifts over 8h 30m, Mon–Sat"** under *Each person's year* (Even Step 0, today 31). It was the measure
+  that separates the shortlist, and it appeared only in a hand-typed description. Page 1 names it as a gain or a concern.
+  A gain ranks just after the closing shifts: page 1 shows five positives, two of them pinned (the shortest rest and the
+  fatigue count, owner), so it takes the last open place only where the closers do not. A concern is never capped.
+- Wording: "four complete weeks **in a row**", "(today **up to** 7)" for the weekend gap, the cover-week run row, the
+  55-hour row's 8-hour-duty assumption, and the fingerprint described as worked out.
+- Three wrapped rows were tightened so page 2 fits every sheet. The renderer still refuses a page that spills.
+- Second Nature's one-line description says "three to the close", not "the closing rule".
+- `regenerate.mjs`'s straps had drifted from the printed ones (fresh.mjs `STRAPS`) in six places. They now match, and a
+  drifted one fails the run (mutated: it does).
+
+**The shortlist sheet, redone.** Page 1's shared list now holds only what is level with or better than today. The longer
+blocks (5 weeks, up to 7; today 2, up to 3) and the lost three- and four-day breaks (today five of 17, about 13 a year
+each) moved to page 2's shared costs, each asserted. Even Step's edge is "no long days, **Monday to Saturday**", since its
+Sunday early is 9 hours. The Leave cost says what 14 days buys and carries the three figures the "against today" table
+used to repeat. Short Run's new times are spelled out, Second Sight's fifth single rest day is named and asserted, and
+the choice guide gives Short Run's long earlies as "20 a year each over 8h 30m".
+
+**The decks (all six rebuilt).**
+- **Pay, slide 5.** The takeaway said "plus about two more Saturdays at time and a quarter" and nothing about the Sundays.
+  It now gives both, computed from the grids with the Pay Calculator's own rate and premiums (`paycalc-calc.js`). The
+  line is refused unless the Sundays outweigh the Saturdays (mutated: it is). The notes show the sum, each figure to one
+  decimal so the subtraction on the page checks:
+
+  | Each person, a year | Saturday hours | Sunday hours | Saturday premium | Sunday overtime | Net, full share of Sundays |
+  |---|---|---|---|---|---|
+  | Today | 213.2 | 177.4 | | | |
+  | Even Step | 228.3 | 167.0 | +3.8 h | −15.7 h | −11.9 h, about £250 |
+  | In Step | 227.5 | 167.0 | +3.6 h | −15.7 h | −12.1 h, about £250 |
+  | Short Run | 230.0 | 167.0 | +4.2 h | −15.7 h | −11.5 h, about £250 |
+
+- **Notes.** Slide 3 names all nine rules (the handovers and the 8–9-hour Sundays were missing). Slide 8 says which
+  known times move day, generated for In Step and Short Run; Even Step's typed sentence is checked against the same
+  computation (mutated: it fails). Slide 9 says the breaks as they are: two days and four single days, none longer; today
+  five of three or four days. It also gives today's one-shift-time count beside the design's.
+- **Slide 9's row** is "Weeks on one shift time, Monday to Friday". "No early–late switch" was true of all 21 weeks, not
+  the 18 counted.
+- **Slide 10's strip** draws one bar per full weekend, with a gap where two meet (`rota-strip.mjs`). The 4 Oct merge
+  showed seven weekends as fewer bars, and the note admitting that is gone.
+- **Slide 13's new-times card** names every new time, including the Sunday 09:00–18:00. A new time of no named kind
+  stops the build.
+- **Managers' decks.**
+  - Slide 3's notes describe the Sunday office as the model has it (`OFFICE_HELP_TEXT`, read and checked).
+  - Slide 7 says In Step's edge is "no **Mon–Sat** week over 41h 05m".
+  - The weekly hours in notes 7 and 8 are said to be Monday to Saturday.
+  - Short Run's notes 7 add its 14h 20m shortest rest.
+  - In Step's notes 7 no longer say Even Step has "none over 8h 30m", and introduce Closing Time as another design in the
+    pack.
+  - Slide 8 says "four weeks off **in a row**".
+
+**Other fixes.** `RULES.md` gave four changes; it has five (F3, the weekday closers, added 31 Oct), and the app builds in
+the three shortlisted designs. This README's Even Step section gave three places where its factors differ from In Step's;
+there are four (FF18's step). The pack read-me now asks colleagues to read pages 1 and 2 before the rota.
+
+**Left as it is, on purpose.**
+- "The 55-hour week" was kept here as the pack's name for the guideline. The external review below asked for the
+  precise wording, and it was changed everywhere at once, which was the reason given for keeping it.
+- The five-positive cap on page 1 is unchanged.
+
+**Checked:** `deck-check.mjs` 153 rows agree, none unchecked; `regenerate.mjs --check` and `check.mjs` pass; every
+changed slide and page was screenshotted. That screenshot pass caught three things, each fixed: In Step's card running
+out of its box, "8h | 15m" breaking across a line, and a lone "14" on the managers' slide 8.
+
+**Changed:**
+- tooling: `plain.mjs`, `fresh.mjs`, `render.mjs`, `regenerate.mjs`, `shortlist-sheet.mjs`, `pack.py`,
+  `deck-polish.py`, `deck-check.mjs`, `rota-strip.mjs`
+- outputs: the fifteen sheets, the shortlist, the six decks and their PDFs, the pack
+- docs: `RULES.md` and this README
+
+## An external review: four wording changes, no figure changed (31 Oct 2026)
+
+An outside reviewer checked the pack independently and prefers Even Step overall: "the best balance for colleagues", then
+In Step, then Short Run. They found "no material numerical discrepancy". Their own recounts agree with the pack:
+- all 2,730 printed roster cells match their import files, and all 15 fingerprints match;
+- every proposal totals 44,100 Monday–Saturday duty minutes;
+- the staffing counts, office pairs, floor minimums, handovers and Sunday duty lengths meet the stated rules;
+- the rest gaps, days in a row, weekends, shift lengths, weekly hours and leave figures agree;
+- the six PowerPoints match their PDFs in visible text, and the pay arithmetic supports "about £250 a year less".
+
+They asked for four statements to be more precise. Each is now said as asked, everywhere it appeared:
+- **"A year is exactly two turns"** becomes **"52 weeks are exactly two turns"**: two turns are 364 days. This is on
+  sheet page 8, and in the colleagues' notes for slides 5 and 7.
+- **"A 55-hour week"** becomes **"more than 55 hours in seven days"**, and the factor is named **"more than 55 hours in
+  any seven-day period"**. That is the app's own title for it (`links-fatigue.js`, MRSF): a rolling seven days, not a
+  calendar week. Changed on sheet pages 1, 2 and 7, the shortlist's page 1, and the colleagues' notes 12 and managers'
+  notes 6. The 8-hour-duty assumption behind 56.3 to 56.8 hours was already disclosed and stays.
+- **Managers' slide 9** says the December rules and the Sunday cover were **"confirmed verbally"**. The 26 people are
+  **"decided"**: the slide first said "set 1 October", and the owner had the date taken off, as office detail nobody
+  needs on a slide. The notes keep the date, and add that the verbal confirmations are worth having in writing before
+  a link is chosen.
+- **Slide 5's pay line** now says it is premium and overtime pay, and gross: "No: basic pay stays the same. Premium and
+  overtime pay come to about £250 a year less, gross, if you work your share of Sundays." Its notes give the three
+  assumptions: the CEA rate of £21.49, a full share of the Sunday overtime, and the fixed duties only.
+
+The fifth point, the distinction between no counted avoidable warnings and an approved fatigue assessment, is already
+made on page 7 ("guidance, not a pass or fail") and in the managers' notes 6 ("this is not a fatigue risk assessment").
+It stays as it is. The confirmations the reviewer lists as outstanding are the ones the pack already lists as open: the
+staffing assumptions in writing, the 13-day rule's written source, and the FF19 reading.
+
+**Found while checking it.** The longer fatigue wording made page 2's last row three lines. On thirteen sheets, "The
+workings" line then ran 6px under the footer rule. The page stayed exactly 1,032px, so the renderer's height check passed
+it, and only a screenshot showed it. The row now reads "up to 1 (today 5) if a cover week falls badly: over 55 hours in
+seven days — guidance, page 7", two lines again. `render.mjs` also refuses any page whose text runs under its footer,
+measured after its own tightening passes. Mutated: putting back the three-line wording, the render stops at "page 2,
+6px".
+
+**Changed:**
+- tooling: `plain.mjs`, `render.mjs`, `shortlist-sheet.mjs`, `deck-polish.py`
+- outputs: the fifteen sheets, the shortlist, the six decks and their PDFs, the pack
+
+## The managers' decks reviewed — clarity, consistency and screenshots (1 Nov 2026)
+
+The owner asked for the three managers' decks to be reviewed for clarity, then for consistency, then polished from
+screenshots. Two independent reviews read the decks against the rotas, the sheets and the colleague decks. Their
+findings were checked before any was taken: every figure they quoted was recomputed. One fact drove most of the changes:
+**a deck's PDF carries the slides and no speaker notes**. So anything a manager must not miss is now on a slide: which
+design is recommended, that this is not a fatigue risk assessment, what the brackets mean, and the costs colleagues will
+be shown.
+
+**On the slides:**
+- **Slide 1.** In Step's and Short Run's decks say "one of three shortlisted" and that Even Step is the recommended
+  design. Even Step's says it is the recommended one.
+- **Slides 2, 6, 7 and 8.** "Fixed rota" becomes **"cover weeks aside"**. "Fixed rota" read as the station's fixed lines.
+  Slide 2's bar now says what each design is for, not the line all three shared.
+- **Slide 3.** Every row now states its rule: "At the open, at least 4", "Still on duty at 22:00, at least 5" (the
+  rule's own name on the rules sheet), and so on.
+- **Slide 4.** The subtitle names the measure ("fit to the trains") that slides 7 and 8 refer to. The bar is now one
+  sentence for all three decks: a threshold had given Even Step a different sentence for a difference the chart shows
+  anyway.
+- **Slide 5.** Cover weeks are shown as a share, **"5 of 26 (19%)" against "4 of 20 (20%)"**, not "1 in 5.2". The
+  Sunday overtime figure is said to be the whole link's.
+- **Slide 6.** The subtitle says **"not a fatigue risk assessment"**. The row is now "Longest shift, any day", because
+  two of the three 9-hour shifts are the Sunday early. The bar says what the brackets are: the worst case, if a cover
+  week falls badly.
+- **Slide 7.** Each "This one adds" and "This one costs" line is checked against the other two designs.
+  - Short Run's cost now names its nine-hour weekday earlies. Seen side by side, only In Step's long earlies were
+    named, though Short Run's are the longer.
+  - In Step's "most early finishes" now says "of the three". Slide 8 lists fewer early finishes than today as a worry,
+    and the two lines must not read as a contradiction.
+  - The shift-times line no longer puts a tick beside the new times.
+  - The shared costs are each said against today.
+- **Slide 8.** The two lists are in one form on all three decks: one line each, with "(today X)" beside every figure.
+  - The worries are the six on the colleague deck's trade-offs slide, plus the pay figure and (In Step and Short Run)
+    the long weekday earlies.
+  - The welcome list gains the longer rest and the floor staffing, as the colleague deck's slides 7 and 12 show them.
+  - The scope is said once, in the subtitle: per person, a year, cover weeks aside.
+- **Slide 9.**
+  - The ask is on the slide: the rules are worth having in writing before a link is chosen, and the proposal has not
+    yet been seen by the roster office or a union rep.
+  - The two open points are said in words, not as "FF19".
+  - The dates are in the notes only.
+- **Slide 10.** The fingerprint is shown beside the code, as on the sheets.
+
+**In the notes.** The notes are rewritten to be read aloud, in the same order on all three decks. The dates and history
+are kept to notes 9. Repeated sentences are gone: the days a year had been said three times. Every figure is computed,
+and the notes no longer give an exact count where a rounded one is said aloud ("44,100 minutes" is gone).
+
+**Found in the screenshots.**
+- At 13pt, slide 8's lists ran off the bottom of their cards. They are now 12pt, start 0.08in higher, and have one line
+  per item. Each item was measured against Inter's own metrics before the rebuild.
+- Four slide-7 lines wrapped onto a second line, and slide 8's bar left "both." alone on its second line.
+- Slide 2's fatigue tile ran to two lines. That broke the rule that every tile's sub-caption is one line, which keeps
+  the four tiles level. It now says "cover weeks aside", next to the hours tile's "Mon–Sat average". Today's 4 is on
+  slide 6, because one line holds the qualifier or the comparison, not both.
+
+**Not taken.**
+- Slide 6 keeps its green figures, which mean "better than today". What was misread was the brackets, and the bar now
+  explains them.
+- The "Why Even Step?" titles, "code" on slide 1 and slide 4's title stay as they are.
+- The colleague decks were outside this review, and every part of the rebuilt colleague decks was compared with the
+  committed ones and found identical. The one term they shared with the managers' decks was changed afterwards: see
+  the next section.
+
+**Checks.** `deck-polish.py` refuses to print a claim the grids do not bear out. New checks:
+- each slide-8 worry is a cost against today, and each welcome is a gain;
+- Short Run's long earlies are all nine hours;
+- the notes say where today's 13:45 is kept every weekday, and it is kept there;
+- Even Step's Sunday 09:00–18:00 is its only shift over 8h 30m;
+- Even Step has the fewest shift times and the furthest week-to-week move;
+- Short Run has the heaviest week;
+- slide 3's levels are met.
+
+Four of these were tested with `scripts/mutate.mjs`, and each stopped the build with its own message.
+`deck-check.mjs` reads the renamed rows: 153 rows agree.
+
+**Changed:**
+- tooling: `deck-polish.py`, `deck-check.mjs`
+- outputs: the three managers' decks and their PDFs, the pack
+
+## "Cover weeks aside" in the colleague decks too (1 Nov 2026)
+
+The colleague decks said "fixed rota" in 12 places each: 5 on slides and 7 in the notes. They defined the term only in
+notes 2, which a PDF does not carry. That is the term the managers' review replaced, because it reads as the station's
+fixed lines, and the app has a roster type called "fixed". The owner agreed to align the colleague decks with the
+managers' decks.
+
+- **On the slides,** slides 2 and 9 now say "never more than five days in a row, cover weeks aside". Slides 12 and 14
+  have the row "Avoidable fatigue warnings, cover weeks aside", the same label as the managers' slide 6.
+- **In the notes,** the term is said the way a presenter would say it aloud. Notes 2 defines it where the presenter
+  first meets it: "When a slide says 'cover weeks aside', it means the other 21 weeks, whose shifts are set." Notes 7
+  says that the yearly figures and the 14h 35m shortest gap leave the cover weeks out.
+- **Slide 9's bar** keeps "five days in a row" together. The line used to break as "in a / row", the same break the
+  old wording had.
+- `deck-polish.py` writes the new wording where it creates these sentences, and rewords the builders' own sentences once
+  each. A deck that still says "fixed rota" is refused. Mutated: with one rewording deleted, the build stops and names
+  the notes page.
+- The managers' decks' content is unchanged; only a timestamp inside an embedded chart differed, so they were not
+  rebuilt into this change.
+
+**Still saying "fixed rota", outside the decks:** the one-line description under Short Run's name on its own sheet
+("No run over five days on the fixed rota…"). Changing it means re-rendering that sheet, so it is left as it is until
+the owner decides. The shortlist sheet used to say it too; it changed in the next section, when it was re-rendered for
+another reason.
+
+**Changed:**
+- tooling: `deck-polish.py`, `deck-check.mjs`
+- outputs: the three colleague decks and their PDFs, the pack
+
+## A third outside review: the pay condition back, and four readability changes (1 Nov 2026)
+
+The reviewer scored the pack 8.5/10 for appearance and found no new numerical discrepancy. They also found no text
+outside a page and no mismatch between a deck and its PDF. They still prefer Even Step. They found one qualification
+missing, and suggested five readability changes. All six were taken, as follows.
+
+- **The pay line on managers' slide 8 had lost its condition.** The previous pass shortened it to fit one line, and it
+  became "About £250 less premium and overtime, gross". The condition, that the person works their full share of
+  Sundays, was left only in the speaker notes, which the PDF does not carry. It now reads "Premium and overtime pay:
+  about £250 less, gross, with a full share of Sundays". That was this session's error, not a calculation error.
+- **Managers' slide 8 was the busiest slide in the pack: 16 points at 12pt.** The previous pass had added every cost on
+  the colleague trade-offs slide, and shrunk the text to make them fit. The slide now has five good points and six
+  worries at 13pt, and notes 8 name the rest.
+  - The five good points: weekends off, days in a row, one shift time a week, shorter closers, and either the longest
+    shift (Even Step) or how many shift times are already worked (In Step, Short Run).
+  - The six worries: late finishes, early finishes, runs of earlies or lates, leave, pay, and either Even Step's two
+    more Saturdays or In Step's and Short Run's long weekday earlies. In those two decks, the Saturdays stay in slide
+    7's bar.
+  - Every two-line item was laid out with no-break spaces, so a line never splits inside "(today 39)" or a duration.
+- **Colleagues' slide 8, the shift times, was small for a room.** The times people already work are now in two columns
+  at 18pt, up from 10.5pt. Each new time is one row at 13pt: the day, the time, and what it is. The notes are the
+  builders' own, shortened by a fixed set of rules, and a note no rule covers stops the build.
+  - The first attempt used tab stops. LibreOffice ignored them and used its own default spacing, which wrapped "07:15–"
+    away from "15:45" and ran a note into its time. The screenshot showed it, and the columns are now separate text
+    boxes, which line up the same way in both programs.
+- **Colleagues' slide 14** stays as a reference to leave on screen. Its notes now say not to read it row by row: take
+  the rows people ask about, or else the three that carry the case.
+- **Shortlist page 2.** The 15-line paragraph on the other twelve designs is now a seven-row table: each design, and its
+  main trade-off. The full detail is on each design's own sheet and on the summary.
+  - A first version kept every detail in three columns, and ran 100px off the page. The sheet's overflow check refused
+    it, and the reviewer's suggested "main trade-off" form is the one that fits.
+  - Page 1's two "fixed rota" phrases became "cover weeks aside" in the same re-render.
+- **The summary** is now described in the pack's read-me as a reference: read it on screen, zoomed in, or print it at A3.
+
+**Checks.** `deck-polish.py` now refuses a managers' slide 8 with more than six points in a column. It also refuses a
+new-time note that no rule shortens. Both were mutated with `scripts/mutate.mjs`, and each stopped the build with its
+own message. `deck-check.mjs`: 153 rows agree. Only the intended parts of each deck changed. In the managers' decks
+that is slide 8 and notes 8, plus a timestamp inside the embedded chart workbook. In the colleague decks it is slide 8
+and notes 14.
+
+**Changed:**
+- tooling: `deck-polish.py`, `shortlist-sheet.mjs`, `pack.py`
+- outputs: the six decks and their PDFs, the shortlist sheet, the pack
+
+## A fourth outside review: one pass for simplicity (1 Nov 2026)
+
+The reviewer's follow-up corrected their own earlier verdict. "Essentially finished" had been about accuracy and
+completeness, and was too generous about simplicity. The story was still clear, but a few slides had become more
+complete at the expense of the aim: plain English, low cognitive load, and only the caveats needed on screen. Their
+point was information density, not visual design: "an orderly slide can still contain too much". They asked for one
+focused pass, and for no deck to be rebuilt and no detail removed from the supporting pack. This session agreed. Each
+review had added something true to a slide, and together they had made some slides harder to read.
+
+- **Managers' slide 8: three gains and three costs.** Each is a bold plain-English headline ("More weekends off") with
+  its figure underneath in grey ("14 full weekends a year, not 10"), so the slide can be read from the headlines alone.
+  - Even Step's costs are late finishes, leave and pay. In Step's and Short Run's swap leave for their longer weekday
+    earlies, the cost their colleagues will notice; leave stays in slide 7's bar.
+  - The pay line keeps its Sunday condition.
+  - Notes 8 name everything else.
+- **The bars on managers' slides 5 and 7** now give the message without the figures. "Six more people, the same
+  35-hour week — and Sundays are still worked as overtime." "What all three cost: more late finishes, two more
+  Saturdays a year, a day more leave for four weeks off." The figures moved to notes 5 and 7.
+- **Colleagues' slide 8** keeps the times people already work, which can be taken in at a glance. The new times are
+  now three plain lines: closers start later (by how much, on which days), the new weekday times, and Sundays.
+  - Notes 8 list every new time with what it is, for reference.
+  - A word joiner after each time's dash stops a time breaking across two lines; "15:00– / 22:30" had done so.
+- **Colleagues' slide 14** says its message before the figures: "Same hours and days, shorter closers, more weekends
+  off, fewer days in a row".
+  - The three rows behind that message stay bold, and the rest are set in regular weight, so the eye lands on them first.
+  - The bar used to repeat the message. It now names the costs: "more late finishes and longer runs of earlies or
+    lates".
+- **Caveats** stay only where a claim would mislead without one:
+  - the pay line's Sunday condition;
+  - "cover weeks aside" beside days in a row and the fatigue warnings;
+  - "not a fatigue risk assessment";
+  - what the brackets on slide 6 mean.
+- **Left as they are:**
+  - Managers' slide 3: each row's rule threshold is what that slide is for.
+  - Every other colleague slide: the reviewer found them mostly successful.
+  - The sheets: the full comparison lives there.
+
+**Checks.** Three things now stop the build:
+- colleague slide 8's three lines failing to name every new time (or cover it as a closer) or naming a time that is
+  not new;
+- slide 14's subtitle or bar no longer being true of its design;
+- slide 8's gains and costs no longer being gains and costs against today.
+
+The first two were mutated with `scripts/mutate.mjs`, and each stopped the build with its own message.
+`deck-check.mjs`: 153 rows agree. Only the intended parts changed:
+- managers' decks: slides 5, 7 and 8 and their notes, plus the embedded chart's timestamp;
+- colleague decks: slides 8 and 14 and notes 8.
+
+**Changed:**
+- tooling: `deck-polish.py`
+- outputs: the six decks and their PDFs, the pack
 
 ## Notes for the whole set
 
@@ -782,8 +2118,8 @@ starts already were:
   the rotation figure stays, relabelled "Full weekends off, in the rotation";
 - **the summary:** under the count.
 
-The weighted league scores weekends as a share of weeks for the same reason. The 24-line sheets were left as they
-stood.
+The weighted league scores weekends as a share of weeks for the same reason. The 24-line sheets gained the same per-year line the same day, their one change since that folder was frozen
+(`../links-24/README.md`).
 
 **Everything in one download:** `links-26-proposals.zip`, laid out as the 24-line pack
 (`../links-24/links-24-proposals.zip`) was:
@@ -800,8 +2136,8 @@ if a file is missing. The 24-line pack was zipped by hand, so it went stale afte
 running `python3 docs/links-26/tooling/pack.py` after any re-render.
 
 **26 in the app since v24.47 (3 Oct 2026).** `ROTATING_LINES = 26` in `links-design.js`: the Links page lays out 26
-lines, so the import files in the pack paste straight in and the page re-runs every check on them; the three shortlisted
-designs are built into that page as examples, copied cell for cell from `proposals/` (`links-proposals.js` says so, and
+lines, so the import files in the pack paste straight in and the page re-runs every check on them; the shortlisted
+designs are built into that page as examples (three from v24.47, Closing Time from v25.01, In Step and Short Run from v25.02, and from v25.04 the three on the shortlist now, Even Step first), copied cell for cell from `proposals/` (`links-proposals.js` says so, and
 says to re-copy if one changes). The tooling still
 passes 26 to every app function explicitly — harmless now, and it keeps the sheets' line count stated in one place
 (`tooling/link.mjs`) rather than inherited. Until that release the page was on 24 lines and refused the files; the

@@ -30,7 +30,8 @@ concurrency:
 
 jobs:
   warm:
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not -latest: Playwright 1.56.1 cannot install its libraries on 26.04 (e2e.yml's smoke job says why)
+    runs-on: ubuntu-24.04
     # A download that hangs is the thing this exists to take off the critical path; the cap only
     # stops a hung one burning a runner.
     timeout-minutes: 30

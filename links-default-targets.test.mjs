@@ -142,9 +142,13 @@ describe('the 26-line rules (docs/links-26/RULES.md) — the table meets every o
         assert.ok(DEFAULT_SHIFT_TIMES.length <= 18, `${DEFAULT_SHIFT_TIMES.length} times`);
     });
 
-    test('F3: every weekday closer starts at 15:45', () => {
+    // F3 reads "15:45 or later" since 31 Oct 2026 (owner: "1545 is the minimum", weekdays only), so a 16:00 closer
+    // meets it too. The table's own closers start at 15:45 exactly; the header says so, and this checks the rule.
+    test('F3: every weekday closer starts at 15:45 or later', () => {
         const close = windowMinutes(WINDOW_FOR.weekday.end);
-        for (const t of dutiesOn('weekday').filter(x => endMinutesAbs(x) === close)) assert.equal(t.slice(0, 5), '15:45');
+        const closers = dutiesOn('weekday').filter(x => endMinutesAbs(x) === close);
+        assert.ok(closers.length > 0, 'the weekday table has a closer');
+        for (const t of closers) assert.ok(startMinutes(t) >= 15 * 60 + 45, `${t} starts before 15:45`);
     });
 
     test('the days-a-week figure is what the table actually averages', () => {

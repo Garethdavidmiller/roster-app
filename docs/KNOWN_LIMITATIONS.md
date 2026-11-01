@@ -239,6 +239,24 @@ reports every safe-area inset as zero, so a landscape baseline would prove nothi
 Island insets the audit's B11 added, and the smoke suite's layout assertions are written for
 portrait. A real iPhone in landscape is on the device checklist in the audit, not in CI.
 
+### Every browser job is pinned to Ubuntu 24.04 until Playwright moves on (30 Oct 2026, v25.01)
+
+GitHub's `ubuntu-latest` became **Ubuntu 26.04** in the last week of October 2026, and Playwright 1.56.1 supports
+nothing newer than 24.04. On the new image `npx playwright install-deps` prints "Cannot install dependencies for
+ubuntu26.04-x64" and **exits 0**, so the libraries step passed, and every WebKit test then failed at browser launch
+(408 of 409 in one shard) — while Chromium happened to launch, and both visual lanes, drawn on 24.04, reported drift.
+The nine jobs that start a browser now say `runs-on: ubuntu-24.04` (e2e.yml's smoke, webkit, csp, visual and
+visual-webkit; the deploy gate in deploy-hosting.yml; live-health, offline and warm-browser-cache); the reason is
+written once, on e2e.yml's smoke job.
+
+**Deferred:**
+- When a Playwright release supports 26.04, upgrade it and move all nine back together. One job left on 24.04 would
+  test a browser the others do not, and the WebKit and visual baselines would need regenerating on the new image anyway.
+- `install-browser-deps` still reports success when Playwright declines to install. Its fallback `exec`s the plain
+  command, whose exit status is 0 here; a check that the browser launches would name the failure at the step that
+  caused it, rather than four hundred tests later. `workflow-hygiene.test.mjs` pins the fallback's shape, so that is a
+  change to the test as well.
+
 ### Playwright's WebKit crashes when a page leaves after two history entries and a Back (measured Oct 2026, v24.97)
 
 The WebKit that Playwright 1.56.1 runs here (build 2215, "Safari 26.0") **crashes its web process**
@@ -1590,13 +1608,16 @@ never contingent on the beta label, and dropping it does not make any of them go
     *permits*. That is the right question for a hard limit — if any placement reaches 14 the link
     allows a breach — but it means the number is usually higher than what anyone works, and it must
     not be quoted as "our people do 9 days in a row".
-  - **It rests on a spare week being four duties** (owner, Aug 2026). If that ever changes — a
-    different cover model, or a link where spare weeks routinely carry a fifth day — every figure
-    here moves and `SPARE_WORKED_DAYS` has to move with it.
+  - **It rests on a spare week being four duties, Monday to Saturday** (owner, Aug 2026), with its
+    Sunday counted as worked in the worst case, because it can be worked as overtime on top (owner,
+    31 Oct 2026; `spareDrawsOnFour`, v25.03). If that ever changes — a different cover model, or a
+    link where spare weeks routinely carry a fifth contracted day — every figure here moves and
+    `SPARE_WORKED_DAYS` and `spareDrawsOnFour` have to move with it.
 
   **This section previously described a breach that did not exist.** Until v19.79 both run checks
   counted a spare week as SEVEN worked days, which fused the blocks either side of it: the main
-  cycle reported 15 consecutive days and the bilingual 14, against true ceilings of 9 and 8. The
+  cycle reported 15 consecutive days and the bilingual 14, against true ceilings of 9 and 8 (9 and 9
+  since v25.03, when a cover week's Sunday stopped being one of its four duties). The
   comment justifying it said over-reporting was "the safe direction for a fatigue check". It is not,
   once a number has a hard limit under it — a tool that cries breach on the roster people are
   actually working teaches its readers to discount the row, and the next design that genuinely does

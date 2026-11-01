@@ -24,38 +24,43 @@
 // office.
 //
 // ── WHAT "AS ROSTERED" MEANS HERE ───────────────────────────────────────────────────────────────
-// The four duties worked as one consecutive block. On seven days that is four placements (the block
-// starting Sun, Mon, Tue or Wed), and each cover week is placed independently, so a rotation with
-// k cover weeks has 4^k arrangements. This returns the WORST of them — still a ceiling, but the
-// worst ceiling inside the reading, not a best case. It also returns the best arrangement, so a
-// caller can say when the reading is a range rather than a number.
+// The four duties worked as one consecutive block, on Monday to Saturday — the contracted days, and
+// the only days the four can be (owner, 31 Oct 2026; `spareDrawsOnFour` in links-design.js). That is
+// three placements (the block starting Mon, Tue or Wed). The Sunday is not one of the four, but it
+// can be worked on top as overtime, so each cover week has six arrangements and a rotation with k
+// cover weeks has 6^k. This returns the WORST of them — still a ceiling, but the worst ceiling
+// inside the reading, not a best case — and the best, so a caller can say when the reading is a
+// range rather than a number. Until v25.03 the block could also start on the Sunday, four
+// placements and no overtime, which put a Sunday inside the four.
+//
+// The worst always works the Sunday and the best never does, because a day worked can only lengthen
+// a run or take away a 48-hour break, and adds hours; so each is found over the 3^k block placements
+// alone, Sunday worked or not, rather than over all 6^k (`placementCombos`).
 //
 // ── WHY IT MATERIALISES RATHER THAN RE-IMPLEMENTS ───────────────────────────────────────────────
 // Every figure here comes out of the app's OWN scanners (`longestRunBetween48hBreaks`,
-// `worstCaseWorkedRun`, `runLengthsWhere`) run over a grid whose cover weeks have been replaced by
-// real days. A second implementation of "what is a run" is exactly the drift `longestWorkedRun`'s
-// header was written to forbid, and the numbers on a proposal sheet have to come from one reading
-// of the rule. The only thing this module decides is what a cover day IS; the counting is theirs.
+// `worstCaseWorkedRun`, `runLengthsWhere`) run over a grid whose cover weeks have been placed. A
+// second implementation of "what is a run" is exactly the drift `longestWorkedRun`'s header was
+// written to forbid, and the numbers on a proposal sheet have to come from one reading of the rule.
+// The only thing this module decides is WHICH days of a cover week are worked; the counting is theirs.
 //
-// The sentinel duty is per-question, because a cover duty's TIMES are unknown too: a row that asks
-// "how many 8-hour duties in a row" must assume a cover duty is one, and a row that asks about
-// early starts must assume it is early. Handing every row the same sentinel would let a rule go
-// quiet on the cover week, which is the v21.98 defect one level down.
-import { DAYS, SPARE_WORKED_DAYS, runLengthsWhere, worstCaseWorkedRun, dutyMinutes } from '../../../links-design.js';
+// So a placement keeps its worked days SPARE and makes the others rest days. The scanners then read
+// those days exactly as they read any cover day: an unknown that counts towards whatever a row asks
+// (a run of 8-hour duties, of early starts), and that may EXTEND a run but not CREATE one
+// (`requireMatch`). Until 31 Oct 2026 the worked days were a typed sentinel duty instead — one per
+// question, so a row could not go quiet on the cover week — which the scanners could not tell from a
+// real duty. That let a cover week alone make a run, and once its Sunday could be worked that run
+// was five early starts, over FF15's four, on designs whose early starts never run past four.
+import { DAYS, SPARE_WORKED_DAYS, spareDrawsOnFour, runLengthsWhere, worstCaseWorkedRun, dutyMinutes } from '../../../links-design.js';
 import { LINES } from './link.mjs';   // 26 lines: the app's ROTATING_LINES is still 24
 import { longestRunBetween48hBreaks, isEarlyStart, toSequence } from '../../../links-fatigue.js';
 
-/** The block placements of a cover week's four duties: true = worked. */
-export const BLOCK_PLACEMENTS = [0, 1, 2, 3].map(start =>
-    [...Array(7)].map((_, i) => i >= start && i < start + SPARE_WORKED_DAYS));
+/** The days of a week, by index, that can hold one of a cover week's four duties: Monday to Saturday. */
+const FOUR_DAYS = DAYS.map((_, i) => i).filter(spareDrawsOnFour);
 
-/** Sentinel duties, one per question a run row can ask. Times are otherwise meaningless here. */
-export const COVER_AS = {
-    worked: '09:00-17:00',     // any duty — for the plain run and 48h-break rows
-    eightPlus: '09:00-17:00',  // exactly 8h, so it counts as "8 hours or more"
-    twelvePlus: '06:00-19:00', // 13h, so it counts as "over 12h"
-    early: '06:00-14:00',      // starts inside 05:00–07:00
-};
+/** The block placements of a cover week's four duties, inside `FOUR_DAYS`: true = worked. */
+export const BLOCK_PLACEMENTS = FOUR_DAYS.slice(0, FOUR_DAYS.length - SPARE_WORKED_DAYS + 1).map(start =>
+    DAYS.map((_, i) => i >= start && i < start + SPARE_WORKED_DAYS));
 
 /** Line keys of the cover weeks, in order. */
 export function coverLines(patterns, lines = LINES) {
@@ -64,62 +69,57 @@ export function coverLines(patterns, lines = LINES) {
 }
 
 /**
- * The grid with every cover week's SPARE days replaced by real ones, under `combo` — one
- * BLOCK_PLACEMENTS index per cover week, in `coverLines` order.
+ * The grid with every cover week placed under `combo` — one BLOCK_PLACEMENTS index per cover week,
+ * in `coverLines` order: its worked days become `coverDuty`, the rest rest days. `sundayWorked`
+ * works every cover week's Sunday as well, the overtime on top of its four. A `coverDuty` of
+ * 'SPARE' leaves the worked days unknown, for the run scanners (the header says why); a timed duty
+ * gives them hours, for the 55-hour row (`h55Worst`).
  */
-export function materialise(patterns, lines, combo, coverDuty) {
+export function materialise(patterns, lines, combo, coverDuty, sundayWorked = false) {
     const covers = coverLines(patterns, lines);
     const at = new Map(covers.map((k, i) => [k, BLOCK_PLACEMENTS[combo[i]]]));
     const out = {};
     for (const k of Object.keys(patterns).sort((a, b) => a - b).slice(0, lines)) {
         const place = at.get(k);
         out[k] = place
-            ? Object.fromEntries(DAYS.map((d, i) => [d, place[i] ? coverDuty : 'RD']))
+            ? Object.fromEntries(DAYS.map((d, i) => [d, place[i] || (sundayWorked && !spareDrawsOnFour(i)) ? coverDuty : 'RD']))
             : { ...patterns[k] };
     }
     return out;
 }
 
-/** Every combination of block placements across the cover weeks. */
-function combos(n) {
+/** Every combination of block placements across `n` cover weeks — the Sunday is the caller's. */
+export function placementCombos(n) {
     let acc = [[]];
     for (let i = 0; i < n; i++) acc = acc.flatMap(c => BLOCK_PLACEMENTS.map((_, j) => [...c, j]));
     return acc;
 }
 
-/**
- * Run each question over every arrangement and keep the worst and the best.
- *
- * `requireMatch` is honoured the way `runLengthsWhere` honours it, and it has to be done HERE: on a
- * materialised grid the sentinel is a real match, so a design containing no 12-hour duty anywhere
- * would otherwise report a run of four made entirely of cover days — a finding about nothing, which
- * is the thing that flag exists to prevent.
- */
+/** The longest run of days satisfying `pred` — the app's scan, `requireMatch` and all. */
+const longestWhere = pred => seq => {
+    const lens = runLengthsWhere(seq, pred, { requireMatch: true });
+    return lens.length ? Math.max(...lens) : 0;
+};
+
+/** Run each question over every arrangement and keep the worst and the best. */
 export function asRosteredRuns(patterns, lines = LINES) {
     const covers = coverLines(patterns, lines);
-    const real = toSequence(patterns, lines).filter(x => x.shift !== 'SPARE');
-    const hasReal = pred => real.some(x => pred(x.shift));
-
     const QUESTIONS = {
-        ff11: { as: COVER_AS.worked, run: seq => longestRunBetween48hBreaks(seq) },
-        consecDays: { as: COVER_AS.worked, run: seq => worstCaseWorkedRun(seq) },
-        eightPlus: { as: COVER_AS.eightPlus, pred: s => (dutyMinutes(s) ?? 0) >= 8 * 60 },
-        twelvePlus: { as: COVER_AS.twelvePlus, pred: s => (dutyMinutes(s) ?? 0) > 12 * 60 },
-        early: { as: COVER_AS.early, pred: isEarlyStart },
+        ff11: seq => longestRunBetween48hBreaks(seq),
+        consecDays: seq => worstCaseWorkedRun(seq),
+        eightPlus: longestWhere(s => (dutyMinutes(s) ?? 0) >= 8 * 60),
+        twelvePlus: longestWhere(s => (dutyMinutes(s) ?? 0) > 12 * 60),
+        early: longestWhere(isEarlyStart),
     };
-
-    const all = combos(covers.length);
+    // the worst with every cover week's Sunday worked as overtime, the best with none (the header says why)
+    const all = placementCombos(covers.length);
+    const grids = sunday => all.map(c => toSequence(materialise(patterns, lines, c, 'SPARE', sunday), lines));
+    const worst = grids(true), best = grids(false);
     const out = {};
-    for (const [key, q] of Object.entries(QUESTIONS)) {
-        if (q.pred && !hasReal(q.pred)) { out[key] = { worst: 0, best: 0 }; continue; }
-        const scan = q.run ?? (seq => {
-            const lens = runLengthsWhere(seq, q.pred, { requireMatch: true });
-            return lens.length ? Math.max(...lens) : 0;
-        });
-        const vals = all.map(c => scan(toSequence(materialise(patterns, lines, c, q.as), lines)));
-        out[key] = { worst: Math.max(...vals), best: Math.min(...vals) };
+    for (const [key, scan] of Object.entries(QUESTIONS)) {
+        out[key] = { worst: Math.max(...worst.map(scan)), best: Math.min(...best.map(scan)) };
     }
-    out.arrangements = all.length;
+    out.arrangements = all.length * 2 ** covers.length;   // 6^k: three blocks, and the Sunday worked or not
     out.coverWeeks = covers.length;
     return out;
 }

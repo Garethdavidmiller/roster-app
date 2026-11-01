@@ -1,8 +1,10 @@
-// THE 26-LINE LINK, STATED ONCE (1 Oct 2026). Every script in this folder reads the line count, the cover weeks and the
-// contract from here, so a change to any of them is one edit, not a sweep. The 24-line tooling this was copied from
-// (`../../links-24/tooling/`) wrote "24" and "four cover weeks" into a dozen files; that is what this file replaces.
-// The rules themselves are `../RULES.md` (owner, 1 Oct 2026). The Links page's own `ROTATING_LINES` (links-design.js)
-// is still 24 until its own release, which is why every app function here is passed LINES rather than left to default.
+// THE 26-LINE LINK, STATED ONCE (1 Oct 2026). The sheets, the decks and the checks read the line count, the cover weeks
+// and the contract from here. The 24-line tooling this was copied from (`../../links-24/tooling/`) wrote "24" and "four
+// cover weeks" into a dozen files; that is what this file replaces. The search and solver scripts (skeleton.mjs,
+// skeleton-start.mjs, exact-*.py, short-earlies.mjs) still carry their own copy of the link's shape, so a change of length
+// is this edit and those (the accuracy check, 30 Oct 2026). The rules themselves are `../RULES.md` (owner, 1 Oct 2026).
+// The Links page's own `ROTATING_LINES` (links-design.js) moved to 26 at v24.47 (3 Oct 2026); every app function here is
+// still passed LINES rather than left to default, so the sheets' line count is stated in this one place.
 import { startMinutes, endMinutes, DAYS } from '../../../links-design.js';
 
 export const LINES = 26;

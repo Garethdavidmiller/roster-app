@@ -45,7 +45,8 @@ permissions:
 
 jobs:
   live:
-    runs-on: ubuntu-latest
+    # ubuntu-24.04, not -latest: Playwright 1.56.1 cannot install its libraries on 26.04 (e2e.yml's smoke job says why)
+    runs-on: ubuntu-24.04
     # Six pages with an 8s settle each plus the browser install: measured ~4 minutes end to end.
     timeout-minutes: 15
     steps:

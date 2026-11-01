@@ -94,8 +94,8 @@ the whole of v20. A number written beside the list it describes is a second copy
 | `links-target-sets.js` | named, shared SNAPSHOTS of the generator targets, and who may overwrite one (invariant 9) |
 | `links-target-sets-store.js` | the Firestore half of those saved sets — reading the collection, and the one guarded write |
 | `links-generator-targets.js` | the numbers the generator runs against, where they came from, and what may replace them |
-| `links-default-targets.js` | the table the generator STARTS from — since v24.47 the duty table of the shortlisted Second Edition, not measured from today's roster |
-| `links-proposals.js` | the three SHORTLISTED 26-line designs, built in as read-only proposals (v24.47) — a proposal id never reaches Firestore |
+| `links-default-targets.js` | the table the generator STARTS from — since v24.47 the duty table of Second Edition, which the shortlisted Short Run shares exactly; not measured from today's roster |
+| `links-proposals.js` | the SHORTLISTED 26-line designs, built in as read-only proposals (v24.47; Even Step, In Step and Short Run since v25.04) — a proposal id never reaches Firestore |
 | `links-tips.js` | `CARD_TIPS` for the page's `?` panels (pure data) |
 
 > **Three of those rows were missing until v21.63**, and two of them own numbered invariants in the
@@ -543,8 +543,9 @@ check".
 
 It is not, and the live roster is the proof. A 7/7 spare week **bridges** the blocks either side of
 it and fuses them into one phantom run, so the main cycle reported **15** consecutive worked days
-against a true ceiling of **9**, and the bilingual **14** against **8**. Four duties cannot fill a
-week, so there is always a rest day inside it and a run can take at most four of its days.
+against a true ceiling of **9**, and the bilingual **14** against **8** (9 since v25.03 — below). Four
+duties on Monday to Saturday cannot fill a week, so two of those days are always rest days and a run
+can take at most the Sunday and four of its days.
 
 **13 consecutive days is Chiltern's roster limit** (derived from the post-Clapham Hidden standard,
 which was itself withdrawn in 2007 — see the hard-limits section above) — so a check reporting 15 is not
@@ -555,14 +556,16 @@ hidden by that discount. Over-reporting is only "safe" while nothing is riding o
 `worstCaseWorkedRun` in `links-design.js` is the ONE reading; `longestWorkedRun` here delegates to
 it. Four things that are easy to get wrong, each with a test:
 
-- **Two ADJACENT spare weeks legitimately chain to eight** — the first week's four duties at its
-  end, the second's four at its start. That is the bilingual roster, whose spare weeks are lines 1
-  and 8 of 8 and so wrap into each other. Do not clamp the answer to four.
-- **FF11 is a different question and needs its own handling.** A spare week's three rest days need
-  not be adjacent, so in the worst case it supplies **no 48h break at all** while still supplying
-  four shifts. Counting the week as a break would deflate the figure; counting seven shifts inflated
-  it. Four, and no reset, is the honest ceiling — which is why the main cycle now reads 12 (clear)
-  and the bilingual 15 (over), where both used to read 15.
+- **Two ADJACENT spare weeks legitimately chain to nine** — the first week's four duties at its
+  end, then the second's Sunday as overtime and its four from the Monday. That is the bilingual
+  roster, whose spare weeks are lines 1 and 8 of 8 and so wrap into each other. Do not clamp the
+  answer to four.
+- **FF11 is a different question and needs its own handling.** A spare week's rest days need not
+  be adjacent, so in the worst case — its Sunday worked as overtime — it supplies **no 48h break at
+  all** while still supplying five shifts. Counting the week as a break would deflate the figure;
+  counting seven shifts inflated it. Its four and the Sunday, and no reset, is the honest ceiling —
+  which is why the main cycle reads 13 (clear) and the bilingual 15 (over), where both read 15
+  before v19.79. The main cycle read 12 until v25.03, when the Sunday stopped being one of the four.
 - **A spare duty following a real 48h break must RESET the count.** The first version of the SPARE
   branch incremented without honouring the reset the worked branch does, and ran straight through a
   genuine break: bilingual reported 23 against a true 15. It was caught by walking the roster by
@@ -812,7 +815,7 @@ the generator placed them at 1, 6, 11, 15, 20 (gaps 5, 5, 5, 4, 5) and the reord
 1, 4, 5, 12, 16 (gaps 9, 3, 1, 7, 4) with **two adjacent**.
 
 Two adjacent spare weeks chain — the first week's four duties at its end, the second's four at its
-start — so this took **FF11 from 9 to 14** on the generator's own output, past the threshold the
+start (and since v25.03 the second's Sunday too, as overtime on top of its four) — so this took **FF11 from 9 to 14** on the generator's own output, past the threshold the
 fatigue panel reports against, with nothing on screen to say the ORDER had done it. The v20.01 note
 that "every configuration with 5 spare weeks trips FF11" was measuring this bug, not the spare count.
 
@@ -1095,6 +1098,14 @@ clerk gives it, on top of the four — it is not one of them. All seven days are
 which is what the real roster does and what "available for cover" means, but a reader should not take
 the four out of seven.
 
+**The run checks follow this since v25.03** (`spareDrawsOnFour` in `links-design.js`; owner, 31 Oct
+2026: *"Although people could be rostered for RDW on a Sunday cover week. The 4 days can only be the
+contractual days which are Monday to Saturday"*). The four never include the Sunday, and a worst case
+counts the Sunday as worked, because it can be. Until then the checks let one of the four fall on the
+Sunday — disagreeing with the paragraph above, and with contracted days a year, which already counted
+the four as Monday to Saturday — and so understated every run that enters a cover week by one: on the
+26-line proposals, 6 days in a row at worst where the honest figure is 7.
+
 ### Generator layout — the v19.61 polish pass
 
 Measured at 390px and 1280px, not eyeballed. Five things, and the first is a bug rather than polish:
@@ -1334,9 +1345,11 @@ judged against are `docs/links-26/RULES.md`. Three things came with the length:
   every line is drawn and only at `ROTATING_LINES`, with the same evidence discipline as the run limit
   (measurement, never "cannot be run", while no company policy document backs it).
 - **The shortlist is built in** (`links-proposals.js`; owner decision 3 Oct 2026: read-only proposals,
-  not saved documents). Second Edition, Even Keel and Short Run open from their own group at the top
-  of the picker as an UNSAVED working copy — `activeDesignId` null, `activeProposalId` set — so save,
-  rename and delete all treat one as new; the first save asks for a name ("Second Edition — copy")
+  not saved documents). Even Step, In Step and Short Run — the shortlist since 31 Oct 2026, built in
+  from v25.04 with Even Step, the recommendation, listed first; after Second Edition, Even Keel and
+  Short Run (3 Oct), Closing Time (v25.01) and In Step and Short Run (v25.02) — open from their own
+  group at the top of the picker as an UNSAVED working copy — `activeDesignId` null, `activeProposalId`
+  set — so save, rename and delete all treat one as new; the first save asks for a name ("Even Step — copy")
   and creates a design. Compare offers them; a workspace with nothing saved keeps its empty state, which
   offers "Open a shortlisted proposal" (nothing is opened for you);
   Generate while one is open builds a NEW unsaved design rather than overwriting it.

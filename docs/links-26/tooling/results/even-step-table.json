@@ -1,0 +1,83 @@
+{
+ "note": "26 lines on In Step's weeks (Closing Time's rest days and early and late weeks) with no duty over 8h 30m Monday to Saturday (Even Step, 31 Oct 2026): every weekday early one of today's times (06:20-13:45, 06:20-14:20, 06:20-14:50, 07:15-15:45); the floor lates at 8h 30m (14:00-22:30, the ticket office's late time) and 12:15-20:30; closers 15:45-23:55 Monday to Saturday; five on at every opening Monday to Saturday; a 13:45 every weekday; and In Step's Sunday. Weekday 7450 minutes, Saturday 6850 (5 x 7450 + 6850 = 44100). Each day is final-table.mjs's exhaustive best on README.md's pool with every duty 8h 30m or less, chosen on the sheets' own fit measure; README.md -> \"Even Step\"",
+ "slots": [
+  {
+   "time": "06:20-13:45",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:00",
+   "weekday": 0,
+   "sat": 1,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:20",
+   "weekday": 2,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "06:20-14:50",
+   "weekday": 2,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "07:15-15:45",
+   "weekday": 2,
+   "sat": 0,
+   "sun": 4
+  },
+  {
+   "time": "08:00-16:30",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "09:00-18:00",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 1
+  },
+  {
+   "time": "12:15-20:30",
+   "weekday": 1,
+   "sat": 0,
+   "sun": 0
+  },
+  {
+   "time": "14:00-22:30",
+   "weekday": 4,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "14:30-22:00",
+   "weekday": 0,
+   "sat": 2,
+   "sun": 0
+  },
+  {
+   "time": "14:30-22:30",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 2
+  },
+  {
+   "time": "15:15-23:25",
+   "weekday": 0,
+   "sat": 0,
+   "sun": 3
+  },
+  {
+   "time": "15:45-23:55",
+   "weekday": 3,
+   "sat": 3,
+   "sun": 0
+  }
+ ]
+}

@@ -25,7 +25,8 @@ export function leave(p, budget = 14) {
   let four = Infinity; for (let s = 0; s < n; s += 7) four = Math.min(four, cost(s, 28)[27]);
   return { best: Math.max(...runs), avg: +(runs.reduce((a, b) => a + b, 0) / n).toFixed(1), worst: Math.min(...runs), fourWeeks: four };
 }
-if (process.argv[1].endsWith('leave.mjs')) {
+// run as a script, not when imported — argv[1] is undefined under `node -e`, which threw on import (30 Oct 2026)
+if (process.argv[1]?.endsWith('leave.mjs')) {
   const load = f => { const j = JSON.parse(readFileSync(f, 'utf8')); return j.patterns ?? j; };
   if (process.argv.includes('--check')) {
     const want = [['today', today().patterns, { best: 30, avg: 23.4, worst: 19, fourWeeks: 14 }],

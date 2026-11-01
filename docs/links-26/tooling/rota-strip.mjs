@@ -2,7 +2,8 @@
 // 26 weeks for a colleague deck's slide 10: each week a cell — all earlies, all lates, mixed, or a cover week — with the
 // full weekends off drawn as a green bar between the Saturday and the Sunday it joins. Nothing is typed: the families and
 // the weekends come from the grid.   node rota-strip.mjs <grid.json> <out.png>
-// 4 Oct 2026 (visual review): a run of consecutive weekends off is ONE bar, not abutting segments with seams; a weekend
+// 4 Oct 2026 (visual review): a run of consecutive weekends off is ONE bar, not abutting segments with seams (since 31 Oct
+// 2026 one bar a weekend, with a gap where two meet — see bars() below); a weekend
 // that straddles a row break (week 13 into 14, or 26 back into 1) ends the row with an arrow tip and begins the next with
 // one, so the two halves read as deliberate; a mixed week carries its number on a solid band across the split tile so it
 // is as strong as its neighbours; the legend shows a swatch only for a kind the design has; cover tiles read darker.
@@ -23,15 +24,20 @@ const weeks = Array.from({ length: L }, (_, i) => i + 1), kinds = Object.fromEnt
 const PER = Math.ceil(L / 2), W = 1700, PAD = 10, GAP = 8, CELL = 170, TOP = 18, BAR_Y = TOP + CELL + 14, BAR_H = 12, TIP = 14;
 const cw = (W - 2 * PAD - (PER - 1) * GAP) / PER, centre = c => PAD + c * (cw + GAP) + cw / 2;
 const cell = k => { const t = kinds[k], inner = `<b>${k}</b><span>${LABEL[t]}</span>`; return `<div class="c ${t}">${t === 'M' ? `<div class="band">${inner}</div>` : inner}</div>`; };
-/** One row's weekend bars: runs of consecutive weekends off merged into one bar from the first Saturday's cell centre
- *  to the last Sunday's; a bar arriving from the row above (or from week 26 into week 1) starts at the row's left edge
- *  with an arrow tip, and one leaving the row ends at its right edge with one. */
+/** One row's weekend bars: ONE BAR A WEEKEND, from its Saturday's cell centre to its Sunday's. Two weekends one after the
+ *  other meet at a cell centre, and there the bars stop short of each other by SPLIT px (31 Oct 2026, the deck review: the
+ *  4 Oct merge into one longer bar undercounted — seven weekends showed as fewer bars, and the slide needed a note to say
+ *  so; a gap keeps the 4 Oct point, no seam, and lets the bars count). A bar arriving from the row above (or from week 26
+ *  into week 1) starts at the row's left edge with an arrow tip, and one leaving the row ends at its right edge with one. */
+const SPLIT = 14;
 const bars = ks => {
   const n = ks.length, segs = [];
   if (weekend(prev(ks[0]))) segs.push([-1, 0]);                                   // arriving from the previous row
-  ks.forEach((k, c) => { if (!weekend(k)) return; const last = segs[segs.length - 1]; if (last && last[1] === c) last[1] = c + 1; else segs.push([c, c + 1]); });
-  return segs.map(([a, b]) => {
-    const x0 = a < 0 ? PAD + TIP : centre(a), x1 = b >= n ? W - PAD - TIP : centre(b), cls = (a < 0 ? ' in' : '') + (b >= n ? ' out' : '');
+  ks.forEach((k, c) => { if (weekend(k)) segs.push([c, c + 1]); });
+  return segs.map(([a, b], i) => {
+    const meetsPrev = i > 0 && segs[i - 1][1] === a, meetsNext = i + 1 < segs.length && segs[i + 1][0] === b;
+    const x0 = (a < 0 ? PAD + TIP : centre(a)) + (meetsPrev ? SPLIT / 2 : 0), x1 = (b >= n ? W - PAD - TIP : centre(b)) - (meetsNext ? SPLIT / 2 : 0);
+    const cls = (a < 0 ? ' in' : '') + (b >= n ? ' out' : '');
     return `<i class="bar${cls}" style="left:${x0.toFixed(1)}px;width:${(x1 - x0).toFixed(1)}px"></i>`;
   }).join('');
 };

@@ -222,23 +222,25 @@ describe('the 8h-shift run counts a cover week as an UNKNOWN, not a break', () =
             spareWeek(),
             [EARLY, EARLY, EARLY, EARLY, RD, RD, RD],
         );
-        // 4 certain + the cover week's FOUR = 8. A plain scan gives 4, which is the defect.
-        assert.equal(runOf(d).value, 8);
-        assert.equal(runOf(d).status, 'present', '8 is over the threshold of 7');
+        // 4 certain + the cover week's Sunday as overtime + its four from the Monday = 9. A plain
+        // scan gives 4, which is the defect.
+        assert.equal(runOf(d).value, 9);
+        assert.equal(runOf(d).status, 'present', '9 is over the threshold of 7');
     });
 
-    test('and it supplies FOUR, never seven — the run stops INSIDE the cover week', () => {
+    test('and it supplies its Sunday and FOUR, never seven — the run stops INSIDE the cover week', () => {
         // Two opposite errors are excluded by the same number. Counting all seven would fuse the
-        // blocks either side into 12 — the v19.79 defect, which reported the live roster at 15
-        // against a true 9. And the run cannot reach the block BEYOND the cover week at all: three
-        // of that week's days are rest days wherever they fall, so they always break the chain.
-        // That is why the answer is 8 and not 4 + 4 + 4.
+        // blocks either side into 15 — the v19.79 defect, which reported the live roster at 15
+        // against a true 9. And the run cannot reach the block BEYOND the cover week at all: two of
+        // its Monday-to-Saturday days are rest days wherever the four fall, so they always break
+        // the chain. That is why the answer is 9 and not 4 + 5 + 4. (It was 8 until v25.03, when
+        // the four could still include the Sunday.)
         const d = design(
             [RD, RD, RD, EARLY, EARLY, EARLY, EARLY],
             spareWeek(),
             [EARLY, EARLY, EARLY, EARLY, RD, RD, RD],
         );
-        assert.equal(runOf(d).value, 8, 'not 12 (seven spare days) and not 4 (a spare day as a break)');
+        assert.equal(runOf(d).value, 9, 'not 15 (seven spare days) and not 4 (a spare day as a break)');
     });
 
     test('a duty UNDER eight hours still breaks it — the predicate is real', () => {
@@ -274,7 +276,7 @@ describe('the 8h-shift run counts a cover week as an UNKNOWN, not a break', () =
             [EARLY, EARLY, EARLY, EARLY, RD, RD, RD],
         );
         const ff15 = assessFatigue(d, 3).results.find(r => r.code === 'FF15');
-        assert.equal(ff15.value, 8);
+        assert.equal(ff15.value, 9);
         assert.equal(ff15.status, 'present');
     });
 
@@ -662,22 +664,23 @@ describe('spare weeks in the run checks', () => {
 
     test('a spare week CANNOT bridge the blocks either side of it — the exact v19.78 defect', () => {
         // Two full worked weeks with a spare week between them. Counted as 7/7 the answer is 21;
-        // four duties in seven days cannot fill a week, so the true ceiling is 7 + 4 = 11.
+        // four duties on Monday to Saturday cannot fill a week, so the true ceiling is 7 + the
+        // Sunday's overtime + 4 = 12.
         const seq = toSequence(design(WORKED_WK, SPARE_WK, WORKED_WK, REST_WK), 4);
-        assert.equal(longestWorkedRun(seq), 11);
+        assert.equal(longestWorkedRun(seq), 12);
     });
 
-    test('a spare week on its own contributes at most four consecutive days', () => {
+    test('a spare week on its own contributes at most five consecutive days — its Sunday and four', () => {
         const seq = toSequence(design(REST_WK, SPARE_WK, REST_WK), 3);
-        assert.equal(longestWorkedRun(seq), 4);
+        assert.equal(longestWorkedRun(seq), 5);
     });
 
-    test('two ADJACENT spare weeks legitimately chain to eight', () => {
-        // The first week's four duties at its end, the second's four at its start. This is the
-        // bilingual roster, whose spare weeks are 1 and 8 of 8 and so wrap into each other — so it
-        // must NOT be clamped to four, or the check under-reports the real chain.
+    test('two ADJACENT spare weeks legitimately chain to nine', () => {
+        // The first week's four duties at its end, then the second's Sunday and its four from the
+        // Monday. This is the bilingual roster, whose spare weeks are 1 and 8 of 8 and so wrap into
+        // each other — so it must NOT be clamped to four, or the check under-reports the real chain.
         const seq = toSequence(design(REST_WK, SPARE_WK, SPARE_WK, REST_WK), 4);
-        assert.equal(longestWorkedRun(seq), 8);
+        assert.equal(longestWorkedRun(seq), 9);
     });
 
     test('a design with no spare weeks is completely unaffected', () => {
@@ -695,18 +698,30 @@ describe('spare weeks in the run checks', () => {
         // wrong number was entirely plausible, which is why it needs a test and not a reading.
         const seq = toSequence(design(
             [EARLY, EARLY, EARLY, EARLY, EARLY, RD, RD],   // 5 shifts, then a 48h break
-            SPARE_WK,                                       // 4 duties — a NEW count, not a continuation
+            SPARE_WK,                                       // Sunday + 4 duties — a NEW count of 5, not 10
             REST_WK,
         ), 3);
         assert.equal(longestRunBetween48hBreaks(seq), 5);
     });
 
     test('FF11: a spare week supplies no 48h break of its own', () => {
-        // Its three rest days need not be adjacent, so in the worst case the week gives four
-        // shifts and no break at all — the run carries through it into the following week.
+        // Its Sunday can be worked as overtime and its two rest days on Monday to Saturday need not
+        // be adjacent, so in the worst case the week gives five shifts and no break at all — the run
+        // carries through it into the following week.
         const seq = toSequence(design(
             [RD, RD, EARLY, EARLY, EARLY, EARLY, EARLY],   // 48h break, then 5
-            SPARE_WK,                                       // +4, no break
+            SPARE_WK,                                       // +5, no break
+            [EARLY, EARLY, RD, RD, RD, RD, RD],             // +2, then a break
+        ), 3);
+        assert.equal(longestRunBetween48hBreaks(seq), 12);
+    });
+
+    test('FF11: a spare week whose Sunday is a REST day adds four, and can still bridge', () => {
+        // The Sunday is the only day outside the four. A rest Sunday after a worked Saturday is a
+        // single rest day, not a 48h break, so the run still carries on into the week — by four.
+        const seq = toSequence(design(
+            [RD, RD, EARLY, EARLY, EARLY, EARLY, EARLY],   // 48h break, then 5
+            [RD, SPARE, SPARE, SPARE, SPARE, SPARE, SPARE], // a rest Sunday, then +4, no break
             [EARLY, EARLY, RD, RD, RD, RD, RD],             // +2, then a break
         ), 3);
         assert.equal(longestRunBetween48hBreaks(seq), 11);

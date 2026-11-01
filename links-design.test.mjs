@@ -4,7 +4,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    worstCaseWorkedRun,
+    worstCaseWorkedRun, spareDrawsOnFour,
     DAYS,
     classifyShift,
     normaliseCustomShift,
@@ -554,17 +554,36 @@ describe('worstCaseWorkedRun — a spare week is four duties, not seven', () => 
 
     test('a spare week does not bridge the blocks either side of it', () => {
         const worked = wk(W, W, W, W, W, W, W);
-        // 7/7 counting gives 21. The truth is 7 + at most 4 = 11.
-        assert.equal(worstCaseWorkedRun(seqOf(worked, wk(S, S, S, S, S, S, S), worked, wk(R, R, R, R, R, R, R))), 11);
+        // 7/7 counting gives 21. The truth is 7 + its Sunday's overtime + its four from the Monday
+        // = 12: two of Monday to Saturday are always rest days, so it can never reach the next week.
+        assert.equal(worstCaseWorkedRun(seqOf(worked, wk(S, S, S, S, S, S, S), worked, wk(R, R, R, R, R, R, R))), 12);
     });
 
-    test('two adjacent spare weeks chain to eight, and are not clamped to four', () => {
+    test('two adjacent spare weeks chain to nine, and are not clamped to four', () => {
+        // The first week's four at its end (Wed–Sat), then the second's Sunday and its four from Monday.
         const spare = wk(S, S, S, S, S, S, S), rest = wk(R, R, R, R, R, R, R);
-        assert.equal(worstCaseWorkedRun(seqOf(rest, spare, spare, rest)), 8);
+        assert.equal(worstCaseWorkedRun(seqOf(rest, spare, spare, rest)), 9);
     });
 
-    test('the budget is per WEEK, so one spare week caps at four however you enter it', () => {
-        assert.equal(worstCaseWorkedRun(seqOf(wk(R, R, R, R, R, R, R), wk(S, S, S, S, S, S, S))), 4);
+    test('the budget is per WEEK, so one spare week caps at its Sunday and four, however you enter it', () => {
+        assert.equal(worstCaseWorkedRun(seqOf(wk(R, R, R, R, R, R, R), wk(S, S, S, S, S, S, S))), 5);
+    });
+
+    // ── THE FOUR ARE MONDAY TO SATURDAY (owner, 31 Oct 2026) ────────────────────────────────────
+    // "Although people could be rostered for RDW on a Sunday cover week. The 4 days can only be the
+    // contractual days which are Monday to Saturday." Until v25.03 the four could include the
+    // Sunday, so a run entering a cover week took four days of it; it takes five now.
+    test('a cover week\'s Sunday is overtime ON TOP of its four, never one of them', () => {
+        const endsFriSat = wk(R, R, R, R, R, W, W), rest = wk(R, R, R, R, R, R, R);
+        // Fri + Sat, then the cover week's Sunday as overtime and four from the Monday: 2 + 1 + 4.
+        assert.equal(worstCaseWorkedRun(seqOf(endsFriSat, wk(S, S, S, S, S, S, S), rest)), 7);
+        // The same week with its Sunday a rest day gives four, and nothing is carried across it.
+        assert.equal(worstCaseWorkedRun(seqOf(endsFriSat, wk(R, S, S, S, S, S, S), rest)), 4);
+    });
+
+    test('spareDrawsOnFour: Monday to Saturday draw on the four, Sunday never does, on every line', () => {
+        const draws = [...Array(14).keys()].map(spareDrawsOnFour);
+        assert.deepEqual(draws, [false, true, true, true, true, true, true, false, true, true, true, true, true, true]);
     });
 
     test('a design with no spare weeks is untouched by the rule', () => {

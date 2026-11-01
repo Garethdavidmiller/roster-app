@@ -578,7 +578,9 @@ test('analysis: a factor whose finding changes is shown with BOTH readings', () 
     const html = analysisOf(proposal('Pinned-Turns-PT-24-P34.json'), proposal('Fifteen-Turns-FT-24-EXT.json'));
     // These fixtures are 24-line proposals read at the page's own line count (26 since v24.47): the
     // two empty lines at the end break runs, so the figures moved (11 → 8) and the behaviour did not.
-    assert.match(html, /FF11[\s\S]*?clear \(8\) → present \(14\)/, 'FF11 moves from clear to present');
+    // v25.03 added one to each (8 → 9, 14 → 15): a cover week's Sunday is now overtime on top of its
+    // four, so a run entering one takes five days of it (`spareDrawsOnFour`).
+    assert.match(html, /FF11[\s\S]*?clear \(9\) → present \(15\)/, 'FF11 moves from clear to present');
     assert.match(html, /Factors present[\s\S]*?0 → 7/);
 });
 
@@ -617,5 +619,5 @@ test('analysis: the section is NOT a live region — it is long, and the strip a
 test('analysis: a figure that moved without changing the finding is behind its own disclosure', () => {
     const html = analysisOf(proposal('Pinned-Turns-PT-24-P34.json'), proposal('Round-Times-P2-24-N13.json'));
     assert.match(html, /<details class="compare-an-more"><summary>\d+ more moved a figure without changing the finding/);
-    assert.match(html, /FF11[\s\S]*?clear \(8\) → clear \(9\)/);   // 24-line fixtures at 26 lines — see above
+    assert.match(html, /FF11[\s\S]*?clear \(9\) → clear \(10\)/);   // 24-line fixtures at 26 lines, and v25.03 — see above
 });

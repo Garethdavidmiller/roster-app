@@ -79,7 +79,7 @@
  * estimate. `hoursAreFloor` is returned so the UI can say so rather than imply precision.
  */
 
-import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_REST_MINUTES, worstCaseWorkedRun, runLengthsWhere, SPARE_WORKED_DAYS } from './links-design.js';
+import { DAYS, ROTATING_LINES, startMinutes, dutyMinutes, runDesignChecks, MIN_REST_MINUTES, worstCaseWorkedRun, runLengthsWhere, SPARE_WORKED_DAYS, spareDrawsOnFour } from './links-design.js';
 // FF18 is the one factor here whose subject is what happens BETWEEN lines, so it is the one that
 // needs the adjacency maths. Direction is fatigue → adjacency → design; `links-adjacency.js` imports
 // only from `links-design.js`, so this adds no cycle (asserted by import-graph.test.mjs).
@@ -185,11 +185,17 @@ export function longestRunBetween48hBreaks(seq) {
     if (!n) return 0;
     // Shifts in the whole cycle. A SPARE week contributes four, not seven — it is the ceiling this
     // function's answer is capped at, so counting all seven here would let the cap re-admit the
-    // very over-count the body was fixed to remove (v19.79).
+    // very over-count the body was fixed to remove (v19.79). The four are Monday to Saturday; a
+    // spare Sunday is overtime on top of them, so it adds one (`spareDrawsOnFour`, v25.03).
     const spareWeeks = new Set();
-    for (let i = 0; i < n; i++) if (seq[i].shift === 'SPARE') spareWeeks.add(Math.floor(i / 7));
+    let spareSundays = 0;
+    for (let i = 0; i < n; i++) {
+        if (seq[i].shift !== 'SPARE') continue;
+        if (spareDrawsOnFour(i)) spareWeeks.add(Math.floor(i / 7));
+        else spareSundays++;
+    }
     const workedTotal = seq.filter(x => isWorked(x.shift) && x.shift !== 'SPARE').length
-        + spareWeeks.size * SPARE_WORKED_DAYS;
+        + spareWeeks.size * SPARE_WORKED_DAYS + spareSundays;
 
     // Does a 48h break exist ANYWHERE in the rotation? If not, the person never gets one, and the
     // answer is every worked day in the cycle — recurring forever. Capping at the sequence LENGTH
@@ -219,15 +225,19 @@ export function longestRunBetween48hBreaks(seq) {
             // detail: the second lap exists to measure a run that wraps the cycle end, and on the
             // next time round the wheel it is genuinely a fresh spare week with four fresh duties.
             // Sharing the budget would silently truncate exactly the wrapping run the lap is for.
+            //
+            // The four are Monday to Saturday. A spare SUNDAY is overtime on top of them, so in
+            // the worst case it is a shift that spends none of the four (v25.03).
             const line = Math.floor(i / 7);
             const used = spent.get(line) || 0;
-            if (used < SPARE_WORKED_DAYS) {
+            const drawsOnFour = spareDrawsOnFour(i);
+            if (!drawsOnFour || used < SPARE_WORKED_DAYS) {
                 // A spare duty is a SHIFT, so it must honour the same reset the worked branch does.
                 // Omitting this line chained the run straight through a real 48h break and put the
                 // bilingual roster at 23 against a true worst case of 15 — caught by walking the
                 // roster by hand, because the wrong answer was still plausible.
                 if (restRun >= 2) run = 0;
-                spent.set(line, used + 1);
+                if (drawsOnFour) spent.set(line, used + 1);
                 restRun = 0;
                 run++;
                 if (run > best) best = run;
@@ -398,6 +408,14 @@ export function rotationDirection(seq) {
  *             value?:number|string, threshold?:number|string, detail?:string, confirm?:boolean}} FatigueResult */
 
 /**
+ * What a cover week can add to a run in the worst case — one clause, so every row that qualifies a
+ * figure says it the same way. Its four duties are Monday to Saturday, and its Sunday can be worked
+ * on top as overtime (`spareDrawsOnFour`, v25.03).
+ */
+const COVER_WEEK_ADDS = `a cover week can supply up to ${SPARE_WORKED_DAYS} more on Monday to Saturday, and one on its `
+    + 'Sunday as overtime, whose times are not yet assigned';
+
+/**
  * The sentence a spare-aware run owes its reader: the worst case is the number on screen, so say how
  * much of it is certain and where the rest came from. Written once because three rows need it and a
  * fourth will; silent when there is nothing to qualify, so a design with no cover week reads clean.
@@ -405,8 +423,7 @@ export function rotationDirection(seq) {
  */
 function _spareCaveat(worst, certain, what) {
     if (worst === certain) return `Longest run of ${what} is ${worst}.`;
-    return `Longest run of ${what} is ${worst} in the worst case — ${certain} of them are certain, and a `
-        + `cover week can supply up to ${SPARE_WORKED_DAYS} more whose times are not yet assigned.`;
+    return `Longest run of ${what} is ${worst} in the worst case — ${certain} of them are certain, and ${COVER_WEEK_ADDS}.`;
 }
 
 /**
@@ -482,7 +499,7 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         status: ff11 > 13 ? 'present' : 'clear', value: ff11, threshold: 13,
         detail: `Longest run between 48-hour breaks is ${ff11} shifts. A single rest day is not a 48h break, so it does not reset this count.`
             + (seq.some(x => x.shift === 'SPARE')
-                ? ` A spare week is 4 duties of 7, and its rest days need not fall together — so in the worst case it adds 4 shifts and no break.`
+                ? ` A spare week is ${SPARE_WORKED_DAYS} duties on Monday to Saturday, and its Sunday can be worked as overtime on top; its rest days need not fall together — so in the worst case it adds ${SPARE_WORKED_DAYS + 1} shifts and no break.`
                 : '') });
 
     // ── Cumulative ───────────────────────────────────────────────────────────
@@ -546,8 +563,7 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
         status: eightPlus > 7 ? 'present' : 'clear', value: eightPlus, threshold: 7,
         detail: `Longest run of duties of 8 hours or more is ${eightPlus}`
             + (eightPlus !== certain8
-                ? ` in the worst case — ${certain8} of them are certain, and a cover week can supply up to `
-                  + `${SPARE_WORKED_DAYS} more whose times are not yet assigned. The worst case is what is reported, `
+                ? ` in the worst case — ${certain8} of them are certain, and ${COVER_WEEK_ADDS}. The worst case is what is reported, `
                   + 'because a factor that goes quiet when a cover week sits in the middle of a long stretch is the '
                   + 'one thing this panel must not do.'
                 : '.')

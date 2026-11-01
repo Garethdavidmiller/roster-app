@@ -1,8 +1,9 @@
 # The rules — December 2026 link, 26 lines
 
 **Set by the owner on 1 Oct 2026.** This is the one list every 26-line design is judged against. It is the 24-line
-rule set (`../links-24/links-24-rules.pdf`, built by `../links-24/tooling/rules-sheet.mjs`) with **four
-changes**, each marked **▲ CHANGED**. The owner reviewed every other rule and kept it as it was.
+rule set (`../links-24/links-24-rules.pdf`, built by `../links-24/tooling/rules-sheet.mjs`) with **five
+changes**, each marked **▲ CHANGED**: four set on 1 Oct, and the weekday-closer rule (F3) added on 31 Oct. The owner
+reviewed every other rule and kept it as it was.
 
 The staffing levels were confirmed **verbally** (29 Sep 2026), as was the 24-person link, which then turned out to
 be 26. So it is worth getting the levels below in writing before a design is put forward.
@@ -16,6 +17,7 @@ be 26. So it is worth getting the levels below in writing before a design is put
 | Working lines (lines less cover weeks) | 20 | **21** |
 | Contracted days a year | aimed at 217–219 | **219 or fewer**: today's figure is the ceiling |
 | Fourteen on a Saturday | flexible rule | flexible rule, **unchanged** |
+| Weekday closers | no rule | **start at 15:45 or later** — a new flexible rule, F3 (31 Oct) |
 
 ## The basics every rule assumes
 
@@ -24,7 +26,9 @@ be 26. So it is worth getting the levels below in writing before a design is put
 2. **▲ CHANGED — The link.** **26 lines** are worked in turn, one week each, Sunday to Saturday. A person on line 26
    moves to line 1.
 3. **▲ CHANGED — Cover weeks.** **Five** of the 26 lines are cover weeks. A cover week is a line with no fixed shifts:
-   four duties that week, placed by the roster clerk to cover leave and sickness.
+   four duties that week, placed by the roster clerk to cover leave and sickness. **The four are contracted days, Monday
+   to Saturday; the Sunday can be worked as overtime on top, as any Sunday can** (owner, 31 Oct 2026: "The 4 days can
+   only be the contractual days which are Monday to Saturday"). Every worst case counts that Sunday as worked.
 4. **Early and late.** A shift starting before 11:00 is an early; from 11:00 it is a late.
 5. **The floor.** The floor is everyone on duty except the four ticket-office staff.
    - **Monday to Saturday:** one of each ticket-office pair helps on the floor at the quiet ends, the morning one until
@@ -39,7 +43,7 @@ be 26. So it is worth getting the levels below in writing before a design is put
 | | Limit |
 |---|---|
 | H1 | **At least 12 hours between duties,** anywhere in the rotation. This includes Saturday into Sunday, and the last line into line 1. |
-| H2 | **No more than 13 days worked in a row,** taken at its worst case: a cover week's four duties placed as badly as they can be. This is Chiltern's limit; its written source is still to be confirmed. |
+| H2 | **No more than 13 days worked in a row,** taken at its worst case: a cover week's four duties placed as badly as they can be, and its Sunday worked as overtime. This is Chiltern's limit; its written source is still to be confirmed. |
 | H3 | **The contracted week, exactly:** 35 hours a week on average, Monday to Saturday, across every line, with a cover week counting as a contracted week. Sunday duties are paid on top as rest-day working. With 21 working lines that is **44,100 minutes** of Monday-to-Saturday duty a week (21 × 35 h). |
 
 ## The December 2026 staffing rules — scored on every sheet
@@ -64,7 +68,7 @@ The headcounts are minimums: too few is the problem, never too many. **Unchanged
 |---|---|
 | F1 | **Fourteen on a Saturday.** Unchanged. |
 | F2 | **▲ CHANGED — Five cover weeks, as evenly spread as possible.** 26 does not divide by 5, so "as even as possible" means the gaps between cover weeks differ by **at most one line**: four gaps of 5 and one gap of 6 (for example lines 1, 6, 11, 16 and 21). |
-| F3 | **Every weekday closer starts at 15:45.** Unchanged. |
+| F3 | **▲ CHANGED — Every weekday closer starts at 15:45 or later.** 15:45 is the minimum: 15:30 is too small a change from today's 15:15 (owner, 31 Oct 2026). A 16:00 closer meets it. Saturday's closer is not covered. |
 
 ## The contracted-days ceiling — ▲ CHANGED
 
@@ -88,15 +92,17 @@ minutes are split into, and so the shortest average duty.
 So a 26-line design has **at most 89 Monday-to-Saturday duties, averaging at least about 8h 16m.** With fourteen on a
 Saturday (F1), that leaves at most 75 for Monday to Friday, about **15 a weekday**.
 
-For comparison, the 24-line designs placed 85 duties at 8h 14m. Each day gains about one person, and the duties
-cannot get any shorter on average.
+For comparison, the 24-line proposals placed 84 to 88 Monday-to-Saturday duties, averaging 7h 58m to 8h 20m — Silva
+Lining, which Second Nature grew from, 85 at 8h 14m, and Familiar Nine and Right Away 84 at 8h 20m. So the 26-line link
+has more duties than any of them, and longer ones on average than all but Familiar Nine and Right Away.
 
 ## Unchanged from 24 lines
 
 - **The fatigue factors** stay advisory, never pass or fail: 21 from the ORR's *Fatigue Factors* and 4 rail-industry
   (MRSF) checks. FF2 and FF18 are standing factors, recorded but not counted.
 - **How the sheets count:**
-  - runs and fatigue on the fixed duties, with the worst cover-week placement shown as "up to";
+  - runs and fatigue on the fixed duties, with the worst cover-week placement shown as "up to" (its Sunday worked as
+    overtime, since 31 Oct 2026);
   - hard limits tested at the worst case;
   - the match to the trains scored hour by hour against the December service, weighted by train length.
 - **Waivers are per design,** by owner decision. None is carried into 26 lines yet.
@@ -105,13 +111,17 @@ cannot get any shorter on average.
 ## Where the code follows
 
 The tooling in `tooling/` applies all of this (set up 1 Oct 2026; see `README.md`):
-- **`tooling/link.mjs`** states the line count, the cover weeks, the contract, the ceiling and the headcounts once.
+- **`tooling/link.mjs`** states the line count, the cover weeks, the contract, the ceiling and the headcounts for the
+  sheets, the decks and the checks. The search and solver scripts (`skeleton.mjs`, `skeleton-start.mjs`, `exact-*.py`,
+  `short-earlies.mjs`) carry their own copy of the link's shape, so a change of length is that edit and theirs.
 - **The cover rule** checks five cover weeks with gaps differing by one at most (`coverSpread`), for every design.
   Today's link, with four, does not meet it.
 - **The days ceiling** is added to the hard-limit checks in `assess()` (`tooling/report-data.mjs`). Page 1 counts it,
   page 6's contract card states it, and the rules sheet (`links-26-rules.pdf`) lists it as the fourth hard limit.
 - **No 24-line waiver or named office** is carried over.
 
-The Links page itself (`ROTATING_LINES` in `links-design.js`) moved to 26 lines in v24.47 on 3 October 2026, with the
-three shortlisted designs built in as examples; until then the tooling passed 26 to every app function explicitly, and
-it still does.
+The Links page itself (`ROTATING_LINES` in `links-design.js`) moved to 26 lines in v24.47 on 3 October 2026; until then
+the tooling passed 26 to every app function explicitly, and it still does. The three shortlisted designs were built in
+as examples in the same release, and Closing Time, shortlisted on 30 October, joined them in v25.01. v25.02 narrowed
+them to the two then shortlisted, In Step and Short Run; since v25.04 the app builds in the three on the shortlist now,
+Even Step, In Step and Short Run.
