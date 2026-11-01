@@ -2006,7 +2006,7 @@ managers' decks.
 **Still saying "fixed rota", outside the decks:** the one-line description under Short Run's name on its own sheet
 ("No run over five days on the fixed rota…"). Changing it means re-rendering that sheet, so it is left as it is until
 the owner decides. The shortlist sheet used to say it too; it changed in the next section, when it was re-rendered for
-another reason.
+another reason. Short Run's line changed on 1 Nov 2026, in the fifth review's follow-up, below.
 
 **Changed:**
 - tooling: `deck-polish.py`, `deck-check.mjs`
@@ -2107,6 +2107,203 @@ The first two were mutated with `scripts/mutate.mjs`, and each stopped the build
 **Changed:**
 - tooling: `deck-polish.py`
 - outputs: the six decks and their PDFs, the pack
+
+## A fifth outside review and its follow-up: two words, the read-me, slide 9 (1 Nov 2026)
+
+The reviewer rated the revised presentation design 9/10, found no new accuracy regression, and advised against another
+broad rewrite. They made one wording point: Even Step's "weakest weekday fit" was accurate, because it means of the
+three, but "could sound more alarming than intended", and "slightly weaker weekday fit than the other two" gives the
+size better. Its fit is 32.6, against In Step's 29.8 and Short Run's 29.1, where today's is 52.0.
+
+Their follow-up recommended "one final navigation edit, a small adjustment to slide 9, and selective terminology
+changes where they improve understanding". They advised against reworking all 15 sheets to remove every "fixed
+duties". This session agreed with all of it.
+
+- **"A slightly weaker weekday fit".** Managers' slide 7 used to say "This one costs: longest weekday lates (8h 27m on
+  average), weakest weekday fit". It now says "This one costs: lates near today's 8h 30m, and a slightly weaker weekday
+  fit". Notes 7 say the same. So do the shortlist sheet's Even Step card, its case on page 2 and its "Choose Even
+  Step" line.
+  - Both words claim a size, so both are checked, in `deck-polish.py` and as `claim()`s in `shortlist-sheet.mjs`.
+  - "Near today's" means within ten minutes of today's weekday lates.
+  - "Slightly" means behind the best of the other two by under a tenth of today's score.
+  - The older claim that it is the weakest of the three stays as well.
+- **The read-me puts the route first.** In the reviewer's words: "The history interrupts the route into the pack. A
+  new reader needs the current recommendation, what they are being asked to decide, and which file to open." It now
+  runs in this order:
+  - the recommendation, in the shortlist sheet's words, without figures of its own;
+  - what managers and colleagues are asked;
+  - where each starts. Colleagues start with their presentation; the proposal sheet and its rota follow, as the
+    reviewer advised;
+  - what is still open;
+  - what each folder holds.
+
+  How the shortlist came about now comes last, opening with the first shortlist (3 October). The header lost "set on
+  1 October 2026", the office detail the owner took off slide 9. Every file the route names starts a line of its own,
+  and no folder's name is split by a wrap.
+- **Managers' slide 9** had "Still open: …" as the line under "Then: who starts on which line", though it concerns
+  other matters. Each row now describes only its own topic:
+  - "which link we use" says "After colleagues' views";
+  - "who starts on which line" says "Decided after the link is chosen".
+
+  The two open points moved to the bar under the rows: "Still open: where the 13-day limit is written; how one fatigue
+  check treats a rest day." Before, the bar said the order of the two decisions, which the rows now say themselves.
+- **Terminology, selectively.** The last "fixed rota" printed anywhere in the pack was the line under Short Run's name
+  on its own sheet. It now says "No run over five days outside the cover weeks". "Fixed duties" stays on the sheets,
+  because, as the reviewer put it, it names the duties being measured, while "cover weeks aside" describes an exclusion.
+  - Re-rendering Short Run's sheet changed only that line and its date. Its JSON and import file are byte-identical,
+    and its pages 2 to 8 are identical pixel for pixel.
+- **Left as they are,** as the reviewer advised:
+  - managers' slide 3, five aligned staffing comparisons;
+  - colleagues' slide 14, a reference slide;
+  - the rest of managers' slide 7, six points of one line each.
+
+**Checks.** `pack.py` now refuses to build the read-me in four cases:
+- the shortlist sheet stops saying the case the read-me repeats;
+- the colleague presentation the route points to is not in the pack;
+- a file the route names is not on a line of its own;
+- a folder's name is split across two lines.
+
+Each was mutated with `scripts/mutate.mjs`, and each stopped the build with its own message. The last needed two runs,
+because today's text happens to put no folder name at a line end:
+- with the wrap narrowed to 76 columns and names left unprotected, the check caught "4 Proposal sheets" split;
+- at the same width with names protected, nothing split.
+
+The four size checks were mutated too, and each stopped its build: "near" and "slightly", in the decks and on the
+shortlist. `deck-check.mjs`: 153 rows agree. Only the intended parts changed:
+- managers' decks: slide 9 in all three, and slide 7 and notes 7 in Even Step's, plus the embedded chart's timestamp;
+- colleague decks: nothing;
+- sheets: the shortlist's three phrases, and the line under Short Run's name.
+
+**Changed:**
+- tooling: `deck-polish.py`, `shortlist-sheet.mjs`, `pack.py`, `fresh.mjs`, `regenerate.mjs`
+- outputs: the three managers' decks and their PDFs, the shortlist sheet, Short Run's sheet, the pack
+
+## An aesthetic and consistency polish of the whole pack, from screenshots (1 Nov 2026)
+
+The owner asked for "aesthetic polish and aesthetic consistency polish" of the entire pack, double-checked with screenshots.
+
+**How it was done.**
+- Every page was rendered: 75 slides, 120 sheet pages, the summary, the shortlist and the rules.
+- Contact sheets put the same page of every design side by side, so a design whose page differed stood out.
+- Three reviewers worked in parallel: one on the decks, one on the sheets, and one on the summary, shortlist, rules and read-me. That third reviewer also compared the document types against each other.
+- They reported 63 findings, each with a cropped screenshot. Every one was checked against its crop before anything changed.
+- After the fixes, all 200 pages were rendered again and compared pixel for pixel with the first set: 170 changed, none appeared or went.
+- A fourth reviewer then looked only for anything the polish had made worse. Nothing overflowed, was clipped or touched a footer, but it found nine things, each settled below:
+  - on page 6 of every sheet, each ✓ or ✕ sat an em left of its figure;
+  - six designs' page 1 split "Sat 10.0 / (65.9)", and seven others had split "Sun 29.0 / (71.7)" since before the polish;
+  - page 2's key stranded the ✕ chip from "red:" on eleven sheets, two of them new with the polish;
+  - the rules sheet split "rest- / day", "ticket- / office" and its list of cover-week gaps;
+  - managers' slide 4's chart axis had become too faint to see on a projector;
+  - three side effects of the layout changes, kept with reasons (Declined).
+- After each round of fixes, the pack was rendered again and compared pixel for pixel with the round before. Only the pages meant to change had changed.
+
+**What changed: the proposal sheets** (`plain.mjs`, `render.mjs`; all 15 re-rendered)
+- **Page 1:** the four "Can it work?" tiles, and the two staff boxes, now share their row's height. **This reverses a call made twice before.** The third polish pass (4 Oct) let each card size to its own text, and the 30 Oct review kept that ("Page 1 was left as it is"), because a stretched card's empty band "reads as something missing". Side by side on screenshots of all fifteen, though, four tile bottoms and two box bottoms at different heights were the most visible untidiness in the sheets. That is a row of parallel answers, where one bottom line is the convention. The cost is real and accepted: the first tile, "9 of 9 rules met", is now about two-fifths empty.
+- **Page 1's spacing:** holding every figure whole (Line breaks, below) cost tile 4 a line on thirteen designs, and so the row of tiles it sets. Six designs' staff boxes came to 2 mm off the footer rule. So the two headings now sit 12px below what they follow, not 16, and the boxes 9px under theirs, not 12. Page 1 now ends 4px lower than before on thirteen designs; In Step's ends 11px higher, and Closing Time's where it did.
+- **Page 6:** the limit cards still size to their text. One holds a paragraph and the others a line each, so stretched they would be two-thirds empty.
+- **Page 4:**
+  - The new shift times sit three to a row, under the three figures above them. They had been 2-up, 3+2, 4+3 or 3+3, depending on the design.
+  - The shift-time table's two column groups both read from the left, and its headings no longer wrap.
+  - Its changed cells keep their row's stripe.
+  - Its rows take the page's spare room, as page 6's already did, so the page no longer ends a fifth of the way above its footer.
+- **Page 7:** the columns have set widths, so the table sits the same on all fifteen. Second Look's longer text had pushed its columns 21 mm right.
+- **Marks:** a ✓, ✕ or ● that starts a cell on pages 6 and 7 hangs, so a second line starts under the words. So does the status line under each page 6 limit card.
+  - The first try had a fault, which the fourth reviewer found. Indentation is inherited, and the mark is a box of its own, so it took the hang a second time and sat an em to the left of its figure. The mark now resets it, as the rules sheet's mark always has.
+  - The space after the mark went too: the mark's box is the gap, and with the space kept, a second line started one space left of the first word.
+- **Colour keys:** the keys in the page 2 and page 7 headers show each mark on a white chip, in its own colour. Before, the marks were white, so the reader was told the colours and never shown them.
+  - A no-break space did not hold a chip to its word, because Chromium breaks after an inline box anyway. Each chip and its word now sit in a no-wrap span.
+  - Red holds "a rule" too, so page 2's key wraps the same way on all fifteen sheets.
+- **Type and colour:**
+  - Every section heading is one size.
+  - "For discussion, not a decision." is navy, so red means only a broken rule.
+  - Page 2's green column no longer alternates between two tints with the stripes.
+  - Words in a figures cell ("one-turn weeks", "3-day") lose tabular figures' wide hyphen.
+- **Line breaks:** a figure keeps what it belongs to, in text only:
+  - a label with its figure: "(today 52.0)", "limit 12h";
+  - a figure with the one it is compared with: "Sat 10.0 (65.9)";
+  - a bracketed note, "(definition to confirm)", and "not a breach" in page 7's key;
+  - a day with its time: "Fri 07:15–15:45";
+  - a range: "30 to 60", "18 of 21";
+  - a count with its unit: "44,100 minutes", "46 a year";
+  - a date: "1 October 2026";
+  - a day range: "Mon–Sat".
+
+  A unit does not join a range ("7 in 26 weeks" can wrap before "weeks"). Chained together, the first attempt made runs long enough to push page 1's staff boxes into the footer.
+- **Dates and titles:** "Prepared" uses the pack's date form, "1 Nov 2026". Each PDF's title names its design, so fifteen open sheets no longer show fifteen identical browser tabs.
+
+**What changed: the rules, the shortlist, the summary and the read-me**
+- **Rules** (`rules-sheet.mjs`):
+  - Ticks and crosses are the sheets' marks, coloured on the mark alone; the crosses were brown, and coloured the whole value.
+  - The rule column is wider, so "No more than 13 days worked in a row" is one line.
+  - A hyphenated word ("rest-day", "ticket-office", "Monday-to-Friday") and the list of cover-week gaps are never split. The narrower middle column had split them.
+  - "exactly 35h" is "exactly 35h 00m".
+  - Page 2's fatigue column reads from the left, and its sub-lines are the documents' grey, not the decks' blue-grey.
+  - The five preferences each open with a bold phrase and a full stop.
+  - Page 2 ended 1 mm above its footer and now ends 7 mm above it.
+- **Shortlist** (`shortlist-sheet.mjs`):
+  - It has the family band and footer: "Links designer" in the eyebrow, a Prepared line, and the footer's section capitalised. The date moved out of the footer.
+  - Figures are centred, as on the sheets and the summary, and the fit row is at the table's size.
+  - Each label uses "Mon–Sat" and each sentence uses "Monday to Saturday".
+  - The "Why" table's names fit on one line, which gives page 2 back 8 mm.
+  - Even Step's card carries a "★ recommended" tab on its green rule.
+- **Summary** (`summary-sheet.mjs`): it was the one document without the family's look. It now has:
+  - the navy band, with its lead line as the band's sub-line;
+  - the light-grey headers in small capitals and striped rows;
+  - every row's first line on one baseline;
+  - the shortlist star under the name;
+  - footnotes in two columns;
+  - the documents' greys and green, read from the app's own stylesheet.
+
+  It prints at 89%, against 90% before.
+- **Read-me** (`pack.py`):
+  - A design's name, a date and a version number are never split by a wrap.
+  - A spaced dash never starts a line, where it read as a bullet.
+  - The colour key is two columns, and the files the route names are indented.
+  - Page ranges read "pages 1 and 2".
+  - The title is underlined.
+  - The file has Windows line endings, because a Notepad older than Windows 10 version 1809 shows Unix ones as a single line.
+
+**What changed: the decks** (`deck-polish.py`, in a new `family_polish` step shared by all three designs)
+- **Line breaks:** five takeaway bars, managers' slide 8 and Short Run's colleague slide 13 no longer split a phrase across lines ("costs 15 / days' leave", "if a / cover week", "(today 26 a year / each)").
+- **Colleagues' slide 8:** the "You work these today" tick is green, like every other tick, instead of white on gold.
+- **Colleagues' slide 13:** the six cards have even 0.125in gutters. They were 0.2in between the columns and 0.08in between the rows.
+- **Managers' slide 2:** the four cards span the margins on the colleagues' 0.15in gutters.
+- **Managers' slide 9:** the circles are 0.4in instead of 0.5in, and each detail sits nearer its own title. The circles had sat 0.1in apart, so a detail line read as belonging to the item below.
+- **Managers' slide 4:** the chart legend uses the deck's slate rather than black. The axis line was first set to the tables' outline grey, which the regression check found too faint to see on a projector (1.3:1 against white). It is the deck's slate too, darker than the grey it replaced.
+- **Navy slides:** the cover and closing slides use the 0.5in margin of every other slide, the cover's footer sits on the closing slide's line, and both closing lists share one indent.
+
+**Declined, with reasons.**
+- **Colleagues' slides 4 and 5:** the three-row tables keep their larger type. They were set a size up on 31 Oct to fill a five-row band, and at standard size the taller rows look half empty.
+- **Managers' slide 7:** the takeaway bar keeps its break after the comma, which leaves each line a whole item.
+- **Even Step's slide 8:** its cards stay top-aligned, so the geometry is identical across the three designs.
+- **The slide 10 strip:** it stays an image.
+- **Other decks findings:** the remaining small spacing and type-size findings were left as they are, because they reflect what each slide holds.
+- **Shortlist page 2:** the "Why" table has no header row, because its heading introduces it and the page has no line to spare.
+- **Brand mark:** the decks keep their flat mark; the documents keep the app icon.
+- **Page 4's grid**, raised by the regression check as a decision rather than a fault: the new times stay three to a row.
+  - Both Ways' four cards sit 3+1 rather than 2+2, and three designs' seven sit 3+3+1 rather than 4+3.
+  - One card width on every sheet, under the three figures above, was the point of the change.
+- **Two page 7 rows** gained a line (Closing Time's FF11 and Second Look's FF19), because the columns now have set widths. Both now wrap as the other designs' do.
+
+**Checks.**
+- **A guard that had been missing.** Chromium prints a page that is wider than the paper shrunk to fit, every page of it. The sheets' stylesheet said so, but nothing checked it.
+  - During this pass, a fixed-layout page 7 table let one cell's words run 4px past its column. All eight pages printed slightly smaller, with a stray line under every footer, while every other check stayed green.
+  - `render.mjs` now refuses a page wider than the 711px print width. With the fixed layout put back, it stopped the render and named page 7, 4px over.
+  - The rules and shortlist guards check width as well as height.
+- **The regression fixes changed only what they meant to.**
+  - Rendered again and compared pixel for pixel with the commit before them, only these changed: pages 1, 2 and 7 of each sheet, both rules pages, and slide 4 of the three managers' decks.
+  - The shortlist and summary were rendered again and match pixel for pixel.
+  - Every page's space above its footer is as it was, except page 1 (above).
+- **Unchanged content.**
+  - The re-render changed no fingerprint (`regenerate.mjs --check`).
+  - No sheet's JSON or import file changed by a byte.
+  - Every sheet is still eight pages.
+  - `deck-check.mjs`: 153 rows agree.
+  - `npm test`: 2,278 tests, 0 failures.
+
+**Changed:**
+- tooling: `plain.mjs`, `render.mjs`, `rules-sheet.mjs`, `shortlist-sheet.mjs`, `summary-sheet.mjs`, `deck-polish.py`, `pack.py`
+- outputs: all 15 proposal sheets, the rules, the shortlist, the summary, the six decks and their PDFs, the pack
 
 ## Notes for the whole set
 

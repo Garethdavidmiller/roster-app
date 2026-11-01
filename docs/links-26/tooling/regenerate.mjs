@@ -64,7 +64,7 @@ export const SUPPLIED = [
     // layout the annealing skeleton search never reached in 16 seeds), then the same soft → hard polish chain. Equal to
     // Second Edition on every line the sheets compare, with the longest run down from six days to five; the heaviest
     // week is 42h 30m against Second Edition's 42h 00m. README.md → "Short Run".
-    { file: 'short-run.json',              name: 'Short Run',      code: 'SR-26-F1',   fp: '618348d6', strap: 'No run over five days on the fixed rota, weekends never more than five weeks apart, and 18 of 21 weeks on one shift time' },
+    { file: 'short-run.json',              name: 'Short Run',      code: 'SR-26-F1',   fp: '618348d6', strap: 'No run over five days outside the cover weeks, weekends never more than five weeks apart, and 18 of 21 weeks on one shift time' },
     // Long Break (3 Oct 2026): the 14-day-leave search. Second Edition's duty table on an exact-solver skeleton
     // (exact-skeletons.py with FOUR=14) in which four full weeks off cost 14 days' leave, as today, where every other
     // 26-line design needs 15; its best leave stretch is 29 days. The price: five single rest days (not four), 16 of 21
