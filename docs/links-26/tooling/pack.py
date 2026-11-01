@@ -45,6 +45,16 @@ if not SHORTLIST or any(s not in names.split(', ') for s in SHORTLIST): raise Sy
 if RECOMMENDED not in SHORTLIST: raise SystemExit(f'pack: the recommendation {RECOMMENDED} is not on the shortlist {SHORTLIST}')
 TWENTY = f"3 Presentations/{RECOMMENDED.replace(' ', '-')}-for-managers.pdf"   # the read-me's twenty-minute read
 if not any(dst == TWENTY for _, dst in files): raise SystemExit(f'pack: the read-me points at {TWENTY}, which the pack does not hold')
+COLLEAGUES_FIRST = f"3 Presentations/{RECOMMENDED.replace(' ', '-')}-for-colleagues.pdf"   # where the colleagues' route starts
+if not any(dst == COLLEAGUES_FIRST for _, dst in files): raise SystemExit(f'pack: the read-me points at {COLLEAGUES_FIRST}, which the pack does not hold')
+# THE RECOMMENDATION IS THE SHORTLIST SHEET'S, SAID SHORTER (1 Nov 2026). The read-me's first paragraph repeats page 2's
+# case for Even Step, whose figures that sheet checks (claim() in shortlist-sheet.mjs). The read-me types no figure of
+# its own, and refuses to build if the sheet stops saying what it repeats
+SHEET = open(f'{ROOT}/tooling/shortlist-sheet.mjs', encoding='utf-8').read()
+for said in ['it equals both — days in a row, weekends, weeks on one shift time, late finishes and the leave',
+             'Monday to Saturday it alone has no shift over 8h&nbsp;30m', 'every early is one of today’s times',
+             'Its costs: weekday lates near today’s', 'a slightly weaker weekday fit', 'change of start (the others']:
+    if said not in SHEET: raise SystemExit(f'pack: the read-me repeats the shortlist sheet\'s recommendation, which no longer says "{said}"')
 # the count is the SUPPLIED list's, never typed: "Ten candidate links" stayed ten for three designs (26 Oct 2026)
 # FOUR SENTENCES BELOW NAME MEMBERS, AND ARE CHECKED (30 Oct 2026 review; Even Step's added 31 Oct): the 26 Oct paragraph
 # says none of its three is on the shortlist, the In Step paragraph that In Step is, the Even Step paragraph that Even Step
@@ -54,7 +64,7 @@ if {'Home Grown', 'Closing Time', 'Both Ways'} & set(SHORTLIST):
     raise SystemExit(f'pack: the read-me says none of the 26 Oct three is shortlisted; SHORTLIST is {SHORTLIST}')
 if 'In Step' not in SHORTLIST:   # the 30 Oct paragraph below says it is
     raise SystemExit(f'pack: the read-me says In Step is shortlisted; SHORTLIST is {SHORTLIST}')
-if 'Even Step' not in SHORTLIST or RECOMMENDED != 'Even Step':   # the 31 Oct paragraph below says it is both
+if 'Even Step' not in SHORTLIST or RECOMMENDED != 'Even Step':   # the 31 Oct paragraph below says it is both, and the recommendation is its case
     raise SystemExit(f'pack: the read-me says Even Step is shortlisted and recommended; SHORTLIST is {SHORTLIST}, RECOMMENDED {RECOMMENDED}')
 built_in = open('links-proposals.js', encoding='utf-8').read()
 missing = [n for n, c, _ in proposals if n in SHORTLIST and f"code: '{c}'" not in built_in]
@@ -68,51 +78,62 @@ if set(with_decks) != set(SHORTLIST):   # owner, 3 Oct 2026: "only keep the shor
 # columns, both lists hang at the same column, and a paragraph edited later cannot come out ragged.
 import textwrap
 W = 78
-para = lambda t: textwrap.fill(' '.join(t.split()), W)
+# A NAME IS NEVER SPLIT (1 Nov 2026): no wrap at a hyphen, so Even-Step-for-colleagues.pdf stays whole, and none inside a
+# folder's name, so "4 Proposal sheets" never ends one line and starts the next. The folders are the pack's own, read from
+# the file list; their spaces are held as a placeholder of the same width while the text is wrapped
+FOLDERS = sorted({dst.split('/')[0] for _, dst in files if '/' in dst and ' ' in dst.split('/')[0]})
+def whole(t):
+    for f in FOLDERS: t = t.replace(f, f.replace(' ', '\x00'))
+    return t
+para = lambda t: textwrap.fill(whole(' '.join(t.split())), W, break_on_hyphens=False).replace('\x00', ' ')
 def item(label, text, hang=21):
-    return textwrap.fill(' '.join(text.split()), W, initial_indent=f'  {label:<{hang - 2}}', subsequent_indent=' ' * hang)
+    return textwrap.fill(whole(' '.join(text.split())), W, initial_indent=f'  {label:<{hang - 2}}', subsequent_indent=' ' * hang,
+                         break_on_hyphens=False).replace('\x00', ' ')
 decks = (', '.join(with_decks[:-1]) + ' and ' + with_decks[-1]) if len(with_decks) > 1 else (with_decks[0] if with_decks else 'None yet')
+# THE ROUTE FIRST, THE HISTORY LAST (the fifth review's follow-up, 1 Nov 2026): "The history interrupts the route into the pack. A
+# new reader needs the current recommendation, what they are being asked to decide, and which file to open." And
+# colleagues start with their presentation, "the proposal sheet and rota should follow as supporting detail". So the
+# read-me opens on the recommendation, the two asks and the two routes in, then what is still open and what each folder
+# holds; how the shortlist came about follows, its paragraphs and their checks unchanged. Every file the route names
+# starts a line of its own, so no wrap splits a name.
+names_in = {n for n, _, _ in proposals}
 readme = '\n'.join([
     'DECEMBER 2026 LINK PROPOSALS - 26 LINES',
-    'Marylebone CEA link, December 2026 timetable - 26 weeks, set on 1 October 2026',
+    'Marylebone CEA link, December 2026 timetable - 26 weeks',   # no date: office detail (owner, of slide 9's)
     '',
-    para(f'{WORDS[len(proposals)].capitalize()} candidate links, {WORDS[len(SHORTLIST)]} shortlisted ({", ".join(SHORTLIST[:-1])} and {SHORTLIST[-1]}), one recommended ({RECOMMENDED}). '
-         f'Asked of managers: which of the {WORDS[len(SHORTLIST)]} goes to colleagues. Asked of colleagues: read pages 1 and 2 of the chosen '
-         'sheet, look at its rota on page 3 and say what worries you.'),
-    item('Ten minutes:', '1 Summary/links-26-shortlist.pdf', 18),
-    item('Twenty minutes:', f'add {TWENTY}', 18),
-    para('The rest is the evidence behind them. The summary sheet puts all fifteen side by side, so its '
-         'print is small: read it on screen, zoomed in, or print it at A3. It is a reference, not a page to '
-         'present.'),   # third review, 1 Nov 2026
+    'THE RECOMMENDATION',
+    para(f'{RECOMMENDED}. {WORDS[len(proposals)].capitalize()} candidate links were drawn up and {WORDS[len(SHORTLIST)]} '
+         f'shortlisted: {", ".join(SHORTLIST[:-1])} and {SHORTLIST[-1]}. On what weighs most here Even Step equals the '
+         'other two - days in a row, weekends, weeks on one shift time, late finishes and leave. Monday to Saturday it '
+         'alone has no shift over 8h 30m, and every early is one of today\'s times. What it gives up against the other '
+         'two: weekday lates nearly as long as today\'s, a slightly weaker weekday fit to the trains, and start times '
+         'that change more from week to week. Page 2 of the shortlist sheet sets out the case, and the costs.'),
     '',
-    *([para('Home Grown, Closing Time and Both Ways (26 October 2026) answer a later question: today\'s link on 26 lines, '
-            'keeping as many of its shift times as it can, with a 13:35 or 13:45 finish every weekday and the weekday closer at 16:00. Each pays for '
-            'the short finishes a different way; the technical notes compare them. Closing Time, improved on 27 and 30 '
-            'October, was shortlisted on 30 October until the shortlist was cut to two the same day; the other two '
-            'were never on it.'), '']
-      if {'Home Grown', 'Closing Time', 'Both Ways'} <= {n for n, _, _ in proposals} else []),
-    *([para('In Step (30 October 2026) answers the next question: whether Closing Time could have five on at the Saturday '
-            'open and follow the weekday trains more closely. It keeps Closing Time\'s weeks and a 13:45 finish every '
-            'weekday, with the closer at 15:45 instead of 16:00. The same day the shortlist was cut to two: In Step, '
-            'recommended then, and Short Run, on it since 3 October (Second Edition, Even Keel and Closing Time left it).'), '']
-      if 'In Step' in {n for n, _, _ in proposals} else []),
-    *([para('Even Step (31 October 2026) answers the one thing about In Step expected to be hard to sell: the length of its '
-            'main weekday earlies, 8h 55m and 8h 45m. It keeps In Step\'s weeks - the same rest days, weekends and early '
-            'and late weeks - with the shift times chosen again so that nothing Monday to Saturday runs over 8h 30m and '
-            'every early Monday to Saturday is a time worked today. It joined the shortlist the same day, beside In Step '
-            'and Short Run, and is the one recommended; the shortlist sheet sets out why, and what it costs.'), '']
-      if 'Even Step' in {n for n, _, _ in proposals} else []),
-    para('Still moving: the staffing levels and Sunday cover behind the rules were confirmed verbally, not in writing; '
-         'the written source of the 13-day limit is to be confirmed; and the reading of one fatigue factor (FF19, marked '
-         '"definition to confirm" on the rules page) is open. The figures are computed from the rotas and will not move '
-         'unless a rule does. The link was 24 weeks until 1 October 2026; that work is kept in its own pack, '
-         'links-24-proposals.zip, for reference.'),
+    'WHAT IS ASKED',
+    item('Managers', f'Which of the {WORDS[len(SHORTLIST)]} shortlisted links goes to colleagues for their views.'),
+    item('Colleagues', 'What worries you about the chosen link, even if it is small. It goes to the managers with '
+         'the proposal.'),
     '',
-    para(f'Proposals in this pack: {names}.'),
+    'WHERE TO START',
+    item('Managers', 'Ten minutes: the shortlist sheet,'),
+    item('', '1 Summary/links-26-shortlist.pdf'),
+    item('', 'Twenty minutes: add the presentation for managers,'),
+    item('', TWENTY),
+    item('Colleagues', 'First, the presentation for colleagues,'),
+    item('', COLLEAGUES_FIRST),
+    item('', f'(or the chosen link\'s, if it is not {RECOMMENDED}). Then pages 1 to 3 of its proposal sheet, in '
+         '4 Proposal sheets: the detail, and every week of the link on page 3.'),
     '',
-    'START WITH THESE',
-    item('1 Summary', f'One page: every proposal against today\'s link; and the two-page shortlist sheet - the '
-         f'{WORDS[len(SHORTLIST)]} shortlisted designs against each other and today, with a recommendation. Start there.'),
+    'STILL OPEN',
+    para('Where the 13-day limit is written down, and how one fatigue factor (FF19, marked "definition to confirm" on '
+         'the rules page) treats a rest day. The staffing levels and Sunday cover behind the rules were confirmed '
+         'verbally, and are worth having in writing. The figures are computed from the rotas and will not move unless '
+         'a rule does.'),
+    '',
+    'WHAT IS IN THE PACK',
+    item('1 Summary', f'The two-page shortlist sheet - the {WORDS[len(SHORTLIST)]} shortlisted designs against each other '
+         'and today, with the recommendation. Beside it, one page with every proposal against today\'s link: its print '
+         'is small, so read it on screen, zoomed in, or print it at A3. It is a reference, not a page to present.'),
     item('2 Rules', 'The three tiers of rule, two pages: the hard limits (three, and the ceiling of 219 contracted days '
          'a year, which is hard too), the nine December 2026 rules scored on every sheet, and three flexible rules '
          'aimed for when designing (14 on a Saturday, five cover weeks as evenly spaced as 26 weeks allow, and '
@@ -120,10 +141,9 @@ readme = '\n'.join([
     item('3 Presentations', f'{decks}: one for colleagues and one for managers{" each" if len(with_decks) > 1 else ""}. '
          'PowerPoint and PDF copies of each. The PowerPoints use the Inter font; if the PC showing them does not have '
          'Inter, present the PDF instead.'),
-    '',
-    'THE DETAIL',
     item('4 Proposal sheets', 'One eight-page PDF per proposal, compared only with today\'s link: pages 1-2 are the '
-         'plain-English comparison, the rest the evidence managers can inspect. The marks mean the same on every page:'),
+         'plain-English comparison, page 3 the rota, the rest the evidence managers can inspect. The marks mean the '
+         'same on every page:'),
     item('', 'green tick - meets a rule, or better than today on something the rules, the limits or the fatigue '
          'guidance aim for, or on a plain gain such as full weekends off', 24),
     item('', 'amber - worse than today on one of those', 24),
@@ -138,14 +158,48 @@ readme = '\n'.join([
     item('6 Technical notes', 'The 26-line rules with what changed from 24, and how the proposals were built and '
          'checked. Written for the technical record, not for reading out.'),
     '',
+    para(f'Proposals in this pack: {names}.'),
+    '',
+    'HOW THE SHORTLIST CAME ABOUT',
+    *([para('The first shortlist, on 3 October 2026, was Second Edition, Short Run and Even Keel, with Short Run '
+            'recommended.'), ''] if {'Second Edition', 'Short Run', 'Even Keel'} <= names_in else []),
+    *([para('Home Grown, Closing Time and Both Ways (26 October 2026) answer a later question: today\'s link on 26 lines, '
+            'keeping as many of its shift times as it can, with a 13:35 or 13:45 finish every weekday and the weekday closer at 16:00. Each pays for '
+            'the short finishes a different way; the technical notes compare them. Closing Time, improved on 27 and 30 '
+            'October, was shortlisted on 30 October until the shortlist was cut to two the same day; the other two '
+            'were never on it.'), '']
+      if {'Home Grown', 'Closing Time', 'Both Ways'} <= names_in else []),
+    *([para('In Step (30 October 2026) answers the next question: whether Closing Time could have five on at the Saturday '
+            'open and follow the weekday trains more closely. It keeps Closing Time\'s weeks and a 13:45 finish every '
+            'weekday, with the closer at 15:45 instead of 16:00. The same day the shortlist was cut to two: In Step, '
+            'recommended then, and Short Run, on it since 3 October (Second Edition, Even Keel and Closing Time left it).'), '']
+      if 'In Step' in names_in else []),
+    *([para('Even Step (31 October 2026) answers the one thing about In Step expected to be hard to sell: the length of its '
+            'main weekday earlies, 8h 55m and 8h 45m. It keeps In Step\'s weeks - the same rest days, weekends and early '
+            'and late weeks - with the shift times chosen again. It joined the shortlist the same day, beside In Step '
+            'and Short Run, and is the one recommended.'), '']
+      if 'Even Step' in names_in else []),
+    para('The link was 24 weeks until 1 October 2026; that work is kept in its own pack, links-24-proposals.zip, for '
+         'reference.'),
+    '',
+    'HOW THE FIGURES ARE WORKED OUT',
     para('Every figure in the summary, the shortlist sheet, the rules sheet and the proposal sheets was worked out from '
-         'the rotas, by the Marylebone Roster app\'s own checks and the tooling beside them; what is typed by hand is the rules\' own numbers and the one-line description under each design\'s name. The presentations are built from the '
-         'Familiar Nine decks by scripts, through a Second Nature template that is not shipped, and every figure in '
-         'their tables is checked against those counts by another (docs/links-26/tooling/deck-check.mjs in the '
-         'repository).'),
+         'the rotas, by the Marylebone Roster app\'s own checks and the tooling beside them; what is typed by hand is the '
+         'rules\' own numbers and the one-line description under each design\'s name. The presentations are built by '
+         'scripts, and every figure in their tables is checked against those counts (docs/links-26/tooling/deck-check.mjs '
+         'in the repository).'),
     '',
 ])
 assert all(len(l) <= W for l in readme.split('\n')), [l for l in readme.split('\n') if len(l) > W]
+# and no name split across two lines: each file the route names is whole on a line, and no folder's name breaks
+for path in ['1 Summary/links-26-shortlist.pdf', TWENTY, COLLEAGUES_FIRST]:
+    if not any(l.strip() == path for l in readme.split('\n')):
+        raise SystemExit(f'pack: the read-me does not give {path} a line of its own, so a wrap can split it')
+for f in FOLDERS:
+    w = f.split(' ')
+    for k in range(1, len(w)):
+        if re.search(re.escape(' '.join(w[:k])) + r'\n *' + re.escape(' '.join(w[k:])), readme):
+            raise SystemExit(f'pack: the read-me splits the folder name "{f}" across lines')
 
 
 if os.path.exists(OUT): os.remove(OUT)

@@ -2006,7 +2006,7 @@ managers' decks.
 **Still saying "fixed rota", outside the decks:** the one-line description under Short Run's name on its own sheet
 ("No run over five days on the fixed rota…"). Changing it means re-rendering that sheet, so it is left as it is until
 the owner decides. The shortlist sheet used to say it too; it changed in the next section, when it was re-rendered for
-another reason.
+another reason. Short Run's line changed on 1 Nov 2026, in the fifth review's follow-up, below.
 
 **Changed:**
 - tooling: `deck-polish.py`, `deck-check.mjs`
@@ -2107,6 +2107,76 @@ The first two were mutated with `scripts/mutate.mjs`, and each stopped the build
 **Changed:**
 - tooling: `deck-polish.py`
 - outputs: the six decks and their PDFs, the pack
+
+## A fifth outside review and its follow-up: two words, the read-me, slide 9 (1 Nov 2026)
+
+The reviewer rated the revised presentation design 9/10, found no new accuracy regression, and advised against another
+broad rewrite. They made one wording point: Even Step's "weakest weekday fit" was accurate, because it means of the
+three, but "could sound more alarming than intended", and "slightly weaker weekday fit than the other two" gives the
+size better. Its fit is 32.6, against In Step's 29.8 and Short Run's 29.1, where today's is 52.0.
+
+Their follow-up recommended "one final navigation edit, a small adjustment to slide 9, and selective terminology
+changes where they improve understanding". They advised against reworking all 15 sheets to remove every "fixed
+duties". This session agreed with all of it.
+
+- **"A slightly weaker weekday fit".** Managers' slide 7 used to say "This one costs: longest weekday lates (8h 27m on
+  average), weakest weekday fit". It now says "This one costs: lates near today's 8h 30m, and a slightly weaker weekday
+  fit". Notes 7 say the same. So do the shortlist sheet's Even Step card, its case on page 2 and its "Choose Even
+  Step" line.
+  - Both words claim a size, so both are checked, in `deck-polish.py` and as `claim()`s in `shortlist-sheet.mjs`.
+  - "Near today's" means within ten minutes of today's weekday lates.
+  - "Slightly" means behind the best of the other two by under a tenth of today's score.
+  - The older claim that it is the weakest of the three stays as well.
+- **The read-me puts the route first.** In the reviewer's words: "The history interrupts the route into the pack. A
+  new reader needs the current recommendation, what they are being asked to decide, and which file to open." It now
+  runs in this order:
+  - the recommendation, in the shortlist sheet's words, without figures of its own;
+  - what managers and colleagues are asked;
+  - where each starts. Colleagues start with their presentation; the proposal sheet and its rota follow, as the
+    reviewer advised;
+  - what is still open;
+  - what each folder holds.
+
+  How the shortlist came about now comes last, opening with the first shortlist (3 October). The header lost "set on
+  1 October 2026", the office detail the owner took off slide 9. Every file the route names starts a line of its own,
+  and no folder's name is split by a wrap.
+- **Managers' slide 9** had "Still open: …" as the line under "Then: who starts on which line", though it concerns
+  other matters. Each row now describes only its own topic:
+  - "which link we use" says "After colleagues' views";
+  - "who starts on which line" says "Decided after the link is chosen".
+
+  The two open points moved to the bar under the rows: "Still open: where the 13-day limit is written; how one fatigue
+  check treats a rest day." Before, the bar said the order of the two decisions, which the rows now say themselves.
+- **Terminology, selectively.** The last "fixed rota" printed anywhere in the pack was the line under Short Run's name
+  on its own sheet. It now says "No run over five days outside the cover weeks". "Fixed duties" stays on the sheets,
+  because, as the reviewer put it, it names the duties being measured, while "cover weeks aside" describes an exclusion.
+  - Re-rendering Short Run's sheet changed only that line and its date. Its JSON and import file are byte-identical,
+    and its pages 2 to 8 are identical pixel for pixel.
+- **Left as they are,** as the reviewer advised:
+  - managers' slide 3, five aligned staffing comparisons;
+  - colleagues' slide 14, a reference slide;
+  - the rest of managers' slide 7, six points of one line each.
+
+**Checks.** `pack.py` now refuses to build the read-me in four cases:
+- the shortlist sheet stops saying the case the read-me repeats;
+- the colleague presentation the route points to is not in the pack;
+- a file the route names is not on a line of its own;
+- a folder's name is split across two lines.
+
+Each was mutated with `scripts/mutate.mjs`, and each stopped the build with its own message. The last needed two runs,
+because today's text happens to put no folder name at a line end:
+- with the wrap narrowed to 76 columns and names left unprotected, the check caught "4 Proposal sheets" split;
+- at the same width with names protected, nothing split.
+
+The four size checks were mutated too, and each stopped its build: "near" and "slightly", in the decks and on the
+shortlist. `deck-check.mjs`: 153 rows agree. Only the intended parts changed:
+- managers' decks: slide 9 in all three, and slide 7 and notes 7 in Even Step's, plus the embedded chart's timestamp;
+- colleague decks: nothing;
+- sheets: the shortlist's three phrases, and the line under Short Run's name.
+
+**Changed:**
+- tooling: `deck-polish.py`, `shortlist-sheet.mjs`, `pack.py`, `fresh.mjs`, `regenerate.mjs`
+- outputs: the three managers' decks and their PDFs, the shortlist sheet, Short Run's sheet, the pack
 
 ## Notes for the whole set
 

@@ -681,7 +681,12 @@ def managers(d, name, grid, F):
     # shows too.
     worst = lambda mine, theirs: all(mine > t for t in theirs)   # the worst of the three: more is worse
     costs = {'Even Step': worst(weekday_late_avg(P), [weekday_late_avg(g) for g in O]) and worst(float(F['fitWk']), [float(o['fitWk']) for o in others])
-                          and f'This one costs: longest weekday lates ({weekday_late_avg(P) // 60}h {weekday_late_avg(P) % 60:02d}m on average), weakest weekday fit',
+                          and abs(weekday_late_avg(P) - weekday_late_avg(TODAY_P)) <= 10   # "near today's": within ten minutes
+                          and float(F['fitWk']) - min(float(o['fitWk']) for o in others) <= 0.1 * float(T['fitWk'])   # "slightly": under a tenth of today's score behind
+                          # SAID WITH ITS SIZE (fifth review, 1 Nov 2026): "longest weekday lates" and "weakest weekday fit" were accurate
+                          # and sounded worse than they are — the lates are a shade shorter than today's, the fit 32.6 against 29.8 and
+                          # 29.1 where today's is 52.0. "Lates near today's" is the shortlist sheet's own phrase
+                          and f'This one costs: lates near today’s {weekday_late_avg(TODAY_P) // 60}h {weekday_late_avg(TODAY_P) % 60:02d}m, and a slightly weaker weekday fit',
              'In Step': worst(long_wk_earlies(P), [long_wk_earlies(g) for g in O])
                         and f'This one costs: the most long weekday earlies, about {long_wk_earlies(P)} a year each over 8h 30m',
              # SHORT RUN'S LONG EARLIES ARE ITS COST TOO (1 Nov 2026, managers' review): side by side the slides said only In Step had
@@ -744,7 +749,12 @@ def managers(d, name, grid, F):
     s.save()
     s = S(9)
     put(s, 'Three things confirmed verbally (29 Sep and 1 Oct 2026), two decisions left', 'Three things settled, two decisions left, two points still open')   # the 26 lines were set on 1 Oct, not confirmed verbally (31 Oct review)
-    put(s, 'Who begins on which week of the link.', 'Still open: where the 13-day limit is written down; whether a rest day resets one fatigue check.')   # no "FF19" (review)
+    # THE OPEN POINTS IN THE BAR, APART FROM THE ROWS (the fifth review's follow-up, 1 Nov 2026): "The 'Still open' sentence sits beneath
+    # 'who starts on which line', although it concerns separate matters." Each row now describes only its own topic, the
+    # order of the two decisions is said on the rows themselves, and the bar carries the two open points, set apart from both
+    put(s, 'Who begins on which week of the link.', 'Decided after the link is chosen.')
+    put(s, 'Colleagues’ views come first; the link is chosen after them, then who starts where.',
+        'Still open: where the 13-day limit is written; how one fatigue check treats a rest day.')   # no "FF19" (review); one line at 14pt
     # SAID AS THEY WERE SETTLED (external review, 31 Oct 2026): the rules and the Sunday cover were confirmed VERBALLY, as every
     # other surface says; the 26 lines were set by the owner on 1 October
     put(s, 'December rules — confirmed', 'December rules — confirmed verbally'); put(s, 'Sunday cover — confirmed', 'Sunday cover — confirmed verbally')
@@ -855,7 +865,7 @@ def managers_review(d, name, P, O, others, F, help_):
     lead7 = (f'{name} is the recommended design. It keeps {"In Step" if name == "Even Step" else "the other shortlisted"}’s weeks — the same rest days, weekends, cover weeks and blocks of earlies and lates — with the shift times chosen again, so that nothing Monday to Saturday runs over 8h 30m and every early Monday to Saturday is a time worked today.'
              if rec else f'{name} is one of {WORDS[len(SHORTLIST)]} shortlisted designs; {RECOMMENDED} is the recommended one.')
     body7 = {
-        'Even Step': f' It has the fewest shift times of the three, {n_times}, and keeps today’s 13:45 every weekday. What it gives up, against the other two: weekday lates of {hm(wla)} on average, closers aside ({andl([f"{n} {hm(weekday_late_avg(g))}" for n, g in zip([n for n in SHORTLIST if n != name], O)])}; today {hm(weekday_late_avg(TODAY_P))}); start times that move further from one week to the next, {F["step"]} on average ({rest_of("step")}; today {T["step"]}); and the weakest weekday fit to the trains, {F["fitWk"]} ({rest_of("fitWk")}; today {T["fitWk"]}).',
+        'Even Step': f' It has the fewest shift times of the three, {n_times}, and keeps today’s 13:45 every weekday. What it gives up, against the other two: weekday lates of {hm(wla)} on average, closers aside ({andl([f"{n} {hm(weekday_late_avg(g))}" for n, g in zip([n for n in SHORTLIST if n != name], O)])}; today {hm(weekday_late_avg(TODAY_P))}); start times that move further from one week to the next, {F["step"]} on average ({rest_of("step")}; today {T["step"]}); and a slightly weaker weekday fit to the trains, {F["fitWk"]} ({rest_of("fitWk")}; today {T["fitWk"]}).',
         'In Step': f' It has the steadiest weekly hours of the three, {F["light"]} to {F["heavy"]} Monday to Saturday (today {T["light"]} to {T["heavy"]}); the most finishes before 14:00, {eo} a year each (today {eo_t}); and the closest Saturday fit to the trains, {F["fitSat"]} ({rest_of("fitSat")}). It keeps today’s 13:45 every weekday. What it gives up: {long_phrase}, about {long_wk_earlies(P)} a year each in all, where today no early is over 8h 30m.',
         'Short Run': f' It has the closest weekday fit to the trains, {F["fitWk"]} ({rest_of("fitWk")}; today {T["fitWk"]}); the shortest weekday lates, {hm(wla)} on average, closers aside; and no new shift time on a Saturday. What it gives up: {long_phrase}, about {long_wk_earlies(P)} a year each, where today no early is over 8h 30m; today’s 13:45, which both others keep every weekday; a Saturday closer of {F["closerSat"]} ({rest_of("closerSat")}); the heaviest week of the three, {F["heavy"]} Monday to Saturday (today {T["heavy"]}); and the shortest rest, {F["rest"]} ({rest_of("rest")}).'}[name]
     notes(7, 'This is the case in one slide.', lead7 + body7 + f' Every closing shift is {min(cuts)} to {max(cuts)} minutes shorter than today’s. The costs all three share are in the bar: {F["late23"]} finishes a year at 23:00 or later against {T["late23"]}, {F["sat"]} Saturdays against {T["sat"]}, and {F["leaveFour"]} days’ leave for four weeks off against {T["leaveFour"]}.')
@@ -917,7 +927,7 @@ def managers_review(d, name, P, O, others, F, help_):
     # SLIDE 9: what the managers are asked to do, on the slide; the dates and the history in the notes alone
     s = S(9)
     put(s, 'The nine December rules. Everything here is built on them.', 'Everything here is built on them; worth having in writing before a link is chosen.')
-    put(s, 'Colleagues’ views come first.', 'Not yet seen by the roster office or a union rep.')   # the bar says colleagues' views come first
+    put(s, 'Colleagues’ views come first.', 'After colleagues’ views. Not yet seen by the roster office or a union rep.')
     s.save()
     notes(9, 'The Sunday finish stays at 23:25', 'The December rules and the Sunday cover were confirmed verbally on 29 September 2026, and are worth having in writing before a link is chosen; the 26-week link was set on 1 October 2026. The 13-day limit used in the checks is Chiltern practice; its written source is still to be confirmed. The fatigue check still open is FF19 on the rules sheet: start times moving more than two hours between shifts, which is not counted across a rest day. The proposal has not yet been through the roster office or a union rep. The Sunday finish stays at 23:25, as agreed practice.')
 
