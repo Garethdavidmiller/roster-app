@@ -19,6 +19,7 @@ if not proposals: raise SystemExit('pack: no proposals in regenerate.mjs SUPPLIE
 files = [  # (source, path in the pack)
     (f'{ROOT}/links-26-summary.pdf', '1 Summary/links-26-summary.pdf'),
     (f'{ROOT}/links-26-shortlist.pdf', '1 Summary/links-26-shortlist.pdf'),
+    (f'{ROOT}/links-26-what-it-means.pdf', '1 Summary/links-26-what-it-means.pdf'),   # colleagues: what it means if you… (1 Nov 2026)
     (f'{ROOT}/links-26-rules.pdf', '2 Rules/links-26-rules.pdf'),
 ]
 for name, code, fp in proposals:
@@ -46,6 +47,15 @@ if RECOMMENDED not in SHORTLIST: raise SystemExit(f'pack: the recommendation {RE
 TWENTY = f"3 Presentations/{RECOMMENDED.replace(' ', '-')}-for-managers.pdf"   # the read-me's twenty-minute read
 if not any(dst == TWENTY for _, dst in files): raise SystemExit(f'pack: the read-me points at {TWENTY}, which the pack does not hold')
 COLLEAGUES_FIRST = f"3 Presentations/{RECOMMENDED.replace(' ', '-')}-for-colleagues.pdf"   # where the colleagues' route starts
+WHAT_IT_MEANS = '1 Summary/links-26-what-it-means.pdf'   # and where it ends (1 Nov 2026)
+if not any(dst == WHAT_IT_MEANS for _, dst in files): raise SystemExit(f'pack: the read-me points at {WHAT_IT_MEANS}, which the pack does not hold')
+# NOT A STALE SHEET (the deep review, 1 Nov 2026): the sheet reads the colleague decks' slide 5 and asserts its £ against them,
+# but only when it is rebuilt, so a re-polish followed straight by this script would ship a sheet the decks have moved on
+# from. It must be at least as new as every colleague deck (a minute's grace: a fresh checkout writes the files in path
+# order, the sheet a moment before the decks)
+_sheet = f'{ROOT}/links-26-what-it-means.pdf'
+_older = [os.path.basename(s) for s, _ in files if s.endswith('-for-colleagues.pptx') and os.path.getmtime(s) > os.path.getmtime(_sheet) + 60]
+if _older: raise SystemExit(f'pack: links-26-what-it-means.pdf is older than {_older}; run what-it-means-sheet.mjs after deck-polish.py')
 if not any(dst == COLLEAGUES_FIRST for _, dst in files): raise SystemExit(f'pack: the read-me points at {COLLEAGUES_FIRST}, which the pack does not hold')
 # THE RECOMMENDATION IS THE SHORTLIST SHEET'S, SAID SHORTER (1 Nov 2026). The read-me's first paragraph repeats page 2's
 # case for Even Step, whose figures that sheet checks (claim() in shortlist-sheet.mjs). The read-me types no figure of
@@ -88,8 +98,9 @@ FOLDERS = sorted({dst.split('/')[0] for _, dst in files if '/' in dst and ' ' in
 # the word before it, so it ends a line and never starts one
 NAMES = sorted({n for n, _, _ in proposals}, key=len, reverse=True)
 MONTHS = 'January|February|March|April|May|June|July|August|September|October|November|December'
+TITLES = ['"What it means if you..."']   # a document's title is a name too (the deep review, 1 Nov 2026: "What it / means if you...")
 def whole(t):
-    for f in FOLDERS + NAMES: t = t.replace(f, f.replace(' ', '\x00'))
+    for f in FOLDERS + NAMES + TITLES: t = t.replace(f, f.replace(' ', '\x00'))
     t = re.sub(rf'\b\d{{1,2}} (?:{MONTHS})(?: \d{{4}})?', lambda m: m.group(0).replace(' ', '\x00'), t)
     t = re.sub(r'\bapp version (?=\d)', 'app\x00version\x00', t)
     return t.replace(' - ', '\x00- ')
@@ -136,6 +147,9 @@ readme = '\n'.join([
     ' ' * 23 + COLLEAGUES_FIRST,
     item('', f'(or the chosen link\'s, if it is not {RECOMMENDED}). Then pages 1 to 3 of its proposal sheet, in '
          '4 Proposal sheets: the detail, and every week of the link on page 3.'),
+    item('', 'Last, the one-page sheet on what it means if you prefer earlies or lates, swap for overtime, work your '
+         'share of Sundays or no overtime at all, or save leave for long breaks,'),
+    ' ' * 23 + WHAT_IT_MEANS,
     '',
     'STILL OPEN',
     para('Where the 13-day limit is written down, and how one fatigue factor (FF19, marked "definition to confirm" on '
@@ -145,8 +159,11 @@ readme = '\n'.join([
     '',
     'WHAT IS IN THE PACK',
     item('1 Summary', f'The two-page shortlist sheet - the {WORDS[len(SHORTLIST)]} shortlisted designs against each other '
-         'and today, with the recommendation. Beside it, one page with every proposal against today\'s link: its print '
-         'is small, so read it on screen, zoomed in, or print it at A3. It is a reference, not a page to present.'),
+         'and today, with the recommendation. A one-page sheet for colleagues, "What it means if you...", on what each '
+         'shortlisted link means for someone who prefers earlies or lates, swaps earlies for lates, works their share '
+         'of Sundays or no overtime, or saves leave for long breaks. And one page with every proposal against today\'s '
+         'link: its print is small, so read it on screen, zoomed in, or print it at A3. It is a reference, not a page '
+         'to present.'),
     item('2 Rules', 'The three tiers of rule, two pages: the hard limits (three, and the ceiling of 219 contracted days '
          'a year, which is hard too), the nine December 2026 rules scored on every sheet, and three flexible rules '
          'aimed for when designing (14 on a Saturday, five cover weeks as evenly spaced as 26 weeks allow, and '
@@ -196,7 +213,8 @@ readme = '\n'.join([
          'reference.'),
     '',
     'HOW THE FIGURES ARE WORKED OUT',
-    para('Every figure in the summary, the shortlist sheet, the rules sheet and the proposal sheets was worked out from '
+    para('Every figure in the summary, the shortlist sheet, the "What it means if you..." sheet, the rules sheet and the '
+         'proposal sheets was worked out from '
          'the rotas, by the Marylebone Roster app\'s own checks and the tooling beside them; what is typed by hand is the '
          'rules\' own numbers and the one-line description under each design\'s name. The presentations are built by '
          'scripts, and every figure in their tables is checked against those counts (docs/links-26/tooling/deck-check.mjs '
@@ -205,7 +223,7 @@ readme = '\n'.join([
 ])
 assert all(len(l) <= W for l in readme.split('\n')), [l for l in readme.split('\n') if len(l) > W]
 # and no name split across two lines: each file the route names is whole on a line, and no folder's name breaks
-for path in ['1 Summary/links-26-shortlist.pdf', TWENTY, COLLEAGUES_FIRST]:
+for path in ['1 Summary/links-26-shortlist.pdf', TWENTY, COLLEAGUES_FIRST, WHAT_IT_MEANS]:
     if not any(l.strip() == path for l in readme.split('\n')):
         raise SystemExit(f'pack: the read-me does not give {path} a line of its own, so a wrap can split it')
 for f in FOLDERS:

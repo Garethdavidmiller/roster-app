@@ -62,7 +62,32 @@ export function personal(patterns) {
   const perYear = x => x * 52 / L, avg = a => a.length ? a.reduce((p, q) => p + q, 0) / a.length : null;
   const span = a => !a.length ? '—' : Math.min(...a) === Math.max(...a) ? hm(a[0]) : `${hm(Math.min(...a))}–${hm(Math.max(...a))}`;
   const daysWeek = (monSat + 4 * cover) / L;
-  return { L, cover, daysWeek, daysYear: daysWeek * 365 / 7, avgShift: monSatMins / monSat, longest,
+  // WHAT IT MEANS FOR YOU (1 Nov 2026, owner: four colleagues — one for earlies, one for lates and swap overtime, one saving
+  // leave, one doing only her rostered Sundays). The decks gave the closers and the average, and so never said the time taken
+  // off the lates goes on the earlies, nor what that does to a swap. Monday to Saturday only: Sunday is overtime. A swap is two
+  // people trading shifts on the SAME day, so `swapMean` pairs each early with the mean of that day's lates. `swapShortYear` is
+  // what swapping every 13:35 or 13:45 early for that day's longest late would add in a year: a ceiling for THOSE swaps, not
+  // for every swap — an 8-hour early for an 8½-hour late adds time on every link (the external review, 1 Nov 2026).
+  // `shortYear` counts the 13:35 and 13:45 earlies whether or not their day has a late, so it cannot drift from the pack's
+  // "finishing before 14:00", which deck-polish.py and the one-page sheet assert it equals (the deep review, 1 Nov 2026).
+  const ms = { early: [], late: [], byDay: {} };
+  for (const r of rows) for (const d of DAYS) {
+    const s = r[d]; if (!timed(s) || d === 'sun') continue; const len = dutyMinutes(s);
+    const kind = startMinutes(s) < 660 ? 'early' : 'late'; ms[kind].push(len);
+    ((ms.byDay[d] ??= { early: [], late: [] })[kind]).push({ len, end: endMinutes(s) });
+  }
+  let pairs = 0, pairSum = 0, short = 0, shortGain = 0;
+  for (const { early: E, late: Lt } of Object.values(ms.byDay)) {
+    const meanL = Lt.length ? avg(Lt.map(x => x.len)) : null, maxL = Lt.length ? Math.max(...Lt.map(x => x.len)) : null;
+    for (const e of E) {
+      const isShort = e.end === 815 || e.end === 825; if (isShort) short++;
+      if (meanL === null) continue;
+      pairs++; pairSum += meanL - e.len; if (isShort) shortGain += Math.max(0, maxL - e.len);
+    }
+  }
+  const you = { earlyYear: perYear(ms.early.length), lateYear: perYear(ms.late.length), avgEarly: avg(ms.early), avgLate: avg(ms.late),
+    swapMean: pairs ? pairSum / pairs : null, shortYear: perYear(short), swapShortYear: perYear(shortGain) };
+  return { L, cover, daysWeek, daysYear: daysWeek * 365 / 7, avgShift: monSatMins / monSat, longest, you,
     late23: perYear(late23), sat: perYear(sat), sun: perYear(sun), open0620: perYear(open),
     closer: { wk: avg(closers.wk), sat: avg(closers.sat), sun: avg(closers.sun) },
     // the range, for printing: an average of two different closing shifts is a shift nobody works

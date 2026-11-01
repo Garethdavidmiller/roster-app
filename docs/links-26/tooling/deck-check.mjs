@@ -85,6 +85,17 @@ function figures(patterns, lines, T) {
     // what deck-polish.py's "all four shortlisted" lines rest on (30 Oct 2026 review): the rules met, and the longest wait
     // between full weekends, each the sheets' own figure
     met: `${R.met}`, weekendGap: `${weekendGap(patterns)}`,
+    // WHAT IT MEANS FOR YOU (1 Nov 2026): slide 6's earlies and lates, slide 5's swap, and the one-page sheet's figures —
+    // plain.mjs's personal().you, Monday to Saturday, each person a year. `swap` is what a same-day early-for-late swap does
+    // to the day's length, on average; a design with no lates to swap into, or where it rounds to nothing, is refused rather
+    // than printed as "0 min longer". `swapShortMins` is for the swap pay sums, which deck-polish.py and the sheet do.
+    // NO KEY HERE MAY REPEAT ONE ABOVE: in an object literal the later one silently wins, and a second `sunHours` once did,
+    // printing "167.00 of overtime each Sunday" in the managers' notes 5 (the deep review, 1 Nov 2026)
+    avgEarly: hm(pp.you.avgEarly), avgLate: hm(pp.you.avgLate),
+    swap: (v => { if (v === null || Math.round(v) === 0) throw new Error(`deck-check: the same-day swap is ${v} minutes, which the slides cannot print as longer or shorter`);
+      return `${Math.abs(Math.round(v))} min ${v > 0 ? 'longer' : 'shorter'}`; })(pp.you.swapMean),
+    earlyYear: `${Math.round(pp.you.earlyYear)}`, lateYear: `${Math.round(pp.you.lateYear)}`, shortYear: `${Math.round(pp.you.shortYear)}`,
+    swapShortMins: `${Math.round(pp.you.swapShortYear)}`, swapShort: hm(pp.you.swapShortYear),
   };
 }
 
@@ -104,6 +115,9 @@ const ROWS = {
   'Fewest rostered on the floor': ['floor', 'floorMin'], 'Fewest on the floor at any time, at least 2': ['floor', 'floorMin'], 'Cover weeks (for leave and sickness)': 'cover',
   'People needed each Sunday (overtime)': 'sundayPeople', 'Rest-day breaks of two days or more': 'breaks',
   'Weeks on one turn, Monday to Friday': 'oneTurn', 'Weeks on one shift time, Monday to Friday': 'oneTurn', 'Longest shift anywhere': 'longest', 'Average shift': 'avg',
+  'Average early, Monday to Saturday': 'avgEarly', 'Average late, Monday to Saturday': 'avgLate',   // slide 6 (1 Nov 2026)
+  'Average shift, Monday to Saturday': 'avg',
+  'A late against an early, same day, on average': 'swap', 'Finishing at 13:35 or 13:45 — each, a year': 'shortYear',   // slide 5 (1 Nov 2026)
   'Days off in a row — best place to book': 'leaveBest', 'Days off in a row — on average': 'leaveAvg',
   'Days off in a row — worst place': 'leaveWorst', 'Leave for four full weeks off, at best': 'leaveFour',
 };
