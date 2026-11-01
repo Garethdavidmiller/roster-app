@@ -388,27 +388,41 @@ def colleagues(d, name, grid, F):
     if not (prem_sat > 0 and prem_sun < -prem_sat and pounds >= 50):
         raise SystemExit(f'deck-polish: slide 5 says the Saturdays add less than the Sundays take away; for {name} they add {prem_sat:.1f} and take {-prem_sun:.1f} hours')
     # SWAPS, ON THE PAY SLIDE (1 Nov 2026, owner: "make all three changes"). Many people swap an early for a late on the same
-    # day to earn overtime, because today's lates are longer: the time over the rostered shift is paid as "Overtime 1.25"
-    # (the Pay Calculator's rate for it). The £ above leaves that out, and the bar now says so. The table gains what a swap
+    # day to earn overtime, because today's lates are longer: the time over the rostered shift is assumed paid as
+    # "Overtime 1.25" (the payslip line; the Pay Calculator suggests it for a changed shift longer than the rostered one). The £
+    # above leaves that out, and the bar now says so. The table gains what a swap
     # does to the day, on average, and how many of the short earlies — the 13:35 and 13:45 finishes, the ones worth
     # swapping — each person works a year; the notes price swapping every one of those for that day's longest late
+    # WHAT THE SWAP ROW MEASURES, ON THE SLIDE (the deep review, 1 Nov 2026): "Swapping an early for a late, on average — 32 min
+    # longer" left the reader to supply "your day is" and "and that time is paid", and on In Step and Short Run "11 min shorter"
+    # invited "swaps now lose me pay"; why the row is on a pay slide was only in the notes, which the PDF does not carry. The
+    # row now says what it compares, as the one-page sheet does, and the subtitle says why it is here. Refused unless the swap
+    # earns less on this link both ways: the short earlies' total and the average same-day difference
+    swap_min = lambda f: int(f['swap'].split()[0]) * (1 if f['swap'].endswith('longer') else -1)
     s = S(5)
+    put(s, 'Basic pay follows your contracted hours', 'Basic pay follows your contracted hours — and a swap for a late earns less overtime')
     put(s, 'No. The same 35-hour week — plus about two more Saturdays at time and a quarter.',
         f'No: basic pay stays the same. Premium and overtime pay come to about £{pounds} a year less, gross, if you work your share of Sundays. That assumes no swap overtime.')   # gross, and what it is (external review, 31 Oct 2026); the table above gives the Saturdays and Sundays
-    add_row(s, 'Saturdays a year, at time and a quarter', 'Sunday overtime to share — each, a year', 'Swapping an early for a late, on average', T['swap'], F['swap'])
-    add_row(s, 'Sunday overtime to share — each, a year', 'Swapping an early for a late, on average', 'Finishing at 13:35 or 13:45 — each, a year', T['shortYear'], F['shortYear'])
+    add_row(s, 'Saturdays a year, at time and a quarter', 'Sunday overtime to share — each, a year', 'A late against an early, same day, on average', T['swap'], F['swap'])
+    add_row(s, 'Sunday overtime to share — each, a year', 'A late against an early, same day, on average', 'Finishing at 13:35 or 13:45 — each, a year', T['shortYear'], F['shortYear'])
     s.save()
     ot = lambda f: int(f['swapShortMins']) / 60 * PAY['ot']                          # hours' pay a year, swapping every short early
     pot = lambda f: round(ot(f) * PAY['rate'] / 10) * 10                              # to the nearest £10
     mean = lambda f: (lambda m: f'a late is on average {m} minutes {"longer" if f["swap"].endswith("longer") else "shorter"} than an early on the same day')(int(f['swap'].split()[0]))
+    # ONE COUNT, TWO NAMES (the deep review, 1 Nov 2026): slide 5 counts the 13:35 and 13:45 finishes, slide 13 and the shortlist
+    # sheet "early finishes before 14:00". They are the same earlies only while no other early ends before 14:00, so the notes
+    # say so and this proves it, for today and the design
+    if int(F['shortYear']) != early_off(PG) or int(T['shortYear']) != early_off(TODAY_P):
+        raise SystemExit(f'deck-polish: slide 5 counts {F["shortYear"]} (today {T["shortYear"]}) 13:35 or 13:45 finishes and slide 13 {early_off(PG)} (today {early_off(TODAY_P)}) before 14:00 on {name}; the notes say they are the same earlies')
+    if not swap_min(F) < swap_min(T): raise SystemExit(f'deck-polish: slide 5’s subtitle says a swap for a late earns less on {name}; a late is {F["swap"]} than an early, today {T["swap"]}')
     if not (int(F['shortYear']) < int(T['shortYear']) and ot(F) < ot(T)): raise SystemExit(f'deck-polish: slide 5’s notes say swapping pays less on {name}; it has {F["shortYear"]} short earlies ({F["swapShort"]}), today {T["shortYear"]} ({T["swapShort"]})')
     longer = F['swap'].endswith('longer')
     # NOT EVERY SWAP (the external review, 1 Nov 2026): the £ is the 13:35 and 13:45 earlies' alone, and an 8-hour early for an
     # 8½-hour late still adds time on every link, so "those swaps add nothing" must not read as "no swap pays"
     swaps = (f'Swaps are left out of the £{pounds}. Today {mean(T)}, Monday to Saturday, so swapping an early for a late usually adds time, paid as overtime at time and a quarter. '
-             f'The swaps that add most are the shortest earlies, the ones that finish at 13:35 or 13:45: about {T["shortYear"]} a year each today. Swapping every one of them for that day’s longest late adds about {T["swapShort"]} a year, roughly £{pot(T)} gross. '
+             f'The swaps that add most are the shortest earlies, the ones that finish at 13:35 or 13:45, which are the only earlies to finish before 14:00 (slide 13): about {T["shortYear"]} a year each today. Swapping every one of them for that day’s longest late adds about {T["swapShort"]} a year, roughly £{pot(T)} gross. '
              f'On {name} {mean(F)}' + ((f', and there are about ' if longer else f', but there are still about ') + f'{F["shortYear"]} of those short earlies a year each, so the same swaps add about {F["swapShort"]}, roughly £{pot(F)}.' if int(F['shortYear']) else ', and there are none of those short earlies, so those particular swaps add nothing.')
-             + ' Other swaps may still add paid time wherever the late is the longer duty. Each figure is the most those particular swaps could make: it needs a partner for every swap, and assumes the extra time is paid as overtime, as the Pay Calculator pays it.')
+             + ' Other swaps may still add paid time wherever the late is the longer duty. Each figure is the most those particular swaps could make: it needs a partner for every swap, and assumes the extra time is paid as overtime at time and a quarter (“Overtime 1.25” on a payslip).')
     snd.notes(d, 5, 'Basic pay follows the 35-hour week', f'Basic pay follows the 35-hour week, which does not change. What moves is the premium and overtime pay. Every figure here is for 52 weeks, which is exactly two turns of the 26, so on this link they are everyone’s, whichever line you start on; today’s, on 20 weeks, are averages. Saturdays in the contract are paid at time and a quarter, and each person is rostered about {F["sat"]} a year instead of {T["sat"]} — about {round(sat_p - sat_t)} more Saturday hours, worth {ps:.1f} hours’ pay. Sundays stay overtime, paid at time and a half: {F["sundayPeople"]} a week shared among {F["people"]} people instead of {T["sundayPeople"]} among {T["people"]}, so about {F["sun"]} each a year against {T["sun"]}, and a little shorter — about {round(sun_p)} Sunday hours a year each against {round(sun_t)}, worth {pu:.1f} hours’ pay less. Together, someone who works their full share of Sundays gets {pu - ps:.1f} hours’ pay less a year: roughly £{pounds} gross, before tax, at the CEA rate of £{PAY["rate"]:.2f}. That estimate assumes the rate, a full share of the Sunday overtime and the fixed duties only — anything later given in a cover week is left out. Someone who works no Sunday overtime is {ps:.1f} hours’ pay better off. How much Sunday overtime each person works is up to them, as now. ' + swaps + ' None of this is a payslip; the Pay Calculator in the app does that.')
     # SLIDE 3'S NOTES NAME ALL NINE RULES (31 Oct 2026 review): the handovers and the 8–9-hour Sundays were left out of the list
     notes_edit(d, 3, 'with the ticket office’s pairs and the cap on shift times they are the nine December rules', 'with the ticket office’s pairs, the handovers, Sunday duties of 8 to 9 hours and the cap on shift times they are the nine December rules')
@@ -454,7 +468,17 @@ def colleagues(d, name, grid, F):
         i = shape_of(s, old); set_shape(s, i, label); set_shape(s, i + 1, T[key]); set_shape(s, i + 2, F[key], tone(key))
     add_row(s, 'Average early, Monday to Saturday', 'Average late, Monday to Saturday', 'Average shift, Monday to Saturday', T['avg'], F['avg'], tone('avg'))
     s.save()
-    notes_append(d, 6, f'The averages show where the closers’ time goes: Monday to Saturday, the average early is {F["avgEarly"]} against {T["avgEarly"]} today, and the average late {F["avgLate"]} against {T["avgLate"]}, so the average shift hardly moves. Each person works about {F["earlyYear"]} earlies and {F["lateYear"]} lates a year, Monday to Saturday, against about {T["earlyYear"]} of each today.')
+    # CORRECTED BY THE DEEP REVIEW (1 Nov 2026): the counts are the fixed duties, so "cover weeks aside", and the cover weeks
+    # fill the rest — without that, 84 + 94 = 178 against today's 176.8 read as MORE shifts straight after "slightly fewer,
+    # slightly longer shifts". The average late includes the closers, which the shortlist sheet's weekday lates leave out, so
+    # the two figures are named apart. Even Step's notes already say the closers' time goes onto the other shifts, so theirs
+    # starts plainly rather than say it twice
+    cover_days = lambda p: 4 * sum(all(p[k][dd] == 'SPARE' for dd in DAYS) for k in p) * 52 / len(p)
+    said6 = 'the time the closers lose goes onto the other shifts' in open(f'{d}/ppt/notesSlides/notesSlide6.xml', encoding='utf-8').read()
+    notes_append(d, 6, ('On average, Monday to Saturday, ' if said6 else 'The averages show where the closers’ time goes: Monday to Saturday, ')
+                 + f'the average early is {F["avgEarly"]} against {T["avgEarly"]} today, and the average late {F["avgLate"]} against {T["avgLate"]}, so the average shift hardly moves. '
+                 + 'The average late includes the closers; the shortlist sheet’s weekday lates leave them out. '
+                 + f'Cover weeks aside, each person works about {F["earlyYear"]} earlies and {F["lateYear"]} lates a year, Monday to Saturday, against about {T["earlyYear"]} of each today; the cover weeks add about {round(cover_days(P6))} days a year to that, against about {round(cover_days(TODAY_P))} today, so the total stays just under today’s.')
     s = S(7)
     put(s, f'A little — about {F["late23"]} a year each, against {T["late23"]} today', f'{int(F["late23"]) - int(T["late23"])} more a year at 23:00 or later ({F["late23"]}, today {T["late23"]}); {int(F["late22"]) - int(T["late22"])} more at 22:00 or later ({F["late22"]}, today {T["late22"]})')
     s.save()
@@ -902,6 +926,10 @@ def managers_review(d, name, P, O, others, F, help_):
 
     # SLIDE 5: the notes without the arithmetic, and the Sunday overtime said per person
     pct = lambda v: int(re.search(r'\((\d+)%\)', v).group(1))
+    # A FIGURE IN HOURS AND MINUTES (the deep review, 1 Nov 2026): a key written twice in deck-check.mjs's figures() once
+    # replaced this one with a bare decimal, and these notes printed "167.00 of overtime each Sunday against 177.45"
+    for who, f in (('today', T), (name, F)):
+        if not re.fullmatch(r'\d+h \d\dm', f['sunHours']): raise SystemExit(f'deck-polish: managers’ notes 5 would print {f["sunHours"]!r} as {who}’s Sunday hours; they want "83h 30m"')
     notes(5, 'Working weeks average', f'Working weeks average exactly 35 hours Monday to Saturday, so no overtime is needed to balance the week. Individual weeks run from {F["light"]} to {F["heavy"]} Monday to Saturday (today {T["light"]} to {T["heavy"]}); only the average is the contract, as today. Five cover weeks in 26 keep about the same share of the link as today’s four in 20 ({pct(F["cover"])}%, against {pct(T["cover"])}%). Sunday is not contracted, so the {F["sundayPeople"]} Sunday duties are worked as overtime, as today’s {T["sundayPeople"]} are; shared among {F["people"]} people instead of {T["people"]}, that is a little less each — about {F["sun"]} Sundays a year against {T["sun"]}; across the link, {F["sunHours"]} of overtime each Sunday against {T["sunHours"]}. The two extra Sunday duties come from the Sunday staffing of ten, which any link meeting the rules needs. Each person works {F["daysYear"]} contracted days a year, under the ceiling of 219, which is today’s figure.')
 
     # SLIDE 6: not a fatigue risk assessment, on the slide; what the brackets are, in the bar
@@ -957,7 +985,7 @@ def managers_review(d, name, P, O, others, F, help_):
     costs = [('More late finishes', f'{F["late22"]} a year at 22:00 or later, not {T["late22"]}'),
              ('Longer weekday earlies', f'up to {nbs("9 hours" if early_max(P) == 540 else hm(early_max(P)))}, not {nbs(hm(early_max(TODAY_P)))}') if longs
              else ('More leave for four weeks off', f'{F["leaveFour"]} days, not {T["leaveFour"]}'),
-             ('Less premium and overtime pay', f'about £{pounds} a year, gross, for\u00a0a\u00a0full\u00a0share\u00a0of\u00a0Sundays')]
+             ('Less premium and overtime pay', f'about £{pounds} a year, gross, for\u00a0a\u00a0full\u00a0share\u00a0of\u00a0Sundays, swaps\u00a0aside')]   # the colleagues' slide 5 says the same (the deep review, 1 Nov 2026)
     p8 = f'{d}/ppt/slides/slide8.xml'
     set_pairs(p8, f'{F["weekendsYear"]} full weekends off a year (today {T["weekendsYear"]})', gains)
     set_pairs(p8, f'Late finishes: {F["late23"]} a year at 23:00 or later (today {T["late23"]}), {F["late22"]} at 22:00 or later (today {T["late22"]})', costs)
@@ -970,7 +998,7 @@ def managers_review(d, name, P, O, others, F, help_):
     off = [f'one shift time Monday to Friday in {F["oneTurn"]} weeks (today {T["oneTurn"]})']
     if ms_longest(P) <= 510: off.append(f'every closing shift {min(cuts)} to {max(cuts)} minutes shorter')
     off += [f'the shortest rest between shifts {F["rest"]} (today {T["rest"]})', f'at least {F["floorMin"]} on the floor at all times (today {T["floorMin"]})',
-            f'{n_new} of the {n_times} shift times new to learn', f'{eo or "no"} finishes before 14:00 a year (today {eo_t})',
+            f'{n_new} of the {n_times} shift times new to learn',   # the early finishes are in swap8 now, said once (the deep review, 1 Nov 2026)
             f'{F["late23"]} finishes a year at 23:00 or later (today {T["late23"]})']
     off_sentence = ' Not on the slide, but worth having to hand: ' + andl(off) + '. The full comparison is on the proposal sheet.'
     over = lambda g: {(dd, g[k][dd]) for k in g for dd in DAYS if _timed(g[k][dd]) and _len(g[k][dd]) > 510}
@@ -1036,6 +1064,15 @@ def balance_tables(d):
             return re.sub(r' sz="(\d+)"', lambda m: f' sz="{int(m.group(1)) + bump}"', sp) if bump else sp
         x2 = re.sub(r'<p:sp>.*?</p:sp>', lambda m: respace(m.group(0)), x, flags=re.S)
         if x2 != x: open(path, 'w', encoding='utf-8').write(x2); moved.append(f'{fn[5:-4]}:{n}')
+    # NO ROW RUNS INTO THE BAR (the deep review, 1 Nov 2026): add_row draws a row on the five-row pitch and relies on the
+    # respacing above to pull the table back into the band, which it does for three, four and six rows only. A table of any
+    # other size, or a row added below a seventh, would be left overlapping the takeaway — so every slide is checked here
+    for fn in sorted(os.listdir(sdir)):
+        if not re.fullmatch(r'slide\d+\.xml', fn): continue
+        sps = re.findall(r'<p:sp>.*?</p:sp>', open(os.path.join(sdir, fn), encoding='utf-8').read(), re.S)
+        if not any((g := geo(sp)) and 'prst="roundRect"' in sp and g[:3] == (ROW_X, BAR_TOP, ROW_W) for sp in sps): continue   # no takeaway bar
+        over = [g[1] for sp in sps if (g := geo(sp)) and 'prst="roundRect"' in sp and g[0] == ROW_X and g[2] == ROW_W and g[3] <= ROW_H and g[1] < BAR_TOP < g[1] + g[3]]
+        if over: raise SystemExit(f'deck-polish: {d} {fn}: a table row at y={over} runs into the takeaway bar at {BAR_TOP}')
     return moved
 
 # THE PACK POLISH (1 Nov 2026, owner: "aesthetic polish and aesthetic consistency polish the entire pack", checked with
@@ -1141,5 +1178,5 @@ if __name__ == '__main__':
     for name in names:
         for who in ('colleagues', 'managers'):
             moved = polish(os.path.join(OUT, f'{name.replace(" ", "-")}-for-{who}.pptx'), name, DESIGNS[name], who)
-            print(f'{name} for {who}: short tables respaced on slides {", ".join(moved) or "none"} (slide:rows)')
+            print(f'{name} for {who}: tables respaced into the five-row band on slides {", ".join(moved) or "none"} (slide:rows)')
     print('polished', ', '.join(names))

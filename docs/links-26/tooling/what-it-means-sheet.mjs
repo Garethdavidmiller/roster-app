@@ -8,15 +8,16 @@
 // the rest-day breaks are counted from the grids here, the leave is leave.mjs (Long Break's too, named as the leave
 // alternative outside the shortlist), and the pay is the Pay Calculator's rate and multipliers (paycalc-calc.js). Every
 // "in short" line is ASSERTED against the figures before the page is printed, so a design that stops fitting a sentence
-// stops the sheet; and the Sunday £ is read back off the shipped colleague decks' slide 5, so the sheet and the decks
-// can never quote two different figures for the same person.
+// stops the sheet; and the Sunday £ (slide 5) and the swap £ (slide 5's notes) are read back off the shipped colleague decks,
+// so on those the sheet and the decks cannot quote different figures. The other figures are deck-check.mjs's, as the decks'
+// are. Run it AFTER deck-polish.py, which writes what it reads, and BEFORE pack.py.
 //
 // The pay figures, and what they assume (said again in the page's own notes):
 //   · Sundays: two more Saturdays at time and a quarter (the quarter is the premium) against fewer, shorter Sundays at
 //     time and a half — deck-polish.py's slide 5 sum, rounded to £50 as the decks round it;
 //   · no overtime at all: the Saturday premium alone, to £10;
 //   · swaps: each 13:35 or 13:45 early (the short earlies; the only earlies that finish before 14:00) swapped for that
-//     day's longest late, the extra time paid as "Overtime 1.25" — the Pay Calculator's rate for hours over a shift — to
+//     day's longest late, the extra time assumed paid as "Overtime 1.25" (time and a quarter; the payslip line) — to
 //     £10. It needs a partner for every swap, which nobody can promise, so it is the most THOSE swaps could make, not a
 //     forecast — and not every swap: an 8-hour early for an 8½-hour late still adds time on every link (the external
 //     review, 1 Nov 2026, which found "Short Run none" read as no swap paying at all);
@@ -79,73 +80,100 @@ for (const c of C) {
   c.sundayLoss = Math.round(-(premSat + premSun) * RATE / 50) * 50;
   c.noOtGain = Math.round(premSat * RATE / 10) * 10;
 }
-// THE DECKS' OWN £, READ BACK (the sheet and slide 5 may never disagree about the same person)
+// THE DECKS' OWN £, READ BACK: the Sunday £ off each colleague deck's slide 5, and the swap £ off its notes (the deep review,
+// 1 Nov 2026, found the swap £ computed twice — here in JS, in deck-polish.py in Python, which rounds an exact half the other
+// way — so the two could have quoted different figures for the same swaps)
 for (const c of C) {
   const deck = new URL(`../presentations/${c.name.replace(/ /g, '-')}-for-colleagues.pptx`, import.meta.url).pathname;
   const said = /about £(\d+) a year less, gross, if you work your share of Sundays/.exec(execFileSync('unzip', ['-p', deck, 'ppt/slides/slide5.xml'], { encoding: 'utf8' }));
   claim(`${c.name}: about £${c.sundayLoss} less for a full share of Sundays, as its colleague deck says`, said && +said[1] === c.sundayLoss);
+  const notes = execFileSync('unzip', ['-p', deck, 'ppt/notesSlides/notesSlide5.xml'], { encoding: 'utf8' });
+  const today = /a year, roughly £(\d+) gross\./.exec(notes), own = /so the same swaps add about [^,]+, roughly £(\d+)\./.exec(notes);
+  claim(`today’s swaps, about £${TC.swapPounds}, as ${c.name}’s colleague deck says`, today && +today[1] === TC.swapPounds);
+  claim(`${c.name}’s swaps, ${c.swapPounds ? `about £${c.swapPounds}` : 'nothing'}, as its colleague deck says`, c.swapPounds ? own && +own[1] === c.swapPounds : !own && /those particular swaps add nothing/.test(notes));
 }
-const LB = leave(grid('Long Break')), LBp = grid('Long Break');
+const LB = leave(grid('Long Break')), LBrun = stats.find(s => s.name === 'Long Break').fixedRun;
+const perYearOf = (c, test) => perYear(c.p, test);
 
 // ── THE IN-SHORT LINES, EACH ASSERTED ─────────────────────────────────────────────────────────────────────────────────
+// Every comparing word printed below has a claim here, and no claim stands for a sentence the page does not print (the deep
+// review, 1 Nov 2026, found five words unchecked and five claims guarding nothing)
 const all = ok => C.every(ok);
+// …prefer earlies
 claim('fewer earlies and longer ones on every link', all(c => +c.f.earlyYear < +TC.f.earlyYear && H(c.f.avgEarly) > H(TC.f.avgEarly)));
+claim('earlies and lates in longer runs on every link', all(c => +c.f.block > +TC.f.block && +c.f.blockUpTo > +TC.f.blockUpTo));
+claim('Even Step’s are closest to today’s: the shortest average early and the fewest over 8h 30m of the three',
+  C.every(c => c === ES || (H(ES.f.avgEarly) < H(c.f.avgEarly) && ES.longEarly < c.longEarly)));
 claim('Even Step: none over 8h 30m, and every early Monday to Saturday one of today’s times', ES.earliesToday && ES.longEarly === 0);
+// "the only earlies that finish before 14:00" (the notes): the 13:35 and 13:45 count is the pack's before-14:00 count
+claim('the 13:35 and 13:45 earlies are the only earlies that finish before 14:00, today and on every link',
+  [TC, ...C].every(c => Math.round(perYearOf(c, s => isEarly(s) && m(s.slice(6)) < 14 * 60)) === +c.f.shortYear));
+// …prefer lates
 claim('more lates on every link', all(c => +c.f.lateYear > +TC.f.lateYear));
 const cuts = C.flatMap(c => ['closerWk', 'closerSat', 'closerSun'].map(k => H(TC.f[k]) - H(c.f[k])));
 claim('every closing shift shorter, by 30 minutes to an hour', Math.min(...cuts) === 30 && Math.max(...cuts) === 60);
-claim('Short Run: the shortest lates on average, and the longest Saturday closer of the three', C.every(c => c === SR || H(SR.f.avgLate) < H(c.f.avgLate)) && C.every(c => c === SR || H(SR.f.closerSat) > H(c.f.closerSat)));
-claim('a late is barely longer than an early on every link, or shorter', all(c => c.swap <= 5) && TC.swap >= 30);
-claim('the short earlies worth swapping are rarer on every link', all(c => +c.f.shortYear < +TC.f.shortYear));
+claim('Short Run: the shortest lates on average', C.every(c => c === SR || H(SR.f.avgLate) < H(c.f.avgLate)));
+// …swap (the external review's wording, 1 Nov 2026)
+const swapLess = C.map(c => TC.swapPounds - c.swapPounds);
+claim('swapping the shortest earlies brings less overtime than today on every link', swapLess.every(x => x > 0) && all(c => +c.f.shortYear < +TC.f.shortYear));
 claim('In Step keeps the most from its 13:35 or 13:45 finishes; Short Run has none of those finishes', C.every(c => c === IS || IS.swapHours > c.swapHours) && +SR.f.shortYear === 0 && SR.swapHours === 0);
 // "OTHER SWAPS MAY STILL ADD PAID TIME" (the external review, 1 Nov 2026): true only while every link has, on some day Monday
 // to Saturday, an early other than a 13:35 or 13:45 and a late on the same day that is longer than it
 const otherSwaps = p => MS.some(d => { const on = [...new Set(Object.values(p).map(r => r[d]).filter(timed))];
   return on.some(e => isEarly(e) && !/-13:(35|45)$/.test(e) && on.some(l => !isEarly(l) && mins(l) > mins(e))); });
 claim('other swaps may still add paid time, on every link', all(c => otherSwaps(c.p)));
-const swapLess = C.map(c => TC.swapPounds - c.swapPounds);
-claim('swapping the shortest earlies brings less overtime than today on every link', swapLess.every(x => x > 0));
+// …your share of Sundays
 const sundayLoss = (v => { claim('the same £ for a full share of Sundays on all three', v.every(x => x === v[0])); return v[0]; })(C.map(c => c.sundayLoss));
-claim('a full share of Sundays pays less on every link', sundayLoss > 0 && all(c => +c.f.sun < +TC.f.sun && +c.f.sat > +TC.f.sat));
-const noOt = C.map(c => c.noOtGain); claim('no overtime at all: a little better off on every link', noOt.every(x => x > 0));
-// SUNDAY TO SATURDAY, AS THE OTHER SHEETS SAY IT (the accuracy check, 1 Nov 2026): leave.mjs's fourWeeks is 28 days from a Sunday; from a
-// Wednesday the same 14 days buy 28 on every link, so without the words the band contradicted its next row
+const sunAvg = c => c.sun * 60 / perYearOf(c, (s, d) => d === 'sun');   // the average Sunday duty, in minutes
+claim('two more Saturdays at time and a quarter, but fewer, shorter Sundays, on every link',
+  sundayLoss > 0 && all(c => +c.f.sat - +TC.f.sat === 2 && +c.f.sun < +TC.f.sun && sunAvg(c) < sunAvg(TC)));
+// …no overtime at all
+const noOt = C.map(c => c.noOtGain);
+claim('no overtime at all: a little better off on every link, from two more Saturdays', noOt.every(x => x > 0 && x < 150) && all(c => +c.f.sat - +TC.f.sat === 2));
+// …save your leave (SUNDAY TO SATURDAY, AS THE OTHER SHEETS SAY IT — the accuracy check, 1 Nov 2026: leave.mjs's fourWeeks is
+// 28 days from a Sunday; from a Wednesday the same 14 days buy 28 on every link, so without the words the band contradicted
+// its next row)
 claim('four full weeks off, Sunday to Saturday, take a day more leave on every link', all(c => +c.f.leaveFour === +TC.f.leaveFour + 1));
-claim('14 days’ leave goes as far as today on average, on every link', all(c => c.f.leaveAvg === TC.f.leaveAvg));
+claim('on average 14 days’ leave goes as far as today, on every link', all(c => c.f.leaveAvg === TC.f.leaveAvg));
+// the row's "none" means no break of three or four rest days AND none longer; today's are three or four days
 claim('no rest-day break over two days on any link; today has three- and four-day breaks', all(c => c.long34 === 0 && c.longOver4 === 0 && restLens(c.p).every(n => n <= 2)) && TC.long34 > 0);
-claim('Long Break keeps four weeks off for today’s 14 days’ leave, and is not shortlisted', LB.fourWeeks === +TC.f.leaveFour && !SHORTLIST.includes('Long Break'));
+// LONG BREAK WITH ITS COST (the deep review, 1 Nov 2026), as the shortlist sheet names it: six days in a row
+claim('Long Break keeps four weeks off at today’s 14 days, is not shortlisted, and has six days in a row', LB.fourWeeks === +TC.f.leaveFour && !SHORTLIST.includes('Long Break') && LBrun === 6);
+// Whoever you are
 claim('every link: more full weekends, fewer days in a row, a longer shortest rest, no avoidable fatigue warning on the set duties',
   all(c => +c.f.weekendsYear > +TC.f.weekendsYear && first(c.f.run) < first(TC.f.run) && H(c.f.rest) > H(TC.f.rest) && first(c.f.ff) === 0) && first(TC.f.ff) > 0);
 const closerMax = c => Math.max(...['closerWk', 'closerSat', 'closerSun'].map(k => H(c.f[k])));
-claim('the longest closing shift shorter on every link', all(c => closerMax(c) < closerMax(TC)));
-const sameAll = k => (v => v.every(x => x === v[0]) ? v[0] : null)(C.map(c => c.f[k]));
 const lo = (xs) => Math.min(...xs), hi = (xs) => Math.max(...xs);
 
 // ── THE TABLE ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 // a row: label, and for today and each design the printed text and a number to rank by; `better` picks the best of the
-// three for THAT person (bold green), or null where nothing is better — today is for scale, never ranked
+// three for THAT person (bold green), or null where nothing is better — today is for scale, never ranked. Left unranked on
+// purpose (the deep review, 1 Nov 2026): the swap totals, which rank only the 13:35 and 13:45 swaps (counting every swap, Even
+// Step adds more than In Step); the average late and the late finishes, which a late-lover who swaps would read the other
+// way; and the weeks in a run, which suit one reader and not another
 const row = (label, get, better = null, note = '') => ({ label, note, better, cells: [TC, ...C].map(get) });
 const v = (text, n = null) => ({ text, n });
 const money = (x, word) => x ? `about £${x}${word ? ` ${word}` : ''}` : 'none';
 const GROUPS = [
   { who: '…prefer earlies',
-    gist: `Fewer, longer earlies on every link. Even Step’s stay nearest today: none over 8h\u00a030m, and every one is one of today’s times.`,
+    gist: `Fewer, longer earlies on every link, in longer runs. Even Step’s are closest to today’s: none over 8h 30m, and every one is one of today’s times.`,
     rows: [row('Earlies a year', c => v(c.f.earlyYear, +c.f.earlyYear), 'high'),
       row('Average early', c => v(hm(H(c.f.avgEarly)), H(c.f.avgEarly)), 'low'),
-      row('Earlies over 8h\u00a030m, a year', c => v(`${c.longEarly}`, c.longEarly), 'low'),
-      row('Earlies finishing at 13:35 or 13:45, a year', c => v(c.f.shortYear, +c.f.shortYear), 'high')] },
+      row('Earlies over 8h 30m, a year', c => v(`${c.longEarly}`, c.longEarly), 'low'),
+      row('Earlies finishing at 13:35 or 13:45, a year', c => v(c.f.shortYear, +c.f.shortYear), 'high'),
+      row('Weeks of earlies, or of lates, in a row', c => v(upTo(`${c.f.block} (up to ${c.f.blockUpTo})`)))] },
   { who: '…prefer lates',
-    gist: `More lates on every link, and every closing shift 30 minutes to an hour shorter. Short Run’s lates are the shortest on average.`,
+    gist: `More lates on every link, in longer runs, and every closer 30 minutes to an hour shorter. Short Run’s are the shortest on average.`,
     rows: [row('Lates a year', c => v(c.f.lateYear, +c.f.lateYear), 'high'),
-      row('Average late', c => v(hm(H(c.f.avgLate)), H(c.f.avgLate)), 'low'),
+      row('Average late, closers included', c => v(hm(H(c.f.avgLate)), H(c.f.avgLate))),
       row('Longest closing shift, any day', c => v(hm(closerMax(c)), closerMax(c)), 'low'),
-      row('Finishing at 23:00 or later, any day, a year', c => v(c.f.late23, +c.f.late23), 'low')] },
+      row('Finishing at 23:00 or later, any day, a year', c => v(c.f.late23, +c.f.late23))] },
   { who: '…swap earlies for lates, for the overtime',
     gist: `Swapping the shortest earlies brings less overtime than today on every link. In Step keeps the most from its 13:35 or 13:45 finishes; Short Run has none of those finishes. Other swaps may still add paid time.`,
-    rows: [row('A late against an early on the same day, on average', c => v(`${Math.abs(c.swap)}\u00a0min ${c.swap >= 0 ? 'longer' : 'shorter'}`, c.swap), 'high'),
-      row('Each 13:35 or 13:45 early swapped for the day’s longest late', c => v(c.swapHours ? `+${hm(Math.round(c.swapHours * 60))}` : 'nothing', c.swapHours), 'high'),
-      row('That overtime, gross, at time and a quarter', c => v(money(c.swapPounds), c.swapPounds), 'high')] },
-  { who: '…work your share of Sundays, and no other overtime',
+    rows: [row('A late against an early, same day, on average', c => v(`${Math.abs(c.swap)} min ${c.swap >= 0 ? 'longer' : 'shorter'}`, c.swap), 'high'),
+      row('Each 13:35 or 13:45 early swapped for the day’s longest late', c => v(c.swapHours ? `+${hm(Math.round(c.swapHours * 60))}` : 'nothing', c.swapHours)),
+      row('That overtime, gross, at time and a quarter', c => v(money(c.swapPounds), c.swapPounds))] },
+  { who: '…work your share of Sundays and no other overtime',
     gist: `About £${sundayLoss} a year less on every link, gross: two more Saturdays at time and a quarter, but fewer, shorter Sundays.`,
     rows: [row('Sundays a year, at time and a half', c => v(c.f.sun, +c.f.sun)),
       row('Sunday hours a year', c => v(`${Math.round(c.sun)}`, Math.round(c.sun))),
@@ -155,7 +183,7 @@ const GROUPS = [
     rows: [row('Saturday hours a year, at time and a quarter', c => v(`${Math.round(c.sat)}`, Math.round(c.sat)), 'high'),
       row('Premium pay, against today', c => v(c === TC ? '—' : money(c.noOtGain, 'more'), c === TC ? null : c.noOtGain), 'high')] },
   { who: '…save your leave for long breaks',
-    gist: `Four full weeks off, Sunday to Saturday, take a day more leave on every link. Long Break, outside the shortlist, keeps them at ${LB.fourWeeks} days.`,
+    gist: `Four full weeks off, Sunday to Saturday, take a day more leave on every link, though on average 14 days’ leave goes as far as today. Long Break keeps them at ${LB.fourWeeks} days, but is not shortlisted: it has six days in a row.`,
     rows: [row('Leave for four full weeks off, Sunday to Saturday', c => v(`${c.f.leaveFour} days`, +c.f.leaveFour), 'low'),
       row('Days off in a row from 14 days’ leave, at best', c => v(c.f.leaveBest, +c.f.leaveBest), 'high'),
       row('Rest-day breaks of three or four days, a year', c => v(c.long34 ? `about ${c.long34}` : 'none', c.long34), 'high')] },
@@ -186,7 +214,7 @@ html, body { background: white !important; color: var(--text-dark); padding: 0 !
 .mast .meta { color: rgba(255,255,255,.55); font-size: 9.5px; margin-top: 4px; }
 p { margin: 3px 0 6px; } .lead { font-size: 11.2px; margin: 8px 0 6px; }
 table.t { border-collapse: collapse; width: 100%; font-size: 10.2px; line-height: 1.32; }
-table.t th, table.t td { padding: 1.5px 7px 2px; border-bottom: 1px solid var(--border-light); text-align: left; vertical-align: top; }
+table.t th, table.t td { padding: 1px 7px 1.5px; border-bottom: 1px solid var(--border-light); text-align: left; vertical-align: top; }
 table.t th { background: var(--surface-sunken); color: var(--text-mid); font-size: 9.2px; text-transform: uppercase; letter-spacing: .3px; }
 table.t th.num, table.t td.num { text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; width: 14%; } table.t th:first-child { width: 44%; }
 table.t td.today { color: var(--text-light); }
@@ -194,7 +222,7 @@ table.t .best { font-weight: 800; color: color-mix(in srgb, var(--success-green)
 table.t tr.r:nth-child(odd) td { background: color-mix(in srgb, var(--surface-sunken) 55%, white); }
 table.t .nt { display: block; color: var(--text-mid); font-size: 8.6px; line-height: 1.25; }
 /* each kind of colleague: the sentence the page title starts, finished, and what it comes to — in short */
-table.t tr.band td { border-bottom: 1.5px solid var(--primary-blue); padding: 8px 7px 2.5px; background: white; }
+table.t tr.band td { border-bottom: 1.5px solid var(--primary-blue); padding: 7px 7px 2.5px; background: white; }
 table.t tbody:first-of-type tr.band td { padding-top: 5px; }
 table.t tr.band .who { display: block; font-size: 13px; font-weight: 800; color: var(--primary-blue); letter-spacing: -.1px; }
 table.t tr.band .gist { display: block; font-size: 10.4px; color: var(--text-dark); line-height: 1.36; }
@@ -208,11 +236,11 @@ table.t tr.band .gist { display: block; font-size: 10.4px; color: var(--text-dar
   <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · What it means for you</div><h1>What it means if you…</h1>
   <div class="sub">Six ways people work the roster today, and what Even Step (recommended), In Step and Short Run would mean for each — against today’s link</div>
   <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
-  <p class="lead">One person, a year, with the cover weeks aside. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. Pounds are gross, before tax, at the CEA rate of £${RATE.toFixed(2)} — the Pay Calculator in the app works out a real payslip. The best of the three for that person is in <b class="best" style="color:color-mix(in srgb, var(--success-green) 80%, black)">bold green</b>; today is for scale.</p>
+  <p class="lead">One person, a year, cover weeks aside. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. Pounds are gross, at the CEA rate of £${RATE.toFixed(2)}; the Pay Calculator in the app estimates a payslip. <b class="best" style="color:color-mix(in srgb, var(--success-green) 80%, black)">Bold green</b> is the best of the three for that person.</p>
   <table class="t"><thead><tr><th>If you…</th><th class="num">Today</th>${C.map(c => `<th class="num">${c.name}</th>`).join('')}</tr></thead>
 ${body}
   </table>
-  <div class="notes"><b>How these are worked out.</b> Over 52 weeks, two turns of a 26-week link, so a design’s figures are everyone’s; today’s, on 20 weeks, are averages. An early starts before 11:00, a late at 11:00 or after. A swap is counted on the same day: a late against that day’s earlies, on average, and each 13:35 or 13:45 early — the only earlies that finish before 14:00 — swapped for that day’s longest late. That is the most these particular short-early swaps could make, not a forecast, and other swaps may still add paid time. It needs a partner for every swap, and assumes the extra time is paid as “Overtime 1.25”, as the Pay Calculator pays it. The Sunday figure is the presentations’ own, to £50; the others are to £10. Leave: a working day Monday to Saturday costs a day’s leave, a rest day or a Sunday none. “Up to” is the worst place a cover week’s duties could fall. Fatigue warnings are reported against the ORR’s good-practice list, never as pass or fail.</div>
+  <div class="notes"><b>How these are worked out.</b> Over 52 weeks, two turns of a 26-week link, so a design’s figures are everyone’s; today’s, on 20 weeks, are averages. An early starts before 11:00, a late at 11:00 or after. A swap is counted on the same day: each early against that day’s average late, and each 13:35 or 13:45 early — the only earlies that finish before 14:00 — swapped for that day’s longest late. That is the most these particular short-early swaps could make, not a forecast. It needs a partner for every swap, and assumes the extra time is paid at time and a quarter, as “Overtime 1.25” on a payslip. The average late includes the closers; the shortlist sheet’s weekday lates leave them out. The Sunday figure is the presentations’ own, to £50; the others are to £10. Leave: a working day Monday to Saturday costs a day’s leave, a rest day or a Sunday none. “Up to” is the worst place a cover week’s duties could fall. Fatigue warnings are reported against the ORR’s good-practice list, never as pass or fail.</div>
   <div class="foot"><span>Page 1 of 1 — What it means if you…</span><span><b>What it means</b> · <span class="nw">Even Step</span>, <span class="nw">In Step</span> and <span class="nw">Short Run</span> · Marylebone Roster — Links designer</span></div>
 </section>
 </body></html>`;

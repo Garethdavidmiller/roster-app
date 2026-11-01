@@ -49,6 +49,13 @@ if not any(dst == TWENTY for _, dst in files): raise SystemExit(f'pack: the read
 COLLEAGUES_FIRST = f"3 Presentations/{RECOMMENDED.replace(' ', '-')}-for-colleagues.pdf"   # where the colleagues' route starts
 WHAT_IT_MEANS = '1 Summary/links-26-what-it-means.pdf'   # and where it ends (1 Nov 2026)
 if not any(dst == WHAT_IT_MEANS for _, dst in files): raise SystemExit(f'pack: the read-me points at {WHAT_IT_MEANS}, which the pack does not hold')
+# NOT A STALE SHEET (the deep review, 1 Nov 2026): the sheet reads the colleague decks' slide 5 and asserts its £ against them,
+# but only when it is rebuilt, so a re-polish followed straight by this script would ship a sheet the decks have moved on
+# from. It must be at least as new as every colleague deck (a minute's grace: a fresh checkout writes the files in path
+# order, the sheet a moment before the decks)
+_sheet = f'{ROOT}/links-26-what-it-means.pdf'
+_older = [os.path.basename(s) for s, _ in files if s.endswith('-for-colleagues.pptx') and os.path.getmtime(s) > os.path.getmtime(_sheet) + 60]
+if _older: raise SystemExit(f'pack: links-26-what-it-means.pdf is older than {_older}; run what-it-means-sheet.mjs after deck-polish.py')
 if not any(dst == COLLEAGUES_FIRST for _, dst in files): raise SystemExit(f'pack: the read-me points at {COLLEAGUES_FIRST}, which the pack does not hold')
 # THE RECOMMENDATION IS THE SHORTLIST SHEET'S, SAID SHORTER (1 Nov 2026). The read-me's first paragraph repeats page 2's
 # case for Even Step, whose figures that sheet checks (claim() in shortlist-sheet.mjs). The read-me types no figure of
@@ -91,8 +98,9 @@ FOLDERS = sorted({dst.split('/')[0] for _, dst in files if '/' in dst and ' ' in
 # the word before it, so it ends a line and never starts one
 NAMES = sorted({n for n, _, _ in proposals}, key=len, reverse=True)
 MONTHS = 'January|February|March|April|May|June|July|August|September|October|November|December'
+TITLES = ['"What it means if you..."']   # a document's title is a name too (the deep review, 1 Nov 2026: "What it / means if you...")
 def whole(t):
-    for f in FOLDERS + NAMES: t = t.replace(f, f.replace(' ', '\x00'))
+    for f in FOLDERS + NAMES + TITLES: t = t.replace(f, f.replace(' ', '\x00'))
     t = re.sub(rf'\b\d{{1,2}} (?:{MONTHS})(?: \d{{4}})?', lambda m: m.group(0).replace(' ', '\x00'), t)
     t = re.sub(r'\bapp version (?=\d)', 'app\x00version\x00', t)
     return t.replace(' - ', '\x00- ')
@@ -139,8 +147,8 @@ readme = '\n'.join([
     ' ' * 23 + COLLEAGUES_FIRST,
     item('', f'(or the chosen link\'s, if it is not {RECOMMENDED}). Then pages 1 to 3 of its proposal sheet, in '
          '4 Proposal sheets: the detail, and every week of the link on page 3.'),
-    item('', 'And for what it means for you - if you prefer earlies or lates, swap for overtime, work Sundays or '
-         'none, or save leave for long breaks - the one-page sheet,'),
+    item('', 'Last, the one-page sheet on what it means if you prefer earlies or lates, swap for overtime, work your '
+         'share of Sundays or no overtime at all, or save leave for long breaks,'),
     ' ' * 23 + WHAT_IT_MEANS,
     '',
     'STILL OPEN',
@@ -205,7 +213,8 @@ readme = '\n'.join([
          'reference.'),
     '',
     'HOW THE FIGURES ARE WORKED OUT',
-    para('Every figure in the summary, the shortlist sheet, the rules sheet and the proposal sheets was worked out from '
+    para('Every figure in the summary, the shortlist sheet, the "What it means if you..." sheet, the rules sheet and the '
+         'proposal sheets was worked out from '
          'the rotas, by the Marylebone Roster app\'s own checks and the tooling beside them; what is typed by hand is the '
          'rules\' own numbers and the one-line description under each design\'s name. The presentations are built by '
          'scripts, and every figure in their tables is checked against those counts (docs/links-26/tooling/deck-check.mjs '

@@ -26,6 +26,7 @@ The two link folders, `links-24` and `links-26`, share one layout (2 Oct 2026, o
 | `links-NN-rules.pdf` | the rules every proposal is judged against |
 | `links-NN-summary.pdf` | every proposal against today's link, on one page — the shortlisted ones marked ★ |
 | `links-26-shortlist.pdf` | the three shortlisted designs (Even Step, In Step and Short Run, since 31 Oct 2026) against each other and today, with a recommendation, on two pages (26 lines only; `tooling/shortlist-sheet.mjs`) |
+| `links-26-what-it-means.pdf` | "What it means if you…": the three shortlisted designs against today for six kinds of colleague — earlies, lates, swaps, Sundays, no overtime, leave — on one page (26 lines only; `tooling/what-it-means-sheet.mjs`, since 1 Nov 2026) |
 | `proposals/` | one design per three files: `<Name>-<CODE>-<fingerprint>.pdf` (the eight-page sheet), `<Name>-<CODE>.json` (the grid) and `<Name>-<CODE>-import.txt` (for the Links page) |
 | `presentations/` | `<Name>-for-colleagues` and `<Name>-for-managers`, as `.pptx` and `.pdf` |
 | `tooling/` | the scripts that build and check all of the above; `tooling/results/` holds the committed search outputs |
@@ -94,7 +95,8 @@ still be rebuilt.
 | check | `check.mjs` | the self-check: settings agree, the test rota recounts independently, and each 26-line rule fails when its condition is broken (`node tooling/check.mjs`) |
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
 | | `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` | the rules reference (`../links-26-rules.pdf`), the one-page summary (`../links-26-summary.pdf`) and the two-page shortlist sheet (`../links-26-shortlist.pdf`) |
-| 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the zip |
+| | `what-it-means-sheet.mjs` | the one-page "What it means if you…" sheet (`../links-26-what-it-means.pdf`). It reads the colleague decks' slide 5 and its notes back, so it runs after `deck-polish.py` and before `pack.py` (step 4) |
+| 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `what-it-means-sheet.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the one-page sheet that reads the decks' pay figures back; the zip, which refuses a sheet older than the decks |
 | league | `league.mjs` | the weighted league on the factors the sheets compare, long earlies and the closing shift among them since 31 Oct 2026 — not the block length, nor the shortlist sheet's early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league; `OLD_READINGS=1` for the weighting before 31 Oct, kept as the alternative, with any of them) — the owner's weights, a judgement not a measurement (see *The league reweighted*) |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
 | rest-day layout | `skeleton.mjs`, `skeleton-start.mjs`, `space-polish.mjs`, `leave.mjs` | the layout search, laying a duty table onto a layout, the polish under floors, and the leave model (see "Second Edition") |
@@ -261,6 +263,9 @@ python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/to
   && python3 docs/links-26/tooling/in-step-decks.py && python3 docs/links-26/tooling/even-step-decks.py \
   && python3 docs/links-26/tooling/deck-polish.py && node docs/links-26/tooling/deck-check.mjs
 ```
+
+Then export the PDFs (LibreOffice), then `node docs/links-26/tooling/what-it-means-sheet.mjs` (it reads the decks, so it
+comes after them) and `python3 docs/links-26/tooling/pack.py` (which refuses that sheet if it is older than the decks).
 
 `deck-polish.py` polishes every design's decks, and refuses a deck it has already polished; `deck-polish.py "In Step"`
 polishes one design's freshly built pair. Then export the PDFs (LibreOffice). Three things the decks say that the
@@ -2601,6 +2606,63 @@ The owner asked for "aesthetic polish and aesthetic consistency polish" of the e
 **Changed:**
 - tooling: `plain.mjs`, `render.mjs`, `rules-sheet.mjs`, `shortlist-sheet.mjs`, `summary-sheet.mjs`, `deck-polish.py`, `pack.py`
 - outputs: all 15 proposal sheets, the rules, the shortlist, the summary, the six decks and their PDFs, the pack
+
+## What it means for you — earlies and lates, swaps, and a one-page sheet (1 Nov 2026)
+
+The owner rated the pack and asked for three changes: the average early and late on the colleagues' slide 6; swaps on the pay slide, saying plainly that its £250 assumes no swap overtime; and a one-page "What it means if you…" sheet. Then an accuracy check, a deep review, and an aesthetic and consistency review from screenshots.
+
+**1. Slide 6 of the colleague decks: where the closers' time goes.**
+- The slide said every closer is shorter and the average two minutes longer. It left the reader to work out that the difference lands on the earlies, which is the one thing someone who prefers earlies needs to know.
+- "Longest shift anywhere" gave way to the average early and the average late, Monday to Saturday. The average shift moved below them, as the two averages it is made of. Nothing is lost: the bar says nothing runs over 9 hours, and the Saturday closer row shows today's 9h 10m.
+- Today against Even Step / In Step / Short Run: the average early 7h 59m against 8h 13m / 8h 21m / 8h 26m; the average late 8h 29m against 8h 18m / 8h 10m / 8h 06m. The notes add that each person works about 84 earlies and 94 lates a year, Monday to Saturday, against about 88 of each today.
+- The subtitle now reads "Closing shifts get shorter, earlies longer — the average goes up about two minutes". A design whose earlies stopped being longer, or whose lates stopped being shorter, would stop the polish.
+- Six rows go into the band five rows take: `balance_tables` respaces a six-row table as it does the short ones, so the table ends where every other comparison slide's does.
+
+**2. Slide 5: swaps, and what the £250 leaves out.**
+- Two rows. "A late against an early, same day, on average": today 32 min longer; Even Step 5 min longer, In Step 11 and Short Run 20 min shorter. "Finishing at 13:35 or 13:45 — each, a year": 26; 10, 12, none. Those are the short earlies people swap for a long late. They are also the only earlies that finish before 14:00, so this is the same count slide 13 and the shortlist sheet give, and `deck-polish.py` refuses the slide if the two ever part.
+- The subtitle says why the rows are on a pay slide: "Basic pay follows your contracted hours — and a swap for a late earns less overtime". The bar ends "That assumes no swap overtime." Both are on the slide, so a reader of the PDF sees them; the notes are not exported.
+- The notes price the swaps. Today, swapping every 13:35 or 13:45 early for that day's longest late adds about 34h 40m a year, roughly £930 gross at time and a quarter. On Even Step it adds 10h 50m (£290), on In Step 13h 20m (£360), on Short Run nothing. Each figure is the most those particular swaps could make, it needs a partner for every swap, and it assumes the extra time is paid at time and a quarter, as "Overtime 1.25" on a payslip. (The Pay Calculator suggests that line for a changed shift longer than the rostered one, in `paycalc-roster-suggestions.js`, and a shorter one takes nothing away; whether payroll pays a swap that way is the assumption.)
+- The managers' slide 8 says "for a full share of Sundays, swaps aside", and its notes say the same as the colleagues': the £250 assumes no swap overtime, and on average a swap for a late pays less on every link.
+
+**3. A one-page sheet: "What it means if you…"** (`what-it-means-sheet.mjs` → `links-26-what-it-means.pdf`, in 1 Summary)
+- It covers six kinds of colleague, from the owner's persona questions: someone who prefers earlies, prefers lates, swaps earlies for lates for the overtime, works their share of Sundays and no other overtime, works no overtime at all, or saves leave for long breaks. A last band shows what everyone gains.
+- Every figure is the decks' own (`deck-check.mjs --print`) or counted from the grids. The Sunday £ is read back off each colleague deck's slide 5 and must match. Every "in short" line is asserted, so a design that stops fitting one stops the sheet.
+- Long Break is named as the alternative for saving leave, with its cost: four weeks off for 14 days, as today, but it is not shortlisted, and it has six days in a row.
+- The bold green marks the best of the three for that kind of colleague, on rows where "best" is plain. The swap totals are left unmarked: they rank only the 13:35 and 13:45 swaps, and counting every swap, Even Step adds more than In Step. So are the average late and the late finishes, which a late-lover who swaps reads the other way, and the weeks in a run, which suit one reader and not another.
+- The read-me's colleague route ends on the sheet, and its 1 Summary entry describes it.
+
+**How the new figures are worked out.** `personal()` in `plain.mjs` gains `you`, per person per year:
+- earlies and lates (a start before 11:00, or from 11:00 on), Monday to Saturday, and their average lengths;
+- the same-day swap: each early against the mean length of that weekday's lates across the link, the lates someone could swap into on that day;
+- the 13:35 and 13:45 finishes, counted whether or not their day has a late, and what swapping each one for that day's longest late would add.
+`deck-check.mjs` reads the new rows back against them: 162 rows agree, where 153 did. It refuses a same-day swap that rounds to nothing, rather than print "0 min longer".
+
+**Not every swap (the external review).** The first version of the sheet said "Swaps pay much less on every link … In Step keeps the most, Short Run none". Its figures cover one kind of swap only: every 13:35 or 13:45 early swapped for that day's longest late. Short Run still has, for one, a Monday 06:20–14:20 (8 hours) beside a 14:00–22:30 (8½ hours), so swapping those adds 30 minutes, and every link has swaps like it, adding 10 to 60 minutes. "Short Run none" would mislead someone who swaps other duties. The band now reads "Swapping the shortest earlies brings less overtime than today on every link. In Step keeps the most from its 13:35 or 13:45 finishes; Short Run has none of those finishes. Other swaps may still add paid time." The last sentence is asserted too: every link must have, on some day Monday to Saturday, an early other than a 13:35 or 13:45 and a longer late. The notes say the figure is "the most these particular short-early swaps could make", where they said "the most a swapper could make". The colleague slide 5 notes and the managers' notes 8 were narrowed the same way.
+
+**The accuracy check** recomputed every new figure from the raw rotas with its own code, and every number and every bold-green mark agreed. Besides the two swap sentences above, it found:
+- the leave band dropped the "Sunday to Saturday" the other sheets carry, so "a day more leave for four weeks off" seemed to contradict the next row, where 14 days' leave buys 28 days off in a row. A four weeks from a Wednesday costs 14 days on every link; only Sunday to Saturday costs 15. Both the band and the row now say Sunday to Saturday;
+- "every one a time worked today" (Even Step's earlies): 07:15–15:45 is worked today only on a Sunday, so the sheet now uses the pack's own phrase, "one of today's times".
+It also confirmed that the same-day swap figure does not depend on how it is averaged: every reasonable definition gives the same order and direction, and only today's 32 moves (29 to 37).
+
+**The deep review** read every new sentence, the code and the wiring. What it found, and what was done:
+- **A regression the checks could not see.** `deck-check.mjs` gained a second `sunHours` key, and in an object literal the later one silently wins. So the managers' notes 5 printed "167.00 of overtime each Sunday against 177.45" where they had said "83h 30m … against 68h 15m". `deck-check` reads tables, not notes, and ESLint ignores this folder, so nothing caught it. Of the four new keys, nothing read three, and the fourth was the clash, so all four went, from `figures()` and from `personal().you`. The notes are back to 83h 30m against 68h 15m. `deck-polish.py` now refuses a Sunday-hours figure that is not hours and minutes, and the comment above the new keys warns against a repeat.
+- **Slide 5's row did not say what it measured.** "Swapping an early for a late, on average — 32 min longer" left the reader to supply "your day is" and "and that is paid", and "11 min shorter" invited "swaps now lose me pay". The row is now "A late against an early, same day, on average", as the sheet says it, and the new subtitle says why it is on a pay slide (above).
+- **Two "average lates".** Slide 6 and the sheet's average late includes the closers. The shortlist sheet's "weekday lates" leaves them out, which is why it calls Even Step's lates near today's. The sheet's row now says "closers included", and both the sheet's notes and slide 6's notes say how the two differ.
+- **Slide 6's notes:** "84 earlies and 94 lates against 88 of each" came straight after "slightly fewer, slightly longer shifts" and added up to more. The counts are the fixed duties, and the cover weeks make up the rest: about 40 days a year against about 42 today. The notes now say both. Even Step's notes no longer say twice that the closers' time goes onto the other shifts.
+- **What an early- or late-lover notices most** was missing from the sheet: runs of one kind of up to 5 weeks, 7 with the cover weeks, against today's 2 and 3. That is now a row, with a word in each band's line.
+- **Long Break's cost:** six days in a row, as the shortlist sheet pairs it.
+- **Unchecked words:** five comparing words had no `claim()`: "two more Saturdays", "shorter Sundays", "a little better off", "closest to today's" and "the only earlies that finish before 14:00". Five claims guarded nothing printed. Every printed comparison now has a claim, and no claim stands without one. The swap £ is read back off the decks' notes as the Sunday £ is off slide 5, because it is worked out twice, in JavaScript and in Python.
+- **The read-me:** the sheet's title was split across two lines, which the read-me's own no-split rule now covers. "Work Sundays or none" reads better as "work your share of Sundays or no overtime at all". The paragraph on how the figures are worked out names the new sheet. `pack.py` refuses a sheet older than the colleague decks it reads, and the rebuild order above says the sheet comes after the decks.
+- **Smaller points:** `balance_tables` now refuses any table row that runs into the takeaway bar, whatever the table's size. The managers' notes 8 give the early finishes once, not twice. The sheet says the Pay Calculator "estimates a payslip".
+
+**Declined:** relabelling slide 5's row "Finishing before 14:00". The owner asked about the 13:35 and 13:45 finishes in those words, and the times say which earlies they are. The notes bridge the two names, and the polish refuses the slide if the counts ever differ.
+
+**Reviews still to come:** an aesthetic review and an aesthetic consistency review, from screenshots.
+
+**Changed:**
+- tooling: `plain.mjs`, `deck-check.mjs`, `deck-polish.py`, `what-it-means-sheet.mjs` (new), `pack.py`
+- outputs: the six decks and their PDFs, `links-26-what-it-means.pdf` (new), the pack
+- this README: the folder and tooling tables and the rebuild order
 
 ## Notes for the whole set
 

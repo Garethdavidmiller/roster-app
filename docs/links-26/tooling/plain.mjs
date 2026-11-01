@@ -65,27 +65,28 @@ export function personal(patterns) {
   // WHAT IT MEANS FOR YOU (1 Nov 2026, owner: four colleagues — one for earlies, one for lates and swap overtime, one saving
   // leave, one doing only her rostered Sundays). The decks gave the closers and the average, and so never said the time taken
   // off the lates goes on the earlies, nor what that does to a swap. Monday to Saturday only: Sunday is overtime. A swap is two
-  // people trading shifts on the SAME day, so `swapMean` pairs each early with that day's lates, and `swapShortYear` is what
-  // swapping every 13:35 or 13:45 for that day's longest late would add in a year. Sat/Sun hours are deck-polish.py's
-  // day_hours, so the one-page sheet's pay sums are the decks' own.
-  const ms = { early: [], late: [], byDay: {} }, satMins = [], sunMins = [];
+  // people trading shifts on the SAME day, so `swapMean` pairs each early with the mean of that day's lates. `swapShortYear` is
+  // what swapping every 13:35 or 13:45 early for that day's longest late would add in a year: a ceiling for THOSE swaps, not
+  // for every swap — an 8-hour early for an 8½-hour late adds time on every link (the external review, 1 Nov 2026).
+  // `shortYear` counts the 13:35 and 13:45 earlies whether or not their day has a late, so it cannot drift from the pack's
+  // "finishing before 14:00", which deck-polish.py and the one-page sheet assert it equals (the deep review, 1 Nov 2026).
+  const ms = { early: [], late: [], byDay: {} };
   for (const r of rows) for (const d of DAYS) {
-    const s = r[d]; if (!timed(s)) continue; const len = dutyMinutes(s);
-    if (d === 'sat') satMins.push(len); if (d === 'sun') { sunMins.push(len); continue; }
+    const s = r[d]; if (!timed(s) || d === 'sun') continue; const len = dutyMinutes(s);
     const kind = startMinutes(s) < 660 ? 'early' : 'late'; ms[kind].push(len);
     ((ms.byDay[d] ??= { early: [], late: [] })[kind]).push({ len, end: endMinutes(s) });
   }
   let pairs = 0, pairSum = 0, short = 0, shortGain = 0;
   for (const { early: E, late: Lt } of Object.values(ms.byDay)) {
-    if (!Lt.length) continue; const meanL = avg(Lt.map(x => x.len)), maxL = Math.max(...Lt.map(x => x.len));
-    for (const e of E) { pairs++; pairSum += meanL - e.len; if (e.end === 815 || e.end === 825) { short++; shortGain += Math.max(0, maxL - e.len); } }
+    const meanL = Lt.length ? avg(Lt.map(x => x.len)) : null, maxL = Lt.length ? Math.max(...Lt.map(x => x.len)) : null;
+    for (const e of E) {
+      const isShort = e.end === 815 || e.end === 825; if (isShort) short++;
+      if (meanL === null) continue;
+      pairs++; pairSum += meanL - e.len; if (isShort) shortGain += Math.max(0, maxL - e.len);
+    }
   }
-  const seq = rows.flatMap(r => DAYS.map(d => r[d])); const breaks = [];   // rest-day breaks round the rotation, Sunday to Saturday weeks
-  for (let i = 0; i < seq.length; i++) if (seq[i] === 'RD' && seq[(i - 1 + seq.length) % seq.length] !== 'RD') { let n = 0; while (n < seq.length && seq[(i + n) % seq.length] === 'RD') n++; breaks.push(n); }
   const you = { earlyYear: perYear(ms.early.length), lateYear: perYear(ms.late.length), avgEarly: avg(ms.early), avgLate: avg(ms.late),
-    swapMean: pairs ? pairSum / pairs : null, shortYear: perYear(short), swapShortYear: perYear(shortGain),
-    satHours: perYear(satMins.reduce((p, q) => p + q, 0)) / 60, sunHours: perYear(sunMins.reduce((p, q) => p + q, 0)) / 60,
-    breaks34: breaks.filter(n => n === 3 || n === 4).length, breaksOver2: breaks.filter(n => n > 2).length };
+    swapMean: pairs ? pairSum / pairs : null, shortYear: perYear(short), swapShortYear: perYear(shortGain) };
   return { L, cover, daysWeek, daysYear: daysWeek * 365 / 7, avgShift: monSatMins / monSat, longest, you,
     late23: perYear(late23), sat: perYear(sat), sun: perYear(sun), open0620: perYear(open),
     closer: { wk: avg(closers.wk), sat: avg(closers.sat), sun: avg(closers.sun) },
