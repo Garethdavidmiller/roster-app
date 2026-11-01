@@ -403,8 +403,12 @@ def colleagues(d, name, grid, F):
     put(s, 'Basic pay follows your contracted hours', 'Basic pay follows your contracted hours — and a swap for a late earns less overtime')
     put(s, 'No. The same 35-hour week — plus about two more Saturdays at time and a quarter.',
         f'No: basic pay stays the same. Premium and overtime pay come to about £{pounds} a year less, gross, if you work your share of Sundays. That assumes no swap overtime.')   # gross, and what it is (external review, 31 Oct 2026); the table above gives the Saturdays and Sundays
-    add_row(s, 'Saturdays a year, at time and a quarter', 'Sunday overtime to share — each, a year', 'A late against an early, same day, on average', T['swap'], F['swap'])
-    add_row(s, 'Sunday overtime to share — each, a year', 'A late against an early, same day, on average', 'Finishing at 13:35 or 13:45 — each, a year', T['shortYear'], F['shortYear'])
+    # AMBER, AS THE DECK COLOURS A COST (the consistency review, 1 Nov 2026): both new rows are worse than today on every link —
+    # less from a swap, fewer early finishes (slide 13 lists those as a trade-off; slide 7 colours more late finishes amber) —
+    # and the checks below refuse the slide if either stops being so. Saturdays and Sundays stay navy: on a pay slide they
+    # cut both ways
+    add_row(s, 'Saturdays a year, at time and a quarter', 'Sunday overtime to share — each, a year', 'A late against an early, same day, on average', T['swap'], F['swap'], AMBER)
+    add_row(s, 'Sunday overtime to share — each, a year', 'A late against an early, same day, on average', 'Finishing at 13:35 or 13:45 — each, a year', T['shortYear'], F['shortYear'], AMBER)
     s.save()
     ot = lambda f: int(f['swapShortMins']) / 60 * PAY['ot']                          # hours' pay a year, swapping every short early
     pot = lambda f: round(ot(f) * PAY['rate'] / 10) * 10                              # to the nearest £10

@@ -148,9 +148,11 @@ const lo = (xs) => Math.min(...xs), hi = (xs) => Math.max(...xs);
 // ── THE TABLE ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 // a row: label, and for today and each design the printed text and a number to rank by; `better` picks the best of the
 // three for THAT person (bold green), or null where nothing is better — today is for scale, never ranked. Left unranked on
-// purpose (the deep review, 1 Nov 2026): the swap totals, which rank only the 13:35 and 13:45 swaps (counting every swap, Even
-// Step adds more than In Step); the average late and the late finishes, which a late-lover who swaps would read the other
-// way; and the weeks in a run, which suit one reader and not another
+// purpose (the deep review, 1 Nov 2026), and the page's notes say so: the whole swap band — its totals rank only the 13:35 and
+// 13:45 swaps (counting every swap, Even Step adds more than In Step), and a green on its first row alone pointed at Even Step
+// beside a line naming In Step (the aesthetic review, 1 Nov 2026); the late finishes, which a late-lover reads the other way;
+// and the weeks in a run, which suit one reader and not another. The average late IS ranked, shorter better, as on the
+// shortlist sheet and slide 6 (the consistency review, 1 Nov 2026), so the green agrees with "Short Run's are the shortest"
 const row = (label, get, better = null, note = '') => ({ label, note, better, cells: [TC, ...C].map(get) });
 const v = (text, n = null) => ({ text, n });
 const money = (x, word) => x ? `about £${x}${word ? ` ${word}` : ''}` : 'none';
@@ -165,13 +167,13 @@ const GROUPS = [
   { who: '…prefer lates',
     gist: `More lates on every link, in longer runs, and every closer 30 minutes to an hour shorter. Short Run’s are the shortest on average.`,
     rows: [row('Lates a year', c => v(c.f.lateYear, +c.f.lateYear), 'high'),
-      row('Average late, closers included', c => v(hm(H(c.f.avgLate)), H(c.f.avgLate))),
+      row('Average late, closers included', c => v(hm(H(c.f.avgLate)), H(c.f.avgLate)), 'low'),
       row('Longest closing shift, any day', c => v(hm(closerMax(c)), closerMax(c)), 'low'),
       row('Finishing at 23:00 or later, any day, a year', c => v(c.f.late23, +c.f.late23))] },
   { who: '…swap earlies for lates, for the overtime',
     gist: `Swapping the shortest earlies brings less overtime than today on every link. In Step keeps the most from its 13:35 or 13:45 finishes; Short Run has none of those finishes. Other swaps may still add paid time.`,
-    rows: [row('A late against an early, same day, on average', c => v(`${Math.abs(c.swap)} min ${c.swap >= 0 ? 'longer' : 'shorter'}`, c.swap), 'high'),
-      row('Each 13:35 or 13:45 early swapped for the day’s longest late', c => v(c.swapHours ? `+${hm(Math.round(c.swapHours * 60))}` : 'nothing', c.swapHours)),
+    rows: [row('A late against an early, same day, on average', c => v(`${Math.abs(c.swap)} min ${c.swap >= 0 ? 'longer' : 'shorter'}`, c.swap)),
+      row('Each 13:35 or 13:45 early swapped for the day’s longest late', c => v(c.swapHours ? `+${hm(Math.round(c.swapHours * 60))}` : 'none', c.swapHours)),
       row('That overtime, gross, at time and a quarter', c => v(money(c.swapPounds), c.swapPounds))] },
   { who: '…work your share of Sundays and no other overtime',
     gist: `About £${sundayLoss} a year less on every link, gross: two more Saturdays at time and a quarter, but fewer, shorter Sundays.`,
@@ -212,7 +214,7 @@ html, body { background: white !important; color: var(--text-dark); padding: 0 !
 .mast h1 { margin: 2px 0; font-size: 22px; font-weight: 800; color: white; letter-spacing: -.2px; }
 .mast .sub { color: rgba(255,255,255,.78); font-size: 11.5px; text-wrap: balance; }
 .mast .meta { color: rgba(255,255,255,.55); font-size: 9.5px; margin-top: 4px; }
-p { margin: 3px 0 6px; } .lead { font-size: 11.2px; margin: 8px 0 6px; }
+p { margin: 3px 0 6px; } .lead { font-size: 11.2px; margin: 7px 0 5px; }
 table.t { border-collapse: collapse; width: 100%; font-size: 10.2px; line-height: 1.32; }
 table.t th, table.t td { padding: 1px 7px 1.5px; border-bottom: 1px solid var(--border-light); text-align: left; vertical-align: top; }
 table.t th { background: var(--surface-sunken); color: var(--text-mid); font-size: 9.2px; text-transform: uppercase; letter-spacing: .3px; }
@@ -222,9 +224,9 @@ table.t .best { font-weight: 800; color: color-mix(in srgb, var(--success-green)
 table.t tr.r:nth-child(odd) td { background: color-mix(in srgb, var(--surface-sunken) 55%, white); }
 table.t .nt { display: block; color: var(--text-mid); font-size: 8.6px; line-height: 1.25; }
 /* each kind of colleague: the sentence the page title starts, finished, and what it comes to — in short */
-table.t tr.band td { border-bottom: 1.5px solid var(--primary-blue); padding: 7px 7px 2.5px; background: white; }
+table.t tr.band td { border-bottom: 1.5px solid var(--primary-blue); padding: 6px 7px 2.5px; background: white; }
 table.t tbody:first-of-type tr.band td { padding-top: 5px; }
-table.t tr.band .who { display: block; font-size: 13px; font-weight: 800; color: var(--primary-blue); letter-spacing: -.1px; }
+table.t tr.band .who { display: block; font-size: 14px; font-weight: 800; color: var(--primary-blue); }   /* the family's section-heading size */
 table.t tr.band .gist { display: block; font-size: 10.4px; color: var(--text-dark); line-height: 1.36; }
 .notes { margin-top: 8px; color: var(--text-mid); font-size: 8.8px; line-height: 1.4; column-count: 2; column-gap: 22px; }
 .notes b { color: var(--text-dark); }
@@ -236,18 +238,19 @@ table.t tr.band .gist { display: block; font-size: 10.4px; color: var(--text-dar
   <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · What it means for you</div><h1>What it means if you…</h1>
   <div class="sub">Six ways people work the roster today, and what Even Step (recommended), In Step and Short Run would mean for each — against today’s link</div>
   <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
-  <p class="lead">One person, a year, cover weeks aside. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. Pounds are gross, at the CEA rate of £${RATE.toFixed(2)}; the Pay Calculator in the app estimates a payslip. <b class="best" style="color:color-mix(in srgb, var(--success-green) 80%, black)">Bold green</b> is the best of the three for that person.</p>
+  <p class="lead">One person, a year, cover weeks aside. Earlies and lates are counted Monday to Saturday, as Sunday is overtime. Pounds are gross, at the CEA rate of £${RATE.toFixed(2)}; the Pay Calculator in the app estimates a payslip. <b class="best" style="color:color-mix(in srgb, var(--success-green) 80%, black)">Bold green</b> marks the clear best of the three for that person.</p>
   <table class="t"><thead><tr><th>If you…</th><th class="num">Today</th>${C.map(c => `<th class="num">${c.name}</th>`).join('')}</tr></thead>
 ${body}
   </table>
-  <div class="notes"><b>How these are worked out.</b> Over 52 weeks, two turns of a 26-week link, so a design’s figures are everyone’s; today’s, on 20 weeks, are averages. An early starts before 11:00, a late at 11:00 or after. A swap is counted on the same day: each early against that day’s average late, and each 13:35 or 13:45 early — the only earlies that finish before 14:00 — swapped for that day’s longest late. That is the most these particular short-early swaps could make, not a forecast. It needs a partner for every swap, and assumes the extra time is paid at time and a quarter, as “Overtime 1.25” on a payslip. The average late includes the closers; the shortlist sheet’s weekday lates leave them out. The Sunday figure is the presentations’ own, to £50; the others are to £10. Leave: a working day Monday to Saturday costs a day’s leave, a rest day or a Sunday none. “Up to” is the worst place a cover week’s duties could fall. Fatigue warnings are reported against the ORR’s good-practice list, never as pass or fail.</div>
-  <div class="foot"><span>Page 1 of 1 — What it means if you…</span><span><b>What it means</b> · <span class="nw">Even Step</span>, <span class="nw">In Step</span> and <span class="nw">Short Run</span> · Marylebone Roster — Links designer</span></div>
+  <div class="notes"><b>How these are worked out.</b> Over 52 weeks, two turns of a 26-week link, so a design’s figures are everyone’s; today’s, on 20 weeks, are averages. An early starts before 11:00, a late at 11:00 or after. A swap is counted on the same day: each early against that day’s average late, and each 13:35 or 13:45 early — the only earlies that finish before 14:00 — swapped for that day’s longest late. That is the most these particular short-early swaps could make, not a forecast: it assumes a partner for every swap, and the extra time paid at time and a quarter (“Overtime 1.25” on a payslip). The average late includes the closers; the shortlist sheet’s weekday lates leave them out. The swap rows are not ranked: which link suits a swapper depends on which swaps they make. The Sunday figure is the presentations’ own, to £50; the others are to £10. Leave: a working day Monday to Saturday costs a day’s leave, a rest day or a Sunday none. “Up to” is the worst place a cover week’s duties could fall. Fatigue warnings are reported against the ORR’s good-practice list, never as pass or fail.</div>
+  <div class="foot"><span>Page 1 of 1 — Six ways of working, and what every link gives everyone</span><span><b>What it means for you</b> · <span class="nw">Even Step</span>, <span class="nw">In Step</span> and <span class="nw">Short Run</span> · Marylebone Roster — Links designer</span></div>
 </section>
 </body></html>`;
 // a figure keeps what it belongs to, as on the other sheets: "18 of / 21", "40 / a year", "(today / 26)"
 const tidy = h => h.replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (mm, keep, txt) => keep ?? txt
   .replace(/\b(\d+) (to|in|of) (\d+)\b/g, '$1\u00a0$2\u00a0$3').replace(/\b(\d+) a year\b/g, '$1\u00a0a\u00a0year').replace(/£(\d+) (a year|less|more)\b/g, '£$1\u00a0$2')
-  .replace(/\b(today|Sun|Sat) (?=\d)/g, '$1\u00a0'));
+  .replace(/\b(today|Sun|Sat) (?=\d)/g, '$1\u00a0')
+  .replace(/\b(Even|In|Short|Long) (Step|Run|Break)\b/g, '$1\u00a0$2'));   // a design's name never splits ("Long / Break", the aesthetic review)
 const htmlOut = new URL('links-26-what-it-means.html', import.meta.url).pathname; writeFileSync(htmlOut, tidy(html));   // beside the tooling, gitignored
 const b = await chromium.launch(); const pg = await b.newPage();
 await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);

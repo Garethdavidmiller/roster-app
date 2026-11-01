@@ -2657,7 +2657,20 @@ It also confirmed that the same-day swap figure does not depend on how it is ave
 
 **Declined:** relabelling slide 5's row "Finishing before 14:00". The owner asked about the 13:35 and 13:45 finishes in those words, and the times say which earlies they are. The notes bridge the two names, and the polish refuses the slide if the counts ever differ.
 
-**Reviews still to come:** an aesthetic review and an aesthetic consistency review, from screenshots.
+**The aesthetic review and the aesthetic consistency review**, both from screenshots, the changed slides beside their neighbours and the new sheet beside the pack's other sheets. They found the slides clean and consistent. Slides 5 and 6 are laid out identically on all three decks, and their table top, bottom, row-gap ratio and bar match slides 4, 7, 11 and 12. Slide 6's six rows are 0.33 in against 0.40 in and not cramped, and the managers' slide 8 line fits its card. The sheet's masthead, table header, striping, figures, bold green and footer match the shortlist sheet's. What changed:
+- **Slide 5's two new rows are amber,** where they were navy. The deck colours a worse-than-today count amber (slide 7's late finishes), and slide 13 lists fewer early finishes as a cost. Both rows are worse than today on every link, which the polish checks. Saturdays and Sundays stay navy, since on a pay slide they cut both ways.
+- **The sheet's swap band is unranked, and says so.** Its only green had been Even Step's "5 min longer", beside a line naming In Step: the colour pointed one way and the text the other. The notes now say "The swap rows are not ranked: which link suits a swapper depends on which swaps they make."
+- **The average late is ranked again,** shorter better, as on the shortlist sheet and slide 6, so the green agrees with "Short Run's are the shortest on average". The key now says "marks the clear best of the three".
+- **One name:** the footer says "What it means for you", as the eyebrow does, and its left side says what is on the page. The band headings are the family's 14px. Short Run's empty swap cells both say "none". No design's name, and no payslip line, splits across a line ("Long / Break" and "Overtime / 1.25" did).
+- The page keeps 9px above its footer after all of it.
+
+**Declined:**
+- Slide 6's average shift turned navy, as a small move: the slide's notes say to be upfront about those two minutes, so it stays amber.
+- Renaming the 13:35 and 13:45 count "before 14:00", on the slide or the sheet (above).
+- Larger notes text. On paper it is the shortlist's size. On a phone every line of an A4 page needs zooming, so a font change would not fix that, and the page has no room for it.
+- Repeating the column names on every band. Tried: it was busier, wrapped a heading and ran over the page.
+- Re-centring the rows a pixel lower. The shortlist sheet shares the CSS, so it would be both sheets or neither.
+- A new eyebrow. The slot names the document, as "The shortlist" does on its sheet.
 
 **Changed:**
 - tooling: `plain.mjs`, `deck-check.mjs`, `deck-polish.py`, `what-it-means-sheet.mjs` (new), `pack.py`
