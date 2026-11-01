@@ -79,7 +79,9 @@ export async function renderPdf(D, out) {
   // family flag is off and the standalone words replace them.
   const FRESH = !process.env.LEGACY;
   // meta.date is when the DESIGN was prepared; a re-render changes what the sheet says, so it says so.
-  const RENDERED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  // ONE DATE FORM (pack polish, 1 Nov 2026): "Prepared 31 October 2026" sat over "Created 31 Oct 2026" on the same page, and every
+  // footer, chip and settled-on date in the pack is "31 Oct 2026"
+  const RENDERED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   // the app's weeklyHours rounds the average to 2dp of an hour before it is formatted, which can drop half a minute
   // (Fifteen Turns: 35h 02.5m printed as 35h 02m). The sheet formats the unrounded figure, same definition.
   if (FRESH) for (const X of [P, T]) { const L = Object.keys(X.patterns).length, cov = Object.values(X.patterns).filter(r => r.mon === 'SPARE').length;
@@ -416,7 +418,7 @@ export async function renderPdf(D, out) {
   <div class="foot"><span>Page 2 of 10 — How to read the numbers</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
 `;
-  let html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>Proposed CEA Link — December 2026</title>
+  let html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>${esc(meta.identity.name)} (${esc(meta.identity.code)}) — proposed CEA link, December 2026</title>
 <link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/links.css">
 <style>
 @page { size: A4; margin: 11mm; }   /* even all round: the bottom was 13mm and the footer rule sat 26mm up on a page whose content starts 11mm down */
@@ -769,8 +771,10 @@ ${meta.page9 ?? `<section class="page">
       }
       // PAGE 6 TAKES ITS ROOM. The rules page left its bottom sixth empty on every sheet; what is spare (less a margin)
       // is shared out as row padding in the rules table — up to 4px a row, top and bottom alike. No text re-wraps.
+      // PAGE 4 TOO (pack polish, 1 Nov 2026): its shift-time table ended a fifth of the page above the footer, by a different
+      // amount on every sheet, and read as unfinished. Its rows take the same share, under the same cap.
       for (const sec of document.querySelectorAll('section.page')) {
-        const foot = sec.querySelector(':scope > .foot'), rows = [...sec.querySelectorAll('table.t.rules tbody tr')]; if (!foot || !rows.length) continue;
+        const foot = sec.querySelector(':scope > .foot'), rows = [...sec.querySelectorAll('table.t.rules tbody tr, table.t.dutyt tbody tr')]; if (!foot || !rows.length) continue;
         const bottom = Math.max(...[...sec.children].filter(e => e !== foot).map(e => e.getBoundingClientRect().bottom));
         const extra = Math.min(3, (foot.getBoundingClientRect().top - bottom - 28) / rows.length); if (extra < 1) continue;
         for (const tr of rows) for (const td of tr.children) { const cs = getComputedStyle(td);
@@ -791,6 +795,12 @@ ${meta.page9 ?? `<section class="page">
       return [i + 1, Math.round(Math.max(...kids.map(e => e.getBoundingClientRect().bottom)) - foot.getBoundingClientRect().top)];
     }).filter(x => x && x[1] > 0));
     if (under.length) throw new Error(`${out}: text runs into the page's footer (page, px under it): ${JSON.stringify(under)}`);
+    // NOTHING WIDER THAN THE PAGE, CHECKED (pack polish, 1 Nov 2026). The stylesheet's rule above .print-grid says why: Chromium
+    // prints a document that overflows the page width shrunk to fit, every page of it. Nothing checked the rule, and a table
+    // whose fixed columns let one cell's words run past its edge shrank all eight pages and left a stray line under every
+    // footer, with every other check green. A page whose content is wider than the 711px print width refuses to print.
+    const wide = await pg.evaluate(() => [...document.querySelectorAll('section.page')].map((s, i) => [i + 1, s.scrollWidth - s.clientWidth]).filter(([, d]) => d > 0));
+    if (wide.length) throw new Error(`${out}: content wider than the page, so every page would print shrunk (page, px over): ${JSON.stringify(wide)}`);
   }
   await pg.pdf({ path: out, format: 'A4', printBackground: true, preferCSSPageSize: true });
   await b.close();

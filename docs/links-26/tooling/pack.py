@@ -82,12 +82,24 @@ W = 78
 # folder's name, so "4 Proposal sheets" never ends one line and starts the next. The folders are the pack's own, read from
 # the file list; their spaces are held as a placeholder of the same width while the text is wrapped
 FOLDERS = sorted({dst.split('/')[0] for _, dst in files if '/' in dst and ' ' in dst.split('/')[0]})
+# AND NO NAME, DATE OR VERSION EITHER (pack polish, 1 Nov 2026): the outside review found "Even / Step", "Home / Grown",
+# "(3 October / 2026)" and "app version / 25.04" split at line ends, and a line beginning "- with the shift times", which in
+# Notepad reads as a bullet. A design's name, a date and a version are held like a folder's name, and a spaced dash keeps to
+# the word before it, so it ends a line and never starts one
+NAMES = sorted({n for n, _, _ in proposals}, key=len, reverse=True)
+MONTHS = 'January|February|March|April|May|June|July|August|September|October|November|December'
 def whole(t):
-    for f in FOLDERS: t = t.replace(f, f.replace(' ', '\x00'))
-    return t
+    for f in FOLDERS + NAMES: t = t.replace(f, f.replace(' ', '\x00'))
+    t = re.sub(rf'\b\d{{1,2}} (?:{MONTHS})(?: \d{{4}})?', lambda m: m.group(0).replace(' ', '\x00'), t)
+    t = re.sub(r'\bapp version (?=\d)', 'app\x00version\x00', t)
+    return t.replace(' - ', '\x00- ')
 para = lambda t: textwrap.fill(whole(' '.join(t.split())), W, break_on_hyphens=False).replace('\x00', ' ')
 def item(label, text, hang=21):
     return textwrap.fill(whole(' '.join(text.split())), W, initial_indent=f'  {label:<{hang - 2}}', subsequent_indent=' ' * hang,
+                         break_on_hyphens=False).replace('\x00', ' ')
+# the colour key: the mark at column 24, its words at 36, so a long description cannot run into the next mark (pack polish)
+def mark_item(label, text):
+    return textwrap.fill(whole(' '.join(text.split())), W, initial_indent=' ' * 24 + f'{label:<12}', subsequent_indent=' ' * 36,
                          break_on_hyphens=False).replace('\x00', ' ')
 decks = (', '.join(with_decks[:-1]) + ' and ' + with_decks[-1]) if len(with_decks) > 1 else (with_decks[0] if with_decks else 'None yet')
 # THE ROUTE FIRST, THE HISTORY LAST (the fifth review's follow-up, 1 Nov 2026): "The history interrupts the route into the pack. A
@@ -99,6 +111,7 @@ decks = (', '.join(with_decks[:-1]) + ' and ' + with_decks[-1]) if len(with_deck
 names_in = {n for n, _, _ in proposals}
 readme = '\n'.join([
     'DECEMBER 2026 LINK PROPOSALS - 26 LINES',
+    '=' * len('DECEMBER 2026 LINK PROPOSALS - 26 LINES'),
     'Marylebone CEA link, December 2026 timetable - 26 weeks',   # no date: office detail (owner, of slide 9's)
     '',
     'THE RECOMMENDATION',
@@ -116,11 +129,11 @@ readme = '\n'.join([
     '',
     'WHERE TO START',
     item('Managers', 'Ten minutes: the shortlist sheet,'),
-    item('', '1 Summary/links-26-shortlist.pdf'),
+    ' ' * 23 + '1 Summary/links-26-shortlist.pdf',
     item('', 'Twenty minutes: add the presentation for managers,'),
-    item('', TWENTY),
+    ' ' * 23 + TWENTY,
     item('Colleagues', 'First, the presentation for colleagues,'),
-    item('', COLLEAGUES_FIRST),
+    ' ' * 23 + COLLEAGUES_FIRST,
     item('', f'(or the chosen link\'s, if it is not {RECOMMENDED}). Then pages 1 to 3 of its proposal sheet, in '
          '4 Proposal sheets: the detail, and every week of the link on page 3.'),
     '',
@@ -141,14 +154,14 @@ readme = '\n'.join([
     item('3 Presentations', f'{decks}: one for colleagues and one for managers{" each" if len(with_decks) > 1 else ""}. '
          'PowerPoint and PDF copies of each. The PowerPoints use the Inter font; if the PC showing them does not have '
          'Inter, present the PDF instead.'),
-    item('4 Proposal sheets', 'One eight-page PDF per proposal, compared only with today\'s link: pages 1-2 are the '
+    item('4 Proposal sheets', 'One eight-page PDF per proposal, compared only with today\'s link: pages 1 and 2 are the '
          'plain-English comparison, page 3 the rota, the rest the evidence managers can inspect. The marks mean the '
          'same on every page:'),
-    item('', 'green tick - meets a rule, or better than today on something the rules, the limits or the fatigue '
-         'guidance aim for, or on a plain gain such as full weekends off', 24),
-    item('', 'amber - worse than today on one of those', 24),
-    item('', 'red cross - a rule or limit broken', 24),
-    item('', 'no colour - a matter of preference', 24),
+    mark_item('green tick', 'meets a rule, or better than today on something the rules, the limits or the fatigue '
+              'guidance aim for, or on a plain gain such as full weekends off'),
+    mark_item('amber', 'worse than today on one of those'),
+    mark_item('red cross', 'a rule or limit broken'),
+    mark_item('no colour', 'a matter of preference'),
     item('', 'The code and eight-character fingerprint in each file name identify the exact rota, so a printout can '
          'never be mixed up with a variant.'),
     item('5 Import files', 'Each proposal as text for the Links page (Import), which lays out 26 lines since app version '
@@ -204,6 +217,6 @@ for f in FOLDERS:
 
 if os.path.exists(OUT): os.remove(OUT)
 with zipfile.ZipFile(OUT, 'w', zipfile.ZIP_DEFLATED) as z:
-    z.writestr(f'{TOP}/Read me first.txt', readme)
+    z.writestr(f'{TOP}/Read me first.txt', readme.replace('\n', '\r\n'))   # CRLF: an older Notepad shows LF-only text as one line
     for src, dst in files: z.write(src, f'{TOP}/{dst}')
 print(f'wrote {OUT}: {len(files) + 1} files')

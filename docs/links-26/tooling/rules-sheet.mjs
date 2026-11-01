@@ -21,7 +21,7 @@ import { assessFatigue } from '../../../links-fatigue.js';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
 const OUT = new URL('../links-26-rules.pdf', import.meta.url).pathname;
-const RENDERED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+const RENDERED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });   // "1 Nov 2026", the pack's one date form
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const hm = m => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
 const clock = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
@@ -52,7 +52,9 @@ const naNight = na.filter(r => r.family === 'Night shifts' || /^Night shift/.tes
 const naWhy = r => r.code === 'FF4' ? 'FF4, because no shift starts before 05:00 (FF3 counts those)' : /permanent/.test(r.title) ? 'the MRSF permanent-pattern check, because the link rotates (FF15 is its rotating equivalent)' : `${r.code} (${r.title})`;
 const andList = a => a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
 const todayContract = (() => { const h = TA.hours; return Math.round(h.exSundayHours * 60 + h.coverLines * (h.target ?? 35) * 60 - h.lines * (h.target ?? 35) * 60) === 0; })();
-const mark = ok => ok ? '✓' : '✕', cls = ok => ok ? 'ok' : 'miss';
+// THE SHEETS' MARKS (pack polish, 1 Nov 2026): a heavy green tick and a red cross, coloured on the mark alone with the figure in
+// the body colour, as every proposal sheet's page 6 has them. This page's crosses were brown and coloured the whole value.
+const mark = ok => ok ? '<span class="mk mk-ok">✓</span>' : '<span class="mk mk-no">✕</span>', cls = ok => ok ? 'ok' : 'miss';
 
 const sunLate = demand.movementsOutside(demand.movements.sun, 7 * 60 + 15, 23 * 60 + 25).after;
 
@@ -73,10 +75,10 @@ const ASKS = {
   times: `No more different shift times in the week than today’s link has (${TA.feel.distinctTimes}).`,
 };
 
-const flexRows = FT.rows.map(r => `<tr><td><b>${esc(r.rule)}</b></td><td>${ASKS[r.key] ?? esc(r.note)}</td><td class="tt ${r.ok ? 'ok' : 'miss'}">${r.ok ? '✓' : '✕'} ${esc(r.value)}</td></tr>`).join('');
+const flexRows = FT.rows.map(r => `<tr><td><b>${esc(r.rule)}</b></td><td>${ASKS[r.key] ?? esc(r.note)}</td><td class="tt ${r.ok ? 'ok' : 'miss'}">${mark(r.ok)}${esc(r.value)}</td></tr>`).join('');
 // the floor's "— first at …" goes on a second line: the column does not wrap
 const valCell = v => { const [a, b] = String(v).split(' — first at '); return b ? `${esc(a)}<span class="upto">first at ${esc(b)}</span>` : esc(a); };
-const decRows = RT.rows.map((r, i) => `<tr><td><b>${esc(r.rule)}</b></td><td>${ASKS[r.key] ?? esc(r.note)}</td><td class="tt ${r.ok ? 'ok' : 'miss'}">${r.ok ? '✓' : '✕'} ${valCell(r.value)}</td></tr>`).join('');
+const decRows = RT.rows.map((r, i) => `<tr><td><b>${esc(r.rule)}</b></td><td>${ASKS[r.key] ?? esc(r.note)}</td><td class="tt ${r.ok ? 'ok' : 'miss'}">${mark(r.ok)}${valCell(r.value)}</td></tr>`).join('');
 
 // Today's link is the only comparison on this sheet (owner, 29 Sep 2026: a manager is not shown the drafts), so the
 // last column is TODAY's status, not a count of the proposals each factor is present in.
@@ -121,15 +123,19 @@ table.t th { background: var(--surface-sunken); color: var(--text-mid); font-siz
 table.t td.num, table.t th.num { text-align: right; font-variant-numeric: tabular-nums; }
 table.t tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-sunken) 55%, white); }
 .tt { font-variant-numeric: tabular-nums; white-space: nowrap; }
-td.ok { color: color-mix(in srgb, var(--success-green) 80%, black); } td.miss { color: color-mix(in srgb, var(--warning-amber) 55%, black); }
-.dec td:nth-child(1) { width: 22%; } .dec td:nth-child(2) { width: 50%; } .dec td:nth-child(3) { width: 19%; } table.t td.num { white-space: nowrap; }
-.hard td:nth-child(1) { width: 22%; } .hard td:nth-child(2) { width: 50%; } .hard td:nth-child(3) { width: 19%; }
+td.ok, td.miss { color: var(--text-dark); padding-left: calc(6px + 1.05em) !important; text-indent: -1.05em; }
+.mk { display: inline-block; width: 1.05em; text-indent: 0; font-weight: 800; } .mk-ok { color: var(--success-green); } .mk-no { color: var(--danger-red, #b3261e); }
+.dec td:nth-child(1) { width: 25%; } .dec td:nth-child(2) { width: 47%; } .dec td:nth-child(3) { width: 19%; } table.t td.num { white-space: nowrap; }
+.hard td:nth-child(1) { width: 25%; } .hard td:nth-child(2) { width: 47%; } .hard td:nth-child(3) { width: 19%; }
 .ff td.ff-code { font-weight: 800; color: var(--primary-blue); white-space: nowrap; width: 40px; } .ff td.fam { color: var(--text-light); white-space: nowrap; width: 110px; }
-.upto-i { color: var(--text-muted, #5B6778); font-weight: 400; }
-.upto { display: block; font-size: 8px; color: var(--text-muted, #5B6778); font-weight: 400; }
+.upto-i { color: var(--text-mid); font-weight: 400; }
+.upto { display: block; font-size: 8px; color: var(--text-mid); font-weight: 400; text-indent: 0; }
 .conf { display: inline-block; font-size: 8px; padding: 0 6px; border-radius: 8px; background: color-mix(in srgb, var(--warning-amber) 18%, white); color: color-mix(in srgb, var(--warning-amber) 55%, black); margin-left: 4px; vertical-align: 1px; }
 .callout { border-left: 3px solid var(--accent-gold); background: var(--surface-sunken); padding: 6px 12px; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; margin: 6px 0; font-size: 9.8px; }
 ul.list { margin: 3px 0 4px; padding-left: 17px; font-size: 9.8px; line-height: 1.42; } ul.list li { margin: 2px 0; }
+table.t.ff th.num, table.t.ff td.num { text-align: left; }
+.page + .page h2 { margin-top: 7px; } .page + .page table.t td { padding-top: 1.5px; padding-bottom: 1.5px; }   /* page 2 ended 1 mm above its
+   footer (pack polish, 1 Nov 2026): its headings give back 2px each and its table rows 1px, so it ends as page 1 does */   /* today's column reads from the left, as every other column on both pages */
 ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 1.42; } ol.open li { margin: 3px 0; }
 .foot { position: absolute; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 8.5px; color: var(--text-light); border-top: 1px solid var(--border-light); padding-top: 4px; }
 .foot b { color: var(--primary-blue); }
@@ -165,9 +171,9 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
 
   <h2>Hard limits <span class="tag hard">must be met</span></h2>
   <table class="t hard"><thead><tr><th>Limit</th><th>What it means</th><th>Today’s link</th></tr></thead><tbody>
-    <tr><td><b>At least 12 hours between duties</b></td><td>From the end of one duty to the start of the next, anywhere in the rotation — Saturday into Sunday, and the last line into line 1, included.</td><td class="tt ${cls(TA.checks.turnarounds.length === 0)}">${mark(TA.checks.turnarounds.length === 0)} shortest ${todayRest !== null ? hm(todayRest) : '—'}</td></tr>
-    <tr><td><b>No more than ${MAX_CONSECUTIVE_WORKED_DAYS} days worked in a row</b></td><td>Chiltern’s limit, taken at its worst case: a cover week’s four duties placed as badly as they can be, and its Sunday worked as overtime. The written source of the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit is still to be confirmed.</td><td class="tt ${cls(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)}">${mark(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)} longest ${TA.checks.longestStretch} days</td></tr>
-    <tr><td><b>The contracted week, exactly</b></td><td>35 hours a week on average, Monday to Saturday, across every line of the link; a cover week counts as a contracted week. Sunday duties are paid on top as rest-day working, as they are today. Individual weeks may be longer or shorter; only the average is the contract.</td><td class="tt ${cls(todayContract)}">${mark(todayContract)} ${todayContract ? 'exactly 35h' : 'not 35h'}</td></tr>
+    <tr><td><b>At least 12 hours between duties</b></td><td>From the end of one duty to the start of the next, anywhere in the rotation — Saturday into Sunday, and the last line into line 1, included.</td><td class="tt ${cls(TA.checks.turnarounds.length === 0)}">${mark(TA.checks.turnarounds.length === 0)}shortest ${todayRest !== null ? hm(todayRest) : '—'}</td></tr>
+    <tr><td><b>No more than ${MAX_CONSECUTIVE_WORKED_DAYS} days worked in a row</b></td><td>Chiltern’s limit, taken at its worst case: a cover week’s four duties placed as badly as they can be, and its Sunday worked as overtime. The written source of the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit is still to be confirmed.</td><td class="tt ${cls(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)}">${mark(TA.checks.longestStretch <= MAX_CONSECUTIVE_WORKED_DAYS)}longest ${TA.checks.longestStretch} days</td></tr>
+    <tr><td><b>The contracted week, exactly</b></td><td>35 hours a week on average, Monday to Saturday, across every line of the link; a cover week counts as a contracted week. Sunday duties are paid on top as rest-day working, as they are today. Individual weeks may be longer or shorter; only the average is the contract.</td><td class="tt ${cls(todayContract)}">${mark(todayContract)}${todayContract ? 'exactly 35h 00m' : 'not 35h 00m'}</td></tr>
     <tr><td><b>No more than ${DAYS_CEILING} contracted days a year</b></td><td>Today’s figure as a ceiling (set 1 Oct 2026): Monday to Saturday, a cover week as four days. At ${LINES} lines it allows ${Math.floor(DAYS_CEILING * LINES * 7 / 365 - 4 * COVER_WEEKS)} Monday-to-Saturday duties at most.</td><td class="tt ${cls(daysAYear(T0.patterns) <= DAYS_CEILING + 1e-9)}">${mark(daysAYear(T0.patterns) <= DAYS_CEILING + 1e-9)} ${daysAYear(T0.patterns).toFixed(1)}</td></tr>
   </tbody></table>
 
@@ -196,10 +202,10 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
   <p class="lead">Not rules, and not scored. The first two and the last are gains, so a proposal sheet marks a design green where it beats today’s link on them; how much each matters is for staff to say.</p>
   <ul class="list">
     <li><b>Days in a row.</b> The Links designer aims for six or fewer, well inside the ${MAX_CONSECUTIVE_WORKED_DAYS}-day limit.</li>
-    <li><b>Full weekends off</b> — a Saturday off followed by a Sunday off at the start of the next line. Today’s link gives ${TA.checks.weekendsOff} in 20.</li>
-    <li><b>Weeks on one shift time</b> — the same clock time Monday to Friday, all earlies or all lates. A week that mixes the two is what people mean by “all over the place”.</li>
-    <li><b>Familiar shift times</b> — how many of a design’s times somebody already works today. A rough guide to what there is to learn, not to what staff will accept.</li>
-    <li><b>Following the trains</b> — how closely the floor’s staffing follows the December 2026 timetable, hour by hour. A guide, and one way of measuring it among several.</li>
+    <li><b>Full weekends off.</b> A Saturday off followed by a Sunday off at the start of the next line. Today’s link gives ${TA.checks.weekendsOff} in 20.</li>
+    <li><b>Weeks on one shift time.</b> The same clock time Monday to Friday, all earlies or all lates. A week that mixes the two is what people mean by “all over the place”.</li>
+    <li><b>Familiar shift times.</b> How many of a design’s times somebody already works today. A rough guide to what there is to learn, not to what staff will accept.</li>
+    <li><b>Following the trains.</b> How closely the floor’s staffing follows the December 2026 timetable, hour by hour. A guide, and one way of measuring it among several.</li>
   </ul>
 
   <h2>Still to settle</h2>
@@ -212,7 +218,8 @@ ol.open { margin: 3px 0 4px; padding-left: 19px; font-size: 9.8px; line-height: 
       return `<b>${['No','One','Two','Three','Four','Five','Six'][n] ?? n} fatigue definition${n === 1 ? '' : 's'} to confirm.</b> ${n ? `${codes} ${n === 1 ? 'is' : 'are'} counted on a reading an assessing manager should confirm${c.some(r => r.code === 'FF19') ? ': FF19 treats a rest day as time to adjust; the ORR (7.71) does not say whether a rest day breaks a run of successive start times — if it does not, every link has it' : ''}.` : 'Every factor is counted on the ORR’s own reading.'}`; })()}</li>
   </ol>
 
-  <div class="callout"><b>Changing a rule.</b> Every proposal sheet is checked against this set by the same code. Change a rule and every sheet and this page are re-rendered together, so no sheet is ever judged against an older version of it.</div>
+
+  <div class="callout" style="margin-top:2px;padding-top:4px;padding-bottom:4px"><b>Changing a rule.</b> Every proposal sheet is checked against this set by the same code. Change a rule and every sheet and this page are re-rendered together, so no sheet is ever judged against an older version of it.</div>
 
   <div class="foot"><span>Page 2 of 2 — Flexible rules, fatigue factors, preferences and open questions</span><span><b>December 2026 rules</b> · Marylebone Roster — Links designer</span></div>
 </section>
@@ -234,7 +241,7 @@ await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready
   const over = await pg.evaluate(() => [...document.querySelectorAll('.page')].map((p, i) => { const foot = p.querySelector('.foot');
     const lim = foot ? foot.getBoundingClientRect().top : p.getBoundingClientRect().bottom;
     const low = Math.max(...[...p.children].filter(c => c !== foot).map(c => c.getBoundingClientRect().bottom));
-    return [i + 1, Math.round(Math.max(low - lim, p.scrollHeight - p.clientHeight))]; }).filter(([, d]) => d > 1));
+    return [i + 1, Math.round(Math.max(low - lim, p.scrollHeight - p.clientHeight, p.scrollWidth - p.clientWidth))]; }).filter(([, d]) => d > 1));   // and nothing wider than the page (pack polish)
   if (over.length) throw new Error(`content runs into the footer or off the page (page, px): ${JSON.stringify(over)}`); }
 await pg.pdf({ path: OUT, format: 'A4', printBackground: true, preferCSSPageSize: true });
 await b.close();

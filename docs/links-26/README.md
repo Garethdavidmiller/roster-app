@@ -2178,6 +2178,111 @@ shortlist. `deck-check.mjs`: 153 rows agree. Only the intended parts changed:
 - tooling: `deck-polish.py`, `shortlist-sheet.mjs`, `pack.py`, `fresh.mjs`, `regenerate.mjs`
 - outputs: the three managers' decks and their PDFs, the shortlist sheet, Short Run's sheet, the pack
 
+## An aesthetic and consistency polish of the whole pack, from screenshots (1 Nov 2026)
+
+The owner asked for "aesthetic polish and aesthetic consistency polish" of the entire pack, double-checked with screenshots.
+
+**How it was done.**
+- Every page was rendered: 75 slides, 120 sheet pages, the summary, the shortlist and the rules.
+- Contact sheets put the same page of every design side by side, so a design whose page differed stood out.
+- Three reviewers worked in parallel: one on the decks, one on the sheets, and one on the summary, shortlist, rules and read-me. That third reviewer also compared the document types against each other.
+- They reported 63 findings, each with a cropped screenshot. Every one was checked against its crop before anything changed.
+- After the fixes, all 200 pages were rendered again and compared pixel for pixel with the first set: 170 changed, none appeared or went.
+- A fourth reviewer then looked only for anything the polish had made worse. On page 6 of every sheet it found each ✓ or ✕ sitting an em left of its figure (below). That was fixed, all fifteen sheets were rendered again, and only their page 6 changed.
+
+**What changed: the proposal sheets** (`plain.mjs`, `render.mjs`; all 15 re-rendered)
+- **Page 1:** the four "Can it work?" tiles, and the two staff boxes, now share their row's height. **This reverses a call made twice before.** The third polish pass (4 Oct) let each card size to its own text, and the 30 Oct review kept that ("Page 1 was left as it is"), because a stretched card's empty band "reads as something missing". Side by side on screenshots of all fifteen, though, four tile bottoms and two box bottoms at different heights were the most visible untidiness in the sheets. That is a row of parallel answers, where one bottom line is the convention. The cost is real and accepted: the first tile, "9 of 9 rules met", is now about two-fifths empty.
+- **Page 6:** the limit cards still size to their text. One holds a paragraph and the others a line each, so stretched they would be two-thirds empty.
+- **Page 4:**
+  - The new shift times sit three to a row, under the three figures above them. They had been 2-up, 3+2, 4+3 or 3+3, depending on the design.
+  - The shift-time table's two column groups both read from the left, and its headings no longer wrap.
+  - Its changed cells keep their row's stripe.
+  - Its rows take the page's spare room, as page 6's already did, so the page no longer ends a fifth of the way above its footer.
+- **Page 7:** the columns have set widths, so the table sits the same on all fifteen. Second Look's longer text had pushed its columns 21 mm right.
+- **Marks:** a ✓, ✕ or ● that starts a cell on pages 6 and 7 hangs, so a second line starts under the words. So does the status line under each page 6 limit card.
+  - The first try had a fault, which the fourth reviewer found. Indentation is inherited, and the mark is a box of its own, so it took the hang a second time and sat an em to the left of its figure. The mark now resets it, as the rules sheet's mark always has.
+  - The space after the mark went too: the mark's box is the gap, and with the space kept, a second line started one space left of the first word.
+- **Colour keys:** the keys in the page 2 and page 7 headers show each mark on a white chip, in its own colour. Before, the marks were white, so the reader was told the colours and never shown them.
+- **Type and colour:**
+  - Every section heading is one size.
+  - "For discussion, not a decision." is navy, so red means only a broken rule.
+  - Page 2's green column no longer alternates between two tints with the stripes.
+  - Words in a figures cell ("one-turn weeks", "3-day") lose tabular figures' wide hyphen.
+- **Line breaks:** a figure keeps what it belongs to, in text only:
+  - a label with its figure: "(today 52.0)", "limit 12h";
+  - a day with its time: "Fri 07:15–15:45";
+  - a range: "30 to 60", "18 of 21";
+  - a count with its unit: "44,100 minutes", "46 a year";
+  - a date: "1 October 2026";
+  - a day range: "Mon–Sat".
+
+  A unit does not join a range ("7 in 26 weeks" can wrap before "weeks"). Chained together, the first attempt made runs long enough to push page 1's staff boxes into the footer.
+- **Dates and titles:** "Prepared" uses the pack's date form, "1 Nov 2026". Each PDF's title names its design, so fifteen open sheets no longer show fifteen identical browser tabs.
+
+**What changed: the rules, the shortlist, the summary and the read-me**
+- **Rules** (`rules-sheet.mjs`):
+  - Ticks and crosses are the sheets' marks, coloured on the mark alone; the crosses were brown, and coloured the whole value.
+  - The rule column is wider, so "No more than 13 days worked in a row" is one line.
+  - "exactly 35h" is "exactly 35h 00m".
+  - Page 2's fatigue column reads from the left, and its sub-lines are the documents' grey, not the decks' blue-grey.
+  - The five preferences each open with a bold phrase and a full stop.
+  - Page 2 ended 1 mm above its footer and now ends 7 mm above it.
+- **Shortlist** (`shortlist-sheet.mjs`):
+  - It has the family band and footer: "Links designer" in the eyebrow, a Prepared line, and the footer's section capitalised. The date moved out of the footer.
+  - Figures are centred, as on the sheets and the summary, and the fit row is at the table's size.
+  - Each label uses "Mon–Sat" and each sentence uses "Monday to Saturday".
+  - The "Why" table's names fit on one line, which gives page 2 back 8 mm.
+  - Even Step's card carries a "★ recommended" tab on its green rule.
+- **Summary** (`summary-sheet.mjs`): it was the one document without the family's look. It now has:
+  - the navy band, with its lead line as the band's sub-line;
+  - the light-grey headers in small capitals and striped rows;
+  - every row's first line on one baseline;
+  - the shortlist star under the name;
+  - footnotes in two columns;
+  - the documents' greys and green, read from the app's own stylesheet.
+
+  It prints at 89%, against 90% before.
+- **Read-me** (`pack.py`):
+  - A design's name, a date and a version number are never split by a wrap.
+  - A spaced dash never starts a line, where it read as a bullet.
+  - The colour key is two columns, and the files the route names are indented.
+  - Page ranges read "pages 1 and 2".
+  - The title is underlined.
+  - The file has Windows line endings, because a Notepad older than Windows 10 version 1809 shows Unix ones as a single line.
+
+**What changed: the decks** (`deck-polish.py`, in a new `family_polish` step shared by all three designs)
+- **Line breaks:** five takeaway bars, managers' slide 8 and Short Run's colleague slide 13 no longer split a phrase across lines ("costs 15 / days' leave", "if a / cover week", "(today 26 a year / each)").
+- **Colleagues' slide 8:** the "You work these today" tick is green, like every other tick, instead of white on gold.
+- **Colleagues' slide 13:** the six cards have even 0.125in gutters. They were 0.2in between the columns and 0.08in between the rows.
+- **Managers' slide 2:** the four cards span the margins on the colleagues' 0.15in gutters.
+- **Managers' slide 9:** the circles are 0.4in instead of 0.5in, and each detail sits nearer its own title. The circles had sat 0.1in apart, so a detail line read as belonging to the item below.
+- **Managers' slide 4:** the chart legend uses the deck's slate rather than black, and its axis line the tables' outline grey.
+- **Navy slides:** the cover and closing slides use the 0.5in margin of every other slide, the cover's footer sits on the closing slide's line, and both closing lists share one indent.
+
+**Declined, with reasons.**
+- **Colleagues' slides 4 and 5:** the three-row tables keep their larger type. They were set a size up on 31 Oct to fill a five-row band, and at standard size the taller rows look half empty.
+- **Managers' slide 7:** the takeaway bar keeps its break after the comma, which leaves each line a whole item.
+- **Even Step's slide 8:** its cards stay top-aligned, so the geometry is identical across the three designs.
+- **The slide 10 strip:** it stays an image.
+- **Other decks findings:** the remaining small spacing and type-size findings were left as they are, because they reflect what each slide holds.
+- **Shortlist page 2:** the "Why" table has no header row, because its heading introduces it and the page has no line to spare.
+- **Brand mark:** the decks keep their flat mark; the documents keep the app icon.
+
+**Checks.**
+- **A guard that had been missing.** Chromium prints a page that is wider than the paper shrunk to fit, every page of it. The sheets' stylesheet said so, but nothing checked it.
+  - During this pass, a fixed-layout page 7 table let one cell's words run 4px past its column. All eight pages printed slightly smaller, with a stray line under every footer, while every other check stayed green.
+  - `render.mjs` now refuses a page wider than the 711px print width. With the fixed layout put back, it stopped the render and named page 7, 4px over.
+  - The rules and shortlist guards check width as well as height.
+- **Unchanged content.**
+  - The re-render changed no fingerprint (`regenerate.mjs --check`).
+  - No sheet's JSON or import file changed by a byte.
+  - Every sheet is still eight pages.
+  - `deck-check.mjs`: 153 rows agree.
+
+**Changed:**
+- tooling: `plain.mjs`, `render.mjs`, `rules-sheet.mjs`, `shortlist-sheet.mjs`, `summary-sheet.mjs`, `deck-polish.py`, `pack.py`
+- outputs: all 15 proposal sheets, the rules, the shortlist, the summary, the six decks and their PDFs, the pack
+
 ## Notes for the whole set
 
 **Full weekends off, per year (owner, 2 Oct 2026).** A longer rotation's larger count is not more weekends in a year, so

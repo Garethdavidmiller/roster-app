@@ -342,7 +342,7 @@ const TODAY_ROWS = [
   ['Saturdays a year, each', F => `${Math.round(F.pp.sat)}`],
   ['Sunday overtime duties a year, each', F => `${Math.round(F.pp.sun)}`],
   ['Starting at 06:20, each a year', F => `${Math.round(F.pp.open0620)}`],
-  ['Average shift, Monday to Saturday', F => hm(F.pp.avgShift)],
+  ['Average shift, Mon–Sat', F => hm(F.pp.avgShift)],
   ['Longest shift', F => hm(F.pp.longest)],
 ];
 // ONE COLUMN WHEN ALL THREE AGREE (31 Oct 2026, the redo): every row of this table is shared, so it printed each figure
@@ -355,7 +355,9 @@ const todayHtml = TODAY_ROWS.map(([label, get]) => { const s = same(get);
 const list = a => a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
 const f1 = x => x.toFixed(1);
 const an = s => (/^(8|11|18)/.test(s) ? 'an ' : 'a ') + s;   // "an 8h 40m", "a 42h 30m"
-const DATE = '31 Oct 2026';
+// THE FAMILY'S BAND AND FOOTER (pack polish, 1 Nov 2026): the date moves from the footer into a "Prepared" line in the band, as on
+// every proposal sheet and the rules, and the footer reads as theirs do — the page's section, then the title and the app
+const PREPARED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>The shortlist — December 2026 link</title>
 <link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/links.css">
 <style>
@@ -367,23 +369,25 @@ html, body { background: white !important; color: var(--text-dark); padding: 0 !
 .mast .eyebrow { color: var(--accent-gold); font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
 .mast h1 { margin: 2px 0; font-size: 22px; font-weight: 800; color: white; letter-spacing: -.2px; }
 .mast .sub { color: rgba(255,255,255,.78); font-size: 11.5px; text-wrap: balance; }
-h2 { font-size: 14.5px; color: var(--primary-blue); margin: 8px 0 3px; font-weight: 800; } h2 .note { font-size: 10.4px; font-weight: 400; color: var(--text-mid); margin-left: 6px; }
+.mast .meta { color: rgba(255,255,255,.55); font-size: 9.5px; margin-top: 4px; }
+h2 { font-size: 14px; color: var(--primary-blue); margin: 8px 0 3px; font-weight: 800; } h2 .note { font-size: 10.4px; font-weight: 400; color: var(--text-mid); margin-left: 6px; }
 p { margin: 3px 0 6px; } .muted { color: var(--text-mid); } .lead { font-size: 11.6px; }
 table.t { border-collapse: collapse; width: 100%; font-size: 10.2px; line-height: 1.32; }
 table.t th, table.t td { padding: 1.5px 7px 2px; border-bottom: 1px solid var(--border-light); text-align: left; vertical-align: top; }
 table.t th { background: var(--surface-sunken); color: var(--text-mid); font-size: 9.2px; text-transform: uppercase; letter-spacing: .3px; }
-table.t th.num, table.t td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; } table.t th.num { white-space: normal; }   /* a design's name may wrap; its figures never do */
+table.t th.num, table.t td.num { text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; } table.t th.num { white-space: normal; }   /* a design's name may wrap; its figures never do */
 table.t td.today { color: var(--text-light); }
 table.t td.best, table.t .bestv { font-weight: 800; color: color-mix(in srgb, var(--success-green) 80%, black); }
 table.t td.all { color: var(--text-mid); }
 table.t.t-today3 td.all3 { font-weight: 700; color: var(--text-dark, #1a1a2e); } table.t.t-today3 th:nth-child(2), table.t.t-today3 th:nth-child(3) { width: 22%; }
-table.t td.fit { font-size: 9px; letter-spacing: -.15px; }
-table.t.alts td:first-child { width: 24%; font-weight: 700; color: var(--text-dark, #1a1a2e); }
+table.t.alts td:first-child { width: 30%; font-weight: 700; color: var(--text-dark, #1a1a2e); }
 table.t tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--surface-sunken) 55%, white); }
 /* three cards side by side since 31 Oct 2026: two to a row left the third alone on a row of its own */
 .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 10px; margin: 6px 0 2px; }
 .card { background: var(--surface-sunken); border-radius: 0 0 var(--radius-sm) var(--radius-sm); padding: 7px 10px 8px; font-size: 10.1px; line-height: 1.36; border-top: 3px solid var(--primary-blue); }
-.card.rec { border-top-color: var(--success-green); }
+.card.rec { border-top-color: var(--success-green); position: relative; }
+/* the recommended card says so in words (pack polish, 1 Nov 2026): a tab on its green rule, taking no line of the card */
+.card .recmark { position: absolute; top: -8px; right: 9px; background: var(--success-green); color: white; font-size: 8.4px; font-weight: 800; letter-spacing: .2px; padding: 1px 7px 1.5px; border-radius: 8px; }
 .card b.k { font-size: 12.5px; font-weight: 800; color: var(--primary-blue); margin-right: 6px; }
 .card .code { font-size: 9px; color: var(--text-light); }
 .card .edge { margin-right: 3px; } .card .head { display: block; margin-bottom: 1px; }
@@ -400,8 +404,9 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
 * { text-wrap: pretty; } h1, h2 { text-wrap: balance; }
 </style></head><body>
 <section class="page">
-  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · December 2026 link · the shortlist</div><h1>${Word(D.length)} good links, one edge each</h1>
-  <div class="sub">${esc(list(D.map(d => d.name)))}, against each other and against today’s link · every figure computed from the rotas</div></div></div>
+  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · The shortlist</div><h1>${Word(D.length)} good links, one edge each</h1>
+  <div class="sub">${esc(list(D.map(d => d.name)))}, against each other and against today’s link</div>
+  <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
 
   <h2>What ${both} share</h2>
   <p class="lead">${Word(stats.length)} designs are in the pack; these ${N} balance best what weighs most here. Everything below holds for ${both}, each line better than or level with today; what they share that is worse than today is on page 2.</p>
@@ -421,8 +426,8 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
 
   <h2>Each one’s edge</h2>
   <div class="cards">
-    <div class="card rec"><span class="head"><b class="k">Even Step</b><span class="code">${ES.code} · ${ES.fp}</span></span><b class="edge">No long days, Monday to Saturday.</b>No shift there over 8h&nbsp;30m and every early one of today’s times; In Step’s ${hm(EF.closers[0])} closers, today’s 13:45, and the fewest shift times of the three, ${EF.times}. Its cost is the weekday lates, ${hm(lateAvg(EF))} on average, near today’s ${hm(lateAvg(TF))} (In Step’s ${hm(lateAvg(IF))}), a slightly weaker weekday fit (${f1(EF.fit[0])}) and a ${hm(Math.round(EF.step))} change of start.</div>
-    <div class="card"><span class="head"><b class="k">In Step</b><span class="code">${IS.code} · ${IS.fp}</span></span><b class="edge">Steady hours, early finishes.</b>Weeks of ${hm(IF.light)} to ${hm(IF.heavy)}, Mon–Sat, ${earlyOff(IF)} finishes a year each before 14:00, the best Saturday fit of the three (${f1(IF.fit[1])}), and Even Step’s closers and 13:45. Its cost is the earlies: ${longEarlyMS(IF)} a year each over 8h&nbsp;30m, Monday to Saturday, at 8h&nbsp;45m and 8h&nbsp;55m — the most of any design here.</div>
+    <div class="card rec"><span class="head"><b class="k">Even Step</b><span class="code">${ES.code} · ${ES.fp}</span><span class="recmark">★ recommended</span></span><b class="edge">No long days, Monday to Saturday.</b>No shift there over 8h&nbsp;30m and every early one of today’s times; In Step’s ${hm(EF.closers[0])} closers, today’s 13:45, and the fewest shift times of the three, ${EF.times}. Its cost is the weekday lates, ${hm(lateAvg(EF))} on average, near today’s ${hm(lateAvg(TF))} (In Step’s ${hm(lateAvg(IF))}), a slightly weaker weekday fit (${f1(EF.fit[0])}) and a ${hm(Math.round(EF.step))} change of start.</div>
+    <div class="card"><span class="head"><b class="k">In Step</b><span class="code">${IS.code} · ${IS.fp}</span></span><b class="edge">Steady hours, early finishes.</b>Weeks of ${hm(IF.light)} to ${hm(IF.heavy)} Monday to Saturday, ${earlyOff(IF)} finishes a year each before 14:00, the best Saturday fit of the three (${f1(IF.fit[1])}), and Even Step’s closers and 13:45. Its cost is the earlies: ${longEarlyMS(IF)} a year each over 8h&nbsp;30m, Monday to Saturday, at 8h&nbsp;45m and 8h&nbsp;55m — the most of any design here.</div>
     <div class="card"><span class="head"><b class="k">Short Run</b><span class="code">${SR.code} · ${SR.fp}</span></span><b class="edge">The closest weekday fit, the shortest weekday lates.</b>${f1(SF.fit[0])} against ${f1(IF.fit[0])} and ${f1(EF.fit[0])}, weekday lates of ${hm(lateAvg(SF))} on average, and nothing new on a Saturday. Its cost: ${an(hm(SF.closers[1]))} Saturday closer, ${an(hm(SF.heavy))} heaviest week, ${hm(SF.A.rest.minutes)} the shortest rest, no early finish before 14:00, and ${longEarlyMS(SF)} earlies a year over 8h&nbsp;30m, all 9h&nbsp;00m.</div>
   </div>
   <h2>Which one, by what matters most</h2>
@@ -436,7 +441,7 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
     <tr><td>The steadiest start times from week to week</td><td><b>Second Edition</b> <span class="muted">· outside the shortlist</span></td></tr>
     <tr><td>Four weeks off for 14 days’ leave, as today</td><td><b>Long Break</b> <span class="muted">· outside the shortlist</span></td></tr>
   </tbody></table>
-  <div class="foot"><span>Page 1 of 2 — what they share, where they differ, which to choose</span><span><b>The shortlist</b> · ${D.map(d => `<span class="nw">${esc(d.name)} ${d.code}</span>`).join(' · ')} · <span class="nw">${DATE}</span></span></div>
+  <div class="foot"><span>Page 1 of 2 — What they share, where they differ, which to choose</span><span><b>The shortlist</b> · ${esc(list(D.map(d => d.name)))} · Marylebone Roster — Links designer</span></div>
 </section>
 
 <section class="page">
@@ -472,17 +477,21 @@ ul.list { margin: 3px 0 5px; padding-left: 18px; font-size: 10.7px; line-height:
 
   <h2>Recommendation</h2>
   <div class="callout pick"><b>Even Step.</b> In Step’s weeks without the long earlies. On what weighs most here it equals both — days in a row, weekends, weeks on one shift time, late finishes and the leave — with In Step’s closers, every one Monday to Saturday ${hm(EF.closers[0])} (Short Run’s Saturday one ${hm(SF.closers[1])}). Monday to Saturday it alone has no shift over 8h&nbsp;30m (In Step ${longMS(IF)} a year each, Short Run ${longMS(SF)}, today ${longMS(TF)}) and every early is one of today’s times; the 13:45 stays every weekday, and it has the fewest shift times of the three, ${EF.times} with ${EF.newT} new. It equals In Step’s lightest week and ${hm(EF.A.rest.minutes)} rest; its heaviest week (${hm(EF.heavy)}), early finishes (${earlyOff(EF)} a year) and Saturday fit (${f1(EF.fit[1])}) sit between the other two. Its costs: weekday lates near today’s, ${hm(lateAvg(EF))} on average (In Step’s ${hm(lateAvg(IF))}, Short Run’s ${hm(lateAvg(SF))}), a slightly weaker weekday fit (${f1(EF.fit[0])}, against ${f1(IF.fit[0])} and ${f1(SF.fit[0])}), a ${hm(Math.round(EF.step))} change of start (the others ${hm(Math.round(IF.step))}) and, as on In Step, a new Saturday time, its closer.</div>
-  <p class="lead" style="margin-top:8px"><b>But it is a judgement.</b> In the pack’s weighted league (the owner’s weights, which count long earlies and the closing shift since 31&nbsp;October) Even Step is ${ord(rankOf('Even Step'))} of the ${word(LGall.length)}, on ${f1(total('Even Step'))}, just ahead of Closing Time (${f1(total('Closing Time'))}); Short Run is ${ord(rankOf('Short Run'))} and In Step ${ord(rankOf('In Step'))}. Weighted as it was before, In Step led, under a point ahead of Even Step (${f1(totalIn(LO, 'In Step'))} against ${f1(totalIn(LO, 'Even Step'))}). So choose by what matters here:</p>
+  <p class="lead" style="margin-top:8px"><b>But it is a judgement.</b> In the pack’s weighted league (the owner’s weights, which count long earlies and the closing shift since 31&nbsp;Oct 2026) Even Step is ${ord(rankOf('Even Step'))} of the ${word(LGall.length)}, on ${f1(total('Even Step'))}, just ahead of Closing Time (${f1(total('Closing Time'))}); Short Run is ${ord(rankOf('Short Run'))} and In Step ${ord(rankOf('In Step'))}. Weighted as it was before, In Step led, under a point ahead of Even Step (${f1(totalIn(LO, 'In Step'))} against ${f1(totalIn(LO, 'Even Step'))}). So choose by what matters here:</p>
   <ul class="list">
     <li><b>Choose Even Step</b> if avoiding long days, Monday to Saturday, matters most — for lates near today’s ${hm(lateAvg(TF))}, a slightly weaker weekday fit and a ${hm(Math.round(EF.step))} change of start.</li>
     <li><b>Choose In Step</b> if, on the same weeks, short lates matter more than short earlies — for ${longEarlyMS(IF)} earlies a year each over 8h&nbsp;30m.</li>
-    <li><b>Choose Short Run</b> if the weekday fit and short weekday lates matter most — for ${an(hm(SF.closers[1]))} Saturday closer, ${an(hm(SF.heavy))} Mon–Sat week, no 13:45 and ${longEarlyMS(SF)} earlies a year each over 8h&nbsp;30m.</li>
+    <li><b>Choose Short Run</b> if the weekday fit and short weekday lates matter most — for ${an(hm(SF.closers[1]))} Saturday closer, a heaviest week of ${hm(SF.heavy)}, no 13:45 and ${longEarlyMS(SF)} earlies a year each over 8h&nbsp;30m.</li>
   </ul>
-  <div class="foot"><span>Page 2 of 2 — against today, the shared costs, the recommendation</span><span><b>The shortlist</b> · ${D.map(d => `<span class="nw">${esc(d.name)} ${d.code}</span>`).join(' · ')} · <span class="nw">${DATE}</span></span></div>
+  <div class="foot"><span>Page 2 of 2 — Against today, the shared costs, the recommendation</span><span><b>The shortlist</b> · ${esc(list(D.map(d => d.name)))} · Marylebone Roster — Links designer</span></div>
 </section>
 </body></html>`;
 // a label never ends on a lone word: the last space of a plain-text cell becomes a no-break space
-const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace(/ (\S+)$/, '\u00a0$1')}</td>`);
+const tidy = h => h.replace(/<td>([^<]{24,})<\/td>/g, (m, t) => `<td>${t.replace(/ (\S+)$/, '\u00a0$1')}</td>`)
+  // a figure keeps what it belongs to, as on the sheets (pack polish, 1 Nov 2026): "18 of / 21", "40 / a year", "(30 / on a Sunday)"
+  .replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (m, keep, txt) => keep ?? txt
+    .replace(/\b(\d+) (to|in|of) (\d+)\b/g, '$1\u00a0$2\u00a0$3').replace(/\b(\d+) a year\b/g, '$1\u00a0a\u00a0year')
+    .replace(/\b(today|Sun|Sat) (?=\d)/g, '$1\u00a0'));
 const htmlOut = new URL('links-26-shortlist.html', import.meta.url).pathname; const htmlTidy = tidy(html); writeFileSync(htmlOut, htmlTidy);   // beside the tooling, gitignored
 const b = await chromium.launch(); const pg = await b.newPage();
 await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
@@ -494,7 +503,7 @@ await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready
   const over = await pg.evaluate(() => [...document.querySelectorAll('.page')].map((p, i) => { const foot = p.querySelector('.foot');
     const lim = foot ? foot.getBoundingClientRect().top : p.getBoundingClientRect().bottom;
     const low = Math.max(...[...p.children].filter(c => c !== foot).map(c => c.getBoundingClientRect().bottom));
-    return [i + 1, Math.round(Math.max(low - lim, p.scrollHeight - p.clientHeight))]; }).filter(([, d]) => d > 1));
+    return [i + 1, Math.round(Math.max(low - lim, p.scrollHeight - p.clientHeight, p.scrollWidth - p.clientWidth))]; }).filter(([, d]) => d > 1));   // and nothing wider than the page
   if (over.length) throw new Error(`content runs into the footer or off the page (page, px): ${JSON.stringify(over)}`); }
 await pg.pdf({ path: OUT, format: 'A4', printBackground: true, preferCSSPageSize: true });
 await b.close(); console.log('wrote', OUT);

@@ -749,8 +749,8 @@ section.page.rota-tighter .print-grid .shift-cell { height: 18px; } section.page
 table.p5t { width: 100%; margin: 0; }
 /* page 1: one style for the four labels in the proposal box (two were bold caps, two regular with wider tracking) */
 .cover.plain .ident-row.ident-minor .ident-k { font-size: 8.5px; font-weight: 800; letter-spacing: .4px; color: var(--text-light); } .cover.plain .ident-row { grid-template-columns: 70px 1fr; }
-/* page 1: a card is as tall as its own content — a two-line tile beside a four-line one, a three-item list beside a six */
-.cover.plain .tiles.head4 { align-items: start; } .cover.plain .pcols { align-items: start; }
+/* page 1: a card WAS as tall as its own content here (a two-line tile beside a four-line one, a three-item list beside a six).
+   The pack polish below reverses that and says why; the rule is gone rather than left to be overridden. */
 /* page 2: the longest page — the mast's sub-line is two lines (worded for it), the closing-shift triples are one unit each,
    and the two figure columns are a touch wider for them. The floor between the last row and the footer is 24px.
    MEASURED ON ALL THIRTEEN SHEETS (30 Oct 2026): at 17% today's triple ran 5px into its cell's padding and all but touched
@@ -789,6 +789,46 @@ table.t.rules td { padding: 4px 8px; line-height: 1.38; }
 .tboxes { margin: 10px 0 5px; } .tbox { padding: 8px 11px; } .tbox ul { line-height: 1.4; } .tbox p { margin-bottom: 3px; }
 .pcard { padding: 6px 11px; margin-bottom: 6px; } .pcard p { font-size: 9.6px; line-height: 1.4; } h2.pmh { margin: 10px 0 4px; }
 p.pimport { margin-top: 6px; }
+/* THE PACK POLISH (1 Nov 2026, owner: "aesthetic polish and aesthetic consistency polish the entire pack", read from
+   screenshots of all 120 pages). Geometry, alignment and colour only; no figure and no word changes here.
+   · Page 1's four tiles and its two staff boxes run the full height of their row. The third pass (4 Oct) let each card
+     size to its own text; side by side that left four tile bottoms and two box bottoms at different heights, the most
+     visible untidiness on the page. Page 6's limit cards keep sizing to their text: one holds a paragraph, the other two
+     a line each, and stretched they would be two-thirds empty.
+   · Page 4's new times sit three to a row under the three figures above them, the last row short rather than stretched.
+   · Page 4's shift-time table: both column groups read from the left under their headings (the proposal's counts were
+     already left-set, under right-set headings), the headings never wrap, and a changed cell keeps its row's stripe.
+   · Page 7's columns have set widths, so the table sits the same on all fifteen sheets (one design's long text pushed
+     them). Widths, NOT a fixed layout: fixed, one cell's words ran past its column, the document grew wider than the
+     page and Chromium printed all eight pages shrunk, with a stray rule under every footer (render.mjs now refuses that).
+   · A tick, cross or dot that leads a cell hangs, so a second line starts under the words, not under the mark.
+   · Every section heading is one size; red means only a rule or limit broken ("For discussion" was red); one green
+     tint per column on page 2 (it alternated with the stripe); a tile's question never ends on a lone word; and the
+     words in a figures cell ("one-turn weeks", "3-day") keep ordinary spacing, not tabular figures' wide hyphen. */
+.cover.plain .tiles.head4 { align-items: stretch; } .cover.plain .pcols { align-items: stretch; }
+.cover.plain .head4 .tile .q { text-wrap: balance; } .mast .sub { text-wrap: pretty; }
+.p4new { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px 10px; } .p4new > .p4t { flex: none; }
+table.dutyt th.num, table.dutyt td.num { text-align: left; } table.dutyt th { white-space: nowrap; }
+table.t.dutyt tbody tr:nth-child(even) td.chg { background-color: color-mix(in srgb, var(--surface-sunken) 60%, white) !important; }
+table.ff th:nth-child(1) { width: 44%; } table.ff th:nth-child(2) { width: 23%; } table.ff th:nth-child(3) { width: 33%; }
+table.ff td.ff-st { padding-left: calc(6px + 1.1em); text-indent: -1.1em; }
+table.t.rules td:has(> .mk:first-child) { padding-left: calc(8px + 1.05em); text-indent: -1.05em; }
+/* text-indent is INHERITED, and the mark is an inline-block, so without this its glyph took the cell's -1.05em a second
+   time and hung a further em into the padding, far from its words (the regression check, 1 Nov). The rules sheet's mark
+   has carried the same reset since it was written. */
+.mk { text-indent: 0; }
+/* and the same hang for the status line under each limit card's figure, which also leads with its mark */
+.hl-l { padding-left: 1.05em; text-indent: -1.05em; }
+h2.pmh, .p5 h2.p5gtk, h2.p5gtk { font-size: 14px; }
+.cover.plain .pcaveat b { color: var(--primary-blue); }
+table.pcmp td.up, table.pcmp tbody tr:nth-child(even) td.up { background-color: color-mix(in srgb, var(--success-green) 12%, white); }
+table.pcmp td.down, table.pcmp tbody tr:nth-child(even) td.down { background-color: color-mix(in srgb, var(--warning-amber) 16%, white); }
+.cov-sub, .p4shape2 table.p4shape td { font-variant-numeric: normal; }
+/* the colour keys in the navy headers of pages 2 and 7: each mark on a white chip in the colour it names */
+.mast .lgk { display: inline-block; min-width: 1.3em; padding: 0 .12em; border-radius: 4px; background: #fff; text-align: center; font-weight: 800; line-height: 1.3; text-indent: 0; }
+.mast .lgk-ok { color: var(--success-green); } .mast .lgk-warn { color: var(--warning-amber); } .mast .lgk-no { color: var(--danger-red, #b3261e); } .mast .lgk-st { color: var(--text-mid); }
+/* page 8: the closing note about the import file sat 2mm above the footer rule; the cards and headings give back 10px */
+.tboxes { margin: 8px 0 4px; } .pcard { margin-bottom: 5px; } h2.pmh { margin: 8px 0 4px; }
 `;
 
 /** Page 5, people on duty hour by hour (owner, 29 Sep 2026: "the table wording is a little confusing"). The tables and
@@ -1071,8 +1111,17 @@ export function plainEdition(html, ctx) {
     .replace(/<span class="muted">\(page 7\)<\/span>/g, '<span class="muted">(page 6)</span>');   // the rules page is page 6 here
   if (!coverHead) throw new Error('plainEdition: no cover head on page 1 of the technical sheet');
   let out = head.replace('</style>', CSS + '</style>') + front({ ...ctx, pages, coverHead }) + appendix.join('') + methodPage({ ...ctx, pages }) + tail;
-  // the rules table's ticks and crosses, in the colour they mean
-  out = out.replace(/<table class="t rules">[\s\S]*?<\/table>/, t => t.replace(/<td( class="today-v")?>(✓|✕|○)/g, (m, c, k) => `<td${c ?? ''}><span class="mk mk-${k === '✓' ? 'ok' : k === '✕' ? 'no' : 'wv'}">${k}</span>`));
+  // THE KEYS SHOW THEIR COLOURS (pack polish, 1 Nov 2026). Pages 2 and 7 explain green, amber and red in their navy headers,
+  // where every mark was white: the reader was told the colours and never shown them. Each mark sits on a small white
+  // chip in its own colour, held to its word, and both keys bold the word, not the mark (page 7 bolded the mark alone).
+  const KEYS = [['<b>✓ green</b>', '<b><span class="lgk lgk-ok">✓</span>&nbsp;green</b>'], ['<b>▲ amber</b>', '<b><span class="lgk lgk-warn">▲</span>&nbsp;amber</b>'],
+    ['<b>✕ red</b>', '<b><span class="lgk lgk-no">✕</span>&nbsp;red</b>'], ['<b>⚠</b> present', '<span class="lgk lgk-warn">⚠</span>&nbsp;<b>present</b>'],
+    ['<b>✓</b> clear', '<span class="lgk lgk-ok">✓</span>&nbsp;<b>clear</b>'], ['<b>●</b> standing', '<span class="lgk lgk-st">●</span>&nbsp;<b>standing</b>']];
+  for (const [from, to] of KEYS) { if (!out.includes(from)) throw new Error(`plainEdition: the colour key no longer reads ${from}`); out = out.split(from).join(to); }
+  // the rules table's ticks and crosses, in the colour they mean. The space after the mark goes (pack polish): the mark's
+  // own 1.05em box is the gap, and a hanging second line starts exactly that far in, under the first word. With the space
+  // kept, every wrapped cell started its second line one space to the left of its first.
+  out = out.replace(/<table class="t rules">[\s\S]*?<\/table>/, t => t.replace(/<td( class="today-v")?>(✓|✕|○) ?/g, (m, c, k) => `<td${c ?? ''}><span class="mk mk-${k === '✓' ? 'ok' : k === '✕' ? 'no' : 'wv'}">${k}</span>`));
   // ONE WAY OF WRITING A LENGTH OF TIME (owner, 30 Sep 2026). Page 2 wrote "13h35" and page 6 "13h 35m" for the same
   // figure, and "13h35" also reads as a clock time. Every duration on every page is "13h 35m"; clock times keep their
   // colon (13:35), so the two can no longer be confused. Text only — never inside a tag or the stylesheet.
@@ -1086,7 +1135,21 @@ export function plainEdition(html, ctx) {
     .replace(/ · /g, '&nbsp;· ').replace(/\b(\d\d:\d\d)-(\d\d:\d\d)\b/g, '$1–$2')
     // THIRD POLISH PASS (4 Oct 2026): a dash, like a dot, ends a line and never starts one; a fraction in words ("two-fifths")
     // keeps its hyphen on one line (a word joiner — invisible, and no glyph for the font to lack)
-    .replace(/ — /g, '&nbsp;— ').replace(/\b(two|three|four|nine)-(fifths|thirds|quarters|tenths)\b/g, '$1-\u2060$2')}`);
+    .replace(/ — /g, '&nbsp;— ').replace(/\b(two|three|four|nine)-(fifths|thirds|quarters|tenths)\b/g, '$1-\u2060$2')
+    // THE PACK POLISH (1 Nov 2026): a figure keeps what it belongs to. A line never ends on "(today", "limit" or a day
+    // name with its figure on the next ("(today / 52.0)", "Fri / 07:15–15:45"), never splits a count from its unit
+    // ("7 in 26 / weeks", "44,100 / minutes", "46 a / year"), a range ("30 / to 45"), a date ("1 / October") or "= 44,100".
+    // A short bracket is one unit. Each rule binds two to four words, so no line is left too long to wrap.
+    .replace(/\((today|limit)( [^()<]{1,14})\)/g, (m, k, r) => `(${k}${r.replace(/ /g, '&nbsp;')})`)
+    .replace(/\b(today|limit|Mon|Tue|Wed|Thu|Fri|Sat|Sun) (?=[\d(])/g, '$1&nbsp;')
+    .replace(/\b(Mon–Fri|Mon–Sat|Sat|Sun) (yes|no)\b/g, '$1&nbsp;$2')
+    .replace(/\b(\d+) (to|in|of) (\d+)\b/g, '$1&nbsp;$2&nbsp;$3')
+    // a unit joins its number only where the number stands alone: chained onto a range ("7 in 26 weeks", "30 to 60 minutes")
+    // the unbreakable run grew long enough to push whole words down a line, and page 1's boxes grew into the footer
+    .replace(/(?<!\b(?:to|in|of)(?: |&nbsp;))\b(\d[\d,.]*) (minutes|weeks|days|hours|lines|weekends)\b/g, '$1&nbsp;$2')
+    .replace(/\b(\d+) a year\b/g, '$1&nbsp;a&nbsp;year')
+    .replace(/\b(\d{1,2}) (January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b/g, '$1&nbsp;$2')
+    .replace(/ = (?=\d)/g, ' =&nbsp;')}`);
   // ORPHANS (4 Oct 2026): a plain-text table cell or list item — no tags inside it, and long enough to wrap — never ends on a
   // lone short word ("to Friday", "— people", "(today 7)"): its last space is a no-break space. A cell with markup is left alone.
   out = out.replace(/<(td|li)(\s[^>]*)?>([^<]{25,})<\/\1>/g, (m, tag, attrs, txt) => { const i = txt.lastIndexOf(' ');
@@ -1095,6 +1158,8 @@ export function plainEdition(html, ctx) {
   // sheet. Each range sits in a no-wrap span — not a word joiner, as the fractions have, because a range is what a reader
   // searches for or copies, and an invisible character inside it would stop "06:20–14:20" matching. Text only, after the
   // orphan pass above (which leaves a cell with markup alone), and never in the stylesheet or the title.
-  out = out.replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (m, keep, txt) => keep ?? txt.replace(/\b\d\d:\d\d–\d\d:\d\d\b/g, '<span class="rng">$&</span>'));
+  out = out.replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (m, keep, txt) => keep ?? txt.replace(/\b\d\d:\d\d–\d\d:\d\d\b/g, '<span class="rng">$&</span>')
+    // and a day range ("Mon– / Sat", "MON– / FRI" in a heading) is one unit too (pack polish, 1 Nov 2026)
+    .replace(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)–(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b/g, '<span class="rng">$&</span>'));
   return out;
 }
