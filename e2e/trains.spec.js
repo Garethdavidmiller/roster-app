@@ -36,7 +36,7 @@ test.describe('trains', () => {
 
         await expect(page.locator('#trCountdown')).toHaveText('67 days to go');
         // One real weekday (v24.83): 146 counted today's Mondays-and-Fridays 17:37 beside its 17:33 twin.
-        await expect(page.locator('#trTotals')).toContainText('weekdays 145 → 158');
+        await expect(page.locator('#trTotals')).toContainText('Weekdays 145 → 158');
         await expect(page.locator('[data-day="SX"]')).toHaveAttribute('aria-pressed', 'true');
         // Chiltern's books say nothing about Christmas, so the page says it cannot answer for it.
         await expect(page.locator('#trFestive')).toBeVisible();
