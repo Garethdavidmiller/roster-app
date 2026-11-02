@@ -37,7 +37,7 @@ mock.module('./claim-retry.js', { namedExports: { watchIdentityLoss: (/** @type 
 mock.module('./nav-panel.js', { namedExports: { resetNavPanel: () => log.push('resetNavPanel') } });
 let lastConfirm = '';
 let inFlight = 0;
-mock.module('./overlay.js', { namedExports: { confirmDialog: async (/** @type {any} */ o) => { log.push('confirm'); lastConfirm = o.message; return confirmAnswer; } } });
+mock.module('./overlay.js', { namedExports: { confirmDialog: async (/** @type {any} */ o) => { log.push('confirm'); lastConfirm = o.message; return confirmAnswer; }, whenHistorySettled: (/** @type {() => void} */ fn) => fn() } });
 mock.module('./slow-save.js', { namedExports: { writesInFlight: () => inFlight } });
 mock.module('./login-overlay.js', { namedExports: { initLoginOverlay: (/** @type {any} */ o) => log.push(`login:${o.pageLabel}`) } });
 

@@ -479,8 +479,11 @@ export function init() {
                     focusGradeFilter();
                 } catch (e) {
                     console.error('[AccountStatus] email save failed', e);
-                    errorEl.textContent = 'Couldn\'t save — check your connection and try again';
-                    saveBtn.disabled = false; saveBtn.textContent = 'Save';
+                    // An UNKNOWN outcome says so and Save stays off — a second save would only be refused by
+                    // the gate (AUTH_AND_SESSIONS 21/22; the reset-requests Clear already did, v25.06).
+                    const unknown = unconfirmedWriteLine(e, 'this save', 'this list');
+                    errorEl.textContent = unknown || 'Couldn\'t save — check your connection and try again';
+                    saveBtn.disabled = !!unknown; saveBtn.textContent = 'Save';
                 }
             });
 
@@ -508,7 +511,13 @@ export function init() {
                 focusGradeFilter();
             } catch (e) {
                 console.error('[AccountStatus] email remove failed', e);
-                removeBtn.disabled = false; removeBtn.dataset.confirm = ''; removeBtn.textContent = 'Remove';
+                // It used to fail SILENTLY — the button just came back. Now it says which kind (v25.06).
+                const unknown = unconfirmedWriteLine(e, 'this removal', 'this list');
+                removeBtn.disabled = !!unknown; removeBtn.dataset.confirm = ''; removeBtn.textContent = 'Remove';
+                const msg = Object.assign(document.createElement('span'), { className: 'email-set-error', textContent: unknown || 'Couldn’t remove — check your connection and try again' });
+                msg.setAttribute('role', 'alert');
+                removeBtn.closest('.acct-row')?.querySelector('.email-set-error')?.remove();
+                removeBtn.closest('.acct-row')?.append(msg);
             }
         }
 
@@ -851,7 +860,7 @@ export function init() {
     // ============================================
     // ERROR LOG CARD
     // ============================================
-    initErrorLog({ onAttention: (n, extra) => attention.report('errors', n, extra) });
+    initErrorLog({ onAttention: (n, extra) => attention.report('errors', n, extra), onWithdraw: () => attention.withdraw('errors') });
     initUsageCard();
     initPageSpeedCard();
 

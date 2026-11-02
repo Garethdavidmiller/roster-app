@@ -123,6 +123,19 @@ describe('summarisePerfBy — WHY a page is slow, not just that it is', () => {
     // The dimensions were written into every key from the start and thrown away at read time, so
     // the card could say the Calendar was the slowest page and nothing about who it was slow for.
 
+    test('a written `__proto__` dimension is a row, not a write to Object.prototype (v25.06)', () => {
+        // Sample keys are writable by any signed-in session. It used to set Object.prototype.quick on
+        // the admin's page — and drop its row while counting it in the total.
+        const s = dimSamples([
+            ['calendar', 'lt500ms', 'standalone', '4g', 2],
+            ['calendar', 'lt500ms', 'browser', '__proto__', 3],
+        ]);
+        const r = summarisePerfBy(s, { page: 'calendar', dimension: 'conn' });
+        assert.equal(/** @type {any} */ ({}).quick, undefined, 'Object.prototype must be untouched');
+        assert.equal(r.rows.reduce((a, x) => a + x.total, 0), r.total, 'the rows must add up to the total');
+        assert.equal(r.total, 5);
+    });
+
     test('splits ONE page by connection, and leaves other pages out of it', () => {
         const s = dimSamples([
             ['calendar', 'lt500ms', 'standalone', '4g', 10],

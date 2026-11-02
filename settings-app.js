@@ -817,7 +817,13 @@ function captureInstallOffer() {
     // The Pages mirror is refused below; leave Chrome's own infobar alone there.
     if (/github\.io$/i.test(window.location.hostname)) return offer;
     window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();          // keep it; without this Chrome shows its own mini-infobar instead
+        // Chrome's own mini-infobar is suppressed only for a member ALREADY signed in, for whom the
+        // Device card is about to offer the install instead (v25.06, whole-app review). The card is
+        // wired only after sign-in, so suppressing it for a signed-out visitor took Chrome's offer
+        // away and put nothing in its place — "strictly worse than nothing" (install-prompt.js).
+        // The event is KEPT either way: an in-place sign-in still gets its install row (Sep 2026),
+        // and `prompt()` works on an event whose default was not prevented.
+        if (getSession()) e.preventDefault();
         offer.event = e;
         offer.onChange?.();
     });

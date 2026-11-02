@@ -283,6 +283,9 @@ export const addDoc = (/** @type {any} */ ref, /** @type {any} */ data) => {
 export const setDoc = (/** @type {any} */ ref, /** @type {any} */ data, /** @type {any} */ opts) => {
   const e2e = globalThis.__E2E || (globalThis.__E2E = {});
   e2e.setWrites = e2e.setWrites || [];
+  // __E2E.failSetCode makes every setDoc REJECT with that code, unrecorded (v25.06) — the deleteDoc
+  // seam's twin, for a set whose outcome is unknown (auth/signed-out-during-request).
+  if (e2e.failSetCode) return Promise.reject(Object.assign(new Error('e2e set refused'), { code: e2e.failSetCode }));
   e2e.setWrites.push({ path: (ref && ref.path) || '', data, merge: !!(opts && opts.merge) });
   return Promise.resolve();
 };

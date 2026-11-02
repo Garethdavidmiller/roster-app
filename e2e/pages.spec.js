@@ -2315,6 +2315,37 @@ async function openAdminOnDecember(page) {
     await expect(page.locator('#weekNavLabel')).toContainText('Dec 2026');
 }
 
+// THE DIALOG OVER THE DRAWER OWNS THE KEYBOARD (v25.06, whole-app review). The drawer's own keydown
+// handler had no topmost check, so with "Leave this page anyway?" open over it, Tab dragged focus into
+// the drawer behind the modal and a single Escape closed BOTH — two surfaces, two history steps.
+test('admin: with the leave question open over the drawer, Tab stays in it and Escape closes only it', async ({ page }) => {
+    await openAdminOnDecember(page);
+    const row = page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="shift"]:not([disabled])') }).first();
+    await clickInView(row.locator('.type-pill-btn[data-type="shift"]'));
+    await row.locator('.day-start').fill('06:00');
+    await row.locator('.day-end').fill('14:00');
+    await page.locator('#navMenuBtn').click();
+    await page.locator('.nav-panel-pill--calendar').click();
+    await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeVisible();
+    for (let i = 0; i < 3; i++) {
+        await page.keyboard.press('Tab');
+        expect(await page.evaluate(() => !!document.activeElement?.closest('.dialog-overlay')), 'Tab must stay inside the dialog').toBe(true);
+    }
+    await page.keyboard.press('Escape');
+    await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeHidden();
+    await expect(page.locator('#navPanel'), 'one Escape closes the topmost surface only').toHaveClass(/open/);
+    await expect(page).toHaveURL(/admin\.html/);
+    // A hardware Back is the same rule: it closes the dialog, not the drawer beneath it.
+    await page.waitForTimeout(400);
+    await page.locator('.nav-panel-pill--calendar').click();
+    await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeVisible();
+    await page.waitForTimeout(400);
+    await page.evaluate(() => history.back());
+    await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeHidden();
+    await expect(page.locator('#navPanel'), 'Back closes the topmost surface only').toHaveClass(/open/);
+    await expect(page).toHaveURL(/admin\.html/);
+});
+
 test('admin: a drawer pill or the logo asks before leaving staged edits', async ({ page }) => {
     await openAdminOnDecember(page);
     const row = page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="shift"]:not([disabled])') }).first();
@@ -4439,6 +4470,48 @@ for (const [code, line, staysOff] of [
     });
 }
 
+// ── THE WORK-EMAIL SAVE AND REMOVE SAY WHICH KIND OF FAILURE (v25.06, whole-app review) ─────────
+// Both go through writeWithClaimRetry, but their error handling ignored an UNKNOWN outcome: Save said
+// "check your connection" and re-armed (the gate then refused every later write, still blaming the
+// connection), and Remove failed silently — the button simply came back.
+for (const [code, line, staysOff] of [
+    ['unavailable', /Couldn.t save — check your connection/, false],
+    ['auth/signed-out-during-request', /signed out before this save was confirmed/, true],
+]) {
+    test(`operations account status: a failed work-email Save (${code}) says which kind`, async ({ page }) => {
+        await page.addInitScript((c) => {
+            const w = /** @type {any} */ (window);
+            w.__E2E = { authUser: true, failSetCode: c, docs: [], docsByPath: { staffContact: [], passwordStatus: [], resetRequests: [] } };
+        }, code);
+        await seedSession(page, 'G. Miller');
+        await page.goto('/operations.html');
+        await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+        const row = page.locator('.acct-row').first();
+        await row.locator('.email-set-btn').first().click();
+        await row.locator('.email-set-form input').fill('test.person@chilternrailways.co.uk');
+        await row.locator('.email-set-save').click();
+        await expect(row.locator('.email-set-error')).toHaveText(line);
+        if (staysOff) await expect(row.locator('.email-set-save')).toBeDisabled();
+        else await expect(row.locator('.email-set-save')).toBeEnabled();
+    });
+}
+
+test('operations account status: a work-email Remove of unknown outcome says so, and stays off', async ({ page }) => {
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { authUser: true, failDeleteCode: 'auth/signed-out-during-request', docs: [],
+            docsByPath: { staffContact: [{ id: 'A. Hared', memberName: 'A. Hared', workEmail: 'a.hared@chilternrailways.co.uk' }], passwordStatus: [], resetRequests: [] } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    const remove = page.locator('.email-set-btn--remove').first();
+    await remove.click();          // arms ("Confirm?")
+    await remove.click();          // removes
+    await expect(page.locator('.acct-row .email-set-error').first()).toHaveText(/signed out before this removal was confirmed/);
+    await expect(remove).toBeDisabled();
+});
+
 test('operations reset requests: a Clear that fails AFTER the list was redrawn reports on the row now shown', async ({ page }) => {
     // The list re-renders on a notification tap (#reset-requests) or a queued reload. The failure
     // used to be appended to the row that had been replaced — off the page, so nobody saw it.
@@ -4497,6 +4570,23 @@ test('operations attention: resolving every error clears the strip, not just the
     // The chip and the strip are two voices for one fact. With `opts` dropped the strip kept
     // "Unresolved errors 2" over a card saying there are none.
     await expect(strip).not.toContainText('Unresolved errors');
+});
+
+test('operations attention: a refresh that FAILS withdraws the strip item, as it clears the chip (v25.06)', async ({ page }) => {
+    await page.addInitScript((rows) => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { authUser: true, docs: rows };
+    }, ATTN_ERRS);
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html#error-log');
+    const strip = page.locator('#attentionStrip');
+    await expect(strip).toContainText('Unresolved errors');
+    // Resolve-all succeeds… and the in-place refresh that follows cannot read.
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.failGetDocs = true; });
+    await page.locator('.error-resolve-all-btn').click();
+    await expect(page.locator('#errorLogContent')).toContainText("Couldn't load error log");
+    await expect(page.locator('#errorLogCountChip')).toHaveText('');
+    await expect(strip, 'an unknown count is not still "2 unresolved errors" above a failed panel').not.toContainText('Unresolved errors');
 });
 
 test('operations attention: a retry after a failed load still reaches the strip', async ({ page }) => {

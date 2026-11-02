@@ -387,7 +387,12 @@ service cloud.firestore {
       // Delete mirrors the same three-tier STRICT check against the EXISTING doc's
       // memberName (request.resource is null on delete). Previously any authenticated user
       // could delete any override — isolation on writes is moot without it.
+      // A MEMBER MAY DELETE A DOCUMENT THAT IS ALREADY GONE (v25.06, whole-app review) — a no-op. A
+      // member's replace deletes ids from their CACHED overrides, and a manager may have deleted one
+      // a moment earlier: `resource` is then null, `resource.data` errored, and the WHOLE batch —
+      // the member's own save included — was refused. Admin and manager already passed.
       allow delete: if request.auth != null && (
+        (resource == null && memberName() != null) ||
         memberName() == resource.data.memberName ||
         request.auth.token.admin == true ||
         request.auth.token.manager == true

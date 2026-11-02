@@ -764,6 +764,20 @@ test('a VIEWER gets the footer for Lock Calendar — but still no bell', async (
     await expect(page.locator('#navNotifBell')).toHaveCount(0);
 });
 
+// A SESSION WHOSE ACCOUNT HAS GONE GETS NO BELL (v25.06, whole-app review). The footer is there (the
+// session is), but a subscription write would be refused by the rules — the tap used to subscribe the
+// browser, fail, and flip the bell back to off with no word to say why.
+test('a session whose account has gone keeps its footer — but gets no bell', async ({ page }) => {
+    await seedSession(page, 'G. Miller');           // the local session only: no Firebase identity
+    await page.goto('/index.html');
+    await expect(page.locator('#calLockWho')).toContainText('G. Miller');   // the member card: auth has settled
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navSignOutBtn')).toBeVisible();
+    const pushCapable = await page.evaluate(() => 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window);
+    test.skip(!pushCapable, 'no Web Push in this browser, so no bell either way');
+    await expect(page.locator('#navNotifBell')).toBeHidden();
+});
+
 test('a signed-in member keeps the full footer — name, bell and sign out', async ({ page }) => {
     // Guard the guard. Both assertions above are absences, and a footer that never rendered for
     // anybody would satisfy them.
@@ -787,6 +801,7 @@ test('a signed-in member keeps the full footer — name, bell and sign out', asy
     const pushCapable = await page.evaluate(() =>
         'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window);
     await expect(page.locator('#navNotifBell')).toHaveCount(pushCapable ? 1 : 0);
+    if (pushCapable) await expect(page.locator('#navNotifBell'), 'a member with an account gets a working bell').toBeVisible();
     // Either way the footer is INTACT — which is what this test is guarding. A missing bell is a
     // capability the browser lacks; a missing name or sign-out would be a broken footer.
     await expect(page.locator('.nav-panel-footer')).toBeVisible();

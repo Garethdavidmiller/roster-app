@@ -528,6 +528,15 @@ describe('overrides — per-member isolation (STRICT, B3)', () => {
         await setDoc(doc(adminDb(), 'overrides', id), OWN('G. Miller'));
         await assertFails(deleteDoc(doc(namedDb('S. Boyle'), 'overrides', id)));
     });
+    test('named staff CAN delete an override that is already gone — a no-op (v25.06)', async () => {
+        // The replace path deletes ids from the member's cached overrides; a manager may have deleted
+        // one a moment earlier, and the null `resource` used to refuse the member's whole save.
+        await assertSucceeds(deleteDoc(doc(namedDb('S. Boyle'), 'overrides', uid())));
+    });
+    test('a session with no member name still CANNOT delete, even a missing override', async () => {
+        await assertFails(deleteDoc(doc(anonDb(), 'overrides', uid())));
+        await assertFails(deleteDoc(doc(staffDb(), 'overrides', uid())));
+    });
     test('named staff CAN delete their OWN override', async () => {
         const id = uid();
         await setDoc(doc(namedDb('S. Boyle'), 'overrides', id), OWN('S. Boyle'));

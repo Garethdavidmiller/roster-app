@@ -79,15 +79,18 @@ export function printOrExplain({ print = () => window.print(), explain }) {
 /**
  * The app pages' explanation: the shared dialog, whose confirm is the one tap to Safari. Takes the
  * dialog as a parameter so this module stays import-free for the guides.
- * @param {(opts: { title?: string, message: string, confirmLabel?: string, cancelLabel?: string }) => Promise<boolean>} confirmDialog
+ * Safari opens from INSIDE the confirm tap (`onConfirm`), never after the await (v25.06, whole-app
+ * review): the dialog settles only after its close fade and Back echo, by which time the gesture
+ * `openInSafari` needs is spent and the open is pop-up-blocked — so "Open in Safari" did nothing.
+ * @param {(opts: { title?: string, message: string, confirmLabel?: string, cancelLabel?: string, onConfirm?: () => void }) => Promise<boolean>} confirmDialog
  * @returns {Promise<void>}
  */
 export async function explainNoPrint(confirmDialog) {
-    const go = await confirmDialog({
+    await confirmDialog({
         title: 'Printing isn’t available here',
         message: PRINT_UNAVAILABLE_TEXT,
         confirmLabel: OPEN_IN_SAFARI_LABEL,
         cancelLabel: 'Close',
+        onConfirm: () => openInSafari(),
     });
-    if (go) openInSafari();
 }

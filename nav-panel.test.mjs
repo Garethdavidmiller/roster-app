@@ -32,6 +32,7 @@ mock.module('./firebase-client.js', {
         // is the state the app ships in (no IAM grant), and is what these tests exercise — the
         // stored url must still open, exactly as it did before the endpoint existed.
         fetchSignedDocumentUrl: async () => null,
+        currentUserAfterBoot: async () => ({ uid: 'u1' }),   // the drawer bell asks (v25.06)
     },
 });
 mock.module('./notif.js', {
@@ -64,7 +65,7 @@ mock.module('./usage-reporter.js', {
     },
 });
 
-const { isNoticeExpired, archiveNotice, initNavPanel } = await import('./nav-panel.js');
+const { isNoticeExpired, archiveNotice, initNavPanel, resetNavPanel } = await import('./nav-panel.js');
 
 const NOTICES_KEY = 'myb_app_notices';
 const DAY = 86_400_000;
@@ -291,3 +292,25 @@ describe('sign-out releases the device push record only once the page commits', 
         assert.deepEqual(signOutLog, ['release', 'signout'], 'and signs out exactly once');
     });
 });
+
+describe('resetNavPanel consumes a live drawer entry (v25.06, whole-app review)', () => {
+    // It cleared the flag and left the entry, so after a relogin the member's next Back popped an
+    // entry nothing claimed — one press swallowed.
+    test('reset with the drawer OPEN pops its entry; with the drawer closed, nothing', () => {
+        /** The reset clone-replaces the burger; the fake element needs the two calls it makes. */
+        const resettable = () => Object.assign(/** @type {any} */ (document.getElementById('navMenuBtn')),
+            { cloneNode: () => ({ removeAttribute() {}, setAttribute() {} }), replaceWith() {} });
+        mountDrawer({ onSignOut: () => {} });
+        let backs = 0;
+        global.history = /** @type {any} */ ({ pushState() {}, back() { backs += 1; } });
+        resettable().on.click();   // opens: pushes the drawer's entry
+        resetNavPanel();
+        assert.equal(backs, 1, "the open drawer's entry is consumed");
+        mountDrawer({ onSignOut: () => {} });
+        global.history = /** @type {any} */ ({ pushState() {}, back() { backs += 1; } });
+        resettable();
+        resetNavPanel();
+        assert.equal(backs, 1, 'a closed drawer has no entry to consume');
+    });
+});
+

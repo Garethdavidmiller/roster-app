@@ -65,7 +65,7 @@ import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { watchIdentityLoss } from './claim-retry.js';
 import { resetNavPanel } from './nav-panel.js';
-import { confirmDialog } from './overlay.js';
+import { confirmDialog, whenHistorySettled } from './overlay.js';
 import { writesInFlight } from './slow-save.js';
 
 /** Set once a sign-out has been answered, so `warnOnUnload` does not ask a second time. */
@@ -226,7 +226,8 @@ export function guardNamedSession({ page, pageLabel, member, established, signIn
     const showSignIn = signIn ?? (() => import('./login-overlay.js')
         .then(({ initLoginOverlay }) => initLoginOverlay({ pageLabel, onSuccess: () => window.location.reload() }))
         .catch((err) => { console.error('[page-session] sign-in could not load:', err); window.location.reload(); }));
-    const relogin = () => { clearSession(); resetNavPanel(); showSignIn(); };
+    // The sign-in waits for the reset's history step to land (v25.06): it pushes an entry of its own.
+    const relogin = () => { clearSession(); resetNavPanel(); whenHistorySettled(showSignIn); };
     // NOTHING IS KNOWN YET, SO NOTHING IS TAKEN AWAY (v24.61, iOS audit B1). `pending` here means
     // Firebase's start-up stalled past its bound (`terminalAuthEvent`, session.js): the member has not
     // been refused, the network has not answered. Keep the local session and the drawer, show the

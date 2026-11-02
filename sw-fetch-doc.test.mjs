@@ -191,6 +191,26 @@ describe('service worker — a MISS answered by navigation preload (same-day bug
     });
 });
 
+describe('service worker — a preload that lands AFTER the 2 s race (v25.06, whole-app review)', () => {
+    test('still stores the worker\'s own fresh fetch, not nothing', async () => {
+        // The store fetch reused `freshReq`, whose signal the race had just aborted — so it rejected at
+        // once and the "a late one still refreshes the cache" promise in the header was not kept.
+        const { body, stores } = await navigate({
+            path: '/staff-guide.html',
+            cached: { './index.html': '<h1>cached roster</h1>' },
+            preload: after(250, () => ok('<h1>late preload</h1>')),
+            network: async (_req, signal) => {
+                if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
+                return ok('<h1>fresh guide</h1>');
+            },
+        });
+        assert.match(body, /cached roster/, 'the race serves the fallback');
+        await new Promise(r => setTimeout(r, 600));   // the preload lands, the store runs
+        const stored = await stores.get(CACHE)?.get(`${ORIGIN}/staff-guide.html`)?.clone().text();
+        assert.match(String(stored), /fresh guide/, 'the late answer must reach the cache for the next open');
+    });
+});
+
 describe('service worker — a MISS whose fresh fetch is not a page', () => {
     test('a 200 that is not HTML (an interstitial, a JSON error) is never stored under the page', async () => {
         const { stores, settle } = await navigate({

@@ -2883,6 +2883,9 @@ button.nav-panel-link--notices {
     flex-shrink: 0;
     -webkit-tap-highlight-color: transparent;
 }
+/* `display: inline-flex` out-specifies the UA [hidden] rule — the page-visibility-parity trap. The bell
+   is hidden while the account behind the session is gone (nav-panel.js → _refreshBell, v25.06). */
+.nav-panel-bell[hidden] { display: none; }
 .nav-panel-bell[data-notif-state="loading"] { opacity: 0.5; }
 .nav-panel-bell:disabled { cursor: default; opacity: 0.5; }
 @media (hover: hover) and (pointer: fine) {

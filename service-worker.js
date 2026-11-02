@@ -765,11 +765,12 @@ self.addEventListener("fetch", event => {
                 // ONLY ON A MISS (Oct 2026): over a held page the network copy is identical or the WRONG
                 // release (an HTTP-cached preload, or an old worker) — the JS/CSS branch argues it fully.
                 // …AND NEVER A PRELOAD ANSWER: it may be last release's page from the HTTP cache (Pages
-                // max-age), kept for the whole version. Serve the preload; STORE our own no-cache fetch.
+                // max-age), kept for the whole version. Serve the preload; STORE our own no-cache fetch — a
+                // NEW Request: `freshReq`'s signal is aborted when the preload lands after the 2s race (v25.06).
                 // Stored under the bare path (query stripped) — findCachedFallback matches ignoreSearch.
                 if (!cachedDoc && response && response.status === 200 && (!ct || ct.includes('text/html'))) {
                     const store = viaPreload
-                        ? fetch(freshReq).then(r => (r && r.status === 200 && /text\/html|^$/.test(r.headers.get('content-type') || '') ? r : null)).catch(() => null)
+                        ? fetch(new Request(event.request.url, { headers: event.request.headers, mode: 'same-origin', cache: 'no-cache' })).then(r => (r && r.status === 200 && /text\/html|^$/.test(r.headers.get('content-type') || '') ? r : null)).catch(() => null)
                         : Promise.resolve(response.clone());
                     event.waitUntil(store.then(r => r && openCache().then(c => c.put(url.origin + url.pathname, unredirect(r))))
                         .catch(err => console.warn(`[SW ${APP_VERSION}] cache.put failed (quota?):`, err)));

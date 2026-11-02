@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -2736,6 +2736,34 @@ test('drawer Circular: when no tab comes back, the in-app viewer opens and this 
     await expect(page.locator('#docViewerBody').getByRole('button', { name: /Open/ })).toBeVisible({ timeout: 10_000 });
     expect(page.url(), 'the page is still the app').not.toContain('firebasestorage');
     await expect(page.locator('#navPanel')).not.toHaveClass(/open/);
+});
+
+// THE SAME HAND-OVER FROM ADMIN ASKS ABOUT UNSAVED WORK FIRST (v25.06, whole-app review). It left by
+// `location.href`, which the drawer's unsaved-changes question does not watch — and on the iOS app,
+// where no tab comes back, no unload prompt exists either: staged rows went without a word.
+test('drawer Circular on Admin: when no tab comes back, staged edits are asked about before leaving', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true };
+        window.open = /** @type {any} */ (() => null);
+    });
+    await page.route('**/getDocumentUrl', route => route.fulfill({ contentType: 'application/json', body: signedFor('circulars/2026-09-25-a.pdf') }));
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const row = page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="shift"]:not([disabled])') }).first();
+    await clickInView(row.locator('.type-pill-btn[data-type="shift"]'));
+    await row.locator('.day-start').fill('06:00');
+    await row.locator('.day-end').fill('14:00');
+    await page.evaluate(([stored, path]) => {
+        /** @type {any} */ (window).__E2E.docs = [{ id: '2026-09-25', date: '2026-09-25', storageUrl: stored, fileType: 'pdf', storagePath: path }];
+    }, [DOC_STORED, 'circulars/2026-09-25-a.pdf']);
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel .nav-panel-link--circular').click();
+    await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page, 'Cancel must keep the page').toHaveURL(/admin\.html/);
+    await expect(row.locator('.day-start')).toHaveValue('06:00');
 });
 
 test('huddle: offline with nothing cached, a tap says it could not load — never "none uploaded"', async ({ page }) => {
