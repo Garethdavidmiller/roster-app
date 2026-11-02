@@ -97,13 +97,18 @@ export function submitDisposition(correctedNow, finalDeadlineAt) {
 }
 
 /**
- * True when a deadline is close enough that the page should re-read authoritative state.
+ * True when the page should re-read authoritative state: a deadline is near, OR one has PASSED
+ * since the state on screen was read. The window alone missed the case it was written for — a form
+ * opened at 11:50 and re-woken at 12:20 sat outside ±5 minutes and went on saying "open", Submit
+ * and all (whole-app review, Nov 2026). A crossing is what makes the screen stale, however long ago.
  * @param {number} correctedNow
  * @param {number[]} deadlines
+ * @param {number|null} [readAt]  when the state on screen was read (server time); null = unknown
  */
-export function shouldResyncClock(correctedNow, deadlines) {
+export function shouldResyncClock(correctedNow, deadlines, readAt = null) {
     return (deadlines || []).some(d =>
-        correctedNow > d - DEADLINE_SYNC_WINDOW_MS && correctedNow < d + DEADLINE_SYNC_WINDOW_MS);
+        (correctedNow > d - DEADLINE_SYNC_WINDOW_MS && correctedNow < d + DEADLINE_SYNC_WINDOW_MS)
+        || (readAt != null && readAt < d && d <= correctedNow));
 }
 
 /**

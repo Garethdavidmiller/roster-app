@@ -31,7 +31,7 @@ import { getSession, ensureNamedSession, sessionReady, resolveSession, reconcile
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { initCardCollapse } from './overlay.js';
-import { initAboutLightbox } from './about-lightbox.js';
+import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initPasswordForce } from './password-force.js';
@@ -96,7 +96,7 @@ function start(member) {
     // initAboutLightbox returns `{ open, close }`, not a function. Taking the object whole — as this page first did, copying
     // Trains — made the drawer's logo throw instead of opening About (found 2 Nov 2026).
     openAboutLightbox = initAboutLightbox({ appLabel: 'Marylebone Roster — December link', getUserName: () => member })?.open ?? null;
-    wireHeaderLogo();
+    wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js — the one wiring)
     const cards = Object.fromEntries(CARDS.map(id => [id, initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`)]));
 
     renderStatic();
@@ -209,20 +209,6 @@ function wireChoices(cards) {
         reveal(`${id}Card`);
         /** @type {HTMLElement|null} */ (el(`${id}Card`)?.querySelector('h2') ?? null)?.focus({ preventScroll: true });
     });
-}
-
-/**
- * The header logo goes back to the Calendar, as on Admin and Operations — its alt text has always said so (CLAUDE.md →
- * "Header logo = back to calendar on sub-pages"). Keyboard-operable: the logo is an image, so it is given a button's role.
- */
-function wireHeaderLogo() {
-    const icon = el('appIcon');
-    if (!icon) return;
-    icon.setAttribute('aria-label', 'Back to calendar');
-    icon.setAttribute('role', 'button');
-    icon.tabIndex = 0;
-    icon.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); icon.click(); } });
-    icon.addEventListener('click', () => { window.location.href = './'; });
 }
 
 /** The one line a screen reader hears when the choice of colleague changes. @param {string|null} persona */

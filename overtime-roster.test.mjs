@@ -55,6 +55,8 @@ import assert from 'node:assert/strict';
 let _docs = [];
 /** @type {null | Error} */
 let _readFails = null;
+/** When true, every snapshot says the device's cache answered it — the real SDK's offline shape. */
+let _fromCache = false;
 /** Every query actually ISSUED, constraints and all. */
 let _queries = [];
 
@@ -81,7 +83,8 @@ mock.module('./firebase-client.js', {
             _queries.push(q);
             if (_readFails) throw _readFails;
             const hits = _docs.filter(d => q.constraints.every(c => matches(c, d.data)));
-            return { forEach: (cb) => hits.forEach(d => cb({ id: d.id, data: () => d.data })) };
+            return { metadata: { fromCache: _fromCache },
+                forEach: (cb) => hits.forEach(d => cb({ id: d.id, data: () => d.data })) };
         },
     },
 });
@@ -103,7 +106,7 @@ const ov = (memberName, date, type, value) => ({
     data: { memberName, date, type, value },
 });
 
-beforeEach(() => { _docs = []; _readFails = null; _queries = []; });
+beforeEach(() => { _docs = []; _readFails = null; _fromCache = false; _queries = []; });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
 describe('a colleague\'s roster must never reach a member\'s device', () => {
@@ -181,6 +184,24 @@ describe('an unread roster is never presented as fact', () => {
 
     test('the reviewer\'s read fails the same way — a half-read week beside availability', async () => {
         _readFails = new Error('permission-denied');
+        const { knowledge, byMember } = await loadRosterForMembers([MEMBER, COLLEAGUE], DATES);
+        assert.equal(knowledge, 'error');
+        assert.deepEqual(byMember, {});
+    });
+
+    // Whole-app review, Nov 2026. With the persistent cache on, an unreachable server does not
+    // THROW — the device's cache answers, possibly with nothing for a week it never read. That is
+    // the swallowed failure above wearing a success: seven base-roster days with the leave missing.
+    test('a read the device\'s CACHE answered is `error` too, not the base roster as fact', async () => {
+        _docs = [ov(MEMBER, FRI, 'annual_leave', 'AL')];
+        _fromCache = true;
+        const { knowledge, byDate } = await loadRosterContext(MEMBER, DATES);
+        assert.equal(knowledge, 'error');
+        assert.deepEqual(byDate, {});
+    });
+
+    test('and the reviewer\'s, for the same reason', async () => {
+        _fromCache = true;
         const { knowledge, byMember } = await loadRosterForMembers([MEMBER, COLLEAGUE], DATES);
         assert.equal(knowledge, 'error');
         assert.deepEqual(byMember, {});

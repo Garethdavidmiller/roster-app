@@ -935,6 +935,27 @@ describe('the owed retry survives having nowhere to show it', () => {
 // primary interaction, so this was the COMMON case, not the exotic one — v19.10 fixed the rare half
 // of its own finding.
 
+describe('the loading chip survives a calendar re-render (v25.06)', () => {
+    // The renderer withholds its own "couldn't check" note while the first read runs, so this chip is
+    // the cached grid's only label during it. It was built by hand, outside the recorded state, so
+    // the first header rebuild — a swipe, or a cache paint landing after 800ms — took it away for good.
+    test('a header rebuild after 800ms puts "Updating your shifts…" back', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _fetchImpl = () => new Promise(() => {});   // the server read is still out
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        t.mock.timers.tick(800);
+        assert.equal(getSyncChip()?.textContent, '↻ Updating your shifts…', 'precondition: the loading chip shows');
+
+        rebuildHeader();
+        await flushAsync();
+
+        const chip = getSyncChip();
+        assert.ok(chip, 'the read is still running, so its label must still be on screen after a rebuild');
+        assert.equal(chip.textContent, '↻ Updating your shifts…');
+        assert.equal(chip.disabled, true, 'a loading chip is not a control');
+    });
+});
+
 describe('the retry survives a calendar re-render', () => {
     test('a header rebuild does not take the owed retry away', async () => {
         _fetchImpl = () => Promise.reject(new Error('offline'));

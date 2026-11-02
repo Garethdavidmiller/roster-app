@@ -14,7 +14,9 @@ import { _cardLoadError, _relativeTime } from './operations-reports.js';
 import { setStatus } from './status-text.js';
 import { isDiagnosticEntry } from './client-errors.js';
 /**
- * @param {{onAttention?: (count: number, extra: {truncated: boolean}) => void}} [opts]
+ * @param {{onAttention?: (count: number, extra: {truncated: boolean}) => void, onWithdraw?: () => void}} [opts]
+ *   `onWithdraw` (v25.06) — the count has become UNKNOWN (a refresh failed): the strip withdraws its
+ *   item, exactly as the header chip clears. It kept "3 unresolved errors" above a failed panel.
  *   `onAttention` feeds the Needs-attention strip — called at the SAME moments the header count
  *   chip is set, so the strip and the chip cannot disagree. Deliberately NOT called when the card
  *   load fails: the strip only claims what is known, and a reassuring zero from a failed read
@@ -233,6 +235,7 @@ async function initErrorLog(opts = {}) {
         // review fix; re-looked-up because _countChip is scoped inside the try).
         const _chip = document.getElementById('errorLogCountChip');
         if (_chip) _chip.textContent = '';
+        opts.onWithdraw?.();   // …and the strip with it — one fact, two voices (v25.06)
         _cardLoadError(content, 'Couldn\'t load error log — check your connection.', () => initErrorLog(opts));
     } finally {
         content.removeAttribute('aria-busy');

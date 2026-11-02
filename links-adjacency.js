@@ -49,9 +49,13 @@
  * 3000 sits one step inside the dominating plateau rather than on its edge. Safe to treat as a
  * constraint because excess 0 is ALWAYS reachable (the target is `floor(lines / spares)`) — a
  * dominating weight over an unreachable target sets the optimiser chasing a residual it can never
- * clear. Two tests guard it and neither replaces the other: one pins 3000 against all six switches
- * slipping a unit each, the other drives a real generated design through the real optimiser. The
+ * clear. Two tests guard it and neither replaces the other: one pins 3000 against every switch
+ * slipping a unit at once, the other drives a real generated design through the real optimiser. The
  * first is necessary and not sufficient — 1500 passes it while still leaving designs uneven.
+ *
+ * **Rest across the week boundary is a constraint too (v25.06 — it was a switch).** Minimum rest is
+ * a gate the generator applies BEFORE the reorder (v21.11), so a switch that let the reorder ignore
+ * it was a switch for undoing the gate. It is charged in every configuration and filtered on.
  *
  * **`variety` and `gentle` are opposite ends of ONE dial, and `variety` must stay on by default.**
  * Minimising the week-to-week step, taken to its limit, IS a long block of the same shift — the
@@ -75,16 +79,17 @@
  * and attempt 6's three starts all converged into minima that broke the spread. If all three fail,
  * the attempt falls back to attempt 0 and the status line says so.
  */
-import { DAYS, startMinutes, endMinutesAbs, worstCaseWorkedRun, workedRunLengths, DEFAULT_MAX_RUN } from './links-design.js';
+import { DAYS, startMinutes, endMinutesAbs, worstCaseWorkedRun, workedRunLengths, DEFAULT_MAX_RUN, isCoverWeek } from './links-design.js';
 
-/** The six things the order can be tuned for. Order matters — it is the display order too. */
+/** The things the order can be TUNED for — each one a checkbox. Order matters: it is the display
+ *  order too. Rest across the week boundary was the sixth until v25.06 and is now a constraint, like
+ *  the spare spread — see `cost`. */
 export const OBJECTIVES = Object.freeze([
     { key: 'variety',      label: 'Vary the shift type week to week' },
     { key: 'maxRun',       label: 'Cap the shifts in a row' },
     { key: 'gentle',       label: 'Gentle week-to-week change' },
     { key: 'weekends',     label: 'Full weekends off' },
     { key: 'longWeekends', label: 'Long weekends' },
-    { key: 'turnarounds',  label: 'Rest across the week boundary' },
 ]);
 
 /** Minutes a start time may move between weeks before it counts as a real change. Doubles as the
@@ -260,7 +265,7 @@ export function spareSpread(patterns, order) {
     /** @type {number[]} */ const at = [];
     order.forEach((k, i) => {
         const row = patterns[k];
-        if (row && DAYS.every(d => row[d] === 'SPARE')) at.push(i);
+        if (isCoverWeek(row)) at.push(i);
     });
     if (at.length < 2) return { excess: 0, gaps: [], minGap: order.length };
     const gaps = at.map((v, i) => (i ? v - at[i - 1] : v - at[at.length - 1] + order.length));
@@ -474,7 +479,15 @@ export function cost(s, on, longWeekendTarget = 4, blockTarget = DEFAULT_BLOCK_T
     // whole rest budget on a handful of lines and leave the rest of the rotation with none — "now
     // and again" is the requirement, not "as many as possible".
     if (on.longWeekends) c += Math.max(0, longWeekendTarget - s.longWeekends) * 240;
-    if (on.turnarounds)  c += s.shortBoundary * 600;
+    // REST ACROSS THE WEEK BOUNDARY IS CHARGED UNCONDITIONALLY TOO — a switch until v25.06. Minimum
+    // rest became a GATE at v21.11 (owner: "That would never be allowed by Chiltern"): the generator
+    // repairs every short turnaround before this module sees the design. But the reorder ran AFTER
+    // that gate, and with the switch unticked it was free to put a 23:55 Saturday finish in front of
+    // a 07:15 Sunday start — measured on the default design, 45 of the 64 switch-and-attempt
+    // combinations without it came back with one. The weight stays the switch's 600, so the shipped
+    // default (every switch on) scores exactly as it did; `reorderLines` also FILTERS on it, because
+    // a weight can always be outbid.
+    c += (s.shortBoundary ?? 0) * 600;
     return c;
 }
 
@@ -608,18 +621,28 @@ export function reorderLines(patterns, { on = {}, longWeekendTarget = 4, blockTa
     // If every start fails (never observed, but a shuffle owes no guarantees), fall back to the
     // canonical greedy design, whose spread the 128-configuration sweep holds: a duplicate of
     // design 1 is a dull answer, an uneven one is a broken promise.
+    //
+    // MINIMUM REST IS A FILTER TOO (v25.06). The generator refuses a design it cannot rest — a GATE
+    // since v21.11 — and that gate runs BEFORE this order is chosen, so a candidate with more short
+    // Saturday-into-Sunday turnarounds than it was handed is not a candidate either.
+    //
+    // And if attempt 0 itself fails either filter, the order it was HANDED is kept. That line shipped
+    // the failing candidate anyway until v25.06, against the reasoning above it: the generator's own
+    // order already keeps both promises, and a duplicate of it is a dull answer where a breach is a
+    // broken one.
     const scored = starts.map(s => {
         const r = twoOpt(s);
-        return { ...r, spareExcess: scoreOrder(patterns, r.order, { maxRunTarget }).spareExcess ?? 0 };
+        const sc = scoreOrder(patterns, r.order, { maxRunTarget });
+        return { ...r, spareExcess: sc.spareExcess ?? 0, shortBoundary: sc.shortBoundary };
     });
     let best = null;
-    for (const c of scored.filter(c => c.spareExcess === 0)) {
+    for (const c of scored.filter(c => c.spareExcess === 0 && c.shortBoundary <= before.shortBoundary)) {
         if (!best || c.cost < best.cost) best = c;
     }
     if (!best && attempt !== 0) {
         return reorderLines(patterns, { on, longWeekendTarget, blockTarget, maxRunTarget, passes, attempt: 0 });
     }
-    if (!best) best = scored[0];   // attempt 0 itself failed the filter — ship it anyway, see above
+    if (!best) return { order: keys, before, after: before, changed: false, attempt };
     const order = best.order;
 
     const after = scoreOrder(patterns, order, { maxRunTarget });

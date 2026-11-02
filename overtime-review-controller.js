@@ -298,7 +298,10 @@ async function previewWindow(weekEnding, btn) {
  */
 async function topUpWeek(weekEnding, btn) {
     // Disarm any earlier preview: the flash below re-arms Create from `pendingWeek`, which would
-    // leave it live under a message about a different week.
+    // leave it live under a message about a different week. AND AGAIN AFTER THE WAIT (whole-app
+    // review, Nov 2026): Add is not a button a preview locks, so a preview still preparing when this
+    // was pressed could land during the call and re-arm — and the message below then replaced its
+    // question with Create still live for that other week.
     pendingWeek = null;
     const label = btn.textContent;
     btn.textContent = 'Adding…';
@@ -307,6 +310,7 @@ async function topUpWeek(weekEnding, btn) {
     // reports what it added. One server path, so the button and the nightly job can never
     // disagree about what "in this week's audience" means.
     const r = await OTD.createOvertimeWindow(weekEnding, { dryRun: false });
+    pendingWeek = null;
     if (!r.ok) {
         btn.textContent = label;
         /** @type {HTMLButtonElement} */ (btn).disabled = false;
@@ -389,7 +393,10 @@ function wireConfirmBar() {
         const week = pendingWeek;
         const r = await OTD.createOvertimeWindow(week, { dryRun: false });
         // Re-arm from `pendingWeek`, not unconditionally: a timeout keeps the week pending (the
-        // press is worth repeating), and every other outcome below clears it.
+        // press is worth repeating), and every other outcome below clears it. Unless a preview of
+        // ANOTHER week landed while this was out (48-hour review): the message below is about THIS
+        // week, so Create must not stay armed for that one under it.
+        if (pendingWeek !== week) pendingWeek = null;
         armConfirmBar();
         if (!r.ok) {
             // A timeout on a CREATE is not a failure — the window may exist. Say so, and say
@@ -601,8 +608,9 @@ async function setAsking(weekEnding, memberName, ask) {
             cancelLabel: 'Cancel',
         });
     if (!ok) return;
-    pendingWeek = null;   // as in topUpWeek — the flash must not re-arm an earlier preview
+    pendingWeek = null;   // as in topUpWeek — the flash must not re-arm an earlier preview…
     const r = await OTD.withdrawOvertimeParticipant(weekEnding, memberName, !ask);
+    pendingWeek = null;   // …nor one that landed while this call was out
     if (!r.ok) {
         // `closed` is the one refusal worth naming rather than reporting as a fault: it is a
         // rule, and a reviewer told only "that didn't work" would try it again.

@@ -291,7 +291,8 @@ export function asAtLine(nowMs) {
  *
  * Deliberately RELATIVE and coarse. An exact timestamp reads as precision about a thing whose value
  * is approximate — what a clerk needs is "recent" or "a while ago", and a date forces them to do
- * the subtraction. Days, because this feature's whole clock is days: nothing here turns on hours.
+ * the subtraction. Days, because this feature's whole clock is days: nothing here turns on hours —
+ * and London DATES, because "yesterday" is a date word: it names the day before, not 24 hours.
  *
  * Returns null when there is nothing to date, so a caller renders nothing rather than "unknown".
  * @param {number|null|undefined} ms when the declaration was last changed
@@ -300,7 +301,11 @@ export function asAtLine(nowMs) {
  */
 export function declaredAgo(ms, nowMs) {
     if (!ms || !nowMs || ms > nowMs) return null;
-    const days = Math.floor((nowMs - ms) / 86_400_000);
+    // CALENDAR days in London, not elapsed 24-hour blocks (whole-app review, Nov 2026). Blocks put
+    // an answer from 23:30 read at 08:00 under "today" and one from two dates back under
+    // "yesterday" — wrong toward FRESHER every time, the costly direction. Both dates sit at local
+    // noon, so a device clock change shifts the gap by an hour and the rounding absorbs it.
+    const days = Math.round((londonDate(nowMs).getTime() - londonDate(ms).getTime()) / 86_400_000);
     // Retention deletes a window ~13 weeks after its Saturday, so no REAL declaration can be much
     // past 100 days old — an age beyond that is a corrupt or missing timestamp wearing a number
     // ("20682 days ago", from an epoch-zero milli value, is what surfaced this in a render). The

@@ -23,6 +23,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import vm from 'node:vm';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const SW = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
@@ -164,4 +165,71 @@ describe('unredirect', () => {
     });
 });
 
+// ── THE SWEEP DELETES ONLY OLDER CACHES (v25.06, whole-app review) ───────────────────────────────
+// The warm-up's sweep used to delete every `myb-roster-v*` cache but its own. An old worker that was
+// still re-filling an incomplete cache when the next release installed — the new worker opens its
+// cache the moment its script is evaluated — finished, deleted the NEWER cache, and the new worker's
+// own sweep then deleted the old one: no app cache left, and an offline launch got the Offline page.
+describe('isOlderVersion', () => {
+    const isOlderVersion = new Function(`${extractFn(SW, 'isOlderVersion')}; return isOlderVersion;`)();
+    test('compares dotted numeric versions part by part', () => {
+        assert.equal(isOlderVersion('25.05', '25.06'), true);
+        assert.equal(isOlderVersion('25.06', '25.05'), false, 'a NEWER version is never older');
+        assert.equal(isOlderVersion('25.06', '25.06'), false, 'its own version is not older');
+        assert.equal(isOlderVersion('25.09', '25.10'), true, 'numeric, not string order');
+        assert.equal(isOlderVersion('24.99', '25.00'), true);
+        assert.equal(isOlderVersion('12.18.2', '12.19.0'), true);
+        assert.equal(isOlderVersion('12.19.0', '12.19'), false);
+    });
+    test('an unparseable name is kept, never swept', () => {
+        assert.equal(isOlderVersion('test', '25.06'), false);
+    });
+});
+
+describe('two workers sharing one Cache Storage — the newer cache survives', () => {
+    test('an old worker finishing its warm-up late does not delete the next release\'s cache', async () => {
+        const OLD = /const APP_VERSION = '([^']+)'/.exec(SW)?.[1] ?? '';
+        const [maj, min] = OLD.split('.').map(Number);
+        const NEW = `${maj}.${String(min + 1).padStart(2, '0')}`;
+        const SW_NEW = SW.replace(`const APP_VERSION = '${OLD}'`, `const APP_VERSION = '${NEW}'`);
+        const SCOPE = 'https://myb-roster.web.app/';
+        /** @type {Map<string, Map<string, any>>} */ const named = new Map();
+        const key = (/** @type {any} */ r) => new URL(typeof r === 'string' ? r : r.url, SCOPE).href;
+        const makeCache = (/** @type {Map<string, any>} */ store) => ({
+            async match(/** @type {any} */ r) { const v = store.get(key(r)); return v ? v.clone() : undefined; },
+            async put(/** @type {any} */ r, /** @type {any} */ res) { store.set(key(r), res); },
+            async keys() { return [...store.keys()]; },
+        });
+        const caches = {   // a deleted cache's handle keeps working but is unreachable by name (spec)
+            async open(/** @type {string} */ n) { if (!named.has(n)) named.set(n, new Map()); return makeCache(/** @type {any} */ (named.get(n))); },
+            async keys() { return [...named.keys()]; },
+            async delete(/** @type {string} */ n) { return named.delete(n); },
+            async match(/** @type {any} */ r) { for (const st of named.values()) { const v = await makeCache(st).match(r); if (v) return v; } return undefined; },
+        };
+        const ct = (/** @type {string} */ u) => /\.m?js$/.test(u) ? 'text/javascript' : u.endsWith('.css') ? 'text/css'
+            : (u.endsWith('.html') || u.endsWith('/')) ? 'text/html' : u.endsWith('.json') ? 'application/json'
+            : u.endsWith('.png') ? 'image/png' : u.endsWith('.woff2') ? 'font/woff2' : 'text/plain';
+        const boot = (/** @type {string} */ src, /** @type {number} */ latencyMs) => {
+            const ctx = {
+                self: { registration: { scope: SCOPE, navigationPreload: null }, location: { origin: 'https://myb-roster.web.app' },
+                        addEventListener() {}, skipWaiting() {}, clients: { claim: async () => {} } },
+                caches, setTimeout, clearTimeout, console: { log() {}, warn() {}, error() {} },
+                fetch: (/** @type {any} */ req) => new Promise(res => setTimeout(() => {
+                    const url = typeof req === 'string' ? req : req.url;
+                    res(new Response('x', { status: 200, headers: { 'content-type': ct(url) } }));
+                }, latencyMs)),
+                Request: class extends Request { constructor(/** @type {any} */ i, /** @type {any} */ o) { super(typeof i === 'string' ? new URL(i, SCOPE).href : i, o); } },
+                Response, Headers, URL, AbortController, Promise,
+            };
+            vm.createContext(ctx);
+            vm.runInContext(src, ctx);
+        };
+        boot(SW, 1);                                   // the old worker wakes with its marker missing
+        await new Promise(r => setTimeout(r, 5));
+        boot(SW_NEW, 4);                               // the next release installs and opens its cache
+        await new Promise(r => setTimeout(r, 1500));   // both warm-ups run to completion
+        assert.ok(named.has(`myb-roster-v${NEW}`), 'the NEWER cache must still be reachable by name');
+        assert.ok(!named.has(`myb-roster-v${OLD}`), 'and the new worker, once complete, sweeps the old');
+    });
+});
 

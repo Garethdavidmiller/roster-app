@@ -43,7 +43,7 @@ import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcile
 import { requirePage, isOvertimeReviewer, canOpenOvertime, overtimeEnabled } from './auth-policy.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
 import { guardNamedSession, askBeforeSignOut, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
-import { initAboutLightbox } from './about-lightbox.js';
+import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
@@ -140,7 +140,7 @@ export function init() {
 
     // PAUSED (owner, Nov 2026; OVERTIME_AVAILABILITY.md → Paused) — before the gate, so everyone gets the same answer,
     // signed in or not. Nothing is queried and no sign-in is offered: the endpoints are undeployed while it is off.
-    if (!overtimeEnabled()) { wireNavPanel(); renderUnavailable(true); resolveSession(false); return; }
+    if (!overtimeEnabled()) { document.body.dataset.otPaused = ''; wireNavPanel(); wireChrome(); renderUnavailable(true); resolveSession(false); return; }
 
     // ── Access gate ─────────────────────────────────────────────────────────────────────────────
 
@@ -178,7 +178,7 @@ export function init() {
                     // No page follows, so nothing will read the sign-in timer: drop it, or the next
                     // page opened within two minutes would count this visit as its sign-in time.
                     clearLoginStart();
-                    renderUnavailable();
+                    renderUnavailable(); wireChrome();
                     resolveSession(false);
                     return;
                 }
@@ -191,7 +191,7 @@ export function init() {
     if (decision.decision === 'forbidden') {
         // A named member without reviewer rights during the restricted beta. Say so briefly and
         // leave the drawer working; do not query anything, and do not imply they did wrong.
-        wireNavPanel();
+        wireNavPanel(); wireChrome();
         renderUnavailable();
         // Nothing on this path needs Firebase, but `sessionReady` is a ONE-SHOT promise that other
         // modules await — leaving it pending would strand anything wired later on this load.
@@ -220,7 +220,7 @@ export function init() {
             idSel.innerHTML = `<option>${esc(currentUser)}</option>`;
             idBar.hidden = false;
         }
-        openAboutLightbox = initAboutLightbox();
+        wireChrome();
         initTipsLightbox(CARD_TIPS, { getIsAdmin: () => !!currentUser && CONFIG.ADMIN_NAMES.includes(currentUser) });
         // Per card, with its own ids — the shared helper takes them explicitly. A bare call is
         // silently a no-op, which would leave every chevron on the page inert.
@@ -344,7 +344,7 @@ export function init() {
             if (document.hidden || resyncing || !myWindows.length) return;
             const deadlines = myWindows.flatMap(
                 (/** @type {any} */ w) => [w.initialDeadlineAt, w.finalDeadlineAt]).filter(Boolean);
-            if (!shouldResyncClock(OTD.correctedNow(), deadlines)) return;
+            if (!shouldResyncClock(OTD.correctedNow(), deadlines, OTD.myStateReadAt())) return;
             resyncing = true;
             try {
                 const r = await OTD.getMyOvertimeState();
@@ -715,6 +715,9 @@ export function init() {
         host.querySelector('.ot-retry')?.addEventListener('click', () => (retry || loadEverything)());
     }
 
+    /** The page's own chrome — About on the drawer logo, the header logo home. Both paths, once (`??=`, Nov 2026). */
+    // The logo is an exit, so it asks about unsubmitted answers as the page's others do (48-hour review).
+    function wireChrome() { openAboutLightbox ??= initAboutLightbox({ appLabel: 'Marylebone Roster — Overtime', getUserName: () => currentUser })?.open ?? null; wireHeaderLogo(async () => { if (await confirmDiscard()) window.location.href = './'; }); }
     /** @param {boolean} [paused] switched off for everyone (owner, Nov 2026), rather than not open to this member */
     function renderUnavailable(paused = false) {
         const mine = el('otMineContent');

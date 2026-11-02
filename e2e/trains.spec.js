@@ -530,6 +530,27 @@ test.describe('trains — the eight improvements (v24.94)', () => {
         await expect(caveat).toHaveText(/The timetables on this page have ended\. Check the journey planner for today’s trains\./);
     });
 
+    // OPENED, not just present in the markup (whole-app review, Nov 2026). The test above this line
+    // used to stop at the markup, so for three weeks nothing noticed the drawer logo had never opened
+    // the panel: trains-app.js kept the OBJECT initAboutLightbox returns and called it as a function,
+    // which threw — and the Trains tips send staff to exactly this panel for the live boards.
+    test('the drawer logo opens the About panel, and the header logo goes home', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await seedSession(page, 'G. Miller');
+        await page.goto('/trains.html');
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navPanelBrand').click();
+        await expect(page.locator('#iconLightbox.open')).toBeVisible();
+        await expect(page.locator('#iconLightbox a[href*="nationalrail.co.uk/live-trains"]')).toBeVisible();
+        await page.locator('#iconLightboxClose').click();
+        await expect(page.locator('#iconLightbox.open')).toHaveCount(0);
+        // The header logo is labelled "Back to calendar", and until v25.06 nothing wired it here.
+        await expect(page.locator('#appIcon')).toHaveAttribute('role', 'button');
+        await page.locator('#appIcon').click();
+        await expect(page).not.toHaveURL(/trains\.html/);
+        expect(errors, 'no uncaught error on the way').toEqual([]);
+    });
+
     test('the About panel links to the live departure boards, in a new tab', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/trains.html');

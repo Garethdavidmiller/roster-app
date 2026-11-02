@@ -361,4 +361,17 @@ describe('baselineFromEntry — selecting a design we LOADED', () => {
         assert.deepEqual(baselineFromEntry(null),
             { loadedRevision: null, loadedUpdatedAt: null, baselineUnknown: true });
     });
+
+    // Whole-app review, Oct 2026. A QUEUED save leaves the entry with no revision, its OLD server
+    // stamp and a display-only `savedAt`. Armed from that stamp, our own write — once it synced —
+    // read as "a different version was saved" on the next save after switching back.
+    test('after a QUEUED save the baseline is unknown, so our own synced write is not a conflict', () => {
+        const queued = { updatedAt: ts(1000), savedAt: new Date(2026, 9, 1), revision: null };
+        const b = baselineFromEntry(queued);
+        assert.deepEqual(b, { loadedRevision: null, loadedUpdatedAt: null, baselineUnknown: true });
+        const synced = { revision: 1_793_588_753_239, updatedBy: ME, updatedAt: ts(5000) };
+        assert.equal(conflictOf(synced, true, { ...b, currentUser: ME }), null);
+        assert.ok(conflictOf({ ...synced, updatedBy: 'S. Silva' }, true, { ...b, currentUser: ME }),
+            'a colleague\'s save is still caught — by name, the accepted residual of an unknown baseline');
+    });
 });

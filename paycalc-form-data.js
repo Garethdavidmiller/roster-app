@@ -131,6 +131,31 @@ export function readFormData({ adjNegative = false, periodDefaultPension = null 
 }
 
 /**
+ * A SETTING changed (the loan plan, the pension scheme), and the payslip on screen carries a field it
+ * touches: what to store, carrying ONLY those fields into the saved entries — or null, when there is
+ * nothing readable to carry them into.
+ *
+ * Not `autosave`, which writes the whole form (whole-app review, Oct 2026). That saved the calendar's
+ * display-only suggestion as though the member had entered it (invariant 11: viewing never persists)
+ * and wrote over saved entries that could not be read, which only something the member TYPES may
+ * replace. A payslip with nothing saved has nothing to keep in step, so it stays unsaved.
+ *
+ * @param {string|null} raw  what storage holds for the payslip
+ * @param {Record<string, any>} formNow  `readFormData`'s answer
+ * @param {string[]} fields
+ * @returns {string|null}
+ */
+export function settingFieldsWrite(raw, formNow, fields) {
+    if (!raw) return null;
+    let saved;
+    try { saved = JSON.parse(raw); } catch { return null; }
+    if (!saved || typeof saved !== 'object') return null;
+    const next = { ...saved };
+    for (const f of fields) next[f] = formNow[f];
+    return JSON.stringify(next);
+}
+
+/**
  * Write a saved period object back into the form.
  *
  * The caller must clear the roster-suggested field highlighting FIRST (`clearRosterSuggestedAll()`

@@ -90,26 +90,32 @@ export function manualShiftDisplay(s) {
  * refresh → retry once), matching every other Admin write path. The batch is rebuilt on each
  * attempt because a `WriteBatch` cannot be reused after a failed commit. Exported for tests.
  *
- * @param {Array<{memberName: string, date: string, value: string|null, baseShift: string, replaceId?: string, deleteOnly?: boolean, swapped?: boolean, replacedFrom?: {type?: string, replacedType?: string|null}|null}>} toWrite
+ * @param {Array<{memberName: string, date: string, value: string|null, baseShift: string, replaceId?: string, alsoDelete?: string[], deleteOnly?: boolean, swapped?: boolean, replacedFrom?: {type?: string, replacedType?: string|null}|null}>} toWrite
  * @param {string} currentUser  Logged-in member name, written to `changedBy`.
  * @returns {Promise<number>}  How many rows were REFUSED as zero-length and not written, so the
  *   receipt counts only what landed (v24.38). Rejects (after one retry) if the write is denied.
  */
 export async function _saveOverrideBatches(toWrite, currentUser) {
     const refused = toWrite.filter(w => !w.deleteOnly && typeof w.value === 'string' && isZeroLengthRange(w.value)).length;
-    // Firestore batches are capped at 500 ops. Each item can be a delete + a set (2 ops),
-    // so chunk at 200 to stay well under the limit.
-    const CHUNK = 200;
+    // Batches cap at 500 ops: an item is a delete + a set + a delete per `alsoDelete`, so chunk by OPS.
+    const chunks = /** @type {typeof toWrite[]} */ ([]); let cur = /** @type {typeof toWrite} */ ([]), ops = 0;
+    for (const w of toWrite) {
+        const n = 2 + (w.alsoDelete?.length ?? 0);
+        if (cur.length && ops + n > 450) { chunks.push(cur); cur = []; ops = 0; }
+        cur.push(w); ops += n;
+    }
+    if (cur.length) chunks.push(cur);
     let _committedChunks = 0;
-    for (let i = 0; i < toWrite.length; i += CHUNK) {
-        const chunk = toWrite.slice(i, i + CHUNK);
+    for (const chunk of chunks) {
         try {
         await withSlowSaveNotice(writeWithClaimRetry(async () => {
             const batch = writeBatch(db);
-            for (const { memberName, date, value, baseShift, replaceId, deleteOnly, replacedFrom, swapped } of chunk) {
+            for (const { memberName, date, value, baseShift, replaceId, deleteOnly, replacedFrom, swapped, alsoDelete } of chunk) {
+                const dropDuplicates = () => { for (const id of alsoDelete ?? []) batch.delete(doc(db, COLLECTIONS.overrides, id)); };
                 if (deleteOnly) {
                     // REMOVE_IMPORT — delete the stale import doc and write nothing.
                     if (replaceId) batch.delete(doc(db, COLLECTIONS.overrides, replaceId));
+                    dropDuplicates();
                     continue;
                 }
                 // DEFENCE IN DEPTH: a zero-length worked range never reaches Firestore (v20.39).
@@ -138,6 +144,7 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
                 // Replace any existing override for this member/date in the same batch, so
                 // "Use new roster" / a re-import doesn't leave a stale doc beside the new one.
                 if (replaceId) batch.delete(doc(db, COLLECTIONS.overrides, replaceId));
+                dropDuplicates();   // after the zero-length refusal above: a refused row changes nothing
                 const ref = doc(collection(db, COLLECTIONS.overrides));
                 // source: 'roster_import' marks this as auto-applied, not hand-entered. buildOverrideWrite
                 // is the single source for the rules-required field set (shared with the two admin save paths).
@@ -151,7 +158,7 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
                     serverTimestamp()));
             }
             await batch.commit();
-        }), { batched: toWrite.length > CHUNK });
+        }), { batched: chunks.length > 1 });
         _committedChunks++;
         } catch (err) {
             // A chunk failed after earlier chunks committed → partial roster import is now in
@@ -422,7 +429,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
         // Collect all DIFF cells that are ticked (approved) + any CONFLICT cells
         // where the admin chose "Use PDF"
-        const toWrite = [];
+        /** @type {Parameters<typeof _saveOverrideBatches>[0]} */ const toWrite = [];
 
         for (const [key, state] of _cellStates) {
             const [memberName, date] = key.split('|');
@@ -468,6 +475,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             }
         }
 
+        // …and every OTHER manual record of the day goes too — a pre-v24.48 duplicate outranks an import.
+        for (const w of toWrite) w.alsoDelete = _cellStates.get(`${w.memberName}|${w.date}`)?.manualDupIds ?? [];
+
         if (toWrite.length === 0) {
             applyFeedback.textContent = 'Nothing to save — all changes are either skipped or already up to date.';
             applyFeedback.className   = 'huddle-feedback';
@@ -482,12 +492,12 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             const refused = await _saveOverrideBatches(toWrite, currentUser);
             const applied = toWrite.length - refused;
 
-            // Update the in-memory override cache so the week grid and table refresh
-            // without a round-trip to Firestore.  We don't know the new doc IDs but
-            // loadOverrides() will re-fetch cleanly.
-            await loadOverrides();
-
+            await loadOverrides();   // re-read: the new doc ids are not known here
+            // The older manual copies a written row took with it are SAID, never silent (48-hour review) —
+            // as Admin's delete names them. A refused row removed none.
+            const dups = toWrite.reduce((n, w) => n + (w.deleteOnly || !(typeof w.value === 'string' && isZeroLengthRange(w.value)) ? (w.alsoDelete?.length ?? 0) : 0), 0);
             applyFeedback.textContent = `Done — ${applied} change${applied !== 1 ? 's' : ''} applied to the roster.`
+                + (dups ? ` ${dups} older cop${dups === 1 ? 'y' : 'ies'} of the same day${dups === 1 ? '' : 's'} also removed.` : '')
                 + (refused ? ` ${refused} with a start time equal to its finish ${refused === 1 ? 'was' : 'were'} not written.` : '');
             applyFeedback.className   = 'huddle-feedback huddle-feedback--ok';
 

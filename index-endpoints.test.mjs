@@ -849,6 +849,35 @@ describe('the endpoint tells a guesser nothing (rules 1 and 2)', () => {
 });
 
 
+// ── THE PDF PATH: a pick goes where its question goes (whole-app review, Nov 2026) ─────────────
+//
+// The column cross-check files each two-way pick under the day it flagged, and the Sunday repair
+// runs after it and can move the whole row a day right. The reply below is the "lazy copy" shape the
+// pipeline's comments describe: a left-shifted row read, a column scan copied from it everywhere but
+// an honest Sunday, and a Sunday scan that saw the cell empty. The cross-check flags Sunday alone;
+// the repair moves that question to Monday. The RESPONSE is what the review reads, so the pick must
+// arrive filed under Monday — under Sunday it pointed at a rest day, and Monday offered nothing.
+describe('parseRosterPDF — the PDF path keeps a moved question answerable', () => {
+    test('the pick for a flagged Sunday arrives under the Monday the repair moved it to', async () => {
+        const row = { memberName: 'L. Springer', Sun: '05:30-11:30', Mon: 'RD', Tue: 'RD', Wed: '05:30-11:30', Thu: 'RD', Fri: 'RD', Sat: 'BLANK' };
+        const columnScan = Object.fromEntries(DAY_HEADERS.map(h => [h, { 'L. Springer': h === 'Sun' ? 'BLANK' : row[h] }]));
+        const warn = console.warn; console.warn = () => {};
+        let out;
+        try {
+            build({ aiReply: JSON.stringify({ columnHeaders: DAY_HEADERS, parsed: [row], columnScan, sundayScan: { 'L. Springer': 'BLANK' } }) });
+            out = await call(index.parseRosterPDF, rosterRequest());
+        } finally { console.warn = warn; }
+        assert.equal(out.code, 200);
+        const [sun, mon] = out.body.dates;
+        const shifts = out.body.parsed[0].shifts;
+        assert.equal(shifts[sun], 'RD', 'the Sunday is the rest day the scan saw');
+        assert.match(shifts[mon], /^UNKNOWN\|05:30-11:30 or Rest day\?/, 'the question is on Monday');
+        assert.deepEqual(out.body.choices[`L. Springer|${mon}`], ['05:30-11:30', 'RD'], 'and so is its pick');
+        assert.equal(out.body.choices[`L. Springer|${sun}`], undefined, 'nothing points at the Sunday');
+    });
+});
+
+
 // ── THE GEOMETRY PATH, EXECUTED (v24.12) ───────────────────────────────────────────────────────
 //
 // The reply below is EXACTLY what `buildCellPrompt`'s own OUTPUT FORMAT block asks the model for:

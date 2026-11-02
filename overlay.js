@@ -608,13 +608,18 @@ function _openDialog(o) {
  * @param {string} [opts.confirmLabel='OK']
  * @param {string} [opts.cancelLabel='Cancel']
  * @param {boolean} [opts.danger=false]  - style the confirm button as destructive (e.g. Delete)
+ * @param {() => void} [opts.onConfirm]  - run synchronously INSIDE the confirm tap, for work that
+ *                                         needs the user gesture (window.open)
  * @returns {Promise<boolean>}
  */
-export function confirmDialog({ message, title, confirmLabel = 'OK', cancelLabel = 'Cancel', danger = false }) {
+export function confirmDialog({ message, title, confirmLabel = 'OK', cancelLabel = 'Cancel', danger = false, onConfirm }) {
     return _openDialog({
         message, title, confirmLabel, cancelLabel, danger,
         withInput: false,
-        resultOnConfirm: () => true,
+        // `onConfirm` runs INSIDE the confirm tap (v25.06): the promise settles only after the close
+        // fade and the Back echo, by which time the user gesture is spent — so work that needs one
+        // (`window.open`) belongs here, not after the await. print-guard.js → explainNoPrint.
+        resultOnConfirm: () => { onConfirm?.(); return true; },
         resultOnCancel: false,
     });
 }

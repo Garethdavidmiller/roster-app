@@ -36,7 +36,7 @@ import { getSession, ensureNamedSession, sessionReady, resolveSession, getFireba
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { initCardCollapse, confirmDialog, createLightbox } from './overlay.js';
-import { initAboutLightbox } from './about-lightbox.js';
+import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './operations-tips.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
@@ -479,8 +479,11 @@ export function init() {
                     focusGradeFilter();
                 } catch (e) {
                     console.error('[AccountStatus] email save failed', e);
-                    errorEl.textContent = 'Couldn\'t save — check your connection and try again';
-                    saveBtn.disabled = false; saveBtn.textContent = 'Save';
+                    // An UNKNOWN outcome says so and Save stays off — a second save would only be refused by
+                    // the gate (AUTH_AND_SESSIONS 21/22; the reset-requests Clear already did, v25.06).
+                    const unknown = unconfirmedWriteLine(e, 'this save', 'this list');
+                    errorEl.textContent = unknown || 'Couldn\'t save — check your connection and try again';
+                    saveBtn.disabled = !!unknown; saveBtn.textContent = 'Save';
                 }
             });
 
@@ -508,7 +511,15 @@ export function init() {
                 focusGradeFilter();
             } catch (e) {
                 console.error('[AccountStatus] email remove failed', e);
-                removeBtn.disabled = false; removeBtn.dataset.confirm = ''; removeBtn.textContent = 'Remove';
+                // It used to fail SILENTLY — the button just came back. Now it says which kind (v25.06).
+                const unknown = unconfirmedWriteLine(e, 'this removal', 'this list');
+                removeBtn.disabled = !!unknown; removeBtn.dataset.confirm = ''; removeBtn.textContent = 'Remove';
+                const msg = Object.assign(document.createElement('span'), { className: 'email-set-error', textContent: unknown || 'Couldn’t remove — check your connection and try again' });
+                msg.setAttribute('role', 'alert'); msg.dataset.removeError = '';
+                // Only ITS OWN earlier line (48-hour review): the first in the row was the open edit
+                // form's, and its next save failure then wrote to a detached element.
+                removeBtn.closest('.acct-row')?.querySelector('.email-set-error[data-remove-error]')?.remove();
+                removeBtn.closest('.acct-row')?.append(msg);
             }
         }
 
@@ -839,15 +850,7 @@ export function init() {
         });
         if (about) openAboutLightbox = about.open;
 
-        // Header logo is a back-to-calendar button (About moved to the drawer logo).
-        const headerIcon = document.getElementById('appIcon');
-        if (!headerIcon) return;
-        headerIcon.setAttribute('aria-label', 'Back to calendar');
-        // Keyboard-operable: the logo is an interactive control (was a non-focusable <img>). v18.29.
-        headerIcon.setAttribute('role', 'button');
-        headerIcon.tabIndex = 0;
-        headerIcon.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); headerIcon.click(); } });
-        headerIcon.addEventListener('click', () => { window.location.href = './'; });
+        wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js)
     })();
 
     // ============================================
@@ -859,7 +862,7 @@ export function init() {
     // ============================================
     // ERROR LOG CARD
     // ============================================
-    initErrorLog({ onAttention: (n, extra) => attention.report('errors', n, extra) });
+    initErrorLog({ onAttention: (n, extra) => attention.report('errors', n, extra), onWithdraw: () => attention.withdraw('errors') });
     initUsageCard();
     initPageSpeedCard();
 

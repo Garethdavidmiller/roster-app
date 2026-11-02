@@ -212,8 +212,11 @@ export const PERF_DIMENSIONS = {
  */
 export function summarisePerfBy(samples, { page, metric = 'domReady', dimension = 'conn', minSamples = 0, splitAt = '' }) {
     const dim = PERF_DIMENSIONS[dimension];
+    // NO PROTOTYPE (v25.06, whole-app review): the dimension value comes from a sample KEY any signed-in
+    // session can write, so `…|__proto__` landed on Object.prototype on the admin's page and dropped its
+    // row while still counting in `total`. With a null prototype it is just another row.
     /** @type {Record<string, {quick:number, ok:number, slow:number}>} */
-    const groups = {};
+    const groups = Object.create(null);
     let total = 0;
     for (const [key, raw] of Object.entries(samples || {})) {
         const n = _count(raw);
@@ -243,7 +246,9 @@ export function summarisePerfBy(samples, { page, metric = 'domReady', dimension 
         total,
         rows: ordered.map(v => ({
             value: v,
-            label: /** @type {Record<string,string>} */ (dim.labels)[v] || _versionLabel(v, dimension),
+            // Own keys only (48-hour review): `__proto__` or `constructor` as a written value labelled
+            // its row "[object Object]" or a function's source, off the plain labels object.
+            label: (Object.hasOwn(dim.labels, v) && /** @type {Record<string,string>} */ (dim.labels)[v]) || _versionLabel(v, dimension),
             ..._withPct(groups[v]),
         })),
     };

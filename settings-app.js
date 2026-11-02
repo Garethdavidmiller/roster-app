@@ -27,7 +27,7 @@ import { inventoryOf } from './paycalc-inventory.js';
 import { selectBackupKeys } from './paycalc-transfer.js';
 import { pcPrefix, setPaycalcNamespace } from './paycalc-migrations.js';
 import { lsKeys } from './ls.js';
-import { initAboutLightbox } from './about-lightbox.js';
+import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
@@ -768,16 +768,7 @@ export function init() {
         });
         if (about) openAboutLightbox = about.open;
 
-        // Header logo is a back-to-calendar button (About moved to the drawer logo).
-        const iconBtn = document.getElementById('appIcon');
-        if (iconBtn) {
-            iconBtn.setAttribute('aria-label', 'Back to calendar');
-            // Keyboard-operable: the logo is an interactive control (was a non-focusable <img>). v18.29.
-            iconBtn.setAttribute('role', 'button');
-            iconBtn.tabIndex = 0;
-            iconBtn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); iconBtn.click(); } });
-            iconBtn.addEventListener('click', () => { window.location.href = './'; });
-        }
+        wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js)
         // The coming-soon lightbox is owned entirely by nav-panel.js (open/close, Escape,
         // Android Back, focus trap). Do not re-wire it here — a duplicate handler used to
         // live in this function and left the nav-panel state flags out of sync (v11.50).
@@ -826,7 +817,13 @@ function captureInstallOffer() {
     // The Pages mirror is refused below; leave Chrome's own infobar alone there.
     if (/github\.io$/i.test(window.location.hostname)) return offer;
     window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();          // keep it; without this Chrome shows its own mini-infobar instead
+        // Chrome's own mini-infobar is suppressed only for a member ALREADY signed in, for whom the
+        // Device card is about to offer the install instead (v25.06, whole-app review). The card is
+        // wired only after sign-in, so suppressing it for a signed-out visitor took Chrome's offer
+        // away and put nothing in its place — "strictly worse than nothing" (install-prompt.js).
+        // The event is KEPT either way: an in-place sign-in still gets its install row (Sep 2026),
+        // and `prompt()` works on an event whose default was not prevented.
+        if (getSession()) e.preventDefault();
         offer.event = e;
         offer.onChange?.();
     });

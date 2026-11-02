@@ -264,9 +264,10 @@ export function restoredEntryFrom(entry, { updatedAt, updatedBy, revision = null
  * would weaken, or falsely trip, the conflict guard. But a save whose read-back failed, and every
  * QUEUED (offline) save, returns no stamp, and the masthead — which read `updatedAt` — went on
  * saying "Saved 24 Jun at 16:40" beside a save row saying "Last saved … at 09:00". So a stampless
- * save records `savedAt`, this device's time, which nothing but the DISPLAY reads
- * (`lastSaveTime` in links-design-header.js), and a stamped one clears it so the server's time is
- * the one shown whenever there is one. It never reaches Firestore: `docPayload` names its keys.
+ * save records `savedAt`, this device's time, which the DISPLAY reads (`lastSaveTime` in
+ * links-design-header.js) — and `baselineFromEntry`, only to know there WAS an unconfirmed save, so
+ * the baseline reads unknown; it never compares its value. A stamped save clears it so the server's
+ * time is the one shown whenever there is one. It never reaches Firestore: `docPayload` names its keys.
  * @param {{patterns?: any, window?: any, updatedBy?: string, updatedAt?: any, savedAt?: Date, revision?: number|null}|null|undefined} entry
  * @param {{patterns: Record<string, any>, window: any}|null} written  the payload that went
  * @param {string} by  whoever saved

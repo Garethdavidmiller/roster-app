@@ -536,11 +536,13 @@ async function warmCacheAndSweepOld() {
     // cache is fully warmed. Decoupled (v16.11) so a device that can't reach gstatic —
     // where the app is hard-broken anyway — doesn't accumulate an old app cache per
     // deploy forever. Prefix-scoped so we never clobber another cache on the origin.
+    // OLDER versions only (v25.06): deleting every OTHER version let an old worker's retried warm-up
+    // delete the NEWER cache, leaving nothing to launch offline — sw-internals.test.mjs has the sequence.
     const cacheNames = await caches.keys();
     await Promise.all(
         cacheNames
-            .filter(name => (allOk && name.startsWith('myb-roster-v') && name !== CACHE_NAME)
-                         || (sdkOk && name.startsWith('myb-roster-sdk-v') && name !== SDK_CACHE_NAME))
+            .filter(name => (allOk && name.startsWith('myb-roster-v') && isOlderVersion(name.slice(12), APP_VERSION))
+                         || (sdkOk && name.startsWith('myb-roster-sdk-v') && isOlderVersion(name.slice(16), FIREBASE_SDK_VERSION)))
             .map(name => {
                 console.log(`[SW ${APP_VERSION}] Deleting old cache:`, name);
                 return caches.delete(name);
@@ -556,6 +558,9 @@ async function warmCacheAndSweepOld() {
     await cache.put(PRECACHE_MARKER, new Response('1'));
     console.log(`[SW ${APP_VERSION}] Pre-cached (complete)`);
 }
+
+/** Dotted numeric versions ('25.06', '12.19.0'): is `a` older than `b`? Unparseable → false (keep it). */
+function isOlderVersion(a, b) { const x = a.split('.').map(Number), y = b.split('.').map(Number); if ([...x, ...y].some(Number.isNaN)) return false; for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0; } return false; }
 
 // STARTUP RE-CHECK — this top-level code runs every time the browser wakes the SW (any
 // fetch/push/message), so a warm-up killed mid-run resumes on the next wake instead of
@@ -761,11 +766,11 @@ self.addEventListener("fetch", event => {
                 // ONLY ON A MISS (Oct 2026): over a held page the network copy is identical or the WRONG
                 // release (an HTTP-cached preload, or an old worker) — the JS/CSS branch argues it fully.
                 // …AND NEVER A PRELOAD ANSWER: it may be last release's page from the HTTP cache (Pages
-                // max-age), kept for the whole version. Serve the preload; STORE our own no-cache fetch.
+                // max-age), kept for the whole version. Serve the preload; STORE a NEW Request (the race aborts freshReq).
                 // Stored under the bare path (query stripped) — findCachedFallback matches ignoreSearch.
                 if (!cachedDoc && response && response.status === 200 && (!ct || ct.includes('text/html'))) {
                     const store = viaPreload
-                        ? fetch(freshReq).then(r => (r && r.status === 200 && /text\/html|^$/.test(r.headers.get('content-type') || '') ? r : null)).catch(() => null)
+                        ? fetch(new Request(event.request.url, { headers: event.request.headers, mode: 'same-origin', cache: 'no-cache' })).then(r => (r && r.status === 200 && /text\/html|^$/.test(r.headers.get('content-type') || '') ? r : null)).catch(() => null)
                         : Promise.resolve(response.clone());
                     event.waitUntil(store.then(r => r && openCache().then(c => c.put(url.origin + url.pathname, unredirect(r))))
                         .catch(err => console.warn(`[SW ${APP_VERSION}] cache.put failed (quota?):`, err)));

@@ -50,7 +50,7 @@
  */
 
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications, releaseDevicePush } from './notif.js';
-import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl } from './firebase-client.js';
+import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl, resolveDocumentOpenUrl, fetchSignedDocumentUrl, currentUserAfterBoot } from './firebase-client.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
 import { lockBodyScroll, unlockBodyScroll, suppressNextPop, registerPopInterceptor, whenHistorySettled } from './overlay.js';
 import { lsGet, lsSet } from './ls.js';
@@ -160,6 +160,10 @@ let _panelOpen      = false;
 // A single shallow history entry, shared by the panel and any lightbox that
 // opens from inside it — so Android Back pops exactly one entry.
 let _historyPushed  = false;
+/** This opening's own history-entry marker (v25.06): a pop that LANDS on it removed an entry ABOVE the
+ *  drawer (a dialog), so the drawer stays. Per opening, so a pre-reload leftover never passes for it. */
+let _navEntry = 0;
+const _landedOnOwnEntry = () => history.state?.mybNavPanel === _navEntry;
 let _comingSoonOpen = false;
 let _noticesOpen    = false;
 
@@ -168,7 +172,8 @@ let _noticesOpen    = false;
 // an unrelated handler — concretely, it invoked toggleTeamView and kicked the user out of Team
 // Week View while also closing the drawer (one press, two surfaces). Registered once at module
 // level (the flags are module-level too, so this survives resetNavPanel→initNavPanel cycles).
-registerPopInterceptor(() => _historyPushed);
+// …unless the pop LANDED on the drawer's own entry: a dialog over it was popped, and it closes (v25.06).
+registerPopInterceptor(() => _historyPushed && (_comingSoonOpen || _noticesOpen || !_landedOnOwnEntry()));
 // The document keydown + window popstate handlers registered by initNavPanel — held at module
 // level so resetNavPanel() can remove them (they close over the injected panel; a stale copy
 // surviving a reset would consume the shared flags against a detached panel).
@@ -286,6 +291,9 @@ export function resetNavPanel() {
         fresh.setAttribute('aria-expanded', 'false');
         burger.replaceWith(fresh);
     }
+    // CONSUME A LIVE DRAWER ENTRY (v25.06): left behind, the next Back popped it and nothing answered.
+    // The echo is absorbed; a caller that pushes history straight after waits on `whenHistorySettled`.
+    if (_historyPushed) { suppressNextPop(); history.back(); }
     _panelOpen = false;
     _historyPushed = false;
     _comingSoonOpen = false;
@@ -337,7 +345,8 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         burger.setAttribute('aria-expanded', 'true');
         lockBodyScroll();
         if (!_historyPushed) {
-            history.pushState({ mybNavPanel: true }, '');
+            _navEntry = Date.now() + Math.random();
+            history.pushState({ mybNavPanel: _navEntry }, '');
             _historyPushed = true;
         }
         // Permission/subscription can change between opens (toggled in admin, or
@@ -532,8 +541,13 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                         // change and a full reload where a hash change was meant (24-hour review).
                         whenHistorySettled(() => { location.hash = docId; });
                     } else {
-                        if (_panelOpen) closePanelForNavigation();
-                        location.href = `./#${docId}`;
+                        // THROUGH THE DRAWER'S OWN LINK PATH (v25.06): `location.href` skipped the unsaved-work
+                        // question (page-session.js watches `.nav-panel a[href]`), so Admin's staged edits went
+                        // silently on the iOS app, where this branch runs. A hidden panel link is asked about,
+                        // and navigates, exactly as the drawer's own links do.
+                        const handoff = /** @type {HTMLAnchorElement} */ (panel.querySelector('a[data-doc-handoff]')
+                            ?? panel.appendChild(Object.assign(document.createElement('a'), { className: 'nav-panel-link', hidden: true })));
+                        handoff.setAttribute('data-doc-handoff', ''); handoff.href = `./#${docId}`; handoff.click();
                     }
                 }
             } else {
@@ -669,7 +683,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 location.replace(anchor.href);  // overwrite the drawer's same-URL entry with the destination
                 return;
             }
-            closePanelForNavigation();
+            if (_panelOpen) closePanelForNavigation();   // a hand-off click can come with the drawer shut
             return;
         }
     });
@@ -820,6 +834,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
      */
     async function _refreshBell() {
         if (!bell) return;
+        // NOT WHILE THE ACCOUNT BEHIND THE SESSION IS GONE (v25.06): a tap then subscribed, the rules refused
+        // the save and the bell flipped back to off unexplained. After the boot restore, so one in progress keeps it.
+        bell.hidden = !(await currentUserAfterBoot(3000));
+        // A restore still running at 3s is not an account gone (48-hour review): bring it back when it lands.
+        if (bell.hidden) { void currentUserAfterBoot().then(u => { if (u) void _refreshBell(); }); return; }
         _paintBell(await peekNotifState());
     }
 
@@ -1065,6 +1084,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // flags against the detached old panel, and leave the rebuilt drawer stuck open.
     _docKeydownHandler = (/** @type {KeyboardEvent} */ e) => {
         if (!_panelOpen) return;
+        // ONLY THE TOPMOST SURFACE TAKES THE KEYBOARD (v19.53's rule; v25.06 here): under a dialog such as
+        // Admin's "Leave this page anyway?", Tab pulled focus behind the modal and one Escape closed both.
+        if (document.querySelector('.lb-overlay.open')) return;
         if (e.key === 'Escape') { closePanel(); return; }
         if (e.key === 'Tab') {
             const focusable = /** @type {HTMLElement[]} */ (Array.from(panel.querySelectorAll(
@@ -1098,6 +1120,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (_comingSoonOpen) { _closeComingSoonFromBack(); return; }
         if (_noticesOpen)   { _closeNoticesFromBack(); return; }
         if (!_historyPushed) return;
+        if (_landedOnOwnEntry()) return;   // what was popped sat ABOVE the drawer (a dialog it opened)
         closePanelFromBack();
     };
     window.addEventListener('popstate', _popstateHandler);

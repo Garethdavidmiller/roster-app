@@ -219,8 +219,8 @@ export function canOpenOvertime(member) {
  * The ONE reading of the switch on the client: `canOpenOvertime` consults it, so the pill leaves
  * every menu, and overtime.html consults it before its own gate, so the page says it is paused —
  * to everyone, the admin included, signed in or not. Like the rest of this module it is UX: while
- * paused, every Overtime endpoint answers `paused` server-side, from the generated copy of the same
- * switch.
+ * paused the server does not deploy the Overtime endpoints at all (functions/index.js exports only the
+ * retention purge, from the generated copy of the same switch), so every call answers 404.
  *
  * `__E2E.overtimeEnabled` is a TEST SEAM, the same shape as text-scale.js's: the browser suites set
  * it so they go on driving the real page while it is paused for everyone else — which is what keeps

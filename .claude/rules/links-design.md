@@ -757,7 +757,15 @@ Daily targets are met exactly by both; any day-class total > the working lines i
 
 **Do not add back** `buildDefaultDesign`, `initFromRosters`, or `resetFromRosters` — those paths were removed at v12.43 because they copied raw roster patterns verbatim, leaving the lines past the roster's own length as all-RD blanks. The generator produces a complete rotation.
 
-### Line ORDER — the six objectives (v19.58; `variety` added v19.60, `maxRun` v20.02)
+### Line ORDER — the objectives (v19.58; `variety` added v19.60, `maxRun` v20.02; rest left v25.06)
+
+> **Rest across the week boundary is no longer a switch (v25.06, whole-app review).** It was the
+> sixth checkbox, and unticking it let the reorder put a 23:55 Saturday in front of a 07:15 Sunday —
+> after the generator had repaired every short turnaround, because minimum rest is a GATE (v21.11)
+> and the reorder runs after it. Measured on the default design, 45 of 64 switch-and-attempt
+> combinations without it came back with one. It is now charged in every configuration (at the old
+> switch's weight, so the shipped default is byte-identical) and FILTERED on, like the spare spread,
+> and `.gen-obj-note` states it in words because it has no checkbox. Five switches remain.
 
 > **`variety` and `gentle` are opposite ends of one dial, and `variety` must stay ON by default.**
 > Minimising the week-to-week step, taken to its limit, IS a long block of the same shift — the
@@ -856,13 +864,14 @@ Two properties that make this safe to treat as a constraint at all:
 **It has no checkbox, so the objectives note has to say it** (v20.03). Every other term on that card
 is a trade the designer chooses and the status line prices; this one is applied on their behalf and
 moves rows for a reason nothing on screen explains. A card whose whole argument is "the result says
-what each cost" cannot carry an unnamed term. The sentence in `.gen-obj-note` — *"Cover weeks are
-always kept evenly spaced around the rotation — that one is not optional, because two cover weeks
-side by side run into one long stretch"* — is load-bearing copy, not filler; do not trim it as
-redundant with this file, which designers do not read.
+what each cost" cannot carry an unnamed term. The sentence in `.gen-obj-note` — *"Two things are not
+optional: cover weeks stay evenly spaced around the rotation, because two side by side run into one
+long stretch; and no order is used that leaves less than 12 hours between a Saturday finish and the
+next line's Sunday start"* (the rest half since v25.06) — is load-bearing copy, not filler; do not
+trim it as redundant with this file, which designers do not read.
 
-Two tests, and neither replaces the other: one asserts 3000 outweighs all six switches slipping a
-unit each (1060 in total, read back through `cost` rather than restated), which catches a
+Two tests, and neither replaces the other: one asserts 3000 outweighs every switch slipping a
+unit at once (read back through `cost` rather than restated), which catches a
 re-weighting; the other drives a **real generated design** through the real optimiser and asserts the
 spread survives, which catches the behaviour. The first is necessary and **not sufficient** — the
 switches accumulate without limit, so no fixed margin proves the spread always wins, and 1500 passes
@@ -1007,7 +1016,7 @@ line says so.** A box that names a target the design silently misses is the phan
 module has already shipped once — the rotating construction's documented "a person's week only moves
 later", which was untrue for a year.
 
-`links-adjacency.js`, applied by the generator through six switches. A whole class of the design's
+`links-adjacency.js`, applied by the generator through five switches and two constraints. A whole class of the design's
 quality lives in which line follows which, because you work line w one week and line w+1 the next:
 the week-to-week movement of your working day (the FF18 question), whether Saturday off is followed
 by Sunday off, whether that extends to three or four days, and whether Saturday's finish runs into
@@ -1093,6 +1102,11 @@ still has to be found, and an hour worked is an hour worked for fatigue), but tw
 the Sunday column is cover you HOPE to fill rather than cover you can require, and "weekends off"
 counts a Sunday you were never going to work. The generator table labels the column `RDW` for the
 first; `links-adjacency.js` splits days-off from contracted-days-given for the second.
+
+**A cover week IS Mon–Sat SPARE — its Sunday is not asked about** (v25.06, whole-app review;
+`isCoverWeek` in `links-design.js`, read by the hours, the per-line totals, the 219-day ceiling and
+the spare spread). Each required all seven days SPARE until then, so a cover week written with its
+Sunday as a rest day counted as an empty line and a design over the ceiling read as under it.
 
 **A spare week's four days come from Mon–Sat.** The Sunday of a spare week stays RDW if the roster
 clerk gives it, on top of the four — it is not one of them. All seven days are still marked SPARE,
