@@ -1,0 +1,372 @@
+/* =========================================================================
+   newlink.css — page styles for newlink.html (the December link: three proposals)
+   =========================================================================
+   Loaded after shared.css, which supplies the cards' headers, chevrons, the header chrome and every design token used
+   below. Nothing here re-declares a colour, radius, type size or focus recipe that shared.css owns.
+
+   THE CONTROLS ARE BUTTONS THAT LOOK LIKE BUTTONS (owner, 2 Nov 2026, of the Trains page's tabs: "they lack pop — don't
+   make this mistake with the new page"). Every choice here is a WHITE RAISED tile on the card — Layer 2 of the
+   three-surface model, the layer a button belongs on — with navy type at full strength, and the chosen one turns navy
+   with the gold edge the app gives its active highlights. Nothing a reader can press is grey-on-grey or translucent.
+   ========================================================================= */
+
+body {
+    font-family: var(--font-sans);
+    font-size: var(--type-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: var(--primary-blue);
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding-top:    max(20px, env(safe-area-inset-top));
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
+    padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+    overflow-x: hidden; overflow-x: clip;
+    overscroll-behavior: none;
+    color: var(--text-dark);
+}
+@media (max-width: 768px) {
+    body {
+        padding-left:  max(10px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
+    }
+}
+
+.app { max-width: var(--content-max-width); margin: 0 auto; }
+.app-header { margin-bottom: 4px; }
+@media (min-width: 768px) {
+    .app-header { max-width: var(--content-max-width); margin-left: auto; margin-right: auto; }
+}
+
+.card {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-2);
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+/* The page's identity: the leave teal, which no other pill or page wears (an accepted overload, as Links wears the
+   Spare purple — the AL badge and this page are never on screen together). */
+#newlinkBadge { background: var(--al); color: white; }
+#iconLightbox .lightbox-badge {
+    background: var(--al-light);
+    border-color: color-mix(in oklch, var(--al) 35%, white);
+    color: var(--al-deep);
+}
+
+/* ── The preview banner — the admin's note between the header and the cards ─────────────────── */
+/* The app's note-between-cards (Trains' caveat, the Pay Calculator's setup banner): the card surface, a gold left
+   edge, the resting shadow — so it reads as the page's own notice and not as part of what colleagues will see. */
+.nl-preview {
+    margin: 0 0 12px;
+    padding: 10px 14px 10px 15px;
+    background: var(--surface);
+    border-left: 3px solid var(--accent-gold);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-1);
+    color: var(--text-mid);
+    font-size: var(--type-small);
+    line-height: 1.45;
+}
+.nl-preview[hidden] { display: none !important; }
+.nl-preview p { margin: 0 0 4px; }
+.nl-preview-head { color: var(--text-dark); font-size: var(--type-label); }
+/* The app draws its own disclosure arrow — the card chevron's ▾, turned — rather than the browser's triangle
+   (CLAUDE.md → "The OS draws nothing the app can draw"). */
+.nl-preview-who summary { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--primary-blue); font-weight: 700; list-style: none; }
+.nl-preview-who summary::-webkit-details-marker { display: none; }
+.nl-preview-who summary::after { content: "▾"; color: var(--text-light); transition: transform var(--dur-fast) var(--ease-standard); }
+.nl-preview-who[open] summary::after { transform: rotate(180deg); }
+.nl-preview-who summary:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
+.nl-preview-who p { margin-top: 4px; }
+
+/* ── What this is ─────────────────────────────────────────────────────────────────────────────── */
+.nl-callout {
+    margin: 0 0 12px;
+    padding: 8px 12px;
+    border-left: 3px solid var(--accent-gold);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background: var(--surface-sunken);
+    color: var(--text-dark);
+    line-height: 1.5;
+}
+/* The three names, one equal tile each, A to Z — the same colour for all three. */
+.nl-names { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
+.nl-name {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 0;
+    padding: 10px 6px;
+    border: 1.5px solid var(--al);
+    border-radius: var(--radius-md);
+    background: white;
+    box-shadow: var(--shadow-1);
+    text-align: center;
+}
+.nl-name-title { color: var(--primary-blue); font-size: var(--type-button); font-weight: 800; line-height: 1.2; }
+.nl-name-ref { color: var(--text-light); font-size: var(--type-micro); font-weight: 600; overflow-wrap: anywhere; }
+
+/* ── Prose ────────────────────────────────────────────────────────────────────────────────────── */
+.nl-lead { margin: 0 0 8px; color: var(--text-dark); line-height: 1.5; }
+.nl-lead:last-child { margin-bottom: 0; }
+.nl-sub {
+    margin: 14px 0 6px;
+    color: var(--primary-blue);
+    font-size: var(--type-body);
+    font-weight: 700;
+}
+.nl-sub:first-child { margin-top: 0; }
+.nl-list { margin: 0; padding-left: 20px; color: var(--text-dark); line-height: 1.5; }
+.nl-list li + li { margin-top: 6px; }
+.nl-list li::marker { color: var(--primary-blue); }
+/* What has changed: each change on a gold edge, the app's mark for "this is new". */
+#nlChangesList .nl-list { padding-left: 0; list-style: none; }
+#nlChangesList .nl-list li { padding: 2px 0 2px 12px; border-left: 3px solid var(--accent-gold); }
+.nl-note { margin: 8px 0 0; color: var(--text-light); font-size: var(--type-small); line-height: 1.45; }
+.nl-gist { margin: 0 0 10px; color: var(--text-dark); line-height: 1.5; }
+
+/* ── Whichever is chosen: what everyone gets, and gives up ────────────────────────────────────── */
+.nl-common { display: grid; gap: 10px; }
+.nl-side { padding: 10px 12px 12px; border-left: 4px solid; border-radius: 0 var(--radius-md) var(--radius-md) 0; }
+.nl-side .nl-list { padding-left: 18px; }
+.nl-side--gain { border-color: var(--success-green); background: var(--success-green-bg); }
+.nl-side--gain .nl-list li::marker { color: var(--success-green); }
+.nl-side--cost { border-color: var(--al-warning); background: var(--surface-sunken); }
+.nl-side--cost .nl-list li::marker { color: var(--al-warning); }
+.nl-side-h { margin: 0 0 6px; color: var(--primary-blue); font-size: var(--type-body); font-weight: 800; }
+@media (min-width: 700px) {
+    .nl-common { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
+/* ── The choices ──────────────────────────────────────────────────────────────────────────────── */
+/* WHITE, RAISED, NAVY TYPE — and navy with a gold edge once chosen (see the header). The gold is an EDGE, not a fill:
+   a gold slab was the loudest thing on the Trains page when it was tried, and the edge is the app's own "active" mark. */
+.nl-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0 0 14px; }
+.nl-tile--all { grid-column: 1 / -1; }
+@media (min-width: 600px) {
+    .nl-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .nl-tile--all { grid-column: auto; }
+}
+@media (min-width: 1024px) {
+    .nl-tiles { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+}
+.nl-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 12px; }
+@media (min-width: 1024px) { .nl-tabs { max-width: 560px; } }
+.nl-tile, .nl-tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+    padding: 9px 8px;
+    border: 1.5px solid var(--border-mid);
+    border-radius: var(--radius-md);
+    background: white;
+    box-shadow: var(--shadow-1);
+    color: var(--primary-blue);
+    font-family: var(--font-sans);
+    font-size: var(--type-label);
+    font-weight: 700;
+    line-height: 1.2;
+    text-align: center;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard),
+                border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard),
+                transform var(--dur-fast) var(--ease-standard);
+}
+.nl-tile { flex-direction: column; gap: 3px; padding: 10px 6px; }
+.nl-tile-icon { font-size: var(--type-large); line-height: 1.1; }
+.nl-tile:active, .nl-tab:active { transform: scale(var(--press-scale)); }
+.nl-tile[aria-pressed="true"], .nl-tab[aria-pressed="true"] {
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: white;
+    box-shadow: inset 0 -3px 0 var(--accent-gold), var(--shadow-1);
+}
+@media (hover: hover) and (pointer: fine) {
+    .nl-tile:not([aria-pressed="true"]):hover, .nl-tab:not([aria-pressed="true"]):hover { border-color: var(--primary-blue); background: var(--bg-faint); }
+}
+.nl-tile:focus-visible, .nl-tab:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+
+/* The six one-line answers, before anything is chosen: each with its tile's emoji, so the list and the tiles above it
+   are visibly the same six things. */
+.nl-gists { margin: 0; padding: 0; list-style: none; }
+.nl-gists li { display: flex; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border-light); color: var(--text-dark); line-height: 1.5; }
+.nl-gists li:first-child { border-top: none; padding-top: 0; }
+.nl-gist-icon { flex: 0 0 auto; font-size: var(--type-large); line-height: 1.3; }
+.nl-gists strong { color: var(--primary-blue); }
+
+/* ── The figures ──────────────────────────────────────────────────────────────────────────────── */
+/* A label on its own line above its four figures (newlink-render.js → renderFigures): on a 375px phone four figure
+   columns get ~78px each, which every figure fits, where a label column beside them would squeeze both. The column heads
+   are navy, as the Calendar's day heads are; the best of the three wears a green pill. */
+.nl-persona + .nl-persona { margin-top: 22px; padding-top: 16px; border-top: 2px solid var(--border-light); }
+.nl-persona-h { margin: 0 0 4px; color: var(--primary-blue); font-size: var(--type-medium); font-weight: 800; }
+.nl-fig { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.nl-fig thead th {
+    padding: 7px 4px;
+    background: var(--primary-blue);
+    color: white;
+    font-size: var(--type-badge);
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    text-align: center;
+    line-height: 1.25;
+}
+.nl-fig thead th.nl-today { background: color-mix(in oklch, var(--primary-blue) 72%, white); }
+.nl-fig thead th:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.nl-fig thead th:last-child { border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.nl-fig-label th {
+    padding: 10px 4px 3px;
+    color: var(--text-dark);
+    font-size: var(--type-small);
+    font-weight: 700;
+    text-align: left;
+}
+.nl-fig-row td {
+    padding: 3px 2px 9px;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text-dark);
+    font-size: var(--type-body);
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.3;
+}
+.nl-fig tbody:last-child .nl-fig-row td { border-bottom: none; }
+.nl-fig td.nl-today { color: var(--text-light); font-weight: 500; }
+.nl-fig .nl-best b {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--success-green-bg);
+    color: var(--success-green);
+    font-weight: 800;
+}
+
+/* ── The weeks ────────────────────────────────────────────────────────────────────────────────── */
+/* A PROPOSAL, NEVER A ROSTER: a dashed frame and a flag above it, week numbers and no dates — nothing a screenshot of it
+   could be mistaken for. The cell colours are the app's own shift colours, so an early reads as an early. */
+.nl-flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 8px;
+    padding: 4px 12px;
+    border: 1.5px dashed var(--al-warning);
+    border-radius: var(--radius-pill);
+    background: white;
+    color: var(--text-dark);
+    font-size: var(--type-small);
+    font-weight: 700;
+}
+.nl-weeks-wrap { padding: 6px; border: 1.5px dashed var(--border-mid); border-radius: var(--radius-md); background: white; }
+.nl-weeks { width: 100%; border-collapse: separate; border-spacing: 2px; table-layout: fixed; font-variant-numeric: tabular-nums; }
+.nl-weeks caption {
+    padding: 2px 2px 6px;
+    color: var(--primary-blue);
+    font-size: var(--type-medium);
+    font-weight: 800;
+    text-align: left;
+}
+.nl-ref { margin-left: 6px; color: var(--text-light); font-size: var(--type-small); font-weight: 600; white-space: nowrap; }
+.nl-weeks thead th {
+    padding: 2px 0 4px;
+    color: var(--text-mid);
+    font-size: var(--type-micro);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+.nl-weeks thead th:first-child { width: 2.4em; }
+.nl-weeks tbody th { color: var(--text-mid); font-size: var(--type-badge); font-weight: 700; text-align: center; }
+.nl-d {
+    padding: 3px 0;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    font-size: var(--type-badge);
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+}
+.nl-d span:not(.visually-hidden) { display: block; }
+.nl-d--early { background: var(--early-cell); border-color: var(--early-cell-border); color: var(--text-dark); }
+.nl-d--late { background: var(--blue-light); border-color: var(--blue-sky); color: var(--text-dark); }
+.nl-d--rest { background: var(--rest-day-bg); border-color: var(--border-light); color: var(--text-light); }
+.nl-d--cover { background: var(--purple-light); border-color: var(--purple); color: var(--purple); font-weight: 700; }
+.nl-wk-cover .nl-d--cover { padding: 6px 0; letter-spacing: 0.3px; }
+.nl-key { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 12px 0 0; padding: 0; list-style: none; color: var(--text-mid); font-size: var(--type-small); }
+.nl-key li { display: flex; align-items: center; gap: 6px; }
+.nl-swatch { flex: 0 0 auto; width: 14px; height: 14px; border: 1px solid; border-radius: 3px; }
+
+/* ── The pack ─────────────────────────────────────────────────────────────────────────────────── */
+/* Each file a white raised row, like every other thing on the page a reader can press. */
+.nl-files { display: grid; gap: 6px; margin: 0 0 4px; padding: 0; list-style: none; }
+.nl-file {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border-mid);
+    border-radius: var(--radius-md);
+    background: white;
+    box-shadow: var(--shadow-1);
+    color: var(--primary-blue);
+    font-weight: 700;
+    text-decoration: none;
+    transition: border-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+.nl-file:active { transform: scale(var(--press-scale)); }
+.nl-file-icon { flex: 0 0 auto; font-size: var(--type-medium); }
+.nl-file-name { flex: 1 1 auto; min-width: 0; }
+.nl-file-meta {
+    flex: 0 0 auto;
+    padding: 2px 8px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-sunken);
+    color: var(--text-mid);
+    font-size: var(--type-badge);
+    font-weight: 700;
+    white-space: nowrap;
+}
+.nl-file:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+    .nl-file:hover { border-color: var(--primary-blue); }
+}
+
+/* The last line, on the canvas beneath the cards: who prepared the proposals and who decides. */
+.nl-prepared { margin: 4px 4px 24px; color: var(--on-navy-muted); font-size: var(--type-small); line-height: 1.45; text-align: center; }
+
+/* ── Desktop ──────────────────────────────────────────────────────────────────────────────────── */
+/* One column at the content width, every card the full band: the figures and the weeks use it, and prose takes the
+   reading measure (css-tokens.md → "Reading measure"). */
+@media (min-width: 1024px) {
+    .nl-lead, .nl-callout, .nl-gist, .nl-note, .nl-preview p, #nlChangesList .nl-list, #nlSayList .nl-list, #nlHowList .nl-list, .nl-gists li { max-width: 72ch; }
+    .nl-names { max-width: 640px; }
+    .nl-fig { max-width: 760px; }
+    .nl-d { font-size: var(--type-small); }
+    .nl-files { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* A thumb's target. After the base rules, so it wins (css-tokens.md, v19.61). */
+@media (pointer: coarse) {
+    .nl-tile, .nl-tab, .nl-file { min-height: 48px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .nl-tile, .nl-tab, .nl-file { transition: none; }
+}
+
+@media print {
+    body { background: white; padding: 0; color: black; }
+    .btn-burger, .nl-tiles, .nl-tabs, .nl-preview { display: none !important; }
+    .card { box-shadow: none; border: 1px solid var(--print-muted); break-inside: avoid; }
+    .nl-d, .nl-swatch, .nl-flag, .nl-fig thead th, .nl-side { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .nl-fig .nl-best b { color: black; }
+    .nl-prepared, .nl-file-meta { color: black; }
+    .nl-file, .nl-name { box-shadow: none; }
+}

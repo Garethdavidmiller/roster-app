@@ -57,7 +57,7 @@ const app = (file, id, more = {}) => ({
     coordinator: `${id}-app.js`, boot: `${id}-boot.js`, cards: true, authBarrier: 'sessionReady', ...more,
 });
 
-/** The eight app pages. Order is the nav drawer's, for readability only. @type {ReadonlyArray<AppPage>} */
+/** The nine app pages. Order is the nav drawer's, for readability only. @type {ReadonlyArray<AppPage>} */
 export const APP_PAGES = Object.freeze([
     app('index.html', 'calendar', { url: '/', css: 'index.css', boot: null, cards: false, authBarrier: 'calendarAuthReady' }),
     app('admin.html', 'admin'),
@@ -68,6 +68,9 @@ export const APP_PAGES = Object.freeze([
     app('links.html', 'links'),
     app('overtime.html', 'overtime'),
     app('trains.html', 'trains'),
+    // The December link: the three shortlisted proposals, for the colleagues who will work the new link. An admin
+    // preview since v25.06 (newlink-config.js → PHASE).
+    app('newlink.html', 'newlink'),
 ]);
 
 /** The printable guides — no shared.css, no drawer, no auth, no analytics id. In the drawer's order,
