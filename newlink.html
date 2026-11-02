@@ -124,7 +124,10 @@
         <div class="card-collapsible-body open" id="nlMeansBody">
             <div class="card-body">
                 <div class="nl-tiles" id="nlPersonaChips" role="group" aria-label="What it means if you"></div>
-                <div id="nlPersonaPanel" aria-live="polite"></div>
+                <!-- One short line is announced when the choice changes — never the panel itself, which would read
+                     a whole table aloud on every press. The panel follows the tiles in the reading order. -->
+                <p class="visually-hidden" id="nlPersonaStatus" aria-live="polite"></p>
+                <div id="nlPersonaPanel"></div>
             </div>
         </div>
     </div>
@@ -142,6 +145,7 @@
         <div class="card-collapsible-body open" id="nlWeeksBody">
             <div class="card-body">
                 <div class="nl-tabs" id="nlWeeksTabs" role="group" aria-label="Proposal, in alphabetical order"></div>
+                <p class="visually-hidden" id="nlWeeksStatus" aria-live="polite"></p>
                 <div id="nlWeeksPanel"></div>
                 <div id="nlWeeksKey"></div>
             </div>

@@ -41,7 +41,7 @@ import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
 import { PHASE, CLOSES, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY, PREPARED_BY } from './newlink-config.js';
 import { renderStatus, renderPreviewBanner, renderList, renderCommon, renderPersonas, renderPersonaChips,
-    renderWeeks, renderWeeksKey, renderWeeksTabs, renderPack } from './newlink-render.js';
+    renderWeeks, renderWeeksKey, renderWeeksTabs, renderPack, designName, ifYou } from './newlink-render.js';
 
 /** The collapsible cards, by the id prefix their header, body and chevron share. */
 const CARDS = ['nlChanges', 'nlCommon', 'nlMeans', 'nlWeeks', 'nlSay', 'nlPack', 'nlHow'];
@@ -143,7 +143,8 @@ function wireChoices() {
     drawWeeks();
 
     // Delegated, and the pressed button keeps focus across the redraw: the chips are rebuilt, so the handler puts focus
-    // back on the new copy of the one that was pressed rather than dropping it to <body>.
+    // back on the new copy of the one that was pressed rather than dropping it to <body>. What changed is said in ONE
+    // line (a polite live region) — never by making the panel live, which would read a whole table aloud on every press.
     el('nlPersonaChips')?.addEventListener('click', (e) => {
         const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('[data-persona]'));
         if (!b) return;
@@ -151,6 +152,7 @@ function wireChoices() {
         persona = persona === id ? null : id;   // pressing the chosen one again goes back to the six one-line answers
         drawPersonas();
         /** @type {HTMLElement|null} */ (el('nlPersonaChips')?.querySelector(`[data-persona="${id}"]`) ?? null)?.focus();
+        setText('nlPersonaStatus', personaStatus(persona));
     });
     el('nlWeeksTabs')?.addEventListener('click', (e) => {
         const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('[data-design]'));
@@ -158,7 +160,17 @@ function wireChoices() {
         design = /** @type {string} */ (b.dataset.design);
         drawWeeks();
         /** @type {HTMLElement|null} */ (el('nlWeeksTabs')?.querySelector(`[data-design="${design}"]`) ?? null)?.focus();
+        const p = PROPOSALS.find(x => x.id === design);
+        if (p) setText('nlWeeksStatus', `Showing ${designName(p)}’s 26 weeks, below.`);
     });
+}
+
+/** The one line a screen reader hears when the choice of colleague changes. @param {string|null} persona */
+function personaStatus(persona) {
+    if (!persona) return 'Showing the six one-line answers, below.';
+    if (persona === 'all') return 'Showing all six, with their figures, below.';
+    const p = PERSONAS.find(x => x.id === persona);
+    return p ? `Showing ${ifYou(p.who).replace(/^If/, 'what it means if')}, with its figures, below.` : '';
 }
 
 /** @param {string} id */
