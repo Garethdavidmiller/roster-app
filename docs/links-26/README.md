@@ -2763,7 +2763,8 @@ December 2026 rules, the December trains the cover is measured against, and the 
 
 **The app (v25.10).** The page is renamed *New link* — the nav pill, title, badge and heading — and says the new link
 starts on 1 January 2027, with the timetable first, in December. *Have your say* tells colleagues to talk to S. Silva or
-their manager, and the page's last line names her as the contact (`newlink-config.js`: `STARTS`, `CONTACT`). The Links
+their manager (`newlink-config.js`: `STARTS`, `CONTACT`). The page's last line named her as the contact too, until the owner
+saw it on a phone the same afternoon: *"The wording at the very bottom is not needed"* — it went at v25.11. The Links
 page's 219-day row gave its basis as *Chiltern December 2026 link rules*; it now reads *Chiltern rules for the new link*.
 
 **The plan's dates.** `../LINKS_DEC2026_PLAN.md` counts back from the timetable, so its deadlines are about three weeks

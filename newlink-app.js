@@ -39,7 +39,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
-import { PHASE, CLOSES, STARTS, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY, CONTACT_LINE } from './newlink-config.js';
+import { PHASE, CLOSES, STARTS, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
 import { renderStatus, renderPreviewBanner, renderList, renderCommon, renderPersonas, renderPersonaChips,
     renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, designName, ifYou } from './newlink-render.js';
 
@@ -125,7 +125,6 @@ function renderStatic() {
     setHTML('nlSayList', renderList(HAVE_YOUR_SAY));
     setHTML('nlPackList', renderPack(PACK, PACK_BASE));
     setHTML('nlHowList', renderList(NOTES));
-    setText('nlPrepared', CONTACT_LINE);
 }
 
 /**

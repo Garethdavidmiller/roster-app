@@ -415,8 +415,6 @@ body {
     .nl-file:hover { border-color: var(--primary-blue); }
 }
 
-/* The last line, on the canvas beneath the cards: who prepared the proposals and who decides. */
-.nl-prepared { margin: 4px 4px 24px; color: var(--on-navy-muted); font-size: var(--type-small); line-height: 1.45; text-align: center; }
 
 /* ── Desktop ──────────────────────────────────────────────────────────────────────────────────── */
 /* Every card the full band, and the band FILLED (css-tokens.md → "make the content fill it"): the two lists of sentences
@@ -466,6 +464,6 @@ body {
     .card { box-shadow: none; border: 1px solid var(--print-muted); break-inside: avoid; }
     .nl-d, .nl-swatch, .nl-flag, .nl-fig thead th, .nl-side { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .nl-fig .nl-best b { color: black; }
-    .nl-prepared, .nl-file-meta { color: black; }
+    .nl-file-meta { color: black; }
     .nl-file, .nl-name { box-shadow: none; }
 }
