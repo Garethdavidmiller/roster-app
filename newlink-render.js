@@ -78,7 +78,8 @@ export function renderStatus({ proposals, closes, starts = null }) {
     // The link and the timetable change on DIFFERENT dates (owner, 2 Nov 2026), and the gap is the question a colleague
     // asks next: which link do I work in between? Today's, until the new one starts.
     const from = startsWords(starts);
-    const when = from ? ` The new link starts on ${esc(from)}. The new timetable comes first, in December, and today’s link carries on until then.` : '';
+    // The day and the month stay together (a no-break space): at 390px the line broke after the "1" and left it stranded.
+    const when = from ? ` The new link starts on ${esc(from).replace(' ', '\u00a0')}. The new timetable comes first, in December, and today’s link carries on until then.` : '';
     return `<p class="nl-callout"><strong>Nothing is decided.</strong>${when}
         These are the three proposals on the shortlist, in alphabetical order.</p>
     <ul class="nl-names" aria-label="The three proposals">${tiles}</ul>
