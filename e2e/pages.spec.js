@@ -5887,6 +5887,42 @@ test('links: a window edit during a first save does not re-arm Save for a second
     expect(creates, 'exactly one design was created').toBe(1);
 });
 
+// Generate with a proposal open builds a NEW design, but the in-flight first save of the proposal's
+// copy was not told: when it landed, the copy's new id was stamped on the generated design, whose
+// next save then overwrote the copy (whole-app review, Oct 2026).
+test('links: Generate during a proposal copy\'s first save leaves the generated design unsaved', async ({ page }) => {
+    await seedContractTargets(page);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.goto('/links.html');
+    await page.locator('#linksEmptyProposals').click();
+    await proposalOptions(page).filter({ hasText: 'In Step' }).click();
+    await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });
+    await page.locator('#linksSaveBtnTop').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');   // the name it is saved under
+    await expect(page.locator('#linksSaveBtnTop')).toBeDisabled();
+
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);            // the name prompt has gone
+
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    await page.locator('#genApplyBtn').click({ force: true });
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#linksSaveBtnTop'), 'premise: the copy is still being saved').toBeDisabled();
+
+    await page.evaluate(() => { const w = /** @type {any} */ (window); w.__E2E.addDocHold = false; w.__E2E.releaseAddDoc?.(); });
+    await expect.poll(() => page.evaluate(() =>
+        (/** @type {any} */ (window).__E2E.setWrites || []).filter((/** @type {any} */ w) => w.added).length),
+        'the copy was created').toBe(1);
+    await expect(page.locator('#linksSaveBtnTop'), 'the generated design is still its own, unsaved').toHaveText('Save as…');
+    await expect(page.locator('#designStatusLong')).toHaveText('Not saved yet');
+});
+
 // ── THE 24-LINE DESIGNS GO TO THE BIN (v24.47, owner) ───────────────────────────────────────────
 // The rule is unit-tested (isPre26Design). What only the page can show: the designs move to the bin
 // on open, the move is a SOFT delete written for real, a 26-line design and a blank one are left
@@ -5924,6 +5960,34 @@ test('links: designs drawn for 24 lines move to Recently deleted, and nothing el
     await expect(page.locator('#designBinBtn')).toHaveText(/Recently deleted \(1\)/);
 });
 
+// A move that FAILS leaves the design live on the server. Left in the bin, a Restore then met a
+// design that was never deleted and said somebody else had restored it (whole-app review, Oct 2026).
+test('links: a 24-line design whose move to the bin fails is shown live again', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const grid = (/** @type {number} */ n) => {
+            const p = /** @type {any} */ ({});
+            for (let i = 1; i <= n; i++) p[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+            return p;
+        };
+        const OLD = 1_750_000_000_000;
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.txErrorCode = 'permission-denied';   // the move's transaction is refused
+        w.__E2E.docs = [
+            { id: 'old24', name: 'Old 24', patterns: grid(24), updatedAt: OLD, updatedBy: 'S. Silva' },
+            { id: 'new26', name: 'New 26', patterns: grid(26), updatedAt: OLD, updatedBy: 'S. Silva' },
+        ];
+    });
+    await page.goto('/links.html');
+    await openDesignPicker(page);
+    await expect(designOptions(page).filter({ hasText: 'Old 24' }), 'shown where the server has it').toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await openDesignSheet(page);
+    await expect(page.locator('#designBinBtn'), 'and not offered for a Restore it does not need').toBeHidden();
+});
+
 test('links: when EVERY design was a 24-line one, the empty page says where they went', async ({ page }) => {
     // Release day: nearly every saved design is a 24-line one, so the list is empty — and the save
     // row that carries the status line is hidden with it. "No designs yet" alone reads as lost work.
@@ -5945,6 +6009,32 @@ test('links: when EVERY design was a 24-line one, the empty page says where they
     await expect(page.locator('#linksEmptyMsg')).toContainText('the 2 designs drawn for 24 moved there. Restore one from Recently deleted');
     const created = await page.evaluate(() => (window.__E2E?.setWrites || []).filter(w => w.added));
     expect(created, 'the legacy grid was re-migrated into a new design').toEqual([]);
+});
+
+// The one-time migration of the pre-v12 singleton created its design at revision 1 and kept the list
+// entry without it, so the first save met a revision it did not hold: a false "this design changed"
+// (whole-app review, Oct 2026). Dead in production — every real collection has held a design — but
+// the next empty one would meet it.
+test('links: the design migrated from the legacy singleton saves without a false conflict', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const p = /** @type {any} */ ({});
+        for (let i = 1; i <= 26; i++) p[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'combined-28', patterns: p, updatedAt: 1_700_000_000_000, updatedBy: 'G. Miller' },
+                        // What the server holds once the migration's create lands: unnamed, so the
+                        // load ignores it, and at revision 1 — the stub's create records, it does not store.
+                        { id: 'e2e-added-1', patterns: p, revision: 1, updatedAt: 1_700_000_000_000, updatedBy: 'G. Miller' }];
+    });
+    await page.goto('/links.html');
+    await expect(activeDesignName(page)).toHaveText('Design 1');
+    await page.locator('#winMonSatStart').fill('06:00');
+    await page.locator('#winMonSatStart').dispatchEvent('change');
+    await page.locator('#linksSaveBtnTop').click();
+    await expect(page.locator('#linksSaveStatus')).toContainText('Saved');
+    await expect(page.locator('.dialog-overlay'), 'no conflict was asked about').toHaveCount(0);
 });
 
 test('links: the rotation length the in-page fixtures assume', () => {

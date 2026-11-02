@@ -113,7 +113,7 @@
  *    visible on it, not a thing they have to expand a disclosure to discover.
  */
 
-import { ROTATING_LINES, worstCaseWorkedRun, DAYS, SPARE_WORKED_DAYS } from './links-design.js';
+import { ROTATING_LINES, worstCaseWorkedRun, DAYS, SPARE_WORKED_DAYS, isCoverWeek } from './links-design.js';
 import { toSequence } from './links-fatigue.js';
 
 /**
@@ -183,7 +183,7 @@ export function contractedDaysPerYear(patterns, lines) {
     let duties = 0, cover = 0;
     for (let pos = 1; pos <= lines; pos++) {
         const row = patterns?.[String(pos)] || {};
-        if (DAYS.every(d => row[d] === 'SPARE')) { cover++; continue; }
+        if (isCoverWeek(row)) { cover++; continue; }
         for (const d of DAYS) if (d !== 'sun' && typeof row[d] === 'string' && /^\d/.test(row[d])) duties++;
     }
     return (duties + SPARE_WORKED_DAYS * cover) / lines * 365 / 7;

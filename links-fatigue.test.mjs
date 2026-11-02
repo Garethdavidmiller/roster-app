@@ -391,6 +391,29 @@ describe('assessFatigue — the report as a whole', () => {
         assert.ok(a.present > 0);
     });
 
+    // Whole-app review, Oct 2026 — two thresholds that read their boundary the wrong way.
+    test('FF10 counts a shift of EXACTLY twelve hours as a 12-hour shift', () => {
+        const TWELVE = '07:00-19:00';
+        const a = assessFatigue(design([RD, TWELVE, TWELVE, TWELVE, TWELVE, TWELVE, RD]), 1);
+        const ff10 = a.results.find(r => r.code === 'FF10');
+        assert.equal(ff10.value, 5);
+        assert.equal(ff10.status, 'present', 'five consecutive 12h shifts is more than four');
+    });
+
+    test('the 55-hour verdict is taken on the minutes, not on a figure rounded to 55', () => {
+        // Six 9h10m duties and one of 2m: 55h 02m in seven days. Rounded to one decimal that is
+        // 55.0, and "more than 55" asked of 55.0 said no.
+        const NINE10 = '06:00-15:10';
+        const a = assessFatigue(design([NINE10, NINE10, NINE10, NINE10, NINE10, NINE10, '06:00-06:02']), 1);
+        const row = a.results.find(r => r.title.includes('55 hours'));
+        assert.equal(row.status, 'present');
+        assert.equal(row.value, 55.03, 'the figure shown must not read 55 beside "present"');
+        const exact = assessFatigue(design([NINE10, NINE10, NINE10, NINE10, NINE10, NINE10, RD]), 1)
+            .results.find(r => r.title.includes('55 hours'));
+        assert.equal(exact.status, 'clear', 'exactly 55h is not MORE than 55');
+        assert.equal(exact.value, 55);
+    });
+
     test('an empty design does not throw', () => {
         const a = assessFatigue({}, 4);
         assert.ok(a.results.length > 0);

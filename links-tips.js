@@ -45,13 +45,13 @@ export const CARD_TIPS = {
                 { icon: '📋', html: `Each <strong>row</strong> is one of the ${ROTATING_LINES} lines. Each <strong>column</strong> is a day of the week (Sun–Sat).` },
                 { icon: '🔄', html: `All ${ROTATING_LINES} lines rotate — everyone passes through every line over the cycle, so <strong>all ${ROTATING_LINES} must be filled</strong> with a real pattern before the link can be authorised.` },
                 { icon: '🖌️', html: '<strong>Paint mode</strong> — arm a shift in the Paint bar above the grid, then click cells to fill them. Click the same chip again (or press Escape) to stop painting.' },
-                { icon: '✏️', html: '<strong>Single-cell edit</strong> — with no brush armed, tap any cell to pick a shift from the dropdown, or choose <strong>Custom time…</strong> to type a new one.' },
+                { icon: '✏️', html: '<strong>Single-cell edit</strong> — with no brush armed, tap any cell to pick a shift from the dropdown, or choose <strong>Custom…</strong> to type a new one.' },
                 { icon: '🧮', html: 'The three columns on the right are the <strong>totals for that line</strong> — hours Mon–Sat, hours across all seven days, and how many days are worked Mon–Sat. They update as you edit.' },
                 { icon: '📐', html: 'The bottom row averages them. Hours are averaged over every line, with a <strong>spare week counted as a full contracted week</strong>. Days are averaged over the <strong>working lines only</strong>, because a spare week does not say which days it works — each figure names its own divisor.' },
-                { icon: '💾', html: 'Tap <strong>Save changes</strong> when done.' },
+                { icon: '💾', html: 'Tap <strong>Save</strong> when done — beside the design\'s name, or at the foot of the grid. A new design asks for a name the first time.' },
             ]},
             { heading: 'Multiple designs', items: [
-                { icon: '➕', html: '<strong>+ New</strong> starts a fresh blank design. <strong>⎘ Duplicate</strong> copies the current one so you can try a variation.' },
+                { icon: '➕', html: 'Under <strong>···</strong> beside the design\'s name: <strong>New blank design</strong> starts afresh, and <strong>Save a copy as…</strong> copies the current one so you can try a variation.' },
                 // Added with the feature (v20.97). Without it the button is discoverable
                 // only by pressing it, and the two-step it opens then reads as a hurdle
                 // rather than as the check it is.
@@ -61,8 +61,8 @@ export const CARD_TIPS = {
                 { icon: '⏱️', html: '<strong>Generate refuses a design that would underpay.</strong> The rotation has to average the contracted week with Sundays left out, and a <strong>spare week counts as a full week</strong>. Individual weeks vary — the average is what counts.' },
                 { icon: '➕', html: 'If it refuses, it says how many hours of duty are missing. Only three things close that gap: more duties, longer ones, or more spare weeks. Spreading the same work over more lines never can — that is what makes a link shorter per person, not longer.' },
                 { icon: '🛡️', html: 'An import saves as a <strong>new</strong> design and never changes the one you have open. A cell it cannot read stops the whole import rather than quietly becoming a rest day — a design that arrives four duties light looks like a lighter week, not like a mistake.' },
-                { icon: '⇔', html: '<strong>Compare</strong> shows two designs side-by-side — cells that differ are highlighted in gold. Only available when you have at least two designs.' },
-                { icon: '🗑', html: 'Deleting a design does not destroy it — it moves to <strong>Recently deleted</strong>, where it stays until someone restores it or removes it for good. Nothing is removed automatically. The button only appears when something is in there.' },
+                { icon: '⇔', html: '<strong>Compare with…</strong>, under the same <strong>···</strong>, shows two designs side by side — cells that differ are highlighted in gold. It needs at least two designs.' },
+                { icon: '🗑', html: 'Deleting a design does not destroy it — it moves to <strong>Recently deleted</strong>, where it stays until someone restores it or removes it for good. Nothing is removed automatically. It is under <strong>···</strong>, and only appears when something is in there.' },
             ]},
             { heading: 'Filling the lines', items: [
                 { icon: '⬜', html: 'A line shown as <strong>all rest days</strong> is <em>not yet designed</em> — its line number turns amber. Fill it manually or with the generator. The Design checks card lists any that are still empty.' },

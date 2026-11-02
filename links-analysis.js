@@ -841,6 +841,9 @@ export function initLinksAnalysis({ getDesign, getBaseline = () => null, isCompa
                 : `${hoursVerdict.hm} a week over the ${CONTRACTED_HOURS_PER_WEEK}-hour contract`);
         }
         if (!wkendGood) triage.discuss.push(`${weekendsOff} of ${totalWeeks} weeks have a full weekend off (${weekendsOffPct}%)`);
+        // The Longest run row is amber over the design target too, and was the one amber row this
+        // block skipped (whole-app review, Oct 2026). It is an aim, not a limit — hence "discuss".
+        if (!stretchOk)           triage.discuss.push(`${longestStretch} working days in a row, over the ${DEFAULT_MAX_RUN}-day design target`);
         if (fat.present)          triage.discuss.push(`${fat.present} ORR fatigue factor${fat.present === 1 ? '' : 's'} present in this design`);
         if (fat.standing)         triage.discuss.push(`${fat.standing} standing factor${fat.standing === 1 ? '' : 's'} — from the operation, not from this design`);
         if (fat.confirmNeeded)    triage.discuss.push(`${fat.confirmNeeded} definition${fat.confirmNeeded === 1 ? '' : 's'} still to confirm with the assessing manager`);

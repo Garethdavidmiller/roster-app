@@ -128,6 +128,22 @@ export function createDesignStore(deps) {
         catch { return null; }
     };
 
+    /**
+     * OUR OWN QUEUED RENAMES, per design: the revision each stamped, and the revision the cache held
+     * under it (whole-app review, Oct 2026). Offline, a save consults the CACHE, and the cache shows
+     * our queued rename on top of whatever was there — its revision, but the last saver's name. So a
+     * save after our own offline rename read as "S. Silva saved a different version". The cache is
+     * judged on the revision UNDER our rename instead; a colleague's save that reached this device
+     * first is still caught, because then that revision is not the one we hold.
+     * @type {Map<string, {rev: number, before: number|null}>}
+     */
+    const ownRenames = new Map();
+    /** What the cached copy says once our own queued rename is seen through. @param {string} id @param {any} data */
+    const throughOwnRename = (id, data) => {
+        const own = ownRenames.get(id);
+        return own && data?.revision === own.rev ? { ...data, revision: own.before } : data;
+    };
+
     return {
         /** Every design in the collection, split live vs binned. Raw docs — mapping stays outside. */
         async loadAll() {
@@ -220,31 +236,51 @@ export function createDesignStore(deps) {
                 let gone = false;
                 /** @type {{by: string, at: any, rev: number|null}|null} */
                 let movedOn = null;
-                await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
-                    // A retried transaction must not keep the losing attempt's verdict — the same
-                    // reset `rename` makes below, for the same reason. NOT covered by a test: the
-                    // suite's fake calls the callback exactly once, so it cannot express a retry.
-                    // Stated rather than left to look tested.
-                    deletedData = null; gone = false; movedOn = null;
-                    const snap = await tx.get(ref);
-                    if (!snap.exists()) { gone = true; return; }
-                    const d = snap.data() || {};
-                    if (isDeleted(d)) { deletedData = d; return; }
-                    // Consent is per VERSION, and the revision names it exactly. Falls back to the
-                    // timestamp for a design nobody has saved since v22.18, so an in-flight dialog
-                    // opened before this release still resolves correctly (v22.18).
+                /** Consent is per VERSION, and the revision names it exactly. Falls back to the
+                 *  timestamp for a design nobody has saved since v22.18, so an in-flight dialog
+                 *  opened before this release still resolves correctly (v22.18). @param {any} d */
+                const movedOnOf = (d) => {
                     const liveRev = typeof d.revision === 'number' ? d.revision : null;
                     const liveRevision = d.updatedAt?.toMillis?.() ?? null;
-                    const movedOnFromApproved = (liveRev !== null || forceAgainstRev !== null)
+                    const moved = (liveRev !== null || forceAgainstRev !== null)
                         ? liveRev !== forceAgainstRev
                         : liveRevision !== forceAgainstRevision;
-                    if (movedOnFromApproved) {
-                        movedOn = { by: d.updatedBy || 'Someone', at: d.updatedAt || null, rev: liveRev };
-                        return;
-                    }
-                    committed = nextRevision(d);
-                    tx.set(ref, { ...buildPayload(), revision: committed });
-                }));
+                    return moved ? { by: d.updatedBy || 'Someone', at: d.updatedAt || null, rev: liveRev } : null;
+                };
+                try {
+                    await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                        // A retried transaction must not keep the losing attempt's verdict — the same
+                        // reset `rename` makes below, for the same reason. NOT covered by a test: the
+                        // suite's fake calls the callback exactly once, so it cannot express a retry.
+                        // Stated rather than left to look tested.
+                        deletedData = null; gone = false; movedOn = null;
+                        const snap = await tx.get(ref);
+                        if (!snap.exists()) { gone = true; return; }
+                        const d = snap.data() || {};
+                        if (isDeleted(d)) { deletedData = d; return; }
+                        movedOn = movedOnOf(d);
+                        if (movedOn) return;
+                        committed = nextRevision(d);
+                        tx.set(ref, { ...buildPayload(), revision: committed });
+                    }));
+                } catch (err) {
+                    // OFFLINE, CONSENT IS CHECKED AGAINST THE CACHE — the same thing an ordinary
+                    // offline save consults (whole-app review, Oct 2026). The conflict being answered
+                    // usually CAME from the cache, and a transaction cannot run without a server, so
+                    // "Replace" failed every time it was offered offline. Rule 2 still holds: only an
+                    // offline failure gets here, and the write is queued, never awaited.
+                    if (!isOffline(err)) throw err;
+                    try {
+                        const cached = await getDoc(ref);
+                        if (!cached.exists()) return { status: 'deleted-elsewhere', deletedData: null };
+                        const d = throughOwnRename(id, cached.data() || {});
+                        if (isDeleted(d)) return { status: 'deleted-elsewhere', deletedData: d };
+                        const again = movedOnOf(d);
+                        if (again) return { status: 'conflict', conflict: again };
+                    } catch { /* nothing cached to consult — proceed, as the ordinary offline save does */ }
+                    queueWrite(() => setDoc(ref, { ...buildPayload(), revision: queuedRevision(loadedRevision) }));
+                    return { status: 'queued', baseline: baselineAfterWrite(null, false) };
+                }
                 if (gone)         return { status: 'deleted-elsewhere', deletedData: null };
                 if (deletedData)  return { status: 'deleted-elsewhere', deletedData };
                 if (movedOn)      return { status: 'conflict', conflict: movedOn };
@@ -292,7 +328,7 @@ export function createDesignStore(deps) {
                     if (isDeleted(cached.data())) {
                         return { status: 'deleted-elsewhere', deletedData: cached.data() };
                     }
-                    const c = conflictOf(cached.data() || {}, cached.exists(),
+                    const c = conflictOf(throughOwnRename(id, cached.data() || {}), cached.exists(),
                         { loadedRevision, loadedUpdatedAt: baseline, baselineUnknown, currentUser });
                     if (c) return { status: 'conflict', conflict: c };
                 } catch { /* no cached state either — nothing to consult, proceed */ }
@@ -351,7 +387,12 @@ export function createDesignStore(deps) {
                 // left alone, a colleague holding the current one saved over the new name unasked.
                 // And like any unverified rename it does not sign the content as ours (above).
                 baselineFresh = canAdvanceBaseline(null, preBaseline, false);
-                queueWrite(() => setDoc(ref, { name, revision: queuedRevision(preRevision) }, { merge: true }));
+                let before = null;
+                try { const r = (await getDoc(ref)).data()?.revision; before = typeof r === 'number' ? r : null; }
+                catch { /* nothing cached — the next offline save consults nothing either */ }
+                const rev = queuedRevision(preRevision);
+                ownRenames.set(id, { rev, before });   // see `ownRenames`
+                queueWrite(() => setDoc(ref, { name, revision: rev }, { merge: true }));
                 return { baselineFresh, revision: null, updatedAt: null, queued: true };
             }
             // A rename that may advance the baseline advances it to the revision it COMMITTED —

@@ -5,8 +5,9 @@ import {
     breakLength, boundaryRest, scoreOrder, cost, reorderLines, applyOrder,
     blockRuns, blockExcess, spareSpread, longestRunFor, runExcess,
 } from './links-adjacency.js';
-import { generatePatterns, generateLink, ROTATING_LINES, DEFAULT_MAX_RUN } from './links-design.js';
+import { generatePatterns, generateLink, runDesignChecks, ROTATING_LINES, DEFAULT_MAX_RUN } from './links-design.js';
 import { buildRosterTargets } from './links-seed.js';
+import { buildDefaultTargets } from './links-default-targets.js';
 
 /** A design with variety: several start times, spare weeks, and rest days. */
 function design() {
@@ -179,19 +180,28 @@ describe('blockRuns — how many weeks in a row on much the same shift', () => {
 
 describe('cost', () => {
     const s = { gentleMean: 100, gentleOver: 2, gentleWorst: 300, unmeasurable: 0,
-        weekends: 5, longWeekends: 1, fourDayBreaks: 0, contractedDaysGiven: 6, shortBoundary: 3,
+        weekends: 5, longWeekends: 1, fourDayBreaks: 0, contractedDaysGiven: 6, shortBoundary: 0,
         blocks: [8, 4, 2], longestBlock: 8,
         longestRun: 9, runExcess: 12, spareExcess: 0, spareMinGap: 4, spareGaps: [5, 5, 5, 4, 5] };
 
-    test('an objective that is OFF contributes nothing at all', () => {
+    test('a SWITCH that is off contributes nothing at all', () => {
         assert.equal(cost(s, {}), 0);
     });
 
     test('each switch adds only its own term', () => {
         assert.equal(cost(s, { gentle: true }), 100 + 2 * 60);
         assert.equal(cost(s, { weekends: true }), -5 * 120);
-        assert.equal(cost(s, { turnarounds: true }), 3 * 600);
         assert.equal(cost(s, { maxRun: true }), 12 * 40);
+    });
+
+    test('REST ACROSS THE WEEK BOUNDARY is charged with every switch off — a gate, not an objective', () => {
+        // It was a switch until v25.06. Minimum rest is a GATE the generator applies before the
+        // reorder (v21.11), so a switch that let the reorder ignore it was a switch for undoing the
+        // gate: unticked, 45 of 64 switch-and-attempt combinations on the default design came back
+        // with a Saturday finish under 12 hours before the next line's Sunday start.
+        assert.equal(cost({ ...s, shortBoundary: 3 }, {}), 3 * 600);
+        assert.ok(!OBJECTIVES.some(o => /** @type {string} */ (o.key) === 'turnarounds'),
+            'a checkbox that turns off minimum rest is back — the generator refuses short rest, and so must the reorder');
     });
 
     test('the SPARE SPREAD is charged with every switch off — it is a constraint, not an objective', () => {
@@ -211,7 +221,7 @@ describe('cost', () => {
         // throughout. Comparing rates between terms that accumulate at different rates is the whole
         // mistake, and asserting it that way is what made it look answered.
         //
-        // So the comparison is one unit of spread against ALL SIX switches each getting one unit
+        // So the comparison is one unit of spread against EVERY switch getting one unit
         // worse at once — the marginal weights read back through `cost` itself rather than restated
         // here, so a re-weighted objective is caught instead of silently agreeing with a copy.
         const flat = { ...s, spareExcess: 0, blocks: [1], longestBlock: 1, gentleMean: 0,
@@ -219,15 +229,15 @@ describe('cost', () => {
         /** One unit worse on exactly the named objective, everything else held flat. */
         const worseBy = { variety: { blocks: [2], longestBlock: 2 }, maxRun: { runExcess: 1 },
             gentle: { gentleOver: 1 }, weekends: { weekends: 3 },
-            longWeekends: { longWeekends: 3 }, turnarounds: { shortBoundary: 1 } };
+            longWeekends: { longWeekends: 3 } };
         const everySwitchOneUnitWorse = OBJECTIVES.reduce((total, o) => total
             + cost({ ...flat, ...worseBy[o.key] }, { [o.key]: true })
             - cost(flat, { [o.key]: true }), 0);
 
         const oneClustered = cost({ ...flat, spareExcess: 1 }, {}) - cost(flat, {});
         assert.ok(oneClustered > everySwitchOneUnitWorse,
-            `one unevenly-placed cover week (${oneClustered}) must outweigh all six objectives `
-            + `slipping a unit each (${everySwitchOneUnitWorse}) — otherwise the optimiser trades `
+            `one unevenly-placed cover week (${oneClustered}) must outweigh every objective `
+            + `slipping a unit at once (${everySwitchOneUnitWorse}) — otherwise the optimiser trades `
             + 'the spread away, the one move here that makes a design worse than the one it was handed');
 
         // AND THAT IS STILL ONLY NECESSARY, NOT SUFFICIENT — the switches accumulate without limit,
@@ -295,7 +305,7 @@ describe('reorderLines', () => {
         // shift X on day D", and permuting the rows cannot change it. If this ever fails, the reorder
         // has started moving cells rather than rows.
         const p = design();
-        const r = reorderLines(p, { on: { gentle: true, weekends: true, longWeekends: true, turnarounds: true } });
+        const r = reorderLines(p, { on: { gentle: true, weekends: true, longWeekends: true } });
         const out = applyOrder(p, r.order);
         for (const d of ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']) {
             const before = Object.values(p).map(row => row[d]).sort();
@@ -355,7 +365,9 @@ describe('reorderLines', () => {
 
 describe('OBJECTIVES', () => {
     test('every objective the cost function reads has a labelled switch', () => {
-        // A term in `cost` with no switch would be permanently on and invisible.
+        // A term in `cost` with no switch would be permanently on and invisible — except the two that
+        // are on purpose (the spare spread, and rest across the week boundary), which the
+        // objectives note on the generator card states in words because they have no checkbox.
         const s = { gentleMean: 10, gentleOver: 1, gentleWorst: 10, unmeasurable: 0, weekends: 1,
             longWeekends: 0, fourDayBreaks: 0, contractedDaysGiven: 1, shortBoundary: 1,
             blocks: [9], longestBlock: 9,
@@ -415,6 +427,14 @@ describe('spare spread', () => {
         assert.equal(spareSpread(p, clustered).minGap, 1);
     });
 
+    test('a cover week whose Sunday is a rest day is still a cover week', () => {
+        // Whole-app review, Oct 2026 — the one rule `isCoverWeek` states for the whole workspace.
+        const p = spread(20, 4);
+        const keys = Object.keys(p).sort((a, b) => Number(a) - Number(b));
+        p['1'] = { ...p['1'], sun: 'RD' };
+        assert.equal(spareSpread(p, keys).gaps.length, 4, 'all four cover weeks are seen');
+    });
+
     test('fewer than two cover weeks has nothing to spread', () => {
         assert.equal(spareSpread(spread(10, 1), Object.keys(spread(10, 1))).excess, 0);
         assert.equal(spareSpread({}, []).excess, 0);
@@ -424,7 +444,7 @@ describe('spare spread', () => {
         // The regression itself, driven through the real optimiser with the switches that caused it.
         const p = spread(20, 4);
         const before = spareSpread(p, Object.keys(p).sort((a, b) => Number(a) - Number(b)));
-        const r = reorderLines(p, { on: { gentle: true, weekends: true, longWeekends: true, turnarounds: true } });
+        const r = reorderLines(p, { on: { gentle: true, weekends: true, longWeekends: true } });
         const after = spareSpread(p, r.order);
         assert.equal(before.excess, 0, 'premise: they started spread');
         assert.equal(after.excess, 0,
@@ -576,6 +596,63 @@ describe('reorderLines attempts', () => {
             const sp = spareSpread(p, r.order.map((_, i) => String(i + 1)));
             assert.equal(sp.excess, 0, `attempt ${a}: cover weeks uneven — gaps ${sp.gaps.join(',')}`);
             assert.ok(sp.minGap > 1, `attempt ${a}: two cover weeks adjacent`);
+        }
+    });
+});
+
+// ── MINIMUM REST SURVIVES THE REORDER (v25.06) ──────────────────────────────────────────────────
+// The generator repairs every short turnaround and REFUSES what it cannot repair — a gate since
+// v21.11 — and only THEN does the reorder choose which line follows which. With the old "Rest across
+// the week boundary" switch unticked, nothing stopped it putting a 23:55 Saturday finish in front of
+// a 07:15 Sunday start. Asserted through `runDesignChecks`, the check the Design checks card shows,
+// on the generator's real output rather than on a scorecard field.
+describe('minimum rest survives the reorder', () => {
+    const { slots, spareLines } = buildDefaultTargets();
+    const real = generateLink({ slots, spareLines, lines: ROTATING_LINES }).patterns;
+    const breaches = (/** @type {string[]} */ order) => runDesignChecks(applyOrder(real, order)).turnarounds
+        .map(t => `${t.fromLine}${t.fromDay}→${t.toLine}${t.toDay} ${t.restMinutes}min`);
+
+    test('premise: the generator hands over a design with no short turnaround', () => {
+        assert.deepEqual(breaches(Object.keys(real)), []);
+    });
+
+    test('no switch, and no attempt, brings one back', () => {
+        // Every single switch plus two pairs, attempts 0–2: before v25.06 every one of these
+        // configurations produced a breach somewhere in that range.
+        const configs = [...OBJECTIVES.map(o => ({ [o.key]: true })),
+            { variety: true, gentle: true }, { weekends: true, longWeekends: true }];
+        let handedBack = 0;
+        for (const on of configs) {
+            for (let attempt = 0; attempt <= 2; attempt++) {
+                const r = reorderLines(real, { on, attempt });
+                assert.deepEqual(breaches(r.order), [], `${Object.keys(on).join(' + ')}, attempt ${attempt}`);
+                if (!r.changed) handedBack++;
+            }
+        }
+        // AND IT IS REACHED BY REORDERING, NOT BY GIVING UP. The filter alone would also pass the
+        // assertion above — by handing back the generator's own order, objectives ignored. The rest
+        // term in `cost` is what lets the search find a rested order instead. Measured: one of these
+        // 21 runs comes back as handed (long weekends alone, attempt 0, where the greedy already
+        // agrees with the generator); with the rest term made conditional again, seven do.
+        assert.ok(handedBack <= 2, `${handedBack} of 21 runs came back as handed — the search is giving up, not resting`);
+    });
+
+    test('a weight can be outbid, so the rest rule is a FILTER as well — and the order it was handed is kept', () => {
+        // Two waves, every late line finishing 23:55 on Saturday and every early line starting
+        // 06:20 on Sunday, so any late→early step is a short turnaround. Handed as eight earlies
+        // then eight lates — one short step, at the wrap — `variety` would happily alternate them in
+        // threes for three short steps, because two units of block excess outbid one turnaround.
+        // The filter refuses that, and attempt 0 failing it keeps the order handed rather than
+        // shipping the breach (which the line before v25.06 did).
+        const wk = (/** @type {string} */ t) => ({ sun: t, mon: t, tue: t, wed: t, thu: t, fri: 'RD', sat: t });
+        /** @type {Record<string, any>} */ const p = {};
+        for (let i = 1; i <= 16; i++) p[String(i)] = wk(i <= 8 ? '06:20-14:20' : '15:55-23:55');
+        assert.equal(scoreOrder(p, Object.keys(p)).shortBoundary, 1, 'premise: one short step, at the wrap');
+        for (let attempt = 0; attempt <= 2; attempt++) {
+            const r = reorderLines(p, { on: { variety: true }, attempt });
+            assert.ok(r.after.shortBoundary <= 1,
+                `attempt ${attempt}: ${r.after.shortBoundary} short steps — more than the design was handed`);
+            assert.deepEqual(r.order, Object.keys(p), `attempt ${attempt}: the handed order is kept`);
         }
     });
 });

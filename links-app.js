@@ -1555,7 +1555,6 @@ export function init() {
             const _on = {
                 variety: _chk('objVariety'), maxRun: _chk('objMaxRun'), gentle: _chk('objGentle'),
                 weekends: _chk('objWeekends'), longWeekends: _chk('objLongWeekends'),
-                turnarounds: _chk('objTurnarounds'),
             };
             const _num = (/** @type {string} */ id, /** @type {number} */ dflt, min = 0) => Math.max(min, parseInt(
                 /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? String(dflt), 10) || dflt);
@@ -1580,6 +1579,7 @@ export function init() {
                 // No active design yet (or a proposal open — it is not yours to overwrite) — an unsaved in-memory design
                 design = { id: null, name: '', patterns: _final, window: design?.window };   // named on its FIRST SAVE (links-design-header.js rule 3)
                 activeDesignId = null; activeProposalId = null; lsSet(ACTIVE_KEY, '');
+                activation++;   // a DIFFERENT design now: a first save in flight must not stamp its id on it (Oct 2026)
             } else {
                 design = { ...design, patterns: _final };
             }
@@ -2027,7 +2027,7 @@ export function init() {
                         pending = forced.conflict;
                         continue;
                     }
-                    landed(savingId, forced.baseline, forced.updatedAt);
+                    landed(savingId, forced.baseline, forced.updatedAt, forced.status === 'queued');
                     break;
                 }
             } else {
@@ -2072,6 +2072,7 @@ export function init() {
         getHeader: () => header,
     });
 
+    const binFailed = new Set();   // old-length designs whose move to the bin FAILED this visit — shown live
     /** A collection read → live designs, the bin, and the legacy singleton. One rule for both readers.
      *  A binned design keeps its patterns so a restore is a field-clearing merge (v19.41); every
      *  doc → object mapping is links-design-doc.js (v19.94). `binOld` is false for a CACHED read, which may not claim a move it cannot make.
@@ -2084,7 +2085,7 @@ export function init() {
             if (hasName && isDeleted(data)) binned.push(binEntryFromDoc(id, data));
             // A design drawn for the old link length goes to the bin (owner, 3 Oct 2026; rule: isPre26Design).
             // Shown there AT ONCE; the soft-delete write follows in the background (_binPre26).
-            else if (hasName && binOld && isPre26Design(data)) { binned.push(binEntryFrom(designFromDoc(id, data), currentUser)); toBin.push(id); }
+            else if (hasName && binOld && isPre26Design(data) && !binFailed.has(id)) { binned.push(binEntryFrom(designFromDoc(id, data), currentUser)); toBin.push(id); }
             else if (hasName) named.push(designFromDoc(id, data));
             else if (id === LEGACY_DOC_ID && data.patterns) legacyData = data;
         }
@@ -2113,7 +2114,9 @@ export function init() {
         for (const id of ids) {
             library.trackBinMove(id, store.binIfStill(id, currentUser, isPre26Design)
                 .then((/** @type {string} */ r) => { if (r === 'skipped') _refreshLists(); })   // restored or redrawn since: show it live
-                .catch((/** @type {any} */ err) => console.error('[Links] Binning an old-length design failed:', err)));
+                // A FAILED move leaves it live on the server; shown in the bin, a Restore then blamed a
+                // colleague for restoring it (whole-app review, Oct 2026). Show it live; next load retries.
+                .catch((/** @type {any} */ err) => { console.error('[Links] Binning an old-length design failed:', err); binFailed.add(id); _refreshLists(); }));
         }
     }
 
@@ -2134,11 +2137,11 @@ export function init() {
                 // Through the SHARED mapping (v19.94): it once skipped `normalisePatterns` and the
                 // `window` field, persisting legacy unpadded times for good. History: git log.
                 const migrated = designFromDoc('', { ...legacyData, name: 'Design 1' });
-                const { id: migratedId } = await store.create(docPayload(migrated, {
+                const { id: migratedId, baseline: migratedBase } = await store.create(docPayload(migrated, {
                     updatedBy: legacyData.updatedBy ?? currentUser,
                     updatedAt: legacyData.updatedAt ?? serverTimestamp(),
-                }));
-                named.push({ ...migrated, id: migratedId, updatedBy: legacyData.updatedBy || currentUser });
+                }));   // its revision too, or the first save met revision 1 holding none: a false conflict
+                named.push({ ...migrated, id: migratedId, updatedBy: legacyData.updatedBy || currentUser, revision: migratedBase.loadedRevision });
             }
 
             // Sort by name — getDocs returns (random) auto-ID order, which shuffles the picker.
