@@ -2,7 +2,7 @@
  * Static guard for the canonical card-header conventions across the five card-bearing app pages
  * (v18.86). No emulator, no browser — it reads the served HTML.
  *
- * Two conventions, both of which had already drifted unnoticed because nothing enforced them:
+ * Three conventions — the first two had already drifted unnoticed because nothing enforced them:
  *
  *   1. A card title is an `h2`. operations.html marked all nine of its cards up as `h3` while the
  *      other four pages used `h2`; `shared.css` styled both identically, so it LOOKED right while
@@ -11,6 +11,10 @@
  *
  *   2. Every card title carries a leading emoji. "Change a Shift" — the Admin page's primary card —
  *      was the ONLY one in the app without one, so the odd one out was also the most prominent.
+ *
+ *   3. That emoji is the heading's FIRST element, as `<span aria-hidden="true">` (v25.14). The
+ *      icon tile in the page's colour hooks on exactly that, and `:first-child` cannot see text —
+ *      so a bare emoji gets no tile, and a span placed after the words would tile the wrong thing.
  *
  * Part of `npm run test:hygiene`.
  */
@@ -102,5 +106,17 @@ test('every card title leads with an emoji', () => {
             .filter(t => t && !LEADING_EMOJI.test(t));
         assert.deepEqual(bare, [],
             `${page}: card titles must lead with an emoji (the app-wide convention) → ${bare.join(' · ')}`);
+    }
+});
+
+test('every card title\'s emoji is its FIRST element, wrapped as the icon tile expects', () => {
+    // shared.css hangs the page-colour tile on `.card-header h2 > span[aria-hidden="true"]:first-child`.
+    // A title that misses this shape is not broken on screen — it is the one card on its page with
+    // a bare emoji and no tile, which is the odd-one-out convention 2 above was written against.
+    const WRAPPED = /^\s*<span\b[^>]*\baria-hidden="true"[^>]*>\s*(\p{Extended_Pictographic}|\p{Regional_Indicator})[^<]*<\/span>/u;
+    for (const page of PAGES) {
+        const bad = cardHeadings(read(page)).filter(h => !WRAPPED.test(h.text)).map(h => visible(h.text));
+        assert.deepEqual(bad, [],
+            `${page}: a card title must begin <span aria-hidden="true">EMOJI</span>, or it gets no tile → ${bad.join(' · ')}`);
     }
 });

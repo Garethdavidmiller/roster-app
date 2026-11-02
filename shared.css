@@ -74,6 +74,22 @@
        shared.css referenced it every other page was reading a property nothing declared. */
     --gold-text: oklch(46% 0.11 85deg);
 
+    /* ── Page identity (v25.14) ─────────────────────────────────
+       ONE colour per page, declared ONCE in that page's own stylesheet `:root`, and read by
+       everything that wears it: the header badge (.badge-page), the About badge (.lightbox-badge)
+       and the tile behind each card title's emoji. Until v25.14 every page restated its colour in
+       two hand-written rules, and the copies had already drifted — Links' About badge had a
+       full-strength border where every other page's was a 35% tint.
+         --page-accent       the colour itself: the badge fill, and what every tint is mixed from
+         --page-accent-ink   text ON the full colour — white, or navy on a bright accent
+         --page-accent-text  the colour as TEXT on a pale tint of itself. A bright accent (gold,
+                             orange) fails there, which is why --gold-text exists
+       These defaults are the Calendar's gold; the Calendar declares nothing. Every card page
+       declares all three, Admin included (card-header-parity.test.mjs). */
+    --page-accent:      var(--accent-gold);
+    --page-accent-ink:  var(--primary-blue);
+    --page-accent-text: var(--gold-text);
+
     /* ── Shift type colours ──────────────────────────────────────
        Base colour for badges and borders. Light tints are derived
        via color-mix. All base colours meet WCAG AA on white. */
@@ -204,7 +220,8 @@
        The fix is the one its sibling `.lightbox-status.needs-update` already used: an OPAQUE
        background, so the pill answers for its own contrast and no layout change can move it.
        The green is darkened to suit a light pill (5.2:1 measured); it is not a "less green"
-       green, it is the same hue at a lightness that can be read. */
+       green, it is the same hue at a lightness that can be read. Since v25.14 the panel itself is
+       an opaque navy sheet as well, so nothing behind the modal reaches either surface any more. */
     --status-ok:    oklch(50% 0.13 144.2deg);
     --status-ok-bg: color-mix(in oklch, var(--status-ok) 10%, white);
 
@@ -1114,14 +1131,13 @@ body.lb-open #stickyTotal { display: none !important; }
    Uses .lb-overlay / .lb-content / .lb-close for structure.
    ============================================================ */
 
-/* Content card — theme only; structural rules from .lb-content */
+/* Content card — layout only; structural rules from .lb-content. Its SURFACE is the opaque navy
+   sheet it shares with the one-time notices (v25.14 — see "THE OPAQUE NAVY SHEET" below). */
 #iconLightboxContent {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 6px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: var(--radius-panel);
     padding: 36px 40px 32px;
     width: min(var(--modal-compact), var(--modal-cap));
@@ -1155,21 +1171,21 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 /* Section badge — a pill below the version naming the page ("Admin", "Pay Calculator"), in the
-   page's colour: a pale tint of it, and the colour itself as the text. Pages override the three
-   colours with their own; this default is gold — Admin's, and the Calendar's Team Week badge.
-   THE TEXT IS --gold-text, NOT THE BRAND GOLD (v25.12). Brand gold on its own 15% tint measured
+   page's colour: a pale tint of it, and the colour as text. The colour is the page's
+   --page-accent trio (v25.14) and no page restates it here; gold is Admin's and the Calendar's.
+   THE TEXT IS --page-accent-text, NOT THE ACCENT (v25.12). Brand gold on its own 15% tint measured
    1.49:1 — the badge text sits on a near-white pill, and bright gold is a colour to see, not to
    read, which is why --gold-text exists. Operations had the orange twin of the same defect (1.93:1)
-   and now reads in --orange-text; Overtime, which had no rule and so wore this gold, now wears its
-   own --ot (4.68:1). The rest were already above 4.5:1 (measured: pay 4.82, trains 5.03, settings
-   5.48, links 6.26, new link 9.00). */
+   and reads in --orange-text; Overtime, which had no rule and so wore this gold, wears its own --ot
+   (4.68:1). The rest were already above 4.5:1 (measured: pay 4.82, trains 5.03, settings 5.48,
+   links 6.26, new link 9.00). axe scans every page's About panel (e2e/axe.spec.js). */
 .lightbox-badge {
     margin-top: 10px;
     padding: 5px 14px;
-    background: color-mix(in oklch, var(--accent-gold) 15%, white);
-    border: 1px solid color-mix(in oklch, var(--accent-gold) 35%, white);
+    background: color-mix(in oklch, var(--page-accent) 15%, white);
+    border: 1px solid color-mix(in oklch, var(--page-accent) 35%, white);
     border-radius: var(--radius-pill);
-    color: var(--gold-text);
+    color: var(--page-accent-text);
     font-size: var(--type-badge);
     font-weight: 800;
     text-transform: uppercase;
@@ -1692,9 +1708,11 @@ button.lightbox-bug-link {
       rgba(0,10,20,0.82) backdrop — near enough the same value that the calendar's coloured cells
       read straight through it and the card's own edges did not. It now sits on an OPAQUE
       --primary-blue base with a top-lit gradient over it, so it is a sheet rather than a lighter
-      patch of the dimmed page. That makes the notice the one member of the navy-glass family
-      (About, day detail, AL) that is not see-through, and deliberately: those three are a look AT
-      something still on screen behind them, and a notice is an interruption that wants a decision.
+      patch of the dimmed page. Of the navy-glass family only day detail and AL stay see-through,
+      and deliberately: they are a look AT something still on screen behind them, while a notice is
+      an interruption that wants a decision. The About panel joined the notice at v25.14 for the
+      same reason in another form: it describes the app, not anything behind it, and its see-through
+      surface made each pill's contrast depend on whichever page was underneath (--status-ok's note).
       The blurred backdrop around the card keeps the family resemblance.
 
    2. NOTHING GROUPED. Six children at a uniform `gap: 6px` — badge, title, date, prose, CTA,
@@ -1712,15 +1730,22 @@ button.lightbox-bug-link {
     align-items: stretch;
     gap: 0;
     padding: 0;
-    background-color: var(--primary-blue);
-    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.05));
-    border: 1px solid rgba(255, 255, 255, 0.16);
     border-radius: var(--radius-panel);
-    box-shadow: var(--shadow-3);
     width: min(var(--modal-standard), var(--modal-cap));
     text-align: left;
     max-height: 80vh;
     max-height: 80dvh;
+}
+
+/* THE OPAQUE NAVY SHEET — one surface, two panels (v25.14): every one-time notice, and the About
+   panel. One rule rather than a copy in each, so the two cannot drift apart; the reasoning for the
+   surface is point 1 above. A third panel that wants it joins this selector list. */
+.notice-lb-content,
+#iconLightboxContent {
+    background-color: var(--primary-blue);
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.05));
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: var(--shadow-3);
 }
 
 /* Header zone — badge, title, optional date. The 28px top padding is load-bearing: .lb-close is a
@@ -2034,10 +2059,12 @@ button.lightbox-bug-link {
 
 /* Badge — sits at the right edge naturally; brand's flex:1 fills all space before it */
 
-/* Gold pill badge — shown in header to identify the current section */
+/* Page badge — the pill at the right of the header naming the current page, in the page's own
+   colour (--page-accent / --page-accent-ink, v25.14 — see :root). Admin alone styles its badge
+   differently, navy with a gold ring (#adminBadge in admin.css). */
 .badge-page {
-    background: var(--accent-gold);
-    color: var(--primary-blue);
+    background: var(--page-accent);
+    color: var(--page-accent-ink);
     font-size: var(--type-badge);
     font-weight: 800;
     padding: 4px 10px;
@@ -3370,12 +3397,56 @@ body.auth-ready .boot-placeholder { display: none; }
    card it names, so a title could not out-rank its own content.
    WHY NOT 15px, WHICH WAS TRIED: measured at 360/375/390px on every card page, 15px tipped paycalc's
    "🏖️ Holiday Pay Premium (HPP)" onto two lines at 375px — the width v18.53 trimmed a chip to keep it
-   on one — while at 14px it keeps that line. (It wraps at 360px either way, as it always has, and it
-   may not be shortened: paycalc.md invariant 16.) The one title 14px does newly wrap is the admin-only
+   on one — while at 14px it kept that line. (It wraps at 360px either way, as it always has, and it
+   may not be shortened: paycalc.md invariant 16.) The one title 14px newly wrapped was the admin-only
    New link page's "🆕 What's changed since Short Run was shown", at 375px — balanced onto two lines.
+   THE ICON TILE BELOW SPENDS THAT 375px LINE (v25.14), and knowingly: measured, any tile 22px or
+   wider tips the HPP title onto two lines there, and a tile narrower than that is barely a tile. It is
+   balanced ("Holiday Pay / Premium (HPP)"), every word still shows, and nothing is hidden or
+   shortened. The way back, if the wrap is ever judged worse than the tile, is a smaller tile — not a
+   shorter title.
    The slight negative tracking is what bolder Inter wants at this size. `text-wrap: balance` makes a
    title that must wrap split evenly rather than leave one word on a line of its own. */
 .card-header h2 { font-size: var(--type-body); font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; color: var(--primary-blue); margin: 0; }
+/* THE CARD-TITLE ICON TILE (v25.14). Every card title's leading emoji sits on a small rounded tile in
+   a pale tint of the page's own colour (--page-accent, see :root): mint on Pay, peach on Operations,
+   lavender on Settings, and so on. It is what carries the page's colour into the cards, which were
+   otherwise the same white on every page — the badge said which page you were on and nothing below
+   it did.
+   It hooks on markup that already existed, deliberately: every card title wraps its emoji as the
+   heading's FIRST element, `<span aria-hidden="true">`, so a screen reader skips it. `:first-child`
+   cannot see text, so a title that put its words first and a span after them would tile the wrong
+   thing — card-header-parity.test.mjs requires the emoji span to be where the title starts.
+   The negative block margin keeps the 28px tile from pushing the header much taller than the title
+   line; -3px rather than the -5px that would hide it completely, because at -5px the tile crowded the
+   hint line under it. Mixed with WHITE, not with --surface: --surface carries the navy's hue, and an
+   oklch mix towards it drags every tint blue. */
+.card-header h2 > span[aria-hidden="true"]:first-child {
+    display: inline-grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    margin: -3px 3px -3px 0;
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklch, var(--page-accent) 17%, white);
+    border: 1px solid color-mix(in oklch, var(--page-accent) 26%, white);
+    font-size: 1.1em;
+    line-height: 1;
+    vertical-align: middle;
+}
+/* A WRAPPED TITLE HANGS FROM ITS TILE. Inline, a title's second line ran back under the tile
+   ("Holiday Pay" beside it, "Premium (HPP)" beneath it at 375px), which reads as an accident. As a
+   flex row the words become one block beside the tile and wrap inside it, so every line starts at
+   the same x. ONLY where the tile is the title's one element: flex makes every child its own item,
+   so "Link design — <span>26</span> lines" would come apart into three pieces with their spaces
+   gone. The three titles that hold a second element stay inline; all three are short enough never
+   to wrap. The gap plus the tile's 3px margin matches the inline space it replaces (the leading
+   space is dropped at the start of the block). No `:has()`, no flex: the inline layout above. */
+.card-header h2:has(> span[aria-hidden="true"]:first-child):not(:has(> :nth-child(2))) {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
 .card-header .hint { font-size: var(--type-small); color: var(--text-light); display: block; }
 /* A "☰ → Daily Huddle" path told to staff is one token, not three words: without this the wrap
    could land between the burger glyph and the arrow, leaving a line starting "→ Daily Huddle" that

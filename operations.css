@@ -1215,11 +1215,14 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 /* The inline email Set/Edit form sits full-width under the email line inside the row. */
 .acct-row .email-set-form { margin: 2px 0 0; }
 
-#opsBadge { background: var(--orange); color: var(--primary-blue); }
-#iconLightbox .lightbox-badge {
-    background: color-mix(in oklch, var(--orange) 15%, white);
-    border-color: color-mix(in oklch, var(--orange) 35%, white);
-    color: var(--orange-text);   /* bright orange on its own tint was 1.93:1; this is 7.26:1 (v25.12) */
+/* The page's colour, orange: the header badge, the About badge and the card-title tiles all
+   read it (shared.css :root → "Page identity", v25.14). Declared once, here.
+   Navy text on the bright orange, and --orange-text where it is read on a pale tint — bright
+   orange on its own tint was 1.93:1; --orange-text is 7.26:1 (v25.12). */
+:root {
+    --page-accent:      var(--orange);
+    --page-accent-ink:  var(--primary-blue);
+    --page-accent-text: var(--orange-text);
 }
 
 /* ---- Auth setup card ---- */

@@ -83,14 +83,23 @@ export function init() {
      * @param {import('./settings-status.js').CardState} state
      * @param {string} [chip] the chip text. Omitted leaves the chip untouched, which is what a
      *   card wants while it is still reading — an empty chip renders as nothing (`:empty`).
+     * @param {string} [tone] the chip's colour, when it must not follow `state` — only `'plain'`
+     *   today, for the notifications "Off" a member chose: `ok` to the summary, but no green.
      */
-    function reportSetting(id, state, chip) {
+    function reportSetting(id, state, chip, tone = state) {
         _states[id] = state;
         if (chip !== undefined) {
             const el = document.getElementById(_CHIP_IDS[id]);
             // Through `setStatus`, not `.textContent`: a chip reading "✓ Saved" in a header a
             // screen reader walks would otherwise announce the tick as a word (status-text.js).
-            if (el) setStatus(el, chip);
+            if (el) {
+                setStatus(el, chip);
+                // The chip's colour is the state that wrote its words (v25.14), set here and only
+                // here so the two cannot disagree: a report without a chip leaves both alone.
+                // settings.css colours `ok` and `action`/`blocked` with the summary strip's own
+                // declarations; every other tone — `'plain'` included — stays neutral.
+                el.dataset.tone = tone;
+            }
         }
         // Opening is one-way. A card the member has been shown must not shut under them because a
         // later report improved — they may be typing in it.
@@ -233,7 +242,7 @@ export function init() {
         // authority on what each one means, and a second read of `peekNotifState` here could
         // disagree with the sentence on screen.
         _cardHandles['notifications'] = initHuddleNotifications({
-            onState: (state, chip) => reportSetting('notifications', state, chip),
+            onState: (state, chip, tone) => reportSetting('notifications', state, chip, tone),
         });
         // Install. Not collapsible and it has no chip — it is either an offer or, on an iPhone
         // in a browser, the prerequisite for the card above it. Either way it reports at once.

@@ -52,11 +52,12 @@ body {
     margin-bottom: 12px;
 }
 
-#trainsBadge { background: var(--raspberry); color: white; }
-#iconLightbox .lightbox-badge {
-    background: color-mix(in oklch, var(--raspberry) 15%, white);
-    border-color: color-mix(in oklch, var(--raspberry) 35%, white);
-    color: var(--raspberry);
+/* The page's colour, raspberry: the header badge, the About badge and the card-title tiles all
+   read it (shared.css :root → "Page identity", v25.14). Declared once, here. */
+:root {
+    --page-accent:      var(--raspberry);
+    --page-accent-ink:  white;
+    --page-accent-text: var(--raspberry);
 }
 
 /* ── The overview card ──────────────────────────────────────────────────────
