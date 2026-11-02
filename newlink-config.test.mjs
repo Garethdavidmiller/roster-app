@@ -11,7 +11,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { PHASE, CLOSES, STARTS, CONTACT, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY, CONTACT_LINE } from './newlink-config.js';
+import * as config from './newlink-config.js';
+import { PHASE, CLOSES, STARTS, CONTACT, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY } from './newlink-config.js';
 import { PAGE_POLICIES, requirePageAuth, admitsStaffPin } from './auth-policy.js';
 import { teamMembers } from './roster-data.js';
 
@@ -60,7 +61,7 @@ test('the pack base is the served docs folder, over https', () => {
 });
 
 test('the drafted words promise nothing the page does not do, and name no recommendation', () => {
-    const words = [...HAVE_YOUR_SAY, CONTACT_LINE].join(' ');
+    const words = HAVE_YOUR_SAY.join(' ');
     assert.doesNotMatch(words, /recommend/i);
     assert.match(HAVE_YOUR_SAY.join(' '), /managers decide/, 'it says who decides, in the card where views are asked for');
     assert.match(words, /does not collect/, 'and that the page itself collects nothing');
@@ -75,9 +76,22 @@ test('the contact is S. Silva, a real member — and the only person the page\'s
     // Owner, 2 Nov 2026: "Sara Silva (S. Silva) is the primary contact for it not me."
     assert.equal(CONTACT, 'S. Silva');
     assert.ok(teamMembers.some(m => m.name === CONTACT && !m.hidden), 'spelt as the roster spells it, and on the roster');
-    const words = [...HAVE_YOUR_SAY, CONTACT_LINE].join(' ');
+    const words = HAVE_YOUR_SAY.join(' ');
     assert.match(HAVE_YOUR_SAY[0], /^Tell S\. Silva or your manager/, 'Have your say names the contact');
-    assert.match(CONTACT_LINE, /^S\. Silva is the contact for the new link\./, 'and so does the page\'s last line');
     const named = teamMembers.map(m => m.name).filter(n => words.includes(n));
     assert.deepEqual(named, [CONTACT], 'no other member is named as the person to ask');
+});
+
+test('nothing is written on the canvas under the last card — the footer line was not needed', () => {
+    // Owner, 2 Nov 2026, of "S. Silva is the contact for the new link. The proposals were made with the rota-design tools in
+    // this app.": "The wording at the very bottom is not needed." The contact is named where views are asked for (above),
+    // so the line said nothing the page does not; it went with its setting, its markup and its style.
+    assert.equal('CONTACT_LINE' in config, false, 'the setting for the line is gone');
+    const html = readFileSync(new URL('./newlink.html', import.meta.url), 'utf8');
+    const main = html.slice(html.indexOf('<main'), html.indexOf('</main>'));
+    assert.ok(main.length > 1000, 'the page\'s <main> was not found — this test is checking nothing');
+    assert.doesNotMatch(main, /<p\b[^>]*>\s*<\/p>\s*$/, 'an empty paragraph filled by script sits after the last card');
+    assert.match(main, /<\/div>\s*$/, 'the last thing in <main> is the last card, closing');
+    const css = readFileSync(new URL('./newlink.css', import.meta.url), 'utf8');
+    assert.doesNotMatch(css, /\.nl-prepared\b/, 'and no style is left for it');
 });

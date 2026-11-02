@@ -79,7 +79,3 @@ export const HAVE_YOUR_SAY = Object.freeze([
     'Your views go to the managers with the proposals, and the managers decide which link is used.',
     'There is nothing to fill in here: this page does not collect views or votes.',
 ]);
-
-/** The page's last line: who to go to, and how the proposals were made. It named the preparer until 2 Nov 2026, when the
- *  owner made S. Silva the contact — a name at the foot of a page reads as the person to ask. */
-export const CONTACT_LINE = `${CONTACT} is the contact for the new link. The proposals were made with the rota-design tools in this app.`;
