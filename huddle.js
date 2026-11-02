@@ -28,11 +28,13 @@ export function initHuddleUpload({ currentIsAdmin, currentUser }) {
  * Initialises the Notifications card only.
  * Used by settings.html where notifications are available to all staff.
  *
- * @param {{ onState?: (state: 'ok'|'error'|'action'|'blocked'|'n/a', chip: string) => void }} [opts]
+ * @param {{ onState?: (state: 'ok'|'error'|'action'|'blocked'|'n/a', chip: string, tone?: 'plain') => void }} [opts]
  *   `onState` is called whenever the card learns what state this device is in. It exists so
  *   Settings can put a chip in the header and count the card in its summary WITHOUT this module
  *   importing anything from that page — the words below are already the authority on what each
  *   state means, and a second reading of `peekNotifState` elsewhere could disagree with them.
+ *   `tone` is passed only to stop the chip being coloured by its state (v25.14): Settings colours
+ *   an `ok` chip green, which is right for "✓ On" and wrong for an "Off" the member chose.
  * @returns {{ setOpen(open: boolean): void }} the card's collapse handle, so a caller can open it
  *   once it knows the state warrants it.
  */
@@ -126,7 +128,9 @@ export function initHuddleNotifications({ onState } = {}) {
             // Switched off HERE, on purpose (Sep 2026 review). Not a to-do: the member decided.
             _statusMsg.textContent   = 'Notifications are off on this device. Tap Enable to turn them back on.';
             _enableBtn.style.display = 'block';
-            onState?.('ok', 'Off');
+            // `ok` to the summary — nothing to do — but not good news, so the chip is not green:
+            // a green "Off" would have the colour and the word disagree (v25.14).
+            onState?.('ok', 'Off', 'plain');
         } else {
             _statusMsg.textContent   = 'Tap Enable to get an alert when a new document arrives and before the pay cut-off.';
             _enableBtn.style.display = 'block';

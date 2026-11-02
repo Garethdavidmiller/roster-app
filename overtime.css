@@ -99,20 +99,16 @@ body {
 }
 
 /* ── Page identity ──────────────────────────────────────────────────────────
-   Every other page colours its own header chip (#opsBadge orange, #settingsBadge
-   indigo, #linksBadge purple, …). This file defined NO rule, so the chip fell back
-   to `.badge-page`'s default — which is GOLD, the Calendar's colour. The page wore
-   two identity colours, neither of which was its own.
-
-   `--ot` is the app's overtime colour and predates this page entirely. */
-
-#overtimeBadge { background: var(--ot); color: white; }
-/* The About badge in the page's own colour, like every other page's (v25.12) — it had no rule and
-   fell through to the shared gold. --ot on its 15% tint is 4.68:1. */
-#iconLightbox .lightbox-badge {
-    background: color-mix(in oklch, var(--ot) 15%, white);
-    border-color: color-mix(in oklch, var(--ot) 35%, white);
-    color: var(--ot);
+   This file once defined NO colour rule, so the header chip fell back to the
+   shared default — GOLD, the Calendar's colour — and the page wore two identity
+   colours, neither of which was its own; the About badge had the same fall-through
+   until v25.12. Every page now declares its colour once, here in :root: the header badge, the About badge and the card-title tiles all read it (shared.css :root → "Page identity", v25.14). Declared once, here.
+   `--ot` is the app's overtime colour and predates this page entirely. --ot on its
+   15% tint is 4.68:1. */
+:root {
+    --page-accent:      var(--ot);
+    --page-accent-ink:  white;
+    --page-accent-text: var(--ot);
 }
 
 /* There is deliberately NO on-canvas page title. The page carried an

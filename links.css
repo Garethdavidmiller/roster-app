@@ -1361,12 +1361,15 @@ body.auth-ready .container { display: grid; }
     margin: 8px 0 0;
 }
 
-/* ---- Badge ---- */
-#linksBadge { background: var(--purple); color: white; }
-#iconLightbox .lightbox-badge {
-    background: var(--purple-light);
-    border-color: var(--purple);
-    color: var(--purple);
+/* ---- Page identity ---- */
+/* The page's colour, purple: the header badge, the About badge and the card-title tiles all
+   read it (shared.css :root → "Page identity", v25.14). Declared once, here.
+   (The About badge carried a full-strength purple border until then, where every other page's
+   was a 35% tint — the drift one shared rule exists to stop.) */
+:root {
+    --page-accent:      var(--purple);
+    --page-accent-ink:  white;
+    --page-accent-text: var(--purple);
 }
 
 /* ---- Tablet/Desktop ---- */

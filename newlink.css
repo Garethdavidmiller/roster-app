@@ -52,12 +52,12 @@ body {
 }
 
 /* The page's identity: the leave teal, which no other pill or page wears (an accepted overload, as Links wears the
-   Spare purple — the AL badge and this page are never on screen together). */
-#newlinkBadge { background: var(--al); color: white; }
-#iconLightbox .lightbox-badge {
-    background: var(--al-light);
-    border-color: color-mix(in oklch, var(--al) 35%, white);
-    color: var(--al-deep);
+   Spare purple — the AL badge and this page are never on screen together). the header badge, the About badge and the card-title tiles all read it (shared.css :root → "Page identity", v25.14). Declared once, here.
+   As text on a pale tint it reads in --al-deep. */
+:root {
+    --page-accent:      var(--al);
+    --page-accent-ink:  white;
+    --page-accent-text: var(--al-deep);
 }
 
 /* ── The preview banner — the admin's note between the header and the cards ─────────────────── */

@@ -219,6 +219,55 @@ test('settings: a card that needs attention opens ITSELF, and is named at the to
     expect(await cardOpen(page, 'payDataBody')).toBe(false);
 });
 
+/** A surface's three colours, as the browser resolved them. */
+const paintOf = (page, sel) => page.locator(sel).evaluate(el => {
+    const s = getComputedStyle(el);
+    return { bg: s.backgroundColor, border: s.borderTopColor, text: s.color };
+});
+
+for (const [label, configured, stripTone, chipTone, chips] of [
+    ['nothing to do',     true,  'all-set', 'ok',     [['contactStatusChip', '✓ Saved'],   ['passwordStatusChip', '✓ Password set']]],
+    ['a thing to finish', false, 'todo',    'action', [['contactStatusChip', 'Not saved'], ['passwordStatusChip', 'Using surname']]],
+]) {
+    test(`settings: a chip with ${label} wears the summary strip's own colour`, async ({ page }) => {
+        // v25.14. A chip is coloured by the state that wrote its words, through the SAME
+        // declarations as the summary strip — so the strip and a chip can never say one thing in
+        // two colours. Compared with the strip's COMPUTED colours rather than restated values: what
+        // is pinned is that the two match, which is the property, not what the colours are today.
+        await openSettings(page, { configured, payKeys: 3, noPush: true });
+        await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', stripTone);
+        const strip = { ...(await paintOf(page, '#settingsSummary')), text: (await paintOf(page, '#settingsSummaryLine')).text };
+        // A count is a fact, not news, so "3 payslips" keeps the neutral chip — and the strip must
+        // differ from it here, or "the chip matches the strip" would prove nothing.
+        await expect(page.locator('#payDataStatusChip')).toHaveText('3 payslips');
+        expect(strip.bg, 'the strip must be coloured in this state').not.toBe((await paintOf(page, '#payDataStatusChip')).bg);
+        for (const [id, words] of chips) {
+            await expect(page.locator(`#${id}`)).toHaveText(words);
+            await expect(page.locator(`#${id}`)).toHaveAttribute('data-tone', chipTone);
+            expect(await paintOf(page, `#${id}`), `${id} must wear the strip's colours`).toEqual(strip);
+        }
+    });
+}
+
+test('settings: notifications switched off on purpose are not coloured as good news', async ({ page }) => {
+    // The one `ok` chip whose words are not good news (v25.14). Switched off HERE is `ok` to the
+    // summary — nothing to do, the member decided — but a green "Off" would have the colour and
+    // the word disagree. huddle.js says so at the source ('plain'); this pins that it arrives.
+    // Permission is pinned to 'default' for the same reason openSettings pins the platform: a
+    // headless engine's own answer is not the state under test.
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_notif_user_off', '1');
+        Object.defineProperty(window, 'Notification', { value: { permission: 'default' }, configurable: true });
+    });
+    await openSettings(page, { configured: true, forcePush: true });
+    await expect(page.locator('#notifStatusChip')).toHaveText('Off');
+    await expect(page.locator('#settingsSummary')).toHaveAttribute('data-tone', 'all-set');
+    await expect(page.locator('#notifStatusChip')).toHaveAttribute('data-tone', 'plain');
+    const off = await paintOf(page, '#notifStatusChip');
+    expect(off.bg, 'a chosen "Off" must not wear the strip\'s green').not.toBe((await paintOf(page, '#settingsSummary')).bg);
+    expect(off, 'it is the neutral chip, like any fact').toEqual(await paintOf(page, '#payDataStatusChip'));
+});
+
 test('settings: a read that FAILED never reads as all set', async ({ page }) => {
     // The dangerous direction, and the one nothing on screen would otherwise contradict: a member
     // told "all set" over a password status nobody managed to read closes the page.

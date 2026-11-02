@@ -75,6 +75,30 @@ best-practice, not WCAG A/AA, so the a11y gate never saw it), and "Change a Shif
 card header in the app without a leading emoji. The `h3` half of the shared selector was removed so
 a stray `h3` now looks wrong immediately rather than hiding.
 
+**The emoji sits on a tile in the page's colour (v25.14).** Every card title's emoji is wrapped as the
+heading's FIRST element, `<span aria-hidden="true">`, and shared.css draws a 28px rounded tile behind it
+mixed from the page's `--page-accent` (mint on Pay, peach on Operations, lavender on Settings …). It is
+what carries a page's colour into its cards, which were otherwise the same white on every page. Three
+things go with it, each easy to undo:
+- **Mixed with white, never with `--surface`.** `--surface` carries the navy's hue, and an oklch mix
+  towards it turns every tint blue.
+- **A wrapped title hangs from its tile** — the h2 becomes a flex row, so a second line starts where
+  the words start rather than under the tile. ONLY where the tile is the title's sole element: flex
+  makes every child an item, so "Link design — `<span>`26`</span>` lines" would come apart. The three
+  titles holding a second element stay inline, and are short enough never to wrap.
+- **The tile costs Pay's "🏖️ Holiday Pay Premium (HPP)" its one line at 375px** (measured: any tile
+  22px or wider does). Accepted: it balances onto two lines, hangs, and nothing is hidden or
+  shortened (paycalc.md invariant 16). The way back is a smaller tile, not a shorter title.
+`card-header-parity.test.mjs` pins the markup shape (convention 3) and `page-identity-parity.test.mjs`
+pins the selector and the white mix, so the two halves are each held by text.
+
+**Settings' four status chips are coloured by their card's state (v25.14)** — `data-tone`, written by
+`reportSetting` beside the words, and coloured by the SAME declarations as the summary strip
+(settings.css), so a chip and the strip cannot disagree: `ok` green, `action`/`blocked` amber (the
+strip lists both as things to finish), everything else neutral. One `ok` is NOT green: notifications
+the member switched off on purpose report `'plain'`, because a green "Off" has the colour contradict
+the word. Pinned by `e2e/pages.spec.js` against the strip's COMPUTED colours.
+
 **Do not re-create page-local copies of these classes** — that split is exactly how the
 header systems drifted apart pre-v18.16. A11y invariant (v17.50): the focusable collapse toggle is
 the ARROW/CHEVRON, never a header wrapping another button — `initCardCollapse` enforces it, the axe
@@ -106,6 +130,12 @@ login, work-email check, Tips, confirm/prompt) use `--radius-xl` (20px); full na
 (About, notices, day detail, AL) use `--radius-panel` (24px). The difference is deliberate, but only
 the dialog side had a name — the six glass panels each restated `border-radius: 24px`, so the rule
 lived nowhere. No pixels moved.
+
+**Within that family, two are SOLID (v25.14):** the one-time notices and the About panel share one
+opaque navy sheet (`.notice-lb-content, #iconLightboxContent` in shared.css — a third panel that wants
+it joins the selector list, never copies it). Day detail and AL stay see-through, because they are a
+look at something still on screen behind them; a notice wants a decision and About describes the app,
+and a see-through About made each pill's contrast depend on whatever page was underneath.
 
 **An overlay never wears the card radius** (v18.90). The v18.87 pass above described two families
 while the code had three: four white panels (`#loginCard`, the work-email check's panel — since
@@ -275,7 +305,7 @@ One type scale in `shared.css :root`:
 
 The four sub-pages (admin, paycalc, operations, settings) use **identical sizes for the same conceptual element**:
 - `body` base → `--type-body`
-- card-header `h2` → `--type-body` (14px/700, `-0.01em`, `text-wrap: balance` — v25.12; was `--type-label`, 13px). **15px was measured and declined**: across every card page at 360/375/390px it tipped paycalc's "🏖️ Holiday Pay Premium (HPP)" onto two lines at 375px, the width v18.53 trimmed a chip to protect — and that title may not be shortened (paycalc.md invariant 16)
+- card-header `h2` → `--type-body` (14px/700, `-0.01em`, `text-wrap: balance` — v25.12; was `--type-label`, 13px). **15px was measured and declined**: across every card page at 360/375/390px it tipped paycalc's "🏖️ Holiday Pay Premium (HPP)" onto two lines at 375px, the width v18.53 trimmed a chip to protect — and that title may not be shortened (paycalc.md invariant 16). (The v25.14 icon tile then spent that 375px line knowingly — see the card-header system above)
 - card `.hint` → `--type-small`
 - form/eyebrow labels → `--type-small`
 - inputs/selects → `--type-medium` (16px also stops iOS focus-zoom — **never go below 16px on a focusable field**)
@@ -388,6 +418,16 @@ a text symbol (£, ⚙, ⏱) where the pill carried the emoji (💷, ⚙️, ⏱
   Guarded by `e2e/axe.spec.js` → "About lightbox open (<page>)", which opens every signed-in page's
   panel from the drawer logo and scans it — the Calendar's own About scan never saw a page badge,
   because the Calendar's is hidden outside Team Week View. Mutation-checked both ways at v25.12.
+
+**A page's colour is declared ONCE (v25.14)** — three tokens in its own stylesheet's top-level
+`:root`: `--page-accent` (the colour), `--page-accent-ink` (text on it) and `--page-accent-text` (the
+colour as text on a pale tint of itself). The header badge, the About badge and the card-title tiles
+all read them; no page rule colours a badge any more. Before, every page restated its colour in two
+hand-written rules, and they had drifted — Links' About badge had a full-strength border where every
+other page's was a 35% tint. Admin declares gold like the rest; only its header badge is worn
+differently (navy, gold ring), by decision. `page-identity-parity.test.mjs` requires the trio on every
+card page, refuses a page rule that colours a badge, and checks each page's colour against its drawer
+pill — the two hand-written places this identity lives.
 
 ## Desktop layout — content width + reading measure (v15.90)
 

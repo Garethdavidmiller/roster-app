@@ -2363,6 +2363,14 @@
             color: var(--accent-gold);
             box-shadow: inset 0 0 0 1.5px var(--accent-gold);
         }
+        /* Admin's colour is gold, and it is declared like every other page's (v25.14 — shared.css
+           :root → "Page identity"): the About badge and the card-title tiles read it. The header
+           badge above is the one place it is worn differently, for the reason given there. */
+        :root {
+            --page-accent:      var(--accent-gold);
+            --page-accent-ink:  var(--primary-blue);
+            --page-accent-text: var(--gold-text);
+        }
 
         /* AL balance shown in the collapsed card header */
         /* AL-remaining header chip — base look comes from the shared .card-year-chip (v18.16);
