@@ -143,6 +143,11 @@ body {
 }
 /* The track is white, so a segment's focus ring is the light-surface one (the dark-fill ring would vanish). */
 .tr-tabs--seg .tr-tab:focus-visible { outline: var(--focus-outline); outline-offset: 1px; }
+/* A FORCED-COLOURS theme (Windows high contrast) repaints every fill, so the chosen tab would look like the rest; the
+   theme's own Highlight states the choice (a `var(--…)` here would be forced away too). */
+@media (forced-colors: active) {
+    .tr-tab[aria-pressed="true"] { border: 3px solid Highlight; }
+}
 @media (min-width: 1024px) {
     .tr-controls { flex-direction: row; align-items: stretch; gap: 24px; }
     .tr-controls > * { flex: 1; }

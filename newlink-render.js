@@ -56,7 +56,9 @@ export function closesWords(closes) {
  * @param {{ proposals: ReadonlyArray<Proposal>, closes: string|null }} o
  */
 export function renderStatus({ proposals, closes }) {
-    const tiles = proposals.map(p => `<li class="nl-name"><span class="nl-name-title">${esc(designName(p))}</span><span class="nl-name-ref">${esc(p.ref)}</span></li>`).join('');
+    // Each tile LOOKS pressable — white, raised, the page's button recipe — so it is one: it opens that proposal's weeks
+    // (the review, 2 Nov 2026: three raised tiles that did nothing broke the page's own rule that raised means pressable).
+    const tiles = proposals.map(p => `<li><button type="button" class="nl-name" data-open-weeks="${esc(p.id)}"><span class="nl-name-title">${esc(designName(p))}</span><span class="nl-name-ref">${esc(p.ref)}</span><span class="nl-name-go">See its weeks</span></button></li>`).join('');
     return `<p class="nl-callout"><strong>Nothing is decided.</strong> The link changes in December, with the new timetable.
         These are the three proposals on the shortlist, in alphabetical order.</p>
     <ul class="nl-names" aria-label="The three proposals">${tiles}</ul>
@@ -89,7 +91,10 @@ export function renderCommon({ gains, costs }) {
     return `<div class="nl-common">
         <section class="nl-side nl-side--gain" aria-labelledby="nlGainsH"><h3 class="nl-side-h" id="nlGainsH"><span aria-hidden="true">✅</span> Everyone gets</h3>${renderList(gains)}</section>
         <section class="nl-side nl-side--cost" aria-labelledby="nlCostsH"><h3 class="nl-side-h" id="nlCostsH"><span aria-hidden="true">➖</span> Everyone gives up</h3>${renderList(costs)}</section>
-    </div>`;
+    </div>
+    <p class="nl-note"><strong>Cover weeks</strong> are the five weeks in 26 kept free to cover leave and absence: four shifts each,
+        Monday to Saturday. <strong>Fatigue warnings</strong> come from the Office of Rail and Road’s good-practice list of tiring
+        patterns — reported as found, never as a pass or a fail.</p>`;
 }
 
 /** "…prefer earlies" → "If you prefer earlies". @param {string} who */
@@ -111,9 +116,23 @@ export function renderFigures(p, columns) {
             const text = c.best ? `<b>${esc(c.text)}</b><span class="visually-hidden">, the best of the three</span>` : esc(c.text);
             return `<td headers="${rid} ${col(i)}"${cls ? ` class="${cls}"` : ''}>${text}</td>`;
         }).join('');
-        return `<tbody><tr class="nl-fig-label"><th colspan="${columns.length}" scope="colgroup" id="${rid}">${esc(r.label)}</th></tr><tr class="nl-fig-row">${cells}</tr></tbody>`;
+        return `<tbody><tr class="nl-fig-label"><th colspan="${columns.length}" scope="rowgroup" id="${rid}">${esc(r.label)}</th></tr><tr class="nl-fig-row">${cells}</tr></tbody>`;
     }).join('');
-    return `<table class="nl-fig"><caption class="visually-hidden">${esc(ifYou(p.who))}: today and the three proposals</caption>${head}${body}</table>`;
+    return `<table class="nl-fig"><caption class="visually-hidden">${esc(ifYou(p.who))}: today and the three proposals</caption>${head}${body}</table>${figuresKey(p)}`;
+}
+
+/**
+ * The key beneath one table, saying only what that table uses (TEACH IN PLACE — the review, 2 Nov 2026: the green and
+ * "up to" were explained only in the last card, which opens collapsed). Nothing when the table needs no key.
+ * @param {Persona} p
+ */
+export function figuresKey(p) {
+    const cells = p.rows.flatMap(r => r.cells);
+    const lines = [
+        cells.some(c => c.best) ? '<span class="nl-best-key">Green</span> is the best of the three for you.' : '',
+        cells.some(c => /up to/.test(c.text)) ? '“Up to” is when a cover week falls in the worst place.' : '',
+    ].filter(Boolean);
+    return lines.length ? `<p class="nl-fig-key">${lines.join(' ')}</p>` : '';
 }
 
 /**
@@ -195,7 +214,7 @@ export function renderWeeksKey() {
         <li><span class="nl-swatch nl-d--early" aria-hidden="true"></span>Early — starts before 11:00</li>
         <li><span class="nl-swatch nl-d--late" aria-hidden="true"></span>Late — starts at 11:00 or after</li>
         <li><span class="nl-swatch nl-d--rest" aria-hidden="true"></span>RD — rest day</li>
-        <li><span class="nl-swatch nl-d--cover" aria-hidden="true"></span>Cover week — four shifts between Monday and Saturday, to cover leave and sickness</li>
+        <li><span class="nl-swatch nl-d--cover" aria-hidden="true"></span>Cover week — four shifts between Monday and Saturday, to cover leave and absence</li>
     </ul>`;
 }
 
@@ -211,7 +230,7 @@ export function renderWeeksTabs(proposals, chosen) {
  */
 export function renderPack(pack, base) {
     const link = (/** @type {PackFile} */ f) => `<li><a class="nl-file" href="${esc(base + f.path)}" target="_blank" rel="noopener noreferrer">
-        <span class="nl-file-icon" aria-hidden="true">📄</span><span class="nl-file-name">${esc(f.label)}</span><span class="nl-file-meta">PDF · ${f.pages} ${f.pages === 1 ? 'page' : 'pages'}<span class="visually-hidden">, opens in a new tab</span></span></a></li>`;
+        <span class="nl-file-icon" aria-hidden="true">📄</span><span class="nl-file-name"><span class="visually-hidden">${esc(f.design ?? 'For all three')}: </span>${esc(f.label)}</span><span class="nl-file-meta">PDF · ${f.pages} ${f.pages === 1 ? 'page' : 'pages'}<span class="visually-hidden">, opens in a new tab</span></span></a></li>`;
     const designs = [...new Set(pack.filter(f => f.design).map(f => /** @type {string} */ (f.design)))];
     const groups = designs.map(d => `<h3 class="nl-sub">${esc(d)}</h3><ul class="nl-files">${pack.filter(f => f.design === d).map(link).join('')}</ul>`);
     const common = pack.filter(f => !f.design);

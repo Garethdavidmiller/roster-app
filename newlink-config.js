@@ -67,4 +67,4 @@ export const HAVE_YOUR_SAY = Object.freeze([
 ]);
 
 /** The page's last line: who prepared the proposals and who decides. DRAFTED, for the owner to correct. */
-export const PREPARED_BY = 'Prepared by G. Miller with the app’s Links designer. The managers decide which link is used.';
+export const PREPARED_BY = 'Prepared by G. Miller, with the rota-design tools in this app. The managers decide which link is used.';

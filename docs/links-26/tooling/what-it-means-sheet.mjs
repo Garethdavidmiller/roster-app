@@ -9,11 +9,12 @@
 //
 //   node docs/links-26/tooling/what-it-means-sheet.mjs   → docs/links-26/links-26-what-it-means.pdf
 import { writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { chromium } from '../../../node_modules/playwright/index.mjs';
 import { GROUPS, TC, C, RATE, sundayLoss, noOt, lo, hi, isBest, tidyText } from './what-it-means-data.mjs';
 
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
-const OUT = new URL('../links-26-what-it-means.pdf', import.meta.url).pathname;
+const OUT = fileURLToPath(new URL('../links-26-what-it-means.pdf', import.meta.url));
 const PREPARED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
 
@@ -67,7 +68,7 @@ ${body}
 </body></html>`;
 // a figure keeps what it belongs to, as on the other sheets (tidyText, in the data module)
 const tidy = h => h.replace(/(<style[\s\S]*?<\/style>|<title>[\s\S]*?<\/title>)|(?<=>)([^<]+)(?=<)/g, (mm, keep, txt) => keep ?? tidyText(txt));
-const htmlOut = new URL('links-26-what-it-means.html', import.meta.url).pathname; writeFileSync(htmlOut, tidy(html));   // beside the tooling, gitignored
+const htmlOut = fileURLToPath(new URL('links-26-what-it-means.html', import.meta.url)); writeFileSync(htmlOut, tidy(html));   // beside the tooling, gitignored
 const b = await chromium.launch(); const pg = await b.newPage();
 await pg.goto('file://' + htmlOut); await pg.evaluate(() => document.fonts.ready);
 // THE PAGE IS A FIXED HEIGHT, so content that does not fit would be HIDDEN under the footer: refuse to print it. Measured at

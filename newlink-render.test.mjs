@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     closesWords, dutyKind, designName, ifYou, renderStatus, renderPreviewBanner, renderList, renderCommon, renderFigures,
-    renderPersonas, renderPersonaChips, renderWeeks, renderWeeksKey, renderWeeksTabs, renderPack,
+    renderPersonas, renderPersonaChips, renderWeeks, renderWeeksKey, renderWeeksTabs, renderPack, figuresKey,
 } from './newlink-render.js';
 import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
@@ -76,6 +76,29 @@ test('NOT YOUR ROSTER: each proposal\'s weeks are flagged, numbered 1 to 26, and
         }
     }
     assert.match(renderWeeksKey(), /starts before 11:00/);
+});
+
+test('the review\'s fixes stay fixed (2 Nov 2026)', () => {
+    // a label row labels ITS row group, so its header scope is rowgroup — not colgroup
+    for (const p of PERSONAS) {
+        const html = renderFigures(p, COLUMNS);
+        assert.equal(count(html, /scope="colgroup"/g), 0, `${p.id}: no colgroup scope`);
+        assert.equal(count(html, /<th colspan="\d+" scope="rowgroup"/g), p.rows.length, `${p.id}: every label row is a rowgroup header`);
+        // the key under the table says only what the table uses
+        const key = figuresKey(p);
+        assert.equal(/Green/.test(key), p.rows.some(r => r.cells.some(c => c.best)), `${p.id}: the green key appears exactly when a green does`);
+        assert.equal(/Up to/.test(key), p.rows.some(r => r.cells.some(c => /up to/.test(c.text))), `${p.id}: the "up to" key likewise`);
+    }
+    // every pack link has a name of its own, not three "The presentation"s (WCAG 2.4.4)
+    const names = [...renderPack(PACK, 'https://x/').matchAll(/<span class="nl-file-name">([\s\S]*?)<\/span><span class="nl-file-meta">/g)]
+        .map(m => m[1].replace(/<[^>]+>/g, '').trim());
+    assert.equal(names.length, PACK.length);
+    assert.equal(new Set(names).size, names.length, `pack links share a name: ${names.join(' | ')}`);
+    // the canonical term: absence, never sickness
+    assert.doesNotMatch(renderWeeksKey() + renderCommon({ gains: GAINS, costs: COSTS }), /\bsick/i);
+    // the name tiles look pressable, so they are: one button per proposal, opening its weeks
+    const status = renderStatus({ proposals: PROPOSALS, closes: null });
+    assert.deepEqual([...status.matchAll(/<button type="button" class="nl-name" data-open-weeks="([^"]+)"/g)].map(m => m[1]), PROPOSALS.map(p => p.id));
 });
 
 test('TEACH IN PLACE: every figure is tied to its label and its column for a screen reader', () => {

@@ -19,12 +19,16 @@
 // since you saw Short Run" lines are DRAFTS for the owner to correct ("Draft them; I'll correct") — each one's figure is
 // asserted like the rest, and the one piece of history in them (a figure that moved on 31 Oct) is the README's, not computed.
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { GROUPS, TC, C, ES, IS, SR, FIG, RATE, claim, tidyText, isBest, hm, H, first, timed, m, mins, isEarly, MS, SHORTLIST, RECOMMENDED } from './what-it-means-data.mjs';
 import { FIRST } from './fresh.mjs';
 import { PROPOSALS } from '../../../links-proposals.js';
+import { DAYS } from '../../../links-design.js';
 
-const OUT = new URL('../../../newlink-data.js', import.meta.url).pathname;
-const DIR = new URL('../', import.meta.url).pathname;   // docs/links-26/
+// fileURLToPath, never `.pathname`: a checkout whose path holds a space reads as %20 and every file goes missing
+const OUT = fileURLToPath(new URL('../../../newlink-data.js', import.meta.url));
+const DIR = fileURLToPath(new URL('../', import.meta.url));   // docs/links-26/
 const t = s => tidyText(s);
 const WORDS = { 1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 7: 'Seven', 8: 'Eight', 9: 'Nine' };   // a sentence never opens on a small figure
 
@@ -37,20 +41,25 @@ const refOf = name => PROPOSALS.find(p => p.name.startsWith(name + ' ')).ref;
 
 // ── WHAT'S CHANGED SINCE YOU SAW SHORT RUN — drafts ───────────────────────────────────────────────────────────────────
 const monSatDuties = p => Object.values(p).flatMap(r => MS.map(d => r[d])).filter(timed);
-claim('Even Step and In Step drawn up after Short Run', [codeOf('Even Step'), codeOf('In Step')].every(c => new Date(FIRST[c]) > new Date(FIRST[codeOf('Short Run')])));
+// "after Short Run was first shown" is the owner's history (2 Nov 2026); what the folder can check is that both were MADE after it
+claim('Even Step and In Step created after Short Run (fresh.mjs FIRST)', [codeOf('Even Step'), codeOf('In Step')].every(c => new Date(FIRST[c]) > new Date(FIRST[codeOf('Short Run')])));
 const keeps1345 = p => MS.slice(0, 5).every(d => Object.values(p).some(r => timed(r[d]) && r[d].endsWith('-13:45')));
 claim('Even Step and In Step keep a 13:45 every weekday; Short Run has no 13:35 or 13:45', keeps1345(ES.p) && keeps1345(IS.p)
   && monSatDuties(SR.p).every(s => !/-13:(35|45)$/.test(s)) && +SR.f.shortYear === 0);
 const longEarlies = p => monSatDuties(p).filter(s => isEarly(s) && mins(s) > 510);
 claim('Even Step: nothing over 8h 30m Monday to Saturday', monSatDuties(ES.p).every(s => mins(s) <= 510));
 claim('In Step and Short Run: some earlies of 8h 45m to 9 hours', [IS, SR].every(c => longEarlies(c.p).length > 0 && longEarlies(c.p).every(s => mins(s) >= 525 && mins(s) <= 540)));
-claim('Short Run is the rota of 3 Oct 2026, fingerprint 618348d6', refOf('Short Run').endsWith('618348d6') && FIRST[codeOf('Short Run')] === '3 Oct 2026');
+// THE GRID ITSELF, NOT ITS LABEL (the review, 2 Nov 2026): a ref string can outlive an edited grid, so the fingerprint is
+// recomputed from the cells as report-data.mjs computes every sheet's — 618348d6 is Short Run's since 3 Oct 2026
+const fpOf = p => createHash('sha256').update(JSON.stringify(Object.keys(p).sort((a, b) => a - b).map(k => DAYS.map(d => p[k][d])))).digest('hex').slice(0, 8);
+claim('Short Run is the rota of 3 Oct 2026, fingerprint 618348d6, recomputed from its cells', fpOf(SR.p) === '618348d6' && refOf('Short Run').endsWith(fpOf(SR.p)) && FIRST[codeOf('Short Run')] === '3 Oct 2026');
+claim('Short Run: the shortest lates of the three on average', C.every(c => c === SR || H(SR.f.avgLate) < H(c.f.avgLate)));
 claim('on all three, the most days in a row is 5, and 7 with a cover week placed badly', C.every(c => c.f.run === '5 (up to 7)'));
 const CHANGES = [
   'Two more proposals sit beside Short Run now: Even Step and In Step. Both were drawn up after Short Run was first shown, from what colleagues said about it.',
   'Both keep a 13:45 finish every weekday. Short Run has no 13:35 or 13:45 finish.',
   'Even Step has nothing over 8h 30m, Monday to Saturday. In Step and Short Run have some earlies of 8h 45m to 9 hours.',
-  'Short Run is the same rota you were shown.',
+  `Short Run is the same rota you were shown, and still has the shortest lates of the three: ${hm(H(SR.f.avgLate))} on average, closers included.`,
   // HISTORY, NOT COMPUTED: before 31 Oct a cover week's Sunday counted inside its four duties (README, the folder's opening)
   'One figure has moved since, on all three: when a cover week falls badly, the most days in a row is 7, not 6. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top.',
 ].map(t);
@@ -72,17 +81,18 @@ const GAINS = [
   `No avoidable fatigue warnings on the set shifts (today ${first(TC.f.ff)}).`,
 ].map(t);
 const leaveFour = shared('leave for four weeks off', c => +c.f.leaveFour), late23 = shared('finishes at 23:00 or later', c => +c.f.late23);
-const block = shared('weeks of one kind in a row', c => +c.f.block), sat = shared('Saturdays a year', c => +c.f.sat);
+const block = shared('weeks of one kind in a row', c => +c.f.block), blockUpTo = shared('weeks of one kind with a cover week badly placed', c => +c.f.blockUpTo);
+const sat = shared('Saturdays a year', c => +c.f.sat);
 const nt = C.map(newTimes);
 claim('worse than today on all three', leaveFour > +TC.f.leaveFour && late23 > +TC.f.late23 && block > +TC.f.block && sat > +TC.f.sat
   && C.every(c => +c.f.shortYear < +TC.f.shortYear) && nt.every(n => n > 0));
 const COSTS = [
   `Four full weeks off, Sunday to Saturday, take ${leaveFour} days’ leave (today ${TC.f.leaveFour}).`,
   `${late23} finishes a year at 23:00 or later (today ${TC.f.late23}).`,
-  `Up to ${block} weeks of earlies, or of lates, in a row, cover weeks aside (today ${TC.f.block}).`,
+  `At most ${block} weeks of earlies, or of lates, in a row, or ${blockUpTo} if a cover week falls badly (today ${TC.f.block}, or ${TC.f.blockUpTo}).`,
   `${WORDS[sat - +TC.f.sat]} more Saturdays a year (${sat}, today ${TC.f.sat}).`,
   `Fewer earlies that finish before 14:00 (today ${TC.f.shortYear} a year).`,
-  `${WORDS[Math.min(...nt)]}${Math.max(...nt) > Math.min(...nt) ? ` or ${WORDS[Math.max(...nt)].toLowerCase()}` : ''} new shift times to learn.`,
+  `${(v => v.length === 1 ? WORDS[v[0]] : v.length === 2 ? `${WORDS[v[0]]} or ${WORDS[v[1]].toLowerCase()}` : `${WORDS[v[0]]} to ${WORDS[v[v.length - 1]].toLowerCase()}`)([...new Set(nt)].sort((a, b) => a - b))} new shift times to learn.`,
 ].map(t);
 
 // ── WHAT IT MEANS IF YOU… — the sheet's six bands, as the page's choices ──────────────────────────────────────────────

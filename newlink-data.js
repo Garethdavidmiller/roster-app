@@ -32,7 +32,7 @@ export const CHANGES = deepFreeze([
     "Two more proposals sit beside Short\u00a0Run now: Even\u00a0Step and In\u00a0Step. Both were drawn up after Short\u00a0Run was first shown, from what colleagues said about it.",
     "Both keep a 13:45 finish every weekday. Short\u00a0Run has no 13:35 or 13:45 finish.",
     "Even\u00a0Step has nothing over 8h\u00a030m, Monday to Saturday. In\u00a0Step and Short\u00a0Run have some earlies of 8h\u00a045m to 9\u00a0hours.",
-    "Short\u00a0Run is the same rota you were shown.",
+    "Short\u00a0Run is the same rota you were shown, and still has the shortest lates of the three: 8h\u00a006m on average, closers included.",
     "One figure has moved since, on all three: when a cover week falls badly, the most days in a row is 7, not 6. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top."
 ]);
 
@@ -50,7 +50,7 @@ export const GAINS = deepFreeze([
 export const COSTS = deepFreeze([
     "Four full weeks off, Sunday to Saturday, take 15 days’ leave (today\u00a014).",
     "42 finishes a year at 23:00 or later (today\u00a039).",
-    "Up to 5 weeks of earlies, or of lates, in a row, cover weeks aside (today\u00a02).",
+    "At most 5 weeks of earlies, or of lates, in a row, or 7 if a cover week falls badly (today\u00a02, or 3).",
     "Two more Saturdays a year (28, today\u00a026).",
     "Fewer earlies that finish before 14:00 (today\u00a026\u00a0a\u00a0year).",
     "Five or six new shift times to learn."

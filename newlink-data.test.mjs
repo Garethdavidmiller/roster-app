@@ -15,14 +15,23 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
 import { PROPOSALS } from './links-proposals.js';
 
-const here = (/** @type {string} */ f) => new URL(f, import.meta.url).pathname;
+// fileURLToPath, never `.pathname`: a checkout whose path holds a space reads as %20 and the generator is not found
+const here = (/** @type {string} */ f) => fileURLToPath(new URL(f, import.meta.url));
 
-test('newlink-data.js is exactly what the generator writes from the pack today', () => {
+// The generator reads the colleague decks' pay figures back with `unzip` (what-it-means-data.mjs), as the one-page sheet
+// does. Every CI runner has it; a machine without it SKIPS the comparison and says why, rather than failing on a missing
+// tool or passing as though the comparison had run (the payslip lane's rule: absent is a skip, broken is a failure).
+const NO_UNZIP = spawnSync('unzip', ['-v'], { stdio: 'ignore' }).error
+    ? 'unzip is not installed — the generator reads the colleague decks back with it, so the comparison cannot run here (CI runs it)'
+    : false;
+
+test('newlink-data.js is exactly what the generator writes from the pack today', { skip: NO_UNZIP }, () => {
     try {
         execFileSync(process.execPath, [here('./docs/links-26/tooling/newlink-data.mjs'), '--check'], { encoding: 'utf8', stdio: 'pipe' });
     } catch (e) {

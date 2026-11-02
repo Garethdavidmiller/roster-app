@@ -81,7 +81,7 @@ function start(member) {
     resolveSession(established);
     guardNamedSession({ page: 'newlink', pageLabel: 'December link', member, established });
 
-    /** @type {any} */
+    /** @type {(() => void)|null} */
     let openAboutLightbox = null;
     initNavPanel({
         authReady: sessionReady,
@@ -93,11 +93,14 @@ function start(member) {
         onLogoClick: () => openAboutLightbox?.(),
         onSignOut: () => signOutAndLeave({ to: './' }),
     });
-    openAboutLightbox = initAboutLightbox();
-    for (const id of CARDS) initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`);
+    // initAboutLightbox returns `{ open, close }`, not a function. Taking the object whole — as this page first did, copying
+    // Trains — made the drawer's logo throw instead of opening About (found 2 Nov 2026).
+    openAboutLightbox = initAboutLightbox({ appLabel: 'Marylebone Roster — December link', getUserName: () => member })?.open ?? null;
+    wireHeaderLogo();
+    const cards = Object.fromEntries(CARDS.map(id => [id, initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`)]));
 
     renderStatic();
-    wireChoices();
+    wireChoices(cards);
     markPageReady();
 
     sessionReady.then(() => {
@@ -125,8 +128,11 @@ function renderStatic() {
     setText('nlPrepared', PREPARED_BY);
 }
 
-/** The two choices on the page — a kind of colleague, and a proposal's weeks — and what each redraws. */
-function wireChoices() {
+/**
+ * The two choices on the page — a kind of colleague, and a proposal's weeks — and what each redraws.
+ * @param {Record<string, { setOpen: (open: boolean) => void }>} cards  the collapsible cards, by id prefix
+ */
+function wireChoices(cards) {
     /** @type {string|null} */ let persona = null;
     let design = PROPOSALS[0].id;   // A to Z: the first is first in the alphabet, not first in anyone's estimation
 
@@ -154,15 +160,41 @@ function wireChoices() {
         /** @type {HTMLElement|null} */ (el('nlPersonaChips')?.querySelector(`[data-persona="${id}"]`) ?? null)?.focus();
         setText('nlPersonaStatus', personaStatus(persona));
     });
-    el('nlWeeksTabs')?.addEventListener('click', (e) => {
-        const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('[data-design]'));
-        if (!b || b.dataset.design === design) return;
-        design = /** @type {string} */ (b.dataset.design);
+    /** Show one proposal's weeks, keep focus on its tab, and say so in one line. @param {string} id */
+    const showWeeks = (id) => {
+        design = id;
         drawWeeks();
         /** @type {HTMLElement|null} */ (el('nlWeeksTabs')?.querySelector(`[data-design="${design}"]`) ?? null)?.focus();
         const p = PROPOSALS.find(x => x.id === design);
-        if (p) setText('nlWeeksStatus', `Showing ${designName(p)}’s 26 weeks, below.`);
+        if (p) setText('nlWeeksStatus', `Showing ${designName(p)}’s ${Object.keys(p.patterns).length} weeks, below.`);
+    };
+    el('nlWeeksTabs')?.addEventListener('click', (e) => {
+        const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('[data-design]'));
+        if (!b || b.dataset.design === design) return;
+        showWeeks(/** @type {string} */ (b.dataset.design));
     });
+    // A name tile at the top opens that proposal's weeks: the card opens if it was folded, and the page scrolls to it.
+    el('nlStatus')?.addEventListener('click', (e) => {
+        const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('[data-open-weeks]'));
+        if (!b) return;
+        cards.nlWeeks?.setOpen(true);
+        showWeeks(/** @type {string} */ (b.dataset.openWeeks));
+        el('nlWeeksCard')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+    });
+}
+
+/**
+ * The header logo goes back to the Calendar, as on Admin and Operations — its alt text has always said so (CLAUDE.md →
+ * "Header logo = back to calendar on sub-pages"). Keyboard-operable: the logo is an image, so it is given a button's role.
+ */
+function wireHeaderLogo() {
+    const icon = el('appIcon');
+    if (!icon) return;
+    icon.setAttribute('aria-label', 'Back to calendar');
+    icon.setAttribute('role', 'button');
+    icon.tabIndex = 0;
+    icon.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); icon.click(); } });
+    icon.addEventListener('click', () => { window.location.href = './'; });
 }
 
 /** The one line a screen reader hears when the choice of colleague changes. @param {string|null} persona */

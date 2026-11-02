@@ -31,6 +31,7 @@
 // Imported, never run: it prints nothing and writes nothing. Its claims run at import, so a design that stops fitting a
 // sentence stops the sheet AND the generator.
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { today, folderStats } from './report-data.mjs';
 import { leave } from './leave.mjs';
@@ -50,7 +51,9 @@ const claim = (what, ok) => { if (!ok) throw new Error(`the sheet says "${what}"
 // never checked against
 if (SHORTLIST.join() !== 'Even Step,In Step,Short Run' || RECOMMENDED !== 'Even Step') throw new Error(`the sheet's prose is written for Even Step (recommended), In Step and Short Run; the shortlist is ${SHORTLIST}, recommending ${RECOMMENDED}`);
 
-const FIG = JSON.parse(execFileSync('node', [new URL('deck-check.mjs', import.meta.url).pathname, '--print'], { encoding: 'utf8' }));
+// process.execPath, not 'node': the Node that is running this, not whichever the PATH finds (the review, 2 Nov 2026); and
+// fileURLToPath, never `.pathname`, which turns a space in the checkout's path into %20
+const FIG = JSON.parse(execFileSync(process.execPath, [fileURLToPath(new URL('deck-check.mjs', import.meta.url)), '--print'], { encoding: 'utf8' }));
 const stats = folderStats();
 const grid = name => { const f = stats.find(s => s.name === name); if (!f) throw new Error(`no proposal called ${name}`);
   const j = JSON.parse(readFileSync(new URL(`../proposals/${f.file}`, import.meta.url), 'utf8')); return j.patterns ?? j; };
@@ -85,7 +88,7 @@ for (const c of C) {
 // 1 Nov 2026, found the swap £ computed twice — here in JS, in deck-polish.py in Python, which rounds an exact half the other
 // way — so the two could have quoted different figures for the same swaps)
 for (const c of C) {
-  const deck = new URL(`../presentations/${c.name.replace(/ /g, '-')}-for-colleagues.pptx`, import.meta.url).pathname;
+  const deck = fileURLToPath(new URL(`../presentations/${c.name.replace(/ /g, '-')}-for-colleagues.pptx`, import.meta.url));
   const said = /about £(\d+) a year less, gross, if you work your share of Sundays/.exec(execFileSync('unzip', ['-p', deck, 'ppt/slides/slide5.xml'], { encoding: 'utf8' }));
   claim(`${c.name}: about £${c.sundayLoss} less for a full share of Sundays, as its colleague deck says`, said && +said[1] === c.sundayLoss);
   const notes = execFileSync('unzip', ['-p', deck, 'ppt/notesSlides/notesSlide5.xml'], { encoding: 'utf8' });

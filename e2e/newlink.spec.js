@@ -93,6 +93,33 @@ test.describe('december link', () => {
         await expect(page.locator('.nav-panel-pill--newlink')).toHaveCount(0);
     });
 
+    test('a name tile opens that proposal\'s weeks, and the two logos do what they say', async ({ page }) => {
+        const errors = collectFatalErrors(page);
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+
+        // the tile for Short Run opens Short Run's weeks, even with the weeks card folded
+        await page.locator('#nlWeeksChevron').click();
+        await expect(page.locator('#nlWeeksBody')).not.toHaveClass(/\bopen\b/);
+        await page.locator('[data-open-weeks="proposal:SR-26-F1"]').click();
+        await expect(page.locator('#nlWeeksBody')).toHaveClass(/\bopen\b/);
+        await expect(page.locator('#nlWeeksPanel caption')).toContainText('Short Run');
+        await expect(page.locator('[data-design="proposal:SR-26-F1"]')).toHaveAttribute('aria-pressed', 'true');
+
+        // the drawer's logo opens About — it threw, while the page took initAboutLightbox's object for a function
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navPanelBrand').click();
+        await expect(page.locator('#iconLightbox')).toBeVisible();
+        await expect(page.locator('#iconLightbox .lightbox-badge')).toHaveText('December link');
+        await page.locator('#iconLightboxClose').click();
+
+        // the header logo goes back to the Calendar, as its alt text has always said
+        await expect(page.locator('#appIcon')).toHaveAttribute('role', 'button');
+        await page.locator('#appIcon').click();
+        await expect(page).toHaveURL(/\/$/);
+        expect(errors).toEqual([]);
+    });
+
     test('the admin reaches it from the drawer', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/admin.html');

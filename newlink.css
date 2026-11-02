@@ -94,21 +94,35 @@ body {
 }
 /* The three names, one equal tile each, A to Z — the same colour for all three. */
 .nl-names { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 12px; padding: 0; list-style: none; }
+.nl-names > li { min-width: 0; }
+/* A button: each name opens its proposal's weeks (newlink-app.js), so it is drawn like the page's other buttons. */
 .nl-name {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 2px;
+    width: 100%;
+    height: 100%;
     min-width: 0;
-    padding: 10px 6px;
+    padding: 10px 6px 8px;
     border: 1.5px solid var(--al);
     border-radius: var(--radius-md);
     background: white;
     box-shadow: var(--shadow-1);
+    font-family: var(--font-sans);
     text-align: center;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: border-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+.nl-name:active { transform: scale(var(--press-scale)); }
+.nl-name:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+    .nl-name:hover { border-color: var(--primary-blue); }
 }
 .nl-name-title { color: var(--primary-blue); font-size: var(--type-button); font-weight: 800; line-height: 1.2; }
 .nl-name-ref { color: var(--text-light); font-size: var(--type-micro); font-weight: 600; overflow-wrap: anywhere; }
+.nl-name-go { margin-top: 3px; color: var(--al-text); font-size: var(--type-badge); font-weight: 700; }
 
 /* ── Prose ────────────────────────────────────────────────────────────────────────────────────── */
 .nl-lead { margin: 0 0 8px; color: var(--text-dark); line-height: 1.5; }
@@ -248,6 +262,9 @@ body {
     color: var(--success-green);
     font-weight: 800;
 }
+/* The key beneath a table — only what that table uses (newlink-render.js → figuresKey). */
+.nl-fig-key { margin: 8px 0 0; color: var(--text-mid); font-size: var(--type-small); line-height: 1.45; }
+.nl-best-key { padding: 0 6px; border-radius: var(--radius-pill); background: var(--success-green-bg); color: var(--success-green); font-weight: 800; }
 
 /* ── The weeks ────────────────────────────────────────────────────────────────────────────────── */
 /* A PROPOSAL, NEVER A ROSTER: a dashed frame and a flag above it, week numbers and no dates — nothing a screenshot of it
@@ -358,7 +375,14 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .nl-tile, .nl-tab, .nl-file { transition: none; }
+    .nl-tile, .nl-tab, .nl-file, .nl-name { transition: none; }
+}
+
+/* A FORCED-COLOURS theme (Windows high contrast) repaints every fill and shadow, so a chosen tile would look like the rest
+   (the review, 2 Nov 2026). The theme's own Highlight states the choice; a `var(--…)` here would be forced away too. */
+@media (forced-colors: active) {
+    .nl-tile[aria-pressed="true"], .nl-tab[aria-pressed="true"] { border: 3px solid Highlight; }
+    .nl-fig .nl-best b { border: 1px solid CanvasText; }
 }
 
 @media print {
