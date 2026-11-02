@@ -161,10 +161,9 @@
             </div>
         </div>
     </div>
-    <!-- The one caveat a member must not miss before telling a customer anything, on every view. It
-         lived in the overview card until v24.92, which is collapsed on a return visit; the rest of the
-         page's caveats are behind the cards' ? buttons (trains-tips.js). -->
-    <p class="tr-caveat-line" id="trCaveat"><span aria-hidden="true">⚠️</span> December times can still change. Check the journey planner before you tell a customer.</p>
+    <!-- No caveat line here since v25.13 (owner, 2 Nov 2026: "This is the confirmed final timetable").
+         It said "December times can still change" and moved through four phases; trains-change.js
+         (JOURNEY_PLANNER_URL) has why it went in all of them and where each warning still is. -->
 
     <!-- ── WHAT'S CHANGING ──────────────────────────────────────────────────────────────────── -->
     <!-- THE LOOKUP COMES FIRST (v24.92). It is the one thing a member needs with a customer waiting,

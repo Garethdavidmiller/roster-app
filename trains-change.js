@@ -510,20 +510,19 @@ export function routeName(stations, station, via) {
 }
 
 /**
- * The one caveat beneath the tabs, worded for where the page is in the timetable's life (v24.94).
- * It was fixed text — "December times can still change" — which is right until the change,
- * arguable through Chiltern's festive changes, and wrong for the four months after. Each phase gets
- * the warning a member needs THAT day. The sentence that follows is the same ask every time, and
- * trains-app.js writes it with the journey planner as a link, so the words here stay plain text.
- * @param {{ phase: 'before'|'running'|'ended', festive: boolean }} p   from `timetablePhase`
- * @param {{ change: string, festiveUntil: string }} dates   'YYYY-MM-DD' each
- * @returns {{ lead: string, ask: string }}  lead: the phase's warning · ask: what to do at the planner
+ * Where "check the journey planner" goes (v24.94): National Rail's planner takes a December date.
+ * Address checked 23 Oct 2026. Here, not in trains-app.js, since v25.13 — the overview's `?` panel
+ * links it too, and the panels read their values from the page's modules rather than retyping them.
+ *
+ * ── THE CAVEAT LINE IT USED TO SIT IN IS GONE (v25.13) ──────────────────────────────────────────
+ *
+ * A line beneath the tabs, on every view, worded by phase (`caveatWords`, v24.94): "December times
+ * can still change" before the change, Christmas through the festive changes, "not live running"
+ * after, "have ended" at the end. Owner, 2 Nov 2026, of the first: "Can we lose the December times
+ * can still change card. This is the confirmed final timetable." It went in EVERY phase, not just
+ * that one, because each later warning is already said on the page: "not live running" is the
+ * overview's own first line in both tenses (`#trLead`), the Christmas changes have `#trFestive`,
+ * the end has `#trEnded` (with this link), and the `?` panel keeps the planner. A line that came
+ * back on 13 December would have been a card the owner had just asked to lose.
  */
-export function caveatWords(p, { change, festiveUntil }) {
-    const month = dateWords(change).split(' ')[1];
-    const lead = p.phase === 'ended' ? 'The timetables on this page have ended.'
-        : p.phase === 'before' ? `${month} times can still change.`
-        : p.festive ? `Times change again over Christmas and New Year, until ${dateWords(festiveUntil)}.`
-        : 'These are the published timetables, not live running.';
-    return { lead, ask: p.phase === 'ended' ? 'for today’s trains' : 'before you tell a customer' };
-}
+export const JOURNEY_PLANNER_URL = 'https://www.nationalrail.co.uk/journey-planner/';

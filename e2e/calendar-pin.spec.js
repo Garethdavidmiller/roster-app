@@ -648,8 +648,8 @@ test('a viewer opens Trains from the drawer and reads it, still unlocked when it
     await page.locator('#navPanel .nav-panel-pill--trains').click();
 
     await expect(page).toHaveURL(/trains\.html/);
-    // The caveat line is on every view and in every phase; the changes headline is not — from 11 Jan 2027 the page opens on Stations (v24.96).
-    await expect(page.locator('#trCaveat')).toBeVisible();
+    // The view tabs are on every view and in every phase; the changes headline is not — from 11 Jan 2027 the page opens on Stations (v24.96).
+    await expect(page.locator('#trControls')).toBeVisible();
     await expect(page.locator('#loginOverlay')).toHaveCount(0);
     // The drawer is the station's, not a member's: the PIN's label and Lock, and no Sign out.
     await page.locator('#navMenuBtn').click();
@@ -670,8 +670,8 @@ test('Lock on the Trains page locks the station: the PIN card, and Trains asks f
     await enterPin(page, '1234');
     await expect(page.locator('#calendarDisplay')).toBeVisible();
     await page.goto('/trains.html');
-    // The caveat line is on every view and in every phase; the changes headline is not — from 11 Jan 2027 the page opens on Stations (v24.96).
-    await expect(page.locator('#trCaveat')).toBeVisible();
+    // The view tabs are on every view and in every phase; the changes headline is not — from 11 Jan 2027 the page opens on Stations (v24.96).
+    await expect(page.locator('#trControls')).toBeVisible();
 
     await page.locator('#navMenuBtn').click();
     await page.locator('#navLockCalendarBtn').click();

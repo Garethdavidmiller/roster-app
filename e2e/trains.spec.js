@@ -270,7 +270,7 @@ test.describe('trains', () => {
         await expect(page.locator('[data-day="SO"]')).toBeFocused();
     });
 
-    test('the page opens on the answers (v24.92): the overview folds from the second visit, the caveat stays, the lookup is first', async ({ page }) => {
+    test('the page opens on the answers (v24.92): the overview folds from the second visit, the lookup is first', async ({ page }) => {
         await page.setViewportSize({ width: 393, height: 727 });
         await page.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
         await seedSession(page, 'C. Reen');
@@ -278,13 +278,12 @@ test.describe('trains', () => {
         // First visit: the overview is open and read.
         await expect(page.locator('#trOverviewBody')).toHaveClass(/\bopen\b/);
         await expect(page.locator('#trFestive')).toBeVisible();
-        // The caveat is beneath the tabs, not in the card, and on every view.
-        const caveat = page.locator('#trCaveat');
-        await expect(caveat).toHaveText(/December times can still change\. Check the journey planner before you tell a customer\./);
-        await expect(page.locator('#trOverviewCard')).not.toContainText('before you tell a customer');
+        // No caveat line beneath the tabs, on any view (v25.13 — owner, 2 Nov 2026: "This is the confirmed
+        // final timetable"). It said "December times can still change" from v24.92 to v25.12.
+        await expect(page.locator('#trCaveat')).toHaveCount(0);
         for (const view of ['stations', 'grid', 'changes']) {
             await page.locator(`[data-view="${view}"]`).click();
-            await expect(caveat).toBeVisible();
+            await expect(page.locator('body')).not.toContainText('can still change');
         }
         // The day row is labelled.
         await expect(page.locator('.tr-seg-label')).toHaveText('Day');
@@ -488,8 +487,8 @@ test.describe('trains', () => {
         await page.locator('#navMenuBtn').click();
         await page.locator('.nav-panel-pill--trains').click();
         await expect(page).toHaveURL(/trains\.html/);
-        // The caveat line is on every view and in every phase; the changes headline is not — from 11 Jan 2027 the page opens on Stations (v24.96).
-        await expect(page.locator('#trCaveat')).toBeVisible();
+        // The view tabs are on every view and in every phase; the changes headline is not — from 11 Jan 2027 the page opens on Stations (v24.96).
+        await expect(page.locator('#trControls')).toBeVisible();
         await expect(page.locator('#loginOverlay')).toBeHidden();
     });
 });
@@ -498,15 +497,21 @@ test.describe('trains', () => {
 test.describe('trains — the eight improvements (v24.94)', () => {
     const PLANNER = /nationalrail\.co\.uk\/journey-planner/;
 
-    test('the caveat is worded for the phase, and links to the journey planner', async ({ page }) => {
+    // The first of the eight was a caveat line worded for the phase, with the planner as its link. It went
+    // at v25.13 (owner, 2 Nov 2026: "This is the confirmed final timetable"), in EVERY phase — so each
+    // phase below now checks the line is absent — and its planner link moved into the overview's ? panel.
+    test('no caveat line in any phase; the first tab follows the phase; the planner is in the ? panel, and the ended note', async ({ page }) => {
         const caveat = page.locator('#trCaveat');
         await seedSession(page, 'G. Miller');
         await page.clock.setFixedTime(new Date('2026-10-23T09:00:00Z'));
         await page.goto('/trains.html');
-        await expect(caveat).toHaveText(/December times can still change\. Check the journey planner before you tell a customer\./);
-        await expect(caveat.locator('a')).toHaveAttribute('href', PLANNER);
-        await expect(caveat.locator('a')).toHaveAttribute('rel', /noopener/);
         await expect(page.locator('#trChangesTab')).toHaveText('What’s changing');
+        await expect(caveat).toHaveCount(0);
+        await page.locator('.btn-card-tips[data-card="overview"]').click();
+        const planner = page.locator('#tipsLightbox a', { hasText: 'the journey planner' });
+        await expect(planner).toHaveAttribute('href', PLANNER);
+        await expect(planner).toHaveAttribute('rel', /noopener/);
+        await expect(page.locator('#tipsLightbox')).not.toContainText('can still change');
         // Running, through the festive changes: the warning is about Christmas, and the first tab is past tense.
         // (Each phase is a fresh navigation with the clock set first and the session re-seeded: the seeded
         // session expires by the real clock, so the page's guard clears it once the pinned date is past
@@ -514,20 +519,24 @@ test.describe('trains — the eight improvements (v24.94)', () => {
         await page.clock.setFixedTime(new Date('2026-12-20T10:00:00Z'));
         await seedSession(page, 'G. Miller');
         await page.goto('/trains.html');
-        await expect(caveat).toHaveText(/Times change again over Christmas and New Year, until 10 January\. Check the journey planner before you tell a customer\./);
         await expect(page.locator('#trChangesTab')).toHaveText('What changed');
+        await expect(caveat).toHaveCount(0);
         await expect(page.locator('#trChangesTitle')).toHaveText('What changed');
         await expect(page.locator('[data-view="changes"]')).toHaveAttribute('aria-pressed', 'true');
         // Settled: not live running.
         await page.clock.setFixedTime(new Date('2027-01-11T09:00:00Z'));
         await seedSession(page, 'G. Miller');
         await page.goto('/trains.html');
-        await expect(caveat).toHaveText(/These are the published timetables, not live running\. Check the journey planner before you tell a customer\./);
+        await expect(page.locator('#trControls')).toBeVisible();
+        await expect(caveat).toHaveCount(0);
         // Ended.
         await page.clock.setFixedTime(new Date('2027-05-17T09:00:00Z'));
         await seedSession(page, 'G. Miller');
         await page.goto('/trains.html');
-        await expect(caveat).toHaveText(/The timetables on this page have ended\. Check the journey planner for today’s trains\./);
+        await expect(caveat).toHaveCount(0);
+        // The end still says so, with the planner — the overview's own note, the overview open again by then.
+        await expect(page.locator('#trEnded')).toBeVisible();
+        await expect(page.locator('#trEnded a')).toHaveAttribute('href', PLANNER);
     });
 
     // OPENED, not just present in the markup (whole-app review, Nov 2026). The test above this line

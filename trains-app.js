@@ -68,7 +68,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { TIMETABLES, STATIONS, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
 import { CARD_TIPS } from './trains-tips.js';
-import { parseTypedTime, daysUntil, timetablePhase, dateWords, caveatWords, railwayToday } from './trains-change.js';
+import { parseTypedTime, daysUntil, timetablePhase, dateWords, railwayToday, JOURNEY_PLANNER_URL } from './trains-change.js';
 import { stationView, busiestStations, matchStations, headlineChanges, stoppingGrid, stopsKnown, stationBands, lastTrains } from './trains-stations.js';
 import { renderHeadlines, renderStation, renderGrid, renderLookup as lookupHtml, renderTotals, renderPicks, renderLastTrains, DAYTIME } from './trains-render.js';
 import { syncGridMirror } from './trains-grid-mirror.js';
@@ -98,8 +98,6 @@ const phase = () => timetablePhase(railwayToday(), { change: CHANGE_DATE, festiv
 const OVERVIEW_SEEN_KEY = 'myb_trains_overview_seen';
 /** The station this device looked at last (v24.94): first among the chips, and what the page opens on once it opens on Stations. Read here alone. */
 const LAST_STATION_KEY = 'myb_trains_station';
-/** Where "check the journey planner" goes (v24.94): National Rail's planner takes a December date. Address checked 23 Oct 2026. */
-const JOURNEY_PLANNER_URL = 'https://www.nationalrail.co.uk/journey-planner/';
 /** Today's kind of day, as the day tabs name it — the RAILWAY day, which runs to 03:00. @returns {Day} */
 const todayDay = () => { const dow = railwayToday().getDay(); return dow === 6 ? 'SO' : dow === 0 ? 'SU' : 'SX'; };
 let dayPinned = false;   // set once a day tab is pressed: the chosen day then survives the tab's sleep
@@ -250,7 +248,7 @@ function renderOverview() {
     const festive = el('trFestive');
     if (festive) festive.hidden = !p.festive;
     setText('trOverviewHint', `What change${p.started ? 'd' : 's'} at Marylebone from ${dateWords(CHANGE_DATE)}`);
-    const ended = el('trEnded');   // the same planner link as the caveat (v24.96); the static words named Chiltern's
+    const ended = el('trEnded');   // the journey planner as a link (v24.96); the static words named Chiltern's
     if (ended) { ended.hidden = p.phase !== 'ended'; setHTML(ended, `<strong>Both timetables on this page have ended.</strong> Check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a> for today’s trains.`); }
     setText('trGridNow', p.oldLabel);
     setText('trGridDec', p.newLabel);
@@ -268,11 +266,9 @@ function render(state) {
         if (section) section.hidden = state.view !== view;
     }
     const day = TIMETABLES.now[state.day], dec = TIMETABLES.dec[state.day];
-    // The caveat and the first tab's name follow the phase (v24.94): "can still change" was fixed text,
-    // right until the change and wrong for the four months after; a tab promising what is coming reads
-    // wrong the morning it has come. The journey-planner link is the page's, not the words'.
-    const p = phase(), c = caveatWords(p, { change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL });
-    setHTML(el('trCaveat'), `<span aria-hidden="true">⚠️</span> ${c.lead} Check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a> ${c.ask}.`);
+    // The first tab's name follows the phase (v24.94): a tab promising what is coming reads wrong the
+    // morning it has come. (The caveat line beneath the tabs went at v25.13 — trains-change.js has why.)
+    const p = phase();
     for (const id of ['trChangesTab', 'trChangesTitle']) setText(id, p.started ? 'What changed' : 'What’s changing');
     if (state.view === 'changes') {
         setText('trChangesHint', `${DAY_NAMES[state.day]}, trains leaving Marylebone — biggest change first`);
