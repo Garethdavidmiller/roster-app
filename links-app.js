@@ -48,7 +48,6 @@ import { LEGACY_DOC_ID, deepCopyPatterns, designFromDoc, binEntryFromDoc, docPay
 import { createDesignLibrary } from './links-design-library.js';
 import { DEFAULT_SHIFT_TIMES } from './links-default-targets.js';
 import { PROPOSALS, isProposalId, proposalById, proposalCopyName } from './links-proposals.js';
-import { builtInProposals } from './links-shortlist.js';
 import { createTargetPanel } from './links-generator-targets.js';
 import { reorderLines, applyOrder, cost, DEFAULT_BLOCK_TARGET } from './links-adjacency.js';
 import { normaliseWindow, formatWindow, isDefaultWindow, isValidWindowRow, canonicaliseWindowTime } from './links-window.js';
@@ -291,7 +290,6 @@ export function init() {
     let library = null;
     /** The bin, newest first — owned by the library. */
     const _bin = () => library ? library.binList() : [];
-    const _builtIns = () => builtInProposals(designs, _bin(), PROPOSAL_ENTRIES);   // none once the shortlist is SAVED (links-shortlist.js)
 
     // Read-only analysis panels (Coverage heat map + Design quality checks) — extracted to
     // links-analysis.js (v17.70). They read only the live active design, via this getter.
@@ -523,7 +521,7 @@ export function init() {
     // or resets them (compare.resetCompare). Placed after emptyPattern/isUnfilledPattern (const
     // arrows) so those injected deps exist; the render deps are hoisted function declarations.
     const compare = initLinksCompare({
-        getDesigns: () => [...designs, ..._builtIns()], getActiveDesignId: () => activeDesignId ?? activeProposalId, getDesign: () => design,
+        getDesigns: () => [...designs, ...PROPOSAL_ENTRIES], getActiveDesignId: () => activeDesignId ?? activeProposalId, getDesign: () => design,
         renderDesignPicker, renderGrid, renderBrushBar, dearmBrush, emptyPattern, isUnfilledPattern, shiftLabel,
     });
 
@@ -537,7 +535,7 @@ export function init() {
     const _saveBtns = () => /** @type {HTMLButtonElement[]} */ (['linksSaveBtnTop', 'linksSaveBtn'].map(id => document.getElementById(id)).filter(Boolean));
     const _headerState = () => ({
         designs, activeId: activeDesignId, design, dirty, currentUser, saving: savingHere(),
-        canDelete: canSoftDelete(designs.length), proposals: _builtIns(), proposalId: activeProposalId,
+        canDelete: canSoftDelete(designs.length), proposals: PROPOSAL_ENTRIES, proposalId: activeProposalId,
     });
 
     /** Wire the masthead + its two sheets (picker, ··· More), once. The More rows keep their ids. */
@@ -564,7 +562,6 @@ export function init() {
             sheetActions: [
                 [$('dupDesignBtn'), duplicateDesign], [$('designRenameMenuBtn'), onRename], [$('compareBtn'), compare.toggleCompareMode],
                 [$('newDesignBtn'), createDesign], [$('importDesignBtn'), () => library?.openImport()], [$('designDeleteBtn'), () => { if (activeDesignId) deleteDesign(activeDesignId); }],
-                [$('saveShortlistBtn'), () => library?.saveShortlist()],
             ],
         });
         $('compareChips')?.addEventListener('click', e => {
@@ -599,7 +596,6 @@ export function init() {
             const label = binBtn.querySelector('span:last-child');
             if (label) label.textContent = `Recently deleted (${_bin().length})`;
         }
-        document.getElementById('saveShortlistBtn')?.style.setProperty('display', library?.shortlistOffered() ? '' : 'none');   // the admin's, until done (links-shortlist.js)
 
         header?.render(_headerState());
 
@@ -617,7 +613,7 @@ export function init() {
         const cmpMode = compare.isCompareMode();
         const cmpId   = compare.getCompareId();
         if (compareBtn) {
-            compareBtn.disabled = !design || designs.length + _builtIns().length < 2;
+            compareBtn.disabled = !design || designs.length + PROPOSAL_ENTRIES.length < 2;
             compareBtn.classList.toggle('compare-active', cmpMode);
             compareBtn.setAttribute('aria-pressed', cmpMode ? 'true' : 'false');
             const lbl = document.getElementById('compareBtnLabel');
@@ -627,7 +623,7 @@ export function init() {
         // Compare picker row
         if (comparePickerRow) comparePickerRow.style.display = cmpMode ? '' : 'none';
         if (cmpMode && compareChipsEl) {
-            compareChipsEl.innerHTML = [...designs, ..._builtIns()]
+            compareChipsEl.innerHTML = [...designs, ...PROPOSAL_ENTRIES]
                 .filter(d => d.id !== (activeDesignId ?? activeProposalId))
                 .map(d => {
                     const isActive = d.id === cmpId;
@@ -849,7 +845,7 @@ export function init() {
             // its compare chip filtered out) until the user manually toggles compare off. Deleting
             // the ACTIVE design while comparing also used to leave a <2-design self-compare soft-lock.
             const cmpId = compare.getCompareId();
-            if (id === cmpId || designs.length + _builtIns().length < 2 || (newActive && newActive.id === cmpId) || !newActive) {
+            if (id === cmpId || designs.length + PROPOSAL_ENTRIES.length < 2 || (newActive && newActive.id === cmpId) || !newActive) {
                 compare.resetCompare();
             }
             if (newActive) _activateDesign(newActive);
@@ -871,7 +867,7 @@ export function init() {
         // A switch that does NOT happen must put the picker back — `change` has already moved the
         // select. Argued in links-design-header.js's render (v23.33).
         if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Switch to another design? Changes will be lost.', confirmLabel: 'Switch' })) { renderDesignPicker(); return; }
-        const d = designs.find(x => x.id === id) ?? _builtIns().find(x => x.id === id);
+        const d = designs.find(x => x.id === id) ?? PROPOSAL_ENTRIES.find(x => x.id === id);
         if (!d) { renderDesignPicker(); return; }
         // If selecting the current compare target, exit compare mode first
         if (id === compare.getCompareId()) compare.resetCompare();
@@ -1131,9 +1127,8 @@ export function init() {
             if (emptyMsg) emptyMsg.innerHTML = loadFailed
                 ? `Check your connection and refresh the page. Nothing has been lost — saved designs are on the server.`
                 : binnedOnLoad && _bin().length ? `The link is ${TOTAL_POS} lines from December, so ${binnedOnLoad === 1 ? 'the design' : `the ${binnedOnLoad} designs`} drawn for ${PREVIOUS_LINK_LENGTH} moved there. Restore one from <strong>Recently deleted</strong>, in the <span aria-hidden="true">···</span><span class="sr-only">More</span> menu above, if you still need it.`
-                : `Build a rotating pattern from staffing targets with the Auto-generate card below, ${_builtIns().length ? 'open one of the shortlisted proposals' : 'restore one from <strong>Recently deleted</strong> in the <span aria-hidden="true">···</span><span class="sr-only">More</span> menu above'}, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`;
+                : `Build a rotating pattern from staffing targets with the Auto-generate card below, open one of the shortlisted proposals, or start from an empty <span class="links-nowrap">${TOTAL_POS}-line</span> grid.`;
             if (emptyActs) /** @type {HTMLElement} */ (emptyActs).style.display = loadFailed ? 'none' : '';
-            document.getElementById('linksEmptyProposals')?.style.setProperty('display', _builtIns().length ? '' : 'none');   // none to open once the shortlist is saved
             _setGridHint(false);
             _renderOverLengthNotice();   // `design` is null here, so this hides it
             if (wrapper)    wrapper.style.display    = 'none';
@@ -2075,8 +2070,8 @@ export function init() {
         refreshLists: _refreshLists,
         actionStatus: _designActionStatus,
         getHeader: () => header,
-        isAdmin, loadFailed: () => loadFailed, openProposalId: () => activeProposalId,   // the shortlist press (v25.09)
-        removeDesigns: (/** @type {Set<string>} */ ids) => { designs = designs.filter(d => !ids.has(d.id)); compare.resetCompare(); },
+        // "Keep only the shortlist" (v25.09, links-shortlist.js): the moved designs leave the live list; an open one gives way to the next, else to Even Step, read-only.
+        removeDesigns: (/** @type {Set<string>} */ ids) => { designs = designs.filter(d => !ids.has(d.id)); compare.resetCompare(); if (ids.has(activeDesignId)) _activateDesign(designs[0] ?? PROPOSAL_ENTRIES[0]); else renderDesignPicker(); },
     });
 
     const binFailed = new Set();   // old-length designs whose move to the bin FAILED this visit — shown live
@@ -2165,7 +2160,7 @@ export function init() {
 
             // Re-open the design (or proposal) active last visit, else the first saved one. Nothing
             // saved opens NOTHING: the empty state offers the shortlist rather than choosing for you.
-            const d = [...designs, ..._builtIns()].find(x => x.id === lsGet(ACTIVE_KEY)) || designs[0];
+            const d = [...designs, ...PROPOSAL_ENTRIES].find(x => x.id === lsGet(ACTIVE_KEY)) || designs[0];
             if (d) {
                 activeProposalId = isProposalId(d.id) ? d.id : null;
                 activeDesignId  = activeProposalId ? null : d.id;

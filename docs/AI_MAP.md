@@ -1171,12 +1171,11 @@ The SHORTLISTED 26-line designs, built in (v24.47; owner decision 3 Oct 2026: re
 - **The one rule: a proposal id never reaches Firestore.** `links-app.js` opens a proposal through `_activateDesign` with `activeDesignId = null` and `activeProposalId` set, so save, rename and delete all treat it as unsaved; the first save creates a new design. The picker lists them in their own "Shortlisted proposals" group (`links-design-header.js`), compare offers them beside saved designs, a workspace with nothing saved keeps its empty state with an "Open a shortlisted proposal" action (nothing is opened for you), and Generate while one is open builds a NEW unsaved design rather than overwriting the proposal's copy.
 
 ### `links-shortlist.js`
-Making the SHORTLIST the saved designs (v25.09, owner: "Put the new shortlist proposals as the saved options in the links designer. Remove the older ones"). Pure; tested by `links-shortlist.test.mjs`, the press by `e2e/links-shortlist.spec.js`.
-- `SHORTLIST_ID_PREFIX`, `shortlistDocId(proposal)`, `isShortlistDocId(id)` — each shortlisted design is saved under a FIXED id (`shortlist-<code>`), so two presses cannot make two Even Steps.
-- `shortlistSaved(designs, bin)`, `builtInProposals(designs, bin, builtIns)` — once any saved shortlist design exists, live OR binned, the built-in rows go, so the picker never lists one twice and a deleted one does not come back at the top.
-- `canSaveShortlist({ isAdmin, loadFailed, designs, bin })` — the ··· More row is the admin's, once; never on a failed load.
-- `planShortlistSave(designs, bin, proposals?)` → `{ seed, retire }`; `shortlistNames`, `shortlistSaveMessage` (names every design that will move and who last saved it, `LISTED_IN_DIALOG` of them, the rest counted), `shortlistSavedLine`.
-- **One deliberate press, not a move on page open** — "older" is every saved design, and only the admin can see which those are; the header has the three reasons.
+"Keep only the shortlist" (v25.09, owner: "Put the new shortlist proposals as the saved options in the links designer. Remove the older ones", then "The shortlist should be read only"). Pure; tested by `links-shortlist.test.mjs`, the press by `e2e/links-shortlist.spec.js`.
+- `OLDER_BEFORE` (the start of 2 Nov 2026, UTC), `isOlderDesign(entry)` — last saved before it; an unreadable save time is NOT older. A fixed date, so work saved after the release is never swept up by a later press.
+- `olderDesigns(designs)`, `canKeepOnlyShortlist({ isAdmin, designs })` — the ··· More row is the admin's while anything older is left, so it goes by itself once used (a restored design carries a new save time and is never offered again).
+- `keepOnlyShortlistMessage(older, { currentUser, dirty })` (names every design and who last saved it, `LISTED_IN_DIALOG` of them, the rest counted), `keptOnlyShortlistLine(moved, failed)`.
+- **The shortlist itself is untouched** — built in and read-only (`links-proposals.js`). **One deliberate press, not a move on page open** — the header has the three reasons.
 
 ### `links-design-header.js`
 
@@ -2551,16 +2550,15 @@ this one, between them.
 
 ### `links-design-library.js`
 The Links workspace's design LIBRARY — the import panel and the Recently deleted bin (v24.51, split out of `links-app.js` on an external technical-debt review: managing the COLLECTION apart from editing the open design).
-- `createDesignLibrary(ctx)` → `{ openImport, renderBinList, saveShortlist, shortlistOffered, binList, setBin, addToBin, upsertBin, trackBinMove }`. Wires both panels on creation; call once, after the design store exists. `ctx` is deliberately small — `store`, `currentUser`, `getDesigns`, `addDesign`, `activate`, `isDirty`, `hasOpenDesign`, `renderPicker`, `refreshLists`, `actionStatus`, `getHeader` — because a split that passed the editor's state across would only move the coupling.
+- `createDesignLibrary(ctx)` → `{ openImport, renderBinList, keepOnlyShortlist, binList, setBin, addToBin, upsertBin, trackBinMove }`. Wires both panels on creation; call once, after the design store exists. `ctx` is deliberately small — `store`, `currentUser`, `getDesigns`, `addDesign`, `activate`, `isDirty`, `hasOpenDesign`, `renderPicker`, `refreshLists`, `actionStatus`, `getHeader` — because a split that passed the editor's state across would only move the coupling.
 - **Owns the bin list** (the coordinator reads it through `binList()`) and the automatic moves in flight (`trackBinMove`, v24.48 — restore and purge wait for a pending move of the same design).
 - **Rename, duplicate and delete stayed in `links-app.js`**: each changes the OPEN design's concurrency baseline or unsaved state.
-- **The shortlist press** (v25.09): `saveShortlist()` asks the dialog that names every design that will move, runs the store's one transaction, then moves the list in memory as the transaction moved it; `shortlistOffered()` is what the ··· More row's visibility reads. Its four ctx hooks — `isAdmin`, `loadFailed()`, `openProposalId()`, `removeDesigns(ids)` — exist for it alone. Rules: `links-shortlist.js`.
+- **Keep only the shortlist** (v25.09): `keepOnlyShortlist()` lists every older design in its dialog, moves each with the store's `binIfStill` (the rule asked again in the transaction), then moves the list in memory as those moved it. Its ··· More row is wired here, like the bin's — shown as the sheet opens. The coordinator lends one hook, `removeDesigns(ids)`, which also opens the next live design, or Even Step read-only, if the open one moved. Rules: `links-shortlist.js`.
 
 ### `links-design-store.js`
 The design collection's persistence lifecycle and its concurrency protocol (v21.87).
-- `createDesignStore(deps)` → `{ loadAll, create, save, rename, softDelete, binIfStill, restore, purge, saveShortlist }` — `softDelete(id, by)` → `{ queued }`, QUEUED offline like save/rename/create (rule 4; it was awaited until the whole-app review, Oct 2026); `binIfStill(id, by, stillMatches)` (v24.47) is the AUTOMATIC bin move: a transaction that re-asks the rule and fails offline rather than queueing
+- `createDesignStore(deps)` → `{ loadAll, create, save, rename, softDelete, binIfStill, restore, purge }` — `softDelete(id, by)` → `{ queued }`, QUEUED offline like save/rename/create (rule 4; it was awaited until the whole-app review, Oct 2026); `binIfStill(id, by, stillMatches)` (v24.47) is the AUTOMATIC bin move: a transaction that re-asks the rule and fails offline rather than queueing
   (`purgeIfExpired` went with automatic bin expiry — `links-deletion.js`). Every Firebase handle is injected.
-  `saveShortlist({ seeds, retire, by })` (v25.09) creates the shortlist at its fixed ids and soft-deletes the listed designs in ONE transaction; `already-saved` (writes nothing) if any id is taken, and a listed design that has gone or is binned is skipped, never merged onto.
 - `isOfflineFailure(err, isOnlineCheck?)` — the predicate that decides whether the one unserialised
   path may be taken at all.
 
