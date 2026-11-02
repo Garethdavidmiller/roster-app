@@ -249,6 +249,36 @@ for (const [label, configured, stripTone, chipTone, chips] of [
     });
 }
 
+test('a card title\'s icon tile stays inside its title, so it can never sit on the line beneath', async ({ page }) => {
+    // v25.15, from the owner's phone: "This overlap is happening throughout the app with the tiles."
+    // v25.14 gave the 28px tile a -3px block margin to keep the headers short. That let it hang 3px
+    // out of its title's box — onto the hint line under every card title, touching the words. A 1x
+    // screenshot read as "close"; a phone showed the overlap. So this measures GEOMETRY rather than
+    // trusting a picture: each rendered tile must lie inside its own h2, which means nothing laid out
+    // after (or before) the title can be underneath it. Every card page, from the app's page list.
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
+    const TILE = '.card-header h2 > span[aria-hidden="true"]:first-child';
+    let measured = 0;
+    for (const p of APP_PAGES_LIST.filter(x => x.cards)) {
+        await page.goto(p.url);
+        await page.waitForTimeout(700);
+        const found = await page.evaluate((sel) => [...document.querySelectorAll(sel)]
+            .filter(t => t.getClientRects().length)          // rendered, not inside a hidden card
+            .map(t => {
+                const r = t.getBoundingClientRect(), h = /** @type {Element} */ (t.parentElement).getBoundingClientRect();
+                return { title: (t.parentElement?.textContent || '').trim().slice(0, 40),
+                    hangs: Math.round(Math.max(h.top - r.top, r.bottom - h.bottom) * 10) / 10 };
+            }), TILE);
+        measured += found.length;
+        const bad = found.filter(f => f.hangs > 0.5);
+        expect(bad, `${p.url}: a tile hangs outside its title by → ${bad.map(b => `${b.title} (${b.hangs}px)`).join(' · ')}`).toEqual([]);
+    }
+    expect(measured, 'the walk must reach real card titles, or it proves nothing').toBeGreaterThan(20);
+});
+
 test('settings: notifications switched off on purpose are not coloured as good news', async ({ page }) => {
     // The one `ok` chip whose words are not good news (v25.14). Switched off HERE is `ok` to the
     // summary — nothing to do, the member decided — but a green "Off" would have the colour and
