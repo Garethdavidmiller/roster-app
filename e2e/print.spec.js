@@ -27,7 +27,7 @@
  * is the engine half this station reads on, and it is where the `beforeprint` assumption came from.
  */
 import { test, expect } from './fixtures.js';
-import { seedSession } from './helpers.js';
+import { seedSession, seedMemberSession } from './helpers.js';
 
 /** A4 portrait in points, to the nearest whole number: 595 × 842. Landscape is the transpose. */
 const A4_W = 595, A4_H = 842;
@@ -254,9 +254,13 @@ test('the same iPhone in a Safari TAB still prints — the guard is about the sh
 });
 test('the Calendar\'s print key in a home-screen app on iOS 27 opens the explanation dialog @print', async ({ page }) => {
     await page.addInitScript(IOS27_STANDALONE);
-    await seedSession(page);
+    // A session the Calendar actually GRANTS, and the live grid before the key. The shortcuts do
+    // nothing while access is undecided or refused (whole-app review, Oct 2026) — the grid is behind
+    // the card then — and the plain session seed never reaches the grant under the hermetic stub,
+    // so this pressed P on a locked Calendar and passed only because the lock used to ignore that.
+    await seedMemberSession(page);
     await page.goto('/index.html');
-    await expect(page.locator('#teamViewBtn')).toBeAttached();
+    await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
     await page.keyboard.press('p');
     await expect(page.getByRole('button', { name: 'Open in Safari' })).toBeVisible();
     expect(await page.evaluate(() => /** @type {any} */ (window).__prints)).toBe(0);
