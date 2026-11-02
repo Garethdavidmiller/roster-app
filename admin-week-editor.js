@@ -525,7 +525,6 @@ export function renderWeekGrid() {
     if (bulkBar)  bulkBar.style.display = 'block';
     resetBulkPills();
     updateSaveBtn();
-    _updateBulkSelCount();
 }
 
 // A save awaiting the server (v24.23): updateSaveBtn used to re-arm Save mid-save on any keystroke,
@@ -615,7 +614,12 @@ function _updateBulkSelCount() {
 }
 
 // ── BULK BAR ──────────────────────────────────────────────────────────────────
-/** Clears the active bulk-bar type pill, hides the time inputs, and resets values. */
+/**
+ * Clears the active bulk-bar type pill, hides the time inputs, resets values, and recounts the
+ * "N days selected" line against the grid as it stands. The recount is here, not left to callers,
+ * because a week SWIPE settles by calling this on a panel built fresh with nothing ticked — and the
+ * line went on naming boxes that were no longer on screen (whole-app review, Oct 2026).
+ */
 export function resetBulkPills() {
     _bulkActiveType = '';
     const bulkTypePills = document.getElementById('bulkTypePills');
@@ -630,6 +634,7 @@ export function resetBulkPills() {
     // step-number circle (.bulk-step-num), which textContent would wipe (v16.73).
     const bulkApplyLabel = document.getElementById('bulkApplyLabel');
     if (bulkApplyLabel) bulkApplyLabel.textContent = 'Apply to ticked days';
+    _updateBulkSelCount();
 }
 
 function _initBulkBar() {

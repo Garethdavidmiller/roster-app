@@ -74,6 +74,10 @@ export async function loadRosterContext(memberName, dates) {
             where('memberName', '==', memberName),
             where('date', 'in', dates),
         ));
+        // THE DEVICE'S CACHE IS NOT THE SERVER (whole-app review, Nov 2026). With the persistent
+        // cache on, an unreachable server does not throw — the cache answers, possibly with nothing
+        // for a week it never read, which is the swallowed failure above wearing a success.
+        if (snap?.metadata?.fromCache) return { knowledge: 'error', byDate: {} };
         snap.forEach((/** @type {any} */ d) => {
             const data = d.data();
             // `toOverrideRecord` deliberately does NOT carry the date — it is the record shape the
@@ -119,6 +123,7 @@ export async function loadRosterForMembers(memberNames, dates) {
             collection(db, COLLECTIONS.overrides),
             where('date', 'in', dates),
         ));
+        if (snap?.metadata?.fromCache) return { knowledge: 'error', byMember: {} };   // as above
         snap.forEach((/** @type {any} */ d) => {
             const data = d.data();
             if (!data || typeof data.date !== 'string' || typeof data.memberName !== 'string') return;

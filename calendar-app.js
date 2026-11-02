@@ -155,7 +155,8 @@ let openAboutLightbox = null;
 // accessibility tree and out of tab order. And that read is a plain `getDocs`, which is SERVER-first,
 // so the tightened rule denies it outright: there is no cache path here for the gate to have to
 // cover. Same reasoning for `initCalendarTooltip`/`initCalendarKeyboard` further down — with
-// `#calendarDisplay` empty they have nothing to act on.
+// `#calendarDisplay` empty they have nothing to act on, and the keyboard ACTS only inside it, so the
+// stored copy painted in the lock slot before the grant (v24.59) is read, never used.
 const { openDayDetail, closeALLightbox } = initCalendarLightboxes({ navigateToPaycalc });
 
 // (Calendar display state lives in calendar-state.js; swipe cooldown in calendar-swipe.js)
@@ -204,8 +205,10 @@ applyTextScale(document);
     if (!window.matchMedia('(pointer: coarse)').matches) return;
     const hint = document.getElementById('swipeHint');
     if (!hint) return;
-    hint.style.display = '';
-    setTimeout(dismissSwipeHint, 6000);
+    // Not until the Calendar is OPEN (whole-app review, Oct 2026). Locked, the hint is hidden with the
+    // workspace — and its 6s timer still marked it seen, so a first visit that began at the sign-in
+    // card used up the one showing on nothing.
+    calendarAccessReady.then(() => { hint.style.display = ''; setTimeout(dismissSwipeHint, 6000); });
 })();
 
 function dismissSwipeHint() {
@@ -276,7 +279,12 @@ const legend = createLegend({
     getDisplayMonth,
     computeEaster,
     resolveMemberRoster,
-    displayVerdict: () => decideDisplay(knowledgeOf(monthKey(getDisplayYear(), getDisplayMonth()))),
+    // A loading month the member's stored copy is drawn for IS a grid on screen — the renderer draws
+    // it `stale` — so it gets its key by the same rule (whole-app review, Oct 2026).
+    displayVerdict: () => {
+        const y = getDisplayYear(), m = getDisplayMonth(), v = decideDisplay(knowledgeOf(monthKey(y, m)));
+        return v === 'loading' && _snapshotFor(/** @type {any} */ (getCurrentMember())?.name ?? '', y, m) ? 'stale' : v;
+    },
     isTeamViewMode: () => teamView.isTeamViewMode(),
 });
 const updateLegend = () => legend.update();
@@ -893,6 +901,9 @@ try {
         // ============================================
         document.addEventListener('keydown', (e) => {
             if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;   // taken already (a grade tab's arrows), or a browser chord (Ctrl+P, Alt+←)
+            // Re-locked (access lost mid-session): the grid is behind the card, and an arrow here moved
+            // and PERSISTED the month there, so the member signed back in to a different one (Oct 2026).
+            if (getAccessType() === 'none') return;
             // Don't fire if user is typing in an input
             if (/** @type {Element} */ (e.target).tagName === 'SELECT' || /** @type {Element} */ (e.target).tagName === 'INPUT') return;
             // Don't fire behind ANY open overlay — focus sits on a button there,
@@ -1152,8 +1163,10 @@ function _onFirstGrant() {
 // knowledge states, so the copy can never be mistaken for what the server said.
 const _ownView = (/** @type {string} */ name) => !!name && getSession()?.name === name
     && (lsGet(SELECTED_MEMBER) ?? name) === name && lsGet(TEAM_VIEW) !== '1';
-setSnapshotSource((name, year, month) =>
-    getAccessType() === 'named' && _ownView(name) && !teamView.isTeamViewMode() ? snapshotMonth(name, year, month) : null);
+/** The member's stored copy of a month, where the live grid may show it. @param {string} name @param {number} year @param {number} month */
+const _snapshotFor = (name, year, month) =>
+    getAccessType() === 'named' && _ownView(name) && !teamView.isTeamViewMode() ? snapshotMonth(name, year, month) : null;
+setSnapshotSource(_snapshotFor);
 
 /** Paint the stored copy in the lock slot before the access decision. @returns {boolean} painted */
 function _paintSnapshotBeforeGrant() {

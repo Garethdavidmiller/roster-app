@@ -68,6 +68,18 @@ test.describe('member surface', () => {
         await expect(page.locator('.ot-submit')).toContainText('7 days still to answer');
     });
 
+    test('a roster the device\'s CACHE answered is not shown as confirmed (whole-app review, Nov 2026)', async ({ page }) => {
+        // With the persistent cache on, Firestore answers an unreachable server from the device —
+        // possibly with nothing for this week. Read as the server's answer, the form offered
+        // "before/after" times from the base roster as though it were confirmed.
+        await seedSession(page, 'G. Miller');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), docsFromCache: true }; });
+        await page.goto('/overtime.html');
+        await expect(page.locator('.ot-day')).toHaveCount(7);
+        await expect(page.locator('.ot-roster-warning')).toContainText("Couldn't confirm your current MYB roster");
+    });
+
     test('the page reports the `ready` milestone, and it lands after the form does', async ({ page }) => {
         // The App Speed card's "Usable" column reads a `myb-page-ready` performance mark, and this
         // page had none — so it showed an em-dash where every other page shows a bar, and its two
@@ -689,6 +701,38 @@ test.describe('manager surface', () => {
         await page.getByRole('button', { name: 'Open now' }).nth(1).click();
         await expect(page.locator('#otConfirmText')).toContainText("Couldn't prepare that week");
         await expect(page.locator('#otConfirmCreate')).toBeDisabled();
+    });
+
+    test('a preview that lands after "Add" was pressed does not arm Create under the Add message', async ({ page }) => {
+        // Whole-app review, Nov 2026. "Add N" is not one of the buttons a preview locks, so a reviewer
+        // could press Open now on one week and Add on another while the first was still preparing.
+        // The preview landed and armed Create; the Add message then replaced the question with
+        // Create still live — one press from opening the first week under a sentence about another.
+        await seedSession(page, 'H. Croft');
+        const weeks = sixWeeks();
+        weeks[2] = { ...weeks[2], canAdd: 1 };
+        await stubOvertime(page, { weeks });
+        /** @type {Record<string, () => void>} */
+        const release = {};
+        await page.route('**/createOvertimeWindow', async r => {
+            const body = JSON.parse(r.request().postData() || '{}');
+            await new Promise(res => { release[body.dryRun ? 'preview' : 'topup'] = res; });
+            r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify(body.dryRun
+                    ? { ok: true, dryRun: true, window: { ...W, expectedCount: 1 } }
+                    : { ok: true, existed: true, added: ['T. Bibi'], window: W }) });
+        });
+        await page.goto('/overtime.html');
+
+        await page.getByRole('button', { name: 'Open now' }).first().click();
+        await expect.poll(() => !!release.preview).toBe(true);
+        await page.getByRole('button', { name: 'Add 1' }).click();
+        await expect.poll(() => !!release.topup).toBe(true);
+        release.preview();
+        await expect(page.getByRole('button', { name: 'Opening…' }), 'the preview has landed').toHaveCount(0);
+        release.topup();
+        await expect(page.locator('#otConfirmText')).toContainText('T. Bibi');
+        await expect(page.locator('#otConfirmCreate'), 'nothing on screen asks to open a week').toBeDisabled();
     });
 
     test('the week being planned is already open — View switches week, it is not a gate', async ({ page }) => {
@@ -2000,6 +2044,34 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         await page.locator('.ot-day').first().waitFor();
         await expect(page.locator('.ot-submit')).toBeVisible();
 
+        await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+        await expect(page.locator('.ot-closed-note')).toContainText('Final availability recorded');
+        expect(calls).toBeGreaterThanOrEqual(2);
+    });
+
+    test('a page re-woken long AFTER a deadline it slept through still re-reads and closes the form', async ({ page }) => {
+        // Whole-app review, Nov 2026: the resync fired only within ±5 minutes of a deadline, so a form
+        // opened a minute before it and re-woken twenty minutes later still said "open", Submit and
+        // all. What matters is that a deadline PASSED since the state on screen was read.
+        await seedSession(page, 'G. Miller');
+        await page.clock.setFixedTime(new Date(NOW));
+        const before = winOver({ finalDeadlineAt: NOW + 60_000 });
+        let calls = 0;
+        await page.addInitScript(() => { window.__E2E = { ...(window.__E2E || {}), authUser: true, docs: [] }; });
+        await page.route('**/getMyOvertimeState', r => {
+            calls += 1;
+            r.fulfill({ status: 200, contentType: 'application/json',
+                body: JSON.stringify({ ok: true, serverNow: calls === 1 ? NOW : NOW + 20 * 60_000,
+                    windows: [calls === 1 ? before : { ...before, phase: 'CLOSED' }] }) });
+        });
+        await page.route('**/getOvertimeManagerOverview', r => r.fulfill({
+            status: 200, contentType: 'application/json',
+            body: JSON.stringify({ ok: true, serverNow: NOW, planningWeeks: [], retained: [] }) }));
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        await expect(page.locator('.ot-submit')).toBeVisible();
+
+        await page.clock.setFixedTime(new Date(NOW + 20 * 60_000));   // twenty minutes in a pocket
         await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
         await expect(page.locator('.ot-closed-note')).toContainText('Final availability recorded');
         expect(calls).toBeGreaterThanOrEqual(2);

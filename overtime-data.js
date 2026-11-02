@@ -127,12 +127,24 @@ async function postOnce(name, body, opts, fresh) {
     };
 }
 
+/** When the member's own state was last read successfully, in server time; null until then. */
+let _myStateReadAt = /** @type {number|null} */ (null);
+
+/**
+ * When the state on screen was read — what lets a page left hidden across a deadline tell that it
+ * crossed one (`shouldResyncClock`). The SERVER's instant, because that is when it decided phases.
+ * @returns {number|null}
+ */
+export function myStateReadAt() { return _myStateReadAt; }
+
 /**
  * The member's own windows, their submissions, and the authoritative clock.
  * @param {{ signal?: AbortSignal }} [opts]
  */
-export function getMyOvertimeState(opts) {
-    return post('getMyOvertimeState', {}, opts);
+export async function getMyOvertimeState(opts) {
+    const r = await post('getMyOvertimeState', {}, opts);
+    if (r.ok) _myStateReadAt = typeof r.data?.serverNow === 'number' ? r.data.serverNow : correctedNow();
+    return r;
 }
 
 /**
@@ -249,6 +261,11 @@ export async function loadWeekDetail(weekEnding, milestones, dates) {
             getDocs(collection(windowRef, 'participants')),
             getDocs(collection(windowRef, 'submissions')),
         ]);
+        // A CACHE-SERVED READ IS A FAILED LOAD (whole-app review, Nov 2026). With the persistent
+        // cache on, an unreachable server does not throw — the cache answers, as of whenever it last
+        // heard, and that was painted under a fresh "Availability as at <now>". A clerk rings people
+        // from this screen: Retry beats yesterday's answers presented as today's.
+        if (pSnap?.metadata?.fromCache || sSnap?.metadata?.fromCache) throw new Error('served from the offline cache');
 
         /** @type {any[]} */
         const participants = [];

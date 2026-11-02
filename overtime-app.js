@@ -344,7 +344,7 @@ export function init() {
             if (document.hidden || resyncing || !myWindows.length) return;
             const deadlines = myWindows.flatMap(
                 (/** @type {any} */ w) => [w.initialDeadlineAt, w.finalDeadlineAt]).filter(Boolean);
-            if (!shouldResyncClock(OTD.correctedNow(), deadlines)) return;
+            if (!shouldResyncClock(OTD.correctedNow(), deadlines, OTD.myStateReadAt())) return;
             resyncing = true;
             try {
                 const r = await OTD.getMyOvertimeState();

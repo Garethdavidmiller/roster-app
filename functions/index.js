@@ -677,7 +677,8 @@ columnScan: one key per column header; every staff member appears in every colum
         const hasSundayColumn = geometryPath
             || parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(String(h).trim().toLowerCase()));
         // A Sunday it cannot repair is left for the grid below and settled after it (roster-sunday-repair.js).
-        const disputedSundays = applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, dates);
+        // The cross-check's picks go in too: a row the repair moves takes its picks with it.
+        const disputedSundays = applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, dates, _ccStats.choices);
 
         // v22.16 flagged every plain-time Sunday here as UNREADABLE, on the premise that a
         // genuinely worked Sunday carries an RDW marker on the paper roster. THREE REAL ROSTERS SAY

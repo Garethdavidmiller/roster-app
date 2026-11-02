@@ -2605,6 +2605,70 @@ test('admin: saving reports the DAYS it changed, not just how many', async ({ pa
 // silence. This holds a commit open through the REAL Change-a-Shift path and checks three things: the
 // notice appears while it waits, it never claims the change is saved, and it goes when the write lands
 // and the ordinary receipt takes over. The unit test proves the watcher; only this proves it is wired.
+// Whole-app review, Oct 2026: a timed success line ("Set 6 days — Sunday skipped") hid itself after 7s
+// through `hideFeedback`, which also takes down the over-entitlement bar — so a manager who applied
+// to All 7 and pressed Save had the leave question withdrawn from under them mid-decision.
+test('admin: the over-entitlement question stays up past an earlier success message\'s timer', async ({ page }) => {
+    test.setTimeout(45_000);
+    const TAKEN = [];
+    for (const m of ['06', '07']) for (let d = 1; d <= 28; d++) TAKEN.push(`2026-${m}-${String(d).padStart(2, '0')}`);
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript((dates) => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.docs = dates.map((date, i) => ({ id: `al-${i}`, memberName: 'G. Miller', date,
+            type: 'annual_leave', value: 'AL', note: '', source: 'manual' }));
+    }, TAKEN);
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#fieldDate').evaluate((el) => {
+        /** @type {HTMLInputElement} */ (el).value = '2026-11-16';
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await expect(page.locator('#weekNavLabel')).toContainText('Nov 2026');
+    await page.locator('#bulkSelAll').click();
+    await page.locator('#bulkTypePills .pill-annual_leave').click();
+    await page.locator('#bulkApplyBtn').click();
+    await expect(page.locator('#formFeedback')).toContainText('Sunday skipped');   // the timed message
+    const appliedAt = Date.now();
+    for (const btn of await page.locator('.day-row .al-swap-btn[data-swap="no"]').all()) {
+        if (await btn.isVisible()) await clickInView(btn);   // rest days: free, nothing written
+    }
+    await clickInView(page.locator('#saveBtn'));
+    const bar = page.locator('#alConfirmBar');
+    await expect(bar).toHaveClass(/visible/);
+    await page.waitForTimeout(Math.max(0, 7_600 - (Date.now() - appliedAt)));
+    await expect(bar, 'the question must wait for an answer, not for a timer').toHaveClass(/visible/);
+});
+
+// Whole-app review, Oct 2026: a leave range picked while the member's records were still loading was
+// previewed from an empty cache — asking about a rest day the records show is worked (RDW) — and the
+// load refreshed the banners but never the preview, so the question stayed.
+test('admin: a leave preview drawn before the member\'s records arrive is redrawn when they do', async ({ page }) => {
+    test.setTimeout(30_000);
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => { const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = []; });
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.waitForTimeout(800);   // the first member's load has landed
+    // From here a read is slow, and holds a worked rest day (Mon 7 Sep is RD on G. Miller's line).
+    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.docsDelayMs = 3000;
+        e.docs = [{ id: 'r1', memberName: 'G. Miller', date: '2026-09-07', type: 'rdw', value: '14:00-22:00', note: '', source: 'manual' }]; });
+    await page.locator('#fieldMember').selectOption('G. Miller');
+    await page.locator('#alToggleHeader').click();
+    await expect(page.locator('#alRangePicker')).toBeVisible();
+    await page.locator('#alRpNext').click();
+    const cell = page.locator('#alRpGrid .rp-day[data-iso="2026-09-07"]');
+    await cell.click();
+    await cell.click();
+    const preview = page.locator('#alPreview');
+    await expect(preview, 'premise: drawn before the records arrived').toContainText('rest day to answer');
+    await expect(preview).toContainText('recorded at no cost', { timeout: 8_000 });
+    await expect(preview).not.toContainText('rest day to answer');
+});
+
 test('admin: a save that is waiting for the server says so, and the notice clears when it lands', async ({ page }) => {
     await page.addInitScript(() => {
         window.__E2E = { ...(window.__E2E || {}), authUser: true, holdCommits: true, slowSaveMs: 300 };
@@ -4925,6 +4989,20 @@ test('operations: a roster apply signed out mid-save closes the review rather th
     await page.evaluate(() => /** @type {any} */ (window).__E2E.revokeAuth());
     await expect(page.locator('#rosterApplyFeedback')).toContainText('signed out before this roster was confirmed', { timeout: 5000 });
     await expect(page.locator('#rosterReviewSection')).not.toHaveClass(/visible/);
+});
+
+// Whole-app review, Oct 2026: a pre-v24.48 duplicate manual record outranks an import, so "Use new
+// roster" — which deleted only the record the review showed — left the copy to resurface over it.
+test('operations: "Use new roster" also clears an older manual copy of the day', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await openRosterReview(page, null, { extraDocs: [{ id: 'm0', memberName: 'G. Miller', date: '2026-08-04',
+        value: '22:00-06:00', type: 'shift', source: 'manual' }] });
+    await page.locator('.roster-choice-btn[data-pick="pdf"]').first().click();
+    await page.locator('#rosterApplyBtn').click();
+    await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E.batchDeletes || [])
+        .filter((/** @type {string} */ p) => /\/m[01]$/.test(p)).map((/** @type {string} */ p) => p.slice(-2)).sort()),
+        { timeout: 10_000 }).toEqual(['m0', 'm1']);
 });
 
 test('operations: a flagged roster cell can be resolved from the review table', async ({ page }) => {
@@ -8008,6 +8086,23 @@ test('admin: swiping the week grid moves a week, in both directions', async ({ p
 
     await dragWeek(page, 'prev');
     await expect.poll(() => dateField.inputValue(), { timeout: 5000 }).toBe(start);
+});
+
+// Whole-app review, Oct 2026: a SWIPE brings in a panel built fresh with nothing ticked, and the bulk
+// bar went on saying "5 days selected" about boxes that were no longer on screen. The arrows were
+// always right — they redraw through renderWeekGrid, which recounts; the swipe settles without it.
+test('admin: swiping to another week clears the bulk bar\'s "days selected" count', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    await page.locator('#bulkSelMonFri').click();
+    await expect(page.locator('#bulkSelCount')).toHaveText(/days? selected/);
+    const start = await page.locator('#fieldDate').inputValue();
+    await dragWeek(page, 'next');
+    await expect.poll(() => page.locator('#fieldDate').inputValue(), { timeout: 5000 }).not.toBe(start);
+    await page.waitForFunction(() => document.querySelectorAll('.week-carousel-panel').length === 0, null, { timeout: 5000 });
+    await expect(page.locator('#weekGrid .day-cb:checked')).toHaveCount(0);
+    await expect(page.locator('#bulkSelCount')).toHaveText('');
 });
 
 test('admin: the week label follows the swipe, so the grid and its heading agree', async ({ page }) => {

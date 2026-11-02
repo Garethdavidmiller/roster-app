@@ -65,10 +65,14 @@ const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve()
 /** @type {null | { getIdToken: () => Promise<string> }} */
 let _user = { getIdToken: async () => 'tok-1' };
 
+/** When true, every Firestore snapshot says the device's cache answered it. */
+let _fromCache = false;
+
 mock.module('./firebase-client.js', {
     namedExports: {
         auth: { get currentUser() { return _user; } },
-        db: {}, collection: () => ({}), doc: () => ({}), getDocs: async () => ({ forEach() {} }),
+        db: {}, collection: () => ({}), doc: () => ({}),
+        getDocs: async () => ({ metadata: { fromCache: _fromCache }, forEach() {} }),
     },
 });
 mock.module('./overtime-roster.js', { namedExports: { loadRosterForMembers: async () => ({}) } });
@@ -86,6 +90,7 @@ const freshData = () => import(`./overtime-data.js?n=${++_n}`);
 
 beforeEach(() => {
     _calls = [];
+    _fromCache = false;
     _user = { getIdToken: async () => 'tok-1' };
     _respond = async () => ({ ok: true, status: 200, json: async () => ({}) });
     mock.timers.enable({ apis: ['setTimeout'] });
@@ -325,5 +330,24 @@ describe('3 · a submission that cannot be reconciled', () => {
         assert.equal(_calls[0].url, _calls[1].url, 'a preview that is a separate prediction can drift from it');
         assert.equal(_calls[0].body.dryRun, true);
         assert.equal(_calls[1].body.dryRun, false);
+    });
+});
+
+describe('5 · the reviewer\'s week, read from the device\'s cache', () => {
+    // Whole-app review, Nov 2026. With the persistent cache on, an unreachable server does not throw:
+    // the cache answers, as of whenever it last heard, and the workspace painted that under a fresh
+    // "Availability as at <now>". A clerk rings people from this screen, so a cached answer is a
+    // failed load — Retry, not yesterday's availability presented as today's.
+    test('a cache-served read is a failed load, not a current one', async () => {
+        const data = await freshData();
+        _fromCache = true;
+        const r = await data.loadWeekDetail('2026-09-05', { initialDeadlineAt: 0 });
+        assert.equal(r.ok, false);
+    });
+
+    test('and a server answer still loads', async () => {
+        const data = await freshData();
+        const r = await data.loadWeekDetail('2026-09-05', { initialDeadlineAt: 0 });
+        assert.equal(r.ok, true);
     });
 });

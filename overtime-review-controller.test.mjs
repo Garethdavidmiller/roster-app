@@ -66,6 +66,8 @@ let detailFor = new Map();
 let painted = [];
 /** Answers `createOvertimeWindow` will give (preview, commit and top-up share it), in order. */
 let createQueue = [];
+/** When set, `withdrawOvertimeParticipant` returns what this gives — a promise the test resolves. */
+let withdrawHold = /** @type {null | (() => any)} */ (null);
 
 mock.module('./overtime-data.js', {
     namedExports: {
@@ -75,7 +77,7 @@ mock.module('./overtime-data.js', {
             const entry = detailFor.get(weekEnding);
             return typeof entry === 'function' ? entry() : (entry ?? { ok: false });
         },
-        withdrawOvertimeParticipant: async () => ({ ok: true }),
+        withdrawOvertimeParticipant: async () => (withdrawHold ? withdrawHold() : { ok: true }),
         createOvertimeWindow: async () => createQueue.shift() ?? { ok: true, data: { added: [] } },
     },
 });
@@ -155,6 +157,7 @@ beforeEach(() => {
     detailFor = new Map();
     painted = [];
     createQueue = [];
+    withdrawHold = null;
 });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -509,5 +512,31 @@ describe('a failure retries what failed, and a message never re-arms a create', 
         await painted.at(-1).opts.onAsk('P0', false);
         assert.match(dom.otConfirmText.innerHTML, /no longer being asked/);
         assert.equal(dom.otConfirmCreate.disabled, true);
+    });
+
+    test('nor a preview that LANDS while Stop asking is out (whole-app review, Nov 2026)', async () => {
+        // Stop asking is not a button a preview locks. A preview still preparing when it was
+        // pressed landed during that call and re-armed Create — and the message that followed
+        // replaced the preview's question with Create still live for the preview's week.
+        detailFor.set(A, detail(2, 1));
+        const create = fakeButton('data-create', '2026-09-26');
+        dom.otHorizonContent = { ...fakeEl('otHorizonContent'),
+            querySelectorAll: (/** @type {string} */ s) => (s === '[data-create]' ? [create] : []) };
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        /** @type {any} */ let landPreview;
+        createQueue = [new Promise(r => { landPreview = () => r({ ok: true,
+            data: { window: { ...WEEK_A, audience: 'restricted', expectedCount: 1 } } }); })];
+        /** @type {any} */ let landWithdraw;
+        withdrawHold = () => new Promise(r => { landWithdraw = () => r({ ok: true }); });
+        const previewing = create.press();
+        const asking = painted.at(-1).opts.onAsk('P0', false);
+        await settle();
+        landPreview(); await previewing;
+        assert.equal(dom.otConfirmCreate.disabled, false, 'premise: the preview armed Create when it landed');
+        landWithdraw(); await asking;
+        assert.match(dom.otConfirmText.innerHTML, /no longer being asked/);
+        assert.equal(dom.otConfirmCreate.disabled, true, 'Create is disarmed under the Stop-asking message');
     });
 });

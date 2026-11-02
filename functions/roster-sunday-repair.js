@@ -65,9 +65,12 @@ const scanSawRestCode = (/** @type {any} */ raw) => {
  * @param {object}   sundayScan     - { memberName: scanValue } from AI output
  * @param {boolean}  hasSundayColumn
  * @param {string[]} dates          - 7 ISO dates; dates[0] is Sunday, dates[6] Saturday
+ * @param {Record<string, any>} [choices] - the column cross-check's two-way picks, keyed
+ *   "memberName|date" (modified in place). A right-shifted row takes its picks with it — see
+ *   `shiftChoices`.
  * @returns {string[]} members whose Sunday claim the scan disputes and nothing could repair
  */
-function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, dates) {
+function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, dates, choices) {
     /** @type {string[]} */
     const disputed = [];
     if (!sundayScan || typeof sundayScan !== 'object') return disputed;
@@ -98,6 +101,7 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
                 // the old (empty) Saturday slot falls off. Provably reverses a one-day left-shift.
                 for (let i = 6; i >= 1; i--) entry.shifts[dates[i]] = entry.shifts[dates[i - 1]];
                 entry.shifts[sunDate] = 'RD';
+                if (choices) shiftChoices(choices, entry.memberName, dates);
                 console.warn(`[parseRosterPDF] ${entry.memberName}: sundayScan="${scanRaw}" (blank) but parsed Sunday="${sunShift}" and Saturday empty — day-shift detected, RIGHT-shifted the week to realign`);
             } else {
                 // Can't cleanly reverse (Saturday is occupied). Leave the claim for the witness.
@@ -114,6 +118,28 @@ function applySundayScanCorrections(safeEntries, sundayScan, hasSundayColumn, da
         }
     }
     return disputed;
+}
+
+/**
+ * Move a right-shifted row's two-way picks with its cells (modifies in place). The column
+ * cross-check runs FIRST and files each pick under the day it flagged; when the clean repair then
+ * moved that cell one day right, the pick stayed behind — on a Sunday that had become RD — and the
+ * moved cell, still a question naming both readings, offered nothing to choose (whole-app review,
+ * Nov 2026). The row's question and its pick must name the same two readings, so they travel
+ * together; the old Saturday's pick falls off with the old Saturday.
+ *
+ * @param {Record<string, any>} choices
+ * @param {string} memberName
+ * @param {string[]} dates  7 ISO dates, Sunday first
+ */
+function shiftChoices(choices, memberName, dates) {
+    const key = (/** @type {string} */ d) => `${memberName}|${d}`;
+    for (let i = 6; i >= 1; i--) {
+        const moved = choices[key(dates[i - 1])];
+        if (moved !== undefined) choices[key(dates[i])] = moved;
+        else delete choices[key(dates[i])];
+    }
+    delete choices[key(dates[0])];
 }
 
 /**

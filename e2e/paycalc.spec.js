@@ -273,6 +273,45 @@ test('paycalc: editing a calendar-filled box takes "Hours from calendar" away at
     await expect(page.locator('#provChips')).not.toContainText('Hours from calendar');
 });
 
+// Whole-app review, Oct 2026: a SETTING change (the loan plan, the pension scheme) ran the payslip's
+// autosave, which writes the whole form — the calendar's display-only suggestion with it (invariant 11:
+// viewing never persists) — and wrote over saved entries that could not be read.
+const changeSettings = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => {
+    const fire = (/** @type {string} */ id, /** @type {(el: any) => void} */ set) => {
+        const el = /** @type {any} */ (document.getElementById(id));
+        set(el); el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    fire('studentLoan', el => { el.value = 'plan2'; });
+    fire('pgLoanCheck', el => { el.checked = true; });
+    fire('pensionOptOutCheck', el => { el.checked = true; });
+});
+test('paycalc: changing a setting never saves the calendar\'s suggestion as entered hours', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html?payday=2026-10-23');
+    await expect(page.locator('#satH'), 'premise: the calendar\'s Saturday is shown, not saved').toHaveClass(/roster-suggested/);
+    const saved = () => page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p57'));
+    expect(await saved()).toBeNull();
+    await changeSettings(page);
+    await expect(page.locator('#netDisplay')).not.toBeEmpty();
+    expect(await saved(), 'a setting saved the suggestion as though the member had entered it').toBeNull();
+});
+
+test('paycalc: changing a setting never writes over saved entries that could not be read', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_gmiller_p57', '{not json');
+    });
+    await page.goto('/paycalc.html?payday=2026-10-23');
+    await expect(page.locator('.save-status.corrupt')).toBeVisible();
+    await changeSettings(page);
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p57')),
+        'only something the member TYPES may replace damaged entries').toBe('{not json');
+});
+
 test('paycalc: with Year to Date figures in use, a payslip gap names the payslip they count from (v24.89)', async ({ page }) => {
     /*
      * On 22 Oct a first entry is stamped with the 25 Sep payslip — the latest PAID one — while a

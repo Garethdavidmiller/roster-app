@@ -70,6 +70,12 @@ export function initCalendarKeyboard({ navigateToPaycalc, openDayDetail }) {
     const cells = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('.calendar-day:not(.other-month)')]);
     const idx   = cells.indexOf(focused);
     if (idx === -1) return;
+    // THE STORED COPY IS READ, NOT USED (whole-app review, Oct 2026). Since v24.59 the member's own
+    // stored roster can be painted in the lock slot before access is decided, with real day cells — so
+    // PageUp/Down clicked the hidden month buttons and rendered a month behind the lock card, and Enter
+    // opened a day panel, all before the grant. Arrows still move between its cells, so a screen-reader
+    // user can read it; what ACTS works only in the live workspace.
+    const live = !!focused.closest('#calendarDisplay');
 
     let next;
     switch (e.key) {
@@ -78,6 +84,7 @@ export function initCalendarKeyboard({ navigateToPaycalc, openDayDetail }) {
       case 'ArrowDown':  next = cells[idx + 7]; break;
       case 'ArrowUp':    next = cells[idx - 7]; break;
       case 'PageDown':
+        if (!live) return;
         e.preventDefault();
         // renderCalendar() (run synchronously by the nav button's click handler) preserves keyboard
         // focus itself now — it restores the roving anchor whenever a day cell was focused at wipe
@@ -85,11 +92,13 @@ export function initCalendarKeyboard({ navigateToPaycalc, openDayDetail }) {
         document.getElementById('nextMonth')?.click();
         return;
       case 'PageUp':
+        if (!live) return;
         e.preventDefault();
         document.getElementById('prevMonth')?.click();
         return;
       case 'Enter':
       case ' ':
+        if (!live) return;
         e.preventDefault();
         // A REFUSED jump falls through to the day panel rather than swallowing the key (v23.07).
         // `navigateToPaycalc` now answers whether it went, because the calculator is personal and

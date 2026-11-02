@@ -14,7 +14,7 @@
  *     the pages actually consult it on a viewer session is a wiring question.
  */
 import { test, expect } from './fixtures.js';
-import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, openPinCard, signInThroughOverlay, collectFatalErrors, seedViewerAccess, clearNoticeFlags } from './helpers.js';
+import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, openPinCard, signInThroughOverlay, collectFatalErrors, seedViewerAccess, clearNoticeFlags, isTouchProject } from './helpers.js';
 import { forcePasswordSet } from './fixtures.js';
 
 // (Until v24.34 every test here pinned `CONFIG.CALENDAR_PIN_ACCESS` on, and four more proved the
@@ -323,6 +323,37 @@ test('access lost mid-session: re-lock says why, the SAME PIN card re-unlocks, a
     await expect(page.locator('#calendarDisplay')).toBeVisible();
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await expect(page.locator('#calendarLock')).toHaveCount(0);
+});
+
+// Whole-app review, Oct 2026: after a re-lock the grid is behind the card, and the arrow keys still
+// moved — and persisted — the month there, so the next unlock opened on a different one.
+test('re-locked mid-session: the keyboard does not move the month behind the card', async ({ page }) => {
+    await seedMember(page);
+    await stubPinExchange(page);
+    await page.goto('/index.html');
+    await enterPin(page, '1234');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { (window.__E2E = window.__E2E || {}).failGetDocs = 'permission-denied'; });
+    await page.locator('#nextMonth').click();
+    await page.locator('#nextMonth').click();
+    await expect(page.locator('#calendarLock')).toBeVisible();
+
+    const viewed = () => page.evaluate(() => [localStorage.getItem('myb_roster_month'), localStorage.getItem('myb_roster_year')]);
+    const before = await viewed();
+    await page.evaluate(() => /** @type {HTMLElement|null} */ (document.activeElement)?.blur());   // off the PIN field
+    for (const key of ['ArrowRight', 'ArrowRight', 'ArrowLeft', 't']) await page.keyboard.press(key);
+    expect(await viewed()).toEqual(before);
+});
+
+// Whole-app review, Oct 2026: the one-time swipe hint started its 6s timer on a LOCKED Calendar, where
+// it is hidden with the workspace, and marked itself seen — used up on nothing.
+test('a first visit that begins locked does not use up the swipe hint', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the hint is touch-only');
+    test.setTimeout(30_000);
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarLock')).toBeVisible();
+    await page.waitForTimeout(6_500);
+    expect(await page.evaluate(() => localStorage.getItem('myb_swipe_hint_seen'))).toBeNull();
 });
 
 test('a token WITHOUT the viewer claim leaves the Calendar locked', async ({ page }) => {
@@ -965,6 +996,45 @@ test('the member\'s own stored roster shows AT ONCE, labelled, while the identit
     await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
     await expect(snap).toHaveCount(0);
     await expect(page.locator('#teamMemberSelect')).toBeEnabled();
+});
+
+// Whole-app review, Oct 2026: the copy painted before the grant has real day cells, and the page's
+// keyboard handler acted on them — PageDown rendered (and persisted) a month behind the lock card,
+// and Enter opened a day panel, with no access granted.
+test('the stored copy before the grant is read, never used — PageDown and Enter do nothing', async ({ page }) => {
+    test.setTimeout(60_000);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await seedSnapshot(page, 'G. Miller', { [SNAP_DATE]: { type: 'annual_leave', value: 'AL' } });
+    await page.addInitScript(() => {
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true, authRestoreDelayMs: 8000 });
+    });
+    await page.goto('/index.html');
+    const snap = page.locator('#calendarSnapshot');
+    await expect(snap).toBeVisible({ timeout: 2000 });
+    const month = () => page.evaluate(() => localStorage.getItem('myb_roster_month'));
+    const before = await month();
+    await snap.locator('.calendar-day[tabindex="0"]').focus();
+    await page.keyboard.press('PageDown');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#calendarDisplay .calendar-grid'), 'nothing rendered behind the card').toHaveCount(0);
+    await expect(page.locator('.lb-overlay.visible'), 'no day panel before the grant').toHaveCount(0);
+    expect(await month(), 'the month was not moved').toBe(before);
+});
+
+// The legend follows the grid: a loading month the stored copy is drawn for after the grant IS a
+// grid on screen, and it lost its key (whole-app review, Oct 2026).
+test('a month drawn from the stored copy after the grant keeps its legend', async ({ page }) => {
+    test.setTimeout(60_000);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await seedSnapshot(page, 'G. Miller', { [SNAP_DATE]: { type: 'annual_leave', value: 'AL' } });
+    await page.addInitScript(() => {
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true, docsDelayMs: 30_000 });
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay .calendar-snapshot-note')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('.legend')).toBeVisible();
 });
 
 test('a stored copy for SOMEBODY ELSE is never shown, and is deleted', async ({ page }) => {

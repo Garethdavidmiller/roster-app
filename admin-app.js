@@ -1149,6 +1149,7 @@ export function init() {
      * @param {string[]}    pendingDelete  IDs to delete in the same batch
      */
     function showALConfirm(msg, sub, pendingSave, pendingDelete = []) {
+        clearTimeout(_feedbackTimer);   // an earlier success line's fade must not take the question down (Oct 2026)
         _alPendingSave   = pendingSave;
         _alPendingDelete = pendingDelete;
         alConfirmMsg.textContent = msg;
@@ -1596,6 +1597,9 @@ export function init() {
                 updateALBanner();
                 updateALBookedBox();
                 updateSickBookedBox();
+                // …and a range already picked, drawn while this member's records were still loading
+                // — it asked about rest days its records answer (whole-app review, Oct 2026).
+                _refreshAlPreview?.(); _refreshSickPreview?.();
             },
             markChanged,
             onEditRow: handleEdit,

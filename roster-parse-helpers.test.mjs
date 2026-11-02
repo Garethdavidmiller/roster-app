@@ -875,6 +875,31 @@ describe('Case A — a left-shifted row whose empty Saturday arrives as BLANK', 
         });
     }
 
+    // Whole-app review, Nov 2026. The column cross-check runs FIRST and files its two-way pick
+    // under the day it flagged. A column scan copied from the row read everywhere but an honest
+    // Sunday flags only the Sunday — so the clean repair then moved that question to Monday while
+    // its pick stayed on a Sunday that had become RD, and the Monday row offered nothing to choose.
+    test('a Sunday the cross-check flagged keeps its pick when the repair moves it to Monday', () => {
+        const safe = read(DRIFTED);
+        const colScan = Object.fromEntries(HEADERS.map(h => [h, { 'X. Test': h === 'Sun' ? 'BLANK' : DRIFTED[h] }]));
+        const stats = quiet(() => applyColumnScanCrossCheck(safe, colScan, HEADERS, DATES));
+        assert.match(safe[0].shifts[DATES[0]], /^UNKNOWN\|06:00-14:00 or Rest day\?/, 'premise: the cross-check flagged Sunday alone');
+        assert.deepEqual(Object.keys(stats.choices), [`X. Test|${DATES[0]}`], 'premise: one pick, filed under Sunday');
+        quiet(() => applySundayScanCorrections(safe, { 'X. Test': 'BLANK' }, true, DATES, stats.choices));
+        assert.equal(safe[0].shifts[DATES[0]], 'RD');
+        assert.match(safe[0].shifts[DATES[1]], /^UNKNOWN\|06:00-14:00 or Rest day\?/, 'the question moved to Monday');
+        assert.deepEqual(stats.choices[`X. Test|${DATES[1]}`], ['06:00-14:00', 'RD'], 'and its pick went with it');
+        assert.equal(stats.choices[`X. Test|${DATES[0]}`], undefined, 'nothing is left pointing at the Sunday');
+    });
+
+    test('a moved row takes every pick one day right, and the old Saturday\'s falls off with it', () => {
+        const safe = read(DRIFTED);
+        const choices = { [`X. Test|${DATES[2]}`]: ['a', 'b'], [`X. Test|${DATES[6]}`]: ['y', 'z'], [`Other|${DATES[2]}`]: ['k', 'l'] };
+        quiet(() => applySundayScanCorrections(safe, { 'X. Test': 'BLANK' }, true, DATES, choices));
+        assert.deepEqual(choices, { [`X. Test|${DATES[3]}`]: ['a', 'b'], [`Other|${DATES[2]}`]: ['k', 'l'] },
+            'Tuesday\'s pick is Wednesday\'s now; another member\'s is untouched');
+    });
+
     test('a printed OFF Sunday is a rest day, not a claim — a correct week is never shifted', () => {
         // OFF ≡ RD everywhere else in the import (the CES and bilingual rosters print it).
         const safe = read({ Sun: 'OFF', Mon: '06:00-14:00', Tue: '06:00-14:00', Wed: 'RD', Thu: '07:00-15:00', Fri: '07:00-15:00', Sat: 'RD' });
