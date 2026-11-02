@@ -72,51 +72,82 @@ body {
 .tr-total { white-space: nowrap; }
 
 /* ── Day and direction ──────────────────────────────────────────────────────
-   The app's on-canvas tab strip — Overtime's `.ot-tab`, itself sized like the Pay
-   Calculator's tax-year tabs: equal tabs at the app's tab size, translucent on the
-   navy, the chosen one the card surface. NOT gold: gold is the Calendar's colour
-   and the app's small accent, and a gold slab was the loudest thing on the page. */
+   THE CONTROLS ARE BUTTONS THAT LOOK LIKE BUTTONS (owner, 2 Nov 2026: the translucent tabs "lack pop"
+   and did not fit the rest of the app). Until then they were Overtime's `.ot-tab` recipe — translucent
+   on the navy with muted grey type, the chosen one the card surface — so on a phone the two choices at
+   the top of the page read as dark gaps with faint words in them, and only the chosen tab looked
+   pressable. Now:
+   · the VIEW tabs are white raised tiles with navy type at full strength — the app's buttons, Layer 2 —
+     and the chosen view is Trains' own raspberry (its header badge, its drawer pill) with the gold edge
+     the app gives an active highlight (the December link page's tiles carry the same edge). Navy cannot
+     mark the chosen tab here as it does inside a card: on the navy canvas a navy tab is a hole;
+   · the DAY is one white track of three quieter segments, the chosen one navy with the same gold edge —
+     a qualifier, drawn differently so the six never read as one six-button grid.
+   Gold stays an EDGE, never a fill: a gold slab was the loudest thing on the page when it was tried. */
 .tr-controls {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
     margin-bottom: var(--space-2);
 }
 .tr-tabs { display: flex; gap: 6px; }
 .tr-tab {
     flex: 1;
     padding: 7px 8px;
-    border: 1px solid var(--on-navy-hairline);
-    border-radius: var(--radius-sm);
-    background: var(--on-navy-raised);
-    color: var(--on-navy-muted);
+    border: 1.5px solid var(--surface);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: var(--shadow-1);
+    color: var(--primary-blue);
     font-family: var(--font-sans);
     font-size: var(--type-small);
     font-weight: 700;
     cursor: pointer;
     touch-action: manipulation;
     transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard),
+                border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard),
                 transform var(--dur-fast) var(--ease-standard);
 }
 .tr-tab:active { transform: scale(var(--press-scale)); }
 .tr-tab[aria-pressed="true"] {
-    background: var(--surface);
-    border-color: var(--surface);
-    color: var(--primary-blue);
+    background: var(--raspberry);
+    border-color: var(--raspberry);
+    color: white;
+    box-shadow: inset 0 -3px 0 var(--accent-gold), var(--shadow-1);
+}
+@media (hover: hover) and (pointer: fine) {
+    .tr-tab:not([aria-pressed="true"]):hover { background: white; border-color: white; }
 }
 .tr-tab:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
 /* The view tabs carry their card's emoji, stacked over the label on a phone so three fit. */
 .tr-tab-icon { display: block; font-size: var(--type-body); line-height: 1.2; margin-bottom: 1px; }
-/* The day: one translucent track holding three quieter segments — a qualifier, not a fourth view. */
+/* The day: one white track holding three quieter segments — a qualifier, not a fourth view. */
 .tr-tabs--seg {
     gap: 2px;
     padding: 3px;
-    border: 1px solid var(--on-navy-hairline);
-    border-radius: var(--radius-sm);
-    background: var(--on-navy-raised);
+    border: 1.5px solid var(--surface);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    box-shadow: var(--shadow-1);
 }
-.tr-tabs--seg .tr-tab { padding: 5px 8px; border-color: transparent; background: transparent; font-weight: 600; }
-.tr-tabs--seg .tr-tab[aria-pressed="true"] { background: var(--surface); border-color: var(--surface); font-weight: 700; }
+.tr-tabs--seg .tr-tab { padding: 5px 8px; border-color: transparent; background: transparent; box-shadow: none; font-weight: 600; }
+.tr-tabs--seg .tr-tab[aria-pressed="true"] {
+    background: var(--primary-blue);
+    border-color: var(--primary-blue);
+    color: white;
+    font-weight: 700;
+    box-shadow: inset 0 -3px 0 var(--accent-gold);
+}
+@media (hover: hover) and (pointer: fine) {
+    .tr-tabs--seg .tr-tab:not([aria-pressed="true"]):hover { background: var(--bg-faint); border-color: var(--bg-faint); }
+}
+/* The track is white, so a segment's focus ring is the light-surface one (the dark-fill ring would vanish). */
+.tr-tabs--seg .tr-tab:focus-visible { outline: var(--focus-outline); outline-offset: 1px; }
+/* A FORCED-COLOURS theme (Windows high contrast) repaints every fill, so the chosen tab would look like the rest; the
+   theme's own Highlight states the choice (a `var(--…)` here would be forced away too). */
+@media (forced-colors: active) {
+    .tr-tab[aria-pressed="true"] { border: 3px solid Highlight; }
+}
 @media (min-width: 1024px) {
     .tr-controls { flex-direction: row; align-items: stretch; gap: 24px; }
     .tr-controls > * { flex: 1; }
@@ -152,22 +183,24 @@ which no other page sets on the canvas). On paper it is black with a plain borde
     font-weight: 500;
     line-height: 1.4;
 }
-/* A tab strip INSIDE a card (direction, Now / From 13 Dec) sits on the card surface, so it is the Pay
-Calculator's in-card tabs (.ty-tab), exactly: outlined on the surface, the chosen one navy with white
-type — the "which of these" control every card-bearing page already uses. Until v24.93 it was a
-sunken track whose chosen tab went white, a third recipe for one job. */
+/* A tab strip INSIDE a card (direction, Now / From 13 Dec) sits on the card surface: white raised
+tabs with navy type, the chosen one navy with the gold edge — the December link page's in-card choice
+(2 Nov 2026, the same "lack pop" note). It was the Pay Calculator's outlined tabs, whose unchosen one is
+grey type on no fill — readable, and the least pressable-looking thing on the card. Until v24.93 it was
+a sunken track whose chosen tab went white, a third recipe for one job. */
 .tr-tabs--in-card { margin: 12px 0; }
 @media (min-width: 1024px) { .tr-tabs--in-card { max-width: 420px; } }
 .tr-tabs--in-card[hidden] { display: none !important; }
 .tr-tabs--in-card .tr-tab {
     border: 1.5px solid var(--border-mid);
-    background: transparent;
-    color: var(--text-mid);
+    background: white;
+    color: var(--primary-blue);
 }
 .tr-tabs--in-card .tr-tab[aria-pressed="true"] {
     background: var(--primary-blue);
     border-color: var(--primary-blue);
     color: white;
+    box-shadow: inset 0 -3px 0 var(--accent-gold), var(--shadow-1);
 }
 @media (hover: hover) and (pointer: fine) {
     .tr-tabs--in-card .tr-tab:not([aria-pressed="true"]):hover { background: var(--bg-faint); border-color: var(--primary-blue); }

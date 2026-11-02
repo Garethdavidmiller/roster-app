@@ -29,7 +29,7 @@
  *      decision runs `reconcileExpiredIdentity()` first, so a valid named identity is PRESERVED
  *      rather than raced or replaced.
  *   2. **Authenticated pages that expose `sessionReady`** — `admin-app.js`, `settings-app.js`,
- *      `operations-app.js`, `links-app.js`, `overtime-app.js`, `trains-app.js`:
+ *      `operations-app.js`, `links-app.js`, `overtime-app.js`, `trains-app.js`, `newlink-app.js`:
  *      `sessionReady.then(() => initErrorReporter())`. Trains has a second, no-member branch since
  *      v24.84 — the station PIN — which calls it directly: `holdsStaffPin` has already read the
  *      viewer as the current user, so there is no session to wait for.

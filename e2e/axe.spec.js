@@ -389,6 +389,28 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // The December link (v25.06, an admin preview). Scanned in the state with the most structure: every way of
+    // working open at once — seven tiles and six figure tables, each figure tied to its label by `headers` — then a
+    // second proposal's weeks with the preview's audience list open.
+    test('newlink (admin, signed in) — Everything open, then In Step\'s weeks', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        await page.locator('[data-persona="all"]').click();
+        await expect(page.locator('#nlPersonaPanel .nl-persona')).toHaveCount(6);
+        let v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+        // a phone shows one proposal's weeks under its tabs; a wide screen shows all three side by side, with no tabs
+        if ((page.viewportSize()?.width ?? 0) < 1024) {
+            await page.locator('[data-design="proposal:IS-26-T4"]').click();
+            await expect(page.locator('#nlWeeksPanel .is-chosen caption')).toContainText('In Step');
+        } else {
+            await expect(page.locator('#nlWeeksPanel caption')).toHaveCount(3);
+        }
+        await page.locator('.nl-preview-who summary').click();
+        v = await scan(page);
+        expect(v.length, report(v)).toBe(0);
+    });
+
     test('overtime — member form (signed in)', async ({ page }) => {
         // Scanned with the FORM RENDERED, not the empty shell: seven day groups of mode buttons is
         // the only state on this page with any structure to get wrong.
