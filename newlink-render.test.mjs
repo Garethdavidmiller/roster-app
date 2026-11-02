@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     closesWords, dutyKind, designName, ifYou, renderStatus, renderPreviewBanner, renderList, renderCommon, renderFigures,
-    renderPersonas, renderPersonaChips, renderWeeks, renderWeeksKey, renderWeeksTabs, renderPack, figuresKey,
+    renderPersonas, renderPersonaChips, renderWeeks, renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, figuresKey,
 } from './newlink-render.js';
 import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
@@ -61,7 +61,7 @@ test('EVENLY: no state of the page names a recommendation', () => {
         renderList(CHANGES), renderCommon({ gains: GAINS, costs: COSTS }), renderList(NOTES),
         renderPersonas(PERSONAS, COLUMNS, null), renderPersonas(PERSONAS, COLUMNS, 'all'),
         renderPersonaChips(PERSONAS, null), renderWeeksTabs(PROPOSALS, PROPOSALS[0].id), renderPack(PACK, 'https://x/'),
-        ...PROPOSALS.map(renderWeeks),
+        ...PROPOSALS.map(renderWeeks), ...PROPOSALS.map(p => renderAllWeeks(PROPOSALS, p.id)), renderWeeksKey(),
     ].join('\n');
     assert.doesNotMatch(states, /recommend/i);
 });
@@ -107,6 +107,38 @@ test('the review\'s fixes stay fixed (2 Nov 2026)', () => {
     // the name tiles look pressable, so they are: one button per proposal, opening its weeks
     const status = renderStatus({ proposals: PROPOSALS, closes: null });
     assert.deepEqual([...status.matchAll(/<button type="button" class="nl-name" data-open-weeks="([^"]+)"/g)].map(m => m[1]), PROPOSALS.map(p => p.id));
+});
+
+test('the improvements review stays applied (2 Nov 2026)', () => {
+    const status = renderStatus({ proposals: PROPOSALS, closes: null });
+    // the tiles name the three and nothing else — the sheet code lives on the weeks' caption, beside its grid
+    assert.doesNotMatch(status, /nl-name-ref/);
+    for (const p of PROPOSALS) assert.ok(!status.includes(p.ref), `${designName(p)}: no sheet code on its tile`);
+    // what a proposal IS, counted from the rotas, at the top — before any card says "cover week"
+    const weeks = Object.keys(PROPOSALS[0].patterns).length;
+    const cover = Object.values(PROPOSALS[0].patterns).filter(r => Object.values(r).every(v => v === 'SPARE')).length;
+    assert.match(status, new RegExp(`Each is ${weeks} weeks long: ${weeks - cover} set weeks, and ${cover} <strong>cover weeks</strong>`));
+    // "Have your say" is a way to its card
+    assert.match(status, /<button type="button" class="nl-inline" data-open-card="nlSay">Have your say<\/button>/);
+    // the headings are nouns the lines complete; "gives up" turned the costs upside down
+    const common = renderCommon({ gains: GAINS, costs: COSTS });
+    assert.match(common, /What everyone gains/);
+    assert.match(common, /What it costs everyone/);
+    assert.doesNotMatch(common, /gives up/i);
+    // a way back from a chosen answer, which says where it goes — and none when the six are already showing
+    assert.doesNotMatch(renderPersonas(PERSONAS, COLUMNS, null), /data-persona-reset/);
+    for (const chosen of [PERSONAS[0].id, 'all']) assert.equal(count(renderPersonas(PERSONAS, COLUMNS, chosen), /data-persona-reset/g), 1, `${chosen}: one way back`);
+    // the key says Sunday is overtime, where the weeks show Sunday shifts
+    assert.match(renderWeeksKey(), /Sunday shifts are overtime/);
+});
+
+test('EVENLY, again: every proposal\'s weeks are drawn, A to Z, the chosen one marked and each one flagged', () => {
+    for (const chosen of PROPOSALS) {
+        const html = renderAllWeeks(PROPOSALS, chosen.id);
+        assert.deepEqual([...html.matchAll(/data-weeks="([^"]+)"/g)].map(m => m[1]), PROPOSALS.map(p => p.id), 'all three, A to Z');
+        assert.deepEqual([...html.matchAll(/class="nl-weeks-one is-chosen" data-weeks="([^"]+)"/g)].map(m => m[1]), [chosen.id], 'exactly the chosen one marked');
+        assert.equal(count(html, /A proposal — not your roster/g), PROPOSALS.length, 'a flag on each, so any one cropped still says what it is');
+    }
 });
 
 test('TEACH IN PLACE: every figure is tied to its label and its column for a screen reader', () => {

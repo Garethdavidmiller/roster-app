@@ -31,6 +31,8 @@ const OUT = fileURLToPath(new URL('../../../newlink-data.js', import.meta.url));
 const DIR = fileURLToPath(new URL('../', import.meta.url));   // docs/links-26/
 const t = s => tidyText(s);
 const WORDS = { 1: 'One', 2: 'Two', 3: 'Three', 4: 'Four', 5: 'Five', 6: 'Six', 7: 'Seven', 8: 'Eight', 9: 'Nine' };   // a sentence never opens on a small figure
+/** One figure across the three: "12", or "0 to 12" where they differ. @param {number[]} v */
+const span = v => { const lo = Math.min(...v), hi = Math.max(...v); return lo === hi ? `${lo}` : `${lo} to ${hi}`; };
 
 // THE WORDS ARE WRITTEN FOR THESE THREE, in this order — A to Z, which is also the Links workspace's order
 if (SHORTLIST.join() !== 'Even Step,In Step,Short Run' || RECOMMENDED !== 'Even Step') throw new Error(`the page's sentences are written for Even Step, In Step and Short Run; the shortlist is ${SHORTLIST}`);
@@ -39,7 +41,9 @@ claim('the built-in proposals are the shortlist, in the same order', PROPOSALS.m
 const codeOf = name => PROPOSALS.find(p => p.name.startsWith(name + ' ')).code;
 const refOf = name => PROPOSALS.find(p => p.name.startsWith(name + ' ')).ref;
 
-// ── WHAT'S CHANGED SINCE YOU SAW SHORT RUN — drafts ───────────────────────────────────────────────────────────────────
+// ── WHAT'S CHANGED SINCE SHORT RUN WAS SHOWN — drafts ─────────────────────────────────────────────────────────────────
+// Written for a reader who may not have been there: "since Short Run was shown", never "since you saw it" (the review,
+// 2 Nov 2026). The 26 on the new link are not the room it was shown to.
 const monSatDuties = p => Object.values(p).flatMap(r => MS.map(d => r[d])).filter(timed);
 // "after Short Run was first shown" is the owner's history (2 Nov 2026); what the folder can check is that both were MADE after it
 claim('Even Step and In Step created after Short Run (fresh.mjs FIRST)', [codeOf('Even Step'), codeOf('In Step')].every(c => new Date(FIRST[c]) > new Date(FIRST[codeOf('Short Run')])));
@@ -57,9 +61,10 @@ claim('Short Run: the shortest lates of the three on average', C.every(c => c ==
 claim('on all three, the most days in a row is 5, and 7 with a cover week placed badly', C.every(c => c.f.run === '5 (up to 7)'));
 const CHANGES = [
   'Two more proposals sit beside Short Run now: Even Step and In Step. Both were drawn up after Short Run was first shown, from what colleagues said about it.',
-  'Both keep a 13:45 finish every weekday. Short Run has no 13:35 or 13:45 finish.',
+  // OF THE ROTA, not of a person: someone on it finishes at 13:45 each weekday, where one person has 10 or 12 a year
+  'Both keep a shift finishing at 13:45 on every weekday of the rota. Short Run has no shift finishing at 13:35 or 13:45.',
   'Even Step has nothing over 8h 30m, Monday to Saturday. In Step and Short Run have some earlies of 8h 45m to 9 hours.',
-  `Short Run is the same rota you were shown, and still has the shortest lates of the three: ${hm(H(SR.f.avgLate))} on average, closers included.`,
+  `Short Run has not changed since it was shown, and still has the shortest lates of the three: ${hm(H(SR.f.avgLate))} on average, closers included.`,
   // HISTORY, NOT COMPUTED: before 31 Oct a cover week's Sunday counted inside its four duties (README, the folder's opening)
   'One figure has moved since, on all three: when a cover week falls badly, the most days in a row is 7, not 6. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top.',
 ].map(t);
@@ -91,7 +96,8 @@ const COSTS = [
   `${late23} finishes a year at 23:00 or later (today ${TC.f.late23}).`,
   `At most ${block} weeks of earlies, or of lates, in a row, or ${blockUpTo} if a cover week falls badly (today ${TC.f.block}, or ${TC.f.blockUpTo}).`,
   `${WORDS[sat - +TC.f.sat]} more Saturdays a year (${sat}, today ${TC.f.sat}).`,
-  `Fewer earlies that finish before 14:00 (today ${TC.f.shortYear} a year).`,
+  // the three's own figures, not only today's (the review, 2 Nov 2026: a cost with no new figure says nothing)
+  `Fewer earlies that finish before 14:00: ${span(C.map(c => +c.f.shortYear))} a year (today ${TC.f.shortYear}).`,
   `${(v => v.length === 1 ? WORDS[v[0]] : v.length === 2 ? `${WORDS[v[0]]} or ${WORDS[v[1]].toLowerCase()}` : `${WORDS[v[0]]} to ${WORDS[v[v.length - 1]].toLowerCase()}`)([...new Set(nt)].sort((a, b) => a - b))} new shift times to learn.`,
 ].map(t);
 
@@ -104,8 +110,24 @@ const CHIPS = [['earlies', '☀️', 'Prefer earlies', '…prefer earlies'], ['l
   ['swap', '🤝', 'Swap for overtime', '…swap earlies for lates, for the overtime'], ['sundays', '📆', 'Work Sundays', '…work your share of Sundays and no other overtime'],
   ['no-overtime', '🏠', 'No overtime', '…work no overtime at all'], ['leave', '🏖️', 'Save leave', '…save your leave for long breaks']];
 claim('the sheet has the six bands the page offers, then "Whoever you are"', GROUPS.length === 7 && CHIPS.every(([, , , who], i) => GROUPS[i].who === who) && GROUPS[6].who === 'Whoever you are');
+// THE SHEET'S WORDS, FOR THIS PAGE (the review, 2 Nov 2026). The sheet compares links; on the page "the link" is the one that
+// changes in December and the three are "the three", so "on every link" reads as something else. The page names nothing it
+// does not show, so Long Break — never shortlisted — becomes "a design". And every swap figure is a year's, as the page's
+// other labels say. The sheet keeps its own words. Each rewording must FIND its words: a sheet sentence that changes under
+// one stops the generator, rather than reaching the page unadapted.
+const REWORD = [
+  [/ on every link\b/g, ' on all three'],
+  [/\bLong Break keeps them at (\d+) days, but is not shortlisted: it has six days in a row\./g, 'A design that kept them at $1 days was not shortlisted: it has six days in a row.'],
+  [/^Each 13:35 or 13:45 early swapped for the day’s longest late$/g, 'Each 13:35 or 13:45 early swapped for the day’s longest late, a year'],
+  [/^That overtime, gross, at time and a quarter$/g, 'That overtime a year, gross, at time and a quarter'],
+];
+const reworded = REWORD.map(() => 0);
+const forPage = s => REWORD.reduce((txt, [re, to], k) => { reworded[k] += (txt.match(re) ?? []).length; return txt.replace(re, to); }, s);
 const PERSONAS = CHIPS.map(([id, icon, chip], i) => { const g = GROUPS[i];
-  return { id, icon, chip, who: g.who, gist: t(g.gist), rows: g.rows.map(r => ({ label: t(r.label), cells: r.cells.map((c, j) => ({ text: t(String(c.text)), best: isBest(r, j) })) })) }; });
+  return { id, icon, chip, who: g.who, gist: t(forPage(g.gist)), rows: g.rows.map(r => ({ label: t(forPage(r.label)), cells: r.cells.map((c, j) => ({ text: t(String(c.text)), best: isBest(r, j) })) })) }; });
+claim('every rewording for the page found its words in the sheet', reworded.every(n => n > 0));
+claim('the page says "all three", never "every link", and names no design it does not show',
+  !/every link|Long\s+Break/.test(JSON.stringify(PERSONAS)) && PERSONAS[2].rows.every(r => !/^(Each|That)\b/.test(r.label) || / a year\b/.test(r.label.replace(/ /g, ' '))));
 const COLUMNS = ['Today', ...SHORTLIST];
 
 // ── HOW THE FIGURES ARE WORKED OUT ────────────────────────────────────────────────────────────────────────────────────

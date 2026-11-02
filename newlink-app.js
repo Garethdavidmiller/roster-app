@@ -41,7 +41,7 @@ import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
 import { PHASE, CLOSES, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY, PREPARED_BY } from './newlink-config.js';
 import { renderStatus, renderPreviewBanner, renderList, renderCommon, renderPersonas, renderPersonaChips,
-    renderWeeks, renderWeeksKey, renderWeeksTabs, renderPack, designName, ifYou } from './newlink-render.js';
+    renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, designName, ifYou } from './newlink-render.js';
 
 /** The collapsible cards, by the id prefix their header, body and chevron share. */
 const CARDS = ['nlChanges', 'nlCommon', 'nlMeans', 'nlWeeks', 'nlSay', 'nlPack', 'nlHow'];
@@ -143,7 +143,7 @@ function wireChoices(cards) {
     const drawWeeks = () => {
         const p = PROPOSALS.find(x => x.id === design) ?? PROPOSALS[0];
         setHTML('nlWeeksTabs', renderWeeksTabs(PROPOSALS, p.id));
-        setHTML('nlWeeksPanel', renderWeeks(p));
+        setHTML('nlWeeksPanel', renderAllWeeks(PROPOSALS, p.id));
     };
     drawPersonas();
     drawWeeks();
@@ -160,26 +160,54 @@ function wireChoices(cards) {
         /** @type {HTMLElement|null} */ (el('nlPersonaChips')?.querySelector(`[data-persona="${id}"]`) ?? null)?.focus();
         setText('nlPersonaStatus', personaStatus(persona));
     });
-    /** Show one proposal's weeks, keep focus on its tab, and say so in one line. @param {string} id */
+    // "Back to the six short answers", at the foot of a chosen answer: focus returns to the tile that was chosen, so the
+    // reader lands on the tiles, above the six answers they asked for.
+    el('nlPersonaPanel')?.addEventListener('click', (e) => {
+        if (!(/** @type {HTMLElement} */ (e.target).closest('[data-persona-reset]'))) return;
+        const was = persona;
+        persona = null;
+        drawPersonas();
+        /** @type {HTMLElement|null} */ (el('nlPersonaChips')?.querySelector(`[data-persona="${was}"]`) ?? null)?.focus();
+        setText('nlPersonaStatus', personaStatus(null));
+    });
+    /** Show one proposal's weeks, and say so in one line. @param {string} id */
     const showWeeks = (id) => {
         design = id;
         drawWeeks();
-        /** @type {HTMLElement|null} */ (el('nlWeeksTabs')?.querySelector(`[data-design="${design}"]`) ?? null)?.focus();
         const p = PROPOSALS.find(x => x.id === design);
         if (p) setText('nlWeeksStatus', `Showing ${designName(p)}’s ${Object.keys(p.patterns).length} weeks, below.`);
+    };
+    /** The chosen proposal's tab — or, on a wide screen, where the three stand side by side and there are no tabs, its weeks. */
+    const focusChosenWeeks = () => {
+        const tab = /** @type {HTMLElement|null} */ (el('nlWeeksTabs')?.querySelector(`[data-design="${design}"]`) ?? null);
+        const target = tab && tab.getClientRects().length ? tab : /** @type {HTMLElement|null} */ (el('nlWeeksPanel')?.querySelector('.nl-weeks-one.is-chosen') ?? null);
+        target?.focus({ preventScroll: true });
     };
     el('nlWeeksTabs')?.addEventListener('click', (e) => {
         const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('[data-design]'));
         if (!b || b.dataset.design === design) return;
         showWeeks(/** @type {string} */ (b.dataset.design));
+        focusChosenWeeks();   // the tabs are redrawn: back onto the new copy of the one pressed
     });
-    // A name tile at the top opens that proposal's weeks: the card opens if it was folded, and the page scrolls to it.
+    // The two ways on from the top card: a name tile opens that proposal's weeks, and "Have your say" its card — each card
+    // opens if it was folded, and the page scrolls to it.
+    const reveal = (/** @type {string} */ cardId) => el(cardId)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     el('nlStatus')?.addEventListener('click', (e) => {
-        const b = /** @type {HTMLElement|null} */ (/** @type {HTMLElement} */ (e.target).closest('[data-open-weeks]'));
-        if (!b) return;
-        cards.nlWeeks?.setOpen(true);
-        showWeeks(/** @type {string} */ (b.dataset.openWeeks));
-        el('nlWeeksCard')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+        const target = /** @type {HTMLElement} */ (e.target);
+        const weeks = /** @type {HTMLElement|null} */ (target.closest('[data-open-weeks]'));
+        if (weeks) {
+            cards.nlWeeks?.setOpen(true);
+            showWeeks(/** @type {string} */ (weeks.dataset.openWeeks));
+            reveal('nlWeeksCard');
+            focusChosenWeeks();
+            return;
+        }
+        const card = /** @type {HTMLElement|null} */ (target.closest('[data-open-card]'));
+        if (!card) return;
+        const id = /** @type {string} */ (card.dataset.openCard);
+        cards[id]?.setOpen(true);
+        reveal(`${id}Card`);
+        /** @type {HTMLElement|null} */ (el(`${id}Card`)?.querySelector('h2') ?? null)?.focus({ preventScroll: true });
     });
 }
 

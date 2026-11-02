@@ -39,11 +39,15 @@ body {
     .app-header { max-width: var(--content-max-width); margin-left: auto; margin-right: auto; }
 }
 
+/* `clip`, not `hidden`, wherever it is understood: both round the corners, but `hidden` makes the card a scroll container,
+   and the weeks' tabs can only stick to the top of the screen inside a card that is not one (the review, 2 Nov 2026). A
+   browser without `clip` keeps `hidden`, and its tabs simply scroll away as they did before. */
 .card {
     background: var(--surface);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-2);
     overflow: hidden;
+    overflow: clip;
     margin-bottom: 12px;
 }
 
@@ -121,8 +125,20 @@ body {
     .nl-name:hover { border-color: var(--primary-blue); }
 }
 .nl-name-title { color: var(--primary-blue); font-size: var(--type-button); font-weight: 800; line-height: 1.2; }
-.nl-name-ref { color: var(--text-light); font-size: var(--type-micro); font-weight: 600; overflow-wrap: anywhere; }
 .nl-name-go { margin-top: 3px; color: var(--al-text); font-size: var(--type-badge); font-weight: 700; }
+/* "Have your say", inside a sentence: a way to a card, drawn as the link it reads as. */
+.nl-inline {
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--primary-blue);
+    font: inherit;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+}
+.nl-inline:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-sm); }
 
 /* ── Prose ────────────────────────────────────────────────────────────────────────────────────── */
 .nl-lead { margin: 0 0 8px; color: var(--text-dark); line-height: 1.5; }
@@ -137,9 +153,8 @@ body {
 .nl-list { margin: 0; padding-left: 20px; color: var(--text-dark); line-height: 1.5; }
 .nl-list li + li { margin-top: 6px; }
 .nl-list li::marker { color: var(--primary-blue); }
-/* What has changed: each change on a gold edge, the app's mark for "this is new". */
-#nlChangesList .nl-list { padding-left: 0; list-style: none; }
-#nlChangesList .nl-list li { padding: 2px 0 2px 12px; border-left: 3px solid var(--accent-gold); }
+/* What has changed is a plain list, as every other list here: five gold edges read as five notices, and gold on this page
+   marks the one thing chosen (the review, 2 Nov 2026). */
 .nl-note { margin: 8px 0 0; color: var(--text-light); font-size: var(--type-small); line-height: 1.45; }
 .nl-gist { margin: 0 0 10px; color: var(--text-dark); line-height: 1.5; }
 
@@ -168,8 +183,20 @@ body {
 @media (min-width: 1024px) {
     .nl-tiles { grid-template-columns: repeat(7, minmax(0, 1fr)); }
 }
-.nl-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 12px; }
-@media (min-width: 1024px) { .nl-tabs { max-width: 560px; } }
+/* The weeks' tabs STICK while the 26 rows scroll beneath them, so a reader halfway down one proposal can turn to the next and
+   land on the same week (every proposal's table is the same height). The card surface behind them hides the rows they
+   cover. Needs the card's `overflow: clip` above. */
+.nl-tabs {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 2;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin: 0 -4px 8px;
+    padding: 6px 4px;
+    background: var(--surface);
+}
 .nl-tile, .nl-tab {
     display: flex;
     align-items: center;
@@ -265,6 +292,30 @@ body {
 /* The key beneath a table — only what that table uses (newlink-render.js → figuresKey). */
 .nl-fig-key { margin: 8px 0 0; color: var(--text-mid); font-size: var(--type-small); line-height: 1.45; }
 .nl-best-key { padding: 0 6px; border-radius: var(--radius-pill); background: var(--success-green-bg); color: var(--success-green); font-weight: 800; }
+/* The way back to the six short answers: a button, so drawn as one — white and raised, as every choice above it. */
+.nl-back-row { margin: 16px 0 0; }
+.nl-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border: 1.5px solid var(--border-mid);
+    border-radius: var(--radius-pill);
+    background: white;
+    box-shadow: var(--shadow-1);
+    color: var(--primary-blue);
+    font-family: var(--font-sans);
+    font-size: var(--type-small);
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: border-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+}
+.nl-back:active { transform: scale(var(--press-scale)); }
+.nl-back:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
+@media (hover: hover) and (pointer: fine) {
+    .nl-back:hover { border-color: var(--primary-blue); }
+}
 
 /* ── The weeks ────────────────────────────────────────────────────────────────────────────────── */
 /* A PROPOSAL, NEVER A ROSTER: a dashed frame and a flag above it, week numbers and no dates — nothing a screenshot of it
@@ -316,9 +367,15 @@ body {
 .nl-d--rest { background: var(--rest-day-bg); border-color: var(--border-light); color: var(--text-light); }
 .nl-d--cover { background: var(--purple-light); border-color: var(--purple); color: var(--purple); font-weight: 700; }
 .nl-wk-cover .nl-d--cover { padding: 6px 0; letter-spacing: 0.3px; }
-.nl-key { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 12px 0 0; padding: 0; list-style: none; color: var(--text-mid); font-size: var(--type-small); }
+.nl-key { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0; padding: 0; list-style: none; color: var(--text-mid); font-size: var(--type-small); }
 .nl-key li { display: flex; align-items: center; gap: 6px; }
-.nl-swatch { flex: 0 0 auto; width: 14px; height: 14px; border: 1px solid; border-radius: 3px; }
+#nlWeeksKey .nl-note { margin: 6px 0 12px; }
+/* Longhands: the `border` shorthand would reset the colour each kind gives its swatch (above, at equal specificity), and
+   the Early and Late swatches drew a dark edge their cells do not have (the review, 2 Nov 2026). */
+.nl-swatch { flex: 0 0 auto; width: 14px; height: 14px; border-width: 1px; border-style: solid; border-radius: 3px; }
+/* One proposal at a time on a phone — the chosen one; all three side by side on a wide screen (Desktop, below). */
+.nl-weeks-one:not(.is-chosen) { display: none; }
+.nl-weeks-one:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: var(--radius-md); }
 
 /* ── The pack ─────────────────────────────────────────────────────────────────────────────────── */
 /* Each file a white raised row, like every other thing on the page a reader can press. */
@@ -359,23 +416,31 @@ body {
 .nl-prepared { margin: 4px 4px 24px; color: var(--on-navy-muted); font-size: var(--type-small); line-height: 1.45; text-align: center; }
 
 /* ── Desktop ──────────────────────────────────────────────────────────────────────────────────── */
-/* One column at the content width, every card the full band: the figures and the weeks use it, and prose takes the
-   reading measure (css-tokens.md → "Reading measure"). */
+/* Every card the full band, and the band FILLED (css-tokens.md → "make the content fill it"): the two lists of sentences
+   take two columns at the reading measure, and the weeks show all three proposals side by side — the phone's table three
+   times over, ~340px each, which compares them at a glance and gives no proposal the first look. One 1,054px table of
+   145px cells, a default tab and 40% of every text card empty was the review's finding (2 Nov 2026). */
 @media (min-width: 1024px) {
-    .nl-lead, .nl-callout, .nl-gist, .nl-note, .nl-preview p, #nlChangesList .nl-list, #nlSayList .nl-list, #nlHowList .nl-list, .nl-gists li { max-width: 72ch; }
+    .nl-lead, .nl-callout, .nl-gist, .nl-note, .nl-preview p, #nlSayList .nl-list, #nlHowList .nl-list { max-width: 72ch; }
+    #nlChangesList .nl-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 44px; }
+    #nlChangesList .nl-list li + li { margin-top: 0; }
+    .nl-gists { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; }
+    .nl-gists li:nth-child(2) { border-top: none; padding-top: 0; }
     .nl-names { max-width: 640px; }
     .nl-fig { max-width: 760px; }
-    .nl-d { font-size: var(--type-small); }
+    .nl-tabs { display: none; }
+    .nl-weeks-all { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+    .nl-weeks-one:not(.is-chosen) { display: block; }
     .nl-files { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* A thumb's target. After the base rules, so it wins (css-tokens.md, v19.61). */
 @media (pointer: coarse) {
-    .nl-tile, .nl-tab, .nl-file { min-height: 48px; }
+    .nl-tile, .nl-tab, .nl-file, .nl-back { min-height: 48px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .nl-tile, .nl-tab, .nl-file, .nl-name { transition: none; }
+    .nl-tile, .nl-tab, .nl-file, .nl-name, .nl-back { transition: none; }
 }
 
 /* A FORCED-COLOURS theme (Windows high contrast) repaints every fill and shadow, so a chosen tile would look like the rest
@@ -387,7 +452,10 @@ body {
 
 @media print {
     body { background: white; padding: 0; color: black; }
-    .btn-burger, .nl-tiles, .nl-tabs, .nl-preview { display: none !important; }
+    .btn-burger, .nl-tiles, .nl-tabs, .nl-preview, .nl-back-row { display: none !important; }
+    /* On paper all three proposals' weeks, one after another — never only the one a tab had chosen. */
+    .nl-weeks-one, .nl-weeks-one:not(.is-chosen) { display: block !important; break-inside: avoid; margin-bottom: 12px; }
+    .nl-inline { color: inherit; text-decoration: none; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); break-inside: avoid; }
     .nl-d, .nl-swatch, .nl-flag, .nl-fig thead th, .nl-side { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     .nl-fig .nl-best b { color: black; }

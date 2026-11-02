@@ -2694,7 +2694,7 @@ can. The owner's answers that shaped it, 2 Nov 2026:
 | When do views close? | "Not set yet" — the page says "a date to be agreed" (`CLOSES`) |
 | The station PIN? | "No, signed-in only" |
 | What has changed since Short Run was shown? | "Draft them; I'll correct" — five lines, each figure asserted |
-| The date Short Run was shown? | "Leave the date off" — "since you saw Short Run" |
+| The date Short Run was shown? | "Leave the date off" — "since Short Run was shown" |
 
 **What it shows, in order:** what the page is (nothing decided, the three names); what has changed since Short Run was
 shown; what all three give and cost everyone; "What it means if you…" — the one-page sheet's six bands as a choice, a
@@ -2714,6 +2714,12 @@ Hosting serves nothing under `docs/`, so the links go to the GitHub Pages mirror
 **Drafts for the owner to correct:** the five "what has changed" lines (`newlink-data.mjs`), "Have your say" and the
 prepared-by line (`newlink-config.js`). One of the five is history rather than a figure: that the most days in a row
 with a cover week placed badly was 6 when Short Run was shown and is 7 since the 31 Oct ruling (this README's opening).
+
+**The page's words differ from the sheet's in four places, on purpose** (the improvements review, 2 Nov 2026). On the
+page "the link" is the one that changes in December, so the sheet's "on every link" reads "on all three"; Long Break,
+never shortlisted and never shown there, is "a design"; and the two swap rows say "a year", as the page's other labels
+do. `newlink-data.mjs` applies them (`REWORD`) and stops if any of them no longer finds its words, so a sentence
+changed here cannot reach the page unadapted. The sheet keeps its own wording.
 
 **Not built yet:** opening the page. It needs an audience role in `auth-policy.js` and a matching pill flag, which
 `page-contract-parity` moves together; until then `newlink-config.test.mjs` refuses any phase but `'preview'`.

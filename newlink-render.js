@@ -58,11 +58,32 @@ export function closesWords(closes) {
 export function renderStatus({ proposals, closes }) {
     // Each tile LOOKS pressable — white, raised, the page's button recipe — so it is one: it opens that proposal's weeks
     // (the review, 2 Nov 2026: three raised tiles that did nothing broke the page's own rule that raised means pressable).
-    const tiles = proposals.map(p => `<li><button type="button" class="nl-name" data-open-weeks="${esc(p.id)}"><span class="nl-name-title">${esc(designName(p))}</span><span class="nl-name-ref">${esc(p.ref)}</span><span class="nl-name-go">See its weeks</span></button></li>`).join('');
+    // The name and nothing else: the sheet code told a colleague nothing and took a second line on a phone, so it lives on
+    // the weeks' caption, beside the grid it identifies, and nowhere a choice is made.
+    const tiles = proposals.map(p => `<li><button type="button" class="nl-name" data-open-weeks="${esc(p.id)}"><span class="nl-name-title">${esc(designName(p))}</span><span class="nl-name-go">See its weeks</span></button></li>`).join('');
+    // "Have your say" is a way there, as the name tiles are: it opens and shows that card.
     return `<p class="nl-callout"><strong>Nothing is decided.</strong> The link changes in December, with the new timetable.
         These are the three proposals on the shortlist, in alphabetical order.</p>
     <ul class="nl-names" aria-label="The three proposals">${tiles}</ul>
-    <p class="nl-lead">Nothing on this page changes your roster. Have your say by <strong>${esc(closesWords(closes))}</strong>.</p>`;
+    ${weeksShape(proposals)}
+    <p class="nl-lead">Nothing on this page changes your roster. <button type="button" class="nl-inline" data-open-card="nlSay">Have your say</button> by <strong>${esc(closesWords(closes))}</strong>.</p>`;
+}
+
+/**
+ * What a proposal IS, counted from the rotas: its length, its set weeks and its cover weeks — said once, at the top, because
+ * "cover week" is used by every card below and was explained only in a grey note halfway down (the review, 2 Nov 2026).
+ * Said only while the three agree; a proposal of another shape makes this say nothing rather than something untrue.
+ * @param {ReadonlyArray<Proposal>} proposals
+ */
+function weeksShape(proposals) {
+    const shapes = proposals.map(p => {
+        const weeks = Object.values(p.patterns);
+        return { weeks: weeks.length, cover: weeks.filter(r => DAYS.every(d => r[d] === 'SPARE')).length };
+    });
+    const [{ weeks, cover }] = shapes;
+    if (!cover || !shapes.every(s => s.weeks === weeks && s.cover === cover)) return '';
+    return `<p class="nl-lead">Each is ${weeks} weeks long: ${weeks - cover} set weeks, and ${cover} <strong>cover weeks</strong>
+        kept free to cover leave and absence. A cover week has four shifts between Monday and Saturday, set nearer the time.</p>`;
 }
 
 /**
@@ -84,16 +105,17 @@ export function renderList(items, cls = 'nl-list') {
 
 /**
  * What all three give everyone and what they cost — two panels side by side on a wide screen, stacked on a phone, and
- * never one without the other.
+ * never one without the other. The headings are NOUNS the lines complete — "What it costs everyone: 42 finishes a year at
+ * 23:00 or later" — because "Everyone gives up" turned half its own lines upside down (giving up late finishes would be a
+ * gain; the review, 2 Nov 2026).
  * @param {{ gains: ReadonlyArray<string>, costs: ReadonlyArray<string> }} o
  */
 export function renderCommon({ gains, costs }) {
     return `<div class="nl-common">
-        <section class="nl-side nl-side--gain" aria-labelledby="nlGainsH"><h3 class="nl-side-h" id="nlGainsH"><span aria-hidden="true">✅</span> Everyone gets</h3>${renderList(gains)}</section>
-        <section class="nl-side nl-side--cost" aria-labelledby="nlCostsH"><h3 class="nl-side-h" id="nlCostsH"><span aria-hidden="true">➖</span> Everyone gives up</h3>${renderList(costs)}</section>
+        <section class="nl-side nl-side--gain" aria-labelledby="nlGainsH"><h3 class="nl-side-h" id="nlGainsH"><span aria-hidden="true">✅</span> What everyone gains</h3>${renderList(gains)}</section>
+        <section class="nl-side nl-side--cost" aria-labelledby="nlCostsH"><h3 class="nl-side-h" id="nlCostsH"><span aria-hidden="true">➖</span> What it costs everyone</h3>${renderList(costs)}</section>
     </div>
-    <p class="nl-note"><strong>Cover weeks</strong> are the five weeks in 26 kept free to cover leave and absence: four shifts each,
-        Monday to Saturday. <strong>Fatigue warnings</strong> come from the Office of Rail and Road’s good-practice list of tiring
+    <p class="nl-note"><strong>Fatigue warnings</strong> come from the Office of Rail and Road’s good-practice list of tiring
         patterns — reported as found, never as a pass or a fail.</p>`;
 }
 
@@ -145,11 +167,13 @@ export function renderPersonas(personas, columns, chosen) {
         return `<ul class="nl-gists">${personas.map(p => `<li><span class="nl-gist-icon" aria-hidden="true">${esc(p.icon)}</span><span><strong>${esc(ifYou(p.who))}.</strong> ${esc(p.gist)}</span></li>`).join('')}</ul>`;
     }
     const shown = chosen === 'all' ? personas : personas.filter(p => p.id === chosen);
+    // A way back that says where it goes: the six short answers vanish once a tile is chosen, and pressing the chosen tile
+    // again — the only route back until the review of 2 Nov 2026 — is nowhere written down.
     return shown.map(p => `<section class="nl-persona" aria-labelledby="nl-${p.id}-h">
         <h3 class="nl-persona-h" id="nl-${p.id}-h"><span aria-hidden="true">${esc(p.icon)}</span> ${esc(ifYou(p.who))}</h3>
         <p class="nl-gist">${esc(p.gist)}</p>
         ${renderFigures(p, columns)}
-    </section>`).join('');
+    </section>`).join('') + `<p class="nl-back-row"><button type="button" class="nl-back" data-persona-reset><span aria-hidden="true">←</span> Back to the six short answers</button></p>`;
 }
 
 /**
@@ -204,18 +228,34 @@ export function renderWeeks(p) {
     <div class="nl-weeks-wrap"><table class="nl-weeks">
         <caption>${esc(designName(p))} <span class="nl-ref">${esc(p.ref)}</span></caption>
         ${head}<tbody>${rows}</tbody>
-    </table></div>
-    <p class="nl-note">Numbered by week, not dated: who starts on which week is decided later. The code beside the name matches the printed proposal sheet.</p>`;
+    </table></div>`;
 }
 
-/** The key beneath the weeks: what each colour and word means. */
+/**
+ * Every proposal's weeks, A to Z, the chosen one marked. A phone shows the chosen one and its tabs; a wide screen shows the
+ * three side by side and no tabs (newlink.css), which compares them at a glance and gives none of them the first look — the
+ * one a default tab gave to the first name in the alphabet (the review, 2 Nov 2026). Each keeps its own flag, so any one of
+ * them, cropped, still says what it is.
+ * @param {ReadonlyArray<Proposal>} proposals @param {string} chosen  a proposal id
+ */
+export function renderAllWeeks(proposals, chosen) {
+    return `<div class="nl-weeks-all">${proposals.map(p => `<div class="nl-weeks-one${p.id === chosen ? ' is-chosen' : ''}" data-weeks="${esc(p.id)}" tabindex="-1">${renderWeeks(p)}</div>`).join('')}</div>`;
+}
+
+/**
+ * The key ABOVE the weeks: what each colour and word means, before 26 rows of it (it sat beneath them, a thousand pixels
+ * from the tabs on a phone — the review, 2 Nov 2026). Sunday is said here too: the grids show Sunday shifts, and that
+ * they are overtime was written only in the notes, which open folded.
+ */
 export function renderWeeksKey() {
     return `<ul class="nl-key">
         <li><span class="nl-swatch nl-d--early" aria-hidden="true"></span>Early — starts before 11:00</li>
         <li><span class="nl-swatch nl-d--late" aria-hidden="true"></span>Late — starts at 11:00 or after</li>
         <li><span class="nl-swatch nl-d--rest" aria-hidden="true"></span>RD — rest day</li>
         <li><span class="nl-swatch nl-d--cover" aria-hidden="true"></span>Cover week — four shifts between Monday and Saturday, to cover leave and absence</li>
-    </ul>`;
+    </ul>
+    <p class="nl-note">Sunday shifts are overtime. The weeks are numbered, not dated: who starts on which week is decided later.
+        The code beside each name matches its printed proposal sheet.</p>`;
 }
 
 /** The three equal tabs that choose which proposal's weeks are drawn, A to Z. @param {ReadonlyArray<Proposal>} proposals @param {string} chosen  a proposal id */

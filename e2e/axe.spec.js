@@ -399,8 +399,13 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         await expect(page.locator('#nlPersonaPanel .nl-persona')).toHaveCount(6);
         let v = await scan(page);
         expect(v.length, report(v)).toBe(0);
-        await page.locator('[data-design="proposal:IS-26-T4"]').click();
-        await expect(page.locator('#nlWeeksPanel caption')).toContainText('In Step');
+        // a phone shows one proposal's weeks under its tabs; a wide screen shows all three side by side, with no tabs
+        if ((page.viewportSize()?.width ?? 0) < 1024) {
+            await page.locator('[data-design="proposal:IS-26-T4"]').click();
+            await expect(page.locator('#nlWeeksPanel .is-chosen caption')).toContainText('In Step');
+        } else {
+            await expect(page.locator('#nlWeeksPanel caption')).toHaveCount(3);
+        }
         await page.locator('.nl-preview-who summary').click();
         v = await scan(page);
         expect(v.length, report(v)).toBe(0);

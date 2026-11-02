@@ -54,24 +54,60 @@ test.describe('december link', () => {
 
         await page.locator('[data-persona="all"]').click();
         await expect(panel.locator('.nl-gists li')).toHaveCount(6);
+
+        // and a way back that says where it goes, landing on the tile that was chosen
+        await earlies.click();
+        await page.locator('[data-persona-reset]').click();
+        await expect(panel.locator('.nl-gists li')).toHaveCount(6);
+        await expect(earlies).toHaveAttribute('aria-pressed', 'false');
+        await expect(earlies).toBeFocused();
     });
 
-    test('the weeks are drawn as a proposal, 26 to a design, and the tabs change the design', async ({ page }) => {
+    test('the weeks are drawn as a proposal, 26 to a design: one at a time on a phone, all three side by side when wide', async ({ page }) => {
         await seedSession(page, 'G. Miller');
         await page.goto('/newlink.html');
 
         const weeks = page.locator('#nlWeeksPanel');
-        await expect(weeks.locator('.nl-flag')).toHaveText(/A proposal — not your roster/);
-        await expect(weeks.locator('caption')).toContainText('Even Step');
-        await expect(weeks.locator('tbody tr')).toHaveCount(26);
-        await expect(weeks.locator('tbody tr.nl-wk-cover')).toHaveCount(5);
+        await expect(weeks.locator('.nl-weeks-one')).toHaveCount(3);
+        const chosen = weeks.locator('.nl-weeks-one.is-chosen');
+        await expect(chosen.locator('.nl-flag')).toHaveText(/A proposal — not your roster/);
+        await expect(chosen.locator('caption')).toContainText('Even Step');
+        await expect(chosen.locator('tbody tr')).toHaveCount(26);
+        await expect(chosen.locator('tbody tr.nl-wk-cover')).toHaveCount(5);
         // numbered, never dated
-        await expect(weeks.locator('tbody th').first()).toHaveText('1');
+        await expect(chosen.locator('tbody th').first()).toHaveText('1');
+        // the key comes before the weeks, and says Sunday is overtime
+        await expect(page.locator('#nlWeeksKey')).toContainText('Sunday shifts are overtime');
+        const keyBox = await page.locator('#nlWeeksKey').boundingBox();
+        const panelBox = await weeks.boundingBox();
+        expect(keyBox && panelBox && keyBox.y < panelBox.y).toBe(true);
+        // each swatch wears its cells' edge — a `border` shorthand after the kind's colour once reset it to the text colour
+        for (const kind of ['early', 'late']) {
+            const edge = (/** @type {string} */ sel) => page.locator(sel).first().evaluate(n => getComputedStyle(n).borderTopColor);
+            expect(await edge(`#nlWeeksKey .nl-swatch.nl-d--${kind}`), kind).toBe(await edge(`#nlWeeksPanel .is-chosen td.nl-d--${kind}`));
+        }
 
+        if ((page.viewportSize()?.width ?? 0) >= 1024) {
+            // WIDE: the three side by side, no tabs — no proposal gets the first look
+            await expect(page.locator('#nlWeeksTabs')).toBeHidden();
+            const boxes = await Promise.all((await weeks.locator('.nl-weeks-one').all()).map(b => b.boundingBox()));
+            expect(boxes.every(b => b && Math.abs(b.y - /** @type {any} */ (boxes[0]).y) < 2)).toBe(true);
+            expect(boxes.map(b => b?.x)).toEqual([...boxes.map(b => b?.x)].sort((a, b) => (a ?? 0) - (b ?? 0)));
+            return;
+        }
+        // A PHONE: the chosen one only, under tabs that change it
+        await expect(weeks.locator('.nl-weeks-one:not(.is-chosen)').first()).toBeHidden();
         await page.locator('[data-design="proposal:IS-26-T4"]').click();
         await expect(page.locator('[data-design="proposal:IS-26-T4"]')).toHaveAttribute('aria-pressed', 'true');
-        await expect(weeks.locator('caption')).toContainText('In Step');
-        await expect(weeks.locator('tbody tr')).toHaveCount(26);
+        await expect(page.locator('[data-design="proposal:IS-26-T4"]')).toBeFocused();
+        await expect(chosen.locator('caption')).toContainText('In Step');
+        await expect(chosen.locator('tbody tr')).toHaveCount(26);
+        // ...and the tabs stay in reach while the weeks scroll beneath them (a card with `overflow: hidden` would let
+        // them scroll away — the cascade decides this, so only a browser can see it)
+        await chosen.locator('tbody tr').nth(18).scrollIntoViewIfNeeded();
+        await page.evaluate(() => window.scrollBy(0, 200));
+        const tabs = await page.locator('#nlWeeksTabs').boundingBox();
+        expect(tabs && tabs.y >= -1 && tabs.y < 4).toBe(true);
     });
 
     test('the pack opens each PDF in a new tab from where docs/ is served', async ({ page }) => {
@@ -103,8 +139,18 @@ test.describe('december link', () => {
         await expect(page.locator('#nlWeeksBody')).not.toHaveClass(/\bopen\b/);
         await page.locator('[data-open-weeks="proposal:SR-26-F1"]').click();
         await expect(page.locator('#nlWeeksBody')).toHaveClass(/\bopen\b/);
-        await expect(page.locator('#nlWeeksPanel caption')).toContainText('Short Run');
+        await expect(page.locator('#nlWeeksPanel .is-chosen caption')).toContainText('Short Run');
         await expect(page.locator('[data-design="proposal:SR-26-F1"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('#nlWeeksPanel .is-chosen caption')).toBeInViewport();
+
+        // "Have your say" at the top opens its card, folded or not, and takes the reader there
+        await page.locator('#nlSayChevron').click();
+        await expect(page.locator('#nlSayBody')).not.toHaveClass(/\bopen\b/);
+        await page.locator('#nlStatus [data-open-card="nlSay"]').click();
+        await expect(page.locator('#nlSayBody')).toHaveClass(/\bopen\b/);
+        await expect(page.locator('#nlSayCard h2')).toBeFocused();
+        await expect(page.locator('#nlSayList')).toContainText('the managers decide which link is used');
+        await expect(page.locator('#nlSayCard')).toBeInViewport();
 
         // the drawer's logo opens About — it threw, while the page took initAboutLightbox's object for a function
         await page.locator('#navMenuBtn').click();

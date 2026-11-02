@@ -56,15 +56,16 @@ export function audienceNames() {
 export const PACK_BASE = 'https://garethdavidmiller.github.io/roster-app/docs/links-26/';
 
 /**
- * "Have your say", in the reader's order: what to do, where it goes, what the page does not do. DRAFTED from the colleague
- * presentations' last slide ("Tell us what worries you, even if it is small — your feedback goes to the managers with the
- * proposal") for the owner to correct.
+ * "Have your say", in the reader's order: what to do, where it goes and who decides, what the page does not do. DRAFTED from
+ * the colleague presentations' last slide ("Tell us what worries you, even if it is small — your feedback goes to the
+ * managers with the proposal") for the owner to correct. Who decides is said HERE, beside the views it answers — it sat in
+ * the faint last line under the cards until the review of 2 Nov 2026.
  */
 export const HAVE_YOUR_SAY = Object.freeze([
     'Tell G. Miller or your manager what worries you about any of the three, even if it is small.',
-    'Your views go to the managers with the proposals.',
+    'Your views go to the managers with the proposals, and the managers decide which link is used.',
     'There is nothing to fill in here: this page does not collect views or votes.',
 ]);
 
-/** The page's last line: who prepared the proposals and who decides. DRAFTED, for the owner to correct. */
-export const PREPARED_BY = 'Prepared by G. Miller, with the rota-design tools in this app. The managers decide which link is used.';
+/** The page's last line: who prepared the proposals. DRAFTED, for the owner to correct. */
+export const PREPARED_BY = 'Prepared by G. Miller, with the rota-design tools in this app.';

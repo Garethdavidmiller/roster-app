@@ -84,7 +84,7 @@
     <div class="card" id="nlChangesCard">
         <div class="card-header card-header-toggle" id="nlChangesToggleHeader">
             <div>
-                <h2><span aria-hidden="true">🆕</span> What’s changed since you saw Short Run</h2>
+                <h2><span aria-hidden="true">🆕</span> What’s changed since Short Run was shown</h2>
                 <span class="hint">Two new proposals, made from what colleagues said</span>
             </div>
             <div class="card-header-actions">
@@ -144,10 +144,12 @@
         </div>
         <div class="card-collapsible-body open" id="nlWeeksBody">
             <div class="card-body">
+                <!-- The tabs choose one proposal on a phone, and stay in reach while its weeks scroll beneath them; a wide
+                     screen shows the three side by side and no tabs (newlink.css). The key comes before the weeks. -->
                 <div class="nl-tabs" id="nlWeeksTabs" role="group" aria-label="Proposal, in alphabetical order"></div>
                 <p class="visually-hidden" id="nlWeeksStatus" aria-live="polite"></p>
-                <div id="nlWeeksPanel"></div>
                 <div id="nlWeeksKey"></div>
+                <div id="nlWeeksPanel"></div>
             </div>
         </div>
     </div>
@@ -155,7 +157,7 @@
     <div class="card" id="nlSayCard">
         <div class="card-header card-header-toggle" id="nlSayToggleHeader">
             <div>
-                <h2><span aria-hidden="true">💬</span> Have your say</h2>
+                <h2 tabindex="-1"><span aria-hidden="true">💬</span> Have your say</h2>
                 <span class="hint">Your views go to the managers</span>
             </div>
             <div class="card-header-actions">

@@ -62,6 +62,6 @@ test('the pack base is the served docs folder, over https', () => {
 test('the drafted words promise nothing the page does not do, and name no recommendation', () => {
     const words = [...HAVE_YOUR_SAY, PREPARED_BY].join(' ');
     assert.doesNotMatch(words, /recommend/i);
-    assert.match(words, /managers/, 'it says who decides');
+    assert.match(HAVE_YOUR_SAY.join(' '), /managers decide/, 'it says who decides, in the card where views are asked for');
     assert.match(words, /does not collect/, 'and that the page itself collects nothing');
 });

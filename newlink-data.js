@@ -30,9 +30,9 @@ export const COLUMNS = deepFreeze(["Today", "Even Step", "In Step", "Short Run"]
 /** What has changed since colleagues were first shown Short Run — drafts, for the owner to correct. */
 export const CHANGES = deepFreeze([
     "Two more proposals sit beside Short\u00a0Run now: Even\u00a0Step and In\u00a0Step. Both were drawn up after Short\u00a0Run was first shown, from what colleagues said about it.",
-    "Both keep a 13:45 finish every weekday. Short\u00a0Run has no 13:35 or 13:45 finish.",
+    "Both keep a shift finishing at 13:45 on every weekday of the rota. Short\u00a0Run has no shift finishing at 13:35 or 13:45.",
     "Even\u00a0Step has nothing over 8h\u00a030m, Monday to Saturday. In\u00a0Step and Short\u00a0Run have some earlies of 8h\u00a045m to 9\u00a0hours.",
-    "Short\u00a0Run is the same rota you were shown, and still has the shortest lates of the three: 8h\u00a006m on average, closers included.",
+    "Short\u00a0Run has not changed since it was shown, and still has the shortest lates of the three: 8h\u00a006m on average, closers included.",
     "One figure has moved since, on all three: when a cover week falls badly, the most days in a row is 7, not 6. A cover week’s four shifts are Monday to Saturday, and its Sunday is overtime on top."
 ]);
 
@@ -52,7 +52,7 @@ export const COSTS = deepFreeze([
     "42 finishes a year at 23:00 or later (today\u00a039).",
     "At most 5 weeks of earlies, or of lates, in a row, or 7 if a cover week falls badly (today\u00a02, or 3).",
     "Two more Saturdays a year (28, today\u00a026).",
-    "Fewer earlies that finish before 14:00 (today\u00a026\u00a0a\u00a0year).",
+    "Fewer earlies that finish before 14:00: 0\u00a0to\u00a012\u00a0a\u00a0year (today\u00a026).",
     "Five or six new shift times to learn."
 ]);
 
@@ -63,7 +63,7 @@ export const PERSONAS = deepFreeze([
         "icon": "☀️",
         "chip": "Prefer earlies",
         "who": "…prefer earlies",
-        "gist": "Fewer, longer earlies on every link, in longer runs. Even\u00a0Step’s are closest to today’s: none over 8h\u00a030m, and every one is one of today’s times.",
+        "gist": "Fewer, longer earlies on all three, in longer runs. Even\u00a0Step’s are closest to today’s: none over 8h\u00a030m, and every one is one of today’s times.",
         "rows": [
             {
                 "label": "Earlies a year",
@@ -117,7 +117,7 @@ export const PERSONAS = deepFreeze([
         "icon": "🌙",
         "chip": "Prefer lates",
         "who": "…prefer lates",
-        "gist": "More lates on every link, in longer runs, and every closer 30 minutes to an hour shorter. Short\u00a0Run’s are the shortest on average.",
+        "gist": "More lates on all three, in longer runs, and every closer 30 minutes to an hour shorter. Short\u00a0Run’s are the shortest on average.",
         "rows": [
             {
                 "label": "Lates a year",
@@ -162,7 +162,7 @@ export const PERSONAS = deepFreeze([
         "icon": "🤝",
         "chip": "Swap for overtime",
         "who": "…swap earlies for lates, for the overtime",
-        "gist": "Swapping the shortest earlies brings less overtime than today on every link. In\u00a0Step keeps the most from its 13:35 or 13:45 finishes; Short\u00a0Run has none of those finishes. Other swaps may still add paid time.",
+        "gist": "Swapping the shortest earlies brings less overtime than today on all three. In\u00a0Step keeps the most from its 13:35 or 13:45 finishes; Short\u00a0Run has none of those finishes. Other swaps may still add paid time.",
         "rows": [
             {
                 "label": "A late against an early, same day, on average",
@@ -174,7 +174,7 @@ export const PERSONAS = deepFreeze([
                 ]
             },
             {
-                "label": "Each 13:35 or 13:45 early swapped for the day’s longest late",
+                "label": "Each 13:35 or 13:45 early swapped for the day’s longest late, a year",
                 "cells": [
                     { "text": "+34h\u00a040m", "best": false },
                     { "text": "+10h\u00a050m", "best": false },
@@ -183,7 +183,7 @@ export const PERSONAS = deepFreeze([
                 ]
             },
             {
-                "label": "That overtime, gross, at time and a quarter",
+                "label": "That overtime a year, gross, at time and a quarter",
                 "cells": [
                     { "text": "about £930", "best": false },
                     { "text": "about £290", "best": false },
@@ -198,7 +198,7 @@ export const PERSONAS = deepFreeze([
         "icon": "📆",
         "chip": "Work Sundays",
         "who": "…work your share of Sundays and no other overtime",
-        "gist": "About £250\u00a0a\u00a0year less on every link, gross: two more Saturdays at time and a quarter, but fewer, shorter Sundays.",
+        "gist": "About £250\u00a0a\u00a0year less on all three, gross: two more Saturdays at time and a quarter, but fewer, shorter Sundays.",
         "rows": [
             {
                 "label": "Sundays a year, at time and a half",
@@ -234,7 +234,7 @@ export const PERSONAS = deepFreeze([
         "icon": "🏠",
         "chip": "No overtime",
         "who": "…work no overtime at all",
-        "gist": "A little better off on every link — about £80 to £90\u00a0a\u00a0year, gross, from two more Saturdays at time and a quarter.",
+        "gist": "A little better off on all three — about £80 to £90\u00a0a\u00a0year, gross, from two more Saturdays at time and a quarter.",
         "rows": [
             {
                 "label": "Saturday hours a year, at time and a quarter",
@@ -261,7 +261,7 @@ export const PERSONAS = deepFreeze([
         "icon": "🏖️",
         "chip": "Save leave",
         "who": "…save your leave for long breaks",
-        "gist": "Four full weeks off, Sunday to Saturday, take a day more leave on every link, though on average 14 days’ leave goes as far as today. Long\u00a0Break keeps them at 14 days, but is not shortlisted: it has six days in a row.",
+        "gist": "Four full weeks off, Sunday to Saturday, take a day more leave on all three, though on average 14 days’ leave goes as far as today. A design that kept them at 14 days was not shortlisted: it has six days in a row.",
         "rows": [
             {
                 "label": "Leave for four full weeks off, Sunday to Saturday",
