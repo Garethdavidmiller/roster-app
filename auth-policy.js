@@ -74,6 +74,10 @@ export const PAGE_POLICIES = Object.freeze({
     // station PIN reads it too since v24.84 (owner, 22 Oct 2026: "the station pin staff should be able
     // to view the trains page"), because the people asked about the timetable are at the station.
     trains:     { requireNamed: true,  role: null, staffPin: true },
+    // The December link (v25.06): the admin's alone while it is a preview (newlink-config.js → PHASE). Opening it to the
+    // colleagues on the new link needs a role for them here and the matching flag on its pill — never `staffPin`
+    // (owner, 2 Nov 2026: "No, signed-in only").
+    newlink:    { requireNamed: true,  role: ['admin'] },
 });
 
 /**

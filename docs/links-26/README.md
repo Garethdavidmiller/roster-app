@@ -95,7 +95,9 @@ still be rebuilt.
 | check | `check.mjs` | the self-check: settings agree, the test rota recounts independently, and each 26-line rule fails when its condition is broken (`node tooling/check.mjs`) |
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
 | | `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` | the rules reference (`../links-26-rules.pdf`), the one-page summary (`../links-26-summary.pdf`) and the two-page shortlist sheet (`../links-26-shortlist.pdf`) |
-| | `what-it-means-sheet.mjs` | the one-page "What it means if you…" sheet (`../links-26-what-it-means.pdf`). It reads the colleague decks' slide 5 and its notes back, so it runs after `deck-polish.py` and before `pack.py` (step 4) |
+| | `what-it-means-sheet.mjs` | the one-page "What it means if you…" sheet (`../links-26-what-it-means.pdf`). It lays out and prints `what-it-means-data.mjs`, which reads the colleague decks' slide 5 and its notes back, so it runs after `deck-polish.py` and before `pack.py` (step 4) |
+| | `what-it-means-data.mjs` | the sheet's figures and asserted sentences, split out of it unchanged (2 Nov 2026) so the app's December link page reads the same ones; imported, never run |
+| | `newlink-data.mjs` | writes the app's `newlink-data.js` — the December link page's figures, sentences and pack list — from `what-it-means-data.mjs`; `--check` is what `newlink-data.test.mjs` runs. After `what-it-means-sheet.mjs` (step 4) |
 | 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `what-it-means-sheet.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the one-page sheet that reads the decks' pay figures back; the zip, which refuses a sheet older than the decks |
 | league | `league.mjs` | the weighted league on the factors the sheets compare, long earlies and the closing shift among them since 31 Oct 2026 — not the block length, nor the shortlist sheet's early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league; `OLD_READINGS=1` for the weighting before 31 Oct, kept as the alternative, with any of them) — the owner's weights, a judgement not a measurement (see *The league reweighted*) |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
@@ -265,7 +267,8 @@ python3 docs/links-26/tooling/second-nature-decks.py && python3 docs/links-26/to
 ```
 
 Then export the PDFs (LibreOffice), then `node docs/links-26/tooling/what-it-means-sheet.mjs` (it reads the decks, so it
-comes after them) and `python3 docs/links-26/tooling/pack.py` (which refuses that sheet if it is older than the decks).
+comes after them), `node docs/links-26/tooling/newlink-data.mjs` (the app page's copy of the same figures — the build
+fails until it is run) and `python3 docs/links-26/tooling/pack.py` (which refuses that sheet if it is older than the decks).
 
 `deck-polish.py` polishes every design's decks, and refuses a deck it has already polished; `deck-polish.py "In Step"`
 polishes one design's freshly built pair. Then export the PDFs (LibreOffice). Three things the decks say that the
@@ -2676,6 +2679,50 @@ It also confirmed that the same-day swap figure does not depend on how it is ave
 - tooling: `plain.mjs`, `deck-check.mjs`, `deck-polish.py`, `what-it-means-sheet.mjs` (new), `pack.py`
 - outputs: the six decks and their PDFs, `links-26-what-it-means.pdf` (new), the pack
 - this README: the folder and tooling tables and the rebuild order
+
+## The December link page in the app — the shortlist for the colleagues who will work it (2 Nov 2026)
+
+The owner had begun presenting Short Run to colleagues a week before, then drew up In Step and Even Step from what they
+said, and asked whether a page in the app presenting the shortlist would be a good idea. It is built as `newlink.html`
+(app v25.06), an **admin-only preview**: the owner sees exactly what colleagues will, under a banner saying nobody else
+can. The owner's answers that shaped it, 2 Nov 2026:
+
+| Question | Answer |
+|---|---|
+| Who is it for? | "The exact 26 on the new link" — not decided yet, so every CEA on the roster stands in (`newlink-config.js` `AUDIENCE`) |
+| Show the recommendation? | "No, three evenly" — A to Z, the same colour, nothing on the page names one |
+| When do views close? | "Not set yet" — the page says "a date to be agreed" (`CLOSES`) |
+| The station PIN? | "No, signed-in only" |
+| What has changed since Short Run was shown? | "Draft them; I'll correct" — five lines, each figure asserted |
+| The date Short Run was shown? | "Leave the date off" — "since Short Run was shown" |
+
+**What it shows, in order:** what the page is (nothing decided, the three names); what has changed since Short Run was
+shown; what all three give and cost everyone; "What it means if you…" — the one-page sheet's six bands as a choice, a
+sentence then the figures, the best of the three in green for that person; each proposal's 26 weeks, flagged "a
+proposal — not your roster", numbered and never dated; how to have your say; and the colleague pack.
+
+**The figures are this folder's, not the app's.** `what-it-means-sheet.mjs` was split, unchanged — its HTML
+byte-identical before and after — into `what-it-means-data.mjs` (the figures and every asserted sentence) and the
+sheet that prints them. `newlink-data.mjs` reads the same module and writes the app's `newlink-data.js`, and
+`newlink-data.test.mjs` runs it in `--check` mode, so a figure that moves here without the app's copy being rewritten
+fails the build. The weeks come from `links-proposals.js`, already pinned to `proposals/`.
+
+**The pack it offers** is a colleague's: the three presentations, the three proposal sheets and the rules. Not the
+shortlist sheet or the one-page sheet, both of which name the recommendation, and not the managers' decks. Firebase
+Hosting serves nothing under `docs/`, so the links go to the GitHub Pages mirror, which does.
+
+**Drafts for the owner to correct:** the five "what has changed" lines (`newlink-data.mjs`), "Have your say" and the
+prepared-by line (`newlink-config.js`). One of the five is history rather than a figure: that the most days in a row
+with a cover week placed badly was 6 when Short Run was shown and is 7 since the 31 Oct ruling (this README's opening).
+
+**The page's words differ from the sheet's in four places, on purpose** (the improvements review, 2 Nov 2026). On the
+page "the link" is the one that changes in December, so the sheet's "on every link" reads "on all three"; Long Break,
+never shortlisted and never shown there, is "a design"; and the two swap rows say "a year", as the page's other labels
+do. `newlink-data.mjs` applies them (`REWORD`) and stops if any of them no longer finds its words, so a sentence
+changed here cannot reach the page unadapted. The sheet keeps its own wording.
+
+**Not built yet:** opening the page. It needs an audience role in `auth-policy.js` and a matching pill flag, which
+`page-contract-parity` moves together; until then `newlink-config.test.mjs` refuses any phase but `'preview'`.
 
 ## Notes for the whole set
 

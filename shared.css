@@ -2489,6 +2489,15 @@ button.lightbox-bug-link {
     .nav-panel-pill--trains:hover { background: var(--raspberry-hover); }
 }
 
+/* The December link — the leave teal, which no other pill wears (v25.06). */
+.nav-panel-pill--newlink {
+    background: var(--al);
+    color: white;
+}
+@media (hover: hover) and (pointer: fine) {
+    .nav-panel-pill--newlink:hover { background: var(--al-hover); }
+}
+
 .nav-panel-pill--links {
     background: var(--purple);
     color: white;

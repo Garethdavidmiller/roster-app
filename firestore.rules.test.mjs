@@ -1642,6 +1642,15 @@ describe('analytics', () => {
         }));
     });
 
+    test('auth can write the December link page-view counter (v25.06), and only as a number', async () => {
+        await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-11'), {
+            month: '2026-11', counts: { newlink: 1 },
+        }));
+        await assertFails(setDoc(doc(memberDb(), 'analytics', 'pv_2026-12'), {
+            month: '2026-12', counts: { newlink: 'one' },
+        }));
+    });
+
     test('auth can write the seven document/guide OPEN counters (v18.20; all four guides v19.95)', async () => {
         // Huddle/Circular/Newsletter opens + all four guide opens share the pv_ counts map.
         await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-07'), {

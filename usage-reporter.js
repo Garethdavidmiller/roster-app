@@ -75,7 +75,7 @@ import { loadFollowedRelease } from './perf-reporter.js';
 /**
  * Record a page view, and — when the acting member can be identified — count them toward
  * the active-account metric (deduped client-side per month and per rolling window).
- * @param {string} page - stable page id: 'calendar' | 'admin' | 'paycalc' | 'operations' | 'settings' | 'links' | 'overtime' | 'trains'
+ * @param {string} page - stable page id: 'calendar' | 'admin' | 'paycalc' | 'operations' | 'settings' | 'links' | 'overtime' | 'trains' | 'newlink'
  * @param {string|null} [signedIn] - the member SIGNED IN on this device, or null. The only identity
  *        the admin exclusion trusts: a signed-in admin records NOTHING, so the figures reflect real
  *        staff rather than the developer's test loads.

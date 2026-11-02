@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<!-- Marylebone Roster — December link: the three shortlisted proposals for the December 2026 link -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+    <!-- CSP mirrors the firebase.json header so the GitHub Pages mirror (which cannot serve HTTP headers) gets the same policy, and the CSP travels with the HTML through the SW cache. Kept in lockstep with the header by csp-meta-parity.test.mjs. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://cdn.jsdelivr.net; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self' https://www.gstatic.com https://*.googleapis.com https://firebasestorage.googleapis.com https://europe-west2-myb-roster.cloudfunctions.net; img-src 'self' data: https://firebasestorage.googleapis.com; frame-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="only light">
+    <!-- Staff-only app: nothing here has a public audience. Mirrors the X-Robots-Tag header in
+         firebase.json, and is the ONLY noindex signal the GitHub Pages mirror gets (it cannot serve
+         headers). Rationale in robots.txt; enforced by sw-asset-check.test.mjs. -->
+    <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#001e3c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="MYB Roster">
+  <title>Marylebone Roster — December link</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="./icon-167.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="./icon-152.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="./icon-120.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
+  <link rel="preload" href="./fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
+  <!-- The Firebase SDK, fetched from the moment the HTML is parsed — see overtime.html for why. -->
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js" crossorigin>
+  <link rel="stylesheet" href="./shared.css">
+  <link rel="stylesheet" href="./newlink.css">
+</head>
+<body spellcheck="false">
+
+<!-- Login overlay is injected by login-overlay.js (shared in-place sign-in) when not signed in. -->
+
+<!-- Icon lightbox -->
+<div id="iconLightbox" class="lb-overlay" role="dialog" aria-label="About Marylebone Roster" aria-modal="true">
+    <div id="iconLightboxContent" class="lb-content">
+        <button id="iconLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
+        <img src="icon-192.png" id="lightboxAppIcon" alt="Chiltern Railways app icon">
+        <div class="lightbox-app-name">Marylebone Roster</div>
+        <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
+        <div id="lightboxUpdateStatus" class="lightbox-status"></div>
+        <div class="lightbox-badge">December link</div>
+        <a href="./" class="lightbox-bug-link"><span aria-hidden="true">📅</span> View staff roster</a>
+        <a id="bugReportLink" class="lightbox-bug-link" href="#"><span aria-hidden="true">🐛</span> Report a bug</a>
+    </div>
+</div>
+
+<!-- Header -->
+<header class="app-header">
+    <button type="button" class="btn-burger" id="navMenuBtn"
+            aria-label="Open navigation menu" aria-expanded="false">☰</button>
+    <div class="app-header-brand">
+        <img src="icon-192.png" class="app-icon" id="appIcon" alt="Back to calendar" loading="eager">
+        <h1>Marylebone Roster</h1>
+    </div>
+    <span class="badge-page" id="newlinkBadge"><span class="badge-glyph" aria-hidden="true">🔁</span> December link</span>
+</header>
+
+<main class="app" id="newlinkMain">
+
+    <!-- THE PREVIEW BANNER: the admin's alone while newlink-config.js PHASE is 'preview'. Everything beneath it is what
+         colleagues will see when the page opens. -->
+    <div class="nl-preview" id="nlPreview" role="note" hidden></div>
+
+    <!-- WHAT THIS IS — open and fixed: the one card that must be read before any other. -->
+    <div class="card" id="nlStatusCard">
+        <div class="card-header card-header--row">
+            <div>
+                <h2><span aria-hidden="true">🔁</span> The December link: three proposals</h2>
+                <span class="hint">For discussion, not a decision</span>
+            </div>
+        </div>
+        <div class="card-body" id="nlStatus"></div>
+    </div>
+
+    <div class="card" id="nlChangesCard">
+        <div class="card-header card-header-toggle" id="nlChangesToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">🆕</span> What’s changed since Short Run was shown</h2>
+                <span class="hint">Two new proposals, made from what colleagues said</span>
+            </div>
+            <div class="card-header-actions">
+                <span class="collapse-chevron open" id="nlChangesChevron">▾</span>
+            </div>
+        </div>
+        <div class="card-collapsible-body open" id="nlChangesBody">
+            <div class="card-body" id="nlChangesList"></div>
+        </div>
+    </div>
+
+    <div class="card" id="nlCommonCard">
+        <div class="card-header card-header-toggle" id="nlCommonToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">⚖️</span> Whichever is chosen</h2>
+                <span class="hint">What all three give everyone, and what they cost, against today</span>
+            </div>
+            <div class="card-header-actions">
+                <span class="collapse-chevron open" id="nlCommonChevron">▾</span>
+            </div>
+        </div>
+        <div class="card-collapsible-body open" id="nlCommonBody">
+            <div class="card-body" id="nlCommonList"></div>
+        </div>
+    </div>
+
+    <div class="card" id="nlMeansCard">
+        <div class="card-header card-header-toggle" id="nlMeansToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">🧭</span> What it means if you…</h2>
+                <span class="hint">Pick the one most like you, to see the three against today</span>
+            </div>
+            <div class="card-header-actions">
+                <span class="collapse-chevron open" id="nlMeansChevron">▾</span>
+            </div>
+        </div>
+        <div class="card-collapsible-body open" id="nlMeansBody">
+            <div class="card-body">
+                <div class="nl-tiles" id="nlPersonaChips" role="group" aria-label="What it means if you"></div>
+                <!-- One short line is announced when the choice changes — never the panel itself, which would read
+                     a whole table aloud on every press. The panel follows the tiles in the reading order. -->
+                <p class="visually-hidden" id="nlPersonaStatus" aria-live="polite"></p>
+                <div id="nlPersonaPanel"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" id="nlWeeksCard">
+        <div class="card-header card-header-toggle" id="nlWeeksToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">🗓️</span> The 26 weeks</h2>
+                <span class="hint">Each proposal week by week — proposals, not your roster</span>
+            </div>
+            <div class="card-header-actions">
+                <span class="collapse-chevron open" id="nlWeeksChevron">▾</span>
+            </div>
+        </div>
+        <div class="card-collapsible-body open" id="nlWeeksBody">
+            <div class="card-body">
+                <!-- The tabs choose one proposal on a phone, and stay in reach while its weeks scroll beneath them; a wide
+                     screen shows the three side by side and no tabs (newlink.css). The key comes before the weeks. -->
+                <div class="nl-tabs" id="nlWeeksTabs" role="group" aria-label="Proposal, in alphabetical order"></div>
+                <p class="visually-hidden" id="nlWeeksStatus" aria-live="polite"></p>
+                <div id="nlWeeksKey"></div>
+                <div id="nlWeeksPanel"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" id="nlSayCard">
+        <div class="card-header card-header-toggle" id="nlSayToggleHeader">
+            <div>
+                <h2 tabindex="-1"><span aria-hidden="true">💬</span> Have your say</h2>
+                <span class="hint">Your views go to the managers</span>
+            </div>
+            <div class="card-header-actions">
+                <span class="collapse-chevron open" id="nlSayChevron">▾</span>
+            </div>
+        </div>
+        <div class="card-collapsible-body open" id="nlSayBody">
+            <div class="card-body" id="nlSayList"></div>
+        </div>
+    </div>
+
+    <div class="card" id="nlPackCard">
+        <div class="card-header card-header-toggle" id="nlPackToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">📄</span> The full pack</h2>
+                <span class="hint">The presentations, the proposal sheets and the rules</span>
+            </div>
+            <div class="card-header-actions">
+                <span class="collapse-chevron open" id="nlPackChevron">▾</span>
+            </div>
+        </div>
+        <div class="card-collapsible-body open" id="nlPackBody">
+            <div class="card-body" id="nlPackList"></div>
+        </div>
+    </div>
+
+    <div class="card" id="nlHowCard">
+        <div class="card-header card-header-toggle" id="nlHowToggleHeader">
+            <div>
+                <h2><span aria-hidden="true">🔍</span> How the figures are worked out</h2>
+                <span class="hint">Every figure comes from the rotas</span>
+            </div>
+            <div class="card-header-actions">
+                <span class="collapse-chevron" id="nlHowChevron">▾</span>
+            </div>
+        </div>
+        <div class="card-collapsible-body" id="nlHowBody">
+            <div class="card-body" id="nlHowList"></div>
+        </div>
+    </div>
+
+    <p class="nl-prepared" id="nlPrepared"></p>
+
+</main>
+
+<script type="module" src="./newlink-boot.js"></script>
+</body>
+</html>

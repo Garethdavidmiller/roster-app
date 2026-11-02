@@ -71,7 +71,6 @@ const UNNAMED_BY_DESIGN = {
     'operations-errors.js': 'driven through its card by e2e/pages.spec.js (Error Log)',
     'operations-usage.js':  'driven through its card by e2e/pages.spec.js (Usage)',
     'operations-speed.js':  'driven through its card by e2e/pages.spec.js (App Speed)',
-    'calendar-al-lightbox.js': 'driven by e2e/calendar.spec.js (the `day detail:` block) and pinned by lightbox-transform-parity + day-detail-explains',
     'admin-sick.js':        'a thin config wrapper over admin-range-booking.js, whose factory is now directly tested; the Absence card is driven by e2e/pages.spec.js',
     'railcard-guide.js':    'guide-page chrome (print, chip-bar); content is pinned by guide-sources + guide-index-parity',
     'rangers-guide.js':     'guide-page chrome; evidence states pinned by guide-sources.test.mjs',
