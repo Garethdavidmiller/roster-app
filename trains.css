@@ -213,23 +213,6 @@ body {
     letter-spacing: 0.5px;
     text-transform: uppercase;
 }
-/* The one caveat, beneath the controls on every view (v24.92). It was a paragraph in the overview
-card, which now opens collapsed on a return visit. It takes the app's note-between-cards — the Pay
-Calculator's setup banner and privacy note: the card surface, a gold left edge, the resting shadow —
-so it reads as the page's own notice, not a caption on the navy (v24.93; it was muted white text,
-which no other page sets on the canvas). On paper it is black with a plain border. */
-.tr-caveat-line {
-    margin: 0 0 12px;
-    padding: 9px 12px 9px 15px;
-    background: var(--surface);
-    border-left: 3px solid var(--accent-gold);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-1);
-    color: var(--text-mid);
-    font-size: var(--type-small);
-    font-weight: 500;
-    line-height: 1.4;
-}
 /* A tab strip INSIDE a card (direction, Now / From 13 Dec) sits on the card surface: white raised
 tabs with navy type, the chosen one navy with the gold edge — the December link page's in-card choice
 (2 Nov 2026, the same "lack pop" note). It was the Pay Calculator's outlined tabs, whose unchosen one is
@@ -792,9 +775,7 @@ uppercase. */
 .tr-near li { padding: 4px 0; border-bottom: 1px solid var(--border-light); }
 .tr-near-time { font-weight: 700; font-variant-numeric: tabular-nums; }
 
-/* ── v24.94: the caveat's link, the lookup's one-column case, Last trains, the desktop jump card ── */
-.tr-caveat-line a { color: var(--primary-blue); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
-.tr-caveat-line a:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: 2px; }
+/* ── v24.94: the lookup's one-column case, Last trains, the desktop jump card ── */
 /* The lookup's near lists: ONE column when both timetables list the same trains; where they differ,
    a row only one side has is marked at its left edge, and says so to a screen reader. */
 .tr-near-cols--one { grid-template-columns: minmax(0, 1fr); }
@@ -836,7 +817,6 @@ uppercase. */
     .tr-dot { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
     body { background: white; padding: 0; color: black; }
     .tr-controls, .btn-burger, .btn-card-tips, .tr-grid-stick, .tr-grid-tip, .tr-change-station { display: none; }
-    .tr-caveat-line { color: black; box-shadow: none; border: 1px solid var(--print-muted); border-left-width: 3px; }
     .card { box-shadow: none; border: 1px solid var(--print-muted); }
 }
 

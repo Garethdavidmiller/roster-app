@@ -4,20 +4,20 @@
  *
  * Data, no DOM, in the shape `tips-lightbox.js` renders and `tips-content.test.mjs` pins.
  *
- * ── THE CAVEATS LIVE HERE, AND ONE OF THEM ALSO LIVES ON THE PAGE ───────────────────────────────
+ * ── THE CAVEATS LIVE HERE ───────────────────────────────────────────────────────────────────────
  *
  * The page's limits were a fifth card until v24.72. Every other page keeps that kind of depth behind
- * its cards' `?`, so they moved here — except "December times can still change", which is the one a
- * member must not miss before telling a passenger something, so it also stays on the page itself:
- * one line beneath the tabs, on every view (v24.92 — it was in the overview card, which now opens
- * collapsed on a return visit). Discovery may not depend on opening a panel.
+ * its cards' `?`, so they moved here. One also stood on the page itself from v24.92 to v25.13 — a line
+ * beneath the tabs, "December times can still change" — until the owner confirmed the December
+ * timetable as final and asked for it to go (2 Nov 2026; trains-change.js → JOURNEY_PLANNER_URL). Its
+ * journey-planner link is the overview panel's now, so the planner is still one tap from the page.
  *
  * ── EVERY LINE HOLDS ON BOTH SIDES OF THE CHANGE ────────────────────────────────────────────────
  *
  * These panels are built once, at import, with no phase — so a sentence true only before the change
  * ("December times can still change", "today's leaf-fall timetable", "Chiltern says it will…") went
- * on saying it for the four months after (whole-app review, Oct 2026). The caveat beneath the tabs
- * is the phase-aware one (`caveatWords`); here, name the columns and dates rather than "today".
+ * on saying it for the four months after (whole-app review, Oct 2026). Name the columns and dates
+ * rather than "today".
  *
  * ── NOTHING HERE IS TYPED TWICE ─────────────────────────────────────────────────────────────────
  *
@@ -29,7 +29,7 @@
  */
 
 import { CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL, LEAF_FALL } from './trains-data.js';
-import { MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords } from './trains-change.js';
+import { MAX_SHIFT_MIN, NEAR_WINDOW_MIN, dateWords, JOURNEY_PLANNER_URL } from './trains-change.js';
 import { DAYTIME } from './trains-render.js';
 
 // The strings below name only what is imported here — tips-content.test.mjs evaluates them with the
@@ -44,7 +44,7 @@ export const CARD_TIPS = {
                     { icon: '📅', html: `The page's first column is Chiltern's timetable <strong>until ${dateWords(CHANGE_DATE, -1, { weekday: true })}</strong>; the second is the new one, <strong>from ${dateWords(CHANGE_DATE, 0, { weekday: true })}</strong>.` },
                     { icon: '🚆', html: 'The totals count every passenger train <strong>leaving Marylebone</strong> on that kind of day. Two trains coupled together count once, because they leave as one.' },
                     { icon: '🗓️', html: 'A few of today\'s weekday trains run only on <strong>Mondays and Fridays</strong>, or only <strong>Tuesday to Thursday</strong>. Weekday counts are for a Tuesday to Thursday; the trains themselves are listed with their days.' },
-                    { icon: '⚠️', html: 'These are published times, and they can change. Before you tell a customer, check the journey planner — it is linked in the line beneath the tabs — or the live departure boards, linked from the About panel (the logo in the menu).' },
+                    { icon: '⚠️', html: `These are Chiltern's published timetables, not live running: on the day, a train can still be late, altered or cancelled. Before you tell a customer, check <a href="${JOURNEY_PLANNER_URL}" target="_blank" rel="noopener noreferrer">the journey planner</a> or the live departure boards, linked from the About panel (the logo in the menu).` },
                     { icon: '🎄', html: `<strong>Christmas and New Year are not on this page.</strong> Between ${dateWords(CHANGE_DATE)} and ${dateWords(FURTHER_CHANGES_UNTIL)} Chiltern changes times again, with big changes over Christmas and New Year, and Amersham-line times may change in those weeks too. For those dates, check the journey planner.` },
                 ],
             },

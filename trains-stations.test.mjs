@@ -12,13 +12,15 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
     parseStops, stopsKnown, callsOf, lineOf, callingAt, knowableWithoutStops, decemberKnown, summarise,
     stationView, verdictFor, minutesWords, hourWords, hourNote, rateWords, busiestStations, matchStations, headlineChanges, stoppingGrid, orderStations, pairColumns,
     aRealDay, boardingTime, stationTrains, stopChanges, stationBands,
 } from './trains-stations.js';
 import { renderHeadlines, renderStation, renderGrid, endWords, renderLookup, renderTotals, renderLastTrains, renderPicks } from './trains-render.js';
-import { changeLabel, caveatWords, timetablePhase } from './trains-change.js';
+import { changeLabel, timetablePhase, JOURNEY_PLANNER_URL } from './trains-change.js';
+import { CARD_TIPS } from './trains-tips.js';
 import { lastTrains } from './trains-stations.js';
 import { TIMETABLES, STATIONS, STATION_ORDER, CHANGE_DATE, FURTHER_CHANGES_UNTIL, DEC_VALID_UNTIL } from './trains-data.js';
 
@@ -825,17 +827,27 @@ describe('the UX pass (v24.92): leads and chips, the two lines, one train at a t
 });
 
 
-describe('the eight improvements (v24.94): the caveat by phase, Last trains, the remembered station, one list when the lists match', () => {
+describe('the eight improvements (v24.94): Last trains, the remembered station, one list when the lists match', () => {
     const DATES = { change: CHANGE_DATE, festiveUntil: FURTHER_CHANGES_UNTIL, validUntil: DEC_VALID_UNTIL };
     const at = (/** @type {string} */ iso) => timetablePhase(new Date(iso), DATES);
 
-    test('caveatWords — the warning a member needs THAT day, and the same ask every time but the last', () => {
-        assert.deepEqual(caveatWords(at('2026-10-23T09:00:00Z'), DATES), { lead: 'December times can still change.', ask: 'before you tell a customer' });
-        assert.deepEqual(caveatWords(at('2026-12-20T10:00:00Z'), DATES), { lead: 'Times change again over Christmas and New Year, until 10 January.', ask: 'before you tell a customer' });
-        assert.deepEqual(caveatWords(at('2027-01-11T09:00:00Z'), DATES), { lead: 'These are the published timetables, not live running.', ask: 'before you tell a customer' });
-        assert.deepEqual(caveatWords(at('2027-05-17T09:00:00Z'), DATES), { lead: 'The timetables on this page have ended.', ask: 'for today’s trains' });
-        // The month is derived from the change date, never typed.
-        assert.equal(caveatWords({ phase: 'before', festive: true }, { change: '2027-05-16', festiveUntil: '2027-06-01' }).lead, 'May times can still change.');
+    // The caveat by phase was the first of the eight (caveatWords). Owner, 2 Nov 2026: "Can we lose the
+    // December times can still change card. This is the confirmed final timetable." It went in every
+    // phase (trains-change.js → JOURNEY_PLANNER_URL has why), so what is held now is the absence — and
+    // that the journey planner the line linked is still offered, by the overview's ? panel.
+    test('no caveat line beneath the tabs, and the planner it linked is still one tap away (v25.13)', () => {
+        const page = readFileSync(new URL('./trains.html', import.meta.url), 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+        const app = readFileSync(new URL('./trains-app.js', import.meta.url), 'utf8');
+        assert.doesNotMatch(page, /id="trCaveat"|tr-caveat-line/, 'the line is back in trains.html');
+        assert.doesNotMatch(page, /can still change/i, 'the page says the timetable can still change');
+        assert.doesNotMatch(app, /trCaveat/, 'trains-app.js writes a caveat line again');
+        // The panels' own strings, as the lightbox renders them (JSON would escape the link's quotes).
+        const html = (/** @type {any} */ panel) => panel.sections.flatMap((/** @type {any} */ s) => s.items.map((/** @type {any} */ i) => i.html)).join(' ');
+        const all = Object.values(CARD_TIPS).map(html).join(' ');
+        assert.doesNotMatch(all, /can still change|they can change/i, 'a ? panel says the timetable can still change');
+        const overview = html(CARD_TIPS.overview);
+        assert.ok(overview.includes(`href="${JOURNEY_PLANNER_URL}"`), 'the overview ? panel no longer links the journey planner');
+        assert.match(overview, /<a href="[^"]+" target="_blank" rel="noopener noreferrer">the journey planner<\/a>/, 'the planner link opens without handing the page its opener');
     });
 
     test('lastTrains — the station card\'s own "Last train" for every station, in the books\' order, with how it moved', () => {
