@@ -10,6 +10,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
     closesWords, dutyKind, designName, ifYou, renderStatus, renderPreviewBanner, renderList, renderCommon, renderFigures,
     renderPersonas, renderPersonaChips, renderWeeks, renderWeeksKey, renderWeeksTabs, renderPack, figuresKey,
@@ -18,6 +19,13 @@ import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
 
 const count = (/** @type {string} */ s, /** @type {RegExp} */ re) => (s.match(re) || []).length;
+
+test('the weeks card\'s title names the proposals\' own length — a typed number, so it is pinned to the rotas', () => {
+    const html = readFileSync(new URL('./newlink.html', import.meta.url), 'utf8');
+    const n = Number(/<\/span> The (\d+) weeks<\/h2>/.exec(html)?.[1]);
+    assert.ok(n > 0, 'the weeks card\'s title carries a number of weeks');
+    for (const p of PROPOSALS) assert.equal(Object.keys(p.patterns).length, n, `${designName(p)} has ${n} weeks, as the title says`);
+});
 
 test('the closing date: words for a real day, "a date to be agreed" for anything else', () => {
     assert.equal(closesWords(null), 'a date to be agreed');
