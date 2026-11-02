@@ -1201,7 +1201,9 @@ test('overtime — the reviewer\'s by-day workspace (mobile 390)', async ({ page
     await seedSession(page, 'H. Croft');       // a MANAGER — the member form is not this surface
     const dates = Array.from({ length: 7 }, (_, i) =>
         new Date(Date.UTC(2026, 6, 26 + i)).toISOString().slice(0, 10));
-    const at = FIXED_TIME.getTime() - 36 * 3_600_000;   // "Said yesterday", a stable age line
+    // "yesterday": Tuesday 10:00, seen on Wednesday 10:00. Ages count LONDON CALENDAR DAYS since v25.06
+    // (O8), so the 36 hours this used to be — Monday night — honestly reads "2 days ago".
+    const at = FIXED_TIME.getTime() - 24 * 3_600_000;
     await page.addInitScript(([rows]) => {
         const w = /** @type {any} */ (window);
         w.__E2E = Object.assign(w.__E2E || {}, { authUser: true, docs: rows });

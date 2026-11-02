@@ -5825,8 +5825,11 @@ test('links grid: each line carries its own totals, and they follow an edit', as
     await openLinks(page);
     await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
     await page.locator('#genApplyBtn').click();
-    const ok = page.locator('.lb-overlay.open .dialog-btn-confirm');
-    if (await ok.count()) await ok.first().click();
+    // The open design has work on it, so Apply ALWAYS asks. Wait for the question, never count it:
+    // a count taken before the dialog existed skipped the confirm, the generator never ran, and the
+    // reads below measured the old design (WebKit's slower dialog showed it — 48-hour review).
+    await expect(page.locator('.dialog-overlay .dialog-btn-confirm')).toBeVisible();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
     // The generator's own completion signal, not the row count: the design open before it already
     // had every row, so the count was true BEFORE the generator ran, and the reads below could land
     // on the old design or mid-redraw (48-hour review, Nov 2026 — one intermittent red under load).
@@ -6057,6 +6060,45 @@ test('links: Generate during a proposal copy\'s first save leaves the generated 
         (/** @type {any} */ (window).__E2E.setWrites || []).filter((/** @type {any} */ w) => w.added).length),
         'the copy was created').toBe(1);
     await expect(page.locator('#linksSaveBtnTop'), 'the generated design is still its own, unsaved').toHaveText('Save as…');
+    await expect(page.locator('#designStatusLong')).toHaveText('Not saved yet');
+});
+
+// …AND THE OTHER ORDER (48-hour review, Nov 2026): the copy's first save lands while the Apply question
+// is still OPEN — or during its close fade, which WebKit took long enough over to reach the test above.
+// The proposal is then a saved design, and deciding after the question put the generated pattern OVER
+// the copy, under a dialog that had said a new design opens. Released here with the question up, so
+// every engine takes this order.
+test('links: a copy\'s first save landing while the Apply question is open still opens a NEW design', async ({ page }) => {
+    await seedContractTargets(page);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {}; w.__E2E.docs = [];
+    });
+    await page.goto('/links.html');
+    await page.locator('#linksEmptyProposals').click();
+    await proposalOptions(page).filter({ hasText: 'In Step' }).click();
+    await expect(page.locator('#linksSaveBtnTop')).toHaveText('Save a copy…');
+
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.addDocHold = true; });
+    await page.locator('#linksSaveBtnTop').click();
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');   // the name it is saved under
+    await expect(page.locator('.dialog-overlay')).toHaveCount(0);
+
+    await page.evaluate(() => { document.getElementById('generatorBody')?.classList.add('open'); });
+    await page.locator('#genApplyBtn').click({ force: true });
+    await expect(page.locator('.dialog-overlay .dialog-btn-confirm')).toBeVisible();
+    await expect(page.locator('.dialog-overlay'), 'premise: what the question promises').toContainText('A new design opens');
+
+    await page.evaluate(() => { const w = /** @type {any} */ (window); w.__E2E.addDocHold = false; w.__E2E.releaseAddDoc?.(); });
+    await expect.poll(() => page.evaluate(() =>
+        (/** @type {any} */ (window).__E2E.setWrites || []).filter((/** @type {any} */ w) => w.added).length),
+        'the copy was created').toBe(1);
+    await expect(page.locator('#linksSaveBtnTop'), 'premise: the copy is the saved design behind the question').toHaveText('Saved');
+
+    await clickDialogConfirm(page, '.dialog-overlay .dialog-btn-confirm');
+    await expect(page.locator('#linksSaveBtnTop'), 'a NEW design, as the question said — not the copy, edited').toHaveText('Save as…');
     await expect(page.locator('#designStatusLong')).toHaveText('Not saved yet');
 });
 

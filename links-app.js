@@ -1531,10 +1531,13 @@ export function init() {
             const _genMsg = activeProposalId ? `A new design opens with the generated pattern. “${design?.name}” stays in the shortlist${dirty ? ' — your unsaved changes to it will be lost' : ''}.`
                 : _hasWork ? `This replaces all ${TOTAL_POS} lines of “${design?.name || 'this design'}” with the generated pattern. Any edits you have made will be lost.`
                 : `Apply the generated pattern to all ${TOTAL_POS} lines?`;
-            // Captured BEFORE the confirm opens: the dialog's lockBodyScroll puts the body in
-            // position:fixed, so a measurement taken after the await reads locked coordinates.
+            // Captured BEFORE the confirm opens, which settles only after its close fade and Back echo:
+            // the button's position (lockBodyScroll fixes the body, so a later read is locked), and
+            // whether Apply opens a NEW design — what the question SAID. A copy's first save landing
+            // meanwhile made the proposal a saved design, and the pattern went OVER it (48-hour review).
             const _btnEl = document.getElementById('genApplyBtn');
             const _btnViewTop = _btnEl?.getBoundingClientRect().top;
+            const _asNew = !design || !!activeProposalId;
             if (!await confirmDialog({
                 title: 'Apply pattern',
                 message: _genMsg,
@@ -1546,7 +1549,6 @@ export function init() {
             // respect to coverage — permuting rows cannot change how many people work shift X on day
             // D — so it can only ever trade the objectives against each other, and the status line
             // states what that trade actually was rather than leaving the designer to trust it.
-            //
             // AFTER the confirm, deliberately: the 2-opt sweep is ~150ms on a desktop and several
             // times that on the phones this is used from, and run before the dialog that is the
             // button sitting dead with nothing on screen to explain it.
@@ -1575,7 +1577,7 @@ export function init() {
             });
             const _final = _ord.changed ? applyOrder(generated, _ord.order) : generated;
 
-            if (!design || activeProposalId) {
+            if (_asNew || !design) {
                 // No active design yet (or a proposal open — it is not yours to overwrite) — an unsaved in-memory design
                 design = { id: null, name: '', patterns: _final, window: design?.window };   // named on its FIRST SAVE (links-design-header.js rule 3)
                 activeDesignId = null; activeProposalId = null; lsSet(ACTIVE_KEY, '');
@@ -1597,13 +1599,11 @@ export function init() {
             // above grows from a ~160px empty state to the full grid, ~1,500px inserted ABOVE the scroll
             // position, stranding the presser mid-grid with the button and its feedback off-screen.
             // Re-anchoring keeps them where they pressed, which also keeps the explore loop pressable.
-            //
             // TIMING IS THE WHOLE TRICK. The dialog's unlockBodyScroll ends in `window.scrollTo(0,
             // saved)` on transitionend (or the 500ms fallback) — AFTER this handler — and clobbers any
             // earlier adjustment; a scrollBy in the first frame after the lock lifts also no-ops. So
             // the loop VERIFIES rather than trusts: measure, shift, repeat until ≤1px residual, bounded
             // so a stuck lock cannot loop it forever and self-terminating so it never fights the user.
-            //
             // TWO BUDGETS, IN TIME (v21.83). One 120-frame budget was spent WAITING for the unlock on a
             // loaded CI runner (stranded 1112px) — and a budget Android is the same machine. Waiting
             // and working now have separate bounds. NOT DIRECTLY GUARDED: on an idle machine the unlock
