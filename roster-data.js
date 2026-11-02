@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '25.06';
+export const APP_VERSION = '25.07';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -52,8 +52,8 @@ export const CONFIG = {
     // OVERTIME IS PAUSED (owner, Nov 2026: the manager who proposed it is away on a year's secondment).
     // This is the whole switch. `false` takes the pill off every menu, the admin's included, turns
     // overtime.html into a "paused" note, and — through the generated server copy, so run
-    // `npm run generate:roster-members` in the same commit — makes every Overtime endpoint answer
-    // `paused` and the daily creator stand down. The retention purge keeps running, so the weeks
+    // `npm run generate:roster-members` in the same commit — leaves the five Overtime endpoints and
+    // the daily creator unexported, so they answer 404. The retention purge keeps running, so the weeks
     // already made age out by themselves. The code and its tests stay live while it is off, which is
     // what keeps it ready: OVERTIME_AVAILABILITY.md → "Paused" is the way back.
     OVERTIME_ENABLED:                 false,

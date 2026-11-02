@@ -25,6 +25,7 @@ import {
     ROTATING_LINES,
     weeklyHours,
     lineTotals,
+    isCoverWeek,
     repairShortRest, restBetween,
     dutyMinutes,
     CONTRACTED_HOURS_PER_WEEK,
@@ -919,6 +920,27 @@ describe('lineTotals', () => {
         assert.equal(t.rows[0].days, null, 'unknown — a cover week does not record which days');
         assert.equal(t.daysAverage, null, 'and it cannot be averaged into a days figure');
         assert.equal(t.daysLines, 0);
+    });
+
+    // Whole-app review, Oct 2026: a cover week needed all SEVEN days SPARE, so one written with its
+    // uncontracted Sunday as a rest day, or as a timed RDW, read as an empty line here and in
+    // `weeklyHours` — 0h, and missing from the contract average — while being four days of cover.
+    test('a cover week is Monday to Saturday SPARE — its Sunday may be a rest day or an RDW', () => {
+        const restSunday = { ...SPARE_ROW, sun: 'RD' };
+        const rdwSunday  = { ...SPARE_ROW, sun: SEVEN };
+        assert.equal(isCoverWeek(restSunday), true);
+        assert.equal(isCoverWeek(rdwSunday), true);
+        assert.equal(isCoverWeek({ ...SPARE_ROW, sat: 'RD' }), false, 'Saturday is contracted — not a cover week');
+        assert.equal(isCoverWeek(null), false);
+
+        const t = lineTotals({ 1: restSunday, 2: rdwSunday }, 2);
+        for (const r of t.rows) assert.equal(r.assumed, true, `line ${r.pos} is a cover week`);
+        assert.equal(t.rows[0].allMinutes, CONTRACTED_HOURS_PER_WEEK * 60);
+        assert.equal(t.rows[1].allMinutes, CONTRACTED_HOURS_PER_WEEK * 60 + 7 * 60, 'the RDW Sunday is real hours on top');
+
+        const wh = weeklyHours({ 1: restSunday, 2: rdwSunday }, 2);
+        assert.equal(wh.coverLines, 2);
+        assert.equal(wh.exSunday, CONTRACTED_HOURS_PER_WEEK, 'both count as a full contracted week');
     });
 
     test('an UNFILLED line is zero and says so — it is not a cover week', () => {

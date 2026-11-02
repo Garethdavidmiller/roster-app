@@ -14,7 +14,7 @@
  *     the pages actually consult it on a viewer session is a wiring question.
  */
 import { test, expect } from './fixtures.js';
-import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, openPinCard, signInThroughOverlay, collectFatalErrors, seedViewerAccess, clearNoticeFlags } from './helpers.js';
+import { seedMember, seedMemberSession, seedSession, seedSessionOnce, stubPinExchange, enterPin, openPinCard, signInThroughOverlay, collectFatalErrors, seedViewerAccess, clearNoticeFlags, isTouchProject } from './helpers.js';
 import { forcePasswordSet } from './fixtures.js';
 
 // (Until v24.34 every test here pinned `CONFIG.CALENDAR_PIN_ACCESS` on, and four more proved the
@@ -323,6 +323,37 @@ test('access lost mid-session: re-lock says why, the SAME PIN card re-unlocks, a
     await expect(page.locator('#calendarDisplay')).toBeVisible();
     await expect(page.locator('.calendar-day').first()).toBeVisible();
     await expect(page.locator('#calendarLock')).toHaveCount(0);
+});
+
+// Whole-app review, Oct 2026: after a re-lock the grid is behind the card, and the arrow keys still
+// moved — and persisted — the month there, so the next unlock opened on a different one.
+test('re-locked mid-session: the keyboard does not move the month behind the card', async ({ page }) => {
+    await seedMember(page);
+    await stubPinExchange(page);
+    await page.goto('/index.html');
+    await enterPin(page, '1234');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await page.evaluate(() => { (window.__E2E = window.__E2E || {}).failGetDocs = 'permission-denied'; });
+    await page.locator('#nextMonth').click();
+    await page.locator('#nextMonth').click();
+    await expect(page.locator('#calendarLock')).toBeVisible();
+
+    const viewed = () => page.evaluate(() => [localStorage.getItem('myb_roster_month'), localStorage.getItem('myb_roster_year')]);
+    const before = await viewed();
+    await page.evaluate(() => /** @type {HTMLElement|null} */ (document.activeElement)?.blur());   // off the PIN field
+    for (const key of ['ArrowRight', 'ArrowRight', 'ArrowLeft', 't']) await page.keyboard.press(key);
+    expect(await viewed()).toEqual(before);
+});
+
+// Whole-app review, Oct 2026: the one-time swipe hint started its 6s timer on a LOCKED Calendar, where
+// it is hidden with the workspace, and marked itself seen — used up on nothing.
+test('a first visit that begins locked does not use up the swipe hint', async ({ page }, info) => {
+    test.skip(!isTouchProject(info), 'the hint is touch-only');
+    test.setTimeout(30_000);
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarLock')).toBeVisible();
+    await page.waitForTimeout(6_500);
+    expect(await page.evaluate(() => localStorage.getItem('myb_swipe_hint_seen'))).toBeNull();
 });
 
 test('a token WITHOUT the viewer claim leaves the Calendar locked', async ({ page }) => {
@@ -764,6 +795,38 @@ test('a VIEWER gets the footer for Lock Calendar — but still no bell', async (
     await expect(page.locator('#navNotifBell')).toHaveCount(0);
 });
 
+// A SESSION WHOSE ACCOUNT HAS GONE GETS NO BELL (v25.06, whole-app review). The footer is there (the
+// session is), but a subscription write would be refused by the rules — the tap used to subscribe the
+// browser, fail, and flip the bell back to off with no word to say why.
+test('a session whose account has gone keeps its footer — but gets no bell', async ({ page }) => {
+    await seedSession(page, 'G. Miller');           // the local session only: no Firebase identity
+    await page.goto('/index.html');
+    await expect(page.locator('#calLockWho')).toContainText('G. Miller');   // the member card: auth has settled
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navSignOutBtn')).toBeVisible();
+    const pushCapable = await page.evaluate(() => 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window);
+    test.skip(!pushCapable, 'no Web Push in this browser, so no bell either way');
+    await expect(page.locator('#navNotifBell')).toBeHidden();
+});
+
+for (const pageUrl of ['/index.html', '/paycalc.html']) {
+    test(`a slow sign-in restore hides the bell only until the restore lands (${pageUrl}, 48-hour review)`, async ({ page }) => {
+        // The bell asks for the account after a 3s wait for the boot restore. A restore still running
+        // then is not an account gone — but it read as one, and the bell stayed hidden until the drawer
+        // was next opened, on exactly the poor signal where restores run long.
+        await seedMemberSession(page, 'G. Miller');
+        await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authRestoreDelayMs: 5000 }); });
+        await page.goto(pageUrl);
+        const pushCapable = await page.evaluate(() => 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window);
+        test.skip(!pushCapable, 'no Web Push in this browser, so no bell either way');
+        await page.locator('#navMenuBtn').click();          // early — the restore is still running
+        // Past the bell's 3s check AND the 5s restore. Asserting at once passes on the broken code too:
+        // the bell is drawn before its check runs, and the check is what hid it.
+        await page.waitForTimeout(6500);
+        await expect(page.locator('#navNotifBell')).toBeVisible();
+    });
+}
+
 test('a signed-in member keeps the full footer — name, bell and sign out', async ({ page }) => {
     // Guard the guard. Both assertions above are absences, and a footer that never rendered for
     // anybody would satisfy them.
@@ -787,6 +850,7 @@ test('a signed-in member keeps the full footer — name, bell and sign out', asy
     const pushCapable = await page.evaluate(() =>
         'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window);
     await expect(page.locator('#navNotifBell')).toHaveCount(pushCapable ? 1 : 0);
+    if (pushCapable) await expect(page.locator('#navNotifBell'), 'a member with an account gets a working bell').toBeVisible();
     // Either way the footer is INTACT — which is what this test is guarding. A missing bell is a
     // capability the browser lacks; a missing name or sign-out would be a broken footer.
     await expect(page.locator('.nav-panel-footer')).toBeVisible();
@@ -950,6 +1014,48 @@ test('the member\'s own stored roster shows AT ONCE, labelled, while the identit
     await expect(page.locator('#calendarDisplay')).toBeVisible({ timeout: 20_000 });
     await expect(snap).toHaveCount(0);
     await expect(page.locator('#teamMemberSelect')).toBeEnabled();
+});
+
+// Whole-app review, Oct 2026: the copy painted before the grant has real day cells, and the page's
+// keyboard handler acted on them — PageDown rendered (and persisted) a month behind the lock card,
+// and Enter opened a day panel, with no access granted.
+test('the stored copy before the grant is read, never used — PageDown and Enter do nothing', async ({ page }) => {
+    test.setTimeout(60_000);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await seedSnapshot(page, 'G. Miller', { [SNAP_DATE]: { type: 'annual_leave', value: 'AL' } });
+    await page.addInitScript(() => {
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true, authRestoreDelayMs: 8000 });
+    });
+    await page.goto('/index.html');
+    const snap = page.locator('#calendarSnapshot');
+    await expect(snap).toBeVisible({ timeout: 2000 });
+    const month = () => page.evaluate(() => localStorage.getItem('myb_roster_month'));
+    const before = await month();
+    await snap.locator('.calendar-day[tabindex="0"]').focus();
+    await page.keyboard.press('PageDown');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#calendarDisplay .calendar-grid'), 'nothing rendered behind the card').toHaveCount(0);
+    await expect(page.locator('.lb-overlay.visible'), 'no day panel before the grant').toHaveCount(0);
+    expect(await month(), 'the month was not moved').toBe(before);
+});
+
+// The legend follows the grid: a loading month the stored copy is drawn for after the grant IS a
+// grid on screen, and it lost its key (whole-app review, Oct 2026).
+test('a month drawn from the stored copy after the grant keeps its legend', async ({ page }) => {
+    test.setTimeout(60_000);
+    await seedSession(page, 'G. Miller');
+    await seedMember(page, 'G. Miller');
+    await seedSnapshot(page, 'G. Miller', { [SNAP_DATE]: { type: 'annual_leave', value: 'AL' } });
+    await page.addInitScript(() => {
+        window.__E2E = Object.assign(window.__E2E || {}, { authUser: true, docsDelayMs: 30_000 });
+    });
+    await page.goto('/index.html');
+    await expect(page.locator('#calendarDisplay .calendar-snapshot-note')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('.legend')).toBeVisible();
+    // …with the keys the copy's days need: the stored 🏖️ day shows, so Annual Leave is in the key —
+    // it was read from the live cache, which a loading month does not have yet (48-hour review).
+    await expect(page.locator('#legend-al')).toBeVisible();
 });
 
 test('a stored copy for SOMEBODY ELSE is never shown, and is deleted', async ({ page }) => {

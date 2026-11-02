@@ -84,8 +84,9 @@ export function buildRosterMembers() {
         overtimeBeta: CONFIG.OVERTIME_BETA,
         // The pause switch (owner, Nov 2026). Explicitly a boolean, and `false` unless CONFIG says
         // `true`, so a missing setting can never quietly switch a paused feature back on.
-        // `buildOvertimeEndpoints` reads it: `false` → every endpoint answers `paused`, the daily
-        // creator stands down, and only the retention purge still runs.
+        // functions/index.js reads it: `false` → only the retention purge is EXPORTED, so a deploy
+        // removes the five endpoints and the daily creator (they answer 404, not "paused"), and the
+        // weeks already made still age out. functions/overtime.js never reads it.
         overtimeEnabled: CONFIG.OVERTIME_ENABLED === true,
         // The app's canonical navigable-roster ceiling, mirrored so window creation validates against
         // the SAME horizon the client does. Without it the Functions side would need its own literal,

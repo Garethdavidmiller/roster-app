@@ -95,6 +95,8 @@ function makeEl(/** @type {string} */ id) {
         querySelector(/** @type {string} */ sel) {
             return { focus: (/** @type {any} */ opts) => { node._focused.push({ sel, opts }); } };
         },
+        /** Whether a fake element "sits inside" this one — set by a test through `_in`. */
+        contains(/** @type {any} */ x) { return !!x && x._in === id; },
         ownerDocument: /** @type {any} */ (null),
     };
     node.ownerDocument = /** @type {any} */ (fakeDocument);
@@ -559,6 +561,19 @@ describe('the swap answers', () => {
         setRange(section, REST, REST);
         answer(REST, 'yes');
         assert.equal(dismissed, 1);
+    });
+
+    test('a REFRESH under a focused answer hands focus back too (48-hour review, Nov 2026)', () => {
+        // The preview is now also rebuilt when the member's records arrive — and a keyboard user on an
+        // answer button at that moment dropped to <body>; only the click path handed focus back.
+        const { section } = wire({ cfg: { swapQuestion: () => [REST] } });
+        setRange(section, REST, REST);
+        el('alPreview')._focused.length = 0;
+        /** @type {any} */ (fakeDocument).activeElement = { _in: 'alPreview', matches: (/** @type {string} */ q) => q === '.swapday-opt',
+            dataset: { date: REST, answer: 'yes' } };
+        try { section.updatePreview(); } finally { delete /** @type {any} */ (fakeDocument).activeElement; }
+        assert.deepEqual(el('alPreview')._focused,
+            [{ sel: `.swapday-opt[data-date="${REST}"][data-answer="yes"]`, opts: { preventScroll: true } }]);
     });
 
     test('an answer hands keyboard focus to the same answer in the rebuilt block (whole-app review)', () => {

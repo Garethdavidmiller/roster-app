@@ -566,15 +566,15 @@ is written, not guessed at afterwards.
 **Read the signal correctly:** the MIRROR count going DOWN, not web.app going up. People appear on the
 new address the moment they visit, but have only *moved* when they stop appearing on the old one.
 
-### Links generator — Recommended settings, with the six objectives behind Advanced
+### Links generator — Recommended settings, with the five objectives behind Advanced
 
 **Raised twice by external review (v22.63 and v22.71), and it is the stated reason Links scores 9.6
 rather than 9.7–9.8.** Nothing here is a defect: the card works, and the objectives are correctly
 implemented and tested (`links-adjacency.js`). The problem is the order it asks things in.
 
-The generator card opens with all six optimisation switches — *Vary the shift type · Most shifts in
-a row · Gentle week-to-week change · Full weekends off · Long weekends · Rest across the week
-boundary*. A designer therefore has to understand the optimisation engine before they have built
+The generator card opens with all five optimisation switches — *Vary the shift type · Most shifts in
+a row · Gentle week-to-week change · Full weekends off · Long weekends* (a sixth, *Rest across the
+week boundary*, became a fixed rule at v25.06: minimum rest is a gate, not a preference). A designer therefore has to understand the optimisation engine before they have built
 anything, which is the wrong way round: the first design is the one that teaches them what the
 objectives are for.
 
@@ -582,12 +582,12 @@ The proposed shape, unchanged from the review:
 
 > **How should the weeks be arranged?**
 > **Recommended settings ✓** — Balances shift variety, consecutive working days and useful rest.
-> **Advanced settings ▾** — today's six controls, collapsed.
+> **Advanced settings ▾** — today's five controls, collapsed.
 
 **The algorithms do not change.** This is disclosure order, and it is the app's own documented rule
 applied to a card that predates it: progressive disclosure may hide the fourth thing a surface owes
 a member (deep dive) and may never hide the first (that the thing exists). "Recommended settings"
-names what is happening; the six switches are depth.
+names what is happening; the five switches are depth.
 
 **The trigger is the owner.** It is a visible change to the card a designer uses most, the December
 2026 proposals are being settled against its checks right now (drawn by `docs/links-24/tooling`

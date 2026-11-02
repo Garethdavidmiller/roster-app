@@ -22,7 +22,7 @@
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
-const { emptyPeriodData, readFormData, writeFormData } = await import('./paycalc-form-data.js');
+const { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite } = await import('./paycalc-form-data.js');
 
 // ── Minimal fake DOM: just the fields this module touches ─────────────────────
 const INPUT_IDS = ['satH','satM','bhH','bhM','bhOtH','bhOtM','otH','otM','rdwH','rdwM',
@@ -256,5 +256,29 @@ describe('payslip-actual lines — the phantom-£0 rule holds for every one of t
         wrap.hidden = true; btn.attrs['aria-expanded'] = 'false';
         writeFormData(emptyPeriodData());
         assert.equal(wrap.hidden, true, 'no actuals → the member\'s own open/closed choice stands');
+    });
+});
+
+// ── A SETTING CHANGE CARRIES ONLY ITS OWN FIELDS (whole-app review, Oct 2026) ──────────────────
+// The loan plan and the pension scheme ran the payslip's autosave, which writes the WHOLE form: the
+// calendar's display-only suggestion was saved as entered hours (invariant 11), and saved entries
+// that could not be read were written over. `e2e/paycalc.spec.js` drives both through the page.
+describe('settingFieldsWrite — a setting change carries only its own fields', () => {
+    const formNow = { ...emptyPeriodData(), satH: 8, satM: 30, slSkip: false, pension: null };
+
+    test('only the named field moves; every saved figure stays as saved', () => {
+        const raw = JSON.stringify({ ...emptyPeriodData(), satH: 7, slSkip: true, pension: 120 });
+        assert.deepEqual(JSON.parse(/** @type {string} */ (settingFieldsWrite(raw, formNow, ['slSkip']))),
+            { ...emptyPeriodData(), satH: 7, slSkip: false, pension: 120 });
+    });
+
+    test('a payslip with nothing saved stays unsaved — the form on screen may be a suggestion', () => {
+        assert.equal(settingFieldsWrite(null, formNow, ['slSkip']), null);
+        assert.equal(settingFieldsWrite('', formNow, ['pension']), null);
+    });
+
+    test('saved entries that cannot be read are never written over', () => {
+        assert.equal(settingFieldsWrite('{not json', formNow, ['slSkip']), null);
+        assert.equal(settingFieldsWrite('null', formNow, ['slSkip']), null);
     });
 });

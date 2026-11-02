@@ -102,8 +102,8 @@ mock.module('./overtime-data.js', {
             calls.push({ call: 'submit', weekEnding, answers: JSON.parse(JSON.stringify(answers)), baseRevision });
             return submitResults.shift() ?? { ok: true, data: { revision: 1 } };
         },
-        getMyOvertimeState: async () => {
-            calls.push({ call: 'state' });
+        getMyOvertimeState: async (/** @type {any} */ opts) => {
+            calls.push({ call: 'state', opts });
             disabledDuringReread = liveHost?.parts['.ot-submit'].disabled ?? null;
             return stateResult;
         },
@@ -194,6 +194,8 @@ describe('a timeout must never become a second, contradictory declaration', () =
         await f.submit();
 
         assert.match(f.feedback(), /did save/, 'the member is told their submission landed');
+        assert.equal(calls.find(c => c.call === 'state')?.opts?.keepReadAt, true,
+            'the re-read adopts only the submission, so it must not move the read time the deadline resync uses');
         assert.equal(f.win.submission.currentRevision, 7, 'the week the page holds is the server\'s');
         assert.equal(f.savedCount(), 1, 'and the rest of the page is told, exactly as a plain success tells it');
 

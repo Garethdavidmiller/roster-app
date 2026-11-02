@@ -637,7 +637,7 @@
                              prices. This one is applied on their behalf, silently, and a card whose whole
                              argument is "the result says what each cost" cannot then have an unnamed term
                              moving rows for reasons nobody can see. One sentence is the whole fix. -->
-                        <p class="gen-obj-note">These change the order of the lines, never the cover. They compete with each other — turning one on can make another slightly worse, and the result says what each one cost. Cover weeks are always kept evenly spaced around the rotation — that one is not optional, because two cover weeks side by side run into one long stretch.</p>
+                        <p class="gen-obj-note">These change the order of the lines, never the cover. They compete with each other — turning one on can make another slightly worse, and the result says what each one cost. Two things are not optional: cover weeks stay evenly spaced around the rotation, because two side by side run into one long stretch; and no order is used that leaves less than 12 hours between a Saturday finish and the next line’s Sunday start.</p>
                         <!-- Variety leads the list, and is the one that must stay ON unless you mean
                              it. "Gentle" taken to its limit IS a block — the smallest possible
                              week-to-week step is no step at all — so with variety off the reorder
@@ -658,7 +658,6 @@
                              input and the span: `e2e/pages.spec.js`'s clause test measures the tail by
                              `input.nextSibling`, and a comment node there is not what renders. -->
                         <label class="gen-obj"><input type="checkbox" id="objLongWeekends" checked><span class="gen-obj-text"><span class="gen-obj-title">Long weekends</span><span class="gen-obj-num">at least <span class="gen-obj-numctl"><input type="number" id="objLongTarget" class="gen-input gen-input-inline" min="0" max="26" value="4"><span>of <span class="js-rotating-lines">26</span></span></span></span><span class="gen-obj-hint">Three or four days off across the week boundary</span></span></label>
-                        <label class="gen-obj"><input type="checkbox" id="objTurnarounds" checked><span class="gen-obj-text"><span class="gen-obj-title">Rest across the week boundary</span><span class="gen-obj-hint">Saturday's finish into Sunday's start — the one turnaround a single line cannot show</span></span></label>
                     </fieldset>
                     <div id="genError" class="gen-error" aria-live="polite"></div>
                     <button type="button" class="btn-action btn-primary" id="genApplyBtn"><!--

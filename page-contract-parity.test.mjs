@@ -827,3 +827,15 @@ test('every page asks iOS for a SOLID status bar, never black-translucent', () =
         assert.equal(m?.[1], 'black', `${f}: status bar style is "${m?.[1]}" — black-translucent puts the header under iOS's top-edge blur`);
     }
 });
+
+// ── THE SUB-PAGE HEADER LOGO HAS ONE WIRING (48-hour review, Nov 2026) ───────────────────────────
+// `wireHeaderLogo` (about-lightbox.js, v25.06) replaced five hand-written copies, and the copies were
+// the defect: Trains and Overtime shipped a "Back to calendar" logo that nothing wired. The December
+// link page was written alongside that change and arrived with a sixth. A module reaching for the logo
+// itself is how a seventh arrives, so only the helper may; a page that must ask first passes a handler.
+test('only about-lightbox.js wires the sub-page header logo', () => {
+    const offenders = readdirSync(new URL('.', import.meta.url))
+        .filter(f => f.endsWith('.js') && f !== 'about-lightbox.js')
+        .filter(f => /['"#]appIcon\b|function\s+wireHeaderLogo\b/.test(codeOf(f)));
+    assert.deepEqual(offenders, [], 'wire the header logo with wireHeaderLogo() from about-lightbox.js');
+});

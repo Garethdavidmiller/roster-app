@@ -812,7 +812,9 @@ describe('7 · the Year to Date notice: the load AFTER the timetable one, to mem
     test('never to a member the Pay Calculator turns away — and never flagged for them', async () => {
         // Its own refusal is `gradeForRole`; the same function decides here. A refused member is left
         // unflagged, like an out-of-audience device: the notice is not theirs to have seen.
-        for (const name of ['D. Minto', 'S. Stewart', 'Z. Nobody']) {          // Dispatcher · manager · not on the roster
+        // A CURRENT manager (48-hour review): S. Stewart left the roster at v25.05, which quietly turned
+        // the manager case into a second "not on the roster" one — green whatever the manager rule did.
+        for (const name of ['D. Minto', 'D. Watts', 'Z. Nobody']) {            // Dispatcher · manager · not on the roster
             await wire({ ...SHOWN, session: { name } });
             await settleAccess();
             assert.equal(ytdOpened(), false, `${name}: not offered`);

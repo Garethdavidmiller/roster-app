@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures.js';
-import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags } from './helpers.js';
+import { collectFatalErrors, seedSession, seedMember, pickFirstMemberAndPassword, DESKTOP_WIDTHS, armEnforcementWithFailingSignIn, signInThroughOverlay, openGuideLink, seedViewerAccess, seedMemberSession, isTouchProject, clearNoticeFlags, clickInView } from './helpers.js';
 
 // ── Calendar access (v20.12) ────────────────────────────────────────────────────────────────────
 // Since v20.12 the Calendar opens only for a member session or the shared staff PIN, so a spec that
@@ -2467,6 +2467,41 @@ test('calendar: a boot makes only the performance marks the App Speed card reads
 // `stale` is the grid "labelled as possibly out of date, with a retry". The first load's months have
 // the sync chip for that; a month reached later had nothing, so a member offline in November read a
 // cached grid as current. November is outside the boot window of a 16 Sep clock (Aug–Oct).
+// THE FIRST CHECK IS NOT A FAILED ONE (whole-app review, Nov 2026; wiring pinned at the 48-hour review).
+// The renderer's `checking` rule is unit-tested; these are the two lines that pass it: renderCalendar
+// in calendar-app.js, and the swipe's neighbouring months in calendar-swipe.js, built on pointerdown.
+// Without them every cached month opened with "Saved copy — couldn't check for changes" while the
+// check it denied was still running. The read is held for the whole test and both checks are ONE-SHOT
+// counts: an auto-retrying toHaveCount(0) simply waited for the read to land, and passed with the
+// wiring deleted (measured).
+test('calendar: a cached month at startup does not claim it could not check, while the first check runs', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await seedMemberSession(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        // One row in each month of the first read (Aug–Oct), so all three are painted from the cache.
+        const rows = ['2026-08-12', '2026-09-18', '2026-10-14'].map((date, i) => ({
+            id: `c${i}`, memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '' }));
+        w.__E2E.cacheDocs = rows;
+        w.__E2E.docs = rows;
+        w.__E2E.docsDelayMs = 30000;       // the first server read is still out for the whole test
+    });
+    await page.goto('/');
+    const shown = page.locator('#calendarDisplay > .calendar-container:not(.carousel-panel)');
+    await expect(shown, 'premise: September is painted from the cache').toHaveAttribute('data-override-state', 'stale');
+    expect(await page.locator('.calendar-stale-note').count(), 'renderCalendar passes `checking`').toBe(0);
+
+    await page.locator('#calendarDisplay .calendar-day').nth(10).hover();
+    await page.mouse.down();
+    const panels = page.locator('#calendarDisplay > .carousel-panel');
+    await expect(panels).toHaveCount(2);
+    await expect(panels.first(), 'premise: the neighbours are cached months too').toHaveAttribute('data-override-state', 'stale');
+    await expect(panels.last()).toHaveAttribute('data-override-state', 'stale');
+    expect(await page.locator('.calendar-stale-note').count(), 'the swipe passes `checking` too').toBe(0);
+    await page.mouse.up();
+});
+
 test('calendar: a later month answered from the cache says so, and Try again re-checks it', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
     await seedMember(page);
@@ -2736,6 +2771,40 @@ test('drawer Circular: when no tab comes back, the in-app viewer opens and this 
     await expect(page.locator('#docViewerBody').getByRole('button', { name: /Open/ })).toBeVisible({ timeout: 10_000 });
     expect(page.url(), 'the page is still the app').not.toContain('firebasestorage');
     await expect(page.locator('#navPanel')).not.toHaveClass(/open/);
+});
+
+// THE SAME HAND-OVER FROM ADMIN ASKS ABOUT UNSAVED WORK FIRST (v25.06, whole-app review). It left by
+// `location.href`, which the drawer's unsaved-changes question does not watch — and on the iOS app,
+// where no tab comes back, no unload prompt exists either: staged rows went without a word.
+test('drawer Circular on Admin: when no tab comes back, staged edits are asked about before leaving', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-08-27T09:00:00Z'));
+    await page.addInitScript(() => {
+        window.__E2E = { ...(window.__E2E || {}), authUser: true };
+        window.open = /** @type {any} */ (() => null);
+    });
+    await page.route('**/getDocumentUrl', route => route.fulfill({ contentType: 'application/json', body: signedFor('circulars/2026-09-25-a.pdf') }));
+    await seedMemberSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await page.waitForSelector('.day-row', { timeout: 10000 });
+    const row = page.locator('.day-row').filter({ has: page.locator('.type-pill-btn[data-type="shift"]:not([disabled])') }).first();
+    await clickInView(row.locator('.type-pill-btn[data-type="shift"]'));
+    await row.locator('.day-start').fill('06:00');
+    await row.locator('.day-end').fill('14:00');
+    await page.evaluate(([stored, path]) => {
+        /** @type {any} */ (window).__E2E.docs = [{ id: '2026-09-25', date: '2026-09-25', storageUrl: stored, fileType: 'pdf', storagePath: path }];
+    }, [DOC_STORED, 'circulars/2026-09-25-a.pdf']);
+    await page.locator('#navMenuBtn').click();
+    await page.locator('#navPanel .nav-panel-link--circular').click();
+    await expect(page.getByText('You have unsaved changes. Leave this page anyway?')).toBeVisible({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page, 'Cancel must keep the page').toHaveURL(/admin\.html/);
+    await expect(row.locator('.day-start')).toHaveValue('06:00');
+    // The question stops the click before the drawer's own handler, so the drawer is still OPEN — and
+    // the link that carried the hand-off sits in it. It must not be ON SCREEN as an empty, focusable
+    // row: the drawer link's own display beat [hidden] (48-hour review, Nov 2026).
+    await expect(page.locator('#navPanel')).toHaveClass(/open/);
+    await expect(page.locator('#navPanel a[data-doc-handoff]')).toHaveCount(1);
+    await expect(page.locator('#navPanel a[data-doc-handoff]')).toBeHidden();
 });
 
 test('huddle: offline with nothing cached, a tap says it could not load — never "none uploaded"', async ({ page }) => {

@@ -116,6 +116,21 @@ export const MIN_REST_MINUTES = 12 * 60;
 export const SPARE_WORKED_DAYS = 4;
 
 /**
+ * Is this line a COVER WEEK — spare on every contracted day, Monday to Saturday?
+ *
+ * The Sunday is deliberately not asked about. It is not contracted, so a cover week's Sunday may be
+ * SPARE, a rest day or a timed RDW and the week is still four days of cover (v25.06, whole-app
+ * review). Requiring all seven SPARE let a cover week written with its Sunday as a rest day count as
+ * an EMPTY line — no days towards the 219-day ceiling, no hours towards the contract — so a design
+ * over the ceiling read as under it. Hours, days and spread ask this (seed and rest repair see only SPARE-all-week rows).
+ * @param {Record<string, any>|null|undefined} row
+ * @returns {boolean}
+ */
+export function isCoverWeek(row) {
+    return !!row && DAYS.every(d => d === 'sun' || row[d] === 'SPARE');
+}
+
+/**
  * Does a SPARE day at position `i` of a run sequence draw on its cover week's four duties?
  *
  * Monday to Saturday only (owner, 31 Oct 2026): "The 4 days can only be the contractual days which
@@ -526,7 +541,7 @@ export function weeklyHours(patterns, rotatingLines = ROTATING_LINES) {
             duties++; totalMin += m;
             if (d === 'sun') { sundayDuties++; sundayMin += m; }
         }
-        if (DAYS.every(d => row[d] === 'SPARE')) coverLines++;
+        if (isCoverWeek(row)) coverLines++;
         else if (lineIsTimed) workingLines++;
         // ── A WHOLE LINE NOBODY COULD READ (v20.08, external review P2) ──────────────────────────
         // A line with worked cells but NOT ONE readable time contributes zero minutes AND drops out
@@ -637,9 +652,10 @@ export function lineTotals(patterns, rotatingLines = ROTATING_LINES) {
             // count — the same exclusion the hours row has always made, applied to both columns.
             if (d !== 'sun') { exSundayMinutes += m; days++; }
         }
-        const assumed = DAYS.every(d => row[d] === 'SPARE');
+        const assumed = isCoverWeek(row);
         if (assumed) {
-            rows.push({ pos: w, exSundayMinutes: contractedMin, allMinutes: contractedMin,
+            // `allMinutes` here is a timed RDW Sunday, if the cover week has one — real hours on top.
+            rows.push({ pos: w, exSundayMinutes: contractedMin, allMinutes: contractedMin + allMinutes,
                 days: null, assumed: true, unreadable: 0, unfilled: false });
             continue;
         }

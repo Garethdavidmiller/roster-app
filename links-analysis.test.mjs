@@ -701,6 +701,26 @@ describe('the design-checks triage block', () => {
             + 'amber row for it; the summary above must not be quieter than the evidence below.');
     });
 
+    test('a run over the design target reaches the triage — the one amber row it used to skip', () => {
+        // Whole-app review, Oct 2026. Lines alternate: Monday to Saturday worked, then a line
+        // working only Sunday and Monday — eight days in a row across the boundary. Over the 6-day
+        // target, under the company's 13, and inside the 219-day ceiling.
+        resetDom();
+        const W = '06:00-14:00';
+        const patterns = /** @type {Record<string, any>} */ ({});
+        for (let i = 1; i <= ROTATING_LINES; i++) {
+            patterns[String(i)] = i % 2
+                ? { sun: 'RD', mon: W, tue: W, wed: W, thu: W, fri: W, sat: W }
+                : { sun: W, mon: W, tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        }
+        initLinksAnalysis({ getDesign: () => ({ patterns }) }).renderDesignChecks();
+        const html = els.checksContent.innerHTML;
+        assert.match(html, /Over the \d+-day design target/, 'premise: the Longest run row is amber');
+        const block = html.split('check-section-head')[0];
+        assert.match(block, /working days in a row, over the \d+-day design target/,
+            'the Longest run row is amber and the triage does not mention it');
+    });
+
     test('every triage line names its own source, because the sections below are grouped by source', () => {
         resetDom();
         const patterns = fullPatterns();

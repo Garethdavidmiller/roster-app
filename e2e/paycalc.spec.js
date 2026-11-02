@@ -273,6 +273,45 @@ test('paycalc: editing a calendar-filled box takes "Hours from calendar" away at
     await expect(page.locator('#provChips')).not.toContainText('Hours from calendar');
 });
 
+// Whole-app review, Oct 2026: a SETTING change (the loan plan, the pension scheme) ran the payslip's
+// autosave, which writes the whole form — the calendar's display-only suggestion with it (invariant 11:
+// viewing never persists) — and wrote over saved entries that could not be read.
+const changeSettings = (/** @type {import('@playwright/test').Page} */ page) => page.evaluate(() => {
+    const fire = (/** @type {string} */ id, /** @type {(el: any) => void} */ set) => {
+        const el = /** @type {any} */ (document.getElementById(id));
+        set(el); el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    fire('studentLoan', el => { el.value = 'plan2'; });
+    fire('pgLoanCheck', el => { el.checked = true; });
+    fire('pensionOptOutCheck', el => { el.checked = true; });
+});
+test('paycalc: changing a setting never saves the calendar\'s suggestion as entered hours', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_pc_ns_migrated', '1'));
+    await page.goto('/paycalc.html?payday=2026-10-23');
+    await expect(page.locator('#satH'), 'premise: the calendar\'s Saturday is shown, not saved').toHaveClass(/roster-suggested/);
+    const saved = () => page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p57'));
+    expect(await saved()).toBeNull();
+    await changeSettings(page);
+    await expect(page.locator('#netDisplay')).not.toBeEmpty();
+    expect(await saved(), 'a setting saved the suggestion as though the member had entered it').toBeNull();
+});
+
+test('paycalc: changing a setting never writes over saved entries that could not be read', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-10-22T09:00:00Z'));
+    await seedSession(page);
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+        localStorage.setItem('myb_pc_gmiller_p57', '{not json');
+    });
+    await page.goto('/paycalc.html?payday=2026-10-23');
+    await expect(page.locator('.save-status.corrupt')).toBeVisible();
+    await changeSettings(page);
+    expect(await page.evaluate(() => localStorage.getItem('myb_pc_gmiller_p57')),
+        'only something the member TYPES may replace damaged entries').toBe('{not json');
+});
+
 test('paycalc: with Year to Date figures in use, a payslip gap names the payslip they count from (v24.89)', async ({ page }) => {
     /*
      * On 22 Oct a first entry is stamped with the 25 Sep payslip — the latest PAID one — while a
@@ -1641,6 +1680,34 @@ test('paycalc: Replace clears stale hours the calendar no longer shows', async (
     await page.locator('#bhH').fill('7');
     await page.locator('#fillFromRosterBtn').click();
     await expect(page.locator('#rosterHintText')).toContainText(/cleared Bank holiday/);
+    await expect(page.locator('#bhH')).toHaveValue('');
+    expect(errors, 'Uncaught JS exceptions clearing stale hours').toHaveLength(0);
+});
+
+// THE SAME CLEAR, WHEN NOTHING ELSE IS SPECIAL ON THE PAYSLIP (whole-app review, Nov 2026). The test
+// above passes because period 56 holds other special-rate days for its member, which keep the card on
+// screen. For a fixed Monday–Friday line whose one bank holiday became leave, the calendar's answer is
+// "nothing at all": getRosterSuggestion returned null, the card hid, and Replace returned before its
+// clear — so the stale 7h stayed in the estimate, the HPP figure and the year totals.
+test('paycalc: Replace clears stale hours even when the calendar has nothing else special', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page, 'C. Reen');
+    await seedMember(page, 'C. Reen');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        // Her rostered Summer bank holiday (Mon 31 Aug 2026), booked as leave.
+        w.__E2E.docs = [{ id: 'bh-al', memberName: 'C. Reen', date: '2026-08-31', type: 'annual_leave', value: 'AL', note: '' }];
+    });
+    await page.goto('/paycalc.html');
+    await page.locator('#periodSelect').selectOption('56');
+    await expect(page.locator('#bhH')).toBeVisible();
+    await page.locator('#bhH').fill('7');
+    await expect(page.locator('#rosterHintBar'), 'the card must stay on screen while there is something to clear').toBeVisible();
+    await expect(page.locator('#rosterRows')).toContainText('no Saturday, Sunday or bank holiday shifts');
+    await expect(page.locator('#fillFromRosterBtn')).toHaveText('Replace with calendar values');
+    await page.locator('#fillFromRosterBtn').click();
+    await expect(page.locator('#rosterHintText')).toContainText(/Cleared Bank holiday/);
     await expect(page.locator('#bhH')).toHaveValue('');
     expect(errors, 'Uncaught JS exceptions clearing stale hours').toHaveLength(0);
 });

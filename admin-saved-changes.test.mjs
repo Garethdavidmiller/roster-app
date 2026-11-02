@@ -319,6 +319,47 @@ describe('1. stuck after SUCCESS — the shipped defect', () => {
     });
 });
 
+describe('1c. the confirm is armed for ONE selection (v25.06, whole-app review)', () => {
+    // "⚠ Delete 1?" deleted whatever was ticked by the second tap: arm with one row, press Select
+    // all (or tick two more) inside the five seconds, and all three went, under a label naming one.
+    test('changing the selection disarms, and the next tap re-arms for the new count', async () => {
+        _checked = ['a'].map(row);
+        await fire('bulkDeleteBtn', 'click');
+        assert.equal(el('bulkDeleteBtn').textContent, '⚠ Delete 1?');
+        _checked = ['a', 'b', 'c'].map(row);
+        await fire('selectAllOverrides', 'change');
+        assert.equal(el('bulkDeleteBtn').textContent, 'Delete selected', 'the armed label must not survive a new selection');
+        await fire('bulkDeleteBtn', 'click');
+        assert.deepEqual(_deleted, [], 'the tap after a selection change arms — it never deletes');
+        assert.equal(el('bulkDeleteBtn').textContent, '⚠ Delete 3?');
+        await fire('bulkDeleteBtn', 'click');
+        assert.deepEqual([..._deleted].sort(), ['a', 'b', 'c']);
+    });
+    test('a selection that changed with no change event still needs its own confirm', async () => {
+        _checked = ['a'].map(row);
+        await fire('bulkDeleteBtn', 'click');            // armed for ['a']
+        _checked = ['a', 'b'].map(row);                  // a redraw, say — nothing announced it
+        await fire('bulkDeleteBtn', 'click');
+        assert.deepEqual(_deleted, [], 'armed for one row, it must not delete two');
+        assert.equal(el('bulkDeleteBtn').textContent, '⚠ Delete 2?');
+    });
+    test('a re-arm keeps its own five seconds (48-hour review, Nov 2026)', async (t) => {
+        // Re-arming inside the window became a designed path above — and the FIRST arm's timer was
+        // never cancelled, so it disarmed the new confirm early and the confirming tap re-armed instead.
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+        _checked = ['a'].map(row);
+        await fire('bulkDeleteBtn', 'click');                 // t=0: armed for one (its timer due at 5s)
+        t.mock.timers.tick(4000);
+        _checked = ['a', 'b', 'c'].map(row);
+        await fire('selectAllOverrides', 'change');
+        await fire('bulkDeleteBtn', 'click');                 // t=4s: re-armed for three (due at 9s)
+        t.mock.timers.tick(1500);                             // t=5.5s: the first arm's 5s has passed
+        assert.equal(el('bulkDeleteBtn').textContent, '⚠ Delete 3?', 'still asking, 1.5s into its own window');
+        await fire('bulkDeleteBtn', 'click');
+        assert.deepEqual([..._deleted].sort(), ['a', 'b', 'c'], 'the confirming tap deletes');
+    });
+});
+
 describe('1b. the accessible NAME travels with the label (v23.16, external review)', () => {
     test('while armed it says so, and after the delete it says what it said before', async () => {
         _checked = ['a'].map(row);

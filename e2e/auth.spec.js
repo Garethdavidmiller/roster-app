@@ -376,6 +376,42 @@ test('forced password overlay: offers a way out after repeated save failures', a
     await expect(page.locator('#contactCard')).toBeVisible();   // the page is usable again
 });
 
+test('forced password overlay: Enter on "Continue for now" lets the member out — it does not re-submit', async ({ page }) => {
+    // The overlay-wide Enter handler pressed Save from ANY focus, so a keyboard user on the escape
+    // retried the write instead (v25.06). A field's Enter still saves; the escape's Enter escapes.
+    await forcePasswordSet(page);
+    await page.goto('/settings.html');
+    await signInThroughOverlay(page, 'G. Miller');
+    for (let i = 0; i < 3; i++) {
+        await page.locator('#pwfNew').fill('a-real-password-9');
+        await page.locator('#pwfConfirm').fill('a-real-password-9');
+        await page.locator('#pwfConfirm').press('Enter');   // a field's Enter is still a save
+        await expect(page.locator('#pwfError')).toBeVisible();
+    }
+    const escape = page.locator('#pwfEscape');
+    await expect(escape).toBeVisible();
+    await escape.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#pwForceOverlay')).toBeHidden();
+});
+
+// SETTINGS HOLDS THE BROWSER'S INSTALL OFFER ONLY FOR SOMEBODY IT CAN OFFER IT TO (v25.06). The
+// Device card that uses it is wired after sign-in, so for a visitor who never signs in, holding it
+// took Chrome's own offer away and put nothing in its place.
+for (const [who, signedIn] of [['a signed-out visitor keeps the browser\'s own offer', false], ['a signed-in member\'s offer is held for the Device card', true]]) {
+    test(`settings install offer: ${who}`, async ({ page }) => {
+        if (signedIn) await seedSession(page, 'G. Miller');
+        await page.goto('/settings.html');
+        await page.waitForLoadState('load');
+        const prevented = await page.evaluate(() => {
+            const e = new Event('beforeinstallprompt', { cancelable: true });
+            window.dispatchEvent(e);
+            return e.defaultPrevented;
+        });
+        expect(prevented).toBe(signedIn);
+    });
+}
+
 test('forced password overlay: FAILS OPEN when the migration status cannot be read', async ({ page }) => {
     // The safety property. If getPasswordStatus fails we must NOT block — the member could not
     // complete the flow anyway, and a mandatory overlay they can't satisfy is a lockout. It simply

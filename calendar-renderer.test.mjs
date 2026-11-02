@@ -394,6 +394,21 @@ describe('buildCalendarContainer — withheld grid', () => {
         assert.equal(container.querySelectorAll('.calendar-pending').length, 0);
     });
 
+    // A CACHED month is "Saved copy — couldn't check for changes" only once a check has actually not
+    // happened. While the first read is still running it has not failed (v25.06): the note was drawn
+    // over every returning member's cache paint, red, until the 800ms sync chip arrived to hide it.
+    test('a cached month says "couldn\'t check" — but not while the first check is still running', () => {
+        _resetKnowledge();
+        noteKnowledge('2026-01', 'cached');
+        const after = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);
+        assert.equal(after.querySelectorAll('.calendar-stale-note').length, 1,
+            'precondition: once nothing is checking, the saved copy is labelled');
+        const during = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year, { checking: true });
+        assert.equal(during.querySelectorAll('.calendar-stale-note').length, 0,
+            'a check in flight has not failed, so the grid must not say it has');
+        assert.ok(during.querySelectorAll('.calendar-day').length > 0, 'and the cached grid still shows');
+    });
+
     test('an authoritative month renders as current', () => {
         knowTestMonth();
         const container = buildCalendarContainer(TEST_MONTH.month, TEST_MONTH.year);

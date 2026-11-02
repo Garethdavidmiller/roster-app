@@ -1612,6 +1612,8 @@
   /* Roster "From your calendar" rows — discrete cards, matching the hours-row +
      admin day-card treatment (white on the cream card, hairline border, var(--radius) corners). */
   .roster-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+  /* The calendar's "none" (v25.06): shown only when a stale figure is waiting for Replace to clear it. */
+  .roster-none-note { margin: 0; font-size: var(--type-small); color: var(--text-mid); line-height: 1.45; }
   .roster-row {
     display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px;
     padding: 8px 10px;

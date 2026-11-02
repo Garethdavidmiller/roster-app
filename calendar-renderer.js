@@ -331,19 +331,22 @@ export function setSnapshotSource(fn) { _snapshotSource = fn; }
  * Accepts explicit month/year so callers never need to mutate global display state.
  * @param {number} month - 0-indexed JS month
  * @param {number} year
- * @param {{ onDayDetail?: Function, onRetryMonth?: Function, member?: any, snapshot?: Map<string, any>|null }} [opts]
+ * @param {{ onDayDetail?: Function, onRetryMonth?: Function, member?: any, snapshot?: Map<string, any>|null, checking?: boolean }} [opts]
  *   onDayDetail       — called when ANY day cell is activated, on every pointer type (v23.59)
  *   onRetryMonth      — called as (year, month) from the "Try again" button of the withheld-grid
  *                       panel. Omitted by callers that have no fetch to re-run (the swipe carousel's
  *                       off-screen panels), in which case no button is drawn — an inert control is
  *                       worse than none.
+ *   checking          — the first 3-month read is still running (v25.06). A cached month then draws
+ *                       no "couldn't check" note: the check has not failed, it has not finished, and
+ *                       the sync chip is that read's label.
  *   member            — draw this member rather than the selected one (the pre-grant paint, v24.59,
  *                       which runs before the member selector exists)
  *   snapshot          — the member's OWN stored copy of this month (calendar-snapshot.js). Omitted,
  *                       the registered source is asked (`setSnapshotSource`).
  */
 export function buildCalendarContainer(month, year, opts = {}) {
-    const { onDayDetail, onRetryMonth } = opts;
+    const { onDayDetail, onRetryMonth, checking } = opts;
     const member = /** @type {any} */ (opts.member ?? getCurrentMember());
     const firstDay = new Date(year, month, 1);
     const lastDay  = new Date(year, month + 1, 0);
@@ -409,7 +412,10 @@ export function buildCalendarContainer(month, year, opts = {}) {
     // promises "labelled as possibly out of date, with a retry" (calendar-data-state.js), and for a
     // month the first load did not cover nothing said so — the sync chip was the only label, and it
     // belongs to the first load. Where that chip is on screen it speaks alone (index.css).
-    if (_display === 'stale' && !snapshot) {
+    // NOT WHILE THAT FIRST CHECK IS STILL RUNNING (`checking`, v25.06): "couldn't check" was drawn over
+    // every returning member's cache paint until the 800ms chip arrived — and for the whole read when a
+    // redraw then took the chip away. Nothing had failed; the check had not finished.
+    if (_display === 'stale' && !snapshot && !checking) {
         const note = document.createElement('div');
         note.className = 'calendar-stale-note';
         const words = document.createElement('span');

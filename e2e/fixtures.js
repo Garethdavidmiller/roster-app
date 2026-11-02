@@ -207,7 +207,12 @@ export const getDocs = (/** @type {any} */ ref) => {
     ? byPath[ref.path]
     : e2e.docs;
   const wrap = (v) => (e2e.docsDelayMs ? new Promise(r => setTimeout(() => r(v), e2e.docsDelayMs)) : Promise.resolve(v));
-  if (!rows) return wrap({ empty: true, size: 0, docs: [], forEach: noop });
+  // window.__E2E.docsFromCache marks every snapshot as served from the offline cache (Oct 2026) —
+  // the shape a surface must REFUSE to present as current. Set it after load to aim it at one read.
+  // EVERY snapshot includes the empty one below (Nov 2026): it used to carry no metadata at all, so
+  // the seam could not reach the case the offline cache is worst at, a week it never read.
+  const metadata = { fromCache: !!e2e.docsFromCache };
+  if (!rows) return wrap({ empty: true, size: 0, docs: [], metadata, forEach: noop });
   // Only EPOCH-SCALE numbers become Timestamps (>= 1e12 ms, i.e. after Sep 2001) — the same heuristic
   // the retired work-email check used for legacy stamps. Converting every number turned a seeded count: 4 into a
   // Timestamp object, so "asked 4 times" silently vanished from the card.
@@ -216,9 +221,6 @@ export const getDocs = (/** @type {any} */ ref) => {
     id: r.id,
     data: () => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, ts(v)])),
   }));
-  // window.__E2E.docsFromCache marks every snapshot as served from the offline cache (Oct 2026) —
-  // the shape a surface must REFUSE to present as current. Set it after load to aim it at one read.
-  const metadata = { fromCache: !!e2e.docsFromCache };
   return wrap({ empty: false, size: docs.length, docs, metadata, forEach: cb => docs.forEach(cb) });
 };
 //   window.__E2E = { failGetDoc: true }  → every single-doc read rejects. Used to prove the forced
@@ -283,6 +285,9 @@ export const addDoc = (/** @type {any} */ ref, /** @type {any} */ data) => {
 export const setDoc = (/** @type {any} */ ref, /** @type {any} */ data, /** @type {any} */ opts) => {
   const e2e = globalThis.__E2E || (globalThis.__E2E = {});
   e2e.setWrites = e2e.setWrites || [];
+  // __E2E.failSetCode makes every setDoc REJECT with that code, unrecorded (v25.06) — the deleteDoc
+  // seam's twin, for a set whose outcome is unknown (auth/signed-out-during-request).
+  if (e2e.failSetCode) return Promise.reject(Object.assign(new Error('e2e set refused'), { code: e2e.failSetCode }));
   e2e.setWrites.push({ path: (ref && ref.path) || '', data, merge: !!(opts && opts.merge) });
   return Promise.resolve();
 };

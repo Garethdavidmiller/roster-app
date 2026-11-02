@@ -413,6 +413,19 @@ describe('the contracted-days ceiling — 219 a year, at the link\'s own length'
         assert.equal(ceiling(linkOf(89))?.status, 'ok');
     });
 
+    // Whole-app review, Oct 2026: a cover week was recognised only when all SEVEN days read SPARE,
+    // so the same week written with its uncontracted Sunday as a rest day — or as a timed RDW —
+    // counted as an empty line: no days towards the ceiling, and a breach that read as within it.
+    test('a cover week is Monday to Saturday — its Sunday may be a rest day or an RDW', () => {
+        const canonical = contractedDaysPerYear(linkOf(90), ROTATING_LINES);
+        for (const sunday of ['RD', '07:15-15:45']) {
+            const p = linkOf(90);
+            p['1'].sun = sunday;
+            assert.equal(contractedDaysPerYear(p, ROTATING_LINES), canonical, `Sunday ${sunday}`);
+            assert.equal(ceiling(p)?.status, 'breach', `Sunday ${sunday}: still over the 219`);
+        }
+    });
+
     test('one duty more is 220.6 — a breach, reported as a measurement, never a verdict', () => {
         const c = ceiling(linkOf(90));
         assert.equal(c?.status, 'breach');

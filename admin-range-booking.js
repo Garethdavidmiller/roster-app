@@ -396,5 +396,16 @@ export function createRangeBookingSection(cfg) {
         }
     });
 
-    return { updatePreview, saveBtn };
+    /** A rebuild under a focused answer hands focus to the same answer in the new block — the click
+     *  path above did this since Oct 2026; a refresh when the member's records arrive did not, and a
+     *  keyboard user on an answer dropped to <body> (48-hour review, Nov 2026). */
+    function refreshKeepingFocus() {
+        const active = /** @type {HTMLElement|null} */ (previewEl.ownerDocument?.activeElement ?? null);
+        const keep = active && previewEl.contains(active) && active.matches?.('.swapday-opt')
+            ? `.swapday-opt[data-date="${active.dataset.date}"][data-answer="${active.dataset.answer}"]` : null;
+        updatePreview();
+        if (keep) /** @type {HTMLElement|null} */ (previewEl.querySelector(keep))?.focus({ preventScroll: true });
+    }
+
+    return { updatePreview: refreshKeepingFocus, saveBtn };
 }

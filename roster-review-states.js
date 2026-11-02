@@ -100,6 +100,14 @@ export function computeCellStates(parsedResult, existingOverrides) {
             overrideMap.set(key, o);
         }
     }
+    // Every OTHER manual record of a day (whole-app review, Oct 2026). A pre-v24.48 duplicate the
+    // winner outranks still outranks an import, so a write that replaced only the winner left it to
+    // resurface over the new roster: "Use new roster" did not take. The save deletes these too.
+    /** @param {string} key @returns {string[]} */
+    const otherManualIds = (key) => existingOverrides
+        .filter(o => `${o.memberName}|${o.date}` === key && (o.source || '') !== 'roster_import'
+            && o.id !== overrideMap.get(key)?.id)
+        .map(o => o.id);
 
     // The alignment verdict is taken ONCE, here, because `chosen` is decided here — it used to be
     // computed at render time under a banner while every change stayed ticked. Rules and reasoning:
@@ -166,6 +174,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     parsedShift, baseShift,
                     manualValue: existing?.value ?? null,
                     manualId:    existing?.id    ?? null,
+                    manualDupIds: otherManualIds(key),
                     manualType:  existing?.type  ?? null,
                     manualReplacedType: existing?.replacedType ?? null,
                     // Whether a MANUAL entry is at stake (v19.37). Picking a reading writes with
@@ -306,6 +315,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 manualType:  existing?.type  ?? null,
                 manualReplacedType: existing?.replacedType ?? null,
                 manualId:    existing?.id    ?? null,
+                manualDupIds: otherManualIds(key),
                 // FAIL CLOSED ON A SUSPECT ROW (v22.16): a member whose week looks a day out — or
                 // anyone at all once the breaker has tripped — starts UNTICKED, so the default
                 // action on a misread week stops being "save it".

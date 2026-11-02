@@ -7,11 +7,13 @@
  * previously copy-pasted into every page coordinator (and had drifted —
  * missing focus traps, missing initial focus on some pages).
  *
- * Owns: open/close lifecycle (via createLightbox), SW status refresh, bug link.
- * Does NOT own: the header logo / nav-drawer logo that opens it — each page
- *   wires its own trigger to the returned open() (pages differ: the calendar
- *   header logo opens About; sub-page header logos navigate back to the
- *   calendar and only the drawer logo opens About).
+ * Owns: open/close lifecycle (via createLightbox), SW status refresh, bug link,
+ *   and `wireHeaderLogo` — the sub-page header logo's back-to-calendar wiring.
+ * Does NOT own: the trigger that OPENS About — each page wires its drawer logo
+ *   to the returned `.open` (pages differ: the calendar header logo opens About;
+ *   sub-page header logos navigate back to the calendar and only the drawer logo
+ *   opens About). Store `.open`, never the returned object: Trains stored the
+ *   object and called it, so its About panel never opened (v24.71 → v25.06).
  *
  * @module about-lightbox
  */
@@ -108,4 +110,26 @@ export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 
     });
 
     return lb;
+}
+
+/**
+ * The sub-page header logo is a BACK-TO-CALENDAR control (v11.21 — About lives on the drawer logo).
+ *
+ * ONE copy, because the copies were the bug (whole-app review, Nov 2026): five pages each carried
+ * the same nine lines, and the two pages that arrived later — Trains and Overtime — shipped the
+ * `#appIcon` labelled "Back to calendar" with nobody wiring it, so tapping it did nothing. Idempotent
+ * (`data-wired`) because Overtime's start() re-runs on an in-place sign-in.
+ * @param {() => void} [onActivate] - What a tap does. Default: go to the app root. A page with
+ *   unsaved work passes its own confirm-then-go here, exactly as its other exits do.
+ */
+export function wireHeaderLogo(onActivate = () => { window.location.href = './'; }) {
+    const icon = document.getElementById('appIcon');
+    if (!icon || icon.dataset.wired) return;
+    icon.dataset.wired = '1';
+    icon.setAttribute('aria-label', 'Back to calendar');
+    // Keyboard-operable: the logo is an interactive control (it was a non-focusable <img>). v18.29.
+    icon.setAttribute('role', 'button');
+    icon.tabIndex = 0;
+    icon.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); icon.click(); } });
+    icon.addEventListener('click', () => onActivate());
 }

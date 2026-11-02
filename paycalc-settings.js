@@ -210,7 +210,8 @@ export function periodDefaultPension(p) {
  * so without the second, un-ticking left the member-level default at '0.00' behind a box reading
  * "in the scheme" — which a pay-data backup then carries to her next device (v21.77).
  *
- * @param {{ autosave: () => void }} deps  autosave is the coordinator's — it owns when to persist.
+ * @param {{ autosave: () => void }} deps  the coordinator's persist-and-reprice — it owns what is saved
+ *   (since Oct 2026, only the pension field, and only into a payslip that already has readable entries).
  */
 export function wirePensionControls({ autosave }) {
   const _viewed = () => getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());

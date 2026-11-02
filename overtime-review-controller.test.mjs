@@ -66,6 +66,8 @@ let detailFor = new Map();
 let painted = [];
 /** Answers `createOvertimeWindow` will give (preview, commit and top-up share it), in order. */
 let createQueue = [];
+/** When set, `withdrawOvertimeParticipant` returns what this gives — a promise the test resolves. */
+let withdrawHold = /** @type {null | (() => any)} */ (null);
 
 mock.module('./overtime-data.js', {
     namedExports: {
@@ -75,7 +77,7 @@ mock.module('./overtime-data.js', {
             const entry = detailFor.get(weekEnding);
             return typeof entry === 'function' ? entry() : (entry ?? { ok: false });
         },
-        withdrawOvertimeParticipant: async () => ({ ok: true }),
+        withdrawOvertimeParticipant: async () => (withdrawHold ? withdrawHold() : { ok: true }),
         createOvertimeWindow: async () => createQueue.shift() ?? { ok: true, data: { added: [] } },
     },
 });
@@ -155,6 +157,7 @@ beforeEach(() => {
     detailFor = new Map();
     painted = [];
     createQueue = [];
+    withdrawHold = null;
 });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -509,5 +512,69 @@ describe('a failure retries what failed, and a message never re-arms a create', 
         await painted.at(-1).opts.onAsk('P0', false);
         assert.match(dom.otConfirmText.innerHTML, /no longer being asked/);
         assert.equal(dom.otConfirmCreate.disabled, true);
+    });
+
+    test('nor a preview that LANDS while Stop asking is out (whole-app review, Nov 2026)', async () => {
+        // Stop asking is not a button a preview locks. A preview still preparing when it was
+        // pressed landed during that call and re-armed Create — and the message that followed
+        // replaced the preview's question with Create still live for the preview's week.
+        detailFor.set(A, detail(2, 1));
+        const create = fakeButton('data-create', '2026-09-26');
+        dom.otHorizonContent = { ...fakeEl('otHorizonContent'),
+            querySelectorAll: (/** @type {string} */ s) => (s === '[data-create]' ? [create] : []) };
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        await c.selectWeek(A);
+        /** @type {any} */ let landPreview;
+        createQueue = [new Promise(r => { landPreview = () => r({ ok: true,
+            data: { window: { ...WEEK_A, audience: 'restricted', expectedCount: 1 } } }); })];
+        /** @type {any} */ let landWithdraw;
+        withdrawHold = () => new Promise(r => { landWithdraw = () => r({ ok: true }); });
+        const previewing = create.press();
+        const asking = painted.at(-1).opts.onAsk('P0', false);
+        await settle();
+        landPreview(); await previewing;
+        assert.equal(dom.otConfirmCreate.disabled, false, 'premise: the preview armed Create when it landed');
+        landWithdraw(); await asking;
+        assert.match(dom.otConfirmText.innerHTML, /no longer being asked/);
+        assert.equal(dom.otConfirmCreate.disabled, true, 'Create is disarmed under the Stop-asking message');
+    });
+});
+
+describe('a create that fails under ANOTHER week\'s question disarms (48-hour review, Nov 2026)', () => {
+    // Commit does not lock the row buttons (only a preview does), so a reviewer can press Open now on
+    // week B while week A's create is out. B's question lands and arms Create for B; A's create then
+    // times out, and its message about A sat above a Create button armed for B — one press from
+    // creating B, and creating a week freezes its population.
+    function btn(/** @type {string} */ attr, /** @type {string|null} */ value) {
+        /** @type {Function[]} */ const on = [];
+        return { textContent: 'x', disabled: false, hidden: true, innerHTML: '', classList: { add() {}, remove() {} },
+            getAttribute: (/** @type {string} */ a) => (a === attr ? value : null), setAttribute() {},
+            addEventListener: (/** @type {string} */ _t, /** @type {Function} */ f) => on.push(f),
+            press: () => Promise.all(on.map(f => f())) };
+    }
+    test('the timeout message about A leaves Create disarmed, not armed for B', async () => {
+        const WA = '2026-09-26', WB = '2026-10-03';
+        const createA = btn('data-create', WA), createB = btn('data-create', WB);
+        dom.otHorizonContent = { ...fakeEl('otHorizonContent'),
+            querySelectorAll: (/** @type {string} */ s) => (s === '[data-create]' ? [createA, createB] : []) };
+        dom.otConfirmCreate = btn('x', null);
+        dom.otConfirmCancel = btn('x', null);
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        c.wireConfirmBar();
+        createQueue = [{ ok: true, data: { window: { ...WEEK_A, weekEnding: WA, audience: 'restricted', expectedCount: 1 } } }];
+        await createA.press();
+        /** @type {any} */ let landCommit;
+        createQueue = [new Promise(r => { landCommit = r; }),
+            { ok: true, data: { window: { ...WEEK_A, weekEnding: WB, audience: 'restricted', expectedCount: 1 } } }];
+        const committing = dom.otConfirmCreate.press();          // Create (A), held
+        await settle();
+        await createB.press();                                   // B's question lands meanwhile
+        assert.equal(dom.otConfirmCreate.disabled, false, 'premise: B\'s preview armed Create for B');
+        landCommit({ ok: false, code: 'timeout' });
+        await committing;
+        assert.match(dom.otConfirmText.innerHTML, /may still have been created/);
+        assert.equal(dom.otConfirmCreate.disabled, true, 'a message about A must not sit over a Create armed for B');
     });
 });

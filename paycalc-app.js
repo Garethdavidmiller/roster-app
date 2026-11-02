@@ -62,7 +62,7 @@ import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fdLong, fmt, decimalToHM, minutesFieldText } from './paycalc-format.js';
 import { initYearCard, renderYearCard } from './paycalc-year-card.js';
 import { numVal, numValOr, hhmmDec, clampMins, _decHintEl, decPreview, wireIosTap } from './paycalc-inputs.js';
-import { emptyPeriodData, readFormData, writeFormData } from './paycalc-form-data.js';
+import { emptyPeriodData, readFormData, writeFormData, settingFieldsWrite } from './paycalc-form-data.js';
 import { initTransferCard } from './paycalc-transfer-card.js';
 import { buildSummaryRows, buildBreakdownRows, buildActualCheck, buildActualComparison, buildProvChips } from './paycalc-breakdown.js';
 
@@ -591,8 +591,6 @@ export function init() {
       btn.classList.toggle('negative', _adjNegative);
     }
 
-    // isDataEmpty imported from paycalc-hpp.js
-
     function autosave() {
       const pNum = currentPeriodNum();   // SAVED before calculate() below: HPP + the year card read storage (whole-app review)
       const _autoP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
@@ -606,6 +604,12 @@ export function init() {
       } catch { /* storage unavailable */ }
       calculate();
     }
+    /** A SETTING changed: carry only `fields` into this payslip's readable saved entries, then re-price
+     *  (Oct 2026 — `autosave` saved the calendar's suggestion too; see `settingFieldsWrite`). @param {string[]} fields */
+    const persistSetting = (fields) => () => { const pNum = currentPeriodNum(), p = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
+      const w = settingFieldsWrite(lsGet(periodKey(pNum)), readFormData({ adjNegative: _adjNegative, periodDefaultPension: p ? periodDefaultPension(p) : null }), fields);
+      if (w) { try { lsSet(periodKey(pNum), w); updateSaveStatus(pNum); } catch { /* storage unavailable */ } }
+      calculate(); };
 
     /** @param {number} pNum */
     function loadPeriodData(pNum) {
@@ -1138,7 +1142,6 @@ export function init() {
     // "This tax year so far" moved to paycalc-year-card.js at v22.06 (the fill-year control
     // needed a home this coordinator's ratchet rightly had no room for — the render went WITH it).
 
-    // isDataEmpty, calcHPP, updatePriorHpp imported from paycalc-hpp.js.
     // _decodeHours, _varPayForPeriod are in paycalc-hpp.js but only imported by paycalc-backpay.js.
 
     // ── BACK PAY STATE WRAPPERS ───────────────────────────────────────────────────
@@ -1581,7 +1584,7 @@ export function init() {
         /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked = false;
       }
       saveSettings();
-      autosave(); // persists the cleared slSkip flag; autosave() calls calculate() internally
+      persistSetting(['slSkip'])();   // the cleared skip flag, and nothing else
     });
     // Loan-repaid cutover (v18.41) — a SETTING: persist + recompute so the viewed payslip's SL
     // reflects the new cutover immediately.
@@ -1594,7 +1597,7 @@ export function init() {
         /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked = false;
       }
       saveSettings();
-      autosave();
+      persistSetting(['slSkip'])();
     });
     // pensionAmt: save global default AND lock pension to current period immediately.
     // autosave() calls calculate() internally, so no separate calculate() call needed.
@@ -1603,7 +1606,7 @@ export function init() {
     // (v21.78) — the coordinator supplies only what it alone knows: this payslip's default, and
     // how to persist it. Keeping the wiring beside `buildPensionFromSelect`/`applyPensionOptOutUI`
     // is what stops the tick, the date and the field falling out of step with one another.
-    wirePensionControls({ autosave });
+    wirePensionControls({ autosave: persistSetting(['pension']) });
 
     // Per-period overrides
     /** @type {HTMLElement} */ (document.getElementById('slSkipCheck')).addEventListener('change', autosave);

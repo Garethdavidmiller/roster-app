@@ -104,6 +104,16 @@ describe('when to re-ask the server', () => {
         assert.equal(shouldResyncClock(D, null), false);
     });
 
+    test('a deadline that PASSED since the state on screen was read resyncs, however long ago', () => {
+        // Whole-app review, Nov 2026: a form opened at 11:50 and re-woken at 12:20 sat outside the
+        // ±5 minute window and went on saying "open". The question is whether a boundary was
+        // crossed since the read, not whether one is near now.
+        const read = D - 10 * 60_000;
+        assert.equal(shouldResyncClock(D + 20 * 60_000, [D], read), true, 'crossed while the page slept');
+        assert.equal(shouldResyncClock(D + 20 * 60_000, [D], D + 60_000), false, 'already read after it');
+        assert.equal(shouldResyncClock(D + 20 * 60_000, [D], null), false, 'no read time, the window alone');
+    });
+
     test('ANY nearby deadline triggers it, not just the first', () => {
         // A member can have two open weeks whose deadlines fall on the same Tuesday — one closing,
         // one opening. Checking only the earliest would leave the page stale for the other.
@@ -908,6 +918,21 @@ describe('how old a declaration is', () => {
         assert.equal(declaredAgo(daysBefore(0), NOW), 'today');
         assert.equal(declaredAgo(daysBefore(1), NOW), 'yesterday');
         assert.equal(declaredAgo(daysBefore(19), NOW), '19 days ago');
+    });
+
+    test('the words are CALENDAR days in London, not elapsed 24-hour blocks', () => {
+        // Whole-app review, Nov 2026. Counting blocks labelled them with calendar words, and every
+        // error ran toward FRESHER — the direction the header calls costly.
+        const at = (iso) => Date.parse(iso);
+        assert.equal(declaredAgo(at('2026-08-19T22:30:00Z'), at('2026-08-20T07:00:00Z')), 'yesterday',
+            '23:30 one evening, read at 08:00 the next morning — eight and a half hours, but yesterday');
+        assert.equal(declaredAgo(at('2026-08-18T22:00:00Z'), at('2026-08-20T07:00:00Z')), '2 days ago',
+            '23:00 on the 18th, read on the morning of the 20th — 33 hours, and two days back');
+        assert.equal(declaredAgo(at('2026-08-19T23:30:00Z'), at('2026-08-20T22:30:00Z')), 'today',
+            '00:30 and 23:30 on the same London day — 23 hours, and still today');
+        // The clocks go back at 02:00 on Sun 25 Oct 2026: 00:30 BST that morning and 23:30 GMT that
+        // night are one London day apart from nothing — 24 hours elapsed, the same date.
+        assert.equal(declaredAgo(at('2026-10-24T23:30:00Z'), at('2026-10-25T23:30:00Z')), 'today');
     });
 
     test('an age no real declaration can have is a corrupt timestamp, and renders nothing', () => {

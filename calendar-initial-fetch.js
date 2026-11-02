@@ -120,17 +120,11 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar, renderTeamVie
   const _grant = accessGeneration();   // a refusal from an earlier grant must not re-lock a newer one (v24.56)
 
   // Show "↻ Updating your shifts…" chip after 800 ms if Firestore hasn't responded yet.
+  // Through setChipState like every other chip state (v25.06): a hand-built chip was the one state a
+  // header rebuild could take away for good, and with it went the only label on a cached grid — the
+  // renderer withholds its own while this check runs, so a swipe left the grid saying nothing at all.
   const loadingTimer = setTimeout(() => {
-    const header = document.querySelector('.calendar-header');
-    if (header && !syncResolved) {
-      syncChip = document.createElement('button');
-      syncChip.type = 'button';
-      syncChip.className = 'sync-chip';
-      syncChip.textContent = '↻ Updating your shifts…';
-      syncChip.disabled = true;
-      header.appendChild(syncChip);
-      announceSync('Updating your shifts');
-    }
+    if (!syncResolved) setChipState({ text: '↻ Updating your shifts…', className: 'sync-chip', announce: 'Updating your shifts', disabled: true });
     if (calGrid) calGrid.classList.add('calendar-fetching');
   }, 800);
 

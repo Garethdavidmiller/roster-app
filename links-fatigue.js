@@ -342,15 +342,24 @@ export function earlyBlocksWithShortRecovery(seq) {
  * @param {Array<{shift:any}>} seq
  */
 export function maxHoursInAny7Days(seq) {
+    return Math.round((maxMinutesInAny7Days(seq) / 60) * 10) / 10;
+}
+
+/**
+ * The same rolling week in whole MINUTES. The 55-hour verdict is taken on this, never on the
+ * rounded hours: 55h 02m rounds to 55.0, and "more than 55" asked of 55.0 said no (whole-app review,
+ * Oct 2026).
+ * @param {Array<{shift:any}>} seq
+ */
+function maxMinutesInAny7Days(seq) {
     const n = seq.length;
-    if (!n) return 0;
     let best = 0;
     for (let i = 0; i < n; i++) {
         let mins = 0;
         for (let k = 0; k < 7; k++) mins += dutyMinutes(seq[(i + k) % n].shift) ?? 0;
         if (mins > best) best = mins;
     }
-    return Math.round((best / 60) * 10) / 10;
+    return best;
 }
 
 /**
@@ -514,11 +523,14 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     // the default, no duty anywhere is over twelve hours, and without it FF10 would report a run of
     // four made entirely of unknowns — a finding about nothing, on the row that exists to find
     // something.
-    const runs10 = runLengthsWhere(seq, s => (dutyMinutes(s) ?? 0) > 12 * 60, { requireMatch: true });
+    // A 12-HOUR shift is twelve hours or more (whole-app review, Oct 2026). It read "more than
+    // twelve", so a run of exactly-12h days — the commonest 12h duty there is — never fired.
+    const is12h = (/** @type {any} */ s) => (dutyMinutes(s) ?? 0) >= 12 * 60;
+    const runs10 = runLengthsWhere(seq, is12h, { requireMatch: true });
     const ff10 = runs10.length ? Math.max(...runs10) : 0;
     add({ code: 'FF10', family: 'Cumulative', title: 'More than 4 consecutive 12h day shifts',
         status: ff10 > 4 ? 'present' : 'clear', value: ff10, threshold: 4,
-        detail: _spareCaveat(ff10, longestRunOf(seq, s => (dutyMinutes(s) ?? 0) > 12 * 60), '12-hour day shifts') });
+        detail: _spareCaveat(ff10, longestRunOf(seq, is12h), '12-hour day shifts') });
 
     const runs15 = runLengthsWhere(seq, isEarlyStart, { requireMatch: true });
     const ff15 = runs15.length ? Math.max(...runs15) : 0;
@@ -530,9 +542,12 @@ export function assessFatigue(patterns, lines = ROTATING_LINES) {
     add({ code: 'MRSF', family: 'Cumulative', title: 'More than 12 consecutive day shifts',
         status: consec > 12 ? 'present' : 'clear', value: consec, threshold: 12 });
 
+    // The verdict is on the MINUTES. The figure shown keeps one decimal, and gains a second only
+    // where one decimal would read 55 beside a "present" — 55h 02m shows as 55.03, never as 55.
+    const mins7 = maxMinutesInAny7Days(seq), over55 = mins7 > 55 * 60;
     const hrs = maxHoursInAny7Days(seq);
     add({ code: 'MRSF', family: 'Cumulative', title: 'More than 55 hours worked in any 7-day period',
-        status: hrs > 55 ? 'present' : 'clear', value: hrs, threshold: 55,
+        status: over55 ? 'present' : 'clear', value: over55 && hrs <= 55 ? Math.round(mins7 / 0.6) / 100 : hrs, threshold: 55,
         detail: 'Spare days carry no times and count as zero hours, so this figure is a floor — the real total is higher.' });
 
     // ── THE TWO ROWS THAT WERE MISSING (v21.97) ─────────────────────────────

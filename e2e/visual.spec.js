@@ -417,7 +417,7 @@ test('links — auto-generator card, objectives on and off (desktop 1280)', asyn
     // and off look different, and a baseline showing five identical rows could not tell whether the
     // checked treatment still existed.
     await page.locator('#objWeekends').uncheck();
-    await page.locator('#objTurnarounds').uncheck();
+    await page.locator('#objLongWeekends').uncheck();
 
     // Sentinels before the capture — same reasoning as the workspace shot. The card opens on the
     // DESIGNED DEFAULT (v21.00), so a regression there would render a plausible but empty generator,
@@ -425,11 +425,12 @@ test('links — auto-generator card, objectives on and off (desktop 1280)', asyn
     // default's cover weeks since the 26-line link (v24.47 — it was four on 24 lines), and this
     // sentinel has caught every change of the figure on the regeneration run, which is exactly what
     // it is for: without it the new figure is baselined as a picture and nobody looks at the number.
-    // The objective COUNT is asserted for the same reason — the run cap made it six at v20.02.
+    // The objective COUNT is asserted for the same reason — the run cap made it six at v20.02, and
+    // rest across the week boundary leaving the checkboxes for the note made it five at v25.06.
     await expect(page.locator('#genSlotRows tr').first()).toBeVisible();
     await expect(page.locator('#genSpareLines')).toHaveValue('5');
-    await expect(page.locator('.gen-obj')).toHaveCount(6);
-    await expect(page.locator('.gen-obj:has(input:checked)')).toHaveCount(4);   // 6 total, 2 unchecked above
+    await expect(page.locator('.gen-obj')).toHaveCount(5);
+    await expect(page.locator('.gen-obj:has(input:checked)')).toHaveCount(3);   // 5 total, 2 unchecked above
 
     // THE CHECKED TREATMENT IS ASSERTED IN COMPUTED STYLE, NOT LEFT TO THE PIXELS — and that split
     // is deliberate, because the pixels genuinely cannot see it. `--bg-faint` is oklch(97%) against
@@ -513,8 +514,8 @@ test('links — auto-generator card at a narrow width (390)', async ({ page }) =
     await page.evaluate(() => document.getElementById('generatorBody')?.classList.add('open'));
     await page.locator('#objWeekends').uncheck();
 
-    await expect(page.locator('.gen-obj')).toHaveCount(6);   // the run cap joined at v20.02
-    await expect(page.locator('.gen-obj:has(input:checked)')).toHaveCount(5);
+    await expect(page.locator('.gen-obj')).toHaveCount(5);   // the run cap joined at v20.02; rest left for the note at v25.06
+    await expect(page.locator('.gen-obj:has(input:checked)')).toHaveCount(4);
 
     // The numeric clause's one-line contract is NOT asserted here, and the reason is the note above:
     // this project is fine-pointer, where the number box is 52×28 and the clause fits whatever you
@@ -1200,7 +1201,9 @@ test('overtime — the reviewer\'s by-day workspace (mobile 390)', async ({ page
     await seedSession(page, 'H. Croft');       // a MANAGER — the member form is not this surface
     const dates = Array.from({ length: 7 }, (_, i) =>
         new Date(Date.UTC(2026, 6, 26 + i)).toISOString().slice(0, 10));
-    const at = FIXED_TIME.getTime() - 36 * 3_600_000;   // "Said yesterday", a stable age line
+    // "yesterday": Tuesday 10:00, seen on Wednesday 10:00. Ages count LONDON CALENDAR DAYS since v25.06
+    // (O8), so the 36 hours this used to be — Monday night — honestly reads "2 days ago".
+    const at = FIXED_TIME.getTime() - 24 * 3_600_000;
     await page.addInitScript(([rows]) => {
         const w = /** @type {any} */ (window);
         w.__E2E = Object.assign(w.__E2E || {}, { authUser: true, docs: rows });

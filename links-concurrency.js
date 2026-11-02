@@ -123,7 +123,7 @@ export function baselineAfterCommit(revision) {
  * reads back as on this device. Without the revision there is nothing new to know, so it falls
  * through to `baselineAfterWrite`'s rules, unchanged.
  *
- * @param {{revision?: any, updatedAt?: any}|null|undefined} entry the design row being selected
+ * @param {{revision?: any, updatedAt?: any, savedAt?: any}|null|undefined} entry the design row being selected
  * @returns {{loadedRevision: number|null, loadedUpdatedAt: number|null, baselineUnknown: boolean}}
  */
 export function baselineFromEntry(entry) {
@@ -131,6 +131,11 @@ export function baselineFromEntry(entry) {
     if (typeof entry?.revision === 'number') {
         return { loadedRevision: entry.revision, loadedUpdatedAt: ts, baselineUnknown: false };
     }
+    // A QUEUED save leaves no revision and keeps the OLD server stamp (`recordSave` will not put a
+    // local clock into `updatedAt`), plus a display-only `savedAt`. That stamp describes the version
+    // before our write, so arming from it made our own write, once synced, read as a conflict on the
+    // next save after switching back (whole-app review, Oct 2026). Unknown — what the save itself set.
+    if (entry?.savedAt) return baselineAfterWrite(null);
     return baselineAfterWrite(ts);
 }
 

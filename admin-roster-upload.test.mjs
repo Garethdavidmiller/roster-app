@@ -187,6 +187,23 @@ describe('_saveOverrideBatches — stale-claim retry parity', () => {
         assert.equal(sets[0].data.value, '14:30-22:00');
     });
 
+    test('the older manual copies of a day are deleted with it — and not for a refused row (Oct 2026)', async () => {
+        await _saveOverrideBatches([
+            { memberName: 'G. Miller', date: MON, value: '06:30-14:30', baseShift: 'RD', replaceId: 'win', alsoDelete: ['dup1', 'dup2'] },
+            { memberName: 'G. Miller', date: SUN, value: '06:00-06:00', baseShift: 'RD', replaceId: 'w2', alsoDelete: ['dup3'] },
+        ], 'G. Miller');
+        assert.equal(_batchOps[0].filter(o => o.op === 'delete').length, 3, 'the winner and its two copies; the refused row touches nothing');
+    });
+
+    test('a chunk is built by OPERATIONS, so the copies cannot push a batch past 500', async () => {
+        const many = Array.from({ length: 200 }, () =>
+            ({ memberName: 'G. Miller', date: MON, value: '06:30-14:30', baseShift: 'RD', replaceId: 'w', alsoDelete: ['a', 'b'] }));
+        await _saveOverrideBatches(many, 'G. Miller');
+        assert.ok(_batchOps.length > 1, 'split');
+        for (const ops of _batchOps) assert.ok(ops.length <= 450, `a batch of ${ops.length} operations`);
+        assert.equal(_batchOps.flat().filter(o => o.op === 'set').length, 200, 'every row still written');
+    });
+
     test('a replaced doc\'s type survives into replacedType — swap evidence is not destroyed (v21.56)', async () => {
         // The import deletes the doc it replaces like every other write path, and it was the one
         // path not stamping what it destroyed: a re-import resolving a DIFF/CONFLICT over a
@@ -355,6 +372,19 @@ describe('computeCellStates — review state machine', () => {
     test('manual override differs from the PDF → CONFLICT', () => {
         const c = run(differ, [{ memberName: mname, date: WD, value: '23:00-06:00', type: 'shift', source: 'manual', id: 'm2' }]);
         assert.equal(c.state, 'CONFLICT');
+    });
+
+    // Whole-app review, Oct 2026: a pre-v24.48 duplicate manual record the winner outranks still
+    // outranks an import, so "Use new roster" replacing only the winner left it to resurface.
+    test('a CONFLICT carries the older manual copies of its day, and never the import or the winner', () => {
+        const c = run(differ, [
+            { memberName: mname, date: WD, value: '23:00-06:00', type: 'shift', source: 'manual', id: 'newer', createdAt: new Date(2000) },
+            { memberName: mname, date: WD, value: '22:00-06:00', type: 'shift', source: 'manual', id: 'older', createdAt: new Date(1000) },
+            { memberName: mname, date: WD, value: differ, type: 'shift', source: 'roster_import', id: 'imp', createdAt: new Date(500) },
+        ]);
+        assert.equal(c.state, 'CONFLICT');
+        assert.equal(c.manualId, 'newer');
+        assert.deepEqual(c.manualDupIds, ['older']);
     });
 
     test('stale roster_import, PDF now matches base → REMOVE_IMPORT (delete, write nothing)', () => {

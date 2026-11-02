@@ -22,13 +22,15 @@ let cooldown = false;
 mock.module('./calendar-swipe.js', { namedExports: { isSwipeCooldown: () => cooldown } });
 mock.module('./roster-data.js', { namedExports: { paydayForCutoff: () => null } });
 
-/** A calendar cell with exactly what the handler reads and writes. */
-function cell(/** @type {number} */ i, { otherMonth = false } = {}) {
+/** A calendar cell with exactly what the handler reads and writes. `stored`: a cell of the member's
+ *  stored roster painted in the lock slot before access is decided — not inside #calendarDisplay. */
+function cell(/** @type {number} */ i, { otherMonth = false, stored = false } = {}) {
     return {
         i,
         tabindex: '-1',
         dataset: /** @type {Record<string, string>} */ ({}),
         classList: { contains: (/** @type {string} */ c) => c === 'calendar-day' || (otherMonth && c === 'other-month') },
+        closest: (/** @type {string} */ sel) => (sel === '#calendarDisplay' && !stored ? {} : null),
         setAttribute(/** @type {string} */ k, /** @type {string} */ v) { if (k === 'tabindex') this.tabindex = v; },
         focus() { doc.activeElement = this; },
     };
@@ -123,5 +125,30 @@ describe('the handler only answers for a focused day of THIS month', () => {
     test('Enter on an ordinary day opens that day\'s panel', () => {
         press('Enter');
         assert.deepEqual(opened, [cells[10]]);
+    });
+});
+
+describe('the stored copy before the grant is READ, never used (whole-app review, Oct 2026)', () => {
+    // Since v24.59 the member's own stored roster can be painted in the lock slot with real day
+    // cells. PageUp/Down clicked the hidden month buttons and Enter opened a day panel behind the
+    // lock card; the arrows must still move, so a screen-reader user can read it.
+    beforeEach(() => {
+        cells = Array.from({ length: 30 }, (_, i) => cell(i, { stored: true }));
+        cells[10].tabindex = '0';
+        doc.activeElement = cells[10];
+    });
+
+    test('PageDown, PageUp and Enter do nothing, and leave the key to the page', () => {
+        assert.equal(press('PageDown'), false);
+        assert.equal(press('PageUp'), false);
+        assert.equal(press('Enter'), false);
+        assert.equal(press(' '), false);
+        assert.deepEqual(clicked, []);
+        assert.deepEqual(opened, []);
+    });
+
+    test('the arrows still move between its cells', () => {
+        assert.equal(press('ArrowRight'), true);
+        assert.equal(doc.activeElement, cells[11]);
     });
 });

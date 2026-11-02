@@ -20,7 +20,7 @@ import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoti
 import { openOptionSheet, readGroups } from './select-sheet.js';
 import { MAX_DESIGN_NAME, checkName, proposeCopyName } from './links-design-naming.js';
 import { createDesignHeader, proposeNewDesignName, lastSaveTime } from './links-design-header.js';
-import { initAboutLightbox } from './about-lightbox.js';
+import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './links-tips.js';
 import { registerServiceWorker, reloadForUpdate } from './sw-register.js';
@@ -1278,10 +1278,10 @@ export function init() {
         const cell = (/** @type {string} */ text, /** @type {string} */ extra = '', /** @type {string} */ title = '') =>
             `<td class="tot-cell${extra}"${title ? ` aria-label="${escapeHtml(title)}"` : ''}>${escapeHtml(text)}</td>`;
         if (!t || t.unfilled) return cell('—') + cell('—') + cell('—');
-        if (t.assumed) {
-            const h = hmFromHours(t.exSundayMinutes / 60);
+        if (t.assumed) {   // a timed Sunday overtime turn is real hours on top, and the footer counts it
+            const h = hmFromHours(t.exSundayMinutes / 60), all = hmFromHours(t.allMinutes / 60);
             const why = 'Cover week — counted as the contracted week; it carries no stored times';
-            return cell(h, ' tot-assumed', why) + cell(h, ' tot-assumed', why)
+            return cell(h, ' tot-assumed', why) + cell(all, ' tot-assumed', all === h ? why : 'Cover week — the contracted week, plus its Sunday overtime')
                 + cell('—', ' tot-assumed', 'A cover week does not record which days it works');
         }
         const flag = t.unreadable ? ' tot-uncertain' : '';
@@ -1531,10 +1531,13 @@ export function init() {
             const _genMsg = activeProposalId ? `A new design opens with the generated pattern. “${design?.name}” stays in the shortlist${dirty ? ' — your unsaved changes to it will be lost' : ''}.`
                 : _hasWork ? `This replaces all ${TOTAL_POS} lines of “${design?.name || 'this design'}” with the generated pattern. Any edits you have made will be lost.`
                 : `Apply the generated pattern to all ${TOTAL_POS} lines?`;
-            // Captured BEFORE the confirm opens: the dialog's lockBodyScroll puts the body in
-            // position:fixed, so a measurement taken after the await reads locked coordinates.
+            // Captured BEFORE the confirm opens, which settles only after its close fade and Back echo:
+            // the button's position (lockBodyScroll fixes the body, so a later read is locked), and
+            // whether Apply opens a NEW design — what the question SAID. A copy's first save landing
+            // meanwhile made the proposal a saved design, and the pattern went OVER it (48-hour review).
             const _btnEl = document.getElementById('genApplyBtn');
             const _btnViewTop = _btnEl?.getBoundingClientRect().top;
+            const _asNew = !design || !!activeProposalId;
             if (!await confirmDialog({
                 title: 'Apply pattern',
                 message: _genMsg,
@@ -1546,7 +1549,6 @@ export function init() {
             // respect to coverage — permuting rows cannot change how many people work shift X on day
             // D — so it can only ever trade the objectives against each other, and the status line
             // states what that trade actually was rather than leaving the designer to trust it.
-            //
             // AFTER the confirm, deliberately: the 2-opt sweep is ~150ms on a desktop and several
             // times that on the phones this is used from, and run before the dialog that is the
             // button sitting dead with nothing on screen to explain it.
@@ -1555,7 +1557,6 @@ export function init() {
             const _on = {
                 variety: _chk('objVariety'), maxRun: _chk('objMaxRun'), gentle: _chk('objGentle'),
                 weekends: _chk('objWeekends'), longWeekends: _chk('objLongWeekends'),
-                turnarounds: _chk('objTurnarounds'),
             };
             const _num = (/** @type {string} */ id, /** @type {number} */ dflt, min = 0) => Math.max(min, parseInt(
                 /** @type {HTMLInputElement|null} */ (document.getElementById(id))?.value ?? String(dflt), 10) || dflt);
@@ -1576,10 +1577,11 @@ export function init() {
             });
             const _final = _ord.changed ? applyOrder(generated, _ord.order) : generated;
 
-            if (!design || activeProposalId) {
+            if (_asNew || !design) {
                 // No active design yet (or a proposal open — it is not yours to overwrite) — an unsaved in-memory design
                 design = { id: null, name: '', patterns: _final, window: design?.window };   // named on its FIRST SAVE (links-design-header.js rule 3)
                 activeDesignId = null; activeProposalId = null; lsSet(ACTIVE_KEY, '');
+                activation++;   // a DIFFERENT design now: a first save in flight must not stamp its id on it (Oct 2026)
             } else {
                 design = { ...design, patterns: _final };
             }
@@ -1597,13 +1599,11 @@ export function init() {
             // above grows from a ~160px empty state to the full grid, ~1,500px inserted ABOVE the scroll
             // position, stranding the presser mid-grid with the button and its feedback off-screen.
             // Re-anchoring keeps them where they pressed, which also keeps the explore loop pressable.
-            //
             // TIMING IS THE WHOLE TRICK. The dialog's unlockBodyScroll ends in `window.scrollTo(0,
             // saved)` on transitionend (or the 500ms fallback) — AFTER this handler — and clobbers any
             // earlier adjustment; a scrollBy in the first frame after the lock lifts also no-ops. So
             // the loop VERIFIES rather than trusts: measure, shift, repeat until ≤1px residual, bounded
             // so a stuck lock cannot loop it forever and self-terminating so it never fights the user.
-            //
             // TWO BUDGETS, IN TIME (v21.83). One 120-frame budget was spent WAITING for the unlock on a
             // loaded CI runner (stranded 1112px) — and a budget Android is the same machine. Waiting
             // and working now have separate bounds. NOT DIRECTLY GUARDED: on an idle machine the unlock
@@ -2027,7 +2027,7 @@ export function init() {
                         pending = forced.conflict;
                         continue;
                     }
-                    landed(savingId, forced.baseline, forced.updatedAt);
+                    landed(savingId, forced.baseline, forced.updatedAt, forced.status === 'queued');
                     break;
                 }
             } else {
@@ -2072,6 +2072,7 @@ export function init() {
         getHeader: () => header,
     });
 
+    const binFailed = new Set();   // old-length designs whose move to the bin FAILED this visit — shown live
     /** A collection read → live designs, the bin, and the legacy singleton. One rule for both readers.
      *  A binned design keeps its patterns so a restore is a field-clearing merge (v19.41); every
      *  doc → object mapping is links-design-doc.js (v19.94). `binOld` is false for a CACHED read, which may not claim a move it cannot make.
@@ -2084,7 +2085,7 @@ export function init() {
             if (hasName && isDeleted(data)) binned.push(binEntryFromDoc(id, data));
             // A design drawn for the old link length goes to the bin (owner, 3 Oct 2026; rule: isPre26Design).
             // Shown there AT ONCE; the soft-delete write follows in the background (_binPre26).
-            else if (hasName && binOld && isPre26Design(data)) { binned.push(binEntryFrom(designFromDoc(id, data), currentUser)); toBin.push(id); }
+            else if (hasName && binOld && isPre26Design(data) && !binFailed.has(id)) { binned.push(binEntryFrom(designFromDoc(id, data), currentUser)); toBin.push(id); }
             else if (hasName) named.push(designFromDoc(id, data));
             else if (id === LEGACY_DOC_ID && data.patterns) legacyData = data;
         }
@@ -2102,18 +2103,24 @@ export function init() {
         renderDesignPicker(); library.renderBinList(); compare.renderCompare();
     }
 
-    /** Bin the old-length designs in the background, each re-checked in a transaction (store.binIfStill)
-     *  — never from a cached read, never queued offline. A restore or purge of one waits for its move
-     *  (the library's `trackBinMove`), or it would meet a design not yet deleted and blame a colleague. Said AT ONCE:
-     *  the empty state names them too, since on release day the list is often empty. @param {string[]} ids */
+    /** Bin the old-length designs in the background, each re-checked in a transaction (store.binIfStill) — never from
+     *  a cached read, never queued offline. A restore or purge of one waits for its move (`trackBinMove`), or it would
+     *  meet a design not yet deleted and blame a colleague. Said AT ONCE: on release day the list is often empty. @param {string[]} ids */
     function _binPre26(ids) {
         binnedOnLoad = ids.length;
         if (!ids.length) return;
-        _designActionStatus(`${ids.length} design${ids.length === 1 ? '' : 's'} drawn for the ${PREVIOUS_LINK_LENGTH}-line link ${ids.length === 1 ? 'is' : 'are'} in Recently deleted — restore from there if you still need ${ids.length === 1 ? 'it' : 'them'}.`, 'ok');
+        let failed = 0;
+        const say = () => _designActionStatus(binnedOnLoad
+            ? `${binnedOnLoad} design${binnedOnLoad === 1 ? '' : 's'} drawn for the ${PREVIOUS_LINK_LENGTH}-line link ${binnedOnLoad === 1 ? 'is' : 'are'} in Recently deleted — restore from there if you still need ${binnedOnLoad === 1 ? 'it' : 'them'}.`
+            : failed ? `${failed === 1 ? 'A design' : `${failed} designs`} drawn for the ${PREVIOUS_LINK_LENGTH}-line link could not be moved to Recently deleted, so ${failed === 1 ? 'it is' : 'they are'} still in your list.` : '', binnedOnLoad || !failed ? 'ok' : 'err');
+        say();
+        // Settled OUTSIDE the bin (48-hour review): stop claiming it; an empty page opens it, as a load would.
+        const backInList = () => { binnedOnLoad--; _refreshLists().then(() => { if (!design && !loadFailed) _activateDesign(designs[0]); say(); }); };
         for (const id of ids) {
             library.trackBinMove(id, store.binIfStill(id, currentUser, isPre26Design)
-                .then((/** @type {string} */ r) => { if (r === 'skipped') _refreshLists(); })   // restored or redrawn since: show it live
-                .catch((/** @type {any} */ err) => console.error('[Links] Binning an old-length design failed:', err)));
+                .then((/** @type {string} */ r) => { if (r === 'skipped') backInList(); })   // restored or redrawn since: show it live
+                // A FAILED move leaves it live on the server; in the bin, a Restore blamed a colleague (Oct 2026).
+                .catch((/** @type {any} */ err) => { console.error('[Links] Binning an old-length design failed:', err); binFailed.add(id); failed++; backInList(); }));
         }
     }
 
@@ -2134,11 +2141,11 @@ export function init() {
                 // Through the SHARED mapping (v19.94): it once skipped `normalisePatterns` and the
                 // `window` field, persisting legacy unpadded times for good. History: git log.
                 const migrated = designFromDoc('', { ...legacyData, name: 'Design 1' });
-                const { id: migratedId } = await store.create(docPayload(migrated, {
+                const { id: migratedId, baseline: migratedBase } = await store.create(docPayload(migrated, {
                     updatedBy: legacyData.updatedBy ?? currentUser,
                     updatedAt: legacyData.updatedAt ?? serverTimestamp(),
-                }));
-                named.push({ ...migrated, id: migratedId, updatedBy: legacyData.updatedBy || currentUser });
+                }));   // its revision too, or the first save met revision 1 holding none: a false conflict
+                named.push({ ...migrated, id: migratedId, updatedBy: legacyData.updatedBy || currentUser, revision: migratedBase.loadedRevision });
             }
 
             // Sort by name — getDocs returns (random) auto-ID order, which shuffles the picker.
@@ -2263,15 +2270,8 @@ export function init() {
             });
         }
 
-        // Header logo is a back-to-calendar button (About moved to the drawer logo).
-        const headerIcon = document.getElementById('appIcon');
-        if (!headerIcon) return;
-        headerIcon.setAttribute('aria-label', 'Back to calendar');
-        // Keyboard-operable: the logo is an interactive control (was a non-focusable <img>). v18.29.
-        headerIcon.setAttribute('role', 'button');
-        headerIcon.tabIndex = 0;
-        headerIcon.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); headerIcon.click(); } });
-        headerIcon.addEventListener('click', async () => {
+        // Header logo: back to the calendar, through the unsaved-changes question (about-lightbox.js).
+        wireHeaderLogo(async () => {
             if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Leave anyway?', confirmLabel: 'Leave' })) return;
             dirty = false;   // clear so beforeunload doesn't double-prompt
             window.location.href = './';

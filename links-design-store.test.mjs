@@ -772,3 +772,85 @@ describe('a queued write does not wait for a server that is not there', () => {
         assert.equal(/** @type {any} */ (res).queued, true);
     });
 });
+
+describe('offline: our own queued rename is not a colleague\'s save, and Replace still works', () => {
+    // Whole-app review, Oct 2026. Offline, a save consults the CACHE — and the cache showed our own
+    // queued rename on top of the last saver's name, so the save after an offline rename read as
+    // "S. Silva saved a different version". And the Replace that dialog offered ran a transaction,
+    // which cannot run without a server, so it failed every time it was offered offline.
+    const offlineDb = (/** @type {any} */ initial) => {
+        const db = makeDb({ initial, failTx: { code: 'unavailable', message: 'client is offline' } });
+        db.api.isOnline = () => false;
+        return db;
+    };
+    const mine = () => ({ name: 'mine', updatedBy: ME });
+    const save = (/** @type {any} */ store, extra = {}) => store.save({ id: ID, buildPayload: mine,
+        baseline: 1000, loadedRevision: 5, baselineUnknown: false, currentUser: ME, ...extra });
+
+    test('a save after our own offline rename queues — nobody else saved anything', async () => {
+        const { api } = offlineDb({ name: 'A', updatedAt: ts(1000), updatedBy: THEM, revision: 5 });
+        const store = createDesignStore(api);
+        await store.rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 5 });
+        const res = await save(store);
+        assert.equal(res.status, 'queued', `the change in the cache was our own rename, not ${THEM}'s save`);
+    });
+
+    test('a colleague\'s save the cache held BEFORE our rename is still caught, and named', async () => {
+        // We loaded 5; S. Silva's 6 reached this device; then we renamed, offline.
+        const { api } = offlineDb({ name: 'A', updatedAt: ts(2000), updatedBy: THEM, revision: 6 });
+        const store = createDesignStore(api);
+        await store.rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 5 });
+        const res = await save(store);
+        assert.equal(res.status, 'conflict');
+        assert.equal(res.conflict?.by, THEM);
+    });
+
+    test('a colleague\'s save that synced UNDER our queued rename is still caught (48-hour review)', async () => {
+        // We loaded 5 and renamed offline. S. Silva saved 6 meanwhile, and our queued rename merged on
+        // top of it when it synced: her content, her stamp and name, OUR revision. A later read cached
+        // that, and we saved offline again. Matching on the revision alone took it for our own rename
+        // and queued an overwrite of her save with no question.
+        const db = offlineDb({ name: 'A', updatedAt: ts(1000), updatedBy: 'M. Robson', revision: 5 });
+        const store = createDesignStore(db.api);
+        await store.rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 5 });
+        const ours = db.writes.at(-1)?.payload.revision;
+        db.setStore({ name: 'B', updatedAt: ts(2000), updatedBy: THEM, revision: ours });
+        const res = await save(store);
+        assert.equal(res.status, 'conflict', 'her save sits under our revision — it is not our rename');
+        assert.equal(res.conflict?.by, THEM);
+    });
+
+    test('two offline renames in a row are both our own — the second sees through the first', async () => {
+        const { api } = offlineDb({ name: 'A', updatedAt: ts(1000), updatedBy: THEM, revision: 5 });
+        const store = createDesignStore(api);
+        await store.rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 5 });
+        await new Promise(r => setTimeout(r, 2));   // a distinct clock revision for the second
+        await store.rename({ id: ID, name: 'C', by: ME, preBaseline: 1000, preRevision: 5 });
+        const res = await save(store);
+        assert.equal(res.status, 'queued', `nobody but us has touched it — not ${THEM}`);
+    });
+
+    test('Replace, offline, queues against the version it was shown', async () => {
+        const { api, writes } = offlineDb({ name: 'A', updatedAt: ts(2000), updatedBy: THEM, revision: 6 });
+        const store = createDesignStore(api);
+        const res = await save(store);
+        assert.equal(res.status, 'conflict', 'premise: the cache holds a save we never took in');
+        const forced = await save(store, { forcing: true, forceAgainstRev: res.conflict.rev,
+            forceAgainstRevision: res.conflict.at?.toMillis?.() ?? null });
+        assert.equal(forced.status, 'queued', 'Replace offline failed every time — a transaction needs a server');
+        assert.equal(writes.at(-1)?.payload.name, 'mine');
+        assert.equal(forced.baseline?.baselineUnknown, true, 'nothing verified the server');
+    });
+
+    test('…and a cache that moved on from that version is a fresh conflict, never an overwrite', async () => {
+        const db = offlineDb({ name: 'A', updatedAt: ts(2000), updatedBy: THEM, revision: 6 });
+        const store = createDesignStore(db.api);
+        const res = await save(store);
+        db.setStore({ name: 'A2', updatedAt: ts(3000), updatedBy: 'M. Robson', revision: 7 });
+        const forced = await save(store, { forcing: true, forceAgainstRev: res.conflict.rev,
+            forceAgainstRevision: res.conflict.at?.toMillis?.() ?? null });
+        assert.equal(forced.status, 'conflict');
+        assert.equal(forced.conflict?.by, 'M. Robson');
+        assert.equal(db.writes.length, 0, 'nothing queued over a version nobody was asked about');
+    });
+});
