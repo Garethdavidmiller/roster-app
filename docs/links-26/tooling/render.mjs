@@ -418,7 +418,7 @@ export async function renderPdf(D, out) {
   <div class="foot"><span>Page 2 of 10 — How to read the numbers</span><span class="foot-id"><b>${esc(meta.identity.name)}</b> · ${esc(meta.identity.code)} · ${esc(meta.identity.fingerprint)} · Marylebone Roster — Links designer</span></div>
 </section>
 `;
-  let html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>${esc(meta.identity.name)} (${esc(meta.identity.code)}) — proposed CEA link, December 2026</title>
+  let html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>${esc(meta.identity.name)} (${esc(meta.identity.code)}) — proposed new CEA link, from 1 January 2027</title>
 <link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/links.css">
 <style>
 @page { size: A4; margin: 11mm; }   /* even all round: the bottom was 13mm and the footer rule sat 26mm up on a page whose content starts 11mm down */
@@ -512,7 +512,7 @@ pre.imp { font-size: 7.4px; line-height: 1.35; background: var(--surface-sunken)
 </style></head><body>
 
 <section class="page cover">
-  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer</div><h1>Proposed CEA Link — December 2026</h1>
+  <div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer</div><h1>Proposed New CEA Link</h1>
   <div class="sub">${meta.sub1 ?? (BB ? 'A 24-line link built from the December 2026 staffing rules and judged on the ORR fatigue factors — nothing carried over from today’s roster except the rules' : B2 ? 'The December 2026 timetable rules with no duty over 8h40 and the ticket office written in — two 14:00–22:30 turns a day Monday to Saturday, two 13:30–22:00 on a Sunday — judged on the ORR fatigue factors' : EF ? 'A 24-line link built from the December 2026 staffing rules with no duty over 8h40, judged on the ORR fatigue factors — nothing carried over from today’s roster except the rules' : PT ? (P2 ? 'The owner’s pinned turns of 25 September 2026 with every other time rewritten onto the quarter hour, each day fitted to the December 2026 timetable and proven the closest such fit' : 'Today’s roster, widened to 24 people, built to the owner’s pinned turns of 25 September 2026, the rest of each day fitted to the December 2026 timetable') : Q2 ? 'The existing 20-line link, widened to 24 people, with the closing turn at 15:45 and Saturday and Sunday rebuilt so that nothing runs over 8h40 — the same shape of week, one more cover cycle' : QT ? 'The existing 20-line link, widened to 24 people, with the closing turn starting at 15:45 — the same shape of week, one more cover cycle, and one turn a little longer to keep the contract' : 'The existing 20-line link, widened to 24 people — the same turns, the same shape of week, one more cover cycle')}</div>
   <div class="meta">${meta.metaLine ?? `${prepared} · built for the December 2026 timetable and assessed by the workspace's own rule modules (Marylebone Roster v${APP_VERSION}) · figures on this page are computed, not typed`}</div></div></div>
   <div class="ident"><div class="ident-main"><div class="ident-eyebrow">Proposal</div><div class="ident-name">${esc(meta.identity.name)}</div><div class="ident-strap">${esc(meta.identity.strap)}</div></div>

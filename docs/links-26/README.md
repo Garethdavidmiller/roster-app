@@ -1,6 +1,11 @@
-# Links — December 2026, 26 lines
+# Links — the new CEA link, 26 lines
 
-**From 1 Oct 2026 the December 2026 link is 26 lines, not 24.** Everything drawn for 24 lines is kept in `../links-24/` — the
+**The new link starts on 1 January 2027** (owner, 2 Nov 2026): the timetable changes in December, and the link follows.
+Until then this folder called it "the December 2026 link", and the dated sections below keep the name they were written
+with; *The new link starts on 1 January 2027* at the end says what changed. The "December 2026 rules" keep their name,
+because they are the new timetable's.
+
+**From 1 Oct 2026 the new link is 26 lines, not 24.** Everything drawn for 24 lines is kept in `../links-24/` — the
 grids unchanged, the sheets re-rendered once (2 Oct 2026, for the per-year weekends line) — both for reference and in case the 24-line link comes back. This folder is for the work from here on.
 
 The 24-line work is not wasted. The rules, the duty tables, the tooling and the designs all carry over. What has to
@@ -96,8 +101,8 @@ still be rebuilt.
 | 3 · sheets | `supplied.mjs` via `regenerate.mjs` | the eight-page sheet for a grid; add the design to `SUPPLIED` |
 | | `rules-sheet.mjs`, `summary-sheet.mjs`, `shortlist-sheet.mjs` | the rules reference (`../links-26-rules.pdf`), the one-page summary (`../links-26-summary.pdf`) and the two-page shortlist sheet (`../links-26-shortlist.pdf`) |
 | | `what-it-means-sheet.mjs` | the one-page "What it means if you…" sheet (`../links-26-what-it-means.pdf`). It lays out and prints `what-it-means-data.mjs`, which reads the colleague decks' slide 5 and its notes back, so it runs after `deck-polish.py` and before `pack.py` (step 4) |
-| | `what-it-means-data.mjs` | the sheet's figures and asserted sentences, split out of it unchanged (2 Nov 2026) so the app's December link page reads the same ones; imported, never run |
-| | `newlink-data.mjs` | writes the app's `newlink-data.js` — the December link page's figures, sentences and pack list — from `what-it-means-data.mjs`; `--check` is what `newlink-data.test.mjs` runs. After `what-it-means-sheet.mjs` (step 4) |
+| | `what-it-means-data.mjs` | the sheet's figures and asserted sentences, split out of it unchanged (2 Nov 2026) so the app's New link page reads the same ones; imported, never run |
+| | `newlink-data.mjs` | writes the app's `newlink-data.js` — the New link page's figures, sentences and pack list — from `what-it-means-data.mjs`; `--check` is what `newlink-data.test.mjs` runs. After `what-it-means-sheet.mjs` (step 4) |
 | 4 · decks and pack | `second-nature-decks.py` → `short-run-decks.py` (applying `second-edition-decks.py`'s edits), `in-step-decks.py`, `even-step-decks.py` → `deck-polish.py` (+ `rota-strip.mjs`); `deck-check.mjs`; `what-it-means-sheet.mjs`; `pack.py` | the presentations, built from a Second Nature template that is not shipped and then polished in place; the checker that reads every deck row back against the sheets; the one-page sheet that reads the decks' pay figures back; the zip, which refuses a sheet older than the decks |
 | league | `league.mjs` | the weighted league on the factors the sheets compare, long earlies and the closing shift among them since 31 Oct 2026 — not the block length, nor the shortlist sheet's early finishes and new Saturday times (`REF_IN_RANGE=1`; `DROP=fam`; `RUN_FIXED=1`; `WEIGHTS=` for other weights, such as the 24-line work's six-factor league; `OLD_READINGS=1` for the weighting before 31 Oct, kept as the alternative, with any of them) — the owner's weights, a judgement not a measurement (see *The league reweighted*) |
 | blocks | `blocks.mjs` | the longest block of earlies or lates on the fixed rota, and up to how long if the cover weeks beside it go the same way — the one source for that figure on every sheet, the shortlist, the summary and the decks |
@@ -2723,6 +2728,46 @@ changed here cannot reach the page unadapted. The sheet keeps its own wording.
 
 **Not built yet:** opening the page. It needs an audience role in `auth-policy.js` and a matching pill flag, which
 `page-contract-parity` moves together; until then `newlink-config.test.mjs` refuses any phase but `'preview'`.
+
+## The new link starts on 1 January 2027, and S. Silva is its contact (2 Nov 2026)
+
+The owner: *"Whilst the new timetable will start in December, the new cea link design will be from January 1st. Also,
+Sara Silva (S. Silva) is the primary contact for it not me."* Asked how far the pack should follow, the owner chose
+**"Fix the date and rename it"**: every sheet says the link starts on 1 January 2027, and the titles and footers call it
+the new CEA link instead of the December 2026 link. What stays is everything that belongs to the timetable: the nine
+December 2026 rules, the December trains the cover is measured against, and the December plan for the Sunday office.
+
+**The pack.**
+- **The 15 proposal sheets:** the masthead reads *Proposed New CEA Link*, and its line beneath *How this rota would
+  work from 1 January 2027, and how it compares with today's link* (`render.mjs`, `fresh.mjs`). The text of every page
+  was compared before and after: only those two lines and the Prepared date moved, and no fingerprint did.
+- **The summary:** *New CEA link proposals — at a glance*. **The shortlist and "What it means if you…":** their file
+  titles, which a PDF viewer shows; neither page named the link's date. **The rules sheet** is unchanged — it is the
+  timetable's rules, and was left as committed.
+- **The six decks** (`deck-polish.py` → `link_date`): every footer reads *new CEA link proposal*, and so does each file's
+  own title. The colleagues' cover reads *Our new link — what changes for you, in plain English*, above *A proposal for
+  discussion · CEA link from 1 January 2027 · …*; slide 3 keeps *A new timetable in December 2026* and now says *the new
+  link follows from 1 January 2027*; its notes say the timetable changes in December and the link starts on 1 January
+  2027. The managers' cover reads *The recommended new CEA link* (or *One of three shortlisted new CEA links*), with
+  *from 1 January 2027* on the line beneath, and the notes to slide 9, which keep the dates, gain the start date. The
+  polish counts every replacement and refuses a deck that still names the December 2026 link anywhere.
+- **The read-me:** *NEW CEA LINK PROPOSALS*, and *Marylebone CEA link from 1 January 2027*. The rule of 1 Nov — no date
+  for when the 26 lines were set, which is office detail — is kept; the start date is the one a reader needs.
+- **Checked:** `deck-check.mjs` reads 162 rows back and all agree; the only text that moved in any deck is the above
+  (each deck's text compared before and after); the covers, slide 3 and the footer band of every slide of one deck of
+  each kind were looked at as pictures. The first cover line for the managers' decks that are not the
+  recommendation, *… · Even Step is the recommended design*, wrapped its last word onto a line of its own once the date
+  was in, so it reads *… · Even Step is recommended*.
+
+**The contact.** Nothing in the pack names a contact, so nothing there changes. The app's page (below) names S. Silva.
+
+**The app (v25.10).** The page is renamed *New link* — the nav pill, title, badge and heading — and says the new link
+starts on 1 January 2027, with the timetable first, in December. *Have your say* tells colleagues to talk to S. Silva or
+their manager, and the page's last line names her as the contact (`newlink-config.js`: `STARTS`, `CONTACT`). The Links
+page's 219-day row gave its basis as *Chiltern December 2026 link rules*; it now reads *Chiltern rules for the new link*.
+
+**The plan's dates.** `../LINKS_DEC2026_PLAN.md` counts back from the timetable, so its deadlines are about three weeks
+earlier than the link itself needs; it says so, and keeps them.
 
 ## Notes for the whole set
 

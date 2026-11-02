@@ -121,9 +121,11 @@ decks = (', '.join(with_decks[:-1]) + ' and ' + with_decks[-1]) if len(with_deck
 # starts a line of its own, so no wrap splits a name.
 names_in = {n for n, _, _ in proposals}
 readme = '\n'.join([
-    'DECEMBER 2026 LINK PROPOSALS - 26 LINES',
-    '=' * len('DECEMBER 2026 LINK PROPOSALS - 26 LINES'),
-    'Marylebone CEA link, December 2026 timetable - 26 weeks',   # no date: office detail (owner, of slide 9's)
+    'NEW CEA LINK PROPOSALS - 26 LINES',
+    '=' * len('NEW CEA LINK PROPOSALS - 26 LINES'),
+    # The START date is said; the date the 26 lines were set is not (office detail, owner, of slide 9's). The link starts on
+    # 1 January 2027, after the timetable changes in December (owner, 2 Nov 2026), and was "December 2026" here until then.
+    'Marylebone CEA link from 1 January 2027 - 26 weeks',
     '',
     'THE RECOMMENDATION',
     para(f'{RECOMMENDED}. {WORDS[len(proposals)].capitalize()} candidate links were drawn up and {WORDS[len(SHORTLIST)]} '

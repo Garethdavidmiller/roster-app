@@ -170,7 +170,7 @@ export const LIMIT_CLAIM = POLICY_SOURCE_CONFIRMED
 export const CONTRACTED_DAYS_CEILING = 219;
 
 /** Where the ceiling comes from — the link's own written rules, not yet a company policy document. */
-const CEILING_BASIS = `Chiltern December 2026 link rules (${ROTATING_LINES} lines, Oct 2026) — company policy source outstanding`;
+const CEILING_BASIS = `Chiltern rules for the new link (${ROTATING_LINES} lines, Oct 2026) — company policy source outstanding`;
 
 /**
  * Contracted days a year for a design: Monday-to-Saturday timed duties plus four days per cover

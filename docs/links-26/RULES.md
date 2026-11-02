@@ -1,4 +1,4 @@
-# The rules — December 2026 link, 26 lines
+# The rules — the new CEA link, 26 lines
 
 **Set by the owner on 1 Oct 2026.** This is the one list every 26-line design is judged against. It is the 24-line
 rule set (`../links-24/links-24-rules.pdf`, built by `../links-24/tooling/rules-sheet.mjs`) with **five

@@ -1,4 +1,4 @@
-// WHAT IT MEANS IF YOU… — THE FIGURES (2 Nov 2026). The one-page sheet's data, and the December link page's: the sheet
+// WHAT IT MEANS IF YOU… — THE FIGURES (2 Nov 2026). The one-page sheet's data, and the New link page's: the sheet
 // (what-it-means-sheet.mjs) prints it, and newlink-data.mjs writes it into the app's newlink-data.js, so the page staff read
 // and the page they are handed cannot say different things. Split out of the sheet unchanged — the sheet's HTML was
 // byte-identical before and after — when the app page was built (owner, 2 Nov 2026: "Do 0 and 1").

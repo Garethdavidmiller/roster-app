@@ -3,7 +3,7 @@
 // roster today, each answered with the figures, today against the three shortlisted links, and then what every one of them
 // gains whichever they are.
 //
-// THE FIGURES ARE what-it-means-data.mjs (since 2 Nov 2026), which the December link page's generator reads too; this file
+// THE FIGURES ARE what-it-means-data.mjs (since 2 Nov 2026), which the New link page's generator reads too; this file
 // only lays them out and prints them. What every figure is, where it comes from and what the pay assumes: that file's header.
 // Run it AFTER deck-polish.py, which writes the decks the data module reads back, and BEFORE pack.py.
 //
@@ -22,7 +22,7 @@ const cell = (r, i) => isBest(r, i) ? `<b class="best">${r.cells[i].text}</b>` :
 const body = GROUPS.map(g => `<tbody><tr class="band"><td colspan="5"><span class="who">${g.who}</span><span class="gist">${esc(g.gist)}</span></td></tr>
 ${g.rows.map(r => `<tr class="r"><td>${esc(r.label)}${r.note ? `<span class="nt">${esc(r.note)}</span>` : ''}</td>${r.cells.map((_, i) => `<td class="num${i === 0 ? ' today' : ''}">${cell(r, i)}</td>`).join('')}</tr>`).join('\n')}</tbody>`).join('\n');
 
-const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>What it means if you… — December 2026 link shortlist</title>
+const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>What it means if you… — the new CEA link shortlist</title>
 <link rel="stylesheet" href="${ROOT}/shared.css">
 <style>
 @page { size: A4; margin: 11mm 11mm 13mm; }

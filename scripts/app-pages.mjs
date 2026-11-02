@@ -68,7 +68,7 @@ export const APP_PAGES = Object.freeze([
     app('links.html', 'links'),
     app('overtime.html', 'overtime'),
     app('trains.html', 'trains'),
-    // The December link: the three shortlisted proposals, for the colleagues who will work the new link. An admin
+    // The new link (the December link until v25.10): the three shortlisted proposals, for the colleagues who will work the new link. An admin
     // preview since v25.06 (newlink-config.js → PHASE).
     app('newlink.html', 'newlink'),
 ]);

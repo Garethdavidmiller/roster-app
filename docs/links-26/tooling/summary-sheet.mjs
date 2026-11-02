@@ -55,7 +55,7 @@ const tr = (r, cls='') => `<tr class="${cls}"><td class="n"><b>${r.name}</b><spa
 // headings) and footnotes in two columns. The figures and the order are unchanged.
 const ROOT = new URL('../../../', import.meta.url).href.replace(/\/$/, '');
 const PREPARED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>December 2026 link proposals — at a glance</title>
+const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>New CEA link proposals — at a glance</title>
 <link rel="stylesheet" href="${ROOT}/shared.css"><style>
 @page{size:A4 landscape;margin:8mm 10mm}
 html, body{background:white !important;padding:0 !important;margin:0}
@@ -81,7 +81,7 @@ td.good .wv { color: var(--text-mid); font-weight: 400; }
 .foot { text-wrap: pretty; }
 .pfoot{margin-top:6px;padding-top:4px;border-top:1px solid var(--border-light);color:var(--text-light);font-size:8pt;display:flex;justify-content:space-between} .pfoot b{color:var(--primary-blue)}
 </style></head><body>
-<div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · At a glance</div><h1>December 2026 link proposals — at a glance</h1>
+<div class="mast"><img src="${ROOT}/icon-192.png" alt=""><div><div class="eyebrow">Marylebone Roster · Links designer · At a glance</div><h1>New CEA link proposals — at a glance</h1>
 <div class="sub">${rows.length === 1 ? 'The one proposal' : `All ${rows.length} proposals`} against today’s link — the ${['no', 'one', 'two', 'three', 'four', 'five', 'six'][SHORTLIST.length] ?? SHORTLIST.length} shortlisted ones marked ★, ${RECOMMENDED} recommended — sorted by December rules met, then avoidable fatigue warnings, then by name; a proposal that breaks a hard limit cannot be run as it stands and comes last. Every figure is worked out from the rota, by the Marylebone Roster app’s own checks and the tooling beside them. Staffing levels and Sunday cover confirmed verbally (29 Sep 2026); the ${LINES}-line link, ${COVER_WEEKS} cover weeks and a ceiling of ${DAYS_CEILING} contracted days a year set on 1 Oct 2026.</div>
 <div class="meta">Prepared ${PREPARED} · every figure is computed from the rotas</div></div></div>
 <table><thead><tr><th>Proposal · code</th><th>December rules met</th><th>Avoidable fatigue warnings§</th><th>Most days in a row§</th><th>Full weekends off</th><th>Shortest fixed-duty rest</th><th>Shift times</th><th>Days a year*</th><th>Heaviest week, <span style="white-space:nowrap">Mon–Sat</span></th><th>Weeks on one turn</th><th>Weeks mixing earlies and lates</th><th>Week-to-week change of start</th><th>Finishes 23:00+ a year†</th></tr></thead><tbody>
