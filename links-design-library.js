@@ -22,6 +22,11 @@
  * (links-design-store.js), and every rule through its own module (links-import.js,
  * links-deletion.js, links-design-naming.js) — this file is the panels.
  *
+ * And since v25.09 "KEEP ONLY THE SHORTLIST" — the admin's one-off move of every older saved design
+ * to the bin, leaving the built-in, read-only shortlist as the options. Collection management, with
+ * its ··· More row wired here like the bin's, so the coordinator lends it one hook and nothing else.
+ * Its rules are links-shortlist.js; each move is the store's `binIfStill`.
+ *
  * ── WHAT STAYS IN links-app.js, AND WHY ────────────────────────────────────────────────────────
  *
  * Rename, duplicate and delete. Each one changes the OPEN design's concurrency baseline
@@ -29,12 +34,13 @@
  * the editor's state — the reverse of the boundary this draws.
  */
 
-import { escapeHtml } from './roster-data.js';
+import { CONFIG, escapeHtml } from './roster-data.js';
 import { serverTimestamp } from './firebase-client.js';
 import { createLightbox, confirmDialog } from './overlay.js';
 import { checkName } from './links-design-naming.js';
 import { ROTATING_LINES } from './links-design.js';
-import { docPayload, restoredEntryFrom, binEntryFromDoc } from './links-design-doc.js';
+import { docPayload, restoredEntryFrom, binEntryFromDoc, binEntryFrom } from './links-design-doc.js';
+import { isOlderDesign, olderDesigns, canKeepOnlyShortlist, keepOnlyShortlistMessage, keptOnlyShortlistLine } from './links-shortlist.js';
 import { parseDesignImport, summariseImport } from './links-import.js';
 import { deletedLabel } from './links-deletion.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
@@ -52,6 +58,8 @@ import { unconfirmedWriteLine } from './claim-retry.js';
  * @property {() => Promise<void>} refreshLists  re-read both lists from the server
  * @property {(msg: string, kind?: 'ok'|'err') => void} actionStatus  the workspace's status line
  * @property {() => any} getHeader           the masthead, once built (the bin opens from its ··· sheet)
+ * @property {(ids: Set<string>) => void} removeDesigns  drop these from the live list; if one was open,
+ *   open the next live design, else the first of the shortlist (Keep only the shortlist)
  */
 
 /**
@@ -366,12 +374,59 @@ export function createDesignLibrary(ctx) {
         document.getElementById('linksImportText')?.addEventListener('input', _importReset);
     }
 
+    // ── Keep only the shortlist (v25.09) ─────────────────────────────────────────────────────────
+    //
+    // The admin's, while anything older is left. The RULES are links-shortlist.js — what counts as
+    // older, and why this is a press and not a move on page open. What is here is the press: the
+    // dialog that names every design that will move and who last saved it, BEFORE anything is
+    // written, then one `binIfStill` per design — which asks the rule again inside its transaction, so
+    // a design a colleague saved since the dialog opened is spared — and then the list moving in
+    // memory exactly as those transactions moved it, as a delete already does.
+
+    const isAdmin = CONFIG.ADMIN_NAMES.includes(ctx.currentUser);
+    let keeping = false;   // a press in flight: a second would list designs already on their way
+    const keepOffered = () => !keeping && canKeepOnlyShortlist({ isAdmin, designs: ctx.getDesigns() });
+
+    async function keepOnlyShortlist() {
+        if (!keepOffered()) return;
+        const older = olderDesigns(ctx.getDesigns());
+        if (!await confirmDialog({
+            title: 'Keep only the shortlist',
+            message: keepOnlyShortlistMessage(older, { currentUser: ctx.currentUser, dirty: ctx.isDirty() }),
+            confirmLabel: 'Move them',
+            danger: true,
+        })) return;
+        keeping = true;
+        try {
+            const results = await Promise.allSettled(older.map(d => ctx.store.binIfStill(d.id, ctx.currentUser, isOlderDesign)));
+            const moved = new Set(older.filter((_, i) => results[i].status === 'fulfilled' && /** @type {any} */ (results[i]).value === 'moved').map(d => d.id));
+            const failed = results.filter(r => r.status === 'rejected');
+            for (const r of failed) console.error('[Links] Keep only the shortlist: a move failed:', /** @type {PromiseRejectedResult} */ (r).reason);
+            for (const d of older) if (moved.has(d.id)) bin.unshift(binEntryFrom(d, ctx.currentUser));
+            if (moved.size) ctx.removeDesigns(moved);
+            // A design the transaction SKIPPED was saved, binned or removed by somebody else meanwhile;
+            // the server knows which, so ask it rather than guess.
+            if (moved.size + failed.length < older.length) await ctx.refreshLists();
+            ctx.actionStatus(keptOnlyShortlistLine(moved.size, failed.length), failed.length ? 'err' : 'ok');
+        } finally {
+            keeping = false;
+        }
+    }
+
+    // The row lives in the ··· More sheet and is wired HERE, like the bin's: shown whenever the sheet
+    // opens and something older is left, and run through the masthead's `viaSheet`, so the sheet has
+    // faded before the dialog arrives.
+    const keepRow = document.getElementById('keepShortlistBtn');
+    document.getElementById('designMoreBtn')?.addEventListener('click', () => { if (keepRow) keepRow.style.display = keepOffered() ? '' : 'none'; });
+    keepRow?.addEventListener('click', () => { const h = ctx.getHeader(); if (h) h.viaSheet(keepOnlyShortlist); else keepOnlyShortlist(); });
+
     initDesignBin();
     initDesignImport();
 
     return {
         openImport,
         renderBinList,
+        keepOnlyShortlist,
         /** @returns {any[]} the bin, newest first */
         binList: () => bin,
         /** Replace the bin wholesale — a fresh read of the collection. @param {any[]} list */

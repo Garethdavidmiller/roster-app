@@ -698,10 +698,12 @@ describe('the station card, the lookup and the totals as a member reads them (v2
         assert.match(look('SX', '10:36', true), /Until 12 December this was the 10:36 to Banbury\./);
         assert.match(look('SX', '10:36', true), /<h3 class="tr-near-head">Until 12 Dec<\/h3>/);
     });
-    test('the totals count one real day of each kind, each kept on one line', () => {
+    test('the totals count one real day of each kind, a cell each under one label', () => {
         const html = renderTotals(TIMETABLES);
-        assert.match(html, /<span class="tr-total">weekdays 145 → <strong>158<\/strong> <span class="tr-delta tr-delta--up">\+13<\/span><\/span>/);
-        assert.match(html, /<span class="tr-total">Sundays 91 → <strong>94<\/strong>/);
+        assert.match(html, /<p class="field-eyebrow tr-totals-h">Trains a day leaving Marylebone<\/p>/);
+        assert.match(html, /<li class="tr-total"><span class="tr-total-day">Weekdays<\/span> <span class="tr-total-n">145 → <strong>158<\/strong><\/span> <span class="tr-delta tr-delta--up">\+13<\/span><\/li>/);
+        assert.match(html, /<span class="tr-total-day">Sundays<\/span> <span class="tr-total-n">91 → <strong>94<\/strong>/);
+        assert.equal((html.match(/<li class="tr-total">/g) ?? []).length, 3, 'weekdays, Saturdays and Sundays');
     });
 });
 

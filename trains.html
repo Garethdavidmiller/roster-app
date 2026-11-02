@@ -111,6 +111,9 @@
             <!-- Three short lines, then the trains. A paragraph about the page, a totals table and two rows
                  of controls once stood between a reader and the first answer (v24.72–v24.77). -->
             <div class="card-body tr-overview">
+                <!-- Two columns on a wide screen, each its own stack (the 2 Nov 2026 polish): as one grid of shared
+                     rows, the totals' height opened a gap between the two paragraphs beside them. -->
+                <div class="tr-ov-main">
                 <!-- Worded by trains-app.js from the date (timetablePhase): "Today's…" before the change, "The
                      timetable that ran until…" after it. This text is what shows before the script runs. -->
                 <p class="card-explainer" id="trLead">Today’s timetable beside the new one that starts on Sunday 13 December. Both
@@ -123,9 +126,12 @@
                 <p class="card-explainer tr-note" id="trFestive" hidden><strong>Christmas and New Year are not on
                     this page.</strong> Chiltern is changing times again between 13&nbsp;December and 10&nbsp;January, with big
                     changes over the holidays.</p>
+                </div>
+                <div class="tr-ov-side">
                 <p class="card-explainer tr-note" id="trPartial" hidden>Where December’s trains stop is not published yet,
                     so each train is compared by where it ends. Through stations fill in when it is.</p>
-                <p class="tr-totals" id="trTotals"></p>
+                <div class="tr-totals" id="trTotals"></div>
+                </div>
             </div>
         </div>
     </div>
@@ -143,10 +149,12 @@
             <button type="button" class="tr-tab" data-view="grid" aria-pressed="false"><span class="tr-tab-icon" aria-hidden="true">🕰️</span>Where they stop</button>
         </div>
         <!-- The day row says what it is: without the label, three more pills under three pills read as
-             a second row of views (v24.92). The group's aria-label already names it for a screen reader. -->
+             a second row of views (v24.92). The group's aria-label already names it for a screen reader.
+             The label sits INSIDE the white track (2 Nov 2026 polish): beside it, on the navy, it pushed the
+             track 40px in from the left edge every other block on the page shares. -->
         <div class="tr-day-row">
-            <span class="tr-seg-label" aria-hidden="true">Day</span>
             <div class="tr-tabs tr-tabs--seg" role="group" aria-label="Day">
+                <span class="tr-seg-label" aria-hidden="true">Day</span>
                 <button type="button" class="tr-tab" data-day="SX" aria-pressed="true">Weekdays</button>
                 <button type="button" class="tr-tab" data-day="SO" aria-pressed="false">Saturdays</button>
                 <button type="button" class="tr-tab" data-day="SU" aria-pressed="false">Sundays</button>

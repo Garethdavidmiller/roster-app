@@ -132,7 +132,13 @@ const CAPS = {
     // The ceiling comes down with it rather than being banked as headroom — the v21.87 reasoning
     // above — so the raise of ten lines survives on its merits and the saving of seventy-six is
     // not quietly spent.
-    'links-app.js':            2370,   // ← v24.51: import + bin to links-design-library.js (was 2650). The next Links rule goes in a domain module
+    // 2370 → 2372 at v25.09, a RAISE, said so. The file stood at exactly its cap, so "Keep only the
+    // shortlist" could not add a single line here — and it did what the note below asks: the RULES
+    // went into links-shortlist.js and the press, with its ··· More row, into links-design-library.js
+    // beside import and the bin. What is left is the one hook the press needs from the coordinator,
+    // because only the coordinator owns the live list and the open design. The cap is the measured
+    // size, so the next addition is a raise too.
+    'links-app.js':            2372,   // ← v24.51: import + bin to links-design-library.js (was 2650). The next Links rule goes in a domain module
     // 2600 → 2650 at v23.33, and the reason is the ZERO-HEADROOM state this suite's own header
     // calls out: the file stood at exactly 2,600 of 2,600, so ANY one-line fix to the Links
     // coordinator failed here — a guard that fires on a bug fix teaches people to raise the cap

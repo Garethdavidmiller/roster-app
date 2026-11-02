@@ -96,6 +96,7 @@ the whole of v20. A number written beside the list it describes is a second copy
 | `links-generator-targets.js` | the numbers the generator runs against, where they came from, and what may replace them |
 | `links-default-targets.js` | the table the generator STARTS from — since v24.47 the duty table of Second Edition, which the shortlisted Short Run shares exactly; not measured from today's roster |
 | `links-proposals.js` | the SHORTLISTED 26-line designs, built in as read-only proposals (v24.47; Even Step, In Step and Short Run since v25.04) — a proposal id never reaches Firestore |
+| `links-shortlist.js` | "Keep only the shortlist" (v25.09) — the admin's one press that moves every design saved before 2 Nov 2026 to the bin; the built-in shortlist stays read-only |
 | `links-tips.js` | `CARD_TIPS` for the page's `?` panels (pure data) |
 
 > **Three of those rows were missing until v21.63**, and two of them own numbered invariants in the
@@ -1367,6 +1368,16 @@ judged against are `docs/links-26/RULES.md`. Three things came with the length:
   and creates a design. Compare offers them; a workspace with nothing saved keeps its empty state, which
   offers "Open a shortlisted proposal" (nothing is opened for you);
   Generate while one is open builds a NEW unsaved design rather than overwriting it.
+- **The older saved designs can be cleared away (v25.09, owner, 2 Nov 2026: "Put the new shortlist
+  proposals as the saved options in the links designer. Remove the older ones" — then, of a first
+  version that saved the three as editable designs: "The shortlist should be read only").** The ···
+  More sheet offers the admin "Keep only the shortlist": every design last saved before 2 Nov 2026
+  (`OLDER_BEFORE`) moves to Recently deleted, each through `binIfStill` with the rule asked again in
+  its transaction, after a dialog that lists each one and who last saved it. **The shortlist is not
+  touched** — it stays built in and read-only. The row goes by itself once nothing older is left.
+  **Why a press and not a move on page open, as the 24-line designs had** — "older" is every saved
+  design, whoever saved it; only the admin can see which those are; and a move on open would act on
+  every load that meets an old design, the test suite included. The reasoning is `links-shortlist.js`.
 - **Designs drawn for 24 lines go to Recently deleted** (owner decision, 3 Oct 2026 — this replaces
   the v19.98 rule of leaving an old-length design live). `isPre26Design` in `links-design-doc.js`
   needs ALL THREE: last saved before `LINK_26_FROM` (the START of 3 Oct 2026 UTC — the end would

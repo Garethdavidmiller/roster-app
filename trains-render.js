@@ -310,18 +310,21 @@ export function renderGrid(nowGrid, decGrid, mode, stations, { focus = null, ban
 /** @typedef {import('./trains-change.js').TrainRow} TrainRow */
 
 /**
- * The overview's totals line: trains a day leaving Marylebone, one real day of each kind (a weekday's
- * is a Tuesday to Thursday's — trains-stations.js, `aRealDay`). Each day's figure is kept on one line.
+ * The overview's totals: trains a day leaving Marylebone, one real day of each kind (a weekday's is a
+ * Tuesday to Thursday's — trains-stations.js, `aRealDay`). A row a day under one label (the polish of
+ * 2 Nov 2026): as one run-on line the three days wrapped mid-sequence on a phone, a "+5 ·" stranded at
+ * a line's end. Each row reads, in order and as drawn, "Weekdays 145 → 158 +13".
  * @param {{ now: Record<string, { dep: TrainRow[] }>, dec: Record<string, { dep: TrainRow[] }> }} timetables
  * @returns {string}
  */
 export function renderTotals(timetables) {
-    const words = /** @type {Record<string, string>} */ ({ SX: 'weekdays', SO: 'Saturdays', SU: 'Sundays' });
-    return 'Trains a day leaving Marylebone: ' + ['SX', 'SO', 'SU'].map((d) => {
+    const words = /** @type {Record<string, string>} */ ({ SX: 'Weekdays', SO: 'Saturdays', SU: 'Sundays' });
+    const cells = ['SX', 'SO', 'SU'].map((d) => {
         const now = aRealDay(timetables.now[d].dep).length, dec = aRealDay(timetables.dec[d].dep).length;
         const delta = dec === now ? '' : ` <span class="tr-delta tr-delta--${dec > now ? 'up' : 'down'}">${dec > now ? '+' : '−'}${Math.abs(dec - now)}</span>`;
-        return `<span class="tr-total">${words[d]} ${now} → <strong>${dec}</strong>${delta}</span>`;
-    }).join(' · ');
+        return `<li class="tr-total"><span class="tr-total-day">${words[d]}</span> <span class="tr-total-n">${now} → <strong>${dec}</strong></span>${delta}</li>`;
+    }).join('');
+    return `<p class="field-eyebrow tr-totals-h">Trains a day leaving Marylebone</p><ul class="tr-totals-days">${cells}</ul>`;
 }
 
 /**

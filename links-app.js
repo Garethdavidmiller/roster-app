@@ -2070,6 +2070,8 @@ export function init() {
         refreshLists: _refreshLists,
         actionStatus: _designActionStatus,
         getHeader: () => header,
+        // "Keep only the shortlist" (v25.09, links-shortlist.js): the moved designs leave the live list; an open one gives way to the next, else to Even Step, read-only.
+        removeDesigns: (/** @type {Set<string>} */ ids) => { designs = designs.filter(d => !ids.has(d.id)); compare.resetCompare(); if (ids.has(activeDesignId)) _activateDesign(designs[0] ?? PROPOSAL_ENTRIES[0]); else renderDesignPicker(); },
     });
 
     const binFailed = new Set();   // old-length designs whose move to the bin FAILED this visit — shown live

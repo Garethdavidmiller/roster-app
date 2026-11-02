@@ -72,6 +72,7 @@
     <link rel="modulepreload" href="./links-design-naming.js">
     <link rel="modulepreload" href="./links-design-header.js">
     <link rel="modulepreload" href="./links-proposals.js">
+    <link rel="modulepreload" href="./links-shortlist.js">
     <link rel="modulepreload" href="./links-design.js">
     <link rel="modulepreload" href="./links-generator-targets.js">
     <link rel="modulepreload" href="./links-fatigue.js">
@@ -255,6 +256,12 @@
             <hr class="dm-menu-rule">
             <button class="dm-menu-btn" id="newDesignBtn" type="button"><span class="dm-menu-ic" aria-hidden="true">＋</span><span>New blank design</span></button>
             <button class="dm-menu-btn" id="importDesignBtn" type="button"><span class="dm-menu-ic" aria-hidden="true">⤓</span><span>Import from a spreadsheet</span></button>
+            <!-- "Keep only the shortlist" (v25.09, owner): the admin's, while any design saved before the
+                 shortlist was settled is left — it moves them all to Recently deleted, and the built-in
+                 shortlist stays read-only. Hidden by inline style, like the bin row below it, because
+                 `.dm-menu-btn` sets a display that out-specifies `[hidden]`; links-design-library.js
+                 shows it when the sheet opens. The reasoning: links-shortlist.js. -->
+            <button class="dm-menu-btn" id="keepShortlistBtn" type="button" style="display:none"><span class="dm-menu-ic" aria-hidden="true">★</span><span>Keep only the shortlist<small>Older saved designs move to Recently deleted</small></span></button>
             <button class="dm-menu-btn" id="designBinBtn" type="button" style="display:none"><span class="dm-menu-ic" aria-hidden="true">🗑</span><span>Recently deleted</span></button>
             <hr class="dm-menu-rule">
             <button class="dm-menu-btn dm-menu-btn--danger" id="designDeleteBtn" type="button"><span class="dm-menu-ic" aria-hidden="true">✕</span><span>Delete this design<small>Goes to Recently deleted, not gone for good</small></span></button>

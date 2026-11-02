@@ -34,6 +34,11 @@ body {
 }
 
 .app { max-width: var(--content-max-width); margin: 0 auto; }
+/* The desktop's two columns, ONE definition (the 2 Nov 2026 polish): the content's list-and-lookup
+   columns, the views-and-day row above them and the overview card's two halves all split here, so the
+   page's right-hand edge is one line from top to bottom. They were three splits — the card at half
+   width, the controls at half, the content at 420px — and three edges 110px apart. */
+.app { --tr-side: 420px; --tr-gap: 24px; }
 .app-header { margin-bottom: 4px; }
 @media (min-width: 768px) {
     .app-header { max-width: var(--content-max-width); margin-left: auto; margin-right: auto; }
@@ -58,18 +63,53 @@ body {
    No hero on the canvas (v24.72): every other page opens straight onto its cards,
    and the one page-level figure here — the countdown — is the card's header chip.
    On a wide screen the totals sit beside the explanation rather than under it. */
-.tr-overview { display: grid; gap: 8px; }
-.tr-overview > p { margin: 0; }
-/* Desktop: what the page is and the caveat on the left; the data note and the totals on the right. */
+.tr-overview, .tr-ov-main, .tr-ov-side { display: grid; gap: 8px; align-content: start; }
+.tr-overview { gap: 12px; }
+.tr-overview p { margin: 0; }
+/* Desktop: what the page is and the caveat on the left; the data note and the totals on the right — two
+   stacks side by side, so neither column's height spaces out the other's lines (2 Nov 2026 polish). */
 @media (min-width: 1024px) {
-    .tr-overview { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto auto; grid-auto-flow: column; column-gap: 40px; }
+    /* The right half starts where the page's right column does: the card's body is inset by its 16px
+       padding (--space-4), so its column is that much narrower and its gap that much wider. */
+    .tr-overview {
+        grid-template-columns: minmax(0, 1fr) calc(var(--tr-side) - var(--space-4));
+        column-gap: calc(var(--tr-gap) + var(--space-4));
+    }
     .tr-overview .card-explainer { max-width: 60ch; }
 }
-/* The three days' totals as one muted line — a fact worth having, not the thing to open on. */
-.tr-totals { margin: 6px 0 0; color: var(--text-light); font-size: var(--type-small); font-variant-numeric: tabular-nums; }
-.tr-totals strong { color: var(--text-dark); font-weight: 700; }
+/* The card's two notes are one voice: the Christmas note took `.tr-note`'s 12px beside the lead's 13px,
+   and the card read in three sizes (the 2 Nov 2026 polish). */
+.tr-overview .tr-note { font-size: var(--type-label); }
+/* The three days' totals: a small table under one label (the polish of 2 Nov 2026 — as one run-on line
+   they wrapped mid-sequence on a phone). A ROW a day — the day, its two counts, its change — in the
+   card's sunken surface, as a figure recessed into a card is. Three cells side by side were tried first
+   and measured: "Weekdays" and its "+13" need 96px and a third of a phone gives 85–91, so the change
+   covered the name or dropped beneath it. Rows fit any phone, and read in the order they are written. */
+.tr-totals { margin: 4px 0 0; }
+.tr-totals-h { margin: 0 0 6px; }
+.tr-totals-days {
+    display: grid;
+    max-width: 340px;
+    margin: 0;
+    padding: 2px 12px;
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    list-style: none;
+}
+.tr-total {
+    display: grid;
+    grid-template-columns: 5.6em minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 8px;
+    padding: 6px 0;
+    font-variant-numeric: tabular-nums;
+}
+.tr-total + .tr-total { border-top: 1px solid var(--border-light); }
+.tr-total-day { color: var(--text-mid); font-size: var(--type-small); font-weight: 600; }
 /* One day's figure never breaks inside itself ("Sundays 91 → / 94" did at 375px). */
-.tr-total { white-space: nowrap; }
+.tr-total-n { color: var(--text-mid); font-size: var(--type-body); white-space: nowrap; }
+.tr-total-n strong { color: var(--text-dark); font-weight: 800; }
+.tr-total .tr-delta { justify-self: end; margin-left: 0; }
 
 /* ── Day and direction ──────────────────────────────────────────────────────
    THE CONTROLS ARE BUTTONS THAT LOOK LIKE BUTTONS (owner, 2 Nov 2026: the translucent tabs "lack pop"
@@ -119,8 +159,12 @@ body {
     .tr-tab:not([aria-pressed="true"]):hover { background: white; border-color: white; }
 }
 .tr-tab:focus-visible { outline: var(--focus-outline-light); outline-offset: 2px; }
-/* The view tabs carry their card's emoji, stacked over the label on a phone so three fit. */
+/* The view tabs carry their card's emoji, stacked over the label on a phone so three fit. On the narrowest
+   phones the tabs give up a little side padding, so "What's changing" and "Where they stop" stay on one line
+   and the three tiles keep one height (they wrapped to two at 360px). */
 .tr-tab-icon { display: block; font-size: var(--type-body); line-height: 1.2; margin-bottom: 1px; }
+.tr-tabs:not(.tr-tabs--seg):not(.tr-tabs--in-card) .tr-tab { padding-inline: 4px; }
+@media (min-width: 380px) { .tr-tabs:not(.tr-tabs--seg):not(.tr-tabs--in-card) .tr-tab { padding-inline: 8px; } }
 /* The day: one white track holding three quieter segments — a qualifier, not a fourth view. */
 .tr-tabs--seg {
     gap: 2px;
@@ -149,19 +193,22 @@ body {
     .tr-tab[aria-pressed="true"] { border: 3px solid Highlight; }
 }
 @media (min-width: 1024px) {
-    .tr-controls { flex-direction: row; align-items: stretch; gap: 24px; }
-    .tr-controls > * { flex: 1; }
+    /* The views over the list's column, the day over the lookup's: the page's own two columns (`--tr-side`). */
+    .tr-controls { display: grid; grid-template-columns: minmax(0, 1fr) var(--tr-side); column-gap: var(--tr-gap); }
     .tr-tab-icon { display: inline; margin: 0 6px 0 0; }
 }
-/* The day row carries its label (v24.92): "Day", the app's uppercase group label, beside the track —
-   without it three pills under three pills read as a second row of views. */
-.tr-day-row { display: flex; align-items: center; gap: 10px; }
+/* The day row carries its label (v24.92): "Day", the app's uppercase group label — without it three
+   pills under three pills read as a second row of views. It sits INSIDE the track, its first word (the
+   2 Nov 2026 polish): beside it on the navy it pushed the track 40px in from the left edge the tabs,
+   the caveat and every card share, the one block on the page that did not line up. */
+.tr-day-row { display: flex; }
 .tr-day-row > .tr-tabs { flex: 1; }
 .tr-seg-label {
     flex: 0 0 auto;
-    color: var(--on-navy-muted);
-    /* Overtime's member-bar label, the app's one control label on the canvas: 12px, 700. */
-    font-size: var(--type-small);
+    align-self: center;
+    padding: 0 6px 0 7px;
+    color: var(--text-light);
+    font-size: var(--type-badge);
     font-weight: 700;
     letter-spacing: 0.5px;
     text-transform: uppercase;
@@ -217,8 +264,8 @@ a sunken track whose chosen tab went white, a third recipe for one job. */
 @media (min-width: 1024px) {
     .tr-cols {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
-        column-gap: 24px;
+        grid-template-columns: minmax(0, 1fr) var(--tr-side);
+        column-gap: var(--tr-gap);
         align-items: start;
     }
     .tr-col-main { grid-column: 1; grid-row: 1; }
@@ -683,11 +730,14 @@ on the answer: the app's ring, not the browser's orange one. */
 /* Some hours only: half filled. A column is every hour's train at that minute (stoppingGrid), and a
    station only some of them stop at is not a stop "every hour" (v24.83). */
 .tr-dot--some { background: linear-gradient(90deg, var(--primary-blue) 50%, transparent 50%); box-shadow: inset 0 0 0 2px var(--primary-blue); }
+/* Two even columns on a phone (the 2 Nov 2026 polish): wrapping freely, the four entries stranded "no
+   longer stops" alone on a second line. One row from a tablet up, where all four fit. */
 .tr-grid-key {
-    display: flex; flex-wrap: wrap; gap: 6px 16px;
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 16px;
     margin: 0 0 10px; padding: 0; list-style: none;
     color: var(--text-mid); font-size: var(--type-small);
 }
+@media (min-width: 600px) { .tr-grid-key { display: flex; flex-wrap: wrap; } }
 .tr-grid-key li { display: inline-flex; align-items: center; gap: 6px; }
 
 /* ── Text, the lookup and the notes ────────────────────────────────────────── */
