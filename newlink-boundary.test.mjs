@@ -3,7 +3,7 @@
  * newlink-boundary.test.mjs — a proposal never reaches a roster surface.
  * Run: node --test newlink-boundary.test.mjs   (part of `npm run test:hygiene`)
  *
- * The December link page shows three PROPOSED rotas to the colleagues who would work one of them. The design's first
+ * The new link page shows three PROPOSED rotas to the colleagues who would work one of them. The design's first
  * risk was always confusion: a proposal's week read as somebody's real roster. The page guards its own side — a flag on
  * every grid, week numbers instead of dates (newlink-render.test.mjs). This guards the other side: the surfaces a member
  * reads as THEIR roster — the Calendar, Team Week, the day panel, the Pay Calculator and Admin's Change a Shift — must not
@@ -65,6 +65,6 @@ test('the page\'s own modules are loaded by the page alone', () => {
         for (const m of own) if (file !== m && new RegExp(`['"]\\./${m.replace('.', '\\.')}['"]`).test(src)) (importers[m] ??= []).push(file);
     }
     const strangers = Object.entries(importers).flatMap(([m, fs]) => fs.filter(f => !f.startsWith('newlink')).map(f => `${f} → ${m}`));
-    assert.deepEqual(strangers, [], 'only the December link page may load its modules');
+    assert.deepEqual(strangers, [], 'only the new link page may load its modules');
     assert.deepEqual(importers['newlink-app.js'], ['newlink-boot.js'], 'the coordinator is started by its boot shim alone');
 });

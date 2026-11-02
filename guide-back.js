@@ -42,7 +42,7 @@
         'links.html':      { href: './links.html',      label: 'Back to Links' },
         'overtime.html':   { href: './overtime.html',   label: 'Back to Overtime' },
         'trains.html':     { href: './trains.html',     label: 'Back to Trains' },
-        'newlink.html':    { href: './newlink.html',    label: 'Back to December link' },
+        'newlink.html':    { href: './newlink.html',    label: 'Back to New link' },
     };
 
     var back = document.querySelector('.btn-back');

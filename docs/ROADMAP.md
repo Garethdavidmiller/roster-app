@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: October 2026 — v25.00 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.10 · Updated every 0.10 version*
 
 **What should we build next, why, and what has to be true before we do it?** That is the only
 question this file answers. Everything that has already been built, removed, tried and reverted, or
@@ -100,16 +100,18 @@ builds toward it, and so that nobody is surprised later that the custom work was
 
 ## NOW — committed, or actively being decided
 
-### December 2026 Links proposals
-**Status:** Committed · **Owner:** Gareth + Nathan/management · **Plan:** `LINKS_DEC2026_PLAN.md`
+### The new CEA link — from 1 January 2027
+**Status:** Committed · **Owner:** S. Silva is the primary contact (owner, 2 Nov 2026); management decides · **Plan:** `LINKS_DEC2026_PLAN.md`
 
-The tool is built, and **9 proposal sheets are drawn** (`docs/links-24/`), all scored against the
-nine soft December 2026 rules (`docs/links-24/links-24-rules.pdf`); **none is frozen**.
-What remains is a **meeting schedule**, not code: the four design decisions are settled (the Sunday
-finish stays at 23:25 and FF18 reads as cadence, 28 Sep 2026; the December staffing levels, a
-24-person link and the Sunday cover are confirmed verbally, 29 Sep 2026), leaving a controlled source
-for the company hard limits and a management review date. The readiness dashboard at the top of that plan is
-authoritative; it now carries latest-safe dates worked backwards from the timetable change.
+**The link starts on 1 January 2027, not with the timetable** (owner, 2 Nov 2026: the timetable changes on 13 December,
+the link follows on 1 January, and today's link carries on until then). It is 26 weeks with five cover weeks
+(`docs/links-26/RULES.md`), and the shortlist is three — **Even Step** (recommended), **In Step** and **Short Run** —
+built into the Links designer read-only (`links-proposals.js`) and drawn in the pack (`docs/links-26/`). The new link
+page (`newlink.html`, v25.06) presents them evenly to colleagues, as an **admin-only preview** for now.
+
+What remains is a decision, not code: management's review of the shortlist, a controlled source for the company hard
+limits, and then — if colleagues are to see the page — its audience gate (OPERATIONS_REFERENCE.md → "The new link
+page"). The readiness dashboard at the top of the plan is authoritative.
 
 ### Roster import — let the PDF's own grid decide the day
 **Status:** Phase 1 SHIPPED (v22.31) · **Phase 2 SHIPPED (v24.04; working since v24.12)** · phase 3 not started · **Owner:** Gareth · **Proof:** `experiments/roster-pdf-geometry/` · **Code:** `functions/roster-geometry.js`, `functions/roster-prompt.js`

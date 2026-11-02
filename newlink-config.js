@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * newlink-config.js — the December link page's settings, set by hand (newlink.html).
+ * newlink-config.js — the new link page's settings, set by hand (newlink.html).
  *
  * The page presents the three shortlisted 26-week proposals to the colleagues who will work the new link. Everything it
  * SAYS about the proposals is generated (newlink-data.js, from the pack's own tooling); everything here is a DECISION, one
@@ -22,6 +22,19 @@
  * module — it holds decisions and no personal data.
  */
 import { teamMembers } from './roster-data.js';
+
+/**
+ * When the new link starts, 'YYYY-MM-DD'. NOT the timetable's date: the new timetable starts in December and the link
+ * follows on 1 January (owner, 2 Nov 2026: "Whilst the new timetable will start in December, the new cea link design
+ * will be from January 1st"). Until then today's link carries on, and the page says so.
+ */
+export const STARTS = '2027-01-01';
+
+/**
+ * Who colleagues go to about the new link, spelt as `teamMembers` spells them (owner, 2 Nov 2026: "Sara Silva (S. Silva)
+ * is the primary contact for it not me"). Every line that names a person is built from this one.
+ */
+export const CONTACT = 'S. Silva';
 
 /** @typedef {'preview'} Phase  'preview' alone until the audience gate exists (see the header) */
 
@@ -62,10 +75,11 @@ export const PACK_BASE = 'https://garethdavidmiller.github.io/roster-app/docs/li
  * the faint last line under the cards until the review of 2 Nov 2026.
  */
 export const HAVE_YOUR_SAY = Object.freeze([
-    'Tell G. Miller or your manager what worries you about any of the three, even if it is small.',
+    `Tell ${CONTACT} or your manager what worries you about any of the three, even if it is small.`,
     'Your views go to the managers with the proposals, and the managers decide which link is used.',
     'There is nothing to fill in here: this page does not collect views or votes.',
 ]);
 
-/** The page's last line: who prepared the proposals. DRAFTED, for the owner to correct. */
-export const PREPARED_BY = 'Prepared by G. Miller, with the rota-design tools in this app.';
+/** The page's last line: who to go to, and how the proposals were made. It named the preparer until 2 Nov 2026, when the
+ *  owner made S. Silva the contact — a name at the foot of a page reads as the person to ask. */
+export const CONTACT_LINE = `${CONTACT} is the contact for the new link. The proposals were made with the rota-design tools in this app.`;

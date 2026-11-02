@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: October 2026 — v25.00 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.10 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -2156,3 +2156,11 @@ For a new starter, running "Set up accounts" promptly is still good practice, bu
 security control: an account registered at their email before that run is refused everywhere, and
 the run takes it back.
 
+## The new link page — two constraints (v25.06)
+
+- **Its PDFs are served by the GitHub Pages mirror** (`PACK_BASE` in `newlink-config.js`), because Firebase Hosting
+  serves nothing under `docs/`. Retiring the mirror breaks every pack link on the page; move the files into a served
+  folder first.
+- **It is the admin's alone until its audience gate exists.** `PHASE` has one value, and `newlink-config.test.mjs`
+  refuses another until `auth-policy.js` and `nav-panel.js` can admit the colleagues it is for
+  (OPERATIONS_REFERENCE.md → "The new link page").

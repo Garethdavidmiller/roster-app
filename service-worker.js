@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '25.09';
+const APP_VERSION = '25.10';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -682,7 +682,7 @@ self.addEventListener("fetch", event => {
             ['links',      './links.html',       'Links is not available offline. Please reconnect and reload.'],
             ['overtime',   './overtime.html',   'Overtime is not available offline. Please reconnect and reload.'],
             ['trains',     './trains.html',     'Trains is not available offline. Please reconnect and reload.'],
-            ['newlink',    './newlink.html',    'The December link page is not available offline. Please reconnect and reload.'],
+            ['newlink',    './newlink.html',    'The new link page is not available offline. Please reconnect and reload.'],
             ['admin',      './admin.html',       'Admin is not available offline. Please reconnect and reload.'],
         ];
         // Match the page by its exact path segment, not a substring — path.includes('admin') would mis-route
