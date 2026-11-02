@@ -474,11 +474,15 @@ function _repaintWaiters(waiters) {
  * @param {any} member
  * @param {number} year
  * @param {number} month - 0-indexed
+ * @param {Map<string, any>|null} [snapshot]  the member's stored copy of the month, where the grid draws it
  * @returns {Set<string>}
  */
-export function getShiftTypesInMonth(member, year, month) {
+export function getShiftTypesInMonth(member, year, month, snapshot = null) {
     const cacheKey = `${member.name}|${year}|${month}`;
-    if (shiftTypesMonthCache.has(cacheKey)) return shiftTypesMonthCache.get(cacheKey);
+    // A month drawn from the member's STORED COPY (`snapshot`, day → record) is read from it, exactly
+    // as the renderer reads it, and kept out of the cache: the copy is not what the server said, and
+    // the live answer must not inherit it (48-hour review — the legend hid a key the grid showed).
+    if (!snapshot && shiftTypesMonthCache.has(cacheKey)) return shiftTypesMonthCache.get(cacheKey);
 
     const types = new Set();
     const days  = new Date(year, month + 1, 0).getDate();
@@ -487,7 +491,8 @@ export function getShiftTypesInMonth(member, year, month) {
         const date      = new Date(year, month, day);
         const baseShift = getBaseShift(member, date);
         const dateStr   = formatISO(date);
-        const ov = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
+        const ov = isBeforeMemberStart(member, date) ? null
+            : snapshot ? snapshot.get(dateStr) ?? null : rosterOverridesCache.get(`${member.name}|${dateStr}`);
         // Same shared override→effective-shift ladder as the calendar renderer + Team view (v16.48)
         // so the month legend can never drift from them — e.g. it can't light 'AL' from a legacy
         // Sunday AL override (suppressed), since Sundays are non-contracted (CLAUDE.md layer 5).
@@ -499,6 +504,6 @@ export function getShiftTypesInMonth(member, year, month) {
         else if (isOtherValue(shift)) types.add('OTHER');
     }
 
-    shiftTypesMonthCache.set(cacheKey, types);
+    if (!snapshot) shiftTypesMonthCache.set(cacheKey, types);
     return types;
 }

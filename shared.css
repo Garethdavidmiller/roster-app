@@ -2639,6 +2639,10 @@ button.lightbox-bug-link {
     font-size: var(--type-body);
     transition: background 0.1s;
 }
+/* `display: flex` above beats the UA's [hidden] rule, so a hidden drawer link still rendered — the
+   document hand-off link nav-panel.js builds showed as an empty, focusable, unnamed row under the
+   footer (48-hour review, Nov 2026). An author `display` needs its own [hidden] counterpart. */
+.nav-panel-link[hidden] { display: none; }
 /* Fixed-width icon slot (v18.18): emojis have varying natural widths, so without this the label
    text edges wobble a few px row to row. Centring each icon in a 22px slot puts every label on
    one clean left edge (the aria-hidden span already wraps every row's icon). */

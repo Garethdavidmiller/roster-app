@@ -246,7 +246,9 @@ export function summarisePerfBy(samples, { page, metric = 'domReady', dimension 
         total,
         rows: ordered.map(v => ({
             value: v,
-            label: /** @type {Record<string,string>} */ (dim.labels)[v] || _versionLabel(v, dimension),
+            // Own keys only (48-hour review): `__proto__` or `constructor` as a written value labelled
+            // its row "[object Object]" or a function's source, off the plain labels object.
+            label: (Object.hasOwn(dim.labels, v) && /** @type {Record<string,string>} */ (dim.labels)[v]) || _versionLabel(v, dimension),
             ..._withPct(groups[v]),
         })),
     };

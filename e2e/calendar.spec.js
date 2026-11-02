@@ -2467,6 +2467,41 @@ test('calendar: a boot makes only the performance marks the App Speed card reads
 // `stale` is the grid "labelled as possibly out of date, with a retry". The first load's months have
 // the sync chip for that; a month reached later had nothing, so a member offline in November read a
 // cached grid as current. November is outside the boot window of a 16 Sep clock (Aug–Oct).
+// THE FIRST CHECK IS NOT A FAILED ONE (whole-app review, Nov 2026; wiring pinned at the 48-hour review).
+// The renderer's `checking` rule is unit-tested; these are the two lines that pass it: renderCalendar
+// in calendar-app.js, and the swipe's neighbouring months in calendar-swipe.js, built on pointerdown.
+// Without them every cached month opened with "Saved copy — couldn't check for changes" while the
+// check it denied was still running. The read is held for the whole test and both checks are ONE-SHOT
+// counts: an auto-retrying toHaveCount(0) simply waited for the read to land, and passed with the
+// wiring deleted (measured).
+test('calendar: a cached month at startup does not claim it could not check, while the first check runs', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
+    await seedMember(page);
+    await seedMemberSession(page);
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        // One row in each month of the first read (Aug–Oct), so all three are painted from the cache.
+        const rows = ['2026-08-12', '2026-09-18', '2026-10-14'].map((date, i) => ({
+            id: `c${i}`, memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '' }));
+        w.__E2E.cacheDocs = rows;
+        w.__E2E.docs = rows;
+        w.__E2E.docsDelayMs = 30000;       // the first server read is still out for the whole test
+    });
+    await page.goto('/');
+    const shown = page.locator('#calendarDisplay > .calendar-container:not(.carousel-panel)');
+    await expect(shown, 'premise: September is painted from the cache').toHaveAttribute('data-override-state', 'stale');
+    expect(await page.locator('.calendar-stale-note').count(), 'renderCalendar passes `checking`').toBe(0);
+
+    await page.locator('#calendarDisplay .calendar-day').nth(10).hover();
+    await page.mouse.down();
+    const panels = page.locator('#calendarDisplay > .carousel-panel');
+    await expect(panels).toHaveCount(2);
+    await expect(panels.first(), 'premise: the neighbours are cached months too').toHaveAttribute('data-override-state', 'stale');
+    await expect(panels.last()).toHaveAttribute('data-override-state', 'stale');
+    expect(await page.locator('.calendar-stale-note').count(), 'the swipe passes `checking` too').toBe(0);
+    await page.mouse.up();
+});
+
 test('calendar: a later month answered from the cache says so, and Try again re-checks it', async ({ page }) => {
     await page.clock.setFixedTime(new Date('2026-09-16T09:00:00Z'));
     await seedMember(page);
@@ -2764,6 +2799,12 @@ test('drawer Circular on Admin: when no tab comes back, staged edits are asked a
     await page.getByRole('button', { name: 'Cancel' }).click();
     await expect(page, 'Cancel must keep the page').toHaveURL(/admin\.html/);
     await expect(row.locator('.day-start')).toHaveValue('06:00');
+    // The question stops the click before the drawer's own handler, so the drawer is still OPEN — and
+    // the link that carried the hand-off sits in it. It must not be ON SCREEN as an empty, focusable
+    // row: the drawer link's own display beat [hidden] (48-hour review, Nov 2026).
+    await expect(page.locator('#navPanel')).toHaveClass(/open/);
+    await expect(page.locator('#navPanel a[data-doc-handoff]')).toHaveCount(1);
+    await expect(page.locator('#navPanel a[data-doc-handoff]')).toBeHidden();
 });
 
 test('huddle: offline with nothing cached, a tap says it could not load — never "none uploaded"', async ({ page }) => {

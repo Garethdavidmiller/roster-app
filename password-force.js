@@ -257,11 +257,13 @@ function _show(member) {
         // The fields carry enterkeyhint="next"/"go", so the Android keyboard shows a Go key — which
         // did nothing (FIX, v18.94). There is no <form> here (a mandatory overlay must not be
         // submittable by stray means), so wire the key explicitly, as login-overlay.js does.
-        // FROM THE TWO FIELDS ONLY (v25.06, whole-app review): on the whole overlay it also caught Enter
+        // FROM THE FIELDS ONLY (v25.06, whole-app review): on the whole overlay it also caught Enter
         // on "Continue for now" — after a failure re-enabled Save, the escape re-submitted the password
         // write instead of letting the member out (property 3). A focused button activates itself.
+        // ALL THREE fields (48-hour review): the current-password box, revealed and focused when a
+        // stale sign-in needs it, was left out, so its Enter and the phone's Go key did nothing.
         overlay.addEventListener('keydown', e => {
-            if (e.key === 'Enter' && !saveBtn.disabled && (e.target === newEl || e.target === confEl)) { e.preventDefault(); saveBtn.click(); }
+            if (e.key === 'Enter' && !saveBtn.disabled && [newEl, confEl, curEl].includes(/** @type {any} */ (e.target))) { e.preventDefault(); saveBtn.click(); }
         });
 
         toggle.addEventListener('click', () => {

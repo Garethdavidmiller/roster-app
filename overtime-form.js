@@ -842,7 +842,7 @@ export async function renderWeekForm(host, win, memberName, { onSaved }) {
      */
     async function reconcile() {
         say('Checking whether your form was saved…', 'busy');
-        const state = await OTD.getMyOvertimeState();
+        const state = await OTD.getMyOvertimeState({ keepReadAt: true });   // adopts the submission, not the phases
         const fresh = state.ok
             ? (state.data.windows || []).find((/** @type {any} */ w) => w.weekEnding === win.weekEnding)
             : null;

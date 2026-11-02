@@ -351,3 +351,26 @@ describe('5 · the reviewer\'s week, read from the device\'s cache', () => {
         assert.equal(r.ok, true);
     });
 });
+
+describe('6 · when the state on screen was read', () => {
+    // The deadline resync asks whether a deadline passed since the phases on screen were read. A
+    // submit's reconcile re-reads the state but adopts only the submission — moving the read time
+    // there hid a crossing the screen never took (48-hour review, Nov 2026).
+    const answer = (/** @type {number} */ serverNow) => async () => ({ ok: true, status: 200, json: async () => ({ ok: true, serverNow, windows: [] }) });
+
+    test('a read that replaces the state records the server\'s instant', async () => {
+        const data = await freshData();
+        _respond = answer(1_000_000);
+        const p = data.getMyOvertimeState(); await flush(); await p;
+        assert.equal(data.myStateReadAt(), 1_000_000);
+    });
+
+    test('a reconcile (keepReadAt) leaves it where the phases were read', async () => {
+        const data = await freshData();
+        _respond = answer(1_000_000);
+        let p = data.getMyOvertimeState(); await flush(); await p;
+        _respond = answer(2_000_000);
+        p = data.getMyOvertimeState({ keepReadAt: true }); await flush(); await p;
+        assert.equal(data.myStateReadAt(), 1_000_000);
+    });
+});

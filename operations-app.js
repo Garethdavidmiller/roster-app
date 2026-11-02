@@ -515,8 +515,10 @@ export function init() {
                 const unknown = unconfirmedWriteLine(e, 'this removal', 'this list');
                 removeBtn.disabled = !!unknown; removeBtn.dataset.confirm = ''; removeBtn.textContent = 'Remove';
                 const msg = Object.assign(document.createElement('span'), { className: 'email-set-error', textContent: unknown || 'Couldn’t remove — check your connection and try again' });
-                msg.setAttribute('role', 'alert');
-                removeBtn.closest('.acct-row')?.querySelector('.email-set-error')?.remove();
+                msg.setAttribute('role', 'alert'); msg.dataset.removeError = '';
+                // Only ITS OWN earlier line (48-hour review): the first in the row was the open edit
+                // form's, and its next save failure then wrote to a detached element.
+                removeBtn.closest('.acct-row')?.querySelector('.email-set-error[data-remove-error]')?.remove();
                 removeBtn.closest('.acct-row')?.append(msg);
             }
         }

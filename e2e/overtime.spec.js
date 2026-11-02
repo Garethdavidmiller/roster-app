@@ -868,6 +868,31 @@ test.describe('access and chrome', () => {
         await expect(page.locator('.nav-panel-pill--overtime')).toHaveCount(0);
     });
 
+    test('the not-open screen still has a working logo and About (48-hour review)', async ({ page }) => {
+        // That screen returned before anything wired the chrome, so the "Back to calendar" logo and
+        // the drawer's About did nothing there.
+        await seedSession(page, 'S. Silva');
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navPanelBrand').click();
+        await expect(page.locator('#iconLightbox')).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#iconLightbox')).toBeHidden();
+        await page.locator('#appIcon').click();
+        await expect(page).not.toHaveURL(/overtime\.html/);
+    });
+
+    test('…and so does the not-open screen an in-place sign-in lands on', async ({ page }) => {
+        await stubOvertime(page, { windows: [openWindow()] });
+        await page.goto('/overtime.html');
+        await signInThroughOverlay(page, 'S. Silva');
+        await expect(page.locator('#otMineContent')).toContainText("isn't open to everyone yet");
+        await page.locator('#appIcon').click();
+        await expect(page).not.toHaveURL(/overtime\.html/);
+    });
+
     test('a reviewer DOES get the nav pill', async ({ page }) => {
         // Guard the guard: the assertion above passes against a drawer that renders no pills at all.
         await seedSession(page, 'H. Croft');
@@ -2197,6 +2222,19 @@ test.describe('the v20.75 review fixes, each pinned in a browser', () => {
         // Staying means staying: the answer survives and the week has not changed underneath them.
         await expect(page.locator('.ot-day--set')).toHaveCount(1);
         await expect(page.locator('.ot-form-week')).toContainText('5 September 2026');
+    });
+
+    test('the header logo asks too, with unsubmitted answers on the form (48-hour review)', async ({ page }) => {
+        // The logo is an exit like any other, and it went straight to the calendar.
+        await seedSession(page, 'G. Miller');
+        await stubWithRoster(page, [winOver()], []);
+        await page.goto('/overtime.html');
+        await page.locator('.ot-day').first().waitFor();
+        await page.locator('.ot-day').first().getByRole('radio', { name: 'Not available' }).click();
+        await page.locator('#appIcon').click();
+        await page.getByRole('button', { name: 'Stay on this form' }).click();
+        await expect(page).toHaveURL(/overtime\.html/);
+        await expect(page.locator('.ot-day--set')).toHaveCount(1);
     });
 
     test('a clean form switches week with no question at all', async ({ page }) => {

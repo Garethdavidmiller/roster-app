@@ -809,6 +809,24 @@ test('a session whose account has gone keeps its footer — but gets no bell', a
     await expect(page.locator('#navNotifBell')).toBeHidden();
 });
 
+for (const pageUrl of ['/index.html', '/paycalc.html']) {
+    test(`a slow sign-in restore hides the bell only until the restore lands (${pageUrl}, 48-hour review)`, async ({ page }) => {
+        // The bell asks for the account after a 3s wait for the boot restore. A restore still running
+        // then is not an account gone — but it read as one, and the bell stayed hidden until the drawer
+        // was next opened, on exactly the poor signal where restores run long.
+        await seedMemberSession(page, 'G. Miller');
+        await page.addInitScript(() => { window.__E2E = Object.assign(window.__E2E || {}, { authRestoreDelayMs: 5000 }); });
+        await page.goto(pageUrl);
+        const pushCapable = await page.evaluate(() => 'Notification' in window && 'serviceWorker' in navigator && 'PushManager' in window);
+        test.skip(!pushCapable, 'no Web Push in this browser, so no bell either way');
+        await page.locator('#navMenuBtn').click();          // early — the restore is still running
+        // Past the bell's 3s check AND the 5s restore. Asserting at once passes on the broken code too:
+        // the bell is drawn before its check runs, and the check is what hid it.
+        await page.waitForTimeout(6500);
+        await expect(page.locator('#navNotifBell')).toBeVisible();
+    });
+}
+
 test('a signed-in member keeps the full footer — name, bell and sign out', async ({ page }) => {
     // Guard the guard. Both assertions above are absences, and a footer that never rendered for
     // anybody would satisfy them.
@@ -1035,6 +1053,9 @@ test('a month drawn from the stored copy after the grant keeps its legend', asyn
     await page.goto('/index.html');
     await expect(page.locator('#calendarDisplay .calendar-snapshot-note')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('.legend')).toBeVisible();
+    // …with the keys the copy's days need: the stored 🏖️ day shows, so Annual Leave is in the key —
+    // it was read from the live cache, which a loading month does not have yet (48-hour review).
+    await expect(page.locator('#legend-al')).toBeVisible();
 });
 
 test('a stored copy for SOMEBODY ELSE is never shown, and is deleted', async ({ page }) => {

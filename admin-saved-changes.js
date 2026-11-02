@@ -243,15 +243,15 @@ function _armConfirmButton(btn, confirmLabel, resetLabel) {
     btn.textContent = confirmLabel;
     // A DESTRUCTIVE TWO-STEP CONTROL MUST SAY ITS MEANING CHANGED (v23.16, external review). The
     // recorded-dates ✕ renames itself "Confirm delete …" while armed; this one kept announcing
-    // "Delete G. Miller 2026-09-01" under a button that now read "Delete?". The idle name is kept
-    // on the element so `_disarmConfirmButton` can put it back from any of the three exits (timer,
-    // failure, success) without each of them having to know what it was.
+    // "Delete G. Miller 2026-09-01" under a button that now read "Delete?". The idle name is kept on
+    // the element so `_disarmConfirmButton` can restore it from any exit (timer, failure, success).
     const idle = btn.getAttribute('aria-label');
     if (idle) {
         if (!btn.dataset.idleLabel) btn.dataset.idleLabel = idle;
         btn.setAttribute('aria-label', `Confirm ${idle.charAt(0).toLowerCase()}${idle.slice(1)}`);
     }
-    setTimeout(() => { if (btn.classList.contains('confirming')) _disarmConfirmButton(btn, resetLabel); }, 5000);
+    const b = /** @type {any} */ (btn); clearTimeout(b.armTimer);   // a re-arm gets its own five seconds (48-hour review)
+    b.armTimer = setTimeout(() => { if (btn.classList.contains('confirming')) _disarmConfirmButton(btn, resetLabel); }, 5000);
 }
 
 /**

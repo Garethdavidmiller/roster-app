@@ -178,7 +178,7 @@ export function init() {
                     // No page follows, so nothing will read the sign-in timer: drop it, or the next
                     // page opened within two minutes would count this visit as its sign-in time.
                     clearLoginStart();
-                    renderUnavailable();
+                    renderUnavailable(); wireChrome();
                     resolveSession(false);
                     return;
                 }
@@ -191,7 +191,7 @@ export function init() {
     if (decision.decision === 'forbidden') {
         // A named member without reviewer rights during the restricted beta. Say so briefly and
         // leave the drawer working; do not query anything, and do not imply they did wrong.
-        wireNavPanel();
+        wireNavPanel(); wireChrome();
         renderUnavailable();
         // Nothing on this path needs Firebase, but `sessionReady` is a ONE-SHOT promise that other
         // modules await — leaving it pending would strand anything wired later on this load.
@@ -716,7 +716,8 @@ export function init() {
     }
 
     /** The page's own chrome — About on the drawer logo, the header logo home. Both paths, once (`??=`, Nov 2026). */
-    function wireChrome() { openAboutLightbox ??= initAboutLightbox({ appLabel: 'Marylebone Roster — Overtime', getUserName: () => currentUser })?.open ?? null; wireHeaderLogo(); }
+    // The logo is an exit, so it asks about unsubmitted answers as the page's others do (48-hour review).
+    function wireChrome() { openAboutLightbox ??= initAboutLightbox({ appLabel: 'Marylebone Roster — Overtime', getUserName: () => currentUser })?.open ?? null; wireHeaderLogo(async () => { if (await confirmDiscard()) window.location.href = './'; }); }
     /** @param {boolean} [paused] switched off for everyone (owner, Nov 2026), rather than not open to this member */
     function renderUnavailable(paused = false) {
         const mine = el('otMineContent');

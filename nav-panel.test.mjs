@@ -44,9 +44,11 @@ mock.module('./notif.js', {
         releaseDevicePush:    async () => { signOutLog.push('release'); },
     },
 });
+/** Body-scroll unlocks the drawer asked for — a close it should not have made shows up here. */
+let scrollUnlocks = 0;
 mock.module('./overlay.js', {
     namedExports: {
-        lockBodyScroll: () => {}, unlockBodyScroll: () => {},
+        lockBodyScroll: () => {}, unlockBodyScroll: () => { scrollUnlocks += 1; },
         suppressNextPop: () => {}, registerPopInterceptor: () => {},   // v16.23 pop-ownership hooks
         whenHistorySettled: (/** @type {() => void} */ fn) => fn(),
     },
@@ -314,3 +316,22 @@ describe('resetNavPanel consumes a live drawer entry (v25.06, whole-app review)'
     });
 });
 
+describe('a drawer-link click with the drawer SHUT closes nothing (48-hour review, Nov 2026)', () => {
+    // The document hand-off clicks a drawer link programmatically, and it can run after the drawer
+    // closed — under App Notices or the coming-soon panel. Closing again there unlocked the scroll
+    // those panels still hold and dropped the drawer's history marker.
+    test('shut: no close, no unlock — open: the ordinary close', () => {
+        mountDrawer({ onSignOut: () => {} });
+        const panel = /** @type {any} */ (document.getElementById('navPanel'));
+        const link = { tagName: 'A', getAttribute: () => './#circular', target: '' };
+        // Only the generic link selector matches — the hand-off link carries none of the special classes.
+        const target = { closest: (/** @type {string} */ sel) => (sel === '.nav-panel-pill, .nav-panel-link' ? link : null) };
+        const click = () => panel.on.click({ target, button: 0, preventDefault() {} });
+        scrollUnlocks = 0;
+        click();
+        assert.equal(scrollUnlocks, 0, 'the drawer was shut: nothing to close, nothing to unlock');
+        /** @type {any} */ (document.getElementById('navMenuBtn')).on.click();   // open it
+        click();
+        assert.equal(scrollUnlocks, 1, 'open, the same click closes it for the navigation');
+    });
+});

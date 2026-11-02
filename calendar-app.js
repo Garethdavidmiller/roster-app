@@ -274,7 +274,10 @@ function updateNavButtonState() {
 // answer belongs to the legend UPDATE and not to a render moved with it, and is argued there.
 const legend = createLegend({
     getCurrentMember,
-    getShiftTypesInMonth,
+    // The month's keys come from the same records the grid is drawn from — the stored copy while the
+    // month loads, as the renderer reads it (48-hour review: an 🏖️ day showed with no AL key).
+    getShiftTypesInMonth: (member, y, m) => getShiftTypesInMonth(member, y, m,
+        decideDisplay(knowledgeOf(monthKey(y, m))) === 'loading' ? _snapshotFor(member?.name ?? '', y, m) : null),
     getDisplayYear,
     getDisplayMonth,
     computeEaster,

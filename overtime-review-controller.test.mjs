@@ -540,3 +540,41 @@ describe('a failure retries what failed, and a message never re-arms a create', 
         assert.equal(dom.otConfirmCreate.disabled, true, 'Create is disarmed under the Stop-asking message');
     });
 });
+
+describe('a create that fails under ANOTHER week\'s question disarms (48-hour review, Nov 2026)', () => {
+    // Commit does not lock the row buttons (only a preview does), so a reviewer can press Open now on
+    // week B while week A's create is out. B's question lands and arms Create for B; A's create then
+    // times out, and its message about A sat above a Create button armed for B — one press from
+    // creating B, and creating a week freezes its population.
+    function btn(/** @type {string} */ attr, /** @type {string|null} */ value) {
+        /** @type {Function[]} */ const on = [];
+        return { textContent: 'x', disabled: false, hidden: true, innerHTML: '', classList: { add() {}, remove() {} },
+            getAttribute: (/** @type {string} */ a) => (a === attr ? value : null), setAttribute() {},
+            addEventListener: (/** @type {string} */ _t, /** @type {Function} */ f) => on.push(f),
+            press: () => Promise.all(on.map(f => f())) };
+    }
+    test('the timeout message about A leaves Create disarmed, not armed for B', async () => {
+        const WA = '2026-09-26', WB = '2026-10-03';
+        const createA = btn('data-create', WA), createB = btn('data-create', WB);
+        dom.otHorizonContent = { ...fakeEl('otHorizonContent'),
+            querySelectorAll: (/** @type {string} */ s) => (s === '[data-create]' ? [createA, createB] : []) };
+        dom.otConfirmCreate = btn('x', null);
+        dom.otConfirmCancel = btn('x', null);
+        const c = makeController();
+        await boot(c, [WEEK_A]);
+        c.wireConfirmBar();
+        createQueue = [{ ok: true, data: { window: { ...WEEK_A, weekEnding: WA, audience: 'restricted', expectedCount: 1 } } }];
+        await createA.press();
+        /** @type {any} */ let landCommit;
+        createQueue = [new Promise(r => { landCommit = r; }),
+            { ok: true, data: { window: { ...WEEK_A, weekEnding: WB, audience: 'restricted', expectedCount: 1 } } }];
+        const committing = dom.otConfirmCreate.press();          // Create (A), held
+        await settle();
+        await createB.press();                                   // B's question lands meanwhile
+        assert.equal(dom.otConfirmCreate.disabled, false, 'premise: B\'s preview armed Create for B');
+        landCommit({ ok: false, code: 'timeout' });
+        await committing;
+        assert.match(dom.otConfirmText.innerHTML, /may still have been created/);
+        assert.equal(dom.otConfirmCreate.disabled, true, 'a message about A must not sit over a Create armed for B');
+    });
+});

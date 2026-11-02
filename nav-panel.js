@@ -680,7 +680,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 location.replace(anchor.href);  // overwrite the drawer's same-URL entry with the destination
                 return;
             }
-            closePanelForNavigation();
+            if (_panelOpen) closePanelForNavigation();   // a hand-off click can come with the drawer shut
             return;
         }
     });
@@ -834,7 +834,8 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         // NOT WHILE THE ACCOUNT BEHIND THE SESSION IS GONE (v25.06): a tap then subscribed, the rules refused
         // the save and the bell flipped back to off unexplained. After the boot restore, so one in progress keeps it.
         bell.hidden = !(await currentUserAfterBoot(3000));
-        if (bell.hidden) return;
+        // A restore still running at 3s is not an account gone (48-hour review): bring it back when it lands.
+        if (bell.hidden) { void currentUserAfterBoot().then(u => { if (u) void _refreshBell(); }); return; }
         _paintBell(await peekNotifState());
     }
 

@@ -139,11 +139,13 @@ export function myStateReadAt() { return _myStateReadAt; }
 
 /**
  * The member's own windows, their submissions, and the authoritative clock.
- * @param {{ signal?: AbortSignal }} [opts]
+ * @param {{ signal?: AbortSignal, keepReadAt?: boolean }} [opts]  `keepReadAt` for a read whose answer
+ *   does NOT replace the state on screen — a submit's reconcile adopts only the submission, so moving
+ *   `myStateReadAt` there hid a deadline the screen's phases never crossed (48-hour review).
  */
 export async function getMyOvertimeState(opts) {
     const r = await post('getMyOvertimeState', {}, opts);
-    if (r.ok) _myStateReadAt = typeof r.data?.serverNow === 'number' ? r.data.serverNow : correctedNow();
+    if (r.ok && !opts?.keepReadAt) _myStateReadAt = typeof r.data?.serverNow === 'number' ? r.data.serverNow : correctedNow();
     return r;
 }
 

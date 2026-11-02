@@ -4576,6 +4576,29 @@ test('operations account status: a work-email Remove of unknown outcome says so,
     await expect(remove).toBeDisabled();
 });
 
+test('operations account status: a failed Remove leaves the open edit form its own error line', async ({ page }) => {
+    // 48-hour review, Nov 2026. The Remove failure cleared the FIRST error line in the row — with the
+    // edit form open, that was the form's — so the form's own save failure then wrote to a detached
+    // element and the admin saw nothing at all.
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window);
+        w.__E2E = { authUser: true, failDeleteCode: 'unavailable', failSetCode: 'unavailable', docs: [],
+            docsByPath: { staffContact: [{ id: 'A. Hared', memberName: 'A. Hared', workEmail: 'a.hared@chilternrailways.co.uk' }], passwordStatus: [], resetRequests: [] } };
+    });
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await page.evaluate(() => document.getElementById('accountStatusBody')?.classList.add('open'));
+    const row = page.locator('.acct-row').filter({ has: page.locator('.email-set-btn--remove') }).first();
+    await row.locator('.email-set-btn:not(.email-set-btn--remove)').click();   // Edit: the form opens
+    await expect(row.locator('.email-set-form')).toBeVisible();
+    const remove = row.locator('.email-set-btn--remove');
+    await remove.click();
+    await remove.click();                                                       // the Remove fails
+    await expect(row.locator('.email-set-error').last()).toHaveText(/Couldn’t remove/);
+    await row.locator('.email-set-save').click();                               // and the form's save fails
+    await expect(row.locator('.email-set-form .email-set-error')).toHaveText(/Couldn't save/);
+});
+
 test('operations reset requests: a Clear that fails AFTER the list was redrawn reports on the row now shown', async ({ page }) => {
     // The list re-renders on a notification tap (#reset-requests) or a queued reload. The failure
     // used to be appended to the row that had been replaced — off the page, so nobody saw it.
@@ -5003,6 +5026,8 @@ test('operations: "Use new roster" also clears an older manual copy of the day',
     await expect.poll(() => page.evaluate(() => (/** @type {any} */ (window).__E2E.batchDeletes || [])
         .filter((/** @type {string} */ p) => /\/m[01]$/.test(p)).map((/** @type {string} */ p) => p.slice(-2)).sort()),
         { timeout: 10_000 }).toEqual(['m0', 'm1']);
+    // …and the receipt SAYS so, as Admin's delete does — a removal nobody is told about is silent (48-hour review).
+    await expect(page.locator('#rosterApplyFeedback')).toContainText('1 older copy of the same day also removed');
 });
 
 test('operations: a flagged roster cell can be resolved from the review table', async ({ page }) => {

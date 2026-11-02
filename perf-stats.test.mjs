@@ -136,6 +136,15 @@ describe('summarisePerfBy — WHY a page is slow, not just that it is', () => {
         assert.equal(r.total, 5);
     });
 
+    test('…and its row is labelled with what was written, never an inherited property (48-hour review)', () => {
+        const s = dimSamples([
+            ['calendar', 'lt500ms', 'browser', '__proto__', 3],
+            ['calendar', 'lt500ms', 'browser', 'constructor', 2],
+        ]);
+        const labels = summarisePerfBy(s, { page: 'calendar', dimension: 'conn' }).rows.map(r => String(r.label));
+        assert.ok(labels.every(l => !l.includes('[object') && !l.includes('function')), `labels: ${labels.join(' | ')}`);
+    });
+
     test('splits ONE page by connection, and leaves other pages out of it', () => {
         const s = dimSamples([
             ['calendar', 'lt500ms', 'standalone', '4g', 10],
