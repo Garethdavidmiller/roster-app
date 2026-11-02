@@ -1278,10 +1278,10 @@ export function init() {
         const cell = (/** @type {string} */ text, /** @type {string} */ extra = '', /** @type {string} */ title = '') =>
             `<td class="tot-cell${extra}"${title ? ` aria-label="${escapeHtml(title)}"` : ''}>${escapeHtml(text)}</td>`;
         if (!t || t.unfilled) return cell('—') + cell('—') + cell('—');
-        if (t.assumed) {
-            const h = hmFromHours(t.exSundayMinutes / 60);
+        if (t.assumed) {   // a timed Sunday overtime turn is real hours on top, and the footer counts it
+            const h = hmFromHours(t.exSundayMinutes / 60), all = hmFromHours(t.allMinutes / 60);
             const why = 'Cover week — counted as the contracted week; it carries no stored times';
-            return cell(h, ' tot-assumed', why) + cell(h, ' tot-assumed', why)
+            return cell(h, ' tot-assumed', why) + cell(all, ' tot-assumed', all === h ? why : 'Cover week — the contracted week, plus its Sunday overtime')
                 + cell('—', ' tot-assumed', 'A cover week does not record which days it works');
         }
         const flag = t.unreadable ? ' tot-uncertain' : '';
@@ -2103,20 +2103,24 @@ export function init() {
         renderDesignPicker(); library.renderBinList(); compare.renderCompare();
     }
 
-    /** Bin the old-length designs in the background, each re-checked in a transaction (store.binIfStill)
-     *  — never from a cached read, never queued offline. A restore or purge of one waits for its move
-     *  (the library's `trackBinMove`), or it would meet a design not yet deleted and blame a colleague. Said AT ONCE:
-     *  the empty state names them too, since on release day the list is often empty. @param {string[]} ids */
+    /** Bin the old-length designs in the background, each re-checked in a transaction (store.binIfStill) — never from
+     *  a cached read, never queued offline. A restore or purge of one waits for its move (`trackBinMove`), or it would
+     *  meet a design not yet deleted and blame a colleague. Said AT ONCE: on release day the list is often empty. @param {string[]} ids */
     function _binPre26(ids) {
         binnedOnLoad = ids.length;
         if (!ids.length) return;
-        _designActionStatus(`${ids.length} design${ids.length === 1 ? '' : 's'} drawn for the ${PREVIOUS_LINK_LENGTH}-line link ${ids.length === 1 ? 'is' : 'are'} in Recently deleted — restore from there if you still need ${ids.length === 1 ? 'it' : 'them'}.`, 'ok');
+        let failed = 0;
+        const say = () => _designActionStatus(binnedOnLoad
+            ? `${binnedOnLoad} design${binnedOnLoad === 1 ? '' : 's'} drawn for the ${PREVIOUS_LINK_LENGTH}-line link ${binnedOnLoad === 1 ? 'is' : 'are'} in Recently deleted — restore from there if you still need ${binnedOnLoad === 1 ? 'it' : 'them'}.`
+            : failed ? `${failed === 1 ? 'A design' : `${failed} designs`} drawn for the ${PREVIOUS_LINK_LENGTH}-line link could not be moved to Recently deleted, so ${failed === 1 ? 'it is' : 'they are'} still in your list.` : '', binnedOnLoad || !failed ? 'ok' : 'err');
+        say();
+        // Settled OUTSIDE the bin (48-hour review): stop claiming it; an empty page opens it, as a load would.
+        const backInList = () => { binnedOnLoad--; _refreshLists().then(() => { if (!design && !loadFailed) _activateDesign(designs[0]); say(); }); };
         for (const id of ids) {
             library.trackBinMove(id, store.binIfStill(id, currentUser, isPre26Design)
-                .then((/** @type {string} */ r) => { if (r === 'skipped') _refreshLists(); })   // restored or redrawn since: show it live
-                // A FAILED move leaves it live on the server; shown in the bin, a Restore then blamed a
-                // colleague for restoring it (whole-app review, Oct 2026). Show it live; next load retries.
-                .catch((/** @type {any} */ err) => { console.error('[Links] Binning an old-length design failed:', err); binFailed.add(id); _refreshLists(); }));
+                .then((/** @type {string} */ r) => { if (r === 'skipped') backInList(); })   // restored or redrawn since: show it live
+                // A FAILED move leaves it live on the server; in the bin, a Restore blamed a colleague (Oct 2026).
+                .catch((/** @type {any} */ err) => { console.error('[Links] Binning an old-length design failed:', err); binFailed.add(id); failed++; backInList(); }));
         }
     }
 

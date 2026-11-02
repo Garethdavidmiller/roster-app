@@ -805,6 +805,31 @@ describe('offline: our own queued rename is not a colleague\'s save, and Replace
         assert.equal(res.conflict?.by, THEM);
     });
 
+    test('a colleague\'s save that synced UNDER our queued rename is still caught (48-hour review)', async () => {
+        // We loaded 5 and renamed offline. S. Silva saved 6 meanwhile, and our queued rename merged on
+        // top of it when it synced: her content, her stamp and name, OUR revision. A later read cached
+        // that, and we saved offline again. Matching on the revision alone took it for our own rename
+        // and queued an overwrite of her save with no question.
+        const db = offlineDb({ name: 'A', updatedAt: ts(1000), updatedBy: 'M. Robson', revision: 5 });
+        const store = createDesignStore(db.api);
+        await store.rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 5 });
+        const ours = db.writes.at(-1)?.payload.revision;
+        db.setStore({ name: 'B', updatedAt: ts(2000), updatedBy: THEM, revision: ours });
+        const res = await save(store);
+        assert.equal(res.status, 'conflict', 'her save sits under our revision — it is not our rename');
+        assert.equal(res.conflict?.by, THEM);
+    });
+
+    test('two offline renames in a row are both our own — the second sees through the first', async () => {
+        const { api } = offlineDb({ name: 'A', updatedAt: ts(1000), updatedBy: THEM, revision: 5 });
+        const store = createDesignStore(api);
+        await store.rename({ id: ID, name: 'B', by: ME, preBaseline: 1000, preRevision: 5 });
+        await new Promise(r => setTimeout(r, 2));   // a distinct clock revision for the second
+        await store.rename({ id: ID, name: 'C', by: ME, preBaseline: 1000, preRevision: 5 });
+        const res = await save(store);
+        assert.equal(res.status, 'queued', `nobody but us has touched it — not ${THEM}`);
+    });
+
     test('Replace, offline, queues against the version it was shown', async () => {
         const { api, writes } = offlineDb({ name: 'A', updatedAt: ts(2000), updatedBy: THEM, revision: 6 });
         const store = createDesignStore(api);

@@ -174,7 +174,7 @@ const CEILING_BASIS = `Chiltern December 2026 link rules (${ROTATING_LINES} line
 
 /**
  * Contracted days a year for a design: Monday-to-Saturday timed duties plus four days per cover
- * week (a line SPARE all week), over the rotation, scaled to a year.
+ * week (`isCoverWeek` — SPARE Monday to Saturday, whatever its Sunday), over the rotation, scaled to a year.
  * @param {Record<string, Record<string, any>>} patterns
  * @param {number} lines
  * @returns {number}

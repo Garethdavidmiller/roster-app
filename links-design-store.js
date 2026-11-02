@@ -135,13 +135,21 @@ export function createDesignStore(deps) {
      * save after our own offline rename read as "S. Silva saved a different version". The cache is
      * judged on the revision UNDER our rename instead; a colleague's save that reached this device
      * first is still caught, because then that revision is not the one we hold.
-     * @type {Map<string, {rev: number, before: number|null}>}
+     *
+     * …AND ON WHO SAVED THE CONTENT UNDER IT, AND WHEN (48-hour review, Nov 2026). Our queued rename
+     * merges only name and revision, so if a colleague saved while we were offline, the synced
+     * document carries OUR revision over HER content, stamp and name — and the revision alone took it
+     * for our rename and queued an overwrite of her save unasked. A rename writes neither stamp nor
+     * name, so while both still match the ones we cached, the content is the one we held.
+     * @type {Map<string, {rev: number, before: number|null, stamp: number|null, by: string|null}>}
      */
     const ownRenames = new Map();
     /** What the cached copy says once our own queued rename is seen through. @param {string} id @param {any} data */
     const throughOwnRename = (id, data) => {
         const own = ownRenames.get(id);
-        return own && data?.revision === own.rev ? { ...data, revision: own.before } : data;
+        return own && data?.revision === own.rev
+            && (data?.updatedAt?.toMillis?.() ?? null) === own.stamp && (data?.updatedBy ?? null) === own.by
+            ? { ...data, revision: own.before } : data;
     };
 
     return {
@@ -387,11 +395,14 @@ export function createDesignStore(deps) {
                 // left alone, a colleague holding the current one saved over the new name unasked.
                 // And like any unverified rename it does not sign the content as ours (above).
                 baselineFresh = canAdvanceBaseline(null, preBaseline, false);
-                let before = null;
-                try { const r = (await getDoc(ref)).data()?.revision; before = typeof r === 'number' ? r : null; }
+                /** @type {any} */ let cached = null;
+                try { cached = (await getDoc(ref)).data() ?? null; }
                 catch { /* nothing cached — the next offline save consults nothing either */ }
+                // A SECOND offline rename sees through the first — its revision is ours, not a save.
+                const under = throughOwnRename(id, cached)?.revision;
                 const rev = queuedRevision(preRevision);
-                ownRenames.set(id, { rev, before });   // see `ownRenames`
+                ownRenames.set(id, { rev, before: typeof under === 'number' ? under : null,   // see `ownRenames`
+                    stamp: cached?.updatedAt?.toMillis?.() ?? null, by: cached?.updatedBy ?? null });
                 queueWrite(() => setDoc(ref, { name, revision: rev }, { merge: true }));
                 return { baselineFresh, revision: null, updatedAt: null, queued: true };
             }

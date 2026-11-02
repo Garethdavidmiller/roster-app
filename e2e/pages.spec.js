@@ -5802,6 +5802,10 @@ test('links grid: each line carries its own totals, and they follow an edit', as
     await page.locator('#genApplyBtn').click();
     const ok = page.locator('.lb-overlay.open .dialog-btn-confirm');
     if (await ok.count()) await ok.first().click();
+    // The generator's own completion signal, not the row count: the design open before it already
+    // had every row, so the count was true BEFORE the generator ran, and the reads below could land
+    // on the old design or mid-redraw (48-hour review, Nov 2026 — one intermittent red under load).
+    await expect(page.locator('#genStatus')).toBeVisible({ timeout: 10_000 });
     await expect(page.locator('#linksGridBodyRows tr')).toHaveCount(ROTATING_LINES);
 
     // Three cells on every line, no exceptions — the renderer indexes rows by position, so a short
@@ -5813,14 +5817,44 @@ test('links grid: each line carries its own totals, and they follow an edit', as
 
     // The footer average must be the SAME figure the summary strip states. Two places computing a
     // design's hours separately is how they end up disagreeing; the footer reads `weeklyHours`,
-    // which is what the strip and the Design-checks row already read.
-    const avg = await page.locator('#linksCoverageFoot .tot-avg-num').first().textContent();
-    await expect(page.locator('#linksSummary')).toContainText(String(avg).trim());
+    // which is what the strip and the Design-checks row already read. Both are re-read on every
+    // poll, so the assertion is agreement — never a figure captured at one moment and chased.
+    await expect.poll(async () => {
+        const avg = String(await page.locator('#linksCoverageFoot .tot-avg-num').first().textContent()).trim();
+        return avg !== '' && avg !== '—' && String(await page.locator('#linksSummary').textContent()).includes(avg);
+    }, { message: 'the footer average appears in the summary strip' }).toBe(true);
 
     // Paint a rest day over line 1's Monday: its Mon–Sat total must fall.
     await clickInView(page.locator('#brushBar button', { hasText: 'RD' }).first());
     await clickInView(row1.locator('.shift-cell-btn').nth(1));
     await expect.poll(() => row1.locator('.tot-cell').first().textContent()).not.toBe(before);
+});
+
+test('links grid: a cover week with Sunday overtime counts that Sunday in its seven-day total', async ({ page }) => {
+    // 48-hour review, Nov 2026. Since v25.03 a cover week's Sunday overtime is real hours on top of
+    // its contracted week, and the footer average counts it — but the row printed the contracted week
+    // in BOTH hour columns, so a line and the footer beneath it disagreed.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const patterns = /** @type {any} */ ({});
+        for (let i = 1; i <= 26; i++) {   // ROTATING_LINES, written out: this runs inside the page
+            patterns[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20',
+                wed: '06:20-14:20', thu: '14:00-22:00', fri: 'RD', sat: 'RD' };
+        }
+        patterns['1'] = { sun: '07:15-15:45', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE',
+            thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' };
+        const w = /** @type {any} */ (window);
+        w.__E2E = w.__E2E || {};
+        w.__E2E.docs = [{ id: 'd1', name: 'Design A', patterns,
+            updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' }];
+    });
+    await page.goto('/links.html');
+    const cells = page.locator('#linksGridBodyRows tr').first().locator('.tot-cell');
+    await expect(cells).toHaveCount(3);
+    await expect(cells.nth(0), 'Monday to Saturday: the contracted week').toHaveText('35h 00m');
+    await expect(cells.nth(1), 'all seven days: the week plus its 8½-hour Sunday').toHaveText('43h 30m');
 });
 
 test('links: the roster seed samples the whole MAIN cycle and nothing else', async ({ page }) => {
@@ -6064,6 +6098,30 @@ test('links: a 24-line design whose move to the bin fails is shown live again', 
     await page.keyboard.press('Escape');
     await openDesignSheet(page);
     await expect(page.locator('#designBinBtn'), 'and not offered for a Restore it does not need').toBeHidden();
+    await page.keyboard.press('Escape');
+    // …and the line that announced the move stops claiming it (48-hour review, Nov 2026).
+    await expect(page.locator('#linksSaveStatus')).toContainText('could not be moved to Recently deleted');
+    await expect(page.locator('#linksSaveStatus')).not.toContainText('is in Recently deleted');
+});
+
+test('links: an only design whose move to the bin fails opens, rather than pointing at a bin it is not in', async ({ page }) => {
+    // 48-hour review, Nov 2026. With every design a 24-line one nothing opens, and the empty page
+    // says where they went — and it went on saying "Restore one from Recently deleted" after the move
+    // FAILED, with the bin row hidden and the design back in the list. A load would have opened it.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_links_welcome_seen', '1');
+        const p = /** @type {any} */ ({});
+        for (let i = 1; i <= 24; i++) p[String(i)] = { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.txErrorCode = 'permission-denied';   // the move's transaction is refused
+        w.__E2E.docs = [{ id: 'old24', name: 'Old 24', patterns: p, updatedAt: 1_750_000_000_000, updatedBy: 'S. Silva' }];
+    });
+    await page.goto('/links.html');
+    await expect(page.locator('#linksGridBodyRows tr').first(), 'the design is open').toBeVisible();
+    await expect(page.locator('#linksEmptyState')).toBeHidden();
+    await expect(page.locator('#linksSaveStatus')).toContainText('could not be moved to Recently deleted');
 });
 
 test('links: when EVERY design was a 24-line one, the empty page says where they went', async ({ page }) => {

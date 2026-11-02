@@ -122,7 +122,7 @@ export const SPARE_WORKED_DAYS = 4;
  * SPARE, a rest day or a timed RDW and the week is still four days of cover (v25.06, whole-app
  * review). Requiring all seven SPARE let a cover week written with its Sunday as a rest day count as
  * an EMPTY line — no days towards the 219-day ceiling, no hours towards the contract — so a design
- * over the ceiling read as under it. Every "is this a cover week" question in the workspace asks this.
+ * over the ceiling read as under it. Hours, days and spread ask this (seed and rest repair see only SPARE-all-week rows).
  * @param {Record<string, any>|null|undefined} row
  * @returns {boolean}
  */
