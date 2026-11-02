@@ -27,7 +27,7 @@ import { inventoryOf } from './paycalc-inventory.js';
 import { selectBackupKeys } from './paycalc-transfer.js';
 import { pcPrefix, setPaycalcNamespace } from './paycalc-migrations.js';
 import { lsKeys } from './ls.js';
-import { initAboutLightbox } from './about-lightbox.js';
+import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
@@ -768,16 +768,7 @@ export function init() {
         });
         if (about) openAboutLightbox = about.open;
 
-        // Header logo is a back-to-calendar button (About moved to the drawer logo).
-        const iconBtn = document.getElementById('appIcon');
-        if (iconBtn) {
-            iconBtn.setAttribute('aria-label', 'Back to calendar');
-            // Keyboard-operable: the logo is an interactive control (was a non-focusable <img>). v18.29.
-            iconBtn.setAttribute('role', 'button');
-            iconBtn.tabIndex = 0;
-            iconBtn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); iconBtn.click(); } });
-            iconBtn.addEventListener('click', () => { window.location.href = './'; });
-        }
+        wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js)
         // The coming-soon lightbox is owned entirely by nav-panel.js (open/close, Escape,
         // Android Back, focus trap). Do not re-wire it here — a duplicate handler used to
         // live in this function and left the nav-panel state flags out of sync (v11.50).

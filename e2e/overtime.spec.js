@@ -2991,6 +2991,26 @@ test.describe('paused (owner, Nov 2026) — switched off, for everyone', () => {
         await expect(page.locator('.nav-panel-pill--calendar')).toHaveCount(1);
     });
 
+    test('the paused card says only that, and the page chrome still works', async ({ page }) => {
+        // v25.05 replaced the form with the note and left the rest of the card describing a form
+        // (the hint, the two caveats) behind a ? and a chevron that nothing wired; the drawer logo
+        // opened nothing and the header logo was never wired on this page at all (v25.06).
+        await seedSession(page, 'G. Miller');
+        await off(page);
+        await page.goto('/overtime.html');
+        await expect(page.locator('#otMineContent')).toContainText('Overtime availability is paused');
+        for (const sel of ['#otMineCard .hint', '#otMineCard .btn-card-tips', '#otMineChevron', '.ot-explainer', '.ot-privacy']) {
+            await expect(page.locator(sel), `${sel} describes a form that is not there`).toBeHidden();
+        }
+        await page.locator('#navMenuBtn').click();
+        await page.locator('#navPanelBrand').click();
+        await expect(page.locator('#iconLightbox.open')).toBeVisible();
+        await page.locator('#iconLightboxClose').click();
+        await expect(page.locator('#iconLightbox.open')).toHaveCount(0);
+        await page.locator('#appIcon').click();
+        await expect(page).not.toHaveURL(/overtime\.html/);
+    });
+
     test('no other page offers the pill while paused', async ({ page }) => {
         // The admin sees every other pill, so a drawer that rendered none would fail the guard below
         // rather than pass the absence check.

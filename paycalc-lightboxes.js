@@ -10,7 +10,7 @@
  */
 
 import { createLightbox, initCardCollapse, openNoticeIfClear } from './overlay.js';
-import { initAboutLightbox } from './about-lightbox.js';
+import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { HELP_CONTENT } from './paycalc-help.js';
 import { archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { lsGet, lsSet } from './ls.js';
@@ -61,14 +61,7 @@ export function initPaycalcLightboxes() {
     });
     if (about) openAboutLightbox = about.open;
 
-    const appIcon = document.getElementById('appIcon');
-    if (!appIcon) return;
-    appIcon.setAttribute('aria-label', 'Back to calendar');
-    // Keyboard-operable: the logo is an interactive control (was a non-focusable <img>). v18.29.
-    appIcon.setAttribute('role', 'button');
-    appIcon.tabIndex = 0;
-    appIcon.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); appIcon.click(); } });
-    appIcon.addEventListener('click', () => { window.location.href = './'; });
+    wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js)
   })();
 
   // ── HELP LIGHTBOX ───────────────────────────────────────────────────────────

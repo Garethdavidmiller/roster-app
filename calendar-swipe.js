@@ -18,7 +18,7 @@
 import { CONFIG, MONTH_NAMES, SWIPE_THRESHOLD } from './roster-data.js';
 import { getDisplayMonth, getDisplayYear, persistViewedMonth, addMonths } from './calendar-state.js';
 import { buildCalendarContainer, getSwipeDirection } from './calendar-renderer.js';
-import { ensureOverridesCached } from './calendar-overrides.js';
+import { ensureOverridesCached, _initialFetchInProgress } from './calendar-overrides.js';
 
 let _swipeCooldown = false;
 // True from pointerdown until the gesture RESOLVES (tap / abandon / commit-restore / snap-back /
@@ -96,9 +96,13 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
     function buildAdjacentPanel(/** @type {number} */ monthDelta) {
         // Shared rollover + boundary clamp (calendar-state.js) — same arithmetic as changeDisplay.
         const { month: m, year: y } = addMonths(getDisplayMonth(), getDisplayYear(), monthDelta);
+        // The same two rules renderCalendar applies while the first 3-month read is running
+        // (whole-app review, Nov 2026): no Try again — a retry then started no read, leaving a
+        // "Checking" panel with nothing behind it — and no "couldn't check", which was not true.
         return buildCalendarContainer(m, y, {
             onDayDetail: openDayDetail ?? undefined,
-            onRetryMonth,
+            onRetryMonth: _initialFetchInProgress ? undefined : onRetryMonth,
+            checking: _initialFetchInProgress,
         });
     }
 

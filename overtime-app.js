@@ -43,7 +43,7 @@ import { ensureNamedSession, getSession, sessionReady, resolveSession, reconcile
 import { requirePage, isOvertimeReviewer, canOpenOvertime, overtimeEnabled } from './auth-policy.js';
 import { initCardCollapse, confirmDialog } from './overlay.js';
 import { guardNamedSession, askBeforeSignOut, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
-import { initAboutLightbox } from './about-lightbox.js';
+import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
@@ -140,7 +140,7 @@ export function init() {
 
     // PAUSED (owner, Nov 2026; OVERTIME_AVAILABILITY.md → Paused) — before the gate, so everyone gets the same answer,
     // signed in or not. Nothing is queried and no sign-in is offered: the endpoints are undeployed while it is off.
-    if (!overtimeEnabled()) { wireNavPanel(); renderUnavailable(true); resolveSession(false); return; }
+    if (!overtimeEnabled()) { document.body.dataset.otPaused = ''; wireNavPanel(); wireChrome(); renderUnavailable(true); resolveSession(false); return; }
 
     // ── Access gate ─────────────────────────────────────────────────────────────────────────────
 
@@ -220,7 +220,7 @@ export function init() {
             idSel.innerHTML = `<option>${esc(currentUser)}</option>`;
             idBar.hidden = false;
         }
-        openAboutLightbox = initAboutLightbox();
+        wireChrome();
         initTipsLightbox(CARD_TIPS, { getIsAdmin: () => !!currentUser && CONFIG.ADMIN_NAMES.includes(currentUser) });
         // Per card, with its own ids — the shared helper takes them explicitly. A bare call is
         // silently a no-op, which would leave every chevron on the page inert.
@@ -715,6 +715,8 @@ export function init() {
         host.querySelector('.ot-retry')?.addEventListener('click', () => (retry || loadEverything)());
     }
 
+    /** The page's own chrome — About on the drawer logo, the header logo home. Both paths, once (`??=`, Nov 2026). */
+    function wireChrome() { openAboutLightbox ??= initAboutLightbox({ appLabel: 'Marylebone Roster — Overtime', getUserName: () => currentUser })?.open ?? null; wireHeaderLogo(); }
     /** @param {boolean} [paused] switched off for everyone (owner, Nov 2026), rather than not open to this member */
     function renderUnavailable(paused = false) {
         const mine = el('otMineContent');

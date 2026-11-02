@@ -1645,6 +1645,34 @@ test('paycalc: Replace clears stale hours the calendar no longer shows', async (
     expect(errors, 'Uncaught JS exceptions clearing stale hours').toHaveLength(0);
 });
 
+// THE SAME CLEAR, WHEN NOTHING ELSE IS SPECIAL ON THE PAYSLIP (whole-app review, Nov 2026). The test
+// above passes because period 56 holds other special-rate days for its member, which keep the card on
+// screen. For a fixed Monday–Friday line whose one bank holiday became leave, the calendar's answer is
+// "nothing at all": getRosterSuggestion returned null, the card hid, and Replace returned before its
+// clear — so the stale 7h stayed in the estimate, the HPP figure and the year totals.
+test('paycalc: Replace clears stale hours even when the calendar has nothing else special', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));
+    await seedSession(page, 'C. Reen');
+    await seedMember(page, 'C. Reen');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        // Her rostered Summer bank holiday (Mon 31 Aug 2026), booked as leave.
+        w.__E2E.docs = [{ id: 'bh-al', memberName: 'C. Reen', date: '2026-08-31', type: 'annual_leave', value: 'AL', note: '' }];
+    });
+    await page.goto('/paycalc.html');
+    await page.locator('#periodSelect').selectOption('56');
+    await expect(page.locator('#bhH')).toBeVisible();
+    await page.locator('#bhH').fill('7');
+    await expect(page.locator('#rosterHintBar'), 'the card must stay on screen while there is something to clear').toBeVisible();
+    await expect(page.locator('#rosterRows')).toContainText('no Saturday, Sunday or bank holiday shifts');
+    await expect(page.locator('#fillFromRosterBtn')).toHaveText('Replace with calendar values');
+    await page.locator('#fillFromRosterBtn').click();
+    await expect(page.locator('#rosterHintText')).toContainText(/Cleared Bank holiday/);
+    await expect(page.locator('#bhH')).toHaveValue('');
+    expect(errors, 'Uncaught JS exceptions clearing stale hours').toHaveLength(0);
+});
+
 test('paycalc: Replace never clears on incomplete calendar data (base-only)', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.clock.setFixedTime(new Date('2026-07-15T09:00:00Z'));

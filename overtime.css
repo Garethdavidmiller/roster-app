@@ -431,6 +431,16 @@ body {
 
 .ot-state-actions { margin-top: var(--space-3); }
 
+/* PAUSED (v25.05; tidied v25.06, whole-app review). The card keeps its title and the paused note and
+   nothing else: the hint ("Tell the roster team…"), the two caveats about what a submission does,
+   the ? panel and the chevron all describe a form that is not on the page — and the last two were
+   dead controls, because the paused path wires neither. Keyed on the attribute the paused path sets. */
+body[data-ot-paused] #otMineCard .hint,
+body[data-ot-paused] #otMineCard .card-header-actions,
+body[data-ot-paused] .ot-explainer,
+body[data-ot-paused] .ot-privacy { display: none; }
+body[data-ot-paused] #otMineToggleHeader { cursor: default; }
+
 /* ── Create-window confirm bar ──────────────────────────────────────────────
    Fixed to the bottom rather than inline, so the preview it describes stays on
    screen while it is read. Mirrors the admin over-entitlement confirm bar. */

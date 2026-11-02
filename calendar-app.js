@@ -386,6 +386,7 @@ function renderCalendar() {
             // against the in-flight range fetch is the v18.76 two-authoritative-reconcilers bug
             // (the later, staler snapshot evicts what the earlier one just loaded).
             onRetryMonth: _initialFetchInProgress ? undefined : retryMonth,
+            checking: _initialFetchInProgress,   // the first check is running: "couldn't check" would be false
         });
         // Preserve keyboard focus across the re-render. Wiping #calendarDisplay drops focus to
         // <body>, after which calendar-app.js's document keydown handler treats arrows as MONTH

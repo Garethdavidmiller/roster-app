@@ -40,10 +40,13 @@ const BLANK_SATURDAY = blankCellMeaning(6, 'Saturday');
 const scanSawEmpty = (/** @type {any} */ raw) => isPhysicallyBlank(raw) || String(raw).trim().toUpperCase() === 'EMPTY';
 
 /** The Sunday scan saw a printed rest code. NA and NS on a Sunday are both the rest day a Sunday
- *  already is (cell-day-rules.js, which also reads `N.A.` as `NA`). */
+ *  already is (cell-day-rules.js, which also reads `N.A.` as `NA`). OFF is the rest code the CES and
+ *  bilingual sheets PRINT (roster-prompt.js), and the column scan already reads it as rest
+ *  (BLANK_SCAN_TOKENS) — leaving it out here meant a slid CES or bilingual week was not realigned
+ *  at this stage (whole-app review, Nov 2026). */
 const scanSawRestCode = (/** @type {any} */ raw) => {
     const s = String(raw).trim().toUpperCase();
-    return s === 'RD' || s === '-' || isNotAvailable(s) || isNotAvailableSunday(s);
+    return s === 'RD' || s === '-' || s === 'OFF' || isNotAvailable(s) || isNotAvailableSunday(s);
 };
 
 /**

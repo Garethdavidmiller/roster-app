@@ -36,7 +36,7 @@ import { getSession, ensureNamedSession, sessionReady, resolveSession, getFireba
 import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { initCardCollapse, confirmDialog, createLightbox } from './overlay.js';
-import { initAboutLightbox } from './about-lightbox.js';
+import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './operations-tips.js';
 import { registerServiceWorker, reloadWhenNotBusy } from './sw-register.js';
@@ -839,15 +839,7 @@ export function init() {
         });
         if (about) openAboutLightbox = about.open;
 
-        // Header logo is a back-to-calendar button (About moved to the drawer logo).
-        const headerIcon = document.getElementById('appIcon');
-        if (!headerIcon) return;
-        headerIcon.setAttribute('aria-label', 'Back to calendar');
-        // Keyboard-operable: the logo is an interactive control (was a non-focusable <img>). v18.29.
-        headerIcon.setAttribute('role', 'button');
-        headerIcon.tabIndex = 0;
-        headerIcon.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); headerIcon.click(); } });
-        headerIcon.addEventListener('click', () => { window.location.href = './'; });
+        wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js)
     })();
 
     // ============================================

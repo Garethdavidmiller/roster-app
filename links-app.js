@@ -20,7 +20,7 @@ import { initCardCollapse, createLightbox, confirmDialog, promptDialog, openNoti
 import { openOptionSheet, readGroups } from './select-sheet.js';
 import { MAX_DESIGN_NAME, checkName, proposeCopyName } from './links-design-naming.js';
 import { createDesignHeader, proposeNewDesignName, lastSaveTime } from './links-design-header.js';
-import { initAboutLightbox } from './about-lightbox.js';
+import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { CARD_TIPS } from './links-tips.js';
 import { registerServiceWorker, reloadForUpdate } from './sw-register.js';
@@ -2263,15 +2263,8 @@ export function init() {
             });
         }
 
-        // Header logo is a back-to-calendar button (About moved to the drawer logo).
-        const headerIcon = document.getElementById('appIcon');
-        if (!headerIcon) return;
-        headerIcon.setAttribute('aria-label', 'Back to calendar');
-        // Keyboard-operable: the logo is an interactive control (was a non-focusable <img>). v18.29.
-        headerIcon.setAttribute('role', 'button');
-        headerIcon.tabIndex = 0;
-        headerIcon.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); headerIcon.click(); } });
-        headerIcon.addEventListener('click', async () => {
+        // Header logo: back to the calendar, through the unsaved-changes question (about-lightbox.js).
+        wireHeaderLogo(async () => {
             if (dirty && !await confirmDialog({ message: 'You have unsaved changes. Leave anyway?', confirmLabel: 'Leave' })) return;
             dirty = false;   // clear so beforeunload doesn't double-prompt
             window.location.href = './';

@@ -59,7 +59,7 @@ import { guardNamedSession, signOutAndLeave, reloadIfRestoredForSomeoneElse } fr
 import { requirePage, canOpenOvertime, admitsStaffPin } from './auth-policy.js';
 import { PIN_FIRST_HASH } from './calendar-access-core.js';
 import { initCardCollapse } from './overlay.js';
-import { initAboutLightbox } from './about-lightbox.js';
+import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
@@ -166,7 +166,8 @@ function start(member) {
         onSignOut: member ? () => signOutAndLeave({ to: './' }) : null,
         onLockCalendar: member ? null : { isViewer: () => true, lock: lockStaffPin },
     });
-    openAboutLightbox = initAboutLightbox();
+    openAboutLightbox = initAboutLightbox({ appLabel: 'Marylebone Roster — Trains', getUserName: () => member })?.open ?? null;
+    wireHeaderLogo();
 
     initTipsLightbox(CARD_TIPS, { getIsAdmin: () => isAdmin });
     const cards = Object.fromEntries(['trOverview', 'trChanges', 'trLookup', 'trStations', 'trPattern', 'trLast', 'trJump'].map(id => [id,

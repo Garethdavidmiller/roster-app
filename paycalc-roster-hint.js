@@ -195,8 +195,9 @@ export function updateRosterHint() {
   const p = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
   if (!p) { card.style.display = 'none'; return; }
 
-  const s = /** @type {any} */ (getRosterSuggestion(p, getLoggedMember()));
-  if (!s) { card.style.display = 'none'; return; }
+  const s = /** @type {any} */ (_suggestionOrNone(p, getLoggedMember()));
+  // A "none" answer is drawn only when there is a stale figure for Replace to CLEAR (v25.06).
+  if (!s || (s.none && ![...CLEARABLE_CATS].some(_hasEntry))) { card.style.display = 'none'; return; }
 
   const badge = document.getElementById('rosterStateBadge');
   if (badge) {
@@ -272,9 +273,10 @@ export function updateRosterHint() {
         arrowHtml +
         `</button>`;
     }).join('');
-    if (html !== _lastRosterRowsHtml) {
-      rows.innerHTML = html;
-      _lastRosterRowsHtml = html;
+    const body = html || (s.none ? '<p class="roster-none-note">Your calendar has no Saturday, Sunday or bank holiday shifts on this payslip.</p>' : '');
+    if (body !== _lastRosterRowsHtml) {
+      rows.innerHTML = body;
+      _lastRosterRowsHtml = body;
     }
   }
 
@@ -306,11 +308,7 @@ export function updateRosterHint() {
     //
     // So: refuse only when the data is complete AND there is nothing to write AND nothing to remove.
     const _loaded = getOverridesFetchState() === 'loaded';
-    const _entered = (/** @type {string} */ cat) => {
-      const h = /** @type {HTMLInputElement} */ (document.getElementById(cat + 'H'))?.value.trim() ?? '';
-      const m = /** @type {HTMLInputElement} */ (document.getElementById(cat + 'M'))?.value.trim() ?? '';
-      return h !== '' || m !== '';
-    };
+    const _entered = _hasEntry;
     const _zeroInCalendar = (/** @type {string} */ cat) =>
       !((s[cat + 'H'] || 0) > 0 || (s[cat + 'M'] || 0) > 0);
     const fillable = ['sat', 'sun', 'bh', 'bhOt', 'ot', 'rdw', 'box'].some(cat => !_zeroInCalendar(cat));
@@ -435,6 +433,33 @@ export function _applyRosterSuggestion(s, force = false, { clearZeros = false } 
  */
 const CLEARABLE_CATS = new Set(['sat', 'sun', 'bh', 'box']);
 
+/** Has the member typed anything into this category's hours or minutes box? @param {string} cat */
+function _hasEntry(cat) {
+  const h = /** @type {HTMLInputElement} */ (document.getElementById(cat + 'H'))?.value.trim() ?? '';
+  const m = /** @type {HTMLInputElement} */ (document.getElementById(cat + 'M'))?.value.trim() ?? '';
+  return h !== '' || m !== '';
+}
+
+/**
+ * The calendar's answer, with its NOTHING spelled out (v25.06, whole-app review).
+ *
+ * `getRosterSuggestion` returns null when a payslip holds no special-rate day at all, and the card
+ * and Replace both read that null as "nothing to do" — so the case v21.68/v21.77 were written for, a
+ * bank holiday taken off the roster leaving its 7h behind, was unreachable for anyone with nothing
+ * ELSE special on that payslip (a fixed weekday line, for one): the card hid, and Replace returned
+ * before its clear. On COMPLETE data that null IS the calendar answering "none", so it is answered
+ * with zeros the clear can act on. On base-only it stays null — the missing record might be exactly
+ * the hours on screen, the rule `clearZeros` already keeps.
+ * @param {any} p @param {any} member
+ */
+function _suggestionOrNone(p, member) {
+  const s = getRosterSuggestion(p, member);
+  if (s || getOverridesFetchState() !== 'loaded') return s;
+  const zero = { days: [], none: true };
+  for (const cat of ['sat', 'sun', 'bh', 'bhOt', 'ot', 'rdw', 'box']) Object.assign(zero, { [cat + 'H']: 0, [cat + 'M']: 0, [cat + 'Count']: 0 });
+  return zero;
+}
+
 /** Staff-facing names for the fill categories, for the fill feedback line. */
 const _CAT_LABELS = /** @type {Record<string,string>} */ ({
   sat: 'Saturday', sun: 'Sunday', bh: 'Bank holiday', bhOt: 'BH overtime',
@@ -511,7 +536,7 @@ export async function fillFromRoster(autosave) {
     // period's own path (onPeriodChange) owns the hint from here; repaint it for the button state.
     if (res === 'cancelled' || currentPeriodNum() !== pNum) { updateRosterHint(); return; }
   }
-  const s = getRosterSuggestion(p, member);
+  const s = _suggestionOrNone(p, member);
   if (!s) return;
   // clearZeros only when the calendar data is COMPLETE: clearing on base-only counts could
   // wipe real hours whose recorded changes simply failed to load (the inverse of the bug).

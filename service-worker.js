@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '25.05';
+const APP_VERSION = '25.06';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -535,11 +535,14 @@ async function warmCacheAndSweepOld() {
     // cache is fully warmed. Decoupled (v16.11) so a device that can't reach gstatic —
     // where the app is hard-broken anyway — doesn't accumulate an old app cache per
     // deploy forever. Prefix-scoped so we never clobber another cache on the origin.
+    // OLDER versions only (v25.06, whole-app review): this used to delete every other version, so an
+    // old worker finishing a retried warm-up after the next release had opened its cache deleted the
+    // NEWER one — and that worker's own sweep then took the old, leaving nothing to launch offline.
     const cacheNames = await caches.keys();
     await Promise.all(
         cacheNames
-            .filter(name => (allOk && name.startsWith('myb-roster-v') && name !== CACHE_NAME)
-                         || (sdkOk && name.startsWith('myb-roster-sdk-v') && name !== SDK_CACHE_NAME))
+            .filter(name => (allOk && name.startsWith('myb-roster-v') && isOlderVersion(name.slice(12), APP_VERSION))
+                         || (sdkOk && name.startsWith('myb-roster-sdk-v') && isOlderVersion(name.slice(16), FIREBASE_SDK_VERSION)))
             .map(name => {
                 console.log(`[SW ${APP_VERSION}] Deleting old cache:`, name);
                 return caches.delete(name);
@@ -555,6 +558,9 @@ async function warmCacheAndSweepOld() {
     await cache.put(PRECACHE_MARKER, new Response('1'));
     console.log(`[SW ${APP_VERSION}] Pre-cached (complete)`);
 }
+
+/** Dotted numeric versions ('25.06', '12.19.0'): is `a` older than `b`? Unparseable → false (keep it). */
+function isOlderVersion(a, b) { const x = a.split('.').map(Number), y = b.split('.').map(Number); if ([...x, ...y].some(Number.isNaN)) return false; for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0; } return false; }
 
 // STARTUP RE-CHECK — this top-level code runs every time the browser wakes the SW (any
 // fetch/push/message), so a warm-up killed mid-run resumes on the next wake instead of

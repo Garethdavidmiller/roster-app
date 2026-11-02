@@ -225,7 +225,7 @@ function _updateBulkDeleteVisibility() {
     const bulkDeleteBtn      = document.getElementById('bulkDeleteBtn');
     const selectAllOverrides = /** @type {HTMLInputElement|null} */ (document.getElementById('selectAllOverrides'));
     const checkedCount = tableBody?.querySelectorAll('.row-select:checked').length ?? 0;
-    if (bulkDeleteBtn) bulkDeleteBtn.style.display = checkedCount > 0 ? 'inline-block' : 'none';
+    if (bulkDeleteBtn) { bulkDeleteBtn.style.display = checkedCount > 0 ? 'inline-block' : 'none'; if (bulkDeleteBtn.classList.contains('confirming')) _disarmConfirmButton(/** @type {HTMLButtonElement} */ (bulkDeleteBtn), 'Delete selected'); }   // a changed selection disarms (v25.06)
     if (selectAllOverrides) {
         const total = tableBody?.querySelectorAll('.row-select').length ?? 0;
         selectAllOverrides.checked       = total > 0 && checkedCount === total;
@@ -361,8 +361,9 @@ function _initOverridesTable() {
             const picked = checkedRows.map(cb => /** @type {HTMLElement} */ (cb).dataset.id ?? '');
             const ids = [...withManualDuplicates(picked)];   // and their older copies — see the single delete
 
-            // Two-tap confirmation — matches single-delete pattern
-            if (!bulkDeleteBtn.classList.contains('confirming')) {
+            // Two-tap confirm, ARMED FOR THIS SELECTION (v25.06): "⚠ Delete 1?" once deleted all three ticked by the 2nd tap.
+            if (!bulkDeleteBtn.classList.contains('confirming') || bulkDeleteBtn.dataset.armedFor !== picked.join('|')) {
+                bulkDeleteBtn.dataset.armedFor = picked.join('|');
                 _armConfirmButton(bulkDeleteBtn, `⚠ Delete ${picked.length}?`, 'Delete selected');
                 return;
             }

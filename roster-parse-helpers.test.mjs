@@ -715,6 +715,13 @@ describe('applySundayScanCorrections', () => {
         const entries = [{ memberName: 'G. Miller', shifts: { [SUN_DATE]: '06:00-14:00' } }];
         assert.deepEqual(applySundayScanCorrections(entries, { 'G. Miller': 'RD' }, true, DATES), ['G. Miller']);
     });
+    test('Case A: sundayScan=OFF — the rest code the CES and bilingual sheets print — triggers it too', () => {
+        // Left out of the rest codes until v25.06, so a slid CES or bilingual week was taken at face value here.
+        for (const off of ['OFF', 'Off']) {
+            const entries = [{ memberName: 'G. Miller', shifts: { [SUN_DATE]: '06:00-14:00' } }];
+            assert.deepEqual(applySundayScanCorrections(entries, { 'G. Miller': off }, true, DATES), ['G. Miller'], off);
+        }
+    });
     test('Case B: sundayScan has RDW but parsed has plain time → adds RDW prefix', () => {
         const entries = [{ memberName: 'G. Miller', shifts: { [SUN_DATE]: '06:00-14:00' } }];
         applySundayScanCorrections(entries, { 'G. Miller': 'RDW 06:00-14:00' }, true, DATES);

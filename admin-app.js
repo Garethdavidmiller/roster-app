@@ -34,7 +34,7 @@ import { SELECTED_MEMBER, VIEWED_MONTH, VIEWED_YEAR } from './storage-keys.js';
 import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initPasswordForce } from './password-force.js';
-import { initAboutLightbox } from './about-lightbox.js';
+import { initAboutLightbox, wireHeaderLogo } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { computePeriodDeleteIds, mergeBookedPeriods, composeOtherValue } from './override-utils.js';
 import { alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType } from './al-entitlement.js';
@@ -151,17 +151,9 @@ export function init() {
         });
         if (about) openAboutLightbox = about.open;
 
-        // Header logo is a back-to-calendar button (About moved to the drawer logo).
-        const headerIcon = document.getElementById('appIcon');
-        if (!headerIcon) return;
-        headerIcon.setAttribute('aria-label', 'Back to calendar');
-        // The logo is an interactive control, so make it keyboard-operable (it was an <img> with a
-        // click handler — not focusable, no button role). v18.29.
-        headerIcon.setAttribute('role', 'button');
-        headerIcon.tabIndex = 0;
-        headerIcon.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); headerIcon.click(); } });
-        // Through the unsaved-changes banner like every other exit (whole-app review, Oct 2026).
-        headerIcon.addEventListener('click', () => { const go = () => { window.location.href = './'; }; if (confirmNavigate(go)) go(); });
+        // Header logo: back to the calendar, through the unsaved-changes banner like every other exit
+        // (whole-app review, Oct 2026). The wiring itself is shared (about-lightbox.js).
+        wireHeaderLogo(() => { const go = () => { window.location.href = './'; }; if (confirmNavigate(go)) go(); });
     })();
 
     // ---- Per-card tips lightbox ----
