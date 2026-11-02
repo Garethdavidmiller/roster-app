@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * newlink-render.test.mjs — every surface the December link page can show, built in Node.
+ * newlink-render.test.mjs — every surface the new link page can show, built in Node.
  * Run: node --test newlink-render.test.mjs   (part of `npm run test:hygiene`)
  *
  * The page's three rules (newlink-render.js header) are properties of its HTML, so they are tested on the HTML the real
@@ -193,4 +193,15 @@ test('everything it prints is escaped', () => {
     const banner = renderPreviewBanner({ audience: ['<b>x</b>'], decided: true });
     assert.doesNotMatch(banner, /<b>x<\/b>/);
     assert.match(banner, /the 1 people|the 1 people on the new link/);
+});
+
+test('the status says when the new link starts, apart from the timetable, and who carries on until then', async () => {
+    const { startsWords } = await import('./newlink-render.js');
+    assert.equal(startsWords('2027-01-01'), '1 January 2027');
+    for (const bad of [null, undefined, '', '2027-02-30', '1 Jan', '2027-1-1']) assert.equal(startsWords(bad), null, String(bad));
+    const html = renderStatus({ proposals: PROPOSALS, closes: null, starts: '2027-01-01' });
+    assert.match(html, /The new link starts on 1\u00a0January 2027\. The new timetable comes first, in December, and today’s link carries on until then\./, 'the day and month held together');
+    assert.doesNotMatch(html, /link changes in December/, 'the link does not change with the timetable');
+    // An unreadable date says nothing rather than something untrue.
+    assert.doesNotMatch(renderStatus({ proposals: PROPOSALS, closes: null, starts: 'soon' }), /starts on/);
 });

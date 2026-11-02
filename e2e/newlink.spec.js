@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * newlink.spec.js — the December link page (newlink.html): the three shortlisted proposals, presented evenly, to the
+ * newlink.spec.js — the new link page (newlink.html): the three shortlisted proposals, presented evenly, to the
  * admin while it is a preview.
  *
  * What only a browser can show: that the page REACHES its admin and turns everybody else away, that the two choices on it
@@ -10,7 +10,7 @@
 import { test, expect } from './fixtures.js';
 import { collectFatalErrors, seedSession } from './helpers.js';
 
-test.describe('december link', () => {
+test.describe('new link', () => {
     test('the admin sees the preview, the three proposals A to Z, and no recommendation anywhere', async ({ page }) => {
         const errors = collectFatalErrors(page);
         await seedSession(page, 'G. Miller');
@@ -156,7 +156,7 @@ test.describe('december link', () => {
         await page.locator('#navMenuBtn').click();
         await page.locator('#navPanelBrand').click();
         await expect(page.locator('#iconLightbox')).toBeVisible();
-        await expect(page.locator('#iconLightbox .lightbox-badge')).toHaveText('December link');
+        await expect(page.locator('#iconLightbox .lightbox-badge')).toHaveText('New link');
         await page.locator('#iconLightboxClose').click();
 
         // the header logo goes back to the Calendar, as its alt text has always said

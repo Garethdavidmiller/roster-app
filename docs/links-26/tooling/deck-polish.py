@@ -890,8 +890,11 @@ def managers_review(d, name, P, O, others, F, help_):
     # SLIDE 1: which design this is, on the slide — a PDF passed round carries no notes
     s = S(1)
     put(s, 'The December 2026 CEA link — the proposal in ten minutes',
-        'The recommended December 2026 CEA link, in ten minutes' if rec else f'One of {WORDS[len(SHORTLIST)]} shortlisted December 2026 CEA links, in ten minutes')
-    if not rec: put(s, f'For managers · 26 weeks · code {code} · the full proposal sheet has the detail', f'For managers · 26 weeks · code {code} · {RECOMMENDED} is the recommended design')
+        'The recommended new CEA link, in ten minutes' if rec else f'One of {WORDS[len(SHORTLIST)]} shortlisted new CEA links, in ten minutes')
+    # the start date, on the slide (link_date); "is recommended", not "is the recommended design", which wrapped one word onto a
+    # second line once the date was in (screenshot, 2 Nov 2026)
+    put(s, f'For managers · 26 weeks · code {code} · the full proposal sheet has the detail',
+        f'For managers · from {LINK_STARTS} · 26 weeks · code {code} · ' + ('the full proposal sheet has the detail' if rec else f'{RECOMMENDED} is recommended'))
     s.save()
     notes(1, 'The headline figures only.', 'The headline figures only. Everything week by week, hour by hour and rule by rule is on the eight-page proposal sheet. Every figure here is worked out from the rota by the Marylebone Roster app and its tooling, and has been checked independently.'
               + ('' if rec else f' {RECOMMENDED} is the recommended design; this deck sets out {name} on its own terms.'))
@@ -1029,7 +1032,7 @@ def managers_review(d, name, P, O, others, F, help_):
     put(s, 'The nine December rules. Everything here is built on them.', 'Everything here is built on them; worth having in writing before a link is chosen.')
     put(s, 'Colleagues’ views come first.', 'After colleagues’ views. Not yet seen by the roster office or a union rep.')
     s.save()
-    notes(9, 'The Sunday finish stays at 23:25', 'The December rules and the Sunday cover were confirmed verbally on 29 September 2026, and are worth having in writing before a link is chosen; the 26-week link was set on 1 October 2026. The 13-day limit used in the checks is Chiltern practice; its written source is still to be confirmed. The fatigue check still open is FF19 on the rules sheet: start times moving more than two hours between shifts, which is not counted across a rest day. The proposal has not yet been through the roster office or a union rep. The Sunday finish stays at 23:25, as agreed practice.')
+    notes(9, 'The Sunday finish stays at 23:25', 'The December rules and the Sunday cover were confirmed verbally on 29 September 2026, and are worth having in writing before a link is chosen; the 26-week link was set on 1 October 2026. The new link starts on 1 January 2027, after the timetable changes in December. The 13-day limit used in the checks is Chiltern practice; its written source is still to be confirmed. The fatigue check still open is FF19 on the rules sheet: start times moving more than two hours between shifts, which is not counted across a rest day. The proposal has not yet been through the roster office or a union rep. The Sunday finish stays at 23:25, as agreed practice.')
 
     # SLIDE 10: the fingerprint beside the code, as the sheets and the shortlist pair them
     replace_in_run(f'{d}/ppt/slides/slide10.xml', code, f'{code} · {fp}')
@@ -1159,6 +1162,37 @@ def family_polish(d, who):
         x = x[:leg.start()] + leg.group(0).replace('<a:defRPr sz="1200">', '<a:defRPr sz="1300"><a:solidFill><a:srgbClr val="1B2533"/></a:solidFill>') + x[leg.end():]
         open(cp, 'w', encoding='utf-8').write(x.replace('<a:srgbClr val="888888"/>', '<a:srgbClr val="5B6778"/>'))
 
+# THE NEW LINK STARTS ON 1 JANUARY 2027 (owner, 2 Nov 2026: "Whilst the new timetable will start in December, the new cea link
+# design will be from January 1st"; of the pack, "Fix the date and rename it"). The decks called it "the December 2026 link" —
+# on the title slide, in the footer of every slide and in the file's own title, which a PDF viewer shows — and the colleagues'
+# slide 3 said the link "has to follow" the December trains. The timetable does change in December, and the nine December
+# rules are still its rules, so those words stay. What changes is the link's own name, and its date is said on the title
+# slide, on slide 3 and in the notes. Every replacement is counted, and polish() refuses a deck that still names the old link.
+LINK_STARTS = '1 January 2027'
+OLD_LINK = re.compile(r'December 2026 (?:CEA )?link')
+def link_date(d, who):
+    nums = sorted(int(m.group(1)) for m in (re.fullmatch(r'slide(\d+)\.xml', f) for f in os.listdir(f'{d}/ppt/slides')) if m)
+    footed = 0
+    for n in nums:
+        p = f'{d}/ppt/slides/slide{n}.xml'
+        if ' · December 2026 link proposal · ' in open(p, encoding='utf-8').read():
+            replace_in_run(p, ' · December 2026 link proposal · ', ' · new CEA link proposal · '); footed += 1
+    want = len(nums) - 2   # every slide but the cover and the closing slide carries the footer
+    if footed != want: raise SystemExit(f'deck-polish: {footed} footers named the December 2026 link, not {want}')
+    p = f'{d}/docProps/core.xml'; x = open(p, encoding='utf-8').read()
+    old = ' — the December 2026 link</dc:title>' if who == 'colleagues' else ' — the December 2026 CEA link, for managers</dc:title>'
+    if x.count(old) != 1: raise SystemExit(f'deck-polish: the {who} deck’s file title is not “… {old[3:-11]}”')
+    open(p, 'w', encoding='utf-8').write(x.replace(old, ' — the new CEA link</dc:title>' if who == 'colleagues' else ' — the new CEA link, for managers</dc:title>'))
+    if who == 'colleagues':
+        s = Slide(f'{d}/ppt/slides/slide1.xml')
+        put(s, 'Our December 2026 link — what changes for you, in plain English', 'Our new link — what changes for you, in plain English')
+        s.save()
+        replace_in_run(f'{d}/ppt/slides/slide1.xml', 'A proposal for discussion · CEA link · ', f'A proposal for discussion · CEA link from {LINK_STARTS} · ')
+        s = Slide(f'{d}/ppt/slides/slide3.xml')
+        put(s, 'More trains, at new times — the link has to follow them.', f'More trains, at new times — the new link follows from {LINK_STARTS}.')
+        s.save()
+        notes_edit(d, 3, 'mean the link has to be redrawn.', f'mean the link has to be redrawn. The timetable changes in December, and the new link starts on {LINK_STARTS}.')
+
 def polish(path, name, grid, who):
     d = tempfile.mkdtemp(); zipfile.ZipFile(path).extractall(d)
     (colleagues if who == 'colleagues' else managers)(d, name, grid, FIG[name])
@@ -1166,6 +1200,9 @@ def polish(path, name, grid, who):
     if said: raise SystemExit(f'deck-polish: {name} for {who} still says "fixed rota" ({", ".join(sorted(said))}); the decks say "cover weeks aside"')
     moved = balance_tables(d)
     family_polish(d, who)
+    link_date(d, who)
+    old = [f for r, _, fs in os.walk(d) for f in fs if f.endswith('.xml') and OLD_LINK.search(open(os.path.join(r, f), encoding='utf-8').read())]
+    if old: raise SystemExit(f'deck-polish: {name} for {who} still names the December 2026 link ({", ".join(sorted(old))}); it starts on {LINK_STARTS}')
     names = zipfile.ZipFile(path).namelist()
     extra = [os.path.relpath(os.path.join(r, f), d) for r, _, fs in os.walk(d) for f in fs if os.path.relpath(os.path.join(r, f), d) not in names]
     tmp = path + '.tmp'

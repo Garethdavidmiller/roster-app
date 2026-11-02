@@ -4,7 +4,7 @@
  *
  * ── WHAT THESE ARE ─────────────────────────────────────────────────────────────────────────────
  *
- * The designs the owner shortlisted for the December 2026 link — Even Step, In Step and Short Run,
+ * The designs the owner shortlisted for the new link (from 1 January 2027) — Even Step, In Step and Short Run,
  * since 31 Oct 2026 (v25.04) — copied cell for cell from `docs/links-26/proposals/<Name>.json`. The
  * shortlist was Second Edition, Even Keel and Short Run on 3 Oct 2026, and Closing Time joined it on
  * 30 Oct (v25.01); the same day it was cut to two, with In Step the recommendation (v25.02). Even

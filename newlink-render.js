@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * newlink-render.js — every word of HTML on the December link page (newlink.html), as pure functions.
+ * newlink-render.js — every word of HTML on the new link page (newlink.html), as pure functions.
  *
  * The coordinator (newlink-app.js) decides WHICH view is on screen; this module builds it, from the generated figures
  * (newlink-data.js), the built-in proposals (links-proposals.js) and the page's settings (newlink-config.js). Nothing here
@@ -52,17 +52,35 @@ export function closesWords(closes) {
 }
 
 /**
- * The status card's body: what the page is, the three names (one equal tile each, A to Z), and by when views are wanted.
- * @param {{ proposals: ReadonlyArray<Proposal>, closes: string|null }} o
+ * When the new link starts, as "1 January 2027" — or null for anything that is not a real 'YYYY-MM-DD', so the page says
+ * nothing rather than something untrue.
+ * @param {string|null|undefined} starts
  */
-export function renderStatus({ proposals, closes }) {
+export function startsWords(starts) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(starts ?? '');
+    if (!m) return null;
+    const d = new Date(+m[1], +m[2] - 1, +m[3], 12);
+    if (d.getFullYear() !== +m[1] || d.getMonth() !== +m[2] - 1 || d.getDate() !== +m[3]) return null;
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+/**
+ * The status card's body: what the page is, the three names (one equal tile each, A to Z), and by when views are wanted.
+ * @param {{ proposals: ReadonlyArray<Proposal>, closes: string|null, starts?: string|null }} o
+ */
+export function renderStatus({ proposals, closes, starts = null }) {
     // Each tile LOOKS pressable — white, raised, the page's button recipe — so it is one: it opens that proposal's weeks
     // (the review, 2 Nov 2026: three raised tiles that did nothing broke the page's own rule that raised means pressable).
     // The name and nothing else: the sheet code told a colleague nothing and took a second line on a phone, so it lives on
     // the weeks' caption, beside the grid it identifies, and nowhere a choice is made.
     const tiles = proposals.map(p => `<li><button type="button" class="nl-name" data-open-weeks="${esc(p.id)}"><span class="nl-name-title">${esc(designName(p))}</span><span class="nl-name-go">See its weeks</span></button></li>`).join('');
     // "Have your say" is a way there, as the name tiles are: it opens and shows that card.
-    return `<p class="nl-callout"><strong>Nothing is decided.</strong> The link changes in December, with the new timetable.
+    // The link and the timetable change on DIFFERENT dates (owner, 2 Nov 2026), and the gap is the question a colleague
+    // asks next: which link do I work in between? Today's, until the new one starts.
+    const from = startsWords(starts);
+    // The day and the month stay together (a no-break space): at 390px the line broke after the "1" and left it stranded.
+    const when = from ? ` The new link starts on ${esc(from).replace(' ', '\u00a0')}. The new timetable comes first, in December, and today’s link carries on until then.` : '';
+    return `<p class="nl-callout"><strong>Nothing is decided.</strong>${when}
         These are the three proposals on the shortlist, in alphabetical order.</p>
     <ul class="nl-names" aria-label="The three proposals">${tiles}</ul>
     ${weeksShape(proposals)}

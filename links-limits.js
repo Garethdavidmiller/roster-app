@@ -170,7 +170,7 @@ export const LIMIT_CLAIM = POLICY_SOURCE_CONFIRMED
 export const CONTRACTED_DAYS_CEILING = 219;
 
 /** Where the ceiling comes from — the link's own written rules, not yet a company policy document. */
-const CEILING_BASIS = `Chiltern December 2026 link rules (${ROTATING_LINES} lines, Oct 2026) — company policy source outstanding`;
+const CEILING_BASIS = `Chiltern rules for the new link (${ROTATING_LINES} lines, Oct 2026) — company policy source outstanding`;
 
 /**
  * Contracted days a year for a design: Monday-to-Saturday timed duties plus four days per cover
@@ -281,7 +281,7 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
     // The ceiling is assessed only here, once every line is designed: an undrawn line has no duties
     // yet, so the figure could only RISE, and a "within the ceiling" on a half-built design would be
     // the same unearned pass rule 2 forbids for the run limit. And only at the link's OWN length —
-    // it is a rule of the December link, and a shorter test rotation has no such rule to break.
+    // it is a rule of the new link, and a shorter test rotation has no such rule to break.
     // `unfilled` is asked HERE as well (whole-app review, Oct 2026): the early return above covers
     // only a design with no run breach, so a part-built design that breaks the run limit fell
     // through and got a green "within the 219" on lines nobody had drawn.
@@ -299,8 +299,8 @@ export function assessHardLimits(patterns, lines = ROTATING_LINES) {
             // has no company policy document behind it yet, so the row states the measurement and
             // what to check, never "cannot be run".
             detail: over
-                ? `This design gives ${days} contracted days a year, above the ${CONTRACTED_DAYS_CEILING} set for the December link, which is today's roster's own figure. Confirm the rule before treating that as a decision.`
-                : `${days} contracted days a year, within the ${CONTRACTED_DAYS_CEILING} set for the December link, which is today's roster's own figure. Monday to Saturday count; a cover week counts four days; Sunday is overtime.`,
+                ? `This design gives ${days} contracted days a year, above the ${CONTRACTED_DAYS_CEILING} set for the new link, which is today's roster's own figure. Confirm the rule before treating that as a decision.`
+                : `${days} contracted days a year, within the ${CONTRACTED_DAYS_CEILING} set for the new link, which is today's roster's own figure. Monday to Saturday count; a cover week counts four days; Sunday is overtime.`,
         });
     }
 

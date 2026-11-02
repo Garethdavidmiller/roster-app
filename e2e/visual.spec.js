@@ -1066,7 +1066,7 @@ test('trains — weekdays, the basic hour today (desktop 1280)', async ({ page }
     await expect(page).toHaveScreenshot('trains-desktop-1280.png');
 });
 
-// The December link (v25.06, an admin preview). Mobile is a way of working chosen — the tiles, the sentence and its
+// The new link (v25.06, an admin preview; the December link until v25.10). Mobile is a way of working chosen — the tiles, the sentence and its
 // figures, the page's one idea; desktop is the top of the page: the preview banner, the three names, what has changed.
 test('newlink — a way of working chosen (mobile 390)', async ({ page }) => {
     await prep(page, { width: 390, height: 1600 });

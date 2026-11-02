@@ -1642,7 +1642,7 @@ describe('analytics', () => {
         }));
     });
 
-    test('auth can write the December link page-view counter (v25.06), and only as a number', async () => {
+    test('auth can write the new link page-view counter (v25.06), and only as a number', async () => {
         await assertSucceeds(setDoc(doc(memberDb(), 'analytics', 'pv_2026-11'), {
             month: '2026-11', counts: { newlink: 1 },
         }));

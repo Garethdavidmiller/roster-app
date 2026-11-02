@@ -389,7 +389,7 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
-    // The December link (v25.06, an admin preview). Scanned in the state with the most structure: every way of
+    // The new link (v25.06, an admin preview; the December link until v25.10). Scanned in the state with the most structure: every way of
     // working open at once — seven tiles and six figure tables, each figure tied to its label by `headers` — then a
     // second proposal's weeks with the preview's audience list open.
     test('newlink (admin, signed in) — Everything open, then In Step\'s weeks', async ({ page }) => {

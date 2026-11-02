@@ -62,7 +62,7 @@ const PAGE_META = {
     links:      { emoji: '🔗', label: 'Links' },
     overtime:   { emoji: '⏱️', label: 'Overtime' },
     trains:     { emoji: '🚆', label: 'Trains' },
-    newlink:    { emoji: '🔁', label: 'December link' },
+    newlink:    { emoji: '🔁', label: 'New link' },
 };
 
 /** Document/guide OPEN counters (v18.20) — share the pv_ counts map with the page ids above but

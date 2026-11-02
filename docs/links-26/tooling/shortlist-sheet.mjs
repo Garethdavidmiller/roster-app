@@ -358,7 +358,7 @@ const an = s => (/^(8|11|18)/.test(s) ? 'an ' : 'a ') + s;   // "an 8h 40m", "a 
 // THE FAMILY'S BAND AND FOOTER (pack polish, 1 Nov 2026): the date moves from the footer into a "Prepared" line in the band, as on
 // every proposal sheet and the rules, and the footer reads as theirs do — the page's section, then the title and the app
 const PREPARED = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>The shortlist — December 2026 link</title>
+const html = `<!doctype html><html lang="en-GB"><head><meta charset="utf-8"><title>The shortlist — the new CEA link</title>
 <link rel="stylesheet" href="${ROOT}/shared.css"><link rel="stylesheet" href="${ROOT}/links.css">
 <style>
 @page { size: A4; margin: 11mm 11mm 13mm; }

@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: October 2026 — v25.00 · Updated every 0.10 version*
+*Last updated: November 2026 — v25.10 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -1151,3 +1151,35 @@ Two reminders run themselves in the week before the change, and nobody presses a
   signed-in members, once each, and retires itself on the 13th. A member who sees the push and the
   notice sees the same message twice, which is the intent: the push reaches the phones with
   notifications on, the notice reaches everyone who opens the Calendar.
+
+## The new link page (v25.06; "December link" until v25.10)
+
+`newlink.html` shows colleagues the three shortlisted proposals for the new CEA link — **which starts on 1 January
+2027, not with the timetable** (owner, 2 Nov 2026: the timetable changes in December, the link follows on 1 January,
+and today's link carries on until then). It is an **admin-only preview**: only the admin can open it, and it says so
+in a banner.
+
+**Every setting is one line in `newlink-config.js`**, so changing one never means touching the page:
+
+| Setting | What it is | Today |
+|---|---|---|
+| `STARTS` | when the new link starts | `2027-01-01` |
+| `CONTACT` | who colleagues go to about it, spelt as the roster spells it | `S. Silva` (owner, 2 Nov 2026) |
+| `CLOSES` | the last day for views | not set — the page says "a date to be agreed" |
+| `AUDIENCE` | who the page is for once it opens | not set — every CEA on the roster |
+| `PHASE` | where the page is in its life | `'preview'` — the admin alone |
+
+**Opening it to colleagues is not a switch yet.** It needs a role for `AUDIENCE` in `auth-policy.js` and a matching
+pill flag in `nav-panel.js` first; `newlink-config.test.mjs` refuses any other `PHASE` until those exist, so the page
+cannot be flipped open to people who cannot reach it.
+
+**Its PDFs come from the GitHub Pages mirror** (`PACK_BASE`), because Firebase Hosting serves nothing under `docs/`.
+Retiring the mirror breaks those links — move the files into a served folder first.
+
+### Keep only the shortlist (Links, v25.09)
+
+A one-off for the admin, in the Links workspace's ··· menu: **Keep only the shortlist** moves every design last saved
+before 2 Nov 2026 to Recently deleted, so the picker offers the three built-in, read-only proposals. The dialog lists
+each design and who last saved it before anything moves. To undo one, restore it from Recently deleted: a restored
+design carries a new save time, so it is never offered again. The row disappears by itself once nothing older is left.
+The reasoning, including why it is a press and not something that runs on page open: `links-shortlist.js`.

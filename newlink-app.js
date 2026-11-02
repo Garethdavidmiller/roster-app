@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * newlink-app.js — coordinator for newlink.html: the three shortlisted proposals for the December 2026 link, presented to
+ * newlink-app.js — coordinator for newlink.html: the three shortlisted proposals for the new CEA link (from 1 January 2027), presented to
  * the colleagues who will work it.
  *
  * Owns: the access gate, the session wiring, and which view is on screen — the kind of colleague chosen in "What it means
@@ -39,7 +39,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency, markPageReady } from './perf-reporter.js';
 import { PROPOSALS } from './links-proposals.js';
 import { COLUMNS, CHANGES, GAINS, COSTS, PERSONAS, NOTES, PACK } from './newlink-data.js';
-import { PHASE, CLOSES, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY, PREPARED_BY } from './newlink-config.js';
+import { PHASE, CLOSES, STARTS, AUDIENCE, audienceNames, PACK_BASE, HAVE_YOUR_SAY, CONTACT_LINE } from './newlink-config.js';
 import { renderStatus, renderPreviewBanner, renderList, renderCommon, renderPersonas, renderPersonaChips,
     renderAllWeeks, renderWeeksKey, renderWeeksTabs, renderPack, designName, ifYou } from './newlink-render.js';
 
@@ -61,7 +61,7 @@ export function init() {
     if (access.decision === 'login') {
         // No session saved (iOS private mode can refuse the write): reload into a fresh sign-in.
         initLoginOverlay({
-            pageLabel: 'December link',
+            pageLabel: 'New link',
             onSuccess: () => { try { if (!getSession()) { window.location.reload(); return; } init(); } catch { window.location.reload(); } },
         });
         return;
@@ -79,7 +79,7 @@ function start(member) {
     dismissLoginOverlay();
     const established = ensureNamedSession(member);
     resolveSession(established);
-    guardNamedSession({ page: 'newlink', pageLabel: 'December link', member, established });
+    guardNamedSession({ page: 'newlink', pageLabel: 'New link', member, established });
 
     /** @type {(() => void)|null} */
     let openAboutLightbox = null;
@@ -95,7 +95,7 @@ function start(member) {
     });
     // initAboutLightbox returns `{ open, close }`, not a function. Taking the object whole — as this page first did, copying
     // Trains — made the drawer's logo throw instead of opening About (found 2 Nov 2026).
-    openAboutLightbox = initAboutLightbox({ appLabel: 'Marylebone Roster — December link', getUserName: () => member })?.open ?? null;
+    openAboutLightbox = initAboutLightbox({ appLabel: 'Marylebone Roster — New link', getUserName: () => member })?.open ?? null;
     wireHeaderLogo();   // the header logo goes back to the calendar (about-lightbox.js — the one wiring)
     const cards = Object.fromEntries(CARDS.map(id => [id, initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`)]));
 
@@ -113,7 +113,7 @@ function start(member) {
 
 /** Everything that does not depend on a choice: the status, the banner, the lists, the pack, the notes. */
 function renderStatic() {
-    setHTML('nlStatus', renderStatus({ proposals: PROPOSALS, closes: CLOSES }));
+    setHTML('nlStatus', renderStatus({ proposals: PROPOSALS, closes: CLOSES, starts: STARTS }));
     const banner = el('nlPreview');
     if (banner) {
         banner.hidden = PHASE !== 'preview';
@@ -125,7 +125,7 @@ function renderStatic() {
     setHTML('nlSayList', renderList(HAVE_YOUR_SAY));
     setHTML('nlPackList', renderPack(PACK, PACK_BASE));
     setHTML('nlHowList', renderList(NOTES));
-    setText('nlPrepared', PREPARED_BY);
+    setText('nlPrepared', CONTACT_LINE);
 }
 
 /**

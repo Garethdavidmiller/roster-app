@@ -84,6 +84,11 @@ requirement and the contracted week on 29 Sep. See the dashboard above.)*
 **T = the December 2026 timetable change date.** Pin T first — everything below is relative to it,
 and T is a published industry date, not something to estimate.
 
+**The new link itself starts on 1 January 2027, not at T** (owner, 2 Nov 2026: "Whilst the new timetable will start in
+December, the new cea link design will be from January 1st"); today's link carries on until then. The table stays
+anchored to T, the earlier and fixed date, so each "latest safe" is about three weeks cautious for the link. Re-anchor
+it to 1 January only if the room wants the real latest dates.
+
 | Milestone | Latest safe | For a mid-December T, that is roughly |
 |---|---|---|
 | Timetable source frozen | T−12 weeks | mid-September 2026 ✅ *(already done)* |
