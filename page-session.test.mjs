@@ -54,8 +54,12 @@ const fire = (/** @type {string} */ t, /** @type {any} */ e = {}) => (listeners[
 
 const ps = await import('./page-session.js');
 
-/** Let the on-demand import of the sign-in land (a dynamic import takes more than one tick). */
-const settle = () => new Promise(r => setTimeout(r, 50));
+/** Let the on-demand import of the sign-in land (a dynamic import takes more than one tick). POLLED, not
+ *  a fixed 50ms: a full unit lane on a busy machine overran that once (48-hour review, Nov 2026). Every
+ *  caller expects the sign-in to show, so a bounded wait for it adds nothing a test could pass on. */
+const settle = async () => {
+    for (let i = 0; i < 100 && !log.some(e => e.startsWith('login:')); i++) await new Promise(r => setTimeout(r, 20));
+};
 
 beforeEach(() => { ss.clear(); authCb = null; inFlight = 0; lastConfirm = ''; log = []; session = { name: 'A. Member' }; decision = 'allow'; currentUser = { uid: 'u1' }; confirmAnswer = true; watchArgs = null; });
 

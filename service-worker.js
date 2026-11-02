@@ -23,7 +23,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '25.06';
+const APP_VERSION = '25.07';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -536,9 +536,8 @@ async function warmCacheAndSweepOld() {
     // cache is fully warmed. Decoupled (v16.11) so a device that can't reach gstatic —
     // where the app is hard-broken anyway — doesn't accumulate an old app cache per
     // deploy forever. Prefix-scoped so we never clobber another cache on the origin.
-    // OLDER versions only (v25.06, whole-app review): this used to delete every other version, so an
-    // old worker finishing a retried warm-up after the next release had opened its cache deleted the
-    // NEWER one — and that worker's own sweep then took the old, leaving nothing to launch offline.
+    // OLDER versions only (v25.06): deleting every OTHER version let an old worker's retried warm-up
+    // delete the NEWER cache, leaving nothing to launch offline — sw-internals.test.mjs has the sequence.
     const cacheNames = await caches.keys();
     await Promise.all(
         cacheNames
@@ -767,8 +766,7 @@ self.addEventListener("fetch", event => {
                 // ONLY ON A MISS (Oct 2026): over a held page the network copy is identical or the WRONG
                 // release (an HTTP-cached preload, or an old worker) — the JS/CSS branch argues it fully.
                 // …AND NEVER A PRELOAD ANSWER: it may be last release's page from the HTTP cache (Pages
-                // max-age), kept for the whole version. Serve the preload; STORE our own no-cache fetch — a
-                // NEW Request: `freshReq`'s signal is aborted when the preload lands after the 2s race (v25.06).
+                // max-age), kept for the whole version. Serve the preload; STORE a NEW Request (the race aborts freshReq).
                 // Stored under the bare path (query stripped) — findCachedFallback matches ignoreSearch.
                 if (!cachedDoc && response && response.status === 200 && (!ct || ct.includes('text/html'))) {
                     const store = viaPreload

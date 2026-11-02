@@ -693,10 +693,10 @@ Shared overlay helpers — singleton module, imported by every page that shows a
 - Imported by most pages and many feature modules — grep for the import rather than trusting a list here.
 
 ### `about-lightbox.js`
-Shared About panel for `#iconLightbox` on all eight app pages (v12.50).
+Shared About panel for `#iconLightbox` on every app page (v12.50).
 - `initAboutLightbox({ appLabel, bugLinkId, getUserName, onOpen, printFn })` — returns `{ open, close }` or null if the page has no `#iconLightbox`. Owns the version line, the SW "up to date / update available" status, the pre-filled bug-report mailto, and the optional `#lightboxPrintBtn` (close → wait for exit transition → print; `printFn` overrides `window.print()` — the calendar passes a landscape variant for team view).
 - Each page assigns the returned `.open` — never the object — to its module-level `openAboutLightbox` so the nav-drawer logo can open it. Trains kept the object and called it, so its About panel never opened (v24.71 → fixed v25.06).
-- `wireHeaderLogo(onActivate?)` (v25.06) — the sub-page header logo's back-to-calendar wiring (`role="button"`, keyboard, idempotent via `data-wired`). One copy for every sub-page: the five hand-written copies are why Trains and Overtime shipped an `#appIcon` labelled "Back to calendar" that nothing wired. A page with unsaved work passes its own confirm-then-go. The Calendar's header logo opens About instead and does not call it.
+- `wireHeaderLogo(onActivate?)` (v25.06) — the sub-page header logo's back-to-calendar wiring (`role="button"`, keyboard, idempotent via `data-wired`). One copy for every sub-page: the five hand-written copies are why Trains and Overtime shipped an `#appIcon` labelled "Back to calendar" that nothing wired. The December link page, written alongside, brought a sixth, folded in at v25.07; `page-contract-parity.test.mjs` now fails on any module but this one reaching for the logo. A page with unsaved work passes its own confirm-then-go. The Calendar's header logo opens About instead and does not call it.
 
 ### `tips-lightbox.js`
 Shared per-card Tips panel for `#tipsLightbox` (v12.50).
