@@ -762,8 +762,8 @@ uppercase. */
     max-width: 100%;
     box-sizing: border-box;
     padding: 10px 12px;
-    border: 1.5px solid var(--border-light);
-    border-radius: var(--radius-sm);
+    border: var(--field-border);
+    border-radius: var(--radius-field);
     background-color: var(--field-bg);
     color: var(--text-dark);
     font-family: var(--font-sans);

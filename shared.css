@@ -302,6 +302,11 @@
     --surface-sunken:    oklch(96.3% 0.006 250deg);
     --field-bg:          var(--surface-sunken);
     --field-bg-disabled: oklch(92.8% 0 0);
+    /* The edge every text field, select and picker trigger on a card wears (v25.12). It was already
+       the majority recipe, written out ~20 times; three fields had drifted to a fainter 1–1.5px
+       hairline (the Settings work email, the Trains station box and Overtime's own-times boxes), so
+       the one control a member types into on those pages read as a lighter kind of field. */
+    --field-border:      2px solid var(--border-mid);
 
     --today-print: oklch(99.0% 0.0288 102.7deg); /* soft gold for print today-cell */
     --print-muted: oklch(37% 0 0); /* ≈#444 — secondary text on printed pages (timestamps, sub-lines) */
@@ -325,7 +330,13 @@
     --radius-sm:     8px;
     --radius-md:    16px;
     --radius-lg:    18px;
-    --radius-button: 10px;  /* action/save buttons — between sm and md */
+    --radius-button: 12px;  /* action/save buttons (12px since v25.12, the modernisation pass — was 10px) */
+    /* Every text field, select and picker trigger on a card takes the BUTTON's corner (v25.12), so a
+       field and the button beneath it read as one set. Before this the fields sat on --radius-sm or
+       a literal 8px while the buttons under them were 10px: two corners a few pixels apart in one
+       card, which reads as assembled rather than designed. Dense inputs that sit in a ROW or a grid
+       (the Links generator, the Operations email table, the navy member bar) keep --radius-xs. */
+    --radius-field:  var(--radius-button);
     --radius:       12px;   /* the app's common discrete-CARD corner (day-row, override/error/usage rows) — was hardcoded in ~8 places */
     --radius-xl:    20px;   /* large lightbox/panel cards (v17.72 — was a hardcoded 20px in ~20 places) */
     /* The app has TWO overlay families and they carry different corners on purpose: compact white
@@ -1027,8 +1038,8 @@ body.lb-open #stickyTotal { display: none !important; }
 .dialog-input {
     font-size: var(--type-medium);   /* >=16px — never trip iOS focus-zoom on a focusable field */
     padding: 10px 12px;
-    border: 1px solid var(--border-mid);
-    border-radius: var(--radius-button);
+    border: var(--field-border);
+    border-radius: var(--radius-field);
     background-color: var(--field-bg);
     color: var(--text-dark);
     width: 100%;
@@ -1143,14 +1154,22 @@ body.lb-open #stickyTotal { display: none !important; }
     letter-spacing: 0.3px;
 }
 
-/* Section badge — gold pill below the version, e.g. "Admin panel" / "Pay Calculator" */
+/* Section badge — a pill below the version naming the page ("Admin", "Pay Calculator"), in the
+   page's colour: a pale tint of it, and the colour itself as the text. Pages override the three
+   colours with their own; this default is gold — Admin's, and the Calendar's Team Week badge.
+   THE TEXT IS --gold-text, NOT THE BRAND GOLD (v25.12). Brand gold on its own 15% tint measured
+   1.49:1 — the badge text sits on a near-white pill, and bright gold is a colour to see, not to
+   read, which is why --gold-text exists. Operations had the orange twin of the same defect (1.93:1)
+   and now reads in --orange-text; Overtime, which had no rule and so wore this gold, now wears its
+   own --ot (4.68:1). The rest were already above 4.5:1 (measured: pay 4.82, trains 5.03, settings
+   5.48, links 6.26, new link 9.00). */
 .lightbox-badge {
     margin-top: 10px;
     padding: 5px 14px;
     background: color-mix(in oklch, var(--accent-gold) 15%, white);
     border: 1px solid color-mix(in oklch, var(--accent-gold) 35%, white);
     border-radius: var(--radius-pill);
-    color: var(--accent-gold);
+    color: var(--gold-text);
     font-size: var(--type-badge);
     font-weight: 800;
     text-transform: uppercase;
@@ -1370,7 +1389,7 @@ button.lightbox-bug-link {
     color: var(--text-dark);
     background-color: var(--field-bg);
     border: 1px solid var(--border-light);
-    border-radius: var(--radius-button);
+    border-radius: var(--radius-field);
     padding: 8px 30px 8px 10px;
     cursor: pointer;
     text-align: left;
@@ -1535,8 +1554,8 @@ button.lightbox-bug-link {
     gap: 8px;
     padding: 8px 10px;
     min-height: 44px;
-    border: 2px solid var(--border-mid);
-    border-radius: var(--radius-sm);
+    border: var(--field-border);
+    border-radius: var(--radius-field);
     background-color: var(--field-bg);
     color: var(--text-dark);
     font-family: inherit;
@@ -2031,9 +2050,11 @@ button.lightbox-bug-link {
     gap: 4px;
 }
 
-/* Small inline glyph before badge text (📝 Admin, £ Pay).
-   font-style: normal overrides any inherited italic; font-family
-   ensures the glyph renders as a text symbol, not an emoji. */
+/* Small inline glyph before badge text — the SAME emoji the page wears on its drawer pill
+   (📝 Admin, 💷 Pay, ⚙️ Settings, ⏱️ Overtime …), so the badge you arrive at and the pill you tapped
+   to get there carry one mark (v25.12; three badges had a text symbol — £, ⚙, ⏱ — where the pill had
+   the emoji). font-style: normal overrides any inherited italic. The font-family is a system stack
+   so a glyph with a text form still gets the platform's colour emoji. */
 .badge-glyph {
     font-style: normal;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -2521,17 +2542,21 @@ button.lightbox-bug-link {
 }
 
 /* Settings joined the pill grid at v20.06 (was a flat link pinned above the footer, the only
-   page-destination in the drawer that did not look like one). It is deliberately the QUIETEST pill:
-   the same raised-chip treatment the Admin pill uses but with plain text rather than gold, so the
-   grid still reads as "work pages first, housekeeping last" and the eye is not pulled to it. It has
-   no colour identity of its own because Settings has no page identity elsewhere in the app —
-   inventing one here would be the drawer asserting something no other surface says. */
+   page-destination in the drawer that did not look like one). It was then the QUIETEST pill — the
+   raised-chip treatment with plain text — on the reasoning that Settings had no colour identity
+   anywhere else, so the drawer should not invent one.
+
+   THAT STOPPED BEING TRUE, AND THE PILL DID NOT FOLLOW (v25.12). Settings' page badge is indigo, its
+   About badge is indigo and its notice badge is indigo; the drawer was the one surface still saying
+   it had no colour, and the drawer is the map — a destination that is indigo when you arrive and
+   grey on the way there is two answers to one question. So it wears its own colour now, like every
+   other page pill. "Work pages first" still holds by POSITION: Settings is last in the grid. */
 .nav-panel-pill--settings {
-    background: var(--nav-raised);
-    color: var(--nav-text);
+    background: var(--indigo);
+    color: white;
 }
 @media (hover: hover) and (pointer: fine) {
-    .nav-panel-pill--settings:hover { background: var(--nav-raised-strong); }
+    .nav-panel-pill--settings:hover { background: var(--indigo-hover); }
 }
 
 /* "You are here" — the current page's pill is inert, ringed, and carries a dot.
@@ -3142,8 +3167,8 @@ button.nav-panel-link--notices {
     width: 100%;
     box-sizing: border-box;
     padding: 8px 10px;
-    border: 2px solid var(--border-mid);
-    border-radius: var(--radius-sm);
+    border: var(--field-border);
+    border-radius: var(--radius-field);
     font-size: var(--type-medium);               /* 16px stops iOS Safari zooming the page on focus */
     color: var(--text-dark);
     background-color: var(--field-bg);
@@ -3321,8 +3346,12 @@ body.auth-ready .boot-placeholder { display: none; }
    ══════════════════════════════════════════════════════════════════ */
 
 /* ── Card header / body ─────────────────────────────────────────── */
+/* The header shares the CARD's surface (v25.12). It used to sit on a grey band (--bg-light), which
+   with the 13px title made every card read as a form from an older app: a strip of grey, small type,
+   then the content. One surface with the hairline beneath it is the modern card, and the title now
+   carries the hierarchy the band was standing in for. */
 .card-header {
-    background: var(--bg-light);
+    background: var(--surface);
     border-bottom: 1px solid var(--border-light);
     padding: 11px 16px;
     display: flex;
@@ -3337,7 +3366,16 @@ body.auth-ready .boot-placeholder { display: none; }
    h2: styled identically, it looked right, so the heading outline silently ran h1 → h3 with no h2
    at all. Keeping only h2 here means a stray h3 now looks wrong immediately instead of hiding.
    (axe's heading-order rule is tagged best-practice, not WCAG A/AA, so the a11y gate never saw it.) */
-.card-header h2 { font-size: var(--type-label); font-weight: 700; color: var(--primary-blue); margin: 0; }
+/* 14px (--type-body) since v25.12 — was --type-label, 13px, the size of the dense row text inside the
+   card it names, so a title could not out-rank its own content.
+   WHY NOT 15px, WHICH WAS TRIED: measured at 360/375/390px on every card page, 15px tipped paycalc's
+   "🏖️ Holiday Pay Premium (HPP)" onto two lines at 375px — the width v18.53 trimmed a chip to keep it
+   on one — while at 14px it keeps that line. (It wraps at 360px either way, as it always has, and it
+   may not be shortened: paycalc.md invariant 16.) The one title 14px does newly wrap is the admin-only
+   New link page's "🆕 What's changed since Short Run was shown", at 375px — balanced onto two lines.
+   The slight negative tracking is what bolder Inter wants at this size. `text-wrap: balance` makes a
+   title that must wrap split evenly rather than leave one word on a line of its own. */
+.card-header h2 { font-size: var(--type-body); font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; color: var(--primary-blue); margin: 0; }
 .card-header .hint { font-size: var(--type-small); color: var(--text-light); display: block; }
 /* A "☰ → Daily Huddle" path told to staff is one token, not three words: without this the wrap
    could land between the burger glyph and the arrow, leaving a line starting "→ Daily Huddle" that
@@ -3482,7 +3520,7 @@ body.auth-ready .boot-placeholder { display: none; }
    smallest target on any of those pages.
 
    The fix is not a new idea; it is the one already sitting 120 lines below, on `.btn-card-tips`,
-   whose 20px circle has carried a 44px `::before` since it was written. The two controls sit 5px
+   whose circle (20px then, 24px since v25.12) has carried a 44px `::before` since it was written. The two controls sit 5px
    apart in the same cluster and only one of them had it.
 
    ENLARGING THE GLYPH WAS THE OTHER OPTION AND IT IS THE WRONG ONE: the cluster is `flex-shrink: 0`,
@@ -3557,7 +3595,7 @@ body.auth-ready .boot-placeholder { display: none; }
     border: none;
     border-radius: var(--radius-button);
     font-size: var(--type-button);
-    font-weight: 800;
+    font-weight: 700;   /* was 800 — the one primary button heavier than the rest (v25.12) */
     cursor: pointer;
     letter-spacing: 0.2px;
     transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
@@ -3572,13 +3610,16 @@ body.auth-ready .boot-placeholder { display: none; }
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 20px;
+    /* 24px and --type-small since v25.12 — the size of the shared `.help-btn`, the app's other "?"
+       circle. They were the same control at two sizes (20px and 24px), and beside the 15px card title
+       a 20px circle with an 11px glyph read as an afterthought. */
+    width: 24px;
+    height: 24px;
     border-radius: 50%;
     border: 1.5px solid var(--border-mid);
     background: var(--bg-faint);
     color: var(--text-light);
-    font-size: var(--type-badge);
+    font-size: var(--type-small);
     font-weight: 700;
     cursor: pointer;
     vertical-align: middle;
@@ -3589,11 +3630,11 @@ body.auth-ready .boot-placeholder { display: none; }
     position: relative;
     font-family: inherit;
 }
-/* Invisible expanded hit area — visible button is 20px but tap region is 44px */
+/* Invisible expanded hit area — visible button is 24px but tap region is 44px (24 + 2 × 10) */
 .btn-card-tips::before {
     content: '';
     position: absolute;
-    inset: -12px;
+    inset: -10px;
 }
 .btn-card-tips:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
 @media (hover: hover) and (pointer: fine) {

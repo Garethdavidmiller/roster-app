@@ -225,8 +225,8 @@ body.auth-ready .container { display: grid; }
 .roster-type-select {
     flex: 0 0 auto;
     padding: 8px 10px;
-    border: 2px solid var(--border-mid);
-    border-radius: var(--radius-sm);
+    border: var(--field-border);
+    border-radius: var(--radius-field);
     font-size: var(--type-medium);
     font-weight: 600;
     background-color: var(--field-bg);
@@ -825,7 +825,7 @@ body.auth-ready .container { display: grid; }
 .roster-cancel-btn {
     display: block; width: 100%;
     background: none; border: 1.5px solid var(--border-light);
-    color: var(--text-mid); padding: 11px; border-radius: 10px;
+    color: var(--text-mid); padding: 11px; border-radius: var(--radius-button);
     font-size: var(--type-button); font-weight: 600; cursor: pointer;
     margin-top: 10px; font-family: inherit;
     transition: border-color var(--dur-med), color var(--dur-med);
@@ -855,8 +855,8 @@ body.auth-ready .container { display: grid; }
 select, .fieldpick, input[type="text"], input[type="date"] {
     width: 100%;
     padding: 8px 10px;
-    border: 2px solid var(--border-mid);
-    border-radius: var(--radius-sm);
+    border: var(--field-border);
+    border-radius: var(--radius-field);
     font-size: var(--type-medium);
     color: var(--text-dark);
     background-color: var(--field-bg);
@@ -904,12 +904,16 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
    rank (matching .field-eyebrow) so they add structure without adding chrome. Staff Login Accounts
    moved up beside Account status in the same change — both are account admin, and three monitoring
    cards used to sit between them. Sits on the navy canvas, so it takes a light colour. */
+/* The SAME recipe as Settings' `.settings-section-label` since v25.12 — they are one element (an
+   uppercase signpost on the navy canvas grouping the cards below it) and were drawn two ways: 700 on
+   0.5px tracking in white at 55% here, 800 on .09em in --on-navy-muted there. The Settings recipe is
+   the one that names its colour through the on-navy token rather than restating an alpha. */
 .ops-group-label {
     font-size: var(--type-micro);
-    font-weight: 700;
+    font-weight: 800;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: rgba(255, 255, 255, 0.55);
+    letter-spacing: .09em;
+    color: var(--on-navy-muted);
     margin: 4px 0 -4px 2px;
 }
 /* The first label in each column shouldn't add space above the column's first card. */
@@ -978,8 +982,8 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 .email-filter-select {
     font-size: var(--type-medium);
     padding: 6px 10px;
-    border: 2px solid var(--border-mid);
-    border-radius: 8px;
+    border: var(--field-border);
+    border-radius: var(--radius-field);
     background-color: var(--field-bg);
     color: var(--text-dark);
     cursor: pointer;
@@ -1215,7 +1219,7 @@ select:focus-visible, .fieldpick:focus-visible, input:not([type="checkbox"]):not
 #iconLightbox .lightbox-badge {
     background: color-mix(in oklch, var(--orange) 15%, white);
     border-color: color-mix(in oklch, var(--orange) 35%, white);
-    color: var(--orange);
+    color: var(--orange-text);   /* bright orange on its own tint was 1.93:1; this is 7.26:1 (v25.12) */
 }
 
 /* ---- Auth setup card ---- */

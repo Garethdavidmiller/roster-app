@@ -80,6 +80,15 @@ header systems drifted apart pre-v18.16. A11y invariant (v17.50): the focusable 
 the ARROW/CHEVRON, never a header wrapping another button — `initCardCollapse` enforces it, the axe
 gate fails on violations.
 
+**The header shares the card's surface, and its title is 14px (v25.12).** The header used to sit on a
+grey band (`--bg-light`) under a 13px title — the size of the dense row text inside the card it
+names. It is now `--surface` with the same hairline beneath it, and the title is `--type-body` at 700
+with `-0.01em` tracking and `text-wrap: balance`. The `?` Tips circle went from 20px to 24px with
+`--type-small`, the size of the shared `.help-btn` (the app's other `?`), and keeps its 44px target.
+The rule above was demonstrated again on the way: `paycalc.css` held its own copy of the band and the
+title size (v18.29, "match the faint grey strip"), so when the shared header changed, the Pay
+Calculator alone kept the old look and nothing failed. The copy is gone; paycalc inherits.
+
 ## Motion vocabulary + unified press (v11.56)
 
 One easing/duration vocabulary in `shared.css :root`:
@@ -170,6 +179,25 @@ and the same reasoning, as the spacing scale above. **Squarer chips stay squarer
 (3px), `.legacy-pill` / `.source-pill` (8px) and `.list-type-pill` (`--radius`) read as "data tag,
 not pill". Rounding them would change meaning, not tidy it.
 
+## Corners — a field and the button under it share one (v25.12)
+
+| Token | Value | Use |
+|-------|-------|-----|
+| `--radius-button` | 12px (10px until v25.12) | every action button; a TAB is a button (`.ty-tab`, `.ot-tab`); the Calendar's controls; Admin's week navigation |
+| `--radius-field` | `= --radius-button` | every text field, select and picker trigger that sits on a card |
+| `--radius-xs` | 6px | dense inputs that sit in a ROW or a grid — the Links generator, the Operations email table, the navy member bar's picker. Unchanged. |
+| `--field-border` | `2px solid var(--border-mid)` | the field's edge |
+
+Before v25.12 the fields sat on `--radius-sm` or a literal 8px while the buttons beneath them were 10px
+— two corners a few pixels apart in one card, which reads as assembled rather than designed. Three
+fields had also drifted to a fainter 1–1.5px hairline (the Settings work email and password boxes, the
+Trains station box, Overtime's own-times boxes), so on those pages the thing a member types into read as
+a lighter kind of control. A field that is the second half of another (Settings' `@chilternrailways.co.uk`
+suffix) wears the same edge, or the join it exists to hide shows.
+
+**Use the tokens, never a literal**, for a new field or button. Nothing tests this; it is the
+`--type-*` story before v19.02, and the same remedy (a parity test) is available if it drifts again.
+
 ## Overlay sizing — three sizes, one cap, one idiom (v19.04)
 
 The seven centred overlays in `shared.css` had drifted to **five widths (300/320/340/360/380), three
@@ -247,7 +275,7 @@ One type scale in `shared.css :root`:
 
 The four sub-pages (admin, paycalc, operations, settings) use **identical sizes for the same conceptual element**:
 - `body` base → `--type-body`
-- card-header `h2` → `--type-label` (13px/700)
+- card-header `h2` → `--type-body` (14px/700, `-0.01em`, `text-wrap: balance` — v25.12; was `--type-label`, 13px). **15px was measured and declined**: across every card page at 360/375/390px it tipped paycalc's "🏖️ Holiday Pay Premium (HPP)" onto two lines at 375px, the width v18.53 trimmed a chip to protect — and that title may not be shortened (paycalc.md invariant 16)
 - card `.hint` → `--type-small`
 - form/eyebrow labels → `--type-small`
 - inputs/selects → `--type-medium` (16px also stops iOS focus-zoom — **never go below 16px on a focusable field**)
@@ -342,7 +370,24 @@ The whole drawer is one continuous navy surface (`--nav-surface` = `--primary-bl
 
 These are the on-navy equivalents of the global `--text-*` / `--border-light` / `--bg-faint` neutrals. Alpha values are tuned for WCAG AA on navy (0.70 ≈ 7:1, 0.55 ≈ 5:1). Head and footer are separated from the scrolling body by hairline `--nav-border` borders, not by a colour change.
 
-**Pills:** Calendar (gold), Pay (green), Operations (orange) keep their solid fills; the **Admin pill** uses `--nav-raised` with gold text (not navy-fill, which would vanish on navy). Sign-out and the blocked-bell hint mix `--error-red` 65% with white to clear AA on the dark footer. Do not revert the drawer to a white body.
+**Pills:** every page pill wears its page's solid colour — Calendar gold, Pay green, Operations orange, Links purple, Trains raspberry, New link teal, Overtime `--ot` and, since v25.12, **Settings indigo** (it was a quiet raised chip on the reasoning that Settings had no colour anywhere else, which stopped being true when its badges went indigo). The **Admin pill** uses `--nav-raised` with gold text (not navy-fill, which would vanish on navy). Sign-out and the blocked-bell hint mix `--error-red` 65% with white to clear AA on the dark footer. Do not revert the drawer to a white body.
+
+### A page is one colour and one emoji wherever it is named (v25.12)
+
+Three surfaces name a page: its **header badge**, its **drawer pill**, and the badge in its **About
+panel**. They must agree, because the drawer is the map and the badge is where the map says you have
+arrived. Before v25.12 four did not: Admin's header badge fell through to the shared gold fill (the
+Calendar's colour), Settings' pill was grey, Overtime's About badge was gold, and three badges carried
+a text symbol (£, ⚙, ⏱) where the pill carried the emoji (💷, ⚙️, ⏱️).
+
+- **Admin is navy with gold text everywhere.** On the navy header that is the drawer's answer: the
+  raised on-navy rung, gold text and a 1.5px gold inset ring (`#adminBadge`, admin.css).
+- **The badge glyph is the drawer pill's emoji**, character for character (variation selector included).
+- **About-badge text in a bright identity colour uses its `-text` token.** Brand gold on its own 15%
+  tint is 1.49:1 and bright orange 1.93:1; `--gold-text` and `--orange-text` exist for exactly this.
+  Guarded by `e2e/axe.spec.js` → "About lightbox open (<page>)", which opens every signed-in page's
+  panel from the drawer logo and scans it — the Calendar's own About scan never saw a page badge,
+  because the Calendar's is hidden outside Team Week View. Mutation-checked both ways at v25.12.
 
 ## Desktop layout — content width + reading measure (v15.90)
 

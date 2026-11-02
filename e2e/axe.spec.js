@@ -636,6 +636,35 @@ test.describe('accessibility (axe-core)', { tag: '@a11y' }, () => {
         expect(v.length, report(v)).toBe(0);
     });
 
+    // ── EVERY PAGE'S ABOUT BADGE, NOT JUST THE CALENDAR'S (v25.12) ─────────────────────────────────
+    //
+    // The scan above opens the Calendar's About panel, whose page badge is HIDDEN outside Team Week
+    // View — so the badge every other page shows in that panel had never been scanned, and two of
+    // them were unreadable: brand gold on its own pale tint (Admin, 1.49:1) and bright orange on its
+    // own (Operations, 1.93:1). Each is opened the way a member opens it, from the drawer's logo.
+    // Overtime is not here: it is paused (OVERTIME_ENABLED), so nobody can reach its panel.
+    for (const [name, url, ready, init] of /** @type {Array<[string, string, string, (() => void)?]>} */ ([
+        ['admin', '/admin.html', '.day-row'],
+        ['operations', '/operations.html', '#huddleUploadCard'],
+        ['paycalc', '/paycalc.html', '#settingsCard', () => localStorage.setItem('myb_pc_ns_migrated', '1')],
+        ['settings', '/settings.html', '#contactToggleHeader'],
+        ['links', '/links.html', '#generatorToggleHeader', () => localStorage.setItem('myb_links_welcome_seen', '1')],
+        ['trains', '/trains.html', '#trChanges'],
+        ['newlink', '/newlink.html', '[data-persona="all"]'],
+    ])) {
+        test(`About lightbox open (${name}) — the page's badge is readable on the panel`, async ({ page }) => {
+            await seedSession(page, 'G. Miller');
+            if (init) await page.addInitScript(init);
+            await page.goto(url);
+            await expect(page.locator(ready).first()).toBeVisible();
+            await page.locator('#navMenuBtn').click();
+            await page.locator('#navPanelBrand').click();
+            await expect(page.locator('#iconLightbox .lightbox-badge')).toBeVisible();
+            const v = await scan(page);
+            expect(v.length, report(v)).toBe(0);
+        });
+    }
+
     // ── EVERY STATE OF THE UPDATE PILL, NOT WHICHEVER ONE THE ENGINE HAPPENS TO PRODUCE (v23.95) ──
     //
     // `#lightboxUpdateStatus` has three states and the scan above only ever saw one of them.
