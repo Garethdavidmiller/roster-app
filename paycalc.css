@@ -56,16 +56,14 @@
        `card-header card-header-toggle` (×5 collapsible accordion headers, which
        add their own flex + chevron rules). Keeping this base flat avoids fighting
        those modifiers; do not fold it back onto the shared flex header. */
+    /* The FILL and the TITLE are not restated here (v25.12). This block used to copy both from
+       shared.css so the six pages would match (v18.29) — and a copy is exactly what stops matching:
+       when the shared header moved to the card's surface and a 15px title, this page alone kept the
+       grey band and 13px, and nothing failed. shared.css `.card-header` / `.card-header h2` now
+       reach this page directly; only the flat layout's padding and divider are this page's own. */
     .card-header {
-      /* Match the faint grey strip the other five pages' headers carry (shared.css .card-header),
-         so all six pages read identically — the flat LAYOUT (no flex row) is still deliberate; only
-         the fill is aligned here. v18.29. */
-      background: var(--bg-light);
       padding: 11px 16px;
       border-bottom: 1px solid var(--border-light);
-    }
-    .card-header h2 {
-      font-size: var(--type-label); font-weight: 700; color: var(--primary-blue); margin: 0;
     }
     .hint {
       font-size: var(--type-small); color: var(--text-light);
@@ -101,7 +99,7 @@
        selector, so every rule the control relies on has to name it too. */
     #periodSelect, #periodSelectTrigger {
       width: 100%; padding: 10px 30px 10px 14px;
-      border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
+      border: var(--field-border); border-radius: var(--radius-field);
       font-family: inherit; font-size: var(--type-medium); font-weight: 700;
       color: var(--primary-blue); background-color: var(--field-bg);
       -webkit-appearance: none; appearance: none;
@@ -528,7 +526,7 @@
     }
     .hhmm-field input:not([type="checkbox"]):not([type="radio"]) {
       width: 54px; padding: 9px 6px; min-height: 44px;   /* 44px = min touch target (was ~40px) */
-      border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
+      border: var(--field-border); border-radius: var(--radius-field);
       font-variant-numeric: tabular-nums;
       font-size: var(--type-medium); font-weight: 600;
       text-align: center; color: var(--text-dark); background-color: var(--field-bg);
@@ -563,7 +561,7 @@
     /* Stepper */
     .stepper {
       display: flex; align-items: center;
-      border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
+      border: var(--field-border); border-radius: var(--radius-field);
       overflow: hidden; background-color: var(--field-bg); flex-shrink: 0;
     }
     .stepper button {
@@ -628,7 +626,7 @@
     .field > label .note-block { display: block; margin-left: 0; margin-top: 2px; }
     .field input:not([type="checkbox"]):not([type="radio"]), .field select, .field .fieldpick {
       width: 100%; padding: 9px 14px;
-      border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
+      border: var(--field-border); border-radius: var(--radius-field);
       font-family: inherit; font-size: var(--type-medium); font-weight: 600;
       color: var(--text-dark); background-color: var(--field-bg);
       touch-action: manipulation; transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
@@ -769,7 +767,7 @@
        matching every other input (it launched with a one-off 1px + outline). */
     .check-actual input:not([type="checkbox"]):not([type="radio"]) {
       width: 100%; font-size: var(--type-medium); padding: 8px 10px 8px 26px;
-      border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
+      border: var(--field-border); border-radius: var(--radius-field);
       background-color: var(--field-bg);
       transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
     }
@@ -1412,8 +1410,8 @@
     text-transform: uppercase; letter-spacing: 0.5px;
   }
   .decimal-hrs-input {
-    width: 100%; padding: 10px 12px; border: 2px solid var(--border-mid);
-    border-radius: var(--radius-sm); font-size: var(--type-medium); font-family: inherit;
+    width: 100%; padding: 10px 12px; border: var(--field-border);
+    border-radius: var(--radius-field); font-size: var(--type-medium); font-family: inherit;
     background-color: var(--field-bg); color: var(--text-dark);
     transition: border-color var(--dur-med), background-color var(--dur-med);
   }
@@ -1474,7 +1472,9 @@
   .ty-tab {
     flex: 1; padding: 7px 8px;
     background: transparent; color: var(--text-mid);
-    border: 1.5px solid var(--border-mid); border-radius: var(--radius-sm);
+    /* A tab is a button, so it wears the button corner (v25.12 — was --radius-sm). Overtime's
+       `.ot-tab` is sized to match this one and moved with it. */
+    border: 1.5px solid var(--border-mid); border-radius: var(--radius-button);
     font-size: var(--type-small); font-weight: 700;
     cursor: pointer; touch-action: manipulation;
     transition: background var(--dur-med), color var(--dur-med), border-color var(--dur-med), transform var(--dur-fast) var(--ease-standard);
@@ -1888,11 +1888,11 @@
     font-size: var(--type-small);
     background-color: var(--field-bg);
     color: var(--text-dark);
-    /* The calculator's FIELD skin (polish pass): a 2px `--border-mid` edge on `--radius-sm`, as
-       every other box on this page wears. It had a 1px `--border-light` hairline on `--radius-md`,
+    /* The calculator's FIELD skin (polish pass): `--field-border` on `--radius-field`, as every
+       other box on this page wears. It had a 1px `--border-light` hairline on `--radius-md`,
        so the one place you paste a backup read as a different, fainter kind of control. */
-    border: 2px solid var(--border-mid);
-    border-radius: var(--radius-sm);
+    border: var(--field-border);
+    border-radius: var(--radius-field);
     padding: 8px 12px;
     margin-bottom: 12px;
     resize: none;            /* v23.50 — see .li-paste in links.css for the reasoning */

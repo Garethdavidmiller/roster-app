@@ -89,8 +89,8 @@ const NAV_PAGES = [
     // footer, styled like the Information rows — which made it the only page-destination in the
     // drawer that did not look like one, and meant "where do I go" had two answers in two places
     // with two treatments. Folding it in removes a whole visual idiom and leaves the pill grid as
-    // the single, complete answer. It keeps its own quiet colour so it does not compete with the
-    // work pages above it.
+    // the single, complete answer. Grey until v25.12; now its badges' indigo (shared.css has why).
+    // It still comes last, so "work pages first" holds by position.
     { id: 'settings',   label: '⚙️ Settings',      url: './settings.html',   colorClass: 'nav-panel-pill--settings'   },
 ];
 

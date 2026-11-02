@@ -117,8 +117,8 @@ body {
     box-sizing: border-box;
     display: block;
     padding: 10px 12px;
-    border: 1.5px solid var(--border-light);
-    border-radius: 8px;
+    border: var(--field-border);
+    border-radius: var(--radius-field);
     background-color: var(--field-bg);
     font-size: var(--type-medium); /* 16px — prevents iOS zoom on focus */
     font-family: var(--font-sans);
@@ -329,10 +329,12 @@ body {
     font-weight: 600;
     color: var(--text-mid);
     background: var(--bg-faint);
-    border: 1.5px solid var(--border-light);
+    /* The suffix is the second half of ONE field, so it wears the field's edge and corner (v25.12) —
+       a fainter edge here would show the join the row exists to hide. */
+    border: var(--field-border);
     border-left: none;
-    border-top-right-radius: var(--radius-sm);
-    border-bottom-right-radius: var(--radius-sm);
+    border-top-right-radius: var(--radius-field);
+    border-bottom-right-radius: var(--radius-field);
     white-space: nowrap;
 }
 /* Below ~380px the domain and a usable field cannot share a row, so it drops beneath — still
