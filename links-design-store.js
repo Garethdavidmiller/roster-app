@@ -501,5 +501,44 @@ export function createDesignStore(deps) {
             }
             return outcome;
         },
+
+        /**
+         * Make the SHORTLIST the saved designs (v25.09, `links-shortlist.js`): create each one under
+         * its fixed id and move the listed older designs to the bin — in ONE transaction, so the
+         * collection is never left with the old designs gone and the shortlist missing, or the
+         * other way round.
+         *
+         * Two answers are decided by what the transaction READS, not by the list the dialog was
+         * built from (this module's rule 1). If ANY shortlist id is already taken, somebody else got
+         * there first: it writes nothing and returns `already-saved`, which is what stops two
+         * presses making two Even Steps. And a listed design that has gone, or is already in the
+         * bin, is skipped rather than written to — a soft delete is a MERGE, and a merge onto a
+         * document that no longer exists would create a nameless one. Like every transaction here
+         * it fails offline rather than queueing.
+         * @param {{ seeds: Array<{id: string, payload: any}>, retire: string[], by: string }} o
+         * @returns {Promise<{ status: 'saved', moved: string[], created: Array<{ id: string, updatedAt: any, baseline: any }> } | { status: 'already-saved' }>}
+         */
+        async saveShortlist({ seeds, retire, by }) {
+            /** @type {string[]} */ let moved = [];
+            let taken = false;
+            await withClaimRetry(() => runTransaction(db, async (/** @type {any} */ tx) => {
+                moved = []; taken = false;
+                // Every read before any write — a Firestore transaction requires it.
+                for (const s of seeds) if ((await tx.get(refFor(s.id))).exists()) taken = true;
+                if (taken) return;
+                /** @type {any[]} */ const live = [];
+                for (const id of retire) {
+                    const snap = await tx.get(refFor(id));
+                    if (snap.exists() && !isDeleted(snap.data())) live.push(id);
+                }
+                for (const s of seeds) tx.set(refFor(s.id), { ...s.payload, revision: 1 });
+                for (const id of live) tx.set(refFor(id), { deletedAt: serverTimestamp(), deletedBy: by }, { merge: true });
+                moved = live;
+            }));
+            if (taken) return { status: 'already-saved' };
+            const created = [];
+            for (const s of seeds) created.push({ id: s.id, updatedAt: await readStamp(refFor(s.id)), baseline: baselineAfterCommit(1) });
+            return { status: 'saved', moved, created };
+        },
     };
 }

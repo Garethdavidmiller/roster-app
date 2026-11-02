@@ -22,6 +22,11 @@
  * (links-design-store.js), and every rule through its own module (links-import.js,
  * links-deletion.js, links-design-naming.js) — this file is the panels.
  *
+ * And since v25.09 the SHORTLIST PRESS — "Make the shortlist the saved designs", which creates three
+ * designs and bins every older one. Collection management twice over, and it never edits the open
+ * design: it opens a new one through `ctx.activate`, exactly as an import does. Its rules are
+ * links-shortlist.js and its transaction is the store's `saveShortlist`.
+ *
  * ── WHAT STAYS IN links-app.js, AND WHY ────────────────────────────────────────────────────────
  *
  * Rename, duplicate and delete. Each one changes the OPEN design's concurrency baseline
@@ -34,7 +39,9 @@ import { serverTimestamp } from './firebase-client.js';
 import { createLightbox, confirmDialog } from './overlay.js';
 import { checkName } from './links-design-naming.js';
 import { ROTATING_LINES } from './links-design.js';
-import { docPayload, restoredEntryFrom, binEntryFromDoc } from './links-design-doc.js';
+import { docPayload, restoredEntryFrom, binEntryFromDoc, binEntryFrom } from './links-design-doc.js';
+import { proposalById } from './links-proposals.js';
+import { canSaveShortlist, planShortlistSave, shortlistDocId, shortlistSaveMessage, shortlistSavedLine } from './links-shortlist.js';
 import { parseDesignImport, summariseImport } from './links-import.js';
 import { deletedLabel } from './links-deletion.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
@@ -52,6 +59,10 @@ import { unconfirmedWriteLine } from './claim-retry.js';
  * @property {() => Promise<void>} refreshLists  re-read both lists from the server
  * @property {(msg: string, kind?: 'ok'|'err') => void} actionStatus  the workspace's status line
  * @property {() => any} getHeader           the masthead, once built (the bin opens from its ··· sheet)
+ * @property {boolean} isAdmin                the shortlist press is the admin's (links-shortlist.js)
+ * @property {() => boolean} loadFailed       the list did not load — not knowing is not "nothing saved"
+ * @property {() => string|null} openProposalId  the built-in proposal whose working copy is open
+ * @property {(ids: Set<string>) => void} removeDesigns  drop these from the live list (the shortlist press)
  */
 
 /**
@@ -366,12 +377,77 @@ export function createDesignLibrary(ctx) {
         document.getElementById('linksImportText')?.addEventListener('input', _importReset);
     }
 
+    // ── Make the shortlist the saved designs (v25.09) ────────────────────────────────────────────
+    //
+    // The admin's, once. The RULES are links-shortlist.js — what one press saves and moves, and why it
+    // is a press and not a move on page open — and the TRANSACTION is the store's `saveShortlist`.
+    // What is here is the press: the dialog that names every design that will move and who last saved
+    // it, BEFORE anything is written, and then the list moving in memory exactly as the transaction
+    // moved it — as a delete and a restore already do, rather than re-reading a collection a
+    // colleague may be writing to.
+
+    /** Is the ··· More row offered? Not while a press is still in flight: a second one would meet the
+     *  first one's designs and report them as somebody else's. */
+    let shortlistSaving = false;
+    const shortlistOffered = () => !shortlistSaving && canSaveShortlist({ isAdmin: ctx.isAdmin, loadFailed: ctx.loadFailed(), designs: ctx.getDesigns(), bin });
+
+    async function saveShortlist() {
+        if (!shortlistOffered()) return;
+        const live = ctx.getDesigns();
+        const plan = planShortlistSave(live, bin);
+        if (!await confirmDialog({
+            title: 'Make the shortlist the saved designs',
+            message: shortlistSaveMessage(plan, { currentUser: ctx.currentUser, dirty: ctx.isDirty() }),
+            confirmLabel: 'Save the shortlist',
+            danger: plan.retire.length > 0,
+        })) return;
+        shortlistSaving = true;
+        try {
+            const res = await ctx.store.saveShortlist({
+                seeds: plan.seed.map(s => ({ id: s.id, payload: docPayload({ name: s.name, patterns: s.patterns, window: null },
+                                                                          { updatedBy: ctx.currentUser, updatedAt: serverTimestamp() }) })),
+                retire: plan.retire.map(r => r.id),
+                by: ctx.currentUser,
+            });
+            if (res.status === 'already-saved') {
+                ctx.actionStatus('The shortlist was saved a moment ago on another device, so nothing was changed. Reload the page to see it.');
+                return;
+            }
+            // Only what the transaction MOVED goes into the bin. A listed design it found gone, or
+            // binned by a colleague meanwhile, is not live on the server either, so it leaves the list
+            // all the same — the next load shows it wherever it really is.
+            const moved = new Set(res.moved);
+            for (const d of live) if (moved.has(d.id)) bin.unshift(binEntryFrom(d, ctx.currentUser));
+            ctx.removeDesigns(new Set(plan.retire.map(r => r.id)));
+            res.created.forEach((/** @type {{id: string, updatedAt: any, baseline: any}} */ c, /** @type {number} */ i) => {
+                const s = plan.seed[i];
+                ctx.addDesign(restoredEntryFrom({ id: c.id, name: s.name, patterns: s.patterns, window: null },
+                    { updatedAt: c.updatedAt, updatedBy: ctx.currentUser, revision: c.baseline.loadedRevision }));
+            });
+            // Open the saved copy of the proposal that was open, else the first of the shortlist (Even
+            // Step, the recommendation). The working copy is replaced either way — which the dialog
+            // said, when there was unsaved work in it.
+            const open = ctx.openProposalId() ? proposalById(/** @type {string} */ (ctx.openProposalId())) : null;
+            const nextId = open ? shortlistDocId(open) : plan.seed[0].id;
+            ctx.activate(ctx.getDesigns().find(d => d.id === nextId) ?? ctx.getDesigns()[0]);
+            ctx.actionStatus(shortlistSavedLine(plan.seed, res.moved.length), 'ok');
+        } catch (err) {
+            console.error('[Links] Saving the shortlist failed:', err);
+            ctx.actionStatus(unconfirmedWriteLine(err, 'this change', 'the design list') ?? 'Couldn’t save the shortlist — check your connection and try again. Nothing was moved.');
+        } finally {
+            shortlistSaving = false;
+            ctx.renderPicker();   // the row's visibility follows `shortlistOffered`
+        }
+    }
+
     initDesignBin();
     initDesignImport();
 
     return {
         openImport,
         renderBinList,
+        saveShortlist,
+        shortlistOffered,
         /** @returns {any[]} the bin, newest first */
         binList: () => bin,
         /** Replace the bin wholesale — a fresh read of the collection. @param {any[]} list */

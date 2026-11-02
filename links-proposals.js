@@ -27,6 +27,12 @@
  * COPY that has never been saved: edit it freely, and the first save asks for a name and creates a
  * new design — the proposal itself is untouched.
  *
+ * **Since v25.09 the owner can turn them into saved designs** ("Put the new shortlist proposals as the
+ * saved options… Remove the older ones", 2 Nov 2026). The admin's ··· More row saves these three at
+ * fixed ids and moves every older design to the bin, once; from then on the picker lists the saved
+ * copies and no built-in rows (`links-shortlist.js`). This list stays the SOURCE either way — the
+ * saved copies are made from it cell for cell, and the test below still pins it to the sheets.
+ *
  * ── THE ONE RULE ───────────────────────────────────────────────────────────────────────────────
  *
  * **A proposal id never reaches Firestore.** Ids carry the `proposal:` prefix, and the coordinator
