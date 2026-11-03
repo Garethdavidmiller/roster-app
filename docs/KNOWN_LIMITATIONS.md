@@ -296,6 +296,15 @@ moved:
 - **And one test race.** Under 2359 the Links first-visit panel opens late enough to cover the
   burger in Overtime's every-page sweep, which closed it only if it was already up. `seedSession`
   now suppresses it alongside the Calendar's notices, and the one spec about the panel re-enables it.
+- **And two measurements the tests had to learn.** On the iPhone project, 2359 hands back a STALE
+  computed style for the Pay Calculator's `body` (the browser's defaults) from load until something
+  restyles it, while the page on screen is navy and in Inter. Nothing in the app reads that value,
+  so the typeface sweep now forces a fresh computation before it reads, and still fails on a page
+  with no body font (mutation-checked). And the WebKit config's budget per TEST is now 60s, not 30:
+  its longest flows were already at 22–26s on 2215 and run 10–50% slower on 2359, which is
+  Playwright's own wait before each click on this engine, not the app (a Trains tab's handler and
+  the next paint take 30–170ms on WebKit, as on Chromium). The 15s budget per assertion is untouched
+  (`playwright.webkit.mjs` says why).
 - **Not 1.64.1, the newest.** 1.63.0 is what the container carries, so every local Playwright run
   works with no browser workaround. Moving on is a one-line change once the container carries 1.64.
 - **Chromium 153 raises one new browser error under test.** It abandons the declarative page-to-page

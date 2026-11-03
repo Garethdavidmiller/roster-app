@@ -144,6 +144,20 @@ export const IPHONE_PRO_VIEWPORT = { width: 402, height: 874 };
 export default {
     ...base,
     retries: process.env.CI ? 1 : 0,
+    /* ── A LONGER BUDGET PER TEST, NOT PER ASSERTION (3 Nov 2026, the Playwright 1.63 upgrade) ──────
+     *
+     * The base config's 30s is for a whole TEST, and the longest specs here are flows of twenty-odd
+     * steps that were already close to it on this engine. On WebKit 2215 (Playwright 1.56) the iPhone
+     * project took 26.1s for "links: declining an unsaved-changes switch…", 24.4s for "every
+     * line-order switch OFF…" and 21.6s for Trains' "the admin sees what changes…". WebKit 2359 runs
+     * those 10–50% slower (30.6, 26.1, 26.5s), and the first ran out on CI. The time goes to
+     * Playwright's own wait before each click on this engine, not to the app: measured inside the
+     * Trains page, a tab's handler plus the next paint takes 30–170ms on WebKit, as on Chromium.
+     *
+     * So a long FLOW gets room, and no STEP does: `expect` below stays at 15s, which is the
+     * sensitivity the note under it protects, and Chromium (the deploy gate) keeps the base 30s. A
+     * test that hangs now takes 60s to fail instead of 30; that is the whole cost. */
+    timeout: 60_000,
     /* ── WHY THIS ENGINE GETS A LONGER EXPECT BUDGET (v22.36) ────────────────────────────────────
      *
      * Playwright's 5s default is a statement about how long a correct app should take to reach a

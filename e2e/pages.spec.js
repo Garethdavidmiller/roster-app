@@ -6575,10 +6575,26 @@ test('every page renders in Inter, not a browser default', async ({ page }) => {
         await page.goto(url);
         // `body` carries it for the page; `h1` is checked too because the header is shared chrome —
         // if it ever stopped inheriting, every page's masthead would go serif at once.
-        const seen = await page.evaluate(() => ({
-            body: getComputedStyle(document.body).fontFamily,
-            h1: document.querySelector('h1') ? getComputedStyle(document.querySelector('h1')).fontFamily : 'Inter',
-        }));
+        //
+        // A FRESH COMPUTATION, NEVER A CACHED ONE (3 Nov 2026, the Playwright 1.63 upgrade). WebKit
+        // 2359 under the iPhone profile hands back a STALE computed style for the Pay Calculator's
+        // body: the browser's defaults (`-webkit-standard`, no background, 16px), on every load, while
+        // the page on screen is navy and in Inter — a screenshot taken at that instant shows it, with
+        // JavaScript off the reading is right, and it comes right by itself ~1.8s later, the moment
+        // the sticky bar first writes a class to body. Nothing in the app reads that value. A
+        // throwaway custom property set inline forces WebKit to compute body afresh (four loads out
+        // of four; a made-up CLASS does not, because no rule names it). It cannot supply a typeface
+        // the stylesheet does not, so a page with no body font still fails here — mutation-checked.
+        const seen = await page.evaluate(() => {
+            document.body.style.setProperty('--e2e-restyle', '1');
+            const found = {
+                body: getComputedStyle(document.body).fontFamily,
+                h1: document.querySelector('h1') ? getComputedStyle(/** @type {Element} */ (document.querySelector('h1'))).fontFamily : 'Inter',
+            };
+            document.body.style.removeProperty('--e2e-restyle');
+            if (!document.body.getAttribute('style')) document.body.removeAttribute('style');
+            return found;
+        });
         if (!/^Inter\b/.test(seen.body)) wrong.push(`${url} body → ${seen.body}`);
         if (!/^Inter\b/.test(seen.h1))   wrong.push(`${url} h1 → ${seen.h1}`);
     }
