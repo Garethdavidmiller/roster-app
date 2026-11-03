@@ -6,6 +6,9 @@
 #   python3 docs/links-26/tooling/pack.py
 # Every proposal in regenerate.mjs's SUPPLIED list is packed; a missing file stops the build rather than leaving a
 # gap in the pack.
+# THE ZIP IS NOT COMMITTED (owner, 3 Nov 2026: "build it on demand"). It was re-committed with every change to the
+# pack, and each copy added ~15 MB to the repository's history for good — sixteen times by then. The repository
+# ignores *.zip; run this script and send the file to whoever needs it. Never `git add -f` it.
 import os, re, zipfile
 
 ROOT = 'docs/links-26'

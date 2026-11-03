@@ -2971,7 +2971,9 @@ starts already were:
 The weighted league scores weekends as a share of weeks for the same reason. The 24-line sheets gained the same per-year line the same day, their one change since that folder was frozen
 (`../links-24/README.md`).
 
-**Everything in one download:** `links-26-proposals.zip`, laid out as the 24-line pack
+**Everything in one download:** `links-26-proposals.zip`, built on demand by `tooling/pack.py` and **not committed**
+(owner, 3 Nov 2026 — each committed copy added ~15 MB to the repository's history, sixteen times by then; the
+repository ignores `*.zip`, so run the script and send the file). It is laid out as the 24-line pack
 (`../links-24/links-24-proposals.zip`) was:
 1. a *Read me first* note;
 2. the one-page summary, and the two-page shortlist sheet;
