@@ -39,6 +39,10 @@ export const STRAPS = {
   'IS-26-T4': ['Five on at every opening from Monday to Saturday, a 13:45 finish every weekday, and never less than 14h 35m between fixed duties', 'search'],
   // 31 Oct 2026: In Step's weeks with no duty over 8h 30m from Monday to Saturday (README.md → "Even Step")
   'ES-26-T5': ['No shift over 8h 30m and every early one of today’s times, Monday to Saturday, with a 13:45 finish every weekday', 'search'],
+  // 3 Nov 2026: the owner's question — the link with today's shift times given no weight in the league (README.md → "Clean
+  // Slate and Next Step"). Neither is shortlisted; Next Step is Even Step with Clean Slate's three weekday changes
+  'CS-26-N2': ['Shift times chosen afresh for the trains, with nothing over 8h 30m Monday to Saturday, and a 13:45 finish and a closer from 15:45 every weekday', 'search'],
+  'NS-26-T6': ['Even Step with three weekday shifts retimed for the trains: no shift over 8h 30m Monday to Saturday and a 13:45 finish every weekday', 'search'],
 };
 /** The family a design belongs to (the designs that share a starting point) and the date its sheet was first
  *  made — header metadata for whoever presents the set, set in small type so it never competes with the design. */
@@ -58,8 +62,8 @@ export const SHORTLIST = ['Even Step', 'In Step', 'Short Run'];
 export const RECOMMENDED = 'Even Step';
 if (!SHORTLIST.includes(RECOMMENDED)) throw new Error(`the recommendation ${RECOMMENDED} is not on the shortlist`);
 // The Home Grown family (26 Oct 2026) starts from today's own link — its shift times, not Second Nature's duty table.
-export const FAMILY = { SN: 'Second Nature', SW: 'Second Nature', SS: 'Second Nature', SL: 'Second Nature', SG: 'Second Nature', SE: 'Second Nature', FT: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', BW: 'Home Grown', IS: 'Home Grown', ES: 'Home Grown' };
-export const FIRST = { 'SN-26-F2': '1 Oct 2026', 'SW-26-F1': '2 Oct 2026', 'SS-26-F1': '2 Oct 2026', 'SL-26-G3': '2 Oct 2026', 'SG-26-H1': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'FT-26-H1': '3 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'BW-26-T3': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026', 'ES-26-T5': '31 Oct 2026' };
+export const FAMILY = { SN: 'Second Nature', SW: 'Second Nature', SS: 'Second Nature', SL: 'Second Nature', SG: 'Second Nature', SE: 'Second Nature', FT: 'Second Nature', EK: 'Second Nature', SR: 'Second Nature', LB: 'Second Nature', HG: 'Home Grown', CT: 'Home Grown', BW: 'Home Grown', IS: 'Home Grown', ES: 'Home Grown', NS: 'Home Grown', CS: 'Clean Slate' };
+export const FIRST = { 'SN-26-F2': '1 Oct 2026', 'SW-26-F1': '2 Oct 2026', 'SS-26-F1': '2 Oct 2026', 'SL-26-G3': '2 Oct 2026', 'SG-26-H1': '2 Oct 2026', 'SE-26-F1': '2 Oct 2026', 'FT-26-H1': '3 Oct 2026', 'EK-26-H1': '3 Oct 2026', 'SR-26-F1': '3 Oct 2026', 'LB-26-F1': '3 Oct 2026', 'HG-26-T1': '26 Oct 2026', 'CT-26-T2': '26 Oct 2026', 'BW-26-T3': '26 Oct 2026', 'IS-26-T4': '30 Oct 2026', 'ES-26-T5': '31 Oct 2026', 'CS-26-N2': '3 Nov 2026', 'NS-26-T6': '3 Nov 2026' };
 /** WAIVED RULES, per design (owner decisions). A waived rule is reported as waived everywhere, never as a failure —
  *  but only while the design meets what the owner ALLOWED instead, so a later edit that breaks the allowance too
  *  reads as a plain failure. `closer`: the weekday closer may start at 16:25 as well as 15:45. `heads`: twelve on a

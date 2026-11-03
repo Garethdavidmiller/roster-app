@@ -90,6 +90,12 @@ export const SUPPLIED = [
     // weeks (Closing Time's rest days and early and late weeks) with every duty Monday to Saturday 8h 30m or less, every
     // early one of today's times and every closer still 15:45; the lates take the half hour. README.md → "Even Step".
     { file: 'even-step.json',              name: 'Even Step',      code: 'ES-26-T5',   fp: 'd1921b7a', strap: 'No shift over 8h 30m and every early one of today’s times, Monday to Saturday, with a 13:45 finish every weekday' },
+    // Clean Slate (3 Nov 2026): the owner's question — the link if today's shift times carried no weight in the league, every
+    // other rule applying, with the weekday rules closers from 15:45, nothing over 9 hours, openers at most 8h 30m, and one
+    // 13:45 a weekday. Searched afresh and laid on Home Grown's weeks: nothing over 8h 30m Monday to Saturday, 19 weeks on one
+    // shift time. Next Step is Even Step with only Clean Slate's three weekday changes. README.md → "Clean Slate and Next Step".
+    { file: 'clean-slate.json',            name: 'Clean Slate',    code: 'CS-26-N2',   fp: 'dc175c36', strap: 'Shift times chosen afresh for the trains, with nothing over 8h 30m Monday to Saturday, and a 13:45 finish and a closer from 15:45 every weekday' },
+    { file: 'next-step.json',              name: 'Next Step',      code: 'NS-26-T6',   fp: 'd53e1533', strap: 'Even Step with three weekday shifts retimed for the trains: no shift over 8h 30m Monday to Saturday and a 13:45 finish every weekday' },
 ];
 
 /** The searched proposals: `final.mjs` picks from the committed candidates. */
