@@ -38,14 +38,16 @@
  *
  * `LEAVE_YEAR_CHOICE` decides whether the app OFFERS the choice. The rules that accept the field and
  * the client that writes it go out in separate releases (backend first — CLAUDE.md, Workflows), so
- * the client ships with the switch off and a later one-line release turns it on. COUNTING honours a
+ * the client shipped with the switch off (v25.18) and a one-line release turned it on (v25.19). It
+ * stays as the way to withdraw the panel without a code change elsewhere. COUNTING honours a
  * stored `leaveYear` whatever the switch says: the record is the truth, and turning the switch back
  * off must not make a day that was moved silently move back on every screen.
  */
 
-/** Whether the app OFFERS the choice. Off until the rules that accept `leaveYear` are deployed.
- *  @type {boolean} — declared, so turning it on is a one-word change the checker does not query. */
-export const LEAVE_YEAR_CHOICE = false;
+/** Whether the app OFFERS the choice. ON since v25.19 (owner, 3 Nov 2026): it shipped off at v25.18
+ *  and was turned on once the rules accepting `leaveYear` were live (Deploy Firestore Rules, 13:19 UTC).
+ *  @type {boolean} — declared, so flipping it is a one-word change the checker does not query. */
+export const LEAVE_YEAR_CHOICE = true;
 
 /** The first January the choice is offered for: 2027 is the first year staff carry days into. */
 export const LEAVE_YEAR_FROM = 2027;
@@ -54,9 +56,8 @@ const JANUARY_RE = /^(\d{4})-01-(0[1-9]|[12]\d|3[01])$/;
 
 /**
  * Is the choice switched on? `__E2E.leaveYearChoice` is a TEST SEAM, the same shape as
- * `overtimeEnabled` in auth-policy.js: the browser suites set it to drive the real panel while the
- * switch is off for everyone else. Nothing in production sets `__E2E`, and setting it by hand offers
- * only a write the deployed rules refuse until they accept the field.
+ * `overtimeEnabled` in auth-policy.js: the browser suites set it to pin either state, whatever the
+ * constant says. Nothing in production sets `__E2E`.
  * @returns {boolean}
  */
 export function leaveYearChoiceEnabled() {

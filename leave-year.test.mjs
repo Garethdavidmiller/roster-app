@@ -89,19 +89,19 @@ describe('where the choice is offered', () => {
         assert.deepEqual(offeredJanuaries('2028-01-02'), [2028, 2029]);
         assert.deepEqual(offeredJanuaries('2025-12-01'), []);
     });
-    test('the switch ships OFF, and the test seam is the only other way on', () => {
-        // Off until the rules that accept the field are deployed (backend first). Turning it on is
-        // the follow-up release; this assertion is what that release changes, deliberately.
-        assert.equal(LEAVE_YEAR_CHOICE, false);
+    test('the switch is ON (v25.19, after the rules went live), and the test seam pins either state', () => {
+        // It shipped OFF at v25.18 because the rules accepting the field had to deploy first (backend
+        // first); v25.19 turned it on. This assertion is what turning it off again would change.
+        assert.equal(LEAVE_YEAR_CHOICE, true);
         const g = /** @type {any} */ (globalThis);
         const was = g.__E2E;
         try {
             delete g.__E2E;
-            assert.equal(leaveYearChoiceEnabled(), false);
-            g.__E2E = { leaveYearChoice: true };
             assert.equal(leaveYearChoiceEnabled(), true);
-            g.__E2E = { leaveYearChoice: 'yes' };
-            assert.equal(leaveYearChoiceEnabled(), false, 'only a real boolean flips it');
+            g.__E2E = { leaveYearChoice: false };
+            assert.equal(leaveYearChoiceEnabled(), false);
+            g.__E2E = { leaveYearChoice: 'no' };
+            assert.equal(leaveYearChoiceEnabled(), true, 'only a real boolean overrides the constant');
         } finally {
             if (was === undefined) delete g.__E2E; else g.__E2E = was;
         }
