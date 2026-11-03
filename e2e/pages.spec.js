@@ -2440,6 +2440,7 @@ test('admin: with the switch off, the year panel is not there at all', async ({ 
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => {
         const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        w.__E2E.leaveYearChoice = false;   // pinned OFF — the constant is on since v25.19
         w.__E2E.docs = [{ id: 'm_2027-01-05_G.%20Miller', memberName: 'G. Miller', date: '2027-01-05',
             type: 'annual_leave', value: 'AL', note: '', source: 'manual' }];
     });
