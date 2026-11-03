@@ -815,15 +815,15 @@ describe('computeTax', () => {
   // comment above that read says the guard exists for exactly it. The gate here is
   // `ytdPay != null && ytdTax != null`; weaken the `&&` to `||` and the cumulative path runs with
   // `ytdTax` null, `cumTaxDue - null` collapses to `cumTaxDue - 0`, and the WHOLE YEAR'S tax is
-  // charged in one period — then clipped by the reg-23 50% overriding limit, which is what makes
-  // the result look like a number instead of an error.
+  // charged in one period — then bounded by the period's pay (the reg-23 50% limit for a K code),
+  // which is what makes the result look like a number instead of an error.
   //
   // The two directions cost differently, which is why both are pinned:
   //   · Refusing the cumulative path when both figures ARE present costs a slightly rougher
   //     estimate, and the card's own note states which method is in use.
   //   · Taking it on half a pair understates take-home by four figures and says nothing at all.
-  //     Measured on the real payslips: on the 13 Feb 2026 one the mutation charges the whole
-  //     year's liability, clipped by the overriding limit to £2,594.42, against a true £1,108.40.
+  //     Measured on the real payslips while the 50% cap applied to every code: on 13 Feb 2026 the
+  //     mutation charged the whole year's liability, clipped to £2,594.42, against a true £1,108.40.
   //
   // Figures come from PAYSLIP_ACTUALS and the year-to-date totals are SUMMED from it rather than
   // written down, so a fixture correction flows through instead of being restated here.
@@ -863,7 +863,7 @@ describe('computeTax', () => {
     test('late in the year, the half-filled pair does not charge the whole year at once', () => {
       // The expensive shape, and the one the sweep measured. By February the year-to-date pay is
       // ~£53k, so a cumulative recalc that subtracts nothing produces a five-figure liability —
-      // which the reg-23 overriding limit then clips to half the period's pay. That is what makes
+      // which is then bounded by the period's pay (by half of it, for a K code). That is what makes
       // it dangerous rather than obviously broken: the member sees a plausible number.
       const N = 12;                             // the 13 Feb 2026 payslip
       const cur = ROWS[N - 1];
@@ -874,8 +874,8 @@ describe('computeTax', () => {
       const { tax: blank } = computeTax(cur.gross, '1257L', T25);
       approx(tax, blank, 'half a pair must compute exactly as no pair does', 0.005);
       approx(tax, cur.tax, 'and that is the figure the real payslip carries', 1);
-      // The specific wrong answer, named: the overriding limit is what the broken gate returns,
-      // so asserting the DISTANCE from it separates "right" from "merely capped".
+      // The specific wrong answer, named: half the pay is what the broken gate returned while the 50%
+      // cap applied to every code, and the DISTANCE from it still separates "right" from "capped".
       const overridingLimit = cur.gross * 0.5;
       assert.ok(tax < overridingLimit - 1000,
         `tax ${tax.toFixed(2)} must be nowhere near the 50% cap ${overridingLimit.toFixed(2)}`);

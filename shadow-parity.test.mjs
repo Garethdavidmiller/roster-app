@@ -33,12 +33,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { pageStylesheets } from './scripts/app-pages.mjs';
 
 const read = (f) => readFileSync(new URL(f, import.meta.url), 'utf8');
 
-/** The stylesheets that import shared.css's :root, so `--shadow-*` is in scope. */
-const APP_CSS = ['shared.css', 'index.css', 'admin.css', 'paycalc.css',
-    'operations.css', 'settings.css', 'links.css', 'overtime.css'];
+/** The stylesheets that import shared.css's :root, so `--shadow-*` is in scope — from
+ *  scripts/app-pages.mjs (v25.21: a hand-written eight missed trains and newlink). */
+const APP_CSS = ['shared.css', ...Object.values(pageStylesheets())];
 
 const stripComments = (css) => css.replace(/\/\*[\s\S]*?\*\//g, '');
 
@@ -85,7 +86,7 @@ test('the --shadow-* presets are defined once, in shared.css', () => {
 test('css-tokens.md states the hand-rolled shadow count the stylesheets actually carry', () => {
     const measured = handRolledShadows().length;
     assert.equal(documentedCount(), measured,
-        `css-tokens.md says ${documentedCount()} hand-rolled shadows; the eight app stylesheets carry ` +
+        `css-tokens.md says ${documentedCount()} hand-rolled shadows; the app stylesheets carry ` +
         `${measured}. Change the figure in the doc — it is a measurement, and this is the measurement.`);
 });
 

@@ -58,7 +58,7 @@ import { initLinksCompare } from './links-compare.js';
 import { baselineFromEntry } from './links-concurrency.js';
 import { createDesignStore } from './links-design-store.js';
 import { setStatus } from './status-text.js';
-import { unconfirmedWriteLine } from './claim-retry.js';
+import { unconfirmedWriteLine, hasUnconfirmedWrite } from './claim-retry.js';
 import { guardNamedSession, askBeforeSignOut, signOutAndLeave, warnOnUnload, reloadIfRestoredForSomeoneElse } from './page-session.js';
 import {
     isDeleted, canSoftDelete, sortByDeleted,
@@ -87,10 +87,10 @@ export function init() {
     // Register the SW before the access gate — a signed-out visit early-returns below and would
     // otherwise never register/update the SW for that load (v16.23; matches operations/settings).
     registerServiceWorker({
-        isBusy: () => _isDirty(),   // a notification tap asks before taking the page away
-        async beforeReload() {
-            // sw-register.js ignores the return value (this callback reloads itself), so an async
-            // dialog is safe here — it just reloads once the user confirms.
+        isBusy: () => _isDirty() || hasUnconfirmedWrite(),   // a notification tap asks first
+        async beforeReload() {   // sw-register ignores the return, so the async dialog below is safe
+            // A write of UNKNOWN outcome holds the update outright: the reader was told to reload (v25.21, AUTH_AND_SESSIONS 22).
+            if (hasUnconfirmedWrite()) return;
             if (!_isDirty() || await confirmDialog({
                 title: 'Update available',
                 message: 'Reload to apply the update? Unsaved changes will be lost.',
@@ -2302,7 +2302,7 @@ export function init() {
     //
     // So the two ideas are split. The ANNOUNCEMENT is over and is not replayed — it stays in the App
     // Notices archive, written once, on the first close. The ORIENTATION never expires until that
-    // device has actually seen it, and `#linksHowBtn` above the first card reopens it whenever anyone wants
+    // device has actually seen it, and `#linksHowBtn` in the About panel reopens it whenever anyone wants
     // it, which is also what stops this being a pop-up nobody can get back to.
     //
     // A NEW STORAGE KEY was taken at v19.51 and is kept: reusing `myb_links_beta_seen` would have

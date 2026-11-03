@@ -839,3 +839,60 @@ test('only about-lightbox.js wires the sub-page header logo', () => {
         .filter(f => /['"#]appIcon\b|function\s+wireHeaderLogo\b/.test(codeOf(f)));
     assert.deepEqual(offenders, [], 'wire the header logo with wireHeaderLogo() from about-lightbox.js');
 });
+
+// ── AN UNCONFIRMED WRITE HOLDS AN UPDATE'S RELOAD, ON EVERY PAGE THAT ASKS (v25.21, docs audit) ───────
+// AUTH_AND_SESSIONS invariant 22 said "the service worker does not reload the page while it stands",
+// and claim-retry.js and slow-save.js each have a test proving their half. The WIRING had none: Admin
+// and Settings counted the state in their busy checks, Operations and Links did not, and every suite
+// stayed green — the "rule tested, the wiring not" shape CLAUDE.md names. In a second tab Firestore
+// keeps a pending write in memory only, so the reload those two pages took could lose it.
+//
+// So: a page whose service-worker registration declares a busy check (`isBusy` — it has work a reload
+// could cost) must consult the unconfirmed state in that check AND in its reload decision —
+// `writesInFlight()` (which counts it) or `hasUnconfirmedWrite()`. A const it names is read too.
+const RELOAD_HOLD_EXEMPT = {
+    'overtime-app.js': 'its writes are Cloud Function calls with their own reconciliation (OVERTIME_AVAILABILITY invariant 4), never runGatedWrite',
+};
+/** The top-level properties of the object passed to `registerServiceWorker({ … })`, comments skipped. */
+function swRegistrationProps(/** @type {string} */ src) {
+    const at = src.indexOf('registerServiceWorker({');
+    if (at < 0) return null;
+    /** @type {Record<string, string>} */
+    const props = {};
+    let depth = 0, start = 0, quote = '';
+    const take = (/** @type {number} */ end) => {
+        const t = src.slice(start, end).replace(/\/\/[^\n]*/g, '').trim();
+        const name = t.match(/^(?:async\s+)?([A-Za-z_$][\w$]*)/)?.[1];
+        if (name) props[name] = t;
+    };
+    for (let i = at + 'registerServiceWorker('.length; i < src.length; i++) {
+        const c = src[i];
+        if (quote) { if (c === '\\') i++; else if (c === quote) quote = ''; continue; }
+        if (c === '/' && src[i + 1] === '/') { i = src.indexOf('\n', i); continue; }
+        if (c === '/' && src[i + 1] === '*') { i = src.indexOf('*/', i) + 1; continue; }
+        if (c === '\'' || c === '"' || c === '`') { quote = c; continue; }
+        if ('({['.includes(c)) { if (++depth === 1) start = i + 1; continue; }
+        if (')}]'.includes(c)) { if (--depth === 0) { take(i); break; } continue; }
+        if (c === ',' && depth === 1) { take(i); start = i + 1; }
+    }
+    return props;
+}
+test('every page with a busy check holds an update while a write is unconfirmed', () => {
+    const HOLDS = /\b(?:writesInFlight|hasUnconfirmedWrite)\(\)/;
+    let checked = 0;
+    for (const p of APP_PAGE_ENTRIES) {
+        const src = codeOf(p.coordinator);
+        const props = swRegistrationProps(src);
+        if (!props?.isBusy || RELOAD_HOLD_EXEMPT[p.coordinator]) continue;
+        // One level of indirection: `isBusy: _opsBusy` is read through `const _opsBusy = …;`.
+        const withDefs = (/** @type {string} */ t) => t + [...t.matchAll(/\b([A-Za-z_$][\w$]*)\b/g)]
+            .map(m => src.match(new RegExp(`const ${m[1].replace(/\$/g, '\\$')}\\s*=[^;]*;`))?.[0] ?? '').join('\n');
+        assert.match(withDefs(props.isBusy), HOLDS,
+            `${p.coordinator}: its isBusy check does not count an unconfirmed write — a notification tap or an update could take the page away from it`);
+        assert.ok(props.beforeReload, `${p.coordinator}: declares isBusy but no beforeReload — the update reload asks nothing`);
+        assert.match(withDefs(props.beforeReload), HOLDS,
+            `${p.coordinator}: its update reload does not wait for an unconfirmed write (AUTH_AND_SESSIONS invariant 22)`);
+        checked++;
+    }
+    assert.ok(checked >= 4, `only ${checked} pages declare a busy check — this test is checking almost nothing`);
+});
