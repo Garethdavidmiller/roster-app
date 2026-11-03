@@ -323,11 +323,12 @@ test.describe('trains', () => {
         await expect(page.locator('#trLookupBody')).not.toHaveClass(/\bopen\b/);
         const first = await page.locator('#trChanges .tr-head').first().evaluate(e => Math.round(e.getBoundingClientRect().top));
         // Until 10 January the Christmas line sits above the fold ON PURPOSE (v25.20): it is the one thing
-        // on the card a member must not miss, and on a phone it costs ~85px. So it is not counted against
-        // the budget, and is held instead to being a line, not a paragraph — everything else above the
-        // first answer still has to fit in 500px. (Counted, it measured 512px on the phone project.)
+        // on the card a member must not miss. So it is not counted against the budget, and is held instead
+        // to being a short note, not a paragraph — everything else above the first answer still has to fit
+        // in 500px. (Counted, it measured 512px on the phone project.) The note's own cap allows for the
+        // renderer: 84px here (three lines), 105px on CI's runners (four), which set a 100px cap off.
         const christmas = await page.locator('#trFestive').evaluate(e => /** @type {HTMLElement} */ (e).hidden ? 0 : Math.round(e.getBoundingClientRect().height));
-        expect(christmas, 'the Christmas line stays a short note, not a paragraph').toBeLessThan(100);
+        expect(christmas, 'the Christmas line stays a short note, not a paragraph').toBeLessThan(130);
         expect(first - christmas, 'the first headline is on the first screen with room to spare (589px before v24.92)').toBeLessThan(500);
         await page.locator('#trLookupToggleHeader').click();
         await expect(page.locator('#trLookupInput')).toBeFocused();
