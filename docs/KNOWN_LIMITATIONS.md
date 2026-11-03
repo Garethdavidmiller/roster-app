@@ -279,10 +279,23 @@ moved:
   lightbox (31% of the tips overlay's pixels, each by a little), glyph edges, the Team View's
   emoji. The largest were looked at; nothing moved but rendering. **When the lane on a pull request
   disagrees with a baseline drawn here, believe the lane** and take the artifact's actuals.
-- **WebKit 2359 met the suite first in CI**, the only place it runs: it is not pre-installed in the
-  container, which never runs `playwright install` (`.claude/hooks/session-start.sh`). Its six
-  baselines came by the same route. Under Safari 26.6 line heights moved by a pixel or two (the
-  railcard guide's sections sit a few pixels higher, the day panel is 2 px taller); nothing else.
+- **WebKit 2359 met the suite first in CI.** It is not pre-installed in the container (the session
+  hook never runs `playwright install`), but `npx playwright install webkit` fetches it in about a
+  minute, which is how the two findings below were reproduced and their fixes proven before a
+  push. Its six baselines came from CI's render, as above. Under Safari 26.6 line heights moved by
+  a pixel or two (the railcard guide's sections sit a few pixels higher, the day panel is 2 px
+  taller); nothing else.
+- **It found one real Admin defect.** With no member remembered on the device, an admin or manager
+  opening Admin got no member and no week: the list's first entry is a disabled "— Select member
+  —", and 2359 does not pass over it to the first real member, as Chromium does and 2215 did. Admin
+  now chooses that member itself (`admin-app.js`, v25.24), which changes nothing wherever the engine
+  already did. Whether an iPhone's Safari does the same is not known, since Playwright's WebKit is
+  its own build; the fix covers it either way. Four Admin tests failed on it, on both WebKit
+  projects. With the new line removed (`scripts/mutate.mjs`) two of them fail again on 2359, and
+  with it they pass.
+- **And one test race.** Under 2359 the Links first-visit panel opens late enough to cover the
+  burger in Overtime's every-page sweep, which closed it only if it was already up. `seedSession`
+  now suppresses it alongside the Calendar's notices, and the one spec about the panel re-enables it.
 - **Not 1.64.1, the newest.** 1.63.0 is what the container carries, so every local Playwright run
   works with no browser workaround. Moving on is a one-line change once the container carries 1.64.
 - **Chromium 153 raises one new browser error under test.** It abandons the declarative page-to-page
@@ -320,12 +333,12 @@ written once, on e2e.yml's smoke job.
   caused it, rather than four hundred tests later. `workflow-hygiene.test.mjs` pins the fallback's shape, so that is a
   change to the test as well.
 
-### Playwright's WebKit crashes when a page leaves after two history entries and a Back (measured Oct 2026, v24.97)
+### Playwright's WebKit crashed when a page left after two history entries and a Back (Oct 2026, v24.97; not in 2359)
 
-The WebKit that Playwright 1.56.1 ran (build 2215, "Safari 26.0") **crashes its web process**
+The WebKit that Playwright 1.56.1 ran (build 2215, "Safari 26.0") **crashed its web process**
 on a cross-document navigation made after two `history.pushState` calls and a `history.back()`. It
-crashes on `assign` and `replace` alike, on both WebKit projects, here and on CI. The page never
-commits. Playwright reports *"waiting for … navigation to finish"* until the assertion times out,
+crashed on `assign` and `replace` alike, on both WebKit projects, here and on CI. The page never
+committed. Playwright reported *"waiting for … navigation to finish"* until the assertion timed out,
 and *"Target crashed"* after that.
 
 **It is the test browser, not the app.** A standalone script reproduces it with no app code and no
@@ -354,10 +367,10 @@ logo asks before leaving staged edits` and the test after it in `e2e/pages.spec.
 this. **Never skip such a test on WebKit**: it is the lane's only view of the dialog, the drawer and
 the guard on Safari's engine.
 
-**Playwright was upgraded to 1.63.0 on 3 Nov 2026 (WebKit 2359), and those four lines have not been
-re-run yet.** 2359 is not pre-installed in the dev container, which never runs `playwright install`. Run
-them wherever it is installed. If WebKit navigates, this entry can go, and the Leave test can let the
-Calendar load again; until then the test stays as it is, which is correct on either build.
+**Re-run on 3 Nov 2026 under the repo's Playwright 1.63.0: WebKit 2359 navigates, three runs out of
+three.** The test browser no longer has the fault, so this entry stays only for the device question
+above. The Leave test keeps its stop at the network: it is correct on either build, and letting the
+Calendar load would only repeat the next test, which opens the Calendar on that month already.
 
 ## Security
 

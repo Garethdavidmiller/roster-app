@@ -72,6 +72,12 @@ export function seedSession(page, name = 'G. Miller') {
         localStorage.setItem('myb_notice_install_app_2026_done', '1');
         localStorage.setItem('myb_notice_timetable_soon_2026_done', '1');   // 6–12 Dec 2026: left out until the 72-hour review (v24.96)
         localStorage.setItem('myb_pc_ytd_notice_2_shown', '1');
+        // The Links first-visit panel ("How Links works") joined them at the 1.63 upgrade, for the
+        // reason above: it opens after load and covers the burger, and Overtime's every-page sweep
+        // dismissed it only if it was ALREADY up — under WebKit 2359 it opened a moment later, every
+        // time. The Links specs set this key themselves, which is why only a sweep passing THROUGH
+        // Links met the panel; the one spec ABOUT it re-enables it with clearNoticeFlags.
+        localStorage.setItem('myb_links_welcome_seen', '1');
     }, name);
 }
 
