@@ -80,10 +80,31 @@ describe('the wiring, with a stand-in page', () => {
     });
 
     test('hidden while the switch is off — for everyone, whatever they hold', () => {
-        const d = deps();
-        initLeaveYearPanel(d).refresh();
-        assert.equal(d.root.hidden, true);
-        assert.equal(d.body.innerHTML, '');
+        const g = /** @type {any} */ (globalThis);
+        const was = g.__E2E;
+        g.__E2E = { leaveYearChoice: false };   // pinned off: the constant has been ON since v25.19
+        try {
+            const d = deps();
+            initLeaveYearPanel(d).refresh();
+            assert.equal(d.root.hidden, true);
+            assert.equal(d.body.innerHTML, '');
+        } finally {
+            if (was === undefined) delete g.__E2E; else g.__E2E = was;
+        }
+    });
+
+    test('ON by default — with nothing pinned, a member with January leave sees the panel', () => {
+        const g = /** @type {any} */ (globalThis);
+        const was = g.__E2E;
+        delete g.__E2E;
+        try {
+            const d = deps();
+            initLeaveYearPanel(d).refresh();
+            assert.equal(d.root.hidden, false);
+            assert.match(d.body.innerHTML, /data-date="2027-01-05"/);
+        } finally {
+            if (was !== undefined) g.__E2E = was;
+        }
     });
 
     test('with the switch on, a tap saves THAT day on THAT year — and the default year saves as nothing', async () => {

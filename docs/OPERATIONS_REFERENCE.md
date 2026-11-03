@@ -692,15 +692,13 @@ their own days, a manager or the admin anyone's, and a day can never move to a y
 left. The design and the owner's decisions are in `leave-year.js`; the field is `leaveYear` in
 docs/DATA_MODEL.md.
 
-**It shipped switched OFF, and turning it on is its own release.** The database rules that accept
-`leaveYear` and the app that writes it deploy in parallel from one push, so the app carries the
-switch (`LEAVE_YEAR_CHOICE` in `leave-year.js`) and nothing writes the field until it is on:
+**ON since v25.19 (3 Nov 2026).** It shipped switched OFF at v25.18, because the database rules that
+accept `leaveYear` and the app that writes it deploy in parallel from one push; v25.19 turned it on
+once **Deploy Firestore Rules** had finished green (13:19 UTC). The switch is `LEAVE_YEAR_CHOICE` in
+`leave-year.js`, and the assertion in `leave-year.test.mjs` changes with it, deliberately.
 
-1. Merge the release carrying the rules, and confirm **Deploy Firestore Rules** finished green.
-2. A one-line release: `LEAVE_YEAR_CHOICE = true`, and the assertion in `leave-year.test.mjs` that
-   pins it off changes with it, deliberately. Bump the version as usual.
-3. Check it: Admin → Record Annual Leave, for somebody with leave booked in January 2027 — the panel
-   appears beneath the Record button, listing those days with 2026 and 2027 to choose between.
+Check it: Admin → Record Annual Leave, for somebody with leave booked in January 2027 — the panel
+appears beneath the Record button, listing those days with 2026 and 2027 to choose between.
 
 **Switching it off again** hides the panel. Days already moved keep counting against the year they
 were moved to — counting reads the stored year whatever the switch says, so no figure changes.
