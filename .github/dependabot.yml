@@ -1,0 +1,60 @@
+# DEPENDENCY UPDATES, RAISED AS PULL REQUESTS (3 Nov 2026, owner: "Do all your suggestions" — the tooling
+# review found every tool a few releases behind and nothing that would have said so).
+#
+# WHAT THIS COVERS, AND WHAT IT DELIBERATELY DOES NOT. A bot can only raise a change it can make whole;
+# each exclusion below is a change it would make half of, and the half would fail CI or ship wrong:
+#   · the development tools in package.json, and the GitHub Actions — both are invisible to staff, so no
+#     app version bump is involved (e2e.yml's `version` job excludes package.json and .github/);
+#   · NOT functions/package.json — a Cloud Functions dependency is runtime, so its PR needs an app version
+#     bump (CLAUDE.md → Version bumping), which a bot cannot make: every one would fail `version`;
+#   · NOT @playwright/test — it moves with the dev container's pre-installed browsers, so the visual
+#     baselines can be redrawn here on the Chromium CI runs (KNOWN_LIMITATIONS.md → the Playwright upgrade);
+#   · NOT pdfjs-dist — the root copy must match functions/package.json's exact pin, which this file leaves alone;
+#   · NOT @axe-core/playwright, for now — 4.14 runs WCAG 2.5.3's Label in Name rule, which fails 27 of the gate's
+#     states, and the gate blocks deploys. It stays on 4.12 until those are fixed or the rule is waived by decision
+#     (KNOWN_LIMITATIONS.md → axe 4.14 and Label in Name); remove this entry then.
+# By hand, then: the Functions' dependencies, Playwright, pdfjs-dist, axe, and the libraries no package manager
+# sees (the Firebase web SDK in firebase-client.js, the vendored DOMPurify, the Mammoth CDN copy) —
+# docs/MAINTENANCE_CALENDAR.md → Recurring reviews.
+#
+# Minor and patch releases arrive as ONE grouped pull request per ecosystem a week, each running the full
+# CI; a major arrives alone, because each is its own change. Nothing is proposed until it has been out for
+# two weeks (`cooldown`): a release that has to be withdrawn usually is, within days.
+#
+# On a bot's pull request GitHub gives CI a read-only token, so the visual lanes cannot post their comment or
+# their `visual baselines` check. They stay green (both are continue-on-error), and nothing these updates touch is
+# drawn; read the run itself if one ever looks wrong.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/London
+    cooldown:
+      default-days: 14
+    open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: "@playwright/test"
+      - dependency-name: "pdfjs-dist"
+      - dependency-name: "@axe-core/playwright"
+      - dependency-name: "axe-core"
+    groups:
+      dev-tools:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/London
+    cooldown:
+      default-days: 14
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        update-types: [minor, patch]

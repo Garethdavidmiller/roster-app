@@ -241,7 +241,7 @@ roster-app/
 ├── guide-shell.css         ← shared chrome for all 5 guide pages (header + gold brand rule, .btn-back, .btn-pdf, chip-bar, print, palette tokens, and the shared Inter @font-face + --font-sans so the guides render the app's brand typeface)
 ├── guide-doc.css           ← shared styles for the two document-style guides (staff-guide.html, paycalc-guide.html): two-column print layout, info boxes, tables, numbered steps, banner. Loaded between guide-shell.css and page CSS. NOT linked by railcard-guide.html or fip-guide.html.
 ├── staff-guide.css / paycalc-guide.css / railcard-guide.css / fip-guide.css ← page-specific guide CSS
-├── purify.es.mjs           ← self-hosted DOMPurify v3.4.16. Upgrade: `npm pack dompurify@<ver>`, extract purify.es.mjs
+├── purify.es.mjs           ← self-hosted DOMPurify v3.4.17. Upgrade: `npm pack dompurify@<ver>`, extract purify.es.mjs
 ├── service-worker.js       ← single SW for all pages; cache name includes APP_VERSION
 ├── manifest.json           ← PWA manifest for all pages
 ├── guide.html · fip.html ← the two LEGACY guide URLs, kept as redirect stubs after the v22.47 rename (v22.48). `firebase.json` already 301s both — but it speaks for ONE of the app's two origins, and the GitHub Pages mirror serves no redirect rules and no headers while being where most staff still open the app, so an old link there simply 404s. The redirect is therefore in the HTML, where both origins carry it — the same reason the CSP is mirrored into a `<meta>`. No script, no stylesheet, relative target; page-contract-parity's LEGACY_REDIRECTS gives them their own contract rather than an exemption. They go when the mirror does

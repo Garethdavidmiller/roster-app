@@ -34,7 +34,7 @@ const APPLY = process.argv.includes('--apply');
 const CDN = [
     {
         key: 'mammoth',
-        url: 'https://cdn.jsdelivr.net/npm/mammoth@1.12.3/mammoth.browser.min.js',
+        url: 'https://cdn.jsdelivr.net/npm/mammoth@1.13.0/mammoth.browser.min.js',
         type: 'script',
         usedIn: 'huddle.js',
     },
