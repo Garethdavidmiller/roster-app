@@ -71,6 +71,12 @@ the GCP API-key referrer allowlist, or the hosting/Pages setup. Full rationale
 and the symptom table: KNOWN_LIMITATIONS.md → "The installed PWA masks live-site
 breakage".
 
+**After every merge that deploys, run `npm run test:live` once Deploy Firebase Hosting has
+FINISHED** — not at the merge. The deploy runs the whole browser suite before it releases anything
+(22–27 minutes on 3 Nov 2026), so a check started at the merge reads the previous release, and its
+pass says nothing about the new one. A merge whose files all sit in that workflow's `paths-ignore` (docs, tests, workflows,
+Functions, rules) starts no Hosting deploy, so there is nothing to wait for.
+
 ---
 
 ## Version bumping (MANDATORY on every change)
@@ -107,6 +113,10 @@ breakage".
 > a fresh branch from `main` and cherry-pick. That cost three branches and one closed-as-superseded
 > PR across v23.79→v23.82. Either wait for the parent to merge before opening the next PR, or accept
 > the rebuild deliberately. The backend-first rule above forces a split in TIME, not in branches.
+> **Once your own PR has squash-merged, restart its branch from `main`.** Where a force push is
+> refused, `git checkout -B <branch> origin/main && git merge -s ours origin/<branch>` makes the
+> restart a fast-forward: the tree is main's, the old head stays reachable as the second parent, and
+> a plain `git push` lands.
 >
 > **⚠️ ONE PLAYWRIGHT RUN AT A TIME, AND DO NOT SWITCH BRANCHES UNDER ONE.** The suites share a dev
 > server and `test-results/`; two concurrent runs produced a false red (14 Sep), and checking out
