@@ -374,6 +374,55 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
     });
 });
 
+// ── THE CHROMIUM SUITE RUNS ONE JOB PER PROJECT (3 Nov 2026) ──────────────────────────────────────
+//
+// `smoke` ran both Playwright projects in one job and had reached 25.1 minutes of a 30-minute limit,
+// so each project became its own job. That turns a list Playwright used to read for itself — every
+// project in playwright.config.mjs — into one written out in e2e.yml's matrix, and a project added to
+// the config but not to the matrix would silently stop running in CI while every job stayed green.
+// So the matrix is held to the config here, both read from their files, never restated.
+describe('the Chromium suite runs one job per project, and no project is left out', () => {
+    const e2e = readFileSync(join(WF_DIR, 'e2e.yml'), 'utf8');
+    const body = e2e.slice(e2e.search(/^jobs:/m));
+    const start = body.search(/^ {2}smoke:[ \t]*$/m);
+    const rest = body.slice(start + 1);
+    const next = rest.search(/^ {2}[A-Za-z_][\w-]*:[ \t]*$/m);
+    const smoke = next === -1 ? rest : rest.slice(0, next);
+
+    const cfg = readFileSync('playwright.config.mjs', 'utf8');
+    const projectsBlock = cfg.slice(cfg.search(/^\s*projects:\s*\[/m));
+    const configProjects = [...projectsBlock.slice(0, projectsBlock.search(/^\s*\],?\s*$/m))
+        .matchAll(/name:\s*'([^']+)'/g)].map(m => m[1]);
+
+    test('both lists actually parsed', () => {
+        assert.ok(start !== -1, 'no smoke job in e2e.yml');
+        assert.ok(configProjects.length >= 2, `expected playwright.config.mjs's projects, parsed ${configProjects.length}`);
+    });
+
+    test('the matrix names exactly the config\'s projects', () => {
+        const m = /^\s+project:\s*\[([^\]]*)\]/m.exec(smoke);
+        assert.ok(m, 'smoke has no project matrix: the whole suite is back in one job, against the limit it outgrew');
+        const matrix = m[1].split(',').map(s => s.trim()).filter(Boolean);
+        assert.deepEqual([...matrix].sort(), [...configProjects].sort(),
+            `e2e.yml runs ${matrix.join(', ')}; playwright.config.mjs defines ${configProjects.join(', ')}. `
+            + 'A project in the config but not the matrix never runs in CI; one in the matrix but not the config fails its job.');
+    });
+
+    test('each job runs its own project, and a failure never cancels the other half', () => {
+        assert.match(smoke, /npm run test:e2e -- --project=\$\{\{ matrix\.project \}\}/,
+            'each job must pass its matrix project to Playwright, or both jobs run the whole suite');
+        assert.match(smoke, /^\s+fail-fast:\s*false\s*$/m,
+            'with fail-fast on, a red half cancels the green one, and its report is lost');
+    });
+
+    test('each half uploads its report under its own name', () => {
+        // Two jobs uploading one artifact name: whichever lands second fails its upload, so the report
+        // for the half that broke can be the one that is lost.
+        assert.match(smoke, /name: playwright-report-\$\{\{ matrix\.project \}\}/,
+            'the report artifact must carry the project, or the two halves collide');
+    });
+});
+
 // ── A DEPLOY QUEUES; IT IS NEVER CANCELLED, AND NEVER RACES ITSELF (1 Sep 2026) ────────────────
 //
 // Two pushes to main used to deploy in parallel, each spending ~11 minutes on tests first. Nothing
