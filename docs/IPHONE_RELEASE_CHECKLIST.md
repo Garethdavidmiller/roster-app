@@ -47,7 +47,8 @@ keeping if an unrun check looks different from a passed one.
 ## B · Current iPhone — the engine staff meet next
 
 - [ ] **Every page loads past the splash**: Calendar, Admin, Pay Calculator, Settings, Operations,
-      Links, Overtime. A stuck splash is the exact failure the hourly currency check answers "yes"
+      Links, Trains, New link (admin only) — and Overtime, which is paused (v25.05) and should show
+      its closed message rather than a form. A stuck splash is the exact failure the hourly currency check answers "yes"
       to, so it has to be looked at.
 - [ ] **A deep link works from a cold tab** — `/admin.html`, `/paycalc.html` — not just the root.
 - [ ] **The Calendar PIN card** accepts the code and the roster appears. Then close the browser
@@ -60,32 +61,34 @@ keeping if an unrun check looks different from a passed one.
 Install via Share → Add to Home Screen. **Reinstall if the manifest changed this release**:
 `name`, `short_name`, `start_url` and the shortcuts only reach an existing install on reinstall.
 
-- [ ] **The splash screen.** It draws `background_color`, the icon and `name` **in the device's own
-      font** — Inter cannot reach it. Check it is short, ASCII and not falling back mid-string
-      (v23.55 shipped an em dash here and it was reported as "a strange font").
+- [ ] **Not an iPhone check: the launch splash that draws `name` in the device's own font.** That is
+      Chrome's splash on Android before 12 (CLAUDE.md → `manifest.json` `name`; v23.55 shipped an em
+      dash there and it was reported as "a strange font") — check it on an Android phone.
 - [ ] **There is no system Back.** So every overlay must close on its own ✕ or backdrop: the day
       panel, the About panel, the nav drawer, a one-time notice, the Huddle viewer. Open two at
       once and confirm closing the top one leaves the one beneath.
 - [ ] **Notifications.** Enable from Settings → Notifications (Web Push exists **only** in an
       installed PWA on iOS). Then send one — the Huddle is the easiest — and check on the LOCK
-      SCREEN: the badge is a monochrome silhouette and not a muddy blob, the emoji leads the title,
-      and the tap lands on the right surface rather than the app root.
+      SCREEN: the emoji leads the title, and the tap lands on the right surface rather than the app
+      root. (The monochrome badge is drawn by Android's status bar, not iOS — check it there.)
 - [ ] **Tap a notification while the app is already open**, and while it is backgrounded. Both
       should reach the same place.
-- [ ] **AirPrint a guide from the guide's own ⤓ PDF button** (not Share → Print — Safari fires **no
-      `beforeprint`** for AirPrint, so only the button's click prepares the page). The sheet must
-      carry the country/section bodies, not a list of headings. Then print one country with its
-      `⤓ Print <country>` button and confirm you get one sheet naming that country.
+- [ ] **A guide's ⤓ PDF button explains, and offers "Open in Safari"** — an installed iOS app cannot
+      print (`print-guard.js`, v24.61), so the button must say so rather than do nothing.
+- [ ] **In a Safari tab (A or B), AirPrint a guide from the guide's own ⤓ PDF button** (not Share →
+      Print — Safari fires **no `beforeprint`** for AirPrint, so only the button's click prepares the
+      page). The sheet must carry the country/section bodies, not a list of headings. Then print one
+      country with its `⤓ Print <country>` button and confirm you get one sheet naming that country.
 - [ ] **Turn the network off and launch it.** It must open to the cached roster, not an error.
       Then back on, and confirm it updates within an open or two.
 
 ## D · Larger Text — the axis a viewport cannot express
 
 - [ ] **No field zooms on focus.** Any focusable input below 16px makes iOS zoom the page and it
-      does not zoom back. Pay Calculator hours/minutes, the Overtime time fields, the Links design-name and import fields,
+      does not zoom back. Pay Calculator hours/minutes, the Overtime time fields (once Overtime is back), the Links design-name and import fields,
       the sign-in fields.
 - [ ] **The software keyboard does not cover the field being typed into** — the same list.
-- [ ] **Nothing is clipped or overlapping** on the Overtime form head, the Admin week grid's day
+- [ ] **Nothing is clipped or overlapping** on the Overtime form head (once Overtime is back), the Admin week grid's day
       rows, and the Calendar day panel. These are the three densest rows in the app.
 - [ ] **The nav drawer's pills are still one per row** and the footer (name, bell, Sign out) still
       fits.

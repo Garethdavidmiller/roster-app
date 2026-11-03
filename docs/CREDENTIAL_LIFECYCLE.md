@@ -15,8 +15,8 @@ at here, never restated.
 
 The plumbing is finished and it is good: a 60-day session with a single written expiry, strict
 claim-based write isolation, chosen passwords with a forced migration, an admin reset queue, and a
-staff PIN that keeps the roster off the open internet without pretending to be individual
-authentication. None of that needs redesigning.
+staff PIN that keeps roster changes and the documents off the open internet without pretending to be
+individual authentication. None of that needs redesigning.
 
 What is left is the **credential lifecycle**, and it was scattered — the reset mechanism in
 `PASSWORD_DESIGN.md` §5, the email half as a deferred row in the status table, passkeys in a survey
@@ -42,7 +42,7 @@ owner decides what is worth doing and when.
 | 3 | **F — step-up for sensitive admin actions** (§3) | A 60-day admin session is the right trade for ordinary work and the wrong one for account administration | Nothing. Independent, cheap, and the only item here with no prerequisite |
 | 4 | **Keep both kinds of Calendar access** (§4) | Not a change — a decision to record, because "make named sign-in mandatory" keeps suggesting itself | — |
 | 5 | **C5 — retire the surname entirely** (§7) | The milestone. Two possible routes, and which one is taken is an **open owner decision** | Removes a whole credential class from the threat model |
-| 6 | **Retire the anonymous fallback** (§5) | Migration machinery that has outlived its migration is debt | Fewer identity states, so fewer future auth races |
+| 6 | ~~**Retire the anonymous fallback**~~ (§5) | **DONE — v24.34** (owner-approved): migration machinery that had outlived its migration was debt | Fewer identity states, so fewer future auth races |
 | 7 | ~~**Calendar start latency, IF the field data confirms it**~~ (§6) | **DONE, then RETIRED** — shipped at v22.97 as the provisional paint; retired by owner decision on 26 Sep 2026 (`DECISIONS.md`) | — |
 | 8 | **C2 — verified work-email recovery** (§8) | Needs a mail relay that does not exist, and needs #1 first so it is a SECOND route rather than the only one | Admin reset becomes true break-glass |
 | 9 | **Passkeys** (§9) | Excellent fit, blocked on serving from one origin | — |
@@ -81,9 +81,9 @@ in the response and never again.
 member has no working credential; that is the whole situation. It takes a name, a code and a new
 password, and on success sets the credential and revokes existing sessions.
 
-The app has exactly one public unauthenticated endpoint today, `requestPasswordReset`, and the
-reason it is safe is that it is *deliberately incapable* of changing anything — it records a
-request. This one is not that. It deserves the treatment `unlockCalendarViewer` got, and for the
+The app has two public unauthenticated endpoints today. `requestPasswordReset` is safe because it is
+*deliberately incapable* of changing anything — it records a request. `unlockCalendarViewer` does mint
+a credential, a read-only one, behind a per-source and a global throttle. This one would set a password. It deserves the treatment `unlockCalendarViewer` got, and for the
 same reasons.
 
 ### The code itself
@@ -234,11 +234,12 @@ Recorded as a decision because the alternative keeps suggesting itself.
 |---|---|---|
 | Way in | Staff PIN | Named sign-in |
 | Lasts | The browser session | 60 days |
-| Leaves behind | Nothing — no identity, no writes, no notifications | A member identity |
-| Gets | The Calendar | Settings, Overtime, pay integration, notifications |
+| Leaves behind | No member identity and no notifications; its only writes are the error log and the usage counters | A member identity |
+| Gets | The Calendar, Trains and the three documents | Settings, pay integration, notifications (and Overtime, once it is back) |
 
-The PIN is not individual authentication and does not claim to be. Its job is to stop the roster
-being public while preserving a ten-second glance on a shared machine, and it does that.
+The PIN is not individual authentication and does not claim to be. Its job is to keep roster changes
+(leave, absence, shift changes) and the documents from being public while preserving a ten-second glance
+on a shared machine, and it does that. The base roster pattern itself is public by decision (AUTH_PLAN.md §2).
 
 **Do not lengthen the PIN to six digits.** The endpoint is throttled per source and globally, the
 space is 10,000 against a hard ceiling, and the cost of the change lands on fifty colleagues

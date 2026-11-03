@@ -18,11 +18,14 @@ Run through every step in order. Do not skip steps.
   - **Do not add lieu days into `proRatedAL`.** A Dispatcher earns one per bank holiday worked, and since v22.50 `getALEntitlement` adds them on top of the pro-rated base automatically. Baking them in would count them twice. (Check the clerk has not already included them either.)
   - Record WHY beside the entry whenever the figure is not what a day-count would suggest — Okeke's line is the model. The next reader's instinct is to "correct" it back to the formula, and that silently takes days off somebody.
 
-## Step 2 — Firebase Auth (always required)
+## Step 2 — Firebase Auth (always required — and only AFTER step 2b has been committed and DEPLOYED)
 
+- [ ] **Wait for step 2b's functions deploy to finish first.** `setupRosterAuth` creates accounts only
+      for names in the DEPLOYED `functions/roster-members.json` — it reads no names from the request —
+      so run before that deploy it creates nothing for the new starter and still reports success.
 - [ ] Admin → Operations → Staff Login Accounts → **Set up accounts** (creates the login)
 - [ ] Confirm password convention in `OPERATIONS_REFERENCE.md`
-- [ ] **Record their work email** — Operations → Account status → Set. Nothing prompts for this any more: the login overlay that used to ask was retired at v19.30 once every existing member was registered, so a new starter's email is now only ever added here (or by them in Settings → Work Email). Miss it and the account simply has no email on file, silently — the Account status table's Email column is where you'd notice.
+- [ ] **Record their work email** — Operations → Account status → Set email. Nothing prompts for this any more: the login overlay that used to ask was retired at v19.30 once every existing member was registered, so a new starter's email is now only ever added here (or by them in Settings → Work Email). Miss it and the account simply has no email on file, silently — the Account status card's "No work email" line is where you'd notice.
 
 ## Step 2b — Regenerate `functions/roster-members.json` (ALWAYS — including Management)
 
@@ -37,11 +40,11 @@ That file carries **two** unrelated things, which is why this step is unconditio
 
 ## Step 2c — Managers only: provision the claim
 
-- [ ] Deploy first — `setupRosterAuth` reads the DEPLOYED `roster-members.json`, so running Set up accounts before the functions deploy stamps the old list
+- [ ] Deploy first, as step 2 says — `setupRosterAuth` reads the DEPLOYED `roster-members.json`, so running Set up accounts before the functions deploy stamps the old list
 - [ ] Then Operations → **Set up accounts**, which creates the account AND sets the `manager` claim
 - [ ] The claim lands in the token, so an ALREADY-signed-in manager keeps a stale one until it refreshes. Writes self-heal through `writeWithClaimRetry` (permission-denied → force refresh → retry once), so this resolves itself — but a brand-new account has nothing to self-heal from until Set up accounts has run
 
-## Step 3 — Pay calculator verification (mid-year joiners only)
+## Step 3 — Pay calculator verification (mid-year CEA and CES joiners only — the calculator does not open for a Dispatcher or a manager: `gradeForRole` returns null)
 
 - [ ] Log in as the new member, open pay calculator, check the joining period shows the info banner and correct pro-rated contracted hours
 - [ ] Joining period = the pay period whose cutoff is on or after the start date
@@ -68,7 +71,8 @@ Two things to get right before sending:
   published-roster form (`I. Melikian`), so somebody looking for "Alex" does not find themselves.
 
 ⚠️ **The real PIN is never written into that file.** It lives only in the `CALENDAR_VIEWER_PIN`
-secret, and `calendar-viewer-parity.test.mjs` fails if it appears anywhere in the repository. Fill
+secret. **Nothing automated would catch it here**: `calendar-viewer-parity.test.mjs` cannot look for
+the digits (a test that knew them would be the leak) and does not read this folder. Fill
 `{{STAFF_PIN}}` in the mail client.
 
 ## Step 4 — verify it actually took (v22.53)

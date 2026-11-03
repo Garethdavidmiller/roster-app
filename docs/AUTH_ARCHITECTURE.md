@@ -68,7 +68,7 @@ States are **identity facts only**:
 | `initialising` | nothing checked yet |
 | `resolving` | local session present; Firebase identity being restored/established |
 | `named` | correct named Firebase user confirmed |
-| `anonymous` | anonymous Firebase fallback present (valid only where policy allows) |
+| `anonymous` | anonymous Firebase fallback present — no producer since v24.34 (nothing signs in anonymously); kept in the reducer |
 | `signedOut` | no valid local session, no anonymous identity |
 | `degraded` | transient Firebase/network failure mid-resolution (retryable) |
 | `error` | non-recoverable auth/session problem |
@@ -92,7 +92,9 @@ added vs the original four for the resolving/degraded "not yet" states, which `s
 | Links | required | named | **named** | designer | no |
 | Settings | required | named (writes) | **named** | owner/admin | no |
 | Pay Calculator | required | best-effort | best-effort | none | **soft** |
-| Overtime | required | named | **named** | admin, manager *or* `overtimeBeta` participant | no |
+| Overtime | required | named | **named** | admin, manager *or* `overtimeBeta` participant — **PAUSED since v25.05, closed to everyone** | no |
+| Trains | required, or the staff PIN | — (no Firestore reads) | — | none | no |
+| New link | required | — (no Firestore reads) | — | master admin | no |
 | Guides | — | — | — | — | n/a |
 
 **Start page-based; leave the seam for action-based.** Policy keys can later evolve `page → page.action`
@@ -105,7 +107,7 @@ the authz layer. Do not build action-level policy on day one.
 `auth-state-core.js`. **Deliberate refinement vs the original plan:** rather than build a NEW shell that
 re-wraps Firebase/localStorage (duplicating `session.js`), the **existing `session.js` is the adapter**
 and FEEDS the store — `ensureNamedSession` dispatches `RESOLVE_START → (TRANSIENT/RETRY) →
-NAMED/ANONYMOUS/NONE/FATAL` from the B0 signals; `clearSession` dispatches `SIGN_OUT`. Acyclic:
+NAMED/NONE` from the B0 signals (ANONYMOUS and FATAL have had no producer since v24.34); `clearSession` dispatches `SIGN_OUT`. Acyclic:
 `session.js → auth-state.js → auth-state-core.js`.
 
 **`sessionReady` is left UNTOUCHED (Phase 2.5 decision).** Re-routing it through the machine was risk
@@ -129,7 +131,7 @@ preserve local/cached read-only UX. Any privileged write under `degraded` collap
 
 | Page / action | Degraded behaviour |
 |---------------|--------------------|
-| Calendar read | allow cached/anonymous display |
+| Calendar read | allow the cached display once access is granted (nothing anonymous since v24.34) |
 | Pay Calculator | allow local calculator use |
 | Settings read | allow local view; **block cloud save** |
 | Admin / Operations / Links pages | render a clear degraded/blocked state |
@@ -249,7 +251,7 @@ breaks existing clones, stales every commit link in these documents, and does no
 has already served. Recorded in KNOWN_LIMITATIONS.md rather than quietly accepted.
 
 **The in-app "Actual Take-Home" comparison was kept, made DEVICE-LOCAL (Option B, v14.69):** the owner
-imports the figures once per device via an owner-only paste box (Settings → "Import payslip actuals"),
+imports the figures once per device via an owner-only paste box (Pay Calculator → "Import payslip actuals (this device)"),
 stored under the member-namespaced `myb_pc_<slug>_actuals` (`payslipActualsKey`/`readPayslipActuals`/
 `writePayslipActuals`/`clearPayslipActuals` in `paycalc-migrations.js`); `paycalc-app.js`/`paycalc-hpp.js`
 read it there (gated to the developer account by `isActualsDev`) and degrade to the normal estimate everywhere else. Options

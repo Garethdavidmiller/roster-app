@@ -476,7 +476,7 @@ decision with a trigger and that is what this file is for.
 The no-build rule buys three things — zero toolchain, direct debuggability, and no
 build-supply-chain — and pays for them in hand-maintained work a bundler would do for free:
 
-- the `modulepreload` lists (index, paycalc and links have the deepest graphs; the other four pages
+- the `modulepreload` lists (index, paycalc and links have the deepest graphs; the other six pages
   carry only the three fixed gstatic SDK tags every page has, which name one URL each and so cannot
   fall behind a graph). CI-locked by `sw-asset-check.test.mjs`.
 - the service worker's precache list,

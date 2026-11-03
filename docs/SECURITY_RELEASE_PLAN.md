@@ -35,6 +35,7 @@ SECURITY_RELEASE_PLAN.md for status"; it may not restate the stage.
 | **F — step-up for sensitive admin actions** | Proposed, not started | — | — | Design in `CREDENTIAL_LIFECYCLE.md` §3. **No prerequisites** — the only item in that programme with none. Server-enforced from the token's `auth_time`, never a client timer |
 | **D — App Check** | Deferred, not started | **D1** — monitor mode | Owner decision | Legitimate traffic characterised over a real window before any enforcement |
 | **E — full-app auth** | E0 ✓ v19.00 · E1 ✓ v19.01 · **the READ closure is IN FORCE since 26 Aug 2026** — the Calendar asks for a named session or the staff PIN (client live since v20.51), and the `allow read;` hold line above the `overrides` read rule was deleted at v21.78, so the SERVER now refuses anything without a verified member (`isMember()`), `admin`, or `calendarViewer`. RECOVERY_RUNBOOK step 4 records the go/no-go | **E3** — INDIVIDUAL authentication, if it is ever required. E2 was superseded, not built: it would have required merely *any* session, which an anonymous sign-in satisfies | Owner decision, most likely forced externally by a Chiltern IT requirement that each person authenticates | Owner approval + rollback rehearsed + **E3 criteria pre-registered before telemetry starts** |
+| **E6 — document files** | Short-lived signed links live (`getDocumentUrl`: server v24.16–18, client v24.19); the stored permanent link kept as the fallback (owner, 7 Oct 2026) | — | Owner — revisit on DECISIONS.md's trigger (a leaked link, or `getDocumentUrl` failures making the fallback usual) | ARCHITECTURE.md EXC-007 closes: the links already in circulation no longer open |
 | **Deferred residual** | ✅ **Complete (v24.34, owner-approved).** Both switches retired with every branch that ran only when one was false: `calendar-access.js` no longer calls `signInAnonymously` (the `CALENDAR_PIN_ACCESS === false` path and its `open` access type are gone), and `session.js` no longer self-heals an account or falls back to anonymous (`ENFORCE_NAMED_SESSION`). Neither was a working rollback any more — the rules refused every session they restored | — | — | — |
 
 **Three things this table is deliberately explicit about**, because each was previously implied and
@@ -178,7 +179,7 @@ Three design points that flow from this and still govern any future rule change:
   `ENFORCE_NAMED_SESSION`** (since retired v24.34 — no failure is anonymous now) — see that doc
   before building anything password-related.
 - **SHIPPED — PASSWORD_DESIGN.md Phase 2 (v18.92):** `password-force.js` compels any member still on the
-  surname default to set their own password at their NEXT SIGN-IN, in all seven page coordinators,
+  surname default to set their own password at their NEXT SIGN-IN, in every page coordinator (seven then, nine today),
   behind the `CONFIG.FORCE_PASSWORD_SET` kill switch. No forced sign-out — sessions cap at 60 days (30 until v20.47)
   absolute (the 7-day idle cutoff was removed at v20.41) and an expired session forces a real typed login, so coverage completes itself
   inside 60 days and staggers naturally. (This said 30 until v21.63 — the v20.47 doubling was
@@ -257,8 +258,8 @@ Three design points that flow from this and still govern any future rule change:
   traffic, register every domain + CI/dev debug tokens, then **enforce one product at a time**
   (Firestore → Storage → Functions) (D2). **Never enforce during a rules cutover.**
 - **Note:** App Check gates *which clients* connect, not *what an authenticated client may read* — it
-  does **not** address the world-readable `overrides` exposure (a deliberate design trade-off,
-  KNOWN_LIMITATIONS). Per-member write isolation (Track B) was the higher-value work; App Check is
+  never addressed the `overrides` exposure, which has since closed by other means (reads have needed a
+  member, the admin or the staff PIN since 26 Aug 2026). Per-member write isolation (Track B) was the higher-value work; App Check is
   defence-in-depth, correctly sequenced last.
 - **⚠️ KNOWN_LIMITATIONS carries a section headed "considered and DECLINED", written in the same
   commit as this one** (`a7e8bbf`, 16 Jul 2026) — so it is not a later reversal, it is an
@@ -267,8 +268,8 @@ Three design points that flow from this and still govern any future rule change:
   is ever genuinely cancelled, close it THERE too rather than leaving two readings again.
 - **D-adjacent hardening — analytics doc size (deferred, App Check is the real fix).** The
   `analytics/activeAccounts` and `analytics/perf_<YYYY-MM>` rules validate that `daily`/`months`/
-  `samples` are *maps* but do **not** bound the map-key **count**. So any authenticated session —
-  including a scripted anonymous session (the Anonymous provider is still enabled) — could pad one of those single documents
+  `samples` are *maps* but do **not** bound the map-key **count**. So any signed-in member or
+  staff-PIN session (`isKnownIdentity` — an anonymous token has been refused here since v24.56) could pad one of those single documents
   toward Firestore's 1 MB limit; once near the cap, every legitimate `increment()` merge fails and only
   an admin can shrink it back — a self-inflicted **availability** DoS on analytics recording (not a data
   or money risk; non-sensitive aggregate counts). **Why deferred:** it needs an authed session and only
@@ -387,21 +388,27 @@ REST). Staged:
   member whose session lapsed while offline. Design in `AUTH_PLAN.md` §4 (durable device marker,
   cache-only render, real login on reconnect). Do not schedule E3 without it.
 - **E5: tighten reads to Level 2** (`isMember()`) + make the calendar login mandatory. Only
-  after E3/E4 soak, and only after the claim-tier analysis `AUTH_PLAN.md` flags as missing. At this
-  point `signInAnonymously` is dead and the **Anonymous provider can be disabled project-wide** —
-  which settles the "retire the anonymous fallback" residual below (decide them together).
+  after E3/E4 soak, and only after the claim-tier analysis `AUTH_PLAN.md` flags as missing. `signInAnonymously` is
+  already dead (no client calls it since v24.34, when the "retire the anonymous fallback" residual
+  completed), so **disabling the Anonymous provider project-wide** no longer waits on E5: it is a
+  Console step that can be taken now (`firestore.rules` still records the provider as enabled).
 
-- **E6 — the READS are decided and closing (7 Sep 2026): the client refuses document reads without access at v23.17 and the rules closed them at v23.18; the FILES half below is unchanged.** Put the document FILES behind auth. E1–E5 tighten Firestore
+- **E6 — the READS closed (client v23.17, rules v23.18), and the FILES are now handed out as 15-minute signed links** (`getDocumentUrl`: server v24.16–18, client v24.19), with the stored permanent link kept as the fallback when one cannot be fetched (owner, 7 Oct 2026 — DECISIONS.md). **What remains open is the tokens already in circulation** (ARCHITECTURE.md EXC-007). The original brief, kept as the reasoning: put the document FILES behind auth. E1–E5 tighten Firestore
   *reads*; the Huddle/Circular/Newsletter files themselves ride permanent tokenised bearer URLs that
   bypass `storage.rules` entirely, so **no rules change in this track touches them** (see
   KNOWN_LIMITATIONS → "The document FILES are protected by a bearer URL, not by auth"). Needs a
   delivery-model change plus **rotating the existing tokens** (old URLs stay live until the objects are
   rewritten). Can start any time; does not depend on the calendar decision. Note the asymmetry when
   prioritising: the track's headline change protects the personal data, and only E6 protects the
-  company-confidential documents. **Not yet costed — `AUTH_PLAN.md` §5 explains why:** Word documents
+  company-confidential documents. **Decided since (AUTH_PLAN.md §5, 19 Sep 2026): the Office viewer stays and is handed the short-lived link. Why it was hard:** Word documents
   open through Microsoft's Office Online viewer, which fetches them **server-side**, so authenticated
   download (the obvious route) would break `.docx` viewing, and no rules change can make "the documents
   are behind auth" true while that path exists.
+
+> **Written before the read closure (26 Aug 2026) — read the list below as the reasoning, not as today.**
+> The Calendar has since become this front door: it does not start without a member session or the staff
+> PIN; a member's own stored roster is shown before the grant but deleted when their session expires
+> (CALENDAR_DATA.md invariant 17); and the document reads closed at v23.17/v23.18.
 
 **Why it's not much code but is a big decision.** Mechanically a pattern-copy + a rules change + a policy
 flag (~a day). But the calendar is the app's **front door**, and four real consequences hang off its
@@ -446,8 +453,9 @@ surface) — starting E means re-stamping that anti-goal, not violating it silen
    login as a pure gate? (UX, not security.)
 5. **Analytics identity guarantee.** Keep the calendar identity-free, or make it an active-account
    surface (still client-deduped, no server identity)?
-6. **Anonymous provider fate.** At E3 `signInAnonymously` becomes dead code and the provider could be
-   **disabled project-wide** (real hardening) — retire anonymous entirely, or keep it as a Level-1 tier?
+6. **Anonymous provider fate — overtaken by v24.34.** Nothing in the app signs in anonymously any more,
+   so the provider can be **disabled project-wide** (real hardening) as a Console step, with nothing
+   depending on it.
 
 ---
 
@@ -500,10 +508,10 @@ future work.
 
 ### B0 — the identity signal
 `ensureFirebaseSession` exposes whether it established the member's **named** account or only the
-**anonymous** fallback: `getFirebaseIdentity()` → `'named'|'anonymous'|'none'`, `firebaseSessionIsNamed()`
-(the exact signal B1/B2 consume), `getFirebaseAuthError()`. No runtime behaviour change; the fallback
-still happens. The calendar bootstrap reads via `calendarAuthReady`, not `ensureFirebaseSession`, so its
-legitimate anonymous public reads are unaffected. (`session.test.mjs`.)
+**anonymous** fallback: `getFirebaseIdentity()` → `'named'|'none'` (it had an `'anonymous'` third value until the fallback was
+retired at v24.34), `firebaseSessionIsNamed()` (the exact signal B1/B2 consume), `getFirebaseAuthError()`.
+B0 itself changed no runtime behaviour; the fallback it observed is gone (v24.34), and so are the
+Calendar's public reads (closed at v21.78). (`session.test.mjs`.)
 
 ### B1 — named-session separation + the kill-switch (Appendix: B1 detailed scope)
 B1 turns the B0 signal into *enforcement*: write pages stop accepting a claim-less session, anonymous
@@ -534,8 +542,8 @@ marks "Set up accounts" mandatory before a new starter's first login.
 **Re-auth UX** when a returning user has a valid *local* session but the *named Firebase* session can't
 be established (branch on `getFirebaseAuthError()`): **Transient** (`network-request-failed`/timeout) →
 auto-retry once or twice, then "Couldn't reach sign-in" + Retry; do **not** clear the local session
-(paycalc stays offline-usable). **Persistent** (`invalid-credential`/`user-not-found`) → "ask your
-manager to reset your access" (break-glass).
+(paycalc stays offline-usable). **Persistent** (`invalid-credential`/`user-not-found`) → "ask the
+admin" (break-glass — only the admin can reset a password; `login-overlay.js`).
 
 **Kill-switch (RETIRED v24.34):** all B1 enforcement was gated behind
 `CONFIG.ENFORCE_NAMED_SESSION` (`roster-data.js`), and while the rules were permissive "revert = flip to

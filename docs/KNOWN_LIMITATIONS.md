@@ -27,10 +27,10 @@ left, each for a decision rather than a default:
   authenticate" on Node 22 (`deploy-functions.yml`), dates from the key-file sign-in that keyless
   deploys replaced, and was never retested.
 - **CLAUDE.md is at its 125,000-character cap**, so every correction there is paid for by a cut.
-- **Weight**: `.git` is 1.4 GB; `docs/links-24` holds 34 MB that nothing reads; the 18 MB Links 26
+- **Weight**: `.git` is 1.4 GB; `docs/links-24` holds 34 MB that nothing reads but two `links-compare-analysis.test.mjs` fixtures (`docs/links-24/proposals/` — move those first); the 18 MB Links 26
   zip is in 19 commits.
 - **Size**: ten of the 28 modules in `coordinator-ratchet.test.mjs` sit exactly at their cap;
-  stylesheets have no cap (`index.css` 3,842 lines); `e2e/pages.spec.js` is 10,491 lines.
+  stylesheets have no cap (`index.css` 3,861 lines on 3 Nov 2026); `e2e/pages.spec.js` is 10,580 lines.
 - **Unguarded twins**: `withTimeout` (`login-overlay.js`, `password-force.js` — drifted, harmlessly:
   only the second sets `myb/timeout`, and only its own callers read it), `isRest`, `minutesOf` and
   `adjustScrollOffsets`. About 150 colours written as `rgb()`/`rgba()` pass `css-hex-parity` unseen.
@@ -170,7 +170,7 @@ Reported 5 Oct 2026, then said to be on every iPhone: each Admin week-grid save 
 past the 8-second notice with full signal, and the change then arrived. What is known:
 - The time is spent waiting for Firestore's server to confirm the commit. Nothing the app does
   before the write is waiting: the gate, the session wait and the override load are all bounded.
-- The service worker is not involved. It handles only same-origin GET requests.
+- The service worker is not involved. It handles only GET requests — same-origin, plus the Firebase SDK files from gstatic.
 - The Firebase SDK (unchanged since 9 Sep), the CSP and the rules have not changed in the window.
 - The notice used to say "Waiting for signal", which was false. Since v24.54 it names the signal
   only when the browser reports being offline.
@@ -255,7 +255,7 @@ newest iPhone descriptor is the 15 Pro; 1.63.0 carries 17 Pro descriptors and a 
 its own change rather than a line in this one:
 
 - **It moves the Chromium the deploy gate runs on** (1194 → 1243, Chromium 153), and every one of
-  the 45 committed Chromium visual baselines was rendered on 1194. They would all drift at once, and
+  the 51 committed Chromium visual baselines (3 Nov 2026) was rendered on 1194. They would all drift at once, and
   the dev container's pre-installed Chromium is 1194, so they cannot be regenerated here to match
   what CI would render — the regeneration has to happen on the CI renderer, reviewed as one commit.
 - **A geometry override already delivers the audit's point.** A descriptor is a viewport, a density
@@ -540,8 +540,8 @@ migrated in the first 24 hours, **one of them the owner's**. So the specific exp
 about — a guessable *master admin* password, the highest-value target in the app — **is closed in
 practice**. What remains open is the **management accounts**, which can write any member's
 AL/absence/shifts on behalf; a staff account, by contrast, can only write its own overrides (the B3
-isolation rule holds), so its blast radius is one person's roster. Chasing those 7 needs no code —
-it is 7 people opening Settings → Password, and it closes the large majority of what is left.
+isolation rule holds), so its blast radius is one person's roster. Chasing those six needs no code —
+it is six people opening Settings → Password, and it closes the large majority of what is left.
 Verify against Operations → Account status rather than taking this paragraph's word for it.
 
 **Revisit when:** the app URL is advertised more widely, or it becomes official Chiltern
@@ -613,7 +613,10 @@ now require the member's OWN named Firebase session — a session that can't est
 bounced to re-login rather than proceeding as a nameless guest, so anonymous writes from a
 forged UI session no longer occur there. Per-member write isolation on `overrides` has since
 **shipped strict (B3, v16.29)** — create/update/delete require
-`token.name == memberName || token.admin || token.manager` — though the named password is still
+`memberName() == memberName || admin || manager`, where `memberName()` is the BOUND name (a password
+sign-in at the name's own email carrying the server-set `member` claim — v24.23/v24.27; "The member
+claim" below). Never quote the raw `token.name ==` form: copied into a new rule it reopens the
+self-set display-name hole. Though the named password is still
 surname-derived, so this remains hardening, not full remediation. Local UI checks remain
 non-security controls. Practical risk is low for a small known team. The per-member role-based
 rules are tracked in `SECURITY_RELEASE_PLAN.md` → B2/B3, and task #2 below for the suspended
@@ -733,7 +736,8 @@ will silently fail for users on that domain, with no visible error in the app UI
 > **Status update:** the original suspended isolation was reintroduced the *cautious* way as
 > phase **B2** (`SECURITY_RELEASE_PLAN.md`), then hardened to the **strict B3 form at v16.29**.
 > `overrides` create/update/delete now require
-> `token.name == memberName || token.admin || token.manager` — the `!('name' in token)` no-name/legacy
+> `memberName() == memberName || admin || manager` (the bound name since v24.27 — a raw `token.name`
+> comparison was its form until then) — the `!('name' in token)` no-name/legacy
 > escape has been **removed**. The two v10.94 root causes were both fixed years ago (the `name` claim is
 > set for everyone by `setupRosterAuth`; the page-load Firebase session is reliably established via
 > `ensureFirebaseSession`, B1). B2 first avoided the original outage by (a) an interim `!('name' in token)`
@@ -856,10 +860,11 @@ are architecture/App-Check territory or inherent platform behaviour, not bugs to
 - **`passwordSetAt` vs `resetAt` is a two-system stamp, not atomic.** A sub-second interleave of a
   member's self-set and an admin reset can momentarily misreport the "migrated" chip. It self-heals
   on the next set/reset and stores no password material — a monitoring signal, not a control.
-- **Concurrent Huddle ingest can leave a stale notification deep-link.** Two Power-Automate runs for
-  the same date: only one push is sent (the transaction closes the check-then-act race), but the
-  second commit can delete the object the first run's already-sent push linked to → that tap 404s
-  (the in-app viewer still works). Rare double-run only.
+- **~~Concurrent Huddle ingest can leave a stale notification deep-link~~ — no longer reachable.**
+  Two Power-Automate runs for one date still send one push (the transaction closes the check-then-act
+  race), but the push carries only `/#huddle` and the viewer opens whatever Huddle is current at the
+  tap, so a deleted object cannot be what it links to. What remains is an OPEN viewer holding a link
+  that has since been superseded.
 - **`style-src 'unsafe-inline'`** stays in the CSP — the app sets inline styles from JS; style
   injection is far lower-risk than script (which is fully locked down, no `'unsafe-inline'`). And the
   `connect-src` `firebasestorage.googleapis.com` entry is redundant under the `*.googleapis.com`
@@ -1049,9 +1054,9 @@ at-a-glance clarity. Do not re-add without a specific operational use case from 
 ### Override cache is never cleared on member switch
 `rosterOverridesCache` in `calendar-overrides.js` is keyed `"memberName|date"` and accumulates
 overrides for all members without a size limit. It is not cleared when the selected
-member changes — switching members triggers a new fetch that adds to the existing map.
-This is intentional (avoids redundant Firestore reads on member switch) but means the
-cache grows unboundedly for long sessions where many members are viewed.
+member changes — and a switch fetches nothing: the read is by DATE for every member at once
+(`calendar-overrides.js`), and `fetchedMonths` is keyed by month. So the map grows with the months
+visited in a session, not the members viewed — unbounded in principle, small in practice.
 
 ### An override still carries a `note` field that nothing writes and nothing reads (v22.69)
 
@@ -1137,8 +1142,8 @@ Console.
 
 ## Navigation / accessibility
 
-### Keyboard focus trap is panel-only (not full ARIA modal)
-The nav panel traps Tab/Shift+Tab within its focusable elements while open (v10.69), and the coming-soon lightbox also traps Tab focus to its single close button. Both elements are declared `role="dialog" aria-modal="true"` (v10.80). Screen-reader users can still reach page content behind the overlay via browse mode — `inert` on background content is deferred. The app is staff-only on mobile (primarily Android), where VoiceOver/TalkBack bypass risks are low.
+### No `inert` behind dialogs (focus is trapped; the background is not inert)
+Every dialog traps Tab/Shift+Tab — the nav panel (v10.69) and every lightbox through `createLightbox` (`overlay.js`) — and each is declared `role="dialog" aria-modal="true"`. Screen-reader users can still reach page content behind the overlay via browse mode: `inert` on background content is deferred (its only uses are local, in `admin-roster-upload.js` and `paycalc-inputs.js`). Android and iOS are both first class here, so this matters to TalkBack and VoiceOver alike.
 
 ---
 
@@ -1255,7 +1260,10 @@ dropping one silently breaks all Firebase Auth on that origin (see security task
 
 **Retiring github.io later** (optional, no deadline): confirm all staff have reinstalled from
 web.app, remove the github.io entry from the allowlist, and turn off Pages in repo Settings.
-There is no code dependency on it once nobody has it installed.
+**Two things depend on it first, and both are silent if forgotten:** Pay Calculator figures are
+stored per address, so staff must move them with 💾 Move Your Pay Data before they move
+(OPERATIONS_REFERENCE.md); and the New link page's PDFs are served from the mirror (`PACK_BASE` in
+`newlink-config.js`), because Firebase serves nothing under `docs/` — move them to a served folder.
 
 ### ⚠️ The installed PWA masks live-site breakage — verify the URLs, not your phone
 Because the app is offline-first, an installed PWA launches (and updates) from
@@ -1434,8 +1442,8 @@ payday change that updates only one side cannot pass CI.
 `parseRosterPDF` name-matches the AI-parsed roster output against a `STAFF_NAMES` list, which is
 **generated**, not hand-maintained: `functions/index.js` does `require('./roster-members.json')`
 and `roster-members.json` is produced from `teamMembers` in `roster-data.js` by
-`scripts/generate-roster-members.mjs` (`npm run generate:roster-members`). It is marked
-"do NOT hand-edit". So a new starter/leaver does NOT need a manual edit in `functions/` —
+`scripts/generate-roster-members.mjs` (`npm run generate:roster-members`); never hand-edit it
+(the file carries no marker saying so — `sw-asset-check.test.mjs` fails on drift instead). So a new starter/leaver does NOT need a manual edit in `functions/` —
 update `teamMembers` in `roster-member-data.js` (re-exported by `roster-data.js`), then run `npm run generate:roster-members` to rebuild
 the JSON in the same commit. (The `/new-starter` skill already includes this step.)
 
@@ -1448,7 +1456,7 @@ the JSON in the same commit. (The `/new-starter` skill already includes this ste
 > which this section never named. The reasoning below about `gaxios` is still current.
 
 `npm audit` at the root reports a set of advisories that are **all dev-only**, reachable through
-**`firebase-tools`** (root `devDependency`, now `^15.32.1`). The original and still the
+**`firebase-tools`** (root `devDependency`, `^15.22.2`, resolving to 15.32.1 in the lockfile). The original and still the
 awkward one is a transitive `gaxios` in the **6.4.0 – 6.7.1** range.
 
 **Do not trust a count written down here — run it.** This paragraph said "5 moderate, all one root
@@ -1463,7 +1471,7 @@ deploy) — it is **never bundled or served** to staff. The app ships no npm dep
 (vanilla JS, no bundler); this advisory cannot reach a user.
 
 **Why it is not "fixed" yet — the only npm fix is a *downgrade*.** The advisory is patched in
-`gaxios@7.x`, but the latest `firebase-tools` (15.24.0) still declares `gaxios@^6.7.0`, which
+`gaxios@7.x`, but the latest `firebase-tools` of the time (15.24.0) still declared `gaxios@^6.7.0`, which
 resolves *within* the vulnerable range. `npm audit fix` therefore offers only
 `firebase-tools@14.23.0` — a **semver-major downgrade** that moves the toolchain backwards and is a
 breaking change. That is a worse position than the current moderate dev-only advisory, so it is
@@ -1563,12 +1571,13 @@ never contingent on the beta label, and dropping it does not make any of them go
   code. Raising the weight is a one-line change if the answer is the other way.
 
 - **Designs saved against the OLD 28-line rotation are left exactly as they are.** They still load,
-  render their first 24 rows, are analysed over 24 — and, because the working copy deep-copies the
+  render the rotation's rows, are analysed over the rotation — and, because the working copy deep-copies the
   whole patterns object, **save all 28 back**. Nothing trims them, deliberately: doing it on load
   would destroy six lines of somebody's work on a page visit (the v19.84 stale-hard-delete class),
   and doing it on save would do it at the moment they least expect it. `#linksOverLengthNotice`
   states the two lengths and that the surplus rows are neither shown nor counted but are still
-  stored. **Binning them is the owner's call**, and until it is made a designer can open one and
+  stored. **Binning them is one press since v25.09** — the admin's *Keep only the shortlist*, which bins
+  every design saved before 2 Nov 2026 — and until it is pressed a designer can open one and
   work on a proposal that describes a link nobody is building.
 
 - **The fatigue-factor panel is an AID, not a fatigue risk assessment (v19.46).** This is the
@@ -1586,7 +1595,7 @@ never contingent on the beta label, and dropping it does not make any of them go
     ORR's text was read). **FF19 still renders "(definition to confirm)"** on purpose: the owner chose
     "a rest day resets it", which is more lenient than ORR's wording ("avoid consecutive duties with
     large variations in start times", 7.71). On the strict wording every link with early and late
-    weeks has FF19 — all 9 proposal sheets, where the owner's reading leaves 4 clear — so a manager
+    weeks has FF19 — all 9 proposal sheets of 28 Sep 2026, where the owner's reading left 4 clear — so a manager
     quoting the FF19 figure should know whose reading it is.
   - **Every hours figure is a FLOOR.** SPARE days carry no times, so a standby day contributes zero
     to "hours in any 7 days". The real total is higher; the panel says so on the row (it did **not**
@@ -1599,7 +1608,7 @@ never contingent on the beta label, and dropping it does not make any of them go
   - **The baseline is measured on the MAIN cycle at its own length** (main-only since v19.98).
     "Today's link" is computed over `weeklyRoster` (20 lines) — the rotation the new design
     replaces. The bilingual row was dropped rather than left as an unexplained gap: the panel's
-    summary now names the comparator ("the main 20-line cycle, which this 24-line design replaces"),
+    summary now names the comparator ("the main 20-line cycle, which this N-line design replaces", N interpolated from the rotation),
     because a missing row reads as an oversight. The underlying rule survives and still binds any
     future pairing: splicing two unrelated rotations end to end reports a longest run of 19 that
     belongs to the join rather than to either roster, so a design's figures only mean anything once
@@ -1712,7 +1721,8 @@ never contingent on the beta label, and dropping it does not make any of them go
   `links-design.js`, and imported: it was previously a literal in three files kept in step
   by a comment. **Do not write the number down here** — it was 28, then 22, then 24, and
   four entries in this section were still saying 28 at v21.62 while two others said 24;
-  `links-rotation-parity.test.mjs` fails on a literal in prose for exactly that reason.
+  `links-rotation-parity.test.mjs` fails on a literal for exactly that reason — in the Links
+  modules and `links.html` only. It does not read the docs, which is how 24s survived in this file.
 - **Save concurrency is warn-on-conflict, not merge.** Two designers saving at
   once get a confirm naming who saved last; the whole document is still replaced.
   A field-level merge is not worth the complexity for a small design tool. Declining the
@@ -1782,7 +1792,7 @@ never contingent on the beta label, and dropping it does not make any of them go
 - **The generator's provenance is DEVICE-LOCAL** (external review, Sep 2026 — architectural, not
   fixed). Which target table produced a design — the remembered table, the saved set it came from, and
   whether it has been edited since — lives in `localStorage` under `myb_links_gen_<designId>`
-  (`links-app.js`). So a colleague opening the same shared design sees the provenance note absent, not
+  (`links-generator-targets.js`). So a colleague opening the same shared design sees the provenance note absent, not
   wrong: they cannot answer "what staffing was this built from?" without asking the person who built
   it, which is exactly the question an assessing manager asks. It is on the device because
   `firestore.rules` pins `linkDesigns` to a `hasOnly` list (`name`, `patterns`, `window`, `revision`,
@@ -1796,6 +1806,10 @@ never contingent on the beta label, and dropping it does not make any of them go
 
 Design: `OVERTIME_AVAILABILITY.md`. Operating: OPERATIONS_REFERENCE.md. These are the things the
 feature deliberately does NOT do yet, so that a reader stops looking for them.
+
+> **PAUSED since v25.05** (`OVERTIME_ENABLED: false`): only the retention purge is deployed, so the
+> scheduler, the push notices and the endpoints below are not running. Read this section as what the
+> feature does when it comes back (`OVERTIME_AVAILABILITY.md` → Paused).
 
 - **The SUNDAY-RELEASE REQUEST is recorded, and it is only ever a request.** Since v23.81 a member
   rostered to work a Sunday can tick "Ask to be taken off this Sunday" on that week's availability
@@ -1946,7 +1960,7 @@ taken on 19 Sep 2026 (`LATENCY.md` → THE CLOSING READ) and the file is closed,
 use for the App Speed card. A regression there would not look like an error — it would look like a
 thinner sample that still reads as data.
 
-`page-contract-parity.test.mjs` now pins every page's coordinator (eight since the Trains page): each calls all three, and each call
+`page-contract-parity.test.mjs` now pins every page's coordinator (nine since the New link page): each calls all three, and each call
 sits inside that page's declared auth barrier rather than at module scope. All seven were correctly
 wired when the guard was written, so this closes no defect — it protects a rule that was obeyed
 everywhere and checked nowhere. Verified by four mutations (a deleted call; a call kept but hoisted
@@ -2045,9 +2059,9 @@ appear in DevTools and the Operations Error Log.
 |------|----------|-----------------------|
 | `nav-panel.js` | Circular / Newsletter fetch | The `.finally()` handler resets `_docFetching` and the `.catch()` renders "Couldn't connect" — the error is surfaced to the user; logging would be noise |
 | `operations-errors.js` | Clipboard copy in Error Log | `.catch()` shows '✗ Copy failed' inline — user-visible fallback; no logging needed |
-| `firebase-client.js` | `logClientError` call inside `error-reporter.js` | Logging a logging failure would recurse; the silent swallow is the correct terminal handler |
-| `firebase-client.js` | Firestore persistence setup chain | Persistence is best-effort; a silent fallback to non-persistent mode is the documented Firebase pattern |
-| `firebase-client.js` | `getClientErrors` resolved-record cleanup | Expired resolved records are pruned fire-and-forget; individual delete failures are inconsequential |
+| `analytics-client.js` (out of `firebase-client.js` at v24.64) | `logClientError` call inside `error-reporter.js` | Logging a logging failure would recurse; the silent swallow is the correct terminal handler |
+| `firebase-client.js` | Firestore persistence setup chain | Persistence is best-effort; the fallback to the memory cache is the documented Firebase pattern (no longer silent: it logs a `console.warn`) |
+| `analytics-client.js` | `getClientErrors` resolved-record cleanup | Expired resolved records are pruned fire-and-forget; individual delete failures are inconsequential |
 | `paycalc-app.js` | Firebase session failure before `initErrorReporter` | Error reporter is not yet initialised at this point; the silent fallback is the only safe option |
 | `sw-register.js` | `registration.update()` calls (hourly interval, visibility-change, pageshow) | SW update failures are not actionable — the existing SW stays active and the user experience is unaffected. Chrome also fires its own background update check that produces "Failed to update a ServiceWorker" unhandled rejections (suppressed in `error-reporter.js`); logging our own update attempts would add noise without benefit |
 
@@ -2095,10 +2109,9 @@ they are latent, owner-territory, or within a documented tolerance. Each is real
   promptly the chip can strand on "↻ Retrying…" with no re-tap affordance (the initial path always
   surfaces a tappable error after 10 s). No data impact; the sync-chip state machine is a documented
   do-not-break invariant, so left as-is.
-- **"Active accounts (30 days)" boundary undercount (LOW, analytics-only).** `usage-stats.js`
-  suppression length (`> 30 days`, strict) equals the window length, so a single account active only at
-  the day-30 boundary can contribute 0 for that span. Never over-counts; matches the documented
-  "usage trend, not exact headcount" tolerance.
+- **~~"Active accounts (30 days)" boundary undercount~~ — SUPERSEDED at v25.00.** The suppression
+  rule it described (`shouldCountRolling`) was replaced by `rollingMove` (`usage-stats.js`), which
+  keeps each member-device's one count on its latest active day; the card now reads "last 30 days".
 - **~~A manually-entered Sunday worked shift is stored as `type:'shift'`, not `'rdw'`~~ — FIXED; the
   Shift pill is DISABLED on Sunday rows** (`admin-week-editor.js`, and layer 6 of the Sunday rule in
   CLAUDE.md). Struck through rather than deleted because this entry was wrong in a way worth naming:
@@ -2118,7 +2131,8 @@ they are latent, owner-territory, or within a documented tolerance. Each is real
   CLOSED, and it self-corrected exactly as written.** The entry said "no clean fix until the award
   lands"; the award landed, `londonAllowFrom` is set to 28 Aug 2026 on the 2026/27 row
   (`paycalc-calc.js`), and the `rateUnconfirmed` flag that gates the whole estimated-rate path is
-  gone — so the mechanism cannot fire. It sat here contradicting the "2026/27 pay
+  not set on the 2026/27 row — so the mechanism cannot fire (the flag is still read, for the next
+  award year). It sat here contradicting the "2026/27 pay
   rates — ✅ CONFIRMED AND SHIPPED" section (now ROADMAP_HISTORY.md).
 - **`nameToEmail` collision surface (LOW, theoretical).** Distinct display-name spellings that differ
   only in separators/case collapse to one account email (`"A. Mc Donald"` = `"A. McDonald"`). Not

@@ -71,8 +71,8 @@ the whole of v20. A number written beside the list it describes is a second copy
 
 | Module | Owns |
 |--------|------|
-| `links-app.js` | coordinator: grid, paint, dialogs, dirty state; Firestore only via the two store modules — the library reaches it through the same design store (+ `links-boot.js`, the CSP bootstrap) |
-| `links-design-store.js` | a design's PERSISTENCE lifecycle and the concurrency protocol — every design read and write (`createDesignStore`) |
+| `links-app.js` | coordinator: grid, paint, dialogs, dirty state; Firestore WRITES only via the two store modules (one direct read remains: `loadDesigns`, which needs `metadata.fromCache`) — the library reaches it through the same design store (+ `links-boot.js`, the CSP bootstrap) |
+| `links-design-store.js` | a design's PERSISTENCE lifecycle and the concurrency protocol — every design write, and the refresh's read (`createDesignStore`) |
 | `links-design-library.js` | the import panel and the Recently deleted bin, and the bin list itself (`createDesignLibrary`, v24.51). Rename, duplicate and delete stay in `links-app.js` — they change the open design's baseline |
 | `links-design-header.js` | the design MASTHEAD — which design, whose, saved? — the Save buttons' label and the ··· More sheet (v23.30) |
 | `links-design.js` | the design maths — classification, coverage, the generator, `runDesignChecks`, `endMinutesAbs` |
@@ -110,7 +110,7 @@ the whole of v20. A number written beside the list it describes is a second copy
 - Each page passes `isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(member)`. `links-app.js` passes `isLinksDesigner: true` (page already guards non-designers, redirecting to `admin.html`).
 - To grant access: add name to `CONFIG.LINKS_DESIGNERS` in `roster-data.js` — every page derives `isLinksDesigner` from that list. Current designers: `'G. Miller'`, `'S. Silva'`, `'M. Robson'`.
 - **Two more steps, or the new designer can open the page and not save a thing.** The client list only decides what the nav and the page gate show; the `linksDesigner` CLAIM comes from the server-owned `functions/roster-members.json`. So (1) run `npm run generate:roster-members` in the same commit — `sw-asset-check.test.mjs` fails the build if it drifts — and (2) after deploy, run **Operations → Set up accounts**, which is what actually mints the claim. Until then every save permission-denies (`writeWithClaimRetry` refreshes the token, but a refresh can't invent a claim the server never set).
-- **Server-side (the real control):** `linkDesigns` writes require the `linksDesigner` or `admin` claim (H2, v16.29). **Reads require a `name` claim** (v19.39) — a session that has actually signed in as a member. The previous `request.auth != null` was intended as "any signed-in member", but the calendar signs every visitor in anonymously, so it admitted anyone who could open the app URL. Reads are deliberately NOT gated on `linksDesigner`: a designer whose token predates that claim has to be able to LOAD the page for the write self-heal (`writeWithClaimRetry`) to get its chance to run.
+- **Server-side (the real control):** `linkDesigns` writes require the `linksDesigner` or `admin` claim (H2, v16.29). **Reads require a bound member identity or the admin** (`isMember()`, v24.27 — a bare `name` claim from v19.39) — a session that has actually signed in as a member. The `request.auth != null` before v19.39 was intended as "any signed-in member", but the calendar then signed every visitor in anonymously, so it admitted anyone who could open the app URL. Reads are deliberately NOT gated on `linksDesigner`: a designer whose token predates that claim has to be able to LOAD the page for the write self-heal (`writeWithClaimRetry`) to get its chance to run.
 - **Delete is a soft delete (v19.41).** `✕` writes `deletedAt`/`deletedBy` (a MERGE write — a replace would push the deleting device's copy of `patterns` over the server's) and the design moves to **🗑 Recently deleted**, where it stays until somebody removes it by hand. **The bin is PERMANENT** (owner, 19 Sep 2026) and nothing expires a design. Automatic purging was suspended at v19.86 (no client-side age check survives a device clock running 30 days fast); at **v19.96** the last visible copy quoting a countdown went; and at **v24.10** the retention constant, `isPurgeable`, `purgeableIds`, `daysLeft`, the unwired load-time purge and the store's `purgeIfExpired` were all deleted rather than left dormant, because a soft-deleted design is already invisible and restorable and the only thing expiry adds is the power to destroy a designer's work unattended. The v19.96 story is why the dormant version cost something: the row label counted down to "removed for good in N days" **in the same dialog** as the panel intro reading "Nothing is deleted automatically" — one screen, two mutually exclusive explanations (external review P2). The real behaviour is SAFER than the promise was, which makes it a trust problem rather than a data-loss one; a designer who believed the countdown might reasonably have hurried, or written the work off. (This bullet said "then purged on load" until v19.94, contradicting the first-visit notice two sections below.) Restore clears both fields with `deleteField()`. All the decisions are pure and tested in `links-deletion.js`; the Firestore calls are `links-design-store.js` and the panel is `links-design-library.js` (the coordinator owned it until v24.51). Notes that matter when changing this:
   - **`isDeleted` tests for the KEY, not a usable timestamp.** An unresolved `deletedAt` — what `serverTimestamp()` reads back as on the writing device — still counts as deleted, or the design sits in the picker on the device that just binned it. It used to be half of a deliberate disagreement with `isPurgeable`; that predicate is gone with the rest of the expiry machinery.
   - **A save against a design someone else deleted does not resurrect it.** `saveChanges` detects the deletion in the transaction and offers "Save mine as new" instead — an overwrite there would be one designer undoing another's delete without ever seeing it.
@@ -197,7 +197,7 @@ lossy sentence is NOT used.
 
 ## The workspace is used on a PHONE as well as a desktop (owner, Sep 2026)
 
-Stated because the page does not look like it: a 24 x 7 grid, a generator with a slot table, and
+Stated because the page does not look like it: a grid of every line by seven days, a generator with a slot table, and
 two designs side by side in compare mode all read as desktop work. They are also done on a phone,
 so a change here is not finished when it looks right at 1280.
 
@@ -220,7 +220,7 @@ its own wrapper) rather than trying to sit them side by side.
 ## Design and save model (v12.09, redesigned v12.39–v12.43, multi-design v12.46–v12.47)
 
 ### Card order (v12.46)
-Grid (primary object) → Auto-generator (collapsed by default) → Coverage (hourly heat map) → Design checks. The generator sits directly beneath the grid because it is the only way to create a new design.
+Grid (primary object) → Auto-generator (collapsed by default) → Coverage (hourly heat map) → Design checks. The generator sits directly beneath the grid because it is the main way to create a new design (New blank design, Import and Save a copy as… are the others, and the shortlisted proposals open built in).
 
 ### Firestore model (multi-design, v12.46)
 `linkDesigns` is a **collection** of named design documents `{ name, patterns, window, revision, updatedAt, updatedBy }` — plus `deletedAt`/`deletedBy` while binned — with auto-IDs. The legacy singleton `linkDesigns/combined-28` (no `name` field) is auto-migrated to a named design ("Design 1") only in a collection that has never held a design, live OR binned (Oct 2026 — the gate used to be "no live design", which the 26-line binning made true again, re-migrating it on every open). It is never deleted, so the gate is all that keeps the migration one-time — never write to it.
@@ -255,7 +255,7 @@ key must be in the rules' `hasOnly` list (eight). An extra key does not warn —
 save permission-denies, on every device, until the rules catch up, and hosting and rules ship from
 the same push through separate workflows with no ordering guarantee.
 
-**The design MASTHEAD switches designs (v23.30; the picker became a SHEET at v23.32 — `links-design-header.js`).** The heading-sized face is a button; pressing it opens a picker sheet of rows, grouped **Last saved by you · Last saved by S. Silva · …**, newest save first within a group, each row naming the design and when it was last saved, with the open one tinted and ticked. It was a native `<select>` under the face until v23.32, and the reason that changed — Android draws a select's popup itself, so the app's design vanished at the moment of choosing and long names wrapped to three lines — is rule 1 in the module header. **Both sheets are `createLightbox` dialogs of plain buttons; do not hand-roll either lifecycle.** Beside it: the initials badge and "Last saved by", a coloured status dot (green saved · amber unsaved · gold not-saved-yet), ONE primary Save, and **··· More**, which holds Save a copy as… (the old Duplicate), Rename, Compare with…, New blank design, Import, Recently deleted (only when the bin has something) and Delete (disabled on the last design). The sticky save row keeps a second Save so a designer deep in the grid never scrolls to save; both buttons share one label and one state. **A design fresh from the generator has NO NAME until its first save** — the button reads "Save as…" and the save prompt pre-fills `proposeNewDesignName`; "Design 1" is gone. The four rules an edit can break are in the module header. The active design id persists via `lsGet('myb_links_active_design')`. Compare-with still uses chips (`#compareChips`) — `<div>` wrapping separate `<button>`s, **buttons must not nest**.
+**The design MASTHEAD switches designs (v23.30; the picker became a SHEET at v23.32 — `links-design-header.js`).** The heading-sized face is a button; pressing it opens a picker sheet of rows, grouped **Last saved by you · Last saved by S. Silva · …**, newest save first within a group, each row naming the design and when it was last saved, with the open one tinted and ticked. It was a native `<select>` under the face until v23.32, and the reason that changed — Android draws a select's popup itself, so the app's design vanished at the moment of choosing and long names wrapped to three lines — is rule 1 in the module header. **Both sheets are `createLightbox` dialogs of plain buttons; do not hand-roll either lifecycle.** Beside it: the initials badge and "Last saved by", a coloured status dot (green saved · amber unsaved · gold not-saved-yet), ONE primary Save, and **··· More**, which holds Save a copy as… (the old Duplicate), Rename, Compare with…, New blank design, Import, Recently deleted (only when the bin has something), Keep only the shortlist (the admin's, while an older design exists — v25.09) and Delete (disabled on the last design). The sticky save row keeps a second Save so a designer deep in the grid never scrolls to save; both buttons share one label and one state. **A design fresh from the generator has NO NAME until its first save** — the button reads "Save as…" and the save prompt pre-fills `proposeNewDesignName`; "Design 1" is gone. The four rules an edit can break are in the module header. The active design id persists via `lsGet('myb_links_active_design')`. Compare-with still uses chips (`#compareChips`) — `<div>` wrapping separate `<button>`s, **buttons must not nest**.
 
 ### Compare mode (v12.46; a difference SUMMARY added v22.60)
 
@@ -416,14 +416,15 @@ The station is staffed in **waves** (opens ~06:20, morning build 07:00–08:30, 
 
 ### The sticky summary bar (v19.57)
 
-The grid card's save row is `position: sticky; bottom: 0` and carries three live figures plus a jump
-link. **It exists because the feedback loop was broken by distance**: the grid card is ~1,400px tall
+The grid card's save row is `position: sticky; bottom: 0` and carries four live figures plus a jump
+link (the fourth, hours a week, since v20.04). **It exists because the feedback loop was broken by distance**: the grid card is ~1,400px tall
 and the Coverage and Design-checks cards start ~1,600px and ~2,300px below the fold (measured at
 1440×900), so editing meant paint a cell → scroll two screens → read → scroll two screens back. The
 analysis already updated live; you could not see it happen.
 
-- **Which three, and why not others.** Lines still undesigned (nothing else matters until it is zero),
-  staffed hours with trains and nobody on duty, and fatigue factors **present**. `standing` is
+- **Which four, and why not others.** Lines still undesigned (nothing else matters until it is zero),
+  staffed hours with trains and nobody on duty, fatigue factors **present**, and hours a week excluding
+  Sunday (v20.04 — see *Hours a week* below). `standing` is
   deliberately excluded — an unavoidable characteristic of the operation is not something an edit can
   improve, and putting it in a number the designer is trying to drive down tells them to chase the
   unchaseable. It is **not a score**, for the same reason the panels it summarises are not.
@@ -508,8 +509,9 @@ of its 25 rows — a figure read at source in Aug 2026, after this file said 24 
   once ORR's text was read, with the step kept as the information a design actually controls.
   The row now reads `scoreOrder` from `links-adjacency.js` and states the typical weekly move, the
   largest, and how many boundaries exceed 2h. **Live main roster: 4h 0m typical / 8h 46m worst /
-  9 of 20 over** — quote that as the baseline; the December default (`links-default-targets.js`, every
-  objective on) measures typically 4h 16m, largest 8h 37m, 8 of 24 over
+  9 of 20 over** — quote that as the baseline; the December default — the 26-line one since v24.47
+  (`links-default-targets.js`, every objective on) — measures typically 2h 13m, largest 8h 51m, 4 of
+  26 over, 10 unmeasurable across the cover weeks (re-measured 3 Nov 2026)
   (`docs/links-24/tooling/default-baseline.mjs`).
   Two things not to "tidy": the status stays **`standing`** whenever the step is measurable rather
   than turning `present` above some figure — the ORR gives no FF18 threshold, and inventing one is
@@ -619,7 +621,7 @@ not of either roster.
 > a card they had not been introduced to. Nothing here was rewritten; the blocks were moved.
 
 ### Auto-generator (v12.39, slot-based v12.40; whole spare WEEKS v19.58)
-**The only way to create a new design** (v12.43). Targets are a LIST of shift slots — one row per distinct start time, each with separate **Mon–Fri / Sat / Sun** headcounts — plus **one** number: how many whole lines are spare weeks.
+**The main way to create a new design** (v12.43 — once the only one; New blank design, Import and the shortlist's built-in proposals have joined it). Targets are a LIST of shift slots — one row per distinct start time, each with separate **Mon–Fri / Sat / Sun** headcounts — plus **one** number: how many whole lines are spare weeks.
 
 **SPARE IS A WHOLE WEEK, NOT A SCATTER OF DAYS** (owner, Aug 2026). A spare line is spare on all seven days: you are cover, you work four days of that week, and you can be put on any range of shifts. The real roster is built this way — main lines **1, 7, 12, 17** are `SPARE` on every day, bilingual **1 and 8**, and there is not one scattered spare day anywhere in it.
 
@@ -628,6 +630,14 @@ The previous model took a per-day-class spare HEADCOUNT and fed it to the rotati
 Two consequences worth knowing. The targets are validated against the **working** lines (`lines − spareLines`), so a total that fits the rotation can still be refused. And a spare week counts as **four** worked days in the run checks, not seven — see *A spare week is four duties of seven* under Design checks.
 
 > **This paragraph said SEVEN until v19.94, and it was the pre-v19.79 rule.** The correction > was made in the Design-checks section and never carried back here, so the file argued with > itself 280 lines apart — and this copy also repeated the reasoning v19.79 specifically > overturned ("over-reporting a run is the safe direction for a fatigue check"). It is not: > a 7/7 spare week fuses the blocks either side of it, which reported the live main roster at > 15 consecutive days against a true 9. A reader arriving at the generator first would have > taken away the rule the tool no longer follows.
+
+> **From here to "The roster seed" this section describes the 24-LINE default (v21.00–v21.13), and is
+> history.** Since v24.47 the default is the duty table of the shortlisted Short Run, not a table the
+> app searched for (`links-default-targets.js` header — "the 24-line table is GONE"), judged by
+> `docs/links-26/RULES.md`. `links-default-targets.test.mjs` now pins the contract and those rules, not
+> the properties below — so the late-turn ordering, four Saturday closers and the quarter-hour ceilings
+> no longer describe the shipped table. The two buttons do: *↺ Use the recommended Dec 2026 staffing*
+> and *↺ Copy staffing from today's roster*.
 
 **The table no longer opens on the roster (v21.00).** A new design starts from `links-default-targets.js` — a table DESIGNED against the December 2026 service, which pays the contracted week exactly, so Generate works on a card nobody has touched. The roster seed became unusable as a default the moment the contract gate landed: today's duties pay 16 working lines, fewer than the design has, so `buildRosterTargets()` is refused with the gap named, and a designer opening the workspace met a refusal before typing anything. Both are one button away from each other — *↺ Back to the December 2026 default* and *↺ Load today's roster instead* — because they answer different questions and a proposal wants both: design tomorrow, measure today.
 
@@ -989,7 +999,7 @@ retired two tips that had been untrue for years — the "start times only move l
 section is about, and "pre-filled from the current roster" (false since v21.00) — which is the
 argument for keeping the panel beside the module it describes rather than trusting a sweep.
 
-### The sixth switch: most shifts in a row (v20.02)
+### The run-cap switch: most shifts in a row (v20.02 — the sixth switch then; five remain since v25.06)
 
 A box on the objectives, default **6** — `DEFAULT_MAX_RUN` in `links-design.js`, which the Design
 checks panel reads too, so the generator's aim and the panel's threshold are one number. They were 6
@@ -1037,11 +1047,12 @@ would hide the trade. Measured on a generated design: gentle-only takes week-to-
 > **The all-on figure that used to sit here — "all four on gives 14 minutes and 12 weekends" — is
 > gone** (corrected v19.65). It was measured at v19.58, before `variety` existed, and it contradicted
 > the box above, which measured the shipped default at **95 min / 8 weekends** on the roster seed
-> *(28 Sep 2026: the December default now measures typically 4h 16m, largest 8h 37m, 8 of 24 over
+> *(3 Nov 2026: the 26-line December default measures typically 2h 13m, largest 8h 51m, 4 of 26 over
 > 2h — `docs/links-24/tooling/default-baseline.mjs`)*.
 > Both were presented as "all switches on", so this file said two different things about the one
-> configuration a designer actually gets — and named four switches when there were five (six since
-> v20.02 added the run cap — `OBJECTIVES` in `links-adjacency.js`).
+> configuration a designer actually gets — and named four switches when there were five (six from
+> v20.02, which added the run cap, and five again since v25.06, when rest across the week boundary
+> became a constraint — `OBJECTIVES` in `links-adjacency.js`).
 >
 > **The 9-minute gentle-only figure is the one to be careful with.** It is real, and it is *not* what
 > the tool does by default: `variety` deliberately spends that step to cap the block length. Quoting
@@ -1330,8 +1341,8 @@ It was 28 = the main 20-week cycle + the bilingual 8, because the design modelle
 rotation. The December 2026 plan changed (owner, Aug 2026): the new link **does not include the
 bilingual roster at all** — not its lines, not its shift times, not its work. It is the CEA/main
 roster **widened from 20** to increase staffing. The v19.98 plan kept the roster's **4 spare weeks**
-(at 22 lines); a fifth came at v20.01 and was reverted at v20.02, so the shipped default is 4
-(`DEFAULT_COVER_WEEKS`).
+(at 22 lines); a fifth came at v20.01 and was reverted at v20.02, so the 24-line default
+was 4; the 26-line default is 5 (`DEFAULT_COVER_WEEKS`, v24.47).
 
 **The length moved twice: 22 at v19.98, corrected to 24 at v20.01** (owner — the earlier figure was
 misremembered). Evidence class **C** for both (owner-confirmed practice, no document behind either).
@@ -1443,11 +1454,12 @@ two pages. That is a measured constraint, not a preference: A4 landscape at 1cm 
 **718px** of printable height, and at the old 26px rows and 28 lines the grid card came to **903px**,
 so it always broke (the CSS comment claimed it fitted "or close to"). Rows are now 21px, the cell
 line-height 1.15, and the grid card's own header is dropped in print — the masthead names the sheet
-— which brought 28 lines to **703px**, against 718. **At 24 lines it measures 619px** (v20.01), so
-the headroom is currently ~99px rather than the ~15px the 28-line era had.
+— which brought 28 lines to **703px**, against 718. **At 24 lines it measured 619px** (v20.01),
+~99px of headroom against the ~15px the 28-line era had. The rotation is 26 now (v24.47): at ~21px a
+line expect about 661px, and RE-MEASURE rather than trust that arithmetic.
 
 **Do not read that as slack.** The 21px row and the dropped header were both bought to fit 28, and
-the budget is ~21px per line: the sheet takes 28 today and 4 fewer is where the room came from. If
+the budget is ~21px per line: the sheet took 28, and fewer lines is where the room came from. If
 the rotation grows again, or the cell font or the masthead changes, RE-MEASURE — the constraint is
 the 718px, not any of these figures.
 
@@ -1469,7 +1481,7 @@ the masthead belongs to, it has always started at the top of page 1, and a rule 
 nothing is wrong; the card heights that this section quotes were all correct throughout. Print is
 its own render, and the only way to review it is to produce the document.
 
-**There is a Print button** (`#linksPrintBtn`, v19.62) in the sticky save row beside Save changes —
+**There is a Print button** (`#linksPrintBtn`, v19.62) in the sticky save row beside Save —
 outlined, because two filled buttons would compete and saving is the one that matters. All of the
 print machinery above had existed since v12.37 with **no way to reach it but the browser menu**,
 which an installed PWA often does not expose at all. It only calls `window.print()`, so it goes

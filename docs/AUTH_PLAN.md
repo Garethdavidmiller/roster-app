@@ -21,7 +21,7 @@ that reads uniformly confident invites someone to start at the wrong end:
 | E3, the decision gate, §6 measurement | **Sound, unverified.** Design is right; numbers are missing. |
 | §4 offline (E4) | Designed; its one load-bearing assumption is now **demonstrated** — `experiments/firestore-offline-proof/`, see §4. |
 | E5 | **Under-analysed.** The claim-tier work the B-track proved necessary has not been done for reads. |
-| §5 documents (E6) | **A sketch.** The Office-viewer dependency invalidates the cheapest option. |
+| §5 documents (E6) | **DECIDED 19 Sep 2026 and BUILT** (server v24.16–18, client v24.19): the Office viewer stays and is handed a 15-minute signed link. The tokens already in circulation are not rotated (ARCHITECTURE.md EXC-007). |
 
 **Status: the read closure is IN FORCE since 26 Aug 2026; INDIVIDUAL authentication is still
 undecided.** `overrides` reads require a verified member (`isMember()`: password sign-in, derived email,
@@ -302,9 +302,9 @@ starter picks a name from a dropdown and one where they sign in.
 See §4. Without it, E3 is a genuine regression; with it, it is not.
 
 ### E5 — Level 2 rules: `isMember()` + hard gate
-Only after E3 soaks and the numbers say the wall is survivable. At this point `signInAnonymously` is dead
-code and the **Anonymous provider can be disabled project-wide** — real hardening, and it settles the
-"retire the anonymous fallback" residual in SECURITY_RELEASE_PLAN. Decide those two together.
+Only after E3 soaks and the numbers say the wall is survivable. `signInAnonymously` is already dead code
+(the "retire the anonymous fallback" residual completed at v24.34), so **disabling the Anonymous provider
+project-wide** — real hardening — no longer waits on E5: it is a Console step that can be taken now.
 
 > **⚠️ NOT YET ANALYSED — do not treat `isMember()` as a one-line rule.** (It is already the live `overrides`
 > read rule's member door — AUTH_AND_SESSIONS invariant 19; a bare `token.name != null` is weaker, since any
@@ -385,8 +385,13 @@ for, and it is now a measured statement rather than an inherited one.
 4. The moment connectivity returns, require the real login.
 
 **Why this costs nothing against the threat being defended.** Grace mode only helps someone holding a
-device that was already signed in — the device-theft threat model, not outsider-with-URL. It is no weaker
-than today's behaviour, where a cached roster always renders.
+device that was already signed in — the device-theft threat model, not outsider-with-URL. It was no weaker
+than the behaviour when this was written, where a cached roster always rendered.
+
+> **Since 26 Aug 2026 the front door is closed, so read the rest of this section as the reasoning, not
+> as today.** The Calendar does not start without a member session or the staff PIN; a member's own
+> stored roster is shown before the grant but deleted when their session expires (CALENDAR_DATA.md
+> invariant 17); and the document reads closed at v23.17/v23.18.
 
 **The other three front-door consequences**, for completeness: notification deep-links must survive the
 login flow (a `#huddle` tap on a lapsed session lands on a login screen); first-run onboarding becomes
@@ -645,9 +650,9 @@ stop condition: it means the experiment has no failure criterion, so it can only
 | Is grace mode (§4) an acceptable answer to offline? | E4 | If not, the alternative is longer sessions, not "accept the lockout". |
 | Member selector vs identity | E3 | Default to your own roster, or keep a free selector with login as a pure gate? UX, not security. |
 | Analytics identity guarantee | E3 | Keep the calendar identity-free, or make it an active-account surface? |
-| Anonymous provider fate | E5 | Disable project-wide, or keep as a Level-1 tier? |
+| Anonymous provider fate | — | **Overtaken (v24.34):** nothing signs in anonymously, so disabling the provider is a Console step that no longer waits on E5. |
 | Retire the GitHub Pages mirror? | asserting "behind auth" — **and passkeys outright** | See §8. Passkeys make this binding rather than presentational: a WebAuthn credential is bound to one RP ID, and the two origins share no parent domain, so a passkey registered on one can never work on the other. `PASSWORD_DESIGN.md` → "Passkeys — POSSIBLE, not planned". |
-| Do E6 at all, and which delivery model? | E6 | Independent of everything above. |
+| Do E6 at all, and which delivery model? | E6 | **Decided 19 Sep 2026 (§5):** short-lived signed links, the Office viewer kept. |
 | ~~**The identity round trip**~~ — may the Calendar paint before `accounts:lookup` confirms the stored account? **ANSWERED yes, narrowly, 5 Sep 2026 (v22.97)** — `CALENDAR_DATA.md` 13 | nothing here — it was `ROADMAP.md`'s *Calendar start* entry, now in `ROADMAP_HISTORY.md` | **NOT the E3 gate, though both read as "the calendar auth decision"**: E3 adds friction for security, this removes a wait at security's expense, and conflating them decides one by answering the other. Coupled to E3 (which scales its cost to every load) and to §4's grace mode (the same trust question at greater severity — and the measured offline behaviour, `experiments/auth-firestore-split-proof/`, shows the check is only enforced when the network is up). |
 
 ---

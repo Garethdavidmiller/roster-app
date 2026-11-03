@@ -17,7 +17,7 @@ cannot open their own roster on their last week.
 
 ---
 
-- [ ] **1 · Upload their final roster PDF** — Operations → Weekly Roster Upload, covering their last
+- [ ] **1 · Upload their final roster PDF** — Operations → Weekly Roster, covering their last
       working days. **Before step 2**, because `hidden` also drops them from the parser's name lists
       and a later import then reports their row as `missingMembers` — the same advisory a genuine
       absence produces, so the week imports looking complete with nobody on their line.
@@ -25,6 +25,11 @@ cannot open their own roster on their last week.
 - [ ] **2 · `hidden: true`** on their `teamMembers` entry in `roster-member-data.js`. Never delete the
       entry — there is no end-date field, `hidden` is what retirement looks like, and the record
       still has to resolve for their past shifts, overrides and any frozen Overtime week.
+      **A manager or clerk (`managerOnly`) is the exception: REMOVE their row.** Every active
+      Management row already carries `hidden: true` (it keeps them off the Calendar's member
+      selector), so `getMembersForGrade('Management')` does not filter on it: hiding one changes
+      nothing, they stay in the deployed `activeMembers`, step 5 never disables them and step 6
+      reads clean. Their rows hold no roster to resolve. Then step 2b for `CONFIG.MANAGER_NAMES`.
 
 - [ ] **2b · If they held a ROLE, remove them from it too** — `CONFIG.ADMIN_NAMES`,
       `CONFIG.MANAGER_NAMES` or `CONFIG.LINKS_DESIGNERS` in `roster-data.js`. Those three lists are

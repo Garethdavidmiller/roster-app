@@ -60,7 +60,7 @@ their April pay finds the year they need is not there.
 |---|---|---|
 | `overrides` document count | Design the archive at **~4,000**; it must land before **~5,000** | Query cost and client cache size both grow with it. A watch item today — no action needed yet, but the design should not start at 4,900 |
 | Migration percentage (`passwordStatus`) | **≥90%** | Track C5 — retire the surname default (closes `EXC-005`). Irreversible; also gated on Track E |
-| App Speed card, calendar tail | Material drift | The only trigger that reopens the bundler / SDK-deferral question — `ROADMAP.md` → Build tooling |
+| App Speed card, calendar tail | Material drift | The measured half of ONE of the four Build-tooling triggers (load time on staff phones) — `ROADMAP.md` → Build tooling |
 
 ---
 
@@ -92,12 +92,12 @@ Not dated, but repeatedly missed, and nothing tells you:
 
 - **Work email.** Since v19.30 nothing prompts for it — the login overlay that used to was retired
   once every existing member was registered. It is a step in `/new-starter` (Operations → Account
-  status → Set), and the member can add it in Settings → Work Email, but if both are missed the
-  account simply has no email on file **and nothing says so**. The Account status table's Email
-  column is the only place it shows.
-- **`npm run generate:roster-members`** in the same commit as the roster-data change (CEA/CES/
-  Dispatcher only) — without it the new member's shifts are silently excluded from every roster PDF
-  import. CI-locked, so this one does fail loudly.
+  status → Set email), and the member can add it in Settings → Work Email, but if both are missed the
+  account simply has no email on file **and nothing says so**. The Account status card's
+  "No work email" line is the only place it shows.
+- **`npm run generate:roster-members`** in the same commit as the roster-data change (every grade, Management included — the
+  same file holds the login list and the role lists) — without it a new CEA, CES or Dispatcher's shifts
+  are silently excluded from every roster PDF import, and a new manager gets no login. CI-locked, so this one does fail loudly.
 - **Operations → Set up accounts** after deploy, or the account holds no claim.
 
 If joiners ever become frequent enough that the email step is missed repeatedly, the fix is a count

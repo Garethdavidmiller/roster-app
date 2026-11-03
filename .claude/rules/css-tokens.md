@@ -61,11 +61,11 @@ polish generation): `.card-header-toggle` (collapsible) / `.card-header--row` (s
 left `<div>` (title `h2` + `.hint`) against a right `.card-header-actions` cluster (optional
 `.card-year-chip` context chip → Tips/Help `?` button → collapse arrow). `.card-year-chip` names
 the card's tax year / balance / count even while collapsed (`:empty` hides it); `.field-eyebrow`
-is the shared uppercase micro field label (GRADE, TAX CODE, …). **Used by all six card-bearing app pages** (paycalc + admin v18.16; operations + settings + links v18.17; overtime) — the calendar has no cards. The
+is the shared uppercase micro field label (GRADE, TAX CODE, …). **Used by the card-bearing app pages** (paycalc + admin v18.16; operations + settings + links v18.17; overtime; the list is `cardPageFiles` in `scripts/app-pages.mjs`) — the calendar has no cards. The
 old `.card-collapsible-header` grid header is **retired** — only the shared `.card-collapsible-body`
-(show/hide) and `.collapse-chevron` remain. Header context chips currently: `AL left: N` on admin
-(`.al-left-chip` low/none recolours) and the Saved Changes count; the Error Log unresolved count on
-operations (`.errorlog-count-chip`, red). Chips are added only where a card is often COLLAPSED and
+(show/hide) and `.collapse-chevron` remain. Header context chips include `AL left: N` on admin
+(`.al-left-chip` low/none recolours) and the Saved Changes count, and the Error Log and reset-request
+counts on operations (`.errorlog-count-chip`, red); Settings, Overtime and Trains carry their own. Chips are added only where a card is often COLLAPSED and
 has one clear datum — not on default-open cards (settings/links analysis got structural migration,
 no chips). **Card titles are `h2` on every page, and every card title leads with an emoji** (v18.86). Both are
 enforced by `card-header-parity.test.mjs` — they had each drifted unnoticed: operations.html marked
@@ -269,7 +269,8 @@ viewer), which are the separate full-bleed/glass family described above.
 
 `shared.css :root` defines `--space-2/3/4/5` (8/12/16/24px). They name exactly two things — the
 card-body padding and the nav-drawer gaps — in `shared.css`. `overtime.css` has since adopted them
-throughout, and `links.css` in two rules, so **changing a `--space-*` value moves those pages too**.
+throughout, `trains.css` widely, and `links.css` and `admin.css` in a rule or two, so **changing a
+`--space-*` value moves those pages too**.
 Do not read them as an app-wide spacing scale, because the app does not have one.
 
 **A general spacing migration is a WON'T-DO, and the numbers are why** (measured across the seven app
@@ -304,14 +305,14 @@ rather than bending it onto `--space-*`.
 One type scale in `shared.css :root`:
 - `--type-micro` 10px
 - `--type-small` 12px
-- `--type-label` 13px (card headers, dense row text)
+- `--type-label` 13px (dense row text; card headers until v25.12 — below)
 - `--type-body` 14px
 - `--type-button` 15px (primary action buttons)
 - `--type-medium` 16px
 - `--type-large` 18px
 - `--type-xl` 24px
 
-The four sub-pages (admin, paycalc, operations, settings) use **identical sizes for the same conceptual element**:
+The card pages (admin, paycalc, operations, settings and the rest of `cardPageFiles`) use **identical sizes for the same conceptual element**:
 - `body` base → `--type-body`
 - card-header `h2` → `--type-body` (14px/700, `-0.01em`, `text-wrap: balance` — v25.12; was `--type-label`, 13px). **15px was measured and declined**: across every card page at 360/375/390px it tipped paycalc's "🏖️ Holiday Pay Premium (HPP)" onto two lines at 375px, the width v18.53 trimmed a chip to protect — and that title may not be shortened (paycalc.md invariant 16). (The v25.14 icon tile spent that 375px line knowingly and v25.16 took it back by removing the tile — 2px to spare, measured; see the card-header system above)
 - card `.hint` → `--type-small`
@@ -408,7 +409,7 @@ The whole drawer is one continuous navy surface (`--nav-surface` = `--primary-bl
 
 These are the on-navy equivalents of the global `--text-*` / `--border-light` / `--bg-faint` neutrals. Alpha values are tuned for WCAG AA on navy (0.70 ≈ 7:1, 0.55 ≈ 5:1). Head and footer are separated from the scrolling body by hairline `--nav-border` borders, not by a colour change.
 
-**Pills:** every page pill wears its page's solid colour — Calendar gold, Pay green, Operations orange, Links purple, Trains raspberry, New link teal, Overtime `--ot` and, since v25.12, **Settings indigo** (it was a quiet raised chip on the reasoning that Settings had no colour anywhere else, which stopped being true when its badges went indigo). The **Admin pill** uses `--nav-raised` with gold text (not navy-fill, which would vanish on navy). Sign-out and the blocked-bell hint mix `--error-red` 65% with white to clear AA on the dark footer. Do not revert the drawer to a white body.
+**Pills:** every page pill wears its page's solid colour — Calendar gold, Pay green, Operations orange, Links purple, Trains raspberry, New link teal, Overtime `--ot` and, since v25.12, **Settings indigo** (it was a quiet raised chip on the reasoning that Settings had no colour anywhere else, which stopped being true when its badges went indigo). The **Admin pill** uses `--nav-raised` with gold text (not navy-fill, which would vanish on navy). Sign-out mixes `--error-red` 65% with white to clear AA on the dark footer. Do not revert the drawer to a white body.
 
 ### A page is one colour and one emoji wherever it is named (v25.12)
 
@@ -545,7 +546,7 @@ remains at the bottom-right when the right-column cards are all collapsed — mi
 **Paycalc resolved its void** (v16.12→v16.14 rail, replaced at **v16.67**; single shared row
 **v18.47**): a three-column desktop grid whose workspace is ONE grid row holding two wrappers —
 `.pc-work` (period band + Hours + Settings, spanning the two wide work columns) and the col-3
-**sidebar** `.pc-side` (result + the four occasional cards). Both are `display:contents` on
+**sidebar** `.pc-side` (the result, the year-so-far card and the occasional cards). Both are `display:contents` on
 mobile / flex columns on desktop. The v16.14 version put ONLY the result (a sticky rail) in
 col 3, leaving the rest of that column a full-height navy void — the desktop "it's a mess"
 report; the v16.67 fix stacked the occasional cards under the (now non-sticky) result, with the
@@ -589,7 +590,7 @@ than the purity gain.
   rationale: labelled, low co-visibility.
 
 **Box-shadows are deliberately NOT routed through `--shadow-1/2/3`** (reviewed v17.58): the
-eight app stylesheets carry **27** hand-rolled `rgba()` shadows with varied values, and forcing them
+eight app stylesheets `shadow-parity.test.mjs` scans (not `trains.css` or `newlink.css`) carry **27** hand-rolled `rgba()` shadows with varied values, and forcing them
 onto the three presets would visibly restyle depth across the app — a redesign, not hygiene. Use the
 `--shadow-*` tokens for NEW shadows; leave existing ones unless intentionally redesigning that
 surface. **The figure is measured, not remembered** — `shadow-parity.test.mjs` counts the recipes
@@ -676,8 +677,8 @@ It has now been found twice — `.selectors` (v12-era, its comment carries the r
 
 ## Prose is left-aligned once it passes ~2 lines (v18.89)
 
-Overlay body copy (`.notice-body`, `.lightbox-privacy`) used to be
-centred. Centred text is fine for a line or two and works against the reader beyond that — every
+Overlay body copy (`.notice-body`) used to be
+centred. (`.lightbox-privacy` stays centred: its one use is a one-line note on the Pay Calculator.) Centred text is fine for a line or two and works against the reader beyond that — every
 line starts at a different x, so the eye has to re-find each one, and these run 3–5 lines. The
 badge/title/date **masthead stays centred**; only the prose is left-aligned, which is the
 arrangement the About panel already used. The `new-notice` skill template carries the same rule so
@@ -698,7 +699,8 @@ already failed twice — in opposite ways, neither visible by reading the CSS:
   blob into, which is the worst place for the viewport to jump.
 
 **A static CSS test cannot catch either**: both are cascade outcomes, not text. `e2e/pages.spec.js`
-now scans every `input`/`select`/`textarea` on all seven pages on **mobile-chrome** (a real coarse
+now scans every `input`/`select`/`textarea` on the seven pages in its hand-written `APP_URLS` list
+(not `trains.html` or `newlink.html`) on **mobile-chrome** (a real coarse
 pointer), with every collapsible forced open, and asserts the COMPUTED size. Checkboxes, radios and
 file inputs are excluded — none opens a keyboard, so none can trigger the zoom.
 
@@ -740,7 +742,8 @@ gutter. Full width is what the login overlay and the mobile layout already do.
 
 `--caret-chevron` in `shared.css` `:root` is the down-chevron every control that opens a picker
 wears: `.fieldpick` triggers, Team View's `.team-week-text::after`, Admin's
-`.week-nav-label::after`, and Overtime's `.member-context-bar select`. It is a `url("data:image/svg+xml;…")`, and **the navy lives inside the
+`.week-nav-label::after`, the Calendar's `.month-jump-selects select`, and Overtime's
+`.member-context-bar select`. It is a `url("data:image/svg+xml;…")`, and **the navy lives inside the
 SVG's own `stroke`, where no token can reach it** — which is precisely why it is declared once. It
 had been written out per site, and a third copy was the point at which one of them would have
 diverged from the other two with nothing to catch it.
@@ -793,7 +796,7 @@ is exactly why a static guard and not a screenshot is what holds them.
 
 The guides restate `::selection`, `::placeholder` and `caret-color` in `guide-shell.css` with their
 own `--placeholder` token, for the same reason `--scroll-thumb` lives there: they load none of the
-app's stylesheets, so a rule added only to `shared.css` reaches seven pages of twelve.
+app's stylesheets, so a rule added only to `shared.css` reaches the nine app pages and none of the five guides.
 
 ## `opacity` on a group is a contrast bug waiting to be found (v24.00)
 

@@ -1,9 +1,27 @@
+---
+paths:
+  - "functions/push.js"
+  - "functions/roster-parse-helpers.js"
+  - "functions/documents.js"
+  - "functions/overtime*.js"
+  - "functions/auth-endpoints.js"
+  - "functions/index.js"
+  - "service-worker.js"
+  - "notif.js"
+  - "firebase-client.js"
+  - "push-transport.test.mjs"
+  - "notif.test.mjs"
+  - "sw-notification-tap.test.mjs"
+  - "sw-asset-check.test.mjs"
+  - "roster-parse-helpers.test.mjs"
+---
+
 # Push notification design language
 
 The one app surface rendered by the **OS**, not by our CSS — so it can't inherit the
 design system and needs its own explicit rules. Every Web Push notification staff receive
 must adhere to this. Enforced by a single builder (`buildPushPayload`) in
-`functions/roster-parse-helpers.js` (imported by `functions/index.js`); the service worker renders the result.
+`functions/roster-parse-helpers.js` (imported by the senders — `functions/documents.js`, `overtime.js`, `auth-endpoints.js`); the service worker renders the result.
 
 ## The core principle (what ties a notification to the app)
 
@@ -67,7 +85,7 @@ targeted-to-participants already reaches everyone eligible, so the reach scales 
 change. Deadlines are worded in LONDON time by the pure builders in `functions/overtime-core.js`
 (`askedNotice`/`reminderNotice`), never composed inline.
 
-**Two notifications are NOT broadcasts by design of their CONTENT** (v23.62 added the second). Overtime is targeted too (below); the three documents and the pay reminder are the broadcasts, going to all subscribed
+**Two notifications are NOT broadcasts by design of their CONTENT** (v23.62 added the second). Overtime is targeted too (above); the three documents, the pay reminder and the one-off timetable reminder are the broadcasts, going to all subscribed
 staff; the reset request goes to the **admin's devices only** — "N. Surname is locked out" sent to
 50 people is a leak, not a notification. It is sent by `sendTargetedPush` (not `fanOutPush`), which
 filters `pushSubscriptions` by the `owner` uid and **fails closed at every step**: no target uids →
@@ -220,7 +238,7 @@ adding the feature. Full rationale: OPERATIONS_REFERENCE.md → "Huddle notifica
 ## The builder (single source of truth)
 
 All payloads go through `buildPushPayload({ feature, body, baseUrl, headline?, url? })` in
-`functions/roster-parse-helpers.js` (imported by `functions/index.js`), backed by the `NOTIFICATION_FEATURES` map (emoji + tag + default
+`functions/roster-parse-helpers.js` (imported by each sender), backed by the `NOTIFICATION_FEATURES` map (emoji + tag + default
 headline + default path). Hand-writing a `{ title, body, tag, url }` literal is **not
 allowed** — it's how the design drifted (one notification used the app name as its title,
 another a marketing headline). The builder guarantees the leading emoji, the tag, and the

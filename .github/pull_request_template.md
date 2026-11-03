@@ -13,24 +13,24 @@
 *Tick each item or mark N/A. Skip the whole block for documentation-only PRs.*
 
 ### Firestore / Storage
-- [ ] New collection documented in `CLAUDE.md` (fields, access rules, auto-prune if applicable)
+- [ ] New collection documented in `docs/DATA_MODEL.md` (fields, access rules, auto-prune if applicable)
 - [ ] Security rules added/updated in `firestore.rules` and `storage.rules`
 - [ ] Helper functions for new collection exported from `firebase-client.js` and listed in `AI_MAP.md`
 
 ### Service worker
-- [ ] New JS modules added to both asset lists in `service-worker.js`
+- [ ] New JS modules added to both asset lists in `service-worker.js`, and to the `modulepreload` list of every page that imports them (`sw-asset-check.test.mjs` names a missing one)
 - [ ] Runtime version updated with `npm run bump <version>` (2 runtime locations); `sw-asset-check.test.mjs` parity passes
 
 ### Error handling
 - [ ] No new silent `catch(() => {})` — use `catch(e => console.warn(...))` for fire-and-forget paths
-- [ ] `initErrorReporter()` called on any new page module
+- [ ] `initErrorReporter()` called on any new page module — never bare: only once the page holds a signed-in identity (CLAUDE.md → `initErrorReporter()` call pattern)
 
 ### Tests
 - [ ] `npm test` passes
 - [ ] New logic has a unit test, or the gap is noted in `KNOWN_LIMITATIONS.md`
 
 ### Documentation
-- [ ] `CLAUDE.md` updated (new module / collection / architecture decision)
+- [ ] A new module is listed in `docs/FILE_INDEX.md` and `docs/AI_MAP.md` (the pre-commit hook enforces both); an architecture decision is recorded in `CLAUDE.md`
 - [ ] `AI_MAP.md` updated if any module's exports changed (pre-commit hook enforces this)
 - [ ] `OPERATIONS_REFERENCE.md` updated if a new admin workflow was added
 - [ ] All 5 doc version stamps current to the latest 0.10 milestone
