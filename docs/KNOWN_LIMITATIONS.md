@@ -344,6 +344,13 @@ moved:
   Playwright's own wait before each click on this engine, not the app (a Trains tab's handler and
   the next paint take 30–170ms on WebKit, as on Chromium). The 15s budget per assertion is untouched
   (`playwright.webkit.mjs` says why).
+- **And one the CI had to learn, after the merge (v25.25).** The step that installs WebKit's system
+  libraries reads its package list out of Playwright's dry run, and 1.63 changed that output from the
+  apt command to a simulated install. Unread, the script fell back to the plain command: one clock,
+  no resume. That is a fallback by design, but it became the only path every WebKit job took, and a
+  slow mirror then killed two jobs on the tooling refresh before a single test ran.
+  `install-browser-deps/install.sh` now reads both shapes and runs `apt-get update` first (the dry run
+  reads apt's lists now), and `workflow-hygiene.test.mjs` feeds the real parser each one.
 - **Not 1.64.1, the newest.** 1.63.0 is what the container carries, so every local Playwright run
   works with no browser workaround. Moving on is a one-line change once the container carries 1.64.
 - **Chromium 153 raises one new browser error under test.** It abandons the declarative page-to-page

@@ -20,6 +20,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 
 const WF_DIR = '.github/workflows';
 const LINT_WF = join(WF_DIR, 'workflow-lint.yml');
@@ -1161,6 +1162,21 @@ describe('a stalled apt mirror costs a retry, not the job (23–24 Oct 2026)', (
             // …and as ROOT where there is a sudo to go through: the plain command spawns `sudo apt-get`
             // itself, and a clock started by the runner's user could not kill that apt (23 Oct 2026).
             assert.match(script, /exec sudo -n env "PATH=\$PATH" timeout -k \d+ "[^"]+" npx playwright install-deps "\$BROWSER"/, 'the fallback\'s clock must run as root too');
+        });
+
+        test('reads the package list in BOTH shapes Playwright has printed, through the real parser', () => {
+            // Playwright 1.63 (3 Nov 2026) replaced the dry run's printed apt command with a simulated
+            // install, and the parser read neither shape: every WebKit job fell back to the plain
+            // command — one clock, no resume — and a slow mirror then killed two before any test ran.
+            // So the script's own parse_dry_run is run here, on each shape, not a copy of its regex.
+            const parse = (/** @type {string} */ out) => execFileSync('bash', [join(ACTION_DIR, 'install.sh'), '--parse'],
+                { input: out, env: { ...process.env, BROWSER: 'webkit' }, encoding: 'utf8' }).trim();
+            assert.equal(parse('sudo -- sh -c "apt-get install -y --no-install-recommends libwoff1 libopus0 gstreamer1.0-libav"\n'),
+                'libwoff1 libopus0 gstreamer1.0-libav', 'Playwright up to 1.56 printed the command it would run');
+            assert.equal(parse('Missing system dependencies (3):\n  gstreamer1.0-libav\n  libopus0\n  libwoff1\n'),
+                'gstreamer1.0-libav libopus0 libwoff1', 'Playwright 1.63 prints the missing packages, one per indented line');
+            assert.equal(parse('All system dependencies are installed.\n'), '-', 'nothing missing is its own answer, not a parse failure');
+            assert.equal(parse('A shape nobody has seen yet\n'), '', 'an unknown shape reads as nothing, which is what sends the script to the fallback');
         });
 
         test('the clock runs as root around apt, and only the download phase is bounded', () => {
