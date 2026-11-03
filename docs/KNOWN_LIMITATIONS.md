@@ -268,16 +268,23 @@ brings Chromium 1243 (Chromium 153), WebKit 2359 (Safari 26.6, against the 2215 
 Safari 26.0) and an iPhone 17 Pro descriptor. The paragraph used to say why it waited; both reasons
 moved:
 
-- **The baselines were redrawn on the Chromium CI now runs.** The dev container's pre-installed
-  Playwright had become 1.63.0, with Chromium 1243, on the same Ubuntu 24.04 as the runners — so the
-  obstacle (a container on 1194) was gone, and the repo moved to the container rather than past it.
-  All 51 Chromium baselines drifted, as predicted: Chromium 153 measures Inter slightly differently,
-  so some lines break a word earlier or later (the App Speed card grew 17 px) and glyph edges moved
-  everywhere else. The biggest were looked at; nothing moved but text. **Not 1.64.1, the newest**,
-  for the same reason: it would put CI on a Chromium nobody can redraw a baseline on here. Moving on
-  is a one-line change once the container carries it.
-- **WebKit 2359 met the suite first in CI.** It is not pre-installed in the container, which never
-  runs `playwright install` (`.claude/hooks/session-start.sh`).
+- **The baselines came from CI's own render — and that is the lesson worth keeping.** They were
+  first redrawn in the dev container, whose pre-installed Chromium is now 1243, the very build CI
+  runs, on the same Ubuntu 24.04. All 51 still failed on CI. Same build, different machine: the
+  container breaks some lines of Inter a word differently (it drew the App Speed card 17 px
+  taller), so a matching version number did not make a matching render. They were redrawn instead
+  from the actual screenshots in the pull request's own `visual-diffs` artifact, whose digest was
+  checked. On CI, Chromium 153 left 17 of the 51 pixel-for-pixel as they were on 1194 (kept
+  byte-for-byte) and moved the other 34 slightly: the blurred backdrop behind every overlay and
+  lightbox (31% of the tips overlay's pixels, each by a little), glyph edges, the Team View's
+  emoji. The largest were looked at; nothing moved but rendering. **When the lane on a pull request
+  disagrees with a baseline drawn here, believe the lane** and take the artifact's actuals.
+- **WebKit 2359 met the suite first in CI**, the only place it runs: it is not pre-installed in the
+  container, which never runs `playwright install` (`.claude/hooks/session-start.sh`). Its six
+  baselines came by the same route. Under Safari 26.6 line heights moved by a pixel or two (the
+  railcard guide's sections sit a few pixels higher, the day panel is 2 px taller); nothing else.
+- **Not 1.64.1, the newest.** 1.63.0 is what the container carries, so every local Playwright run
+  works with no browser workaround. Moving on is a one-line change once the container carries 1.64.
 - **Chromium 153 raises one new browser error under test.** It abandons the declarative page-to-page
   view transition (`@view-transition` in `shared.css`) when a test navigates mid-transition —
   "Transition was aborted because of invalid state" — as Android Chrome 152 already did on real
