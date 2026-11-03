@@ -1485,8 +1485,9 @@
     font-family: inherit;
   }
   .ty-tab:active { transform: scale(var(--press-scale)); }
+  /* The chosen year wears the page's green (v25.16 — it was navy; shared.css → "CHOSEN = THE PAGE'S COLOUR"). */
   .ty-tab.active {
-    background: var(--primary-blue); color: white; border-color: var(--primary-blue);
+    background: var(--page-accent); color: var(--page-accent-ink); border-color: var(--page-accent);
   }
   @media (hover: hover) and (pointer: fine) {
     .ty-tab:not(.active):hover { background: var(--bg-faint); border-color: var(--primary-blue); }

@@ -399,10 +399,12 @@ body.auth-ready .container { display: grid; }
     cursor: pointer;
     transition: background var(--dur-med), color var(--dur-med), border-color var(--dur-med);
 }
+/* Chosen: the page's orange, navy text (v25.16 — was navy; shared.css → "CHOSEN = THE PAGE'S COLOUR").
+   The Other flavours below keep Other's own green: a flavour is a kind of day, and that colour says so. */
 .roster-entry-pill.is-on, .roster-entry-swap-btn.is-on {
-    background: var(--primary-blue);
-    border-color: var(--primary-blue);
-    color: white;
+    background: var(--page-accent);
+    border-color: var(--page-accent);
+    color: var(--page-accent-ink);
 }
 .roster-entry-pill:disabled { opacity: .38; cursor: not-allowed; }
 .roster-entry-pill:focus-visible, .roster-entry-swap-btn:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
@@ -460,8 +462,8 @@ body.auth-ready .container { display: grid; }
     transition: background var(--dur-med), color var(--dur-med), border-color var(--dur-med);
 }
 .roster-entry-flavour.is-on {
-    background: var(--other, var(--primary-blue));
-    border-color: var(--other, var(--primary-blue));
+    background: var(--other);
+    border-color: var(--other);
     color: white;
 }
 .roster-entry-flavour:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }

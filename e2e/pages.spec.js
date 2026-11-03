@@ -249,34 +249,68 @@ for (const [label, configured, stripTone, chipTone, chips] of [
     });
 }
 
-test('a card title\'s icon tile stays inside its title, so it can never sit on the line beneath', async ({ page }) => {
-    // v25.15, from the owner's phone: "This overlap is happening throughout the app with the tiles."
-    // v25.14 gave the 28px tile a -3px block margin to keep the headers short. That let it hang 3px
-    // out of its title's box — onto the hint line under every card title, touching the words. A 1x
-    // screenshot read as "close"; a phone showed the overlap. So this measures GEOMETRY rather than
-    // trusting a picture: each rendered tile must lie inside its own h2, which means nothing laid out
-    // after (or before) the title can be underneath it. Every card page, from the app's page list.
+test('a card title\'s emoji sits inside its title, on its first line, and a wrapped title hangs from it', async ({ page }) => {
+    // The emoji is every card title's FIRST element (card-header-parity.test.mjs), and shared.css
+    // lays a title holding nothing else as a flex row, so a title that wraps keeps its words in one
+    // block BESIDE the emoji rather than running back under it, and `align-items: baseline` keeps the
+    // emoji on the first line rather than floating between the two. Measured on every card page at
+    // 360px, where real titles wrap ("Holiday Pay Premium (HPP)" among them):
+    //   · the emoji lies inside its title's box. v25.15's lesson, from the owner's phone: a 28px tile
+    //     with a -3px margin hung out of the h2 onto the hint line beneath, and a 1x screenshot read as
+    //     "close". The tile went at v25.16; the rule that nothing hangs out of a title did not;
+    //   · every line of a wrapped title starts at ONE x, to the right of the emoji;
+    //   · the emoji's middle is inside the first line, not between the lines.
+    // GEOMETRY, not a picture, for the reason above: these are a few pixels each, under any pixel
+    // tolerance a baseline can afford, and a picture of the wrong answer looks nearly right.
     test.setTimeout(90_000);
-    await page.setViewportSize({ width: 390, height: 900 });
+    await page.setViewportSize({ width: 360, height: 900 });
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => { localStorage.setItem('myb_links_welcome_seen', '1'); });
-    const TILE = '.card-header h2 > span[aria-hidden="true"]:first-child';
-    let measured = 0;
+    const EMOJI = '.card-header h2 > span[aria-hidden="true"]:first-child';
+    let measured = 0, wrapped = 0;
     for (const p of APP_PAGES_LIST.filter(x => x.cards)) {
         await page.goto(p.url);
         await page.waitForTimeout(700);
         const found = await page.evaluate((sel) => [...document.querySelectorAll(sel)]
-            .filter(t => t.getClientRects().length)          // rendered, not inside a hidden card
-            .map(t => {
-                const r = t.getBoundingClientRect(), h = /** @type {Element} */ (t.parentElement).getBoundingClientRect();
-                return { title: (t.parentElement?.textContent || '').trim().slice(0, 40),
-                    hangs: Math.round(Math.max(h.top - r.top, r.bottom - h.bottom) * 10) / 10 };
-            }), TILE);
+            .filter(e => e.getClientRects().length)          // rendered, not inside a hidden card
+            .map(e => {
+                const h2 = /** @type {HTMLElement} */ (e.parentElement);
+                const er = e.getBoundingClientRect(), hr = h2.getBoundingClientRect();
+                // The words' own line boxes: everything after the emoji, one rect per line.
+                const range = document.createRange();
+                range.setStartAfter(e);
+                range.setEnd(h2, h2.childNodes.length);
+                /** @type {Map<number, {left: number, top: number, bottom: number}>} */ const lines = new Map();
+                for (const r of range.getClientRects()) {
+                    if (r.width < 1) continue;
+                    const k = Math.round(r.top);
+                    const l = lines.get(k);
+                    lines.set(k, l ? { ...l, left: Math.min(l.left, r.left) } : { left: r.left, top: r.top, bottom: r.bottom });
+                }
+                const ls = [...lines.values()].sort((x, y) => x.top - y.top);
+                const mid = (er.top + er.bottom) / 2;
+                return {
+                    title: (h2.textContent || '').trim().slice(0, 40),
+                    flex: getComputedStyle(h2).display === 'flex',
+                    hangs: Math.round(Math.max(hr.top - er.top, er.bottom - hr.bottom) * 10) / 10,
+                    lines: ls.length,
+                    lefts: ls.map(x => Math.round(x.left * 10) / 10),
+                    emojiRight: Math.round(er.right * 10) / 10,
+                    onFirstLine: ls.length ? mid >= ls[0].top - 0.5 && mid <= ls[0].bottom + 0.5 : true,
+                };
+            }), EMOJI);
         measured += found.length;
-        const bad = found.filter(f => f.hangs > 0.5);
-        expect(bad, `${p.url}: a tile hangs outside its title by → ${bad.map(b => `${b.title} (${b.hangs}px)`).join(' · ')}`).toEqual([]);
+        const hanging = found.filter(f => f.hangs > 0.5);
+        expect(hanging, `${p.url}: an emoji hangs outside its title by → ${hanging.map(b => `${b.title} (${b.hangs}px)`).join(' · ')}`).toEqual([]);
+        for (const f of found.filter(x => x.flex && x.lines > 1)) {
+            wrapped++;
+            expect(Math.max(...f.lefts) - Math.min(...f.lefts), `${p.url}: "${f.title}" — its lines start at ${f.lefts.join(', ')}; a wrapped title hangs from its emoji, every line at one x`).toBeLessThanOrEqual(0.5);
+            expect(Math.min(...f.lefts), `${p.url}: "${f.title}" — its words start left of the emoji's right edge`).toBeGreaterThanOrEqual(f.emojiRight - 0.5);
+            expect(f.onFirstLine, `${p.url}: "${f.title}" — the emoji sits between the lines rather than on the first ('align-items: baseline' in shared.css)`).toBe(true);
+        }
     }
     expect(measured, 'the walk must reach real card titles, or it proves nothing').toBeGreaterThan(20);
+    expect(wrapped, 'no title wrapped at 360px, so the hanging checks never ran — "Holiday Pay Premium (HPP)" did when this was written').toBeGreaterThan(0);
 });
 
 test('settings: notifications switched off on purpose are not coloured as good news', async ({ page }) => {

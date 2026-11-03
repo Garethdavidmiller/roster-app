@@ -1763,15 +1763,15 @@
                         color var(--dur-fast) var(--ease-standard),
                         border-color var(--dur-fast) var(--ease-standard);
         }
-        /* `--primary-blue` is the app's navy — NOT `--navy`, which does not exist. An undefined
-           custom property is silently dropped, so the first cut of this rule left the selected
-           chip identical to the others and only a screenshot could see it. Same idiom as
-           `.type-pill-btn.active`: a filled ground and white text, no category colour, because
-           this component serves the absence card too. */
+        /* The chosen year wears the PAGE's colour (v25.16 — it was navy; shared.css → "CHOSEN = THE
+           PAGE'S COLOUR"), never a category colour, because this component serves the absence card
+           too and AL's teal would mislabel it. Note for whoever edits a token here: an undefined
+           custom property is silently dropped (the first cut of this rule named `--navy`, which does
+           not exist, and only a screenshot could see the chip had not changed). */
         .al-year-chip.is-active {
-            background: var(--primary-blue);
-            border-color: var(--primary-blue);
-            color: white;
+            background: var(--page-accent);
+            border-color: var(--page-accent);
+            color: var(--page-accent-ink);
         }
         .al-year-chip:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }
         @media (hover: hover) and (pointer: fine) {
@@ -2452,10 +2452,10 @@
             font-family: inherit;
             transition: all 0.12s;
         }
-        .btn-show-all-overrides.active {
-            background: var(--primary-blue);
-            border-color: var(--primary-blue);
-            color: white;
+        .btn-show-all-overrides.active {   /* chosen: the page's colour (v25.16 — was navy) */
+            background: var(--page-accent);
+            border-color: var(--page-accent);
+            color: var(--page-accent-ink);
         }
         @media (hover: hover) and (pointer: fine) {
             .btn-show-all-overrides:not(.active):hover { border-color: var(--primary-blue); color: var(--primary-blue); }

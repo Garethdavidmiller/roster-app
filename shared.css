@@ -76,16 +76,33 @@
 
     /* ── Page identity (v25.14) ─────────────────────────────────
        ONE colour per page, declared ONCE in that page's own stylesheet `:root`, and read by
-       everything that wears it: the header badge (.badge-page), the About badge (.lightbox-badge)
-       and the tile behind each card title's emoji. Until v25.14 every page restated its colour in
-       two hand-written rules, and the copies had already drifted — Links' About badge had a
-       full-strength border where every other page's was a 35% tint.
+       everything that wears it: the header badge (.badge-page), the About badge (.lightbox-badge),
+       the current row of a picker sheet (.picker-opt.is-current) and every CHOSEN control (below).
+       Until v25.14 every page restated its colour in hand-written rules, and the copies had already
+       drifted — Links' About badge had a full-strength border where every other page's was a 35% tint.
          --page-accent       the colour itself: the badge fill, and what every tint is mixed from
          --page-accent-ink   text ON the full colour — white, or navy on a bright accent
          --page-accent-text  the colour as TEXT on a pale tint of itself. A bright accent (gold,
                              orange) fails there, which is why --gold-text exists
        These defaults are the Calendar's gold; the Calendar declares nothing. Every card page
-       declares all three, Admin included (card-header-parity.test.mjs). */
+       declares all three, Admin included (page-identity-parity.test.mjs).
+
+       CHOSEN = THE PAGE'S COLOUR (v25.16). Whatever you have chosen — a tab, a segment, a chip, a
+       toggle that is on — fills with --page-accent, its text --page-accent-ink, and nothing else:
+       no gold underline, no darker edge. Raspberry on Trains, green on Pay, gold on the Calendar.
+       Until v25.16 a chosen control was navy on most pages, raspberry on one Trains row, gold on the
+       Calendar's Team button and a gold tint on Links, so one page could show two colours for the one
+       idea (owner, with screenshots: Trains' raspberry tab above a navy day; New link's navy chip on
+       a teal page). Three things are NOT this, on purpose:
+         · NAVY IS FOR A BUTTON THAT DOES SOMETHING (Save, View, Answer). Chosen and do-something
+           were both navy before, so a selected tab and an action button looked alike.
+         · A CHOICE WITH A MEANING keeps its meaning's colour: the shift types, yes and no, enter and
+           skip. That colour is information; the page's colour would erase it.
+         · A tick box, a radio and the row built round one keep the app-drawn recipe, whose own
+           mark carries the state.
+       Every pair measured, ink on accent: 5.2:1 (New link, the lowest) to 10.5:1 (gold) — AA
+       throughout. page-identity-parity.test.mjs refuses a chosen fill that does not read
+       --page-accent, and names each exception with its reason. */
     --page-accent:      var(--accent-gold);
     --page-accent-ink:  var(--primary-blue);
     --page-accent-text: var(--gold-text);
@@ -1543,8 +1560,10 @@ button.lightbox-bug-link {
 .picker-opt-text { min-width: 0; }
 .picker-opt-name { display: block; font-size: var(--type-body); font-weight: 700; color: var(--text-dark); line-height: 1.3; overflow-wrap: anywhere; }
 .picker-opt small { display: block; font-size: var(--type-small); font-weight: 400; color: var(--text-mid); margin-top: 2px; }
-.picker-opt-tick { font-size: var(--type-medium); font-weight: 800; color: var(--gold-text); text-align: center; }
-.picker-opt.is-current { background: color-mix(in oklch, var(--accent-gold) 14%, white); }
+/* The current row is a pale tint of the PAGE's colour, the tick that colour as text (v25.16 — both were
+   the Calendar's gold on every page): the picker is a choice, and a choice wears the page's colour. */
+.picker-opt-tick { font-size: var(--type-medium); font-weight: 800; color: var(--page-accent-text); text-align: center; }
+.picker-opt.is-current { background: color-mix(in oklch, var(--page-accent) 14%, white); }
 .picker-opt.is-current .picker-opt-name { color: var(--primary-blue); font-weight: 800; }
 .picker-empty { padding: 14px 12px 18px; margin: 0; font-size: var(--type-body); color: var(--text-mid); }
 @media (prefers-reduced-motion: reduce) { .picker-opt { transition: none; } }
@@ -3400,56 +3419,34 @@ body.auth-ready .boot-placeholder { display: none; }
    on one — while at 14px it kept that line. (It wraps at 360px either way, as it always has, and it
    may not be shortened: paycalc.md invariant 16.) The one title 14px newly wrapped was the admin-only
    New link page's "🆕 What's changed since Short Run was shown", at 375px — balanced onto two lines.
-   THE ICON TILE BELOW SPENDS THAT 375px LINE (v25.14), and knowingly: measured, any tile 22px or
-   wider tips the HPP title onto two lines there, and a tile narrower than that is barely a tile. It is
-   balanced ("Holiday Pay / Premium (HPP)"), every word still shows, and nothing is hidden or
-   shortened. The way back, if the wrap is ever judged worse than the tile, is a smaller tile — not a
-   shorter title.
    The slight negative tracking is what bolder Inter wants at this size. `text-wrap: balance` makes a
-   title that must wrap split evenly rather than leave one word on a line of its own. */
+   title that must wrap split evenly rather than leave one word on a line of its own.
+   NO ICON TILE (v25.16 — it was v25.14's and v25.15's). The emoji sat on a 28px square in a pale
+   tint of the page's colour. It is gone, on the owner's doubt that the tint was an improvement,
+   confirmed by side-by-side screenshots. Four things against it: ten-plus pastel squares per page
+   were the busiest thing on a calm page; they repeated the page badge's colour without saying
+   anything the badge did not; the 28px square made every title line taller; and it spent the 375px
+   line above, tipping the HPP title onto two lines. The page's colour now goes where it means
+   something, on whatever you have chosen (see "CHOSEN = THE PAGE'S COLOUR" by the --page-accent trio
+   in :root). Do not bring the tile back to "add colour": it was tried, and that is the verdict. */
 .card-header h2 { font-size: var(--type-body); font-weight: 700; letter-spacing: -0.01em; text-wrap: balance; color: var(--primary-blue); margin: 0; }
-/* THE CARD-TITLE ICON TILE (v25.14). Every card title's leading emoji sits on a small rounded tile in
-   a pale tint of the page's own colour (--page-accent, see :root): mint on Pay, peach on Operations,
-   lavender on Settings, and so on. It is what carries the page's colour into the cards, which were
-   otherwise the same white on every page — the badge said which page you were on and nothing below
-   it did.
-   It hooks on markup that already existed, deliberately: every card title wraps its emoji as the
-   heading's FIRST element, `<span aria-hidden="true">`, so a screen reader skips it. `:first-child`
-   cannot see text, so a title that put its words first and a span after them would tile the wrong
-   thing — card-header-parity.test.mjs requires the emoji span to be where the title starts.
-   THE TILE STAYS INSIDE ITS TITLE — no negative block margin (v25.15). v25.14 shipped -3px top and
-   bottom to keep the headers short, which let the 28px tile hang 3px out of the h2 and onto the hint
-   line under EVERY card title; on a phone it touched the words (owner report, with a screenshot). A
-   1x screenshot had read as "close", which is why this is now MEASURED: e2e/pages.spec.js → "a card
-   title's icon tile stays inside its title" walks every card page. The title line grows to 28px to
-   hold the tile; that height is the price, and it is the right one.
-   Mixed with WHITE, not with --surface: --surface carries the navy's hue, and an oklch mix towards
-   it drags every tint blue. */
-.card-header h2 > span[aria-hidden="true"]:first-child {
-    display: inline-grid;
-    place-items: center;
-    width: 28px;
-    height: 28px;
-    margin: 0 3px 0 0;
-    border-radius: var(--radius-sm);
-    background: color-mix(in oklch, var(--page-accent) 17%, white);
-    border: 1px solid color-mix(in oklch, var(--page-accent) 26%, white);
-    font-size: 1.1em;
-    line-height: 1;
-    vertical-align: middle;
-}
-/* A WRAPPED TITLE HANGS FROM ITS TILE. Inline, a title's second line ran back under the tile
-   ("Holiday Pay" beside it, "Premium (HPP)" beneath it at 375px), which reads as an accident. As a
-   flex row the words become one block beside the tile and wrap inside it, so every line starts at
-   the same x. ONLY where the tile is the title's one element: flex makes every child its own item,
-   so "Link design — <span>26</span> lines" would come apart into three pieces with their spaces
-   gone. The three titles that hold a second element stay inline; all three are short enough never
-   to wrap. The gap plus the tile's 3px margin matches the inline space it replaces (the leading
-   space is dropped at the start of the block). No `:has()`, no flex: the inline layout above. */
+/* A WRAPPED TITLE HANGS FROM ITS EMOJI. Inline, a title's second line runs back under the emoji, which
+   reads as an accident. As a flex row the words become one block beside the emoji and wrap inside it,
+   so every line starts at the same x, as the text beside a bullet does. It hooks on markup every card
+   title already has: the emoji is the heading's FIRST element, `<span aria-hidden="true">`, so a
+   screen reader skips it. card-header-parity.test.mjs requires the emoji span where the title starts;
+   `:first-child` cannot see text, so a span placed after the words would hang the wrong thing.
+   ONLY where the emoji is the title's one element: flex makes every child its own item, so
+   "Link design — <span>26</span> lines" would come apart into three pieces with their spaces gone.
+   The three titles holding a second element stay inline, and all three are short enough never to wrap.
+   `baseline`, not `center`: the emoji sits on the first line exactly where it sat inline, rather than
+   floating between the lines of a wrapped title. The gap stands in for the space the flex block drops
+   at its start; MEASURED, a space is 3.19px in this face at this size, and 0.25em is 3.5px, so a
+   one-line title is as wide as it was inline (the HPP title's 375px fit rests on that). */
 .card-header h2:has(> span[aria-hidden="true"]:first-child):not(:has(> :nth-child(2))) {
     display: flex;
-    align-items: center;
-    gap: 4px;
+    align-items: baseline;
+    gap: 0.25em;
 }
 .card-header .hint { font-size: var(--type-small); color: var(--text-light); display: block; }
 /* A "☰ → Daily Huddle" path told to staff is one token, not three words: without this the wrap

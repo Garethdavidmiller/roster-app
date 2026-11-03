@@ -102,6 +102,22 @@ shown that yet.
 
 ## Decisions taken — recorded so they are not re-raised
 
+- **Card-title icon tiles — BUILT, THEN REMOVED; a chosen control wears the page's colour instead**
+  (owner, 3 Nov 2026 — "Use screenshots and choose the best aesthetic solution. Still unsure whether
+  the tile colour is an improvement too"; v25.16) · **Trigger to revisit: a case for colour in the
+  cards that the side-by-side screenshots behind this entry do not already answer — not "the cards
+  look plain".** v25.14 sat every card title's emoji on a 28px tile in a tint of the page's colour, to
+  carry that colour below the header. Compared side by side with no tile, at phone width on five
+  pages, it lost. It was the busiest thing on a calm page at ten-plus tiles a screen. It repeated the
+  badge's colour and said nothing the badge did not. It made every title line taller, and it tipped
+  Pay's HPP title onto two lines at 375px. v25.15 also had to fix it hanging onto the line beneath.
+  The colour went to where it MEANS something: whatever you have chosen. Before, a chosen tab was
+  navy on most pages, raspberry on one Trains row and a gold tint on Links, so one screen could show
+  two colours for one idea. Navy is kept for buttons that do something. Choices with their own
+  meaning (shift types, yes and no) keep their own colours. The rule and its exceptions are
+  `.claude/rules/css-tokens.md` → "Whatever you have chosen wears the page's colour", enforced by
+  `page-identity-parity.test.mjs`.
+
 - **The App Speed card answers live questions only** (owner, 25 Oct 2026 — choosing the App Speed
   review's recommendation, "Do it all in the order of work"; v24.98) · **Trigger to revisit: a new
   latency question that needs a reading the card no longer takes — rebuild that instrument then, its
