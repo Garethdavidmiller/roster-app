@@ -2814,9 +2814,11 @@ short early a day instead of two, nothing has to go over 8h 30m from Monday to S
   (`SKELETON=home-grown.json FAMILY=1 LIGHT=1530 FF17=-3 H7=3060 OBJ=both`): 19 weeks on one shift time, a 1h 21m change.
 - **How far it is proven.** The weekday at 7,450 minutes was searched exhaustively (`final-table.mjs` without `ANNEAL`:
   257,727 feasible tables, 126 seconds). Its best on its own measure is worse on the sheets' (26.83 against 26.61, over
-  the week) and lays with a 1h 23m change of start against 1h 21m, so the weekday stands. An exhaustive Saturday search
-  bounded at Clean Slate's own Saturday did not finish in 25 minutes, so the Saturday is the best the searches found, not
-  a proven best.
+  the week) and lays with a 1h 23m change of start against 1h 21m, so the weekday stands. The Saturday was then searched
+  exhaustively too, bounded at Clean Slate's own (the anneal's settings: earlies by 08:20, lates from 12:30, earlies at
+  most 8h 30m, nothing over 9 hours). A first run did not finish in 25 minutes; given two hours it did: 128,732,758
+  feasible tables in 1h 58m, and the best is Clean Slate's own Saturday, duty for duty. No Saturday under those settings
+  fits better on the search's measure.
 
 **Next Step** (`NS-26-T6` · **`d53e1533`**). Asked whether Clean Slate would then be the best proposal, the answer was
 no: it costs ten new shift times, four of them on a Saturday, and three quarters of its closer fit to the trains,
