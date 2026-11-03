@@ -185,9 +185,9 @@ function _loadMammoth() {
     return new Promise((resolve, reject) => {
         if (/** @type {any} */ (window).mammoth) { resolve(); return; }
         const sc = document.createElement('script');
-        sc.src         = 'https://cdn.jsdelivr.net/npm/mammoth@1.12.3/mammoth.browser.min.js';
+        sc.src         = 'https://cdn.jsdelivr.net/npm/mammoth@1.13.0/mammoth.browser.min.js';
         sc.crossOrigin = 'anonymous';
-        sc.integrity   = 'sha384-xqNXvcKbEqifokHcBnB0H32p+OQchhD/T/xJGWCMAW5fC0c0MBf9atO3weoPCT84';
+        sc.integrity   = 'sha384-8NWE3bZDrmRI4IePMoQaEoLhAQ1MmRMJkdNgnGiHRFanTqsFKr0TmK6aSZvFJ/PO';
         sc.onload      = () => resolve();
         sc.onerror     = () => reject(new Error('load'));
         document.head.appendChild(sc);

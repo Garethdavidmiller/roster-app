@@ -252,6 +252,45 @@ Playwright, ESLint); nothing in it is served to staff, and the Cloud Functions' 
 14.x — the wrong direction, and the review said so too. They clear when the CLI updates its own
 dependencies; re-run `npm audit` after each CLI bump.
 
+**The tooling refresh, 3 Nov 2026 (v25.25): 37 → 21, none high or critical.** The root had drifted
+back to 37 (1 critical, 12 high, 24 moderate). `firebase-tools` 15.32 → 15.34 and the same
+`npm audit fix` without `--force` cleared the critical and every high. The 21 moderate left are the
+same shape as before: inside the CLI (pubsub, opentelemetry, archiver, gaxios, glob, uuid, superstatic)
+and inside ESLint's own packages, where npm's only offer is a downgrade to ESLint 4. The fix also
+moved ESLint to 10.14, four days old, so it was set to 10.13 by hand: the update bot
+(`.github/dependabot.yml`) waits two weeks after any release, and 10.14 will arrive through it.
+
+**The Cloud Functions' production tree no longer reads zero: 6 moderate.** All sit in one chain
+inside Google's Firestore client (`@google-cloud/firestore-api` → `google-gax` → `gaxios` → `rimraf`
+→ `glob`/`minimatch`), whose own version ranges do not admit the fixed releases, so
+`npm audit fix` changes nothing. They are file-matching helpers that nothing staff send ever
+reaches. Not forced with `overrides`: that would run Google's client on versions it does not
+declare, for findings it cannot reach. They clear when `firebase-admin` takes a newer client;
+re-run `npm audit --omit=dev --prefix functions` after each bump of it.
+
+## axe 4.14 and Label in Name — the gate held at axe 4.12 until decided (3 Nov 2026)
+
+**An owner decision.** `@axe-core/playwright` 4.14 runs `label-content-name-mismatch` (WCAG 2.5.3,
+*Label in Name*, Level A) under the WCAG tags the gate uses, where 4.12 did not. It fails **27 of
+the gate's scanned states**, on one pattern: a control whose accessible name does not contain its
+visible text. That is what breaks for somebody driving a phone by voice, who says what they see.
+What it flags:
+
+| Page | Elements |
+|---|---|
+| Calendar (and every state scanned on it) | `#prevMonth`, `#alBtn`, every day cell (`[data-detail-day]`, about 30 a month) |
+| Admin | `#weekNavLabel`, `#thisWeekBtn` |
+| Pay Calculator | the category buttons (`[data-cat]`) |
+| Operations | the Needs-attention links (`#reset-requests`, `#error-log`) |
+| Links | `#designPickerBtn`, the paint buttons (`[data-shift]`) |
+| The five guides | `#savePdfBtn` |
+
+The gate blocks deploys, so the refresh kept axe at 4.12.1, and the update bot skips it. **Either**
+fix the names (the visible text inside each accessible name, page by page, then move axe to 4.14),
+**or** waive the rule in `e2e/axe.spec.js` with the reason recorded in `A11Y_BASELINE.md`. Fixing is
+the better answer, and it is real work: the day cells are the largest part, and their names carry
+the date and the shift on purpose. Remove the `.github/dependabot.yml` entry once decided.
+
 ## The test matrix and the phones staff carry (v24.61)
 
 The iOS 27 / iPhone 18 Pro audit (6 Oct 2026) found the test matrix a generation behind the fleet:
@@ -305,6 +344,13 @@ moved:
   Playwright's own wait before each click on this engine, not the app (a Trains tab's handler and
   the next paint take 30–170ms on WebKit, as on Chromium). The 15s budget per assertion is untouched
   (`playwright.webkit.mjs` says why).
+- **And one the CI had to learn, after the merge (v25.25).** The step that installs WebKit's system
+  libraries reads its package list out of Playwright's dry run, and 1.63 changed that output from the
+  apt command to a simulated install. Unread, the script fell back to the plain command: one clock,
+  no resume. That is a fallback by design, but it became the only path every WebKit job took, and a
+  slow mirror then killed two jobs on the tooling refresh before a single test ran.
+  `install-browser-deps/install.sh` now reads both shapes and runs `apt-get update` first (the dry run
+  reads apt's lists now), and `workflow-hygiene.test.mjs` feeds the real parser each one.
 - **Not 1.64.1, the newest.** 1.63.0 is what the container carries, so every local Playwright run
   works with no browser workaround. Moving on is a one-line change once the container carries 1.64.
 - **Chromium 153 raises one new browser error under test.** It abandons the declarative page-to-page
