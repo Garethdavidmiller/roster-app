@@ -3,6 +3,8 @@
 // Shared by calendar-app.js, calendar-team-view.js, and the admin modules.
 
 import { isClockTime } from './clock-input.js';   // the entry control's boxes are text (v23.37)
+import { isValidLeaveYear } from './leave-year.js';   // which year's allowance a January leave day is (v25.18)
+export { nextLeaveYear } from './leave-year.js';      // beside its sibling `nextReplacedType`: what a rewrite carries
 
 /**
  * Returns true if the shift is a non-working rest day (RD or OFF).
@@ -224,6 +226,9 @@ export function toOverrideRecord(data) {
         // case worked and the person's name silently never appeared — the shape being ALMOST right
         // is exactly how that goes unnoticed.
         ...(data.changedBy ? { changedBy: data.changedBy } : {}),
+        // Which year's allowance a January leave day comes out of, when it is the year before
+        // (v25.18, leave-year.js). The day panel says so, and it reads this cache.
+        ...(Number.isInteger(data.leaveYear) ? { leaveYear: data.leaveYear } : {}),
     };
 }
 
@@ -271,7 +276,7 @@ export function collectOverrideRecords(snapshot) {
  * (1) rules drop the `is string`/`size()` requirement, keeping `note` in `hasOnly`; (2) the client
  * stops writing it; (3) rules drop it from `hasOnly`. Any other order breaks writes. The sequence
  * and the reason are in docs/DATA_MODEL.md → overrides.
- * @param {{memberName:string, date:string, type:string, value:any, note?:string, source:string, changedBy:string, replacedType?:string|null}} f
+ * @param {{memberName:string, date:string, type:string, value:any, note?:string, source:string, changedBy:string, replacedType?:string|null, leaveYear?:number|null}} f
  * @param {*} createdAt  a Firestore serverTimestamp() sentinel for the write
  * @returns {{memberName:string, date:string, type:string, value:any, note:string, source:string, createdAt:*, changedBy:string}}
  */
@@ -286,6 +291,9 @@ export function buildOverrideWrite(f, createdAt) {
         // Only when there IS one — the Firestore rules use hasOnly + `is string`, so writing the
         // key as null would be rejected outright rather than treated as absent.
         ...(f.replacedType ? { replacedType: f.replacedType } : {}),
+        // Only when it is one the rules accept (v25.18): January leave, the year before. Anything
+        // else is dropped rather than sent, because the rules would refuse the whole write.
+        ...(isValidLeaveYear(f.date, f.leaveYear) && f.type === 'annual_leave' ? { leaveYear: f.leaveYear } : {}),
         createdAt,
         changedBy:  f.changedBy,
     };
@@ -297,7 +305,7 @@ export function buildOverrideWrite(f, createdAt) {
  * new doc `id`, and with a real `Date` for `createdAt` (so `tsToMillis` ranks a just-saved override
  * correctly — see the v16.23 fix). Single source so no write path can drift its mirror.
  * @param {string} id  the new Firestore doc id
- * @param {{memberName:string, date:string, type:string, value:any, note?:string, source:string, replacedType?:string|null}} f
+ * @param {{memberName:string, date:string, type:string, value:any, note?:string, source:string, replacedType?:string|null, leaveYear?:number|null}} f
  * @param {Date} createdAt  `new Date()` — the optimistic local timestamp
  * @returns {{id:string, memberName:string, date:string, type:string, value:any, note:string, source:string, createdAt:Date}}
  */
@@ -313,6 +321,8 @@ export function buildOverrideCacheRecord(id, f, createdAt) {
         // Only when there IS one — the Firestore rules use hasOnly + `is string`, so writing the
         // key as null would be rejected outright rather than treated as absent.
         ...(f.replacedType ? { replacedType: f.replacedType } : {}),
+        // The same test as the write, so the mirror can never hold a choice the server refused.
+        ...(isValidLeaveYear(f.date, f.leaveYear) && f.type === 'annual_leave' ? { leaveYear: f.leaveYear } : {}),
         createdAt,
     };
 }

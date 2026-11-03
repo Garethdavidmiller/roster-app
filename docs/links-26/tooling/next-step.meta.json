@@ -1,0 +1,8 @@
+{
+ "date": "3 November 2026",
+ "identity": {
+  "table": "T6 — Even Step's table with Clean Slate's weekday: one 07:15-15:45 becomes 06:20-14:50, and two of the floor's 14:00-22:30 become 14:15-22:45; the Saturday and the Sunday are Even Step's (results/next-step-table.json)",
+  "seed": "Home Grown's weeks: its rest days and its early and late weeks (home-grown.json, 7d41fafb), held while exact-rota.py (OR-Tools CP-SAT) chose every time: the most weeks on one shift time, then the smallest week-to-week step (SKELETON=home-grown.json FAMILY=1 LIGHT=1530 FF17=-3 H7=3060 OBJ=both). On Even Step's own weeks (closing-time.json) the same table gives 17 weeks on one shift time and a 1h 14m step, proven (README.md -> \"Clean Slate and Next Step\")",
+  "lineage": "Three quarters of Clean Slate's closer fit to the trains comes from three weekday shifts, and Next Step is Even Step with only those three changed. Every figure the New link page shows colleagues is Even Step's, all 24 rows checked, and nothing is over 8h 30m Monday to Saturday; it fits the weekday more closely (30.3 against 32.6), with a week-to-week change of 1h 18m against 1h 31m and 18 weeks on one shift time, for one new shift time (14:15-22:45), one more 06:20 start each weekday (70 a year each against 60), and Home Grown's rest days and weekends in place of Even Step's."
+ }
+}

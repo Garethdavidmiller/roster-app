@@ -51,7 +51,7 @@ export const MONTHS_AFTER  = 3;
 const RESTAMP_AFTER_MS = 86_400_000;
 
 /**
- * @typedef {{ type: string, value: string, source?: string, changedBy?: string, replacedType?: string }} SnapshotRecord
+ * @typedef {{ type: string, value: string, source?: string, changedBy?: string, replacedType?: string, leaveYear?: number }} SnapshotRecord
  * @typedef {{ savedAt: number, days: Record<string, SnapshotRecord> }} SnapshotMonth
  * @typedef {{ v: number, member: string, months: Record<string, SnapshotMonth> }} Snapshot
  */
@@ -82,6 +82,9 @@ function trim(r) {
     if (r.source) out.source = String(r.source);
     if (r.changedBy) out.changedBy = String(r.changedBy);
     if (r.replacedType) out.replacedType = String(r.replacedType);
+    // The day panel names the allowance a moved January leave day comes out of (v25.18), so the
+    // stored copy carries it too — or a launch from it would drop the line until the read settled.
+    if (Number.isInteger(r.leaveYear)) out.leaveYear = r.leaveYear;
     return out;
 }
 

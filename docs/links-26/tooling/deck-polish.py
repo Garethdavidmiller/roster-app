@@ -278,7 +278,7 @@ def set_pairs(path, first_item, items, space_after=1200, head=1600, detail=1400,
     rpr = re.search(r'<a:rPr\b.*?</a:rPr>', tpl, re.S).group(0)
     rh = re.sub(r'\bsz="\d+"', f'sz="{head}" b="1"', rpr, count=1)
     rd = re.sub(r'srgbClr val="[0-9A-F]{6}"', f'srgbClr val="{detail_color}"', re.sub(r'\bsz="\d+"', f'sz="{detail}"', rpr, count=1))
-    new = ''.join(f'<a:p>{ppr}<a:r>{rh}<a:t>{escape(h)}</a:t></a:r><a:br/><a:r>{rd}<a:t>{escape(t)}</a:t></a:r><a:endParaRPr lang="en-US" sz="{detail}" dirty="0"/></a:p>' for h, t in items)
+    new = ''.join(f'<a:p>{ppr}<a:r>{rh}<a:t>{escape(h)}</a:t></a:r><a:br/><a:r>{rd}<a:t>{escape(t)}</a:t></a:r><a:endParaRPr lang="en-GB" sz="{detail}" dirty="0"/></a:p>' for h, t in items)
     a, z = body.find(paras[0]), body.rfind(paras[-1]) + len(paras[-1])
     open(path, 'w', encoding='utf-8').write(x[:b0] + body[:a] + new + body[z:] + x[b1:])
 
@@ -588,12 +588,12 @@ def colleagues(d, name, grid, F):
     if len(known) != 1 or len(news) != 1: raise SystemExit(f'deck-polish: {name}’s slide 8 lists not found ({len(known)} and {len(news)})')
     def rpr(sz, color, bold=False):
         b = ' b="1"' if bold else ''
-        return (f'<a:rPr lang="en-US" sz="{sz}"{b} dirty="0"><a:solidFill><a:srgbClr val="{color}"/></a:solidFill>'
+        return (f'<a:rPr lang="en-GB" sz="{sz}"{b} dirty="0"><a:solidFill><a:srgbClr val="{color}"/></a:solidFill>'
                 '<a:latin typeface="Inter" pitchFamily="34" charset="0"/><a:ea typeface="Inter" pitchFamily="34" charset="-122"/>'
                 '<a:cs typeface="Inter" pitchFamily="34" charset="-120"/></a:rPr>')
     def para(t, sz, color, after, before=0, bold=False):   # an empty `t` still takes a line of this size, so rows stay level
         ppr = '<a:pPr marL="0" indent="0">' + (f'<a:spcBef><a:spcPts val="{before}"/></a:spcBef>' if before else '') + f'<a:spcAft><a:spcPts val="{after}"/></a:spcAft><a:buNone/></a:pPr>'
-        return '<a:p>' + ppr + (f'<a:r>{rpr(sz, color, bold)}<a:t>{escape(t)}</a:t></a:r>' if t else '') + f'<a:endParaRPr lang="en-US" sz="{sz}" dirty="0"/></a:p>'
+        return '<a:p>' + ppr + (f'<a:r>{rpr(sz, color, bold)}<a:t>{escape(t)}</a:t></a:r>' if t else '') + f'<a:endParaRPr lang="en-GB" sz="{sz}" dirty="0"/></a:p>'
     ids = [int(v) for v in re.findall(r'<p:cNvPr id="(\d+)"', x)]; nxt = iter(range(max(ids) + 1, max(ids) + 10))
     def boxes(sp, cols):   # one box per column [(x offset, width, paragraphs)], the first keeping the shape's own id
         out = []
@@ -655,7 +655,7 @@ def colleagues(d, name, grid, F):
     def bullet(t, sz=1500, after=1000):
         return ('<a:p><a:pPr marL="190500" indent="-190500"><a:spcAft><a:spcPts val="' + str(after) + '"/></a:spcAft><a:buSzPct val="100000"/>'
                 '<a:buFont typeface="Inter" pitchFamily="34" charset="0"/><a:buChar char="&#x2022;"/></a:pPr>'
-                f'<a:r>{rpr(sz, "1B2533")}<a:t>{escape(joined(t))}</a:t></a:r><a:endParaRPr lang="en-US" sz="{sz}" dirty="0"/></a:p>')
+                f'<a:r>{rpr(sz, "1B2533")}<a:t>{escape(joined(t))}</a:t></a:r><a:endParaRPr lang="en-GB" sz="{sz}" dirty="0"/></a:p>')
     right = boxes(news[0], [(0, int(4.8 * IN), [bullet(ln) for ln in lines])])
     notes_append(d, 8, 'For reference, every new time: ' + '; '.join(f'{day}, ' + ', '.join(f'{tm} ({nt})' for tm, nt in items) for day, items in groups) + '.')
     x = x.replace(known[0], left).replace(news[0], right)
@@ -1193,6 +1193,22 @@ def link_date(d, who):
         s.save()
         notes_edit(d, 3, 'mean the link has to be redrawn.', f'mean the link has to be redrawn. The timetable changes in December, and the new link starts on {LINK_STARTS}.')
 
+# UK ENGLISH (owner, 3 Nov 2026: "use UK English ... throughout the app"). The decks' template tagged every run of text
+# lang="en-US", so PowerPoint spell-checked British spelling as American and a screen reader read it in an American voice,
+# while every word on the slides was already British. Every language tag becomes en-GB — the runs this script and the
+# builders add are written en-GB at source, and this converts whatever the template still carries — and polish() refuses
+# a deck that keeps one. LibreOffice takes the PDF's /Lang from the deck, so the exported PDFs follow.
+US_LANG = re.compile(r'\b(lang|altLang)="en-US"')
+def uk_language(d):
+    changed = 0
+    for r, _, fs in os.walk(d):
+        for f in fs:
+            if not f.endswith(('.xml', '.rels')): continue
+            p = os.path.join(r, f); x = open(p, encoding='utf-8').read()
+            x, n = US_LANG.subn(lambda m: f'{m.group(1)}="en-GB"', x)
+            if n: open(p, 'w', encoding='utf-8').write(x); changed += n
+    return changed
+
 def polish(path, name, grid, who):
     d = tempfile.mkdtemp(); zipfile.ZipFile(path).extractall(d)
     (colleagues if who == 'colleagues' else managers)(d, name, grid, FIG[name])
@@ -1201,6 +1217,9 @@ def polish(path, name, grid, who):
     moved = balance_tables(d)
     family_polish(d, who)
     link_date(d, who)
+    uk_language(d)
+    us = [f for r, _, fs in os.walk(d) for f in fs if f.endswith(('.xml', '.rels')) and US_LANG.search(open(os.path.join(r, f), encoding='utf-8').read())]
+    if us: raise SystemExit(f'deck-polish: {name} for {who} still tags text as US English ({", ".join(sorted(us))})')
     old = [f for r, _, fs in os.walk(d) for f in fs if f.endswith('.xml') and OLD_LINK.search(open(os.path.join(r, f), encoding='utf-8').read())]
     if old: raise SystemExit(f'deck-polish: {name} for {who} still names the December 2026 link ({", ".join(sorted(old))}); it starts on {LINK_STARTS}')
     names = zipfile.ZipFile(path).namelist()

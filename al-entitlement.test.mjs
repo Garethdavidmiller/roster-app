@@ -19,7 +19,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType } from './al-entitlement.js';
+import { countedAlDates, alPosition, consumesEntitlement, dispatcherBreakdown, winningEntriesOfType, leaveYearChoices } from './al-entitlement.js';
 import { teamMembers, getBaseShift, parseISODate, formatISO, isSunday, getALEntitlement } from './roster-data.js';
 import { isRestShift } from './override-utils.js';
 
@@ -390,6 +390,19 @@ describe('the entitlement count is asked for with the overrides in hand', () => 
             assert.ok(seen > 0, `${file} is listed here because it reads the entitlement — it no longer does`);
         });
     }
+
+    // THE CALENDAR'S LEAVE PANEL fetches its own records (v25.18), so a moved January day is in its
+    // answer only if the READ reaches next January — and no browser test can see the read's bounds,
+    // because the e2e Firestore stub ignores a query's range. Shortening it back to 31 December left
+    // every suite green and showed this year a day too generous. So the bound is pinned here, with
+    // the count going through `countedAlDates` rather than a loop of the panel's own.
+    test('calendar-al-lightbox.js reads to the end of NEXT January, and counts through countedAlDates', () => {
+        const src = readFileSync(new URL('./calendar-al-lightbox.js', import.meta.url), 'utf8');
+        assert.match(src, /where\('date', '<=', `\$\{year \+ 1\}-01-31`\)/,
+            'the read must reach 31 January of next year, where a day may come out of this year\'s allowance');
+        assert.match(src, /countedAlDates\(\{ overrides: memberOverrides, member, year \}\)/);
+        assert.doesNotMatch(src, /date\.startsWith\(yearStr\)/, 'a day counts towards leaveYearOf, never its date prefix');
+    });
 });
 
 
@@ -576,5 +589,131 @@ describe('winningEntriesOfType', () => {
         assert.deepEqual(winningEntriesOfType(overrides, 'G. Miller', 'annual_leave').map(o => o.date),
             ['2026-06-15', '2026-06-17']);
         assert.deepEqual(winningEntriesOfType(/** @type {any} */ (null), 'G. Miller', 'annual_leave'), []);
+    });
+});
+
+
+// ── WHICH YEAR'S ALLOWANCE (v25.18) ─────────────────────────────────────────────────────────────
+//
+// A January leave day may come out of the PREVIOUS year's allowance (owner, 3 Nov 2026 — leave-year.js
+// has the decisions). Two costs again, and again not symmetric: a moved day counted in BOTH years
+// tells the member they have a day fewer than they do, and a moved day counted in NEITHER lets them
+// spend it twice. Moving a day must shift it between the years and never create or destroy one.
+describe('a January day moved back to last year\'s allowance', () => {
+    const JAN = datesWhere('2027-01-01', false, 4);
+    const JAN_REST = datesWhere('2027-01-01', true, 1)[0];
+    const moved = (/** @type {string} */ date) => ({ ...al(date), value: 'AL', leaveYear: 2026 });
+
+    test('the premise: the fixture days are January 2027, worked, and one rest day', () => {
+        assert.ok(JAN.every(d => d.startsWith('2027-01-')));
+        assert.ok(JAN_REST.startsWith('2027-01-'));
+    });
+
+    test('it counts towards the year before — and NOT towards its own', () => {
+        const overrides = [moved(JAN[0])];
+        assert.deepEqual([...countedAlDates({ overrides, member: MEMBER, year: 2026 })], [JAN[0]]);
+        assert.equal(countedAlDates({ overrides, member: MEMBER, year: 2027 }).size, 0);
+    });
+
+    test('an unmoved January day counts towards its own year only — the default needs no record', () => {
+        const overrides = [al(JAN[1])];
+        assert.equal(countedAlDates({ overrides, member: MEMBER, year: 2026 }).size, 0);
+        assert.deepEqual([...countedAlDates({ overrides, member: MEMBER, year: 2027 })], [JAN[1]]);
+    });
+
+    test('moving shifts a day between the years, and never creates or destroys one', () => {
+        const before = [al(JAN[0]), al(JAN[1]), al(JAN[2])];
+        const after  = [moved(JAN[0]), al(JAN[1]), moved(JAN[2])];
+        const total = (/** @type {any[]} */ ov) =>
+            countedAlDates({ overrides: ov, member: MEMBER, year: 2026 }).size
+            + countedAlDates({ overrides: ov, member: MEMBER, year: 2027 }).size;
+        assert.equal(total(before), 3);
+        assert.equal(total(after), 3);
+        assert.equal(countedAlDates({ overrides: after, member: MEMBER, year: 2026 }).size, 2);
+    });
+
+    test('in the earlier year\'s position it is BOOKED until the day passes, then TAKEN', () => {
+        const overrides = [moved(JAN[0])];
+        const nov = alPosition({ overrides, member: MEMBER, year: 2026, todayStr: '2026-11-03' });
+        assert.equal(nov.booked, 1);
+        assert.equal(nov.remaining, /** @type {number} */ (nov.entitlement) - 1);
+        const feb = alPosition({ overrides, member: MEMBER, year: 2026, todayStr: '2027-02-01' });
+        assert.equal(feb.taken, 1);
+        assert.equal(feb.booked, 0);
+    });
+
+    test('the WINNER decides — an orphaned copy carrying a year cannot move the day', () => {
+        const orphan = { ...moved(JAN[0]), source: 'manual', createdAt: new Date(2026, 10, 1) };
+        const winner = { ...al(JAN[0]), value: 'AL', source: 'manual', createdAt: new Date(2026, 10, 2) };
+        assert.equal(countedAlDates({ overrides: [orphan, winner], member: MEMBER, year: 2026 }).size, 0);
+        assert.equal(countedAlDates({ overrides: [orphan, winner], member: MEMBER, year: 2027 }).size, 1);
+    });
+
+    test('it reads next JANUARY only — later next-year leave never counts towards this year', () => {
+        const later = datesWhere('2027-03-01', false, 1)[0];
+        assert.equal(countedAlDates({ overrides: [{ ...al(later), leaveYear: 2026 }], member: MEMBER, year: 2026 }).size, 0);
+    });
+
+    test('a moved day on a base REST day still costs nothing, in either year', () => {
+        const overrides = [moved(JAN_REST)];
+        assert.equal(countedAlDates({ overrides, member: MEMBER, year: 2026 }).size, 0);
+        assert.equal(countedAlDates({ overrides, member: MEMBER, year: 2027 }).size, 0);
+    });
+
+    test('a date being re-accounted is still left out', () => {
+        const overrides = [moved(JAN[0])];
+        assert.equal(countedAlDates({ overrides, member: MEMBER, year: 2026, exclude: new Set([JAN[0]]) }).size, 0);
+    });
+});
+
+describe('the January days the Admin card offers to move', () => {
+    const JAN = datesWhere('2027-01-01', false, 3);
+    const JAN_REST = datesWhere('2027-01-01', true, 1)[0];
+    const NOV = '2026-11-03';
+
+    test('a January leave day that costs a day is listed, on its own year by default', () => {
+        const got = leaveYearChoices({ overrides: [al(JAN[0])], member: MEMBER, todayStr: NOV });
+        assert.equal(got.length, 1);
+        assert.equal(got[0].january, 2027);
+        assert.equal(got[0].prev, 2026);
+        assert.deepEqual(got[0].days, [{ date: JAN[0], from: 2027 }]);
+        assert.equal(got[0].prevOpen, true, 'nothing of 2026 is used, so it has room');
+    });
+
+    test('a moved day is listed on the earlier year, and both years\' positions say so', () => {
+        const got = leaveYearChoices({ overrides: [{ ...al(JAN[0]), leaveYear: 2026 }], member: MEMBER, todayStr: NOV });
+        assert.deepEqual(got[0].days, [{ date: JAN[0], from: 2026 }]);
+        assert.equal(got[0].positions[2026].booked, 1);
+        assert.equal(got[0].positions[2027].booked, 0);
+    });
+
+    test('a day that costs nothing — a rest day — is not listed: there is no choice to make', () => {
+        assert.deepEqual(leaveYearChoices({ overrides: [al(JAN_REST)], member: MEMBER, todayStr: NOV }), []);
+    });
+
+    test('THE CAP: with the earlier year used up, a day cannot move back', () => {
+        const ent = /** @type {number} */ (getALEntitlement(MEMBER, 2026, []));
+        const spent = datesWhere('2026-03-02', false, ent).map(al);
+        const got = leaveYearChoices({ overrides: [...spent, al(JAN[0])], member: MEMBER, todayStr: NOV });
+        assert.equal(got[0].positions[2026].remaining, 0);
+        assert.equal(got[0].prevOpen, false);
+        // one day short of used up: room for exactly one
+        const one = leaveYearChoices({ overrides: [...spent.slice(1), al(JAN[0])], member: MEMBER, todayStr: NOV });
+        assert.equal(one[0].prevOpen, true);
+    });
+
+    test('no January leave, or no member, gives nothing to offer', () => {
+        assert.deepEqual(leaveYearChoices({ overrides: [al('2026-07-14')], member: MEMBER, todayStr: NOV }), []);
+        assert.deepEqual(leaveYearChoices({ overrides: [al(JAN[0])], member: null, todayStr: NOV }), []);
+    });
+
+    test('a January before the choice begins is never offered', () => {
+        const jan26 = datesWhere('2026-01-05', false, 1)[0];
+        assert.deepEqual(leaveYearChoices({ overrides: [al(jan26)], member: MEMBER, todayStr: '2026-01-10' }), []);
+    });
+
+    test('a role with no entitlement on record is offered nothing — there is no figure to cap by', () => {
+        const mgmt = { ...MEMBER, role: 'Management' };
+        assert.deepEqual(leaveYearChoices({ overrides: [{ ...al(JAN[0]), memberName: mgmt.name }], member: mgmt, todayStr: NOV }), []);
     });
 });

@@ -2575,6 +2575,16 @@
            inline span's contents can still be broken at the hyphen. */
         .dds-time { display: inline-block; white-space: nowrap; }
         .dds-time[hidden] { display: none !important; }
+        /* "From the 2026 allowance" (v25.18) — a qualifier of the shift line above, so it sits in
+           the shift's group, above the hairline, at the week caption's quiet weight and contrast. */
+        .day-detail-leaveyear {
+            width: 100%;
+            text-align: center;
+            color: rgba(255,255,255,0.65);   /* 4.5:1 over a light page under the glass, as .day-detail-week */
+            font-size: var(--type-small);
+            font-weight: 600;
+        }
+        .day-detail-leaveyear[hidden] { display: none !important; }
         /* At 320px the panel is 288px wide and "☀️ Early shift 07:00-16:00" measured 4px over the
            240px of content — a wrap bought for four pixels. One step down the scale keeps the
            commonest line on one line, and it is a step the panel can afford: this is still the
@@ -2989,6 +2999,15 @@
             font-size: var(--type-small);
             color: rgba(255,255,255,0.6);
         }
+        /* The across-New-Year line (v25.18): a footnote to the four figures, so footnote-sized. */
+        .al-lb-carry {
+            margin-top: 8px;
+            font-size: var(--type-small);
+            line-height: 1.35;
+            color: rgba(255,255,255,0.65);
+            text-wrap: balance;
+        }
+        .al-lb-carry[hidden] { display: none !important; }
 
         /* ---- Huddle DOCX viewer — full-screen in-app panel ---- */
         #huddleViewer {

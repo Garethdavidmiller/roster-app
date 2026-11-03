@@ -19,7 +19,7 @@ let _signOutBehavior = 'ok';
 let _persistenceRestores = [];
 
 // Controllable Firebase Auth mock state for the ensureFirebaseSession tests below.
-// onAuthStateChanged yields _existingUser; each sign-in fn resolves when its behavior is
+// onAuthStateChanged yields _existingUser; each sign-in fn resolves when its behaviour is
 // 'ok', otherwise rejects with an Error carrying that string as `.code`.
 let _existingUser  = null;   // null | { isAnonymous, email }
 let _signInBehavior = 'ok';  // 'ok' | error code string

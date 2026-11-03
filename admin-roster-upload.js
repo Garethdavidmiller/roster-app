@@ -11,12 +11,12 @@
 
 import { teamMembers, MONTH_ABB, getShiftBadge, escapeHtml, formatISO, isSunday, parseISODate } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
-import { parseOtherValue, buildOverrideWrite, nextReplacedType } from './override-utils.js';
+import { parseOtherValue, buildOverrideWrite, nextReplacedType, nextLeaveYear } from './override-utils.js';
 import { formatClockInput, finaliseClockInput } from './clock-input.js';
 import { replacedTypeForSwap } from './al-swapped-days.js';
 import { entryControlHtml, patchEntryRow, commitEntry, redrawEntry, toggleEntry, entryClick, entryLeftAsRest } from './roster-entry-control.js';
 import { normaliseCellValue, shiftValueToOverrideType, isZeroLengthRange } from './roster-cell-rules.js';
-import { computeCellStates, guardedRowHtml, guardedWrites, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies } from './roster-review-states.js';
+import { computeCellStates, guardedRowHtml, guardedWrites, unreadableTagClass, RDW_PREFIX, isRdwEncoded, stripRdw, isUnknownEncoded, stripUnknown, swapQuestionApplies, replacedFromState } from './roster-review-states.js';
 // RE-EXPORTED, not re-implemented: the first three moved to roster-cell-rules.js (v22.17/v22.18),
 // computeCellStates to roster-review-states.js (v23.52), and several call sites (and their tests)
 // name this module. The alternative was a rename sweep across three test files for no behavioural
@@ -90,7 +90,7 @@ export function manualShiftDisplay(s) {
  * refresh → retry once), matching every other Admin write path. The batch is rebuilt on each
  * attempt because a `WriteBatch` cannot be reused after a failed commit. Exported for tests.
  *
- * @param {Array<{memberName: string, date: string, value: string|null, baseShift: string, replaceId?: string, alsoDelete?: string[], deleteOnly?: boolean, swapped?: boolean, replacedFrom?: {type?: string, replacedType?: string|null}|null}>} toWrite
+ * @param {Array<{memberName: string, date: string, value: string|null, baseShift: string, replaceId?: string, alsoDelete?: string[], deleteOnly?: boolean, swapped?: boolean, replacedFrom?: {type?: string, replacedType?: string|null, leaveYear?: number}|null}>} toWrite
  * @param {string} currentUser  Logged-in member name, written to `changedBy`.
  * @returns {Promise<number>}  How many rows were REFUSED as zero-length and not written, so the
  *   receipt counts only what landed (v24.38). Rejects (after one retry) if the write is denied.
@@ -149,12 +149,12 @@ export async function _saveOverrideBatches(toWrite, currentUser) {
                 // source: 'roster_import' marks this as auto-applied, not hand-entered. buildOverrideWrite
                 // is the single source for the rules-required field set (shared with the two admin save paths).
                 // The import deletes the doc it replaces like every other write path, so it must
-                // preserve what that doc SAID the same way (v21.56) — without this, a re-import
-                // resolving a DIFF/CONFLICT over a swapped-in day destroyed the only evidence the
-                // member was contracted to work it, and leave booked there afterwards went free.
+                // preserve what that doc SAID (v21.56): over a swapped-in day, the only evidence the
+                // member was contracted to work it; over a moved January leave day, which year's
+                // allowance it comes out of (v25.18). Lose either and the day quietly changes cost.
                 batch.set(ref, buildOverrideWrite(
                     { memberName, date, type, value: savedValue, note: '', source: 'roster_import', changedBy: currentUser,
-                      replacedType: swapped ? replacedTypeForSwap(replacedFrom, type) : nextReplacedType(replacedFrom, type) },
+                      replacedType: swapped ? replacedTypeForSwap(replacedFrom, type) : nextReplacedType(replacedFrom, type), leaveYear: nextLeaveYear(replacedFrom, type, date) },
                     serverTimestamp()));
             }
             await batch.commit();
@@ -442,7 +442,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // Write the value the row DISPLAYED (displayShift — Sunday/rest-day-normalised):
                 // what the admin approved is what gets written. manualId = any existing override
                 // doc, to be replaced. (There is no per-cell edit UI — the review is approve/skip.)
-                toWrite.push({ memberName, date, value: state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: state.manualId ? { type: state.manualType, replacedType: state.manualReplacedType } : null });
+                toWrite.push({ memberName, date, value: state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: replacedFromState(state) });
             }
             if (state.state === 'REMOVE_IMPORT' && state.chosen !== false) {
                 // A stale previous import whose day now matches base — delete it, write nothing
@@ -454,14 +454,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // picked reading does, and the value has been through the identical guards.
                 // `swapped`: leave or an absence on a base rest day, answered "Swapped" in the entry
                 // control (whole-app review) — stored as covering a swapped-in working day.
-                toWrite.push({ memberName, date, value: state.entered.display, baseShift: state.baseShift, replaceId: state.manualId, swapped: !!state.entered.swapped, replacedFrom: state.manualId ? { type: state.manualType, replacedType: state.manualReplacedType } : null });
+                toWrite.push({ memberName, date, value: state.entered.display, baseShift: state.baseShift, replaceId: state.manualId, swapped: !!state.entered.swapped, replacedFrom: replacedFromState(state) });
             }
             if (state.state === 'UNREADABLE' && typeof state.chosen === 'number' && state.options?.[state.chosen]) {
                 // The admin resolved a two-way "couldn't read" by picking one of the two readings
                 // (v19.32). Writes the option's DISPLAY value — already through normaliseCellValue,
                 // so it carries the same Sunday / base-rest-day guards and the RDW| marker as any
                 // parsed value. Untouched rows keep chosen === null and are still never written.
-                toWrite.push({ memberName, date, value: state.options[state.chosen].display, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: state.manualId ? { type: state.manualType, replacedType: state.manualReplacedType } : null });
+                toWrite.push({ memberName, date, value: state.options[state.chosen].display, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: replacedFromState(state) });
             }
             // A rest day answered "swapped" (v24.42): the roster's value, as a swapped-in working day.
             // A guarded rest day (v24.42; replacing a previous import since Oct 2026): guardedWrites.
@@ -471,7 +471,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // docs for the same date. Write the row's DISPLAYED (normalised) value: a raw
                 // SICK on a base rest day would otherwise bypass the restSafe guard here and
                 // land as a rest-day absence doc the review had shown as "RD".
-                toWrite.push({ memberName, date, value: state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: state.manualId ? { type: state.manualType, replacedType: state.manualReplacedType } : null });
+                toWrite.push({ memberName, date, value: state.displayShift ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId, replacedFrom: replacedFromState(state) });
             }
         }
 

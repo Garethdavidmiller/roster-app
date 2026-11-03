@@ -2051,6 +2051,49 @@ test('day detail: the roster week is bound to the date, not floating between it 
     expect(g.weekFs, 'the week must be visibly smaller than the date').toBeLessThan(g.dateFs);
 });
 
+// ── WHICH YEAR'S ALLOWANCE (v25.18) ─────────────────────────────────────────────────────────────
+// A January leave day may come out of the previous year's allowance (leave-year.js). The renderer
+// writes the year onto the cell and the panel says so; the leave panel's figures reach across New
+// Year and say THAT too, or 2026's Booked would include a day nobody can see in 2026. Unit tests
+// pin the rule and the words; only a browser proves the record reaches both panels.
+test('day detail: a January leave day moved to last year\'s allowance says so, and the leave panel counts it there', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2027-01-11T09:00:00Z'));
+    await seedMemberSession(page, 'G. Miller');
+    await page.addInitScript(() => {
+        const w = /** @type {any} */ (window); w.__E2E = w.__E2E || {};
+        const day = (/** @type {string} */ date, /** @type {any} */ extra = {}) =>
+            ({ id: 'al-' + date, memberName: 'G. Miller', date, type: 'annual_leave', value: 'AL', note: '', source: 'manual', ...extra });
+        // 5 and 6 Jan 2027 are worked days on his line; the 5th comes out of 2026, the 6th its own year.
+        w.__E2E.docs = [day('2027-01-05', { leaveYear: 2026 }), day('2027-01-06')];
+    });
+    await page.goto('/');
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+
+    const cell = (/** @type {string} */ day) => page.locator(`.calendar-day:not(.other-month)[data-detail-day="${day}"]`);
+    await expect(cell('Tuesday 5 January 2027')).toHaveAttribute('data-detail-shift-value', 'AL');
+    await cell('Tuesday 5 January 2027').click();
+    const line = page.locator('#dayDetailLeaveYear');
+    await expect(line).toBeVisible();
+    await expect(line).toHaveText('From the 2026 allowance');
+    await page.locator('#dayDetailClose').click();
+    // Its own year needs no saying — and absent means HIDDEN, not an empty line drawing its space.
+    await cell('Wednesday 6 January 2027').click();
+    await expect(line).toBeHidden();
+    await expect(line).toHaveCSS('display', 'none');
+    await page.locator('#dayDetailClose').click();
+
+    // The leave panel opens on 2027: the 5th is not in 2027's figures, and a line says where it went.
+    await page.locator('#alBtn').click();
+    await expect(page.locator('#alLbYear')).toHaveText('2027');
+    await expect(page.locator('#alLbCarry')).toHaveText('1 day in January comes out of 2026’s allowance.');
+    await expect(page.locator('#alLbTaken')).toHaveText('1');      // the 6th, its own year's
+    // …and 2026's figures include it, dated next year, with the line saying so.
+    await page.locator('#alLbPrevYear').click();
+    await expect(page.locator('#alLbYear')).toHaveText('2026');
+    await expect(page.locator('#alLbCarry')).toHaveText('Includes 1 day in January 2027.');
+    await expect(page.locator('#alLbTaken')).toHaveText('1');
+});
+
 test('day detail: an annual-leave day offers the leave dates, and no other day does', async ({ page }) => {
     // SIGNED IN, ON THEIR OWN CALENDAR — the only state the action is offered in since v23.04, and
     // it has to be seeded explicitly: this file's default is a VIEWER session (see its header), and

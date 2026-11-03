@@ -203,8 +203,8 @@ const MEANING = {
         'an Other flavour: a kind of day, coloured as that kind of day (Spare is purple everywhere)': [
             '.other-flavour-btn.active', '.other-flavour-spare.active',
         ],
-        'an answer about ANNUAL LEAVE (was this day swapped?), in leave\'s own colour': [
-            '.al-swap-btn[aria-pressed="true"]', '.swapday-opt[aria-pressed="true"]',
+        'an answer about ANNUAL LEAVE (was this day swapped? which year\'s allowance?), in leave\'s own colour': [
+            '.al-swap-btn[aria-pressed="true"]', '.swapday-opt[aria-pressed="true"]', '.leaveyear-opt[aria-pressed="true"]',
         ],
         'the week grid\'s ROW being edited: a row state, not a chosen control': [
             '.day-row.active', '.day-row.has-override.active', '.day-row.active .overwrite-badge',

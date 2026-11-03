@@ -161,6 +161,8 @@ const {
     _hasStagedEdits,
 } = await import('./admin-overrides.js');
 const { teamMembers } = await import('./roster-data.js');
+// The leave-year save left admin-overrides.js for its own module (v25.18, the ratchet) — same mocks.
+const { setLeaveYear } = await import('./admin-leave-year-save.js');
 
 // Grab the mocked auth object so we can set currentUser for recordRangeOverrides tests.
 const { auth } = await import('./firebase-client.js');
@@ -358,6 +360,126 @@ describe('recordRangeOverrides — an answered rest day', () => {
         });
         auth.currentUser = null;
         assert.deepEqual(_batchWrites.map(w => w.date), [REST]);
+    });
+});
+
+// ── WHICH YEAR'S ALLOWANCE (v25.18) ─────────────────────────────────────────────────────────────
+// A January leave day may come out of the previous year's allowance (leave-year.js). Three things a
+// save must get right, each of which a test of the RULE cannot see: the move writes the year (and
+// moving back removes it); every other rewrite of a moved day KEEPS it, or the day silently goes back
+// to its own year; and a stale page may not write a day off back into existence.
+describe('the leave-year choice — what is written', () => {
+    const MEMBER = 'G. Miller';
+    const DAY = '2027-01-05';                       // a worked Tuesday on his line (premise below)
+    const FIXED = 'm_2027-01-05_G.%20Miller';
+    const leave = (/** @type {any} */ over = {}) => ({ id: FIXED, memberName: MEMBER, date: DAY, type: 'annual_leave',
+        value: 'AL', source: 'manual', createdAt: new Date(2026, 10, 1), ...over });
+    /** Seed the page's cache AND the server with the same records, as a fresh load would. */
+    const seed = (/** @type {any[]} */ rows) => {
+        setAllOverrides(rows.map(r => ({ ...r })));
+        _server.clear();
+        for (const r of rows) { const { id, ...data } = r; _server.set(id, data); }
+    };
+    beforeEach(() => {
+        _batchWrites.length = 0;
+        _failNextCommits = 0;
+        mockAuth.currentUser = { uid: 'gm', getIdToken: async () => {} };
+    });
+
+    test('the premise: the day is worked on his line, so the leave costs a day', async () => {
+        const { getBaseShift, parseISODate } = await import('./roster-data.js');
+        const m = teamMembers.find(x => x.name === MEMBER);
+        assert.ok(!isRestShift(getBaseShift(m, parseISODate(DAY))));
+    });
+
+    test('moving it back writes the year, keeps it annual leave, and lands on the fixed id', async () => {
+        seed([leave()]);
+        await setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER });
+        const w = _batchWrites.at(-1);
+        assert.equal(w.leaveYear, 2026);
+        assert.equal(w.type, 'annual_leave');
+        assert.equal(w.value, 'AL');
+        assert.equal(w.source, 'manual');
+        assert.equal(w.changedBy, MEMBER);
+        assert.equal(_server.get(FIXED)?.leaveYear, 2026, 'the server holds the choice');
+        const cached = getAllOverrides().filter(o => o.memberName === MEMBER && o.date === DAY);
+        assert.equal(cached.length, 1, 'one record for the day, not two');
+        assert.equal(cached[0].leaveYear, 2026, 'and the page counts it at once');
+    });
+
+    test('moving it forward again REMOVES the year — absent is the default', async () => {
+        seed([leave({ leaveYear: 2026 })]);
+        await setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: null, changedBy: MEMBER });
+        assert.ok(!('leaveYear' in _batchWrites.at(-1)));
+        assert.ok(!('leaveYear' in (_server.get(FIXED) ?? {})));
+    });
+
+    test('what the leave replaced travels with it — a swapped-in day still costs after it moves', async () => {
+        seed([leave({ replacedType: 'shift' })]);
+        await setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER });
+        assert.equal(_batchWrites.at(-1).replacedType, 'shift');
+    });
+
+    test('an imported leave day becomes the member\'s own record, and the import goes', async () => {
+        seed([leave({ id: 'import-1', source: 'roster_import' })]);
+        await setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER });
+        assert.equal(_server.has('import-1'), false, 'the import it replaces is deleted');
+        assert.equal(_server.get(FIXED)?.source, 'manual', 'a member may write only manual records');
+    });
+
+    test('REFUSED when the day is no longer leave on the server — a stale page cannot write it back', async () => {
+        seed([leave()]);
+        _server.set(FIXED, { ...leave(), type: 'shift', value: '07:00-15:00' });   // a manager changed it since
+        await assert.rejects(setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER }),
+            (/** @type {any} */ e) => /changed since the page loaded/.test(e.line));
+        assert.equal(_batchWrites.length, 0, 'nothing was written');
+    });
+
+    test('REFUSED when the leave was cancelled elsewhere — it must not reappear', async () => {
+        seed([leave()]);
+        _server.delete(FIXED);
+        await assert.rejects(setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER }),
+            (/** @type {any} */ e) => typeof e.line === 'string');
+        assert.equal(_server.has(FIXED), false);
+    });
+
+    test('REFUSED when the fixed id holds a record this page never loaded', async () => {
+        seed([leave({ id: 'import-1', source: 'roster_import' })]);
+        _server.set(FIXED, { ...leave(), type: 'shift', value: '07:00-15:00' });
+        await assert.rejects(setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2026, changedBy: MEMBER }),
+            (/** @type {any} */ e) => typeof e.line === 'string');
+        assert.equal(_batchWrites.length, 0);
+    });
+
+    test('a year the rules would refuse, or a day outside January, is refused before anything is read', async () => {
+        seed([leave()]);
+        await assert.rejects(setLeaveYear({ memberName: MEMBER, date: DAY, leaveYear: 2025, changedBy: MEMBER }), /leave-year\/invalid/);
+        await assert.rejects(setLeaveYear({ memberName: MEMBER, date: '2027-02-02', leaveYear: 2026, changedBy: MEMBER }), /leave-year\/invalid/);
+        assert.equal(_batchWrites.length, 0);
+    });
+
+    test('the range card booking over a moved day KEEPS the year', async () => {
+        seed([leave({ leaveYear: 2026 })]);
+        await recordRangeOverrides({ type: 'annual_leave', value: 'AL', memberName: MEMBER, dates: [DAY], changedBy: MEMBER });
+        assert.equal(_batchWrites.find(w => w.date === DAY)?.leaveYear, 2026);
+    });
+
+    test('an absence recorded over a moved day DROPS it — the day is no longer leave', async () => {
+        seed([leave({ leaveYear: 2026 })]);
+        await recordRangeOverrides({ type: 'sick', value: 'SICK', memberName: MEMBER, dates: [DAY], changedBy: MEMBER });
+        assert.ok(!('leaveYear' in (_batchWrites.find(w => w.date === DAY) ?? {})));
+    });
+
+    test('the week grid re-saving a moved day as leave KEEPS the year', async () => {
+        seed([leave({ leaveYear: 2026 })]);
+        await executeSave([{ memberName: MEMBER, date: DAY, type: 'annual_leave', value: 'AL', note: '', existingId: FIXED }]);
+        assert.equal(_batchWrites.find(w => w.date === DAY)?.leaveYear, 2026);
+    });
+
+    test('the week grid changing a moved day to a shift DROPS it', async () => {
+        seed([leave({ leaveYear: 2026 })]);
+        await executeSave([{ memberName: MEMBER, date: DAY, type: 'shift', value: '07:00-15:00', note: '', existingId: FIXED }]);
+        assert.ok(!('leaveYear' in (_batchWrites.find(w => w.date === DAY) ?? {})));
     });
 });
 

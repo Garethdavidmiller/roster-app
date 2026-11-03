@@ -43,6 +43,15 @@
  * none: nothing can make it fail, so nothing tells you when it stops being redundant. The test
  * pins the MECHANISM — if `getBaseShift` ever stops suppressing pre-start days, it fails there.
  *
+ * ── WHICH YEAR A DAY BELONGS TO IS ITS OWN — UNLESS IT IS A JANUARY DAY MOVED BACK (v25.18) ─────
+ *
+ * A day counts against the year of its date, except a January leave day carrying `leaveYear`: that
+ * one counts against the year before (leave-year.js has the owner's decision and the reasoning). So
+ * `countedAlDates` for a year reads the NEXT January too, and every day is counted towards
+ * `leaveYearOf` its winning record — never towards the year its date merely starts with. One rule,
+ * here, is what keeps the Admin banner, the booking cap and the Calendar's leave panel agreeing about
+ * a moved day; a surface that still filtered by date prefix would count it twice, once in each year.
+ *
  * ── THE TAKEN / BOOKED SPLIT IS TODAY, NOT THE DEADLINE ─────────────────────────────────────────
  *
  * `alPosition` splits the counted days at `todayStr` — on or before today is TAKEN, after is BOOKED.
@@ -53,6 +62,7 @@
 
 import { getALEntitlement, getBaseShift, isSunday, parseISODate } from './roster-data.js';
 import { isRestShift, isContractedWorkOverride, contractEvidence, shouldReplaceOverride } from './override-utils.js';
+import { leaveYearOf, offeredJanuaries } from './leave-year.js';
 
 /**
  * Does a single date consume `member`'s entitlement if AL is recorded on it?
@@ -102,15 +112,19 @@ export function consumesEntitlement(member, date, ovByDate = null) {
  *        among them carry `replacedType`, which is how a swapped-in day is still recognised as
  *        contracted work after the AL doc replaced the `shift` doc that said so.
  * @param {any} args.member the team-member OBJECT (needed for the base-shift lookup), not the name
- * @param {string|number} args.year calendar year
+ * @param {string|number} args.year calendar year — the year whose ALLOWANCE is being counted, which
+ *        is why next January's moved days are in the answer and this January's moved days are not
  * @param {Set<string>|null} [args.exclude] dates to leave out because the caller is re-accounting
  *        them — the ones a batch is about to overwrite or delete. Omit for "everything on record".
  * @returns {Set<string>} ISO dates, deduplicated
  */
 export function countedAlDates({ overrides, member, year, exclude = null }) {
-    const yearStr = String(year);
+    const y = parseInt(String(year), 10);
+    const yearStr = String(y);
+    // Next January is read because a day there may come out of THIS year's allowance (v25.18).
+    const nextJanuary = `${y + 1}-01-`;
     const out = /** @type {Set<string>} */ (new Set());
-    if (!member || !Array.isArray(overrides)) return out;
+    if (!member || !Array.isArray(overrides) || !Number.isFinite(y)) return out;
 
     // ONE WINNER PER DATE, resolved across ALL of the member's overrides — not the AL docs alone
     // (v21.56, external sweep). Duplicate docs for one date are a real population (two devices, an
@@ -121,12 +135,15 @@ export function countedAlDates({ overrides, member, year, exclude = null }) {
     const winnerByDate = /** @type {Map<string, any>} */ (new Map());
     for (const o of overrides) {
         if (!o || o.memberName !== member.name) continue;
-        if (!o.date || !o.date.startsWith(yearStr)) continue;
+        if (!o.date || !(o.date.startsWith(yearStr) || o.date.startsWith(nextJanuary))) continue;
         if (exclude && exclude.has(o.date)) continue;
         if (shouldReplaceOverride(winnerByDate.get(o.date), o)) winnerByDate.set(o.date, o);
     }
     for (const [date, winner] of winnerByDate) {
         if (winner.type !== 'annual_leave') continue;
+        // The year this day's ALLOWANCE is — its own, or the year before for a moved January day.
+        // Asked of the WINNER, so an orphaned copy carrying a stale `leaveYear` cannot move a day.
+        if (leaveYearOf({ ...winner, date }) !== y) continue;
         if (!consumesEntitlement(member, date, winnerByDate)) continue;
         out.add(date);
     }
@@ -166,6 +183,52 @@ export function alPosition({ overrides, member, year, todayStr }) {
     // entitlement is, and a caller may want them.
     if (entitlement === null) return { entitlement: null, taken, booked, remaining: null };
     return { entitlement, taken, booked, remaining: entitlement - taken - booked };
+}
+
+/**
+ * The January leave days that may come out of the PREVIOUS year's allowance, grouped by January,
+ * with where both years stand (v25.18 — the owner's decisions are in leave-year.js's header).
+ *
+ * A day is listed when its WINNING record is annual leave on a January the choice covers
+ * (`offeredJanuaries`) and the day actually spends leave (`consumesEntitlement`). A rest day, a
+ * Sunday or a day before the member joined costs nothing in either year, so there is no choice to
+ * make and it is not listed.
+ *
+ * `prevOpen` is the cap — "no more than the previous year has left". A day may move back only while
+ * the previous year has at least one day left; a day already moved may always move forward again.
+ * Both positions come from `alPosition`, the function the banner reads, so the panel and the banner
+ * cannot disagree about whether a year has room. A January whose member has no entitlement on
+ * record for either year is left out: there is no figure to judge the cap by (v22.45's rule).
+ *
+ * @param {{ overrides: any[], member: any, todayStr: string }} args
+ * @returns {Array<{ january: number, prev: number,
+ *                   days: Array<{ date: string, from: number }>,
+ *                   positions: Record<number, ReturnType<typeof alPosition>>,
+ *                   prevOpen: boolean }>}
+ */
+export function leaveYearChoices({ overrides, member, todayStr }) {
+    /** @type {any[]} */
+    const out = [];
+    if (!member || !Array.isArray(overrides)) return out;
+    const winners = winningEntriesOfType(overrides, member.name, 'annual_leave');
+    for (const january of offeredJanuaries(todayStr)) {
+        const prefix = `${january}-01-`;
+        const inJanuary = winners.filter(o => o.date.startsWith(prefix));
+        // The winners are all annual leave, so this map is exactly what `consumesEntitlement` reads
+        // for these dates: what the leave replaced, if anything (`replacedType`).
+        const byDate = new Map(inJanuary.map(o => [o.date, o]));
+        const days = inJanuary
+            .filter(o => consumesEntitlement(member, o.date, byDate))
+            .map(o => ({ date: o.date, from: leaveYearOf(o) }));
+        if (!days.length) continue;
+        const prev = january - 1;
+        const prevPos = alPosition({ overrides, member, year: prev, todayStr });
+        const ownPos  = alPosition({ overrides, member, year: january, todayStr });
+        if (prevPos.remaining === null || ownPos.remaining === null) continue;
+        out.push({ january, prev, days, positions: { [prev]: prevPos, [january]: ownPos },
+                   prevOpen: prevPos.remaining >= 1 });
+    }
+    return out;
 }
 
 /**

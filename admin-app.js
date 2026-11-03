@@ -24,6 +24,8 @@ import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage, canOpenOvertime } from './auth-policy.js';
 import { assertDeletable, DELETE_REFUSED } from './admin-override-store.js';
 import { TYPES, PILL_TYPES, getAllOverrides, buildMemberDateMap, removeFromCache, initOverrides, loadOverrides, renderWeekGrid, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter, _hasStagedEdits, setSaveInFlight, whenOverridesReady, hasOverrideAuthorityFor, ensureMemberLoaded } from './admin-overrides.js';
+import { initLeaveYearPanel } from './admin-leave-year.js';
+import { setLeaveYear } from './admin-leave-year-save.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 import { initSelectSheets } from './select-sheet.js';
@@ -552,6 +554,15 @@ export function init() {
     /** The year the AL range picker is SHOWING, or null until it crosses a year (see admin-al-year.js). */
     let alPickerViewYear = /** @type {number|null} */ (null);
 
+    // WHICH YEAR'S ALLOWANCE A JANUARY LEAVE DAY COMES OUT OF (v25.18): admin-leave-year.js. Built
+    // BEFORE `updateALBanner`, which reads it, so no first call can find it uninitialised.
+    const _leaveYearPanel = initLeaveYearPanel({
+        getMember: () => teamMembers.find(m => m.name === alMember?.value) ?? null,
+        hasAuthority: hasOverrideAuthorityFor, getOverrides: getAllOverrides,
+        save: (args) => setLeaveYear({ ...args, changedBy: currentUser ?? '' }),
+        onSaved: () => { updateALBanner(); updateALBookedBox(); },
+    });
+
     /**
      * Refreshes the AL entitlement banner above the Annual Leave card: taken, booked and remaining
      * for the year `admin-al-year.js` picks. Hidden when there is nothing truthful to state.
@@ -565,6 +576,7 @@ export function init() {
         const warnEl      = /** @type {HTMLElement} */ (document.getElementById('alBannerWarn'));
         if (!alMember || !banner) return;
         const memberName  = alMember.value;
+        _leaveYearPanel?.refresh();   // the same moment as this banner, before any exit below (v25.18)
 
         /** Hide every figure this card states. There are now three ways to have nothing truthful to
          *  say — no member selected, a name that resolves to nobody, and a member with no

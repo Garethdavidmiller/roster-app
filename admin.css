@@ -1980,6 +1980,75 @@
         }
         .swapday-opt:active { scale: var(--press-scale); }
 
+        /* WHICH YEAR'S ALLOWANCE (v25.18) — a panel on the AL card, drawn by admin-leave-year.js.
+           The same box as the Recorded dates list beneath it, so the card reads as one family; the
+           two year buttons are the swapped-day answer's own control, because both are answers about
+           annual leave (page-identity-parity.test.mjs → MEANING). `[hidden]` is restated: the
+           `display: block` children would otherwise draw an empty bordered box. */
+        .al-leaveyear {
+            margin-top: 10px;
+            padding: 10px 14px 12px;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+        }
+        .al-leaveyear[hidden] { display: none !important; }
+        .al-leaveyear-title { font-weight: 600; font-size: var(--type-label); }
+        .al-leaveyear-hint {
+            margin: 4px 0 0;
+            font-size: var(--type-small);
+            color: var(--text-mid);
+            line-height: 1.45;
+        }
+        .ly-group { margin-top: 10px; }
+        .ly-head { font-weight: 700; font-size: var(--type-label); color: var(--al-deep); }
+        .ly-figures {
+            margin: 2px 0 4px;
+            font-size: var(--type-small);
+            color: var(--text-mid);
+            font-variant-numeric: tabular-nums;
+        }
+        .ly-note { margin: 0 0 4px; font-size: var(--type-small); color: var(--text-mid); line-height: 1.45; }
+        .ly-row {
+            display: flex;
+            flex-wrap: wrap;          /* the two years drop below the date on a narrow phone */
+            align-items: center;
+            gap: 6px 10px;
+            padding: 5px 0;
+        }
+        .ly-date { font-weight: 700; min-width: 7.5em; }
+        .ly-opts { display: flex; gap: 6px; flex-wrap: wrap; }
+        .leaveyear-opt {
+            min-height: 44px;
+            min-width: 64px;
+            padding: 6px 12px;
+            border: 1px solid color-mix(in oklch, var(--al-deep) 38%, transparent);
+            border-radius: var(--radius-button);
+            background: var(--surface);
+            color: var(--al-deep);
+            font: inherit;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            cursor: pointer;
+            transition: background var(--dur-fast) var(--ease-standard),
+                        color var(--dur-fast) var(--ease-standard),
+                        border-color var(--dur-fast) var(--ease-standard);
+        }
+        .leaveyear-opt[aria-pressed="true"] {
+            background: var(--al-deep);
+            color: var(--surface);
+            border-color: var(--al-deep);
+        }
+        .leaveyear-opt:active:not(:disabled) { scale: var(--press-scale); }
+        /* A refused year (no days left) and a day mid-save. Sunken and plainly not pressable — a
+           natively disabled control, the one case a dim is allowed (css-tokens.md → opacity). */
+        .leaveyear-opt:disabled:not([aria-pressed="true"]) {
+            background: var(--surface-sunken);
+            color: var(--text-light);
+            border-color: var(--border-light);
+            cursor: not-allowed;
+        }
+        .leaveyear-opt[aria-pressed="true"]:disabled { cursor: progress; }
+
         /* Absence preview — reuses al-preview layout */
         .sick-preview.ready { background: var(--absence-light); color: var(--absence-text); }
         /* Absence period count in the booked-dates list */
@@ -2442,7 +2511,7 @@
            It says what pressing it DOES ("All staff" ↔ "This member only", admin-saved-changes.js)
            rather than lighting up, so it has no chosen fill. An `.active` rule sat here from its first
            version to v25.16 and nothing ever set the class; it was recoloured at v25.16 with the
-           app's other chosen states and only then found unused, so it went at v25.17. */
+           app's other chosen states and only then found unused, so it went at v25.19. */
         .btn-show-all-overrides {
             background: white;
             border: 1.5px solid var(--border-light);

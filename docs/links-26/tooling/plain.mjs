@@ -833,6 +833,10 @@ p.pimport { margin-top: 6px; }
 .cover.plain .tiles.head4 { align-items: stretch; } .cover.plain .pcols { align-items: stretch; }
 .cover.plain .head4 .tile .q { text-wrap: balance; } .mast .sub { text-wrap: pretty; }
 .p4new { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px 10px; } .p4new > .p4t { flex: none; }
+/* TEN OR MORE NEW TIMES (3 Nov 2026, Clean Slate's ten): three to a row made four rows and ran page 4 eight pixels past the
+   sheet, which render.mjs refuses. A list that long goes up to six to a row (--n, set where the cards are built); no design
+   before it had more than six new times, so no other sheet moves */
+.p4new.p4new-dense { grid-template-columns: repeat(var(--n, 6), 1fr); }
 table.dutyt th.num, table.dutyt td.num { text-align: left; } table.dutyt th { white-space: nowrap; }
 table.t.dutyt tbody tr:nth-child(even) td.chg { background-color: color-mix(in srgb, var(--surface-sunken) 60%, white) !important; }
 table.ff th:nth-child(1) { width: 44%; } table.ff th:nth-child(2) { width: 23%; } table.ff th:nth-child(3) { width: 33%; }
@@ -969,7 +973,7 @@ function shiftPage(s, { T, P }) {
     <div class="p4n p4n-new"><b>${fresh.length}</b><span>${fresh.length === 1 ? 'is' : 'are'} new — nobody works ${fresh.length === 1 ? 'it' : 'them'} today</span></div>
   </div>
   ${fresh.length ? `<h2>The new ${fresh.length === 1 ? 'time' : 'times'} to learn</h2>
-  <div class="p4new" style="--n:${fresh.length <= 3 ? fresh.length : fresh.length === 4 ? 2 : fresh.length <= 6 ? 3 : [4, 3, 5].find(c => fresh.length % c !== 1) ?? 4}">${fresh.map(r => `<div class="p4t"><span class="tt">${r.time}</span><span>${len(r.minutes)} · ${kind(r)} · ${when(r)}</span></div>`).join('')}</div>` : '<p class="p4none">Every shift time in this link is one somebody already works today.</p>'}
+  <div class="p4new${fresh.length >= 10 ? ' p4new-dense' : ''}" style="--n:${fresh.length <= 3 ? fresh.length : fresh.length === 4 ? 2 : fresh.length <= 6 ? 3 : fresh.length >= 10 ? [6, 5, 4].find(c => fresh.length % c !== 1) ?? 6 : [4, 3, 5].find(c => fresh.length % c !== 1) ?? 4}">${fresh.map(r => `<div class="p4t"><span class="tt">${r.time}</span><span>${len(r.minutes)} · ${kind(r)} · ${when(r)}</span></div>`).join('')}</div>` : '<p class="p4none">Every shift time in this link is one somebody already works today.</p>'}
   ${gone.length ? `<p class="p4gone"><b>No longer used:</b> ${gone.length} of today’s ${T.tableRows.length} shift times — ${gone.map(r => `<span class="tt">${r.time}</span>`).join(', ')}.</p>` : ''}`;
   s = must(s, /<div class="stack">[\s\S]*?<\/div>\s*<\/div>\s*(?=<h2>The duty table)/, `${learn}\n  `, 'the two tables above the duty table');
   // THE SHAPE OF A WEEK — restored (30 Sep 2026, "no important insight must be lost"). v2 moved four of the old table's

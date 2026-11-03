@@ -158,6 +158,25 @@ describe('projectAlOverage — the warning the manager did not get', () => {
             member: reen, memberName: 'C. Reen', overrides: existing, consuming: [],
         }), null);
     });
+
+    // v25.18: a January day moved back to last year's allowance keeps that year when it is booked
+    // over again (`nextLeaveYear`), so the warning must charge it THERE — not to the year its date is in.
+    test('a re-booked January day already moved to 2026 is charged to 2026, not 2027', () => {
+        const JAN = '2027-01-05';   // a Tuesday on her Mon–Fri line
+        const moved = { id: 'jan', memberName: 'C. Reen', type: 'annual_leave', date: JAN, value: 'AL', leaveYear: 2026 };
+        // 2026 has ONE day left before the move is counted; the move spends it, so 2026 is exactly full
+        // and re-booking the same day must not warn — it is the same day, already counted there.
+        const overrides = [...existing, moved];
+        assert.equal(projectAlOverage({ member: reen, memberName: 'C. Reen', overrides, consuming: [JAN] }), null);
+        // Charged to 2027 by mistake it would not warn either (2027 is empty), so prove the bucket
+        // directly: with 2026 at its limit BEFORE the move, the moved day puts it one over — and
+        // re-booking that day reports it only if the day is charged to 2026.
+        assert.ok(!existing.some(e => e.date === '2026-04-15'), 'fixture: the extra 2026 day is a new one');
+        const full = [...existing, { id: 'x31', memberName: 'C. Reen', type: 'annual_leave', date: '2026-04-15', value: 'AL' }];
+        const over = projectAlOverage({ member: reen, memberName: 'C. Reen', overrides: [...full, moved], consuming: [JAN] });
+        assert.ok(over, 'charged to 2026, which the moved day has put one over');
+        assert.match(over.headline, /2026 AL entitlement/);
+    });
 });
 
 describe('answeredFree — the half of `skipped` that is an ANSWER (v23.88, external review)', () => {

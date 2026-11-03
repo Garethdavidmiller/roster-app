@@ -12,7 +12,7 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, isSunday, parseISODate } from './roster-data.js';
-import { isRestShift, shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord, nextReplacedType } from './override-utils.js';
+import { isRestShift, shouldReplaceOverride, buildOverrideWrite, buildOverrideCacheRecord, nextReplacedType, nextLeaveYear } from './override-utils.js';
 import { manualOverrideId } from './override-id.js';
 import { db, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { saveFailureMessage } from './claim-retry.js';
@@ -235,7 +235,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
             const byId = new Map(getAllOverrides().map(o => [o.id, o]));
             toSave.forEach(entry => {
                 // Read BEFORE the delete on the next line, which is what destroys it: on a swapped-in
-                // day this is the only record that the member was contracted to work it.
+                // day it is the only record of contracted work, on a moved January day of its year.
                 const _under = entry.existingId ? byId.get(entry.existingId) : null;
                 // A row the admin answered "swapped" records `shift` — the type the swapped-in day
                 // would have carried had anybody entered the swap — so the entitlement check can see
@@ -254,7 +254,7 @@ export async function executeSave(toSave, toDelete = [], skipped = [], keptLeave
                 // key reaches `hasOnly()` in firestore.rules and permission-denies the whole save.
                 const { existingId: _, swapped: _swapped, ...data } = entry;
                 const newRef = doc(db, COLLECTIONS.overrides, fixedId);
-                const fields = { ...data, source: 'manual', changedBy: _currentUser, replacedType };
+                const fields = { ...data, source: 'manual', changedBy: _currentUser, replacedType, leaveYear: nextLeaveYear(_under, entry.type, entry.date) };
                 batch.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
                 docs.push(buildOverrideCacheRecord(newRef.id, fields, new Date()));
             });
@@ -497,8 +497,8 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
                 const stamp  = new Date();
                 slice.forEach(op => {
                     const existing = ovByDate.get(op.date);
-                    // Read BEFORE the delete: this is the only record that a swapped-in day was
-                    // contracted work, and the delete below is what destroys it.
+                    // Read BEFORE the delete, which destroys it: the only record that a swapped-in day
+                    // was contracted work, and of which year a moved January leave day comes out of.
                     // A declared swap has nothing to carry forward — the day held no contracted
                     // override, which is precisely why it needed asking about — so it records
                     // `shift`, the type the swapped-in day would have had if the swap had been
@@ -511,7 +511,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
                         if (!delIds.has(id)) { batch.delete(doc(db, COLLECTIONS.overrides, id)); delIds.add(id); }
                     }
                     const newRef = doc(db, COLLECTIONS.overrides, fixedId);
-                    const fields = { memberName, date: op.date, type: op.type, value: op.value, note: '', source: 'manual', changedBy, replacedType };
+                    const fields = { memberName, date: op.date, type: op.type, value: op.value, note: '', source: 'manual', changedBy, replacedType, leaveYear: nextLeaveYear(existing, op.type, op.date) };
                     batch.set(newRef, buildOverrideWrite(fields, serverTimestamp()));
                     docs.push(buildOverrideCacheRecord(newRef.id, fields, stamp));
                 });
