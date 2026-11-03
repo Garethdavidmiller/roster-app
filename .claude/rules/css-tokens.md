@@ -474,7 +474,7 @@ screenshots: Trains' raspberry view above a navy day; New link's navy chip on a 
   the same gap until v25.20.
 - **A chosen style must be one the code can reach.** `.btn-show-all-overrides.active` was recoloured
   with the rest at v25.16 and turned out never to be set: that toggle swaps its words instead
-  ("All staff" ↔ "This member only"). Removed at v25.19. Before adding a chosen rule, find the line
+  ("All staff" ↔ "This member only"). Removed at v25.20. Before adding a chosen rule, find the line
   that adds the class or attribute.
 `page-identity-parity.test.mjs` refuses a chosen fill that does not read `--page-accent` unless it is
 in `MEANING`, refuses navy on any chosen fill, and fails on a `MEANING` entry whose rule has gone.

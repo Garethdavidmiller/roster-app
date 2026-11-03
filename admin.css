@@ -2511,7 +2511,7 @@
            It says what pressing it DOES ("All staff" ↔ "This member only", admin-saved-changes.js)
            rather than lighting up, so it has no chosen fill. An `.active` rule sat here from its first
            version to v25.16 and nothing ever set the class; it was recoloured at v25.16 with the
-           app's other chosen states and only then found unused, so it went at v25.19. */
+           app's other chosen states and only then found unused, so it went at v25.20. */
         .btn-show-all-overrides {
             background: white;
             border: 1.5px solid var(--border-light);
