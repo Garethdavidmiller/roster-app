@@ -135,8 +135,8 @@ export function sortByDeleted(entries) {
  * May a design be deleted at all?
  *
  * The workspace must always keep one LIVE design — deleting the last one would empty the picker
- * and drop the user into the "no designs yet" state, from which the only way back is the
- * generator. Counts live designs only: a bin with ten designs in it does not make the last
+ * and drop the user into the "no designs yet" state, from which the way back is to generate,
+ * import or open a design again. Counts live designs only: a bin with ten designs in it does not make the last
  * remaining design disposable.
  *
  * @param {number} liveCount

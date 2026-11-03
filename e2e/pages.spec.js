@@ -6548,9 +6548,10 @@ test('links: pressing Generate again produces a different, named design', async 
  *
  * Shared because both are cascade checks that a static test cannot make, and because this exact
  * list — written out twice, by hand — is what let `overtime.html` escape the 16px scan entirely.
+ * It is now READ from scripts/app-pages.mjs (v25.21): the hand-written seven had gone on to miss
+ * `trains.html` and `newlink.html` the same way, which no suite could see.
  */
-const APP_URLS = ['/', '/admin.html', '/paycalc.html', '/operations.html', '/settings.html',
-    '/links.html', '/overtime.html'];
+const APP_URLS = APP_PAGES_LIST.map(p => p.url);
 
 // ── Every page renders in the app's typeface (v20.63) ────────────────────────────────────────────
 //

@@ -21,10 +21,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { pageStylesheets } from './scripts/app-pages.mjs';
 
 const read = (f) => readFileSync(new URL(f, import.meta.url), 'utf8');
-const APP_CSS = ['shared.css', 'index.css', 'admin.css', 'paycalc.css',
-    'operations.css', 'settings.css', 'links.css'];
+// shared.css and every app page's stylesheet, from scripts/app-pages.mjs (v25.21 — a hand-written seven missed three).
+const APP_CSS = ['shared.css', ...Object.values(pageStylesheets())];
 
 /** Rule blocks whose SELECTOR names a chip-family element. Comments are stripped first so a
  *  mention of "badge" in prose can't drag an unrelated rule into the check. */

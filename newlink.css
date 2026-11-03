@@ -444,6 +444,11 @@ body {
 /* A thumb's target. After the base rules, so it wins (css-tokens.md, v19.61). */
 @media (pointer: coarse) {
     .nl-tile, .nl-tab, .nl-file, .nl-back { min-height: 48px; }
+    /* "Have your say" sits INSIDE a sentence, so it keeps the sentence's line height and a thumb gets an
+       invisible hit area instead — the `.help-btn` recipe in shared.css. It measured 53x22 the first time
+       the tap-target sweep reached this page (v25.21, when the sweep began reading scripts/app-pages.mjs). */
+    .nl-inline { position: relative; }
+    .nl-inline::before { content: ''; position: absolute; inset: -6px -4px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
