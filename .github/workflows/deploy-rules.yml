@@ -50,9 +50,9 @@ jobs:
       # THE GATES RUN ON 22 — the Node the branch tests use (Oct 2026). They ran on 20 here, and a
       # test that passed on every PR failed only in this workflow: Node 22 has a `navigator` global
       # and 20 does not, and because this workflow fires only when the rules change, the mismatch
-      # sat unseen from v24.48 until the v24.56 rules deploy failed twice on it. Only firebase-tools
-      # needs 20 (its WIF auth), so the job steps back just before it, exactly as deploy-hosting.yml
-      # and deploy-functions.yml do.
+      # sat unseen from v24.48 until the v24.56 rules deploy failed twice on it. firebase-tools
+      # stepped back to 20 for its sign-in until 3 Nov 2026; the whole job runs on 22 now
+      # (deploy-functions.yml has the history).
       - name: Install Node.js
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
@@ -91,13 +91,14 @@ jobs:
       - name: Run Firestore and Storage rules tests
         run: npm run test:rules
 
-      # ── BACK TO NODE 20 FOR THE DEPLOY TOOL ─────────────────────────────────────────────────
-      # Everything from here on is firebase-tools, pinned to 20 for its WIF auth (see
-      # deploy-functions.yml, where the failure is recorded).
-      - name: Switch back to the deploy-tool Node version
+      # ── THE DEPLOY TOOL'S NODE ──────────────────────────────────────────────────────────────
+      # Everything from here on is firebase-tools. Node 22 since 3 Nov 2026; it was held on 20 for
+      # its sign-in (deploy-functions.yml records why, and why that reason no longer held). Kept as
+      # its own step so that going back to 20, if a deploy ever fails to authenticate, is one line.
+      - name: Deploy-tool Node version
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
-          node-version: '20'
+          node-version: '22'
 
       # Authenticate to Google Cloud via Workload Identity Federation — no long-lived key.
       # GitHub's per-run OIDC token is exchanged for short-lived credentials for the
@@ -109,7 +110,7 @@ jobs:
       # secret is retired — no deploy workflow references a key file any more.
       # Full plan + cutover sequence: SECURITY_RELEASE_PLAN.md → Appendix A2.
       - name: Authenticate to Google Cloud (Workload Identity Federation)
-        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: 'projects/532910998075/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
           service_account: 'github-deploy@myb-roster.iam.gserviceaccount.com'
