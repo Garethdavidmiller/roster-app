@@ -30,8 +30,10 @@ left, each for a decision rather than a default:
   read by more than this line used to say: its proposal files are fixtures for
   `links-compare-analysis.test.mjs` AND `links-compare.test.mjs`, and the Links 26 tooling reuses its
   scripts. Its own 13 MB zip no longer changes, so it costs checkout size and nothing more.
-- **Size**: ten of the 28 modules in `coordinator-ratchet.test.mjs` sit exactly at their cap;
-  stylesheets have no cap (`index.css` 3,861 lines on 3 Nov 2026); `e2e/pages.spec.js` is 10,580 lines.
+- **Size**: ten of the 28 modules in `coordinator-ratchet.test.mjs` sit exactly at their cap. The
+  seven stylesheets over 900 lines are capped since v25.23 (`stylesheet-ratchet.test.mjs`, the same
+  ratchet: `index.css` 3,861 lines and `shared.css` 3,852 on 3 Nov 2026). `e2e/pages.spec.js` is
+  10,580 lines; splitting it by page waits for no other branch to be editing it.
 - **Twins, settled the same day.** `isRest` and the window-row conversion are one copy each now
   (`links-design.js`; `rowMinutes` in `links-window.js`). Two stay apart on purpose: `withTimeout`
   (`login-overlay.js`, `password-force.js`) — login's copy ignores the error and the other's callers
