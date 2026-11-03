@@ -461,10 +461,16 @@ screenshots: Trains' raspberry view above a navy day; New link's navy chip on a 
   only-what-differs filter turned grey under the very pointer that switched it on — invisible while
   "on" was a pale gold tint, obvious once it was purple. Pinned by `e2e/pages.spec.js` → "links
   compare: the filter hides the identical lines" (mutation-checked).
-- **A control that turns DARK when chosen animates its text with its fill.** `.btn-set` animated only
-  its background, so for a tenth of a second the new white words sat on the old pale ground — the
-  frame WebKit's accessibility scan caught in CI. `e2e/axe.spec.js` → `scan()` now waits for running
-  CSS transitions before it measures, as it already waited for the splash.
+- **A control that turns DARK when chosen animates its text with its fill** — the v24.01 rule below
+  ("A colour may not transition independently of the ground behind it"), met again. `.btn-set`
+  animated only its background, so for a tenth of a second the new white words sat on the old pale
+  ground, and WebKit's scan in CI caught that frame. This time the harness changed too:
+  `e2e/axe.spec.js` → `scan()` waits for running CSS transitions before it measures, as it already
+  waited for the splash.
+- **A chosen style must be one the code can reach.** `.btn-show-all-overrides.active` was recoloured
+  with the rest at v25.16 and turned out never to be set: that toggle swaps its words instead
+  ("All staff" ↔ "This member only"). Removed at v25.17. Before adding a chosen rule, find the line
+  that adds the class or attribute.
 `page-identity-parity.test.mjs` refuses a chosen fill that does not read `--page-accent` unless it is
 in `MEANING`, refuses navy on any chosen fill, and fails on a `MEANING` entry whose rule has gone.
 
