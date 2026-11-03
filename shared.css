@@ -3417,16 +3417,20 @@ body.auth-ready .boot-placeholder { display: none; }
    heading's FIRST element, `<span aria-hidden="true">`, so a screen reader skips it. `:first-child`
    cannot see text, so a title that put its words first and a span after them would tile the wrong
    thing — card-header-parity.test.mjs requires the emoji span to be where the title starts.
-   The negative block margin keeps the 28px tile from pushing the header much taller than the title
-   line; -3px rather than the -5px that would hide it completely, because at -5px the tile crowded the
-   hint line under it. Mixed with WHITE, not with --surface: --surface carries the navy's hue, and an
-   oklch mix towards it drags every tint blue. */
+   THE TILE STAYS INSIDE ITS TITLE — no negative block margin (v25.15). v25.14 shipped -3px top and
+   bottom to keep the headers short, which let the 28px tile hang 3px out of the h2 and onto the hint
+   line under EVERY card title; on a phone it touched the words (owner report, with a screenshot). A
+   1x screenshot had read as "close", which is why this is now MEASURED: e2e/pages.spec.js → "a card
+   title's icon tile stays inside its title" walks every card page. The title line grows to 28px to
+   hold the tile; that height is the price, and it is the right one.
+   Mixed with WHITE, not with --surface: --surface carries the navy's hue, and an oklch mix towards
+   it drags every tint blue. */
 .card-header h2 > span[aria-hidden="true"]:first-child {
     display: inline-grid;
     place-items: center;
     width: 28px;
     height: 28px;
-    margin: -3px 3px -3px 0;
+    margin: 0 3px 0 0;
     border-radius: var(--radius-sm);
     background: color-mix(in oklch, var(--page-accent) 17%, white);
     border: 1px solid color-mix(in oklch, var(--page-accent) 26%, white);

@@ -89,6 +89,12 @@ things go with it, each easy to undo:
 - **The tile costs Pay's "🏖️ Holiday Pay Premium (HPP)" its one line at 375px** (measured: any tile
   22px or wider does). Accepted: it balances onto two lines, hangs, and nothing is hidden or
   shortened (paycalc.md invariant 16). The way back is a smaller tile, not a shorter title.
+- **The tile stays INSIDE its title — never a negative margin (v25.15).** v25.14 shipped `-3px`
+  top and bottom to keep the headers short, so the 28px tile hung 3px out of the h2 and onto the
+  hint line under every card title. It read as "close" in a 1x screenshot and as an overlap on the
+  owner's phone. The title line grows to 28px instead; that height is the price. `e2e/pages.spec.js`
+  → "a card title's icon tile stays inside its title" measures every tile against its own h2 on
+  every card page — a picture is not evidence for a 3px overlap.
 `card-header-parity.test.mjs` pins the markup shape (convention 3) and `page-identity-parity.test.mjs`
 pins the selector and the white mix, so the two halves are each held by text.
 
