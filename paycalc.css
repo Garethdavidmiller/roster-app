@@ -17,7 +17,7 @@
       --conf-possible-bg:   oklch(97% 0.022 72deg);
       --conf-possible-text: oklch(58% 0.225 40deg);
 
-      /* The page's colour, green: the header badge, the About badge and the card-title tiles all
+      /* The page's colour, green: the header badge, the About badge and every chosen control all
          read it (shared.css :root → "Page identity", v25.14). Declared once, here. */
       --page-accent:      var(--green);
       --page-accent-ink:  white;
@@ -62,7 +62,7 @@
        those modifiers; do not fold it back onto the shared flex header. */
     /* The FILL and the TITLE are not restated here (v25.12). This block used to copy both from
        shared.css so the six pages would match (v18.29) — and a copy is exactly what stops matching:
-       when the shared header moved to the card's surface and a 15px title, this page alone kept the
+       when the shared header moved to the card's surface and a 14px title, this page alone kept the
        grey band and 13px, and nothing failed. shared.css `.card-header` / `.card-header h2` now
        reach this page directly; only the flat layout's padding and divider are this page's own. */
     .card-header {
@@ -1610,7 +1610,6 @@
     border-radius: var(--radius-pill); white-space: nowrap;
   }
   .roster-state-badge.loaded    { background: var(--conf-high-bg);     color: var(--conf-high-text); }
-  .roster-state-badge.checking  { background: var(--conf-recorded-bg); color: var(--conf-recorded-text); }
   .roster-state-badge.base-only { background: var(--boxing-day-bg); color: var(--badge-pending-text); }
   /* (.conf-high class removed — only the recorded/possible badges are rendered;
      the --conf-high-* tokens above stay for the .loaded state badge) */

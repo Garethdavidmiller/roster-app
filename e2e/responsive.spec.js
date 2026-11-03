@@ -352,3 +352,33 @@ test('recorded-dates rows keep the chip and ✕ on the row, at every width and t
         }
     }
 });
+
+// THE WORK EMAIL FIELD AT A PHONE'S WIDTH (v25.20). Below 381px the domain drops beneath the field, and
+// that block kept the old 8px corner and a 1.5px pale left edge after v25.12 moved every field to the
+// shared edge and corner — invisible at the 390px most specs use, and exactly what a 360 or 375px phone,
+// the commonest two, showed: an email box squarer than the password boxes under it, and a domain whose
+// left edge was fainter than its other three.
+for (const width of [360, 375]) {
+    test(`settings @${width}px: the work email field and its domain wear the password boxes' edge and corner`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 800 });
+        await seedSession(page, 'G. Miller');
+        await page.goto('/settings.html');
+        await expect(page.locator('#workEmailDomain')).toBeAttached();
+        const m = await page.evaluate(() => {
+            const cs = (/** @type {string} */ id) => getComputedStyle(/** @type {Element} */ (document.getElementById(id)));
+            const email = cs('workEmailInput'), pw = cs('pwNew'), dom = cs('workEmailDomain');
+            return {
+                stacked: getComputedStyle(/** @type {Element} */ (document.querySelector('.contact-email-row'))).flexDirection,
+                email: email.borderTopLeftRadius, pw: pw.borderTopLeftRadius, dom: dom.borderTopLeftRadius,
+                domLeft: `${dom.borderLeftWidth} ${dom.borderLeftStyle} ${dom.borderLeftColor}`,
+                domTop: `${dom.borderTopWidth} ${dom.borderTopStyle} ${dom.borderTopColor}`,
+                pwEdge: `${pw.borderTopWidth} ${pw.borderTopStyle} ${pw.borderTopColor}`,
+            };
+        });
+        expect(m.stacked, 'below 381px the domain sits beneath the field').toBe('column');
+        expect(m.email, 'the email box has the password boxes\' corner').toBe(m.pw);
+        expect(m.dom, 'and so does its domain').toBe(m.pw);
+        expect(m.domLeft, 'the domain\'s left edge matches its other three').toBe(m.domTop);
+        expect(m.domTop, 'and is the field edge').toBe(m.pwEdge);
+    });
+}

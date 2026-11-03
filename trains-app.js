@@ -34,7 +34,9 @@
  * under 266px of search box and station chips; the time lookup — the one thing needed with a
  * customer waiting — sat at 1,450px. So the overview opens collapsed from the second visit
  * (`OVERVIEW_SEEN_KEY`; its header says everything it still needs to, and the one caveat a member
- * must not miss moved to a line beneath the tabs), the station picker folds away once a station is
+ * must not miss — Christmas, `#trFestive` — sits outside the fold, so a folded card still shows it.
+ * v24.92 put it on a line beneath the tabs; v25.13 took that line away and left it inside the fold,
+ * where nobody on a second visit saw it, until v25.20), the station picker folds away once a station is
  * chosen (`pickerOpen`), and the lookup comes first — collapsed on a phone, so the list is still the
  * first thing read, and opening it puts the cursor in the box. The grid gained a column tap that
  * shows one train's stops alone (`gridCol`) and a fixed copy of its column heads (trains-grid-mirror.js).
@@ -174,7 +176,8 @@ function start(member) {
         initCardCollapse(`${id}ToggleHeader`, `${id}Body`, `${id}Chevron`, id === 'trLookup' ? (/** @type {boolean} */ open) => { if (open) el('trLookupInput')?.focus(); } : undefined)]));
     // OPEN ON THE ANSWERS (the header). The overview is read once; from the next visit its header —
     // title, hint and the countdown chip — says everything it needs to, and the card opens collapsed.
-    // Except when both timetables have ended: then its one message IS the card's, and must be seen.
+    // The Christmas line is not in the fold, so folding never hides it (trains.html, v25.20). Except
+    // when both timetables have ended: then its one message IS the card's, and must be seen.
     if (lsGet(OVERVIEW_SEEN_KEY) && phase().phase !== 'ended') cards.trOverview.setOpen(false);
     lsSet(OVERVIEW_SEEN_KEY, '1');
     // On a phone the lookup sits above the changes list and starts collapsed: its header says what it

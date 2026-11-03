@@ -460,19 +460,32 @@ screenshots: Trains' raspberry view above a navy day; New link's navy chip on a 
   rule on order at equal specificity. Links' `.btn-set:hover:not(:disabled)` did neither, so the
   only-what-differs filter turned grey under the very pointer that switched it on — invisible while
   "on" was a pale gold tint, obvious once it was purple. Pinned by `e2e/pages.spec.js` → "links
-  compare: the filter hides the identical lines" (mutation-checked).
+  compare: the filter hides the identical lines" (mutation-checked). The picker sheet's current row
+  was the same shape and older: `.picker-opt:hover:not(:disabled)` (0,3,0) beat `.is-current` (0,2,0),
+  so the ticked row went grey under the pointer (v25.20 — it now skips `.is-current`; pinned by
+  "links: editing a grid cell uses the app sheet").
 - **A control that turns DARK when chosen animates its text with its fill** — the v24.01 rule below
   ("A colour may not transition independently of the ground behind it"), met again. `.btn-set`
   animated only its background, so for a tenth of a second the new white words sat on the old pale
   ground, and WebKit's scan in CI caught that frame. This time the harness changed too:
   `e2e/axe.spec.js` → `scan()` waits for running CSS transitions before it measures, as it already
-  waited for the splash.
+  waited for the splash — which means no scan can catch this again, so it is checked by reading the
+  `transition` line. Overtime's `.ot-row-btn` ("View", pressed in place, white on its dark ground) had
+  the same gap until v25.20.
 - **A chosen style must be one the code can reach.** `.btn-show-all-overrides.active` was recoloured
   with the rest at v25.16 and turned out never to be set: that toggle swaps its words instead
   ("All staff" ↔ "This member only"). Removed at v25.19. Before adding a chosen rule, find the line
   that adds the class or attribute.
 `page-identity-parity.test.mjs` refuses a chosen fill that does not read `--page-accent` unless it is
 in `MEANING`, refuses navy on any chosen fill, and fails on a `MEANING` entry whose rule has gone.
+**It can only see a choice spelled the way its `CHOSEN` pattern reads** — the aria states, `.active`,
+`.is-active`, `.is-on`, `.is-chosen`, `.is-current`, `.compare-active`, `--active` and `--on`. Operations'
+month toggle (`.speed-toggle-btn--on`) stayed navy through v25.16 and Links' compare-mode tile stayed
+gold, both unseen, because their spellings were not on the list (v25.20). A new spelling joins the
+pattern in the same commit. **Two kinds of choice are deliberately outside it, for now**: a date
+picker's chosen day (`.dp-sel`, admin's `.rp-from`/`.rp-to`), which is still navy, and a chosen
+timetable column on Trains (`.tr-col-on`), a column tint with an underline. Both are open owner
+questions, not oversights.
 
 ## Desktop layout — content width + reading measure (v15.90)
 

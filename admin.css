@@ -2433,7 +2433,7 @@
             box-shadow: inset 0 0 0 1.5px var(--accent-gold);
         }
         /* Admin's colour is gold, and it is declared like every other page's (v25.14 — shared.css
-           :root → "Page identity"): the About badge and the card-title tiles read it. The header
+           :root → "Page identity"): the About badge and every chosen control read it. The header
            badge above is the one place it is worn differently, for the reason given there. */
         :root {
             --page-accent:      var(--accent-gold);

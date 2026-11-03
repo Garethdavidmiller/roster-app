@@ -7245,6 +7245,16 @@ test('links: editing a grid cell uses the app sheet, and cancelling changes noth
 
     // The current value is marked, so the sheet says what the cell already holds.
     await expect(page.locator('.picker-opt[data-value="RD"]')).toHaveAttribute('aria-current', 'true');
+    // And pointing at it keeps it marked (v25.20): the hover rule out-ranked the current row's tint, so
+    // on a desktop the ticked row went grey under the pointer — the one row wearing the page's colour.
+    const currentRow = page.locator('.picker-opt[data-value="RD"]');
+    await page.mouse.move(1, 1);
+    await page.waitForTimeout(250);
+    const tint = await currentRow.evaluate(el => getComputedStyle(el).backgroundColor);
+    expect(tint, 'the current row is tinted').not.toBe('rgba(0, 0, 0, 0)');
+    await currentRow.hover();
+    await page.waitForTimeout(250);   // past the row's fast background transition
+    expect(await currentRow.evaluate(el => getComputedStyle(el).backgroundColor), 'hover keeps the tint').toBe(tint);
 
     // Dismissing changes nothing. The old editor needed a flag and a blur listener to guarantee
     // this; now it is true because nothing was destroyed in the first place.

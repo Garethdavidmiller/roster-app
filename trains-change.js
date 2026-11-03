@@ -521,7 +521,8 @@ export function routeName(stations, station, via) {
  * after, "have ended" at the end. Owner, 2 Nov 2026, of the first: "Can we lose the December times
  * can still change card. This is the confirmed final timetable." It went in EVERY phase, not just
  * that one, because each later warning is already said on the page: "not live running" is the
- * overview's own first line in both tenses (`#trLead`), the Christmas changes have `#trFestive`,
+ * overview's own first line in both tenses (`#trLead`), the Christmas changes have `#trFestive` (outside
+ * the overview's fold since v25.20 — inside it, a second visit never saw it),
  * the end has `#trEnded` (with this link), and the `?` panel keeps the planner. A line that came
  * back on 13 December would have been a card the owner had just asked to lose.
  */

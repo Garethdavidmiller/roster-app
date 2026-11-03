@@ -154,6 +154,28 @@ test.describe('trains', () => {
         expect(errors).toHaveLength(0);
     });
 
+    // A RETURN VISIT STILL SAYS IT (v25.20). The overview opens folded from the second visit (v24.92),
+    // and the Christmas line sat inside the fold — so from v25.13, which took away the line beneath the
+    // tabs that had said it, a member who had opened the page once was never told again. The tests above
+    // were all first visits. Both halves of its life: before the change, and through the festive weeks.
+    for (const [when, words] of [['2026-11-03T10:00:00Z', 'before the change'], ['2026-12-24T10:00:00Z', 'on Christmas Eve']]) {
+        test(`a return visit still shows the Christmas line, with the overview folded — ${words}`, async ({ page }) => {
+            await page.setViewportSize({ width: 390, height: 844 });
+            await page.clock.setFixedTime(new Date(when));
+            await seedSession(page, 'C. Reen');
+            await page.addInitScript(() => localStorage.setItem('myb_trains_overview_seen', '1'));
+            await page.goto('/trains.html');
+            await expect(page.locator('#trChanges .tr-head').first()).toBeVisible();
+            await expect(page.locator('#trOverviewBody')).not.toHaveClass(/\bopen\b/);
+            await expect(page.locator('#trFestive')).toBeVisible();
+            await expect(page.locator('#trFestive')).toBeInViewport();
+            await expect(page.locator('#trFestive')).toContainText('Christmas and New Year are not on this page.');
+            // And the fold still does its job: the first answer is on the first screen.
+            const first = await page.locator('#trChanges .tr-head').first().evaluate(e => Math.round(e.getBoundingClientRect().top));
+            expect(first, 'the first headline is still on the first screen').toBeLessThan(560);
+        });
+    }
+
     test('the Christmas note goes once Chiltern\'s further changes end, on 10 January', async ({ page }) => {
         await page.clock.setFixedTime(new Date('2027-01-11T09:00:00Z'));
         await seedSession(page, 'G. Miller');
@@ -300,7 +322,13 @@ test.describe('trains', () => {
         }), 'the lookup card precedes the changes card').toBe(true);
         await expect(page.locator('#trLookupBody')).not.toHaveClass(/\bopen\b/);
         const first = await page.locator('#trChanges .tr-head').first().evaluate(e => Math.round(e.getBoundingClientRect().top));
-        expect(first, 'the first headline is on the first screen with room to spare (589px before v24.92)').toBeLessThan(500);
+        // Until 10 January the Christmas line sits above the fold ON PURPOSE (v25.20): it is the one thing
+        // on the card a member must not miss, and on a phone it costs ~85px. So it is not counted against
+        // the budget, and is held instead to being a line, not a paragraph — everything else above the
+        // first answer still has to fit in 500px. (Counted, it measured 512px on the phone project.)
+        const christmas = await page.locator('#trFestive').evaluate(e => /** @type {HTMLElement} */ (e).hidden ? 0 : Math.round(e.getBoundingClientRect().height));
+        expect(christmas, 'the Christmas line stays a short note, not a paragraph').toBeLessThan(100);
+        expect(first - christmas, 'the first headline is on the first screen with room to spare (589px before v24.92)').toBeLessThan(500);
         await page.locator('#trLookupToggleHeader').click();
         await expect(page.locator('#trLookupInput')).toBeFocused();
         await page.keyboard.type('1715');

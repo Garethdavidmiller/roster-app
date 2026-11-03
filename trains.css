@@ -52,7 +52,7 @@ body {
     margin-bottom: 12px;
 }
 
-/* The page's colour, raspberry: the header badge, the About badge and the card-title tiles all
+/* The page's colour, raspberry: the header badge, the About badge and every chosen control all
    read it (shared.css :root → "Page identity", v25.14). Declared once, here. */
 :root {
     --page-accent:      var(--raspberry);
@@ -78,9 +78,16 @@ body {
     }
     .tr-overview .card-explainer { max-width: 60ch; }
 }
-/* The card's two notes are one voice: the Christmas note took `.tr-note`'s 12px beside the lead's 13px,
-   and the card read in three sizes (the 2 Nov 2026 polish). */
+/* The card's notes are one voice: the Christmas note took `.tr-note`'s 12px beside the lead's 13px,
+   and the card read in three sizes (the 2 Nov 2026 polish). The data note is the one left in the body. */
 .tr-overview .tr-note { font-size: var(--type-label); }
+/* The Christmas line sits between the header and the fold (v25.20), so a card that opens folded — every
+   visit after the first — still shows it. It carries the body's inset itself, and an open body beneath
+   it gives up its top padding: one 12px step down to the lead, not two. On a wide screen it keeps the
+   lead's measure, so the two read as one block of text. */
+.tr-festive { margin: 0; padding: var(--space-3) var(--space-4); }
+.tr-festive:not([hidden]) + .card-collapsible-body.open { padding-top: 0; }
+@media (min-width: 1024px) { .tr-festive { max-width: calc(60ch + 2 * var(--space-4)); } }
 /* The three days' totals: a small table under one label (the polish of 2 Nov 2026 — as one run-on line
    they wrapped mid-sequence on a phone). A ROW a day — the day, its two counts, its change — in the
    card's sunken surface, as a figure recessed into a card is. Three cells side by side were tried first
@@ -201,8 +208,8 @@ body {
 }
 /* The day row carries its label (v24.92): "Day", the app's uppercase group label — without it three
    pills under three pills read as a second row of views. It sits INSIDE the track, its first word (the
-   2 Nov 2026 polish): beside it on the navy it pushed the track 40px in from the left edge the tabs,
-   the caveat and every card share, the one block on the page that did not line up. */
+   2 Nov 2026 polish): beside it on the navy it pushed the track 40px in from the left edge the tabs
+   and every card share, the one block on the page that did not line up. */
 .tr-day-row { display: flex; }
 .tr-day-row > .tr-tabs { flex: 1; }
 .tr-seg-label {
@@ -562,7 +569,6 @@ tinted box with the whole sentence in the tone's colour). */
 }
 .tr-st-table tbody th { font-weight: 600; color: var(--text-mid); width: 40%; }
 .tr-st-table td { font-weight: 700; }
-.tr-station-tile { margin-top: 12px; }
 /* The station's name takes focus when a chip is chosen (trains-app.js), so a keyboard reader lands
 on the answer: the app's ring, not the browser's orange one. */
 #trStationTitle:focus-visible { outline: var(--focus-outline); outline-offset: 2px; border-radius: 2px; }
