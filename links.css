@@ -1306,12 +1306,18 @@ body.auth-ready .container { display: grid; }
     cursor: pointer;
     white-space: nowrap;
     flex-shrink: 0;
-    transition: background var(--dur-fast) var(--ease-standard);
+    /* Colour and edge move WITH the fill. With the fill alone animated, pressing the only-what-differs
+       filter (v25.16: a purple fill under white words) put white text on a still-pale ground for a
+       tenth of a second — the frame WebKit's accessibility scan caught. */
+    transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard),
+                border-color var(--dur-fast) var(--ease-standard);
 }
 .btn-set--primary { border-color: var(--primary-blue); color: var(--primary-blue); font-weight: 600; }
 .btn-set--danger  { color: var(--text-light); }
+/* Hover never repaints a PRESSED button: this rule out-specifies `.compare-filter-btn[aria-pressed]`,
+   so until v25.16 the filter you had just switched on turned grey under the pointer that switched it. */
 @media (hover: hover) and (pointer: fine) {
-    .btn-set:hover:not(:disabled)          { background: var(--surface-sunken); color: var(--text-dark); }
+    .btn-set:hover:not(:disabled):not([aria-pressed="true"]) { background: var(--surface-sunken); color: var(--text-dark); }
     .btn-set--danger:hover:not(:disabled)  { color: var(--error-red); border-color: var(--error-red); }
 }
 .btn-set:focus-visible { outline: var(--focus-outline); outline-offset: 2px; }

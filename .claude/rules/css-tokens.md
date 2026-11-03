@@ -455,6 +455,16 @@ screenshots: Trains' raspberry view above a navy day; New link's navy chip on a 
 - **Small text inside a chosen fill is re-measured on the new colour.** Overtime's glance-day name was
   75% white, fine on navy (9.8:1) and 4.07:1 on blue-violet; it is 90% now (5.07:1). Every ink-on-accent
   pair is AA: 5.19:1 (New link's teal, the lowest) to 10.5:1 (gold).
+- **Hover never repaints a chosen control.** Every hover rule on a control that can be chosen either
+  excludes the chosen state (`:not([aria-pressed="true"])`, `:not(.active)`) or loses to the chosen
+  rule on order at equal specificity. Links' `.btn-set:hover:not(:disabled)` did neither, so the
+  only-what-differs filter turned grey under the very pointer that switched it on — invisible while
+  "on" was a pale gold tint, obvious once it was purple. Pinned by `e2e/pages.spec.js` → "links
+  compare: the filter hides the identical lines" (mutation-checked).
+- **A control that turns DARK when chosen animates its text with its fill.** `.btn-set` animated only
+  its background, so for a tenth of a second the new white words sat on the old pale ground — the
+  frame WebKit's accessibility scan caught in CI. `e2e/axe.spec.js` → `scan()` now waits for running
+  CSS transitions before it measures, as it already waited for the splash.
 `page-identity-parity.test.mjs` refuses a chosen fill that does not read `--page-accent` unless it is
 in `MEANING`, refuses navy on any chosen fill, and fails on a `MEANING` entry whose rule has gone.
 

@@ -7540,6 +7540,21 @@ test('links compare: the filter hides the identical lines, and says so both ways
     await expect(page.locator('#compareSummary')).toContainText(`still cover all ${ROTATING_LINES} lines`);
     await expect(page.locator('.compare-filter-note')).toContainText(`${ROTATING_LINES - 3} identical lines hidden`);
 
+    // ON is the page's colour, and it stays that colour UNDER THE POINTER that switched it on (v25.16).
+    // `.btn-set`'s hover rule out-specified the pressed one, so the filter turned grey for as long as
+    // the mouse stayed on it — on the desktop, the moment straight after every press. The pointer is
+    // still on the button here: Playwright's click leaves it there, exactly as a hand would.
+    const paint = () => btn.evaluate(el => Promise.all(el.getAnimations().map(a => a.finished)).then(() => {
+        const probe = document.createElement('i');
+        probe.style.background = 'var(--page-accent)';
+        document.body.append(probe);
+        const want = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return { got: getComputedStyle(el).backgroundColor, want, hovered: el.matches(':hover') };
+    }));
+    const on = await paint();
+    expect(on.got, `the switched-on filter is ${on.got} under the pointer (hovered: ${on.hovered}); it must stay the page's colour, ${on.want}`).toBe(on.want);
+
     await btn.click();
     await expect(page.locator('#compareGridBodyRowsA tr:visible')).toHaveCount(ROTATING_LINES);
     await expect(page.locator('#compareSummary')).not.toContainText('still cover all');
