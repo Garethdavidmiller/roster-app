@@ -34,16 +34,50 @@
  * Deliberately NOT a random or ephemeral port: a stable one per checkout means a developer can open
  * the same URL by hand between runs, and a stale listener from a killed run is adopted rather than
  * colliding.
+ *
+ * ── A PORT THE BROWSER REFUSES (3 Nov 2026) ─────────────────────────────────────────────────────
+ *
+ * Browsers refuse to open a short list of ports at all: the navigation fails with
+ * `net::ERR_UNSAFE_PORT` before any request is made, whatever is listening. 4045 is one, and
+ * 4001 + 44 is 4045, so a checkout whose path hashed there would have failed EVERY browser test
+ * with an error that names no file of ours — one path in 120, per config. Measured in Chromium 141:
+ * of 4001–4300, 4045 is the only port refused.
+ *
+ * A refused port moves up by SPREAD, out of the range every other checkout draws from — not to the
+ * next port, which is another checkout's: two checkouts on one port adopt each other's server, the
+ * very failure above. CI is untouched; its base ports are not refused.
  */
 import { createHash } from 'node:crypto';
 
 /** How many ports above the base a derived port may land. Keeps the whole range well inside the
  *  unprivileged space and far from the Firebase emulator ports (4000, 5000, 8080, 9099, 9199). */
-const SPREAD = 120;
+export const SPREAD = 120;
+
+/**
+ * Ports above 1023 that Chromium refuses to navigate to — each one MEASURED (3 Nov 2026, Chromium
+ * 141), not taken from memory: two that memory supplied, 4190 and 6679, loaded normally and are not
+ * here. Only 4045 lies where a derived port can land today; the rest are listed so a changed base or
+ * SPREAD cannot walk into one unnoticed (workflow-hygiene.test.mjs checks every reachable port).
+ */
+export const BROWSER_REFUSED_PORTS = Object.freeze([
+    1719, 1720, 1723, 2049, 3659, 4045, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668, 6669, 6697, 10080,
+]);
+
+/**
+ * The port for a base and a path hash — pure, so every value it can return is checked by a test.
+ * @param {number} base the config's historical port
+ * @param {number} hash an unsigned 16-bit value from the checkout path's digest
+ * @returns {number}
+ */
+export function portFor(base, hash) {
+    let port = base + (hash % SPREAD);
+    while (BROWSER_REFUSED_PORTS.includes(port)) port += SPREAD;
+    return port;
+}
 
 /**
  * The port this checkout's dev server should bind for a given base.
- * @param {number} base the config's historical port (4001 smoke/visual, 4002 offline)
+ * @param {number} base the config's historical port (4001 smoke/visual, 4002 offline, 4003 visual-webkit)
  * @returns {number}
  */
 export function devServerPort(base) {
@@ -52,7 +86,7 @@ export function devServerPort(base) {
     // resolve to the same server as one run from the top, or the same files get two ports.
     const root = process.cwd();
     const digest = createHash('sha256').update(root).digest();
-    return base + (digest.readUInt16BE(0) % SPREAD);
+    return portFor(base, digest.readUInt16BE(0));
 }
 
 /**
