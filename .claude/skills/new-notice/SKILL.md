@@ -257,6 +257,76 @@ For an `index.html` notice, say which audience it declared — the note above th
 audiences are currently live, and anything other than `'members'` should read as a deliberate
 decision rather than a default.
 
+## Lessons from past notices
+
+Moved here from `CLAUDE.md`'s notice table on 3 Nov 2026, so that file can carry the live table and
+the rules without paying, in every session, for the history of notices that have ended. Each lesson
+below cost something once.
+
+### A notice brought back needs a NEW storage key
+
+**`ytd_2627`, run 2 (re-posted 28 Aug 2026).** A ONE-OFF restart on a NEW key
+(`myb_pc_ytd_notice_2_shown`; run 1's key is retired, not deleted). Re-dating alone would have
+reached nobody: the expiry branch flags a device silently, so everyone who arrived after ~5 Jul was
+already marked "shown" for a notice they never saw. It also **opens LAST on the page** — behind the
+data-ownership prompt and the forced set-password overlay.
+
+**`links-beta-2026` (9 Jun 2026)** was replaced at v19.51 on a **new storage key**
+(`myb_links_welcome_seen`): reusing the old one would have hidden the replacement from every designer
+who had already closed the beta notice. The rest of that story is in git.
+
+### Expiring is right for an announcement, and may be wrong for a seasonal prompt
+
+The Status column exists because of `ytd_2627`'s first run. A notice goes INERT the moment
+`isNoticeExpired` fires, but the removal rule only fires at 180 days, so the table read as though
+two rows were live when **neither had shown to anyone for weeks**. That hid a real question:
+`ytd_2627` prompts a member to enter their Year to Date figures at the start of the tax year, and a
+**new starter or a new device from July onwards gets no prompt at all**, which is exactly when
+accurate tax estimates need those figures. Decide that rather than inherit it. **When run 2 lapses
+(~26 Nov 2026), decide rather than re-date**: a seasonal prompt wants to key off whether the member
+has entered Year to Date figures for the current tax year, which is not the one-time notice pattern.
+
+### Orientation is not an announcement
+
+**`links-workspace-2026` (2 Aug 2026) became permanent ORIENTATION at v22.59** (external review). The
+v21.50 sweep called expiring "right for this one" on the reading that it welcomed a designer to a
+workspace they had been using for a fortnight — true of the welcome, and false of what the panel
+actually holds: nothing there touches the live roster, the fatigue checks report rather than approve,
+and designs are shared. Those are the facts a FIRST-TIME designer needs, and from 16 Aug a first-time
+designer was flagged seen and shown nothing. The announcement half stays archived exactly once; the
+orientation half never expires, and `#linksHowBtn` reopens it — a ROW IN THE ABOUT PANEL since v22.83,
+beside 🔧 Operations and 🐛 Report a bug, because that is where this app already keeps a page's own
+links. It was a control of its own on the page for three releases (`.header-end`, above the header,
+below the header) and read as foreign in all three; the lesson was that no other page has a
+standalone help control, not that this one was styled wrongly. It is not a candidate for the 180-day
+removal — it is no longer a notice.
+
+### When a notice's ask becomes a control on the same screen, the notice is arguing with the app
+
+**`sign-in-2026`** (posted 27 Aug 2026, `'signed-out'`) was deleted at **v23.23 by owner decision,
+seven weeks before its 90-day expiry** — retired for being WRONG rather than old, a shape that
+recurs. v23.19 made the Calendar's front door a sign-in card; from that release its entire audience —
+somebody reading the roster on the staff PIN — had already been shown that card and had chosen the
+PIN, so the notice spent its life re-offering a choice the reader declined a moment earlier. Two of
+its three claims had also moved house: the PIN card itself states the code lasts only while the
+browser stays open, and its CTA pointed at Settings for a sign-in that is on the page underneath it.
+Its two guards did not survive it — no live notice declares `'signed-out'` (see the warning under
+Audience above), and it was the only notice the accessibility suite scanned. That scan moved to
+`backpay-2026`, to `al-booking-2026` at v23.31, and to `install-app-2026` at v24.91, when the leave
+reminder was retired early by owner decision (22 Oct 2026).
+
+### A queue of notices: one per load, each with a way back
+
+**The October 2026 trio on `index.html`** — `timetable-2026` (21 Oct), then `ytd-figures-2026`, then
+`install-app-2026` (both 22 Oct) — opened one per page load, never two at once: each later one waits
+for the one before it to be dismissed (`FOLLOWS`). The timetable notice ran to 13 Dec until v24.86 and
+was ended on 31 Oct by owner decision (22 Oct), taking `ytd-figures-2026` with it. Two habits from it
+are worth copying: a notice whose body names its menu route (☰ then 🚆 Trains) loses nothing when
+the reader taps "Not now"; and a notice whose link opens another notice's target (`ytd-figures-2026`
+→ `paycalc.html#payslipCard`) counts that other notice as seen, so the reader is not asked twice.
+`install-app-2026` chooses its "how" as it opens, and on the Pages mirror sends staff to
+myb-roster.web.app rather than installing there.
+
 ## Monthly cleanup — run on the 1st of each month
 
 **At the start of any session on the 1st of each month**, check the "Current notices" table in `CLAUDE.md` for notices whose posted date is more than 180 days ago. Those notices are completely inert — remove them.
