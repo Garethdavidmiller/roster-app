@@ -196,11 +196,9 @@ body {
 }
 /* The track is white, so a segment's focus ring is the light-surface one (the dark-fill ring would vanish). */
 .tr-tabs--seg .tr-tab:focus-visible { outline: var(--focus-outline); outline-offset: 1px; }
-/* A FORCED-COLOURS theme (Windows high contrast) repaints every fill, so the chosen tab would look like the rest; the
-   theme's own Highlight states the choice (a `var(--…)` here would be forced away too). */
-@media (forced-colors: active) {
-    .tr-tab[aria-pressed="true"] { border: 3px solid Highlight; }
-}
+/* A FORCED-COLOURS theme (Windows high contrast) repaints every fill, so the chosen tab would look like the
+   rest: shared.css's one forced-colours rule for every chosen control states it (v25.21 — the border rule
+   that stood here lost to `.tr-tabs--in-card .tr-tab` on the in-card tabs, which then showed no choice). */
 @media (min-width: 1024px) {
     /* The views over the list's column, the day over the lookup's: the page's own two columns (`--tr-side`). */
     .tr-controls { display: grid; grid-template-columns: minmax(0, 1fr) var(--tr-side); column-gap: var(--tr-gap); }
@@ -644,7 +642,9 @@ on the answer: the app's ring, not the browser's orange one. */
 .tr-grid thead th.tr-grid-colhead { padding: 0; }
 .tr-grid-colbtn { padding: 5px 6px; }
 .tr-grid .tr-col-on { background: var(--surface-sunken); }
-.tr-grid thead th.tr-col-on { box-shadow: inset 0 -3px 0 var(--primary-blue); }
+/* The chosen column: a light tint down the table so its times stay readable, and the page's colour on its
+   heading's underline (v25.21 — the underline was navy, the old "chosen"). */
+.tr-grid thead th.tr-col-on { box-shadow: inset 0 -3px 0 var(--page-accent); }
 .tr-grid-focus { margin: 0 0 8px; color: var(--text-mid); font-size: var(--type-small); }
 .tr-grid-focus .tr-more { margin: 0; }
 .tr-grid-tip { margin: 0 0 6px; }

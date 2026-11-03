@@ -39,10 +39,11 @@
  * the pair whose fill is identical by design.
  */
 import { test, expect } from './fixtures.js';
+import { seedSession } from './helpers.js';
 import zlib from 'node:zlib';
 
-/** Distinct RGB colours and their counts, for a small 8-bit PNG. */
-function colourCounts(/** @type {Buffer} */ buf) {
+/** Decode a small 8-bit PNG to its raw pixels. */
+function decodePNG(/** @type {Buffer} */ buf) {
     let p = 8, w = 0, h = 0, bd = 0, ct = 0; /** @type {Buffer[]} */ const idat = [];
     while (p < buf.length) {
         const len = buf.readUInt32BE(p), type = buf.toString('ascii', p + 4, p + 8);
@@ -70,6 +71,12 @@ function colourCounts(/** @type {Buffer} */ buf) {
             out[y * stride + x] = v & 255;
         }
     }
+    return { w, h, bpp, px: out };
+}
+
+/** Distinct RGB colours and their counts, for a small 8-bit PNG. */
+function colourCounts(/** @type {Buffer} */ buf) {
+    const { bpp, px: out } = decodePNG(buf);
     /** @type {Map<string, number>} */ const tally = new Map();
     for (let i = 0; i < out.length; i += bpp) {
         const k = `${out[i]},${out[i + 1]},${out[i + 2]}`;
@@ -145,5 +152,121 @@ test.describe('Windows High Contrast — the drawn checkbox and radio', () => {
         // and not a brand colour that survived `forced-color-adjust: none`.
         expect(seen['checked'].fill, 'the checked fill is Canvas — the forcing has won and the state is gone')
             .not.toBe(seen['unchecked'].fill);
+    });
+});
+
+// ── A CHOSEN CONTROL, ON THE REAL PAGES (v25.21) ─────────────────────────────────────────────────
+//
+// Every chosen tab, segment, chip and date in this app is a FILL, and a forced-colours theme
+// repaints every fill as Canvas — so until v25.21 a chosen control under Windows High Contrast
+// painted exactly like the one beside it. Two pages said otherwise with border rules of their own,
+// and Trains' lost to a later rule on its in-card tabs, which then showed no choice at all.
+// shared.css now states every choice with ONE outline in the theme's `Highlight`.
+//
+// What is asserted is what a reader sees: the chosen control is drawn with a ring and its unchosen
+// neighbour is not. These are REAL controls on real pages, not a probe — a page rule that beats the
+// shared one (an `outline: none`, a later outline of its own) is exactly what this is for. That the
+// ring is the theme's `Highlight`, and no brand colour, is the CSS's shape, pinned statically in
+// native-surface-parity.test.mjs.
+
+/**
+ * The pixels a control's OUTLINE paints: screenshot it, take its outline away, screenshot again, and
+ * count what changed. A chosen control must lose a ring; an unchosen one must lose nothing. Measured
+ * this way because the emulated theme's `Highlight` is the ENGINE's (here a translucent navy,
+ * `rgba(5, 0, 73, 0.8)`, composited over whatever the forcing paints beneath it), so matching one
+ * colour would test the palette rather than the page.
+ * @param {import('@playwright/test').Locator} loc
+ */
+async function ringPixels(loc) {
+    const before = decodePNG(await loc.screenshot());
+    await loc.evaluate(el => /** @type {HTMLElement} */ (el).style.setProperty('outline', 'none', 'important'));
+    const after = decodePNG(await loc.screenshot());
+    await loc.evaluate(el => /** @type {HTMLElement} */ (el).style.removeProperty('outline'));
+    if (before.w !== after.w || before.h !== after.h) throw new Error('the control changed size when its outline went');
+    let n = 0;
+    for (let i = 0; i < before.px.length; i += before.bpp) {
+        if ([0, 1, 2].some(c => Math.abs(before.px[i + c] - after.px[i + c]) > 8)) n++;
+    }
+    return n;
+}
+
+/** Nothing focused, nothing hovered: either could paint a ring of its own. @param {import('@playwright/test').Page} page */
+async function stillPage(page) {
+    await page.mouse.move(0, 0);
+    await page.evaluate(() => /** @type {HTMLElement|null} */ (document.activeElement)?.blur());
+}
+
+/**
+ * Assert each pair: the chosen control is drawn with a ring, the unchosen one without.
+ * @param {import('@playwright/test').Page} page
+ * @param {[string, import('@playwright/test').Locator, import('@playwright/test').Locator][]} pairs
+ */
+async function expectRings(page, pairs) {
+    await page.emulateMedia({ forcedColors: 'active' });
+    expect(await page.evaluate(() => matchMedia('(forced-colors: active)').matches),
+        'the emulation did not take — this test would pass by not testing').toBe(true);
+    await stillPage(page);
+    for (const [name, chosen, other] of pairs) {
+        await expect(chosen, `${name}: the chosen control is not on screen`).toBeVisible();
+        await expect(other, `${name}: the unchosen control is not on screen`).toBeVisible();
+        const on = await ringPixels(chosen), off = await ringPixels(other);
+        expect(on, `${name}: the chosen control has no ring under forced colours (${on} px) — a reader cannot see the choice`)
+            .toBeGreaterThan(40);
+        expect(off, `${name}: an UNCHOSEN control has a ring (${off} px) — every control would read as chosen`)
+            .toBeLessThan(4);
+    }
+}
+
+test.describe('Windows High Contrast — a chosen control shows its choice', () => {
+    test.skip(({ browserName }) => browserName !== 'chromium',
+        'forced-colors emulation is Chromium-only');
+
+    test('Trains: a view tab, a day segment and an in-card tab', async ({ page }) => {
+        await page.clock.setFixedTime(new Date('2026-10-21T09:00:00Z'));
+        await seedSession(page, 'C. Reen');
+        await page.goto('/trains.html');
+        await page.locator('[data-view="stations"]').click();
+        await expect(page.locator('[data-view="stations"]')).toHaveAttribute('aria-pressed', 'true');
+        // The direction tabs appear under a chosen station.
+        if (await page.locator('#trStationPicker').isHidden()) await page.locator('#trStationChange').click();
+        await page.locator('#trStationInput').fill('amersham');
+        await page.locator('#trStationInput').press('Enter');
+        await expect(page.locator('#trStationTitle')).toHaveText('Amersham');
+        await expectRings(page, [
+            ['a view tab', page.locator('[data-view="stations"]'), page.locator('[data-view="changes"]')],
+            ['a day segment', page.locator('.tr-tabs--seg [aria-pressed="true"]'), page.locator('.tr-tabs--seg [aria-pressed="false"]').first()],
+            // The case a border rule could not reach: `.tr-tabs--in-card .tr-tab` won on order.
+            ['an in-card tab', page.locator('#trStationDir [data-sdir="dep"]'), page.locator('#trStationDir [data-sdir="arr"]')],
+        ]);
+    });
+
+    test('Admin: the week picker\'s chosen day', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.goto('/admin.html');
+        await page.waitForSelector('.day-row', { timeout: 10000 });
+        await page.locator('#weekNavLabel').click();
+        await expect(page.locator('.dp-content')).toBeVisible();
+        // A day outside the chosen week: a day inside it is banded, and the band is a fill the theme
+        // removes — which is fine, because the chosen day still says which week it is.
+        await expectRings(page, [
+            ['the chosen day', page.locator('.dp-day.dp-sel'),
+                page.locator('.dp-day:not(.dp-sel):not(.dp-off):not(.dp-today):not(.dp-inweek)').first()],
+        ]);
+    });
+
+    test('New link: a way-of-working tile and a design tab', async ({ page }) => {
+        await seedSession(page, 'G. Miller');
+        await page.goto('/newlink.html');
+        const tiles = page.locator('#nlPersonaChips .nl-tile');
+        await tiles.first().click();
+        await expect(tiles.first()).toHaveAttribute('aria-pressed', 'true');
+        /** @type {[string, import('@playwright/test').Locator, import('@playwright/test').Locator][]} */
+        const pairs = [['a tile', tiles.first(), tiles.nth(1)]];
+        // The design tabs exist on a phone only — a desktop shows the three designs side by side —
+        // so the mobile project is the one that reaches them.
+        if (await page.locator('#nlWeeksTabs').isVisible()) {
+            pairs.push(['a design tab', page.locator('.nl-tab[aria-pressed="true"]').first(), page.locator('.nl-tab[aria-pressed="false"]').first()]);
+        }
+        await expectRings(page, pairs);
     });
 });

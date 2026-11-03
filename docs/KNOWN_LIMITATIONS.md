@@ -11,15 +11,12 @@ These are documented decisions, not oversights. Read before filing a bug or sugg
 The bug, regression and technical-debt check behind v25.20 fixed what was plainly broken. These it
 left, each for a decision rather than a default:
 
-- **Windows High Contrast hides most chosen states.** In forced colours a chosen button and an
-  unchosen one look alike, except Trains' view tabs and New link's tiles, which carry a forced-colours
-  rule. Older than the v25.16 recolour: navy and the gold underline vanished there too. It matters
-  if anybody uses High Contrast; the station PC is Windows. `e2e/forced-colors.spec.js` is the place
-  to extend.
-- **Two colour questions.** Operations' roster review fills every chosen type pill orange, where
-  Admin gives each type its own colour, and answers "Swapped / Rest day" in orange in one place and
-  green in another (Admin: leave's teal). A date picker's chosen day is still navy, the last navy
-  choice (`.claude/rules/css-tokens.md` → "Whatever you have chosen").
+- **Done the same day — High Contrast and the colour questions (v25.21).** Under Windows High
+  Contrast a chosen control used to look like an unchosen one; one rule in shared.css now rings every
+  chosen control in the theme's `Highlight`. Operations' hand-entry type pills wear Admin's type
+  colours, the "Swapped / Rest day" answer is leave's teal in both places it is asked, and the date
+  pickers and Trains' chosen timetable column took the page's colour — the last navy choices.
+  `.claude/rules/css-tokens.md` → "The last navy choices took the page's colour".
 - **Done the same day — CI and the deploy tool off Node 20.** `actions/cache` v6.1.0 (was v4.3.0)
   and `google-github-actions/auth` v3.0.0 (was v2.1.13) both run on Node 24, and firebase-tools runs
   on Node 22 in all three deploys. Its Node 20 pin dated from a "Failed to authenticate" under the

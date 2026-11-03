@@ -185,8 +185,9 @@ test('the colour a page declares is the colour of the drawer pill that takes you
  *  classes the pages use for the same idea. `.is-current-week` is a marker, not a choice, and the
  *  lookahead keeps it out. `--on` and `.compare-active` joined at v25.20: Operations' month toggle and
  *  Links' compare-mode tile were still navy and gold after v25.16, unseen, because the walk could not
- *  read how they spelled "chosen". */
-const CHOSEN = /\[aria-(?:pressed|selected|checked)="true"\]|\.(?:active|is-active|is-on|is-chosen|is-current|compare-active)(?![\w-])|--(?:active|on)(?![\w-])/;
+ *  read how they spelled "chosen". The date pickers' chosen day, week and range and Trains' chosen
+ *  column joined at v25.21, when they took the page's colour (until then they were navy, outside it). */
+const CHOSEN = /\[aria-(?:pressed|selected|checked)="true"\]|\.(?:active|is-active|is-on|is-chosen|is-current|compare-active|dp-sel|dp-inweek|rp-from|rp-to|rp-in-range|tr-col-on)(?![\w-])|--(?:active|on)(?![\w-])/;
 
 /** A rule FILLS a control when it declares a background. A ring, an edge or a text colour is not a
  *  fill, and the brush chips' armed ring (links.css) is one of those, deliberately. */
@@ -213,12 +214,25 @@ const MEANING = {
         ],
     },
     'operations.css': {
+        'a shift TYPE: the colour is the type — Admin\'s pills, held to the same tokens by the test below': [
+            '.roster-entry-pill.is-on[data-entry-type="annual_leave"]', '.roster-entry-pill.is-on[data-entry-type="shift"]',
+            '.roster-entry-pill.is-on[data-entry-type="rdw"]', '.roster-entry-pill.is-on[data-entry-type="sick"]',
+            '.roster-entry-pill.is-on[data-entry-type="correction"]', '.roster-entry-pill.is-on[data-entry-type="other"]',
+        ],
+        'an answer about ANNUAL LEAVE (was this day swapped?), in leave\'s own colour, as on Admin': [
+            '.roster-entry-swap-btn.is-on', '.roster-choice-btn[data-swap].is-chosen',
+        ],
         'an Other flavour: a kind of day, coloured as that kind of day': ['.roster-entry-flavour.is-on'],
         'enter or skip an unreadable cell: green for the one that writes, grey for the one that does not': [
             '.roster-choice-btn.is-chosen', '.roster-choice-btn--skip.is-chosen',
         ],
         'a choice the review has BLOCKED: sunken, because it cannot be acted on': [
-            '.roster-blocked .roster-choice-btn.is-chosen',
+            '.roster-blocked .roster-choice-btn.is-chosen', '.roster-blocked .roster-choice-btn[data-swap].is-chosen',
+        ],
+    },
+    'trains.css': {
+        'a chosen COLUMN of times: a light tint down the table so the times stay readable; its heading\'s underline wears the page colour': [
+            '.tr-grid .tr-col-on',
         ],
     },
     'overtime.css': {
@@ -270,6 +284,9 @@ test('a chosen control fills with its page\'s colour — or is a choice with a m
             if (!fill) continue;
             for (const sel of selectorsOf(r.selector)) {
                 if (!CHOSEN.test(dropNot(sel))) continue;
+                // A pseudo-element is drawn ON the control — today's dot on a chosen date — not the
+                // control's fill, so it is not what this rule is about (v25.21).
+                if (/::?(?:before|after)\b/.test(sel)) continue;
                 // NEVER NAVY, exceptions included: navy is the colour of a button that does something,
                 // and a chosen state in it is the very confusion this rule ended. A named exception is
                 // trusted with its colour, but not with that one.
@@ -290,4 +307,23 @@ test('a chosen control fills with its page\'s colour — or is a choice with a m
         Object.values(groups).flat().map(sel => `${sheet} ${sel}`)).filter(k => !seen.has(k));
     assert.deepEqual(stale, [], 'these exceptions no longer match a chosen fill in their stylesheet — remove them');
     assert.ok(accented >= 15, `only ${accented} chosen fills read --page-accent — the walk has stopped finding them`);
+});
+
+// ── 5. A shift type is ONE colour on both pages ──────────────────────────────────────────────────
+
+test('Operations\' type pills wear Admin\'s type colours, type by type — idle and chosen', () => {
+    // v25.21: from v25.16 every chosen type in Operations' hand-entry box was the page's orange, so a
+    // chosen AL was orange there and teal in Change a Shift. The two pages restate the mapping (one
+    // keyed on `.pill-<type>`, the other on `data-entry-type`), and a copy is what stops matching —
+    // so the tokens are compared here, for every type Admin colours.
+    const admin = read('admin.css'), ops = read('operations.css');
+    const adminTypes = [...admin.matchAll(/\.pill-([a-z_]+)\.active\s*\{\s*background:\s*(var\(--[\w-]+\))/g)];
+    assert.ok(adminTypes.length >= 6, `found only ${adminTypes.length} of Admin's type colours — the pattern has stopped matching`);
+    for (const [, type, fill] of adminTypes) {
+        const idle = new RegExp(`\\.pill-${type}\\s*\\{\\s*color:\\s*(var\\(--[\\w-]+\\))`).exec(admin)?.[1];
+        const opsFill = new RegExp(`\\.roster-entry-pill\\.is-on\\[data-entry-type="${type}"\\]\\s*\\{\\s*background:\\s*(var\\(--[\\w-]+\\))`).exec(ops)?.[1];
+        const opsIdle = new RegExp(`\\.roster-entry-pill\\[data-entry-type="${type}"\\]\\s*\\{\\s*color:\\s*(var\\(--[\\w-]+\\))`).exec(ops)?.[1];
+        assert.equal(opsFill, fill, `a chosen ${type} pill is ${fill} on Admin and ${opsFill ?? 'not coloured'} in Operations' hand entry`);
+        assert.equal(opsIdle, idle, `an idle ${type} pill's text is ${idle} on Admin and ${opsIdle ?? 'not coloured'} in Operations' hand entry`);
+    }
 });
