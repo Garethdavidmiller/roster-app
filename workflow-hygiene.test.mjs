@@ -18,8 +18,11 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdtempSync, mkdirSync, rmSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { createHash } from 'node:crypto';
+import { SPREAD, BROWSER_REFUSED_PORTS, portFor, devServerPort, devServer } from './e2e/dev-server.mjs';
 
 const WF_DIR = '.github/workflows';
 const LINT_WF = join(WF_DIR, 'workflow-lint.yml');
@@ -845,6 +848,82 @@ describe('every workflow that installs also caches the install', () => {
                 + 'invalidates it.');
         });
     }
+});
+
+// ── THE LOCAL TEST SERVER NEVER PICKS A PORT THE BROWSER REFUSES (3 Nov 2026) ──────────────────────
+//
+// e2e/dev-server.mjs gives each checkout its own port, base + (path hash % SPREAD), so two worktrees
+// never adopt each other's server. Chromium refuses port 4045 outright (net::ERR_UNSAFE_PORT, before
+// any request) and 4001 + 44 is 4045: one checkout path in 120 failed EVERY browser test with an error
+// naming no file of ours, and nothing guarded it. These read the bases from the configs and try every
+// value the hash can take, so no future base, spread or refused port escapes them by not being listed.
+describe('the local test server never picks a port the browser refuses', () => {
+    const bases = [...new Set(readdirSync('.')
+        .filter(f => /^playwright\..*\.mjs$/.test(f))
+        .flatMap(f => [...readFileSync(f, 'utf8').matchAll(/devServer\((\d+)\)/g)].map(m => Number(m[1]))))];
+    /** What the old formula gave — the hazard, reconstructed independently of the module. */
+    const raw = (/** @type {number} */ base, /** @type {number} */ n) => base + (n % SPREAD);
+
+    test('the configs\' bases were actually read', () => {
+        assert.ok(bases.length >= 2, `expected the smoke and offline bases, read ${bases.join(', ') || 'none'}`);
+        assert.ok(bases.some(b => BROWSER_REFUSED_PORTS.some(p => p >= b && p < b + SPREAD)),
+            'premise: a refused port lies in some base\'s range — if not, the move below is never exercised');
+    });
+
+    test('no value the path hash can take gives a refused port', () => {
+        for (const base of bases) {
+            assert.ok(!BROWSER_REFUSED_PORTS.includes(base), `base ${base} is refused, and CI uses the base unchanged`);
+            for (let n = 0; n <= 0xffff; n++) {
+                const port = portFor(base, n);
+                if (BROWSER_REFUSED_PORTS.includes(port)) assert.fail(`base ${base}, hash ${n}: port ${port} is one the browser refuses`);
+            }
+        }
+    });
+
+    test('only a refused port moves, and never onto a port another checkout uses', () => {
+        // Moving to the NEXT port would land on another checkout's, and two checkouts on one port adopt
+        // each other's server — the silent wrong-bytes failure the module exists to prevent.
+        const unmoved = new Set();
+        const moved = new Set();
+        for (const base of bases) {
+            for (let n = 0; n <= 0xffff; n++) {
+                if (BROWSER_REFUSED_PORTS.includes(raw(base, n))) moved.add(portFor(base, n));
+                else {
+                    assert.equal(portFor(base, n), raw(base, n), `base ${base}, hash ${n}: a port that was fine must not change`);
+                    unmoved.add(raw(base, n));
+                }
+            }
+        }
+        assert.ok(moved.size > 0, 'premise: some hash lands on a refused port');
+        for (const port of moved) assert.ok(!unmoved.has(port), `a refused port moved to ${port}, which an unaffected checkout uses`);
+    });
+
+    test('a checkout whose path hashes to 4045 is served elsewhere — the real functions, from a real directory', () => {
+        // The entry point, not only the helper: find a directory the old formula sends to 4045, stand in it,
+        // and ask devServerPort and devServer for the port and the command that would start the server.
+        const parent = realpathSync(mkdtempSync(join(tmpdir(), 'devport-')));
+        let dir = '';
+        for (let i = 0; !dir; i++) {
+            const candidate = join(parent, `c${i}`);
+            if (raw(4001, createHash('sha256').update(candidate).digest().readUInt16BE(0)) === 4045) dir = candidate;
+        }
+        mkdirSync(dir);
+        const was = process.cwd();
+        const ci = process.env.CI;
+        delete process.env.CI;   // CI keeps the base port by design; this is the local derivation
+        try {
+            process.chdir(dir);
+            const port = devServerPort(4001);
+            assert.notEqual(port, 4045, `${dir} still gets the port the browser refuses`);
+            const { baseURL, webServer } = devServer(4001);
+            assert.equal(baseURL, `http://127.0.0.1:${port}`);
+            assert.match(webServer.command, new RegExp(`-p ${port} `), 'the server must bind the port the tests open');
+        } finally {
+            process.chdir(was);
+            if (ci !== undefined) process.env.CI = ci;
+            rmSync(parent, { recursive: true, force: true });
+        }
+    });
 });
 
 // ── THE DEPLOY GATE SURVIVES ONE TRANSIENT FAILURE, AND SAYS IT DID (v23.45) ────────────────────
