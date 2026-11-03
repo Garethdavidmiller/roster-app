@@ -40,13 +40,15 @@ const SPECS = readdirSync(SPEC_DIR).filter(f => f.endsWith('.spec.js'));
  */
 const SINGLE_PROJECT_EXEMPT = [
     {
-        file: 'pages.spec.js',
+        // In three specs since pages.spec.js was split by page (3 Nov 2026): the sweep, and two
+        // page tests that size their own controls.
+        files: ['pages.spec.js', 'admin.spec.js', 'links.spec.js'],
         match: "'a thumb, not a mouse'",
         why: 'WCAG 2.2 SC 2.5.8 tap-target sizing. A standard about geometry, not about rendering — '
            + 'the number is the same on both engines, so a second run would cost time and prove nothing.',
     },
     {
-        file: 'auth.spec.js',
+        files: ['auth.spec.js'],
         match: "'iOS has no install offer; the card shows steps instead'",
         why: 'A PLATFORM rule, not a touch one: the test dispatches Chromium\'s `beforeinstallprompt`, '
            + 'which iOS never fires, and on an iPhone the Device card shows the Home Screen steps with '
@@ -67,7 +69,7 @@ describe('a touch-only test runs on every touch engine', () => {
                 // its phone viewport and its phone expectations on 'mobile-chrome', so under
                 // mobile-safari it took the desktop branch and the phone half never ran on WebKit.
                 if (!/project\.name\s*[!=]==\s*'mobile-(chrome|safari)'/.test(line)) return;
-                if (SINGLE_PROJECT_EXEMPT.some(e => e.file === f && line.includes(e.match))) return;
+                if (SINGLE_PROJECT_EXEMPT.some(e => e.files.includes(f) && line.includes(e.match))) return;
                 offenders.push(`${f}:${i + 1}  ${line.trim()}`);
             });
         }
@@ -80,10 +82,12 @@ describe('a touch-only test runs on every touch engine', () => {
 
     test('every exemption still matches a real line — a stale one is a gate nobody is watching', () => {
         for (const e of SINGLE_PROJECT_EXEMPT) {
-            const src = readFileSync(`${SPEC_DIR}/${e.file}`, 'utf8');
-            assert.ok(src.includes(e.match),
-                `${e.file} no longer contains ${e.match} — drop the exemption rather than leaving it `
-              + 'to excuse something else later');
+            for (const file of e.files) {
+                const src = readFileSync(`${SPEC_DIR}/${file}`, 'utf8');
+                assert.ok(src.includes(e.match),
+                    `${file} no longer contains ${e.match} — drop it from the exemption rather than `
+                  + 'leaving it to excuse something else later');
+            }
             assert.ok(e.why && e.why.length > 40, `${e.match} needs a reason, not a placeholder`);
         }
     });

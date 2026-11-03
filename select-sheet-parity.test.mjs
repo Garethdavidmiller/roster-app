@@ -529,7 +529,7 @@ test('no spec asserts text on a trigger button instead of its face', () => {
 // has is a BOX. So a geometry or visibility assertion on it is wrong in one of two ways, and the
 // two are not equally visible:
 //
-//   · FALSE FAIL — a measurement returns 1. `pages.spec.js`'s "settings login fields are styled
+//   · FALSE FAIL — a measurement returns 1. `settings.spec.js`'s "settings login fields are styled
 //     full-width" read `#loginGrade`'s width and went red the moment v23.49 enhanced the sign-in
 //     pair, on a card that was rendering perfectly. Loud, and fixed the same hour.
 //   · FALSE PASS — `toBeVisible()` keeps passing. Playwright calls a 1px element with no

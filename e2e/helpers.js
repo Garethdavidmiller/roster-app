@@ -1,6 +1,7 @@
 // Shared helpers for the Playwright specs. Extracted from smoke.spec.js when it was split
 // into per-area files (v17.46) so every spec draws from one source. Imported by
-// calendar.spec.js, auth.spec.js, paycalc.spec.js, pages.spec.js, responsive.spec.js.
+// calendar.spec.js, auth.spec.js, paycalc.spec.js, pages.spec.js, responsive.spec.js, and the
+// per-page specs split out of pages.spec.js (admin, links, operations, settings, guides).
 
 import { expect } from '@playwright/test';
 import { ROTATING_LINES } from '../links-design.js';
@@ -763,4 +764,29 @@ export async function switchToDesign(page, name) {
     // It does NOT assert the switch happened. Picking a row asks the coordinator to switch, and the
     // coordinator may refuse — the unsaved-changes confirm is a test in its own right, and asserting
     // the outcome here made that test fail on the helper's line instead of its own.
+}
+
+// ── LAYOUT PROBES SHARED BY THE PAGE SPECS (moved from pages.spec.js, 3 Nov 2026) ─────────────
+// Why text is scaled rather than the viewport narrowed: the comment above the "large text does
+// not shave the page" tests in pages.spec.js.
+/** @param {import('@playwright/test').Page} page @param {number} k */
+export async function scaleText(page, k) {
+    await page.evaluate((mult) => {
+        document.querySelectorAll('*').forEach((el) => {
+            const px = parseFloat(getComputedStyle(el).fontSize);
+            if (px) /** @type {HTMLElement} */ (el).style.fontSize = (px * mult) + 'px';
+        });
+    }, k);
+}
+/** Container items + cards whose right edge is past the viewport. Content INSIDE a card may
+ *  overflow — `.card { overflow: hidden }` contains it, which is the design. What must never
+ *  overflow is the card itself, or anything else the container lays out. */
+export function tooWide(page) {
+    return page.evaluate(() => {
+        const vw = document.documentElement.clientWidth;
+        return [...document.querySelectorAll('.container > *, .card')]
+            .filter(el => { const r = el.getBoundingClientRect();
+                            return r.width > 0 && Math.round(r.right) > vw + 1; })
+            .map(el => `${el.tagName}${el.id ? '#' + el.id : ''}.${(typeof el.className === 'string' ? el.className : '').split(' ')[0]}`);
+    });
 }

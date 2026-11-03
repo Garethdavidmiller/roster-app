@@ -378,8 +378,8 @@ jobs:
     # slowest job in the run by four to ten minutes. So each project is now its own job. It is split by
     # PROJECT rather than sharded, because the two run the same 900 tests and their summed test time
     # on v25.23's run was 20.8 and 20.6 minutes — even halves with nothing about how a test runs
-    # changed. Sharding needs `fullyParallel` to balance (pages.spec.js is one file, and Playwright
-    # shards whole files without it; playwright.webkit.mjs has the measurement), which this suite
+    # changed. Sharding needs `fullyParallel` to balance (Playwright shards whole files without it,
+    # and one file holds over 100 tests; playwright.webkit.mjs has the measurement), which this suite
     # does not need yet. A failure now also names its screen size. When a half outgrows its box in
     # turn, shard within the project as the webkit job does.
     #
@@ -518,8 +518,9 @@ jobs:
   #
   # Sharding only pays with `fullyParallel: true`, which is set in playwright.webkit.mjs and NOT in
   # the shared config: Playwright shards by test GROUP, and with that flag off a group is a whole
-  # FILE, so pages.spec.js's 143 tests would pin one shard at ~4 minutes no matter how many shards
-  # there are. The reasoning and the measurement behind that flag live beside it, in that file.
+  # FILE, so pages.spec.js's 143 tests (as it then was; it was split by page on 3 Nov 2026) would
+  # pin one shard at ~4 minutes however many shards there are. The reasoning and the measurement
+  # behind that flag live beside it, in that file.
   #
   # THE COST, STATED: four jobs pay the ~1m18s setup instead of two, so total runner minutes go up
   # while wall clock comes down. That is the trade being made deliberately — the scarce thing here

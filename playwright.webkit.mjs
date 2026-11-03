@@ -116,7 +116,8 @@
  * conclude this comment is wrong. Playwright shards by test GROUP and balances the groups by
  * COUNT, so with the flag off the counts already come out close: measured, 204/190 against the
  * 197/197 it gives on. But with it off a group is a whole FILE, so every one of `pages.spec.js`'s
- * 143 tests lands in the same shard AND the same worker, and that shard has a ~4-minute serial
+ * 143 tests (as it then was; it was split by page on 3 Nov 2026) lands in the same shard AND the
+ * same worker, and that shard has a ~4-minute serial
  * critical path however many shards there are. Turning it on lets those tests spread across both
  * shards and both workers, which is the only thing that moves the floor.
  *

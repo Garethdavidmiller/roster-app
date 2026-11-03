@@ -4,7 +4,7 @@
  *
  * The markup is pure, so what a reader is OFFERED is tested without a page: which button is pressed,
  * which is refused and why, and that the figures say what `alPosition` says. The wiring — that a tap
- * reaches the save, and the save the right year — is the browser's, in e2e/pages.spec.js.
+ * reaches the save, and the save the right year — is the browser's, in e2e/admin.spec.js.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';

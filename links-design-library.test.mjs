@@ -10,7 +10,7 @@
  * tests drive the module the way the page does — a click on a row, the Check and Save buttons — and
  * assert on what reached the store and the coordinator, not on what a helper returns.
  *
- * The e2e suite (e2e/pages.spec.js, the `links:` bin and import tests) still covers the panels as a
+ * The e2e suite (e2e/links.spec.js, the `links:` bin and import tests) still covers the panels as a
  * user sees them; this file covers the seam between the library and the coordinator, which a browser
  * test cannot see.
  */

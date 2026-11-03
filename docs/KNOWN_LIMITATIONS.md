@@ -32,8 +32,9 @@ left, each for a decision rather than a default:
   scripts. Its own 13 MB zip no longer changes, so it costs checkout size and nothing more.
 - **Size**: ten of the 28 modules in `coordinator-ratchet.test.mjs` sit exactly at their cap. The
   seven stylesheets over 900 lines are capped since v25.23 (`stylesheet-ratchet.test.mjs`, the same
-  ratchet: `index.css` 3,861 lines and `shared.css` 3,852 on 3 Nov 2026). `e2e/pages.spec.js` is
-  10,580 lines; splitting it by page waits for no other branch to be editing it.
+  ratchet: `index.css` 3,861 lines and `shared.css` 3,852 on 3 Nov 2026). `e2e/pages.spec.js`
+  was split by page on 3 Nov 2026: Admin, Links, Operations, Settings and the guides each have
+  their own spec, and it keeps the tests that span pages.
 - **Twins, settled the same day.** `isRest` and the window-row conversion are one copy each now
   (`links-design.js`; `rowMinutes` in `links-window.js`). Two stay apart on purpose: `withTimeout`
   (`login-overlay.js`, `password-force.js`) — login's copy ignores the error and the other's callers
@@ -372,7 +373,7 @@ asking before a drawer link drops staged edits) is the first such exit with a te
 **What a test does about it.** Stop the navigation at the network with `route.fulfill({ status:
 204 })`, which every browser treats as "stay on this page", and assert the request Leave made. Prove
 the destination in a second test that gets there without the dialog. `admin: a drawer pill or the
-logo asks before leaving staged edits` and the test after it in `e2e/pages.spec.js` do exactly
+logo asks before leaving staged edits` and the test after it in `e2e/admin.spec.js` do exactly
 this. **Never skip such a test on WebKit**: it is the lane's only view of the dialog, the drawer and
 the guard on Safari's engine.
 
@@ -1997,7 +1998,7 @@ coordinator is what remains once the pure logic has been extracted out, so `cale
 `admin-app.js` are DOM-bound by construction and a unit harness for either would be a mock of the
 whole page. Their decisive seams are wiring-tested instead, deliberately, in e2e — and the tests say
 so in their own headers: `e2e/calendar.spec.js` (`day detail:` block) pins `personalActionsAllowed`
-at its call site and records the mutation that justified it, and `e2e/pages.spec.js` does the same
+at its call site and records the mutation that justified it, and `e2e/admin.spec.js` does the same
 for `_syncMemberFor`. **Do not read "only e2e covers it" as a shortfall here. That IS the wiring
 test** the "rule tested, the wiring not" risk in CLAUDE.md asks for.
 

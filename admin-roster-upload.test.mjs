@@ -1118,7 +1118,7 @@ describe('the review entry control refuses equal start and end', () => {
 // wore the DECISION style (`act-choice`) from the start, so the identical words looked like two
 // different problems. The style is now `act-read` until something will be written. Presentation
 // only: the helper reads `chosen` and never sets it. The render and the in-place patches are
-// driven through the real table by e2e/pages.spec.js; this pins the rule every one of them calls.
+// driven through the real table by e2e/operations.spec.js; this pins the rule every one of them calls.
 describe('unreadableTagClass — the chip style on an unreadable row', () => {
     const options = [{ value: '06:00-14:00', display: '06:00-14:00' }, { value: 'RD', display: 'RD' }];
     test('unanswered is "couldn\'t read" on BOTH shapes', async () => {
@@ -1578,7 +1578,7 @@ describe('a shifted read fails closed', () => {
 // ── THE REST-DAY GUARD ASKS, ON EVERY ROUTE (whole-app review, Oct 2026) ─────────────────────────
 //
 // Two routes still answered the swap question in silence after v24.42 made the parsed path ask it.
-// Each is pinned here at the rule the save path reads; e2e/pages.spec.js drives both to the write.
+// Each is pinned here at the rule the save path reads; e2e/operations.spec.js drives both to the write.
 
 /** A member, and a Mon–Sat date on which their base roster is a rest day. */
 function restDayFixture() {
@@ -1642,7 +1642,7 @@ describe('leave or an absence ENTERED on a base rest day asks the swap question 
 
     test('the save path carries the answer: a "swapped" entry is written with swapped=true', () => {
         // Pinned statically: admin-roster-upload.js imports Firebase from a CDN URL, so its save loop
-        // cannot be driven here. The browser test in e2e/pages.spec.js drives it to the payload.
+        // cannot be driven here. The browser test in e2e/operations.spec.js drives it to the payload.
         const src = readFileSync(new URL('./admin-roster-upload.js', import.meta.url), 'utf8');
         assert.match(src, /value: state\.entered\.display,[^\n]*swapped: !!state\.entered\.swapped/);
     });

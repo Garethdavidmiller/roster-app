@@ -10,7 +10,7 @@
  *  - CLAIMING TOO MUCH is the noisy one: a zero rendered as an item, or an unreported card
  *    presented as clean/urgent — either teaches the admin to stop trusting the strip.
  *
- * The DOM half is thin and covered where only a browser can see it (e2e/pages.spec.js: real card
+ * The DOM half is thin and covered where only a browser can see it (e2e/operations.spec.js: real card
  * loads feeding the strip, the jump opening the real card). Part of test:hygiene.
  */
 import { test } from 'node:test';

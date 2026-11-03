@@ -1218,7 +1218,7 @@ Measured at 390px and 1280px, not eyeballed. Five things, and the first is a bug
   state), and the visual project is FINE-pointer only, so the 56×40 coarse box that caused the clause
   to fragment never appears in a baseline at all. Both are asserted in code instead — the fill
   direction beside the desktop shot in `visual.spec.js`, the clause on **mobile-chrome** in
-  `pages.spec.js` at 360px. Do not move the clause test into the visual suite: measured at 390, 360
+  `links.spec.js` at 360px. Do not move the clause test into the visual suite: measured at 390, 360
   and 300 there, it passes on the broken markup.
   **The checked-row treatment is asserted in COMPUTED STYLE, not left to the pixels**, and that split
   is not belt-and-braces: `--bg-faint` is `oklch(97%)` against white, a 3% step, far under the

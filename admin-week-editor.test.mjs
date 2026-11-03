@@ -32,7 +32,7 @@
  * every path after the markup is written is guarded on an element the fake returns as absent, so
  * the real function runs to completion. The row markup is then asserted as text. The prefill and
  * pill-interaction paths need a parser and are out of scope here; they are exercised in
- * e2e/pages.spec.js, where a real browser builds the rows.
+ * e2e/admin.spec.js, where a real browser builds the rows.
  */
 
 import { test, describe, mock, beforeEach } from 'node:test';

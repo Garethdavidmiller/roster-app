@@ -27,7 +27,7 @@
  *
  * The inverse is the real risk and is handled by the allowlist rather than by cleverness: a module
  * can be exercised thoroughly through BEHAVIOUR without its name appearing anywhere (the three
- * Operations cards are driven by e2e/pages.spec.js through their DOM, never by filename). A first
+ * Operations cards are driven by e2e/operations.spec.js through their DOM, never by filename). A first
  * naive cut of this sweep reported twelve modules and ten of them were that case. So an entry here
  * is not "untested" — it is "unnamed, and here is why that is acceptable".
  *
@@ -68,10 +68,10 @@ const UNNAMED_BY_DESIGN = {
     'settings-boot.js':   'boot shim — 12 lines, no branches; page-contract-parity asserts it exists',
     'trains-boot.js':     'boot shim — 12 lines, no branches; page-contract-parity asserts it exists',
 
-    'operations-errors.js': 'driven through its card by e2e/pages.spec.js (Error Log)',
-    'operations-usage.js':  'driven through its card by e2e/pages.spec.js (Usage)',
-    'operations-speed.js':  'driven through its card by e2e/pages.spec.js (App Speed)',
-    'admin-sick.js':        'a thin config wrapper over admin-range-booking.js, whose factory is now directly tested; the Absence card is driven by e2e/pages.spec.js',
+    'operations-errors.js': 'driven through its card by e2e/operations.spec.js (Error Log)',
+    'operations-usage.js':  'driven through its card by e2e/operations.spec.js (Usage)',
+    'operations-speed.js':  'driven through its card by e2e/operations.spec.js (App Speed)',
+    'admin-sick.js':        'a thin config wrapper over admin-range-booking.js, whose factory is now directly tested; the Absence card is driven by e2e/admin.spec.js',
     'railcard-guide.js':    'guide-page chrome (print, chip-bar); content is pinned by guide-sources + guide-index-parity',
     'rangers-guide.js':     'guide-page chrome; evidence states pinned by guide-sources.test.mjs',
 
@@ -79,10 +79,10 @@ const UNNAMED_BY_DESIGN = {
     // Each was "named" only by a comment somewhere. Every reason below was checked against the spec
     // it cites; the three that were NOT covered by anything (calendar-keyboard's arrow keys,
     // error-reporter's wiring, paycalc-sticky-total, calendar-notif-prompt) got suites instead.
-    'admin-time-inputs.js':  'driven by e2e/pages.spec.js ("admin: a week-grid time box formats as typed, moves on, and flags an impossible time"); its typing rule is clock-input.js, unit-tested by clock-input.test.mjs',
-    'admin-week-swipe.js':   'driven by e2e/pages.spec.js ("the week label follows the swipe", "the week arrows and the swipe move the same state")',
-    'fip-guide.js':          'guide-page chrome; driven by e2e/pages.spec.js (the FIP GUIDE block: jump-to-open, malformed-hash safety)',
-    'paycalc-transfer-card.js': 'driven by e2e/pages.spec.js (the Settings "Pay Calculator Data" pointer card renders and links)',
+    'admin-time-inputs.js':  'driven by e2e/admin.spec.js ("admin: a week-grid time box formats as typed, moves on, and flags an impossible time"); its typing rule is clock-input.js, unit-tested by clock-input.test.mjs',
+    'admin-week-swipe.js':   'driven by e2e/admin.spec.js ("the week label follows the swipe", "the week arrows and the swipe move the same state")',
+    'fip-guide.js':          'guide-page chrome; driven by e2e/guides.spec.js (the FIP GUIDE block: jump-to-open, malformed-hash safety)',
+    'paycalc-transfer-card.js': 'driven by e2e/settings.spec.js (the Settings "Pay Calculator Data" pointer card renders and links)',
 
     // ── NO GENUINE GAPS REMAIN ──────────────────────────────────────────────────────────────────
     // `paycalc-year-card.js` sat here from v23.69 as the one entry that was debt rather than a

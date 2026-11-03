@@ -198,7 +198,7 @@ test('settings — mobile 390 (signed in)', async ({ page }) => {
 // stopped testing anything and nothing to say so. So a missing anchor throws, and the test asserts
 // the fixture actually reached the DOM before it captures.
 // The fixture and the stub are `e2e/helpers.js`'s (`usageStats`, `stubUsageReads`) since v25.00, shared
-// with the card's behaviour tests in pages.spec.js. July 2026 is deliberately a month counted before
+// with the card's behaviour tests in operations.spec.js. July 2026 is deliberately a month counted before
 // the release-reload change, so the baseline also holds the note that says so.
 const USAGE_FIXTURE = usageStats({
     month: '2026-07', prevMonth: '2026-06',
@@ -521,7 +521,7 @@ test('links — auto-generator card at a narrow width (390)', async ({ page }) =
     // this project is fine-pointer, where the number box is 52×28 and the clause fits whatever you
     // do to it. The v19.65 fragmentation only happens at 56×40 — the coarse-pointer size. Measured:
     // deleting the `white-space: nowrap` that fixes it leaves this test green. It lives in
-    // pages.spec.js on mobile-chrome instead, where it fails.
+    // links.spec.js on mobile-chrome instead, where it fails.
     await settle(page, '.gen-objectives');
     await expect(page.locator('.gen-objectives')).toHaveScreenshot('links-objectives-narrow.png');
 });
