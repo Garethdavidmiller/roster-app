@@ -411,6 +411,54 @@ describe('overrides — replacedType (v21.55)', () => {
     });
 });
 
+// ────────────────────────────────────────────────────────────────────────�
+// overrides — leaveYear (v25.18). A January leave day may come out of the PREVIOUS year's allowance
+// (owner, 3 Nov 2026). The rules hold the shape: annual leave, dated in January, naming the year
+// before as a whole number. Who may set it is the isolation the rest of the document already has —
+// a member on their own leave, a manager or the admin on anyone's — and these pin that it did not
+// widen or narrow. The cap ("no more than last year has left") is a count, which rules cannot take.
+// ────────────────────────────────────────────────────────────────────────�
+describe('overrides — leaveYear (v25.18)', () => {
+    const JAN = (over = {}) => ({ ...VALID_OVERRIDE(), date: '2027-01-04', leaveYear: 2026, ...over });
+
+    test('a member CAN put their own January leave day on last year\'s allowance', async () => {
+        await assertSucceeds(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), JAN()));
+    });
+    test('a manager CAN do it on anyone\'s, and so can the admin', async () => {
+        await assertSucceeds(setDoc(doc(managerDb('S. Stewart'), 'overrides', uid()), JAN()));
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()), JAN()));
+    });
+    test('a member CANNOT do it on a colleague\'s leave', async () => {
+        await assertFails(setDoc(doc(namedDb('S. Boyle'), 'overrides', uid()), JAN()));
+    });
+    test('both ends of January are accepted', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ date: '2027-01-01' })));
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ date: '2027-01-31' })));
+    });
+    test('the field stays OPTIONAL — a January day with none counts against its own year', async () => {
+        const { leaveYear, ...plain } = JAN();
+        await assertSucceeds(setDoc(doc(namedDb('G. Miller'), 'overrides', uid()), plain));
+    });
+    test('outside January it is REFUSED — 31 December and 1 February alike', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ date: '2026-12-31', leaveYear: 2025 })));
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ date: '2027-02-01' })));
+    });
+    test('on anything but annual leave it is REFUSED', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ type: 'sick', value: 'SICK' })));
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ type: 'shift', value: '06:30-14:30' })));
+    });
+    test('only the year BEFORE — not its own year, not two back, not a year ahead', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ leaveYear: 2027 })));
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ leaveYear: 2025 })));
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ leaveYear: 2028 })));
+    });
+    test('a string, a fraction or null is REFUSED — the builders omit the key instead', async () => {
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ leaveYear: '2026' })));
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ leaveYear: 2026.5 })));
+        await assertFails(setDoc(doc(adminDb(), 'overrides', uid()), JAN({ leaveYear: null })));
+    });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // THE APP'S OWN PAYLOADS MEET THE RULES (Oct 2026 review). Every other override test here writes a
 // hand-built object, so nothing tied the fields `buildOverrideWrite` produces to the rules' field
@@ -432,6 +480,15 @@ describe('overrides — the real builder, and provenance the writer cannot forge
     });
     test('a manager on behalf, stamping their OWN name', async () => {
         await assertSucceeds(setDoc(fixed(managerDb('S. Stewart')), build({ changedBy: 'S. Stewart' })));
+    });
+    test('a member moving their own January leave day between allowances, as the builder writes it (v25.18)', async () => {
+        const JAN = '2027-01-05';
+        const ref = doc(namedDb('G. Miller'), 'overrides', manualOverrideId('G. Miller', JAN));
+        const leave = (/** @type {any} */ f) => build({ date: JAN, type: 'annual_leave', value: 'AL', ...f });
+        await assertSucceeds(setDoc(ref, leave({})));                    // booked: its own year
+        await assertSucceeds(setDoc(ref, leave({ leaveYear: 2026 })));   // moved back
+        await assertSucceeds(setDoc(ref, leave({ leaveYear: null })));   // and forward again
+        assert.equal(leave({ leaveYear: 2026 }).leaveYear, 2026, 'the builder sends what the rules accept');
     });
     test('an admin\'s roster import, as the builder writes it', async () => {
         await assertSucceeds(setDoc(doc(namedAdminDb(), 'overrides', uid()), build({ source: 'roster_import' })));

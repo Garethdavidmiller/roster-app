@@ -40,7 +40,8 @@
 
 import { getALEntitlement, projectAnnualLeaveOverage } from './roster-data.js';
 import { swapDecisionDates } from './al-swapped-days.js';
-import { consumesEntitlement, countedAlDates, isWorkingDate } from './al-entitlement.js';
+import { consumesEntitlement, countedAlDates, isWorkingDate, winningEntriesOfType } from './al-entitlement.js';
+import { carriedFrom } from './leave-year.js';
 
 /**
  * Will this one date cost a day of entitlement?
@@ -173,12 +174,16 @@ function _counts(sets) {
  */
 export function projectAlOverage({ member, memberName, overrides, consuming, exclude = null }) {
     if (!member || !Array.isArray(consuming) || !consuming.length) return null;
-    const years = [...new Set(consuming.map(d => d.substring(0, 4)))].sort();
+    // WHICH YEAR EACH DAY WILL SPEND (v25.18). Its own — unless it is a January day already moved to
+    // the year before, which a re-save carries forward (`nextLeaveYear`), so it is charged there.
+    const winners = new Map(winningEntriesOfType(overrides, member.name, 'annual_leave').map(o => [o.date, o]));
+    const yearFor = (/** @type {string} */ d) => String(carriedFrom(winners.get(d), d) ?? d.substring(0, 4));
+    const years = [...new Set(consuming.map(yearFor))].sort();
     for (const yearStr of years) {
         const entitlement = getALEntitlement(member, parseInt(yearStr, 10), overrides);
         if (entitlement === null) continue;
         const existingALDates = countedAlDates({ overrides, member, year: yearStr, exclude });
-        const newALDates = consuming.filter(d => d.startsWith(yearStr));
+        const newALDates = consuming.filter(d => yearFor(d) === yearStr);
         const overage = projectAnnualLeaveOverage({
             name: memberName, year: yearStr, existingALDates, newALDates, entitlement,
         });

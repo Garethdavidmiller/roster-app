@@ -86,7 +86,7 @@ mock.module('./firebase-client.js', {
 const { shiftValueToOverrideType, _saveOverrideBatches, fetchOverridesForWeek, computeCellStates,
         shiftDisplay, manualShiftDisplay, isZeroLengthRange } = await import('./admin-roster-upload.js');
 const { teamMembers, getBaseShift } = await import('./roster-data.js');
-const { guardedWrites } = await import('./roster-review-states.js');
+const { guardedWrites, replacedFromState } = await import('./roster-review-states.js');
 // The alignment rules moved OUT of the coordinator at v22.16 (roster-alignment.js) — a Firebase-free
 // module, so this import needs none of the mocking above.
 const { detectShiftedRow, assessRosterAlignment, ALIGNMENT_BLOCK_THRESHOLD, driftCopy, stopCopy, geometryCopy } = await import('./roster-alignment.js');
@@ -172,6 +172,34 @@ describe('_saveOverrideBatches — stale-claim retry parity', () => {
         assert.equal(refused, 1);
         assert.equal(_batchOps[0].filter(o => o.op === 'set').length, 1, 'and only the real shift was set');
         assert.equal(await _saveOverrideBatches(one, 'G. Miller'), 0);
+    });
+
+    test('an import over a January leave day MOVED to last year\'s allowance keeps the year (v25.18)', async () => {
+        // A write is delete-then-set: without the carry-forward a re-import over a moved day would
+        // quietly put it back on its own year, the trap the owner was told this release would avoid.
+        const JAN = '2027-01-05';
+        const movedLeave = { type: 'annual_leave', replacedType: null, leaveYear: 2026 };
+        await _saveOverrideBatches([{ memberName: 'G. Miller', date: JAN, value: 'AL', baseShift: '15:15-23:55',
+            replaceId: 'manual-1', replacedFrom: movedLeave }], 'G. Miller');
+        const set = _batchOps[0].find(o => o.op === 'set');
+        assert.equal(set?.data.type, 'annual_leave');
+        assert.equal(set?.data.leaveYear, 2026);
+        // …and an import that makes the day a SHIFT drops it: the day is no longer leave.
+        _batchOps.length = 0;
+        await _saveOverrideBatches([{ memberName: 'G. Miller', date: JAN, value: '15:15-23:55', baseShift: '15:15-23:55',
+            replaceId: 'manual-1', replacedFrom: movedLeave }], 'G. Miller');
+        assert.ok(!('leaveYear' in _batchOps[0].find(o => o.op === 'set').data));
+    });
+
+    test('the review row hands the save the replaced record\'s year — one builder for every site', () => {
+        assert.deepEqual(replacedFromState({ manualId: 'm1', manualType: 'annual_leave', manualReplacedType: null, manualLeaveYear: 2026 }),
+            { type: 'annual_leave', replacedType: null, leaveYear: 2026 });
+        assert.deepEqual(replacedFromState({ manualId: 'm1', manualType: 'shift', manualReplacedType: 'sick', manualLeaveYear: null }),
+            { type: 'shift', replacedType: 'sick' }, 'no year: the key is absent, as the builders expect');
+        assert.equal(replacedFromState({ manualId: null, manualType: 'shift' }), null);
+        // No save site may build the object by hand again — that is how a field reaches four of five.
+        const src = readFileSync(new URL('./admin-roster-upload.js', import.meta.url), 'utf8');
+        assert.doesNotMatch(src, /replacedFrom:\s*state\.manualId\s*\?/);
     });
 
     test('weekday RDW import (RDW-encoded value from computeCellStates) saves type rdw, not shift', async () => {

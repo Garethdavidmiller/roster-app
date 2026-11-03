@@ -17,8 +17,8 @@ import { getCurrentMember } from './calendar-member.js';
 import { getDisplayYear } from './calendar-state.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { getALEntitlement, formatISO, paydayForCutoff, CONFIG } from './roster-data.js';
-import { consumesEntitlement } from './al-entitlement.js';
-import { shouldReplaceOverride } from './override-utils.js';
+import { countedAlDates } from './al-entitlement.js';
+import { carryLine } from './leave-year.js';
 import { lsGet, lsSet } from './ls.js';
 
 /**
@@ -40,6 +40,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   const entEl       = /** @type {HTMLElement} */ (document.getElementById('alLbEntitlement'));
   const yearEl      = /** @type {HTMLElement} */ (document.getElementById('alLbYear'));
   const breakdownEl = document.getElementById('alLbBreakdown');
+  const carryEl     = document.getElementById('alLbCarry');
   const alErrorEl   = document.getElementById('alLbError');
 
   const prevYearBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('alLbPrevYear'));
@@ -92,10 +93,11 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     if (remLblEl) remLblEl.textContent = 'Remaining';
     statsEl?.classList.add('is-pending');
     if (breakdownEl) breakdownEl.hidden = true;
+    if (carryEl) carryEl.hidden = true;
   }
 
   /** Paint the four figures + breakdown. One renderer for the memo and fresh paths so they
-   *  can never drift. @param {{ taken:number, booked:number, entitlement:number, breakdown:string|null }} s */
+   *  can never drift. @param {{ taken:number, booked:number, entitlement:number, breakdown:string|null, carry?:string|null }} s */
   function renderALStats(s) {
     const remaining = s.entitlement - s.taken - s.booked;
     statsEl?.classList.remove('is-pending');
@@ -111,6 +113,10 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     if (breakdownEl) {
       breakdownEl.textContent = s.breakdown ?? '';
       breakdownEl.hidden = s.breakdown == null;
+    }
+    if (carryEl) {
+      carryEl.textContent = s.carry ?? '';
+      carryEl.hidden = !s.carry;
     }
   }
 
@@ -165,11 +171,13 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
         // year of overrides for EVERY member on each open, then filtered client-side — the main
         // slow-load cause. The (memberName ASC, date ASC) composite index this shape needs is
         // declared in firestore.indexes.json and deployed by deploy-rules.yml.
+        // …TO THE END OF NEXT JANUARY (v25.18): a day there may come out of THIS year's allowance
+        // (leave-year.js), and a panel that never read it would show this year a day too generous.
         getDocs(query(
           collection(db, COLLECTIONS.overrides),
           where('memberName', '==', /** @type {any} */ (member).name),
           where('date', '>=', `${yearStr}-01-01`),
-          where('date', '<=', `${yearStr}-12-31`)
+          where('date', '<=', `${year + 1}-01-31`)
         )),
         new Promise((_, reject) => { _alTimer = setTimeout(() => reject(new Error('AL load timeout')), 15_000); }),
       ]);
@@ -180,29 +188,26 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       // rule the Calendar's month fetch and Admin's store reads already follow: refuse it, so the
       // catch keeps the memo already on screen, or shows "couldn't load" where there is none.
       if (/** @type {any} */ (snap).metadata?.fromCache) throw new Error('AL load served from the offline cache');
-      // Resolve ONE winner per date before counting (v16.23) — every other consumer applies
-      // shouldReplaceOverride, but this loop counted every DOC: a superseded/duplicate AL doc
-      // sharing a date with a winning non-AL override (two-device race, offline retry, legacy
-      // data) counted as a day taken and UNDERSTATED remaining AL.
-      /** @type {Map<string, any>} */
-      const byDate = new Map();
       snap.forEach(/** @param {any} d */ d => {
         const data = d.data();
         if (data.memberName !== /** @type {any} */ (member).name) return;
         memberOverrides.push(data);
-        const ex = byDate.get(data.date);
-        if (!ex || shouldReplaceOverride(ex, data)) byDate.set(data.date, data);
       });
-      for (const [date, ov] of byDate) {
-        // Which days consume entitlement is ONE question with one answer, in al-entitlement.js
-        // (v21.46). This surface used to carry its own version — Sunday and start-date, but no
-        // rest-day test — so a member's own balance here could differ from the figure the Admin
-        // banner and the save-time cap were working from.
-        if (ov.type === 'annual_leave' && date && date.startsWith(yearStr)
-            && consumesEntitlement(member, date, byDate)) {
-          if (date <= todayStr) taken++; else booked++;
-        }
+      // WHICH DAYS COUNT, AND TOWARDS WHICH YEAR, IS ONE QUESTION WITH ONE ANSWER — `countedAlDates`
+      // (al-entitlement.js), the function the Admin banner and the booking cap read. This panel
+      // carried its own loop until v25.18: it resolved one winner per date (v16.23) and asked
+      // `consumesEntitlement` (v21.46), but it counted a day towards the year its DATE starts with,
+      // so a January day moved back to last year's allowance would have counted in both years.
+      const counted = countedAlDates({ overrides: memberOverrides, member, year });
+      for (const date of counted) {
+        if (date <= todayStr) taken++; else booked++;
       }
+      // ACROSS NEW YEAR, BOTH WAYS. In: days dated next January that count towards this year. Out:
+      // this January's days counted towards LAST year — the read starts on 1 January, so the only
+      // dates it holds that last year can claim are exactly those.
+      const carriedIn  = [...counted].filter(d => d.startsWith(`${year + 1}-`)).length;
+      const carriedOut = countedAlDates({ overrides: memberOverrides, member, year: year - 1 }).size;
+      const carry = carryLine({ year, carriedIn, carriedOut });
       const entitlement = getALEntitlement(member, year, memberOverrides);
       // NO ENTITLEMENT ON RECORD → the em-dash state this panel already uses for "no member"
       // (v22.45). Unreachable from the calendar (a Management account is excluded from the member
@@ -223,7 +228,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
       const _proRated = /** @type {any} */ (member).proRatedAL?.[year] !== undefined;
       const breakdown = (/** @type {any} */ (member).role === 'Dispatcher' && !_proRated)
         ? `22 base + ${entitlement - 22} BH lieu` : null;
-      const fresh = { taken, booked, entitlement, breakdown };
+      const fresh = { taken, booked, entitlement, breakdown, carry };
       renderALStats(fresh);
       // Persist the last-known-good memo so the NEXT open paints instantly (best-effort).
       lsSet(_alMemoKey(/** @type {any} */ (member).name, yearStr), JSON.stringify(fresh));
@@ -256,6 +261,7 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
   const glyphEl  = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftGlyph'));
   const wordsEl  = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftWords'));
   const timeEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailShiftTime'));
+  const leaveYrEl = document.getElementById('dayDetailLeaveYear');
   const changeEl = /** @type {HTMLElement} */ (document.getElementById('dayDetailChange'));
   const pairEl   = /** @type {HTMLElement} */ (document.getElementById('dayDetailChangePair'));
   const byEl     = /** @type {HTMLElement} */ (document.getElementById('dayDetailBy'));
@@ -321,6 +327,13 @@ export function initCalendarLightboxes({ navigateToPaycalc } = {}) {
     // badge authority. Before this the panel was monochrome unless something had CHANGED, so the
     // colour and the glyph read as properties of a change rather than of the shift; a plain Late
     // turn and a plain Rest day were the same grey card with different words.
+    // A January leave day moved back to last year's allowance says so (v25.18, leave-year.js). The
+    // renderer writes the year only for such a day; anything else here is ignored, not shown.
+    if (leaveYrEl) {
+      const from = /^\d{4}$/.test(d.detailLeaveYear || '') ? d.detailLeaveYear : '';
+      leaveYrEl.textContent = from ? `From the ${from} allowance` : '';
+      leaveYrEl.hidden = !from;
+    }
     const kindEmoji = d.detailShiftValue ? shiftBadgeParts(d.detailShiftValue).emoji : '';
     if (glyphEl) {
       glyphEl.textContent = kindEmoji;

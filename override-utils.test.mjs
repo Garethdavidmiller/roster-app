@@ -880,6 +880,33 @@ describe('buildOverrideWrite', () => {
     });
 });
 
+// ── leaveYear (v25.18): which year's allowance a January leave day comes out of ────────────────
+// The builders send it ONLY when the rules would accept it — January leave, the year before — because
+// a field the rules refuse permission-denies the WHOLE write, not just the field. Anything else is
+// dropped, so a bad value costs the choice rather than the save.
+describe('leaveYear in the builders and the calendar mirror', () => {
+    const base = { memberName: 'A. Member', date: '2027-01-05', type: 'annual_leave', value: 'AL', source: 'manual', changedBy: 'X' };
+    it('a valid choice is written, and mirrored in the optimistic cache record', () => {
+        assert.equal(buildOverrideWrite({ ...base, leaveYear: 2026 }, new Date()).leaveYear, 2026);
+        assert.equal(buildOverrideCacheRecord('id1', { ...base, leaveYear: 2026 }, new Date()).leaveYear, 2026);
+    });
+    it('no choice, or one the rules would refuse, leaves the key ABSENT', () => {
+        for (const leaveYear of [null, undefined, 2027, 2025, '2026', 2026.5]) {
+            assert.ok(!('leaveYear' in buildOverrideWrite({ ...base, leaveYear: /** @type {any} */ (leaveYear) }, new Date())), String(leaveYear));
+            assert.ok(!('leaveYear' in buildOverrideCacheRecord('id1', { ...base, leaveYear: /** @type {any} */ (leaveYear) }, new Date())), String(leaveYear));
+        }
+    });
+    it('outside January, or on anything but leave, it is dropped — the day keeps its save', () => {
+        assert.ok(!('leaveYear' in buildOverrideWrite({ ...base, date: '2027-02-01', leaveYear: 2026 }, new Date())));
+        assert.ok(!('leaveYear' in buildOverrideWrite({ ...base, type: 'sick', value: 'SICK', leaveYear: 2026 }, new Date())));
+    });
+    it('the calendar cache carries it, so the day panel can say so; absent stays absent', () => {
+        assert.equal(toOverrideRecord({ value: 'AL', type: 'annual_leave', leaveYear: 2026 }).leaveYear, 2026);
+        assert.ok(!('leaveYear' in toOverrideRecord({ value: 'AL', type: 'annual_leave' })));
+        assert.ok(!('leaveYear' in toOverrideRecord({ value: 'AL', type: 'annual_leave', leaveYear: '2026' })));
+    });
+});
+
 describe('buildOverrideCacheRecord', () => {
     it('mirrors the write MINUS changedBy, PLUS id, with the given Date createdAt', () => {
         const when = new Date(2026, 4, 1, 12);

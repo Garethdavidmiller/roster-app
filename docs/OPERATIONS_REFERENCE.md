@@ -683,6 +683,36 @@ survives; removing it is a separate decision nobody is forced into by this proce
 
 ---
 
+## Which year's allowance a January leave day comes out of (v25.18)
+
+Some staff are allowed to take a few of one year's days in early January of the next (owner, 3 Nov
+2026). By default a January leave day counts against its own year; the **"Which year's allowance"**
+panel on Admin's Annual Leave card lets it count against the year before instead. A member moves
+their own days, a manager or the admin anyone's, and a day can never move to a year with no days
+left. The design and the owner's decisions are in `leave-year.js`; the field is `leaveYear` in
+docs/DATA_MODEL.md.
+
+**It shipped switched OFF, and turning it on is its own release.** The database rules that accept
+`leaveYear` and the app that writes it deploy in parallel from one push, so the app carries the
+switch (`LEAVE_YEAR_CHOICE` in `leave-year.js`) and nothing writes the field until it is on:
+
+1. Merge the release carrying the rules, and confirm **Deploy Firestore Rules** finished green.
+2. A one-line release: `LEAVE_YEAR_CHOICE = true`, and the assertion in `leave-year.test.mjs` that
+   pins it off changes with it, deliberately. Bump the version as usual.
+3. Check it: Admin → Record Annual Leave, for somebody with leave booked in January 2027 — the panel
+   appears beneath the Record button, listing those days with 2026 and 2027 to choose between.
+
+**Switching it off again** hides the panel. Days already moved keep counting against the year they
+were moved to — counting reads the stored year whatever the switch says, so no figure changes.
+
+**What the app cannot enforce.** "No more than the previous year has left" is a count across
+records, which database rules cannot take. The panel refuses it; a request sent around the app is
+not checked. That is the same footing as the leave booking's own over-allowance warning.
+
+**Against the depot workbook,** from January on: the app counts moved days in the earlier year, the
+workbook carries them forward as c/f into the later one. Next year's remaining agrees; last year's
+differs by exactly the moved days (AL_WORKBOOK.md §9).
+
 ## Staff PIN access for the Calendar (v20.12)
 
 The Calendar opens for **either** a signed-in member **or** the shared staff PIN. Everything

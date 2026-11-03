@@ -52,6 +52,16 @@ describe('writing the copy', () => {
             'the stored record must reach the display rule with what it needs to show the absence');
     });
 
+    // v25.18: the day panel names the allowance a moved January leave day comes out of. Trimmed
+    // away, a launch from the stored copy dropped the line until the live read settled.
+    test('keeps leaveYear, so a moved January day still says which allowance it uses', () => {
+        snap.saveSnapshotMonths('G. Miller', { '2026-10': [rec('G. Miller', '2026-10-09', { leaveYear: 2025 }),
+            rec('G. Miller', '2026-10-12', { leaveYear: '2025' })] }, NOW);
+        const days = stored().months['2026-10'].days;
+        assert.equal(days['2026-10-09'].leaveYear, 2025);
+        assert.ok(!('leaveYear' in days['2026-10-12']), 'only a whole number is kept, as the rules allow');
+    });
+
     test('an empty month is a real answer — nothing changed — and is stored as one', () => {
         snap.saveSnapshotMonths('G. Miller', { '2026-10': [] }, NOW);
         assert.deepEqual(stored().months['2026-10'].days, {});

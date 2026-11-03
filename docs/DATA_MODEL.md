@@ -67,6 +67,21 @@ replacedType Optional (v21.55) — the `type` of the override this document REPL
              because an absence carries no contract information of its own. Absent
              on every document written before v21.55; readers treat absence as "ask the base
              roster", which is exactly what they did before, so no migration is needed.
+leaveYear    Optional (v25.18) — on ANNUAL LEAVE DATED IN JANUARY only: the year whose allowance the
+             day comes out of, when that is the PREVIOUS year (owner, 3 Nov 2026 — some staff take a
+             few of their 2026 days in early January 2027). Absent means the day counts against its
+             own year, which is the default and what every earlier document says, so no migration.
+             The rules hold the shape: `annual_leave`, a January date, and exactly the date's year
+             minus one, as an integer. Who may set it is the ordinary isolation — a member on their
+             own leave, a manager or the admin on anyone's. "No more than last year has left" is a
+             count across documents, which rules cannot take, so the app refuses it (leave-year.js).
+             Read by `leaveYearOf` (leave-year.js); `countedAlDates` counts a day towards that year,
+             which is why it reads the next January as well as its own year. Carried forward by
+             `nextLeaveYear` on every rewrite of the day that keeps it annual leave — a write is
+             delete-then-set, so without that an edit to the day would quietly move it back. Dropped
+             when the day stops being annual leave. The depot workbook records carried days as one
+             number added to the next year (AL_WORKBOOK.md §9), so the two agree on next year's
+             remaining and differ on last year's by exactly the carried days.
 createdAt    Firestore server timestamp — since Oct 2026 the rules require it to BE the server's clock at
              the write (`== request.time`), on create and on the fixed-id update alike, so the
              newest-wins ordering cannot be gamed. firestore.rules.test.mjs writes the real

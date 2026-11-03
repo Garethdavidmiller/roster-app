@@ -177,6 +177,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                     manualDupIds: otherManualIds(key),
                     manualType:  existing?.type  ?? null,
                     manualReplacedType: existing?.replacedType ?? null,
+                    manualLeaveYear: existing?.leaveYear ?? null,   // see replacedFromState (v25.18)
                     // Whether a MANUAL entry is at stake (v19.37). Picking a reading writes with
                     // replaceId, so it replaces whatever is stored — routine for a previous import,
                     // but for a hand-recorded entry it is the one thing this table otherwise
@@ -314,6 +315,7 @@ export function computeCellStates(parsedResult, existingOverrides) {
                 // normal shift when resolving a CONFLICT (v16.19).
                 manualType:  existing?.type  ?? null,
                 manualReplacedType: existing?.replacedType ?? null,
+                manualLeaveYear: existing?.leaveYear ?? null,   // see replacedFromState (v25.18)
                 manualId:    existing?.id    ?? null,
                 manualDupIds: otherManualIds(key),
                 // FAIL CLOSED ON A SUSPECT ROW (v22.16): a member whose week looks a day out — or
@@ -397,6 +399,20 @@ export function guardedWriteValue(s) {
 }
 
 /**
+ * What a write over this row's saved record must carry forward from it — its type, what IT replaced,
+ * and which year's allowance it came out of (v25.18) — or null when nothing is saved there. A write
+ * is delete-then-set, so these are the only surviving record of what the day said. ONE builder for
+ * every save site: five copies of the object literal are how a field reaches four of them.
+ * @param {any} s a cell state
+ * @returns {{type?: string, replacedType?: string|null, leaveYear?: number}|null}
+ */
+export function replacedFromState(s) {
+    if (!s?.manualId) return null;
+    return { type: s.manualType, replacedType: s.manualReplacedType,
+             ...(Number.isInteger(s.manualLeaveYear) ? { leaveYear: s.manualLeaveYear } : {}) };
+}
+
+/**
  * What saving a GUARDED row writes (Oct 2026 review — pure so the save path is tested, not just the
  * question). "Swapped" records the roster's leave or absence, REPLACING any previous import on the
  * day; "rest day" writes nothing, except that a previous import there is REMOVED — the PDF now says
@@ -409,7 +425,7 @@ export function guardedWrites(s, memberName, date) {
     const value = guardedWriteValue(s);
     if (value) return [{ memberName, date, value, baseShift: s.baseShift, swapped: true,
         replaceId: s.manualId ?? undefined,
-        replacedFrom: s.manualId ? { type: s.manualType, replacedType: s.manualReplacedType } : null }];
+        replacedFrom: replacedFromState(s) }];
     if (s.manualId && s.chosen === 'free' && swapQuestionApplies(s)) {
         return [{ memberName, date, value: null, baseShift: s.baseShift, replaceId: s.manualId, deleteOnly: true }];
     }

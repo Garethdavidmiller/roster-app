@@ -109,6 +109,7 @@
     <link rel="modulepreload" href="./overlay.js">
     <link rel="modulepreload" href="./override-utils.js">
     <link rel="modulepreload" href="./clock-input.js">
+    <link rel="modulepreload" href="./leave-year.js">
     <link rel="modulepreload" href="./print-guard.js">
     <link rel="modulepreload" href="./perf-reporter.js">
     <link rel="modulepreload" href="./perf-stats.js">
@@ -310,6 +311,11 @@
                     <span class="al-lb-breakdown" id="alLbBreakdown" hidden></span>
                 </div>
             </div>
+            <!-- WHERE A YEAR'S FIGURES REACH ACROSS NEW YEAR (v25.18). A January leave day may come out
+                 of the previous year's allowance (leave-year.js), so this year's Booked can include a
+                 day dated next year, and next year's figures leave out a day that is plainly on its
+                 calendar. Each says so in one line here, or the numbers look wrong. Absent otherwise. -->
+            <p id="alLbCarry" class="al-lb-carry" hidden></p>
             <p id="alLbError" class="al-lb-error" hidden>Couldn't load — check your connection</p>
             <!-- Short labels so the pair shares a row at 320px — the day panel's "Leave dates" names the same list. -->
             <div class="al-lb-actions">
@@ -352,6 +358,10 @@
                      and a browser will break at the hyphen inside 07:00-16:00 given the chance. -->
                 <span class="dds-time" id="dayDetailShiftTime" hidden></span>
             </div>
+            <!-- WHICH YEAR'S ALLOWANCE (v25.18) — only on a January leave day moved back to the
+                 previous year's (leave-year.js). Directly under the shift because it qualifies it.
+                 Absent on every other day: its own year is the default, and needs no saying. -->
+            <div class="day-detail-leaveyear" id="dayDetailLeaveYear" hidden></div>
             <!-- What the roster said before this day was changed, as the two SHIFT BADGES the
                  member already reads in the grid. Directly under the shift because it qualifies it;
                  above the day markers, which are about the DATE and not the turn. The badges are

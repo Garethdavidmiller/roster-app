@@ -265,7 +265,7 @@ service cloud.firestore {
         // null, and `null is string` is false.)
         request.resource.data.keys().hasOnly(
           ['date', 'memberName', 'type', 'value', 'note', 'source', 'createdAt', 'changedBy',
-           'replacedType']
+           'replacedType', 'leaveYear']
         ) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
@@ -357,6 +357,27 @@ service cloud.firestore {
             'annual_leave', 'correction', 'sick', 'other',
             'allocated', 'overtime', 'swap'
           ]
+        )) &&
+        // ── leaveYear — OPTIONAL: a January leave day that comes out of LAST year's allowance ──
+        //
+        // Owner, 3 Nov 2026: some staff are allowed to take a few of their 2026 days in early
+        // January 2027. By default a leave day counts against the year of its own date, and that
+        // stays the rule. This field is the EXCEPTION, recorded on the one day it applies to:
+        // `leaveYear: 2026` on annual leave dated in January 2027. Absent means "its own year",
+        // which is what every document written before v25.18 already says.
+        //
+        // The rules hold the SHAPE, and nothing else can: annual leave only, dated in January
+        // only, and naming the year before the date's own, as a whole number. A member may set it
+        // on their own leave and a manager or the admin on anyone's — the isolation clauses below
+        // already say exactly that, so it needs no clause of its own. What the rules CANNOT hold
+        // is "no more than last year has left": that is a count across documents, which rules
+        // cannot take, so the app refuses it (leave-year.js) — the same footing as the leave
+        // booking's own over-entitlement warning.
+        (!request.resource.data.keys().hasAny(['leaveYear']) || (
+          request.resource.data.type == 'annual_leave' &&
+          request.resource.data.date.matches('[0-9]{4}-01-[0-9]{2}') &&
+          request.resource.data.leaveYear is int &&
+          request.resource.data.leaveYear == int(request.resource.data.date[0:4]) - 1
         )) &&
         // ── Per-member write isolation (B3, STRICT form) ──────────────────────────────────
         // A staff member may write only their OWN override (token.name == the doc's memberName).
