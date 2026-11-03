@@ -655,8 +655,11 @@ test('admin: a leave preview drawn before the member\'s records arrive is redraw
     await page.goto('/admin.html');
     await page.waitForSelector('.day-row', { timeout: 10000 });
     await page.waitForTimeout(800);   // the first member's load has landed
-    // From here a read is slow, and holds a worked rest day (Mon 7 Sep is RD on G. Miller's line).
-    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.docsDelayMs = 3000;
+    // From here a read is HELD until this test releases it, and holds a worked rest day (Mon 7 Sep is
+    // RD on G. Miller's line). Held, not delayed: a 3-second docsDelayMs had to outlast the five steps
+    // below, and on a loaded WebKit runner it did not (Nov 2026) — the records landed first, the preview
+    // was drawn already right, and the premise failed with nothing wrong in the app.
+    await page.evaluate(() => { const e = /** @type {any} */ (window).__E2E; e.docsHeld = true;
         e.docs = [{ id: 'r1', memberName: 'G. Miller', date: '2026-09-07', type: 'rdw', value: '14:00-22:00', note: '', source: 'manual' }]; });
     await page.locator('#fieldMember').selectOption('G. Miller');
     await page.locator('#alToggleHeader').click();
@@ -667,6 +670,7 @@ test('admin: a leave preview drawn before the member\'s records arrive is redraw
     await cell.click();
     const preview = page.locator('#alPreview');
     await expect(preview, 'premise: drawn before the records arrived').toContainText('rest day to answer');
+    await page.evaluate(() => { /** @type {any} */ (window).__E2E.docsHeld = false; });   // the records land
     await expect(preview).toContainText('recorded at no cost', { timeout: 8_000 });
     await expect(preview).not.toContainText('rest day to answer');
 });

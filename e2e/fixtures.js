@@ -206,7 +206,16 @@ export const getDocs = (/** @type {any} */ ref) => {
   const rows = (byPath && ref && ref.path && Object.prototype.hasOwnProperty.call(byPath, ref.path))
     ? byPath[ref.path]
     : e2e.docs;
-  const wrap = (v) => (e2e.docsDelayMs ? new Promise(r => setTimeout(() => r(v), e2e.docsDelayMs)) : Promise.resolve(v));
+  // window.__E2E.docsHeld = true holds every collection read until the SPEC sets it back to false
+  // (Nov 2026). docsDelayMs is a timer, and a spec that has to act BEFORE the read lands is then
+  // racing it: a 3-second delay that four taps on a loaded WebKit runner did not fit failed the Admin
+  // leave-preview test twice in one job. A held read lands when the spec says so, however slow the
+  // steps before it were. (No backticks in this comment — it lives INSIDE the FIREBASE_STUB template literal.)
+  const held = (v) => new Promise(r => {
+    const t = setInterval(() => { if (!(globalThis.__E2E || {}).docsHeld) { clearInterval(t); r(v); } }, 25);
+  });
+  const wrap = (v) => (e2e.docsHeld ? held(v)
+    : e2e.docsDelayMs ? new Promise(r => setTimeout(() => r(v), e2e.docsDelayMs)) : Promise.resolve(v));
   // window.__E2E.docsFromCache marks every snapshot as served from the offline cache (Oct 2026) —
   // the shape a surface must REFUSE to present as current. Set it after load to aim it at one read.
   // EVERY snapshot includes the empty one below (Nov 2026): it used to carry no metadata at all, so
