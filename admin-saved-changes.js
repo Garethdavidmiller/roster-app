@@ -30,7 +30,6 @@ const BULK_DELETE_CHUNK = 200;   // per committed batch — under Firestore's 50
 import { TYPES, rowValueText } from './admin-shift-types.js';
 import { LEGACY_OVERRIDE_TYPES } from './override-utils.js';
 import { getAllOverrides, removeFromCache, isTruncated, coversAllStaff, OVERRIDES_QUERY_CAP, loadOverrides, withManualDuplicates, assertDeletable, DELETE_REFUSED } from './admin-override-store.js';
-
 import { setStatus } from './status-text.js';
 import { unconfirmedWriteLine } from './claim-retry.js';
 import { withSlowSaveNotice } from './slow-save.js';

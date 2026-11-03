@@ -276,14 +276,35 @@ describe('e2e.yml runs once per branch, and only on new work', () => {
         // commit that was on neither side. Only the CONTENT answers, so that is what is pinned:
         // a two-dot diff against main's tip, restricted to the served files the branch touched.
         const job = blockOf('version');
-        assert.match(job, /git diff --name-only origin\/main HEAD --/,
+        // Flags may sit between `--name-only` and the refs (`--no-renames`, pinned by the next test).
+        const landed = /git diff --name-only(?: --[a-z-]+)* origin\/main HEAD --/.exec(job);
+        assert.ok(landed,
             'the version job no longer checks whether its change is already on main by CONTENT. '
             + 'Without it, any PR merged while its pull_request run is in flight fails a guard it '
             + 'cannot satisfy — and a version guard that cries wolf is one somebody starts bumping '
             + 'past without reading, which is the job\'s own stated reason for existing.');
         // And the escape must sit BEFORE the comparison, or it cannot prevent the failure.
-        assert.ok(job.indexOf('git diff --name-only origin/main HEAD --') < job.indexOf('does not exceed main'),
+        assert.ok(landed.index < job.indexOf('does not exceed main'),
             'the already-landed escape runs after the version comparison, so the comparison still fails first');
+    });
+
+    test('the version job clones history without file contents, and its diffs never need any', () => {
+        // 3 Nov 2026: a full clone of this repository is 1.4 GB — every version of every file on every
+        // branch, mostly superseded screenshot baselines — and the job's checkout drifted from 39 s to
+        // 254 s across one afternoon, until v25.22's PR run was cancelled by the 5-minute limit while
+        // still downloading. The job needs commits and trees, and one file on main, which `git show`
+        // fetches on demand. Rename detection reads file CONTENTS: a diff without --no-renames would
+        // quietly start downloading them again, one round trip per renamed pair.
+        const job = blockOf('version');
+        assert.match(job, /^ +filter: blob:none[ \t]*$/m,
+            'the version job clones every version of every file again: 1.4 GB against a 5-minute limit');
+        const diffs = job.split('\n').filter(l => !l.trim().startsWith('#') && /\bgit diff\b/.test(l));
+        assert.ok(diffs.length >= 2, `expected the fork-point diff and the landed check, found ${diffs.length}`);
+        for (const d of diffs) {
+            assert.match(d, /--no-renames/,
+                `${d.trim()}\nRename detection needs file contents the blob-less clone does not hold, and `
+                + 'it judged a served file moved under docs/ by its new, excluded path alone.');
+        }
     });
 
     test('the concurrency key collides a push with its own pull_request', () => {
